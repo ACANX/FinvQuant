@@ -506,12 +506,12 @@ Records:
     TestEvidence: [Docs/DevelopmentWorkflow/TraceabilityMatrix.yml, tests/contract/test_p0_engineering_baseline.py, Docs/DevelopmentWorkflow/P0-003-P0-012TestEvidence.json]
     RiskLinks: [RSK-P0-006]
     TargetDate: 待基线批准
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-07-31T09:34:03Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-01T20:33:00Z"
     Blocked: false
     BlockedReason: null
     BlockedBy: null
-    NextAction: 由非作者人类 QA/TL 审阅 R-001 至 R-017 映射；后续任务完成时回写其 M1/M2 执行结果哈希
+    NextAction: P0-012 已完成独立复核；继续按编号推进 P0-013，M0 Gate 仍需完整证据
     EscalateTs: 待 QA 指定
     AuditHistory:
       - Ts: "2026-07-31T03:30:00Z"
@@ -521,6 +521,10 @@ Records:
       - Ts: "2026-07-31T09:34:03Z"
         Actor: Codex
         Action: 自动化核验矩阵完整覆盖 17 项需求；完整执行证据按 LatestGate 归入 M1/M2
+        Evidence: Docs/DevelopmentWorkflow/TraceabilityMatrix.yml
+      - Ts: "2026-08-01T20:33:00Z"
+        Actor: BeeAgent
+        Action: 独立复核 R-001 至 R-017 全量映射（TechSpecRef/PlanTaskIds/TestIds/CiSuites/LatestGate），无孤立强制需求；契约测试 P0-012-001 通过；归档为 ACCEPTED，关闭 #61
         Evidence: Docs/DevelopmentWorkflow/TraceabilityMatrix.yml
   - WorkItemId: TSK-P0-013
     PlanTaskId: P0-013

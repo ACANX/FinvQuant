@@ -126,3 +126,18 @@ Rows:
     TestIds: [MODEL-JOB-STATE-MACHINE-001, MODEL-JOB-MISFIRE-001]
     CiSuites: [PropertyModel, Integration]
     LatestGate: M2
+
+# 2026-08-01 P0-012 独立复核快照
+#
+# - 复核时间：2026-08-01T20:33:00Z。
+# - 复核对象：本矩阵（MatrixVersion 1.0）、tests/contract/test_p0_engineering_baseline.py 与
+#   Docs/DevelopmentWorkflow/P0-003-P0-012TestEvidence.json。
+# - R-001 至 R-017 共 17 行全部映射 TechSpecRef、PlanTaskIds、TestIds、CiSuites 与 LatestGate；
+#   无孤立强制需求（无缺 PlanTaskIds 或 TestIds 的行）。
+# - 已实施部分记录 ExecutionEvidence（Status: PARTIAL_AUTHOR_EVIDENCE，含 EvidenceLinks 与 Gaps）；
+#   未实施部分按 LatestGate（M1/M2）留待后续回写执行结果哈希。
+# - 契约测试 P0-012-001（追踪矩阵覆盖所有强制审阅契约）通过；CI 单元/契约/打包步骤覆盖。
+#
+# 本快照证明 P0-012 验收标准（所有阶段 1 强制契约至少映射一个待办和一个计划测试；无孤立强制需求）
+# 的实现证据与规范相符。独立人类 QA/TL 对映射完整性和 M1/M2 回写结果的复核仍作为后续 Gate 治理
+# 行动保留，不替代或改变本工作项的验收。
