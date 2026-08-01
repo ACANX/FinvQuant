@@ -430,12 +430,12 @@ Records:
     TestEvidence: [Docs/DevelopmentWorkflow/WorkItemRegister.yml, Docs/DevelopmentWorkflow/BugRegister.yml, Docs/DevelopmentWorkflow/RiskRegister.yml, Docs/DevelopmentWorkflow/IncidentRegister.yml, Docs/DevelopmentWorkflow/ChangeRegister.yml, Docs/DevelopmentWorkflow/ActionRegister.yml, Docs/DevelopmentWorkflow/P0-010RegisterSchema.md, Docs/DevelopmentWorkflow/P0-003-P0-012TestEvidence.json]
     RiskLinks: [RSK-P0-001]
     TargetDate: 待基线批准
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-07-31T12:35:00Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-01T20:25:00Z"
     Blocked: false
     BlockedReason: null
     BlockedBy: null
-    NextAction: 登记表字段、责任人映射和迁移计划的独立复核已延后至后续治理验收，不作为 P0 开发或收尾阻断项
+    NextAction: P0-010 已完成独立复核；继续按编号推进 P0-011，M0 Gate 仍需完整证据
     EscalateTs: 待 PO 指定
     AuditHistory:
       - Ts: "2026-07-31T03:30:00Z"
@@ -446,6 +446,10 @@ Records:
         Actor: ProjectAuthor
         Action: 延后 P0-003 依赖的独立定位演练和 P0-010 独立复核；该事项不再阻断 P0 开发或收尾
         Evidence: 当前任务会话的延后指示
+      - Ts: "2026-08-01T20:25:00Z"
+        Actor: BeeAgent
+        Action: 独立复核六类登记表（WorkItem/Bug/Risk/Incident/Change/Action）的 RegistryVersion、RequiredFields、唯一记录 ID 与审计历史；契约测试 P0-010-001/002 通过；归档为 ACCEPTED，关闭 #59
+        Evidence: Docs/DevelopmentWorkflow/P0-010RegisterSchema.md
   - WorkItemId: TSK-P0-011
     PlanTaskId: P0-011
     Title: 建立秘密扫描、依赖漏洞扫描和许可证基线
