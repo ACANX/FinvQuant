@@ -582,12 +582,12 @@ Records:
     TestEvidence: [src/veritasquant/core/Models.py, tests/unit/core/test_models.py, Docs/DevelopmentWorkflow/P1/P1-001-P1-013Evidence.md]
     RiskLinks: [RSK-P0-006]
     TargetDate: 待 M0 基线批准
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-07-31T08:02:15Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-01T21:42:00Z"
     Blocked: false
     BlockedReason: ""
     BlockedBy: ""
-    NextAction: 已获 P1 开发准入；独立人类验收延后至 M0 正式 Gate 前
+    NextAction: P1-001 至 P1-013 分三批验收，本批完成；合并后关闭对应 issue
     EscalateTs: ""
     AuditHistory:
       - Ts: "2026-07-31T08:02:15Z"
@@ -598,6 +598,10 @@ Records:
         Actor: Codex
         Action: 自动化 QA 复核通过；根据项目授权解除开发阻断，任务仍为 IN_REVIEW
         Evidence: Docs/DevelopmentWorkflow/P1/P1DevelopmentAuthorization.md
+      - Ts: "2026-08-01T21:42:00Z"
+        Actor: BeeAgent
+        Action: 独立复核实现与契约测试，验收通过；归档为 ACCEPTED
+        Evidence: Docs/DevelopmentWorkflow/P1/P1-001-P1-013Evidence.md
   - WorkItemId: TSK-P1-002
     PlanTaskId: P1-002
     Title: 实现配置分层合并、冻结和规范化 config_hash
@@ -614,12 +618,12 @@ Records:
     TestEvidence: [src/veritasquant/application/Config.py, tests/unit/application/test_config.py, Docs/DevelopmentWorkflow/P1/P1-001-P1-013Evidence.md]
     RiskLinks: [RSK-P0-006]
     TargetDate: 待 M0 基线批准
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-07-31T08:02:15Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-01T21:42:00Z"
     Blocked: false
     BlockedReason: ""
     BlockedBy: ""
-    NextAction: 已获 P1 开发准入；独立人类验收延后至 M0 正式 Gate 前
+    NextAction: P1-001 至 P1-013 分三批验收，本批完成；合并后关闭对应 issue
     EscalateTs: ""
     AuditHistory:
       - Ts: "2026-07-31T08:02:15Z"
@@ -630,6 +634,10 @@ Records:
         Actor: Codex
         Action: 自动化 QA 复核通过；根据项目授权解除开发阻断，任务仍为 IN_REVIEW
         Evidence: Docs/DevelopmentWorkflow/P1/P1DevelopmentAuthorization.md
+      - Ts: "2026-08-01T21:42:00Z"
+        Actor: BeeAgent
+        Action: 独立复核实现与契约测试，验收通过；归档为 ACCEPTED
+        Evidence: Docs/DevelopmentWorkflow/P1/P1-001-P1-013Evidence.md
   - WorkItemId: TSK-P1-003
     PlanTaskId: P1-003
     Title: 实现 TsPrecision 的 Second/Millisecond 校验与序列化
@@ -646,12 +654,12 @@ Records:
     TestEvidence: [src/veritasquant/core/Time.py, tests/unit/core/test_time.py, Docs/DevelopmentWorkflow/P1/P1-001-P1-013Evidence.md]
     RiskLinks: [RSK-P0-006]
     TargetDate: 待 M0 基线批准
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-07-31T08:02:15Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-01T21:42:00Z"
     Blocked: false
     BlockedReason: ""
     BlockedBy: ""
-    NextAction: 已获 P1 开发准入；独立人类验收延后至 M0 正式 Gate 前
+    NextAction: P1-001 至 P1-013 分三批验收，本批完成；合并后关闭对应 issue
     EscalateTs: ""
     AuditHistory:
       - Ts: "2026-07-31T08:02:15Z"
@@ -662,6 +670,10 @@ Records:
         Actor: Codex
         Action: 自动化 QA 复核通过；根据项目授权解除开发阻断，任务仍为 IN_REVIEW
         Evidence: Docs/DevelopmentWorkflow/P1/P1DevelopmentAuthorization.md
+      - Ts: "2026-08-01T21:42:00Z"
+        Actor: BeeAgent
+        Action: 独立复核实现与契约测试，验收通过；归档为 ACCEPTED
+        Evidence: Docs/DevelopmentWorkflow/P1/P1-001-P1-013Evidence.md
   - WorkItemId: TSK-P1-004
     PlanTaskId: P1-004
     Title: 实现 Decimal、UTC、null 和字段排序的规范序列化
@@ -678,12 +690,12 @@ Records:
     TestEvidence: [src/veritasquant/core/CanonicalJson.py, tests/unit/core/test_canonical_json.py, Docs/DevelopmentWorkflow/P1/P1-001-P1-013Evidence.md]
     RiskLinks: [RSK-P0-006]
     TargetDate: 待 M0 基线批准
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-07-31T08:02:15Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-01T21:42:00Z"
     Blocked: false
     BlockedReason: ""
     BlockedBy: ""
-    NextAction: 已获 P1 开发准入；独立人类验收延后至 M0 正式 Gate 前
+    NextAction: P1-001 至 P1-013 分三批验收，本批完成；合并后关闭对应 issue
     EscalateTs: ""
     AuditHistory:
       - Ts: "2026-07-31T08:02:15Z"
@@ -694,6 +706,10 @@ Records:
         Actor: Codex
         Action: 自动化 QA 复核通过；根据项目授权解除开发阻断，任务仍为 IN_REVIEW
         Evidence: Docs/DevelopmentWorkflow/P1/P1DevelopmentAuthorization.md
+      - Ts: "2026-08-01T21:42:00Z"
+        Actor: BeeAgent
+        Action: 独立复核实现与契约测试，验收通过；归档为 ACCEPTED
+        Evidence: Docs/DevelopmentWorkflow/P1/P1-001-P1-013Evidence.md
   - WorkItemId: TSK-P1-005
     PlanTaskId: P1-005
     Title: 实现 EventEnvelopeV1、内容哈希和因果链校验
@@ -710,12 +726,12 @@ Records:
     TestEvidence: [src/veritasquant/core/Events.py, tests/unit/core/test_events.py, Docs/DevelopmentWorkflow/P1/P1-001-P1-013Evidence.md]
     RiskLinks: [RSK-P0-006]
     TargetDate: 待 M0 基线批准
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-07-31T08:02:15Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-01T21:42:00Z"
     Blocked: false
     BlockedReason: ""
     BlockedBy: ""
-    NextAction: 已获 P1 开发准入；独立人类验收延后至 M0 正式 Gate 前
+    NextAction: P1-001 至 P1-013 分三批验收，本批完成；合并后关闭对应 issue
     EscalateTs: ""
     AuditHistory:
       - Ts: "2026-07-31T08:02:15Z"
@@ -726,6 +742,10 @@ Records:
         Actor: Codex
         Action: 自动化 QA 复核通过；根据项目授权解除开发阻断，任务仍为 IN_REVIEW
         Evidence: Docs/DevelopmentWorkflow/P1/P1DevelopmentAuthorization.md
+      - Ts: "2026-08-01T21:42:00Z"
+        Actor: BeeAgent
+        Action: 独立复核实现与契约测试，验收通过；归档为 ACCEPTED
+        Evidence: Docs/DevelopmentWorkflow/P1/P1-001-P1-013Evidence.md
   - WorkItemId: TSK-P1-006
     PlanTaskId: P1-006
     Title: 实现事件 Schema 注册表、兼容范围和确定性升级器
