@@ -1210,18 +1210,22 @@ Records:
     TestEvidence: [src/veritasquant/data/ParquetFile.py, tests/unit/data/test_parquet_file.py, Docs/DevelopmentWorkflow/P1/P1-019ParquetWriteEvidence.md]
     RiskLinks: [RSK-P0-006]
     TargetDate: 当前迭代
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-08-02T06:00:00Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-02T06:14:00Z"
     Blocked: false
     BlockedReason: ""
     BlockedBy: ""
-    NextAction: 已实现并通过本地验证（pytest 9/9、ruff、mypy、Preflight 0）；待验收 PR 审批合并后流转 ACCEPTED
+    NextAction: PR #119 已由 ACANX 审批合并至 dev；关联 issue #6 已手动关闭；工作项流转至 ACCEPTED
     EscalateTs: ""
     AuditHistory:
       - Ts: "2026-08-02T06:00:00Z"
         Actor: BeeAgent
         Action: 实现 P1-019 并提交单独 commit；本地验证全绿
         Evidence: Docs/DevelopmentWorkflow/P1/P1-019ParquetWriteEvidence.md
+      - Ts: "2026-08-02T06:14:00Z"
+        Actor: BeeAgent
+        Action: 提交 PR #119 至 dev 分支并合并；关联 issue #6 已复核关闭；工作项流转至 ACCEPTED
+        Evidence: https://github.com/ACANX/VeritasQuant/pull/119
   - WorkItemId: TSK-P1-020
     PlanTaskId: P1-020
     Title: 实现 DataManifestV1、数据版本哈希和修订链
@@ -1238,18 +1242,22 @@ Records:
     TestEvidence: [src/veritasquant/data/DataManifest.py, tests/unit/data/test_data_manifest.py, Docs/DevelopmentWorkflow/P1/P1-020DataManifestEvidence.md]
     RiskLinks: [RSK-P0-006]
     TargetDate: 当前迭代
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-08-02T06:00:00Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-02T06:14:00Z"
     Blocked: false
     BlockedReason: ""
     BlockedBy: ""
-    NextAction: 已实现并通过本地验证（pytest 9/9、ruff、mypy、Preflight 0）；待验收 PR 审批合并后流转 ACCEPTED
+    NextAction: PR #119 已由 ACANX 审批合并至 dev；关联 issue #7 已手动关闭；工作项流转至 ACCEPTED
     EscalateTs: ""
     AuditHistory:
       - Ts: "2026-08-02T06:00:00Z"
         Actor: BeeAgent
         Action: 实现 P1-020 并提交单独 commit；本地验证全绿
         Evidence: Docs/DevelopmentWorkflow/P1/P1-020DataManifestEvidence.md
+      - Ts: "2026-08-02T06:14:00Z"
+        Actor: BeeAgent
+        Action: 提交 PR #119 至 dev 分支并合并；关联 issue #7 已复核关闭；工作项流转至 ACCEPTED
+        Evidence: https://github.com/ACANX/VeritasQuant/pull/119
   - WorkItemId: TSK-P1-021
     PlanTaskId: P1-021
     Title: 实现质量规则、隔离记录和 dry-run 摘要
@@ -1266,18 +1274,22 @@ Records:
     TestEvidence: [src/veritasquant/data/QualityRules.py, tests/unit/data/test_quality_rules.py, Docs/DevelopmentWorkflow/P1/P1-021QualityRulesEvidence.md]
     RiskLinks: [RSK-P0-006]
     TargetDate: 当前迭代
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-08-02T06:00:00Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-02T06:14:00Z"
     Blocked: false
     BlockedReason: ""
     BlockedBy: ""
-    NextAction: 已实现并通过本地验证（pytest 9/9、ruff、mypy、Preflight 0）；待验收 PR 审批合并后流转 ACCEPTED
+    NextAction: PR #119 已由 ACANX 审批合并至 dev；关联 issue #8 已手动关闭；工作项流转至 ACCEPTED
     EscalateTs: ""
     AuditHistory:
       - Ts: "2026-08-02T06:00:00Z"
         Actor: BeeAgent
         Action: 实现 P1-021 并提交单独 commit；本地验证全绿
         Evidence: Docs/DevelopmentWorkflow/P1/P1-021QualityRulesEvidence.md
+      - Ts: "2026-08-02T06:14:00Z"
+        Actor: BeeAgent
+        Action: 提交 PR #119 至 dev 分支并合并；关联 issue #8 已复核关闭；工作项流转至 ACCEPTED
+        Evidence: https://github.com/ACANX/VeritasQuant/pull/119
   - WorkItemId: TSK-P1-022
     PlanTaskId: P1-022
     Title: 实现顺序迭代器和多源最小堆归并
@@ -1294,18 +1306,22 @@ Records:
     TestEvidence: [src/veritasquant/data/OrderedMerge.py, tests/unit/data/test_ordered_merge.py, Docs/DevelopmentWorkflow/P1/P1-022OrderedMergeEvidence.md]
     RiskLinks: [RSK-P0-006]
     TargetDate: 当前迭代
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-08-02T06:00:00Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-02T06:14:00Z"
     Blocked: false
     BlockedReason: ""
     BlockedBy: ""
-    NextAction: 已实现并通过本地验证（pytest 8/8、ruff、mypy、Preflight 0）；待验收 PR 审批合并后流转 ACCEPTED
+    NextAction: PR #119 已由 ACANX 审批合并至 dev；关联 issue #9 已手动关闭；工作项流转至 ACCEPTED
     EscalateTs: ""
     AuditHistory:
       - Ts: "2026-08-02T06:00:00Z"
         Actor: BeeAgent
         Action: 实现 P1-022 并提交单独 commit；本地验证全绿
         Evidence: Docs/DevelopmentWorkflow/P1/P1-022OrderedMergeEvidence.md
+      - Ts: "2026-08-02T06:14:00Z"
+        Actor: BeeAgent
+        Action: 提交 PR #119 至 dev 分支并合并；关联 issue #9 已复核关闭；工作项流转至 ACCEPTED
+        Evidence: https://github.com/ACANX/VeritasQuant/pull/119
   - WorkItemId: TSK-P1-023
     PlanTaskId: P1-023
     Title: 实现小时/日 Bar 完成后聚合和受限窗口
@@ -1322,18 +1338,22 @@ Records:
     TestEvidence: [src/veritasquant/data/BarAggregation.py, tests/unit/data/test_bar_aggregation.py, Docs/DevelopmentWorkflow/P1/P1-023BarAggregationEvidence.md]
     RiskLinks: [RSK-P0-006]
     TargetDate: 当前迭代
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-08-02T06:00:00Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-02T06:14:00Z"
     Blocked: false
     BlockedReason: ""
     BlockedBy: ""
-    NextAction: 已实现并通过本地验证（pytest 8/8、ruff、mypy、Preflight 0）；待验收 PR 审批合并后流转 ACCEPTED
+    NextAction: PR #119 已由 ACANX 审批合并至 dev；关联 issue #10 已手动关闭；工作项流转至 ACCEPTED
     EscalateTs: ""
     AuditHistory:
       - Ts: "2026-08-02T06:00:00Z"
         Actor: BeeAgent
         Action: 实现 P1-023 并提交单独 commit；本地验证全绿
         Evidence: Docs/DevelopmentWorkflow/P1/P1-023BarAggregationEvidence.md
+      - Ts: "2026-08-02T06:14:00Z"
+        Actor: BeeAgent
+        Action: 提交 PR #119 至 dev 分支并合并；关联 issue #10 已复核关闭；工作项流转至 ACCEPTED
+        Evidence: https://github.com/ACANX/VeritasQuant/pull/119
   - WorkItemId: TSK-P1-024
     PlanTaskId: P1-024
     Title: 建立批次 A 固定数据夹具与跨平台 checksum
@@ -1350,18 +1370,22 @@ Records:
     TestEvidence: [Data/Fixtures/BatchA, src/veritasquant/data/FixtureChecksums.py, tests/unit/data/test_fixture_checksums.py, Docs/DevelopmentWorkflow/P1/P1-024FixtureChecksumsEvidence.md]
     RiskLinks: [RSK-P0-006]
     TargetDate: 当前迭代
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-08-02T06:00:00Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-02T06:14:00Z"
     Blocked: false
     BlockedReason: ""
     BlockedBy: ""
-    NextAction: 已实现并通过本地验证（pytest 6/6、ruff、mypy、Preflight 0）；待验收 PR 审批合并后流转 ACCEPTED
+    NextAction: PR #119 已由 ACANX 审批合并至 dev；关联 issue #11 已手动关闭；工作项流转至 ACCEPTED
     EscalateTs: ""
     AuditHistory:
       - Ts: "2026-08-02T06:00:00Z"
         Actor: BeeAgent
         Action: 建立批次 A 夹具与 checksum 并提交单独 commit；本地验证全绿
         Evidence: Docs/DevelopmentWorkflow/P1/P1-024FixtureChecksumsEvidence.md
+      - Ts: "2026-08-02T06:14:00Z"
+        Actor: BeeAgent
+        Action: 提交 PR #119 至 dev 分支并合并；关联 issue #11 已复核关闭；工作项流转至 ACCEPTED
+        Evidence: https://github.com/ACANX/VeritasQuant/pull/119
   - WorkItemId: TSK-P1-025
     PlanTaskId: P1-025
     Title: 实现 UTC 逻辑时钟和阶段推进器
@@ -1378,18 +1402,22 @@ Records:
     TestEvidence: [src/veritasquant/core/LogicalClock.py, tests/unit/core/test_logical_clock.py, Docs/DevelopmentWorkflow/P1/P1-025LogicalClockEvidence.md]
     RiskLinks: [RSK-P0-006]
     TargetDate: 当前迭代
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-08-02T06:00:00Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-02T06:14:00Z"
     Blocked: false
     BlockedReason: ""
     BlockedBy: ""
-    NextAction: 已实现并通过本地验证（pytest 10/10、ruff、mypy、Preflight 0）；待验收 PR 审批合并后流转 ACCEPTED
+    NextAction: PR #119 已由 ACANX 审批合并至 dev；关联 issue #12 已手动关闭；工作项流转至 ACCEPTED
     EscalateTs: ""
     AuditHistory:
       - Ts: "2026-08-02T06:00:00Z"
         Actor: BeeAgent
         Action: 实现 P1-025 并提交单独 commit；本地验证全绿
         Evidence: Docs/DevelopmentWorkflow/P1/P1-025LogicalClockEvidence.md
+      - Ts: "2026-08-02T06:14:00Z"
+        Actor: BeeAgent
+        Action: 提交 PR #119 至 dev 分支并合并；关联 issue #12 已复核关闭；工作项流转至 ACCEPTED
+        Evidence: https://github.com/ACANX/VeritasQuant/pull/119
   - WorkItemId: TSK-P1-026
     PlanTaskId: P1-026
     Title: 实现确定性事件总线和订阅路由
@@ -1406,18 +1434,22 @@ Records:
     TestEvidence: [src/veritasquant/core/EventBus.py, tests/unit/core/test_event_bus.py, Docs/DevelopmentWorkflow/P1/P1-026EventBusEvidence.md]
     RiskLinks: [RSK-P0-006]
     TargetDate: 当前迭代
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-08-02T06:00:00Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-02T06:14:00Z"
     Blocked: false
     BlockedReason: ""
     BlockedBy: ""
-    NextAction: 已实现并通过本地验证（pytest 10/10、ruff、mypy、Preflight 0）；待验收 PR 审批合并后流转 ACCEPTED
+    NextAction: PR #119 已由 ACANX 审批合并至 dev；关联 issue #13 已手动关闭；工作项流转至 ACCEPTED
     EscalateTs: ""
     AuditHistory:
       - Ts: "2026-08-02T06:00:00Z"
         Actor: BeeAgent
         Action: 实现 P1-026 并提交单独 commit；本地验证全绿
         Evidence: Docs/DevelopmentWorkflow/P1/P1-026EventBusEvidence.md
+      - Ts: "2026-08-02T06:14:00Z"
+        Actor: BeeAgent
+        Action: 提交 PR #119 至 dev 分支并合并；关联 issue #13 已复核关闭；工作项流转至 ACCEPTED
+        Evidence: https://github.com/ACANX/VeritasQuant/pull/119
   - WorkItemId: TSK-P1-027
     PlanTaskId: P1-027
     Title: 实现 inbox 幂等与内容冲突检测
