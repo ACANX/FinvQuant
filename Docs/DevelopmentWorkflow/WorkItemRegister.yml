@@ -394,12 +394,12 @@ Records:
     TestEvidence: [scripts/CollectTestEvidence.py, tests/unit/scripts/test_engineering_scripts.py, Docs/DevelopmentWorkflow/TestEvidencePolicy.md, Docs/DevelopmentWorkflow/P0-003-P0-012TestEvidence.json]
     RiskLinks: [RSK-P0-002, RSK-P0-003]
     TargetDate: 待基线批准
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-07-31T09:34:03Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-01T20:22:00Z"
     Blocked: false
     BlockedReason: null
     BlockedBy: null
-    NextAction: 由非作者人类 QA 审阅 Python 3.13 证据包和远程 CI 工件，再记录验收结论
+    NextAction: P0-009 已完成独立复核；继续按编号推进 P0-010，M0 Gate 仍需完整证据
     EscalateTs: 待 QA 指定
     AuditHistory:
       - Ts: "2026-07-31T03:30:00Z"
@@ -410,6 +410,10 @@ Records:
         Actor: Codex
         Action: Python 3.13 基线下完成自动化证据收集和完整测试；等待独立人类 QA 审阅
         Evidence: Docs/DevelopmentWorkflow/P0-003-P0-012TestEvidence.json
+      - Ts: "2026-08-01T20:22:00Z"
+        Actor: BeeAgent
+        Action: 独立复核稳定 ID 规范、CollectTestEvidence 端到端运行（JUnit/coverage/环境/种子/产物 SHA-256 均生成）与 CI 证据收集步骤；归档为 ACCEPTED，关闭 #58
+        Evidence: Docs/DevelopmentWorkflow/TestEvidencePolicy.md
   - WorkItemId: TSK-P0-010
     PlanTaskId: P0-010
     Title: 建立需求、任务、缺陷、风险、事故、变更和行动项登记表
