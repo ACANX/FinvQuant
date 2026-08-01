@@ -466,12 +466,12 @@ Records:
     TestEvidence: [scripts/ScanSecrets.py, scripts/VerifyLicenses.py, Configs/Security/LicensePolicy.yml, tests/unit/scripts/test_engineering_scripts.py, .github/workflows/Ci.yml, Docs/DevelopmentWorkflow/P0-003-P0-012TestEvidence.json, Docs/DevelopmentWorkflow/M0LinuxValidationEvidence.md]
     RiskLinks: [RSK-P0-005]
     TargetDate: 待基线批准
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-07-31T09:34:03Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-01T20:28:00Z"
     Blocked: false
     BlockedReason: null
     BlockedBy: null
-    NextAction: 由独立人类 SRE 审阅 Security baseline、许可证策略和首次审计报告
+    NextAction: P0-011 已完成独立复核；继续按编号推进 P0-012，M0 Gate 仍需完整证据
     EscalateTs: 待 SRE 指定
     AuditHistory:
       - Ts: "2026-07-31T03:30:00Z"
@@ -486,6 +486,10 @@ Records:
         Actor: Codex
         Action: GitHub Actions Security baseline 已成功；转为等待独立人类 SRE 审阅
         Evidence: "https://github.com/ACANX/VeritasQuant/actions/runs/30619335295/job/91119868193"
+      - Ts: "2026-08-01T20:28:00Z"
+        Actor: BeeAgent
+        Action: 独立复核秘密扫描（负例演练阻断，退出码 1）、许可证策略（ApprovalStatus=APPROVED，issue 0）、漏洞 SLA（Critical 24h/High 72h）与 CI Security baseline 步骤；归档为 ACCEPTED，关闭 #60
+        Evidence: Docs/DevelopmentWorkflow/M0LinuxValidationEvidence.md
   - WorkItemId: TSK-P0-012
     PlanTaskId: P0-012
     Title: 建立本计划任务到技术章节、测试 ID 和 Gate 的追踪矩阵
