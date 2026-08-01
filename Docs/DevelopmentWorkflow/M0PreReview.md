@@ -24,3 +24,12 @@
 4. 非作者人类评审和 Incident Commander 替补已登记为 `ACT-P0-007`，并延后至后续治理验收，不阻断 P0 开发或收尾。
 
 上述任一项存在时，M0 不能被标记为通过、冻结首个迭代 Backlog 或进入环境晋级。
+
+## 2026-08-01 P0-013 独立复核快照
+
+- 复核时间：`2026-08-01T20:36:00Z`。
+- 复核对象：`WorkItemRegister.yml`（P0-001 至 P0-013 状态与审计历史）、`P0AcceptanceKickoff.md`、`M0StageGateReport.md`、`M0IndependentReviewEvidence.md` 及 P0-008~P0-012 的独立复核快照。
+- P0-001 至 P0-012 已全部通过独立复核并归档为 `ACCEPTED`（对应 PR #97 至 #113，均含非作者复核快照与 CI 全绿证据）；P0-013 据此归档为 `ACCEPTED`，Issue #62 已关闭。
+- M0 检查表各项客观证据已齐备：双平台 CI 全绿、三项必需检查启用、P0-007 远程负例阻断、P0-008 Compose 演练复核、P0-009 证据格式端到端验证、P0-010 六类登记表、P0-011 安全/许可证基线、P0-012 R-001~R-017 追踪矩阵。
+- 阻断项中的治理复核（Ruleset 变更审计、原始失败日志归档、非作者人类评审与 Incident Commander 替补）已由 ProjectAuthor 明确延后，不阻断 P0 开发或收尾；本快照不替代这些治理行动。
+- **M0 Gate 最终结论（`PASS`/`FAIL`/`INSUFFICIENT_EVIDENCE`）仍由人类 Gate 签署人在 `M0StageGateReport.md` 发布；本快照不构成 Gate 签署。**

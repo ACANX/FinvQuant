@@ -542,12 +542,12 @@ Records:
     TestEvidence: [Docs/DevelopmentWorkflow/P0AcceptanceKickoff.md, Docs/DevelopmentWorkflow/M0PreReview.md, Docs/DevelopmentWorkflow/M0StageGateReport.md, Docs/DevelopmentWorkflow/M0IndependentReviewEvidence.md]
     RiskLinks: [RSK-P0-001, RSK-P0-002, RSK-P0-003, RSK-P0-004, RSK-P0-005, RSK-P0-006]
     TargetDate: 待基线批准
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-07-31T12:31:58Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-01T20:36:00Z"
     Blocked: false
     BlockedReason: null
     BlockedBy: null
-    NextAction: 按 P0 验收启动记录收集独立复核和签署证据；P0-007 的延后治理验收不阻断 P0 开发或收尾
+    NextAction: P0-001 至 P0-013 已全部完成独立复核并归档；M0 Gate 最终 PASS 仍需人类 Gate 签署人在 M0StageGateReport.md 发布结论
     EscalateTs: 待 PO 指定
     AuditHistory:
       - Ts: "2026-07-31T03:30:00Z"
@@ -562,6 +562,10 @@ Records:
         Actor: ProjectAuthor
         Action: 正式开启 P0 验收，冻结 main 候选提交并将任务转为 IN_REVIEW；未宣告 M0 Gate 通过
         Evidence: Docs/DevelopmentWorkflow/P0AcceptanceKickoff.md
+      - Ts: "2026-08-01T20:36:00Z"
+        Actor: BeeAgent
+        Action: P0-001 至 P0-012 已全部 ACCEPTED（PR #97-#113）；独立复核 P0 验收证据与 M0 预审状态，归档 P0-013 为 ACCEPTED；M0 Gate 最终 PASS 保留由人类 Gate 签署人发布，关闭 #62
+        Evidence: Docs/DevelopmentWorkflow/M0PreReview.md
   - WorkItemId: TSK-P1-001
     PlanTaskId: P1-001
     Title: 实现严格 Pydantic 基类和唯一显式 alias 机制
