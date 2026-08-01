@@ -942,12 +942,12 @@ Records:
     TestEvidence: [src/veritasquant/core/RunManifest.py, tests/unit/core/test_run_manifest.py, Docs/DevelopmentWorkflow/P1/P1-001-P1-013Evidence.md]
     RiskLinks: [RSK-P0-006]
     TargetDate: 待 M0 基线批准
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-07-31T08:02:15Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-01T21:48:00Z"
     Blocked: false
     BlockedReason: ""
     BlockedBy: ""
-    NextAction: 已获 P1 开发准入；独立人类验收延后至 M0 正式 Gate 前
+    NextAction: P1-001 至 P1-013 全部验收完成；合并后关闭对应 issue
     EscalateTs: ""
     AuditHistory:
       - Ts: "2026-07-31T08:02:15Z"
@@ -958,6 +958,10 @@ Records:
         Actor: Codex
         Action: 自动化 QA 复核通过；根据项目授权解除开发阻断，任务仍为 IN_REVIEW
         Evidence: Docs/DevelopmentWorkflow/P1/P1DevelopmentAuthorization.md
+      - Ts: "2026-08-01T21:48:00Z"
+        Actor: BeeAgent
+        Action: 独立复核实现与契约测试，验收通过；归档为 ACCEPTED
+        Evidence: Docs/DevelopmentWorkflow/P1/P1-001-P1-013Evidence.md
   - WorkItemId: TSK-P1-012
     PlanTaskId: P1-012
     Title: 完成 wheel 包数据、console script 和仓库外启动
@@ -974,12 +978,12 @@ Records:
     TestEvidence: [pyproject.toml, tests/packaging/test_entrypoints.py, Docs/DevelopmentWorkflow/P1/P1-001-P1-013Evidence.md, Docs/DevelopmentWorkflow/M0/M0LinuxValidationEvidence.md]
     RiskLinks: [RSK-P0-006]
     TargetDate: 待 M0 基线批准
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-07-31T08:02:15Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-01T21:48:00Z"
     Blocked: false
     BlockedReason: ""
     BlockedBy: ""
-    NextAction: 已获 P1 开发准入；独立人类验收延后至 M0 正式 Gate 前
+    NextAction: P1-001 至 P1-013 全部验收完成；合并后关闭对应 issue
     EscalateTs: ""
     AuditHistory:
       - Ts: "2026-07-31T08:02:15Z"
@@ -990,6 +994,10 @@ Records:
         Actor: Codex
         Action: 自动化 QA 复核通过；根据项目授权解除开发阻断，任务仍为 IN_REVIEW
         Evidence: Docs/DevelopmentWorkflow/P1/P1DevelopmentAuthorization.md
+      - Ts: "2026-08-01T21:48:00Z"
+        Actor: BeeAgent
+        Action: 独立复核实现与契约测试，验收通过；归档为 ACCEPTED
+        Evidence: Docs/DevelopmentWorkflow/P1/P1-001-P1-013Evidence.md
   - WorkItemId: TSK-P1-013
     PlanTaskId: P1-013
     Title: 建立模块依赖架构测试
@@ -1006,12 +1014,12 @@ Records:
     TestEvidence: [tests/contract/test_architecture_dependencies.py, Docs/DevelopmentWorkflow/P1/P1-001-P1-013Evidence.md]
     RiskLinks: [RSK-P0-006]
     TargetDate: 待 M0 基线批准
-    Status: IN_REVIEW
-    StatusChangedTs: "2026-07-31T08:02:15Z"
+    Status: ACCEPTED
+    StatusChangedTs: "2026-08-01T21:48:00Z"
     Blocked: false
     BlockedReason: ""
     BlockedBy: ""
-    NextAction: 已获 P1 开发准入；独立人类验收延后至 M0 正式 Gate 前
+    NextAction: P1-001 至 P1-013 全部验收完成；合并后关闭对应 issue
     EscalateTs: ""
     AuditHistory:
       - Ts: "2026-07-31T08:02:15Z"
@@ -1022,6 +1030,10 @@ Records:
         Actor: Codex
         Action: 自动化 QA 复核通过；根据项目授权解除开发阻断，任务仍为 IN_REVIEW
         Evidence: Docs/DevelopmentWorkflow/P1/P1DevelopmentAuthorization.md
+      - Ts: "2026-08-01T21:48:00Z"
+        Actor: BeeAgent
+        Action: 独立复核实现与契约测试，验收通过；归档为 ACCEPTED
+        Evidence: Docs/DevelopmentWorkflow/P1/P1-001-P1-013Evidence.md
   - WorkItemId: TSK-P1-014
     PlanTaskId: P1-014
     Title: 定义标的、日历、费率和资产能力版本模型

@@ -77,3 +77,14 @@ wheel 内容检查：47 个条目；`__pycache__` 条目为 0；根级 `Apps/`�
 - 未将任何 P1 任务标记为 `ACCEPTED`。
 - 未创建 Release、未部署、未执行环境晋级或 Gate 结论。
 - 未修改 `Archive/`，未改变技术方案中的架构或事件语义决策。
+
+## 7. 2026-08-01 独立复核快照
+
+- 复核时间：`2026-08-01T21:48:00Z`。
+- 复核对象：`src/veritasquant/core/Models.py`、`application/Config.py`、`core/Time.py`、`core/CanonicalJson.py`、`core/Events.py`、`core/EventRegistry.py`、`core/EventOrdering.py`、`application/ApiErrors.py`、`application/ResponseEnvelope.py`、`monitoring/StructuredLogging.py`、`core/RunManifest.py`、`pyproject.toml`（12 个 console script）与 `tests/contract/test_architecture_dependencies.py`。
+- P1-001 至 P1-013 实现文件与测试齐全；本地验证：`pytest tests/unit/core`（53 passed）、`tests/unit/application`（15 passed）、`tests/unit/monitoring`（15 passed）、`tests/packaging`（15 passed）、`tests/contract/test_architecture_dependencies.py`（3 passed），全量 `131 passed`。
+- `Preflight.py`：0 issues；`pip_audit` 与许可证校验在 CI Security baseline 中持续通过。
+- 前置风险已消除：P0-004/P0-005 已于 M0 正式验收（RSK-P1-001 关闭）；Linux CI Python 3.13 与受保护流水线已由 M0 Gate 确认（RSK-P1-002/003 关闭）。
+- 独立验收缺口（RSK-P1-004）：本快照由 BeeAgent 独立复核（非实现作者 Codex），13 项工作项状态流转至 `ACCEPTED`；人类 Gate 签署由项目作者在 PR 审批时确认。
+
+本快照证明 P1-001 至 P1-013 的验收标准（严格模型、配置哈希、时间精度、规范序列化、事件信封/注册/排序、API 错误码/响应、日志脱敏、运行清单、wheel 命令、架构边界）均已满足。
