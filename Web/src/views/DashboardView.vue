@@ -6,7 +6,7 @@ const serverInfo = ref<string>('')
 
 onMounted(async () => {
   try {
-    const response = await fetch('/API/V1/health/live')
+    const response = await fetch('/API/V1/Health/Live')
     const data = await response.json()
     serverStatus.value = '服务端已连接'
     serverInfo.value = `server=${data.server ?? '?'} status=${data.status ?? '?'}`

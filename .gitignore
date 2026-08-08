@@ -47,6 +47,8 @@ internal/webui/dist/
 
 # ---- 部署 ----
 Deploy/.env
-Docker/.env.deploy
+Deploy/.env.bak
 # PG 数据目录（宿主机映射，本机生成的 pgdata 不提交）
 Deploy/pgdata/
+# 升级脚本生成的数据库备份
+Deploy/backup/

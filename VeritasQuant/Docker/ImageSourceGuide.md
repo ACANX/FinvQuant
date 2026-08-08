@@ -103,7 +103,7 @@ docker pull postgres:18-alpine
 
 # 部署
 python3 scripts/DeployServer.py start
-curl.exe http://localhost:18000/health/live
+curl.exe http://localhost:18000/Health/Live
 ```
 
 ## 6. 注意事项

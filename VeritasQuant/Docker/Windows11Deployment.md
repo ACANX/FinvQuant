@@ -173,16 +173,16 @@ python3 scripts/DeployServer.py start
 
 ```powershell
 # liveness：进程存活
-curl http://localhost:18000/health/live
+curl http://localhost:18000/Health/Live
 
 # readiness：就绪门禁
-curl http://localhost:18000/health/ready
+curl http://localhost:18000/Health/Ready
 
 # 版本
 curl http://localhost:18000/api/v1/version
 ```
 
-预期：`/health/live` 返回 `{"code":0,"data":{"status":"ALIVE",...}}`。
+预期：`/Health/Live` 返回 `{"code":0,"data":{"status":"ALIVE",...}}`。
 
 ### 步骤 6：安装本地客户端
 
@@ -280,7 +280,7 @@ python3 scripts/DeployServer.py logs --service server
 ### 6.8 客户端连不上服务端
 
 - 确认容器健康：`python3 scripts/DeployServer.py status`；
-- 确认宿主端口：`curl http://localhost:18000/health/live`；
+- 确认宿主端口：`curl http://localhost:18000/Health/Live`；
 - 客户端配置中 API 地址使用 `http://localhost:18000`（勿用 `127.0.0.1` 时混用 IPv6）。
 
 ### 6.9 数据持久化
@@ -435,8 +435,8 @@ docker manifest inspect ghcr.io/acanx/veritasquant:0.1.3
 python3 scripts/DeployServer.py start
 
 # ⑥ 验证
-curl.exe http://localhost:18000/health/live
-curl.exe http://localhost:18000/health/ready
+curl.exe http://localhost:18000/Health/Live
+curl.exe http://localhost:18000/Health/Ready
 curl.exe http://localhost:18000/api/v1/version   # 应显示新版本号
 
 # ⑦ 验收通过后可选清理旧版本镜像
@@ -465,7 +465,7 @@ main 推送生成 `0.1.2`（版本 tag）+ `latest`；Git tag `V0.1.2` 额外发
 | 4 | 确认新版本镜像存在 | Packages 页面 / `docker manifest inspect` |
 | 5 | 固定版本 tag | `.env.deploy` 的 `VQ_IMAGE_TAG` |
 | 6 | 重新部署 | `python3 scripts/DeployServer.py start` |
-| 7 | 验证 live/ready/version | `/health/live`、`/health/ready`、`/api/v1/version` |
+| 7 | 验证 live/ready/version | `/Health/Live`、`/Health/Ready`、`/api/v1/version` |
 | 8 | 回滚预案确认 | 旧版本镜像仍可拉取 / 备份文件完好 |
 
 ---

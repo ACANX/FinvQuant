@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1960" viewBox="0 0 900 1960" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#546e7a"/>
+    </marker>
+    <linearGradient id="hdr" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0d47a1"/><stop offset="100%" stop-color="#1565c0"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="900" height="58" fill="url(#hdr)"/>
+  <text x="450" y="37" text-anchor="middle" fill="#fff" font-size="23" font-weight="bold">量化策略回测全流程 · 任务流程图</text>
+
+  <g font-size="13" fill="#37474f">
+    <!-- 1 开始 -->
+    <ellipse cx="450" cy="100" rx="56" ry="26" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+    <text x="450" y="105" text-anchor="middle" font-weight="bold">开始</text>
+    <line x1="450" y1="126" x2="450" y2="154" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- 2 创建任务 -->
+    <rect x="290" y="156" width="320" height="52" rx="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.5"/>
+    <text x="450" y="176" text-anchor="middle" font-weight="bold">创建回测任务（Run/Create）</text>
+    <text x="450" y="194" text-anchor="middle" fill="#78909c" font-size="12">策略+账户+环境+标的+区间+周期+精度+options</text>
+    <line x1="450" y1="208" x2="450" y2="236" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- 3 校验 -->
+    <polygon points="450,238 590,282 450,326 310,282" fill="#fff8e1" stroke="#f9a825" stroke-width="1.5"/>
+    <text x="450" y="278" text-anchor="middle" font-weight="bold">三层回测开关</text>
+    <text x="450" y="294" text-anchor="middle" fill="#78909c" font-size="11.5">策略/账户/环境均开启？</text>
+    <text x="450" y="310" text-anchor="middle" fill="#78909c" font-size="11.5">币种一致？</text>
+    <!-- no 分支 -->
+    <line x1="590" y1="282" x2="720" y2="282" stroke="#c62828" stroke-width="1.5"/>
+    <text x="650" y="273" fill="#c62828" font-size="12">否</text>
+    <rect x="722" y="258" width="150" height="48" rx="8" fill="#ffebee" stroke="#c62828" stroke-width="1.5"/>
+    <text x="797" y="278" text-anchor="middle" fill="#c62828" font-size="12" font-weight="bold">拒绝创建</text>
+    <text x="797" y="294" text-anchor="middle" fill="#c62828" font-size="11">返回错误信息</text>
+    <!-- yes -->
+    <line x1="450" y1="326" x2="450" y2="354" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="460" y="346" fill="#2e7d32" font-size="12">是</text>
+
+    <!-- 4 快照 -->
+    <rect x="290" y="356" width="320" height="52" rx="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.5"/>
+    <text x="450" y="376" text-anchor="middle" font-weight="bold">保存三快照（可复现）</text>
+    <text x="450" y="394" text-anchor="middle" fill="#78909c" font-size="12">strategy_snapshot / account_snapshot / environment_snapshot</text>
+    <line x1="450" y1="408" x2="450" y2="436" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- 5 入队执行 -->
+    <rect x="290" y="438" width="320" height="52" rx="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.5"/>
+    <text x="450" y="458" text-anchor="middle" font-weight="bold">异步入队执行（并发上限 4）</text>
+    <text x="450" y="476" text-anchor="middle" fill="#78909c" font-size="12">状态 PENDING → RUNNING · 进度 0~100 持久化 · 可取消</text>
+    <line x1="450" y1="490" x2="450" y2="518" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- 6 加载行情 -->
+    <rect x="290" y="520" width="320" height="52" rx="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.5"/>
+    <text x="450" y="540" text-anchor="middle" font-weight="bold">加载行情（区间过滤）</text>
+    <text x="450" y="558" text-anchor="middle" fill="#78909c" font-size="12">finv_quote_secu_kline_min 按 secu_code + date 区间 · 升序</text>
+    <line x1="450" y1="572" x2="450" y2="600" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- 7 聚合 -->
+    <rect x="290" y="602" width="320" height="52" rx="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.5"/>
+    <text x="450" y="622" text-anchor="middle" font-weight="bold">周期聚合（Min 原样 / Hour / Day）</text>
+    <text x="450" y="640" text-anchor="middle" fill="#78909c" font-size="12">OHLC+量额聚合 · 时段判定取周期起点时间</text>
+    <line x1="450" y1="654" x2="450" y2="682" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- 8 预热 -->
+    <polygon points="450,684 590,728 450,772 310,728" fill="#fff8e1" stroke="#f9a825" stroke-width="1.5"/>
+    <text x="450" y="724" text-anchor="middle" font-weight="bold">跳过预热区</text>
+    <text x="450" y="740" text-anchor="middle" fill="#78909c" font-size="11.5">i &lt; warmup_bars？</text>
+    <!-- no -->
+    <line x1="450" y1="772" x2="450" y2="800" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="460" y="792" fill="#2e7d32" font-size="12">否（指标已就绪）</text>
+    <!-- yes loop back -->
+    <line x1="590" y1="728" x2="700" y2="728" stroke="#c62828" stroke-width="1.5"/>
+    <text x="645" y="719" fill="#c62828" font-size="12">是</text>
+    <text x="705" y="724" fill="#c62828" font-size="11.5">继续下一根</text>
+
+    <!-- 9 逐bar循环 -->
+    <rect x="140" y="802" width="620" height="46" rx="8" fill="#4527a0" stroke="#311b92" stroke-width="1.5"/>
+    <text x="450" y="822" text-anchor="middle" fill="#fff" font-weight="bold">逐 bar 回放循环（核心：无未来函数 · NEXT_BAR_OPEN）</text>
+    <text x="450" y="840" text-anchor="middle" fill="#d1c4e9" font-size="11.5">每 512 根检查取消 · 进度回调</text>
+    <line x1="450" y1="848" x2="450" y2="878" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- 9a 挂单撮合 -->
+    <rect x="150" y="880" width="600" height="86" rx="8" fill="#f3e5f5" stroke="#8e24aa" stroke-width="1.5"/>
+    <text x="170" y="900" fill="#6a1b9a" font-weight="bold">① 执行上一 bar 挂单（当前 bar 开盘价成交）</text>
+    <text x="170" y="920" fill="#37474f" font-size="12">滑点修正 → tick_size 对齐 → 涨跌停判定（涨停拒买/跌停拒卖）</text>
+    <text x="170" y="938" fill="#37474f" font-size="12">资金/每日笔数/最小间隔 → 成交 → 账户/流水/持仓明细/事件 FILLED|REJECTED</text>
+    <line x1="450" y1="966" x2="450" y2="994" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- 9b 风控 -->
+    <rect x="150" y="996" width="600" height="86" rx="8" fill="#f3e5f5" stroke="#8e24aa" stroke-width="1.5"/>
+    <text x="170" y="1016" fill="#6a1b9a" font-weight="bold">② 风控：止损 / 止盈（intrabar 限价单语义）</text>
+    <text x="170" y="1036" fill="#37474f" font-size="12">bar 最低价触及止损价 或 最高价触及止盈价 → 触发价立即成交（latency=0）</text>
+    <text x="170" y="1054" fill="#37474f" font-size="12">T+N 环境：当日买入持仓不可卖出（含风控），登记拒绝事件</text>
+    <line x1="450" y1="1082" x2="450" y2="1110" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- 9c 信号 -->
+    <rect x="150" y="1112" width="600" height="70" rx="8" fill="#f3e5f5" stroke="#8e24aa" stroke-width="1.5"/>
+    <text x="170" y="1132" fill="#6a1b9a" font-weight="bold">③ 信号求值（bar 收盘确认，不做限制过滤）</text>
+    <text x="170" y="1152" fill="#37474f" font-size="12">买入/卖出布尔表达式：指标引用 + 字段 + cross_up/down/ref/highest/lowest/abs</text>
+    <line x1="450" y1="1182" x2="450" y2="1210" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- 9d 限制判定 -->
+    <polygon points="450,1212 610,1256 450,1300 290,1256" fill="#fff8e1" stroke="#f9a825" stroke-width="1.5"/>
+    <text x="450" y="1252" text-anchor="middle" font-weight="bold">④ 限制判定</text>
+    <text x="450" y="1268" text-anchor="middle" fill="#78909c" font-size="11">仓位/时间点/环境时段/T+N/频率次数</text>
+    <text x="450" y="1283" text-anchor="middle" fill="#78909c" font-size="11">数量模式：ALL_IN/ALL/FIXED/PERCENT/AMOUNT</text>
+    <!-- 不通过 -->
+    <line x1="610" y1="1256" x2="730" y2="1256" stroke="#c62828" stroke-width="1.5"/>
+    <text x="668" y="1247" fill="#c62828" font-size="12">不通过</text>
+    <rect x="732" y="1232" width="140" height="48" rx="8" fill="#ffebee" stroke="#c62828" stroke-width="1.5"/>
+    <text x="802" y="1252" text-anchor="middle" fill="#c62828" font-size="12" font-weight="bold">登记拒绝事件</text>
+    <text x="802" y="1268" text-anchor="middle" fill="#c62828" font-size="11">REJECTED + 原因</text>
+    <!-- 通过 -->
+    <line x1="450" y1="1300" x2="450" y2="1328" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="460" y="1320" fill="#2e7d32" font-size="12">通过</text>
+
+    <!-- 9e 下单 -->
+    <rect x="150" y="1330" width="600" height="56" rx="8" fill="#f3e5f5" stroke="#8e24aa" stroke-width="1.5"/>
+    <text x="170" y="1350" fill="#6a1b9a" font-weight="bold">⑤ 下单</text>
+    <text x="170" y="1370" fill="#37474f" font-size="12">NEXT_BAR_OPEN：登记 PENDING 事件 → 挂单（下一根开盘成交）｜CURRENT_CLOSE：收盘价立即成交</text>
+    <line x1="450" y1="1386" x2="450" y2="1414" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- 9f 账户更新 -->
+    <rect x="150" y="1416" width="600" height="70" rx="8" fill="#f3e5f5" stroke="#8e24aa" stroke-width="1.5"/>
+    <text x="170" y="1436" fill="#6a1b9a" font-weight="bold">⑥ 账户更新 + 资金/持仓/事件登记（⑨）</text>
+    <text x="170" y="1456" fill="#37474f" font-size="12">BUY_PAY/SELL_RECEIVE/FEE/MARGIN_HOLD/RELEASE（流水连续）</text>
+    <text x="170" y="1474" fill="#37474f" font-size="12">OPEN/ADD/REDUCE/CLOSE（加权成本）· 事件 latency/alive/原因</text>
+    <line x1="450" y1="1486" x2="450" y2="1514" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- 9g 市值快照 -->
+    <rect x="150" y="1516" width="600" height="56" rx="8" fill="#f3e5f5" stroke="#8e24aa" stroke-width="1.5"/>
+    <text x="170" y="1536" fill="#6a1b9a" font-weight="bold">⑦ 市值快照与回撤跟踪</text>
+    <text x="170" y="1556" fill="#37474f" font-size="12">equity = cash + 持仓×收盘×合约乘数 · 峰值/回撤区间 · 投入统计 · 报告桶边界</text>
+    <line x1="450" y1="1572" x2="450" y2="1600" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- 9h 循环判断 -->
+    <polygon points="450,1602 590,1646 450,1690 310,1646" fill="#fff8e1" stroke="#f9a825" stroke-width="1.5"/>
+    <text x="450" y="1642" text-anchor="middle" font-weight="bold">最后一根 bar？</text>
+    <!-- 否 循环 -->
+    <line x1="310" y1="1646" x2="90" y2="1646" stroke="#546e7a" stroke-width="2"/>
+    <line x1="90" y1="1646" x2="90" y2="825" stroke="#546e7a" stroke-width="2"/>
+    <line x1="90" y1="825" x2="136" y2="825" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="52" y="1240" fill="#78909c" font-size="12" transform="rotate(-90 52 1240)">下一根 bar</text>
+    <text x="320" y="1637" fill="#c62828" font-size="12">否</text>
+    <!-- 是 -->
+    <line x1="450" y1="1690" x2="450" y2="1718" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="460" y="1710" fill="#2e7d32" font-size="12">是</text>
+
+    <!-- 10 收尾 -->
+    <rect x="290" y="1720" width="320" height="70" rx="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.5"/>
+    <text x="450" y="1740" text-anchor="middle" font-weight="bold">收尾：末桶 + EXPIRED + 报告构建</text>
+    <text x="450" y="1758" text-anchor="middle" fill="#78909c" font-size="12">挂单未执行→EXPIRED · 汇总指标+event_stats</text>
+    <text x="450" y="1776" text-anchor="middle" fill="#78909c" font-size="12">Min 精度曲线降采样 ≤ 2 万点</text>
+    <line x1="450" y1="1790" x2="450" y2="1818" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- 11 持久化 -->
+    <rect x="290" y="1820" width="320" height="52" rx="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.5"/>
+    <text x="450" y="1840" text-anchor="middle" font-weight="bold">结果持久化（批量）</text>
+    <text x="450" y="1858" text-anchor="middle" fill="#78909c" font-size="12">equity/trade/cashflow/position_log/event_trace/report</text>
+    <line x1="450" y1="1872" x2="450" y2="1900" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- 12 结束 -->
+    <ellipse cx="450" cy="1924" rx="60" ry="26" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+    <text x="450" y="1929" text-anchor="middle" font-weight="bold">SUCCEEDED</text>
+    <text x="612" y="1920" fill="#78909c" font-size="12">（FAILED / CANCELLED 分支略）</text>
+  </g>
+</svg>

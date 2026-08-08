@@ -3,17 +3,25 @@
 #   - 内嵌前端（Vue3+Vite8+Vuetify4 构建产物）监听 16002
 # 镜像：ghcr.io/acanx/finvquant（docker pull 后直接部署）
 
-# ---- 阶段 1：前端构建 ----
-FROM node:24-alpine AS web-builder
+# ---- 阶段 1：前端构建（BUILDPLATFORM=runner 原生架构，仅构建一次，跨平台复用产物）----
+FROM --platform=$BUILDPLATFORM node:24-alpine AS web-builder
+
+# npm registry（默认官方源；国内/受限网络可 --build-arg NPM_REGISTRY=https://registry.npmmirror.com 加速）
+ARG NPM_REGISTRY=https://registry.npmjs.org
 
 WORKDIR /web
 COPY Web/package.json Web/package-lock.json ./
-RUN npm ci
+RUN if [ "$NPM_REGISTRY" != "https://registry.npmjs.org" ]; then npm config set registry "$NPM_REGISTRY"; fi \
+    && npm ci
 COPY Web/ ./
 RUN npm run build
 
-# ---- 阶段 2：Go 服务端构建（内嵌前端产物）----
-FROM golang:1.25.3-alpine AS builder
+# ---- 阶段 2：Go 服务端构建（TARGETPLATFORM=目标架构，按平台编译）----
+FROM --platform=$TARGETPLATFORM golang:1.25.3-alpine AS builder
+
+# Go 模块代理（默认官方源；国内/受限网络可 --build-arg GOPROXY=https://goproxy.cn,direct 加速）
+ARG GOPROXY=https://proxy.golang.org,direct
+ENV GOPROXY=${GOPROXY}
 
 WORKDIR /app
 
@@ -21,11 +29,11 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-# 将前端构建产物放入 embed 位置（internal/webui/dist）
+# 将前端构建产物放入 embed 位置（internal/webui/dist）——来自 BUILDPLATFORM 阶段，双平台共享
 COPY --from=web-builder /web/dist /app/internal/webui/dist
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-s -w -X main.version=$(git describe --tags --always 2>/dev/null || echo 0.1.0) -X main.commit=$(git rev-parse --short HEAD 2>/dev/null || echo dev)" \
+    -ldflags "-s -w -X main.version=$(cat VERSION) -X main.commit=$(git rev-parse --short HEAD 2>/dev/null || echo dev)" \
     -o /finvquant ./cmd/server
 
 # ---- 阶段 3：运行（单镜像单进程）----

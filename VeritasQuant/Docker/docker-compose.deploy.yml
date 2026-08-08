@@ -12,7 +12,7 @@ name: veritasquant
 
 services:
   # ---------------------------------------------------------------------------
-  # 应用服务端：API 服务（含 /health/live、/health/ready、业务 API）。
+  # 应用服务端：API 服务（含 /Health/Live、/Health/Ready、业务 API）。
   # 默认以非 root 用户运行，仅暴露 18000。
   # ---------------------------------------------------------------------------
   server:
@@ -40,7 +40,7 @@ services:
       # 数据导入目录（宿主侧挂载外部行情文件用，可自行调整路径）。
       - ${VQ_DATA_DIR:-./data}:/opt/veritasquant/data
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:18000/health/live', timeout=2).status==200 else 1)"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:18000/Health/Live', timeout=2).status==200 else 1)"]
       interval: 10s
       timeout: 3s
       start_period: 20s

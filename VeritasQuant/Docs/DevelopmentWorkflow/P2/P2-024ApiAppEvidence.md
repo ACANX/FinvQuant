@@ -15,8 +15,8 @@
 
 ### 版本路由与健康接口
 - `GET /api/v1/version`：返回 api_version、catalog_version（包元数据）、service
-- `GET /health/live`：liveness，进程存活即 200 code=0
-- `GET /health/ready`：readiness，全部探针通过才 READY；失败返回 503 + 2005
+- `GET /Health/Live`：liveness，进程存活即 200 code=0
+- `GET /Health/Ready`：readiness，全部探针通过才 READY；失败返回 503 + 2005
 - `ErrorCatalogProbe`：错误目录已加载且含必需错误码
 
 ### 分层健康检查（TechSpec 12.3）
@@ -32,7 +32,7 @@
 | 验收标准 | 实现 | 证据 |
 | --- | --- | --- |
 | /api/v1 可用 | version 路由 + OpenAPI | tests/unit/apps/test_api_app.py |
-| liveness/readiness 可用 | /health/live、/health/ready | 同上 |
+| liveness/readiness 可用 | /Health/Live、/Health/Ready | 同上 |
 | 入口导入无副作用 | createApp 纯函数 | test_import_has_no_side_effects |
 | GUI 不直连数据库 | 依赖注入 + 端口隔离 | 架构约束（TechSpec 11.1） |
 

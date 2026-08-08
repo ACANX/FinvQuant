@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="900" viewBox="0 0 1280 900" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#546e7a"/>
+    </marker>
+    <linearGradient id="hdr" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0d47a1"/><stop offset="100%" stop-color="#1565c0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 标题 -->
+  <rect x="0" y="0" width="1280" height="56" fill="url(#hdr)"/>
+  <text x="640" y="36" text-anchor="middle" fill="#fff" font-size="24" font-weight="bold">量化策略通用回测框架 · 程序架构设计图</text>
+  <text x="640" y="78" text-anchor="middle" fill="#546e7a" font-size="13">FinvQuant 通用回测引擎（internal/backtest）· 结构化策略定义 → 逐 bar 回放 → 可持久化收益报告 · 支持多用户 / 多子账户 / 环境模板动态切换</text>
+
+  <!-- ============ 第 1 层：前端展示层 ============ -->
+  <rect x="40" y="96" width="1200" height="120" rx="10" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.5"/>
+  <text x="60" y="120" fill="#0d47a1" font-size="15" font-weight="bold">① 前端展示层（Vue3 + Vuetify3 + ECharts）</text>
+  <g font-size="12" fill="#37474f">
+    <rect x="60" y="132" width="170" height="44" rx="6" fill="#fff" stroke="#90caf9"/>
+    <text x="145" y="150" text-anchor="middle" font-weight="bold">黄金期货回测验证页</text>
+    <text x="145" y="166" text-anchor="middle" fill="#78909c">配置+启动+进度轮询+取消</text>
+
+    <rect x="244" y="132" width="170" height="44" rx="6" fill="#fff" stroke="#90caf9"/>
+    <text x="329" y="150" text-anchor="middle" font-weight="bold">回测分析页</text>
+    <text x="329" y="166" text-anchor="middle" fill="#78909c">指标卡+4曲线+⑨链路追踪</text>
+
+    <rect x="428" y="132" width="170" height="44" rx="6" fill="#fff" stroke="#90caf9"/>
+    <text x="513" y="150" text-anchor="middle" font-weight="bold">策略管理页</text>
+    <text x="513" y="166" text-anchor="middle" fill="#78909c">结构化定义+模板载入</text>
+
+    <rect x="612" y="132" width="170" height="44" rx="6" fill="#fff" stroke="#90caf9"/>
+    <text x="697" y="150" text-anchor="middle" font-weight="bold">账户管理页</text>
+    <text x="697" y="166" text-anchor="middle" fill="#78909c">资金/成本/保证金/分组</text>
+
+    <rect x="796" y="132" width="170" height="44" rx="6" fill="#fff" stroke="#90caf9"/>
+    <text x="881" y="150" text-anchor="middle" font-weight="bold">环境与模板管理页</text>
+    <text x="881" y="166" text-anchor="middle" fill="#78909c">环境/模板 CRUD+默认切换</text>
+
+    <rect x="980" y="132" width="170" height="44" rx="6" fill="#fff" stroke="#90caf9"/>
+    <text x="1065" y="150" text-anchor="middle" font-weight="bold">资金/持仓管理页</text>
+    <text x="1065" y="166" text-anchor="middle" fill="#78909c">曲线+开平仓记录</text>
+  </g>
+
+  <!-- 层间连线 1 -->
+  <line x1="640" y1="216" x2="640" y2="244" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="652" y="234" fill="#78909c" font-size="11">REST JSON（/API/V1/Meta/FinvQuant/Backtest/**）· 请求超时 30s</text>
+
+  <!-- ============ 第 2 层：API 接入层 ============ -->
+  <rect x="40" y="246" width="1200" height="104" rx="10" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.5"/>
+  <text x="60" y="270" fill="#1b5e20" font-size="15" font-weight="bold">② API 接入层（Gin · internal/api/handler/backtest.go）—— 29 个端点</text>
+  <g font-size="12" fill="#37474f">
+    <rect x="60" y="282" width="186" height="52" rx="6" fill="#fff" stroke="#a5d6a7"/>
+    <text x="153" y="300" text-anchor="middle" font-weight="bold">Strategy/5</text>
+    <text x="153" y="316" text-anchor="middle" fill="#78909c">List/Get/Save/Toggle/Delete</text>
+
+    <rect x="260" y="282" width="186" height="52" rx="6" fill="#fff" stroke="#a5d6a7"/>
+    <text x="353" y="300" text-anchor="middle" font-weight="bold">Account/5</text>
+    <text x="353" y="316" text-anchor="middle" fill="#78909c">List/Get/Save/Toggle/Delete</text>
+
+    <rect x="460" y="282" width="186" height="52" rx="6" fill="#fff" stroke="#a5d6a7"/>
+    <text x="553" y="300" text-anchor="middle" font-weight="bold">Run/10</text>
+    <text x="553" y="316" text-anchor="middle" fill="#78909c">Create/List/Get/Cancel/Report/Equity</text>
+    <text x="553" y="330" text-anchor="middle" fill="#78909c">Trades/Cashflows/PositionLogs/EventTraces</text>
+
+    <rect x="660" y="282" width="186" height="52" rx="6" fill="#fff" stroke="#a5d6a7"/>
+    <text x="753" y="300" text-anchor="middle" font-weight="bold">Environment/5</text>
+    <text x="753" y="316" text-anchor="middle" fill="#78909c">List/Get/Save/Toggle/Delete</text>
+
+    <rect x="860" y="282" width="186" height="52" rx="6" fill="#fff" stroke="#a5d6a7"/>
+    <text x="953" y="300" text-anchor="middle" font-weight="bold">Template/4</text>
+    <text x="953" y="316" text-anchor="middle" fill="#78909c">List/Get/Save/Delete</text>
+  </g>
+  <text x="1060" y="330" fill="#2e7d32" font-size="11">统一错误码映射 400/404/409/500</text>
+
+  <!-- 层间连线 2 -->
+  <line x1="640" y1="350" x2="640" y2="378" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="652" y="370" fill="#78909c" font-size="11">多用户 user_id 隔离与归属校验</text>
+
+  <!-- ============ 第 3 层：服务层 ============ -->
+  <rect x="40" y="380" width="1200" height="150" rx="10" fill="#fff3e0" stroke="#e65100" stroke-width="1.5"/>
+  <text x="60" y="404" fill="#bf360c" font-size="15" font-weight="bold">③ 服务层（internal/backtest/service.go · 异步任务调度）</text>
+  <g font-size="12" fill="#37474f">
+    <rect x="60" y="416" width="232" height="66" rx="6" fill="#fff" stroke="#ffcc80"/>
+    <text x="176" y="436" text-anchor="middle" font-weight="bold">CRUD 服务</text>
+    <text x="176" y="452" text-anchor="middle" fill="#78909c">策略/账户/环境/模板四组</text>
+    <text x="176" y="468" text-anchor="middle" fill="#78909c">内置模板保护 · 默认环境唯一</text>
+
+    <rect x="306" y="416" width="232" height="66" rx="6" fill="#fff" stroke="#ffcc80"/>
+    <text x="422" y="436" text-anchor="middle" font-weight="bold">任务创建（CreateRun）</text>
+    <text x="422" y="452" text-anchor="middle" fill="#78909c">快照(strategy/account/env)</text>
+    <text x="422" y="468" text-anchor="middle" fill="#78909c">币种一致性 · 区间解析</text>
+
+    <rect x="552" y="416" width="232" height="66" rx="6" fill="#fff" stroke="#ffcc80"/>
+    <text x="668" y="436" text-anchor="middle" font-weight="bold">任务调度器</text>
+    <text x="668" y="452" text-anchor="middle" fill="#78909c">并发上限 4 · 进度持久化</text>
+    <text x="668" y="468" text-anchor="middle" fill="#78909c">可取消 · 重启悬挂恢复</text>
+
+    <rect x="798" y="416" width="232" height="66" rx="6" fill="#fff" stroke="#ffcc80"/>
+    <text x="914" y="436" text-anchor="middle" font-weight="bold">结果持久化（persistResult）</text>
+    <text x="914" y="452" text-anchor="middle" fill="#78909c">成交先落库建 seq→trade_id 映射</text>
+    <text x="914" y="468" text-anchor="middle" fill="#78909c">明细经 seq 关联 · 批量 Batch</text>
+  </g>
+
+  <!-- 层间连线 3 -->
+  <line x1="640" y1="530" x2="640" y2="558" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="652" y="550" fill="#78909c" font-size="11">EngineConfig（定义+账户快照+环境快照+任务选项）</text>
+
+  <!-- ============ 第 4 层：引擎层 ============ -->
+  <rect x="40" y="560" width="1200" height="200" rx="10" fill="#ede7f6" stroke="#4527a0" stroke-width="1.5"/>
+  <text x="60" y="584" fill="#311b92" font-size="15" font-weight="bold">④ 回测引擎层（internal/backtest · engine.go / indicator.go / expr.go / engine_rules.go）—— 逐 bar 回放</text>
+  <g font-size="12" fill="#37474f">
+    <rect x="60" y="596" width="218" height="92" rx="6" fill="#fff" stroke="#b39ddb"/>
+    <text x="169" y="616" text-anchor="middle" font-weight="bold">指标计算</text>
+    <text x="169" y="634" text-anchor="middle" fill="#78909c">MA/EMA/RSI/MACD/BOLL</text>
+    <text x="169" y="650" text-anchor="middle" fill="#78909c">ATR/STDDEV/HHV/LLV</text>
+    <text x="169" y="666" text-anchor="middle" fill="#78909c">向量化 · 增量窗口</text>
+
+    <rect x="292" y="596" width="218" height="92" rx="6" fill="#fff" stroke="#b39ddb"/>
+    <text x="401" y="616" text-anchor="middle" font-weight="bold">信号表达式引擎</text>
+    <text x="401" y="634" text-anchor="middle" fill="#78909c">比较/逻辑/算术</text>
+    <text x="401" y="650" text-anchor="middle" fill="#78909c">cross_up/down · ref/highest</text>
+    <text x="401" y="666" text-anchor="middle" fill="#78909c">/lowest/abs · 深度≤64 防前视</text>
+
+    <rect x="524" y="596" width="218" height="92" rx="6" fill="#fff" stroke="#b39ddb"/>
+    <text x="633" y="616" text-anchor="middle" font-weight="bold">撮合与风控</text>
+    <text x="633" y="634" text-anchor="middle" fill="#78909c">NEXT_BAR_OPEN（默认）/</text>
+    <text x="633" y="650" text-anchor="middle" fill="#78909c">CURRENT_CLOSE · tick_size 对齐</text>
+    <text x="633" y="666" text-anchor="middle" fill="#78909c">涨跌停 · T+N · 止损止盈 intrabar</text>
+
+    <rect x="756" y="596" width="218" height="92" rx="6" fill="#fff" stroke="#b39ddb"/>
+    <text x="865" y="616" text-anchor="middle" font-weight="bold">规则与账户</text>
+    <text x="865" y="634" text-anchor="middle" fill="#78909c">数量模式(ALL_IN/ALL/FIXED/</text>
+    <text x="865" y="650" text-anchor="middle" fill="#78909c">PERCENT/AMOUNT)· 频率/次数</text>
+    <text x="865" y="666" text-anchor="middle" fill="#78909c">合约乘数 · 现金/持仓/加权成本</text>
+
+    <rect x="988" y="596" width="218" height="92" rx="6" fill="#fff" stroke="#b39ddb"/>
+    <text x="1097" y="616" text-anchor="middle" font-weight="bold">报告与追踪</text>
+    <text x="1097" y="634" text-anchor="middle" fill="#78909c">曲线点/回撤/夏普/胜率</text>
+    <text x="1097" y="650" text-anchor="middle" fill="#78909c">资金流水/持仓明细/事件追踪</text>
+    <text x="1097" y="666" text-anchor="middle" fill="#78909c">event_stats · 曲线降采样≤2万点</text>
+  </g>
+  <text x="60" y="712" fill="#4527a0" font-size="11">环境自适应：交易时段过滤（含跨午夜）→ tick_size 对齐 → T+N/涨跌停/合约乘数 → fill_mode → 成本覆盖链（环境 &gt; 任务 &gt; 策略 &gt; 账户）</text>
+  <text x="60" y="730" fill="#4527a0" font-size="11">无未来函数：信号收盘确认 → 次根开盘成交；ref 负偏移编译期/运行期双重拦截</text>
+  <text x="60" y="748" fill="#4527a0" font-size="11">⑨链路追踪：INITIAL_DEPOSIT→BUY_PAY/SELL_RECEIVE/FEE/MARGIN_HOLD/RELEASE 流水连续可校验；OPEN/ADD/REDUCE/CLOSE 持仓明细；PENDING/FILLED/REJECTED/EXPIRED 事件八项登记</text>
+
+  <!-- 层间连线 4 -->
+  <line x1="640" y1="760" x2="640" y2="788" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="652" y="780" fill="#78909c" font-size="11">pgx 批量读写（行情/快照/结果）</text>
+
+  <!-- ============ 第 5 层：数据存储层 ============ -->
+  <rect x="40" y="790" width="1200" height="100" rx="10" fill="#fce4ec" stroke="#ad1457" stroke-width="1.5"/>
+  <text x="60" y="814" fill="#880e4f" font-size="15" font-weight="bold">⑤ 数据存储层（PostgreSQL）</text>
+  <g font-size="11.5" fill="#37474f">
+    <rect x="60" y="824" width="196" height="52" rx="6" fill="#fff" stroke="#f48fb1"/>
+    <text x="158" y="842" text-anchor="middle" font-weight="bold">配置表（finv_quant_*）</text>
+    <text x="158" y="858" text-anchor="middle" fill="#78909c">strategy/account/environment/template</text>
+
+    <rect x="270" y="824" width="220" height="52" rx="6" fill="#fff" stroke="#f48fb1"/>
+    <text x="380" y="842" text-anchor="middle" font-weight="bold">任务与结果表（finv_quant_backtest_*）</text>
+    <text x="380" y="858" text-anchor="middle" fill="#78909c">run(报告JSONB)/equity/trade</text>
+
+    <rect x="504" y="824" width="220" height="52" rx="6" fill="#fff" stroke="#f48fb1"/>
+    <text x="614" y="842" text-anchor="middle" font-weight="bold">⑨链路追踪明细表（V27）</text>
+    <text x="614" y="858" text-anchor="middle" fill="#78909c">cashflow/position_log/event_trace</text>
+
+    <rect x="738" y="824" width="240" height="52" rx="6" fill="#fff" stroke="#f48fb1"/>
+    <text x="858" y="842" text-anchor="middle" font-weight="bold">行情与证券</text>
+    <text x="858" y="858" text-anchor="middle" fill="#78909c">finv_quote_secu_kline_min（GCMain 2018~2026）</text>
+
+    <rect x="992" y="824" width="210" height="52" rx="6" fill="#fff" stroke="#f48fb1"/>
+    <text x="1097" y="842" text-anchor="middle" font-weight="bold">迁移体系</text>
+    <text x="1097" y="858" text-anchor="middle" fill="#78909c">V22~V28 + 种子 V100019/V100020</text>
+  </g>
+</svg>

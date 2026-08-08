@@ -31,7 +31,7 @@ FinvQuant 是一个面向多资产的**严格事件驱动量化交易平台**，
 
 - **Go 1.25.3**，标准模块化结构：`cmd/server` + `internal/{api,config,database,redisclient}`。
 - 依赖（均为最新）：**Gin v1.12.0**、**go-redis v9.22**、**pgx/v5**（PostgreSQL 18 驱动）。
-- 默认端口 **16001**；健康检查 `/API/V1/health/live|ready`、版本 `/API/V1/version`。
+- 默认端口 **16001**；健康检查 `/API/V1/Health/Live|Ready`、版本 `/API/V1/Version`。
 - 配置走环境变量（`FINV_*`），默认值适配 Docker Compose。
 
 ### 前端（Web/）

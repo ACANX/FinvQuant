@@ -71,8 +71,8 @@ http://<host>:18000
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/health/live` | 存活探针 |
-| GET | `/health/ready` | 就绪探针（依赖 catalog 等就绪条件） |
+| GET | `/Health/Live` | 存活探针 |
+| GET | `/Health/Ready` | 就绪探针（依赖 catalog 等就绪条件） |
 | GET | `/api/v1/version` | 版本信息 |
 | GET | `/metrics` | Prometheus 指标（text/plain，豁免信封） |
 | GET | `/api/v1/stream/events` | SSE 状态流 |
@@ -96,7 +96,7 @@ http://<host>:18000
 
 ## 3. 健康检查与版本
 
-### 3.1 GET /health/live
+### 3.1 GET /Health/Live
 
 存活探针：进程能响应即存活。
 
@@ -104,7 +104,7 @@ http://<host>:18000
 {"code": 0, "message": "存活", "data": {"status": "ALIVE", "service": "veritasquant-api"}}
 ```
 
-### 3.2 GET /health/ready
+### 3.2 GET /Health/Ready
 
 就绪探针：依赖（错误目录等）就绪才返回 READY，否则 503。
 
@@ -331,7 +331,7 @@ Server-Sent Events 状态流：`text/event-stream`，推送账户/订单/风险�
 
 ```powershell
 # 健康检查
-curl.exe http://localhost:18000/health/live
+curl.exe http://localhost:18000/Health/Live
 
 # 版本
 curl.exe http://localhost:18000/api/v1/version

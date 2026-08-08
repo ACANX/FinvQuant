@@ -9,9 +9,9 @@
 ## 快速开始（Docker）
 
 ```bash
-# 1. 克隆代码（FinvQuant 分支）
-git clone -b FinvQuant https://github.com/ACANX/VeritasQuant.git
-cd VeritasQuant
+# 1. 克隆代码（默认分支 dev）
+git clone https://github.com/ACANX/FinvQuant.git
+cd FinvQuant
 
 # 2. 准备环境变量并启动
 cp Deploy/.env.example Deploy/.env   # 按需修改
@@ -19,7 +19,7 @@ docker compose --env-file Deploy/.env up -d
 ```
 
 - 前端控制台：http://localhost:16002
-- 服务端 API：http://localhost:16001/API/V1/health/live
+- 服务端 API：http://localhost:16001/API/V1/Health/Live
 
 或直接使用 All-in-One 镜像：
 
@@ -54,6 +54,8 @@ cd Web && npm install && npm run dev
 ## 文档
 
 - [Prompt.md](Prompt.md) — 项目需求与技术基线（结构化，持续更新）
+- [Deploy/Win11DockerDeploy.md](Deploy/Win11DockerDeploy.md) — Windows 11 Docker 部署文档
+- [Deploy/Win11DockerUpgrade.md](Deploy/Win11DockerUpgrade.md) — Windows 11 Docker 增量升级文档
 - [VeritasQuant/README.md](VeritasQuant/README.md) — 既有 Python 子项目说明
 
 ## 许可

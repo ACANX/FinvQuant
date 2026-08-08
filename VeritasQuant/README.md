@@ -27,7 +27,7 @@ python3 scripts/DeployServer.py check
 python3 scripts/DeployServer.py start
 
 # 验证
-curl.exe http://localhost:18000/health/live
+curl.exe http://localhost:18000/Health/Live
 curl.exe http://localhost:18000/api/v1/version
 ```
 

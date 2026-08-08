@@ -47,6 +47,8 @@ func NewService(pool *pgxpool.Pool) *Service {
 
 // Bar 查询返回的分钟级 K 线（涨跌额/涨跌幅由 close 与 prev_close 计算）。
 type Bar struct {
+	TS        int64    `json:"ts"`         // UTC 时间戳（秒，主键列，如 1754398800）
+	Date      int      `json:"date"`       // 交易日期 yyyymmdd（多日查询时用于区分）
 	Time      int      `json:"time"`       // 交易时间 hhmmss
 	Open      *string  `json:"open"`       // 开盘价
 	High      *string  `json:"high"`       // 最高价
@@ -59,26 +61,38 @@ type Bar struct {
 	Remark    *string  `json:"remark"`     // 备注
 }
 
-// QueryBars 按证券代码 + 交易日期查询分钟级 K 线（周期目前仅支持 Min=1 分钟）。
-func (s *Service) QueryBars(ctx context.Context, secuCode string, date int, period string) ([]Bar, error) {
+// QueryBars 按证券代码 + ts 时间范围查询分钟级 K 线（周期目前仅支持 Min=1 分钟）。
+// startTS/endTS 为 UTC 秒，取 [startTS, endTS] 闭区间内全部记录（不分页），
+// 适配单日数据量可变的 A 股/港股/美股/24h 电子盘（如 GCMain 全天约 2181 根），
+// 避免固定 page_size 截断；拖动窗口即改变 ts 范围重新查询。
+// 返回按 ts 升序的全部 bars 与总条数 total。
+func (s *Service) QueryBars(ctx context.Context, secuCode, period string, startTS, endTS int64) ([]Bar, int, error) {
 	if secuCode == "" {
-		return nil, fmt.Errorf("secu_code 不能为空")
-	}
-	if date <= 0 {
-		return nil, fmt.Errorf("date 必须为有效的交易日期（yyyymmdd）")
+		return nil, 0, fmt.Errorf("secu_code 不能为空")
 	}
 	// 周期目前仅支持 1 分钟（Min），其他周期暂不支持
 	if period != "" && period != "Min" {
-		return nil, fmt.Errorf("周期 %s 暂不支持，目前仅支持 Min（1 分钟）", period)
+		return nil, 0, fmt.Errorf("周期 %s 暂不支持，目前仅支持 Min（1 分钟）", period)
+	}
+	if startTS <= 0 || endTS < startTS {
+		return nil, 0, fmt.Errorf("时间范围非法：start_ts=%d end_ts=%d", startTS, endTS)
+	}
+
+	var total int
+	if err := s.pool.QueryRow(ctx, `
+SELECT COUNT(*)
+FROM finv_quote_secu_kline_min
+WHERE secu_code = $1 AND ts BETWEEN $2 AND $3`, secuCode, startTS, endTS).Scan(&total); err != nil {
+		return nil, 0, err
 	}
 
 	rows, err := s.pool.Query(ctx, `
-SELECT "time", open, high, low, close, volume, turnover, prev_close, remark
+SELECT ts, date, "time", open, high, low, close, volume, turnover, prev_close, remark
 FROM finv_quote_secu_kline_min
-WHERE secu_code = $1 AND date = $2
-ORDER BY ts ASC`, secuCode, date)
+WHERE secu_code = $1 AND ts BETWEEN $2 AND $3
+ORDER BY ts ASC`, secuCode, startTS, endTS)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -86,14 +100,14 @@ ORDER BY ts ASC`, secuCode, date)
 	for rows.Next() {
 		var bar Bar
 		var prevClose *string
-		if err := rows.Scan(&bar.Time, &bar.Open, &bar.High, &bar.Low, &bar.Close,
+		if err := rows.Scan(&bar.TS, &bar.Date, &bar.Time, &bar.Open, &bar.High, &bar.Low, &bar.Close,
 			&bar.Volume, &bar.Turnover, &prevClose, &bar.Remark); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		bar.Change, bar.ChangePct = computeChange(bar.Close, prevClose)
 		bars = append(bars, bar)
 	}
-	return bars, rows.Err()
+	return bars, total, rows.Err()
 }
 
 // computeChange 计算涨跌额与涨跌幅（close - prev_close）。
@@ -113,6 +127,23 @@ func computeChange(closeVal, prevClose *string) (*string, *string) {
 	return &changeStr, &pctStr
 }
 
+// DateToTS 将 yyyymmdd 转为 UTC 秒（当日 00:00）。
+func DateToTS(date int) int64 {
+	year := date / 10000
+	month := (date / 100) % 100
+	day := date % 100
+	t := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
+	return t.Unix()
+}
+
+// DateRangeToTS 将 yyyymmdd + 回溯天数（自然日）转为 ts 范围（UTC 秒，闭区间）。
+// 结束 = 该日 23:59:59，开始 = (结束日 - days + 1) 日 00:00:00。
+func DateRangeToTS(date, days int) (int64, int64) {
+	endDate := DateToTS(date)
+	startDate := endDate - int64(days-1)*86400
+	return startDate, endDate + 86400 - 1
+}
+
 // ImportRows 将解析后的行情行批量 upsert 到 finv_quote_secu_kline_min。
 // 字段级覆盖（FIELD）或整行覆盖（ROW）；发生覆盖时写入修正审计日志。
 // remark 为表单备注：非空时写入每行的 remark 列。
@@ -129,7 +160,7 @@ func (s *Service) ImportRows(ctx context.Context, rows []mvsv.Row, mode UpsertMo
 			rows[index].Remark = &value
 		}
 	}
-	batchID := fmt.Sprintf("import_%s_%s", rows[0].SecuCode, time.Now().UTC().Format("20060102150405"))
+	batchID := fmt.Sprintf("IMPORT_%s_%s", rows[0].SecuCode, time.Now().UTC().Format("20060102150405"))
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -155,10 +186,18 @@ func (s *Service) ImportRows(ctx context.Context, rows []mvsv.Row, mode UpsertMo
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
+	// market_code 已从主表移除（V21）：从 finv_security 字典关联获取，保持响应字段兼容
+	marketCode := 0
+	if err := s.pool.QueryRow(ctx,
+		`SELECT market_code FROM finv_security WHERE usc = $1 OR security_code = $1 LIMIT 1`,
+		rows[0].SecuCode).Scan(&marketCode); err != nil {
+		// 字典未登记时返回 0（前端展示“未维护”），不影响导入结果
+		marketCode = 0
+	}
 	return &UpsertResult{
 		BatchID:     batchID,
 		SecuCode:    rows[0].SecuCode,
-		MarketCode:  rows[0].MarketCode,
+		MarketCode:  marketCode,
 		RecordCount: len(rows),
 		Inserted:    inserted,
 		Updated:     updated,
@@ -175,10 +214,10 @@ func buildUpsertSQL(mode UpsertMode) string {
 	}
 	base := `
 INSERT INTO finv_quote_secu_kline_min
-    (market_code, secu_code, ts, date, "time", prev_close, open, high, low, close,
+    (secu_code, ts, date, "time", prev_close, open, high, low, close,
      paocd, volume, turnover, ext_field, remark)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-ON CONFLICT (ts, market_code, secu_code) DO UPDATE SET
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+ON CONFLICT (ts, secu_code) DO UPDATE SET
 `
 	var assignments []string
 	for _, column := range updatable {
@@ -241,7 +280,6 @@ func (s *Service) upsertBatch(
 
 func rowParams(row mvsv.Row) []any {
 	return []any{
-		row.MarketCode,
 		row.SecuCode,
 		row.Ts,
 		row.Date,

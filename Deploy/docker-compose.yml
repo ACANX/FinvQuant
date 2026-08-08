@@ -5,14 +5,23 @@
 #
 # 使用：cp Deploy/.env.example Deploy/.env && docker compose --env-file Deploy/.env up -d
 # 镜像：ghcr.io/acanx/finvquant（docker pull 后直接部署）
+#
+# 项目名：顶层 name 固定为 finvquant（可用 FINV_PROJECT_NAME 自定义），
+#    命名卷前缀随之变为 finvquant_（如 finvquant_finvquant-redisdata），不带 deploy 前缀。
+#    切换项目名会导致命名卷不连续（Redis 数据在旧卷），注意数据迁移。
+
+# 项目名（默认 finvquant；影响命名卷前缀，如 finvquant_finvquant-redisdata）
+name: ${FINV_PROJECT_NAME:-finvquant}
+
 
 services:
   finvquant:
     image: ghcr.io/acanx/finvquant:${FINV_IMAGE_TAG:-latest}
     build:
-      context: .
+      # build context 指向仓库根目录（compose 位于 Deploy/ 子目录，上级即仓库根，Dockerfile 在此）
+      context: ..
       dockerfile: Dockerfile
-    container_name: finvquant
+    container_name: ${FINV_CONTAINER_NAME:-finvquant}
     ports:
       - "16001:16001"   # 服务端 API
       - "16002:16002"   # 前端 Web
@@ -35,14 +44,14 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:16001/API/V1/health/live >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:16001/API/V1/Health/Live >/dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
 
   postgres:
     image: postgres:18-alpine
-    container_name: fq-postgres
+    container_name: ${FINV_PG_CONTAINER_NAME:-fq-postgres}
     environment:
       POSTGRES_USER: ${FINV_PG_USER:-finvquant}
       POSTGRES_PASSWORD: ${FINV_PG_PASSWORD:-finvquant}
@@ -69,7 +78,7 @@ services:
 
   redis:
     image: redis:8-alpine
-    container_name: fq-redis
+    container_name: ${FINV_REDIS_CONTAINER_NAME:-fq-redis}
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "127.0.0.1:${FINV_REDIS_EXPOSE_PORT:-6380}:6379"

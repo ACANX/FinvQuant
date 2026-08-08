@@ -4585,7 +4585,7 @@ Records:
 - WorkItemId: TSK-P2-024
   PlanTaskId: P2-024
   Title: 建立 FastAPI 应用、依赖注入、版本路由和健康接口
-  Description: createApp() 纯函数组装 FastAPI（导入无副作用）；ApiDependencies 显式依赖注入；/api/v1 基路径 + version 路由；/health/live 与 /health/ready
+  Description: createApp() 纯函数组装 FastAPI（导入无副作用）；ApiDependencies 显式依赖注入；/api/v1 基路径 + version 路由；/Health/Live 与 /Health/Ready
     分层健康检查（探针注入）；--serve 启动 uvicorn。
   Stage: M2A
   Milestone: M2A

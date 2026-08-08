@@ -2,7 +2,15 @@
 #   - ghcr.io/acanx/finvquant（Go 服务端 16001 + 内嵌前端 16002，单镜像单进程）
 #
 # 触发：push 到 dev/main/FinvQuant、tag v*、PR、手动
-# tag 规则：latest（dev/main/FinvQuant 推送）+ 版本 tag（v* 推送时使用 git tag）
+# 全局版本：单一来源 = 项目根 VERSION 文件（同时用于后端 -ldflags、前端 package.json、镜像 tag）
+# tag 规则：
+#   - dev/main/FinvQuant 分支推送：latest + v{VERSION}-YYYYMMDDHHMM（Asia/Shanghai，如 v0.1.0-202608051901）
+#   - v* tag 推送（main 发布）：latest + v{VERSION}（即 git tag 名，如 v0.1.0）
+#   - 多平台构建策略（构建速度优化）：
+#     - dev/FinvQuant 分支推送 & PR 验证：仅 linux/amd64（快速迭代，缩短集成等待）
+#     - main 分支推送 / v* tag 推送（正式发布）：linux/amd64 + linux/arm64（全架构）
+#     - 正式发布另打平台专属 tag（v{VERSION}[-YYYYMMDDHHMM]-linux-amd64 / -linux-arm64）
+#     （平台 tag 步骤为试验期 continue-on-error，失败不阻塞主流程，跑通后收紧）
 
 name: FinvQuantCICD
 
@@ -11,11 +19,13 @@ on:
     branches: [dev, main, FinvQuant]
     tags: ["v*"]
   pull_request:
-    branches: [dev, main, FinvQuant]
+    branches: [dev, main, FinvQuant, feat/backtest]
   workflow_dispatch:
 
 env:
   IMAGE: ghcr.io/acanx/finvquant
+  # 平台列表由 docker job 的 ResolvePlatforms 步骤动态计算（见下），不再在此固定。
+  # 构建策略：dev 仅 amd64，main/tag 正式发布才 amd64+arm64。
 
 jobs:
   # ------------------------------------------------------------------
@@ -27,7 +37,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: "1.25.3"
           cache-dependency-path: go.sum
@@ -60,7 +70,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "24"
           cache: npm
@@ -70,7 +80,11 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run build
+        run: |
+          # 全局版本号注入前端 package.json（单一来源：项目根 VERSION）
+          VERSION=$(cat ../VERSION)
+          npm pkg set version="$VERSION"
+          npm run build
 
   # ------------------------------------------------------------------
   # 3. 构建并推送 All-in-One 镜像到 GHCR
@@ -84,37 +98,102 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: ResolveImageTags
         id: tags
         run: |
+          VERSION=$(cat VERSION)
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            echo "tags=latest,${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            # v* tag 推送（main 发布）：latest + v{VERSION}（git tag 名）
+            BASE="${{ github.ref_name }}"
           else
-            echo "tags=latest" >> "$GITHUB_OUTPUT"
+            # 分支推送（dev/main/FinvQuant）：latest + v{VERSION}-YYYYMMDDHHMM（Asia/Shanghai）
+            TS=$(TZ=Asia/Shanghai date +%Y%m%d%H%M)
+            BASE="v${VERSION}-${TS}"
+          fi
+          echo "base=${BASE}" >> "$GITHUB_OUTPUT"
+          echo "tags=${{ env.IMAGE }}:latest,${{ env.IMAGE }}:${BASE}" >> "$GITHUB_OUTPUT"
+
+      # 动态计算构建平台（构建速度优化）：
+      #   - dev/FinvQuant 分支推送：仅 amd64（快速验证，arm64 留到正式发布）
+      #   - main 分支推送 / v* tag 推送（正式发布）：amd64 + arm64 全架构
+      - name: ResolvePlatforms
+        id: platforms
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.ref_type }}" == "tag" || "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "platforms=linux/amd64,linux/arm64" >> "$GITHUB_OUTPUT"
+            echo "plat_list=linux/amd64 linux/arm64" >> "$GITHUB_OUTPUT"
+          else
+            echo "platforms=linux/amd64" >> "$GITHUB_OUTPUT"
+            echo "plat_list=linux/amd64" >> "$GITHUB_OUTPUT"
           fi
 
       - name: LoginToGHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: SetupQEMU
+        uses: docker/setup-qemu-action@v4
+
       - name: SetupDockerBuildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: BuildAndPushFinvQuantImage
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile
           push: true
-          tags: ${{ env.IMAGE }}:${{ steps.tags.outputs.tags }}
+          platforms: ${{ steps.platforms.outputs.platforms }}
+          tags: ${{ steps.tags.outputs.tags }}
+          # 构建缓存（GitHub Actions 缓存）：npm/go 依赖层与编译缓存跨构建复用，显著提速
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+
+      # 为每个平台单独打 tag（如 v0.1.0-202608051934-linux-amd64 / -linux-arm64），
+      # 便于按平台拉取/区分构建产物。
+      # ⚠️ 不用 docker buildx imagetools create：它在 CI 中复制 manifest 时会以匿名方式
+      # 请求 GHCR token（不继承 docker login 凭据），私有包返回 403 Forbidden。
+      # ⚠️🔴 踩坑教训（2026-08-05 dev push 验证失败）——crane 官方镜像
+      #   （gcr.io/go-containerregistry/crane）基于 distroless，无 shell，默认 nonroot 用户：
+      #   ① 挂载 ${HOME}/.docker:/root/.docker 它读不到（HOME=/home/nonroot）→ 凭据存容器内；
+      #   ② auth login 与 copy 分两次 docker run，login 容器退出后凭据丢失，
+      #      copy 容器匿名状态 → PUT manifest 401 UNAUTHORIZED；
+      #   ③ 镜像内无 sh，--entrypoint sh 不可行。
+      # ✅ 修复：不经 docker 容器，直接在 runner 上运行 crane 静态二进制（同一进程、
+      #     凭据写入 runner 的 ~/.docker/config.json，login 与 copy 天然共享）。
+      # ⚠️ 试验期：continue-on-error 保证平台 tag 失败不阻塞主流程（arm64 相关待验证），
+      #     全流程跑通后再移除该豁免、作为必须成功项。
+      - name: TagPerPlatformManifests
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          BASE="${{ steps.tags.outputs.base }}"
+          # 下载 crane 静态二进制（GitHub runner 为 x86_64）
+          CRANE_VER=0.21.8
+          curl -fsSL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VER}/go-containerregistry_Linux_x86_64.tar.gz" -o /tmp/crane.tar.gz
+          tar -xzf /tmp/crane.tar.gz -C /tmp crane
+          test -x /tmp/crane || { echo "crane 二进制解包失败"; exit 1; }
+          # 登录 GHCR（凭据写入 runner 的 ~/.docker/config.json）
+          /tmp/crane auth login ghcr.io \
+            -u "${{ github.actor }}" \
+            -p "${{ secrets.GITHUB_TOKEN }}"
+          # PLATFORMS 以空格分隔（plat_list 由 ResolvePlatforms 输出）；逗号会导致整串被当作单个值
+          for PLAT in ${{ steps.platforms.outputs.plat_list }}; do
+            SUFFIX=${PLAT//\//-}
+            echo "打平台 tag: ${BASE}-${SUFFIX} (${PLAT})"
+            /tmp/crane copy --platform "$PLAT" \
+              "${{ env.IMAGE }}:${BASE}" \
+              "${{ env.IMAGE }}:${BASE}-${SUFFIX}"
+          done
 
   # ------------------------------------------------------------------
   # 4. PR 验证：仅构建镜像不推送
@@ -125,13 +204,13 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: SetupDockerBuildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: BuildFinvQuantImage(no push)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile
