@@ -53,6 +53,10 @@ cd Web && npm install && npm run dev
 
 ## 文档
 
+- [Docs/CHANGELOG.md](Docs/CHANGELOG.md) — 版本变更日志（与 Git tag、`VERSION` 对应，文件名全大写）
+- [Docs/RequirementList.md](Docs/RequirementList.md) — 需求清单（自 2026-10-24 起的新增需求与核对方式）
+- [Docs/Refactor/2610-SecuCodeToUsc.md](Docs/Refactor/2610-SecuCodeToUsc.md) — 改造项 A 检查清单（`secu_code`→`usc`）
+- [Docs/Refactor/2610-PrevCloseToLastClose.md](Docs/Refactor/2610-PrevCloseToLastClose.md) — 改造项 B 检查清单（`prev_close`→`last_close`）
 - [Prompt.md](Prompt.md) — 项目需求与技术基线（结构化，持续更新）
 - [Deploy/Win11DockerDeploy.md](Deploy/Win11DockerDeploy.md) — Windows 11 Docker 部署文档
 - [Deploy/Win11DockerUpgrade.md](Deploy/Win11DockerUpgrade.md) — Windows 11 Docker 增量升级文档
