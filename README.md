@@ -58,6 +58,7 @@ cd Web && npm install && npm run dev
 - [Docs/Refactor/2610-SecuCodeToUsc.md](Docs/Refactor/2610-SecuCodeToUsc.md) — 改造项 A 检查清单（`secu_code`→`usc`）
 - [Docs/Refactor/2610-PrevCloseToLastClose.md](Docs/Refactor/2610-PrevCloseToLastClose.md) — 改造项 B 检查清单（`prev_close`→`last_close`）
 - [Docs/Refactor/2610-MoveTablesToSchemas.md](Docs/Refactor/2610-MoveTablesToSchemas.md) — 改造项 C 检查清单（`finv_quote_*`→`quote`、`finv_quant_*`→`quant` schema）
+- [Docs/Refactor/2610-MoveFutuTablesToSchema.md](Docs/Refactor/2610-MoveFutuTablesToSchema.md) — 改造项 D 检查清单（`finv_futu_*`→`futu` schema）
 - [Prompt.md](Prompt.md) — 项目需求与技术基线（结构化，持续更新）
 - [Deploy/Win11DockerDeploy.md](Deploy/Win11DockerDeploy.md) — Windows 11 Docker 部署文档
 - [Deploy/Win11DockerUpgrade.md](Deploy/Win11DockerUpgrade.md) — Windows 11 Docker 增量升级文档
