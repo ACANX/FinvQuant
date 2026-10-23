@@ -166,7 +166,7 @@ ufw enable
 | 日志含 `迁移 V<n> 失败` | 迁移单事务执行、失败已回滚；多为权限不足（需 `CREATE SCHEMA` 权限，见第 3 节授权） |
 | `PG 连通性检查失败` | 检查 `FINV_PG_HOST/PORT/USER/PASSWORD` 与 `pg_hba.conf`（`127.0.0.1/32` 是否 `scram-sha-256`） |
 | 健康检查通过但 Web 打不开 | 确认 `FINV_SERVER_HOST=127.0.0.1` 且 Nginx 反代指向 16002；或临时改 0.0.0.0 直连验证 |
-| 手工 `psql` 报 `relation does not exist` | 表在 `quote`/`quant`/`futu` schema，需写全限定名或设置 `search_path`，见 `Docs/DevSpec/DbSchemaSpec.md` |
+| 手工 `psql` 报 `relation does not exist` | 表在 `quote`/`quant`/`futu`/`export`/`sche` schema，需写全限定名或设置 `search_path`，见 `Docs/DevSpec/DbSchemaSpec.md` |
 | 端口被占用 | `ss -ltnp \| grep -E '16001\|16002'` |
 
 ## 8. 卸载

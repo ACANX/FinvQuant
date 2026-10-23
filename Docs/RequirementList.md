@@ -252,6 +252,19 @@
 | 10157 | 改名后库级 `search_path` 与授权随 OID 保留。 | `select array_to_string(setconfig,',') from pg_db_role_setting ...` 含 `search_path=public, quote, quant, futu`；三个业务 schema owner 为 `finv` | |
 | 10158 | 仓库根存在 `.dockerignore` 且排除备份与前端依赖。 | `grep -c 'Deploy/Backup/\|Web/node_modules/' .dockerignore` 输出 `2` | |
 
+## 十六、新增 export / sche 两个 schema（10159–10166）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10159 | 存在创建两个 schema 的迁移且可重复执行。 | `test -f Deploy/Migrations/V34__create_export_and_sche_schemas.sql`；文件内含 `CREATE SCHEMA IF NOT EXISTS export` 与 `... sche` | |
+| 10160 | 生产库存在 `export`、`sche` 两个 schema。 | `select count(*) from pg_namespace where nspname in ('export','sche')` 输出 `2` | |
+| 10161 | 两个 schema 的属主为应用角色（`finv`）。 | `select count(*) from pg_namespace where nspname in ('export','sche') and pg_get_userbyid(nspowner)='finv'` 输出 `2` | |
+| 10162 | 应用角色对两个 schema 具备 `USAGE` 与 `CREATE`。 | `select has_schema_privilege('finv','export','USAGE') and has_schema_privilege('finv','export','CREATE')` 为 `t`，`sche` 同理 | |
+| 10163 | 数据库默认 `search_path` 含两个新 schema 且位于末尾。 | `select array_to_string(setconfig,',') from pg_db_role_setting ...` 输出 `search_path=public, quote, quant, futu, export, sche` | |
+| 10164 | 应用连接串 `search_path` 同步为六段。 | `grep -c 'search_path=public,quote,quant,futu,export,sche' internal/database/postgres.go` 输出 `1` | |
+| 10165 | 迁移记录已登记 `V34` 且成功。 | `select success from schema_version where version::int=34` 输出 `t` | |
+| 10166 | schema 规范文件已登记两个新 schema。 | `grep -o '\`export\`\|\`sche\`' Docs/DevSpec/DbSchemaSpec.md \| wc -l` 不小于 `4` | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -271,7 +284,8 @@
 | Deploy 目录总览文档 | 10141–10144 | 4 |
 | Archive 归档目录 | 10145–10148 | 4 |
 | 数据库名与角色名统一为 finv | 10149–10158 | 10 |
-| **合计** | **10001–10158** | **158** |
+| 新增 export / sche 两个 schema | 10159–10166 | 8 |
+| **合计** | **10001–10166** | **166** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10159` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10167` 起往后追加，不插入既有区间。

@@ -10,10 +10,13 @@
 | `quote` | 行情域 | `finv_quote_secu_kline_min`、`finv_quote_ingest_batches`、`finv_quote_revision_log` |
 | `quant` | 量化域 | `finv_quant_backtest_*`（11 张）、`finv_quant_environment`、`finv_quant_template` |
 | `futu` | 外部源映射域（富途 OpenAPI 编码 ↔ Finv 内部编码） | `finv_futu_mapping_cs_market`、`finv_futu_mapping_exchange`、`finv_futu_mapping_market_code`、`finv_futu_mapping_region`、`finv_futu_mapping_security` |
+| `export` | 数据导出域（导出任务、导出产物元数据等，`V34` 建 schema，表待业务迁移创建） | 暂无 |
+| `sche` | 定时任务调度域（调度定义、执行记录等，`V34` 建 schema，表待业务迁移创建） | 暂无 |
 | `public` | 基础主数据与系统表 | `finv_security`、`finv_market`、`finv_exchange`、`finv_region`、`finv_currency`、`schema_version` |
 
 - **一个业务域一个 schema**，不把域对象堆在 `public`。
 - 新增域时同步在本文档登记其 schema 名与归属表，并在迁移脚本中 `CREATE SCHEMA IF NOT EXISTS <域名>`。
+- schema 名统一**小写短名**（`quote`/`quant`/`futu`/`export`/`sche`），不加业务前缀；`sche` 为「调度」的短名沿用（如需改为 `sched`，须 `ALTER SCHEMA sche RENAME TO sched` 并同步 `search_path`、本文件与代码）。
 
 ## 2. 表命名
 
@@ -23,13 +26,13 @@
 
 ## 3. 连接与 search_path
 
-- 应用连接串固定带 `search_path=public,quote,quant,futu`（见 `internal/database/postgres.go`），迁移与业务 SQL 均依赖此设置。
-- 代码中的 SQL **必须显式写 schema 前缀**（`quote.xxx`、`quant.xxx`、`futu.xxx`）；`search_path` 只作为历史迁移脚本与手工 `psql` 的兜底。
+- 应用连接串固定带 `search_path=public,quote,quant,futu,export,sche`（见 `internal/database/postgres.go`），迁移与业务 SQL 均依赖此设置。
+- 代码中的 SQL **必须显式写 schema 前缀**（`quote.xxx`、`quant.xxx`、`futu.xxx`、`export.xxx`、`sche.xxx`）；`search_path` 只作为历史迁移脚本与手工 `psql` 的兜底。
 - **强制校验**：`internal/database/schema_qualify_test.go` 的 `TestSQLSchemaQualified` 会扫描 `internal/`、`cmd/` 下全部 Go 源码，凡含 `FROM` / `INTO` / `UPDATE` / `JOIN` / `DELETE FROM` / `TRUNCATE` 的语句，只要出现 `finv_quote_` / `finv_quant_` / `finv_futu_` 而未带对应 schema 前缀，`go test ./...` 直接失败。新增代码漏写前缀会在本地与 CI 同时被拦下。
 
 ### 3.1 融合前的同名表风险（重要）
 
-- `search_path` 为 `public, quote, quant, futu`，**`public` 位于首位**：未限定的 CRUD 语句会优先命中 `public` 中的同名表。
+- `search_path` 为 `public, quote, quant, futu, export, sche`，**`public` 位于首位**：未限定的 CRUD 语句会优先命中 `public` 中的同名表。
 - 系统融合阶段若需要在其它 schema 引入与域表同名的表，必须遵守：
   1. 新表一律放入明确 schema，不得落 `public`；
   2. 代码侧引用一律写全限定名（已由 `TestSQLSchemaQualified` 强制）；
@@ -52,3 +55,4 @@
 
 - 新增或调整 schema 归属须同步：迁移脚本、`internal/` 中的 SQL、`Docs/API`、`Docs/Menu`、`Docs/DataFormat`、`Docs/DevSpec/BacktestStrategySpec.md` 与本文件。
 - 破坏性变更（schema 迁移、列改名）必须在 `CHANGELOG` 标注并说明升级约束（禁止新旧镜像共存、升级前备份）。
+- 新增 schema 的迁移须同时授予应用角色 `USAGE`/`CREATE`（`V34` 以 `current_user` 动态授权，库名/角色名变更后无需改迁移）。
