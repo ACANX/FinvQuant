@@ -120,7 +120,18 @@ fi
 # ---------------------------------------------------------------------
 # 3. 工具与 Go 环境探测（兼容 WSL 下调用 Windows 版 go）
 # ---------------------------------------------------------------------
-# WSL 下通常只有 go.exe（无 go 这个无扩展名文件），两者都要探测
+# 运行环境：native（Linux/macOS）/ wsl（WSL）/ msys（Git Bash、MSYS2、Cygwin）
+ENV_KIND="native"
+case "$(uname -s 2>/dev/null || echo unknown)" in
+    MSYS*|MINGW*|CYGWIN*) ENV_KIND="msys" ;;
+    *)
+        if [[ -n "${WSL_DISTRO_NAME:-}" ]] || grep -qi microsoft /proc/version 2>/dev/null; then
+            ENV_KIND="wsl"
+        fi
+        ;;
+esac
+
+# WSL / Git Bash 下通常只有 go.exe（无无扩展名的 go），两者都探测
 GO_CMD=""
 for cand in go go.exe; do
     if command -v "${cand}" >/dev/null 2>&1; then GO_CMD="${cand}"; break; fi
@@ -130,43 +141,112 @@ done
 GO_IS_WINDOWS=0
 if "${GO_CMD}" version 2>/dev/null | grep -qi 'windows/'; then
     GO_IS_WINDOWS=1
-    command -v wslpath >/dev/null 2>&1 || die "检测到 Windows 版 go（${GO_CMD}），但缺少 wslpath（无法转换输出路径）"
-    log "Go 环境     : ${GO_CMD}（Windows 版，经 WSLENV 传递 GOOS/GOARCH）"
-else
-    log "Go 环境     : ${GO_CMD}（原生）"
 fi
+
+# Windows 版 go 认 Windows 路径：WSL 用 wslpath、Git Bash 用 cygpath 转换
+to_win_path() {
+    local p="$1"
+    case "${ENV_KIND}" in
+        wsl)  command -v wslpath >/dev/null 2>&1 && wslpath -w "${p}" || printf '%s' "${p}" ;;
+        msys) command -v cygpath >/dev/null 2>&1 && cygpath -w "${p}" || printf '%s' "${p}" ;;
+        *)    printf '%s' "${p}" ;;
+    esac
+}
+
+if [[ "${GO_IS_WINDOWS}" == "1" && "${ENV_KIND}" == "wsl" ]]; then
+    command -v wslpath >/dev/null 2>&1 || die "检测到 Windows 版 go（${GO_CMD}），但缺少 wslpath（无法转换输出路径）"
+fi
+if [[ "${GO_IS_WINDOWS}" == "1" && "${ENV_KIND}" == "msys" ]]; then
+    command -v cygpath >/dev/null 2>&1 || die "检测到 Windows 版 go（${GO_CMD}），但缺少 cygpath（无法转换输出路径）"
+fi
+
+case "${ENV_KIND}" in
+    wsl)  log "运行环境    : WSL（GOOS/GOARCH 经 WSLENV 传递，路径用 wslpath 转换）" ;;
+    msys) log "运行环境    : Git Bash / MSYS（路径用 cygpath 转换）" ;;
+    *)    log "运行环境    : 原生（Linux/macOS）" ;;
+esac
+log "Go 环境     : ${GO_CMD}$([[ "${GO_IS_WINDOWS}" == "1" ]] && echo "（Windows 版）" || echo "（原生）")"
 
 need_cmd() { command -v "$1" >/dev/null 2>&1 || die "缺少命令：$1"; }
 
-# Windows 版 go 无法直接写 WSL 路径，需转成 Windows 路径
-win_path() {
-    if [[ "${GO_IS_WINDOWS}" == "1" ]]; then wslpath -w "$1"; else printf '%s' "$1"; fi
+# 定位 Windows 自带的 bsdtar（Win10 1803+）。它生成的 zip 用正斜杠，
+# 比 PowerShell Compress-Archive（历史 bug：写入反斜杠，跨平台解压会错乱）标准。
+find_win_tar() {
+    local c=""
+    case "${ENV_KIND}" in
+        msys) c="/c/Windows/System32/tar.exe" ;;
+        wsl)  c="/mnt/c/Windows/System32/tar.exe" ;;
+        *)    return 1 ;;
+    esac
+    [[ -x "${c}" ]] && { printf '%s' "${c}"; return 0; }
+    return 1
+}
+
+# 打 zip 包：按可用性依次尝试 zip → Windows bsdtar → PowerShell → python3
+make_zip() {
+    local parent="$1" name="$2" out="$3"
+    local win_tar=""
+    if command -v zip >/dev/null 2>&1; then
+        ( cd "${parent}" && zip -qr "${out}" "${name}" )
+    elif win_tar="$(find_win_tar)"; then
+        # -a：按输出扩展名自动选择 zip 格式
+        ( cd "${parent}" && "${win_tar}" -a -c -f "$(to_win_path "${out}")" "${name}" )
+    elif command -v powershell.exe >/dev/null 2>&1; then
+        local src_win out_win
+        src_win="$(to_win_path "${parent}/${name}")"
+        out_win="$(to_win_path "${out}")"
+        powershell.exe -NoProfile -NonInteractive -Command \
+            "Compress-Archive -LiteralPath '${src_win}' -DestinationPath '${out_win}' -Force" >/dev/null
+    elif command -v python3 >/dev/null 2>&1; then
+        python3 - "${parent}" "${name}" "${out}" <<'PYPACK'
+import os, sys, zipfile
+parent, name, out = sys.argv[1], sys.argv[2], sys.argv[3]
+root = os.path.join(parent, name)
+with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+    for dirpath, dirnames, filenames in os.walk(root):
+        for d in dirnames:
+            full = os.path.join(dirpath, d)
+            z.write(full, os.path.relpath(full, parent) + "/")
+        for f in filenames:
+            full = os.path.join(dirpath, f)
+            z.write(full, os.path.relpath(full, parent))
+PYPACK
+    else
+        die "打包 zip 需要以下之一：zip、Windows 自带 tar.exe（Win10+）、powershell.exe、python3"
+    fi
 }
 
 build_binary() {
     local goos="$1" goarch="$2" out="$3"
     local ver="${SNAPSHOT_VERSION#v}"
-    if [[ "${GO_IS_WINDOWS}" == "1" ]]; then
+    local out_arg="${out}"
+    [[ "${GO_IS_WINDOWS}" == "1" ]] && out_arg="$(to_win_path "${out}")"
+
+    if [[ "${ENV_KIND}" == "wsl" ]]; then
+        # WSL 调用 Windows go.exe：环境变量必须经 WSLENV 才可见
         WSLENV=GOOS/w:GOARCH/w:CGO_ENABLED/w \
         GOOS="${goos}" GOARCH="${goarch}" CGO_ENABLED=0 \
             "${GO_CMD}" build -ldflags "-s -w -X main.version=${ver} -X main.commit=${COMMIT}" \
-            -o "$(win_path "${out}")" ./cmd/server
+            -o "${out_arg}" ./cmd/server
     else
-        CGO_ENABLED=0 GOOS="${goos}" GOARCH="${goarch}" \
+        # 原生 / Git Bash：直接传环境变量即可
+        GOOS="${goos}" GOARCH="${goarch}" CGO_ENABLED=0 \
             "${GO_CMD}" build -ldflags "-s -w -X main.version=${ver} -X main.commit=${COMMIT}" \
-            -o "${out}" ./cmd/server
+            -o "${out_arg}" ./cmd/server
     fi
 }
 
 # ---------------------------------------------------------------------
 # 4. 目标平台 → 包命名元素
 # ---------------------------------------------------------------------
+# 用 | 分隔输出：空字段（Linux 无 .exe 后缀）在空格分隔下会被 read 丢弃，
+# 导致 EXT 错位拿到 ARCHIVE 的值。
 target_meta() {
     local t="$1"
     case "${t}" in
-        linux/amd64)   echo "linux amd64 ubuntu2604 '' tar.gz" ;;
-        linux/arm64)   echo "linux arm64 ubuntu2604 '' tar.gz" ;;
-        windows/amd64) echo "windows amd64 win11 .exe zip" ;;
+        linux/amd64)   echo "linux|amd64|ubuntu2604||tar.gz" ;;
+        linux/arm64)   echo "linux|arm64|ubuntu2604||tar.gz" ;;
+        windows/amd64) echo "windows|amd64|win11|.exe|zip" ;;
         *) die "不支持的目标平台：${t}（可选 linux/amd64、linux/arm64、windows/amd64、all）" ;;
     esac
 }
@@ -184,7 +264,7 @@ OUT_DIR=$(cd "${OUT_DIR}" && pwd)
 # 5. 逐平台构建 + 打包
 # ---------------------------------------------------------------------
 for T in "${TARGETS[@]}"; do
-    read -r GOOS_V GOARCH_V OS_LABEL EXT ARCHIVE <<< "$(target_meta "${T}")"
+    IFS='|' read -r GOOS_V GOARCH_V OS_LABEL EXT ARCHIVE <<< "$(target_meta "${T}")"
     NAME="finvquant_${SNAPSHOT_VERSION}_${OS_LABEL}_${GOARCH_V}"
     PKG_ROOT="${ROOT}/pkg/${NAME}"
 
@@ -235,8 +315,7 @@ EOF
         | xargs -0 sha256sum > SHA256SUMS )
 
     if [[ "${ARCHIVE}" == "zip" ]]; then
-        need_cmd zip
-        ( cd "${ROOT}/pkg" && zip -qr "${OUT_DIR}/${NAME}.zip" "${NAME}" )
+        make_zip "${ROOT}/pkg" "${NAME}" "${OUT_DIR}/${NAME}.zip"
     else
         ( cd "${ROOT}/pkg" && tar -czf "${OUT_DIR}/${NAME}.tar.gz" "${NAME}" )
     fi
