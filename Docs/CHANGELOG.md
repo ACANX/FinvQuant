@@ -48,6 +48,14 @@
 - **Native 部署配套落地**：新增 `Deploy/Native/{README,Install,Upgrade}.md` 与 `Install.sh`、`Upgrade.sh`、`Uninstall.sh`、`FinvQuant.service`、`FinvQuant.env.example`、`Nginx.conf.example`；服务由 systemd 守护（`Restart=on-failure`、`EnvironmentFile`、安全加固、journald），安装脚本幂等并自动生成随机数据库密码、建库授权、健康检查；升级脚本按「备份 → 停服 → 备份旧二进制 → 替换 → 启动 → 健康检查」执行，支持 `--rollback` 回退程序。
 - **文件名按品牌大小写**：`FinvQuant.service`、`FinvQuant.env.example`（安装后注册为 `finvquant.service`，运维命令仍用 `systemctl ... finvquant`）。
 - 新增 [`Deploy/README.md`](Deploy/README.md)：部署目录总览——两种方式的目录边界与选择建议、共用 `Migrations/` 与 `Backup/` 的说明、两种方式共同遵守的约束（禁止新旧共存、升级前备份、schema 限定）、目录命名约定。
+- **CI 增量支持 `feat/integration` 快照构建**（不改变既有镜像规则）：
+  - 触发：`push` 到 `feat/integration`（并加入 PR 目标分支以便验证）
+  - 版本标识：`v{VERSION}.{PPPPP}.{yymmddHHmm}` —— `PPPPP` 为关联 PR 号（5 位左补零，无 PR 为 `00000`），`yymmddHHmm` 为 Asia/Shanghai 构建时间戳；**由 `snapshot-meta` job 只算一次**，经 job outputs 传给所有产物，保证同一快照不同产物时间戳一致
+  - 产物：Ubuntu 26.04 二进制包 `tar.gz`（`linux/amd64` + `linux/arm64`）、Windows 11 二进制包 `zip`（`windows/amd64`）；包内含二进制、`Deploy/Migrations`、部署脚本与文档、`VERSION`、`BUILD-INFO.txt`、`SHA256SUMS`（Linux 包带 Native 全套，Windows 包带 Docker 编排且不含 Dockerfile）
+  - 发布：以快照版本为 git tag 建 **prerelease**，附三个包与 `.sha256`
+  - 隔离：`docker` job 显式排除 `feat/integration`，集成分支不构建镜像、不污染 `latest`
+  - 复用：`build-web` 上传 `web-dist` artifact 供二进制打包复用，避免二次 `npm ci`
+  - 规范：`GitSpec.md` 新增第 4 节「版本号与构建标识」
 - **新增 `archive` schema（冷数据归档域）**（`V37`）：幂等建 schema、以 `current_user` 设定属主并授予 `USAGE`/`CREATE`、追加到 `search_path` 末尾（`public,quote,quant,futu,export,sche,dedup,archive`）、末尾收敛校验；生产库已应用并验证（`V37 success=t`、属主 `finv`、权限齐备）。
   - 注意区分：`archive` **schema** 是数据库冷数据归档（历史行情下沉），仓库根 `Archive/` 是**文件**归档（废弃脚本/文档），两者无关。
   - 风险提示：归档表沿用业务表名会形成 `quote` / `export` / `archive` 三处同名，任何读写必须写 `archive.` 前缀。

@@ -305,6 +305,22 @@
 | 10190 | 迁移记录已登记 `V37` 且成功。 | `select success from schema_version where version::int=37` 输出 `t` | |
 | 10191 | 规范文件登记 `archive` 并说明与文件目录 `Archive/` 的区别及同名风险。 | `grep -c 'archive' Docs/DevSpec/DbSchemaSpec.md` 不小于 `4`；含「Archive/」与「三处同名」说明 | |
 
+## 二十、feat/integration 快照构建（10192–10202）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10192 | `feat/integration` 的 push 会触发流水线。 | `grep -c 'feat/integration' .github/workflows/CI.yml` 不小于 `4`；`push.branches` 含该分支 | |
+| 10193 | 存在快照版本计算 job，输出统一版本号。 | `snapshot-meta` job 的 `outputs` 含 `version`/`base_version`/`pr`/`timestamp`/`commit` | |
+| 10194 | 版本格式为 `v{VERSION}.{PPPPP}.{yymmddHHmm}`。 | job 内以 `printf '%05d'` 左补零、`date +%y%m%d%H%M` 取时间戳、拼成 `v${BASE}.${PR5}.${TS}` | |
+| 10195 | 无 PR 时 PR 段为 `00000`。 | 非纯数字时 `PR=0` 并经 `printf '%05d'` 输出 `00000` | |
+| 10196 | 同一快照不同产物时间戳一致。 | 所有产物 job 引用 `needs.snapshot-meta.outputs.version`，无 job 自行 `date` | |
+| 10197 | Linux 产两种架构。 | `matrix.include` 中含 `linux/amd64` 与 `linux/arm64` | |
+| 10198 | Windows 产出包。 | `matrix.include` 中含 `windows/amd64`，归档格式 `zip` | |
+| 10199 | 包内含二进制、迁移、部署脚本与构建信息。 | 解包后存在 `finvquant*`、`Deploy/Migrations/`、`Deploy/Native/`（Linux）或 `Deploy/Docker/`（Windows）、`VERSION`、`BUILD-INFO.txt`、`SHA256SUMS` | |
+| 10200 | 快照发布为 prerelease 且 tag 为快照版本。 | `gh release create "${VER}" --prerelease --target <sha>` | |
+| 10201 | 既有镜像流程不被集成分支影响。 | `docker` job 的 `if` 含 `github.ref != 'refs/heads/feat/integration'`；`dev/main/FinvQuant/tag` 规则未改动 | |
+| 10202 | 版本标识规则写入规范。 | `grep -c 'PPPPP' Docs/DevSpec/GitSpec.md` 不小于 `1`；含「同一快照的所有产物必须共用同一个时间戳」 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -328,7 +344,8 @@
 | export 行情导出转存表 | 10167–10175 | 9 |
 | 新增 dedup 去重 schema | 10176–10183 | 8 |
 | 新增 archive 归档 schema | 10184–10191 | 8 |
-| **合计** | **10001–10191** | **191** |
+| feat/integration 快照构建 | 10192–10202 | 11 |
+| **合计** | **10001–10202** | **202** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10192` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10203` 起往后追加，不插入既有区间。
