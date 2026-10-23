@@ -403,12 +403,6 @@ jobs:
           | 提交 | \`${{ needs.snapshot-meta.outputs.commit }}\` |
           | 流水线 | ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} |
 
-          ## 产物
-
-          - Ubuntu 26.04 x86_64（linux/amd64）：\`FinvQuant-${VER}-ubuntu-amd64.tar.gz\`
-          - Ubuntu 26.04 aarch64（linux/arm64）：\`FinvQuant-${VER}-ubuntu-arm64.tar.gz\`
-          - Windows 11 x64（windows/amd64）：\`FinvQuant-${VER}-windows-amd64.zip\`
-
           > 快照为集成验证用预发布版本，不保证稳定，请勿用于生产。
           EOF
           gh release create "${VER}" \

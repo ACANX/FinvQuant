@@ -363,7 +363,7 @@
 | 10228 | `.gitignore` / `.dockerignore` 同时忽略 `dist/` 与 `Dist/`。 | 两文件中均有 `dist/` 与 `Dist/` 两行 | |
 | 10231 | 产物文件名用连字符连接（无下划线）。 | `ls Dist/` 中包名匹配 `^FinvQuant-v[^-]+-ubuntu-(amd64\|arm64)\.tar\.gz$` 与 `^FinvQuant-v[^-]+-windows-amd64\.zip$`，不含 `_` | |
 | 10232 | 快照 release 标题为 `{版本}-FinvQuant`。 | GitHub releases 最新一条的 `name` 形如 `v0.1.1.00000.2610240325-FinvQuant`，`tag_name` 为该版本号（不含 `-FinvQuant`） | |
-| 10233 | release 说明不含冗余校验说明。 | release body 不含「BUILD-INFO 的时间戳与版本号一致」与「SHA256SUMS 为包内文件校验和」两句 | |
+| 10233 | release 说明不重复列产物、不含冗余校验描述。 | release body 无「## 产物」小节、无三个包文件名、无「BUILD-INFO 的时间戳与版本号一致」「SHA256SUMS 为包内文件校验和」两句；附件由 GitHub release 的 assets 列表呈现 | |
 | 10230 | `BUILD-INFO.txt` 在 CI 中包含运行号、仓库与流水线链接。 | CI 产物内 `BUILD-INFO.txt` 含 `构建方式    : Deploy/Script/PackSnapshot.sh（CI run <数字>）`、`仓库        : https://github.com/ACANX/FinvQuant`、`构建流水线  : https://github.com/.../actions/runs/<数字>` | |
 | 10229 | 规范与文档同步新命名。 | `GitSpec.md` 含 `FinvQuant_{快照版本}_{ubuntu\|windows}_{amd64\|arm64}`；`Deploy/Script/README.md` 与 `Deploy/README.md` 无 `ubuntu2604`/`win11_` | |
 
