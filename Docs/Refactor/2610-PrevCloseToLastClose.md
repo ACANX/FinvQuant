@@ -30,7 +30,7 @@
 |---|---|---|---|
 | `Docs/DataFormat/Example_GCmain_Min_V3_2026.mvsv` | 20 行 | 0 / 20 | 参考值 |
 | `Docs/DataFormat/Example_US_NVDA_Min_V4_2026.mvsv` | 20 行 | 0 / 20 | 参考值 |
-| `VeritasQuant/Data/US_NSDQ_NVDA/..._15000.mvsv` | 15000 行 | 3194 / 15000（21.3%） | 参考值 |
+| `Archive/VeritasQuant/Data/US_NSDQ_NVDA/..._15000.mvsv`（原 `VeritasQuant/`，2026-10-24 归档） | 15000 行 | 3194 / 15000（21.3%） | 参考值 |
 
 - **权威判定方式**（在生产库执行，结论记入 `DB-01`）：
   ```sql

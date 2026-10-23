@@ -1,6 +1,6 @@
 // Package mvsv 解析 MVSV-1 分钟级历史行情文件格式。
 //
-// 格式（与 VeritasQuant/data/Mvsv.py 对齐）：
+// 格式（与 Archive/VeritasQuant/data/Mvsv.py 对齐）：
 //   - 头部：# Key : Value 行，空行分隔头部与数据区；
 //   - 数据区：列布局由头部 # Field 声明，当前支持两种：
 //     ① ts|dt|o|c|l|h|v|t|cp|cr|p（11 列，dt=14 位日期时间，t=成交额）

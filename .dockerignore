@@ -12,7 +12,6 @@
 # ---- 文档、归档与历史子项目（不参与镜像构建）----
 Docs/
 Archive/
-VeritasQuant/
 AGENTS.md
 Prompt.md
 README.md

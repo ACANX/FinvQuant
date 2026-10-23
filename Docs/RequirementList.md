@@ -367,6 +367,18 @@
 | 10230 | `BUILD-INFO.txt` 在 CI 中包含运行号、仓库与流水线链接。 | CI 产物内 `BUILD-INFO.txt` 含 `构建方式    : Deploy/Script/PackSnapshot.sh（CI run <数字>）`、`仓库        : https://github.com/ACANX/FinvQuant`、`构建流水线  : https://github.com/.../actions/runs/<数字>` | |
 | 10229 | 规范与文档同步新命名。 | `GitSpec.md` 含 `FinvQuant_{快照版本}_{ubuntu\|windows}_{amd64\|arm64}`；`Deploy/Script/README.md` 与 `Deploy/README.md` 无 `ubuntu2604`/`win11_` | |
 
+## 二十四、VeritasQuant 归档（10234–10240）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10234 | `VeritasQuant/` 已移入 `Archive/`，根目录不再有该目录。 | `test -d Archive/VeritasQuant` 且 `test ! -d VeritasQuant` | |
+| 10235 | 移动保留 Git 历史（识别为重命名而非删除+新增）。 | `git log --follow Archive/VeritasQuant/README.md` 能追溯到移动前提交；`git status` 中该批文件显示为 `R` | |
+| 10236 | 归档不影响 Go 构建与测试。 | `go build ./...` 与 `go test ./internal/database/ -run TestSQLSchemaQualified` 均通过 | |
+| 10237 | 文档路径引用已更新。 | `grep -c 'Archive/VeritasQuant' README.md AGENTS.md Prompt.md Archive/README.md` 均不小于 `1`；根 README 目录树无裸 `VeritasQuant/` | |
+| 10238 | `Archive/README.md` 登记该归档项。 | 含 `\| \`VeritasQuant/\` \|` 行，说明归档日期与「不参与现行构建」 | |
+| 10239 | 构建上下文排除归档目录。 | `.dockerignore` 含 `Archive/`，且无独立 `VeritasQuant/` 行 | |
+| 10240 | 可执行示例与代码注释路径同步。 | `grep -rn 'Archive/VeritasQuant' Docs/API/HistoryQuote/ImportsUpload.md internal/mvsv/parser.go` 各不小于 `1` | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -394,7 +406,8 @@
 | 本地快照打包脚本 | 10203–10215 | 13 |
 | 打包脚本文档 | 10216–10222 | 7 |
 | 产物命名规范调整 | 10223–10233 | 11 |
-| **合计** | **10001–10233** | **233** |
+| VeritasQuant 归档 | 10234–10240 | 7 |
+| **合计** | **10001–10240** | **240** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10234` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10241` 起往后追加，不插入既有区间。

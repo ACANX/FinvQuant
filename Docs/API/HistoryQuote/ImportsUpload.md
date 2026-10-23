@@ -82,7 +82,7 @@
 
 ```bash
 curl -X POST http://localhost:16001/API/V1/Meta/Finv/Quant/Quote/Import/Upload \
-  -F "file=@VeritasQuant/Data/US_NSDQ_NVDA/US_NVDA_Min_V4_2026_2026072907_15000.mvsv" \
+  -F "file=@Archive/VeritasQuant/Data/US_NSDQ_NVDA/US_NVDA_Min_V4_2026_2026072907_15000.mvsv" \
   -F "source=cn-feed" \
   -F "upsert_mode=FIELD"
 ```

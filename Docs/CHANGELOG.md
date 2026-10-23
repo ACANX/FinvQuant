@@ -48,6 +48,7 @@
 - **Native 部署配套落地**：新增 `Deploy/Native/{README,Install,Upgrade}.md` 与 `Install.sh`、`Upgrade.sh`、`Uninstall.sh`、`FinvQuant.service`、`FinvQuant.env.example`、`Nginx.conf.example`；服务由 systemd 守护（`Restart=on-failure`、`EnvironmentFile`、安全加固、journald），安装脚本幂等并自动生成随机数据库密码、建库授权、健康检查；升级脚本按「备份 → 停服 → 备份旧二进制 → 替换 → 启动 → 健康检查」执行，支持 `--rollback` 回退程序。
 - **文件名按品牌大小写**：`FinvQuant.service`、`FinvQuant.env.example`（安装后注册为 `finvquant.service`，运维命令仍用 `systemctl ... finvquant`）。
 - 新增 [`Deploy/README.md`](Deploy/README.md)：部署目录总览——两种方式的目录边界与选择建议、共用 `Migrations/` 与 `Backup/` 的说明、两种方式共同遵守的约束（禁止新旧共存、升级前备份、schema 限定）、目录命名约定。
+- **`VeritasQuant/` 子项目整体移入 `Archive/VeritasQuant/`**（`git mv`，保留提交历史，590 个文件 / 6.4 MB）：该 Python 量化平台为 FinvQuant 前身，现已不参与构建、测试与部署；其 `.github/workflows/` 从未生效（GitHub 只识别仓库根），保留仅为追溯。同步更新根 `README.md`、`AGENTS.md`、`Prompt.md` 的目录结构与路径、`.dockerignore`（改为整体排除 `Archive/`）、`Archive/README.md`（新增归档登记表）、`Docs/API/HistoryQuote/ImportsUpload.md` 示例命令、`internal/mvsv/parser.go` 注释与 `Docs/CHANGELOG.md` 历史章节的链接。
 - **快照产物命名改用连字符**：`FinvQuant-v0.1.1.00000.2610240325-ubuntu-amd64.tar.gz`（原 `FinvQuant_v0.1.1.00000.2610240325_ubuntu_amd64.tar.gz`），包内顶层目录名同步；快照 release 标题改为 `{快照版本}-FinvQuant`（如 `v0.1.1.00000.2610240325-FinvQuant`），git tag 仍为 `{快照版本}`；release 说明删除「产物」列表整节与「BUILD-INFO 时间戳一致」「SHA256SUMS 校验方式」两句冗余描述（附件已由 release assets 列表呈现，正文无需重复）。
 - **`BUILD-INFO.txt` 补全 CI 溯源信息**：CI 构建时写入运行号（`CI run <id>`）、仓库地址与流水线链接（经 `CI_RUN_ID`/`BUILD_REPO`/`BUILD_RUN_URL` 环境变量传入），本地构建时这几行自动省略。
 - **快照产物命名规范调整**（`PackSnapshot.sh` / CI 同步）：产物目录 `dist/` → **`Dist/`**；包名前缀 `finvquant_` → **`FinvQuant_`**；平台段 `ubuntu2604` → **`ubuntu`**、`win11` → **`windows`**。新命名示例：`FinvQuant_v0.1.1.00123.2610241530_ubuntu_arm64.tar.gz`。本次仅改命名与输出目录，包内容与打包流程不变。
@@ -129,7 +130,7 @@ FinvQuant 首个正式版本：Go 服务端 + Vue3 前端前后端分离骨架�
 
 ## 历史版本（VeritasQuant 子项目）
 
-> 以下为 `VeritasQuant/` 独立阶段的历史版本，仅为追溯保留；其事件语义与验收门禁见 [`VeritasQuant/AGENTS.md`](../VeritasQuant/AGENTS.md)。
+> 以下为 `VeritasQuant/` 独立阶段的历史版本，仅为追溯保留；其事件语义与验收门禁见 [`Archive/VeritasQuant/AGENTS.md`](../Archive/VeritasQuant/AGENTS.md)（该子项目已于 2026-10-24 移入归档目录）。
 
 ### VeritasQuant 0.1.2 - 2026-08-03
 

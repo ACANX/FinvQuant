@@ -41,4 +41,15 @@
 
 ## 5. 当前内容
 
-本目录目前为空（占位）。新增归档时按第 3 节建立子目录，并在提交信息中说明来源与原因。
+| 子目录 | 归档内容 | 归档日期 | 说明 |
+|---|---|---|---|
+| `VeritasQuant/` | FinvQuant 的前身——独立 Python 量化交易平台（590 个文件 / 6.4 MB） | 2026-10-24 | 整体移入归档，**不参与现行构建、测试与部署**；`Archive/VeritasQuant/AGENTS.md` 内的项目级规则仅作历史追溯，现行规则以仓库根 `AGENTS.md` 与 `Docs/DevSpec/` 为准 |
+
+### 关于 `Archive/VeritasQuant/`
+
+- 移动方式：`git mv VeritasQuant Archive/VeritasQuant`（保留完整提交历史）。
+- 仍然有效的内容：`Data/` 下的 MVSV 样本文件可继续用于验证解析器；`Docs/` 中的算法说明可供参考。
+- 已失效的内容：其 `.github/workflows/`（GitHub 只识别仓库根 `.github/workflows/`，子目录 CI 从未生效）、`Apps/` 部署清单、依赖锁定文件——保留仅为追溯。
+- 引用该目录时请在全仓搜索 `Archive/VeritasQuant/` 确认路径，避免照抄旧文档中的 `VeritasQuant/`。
+
+新增归档时按第 3 节建立子目录，并在本表登记。

@@ -10,7 +10,7 @@
 
 ```
 .
-├── VeritasQuant/          # 子项目：VeritasQuant 量化交易平台（完整代码）
+├── Archive/             # 仓库级历史归档（含 Archive/VeritasQuant/ 历史子项目，不参与构建）
 ├── cmd/ internal/         # FinvQuant Go 服务端（量化平台服务端）
 ├── Web/                   # 前端（Vue3 + Vite8 + Vuetify4）
 ├── Deploy/                # 部署编排（两种方式共用 Migrations/ 与 Backup/）
@@ -61,9 +61,9 @@ FinvQuant 是一个面向多资产的**严格事件驱动量化交易平台**，
 
 ## 工作约定
 
-- **进入 `VeritasQuant/` 后，以该目录内的 [`VeritasQuant/AGENTS.md`](VeritasQuant/AGENTS.md) 为项目级唯一权威协作指南**——它包含"方案优先"原则、不可违反的事件语义、风控/控制约束、Git 工作流与提交规范。
+- **进入 `Archive/VeritasQuant/`（历史归档子项目）后，以该目录内的 [`Archive/VeritasQuant/AGENTS.md`](Archive/VeritasQuant/AGENTS.md) 为项目级唯一权威协作指南**——它包含"方案优先"原则、不可违反的事件语义、风控/控制约束、Git 工作流与提交规范。
 - **所有 Python 相关的开发、测试、构建、运行和部署命令统一使用 `python3` 执行**；当前默认开发、测试、运行和部署环境为 **Windows 11 上的 Python 3.13**。
 - Go 服务端（`cmd/`、`internal/`）与前端（`Web/`）的开发约定见 `Prompt.md` 与各自代码注释。
-- 仓库级本文件只负责结构说明；项目级规则一律以 `VeritasQuant/AGENTS.md` 为准。
+- 仓库级本文件只负责结构说明；现行项目级规则以本文件与 `Docs/` 下规范为准，归档子项目的规则仅作追溯。
 - 根目录文件（`.gitignore`、`AGENTS.md`、`LICENSE`、`README.md`）描述仓库外壳，不描述项目内部行为。
 - **新增需求必须登记**：在 [`Docs/RequirementList.md`](Docs/RequirementList.md) 追加条目（五位数编号，自 `10001` 起只增不改，一条只描述一个要求并附可执行的核对方式），并按 [`Docs/DevSpec/DocSpec.md`](Docs/DevSpec/DocSpec.md) §4 同步更新 [`Docs/CHANGELOG.md`](Docs/CHANGELOG.md)。

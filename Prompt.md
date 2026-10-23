@@ -23,7 +23,7 @@ FinvQuant 是一个**量化策略交易平台**，采用**前后端分离**架�
 ├── Deploy/                # Docker Compose 部署编排
 ├── .github/workflows/     # GitHub Actions：构建 + 推送 GHCR 镜像
 ├── Dockerfile             # 服务端镜像（多阶段构建）
-├── VeritasQuant/          # 既有子项目（Python 量化平台，历史保留）
+├── Archive/              # 仓库级历史归档（含 VeritasQuant 历史子项目）
 ├── go.mod / go.sum        # Go 模块定义
 ├── .gitignore             # Go 版本忽略规则
 └── Prompt.md              # 本需求文档
@@ -158,7 +158,7 @@ FINV_PG_DATA_DIR=D:/Dev/Docker/HostFileSystem/FinvQuant/PostgreSQL
 - [ ] 数据库迁移与 Schema 管理（golang-migrate / goose）
 - [ ] Redis 缓存策略与消息通道接入
 - [ ] 认证授权（JWT / RBAC）
-- [ ] 与 `VeritasQuant/` 子项目的数据/能力集成（行情导入 PG 等）
+- [ ] 与 `Archive/VeritasQuant/`（历史归档子项目）的数据/能力集成（行情导入 PG 等）
 
 ## 9.5 通用量化回测模块（2026-08-06 已落地）
 
