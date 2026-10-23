@@ -9,7 +9,8 @@
 |---|---|---|
 | `quote` | 行情域 | `finv_quote_secu_kline_min`、`finv_quote_ingest_batches`、`finv_quote_revision_log` |
 | `quant` | 量化域 | `finv_quant_backtest_*`（11 张）、`finv_quant_environment`、`finv_quant_template` |
-| `public` | 基础主数据与系统表 | `finv_security`、`finv_market`、`finv_exchange`、`finv_region`、`finv_currency`、`finv_futu_mapping_*`、`schema_version` |
+| `futu` | 外部源映射域（富途 OpenAPI 编码 ↔ Finv 内部编码） | `finv_futu_mapping_cs_market`、`finv_futu_mapping_exchange`、`finv_futu_mapping_market_code`、`finv_futu_mapping_region`、`finv_futu_mapping_security` |
+| `public` | 基础主数据与系统表 | `finv_security`、`finv_market`、`finv_exchange`、`finv_region`、`finv_currency`、`schema_version` |
 
 - **一个业务域一个 schema**，不把域对象堆在 `public`。
 - 新增域时同步在本文档登记其 schema 名与归属表，并在迁移脚本中 `CREATE SCHEMA IF NOT EXISTS <域名>`。
@@ -22,8 +23,8 @@
 
 ## 3. 连接与 search_path
 
-- 应用连接串固定带 `search_path=public,quote,quant`（见 `internal/database/postgres.go`），迁移与业务 SQL 均依赖此设置。
-- 代码中的 SQL **必须显式写 schema 前缀**（`quote.xxx`、`quant.xxx`）；`search_path` 只作为历史迁移脚本与手工 `psql` 的兜底。
+- 应用连接串固定带 `search_path=public,quote,quant,futu`（见 `internal/database/postgres.go`），迁移与业务 SQL 均依赖此设置。
+- 代码中的 SQL **必须显式写 schema 前缀**（`quote.xxx`、`quant.xxx`、`futu.xxx`）；`search_path` 只作为历史迁移脚本与手工 `psql` 的兜底。
 - 手工运维时若未设置 `search_path`，须写全限定名，例如 `select count(*) from quote.finv_quote_secu_kline_min;`。
 - `schema_version` 与迁移机制保留在 `public`，不随业务域迁移。
 
@@ -34,6 +35,7 @@
   - 已发生的例子：`V29` 把 `secu_code` 改名为 `usc` 后，晚于它执行的种子迁移 `V100019`（INSERT 列清单）与 `V100023`（`CREATE TABLE` 列定义）仍引用旧列名，只修正这两处，改为 `usc`。
 - 需要排在种子段之后执行的结构收尾迁移，使用 `V1000xx` 编号并在此文档与迁移文件头注明原因。
   - 已发生的例子：`V100024`（把 `V100023` 在 `public` 新建的 3 张 `finv_quant_*` 表移入 `quant`）。
+  - 反例（无需收尾迁移）：`finv_futu_*` 的建表全部在 `V7`～`V17`，种子段只做 `INSERT`/`UPDATE`/`DELETE`，故 `V33` 一次迁移即可完成，不需要 `V1000xx` 收尾（详见 [`../Refactor/2610-MoveFutuTablesToSchema.md`](../Refactor/2610-MoveFutuTablesToSchema.md)）。
 - 新建/移动表的迁移必须幂等（`CREATE SCHEMA IF NOT EXISTS`、`pg_tables` 位置判断），并在脚本末尾做收敛校验（`RAISE EXCEPTION` 触发整体回滚）。
 
 ## 5. 变更要求

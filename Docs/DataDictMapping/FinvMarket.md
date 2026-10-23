@@ -34,5 +34,5 @@
 
 - **对齐参考**：MySQL `finv_market` 表结构；PG 侧按项目建表规范加固（主键、NOT NULL、审计字段、触发器）。
 - **与 finv_exchange 关系**：`finv_exchange` 为交易所/市场整体字典（code 10/11/12...），`finv_market` 为交易所下属细分交易市场代码表，两者通过市场编码语义关联（映射规则待定）。
-- **⚠️ 与富途映射表编码不一致**：`finv_futu_mapping_market_code.finv_market_code`（暂=futu 原始值，如 1/10/30/60/200...）与 finv_market 重新编码（1100/1110/1310/2000...）**不一致**，需后续迁移按 market_abbr + market_name 语义对齐映射表。
+- **⚠️ 与富途映射表编码不一致**：`futu.finv_futu_mapping_market_code.finv_market_code`（暂=futu 原始值，如 1/10/30/60/200...）与 finv_market 重新编码（1100/1110/1310/2000...）**不一致**，需后续迁移按 market_abbr + market_name 语义对齐映射表。
 - **审计字段**：`gmt_create` / `gmt_update` 与既有表规范一致，`gmt_update` 由 `vq_set_gmt_update()` 触发器自动维护。

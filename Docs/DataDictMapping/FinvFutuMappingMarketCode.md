@@ -1,7 +1,7 @@
 # FinvFutuMappingMarketCode — 富途市场代码映射
 
 > 所属：FinvQuant 数据字典映射 · 存放：`Docs/DataDictMapping/FinvFutuMappingMarketCode.md`
-> 数据表：`finv_futu_mapping_market_code`（表结构：[`Deploy/Migrations/V8__finv_futu_mapping_market_code.sql`](../../Deploy/Migrations/V8__finv_futu_mapping_market_code.sql)；重建列序：[`Deploy/Migrations/V15__finv_futu_mapping_market_code_reorder.sql`](../../Deploy/Migrations/V15__finv_futu_mapping_market_code_reorder.sql)；增量列：[`Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql`](../../Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql)；初始数据：[`Deploy/Migrations/V100007__finv_futu_mapping_market_code_seed.sql`](../../Deploy/Migrations/V100007__finv_futu_mapping_market_code_seed.sql)）
+> 数据表：`futu.finv_futu_mapping_market_code`（表结构：[`Deploy/Migrations/V8__finv_futu_mapping_market_code.sql`](../../Deploy/Migrations/V8__finv_futu_mapping_market_code.sql)；重建列序：[`Deploy/Migrations/V15__finv_futu_mapping_market_code_reorder.sql`](../../Deploy/Migrations/V15__finv_futu_mapping_market_code_reorder.sql)；增量列：[`Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql`](../../Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql)；初始数据：[`Deploy/Migrations/V100007__finv_futu_mapping_market_code_seed.sql`](../../Deploy/Migrations/V100007__finv_futu_mapping_market_code_seed.sql)）
 > 用途：FT（富途/moomoo）行情源市场代码与交易市场代码（finv_market.market_code）的字段映射表。
 
 ## 1. 表结构

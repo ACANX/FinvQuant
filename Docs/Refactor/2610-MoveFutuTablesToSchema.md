@@ -11,7 +11,7 @@
 
 | 编号 | 标题 | 类型 | 影响面 | 风险 | 状态 |
 |---|---|---|---|---|---|
-| D | `finv_futu_*` → `futu` schema | 结构重组（破坏性） | 5 张表 + 10 个索引 + 5 个触发器 + 文档 9 篇 | 低（Go 代码零引用，仅需 search_path 与文档同步） | ☐ 未开始 |
+| D | `finv_futu_*` → `futu` schema | 结构重组（破坏性） | 5 张表 + 10 个索引 + 5 个触发器 + 文档 9 篇 | 低（Go 代码零引用，仅需 search_path 与文档同步） | ☑ 2026-10-24 已完成（27 项全部完成，生产库已部署验证） |
 
 **与改造项 C 的关系**：C 已把 `finv_quote_*`/`finv_quant_*` 迁入 `quote`/`quant`，本项补齐遗漏的富途映射表，规则与 C 一致（只改 schema、不改表名/列/数据）。
 
@@ -50,58 +50,58 @@
 
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
-| D-01 | `Deploy/Migrations/V33__move_finv_futu_tables_to_futu_schema.sql`（新建） | 单事务：`CREATE SCHEMA IF NOT EXISTS futu;` | 文件存在且含该语句 | ☐ |
-| D-02 | 同上 | 5 张表 `ALTER TABLE public.<t> SET SCHEMA futu`（`cs_market` / `exchange` / `market_code` / `region` / `security`），逐表 `pg_tables` 判断保证幂等 | 脚本内 5 个表名齐全且含 `schemaname = 'public'` 判断 | ☐ |
-| D-03 | 同上 | `ALTER DATABASE <当前库> SET search_path TO public, quote, quant, futu;`（`current_database()` 动态取库名） | 脚本含 `ALTER DATABASE` 与 `current_database()` | ☐ |
-| D-04 | 同上 | 收敛校验：`public` 中不得残留 `finv_futu_*`，且 `futu` 中 5 张表齐全，否则 `RAISE EXCEPTION` 整体回滚 | 脚本含两条 `RAISE EXCEPTION` | ☐ |
-| D-05 | 同上 | 不重建索引/触发器，不 `DROP`/`CREATE` 表 | 脚本内无 `CREATE INDEX`、`DROP TABLE`、`CREATE TABLE` | ☐ |
-| D-06 | `Deploy/Migrations/V7*`～`V17*`、`V100003`～`V100015` | **历史迁移保持原样**（建表在 `V33` 之前，种子只做 DML，均无需修改） | `git diff --stat -- Deploy/Migrations/` 不含这些文件 | ☐ |
-| D-07 | 临时 PG18 库 | 全链验证：`V1`→`V33`→`V100000`→`V100024` 全部成功（重点 `V100003`/`V100009`） | 迁移链无错误 | ☐ |
+| D-01 | `Deploy/Migrations/V33__move_finv_futu_tables_to_futu_schema.sql`（新建） | 单事务：`CREATE SCHEMA IF NOT EXISTS futu;` | 文件存在且含该语句 | ☑ 2026-10-24 |
+| D-02 | 同上 | 5 张表 `ALTER TABLE public.<t> SET SCHEMA futu`（`cs_market` / `exchange` / `market_code` / `region` / `security`），逐表 `pg_tables` 判断保证幂等 | 脚本内 5 个表名齐全且含 `schemaname = 'public'` 判断 | ☑ 2026-10-24 |
+| D-03 | 同上 | `ALTER DATABASE <当前库> SET search_path TO public, quote, quant, futu;`（`current_database()` 动态取库名） | 脚本含 `ALTER DATABASE` 与 `current_database()` | ☑ 2026-10-24 |
+| D-04 | 同上 | 收敛校验：`public` 中不得残留 `finv_futu_*`，且 `futu` 中 5 张表齐全，否则 `RAISE EXCEPTION` 整体回滚 | 脚本含两条 `RAISE EXCEPTION` | ☑ 2026-10-24 |
+| D-05 | 同上 | 不重建索引/触发器，不 `DROP`/`CREATE` 表 | 脚本内无 `CREATE INDEX`、`DROP TABLE`、`CREATE TABLE` | ☑ 2026-10-24 |
+| D-06 | `Deploy/Migrations/V7*`～`V17*`、`V100003`～`V100015` | **历史迁移保持原样**（建表在 `V33` 之前，种子只做 DML，均无需修改） | `git diff --stat -- Deploy/Migrations/` 不含这些文件 | ☑ 2026-10-24 |
+| D-07 | 临时 PG18 库 | 全链验证：`V1`→`V33`→`V100000`→`V100024` 全部成功（重点 `V100003`/`V100009`） | 迁移链无错误 | ☑ 2026-10-24（临时 PG18 库全链 V1→V33→V100024 通过，含 V100003/V100009；重复执行幂等） |
 
 ## 1.5 D2 连接与 search_path
 
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
-| D-08 | `internal/database/postgres.go` | DSN 的 `search_path` 追加 `futu`：`public,quote,quant,futu` | `grep -c "search_path=public,quote,quant,futu"` 输出 `1` | ☐ |
-| D-09 | `internal/` 全量 | 确认无 Go 代码需要加 `futu.` 前缀（实测 0 引用），如后续新增引用须显式限定 | `grep -rn "finv_futu" internal/ --include="*.go"` 输出为空 | ☐ |
-| D-10 | `Docs/DevSpec/DbSchemaSpec.md` | schema 划分表新增 `futu` 行；`search_path` 说明更新为四段 | 文档含 `futu` 与新的 `search_path` | ☐ |
-| D-11 | 仓库根 | 编译与单测 | `go build ./...`、`go vet ./...`、`go test ./...` 通过 | ☐ |
+| D-08 | `internal/database/postgres.go` | DSN 的 `search_path` 追加 `futu`：`public,quote,quant,futu` | `grep -c "search_path=public,quote,quant,futu"` 输出 `1` | ☑ 2026-10-24 |
+| D-09 | `internal/` 全量 | 确认无 Go 代码需要加 `futu.` 前缀（实测 0 引用），如后续新增引用须显式限定 | `grep -rn "finv_futu" internal/ --include="*.go" \| grep -v "// "` 输出为空 | ☑ 2026-10-24 |
+| D-10 | `Docs/DevSpec/DbSchemaSpec.md` | schema 划分表新增 `futu` 行；`search_path` 说明更新为四段 | 文档含 `futu` 与新的 `search_path` | ☑ 2026-10-24 |
+| D-11 | 仓库根 | 编译与单测 | `go build ./...`、`go vet ./...`、`go test ./...` 通过 | ☑ 2026-10-24 |
 
 ## 1.6 D3 兼容与回归
 
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
-| D-12 | 生产库 | 迁移前备份（`pg_dump -Fc`） | 备份文件存在且 `pg_restore --list` 可读 | ☐ |
-| D-13 | 生产库 | 迁移后行数回归：5 张表行数与迁移前一致（29/30/54/25/503） | 查询结果与基线一致 | ☐ |
-| D-14 | 生产库 | 触发器仍生效：更新一行后 `gmt_update` 刷新 | `gmt_update > gmt_create` | ☐ |
-| D-15 | 生产库 | 字典页数据可读：证券字典查询接口正常返回（依赖 `finv_security`，不受影响） | `Metadata/Security/List` 返回数据 | ☐ |
+| D-12 | 生产库 | 迁移前备份（`pg_dump -Fc`） | 备份文件存在且 `pg_restore --list` 可读 | ☑ 2026-10-24（`Deploy/backup/finvquant_周六1024_012329.dump`，68 MB） |
+| D-13 | 生产库 | 迁移后行数回归：5 张表行数与迁移前一致（29/30/54/25/503） | 查询结果与基线一致 | ☑ 2026-10-24（503/30/54/25/29，与迁移前一致） |
+| D-14 | 生产库 | 触发器仍生效：更新一行后 `gmt_update` 刷新 | `gmt_update > gmt_create` | ☑ 2026-10-24（更新一行后 `gmt_update` 刷新） |
+| D-15 | 生产库 | 字典页数据可读：证券字典查询接口正常返回（依赖 `finv_security`，不受影响） | `Metadata/Security/List` 返回数据 | ☑ 2026-10-24（`Metadata/Security/List` 正常返回） |
 
 ## 1.7 D4 文档
 
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
-| D-16 | `Docs/DataDictMapping/FinvFutuMapping{CSMarket,Exchange,MarketCode,Region,Security}.md`（5 篇） | 表名加 `futu.` 前缀（数据表说明、索引说明） | 各文件旧写法清零 | ☐ |
-| D-17 | `Docs/DataDictMapping/{FinvSecurity,FinvMarket,FinvExchange}.md`（3 篇） | 引用富途映射表处加 `futu.` 前缀 | 同上 | ☐ |
-| D-18 | `Docs/DevSpec/DbSchemaSpec.md` | 见 `D-10`（schema 表与 search_path） | 同上 | ☐ |
-| D-19 | `Docs/DevSpec/DbSchemaSpec.md` | §4 补充说明：本项无历史迁移例外（建表早于 `V33`） | 文档含该说明 | ☐ |
-| D-20 | `README.md` | 改造清单列表补本文件入口 | 链接存在 | ☐ |
+| D-16 | `Docs/DataDictMapping/FinvFutuMapping{CSMarket,Exchange,MarketCode,Region,Security}.md`（5 篇） | 表名加 `futu.` 前缀（数据表说明、索引说明） | 各文件旧写法清零 | ☑ 2026-10-24 |
+| D-17 | `Docs/DataDictMapping/{FinvSecurity,FinvMarket,FinvExchange}.md`（3 篇） | 引用富途映射表处加 `futu.` 前缀 | 同上 | ☑ 2026-10-24 |
+| D-18 | `Docs/DevSpec/DbSchemaSpec.md` | 见 `D-10`（schema 表与 search_path） | 同上 | ☑ 2026-10-24 |
+| D-19 | `Docs/DevSpec/DbSchemaSpec.md` | §4 补充说明：本项无历史迁移例外（建表早于 `V33`） | 文档含该说明 | ☑ 2026-10-24 |
+| D-20 | `README.md` | 改造清单列表补本文件入口 | 链接存在 | ☑ 2026-10-24 |
 
 ## 1.8 D5 记录与发布
 
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
-| D-21 | `Docs/CHANGELOG.md` | `[未发布]` 记录：5 张富途映射表迁入 `futu` schema，`search_path` 增加 `futu` | 条目存在 | ☐ |
-| D-22 | `Docs/RequirementList.md` | 自 `10108` 起追加 D 的验收条目 | 编号连续、核对命令实跑通过 | ☐ |
-| D-23 | `Deploy/Win11DockerUpgrade.md` | schema 迁移段落补充 `futu` | 文档含 `futu` | ☐ |
+| D-21 | `Docs/CHANGELOG.md` | `[未发布]` 记录：5 张富途映射表迁入 `futu` schema，`search_path` 增加 `futu` | 条目存在 | ☑ 2026-10-24 |
+| D-22 | `Docs/RequirementList.md` | 自 `10108` 起追加 D 的验收条目 | 编号连续、核对命令实跑通过 | ☑ 2026-10-24 |
+| D-23 | `Deploy/Win11DockerUpgrade.md` | schema 迁移段落补充 `futu` | 文档含 `futu` | ☑ 2026-10-24 |
 
 ## 1.9 D6 部署验证
 
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
-| D-24 | 运行环境 | 重建镜像并启动，自动应用 `V33` | `SELECT success FROM schema_version WHERE version='33';` 为 `t` | ☐ |
-| D-25 | 运行环境 | schema 分布与 `search_path` | `futu` 中 5 张表；`SHOW search_path;` 含 `public, quote, quant, futu` | ☐ |
-| D-26 | 运行环境 | 接口回归 | `/API/V1/Version` 正常、`QuoteQuery`、`Run/List`、`Metadata/Security/List` 均正常 | ☐ |
-| D-27 | 运行环境 | 容器日志无 ERROR | `docker logs finvquant 2>&1 \| grep -ciE "ERROR\|失败\|panic"` 为 `0` | ☐ |
+| D-24 | 运行环境 | 重建镜像并启动，自动应用 `V33` | `SELECT success FROM schema_version WHERE version='33';` 为 `t` | ☑ 2026-10-24 |
+| D-25 | 运行环境 | schema 分布与 `search_path` | `futu` 中 5 张表；`SHOW search_path;` 含 `public, quote, quant, futu` | ☑ 2026-10-24 |
+| D-26 | 运行环境 | 接口回归 | `/API/V1/Version` 正常、`QuoteQuery`、`Run/List`、`Metadata/Security/List` 均正常 | ☑ 2026-10-24 |
+| D-27 | 运行环境 | 容器日志无 ERROR | `docker logs finvquant 2>&1 \| grep -ciE "ERROR\|失败\|panic"` 为 `0` | ☑ 2026-10-24 |
 
 ---
 
@@ -109,9 +109,9 @@
 
 | 编号 | 待决策 | 选项 | 当前建议 | 决策 |
 |---|---|---|---|---|
-| DD-01 | 表名是否去掉 `finv_futu_mapping_` 前缀（`futu.mapping_security`） | ① 保留前缀（与改造项 C 一致）② 去前缀 | ①：与 C 保持一致，去前缀属破坏性改名，另立清单再议 | ☐ 待定 |
-| DD-02 | `futu` 是否与其它外部映射（如后续的 IB、Yahoo 映射）合并为 `mapping` schema | ① 保持独立 `futu` ② 统一 `mapping` schema | ①：当前只有富途一个外部源，独立更直观；出现第二个源时再评估合并 | ☐ 待定 |
-| DD-03 | 基础主数据表（`finv_security` / `finv_market` / `finv_exchange` / `finv_region` / `finv_currency`）是否迁 `meta` schema | ① 本次不动 ② 一并迁入 | ①：与改造项 C 的 `D-03` 一致，避免范围膨胀 | ☐ 待定 |
+| DD-01 | 表名是否去掉 `finv_futu_mapping_` 前缀（`futu.mapping_security`） | ① 保留前缀（与改造项 C 一致）② 去前缀 | ①：与 C 保持一致，去前缀属破坏性改名，另立清单再议 | ☑ 2026-10-24 已定 ①：保留前缀 |
+| DD-02 | `futu` 是否与其它外部映射（如后续的 IB、Yahoo 映射）合并为 `mapping` schema | ① 保持独立 `futu` ② 统一 `mapping` schema | ①：当前只有富途一个外部源，独立更直观；出现第二个源时再评估合并 | ☑ 2026-10-24 已定 ①：保持独立 `futu` schema |
+| DD-03 | 基础主数据表（`finv_security` / `finv_market` / `finv_exchange` / `finv_region` / `finv_currency`）是否迁 `meta` schema | ① 本次不动 ② 一并迁入 | ①：与改造项 C 的 `D-03` 一致，避免范围膨胀 | ☑ 2026-10-24 已定 ①：基础主数据表不动 |
 
 ---
 
@@ -123,7 +123,7 @@ grep -c "CREATE SCHEMA IF NOT EXISTS futu" Deploy/Migrations/V33__move_finv_futu
 grep -oE "'finv_futu_[a-z_]+" Deploy/Migrations/V33__move_finv_futu_tables_to_futu_schema.sql | sort -u | wc -l   # 期望 5
 
 # 代码与文档零裸表名（计划文档/变更日志/需求清单除外）
-grep -rn "finv_futu" internal/ --include="*.go"                                                # 期望为空
+grep -rn "finv_futu" internal/ --include="*.go" | grep -v "// "                               # 期望为空
 grep -rn "finv_futu" Docs/ Prompt.md | grep -v "docs/Refactor/\|Docs/Refactor/\|Docs/CHANGELOG.md\|Docs/RequirementList.md\|Docs/DevSpec/DbSchemaSpec.md" | grep -v "futu\.finv_futu"   # 期望为空
 
 # 历史迁移未被修改
@@ -137,4 +137,6 @@ go build ./... && go vet ./... && go test ./...
 
 | 日期 | 变更 | 说明 |
 |---|---|---|
+| 2026-10-24 | 执行完成 | 新建 `V33`（建 `futu` schema + 移动 5 张表 + `ALTER DATABASE` search_path + 收敛校验）；`postgres.go` DSN 的 `search_path` 扩为四段；文档 8 篇 9 处加 `futu.` 前缀；`DbSchemaSpec` 登记 `futu` 域；临时 PG18 库全链验证（含 `V100003`/`V100009` 读写）通过且幂等；`go build`/`vet`/单测通过 |
+| 2026-10-24 | 部署验证 | 备份 `Deploy/backup/finvquant_周六1024_012329.dump` 后重建容器；`V33` `success=t`；`futu` 5 张、`public` 6 张（5 主数据 + `schema_version`）、`quote` 3、`quant` 13；行数 503/30/54/25/29 不变；触发器生效；`search_path=public, quote, quant, futu`；接口与前端回归通过，日志 0 条 ERROR |
 | 2026-10-24 | 初版 | 建立改造项 D 检查清单（`D-01`～`D-27`）；盘点 5 张富途映射表（641 行、10 索引、5 触发器、0 外键、0 视图、Go 零引用）；确认与改造项 C 的关键差异：富途表建表在 `V33` 之前、种子仅 DML，因此**不需要**收尾迁移 |
