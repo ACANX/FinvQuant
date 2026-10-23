@@ -20,7 +20,7 @@ Deploy/
 | `Docker/` | 是 | `docker-compose.yml`、`Dockerfile`、`.env.example`、部署/升级/回滚脚本、Windows Docker 文档 |
 | `Native/` | 是 | systemd unit、安装/升级/卸载脚本、环境变量与 Nginx 模板、安装与升级手册 |
 | `Migrations/` | 是 | 结构迁移 `V1`～`V99999`、种子/数据迁移 `V100000+`，**历史文件不可回改** |
-| `Script/` | 是 | `PackSnapshot.sh`：快照包构建（CI 与本地共用，见 §2.3） |
+| `Script/` | 是 | `PackSnapshot.sh`（快照包构建，CI 与本地共用）+ `PackSnapshot.cmd`（Windows 封装，转调 .sh），见 §2.3 |
 | `Backup/` | 否 | `pg_dump -Fc` 产物，两种方式共用，命名 `finvquant_YYYYMMDD_HHMMSS.dump` |
 
 ## 1. 怎么选部署方式
@@ -55,18 +55,26 @@ Deploy/
 `Script/PackSnapshot.sh` 是**快照二进制包的唯一实现**，CI 的 `snapshot-binaries` job 与本地手工出包都调用它：
 
 ```bash
-# 本地出全部三个包（linux/amd64、linux/arm64、windows/amd64）
+# Linux / WSL / macOS：出全部三个包（linux/amd64、linux/arm64、windows/amd64）
 bash Deploy/Script/PackSnapshot.sh
 
 # 指定版本与目标平台
 bash Deploy/Script/PackSnapshot.sh --version v0.1.1.00123.2610241530 --target linux/arm64
 ```
 
+```bat
+REM Windows：同一份逻辑，脚本只负责找到 Git Bash 并转调 PackSnapshot.sh
+Deploy\Script\PackSnapshot.cmd
+Deploy\Script\PackSnapshot.cmd --target windows/amd64
+Deploy\Script\PackSnapshot.cmd --version v0.1.1.00123.2610241530
+```
+
 - 版本标识 `v{VERSION}.{PPPPP}.{yymmddHHmm}`：`PPPPP` 为 PR 号（5 位左补零，无 PR 为 `00000`），时间戳为 Asia/Shanghai；三者由脚本统一解析，**同一快照的多个产物共用同一时间戳**。
 - 产物落在 `dist/`（不入库）：`finvquant_<版本>_<ubuntu2604|win11>_<amd64|arm64>.{tar.gz|zip}` + 同名 `.sha256`。
 - 包内结构：二进制、`Deploy/Migrations`、`Deploy/README.md`、Linux 附 `Deploy/Native`（systemd 全套）、Windows 附 `Deploy/Docker`（compose，不含 Dockerfile）、`VERSION`、`BUILD-INFO.txt`、`SHA256SUMS`。
-- 依赖：Go 1.25+；`zip`（仅 Windows 包需要）；前端产物 `internal/webui/dist`（缺失时加 `--build-web` 重新构建）。
-- WSL 兼容：自动探测 `go` / `go.exe`，Windows 版 Go 通过 `WSLENV` 传递 `GOOS`/`GOARCH`。
+- 依赖：Go 1.25+；打 zip 时按可用性依次使用 `zip` → Windows 自带 `tar.exe`（Win10+，生成标准正斜杠 zip）→ `powershell.exe` → `python3`；前端产物 `internal/webui/dist`（缺失时加 `--build-web` 重新构建）。
+- 跨环境兼容：自动识别 native / WSL / Git Bash 三种环境；探测 `go` 或 `go.exe`；WSL 下用 `WSLENV` 传递 `GOOS`/`GOARCH`、`wslpath` 转路径，Git Bash 下用 `cygpath`。
+- `PackSnapshot.cmd` 会自动跳过 `C:\Windows\System32\bash.exe`（WSL 转发器，无法处理 Windows 路径），优先用 Git for Windows 的 `bin\bash.exe`。
 
 ## 3. 两种方式共同遵守的约束
 

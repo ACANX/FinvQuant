@@ -325,7 +325,7 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10203 | 存在唯一的快照打包脚本。 | `test -f Deploy/Script/PackSnapshot.sh`；目录名为单数 `Script` | |
+| 10203 | 存在唯一的快照打包脚本（Windows 侧为薄封装）。 | `test -f Deploy/Script/PackSnapshot.sh` 且 `test -f Deploy/Script/PackSnapshot.cmd`；`.cmd` 含 `grep -q 'norc "%SH%"'` 命中（转调 .sh）、且不含 `go build` / `tar -` / `zip -` | |
 | 10204 | CI 调用同一脚本而非内联逻辑。 | `grep -c 'Deploy/Script/PackSnapshot.sh' .github/workflows/CI.yml` 不小于 `1`（含注释共 2 处）；`snapshot-binaries` 的 `run` 内无 `go build` | |
 | 10205 | 脚本可一次产出三个平台包。 | `bash Deploy/Script/PackSnapshot.sh --version v0.1.1.00000.2610241530` 后 `dist/` 含 `ubuntu2604_amd64`、`ubuntu2604_arm64`、`win11_amd64` 三个包与 `.sha256` | |
 | 10206 | 版本三段解析正确（含左补零）。 | `--version v0.1.1.00123.2610241530` 时输出 `PR 编号 : 00123`；不给 `--version` 时 PR 段为 `00000` | |
@@ -334,6 +334,10 @@
 | 10209 | 非法参数被拒绝。 | `bash Deploy/Script/PackSnapshot.sh --version v0.1.1.123.2610241530; echo $?`（不加管道）退出码 `1`，并提示「版本格式不合法」 | |
 | 10210 | 缺少前端产物时给出明确提示。 | 删除 `internal/webui/dist/index.html` 后运行，报错提示「请先构建前端或加 --build-web」 | |
 | 10211 | 脚本语法与帮助可用。 | `bash -n Deploy/Script/PackSnapshot.sh` 退出码 0；`--help` 输出用法 | |
+| 10212 | `.cmd` 能定位 Git Bash 并跳过 WSL 转发器。 | 在无 Git Bash 的 PATH 下运行 `.cmd`，输出的「使用 bash」路径**不含** `\System32\`；正常环境为 `<GitRoot>\bin\bash.exe` | |
+| 10213 | `.cmd` 与 `.sh` 参数完全一致（薄封装）。 | `PackSnapshot.cmd --version v0.1.1.00042.2610241600 --target windows/amd64` 产出与 `.sh` 同名的 zip，且 `BUILD-INFO.txt` 中「构建方式」同为 `Deploy/Script/PackSnapshot.sh` | |
+| 10214 | Windows 侧产出的 zip 使用标准正斜杠路径。 | `unzip -l dist/*.zip` 的 Name 列为 `finvquant_.../Deploy/Migrations/...`（无 `\`）；文件数 80 | |
+| 10215 | 缺少 zip/powershell 时有回退或明确报错。 | 打 zip 时若无 `zip` 命令，依次尝试 Windows `tar.exe`、`powershell.exe`、`python3`；全无时报错列出四种可选方式 | |
 
 ## 汇总
 
@@ -359,8 +363,8 @@
 | 新增 dedup 去重 schema | 10176–10183 | 8 |
 | 新增 archive 归档 schema | 10184–10191 | 8 |
 | feat/integration 快照构建 | 10192–10202 | 11 |
-| 本地快照打包脚本 | 10203–10211 | 9 |
-| **合计** | **10001–10211** | **211** |
+| 本地快照打包脚本 | 10203–10215 | 13 |
+| **合计** | **10001–10215** | **215** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10212` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10216` 起往后追加，不插入既有区间。

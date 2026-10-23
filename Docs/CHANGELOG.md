@@ -48,6 +48,10 @@
 - **Native 部署配套落地**：新增 `Deploy/Native/{README,Install,Upgrade}.md` 与 `Install.sh`、`Upgrade.sh`、`Uninstall.sh`、`FinvQuant.service`、`FinvQuant.env.example`、`Nginx.conf.example`；服务由 systemd 守护（`Restart=on-failure`、`EnvironmentFile`、安全加固、journald），安装脚本幂等并自动生成随机数据库密码、建库授权、健康检查；升级脚本按「备份 → 停服 → 备份旧二进制 → 替换 → 启动 → 健康检查」执行，支持 `--rollback` 回退程序。
 - **文件名按品牌大小写**：`FinvQuant.service`、`FinvQuant.env.example`（安装后注册为 `finvquant.service`，运维命令仍用 `systemctl ... finvquant`）。
 - 新增 [`Deploy/README.md`](Deploy/README.md)：部署目录总览——两种方式的目录边界与选择建议、共用 `Migrations/` 与 `Backup/` 的说明、两种方式共同遵守的约束（禁止新旧共存、升级前备份、schema 限定）、目录命名约定。
+- **新增 `Deploy/Script/PackSnapshot.cmd`（Windows 封装）**：仅负责定位 Git for Windows 的 `bash.exe` 并转调 `PackSnapshot.sh`，打包逻辑仍只有一份。
+  - 定位顺序：`git.exe` 位置推导 `<GitRoot>\bin\bash.exe` → Git 默认安装目录 → PATH；**主动跳过 `C:\Windows\System32\bash.exe`**（WSL 转发器，无法处理 Windows 路径）
+  - 找不到 bash 时给出明确指引（装 Git for Windows / MSYS2，或改用 WSL）
+  - `PackSnapshot.sh` 同步增强：识别 native / WSL / Git Bash 三种环境（WSL 用 `WSLENV` + `wslpath`，Git Bash 用 `cygpath`）；zip 打包按 `zip` → Windows 自带 `tar.exe` → `powershell.exe` → `python3` 依次回退（PowerShell 的 `Compress-Archive` 会写成反斜杠路径，故排在 bsdtar 之后）
 - **新增 `Deploy/Script/PackSnapshot.sh`（快照打包的唯一实现）**：CI 的 `snapshot-binaries` 与本地手工出包调用同一脚本，避免两套逻辑漂移。
   - 用法：`bash Deploy/Script/PackSnapshot.sh [--version vX.Y.Z.PPPPP.yymmddHHmm] [--target linux/amd64|linux/arm64|windows/amd64|all] [--pr N] [--timestamp yymmddHHmm] [--build-web] [--keep-tmp]`
   - 默认 `--target all`，一次产出 Ubuntu 26.04（amd64/arm64）与 Windows 11（amd64）三个包到 `dist/`，附 `.sha256`
