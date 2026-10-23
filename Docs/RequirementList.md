@@ -292,6 +292,19 @@
 | 10182 | 迁移记录已登记 `V36` 且成功。 | `select success from schema_version where version::int=36` 输出 `t` | |
 | 10183 | 规范文件登记 `dedup` 并说明去重层次与适用边界。 | `grep -c 'dedup' Docs/DevSpec/DbSchemaSpec.md` 不小于 `4`；含「ON CONFLICT DO NOTHING」说明 | |
 
+## 十九、新增 archive 归档 schema（10184–10191）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10184 | 存在创建 archive schema 的迁移且幂等。 | `test -f Deploy/Migrations/V37__create_archive_schema.sql`；含 `CREATE SCHEMA IF NOT EXISTS archive` | |
+| 10185 | 生产库存在 `archive` schema。 | `select count(*) from pg_namespace where nspname='archive'` 输出 `1` | |
+| 10186 | 属主为应用角色（`finv`）。 | `select pg_get_userbyid(nspowner) from pg_namespace where nspname='archive'` 输出 `finv` | |
+| 10187 | 应用角色具备 `USAGE` 与 `CREATE`。 | `select has_schema_privilege('finv','archive','USAGE') and has_schema_privilege('finv','archive','CREATE')` 为 `t` | |
+| 10188 | 数据库默认 `search_path` 含 `archive` 且位于末尾。 | `select array_to_string(setconfig,',') from pg_db_role_setting ...` 输出 `search_path=public, quote, quant, futu, export, sche, dedup, archive` | |
+| 10189 | 应用连接串 `search_path` 同步为八段。 | `grep -c 'search_path=public,quote,quant,futu,export,sche,dedup,archive' internal/database/postgres.go` 输出 `1` | |
+| 10190 | 迁移记录已登记 `V37` 且成功。 | `select success from schema_version where version::int=37` 输出 `t` | |
+| 10191 | 规范文件登记 `archive` 并说明与文件目录 `Archive/` 的区别及同名风险。 | `grep -c 'archive' Docs/DevSpec/DbSchemaSpec.md` 不小于 `4`；含「Archive/」与「三处同名」说明 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -314,7 +327,8 @@
 | 新增 export / sche 两个 schema | 10159–10166 | 8 |
 | export 行情导出转存表 | 10167–10175 | 9 |
 | 新增 dedup 去重 schema | 10176–10183 | 8 |
-| **合计** | **10001–10183** | **183** |
+| 新增 archive 归档 schema | 10184–10191 | 8 |
+| **合计** | **10001–10191** | **191** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10184` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10192` 起往后追加，不插入既有区间。

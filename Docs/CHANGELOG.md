@@ -48,6 +48,9 @@
 - **Native 部署配套落地**：新增 `Deploy/Native/{README,Install,Upgrade}.md` 与 `Install.sh`、`Upgrade.sh`、`Uninstall.sh`、`FinvQuant.service`、`FinvQuant.env.example`、`Nginx.conf.example`；服务由 systemd 守护（`Restart=on-failure`、`EnvironmentFile`、安全加固、journald），安装脚本幂等并自动生成随机数据库密码、建库授权、健康检查；升级脚本按「备份 → 停服 → 备份旧二进制 → 替换 → 启动 → 健康检查」执行，支持 `--rollback` 回退程序。
 - **文件名按品牌大小写**：`FinvQuant.service`、`FinvQuant.env.example`（安装后注册为 `finvquant.service`，运维命令仍用 `systemctl ... finvquant`）。
 - 新增 [`Deploy/README.md`](Deploy/README.md)：部署目录总览——两种方式的目录边界与选择建议、共用 `Migrations/` 与 `Backup/` 的说明、两种方式共同遵守的约束（禁止新旧共存、升级前备份、schema 限定）、目录命名约定。
+- **新增 `archive` schema（冷数据归档域）**（`V37`）：幂等建 schema、以 `current_user` 设定属主并授予 `USAGE`/`CREATE`、追加到 `search_path` 末尾（`public,quote,quant,futu,export,sche,dedup,archive`）、末尾收敛校验；生产库已应用并验证（`V37 success=t`、属主 `finv`、权限齐备）。
+  - 注意区分：`archive` **schema** 是数据库冷数据归档（历史行情下沉），仓库根 `Archive/` 是**文件**归档（废弃脚本/文档），两者无关。
+  - 风险提示：归档表沿用业务表名会形成 `quote` / `export` / `archive` 三处同名，任何读写必须写 `archive.` 前缀。
 - **新增 `dedup` schema（去重域）**（`V36`）：幂等建 schema、以 `current_user` 设定属主并授予 `USAGE`/`CREATE`、追加到 `search_path` 末尾（`public,quote,quant,futu,export,sche,dedup`）、末尾收敛校验；生产库已应用并验证（`V36 success=t`、属主 `finv`、权限齐备）。
   - 适用边界已在 `DbSchemaSpec.md` 写明：跨批次幂等由 `quote.finv_quote_secu_kline_min` 主键 `(ts, usc)` + `INSERT ... ON CONFLICT DO NOTHING` 保证，**无需**额外去重表；`dedup` 只承载「批内去重暂存」「跨源内容指纹比对」「入库审计留痕」三类对象。
 - **`export` schema 新增行情导出转存表**（`V35`）：`export.finv_quote_secu_kline_min`，与 `quote.finv_quote_secu_kline_min` **同名同结构**（`LIKE ... INCLUDING DEFAULTS/CONSTRAINTS/INDEXES/STORAGE/COMMENTS` 建表 + 单独补 `gmt_update` 触发器），用于某证券月度/日历史行情导出前转存；迁移含双向列差集与主键/索引/触发器校验，幂等可重复执行。

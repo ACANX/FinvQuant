@@ -12,7 +12,7 @@ import (
 // domainTablePrefixes 业务域表名前缀 → 必须使用的 schema 限定前缀。
 //
 // 为什么要强制限定：融合后不同 schema 可能出现同名表，而 search_path
-// （public, quote, quant, futu, export, sche, dedup）中 public 位于首位——任何未限定的 CRUD
+// （public, quote, quant, futu, export, sche, dedup, archive）中 public 位于首位——任何未限定的 CRUD
 // 语句都会优先命中 public 的同名表，导致读写错表。
 var domainTablePrefixes = map[string]string{
 	"finv_quote_": "quote.",

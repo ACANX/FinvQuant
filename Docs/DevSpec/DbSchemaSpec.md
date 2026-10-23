@@ -13,11 +13,12 @@
 | `export` | 数据导出域 | `finv_quote_secu_kline_min`（行情导出转存表，与 `quote` 同名同结构，`V35` 创建） |
 | `sche` | 定时任务调度域（调度定义、执行记录等，`V34` 建 schema，表待业务迁移创建） | 暂无 |
 | `dedup` | 数据去重域（批内去重暂存、跨源指纹、入库审计，`V36` 建 schema，表待业务迁移创建） | 暂无 |
+| `archive` | 冷数据归档域（历史行情按时间/证券下沉，`V37` 建 schema，表待业务迁移创建） | 暂无 |
 | `public` | 基础主数据与系统表 | `finv_security`、`finv_market`、`finv_exchange`、`finv_region`、`finv_currency`、`schema_version` |
 
 - **一个业务域一个 schema**，不把域对象堆在 `public`。
 - 新增域时同步在本文档登记其 schema 名与归属表，并在迁移脚本中 `CREATE SCHEMA IF NOT EXISTS <域名>`。
-- schema 名统一**小写短名**（`quote`/`quant`/`futu`/`export`/`sche`/`dedup`），不加业务前缀；`sche` 为「调度」的短名沿用（如需改为 `sched`，须 `ALTER SCHEMA sche RENAME TO sched` 并同步 `search_path`、本文件与代码）。
+- schema 名统一**小写短名**（`quote`/`quant`/`futu`/`export`/`sche`/`dedup`/`archive`），不加业务前缀；`sche` 为「调度」的短名沿用（如需改为 `sched`，须 `ALTER SCHEMA sche RENAME TO sched` 并同步 `search_path`、本文件与代码）。
 - **同名同结构转存表**：允许在 `export` 等暂存域建与业务域**同名同结构**的表（如 `export.finv_quote_secu_kline_min` ↔ `quote.finv_quote_secu_kline_min`），用于导出前转存；此类表必须：
   1. 建表用 `CREATE TABLE ... (LIKE <源表> INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES INCLUDING STORAGE INCLUDING COMMENTS)`，**触发器另行补齐**（`LIKE` 不复制触发器）；
   2. 索引名由 PostgreSQL 按新表名自动生成，与源表索引名不同（属正常现象）；
@@ -32,13 +33,13 @@
 
 ## 3. 连接与 search_path
 
-- 应用连接串固定带 `search_path=public,quote,quant,futu,export,sche,dedup`（见 `internal/database/postgres.go`），迁移与业务 SQL 均依赖此设置。
-- 代码中的 SQL **必须显式写 schema 前缀**（`quote.xxx`、`quant.xxx`、`futu.xxx`、`export.xxx`、`sche.xxx`、`dedup.xxx`）；`search_path` 只作为历史迁移脚本与手工 `psql` 的兜底。
+- 应用连接串固定带 `search_path=public,quote,quant,futu,export,sche,dedup,archive`（见 `internal/database/postgres.go`），迁移与业务 SQL 均依赖此设置。
+- 代码中的 SQL **必须显式写 schema 前缀**（`quote.xxx`、`quant.xxx`、`futu.xxx`、`export.xxx`、`sche.xxx`、`dedup.xxx`、`archive.xxx`）；`search_path` 只作为历史迁移脚本与手工 `psql` 的兜底。
 - **强制校验**：`internal/database/schema_qualify_test.go` 的 `TestSQLSchemaQualified` 会扫描 `internal/`、`cmd/` 下全部 Go 源码，凡含 `FROM` / `INTO` / `UPDATE` / `JOIN` / `DELETE FROM` / `TRUNCATE` 的语句，只要出现 `finv_quote_` / `finv_quant_` / `finv_futu_` 而未带对应 schema 前缀，`go test ./...` 直接失败。新增代码漏写前缀会在本地与 CI 同时被拦下。
 
 ### 3.1 融合前的同名表风险（重要）
 
-- `search_path` 为 `public, quote, quant, futu, export, sche, dedup`，**`public` 位于首位**：未限定的 CRUD 语句会优先命中 `public` 中的同名表。
+- `search_path` 为 `public, quote, quant, futu, export, sche, dedup, archive`，**`public` 位于首位**：未限定的 CRUD 语句会优先命中 `public` 中的同名表。
 - 系统融合阶段若需要在其它 schema 引入与域表同名的表，必须遵守：
   1. 新表一律放入明确 schema，不得落 `public`；
   2. 代码侧引用一律写全限定名（已由 `TestSQLSchemaQualified` 强制）；
@@ -47,6 +48,7 @@
 - 历史种子迁移是唯一仍依赖 `search_path` 的 SQL，改动其定位行为前必须跑「全新库全链迁移」验证。
 - 手工运维时若未设置 `search_path`，须写全限定名，例如 `select count(*) from quote.finv_quote_secu_kline_min;`。
 - `schema_version` 与迁移机制保留在 `public`，不随业务域迁移。
+- **归档域的边界（`archive` schema）**：`archive` 是**数据库冷数据归档**，与仓库根目录 `Archive/`（**文件**归档：废弃脚本/文档）无关，两者不要混淆。归档表通常沿用业务表名，会与 `quote`、`export` 形成三处同名（如 `finv_quote_secu_kline_min`），因此库内读写必须写 `archive.` 前缀；跨域搬数据用 `INSERT INTO archive.x SELECT ... FROM quote.x` 后按批次删除源数据，整个过程需在 `sche` 记录批次以便回溯。
 - **去重的层次选择（`dedup` schema 的适用边界）**：`quote.finv_quote_secu_kline_min` 已有主键 `(ts, usc)`，跨批次幂等直接用 `INSERT ... ON CONFLICT DO NOTHING` 即可，**不需要**额外对象；只有「批内去重暂存」「跨源内容指纹比对」「入库审计留痕」这三类才应落到 `dedup`，避免为已由主键保证的幂等再建一套去重表。
 
 ## 4. 迁移约定

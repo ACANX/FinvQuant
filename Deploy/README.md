@@ -54,7 +54,7 @@ Deploy/
 |---|---|
 | 禁止新旧共存 | 破坏性版本（列改名、schema 迁移）变更后，新旧程序**不得同时连接同一数据库**；升级必须「停旧 → 备份 → 起新」 |
 | 升级前必须备份 | 迁移**不可自动回滚**，回退数据库只能靠升级前的 `pg_dump` |
-| schema 限定 | 业务表按域位于 `quote` / `quant` / `futu` / `export`（导出）/ `sche`（调度）/ `dedup`（去重）schema，`search_path = public,quote,quant,futu,export,sche,dedup`；手工 `psql` 须写全限定名（如 `quote.finv_quote_secu_kline_min`） |
+| schema 限定 | 业务表按域位于 `quote` / `quant` / `futu` / `export`（导出）/ `sche`（调度）/ `dedup`（去重）/ `archive`（冷数据归档）schema，`search_path = public,quote,quant,futu,export,sche,dedup,archive`；手工 `psql` 须写全限定名（如 `quote.finv_quote_secu_kline_min`） |
 | 端口约定 | API `16001`、前端 `16002`；生产建议只绑 `127.0.0.1` 并由 Nginx 反代 |
 
 ## 4. 各方式的快速入口
