@@ -87,3 +87,4 @@ sudo bash Deploy/Native/Upgrade.sh     # 升级（含备份）；--rollback 回�
 - 共用资源目录同样大驼峰：`Migrations/`、`Backup/`。
 - 方式内部的脚本与配置文件名按内容命名并采用大驼峰（如 `Install.sh`、`FinvQuant.service`），品牌词统一写作 **FinvQuant**。
 - 新增部署方式时：新建同级目录（如 `Kubernetes/`）并在本文件第 0、1 节登记，不得把不同方式的文件混放在 `Deploy/` 根下。
+- **废弃文件的去处**：被替换的部署脚本/配置/文档不做就地删除，移入仓库级历史归档目录 [`../Archive/`](../Archive/)（并按需在 `Archive/` 内自建 `Deploy/` 子目录），详见 [`../Archive/README.md`](../Archive/README.md)。归档文件不参与构建、部署与 CI。

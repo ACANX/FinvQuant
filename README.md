@@ -45,13 +45,18 @@ cd Web && npm install && npm run dev
 ```
 ├── cmd/  internal/       # Go 服务端
 ├── Web/                  # Vue3+Vite8+Vuetify4 前端
-├── Deploy/               # 部署（两种方式共用 Migrations/、Backup/）
+├── Deploy/               # 部署（Docker / Native 两种方式 + 共用迁移与备份）
 │   ├── Docker/           # 容器方式（compose + Dockerfile + 脚本/文档）
-│   ├── Native/           # 宿主直装方式（说明文档，脚本待补充）
+│   ├── Native/           # 宿主直装方式（systemd + 安装/升级脚本与文档）
 │   ├── Migrations/       # 数据库迁移（共用）
-│   └── Backup/           # 数据库备份（共用，不入库）
+│   ├── Backup/           # 数据库备份（共用，不入库）
+│   └── README.md         # 部署目录总览
+├── Docs/                 # 文档（变更日志、需求清单、开发规范、改造清单、API/菜单/数据字典）
+├── Archive/              # 仓库级历史归档（废弃/临时文件，不参与构建）
 ├── .github/workflows/    # CI/CD（构建 + 推送 GHCR）
+├── AGENTS.md             # 仓库级协作指南
 ├── Prompt.md             # 结构化需求文档（持续更新）
+├── VERSION               # 版本号（与 CHANGELOG、Git tag 对应）
 └── VeritasQuant/         # 既有子项目（Python 量化平台，历史保留）
 ```
 
@@ -67,6 +72,7 @@ cd Web && npm install && npm run dev
 - [Deploy/Docker/Win11DockerDeploy.md](Deploy/Docker/Win11DockerDeploy.md) — Windows 11 Docker 部署文档
 - [Deploy/Docker/Win11DockerUpgrade.md](Deploy/Docker/Win11DockerUpgrade.md) — Windows 11 Docker 增量升级文档
 - [Deploy/README.md](Deploy/README.md) — 部署目录总览（Docker / Native 两种方式与共用迁移、备份）
+- [Archive/README.md](Archive/README.md) — 仓库级历史归档目录说明（废弃/临时文件存放约定）
 - [Deploy/Native/README.md](Deploy/Native/README.md) — Native（宿主直装）部署方式说明与适用场景
 - [VeritasQuant/README.md](VeritasQuant/README.md) — 既有 Python 子项目说明
 
