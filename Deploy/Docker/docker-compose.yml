@@ -3,7 +3,7 @@
 #   - postgres : PostgreSQL 18
 #   - redis    : Redis 8
 #
-# 使用：cp Deploy/.env.example Deploy/.env && docker compose --env-file Deploy/.env up -d
+# 使用：cp Deploy/Docker/.env.example Deploy/Docker/.env && docker compose -f Deploy/Docker/docker-compose.yml --env-file Deploy/Docker/.env up -d
 # 镜像：ghcr.io/acanx/finvquant（docker pull 后直接部署）
 #
 # 项目名：顶层 name 固定为 finvquant（可用 FINV_PROJECT_NAME 自定义），
@@ -18,9 +18,10 @@ services:
   finvquant:
     image: ghcr.io/acanx/finvquant:${FINV_IMAGE_TAG:-latest}
     build:
-      # build context 指向仓库根目录（compose 位于 Deploy/ 子目录，上级即仓库根，Dockerfile 在此）
-      context: ..
-      dockerfile: Dockerfile
+      # build context 指向仓库根目录（compose 位于 Deploy/Docker/，上两级即仓库根）
+      context: ../..
+      # Dockerfile 与 compose 同目录，路径相对 context（仓库根）
+      dockerfile: Deploy/Docker/Dockerfile
     container_name: ${FINV_CONTAINER_NAME:-finvquant}
     ports:
       - "16001:16001"   # 服务端 API

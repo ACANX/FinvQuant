@@ -147,7 +147,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: Dockerfile
+          file: Deploy/Docker/Dockerfile
           push: true
           platforms: ${{ steps.platforms.outputs.platforms }}
           tags: ${{ steps.tags.outputs.tags }}
@@ -213,6 +213,6 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: Dockerfile
+          file: Deploy/Docker/Dockerfile
           push: false
           tags: ${{ env.IMAGE }}:pr-check

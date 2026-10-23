@@ -26,7 +26,7 @@ docker inspect finvquant --format '{{.Image}}'
 ```powershell
 # PG 逻辑备份（推荐）
 docker exec fq-postgres pg_dump -U finvquant -d finvquant -F c -f /tmp/finvquant_backup.dump
-docker cp fq-postgres:/tmp/finvquant_backup.dump D:/backup/finvquant_20260805.dump
+docker cp fq-postgres:/tmp/finvquant_backup.dump D:/backup/finvquant_20260805_060623.dump
 
 # 如需物理备份：停库后复制宿主目录（含 18/ 子目录，见部署文档第 7 节）
 # docker compose -f Deploy/docker-compose.yml --env-file Deploy/.env stop postgres

@@ -84,7 +84,7 @@ Deploy\upgrade.cmd --force          # 强制重建（版本相同也重建）
 | 2 | 读取本地运行版本 | 本地容器镜像 ID、目标 tag、postgres/redis 状态 |
 | 3 | 拉取远端镜像 | 远端最新镜像 ID（幂等） |
 | 4 | **版本对比** | 本地 vs 远端 ID，判断"已最新 / 需升级" |
-| 5 | 升级前备份 | `.env.bak` + pg_dump 到 `Deploy\backup\`（可跳过） |
+| 5 | 升级前备份 | `.env.bak` + pg_dump 到 `Deploy\Backup\`（可跳过） |
 | 6 | 升级部署 | 仅重建 `finvquant`，打印"存量 DB/Redis/配置"保留说明 |
 | 7 | 等待健康 | 健康检查（最长 90s） |
 | 8 | 验证 | 版本接口 / 存活探针 / 容器状态 / 迁移记录 |

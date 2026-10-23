@@ -8,18 +8,18 @@ REM 功能：检查远端 GHCR 是否有比当前本地部署更新的镜像；�
 REM       升级部署；全程输出关键要素与结果日志。
 REM   ①拉取远端镜像最新版本信息（pull，幂等） → ②对比本地运行版本
 REM   → ③若远端更新则执行升级部署（存量 DB/Redis/配置保留） → ④验证。
-REM 用法：  Deploy\upgrade.cmd            （检查并按需升级到 latest）
-REM         Deploy\upgrade.cmd --skip-backup   （跳过数据库备份，应急用）
-REM         Deploy\upgrade.cmd --force    （即使版本相同也强制重建部署）
+REM 用法：  Deploy\Docker\upgrade.cmd            （检查并按需升级到 latest）
+REM         Deploy\Docker\upgrade.cmd --skip-backup   （跳过数据库备份，应急用）
+REM         Deploy\Docker\upgrade.cmd --force    （即使版本相同也强制重建部署）
 REM 前提：  仓库根目录执行；已安装 Docker Desktop；网络可达 ghcr.io。
 REM 说明：  升级不重建 postgres/redis（配置未变则数据不丢）；数据库迁移由
-REM        服务端启动自动应用（幂等）。回滚见 Deploy\rollback.cmd。
+REM        服务端启动自动应用（幂等）。回滚见 Deploy\Docker\rollback.cmd。
 REM =====================================================================
 
-set "ROOT=%~dp0.."
+set "ROOT=%~dp0..\.."
 pushd "%ROOT%" || (echo [ERROR] 无法进入仓库根目录 %ROOT% & exit /b 1)
 
-set "COMPOSE_CMD=docker compose -f Deploy\docker-compose.yml --env-file Deploy\.env"
+set "COMPOSE_CMD=docker compose -f Deploy\Docker\docker-compose.yml --env-file Deploy\Docker\.env"
 set "IMG=ghcr.io/acanx/finvquant"
 set "DO_BACKUP=1"
 set "FORCE=0"
@@ -37,16 +37,16 @@ echo ============================================================
 echo.
 echo [1/8] 前置检查 ...
 docker version >nul 2>&1 || (echo [ERROR] Docker 未运行，请先启动 Docker Desktop & exit /b 1)
-if not exist "Deploy\.env" (
-    echo [ERROR] 缺少 Deploy\.env，请先运行 Deploy\deploy.cmd 生成
+if not exist "Deploy\Docker\.env" (
+    echo [ERROR] 缺少 Deploy\Docker\.env，请先运行 Deploy\Docker\deploy.cmd 生成
     exit /b 1
 )
 docker ps --filter "name=finvquant" --format "{{.Names}}" | findstr /i "finvquant" >nul
 if errorlevel 1 (
-    echo [ERROR] 未检测到运行中的 finvquant 容器。首次部署请用 Deploy\deploy.cmd，或先启动服务
+    echo [ERROR] 未检测到运行中的 finvquant 容器。首次部署请用 Deploy\Docker\deploy.cmd，或先启动服务
     popd & exit /b 1
 )
-echo [OK] Docker 可用，Deploy\.env 存在，finvquant 容器在运行。
+echo [OK] Docker 可用，Deploy\Docker\.env 存在，finvquant 容器在运行。
 
 REM ---------- 1. 读取当前本地运行版本 ----------
 echo.
@@ -54,7 +54,7 @@ echo [2/8] 读取当前本地运行版本 ...
 set "CUR_IMGID="
 for /f "tokens=*" %%i in ('docker inspect finvquant --format "{{.Image}}" 2^>nul') do set "CUR_IMGID=%%i"
 set "CUR_TAG="
-for /f "tokens=1,* delims==" %%a in ('findstr /i "FINV_IMAGE_TAG" Deploy\.env 2^>nul') do set "CUR_TAG=%%b"
+for /f "tokens=1,* delims==" %%a in ('findstr /i "FINV_IMAGE_TAG" Deploy\Docker\.env 2^>nul') do set "CUR_TAG=%%b"
 if not defined CUR_TAG set "CUR_TAG=latest"
 set "CUR_SHORT=!CUR_IMGID:~7,12!"
 echo   - 本地运行容器镜像 ID : !CUR_IMGID!（简写 !CUR_SHORT!）
@@ -83,7 +83,7 @@ set /a PULL_TRY=0
     echo [ERROR] 拉取远端镜像连续 3 次失败。
     echo   - 网络问题：ghcr.io 不可达 / 网络波动（可用 docker pull %IMG%:%CUR_TAG% 手工重试）
     echo   - 认证问题：需登录 GHCR（docker login ghcr.io）
-    echo   - 本地已有镜像时也可直接执行：docker compose -f Deploy\docker-compose.yml --env-file Deploy\.env up -d
+    echo   - 本地已有镜像时也可直接执行：docker compose -f Deploy\Docker\docker-compose.yml --env-file Deploy\Docker\.env up -d
     popd & exit /b 1
 :pull_ok
 set "REMOTE_ID="
@@ -102,7 +102,7 @@ REM   多行解析 / for-f 变量 / 花括号 / 延迟展开等陷阱）。
 set "VER_FILE="
 for /f "tokens=*" %%v in ('type VERSION 2^>nul') do set "VER_FILE=%%v"
 if not defined VER_FILE set "VER_FILE=0.1.0"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& 'Deploy\resolve-image-version.ps1' -Image '%IMG%' -Version '%VER_FILE%' -Friendly"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& 'Deploy\Docker\resolve-image-version.ps1' -Image '%IMG%' -Version '%VER_FILE%' -Friendly"
 
 REM ---------- 3. 版本对比 ----------
 echo.
@@ -132,11 +132,18 @@ if "!NEED_UPGRADE!"=="1" (
     if "%DO_BACKUP%"=="1" (
         echo.
         echo [5/8] 升级前备份 ...
-        if not exist "Deploy\backup" mkdir "Deploy\backup"
-        set "BK=Deploy\backup\finvquant_%date:~0,4%%date:~5,2%%date:~8,2%_%time:~0,2%%time:~3,2%%time:~6,2%.dump"
-        set "BK=!BK: =0!"
-        echo   备份 .env -^> Deploy\.env.bak
-        copy /Y "Deploy\.env" "Deploy\.env.bak" >nul
+        if not exist "Deploy\Backup" mkdir "Deploy\Backup"
+        REM 备份文件名统一为 finvquant_YYYYMMDD_HHMMSS.dump：
+        REM   不用 %date% 截取（依赖系统区域格式，中文系统还会带「周五」等字符），
+        REM   改由 PowerShell 按固定格式生成时间戳。
+        for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd_HHmmss"') do set "TS=%%i"
+        if not defined TS (
+            echo   [WARN] 无法获取时间戳，备份文件名回退为 finvquant_manual.dump
+            set "TS=manual"
+        )
+        set "BK=Deploy\Backup\finvquant_!TS!.dump"
+        echo   备份 .env -^> Deploy\Docker\.env.bak
+        copy /Y "Deploy\Docker\.env" "Deploy\Docker\.env.bak" >nul
         echo   备份数据库（pg_dump，含表结构与数据）...
         docker exec fq-postgres pg_dump -U finvquant -d finvquant -F c -f /tmp/finvquant_backup.dump >nul 2>&1
         if errorlevel 1 (
@@ -155,14 +162,14 @@ if "!NEED_UPGRADE!"=="1" (
     echo [6/8] 执行升级部署 ...
     echo   - 重建服务：仅 finvquant（postgres / redis 配置未变，不重建、数据不丢）
     echo   - 存量数据：PG 数据目录绑定挂载 + Redis 命名卷，升级全程保留
-    echo   - 环境配置：沿用 Deploy\.env（未修改）
+    echo   - 环境配置：沿用 Deploy\Docker\.env（未修改）
     echo   - 数据库迁移：新版本服务启动时自动应用（幂等，见 schema_version 表）
     echo.
     echo   执行命令：%COMPOSE_CMD% up -d --force-recreate finvquant
     %COMPOSE_CMD% up -d --force-recreate finvquant
     if errorlevel 1 (
         echo [ERROR] 升级部署失败，查看日志：%COMPOSE_CMD% logs --tail=100 finvquant
-        echo   如需回滚：Deploy\rollback.cmd
+        echo   如需回滚：Deploy\Docker\rollback.cmd
         popd & exit /b 1
     )
     echo [OK] finvquant 容器已重建为新版本。

@@ -45,10 +45,10 @@ Web/dist/
 # Go embed 前端产物（构建时生成，不提交）
 internal/webui/dist/
 
-# ---- 部署 ----
-Deploy/.env
-Deploy/.env.bak
+# ---- 部署（Docker）----
+Deploy/Docker/.env
+Deploy/Docker/.env.bak
 # PG 数据目录（宿主机映射，本机生成的 pgdata 不提交）
-Deploy/pgdata/
-# 升级脚本生成的数据库备份
-Deploy/backup/
+Deploy/Docker/pgdata/
+# 升级脚本生成的数据库备份（Docker / Native 两种方式共用）
+Deploy/Backup/

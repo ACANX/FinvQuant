@@ -123,7 +123,7 @@ docker compose -f Deploy/docker-compose.yml --env-file Deploy/.env ps
 
 ```powershell
 docker exec fq-postgres pg_dump -U finvquant -d finvquant -F c -f /tmp/finvquant_backup.dump
-docker cp fq-postgres:/tmp/finvquant_backup.dump D:/backup/finvquant_20260805.dump
+docker cp fq-postgres:/tmp/finvquant_backup.dump D:/backup/finvquant_20260805_060623.dump
 ```
 
 ## 8. 常用运维命令
