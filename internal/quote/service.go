@@ -81,14 +81,14 @@ func (s *Service) QueryBars(ctx context.Context, usc, period string, startTS, en
 	var total int
 	if err := s.pool.QueryRow(ctx, `
 SELECT COUNT(*)
-FROM finv_quote_secu_kline_min
+FROM quote.finv_quote_secu_kline_min
 WHERE usc = $1 AND ts BETWEEN $2 AND $3`, usc, startTS, endTS).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
 	rows, err := s.pool.Query(ctx, `
 SELECT ts, date, "time", open, high, low, close, volume, turnover, last_close, remark
-FROM finv_quote_secu_kline_min
+FROM quote.finv_quote_secu_kline_min
 WHERE usc = $1 AND ts BETWEEN $2 AND $3
 ORDER BY ts ASC`, usc, startTS, endTS)
 	if err != nil {
@@ -144,7 +144,7 @@ func DateRangeToTS(date, days int) (int64, int64) {
 	return startDate, endDate + 86400 - 1
 }
 
-// ImportRows 将解析后的行情行批量 upsert 到 finv_quote_secu_kline_min。
+// ImportRows 将解析后的行情行批量 upsert 到 quote.finv_quote_secu_kline_min。
 // 字段级覆盖（FIELD）或整行覆盖（ROW）；发生覆盖时写入修正审计日志。
 // remark 为表单备注：非空时写入每行的 remark 列。
 func (s *Service) ImportRows(ctx context.Context, rows []mvsv.Row, mode UpsertMode, importedBy, source, remark string) (*UpsertResult, error) {
@@ -216,7 +216,7 @@ func buildUpsertSQL(mode UpsertMode) string {
 		"paocd", "volume", "turnover", "ext_field", "remark",
 	}
 	base := `
-INSERT INTO finv_quote_secu_kline_min
+INSERT INTO quote.finv_quote_secu_kline_min
     (usc, ts, date, "time", last_close, open, high, low, close,
      paocd, volume, turnover, ext_field, remark)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
@@ -228,7 +228,7 @@ ON CONFLICT (ts, usc) DO UPDATE SET
 			assignments = append(assignments, fmt.Sprintf("    %s = EXCLUDED.%s", column, column))
 		} else {
 			assignments = append(assignments,
-				fmt.Sprintf("    %s = COALESCE(EXCLUDED.%s, finv_quote_secu_kline_min.%s)", column, column, column))
+				fmt.Sprintf("    %s = COALESCE(EXCLUDED.%s, quote.finv_quote_secu_kline_min.%s)", column, column, column))
 		}
 	}
 	return base + strings.Join(assignments, ",\n") + "\nRETURNING (xmax = 0) AS is_insert"
@@ -335,7 +335,7 @@ func (s *Service) logRevision(
 	importedBy string,
 ) error {
 	_, err := tx.Exec(ctx, `
-INSERT INTO finv_quote_revision_log
+INSERT INTO quote.finv_quote_revision_log
     (ingest_batch_id, market_code, usc, affected_rows, reason, revised_by, previous_summary, new_summary)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		batchID, row.MarketCode, row.Usc, affected,
@@ -356,7 +356,7 @@ func (s *Service) registerBatch(
 	importedBy, source string,
 ) error {
 	_, err := tx.Exec(ctx, `
-INSERT INTO finv_quote_ingest_batches
+INSERT INTO quote.finv_quote_ingest_batches
     (ingest_batch_id, source, market_code, usc, data_version_id, file_count,
      record_count, upsert_mode, ts_precision, config_hash, imported_by, notes)
 VALUES ($1, $2, $3, $4, $5, 1, $6, $7, 'Second', $8, $9, $10)`,

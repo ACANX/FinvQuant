@@ -13,11 +13,11 @@ func TestDeleteDetailTablesOrder(t *testing.T) {
 	// 删除顺序：先子表（event_trace/position_log/cashflow）后主表（trade/equity），
 	// 确保中途失败不遗留"主表已删但明细残留"的孤立数据。
 	want := []string{
-		"finv_quant_backtest_event_trace",
-		"finv_quant_backtest_position_log",
-		"finv_quant_backtest_cashflow",
-		"finv_quant_backtest_trade",
-		"finv_quant_backtest_equity",
+		"quant.finv_quant_backtest_event_trace",
+		"quant.finv_quant_backtest_position_log",
+		"quant.finv_quant_backtest_cashflow",
+		"quant.finv_quant_backtest_trade",
+		"quant.finv_quant_backtest_equity",
 	}
 	if len(deleteDetailTables) != len(want) {
 		t.Fatalf("明细表数量应为 %d，实际 %d", len(want), len(deleteDetailTables))
@@ -48,12 +48,12 @@ func TestRunDelTaskModel(t *testing.T) {
 		RunID:         "RUN-1",
 		Status:        DelSucceeded,
 		Progress:      100,
-		DeletedCounts: map[string]int{"finv_quant_backtest_trade": 5},
+		DeletedCounts: map[string]int{"quant.finv_quant_backtest_trade": 5},
 	}
 	if task.Status != DelSucceeded || task.Progress != 100 {
 		t.Error("RunDelTask 字段赋值异常")
 	}
-	if task.DeletedCounts["finv_quant_backtest_trade"] != 5 {
+	if task.DeletedCounts["quant.finv_quant_backtest_trade"] != 5 {
 		t.Error("DeletedCounts 未正确保存各表删除行数")
 	}
 	logEntry := RunDelLog{DelTaskID: "TASK-1", RunID: "RUN-1", Seq: 1, Action: "TASK_CREATED"}

@@ -47,7 +47,7 @@ func (s *Service) recoverHangingRuns() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_, err := s.pool.Exec(ctx, `
-UPDATE finv_quant_backtest_run
+UPDATE quant.finv_quant_backtest_run
 SET status = 'FAILED', error_message = '进程重启，任务中断（启动时自动标记失败，请重新发起回测）', finished_at = now()
 WHERE status IN ('PENDING','RUNNING')`)
 	if err != nil {
@@ -101,7 +101,7 @@ func (s *Service) SaveStrategy(ctx context.Context, st *Strategy) (string, error
 	}
 
 	_, err = s.pool.Exec(ctx, `
-INSERT INTO finv_quant_backtest_strategy
+INSERT INTO quant.finv_quant_backtest_strategy
     (strategy_id, strategy_code, strategy_name, strategy_type, description,
      definition, definition_version, data_period, usc, user_id, template_id, allow_backtest, status, created_by)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
@@ -149,14 +149,14 @@ func (s *Service) ListStrategies(ctx context.Context, pager Pager, keyword, allo
 	cond := strings.Join(where, " AND ")
 
 	var total int
-	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM finv_quant_backtest_strategy WHERE `+cond, args...).Scan(&total); err != nil {
+	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM quant.finv_quant_backtest_strategy WHERE `+cond, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
 	rows, err := s.pool.Query(ctx, `
 SELECT strategy_id, strategy_code, strategy_name, strategy_type, description,
        definition, definition_version, data_period, usc, user_id, template_id, allow_backtest, status, created_by, gmt_update
-FROM finv_quant_backtest_strategy
+FROM quant.finv_quant_backtest_strategy
 WHERE `+cond+`
 ORDER BY gmt_update DESC
 LIMIT $`+fmt.Sprint(len(args)+1)+` OFFSET $`+fmt.Sprint(len(args)+2),
@@ -185,7 +185,7 @@ func (s *Service) GetStrategy(ctx context.Context, strategyID, userID string) (*
 	row := s.pool.QueryRow(ctx, `
 SELECT strategy_id, strategy_code, strategy_name, strategy_type, description,
        definition, definition_version, data_period, usc, user_id, template_id, allow_backtest, status, created_by, gmt_update
-FROM finv_quant_backtest_strategy WHERE strategy_id = $1 AND user_id = $2`, strategyID, userID)
+FROM quant.finv_quant_backtest_strategy WHERE strategy_id = $1 AND user_id = $2`, strategyID, userID)
 	st, err := scanStrategy(row)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -204,7 +204,7 @@ func (s *Service) ToggleStrategy(ctx context.Context, strategyID, allowBacktest,
 	if userID == "" {
 		userID = "default"
 	}
-	tag, err := s.pool.Exec(ctx, `UPDATE finv_quant_backtest_strategy SET allow_backtest=$2 WHERE strategy_id=$1 AND user_id=$3`, strategyID, allowBacktest, userID)
+	tag, err := s.pool.Exec(ctx, `UPDATE quant.finv_quant_backtest_strategy SET allow_backtest=$2 WHERE strategy_id=$1 AND user_id=$3`, strategyID, allowBacktest, userID)
 	if err != nil {
 		return err
 	}
@@ -221,13 +221,13 @@ func (s *Service) DeleteStrategy(ctx context.Context, strategyID, userID string)
 	}
 	var runCount int
 	if err := s.pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM finv_quant_backtest_run WHERE strategy_id = $1`, strategyID).Scan(&runCount); err != nil {
+		`SELECT COUNT(*) FROM quant.finv_quant_backtest_run WHERE strategy_id = $1`, strategyID).Scan(&runCount); err != nil {
 		return err
 	}
 	if runCount > 0 {
 		return fmt.Errorf("策略已关联 %d 个回测任务，禁止删除（可改为禁用）", runCount)
 	}
-	tag, err := s.pool.Exec(ctx, `DELETE FROM finv_quant_backtest_strategy WHERE strategy_id = $1 AND user_id = $2`, strategyID, userID)
+	tag, err := s.pool.Exec(ctx, `DELETE FROM quant.finv_quant_backtest_strategy WHERE strategy_id = $1 AND user_id = $2`, strategyID, userID)
 	if err != nil {
 		return err
 	}
@@ -269,7 +269,7 @@ func (s *Service) SaveAccount(ctx context.Context, acc *Account) (string, error)
 	}
 
 	_, err := s.pool.Exec(ctx, `
-INSERT INTO finv_quant_backtest_account
+INSERT INTO quant.finv_quant_backtest_account
     (account_id, account_code, account_name, user_id, group_id, env_id, initial_capital, currency_type,
      commission_rate, slippage_pct, margin_mode, margin_rate, allow_backtest, status, remark, created_by)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
@@ -319,14 +319,14 @@ func (s *Service) ListAccounts(ctx context.Context, pager Pager, keyword, allowB
 	cond := strings.Join(where, " AND ")
 
 	var total int
-	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM finv_quant_backtest_account WHERE `+cond, args...).Scan(&total); err != nil {
+	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM quant.finv_quant_backtest_account WHERE `+cond, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
 	rows, err := s.pool.Query(ctx, `
 SELECT account_id, account_code, account_name, user_id, group_id, env_id, initial_capital, currency_type,
        commission_rate, slippage_pct, margin_mode, margin_rate, allow_backtest, status, remark, created_by, gmt_update
-FROM finv_quant_backtest_account
+FROM quant.finv_quant_backtest_account
 WHERE `+cond+`
 ORDER BY gmt_update DESC
 LIMIT $`+fmt.Sprint(len(args)+1)+` OFFSET $`+fmt.Sprint(len(args)+2),
@@ -365,7 +365,7 @@ func (s *Service) GetAccount(ctx context.Context, accountID, userID string) (*Ac
 	row := s.pool.QueryRow(ctx, `
 SELECT account_id, account_code, account_name, user_id, group_id, env_id, initial_capital, currency_type,
        commission_rate, slippage_pct, margin_mode, margin_rate, allow_backtest, status, remark, created_by, gmt_update
-FROM finv_quant_backtest_account WHERE account_id = $1 AND user_id = $2`, accountID, userID)
+FROM quant.finv_quant_backtest_account WHERE account_id = $1 AND user_id = $2`, accountID, userID)
 	var a Account
 	// remark / created_by 列可空，用指针接收避免 NULL 扫描失败
 	var remark, createdBy *string
@@ -394,7 +394,7 @@ func (s *Service) ToggleAccount(ctx context.Context, accountID, allowBacktest, u
 	if userID == "" {
 		userID = "default"
 	}
-	tag, err := s.pool.Exec(ctx, `UPDATE finv_quant_backtest_account SET allow_backtest=$2 WHERE account_id=$1 AND user_id=$3`, accountID, allowBacktest, userID)
+	tag, err := s.pool.Exec(ctx, `UPDATE quant.finv_quant_backtest_account SET allow_backtest=$2 WHERE account_id=$1 AND user_id=$3`, accountID, allowBacktest, userID)
 	if err != nil {
 		return err
 	}
@@ -411,13 +411,13 @@ func (s *Service) DeleteAccount(ctx context.Context, accountID, userID string) e
 	}
 	var runCount int
 	if err := s.pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM finv_quant_backtest_run WHERE account_id = $1`, accountID).Scan(&runCount); err != nil {
+		`SELECT COUNT(*) FROM quant.finv_quant_backtest_run WHERE account_id = $1`, accountID).Scan(&runCount); err != nil {
 		return err
 	}
 	if runCount > 0 {
 		return fmt.Errorf("账户已关联 %d 个回测任务，禁止删除（可改为禁用）", runCount)
 	}
-	tag, err := s.pool.Exec(ctx, `DELETE FROM finv_quant_backtest_account WHERE account_id = $1 AND user_id = $2`, accountID, userID)
+	tag, err := s.pool.Exec(ctx, `DELETE FROM quant.finv_quant_backtest_account WHERE account_id = $1 AND user_id = $2`, accountID, userID)
 	if err != nil {
 		return err
 	}
@@ -540,7 +540,7 @@ func (s *Service) CreateRun(ctx context.Context, req CreateRunRequest) (*Run, er
 
 	runID := newUUID()
 	_, err = s.pool.Exec(ctx, `
-INSERT INTO finv_quant_backtest_run
+INSERT INTO quant.finv_quant_backtest_run
     (run_id, user_id, strategy_id, strategy_code, strategy_name, strategy_snapshot,
      account_id, account_code, account_name, account_snapshot,
      env_id, env_snapshot,
@@ -576,7 +576,7 @@ func (s *Service) CancelRun(ctx context.Context, runID, userID string) error {
 		userID = "default"
 	}
 	var owner string
-	if err := s.pool.QueryRow(ctx, `SELECT user_id FROM finv_quant_backtest_run WHERE run_id=$1`, runID).Scan(&owner); err != nil {
+	if err := s.pool.QueryRow(ctx, `SELECT user_id FROM quant.finv_quant_backtest_run WHERE run_id=$1`, runID).Scan(&owner); err != nil {
 		return fmt.Errorf("任务不存在: %s", runID)
 	}
 	if owner != userID {
@@ -588,7 +588,7 @@ func (s *Service) CancelRun(ctx context.Context, runID, userID string) error {
 	if !ok {
 		// 非运行中任务：检查状态，仅 PENDING/RUNNING 可取消
 		var status string
-		if err := s.pool.QueryRow(ctx, `SELECT status FROM finv_quant_backtest_run WHERE run_id=$1`, runID).Scan(&status); err != nil {
+		if err := s.pool.QueryRow(ctx, `SELECT status FROM quant.finv_quant_backtest_run WHERE run_id=$1`, runID).Scan(&status); err != nil {
 			return fmt.Errorf("任务不存在: %s", runID)
 		}
 		if status == RunPending || status == RunRunning {
@@ -629,7 +629,7 @@ func (s *Service) ListRuns(ctx context.Context, q RunListQuery, userID string) (
 	cond := strings.Join(where, " AND ")
 
 	var total int
-	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM finv_quant_backtest_run WHERE `+cond, args...).Scan(&total); err != nil {
+	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM quant.finv_quant_backtest_run WHERE `+cond, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
@@ -640,7 +640,7 @@ SELECT run_id, run_no, user_id, strategy_id, strategy_code, strategy_name, strat
        usc, market_code, period, report_precision,
        start_ts, end_ts, start_date, end_date, options, status, progress, error_message, report,
        started_at, finished_at, created_by, gmt_update
-FROM finv_quant_backtest_run
+FROM quant.finv_quant_backtest_run
 WHERE `+cond+`
 ORDER BY run_no DESC
 LIMIT $`+fmt.Sprint(len(args)+1)+` OFFSET $`+fmt.Sprint(len(args)+2),
@@ -673,7 +673,7 @@ SELECT run_id, run_no, user_id, strategy_id, strategy_code, strategy_name, strat
        usc, market_code, period, report_precision,
        start_ts, end_ts, start_date, end_date, options, status, progress, error_message, report,
        started_at, finished_at, created_by, gmt_update
-FROM finv_quant_backtest_run WHERE run_id = $1 AND user_id = $2`, runID, userID)
+FROM quant.finv_quant_backtest_run WHERE run_id = $1 AND user_id = $2`, runID, userID)
 	r, err := scanRun(row)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -695,7 +695,7 @@ func (s *Service) GetReport(ctx context.Context, runID, userID string) (*RunRepo
 	var reportJSON []byte
 	var status string
 	err := s.pool.QueryRow(ctx,
-		`SELECT status, COALESCE(report, '{}') FROM finv_quant_backtest_run WHERE run_id=$1`, runID).Scan(&status, &reportJSON)
+		`SELECT status, COALESCE(report, '{}') FROM quant.finv_quant_backtest_run WHERE run_id=$1`, runID).Scan(&status, &reportJSON)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("回测任务不存在: %s", runID)
@@ -715,7 +715,7 @@ func (s *Service) GetReport(ctx context.Context, runID, userID string) (*RunRepo
 // checkRunOwner 校验任务归属（多用户隔离：他人任务不可读明细/报告）。
 func (s *Service) checkRunOwner(ctx context.Context, runID, userID string) error {
 	var owner string
-	err := s.pool.QueryRow(ctx, `SELECT user_id FROM finv_quant_backtest_run WHERE run_id=$1`, runID).Scan(&owner)
+	err := s.pool.QueryRow(ctx, `SELECT user_id FROM quant.finv_quant_backtest_run WHERE run_id=$1`, runID).Scan(&owner)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return fmt.Errorf("回测任务不存在: %s", runID)
@@ -737,7 +737,7 @@ SELECT run_id, run_no, user_id, strategy_id, strategy_code, strategy_name, strat
        usc, market_code, period, report_precision,
        start_ts, end_ts, start_date, end_date, options, status, progress, error_message, report,
        started_at, finished_at, created_by, gmt_update
-FROM finv_quant_backtest_run WHERE run_id = $1`, runID)
+FROM quant.finv_quant_backtest_run WHERE run_id = $1`, runID)
 	r, err := scanRun(row)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -759,12 +759,12 @@ func (s *Service) ListEquity(ctx context.Context, runID, userID string, pager Pa
 	pager = normalizeLargePager(pager)
 	var total int
 	if err := s.pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM finv_quant_backtest_equity WHERE run_id=$1`, runID).Scan(&total); err != nil {
+		`SELECT COUNT(*) FROM quant.finv_quant_backtest_equity WHERE run_id=$1`, runID).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	rows, err := s.pool.Query(ctx, `
 SELECT seq, ts, COALESCE(date, 0), COALESCE("time", 0), equity, cash, position_value, position_qty, profit, roi, drawdown
-FROM finv_quant_backtest_equity WHERE run_id=$1
+FROM quant.finv_quant_backtest_equity WHERE run_id=$1
 ORDER BY seq ASC
 LIMIT $2 OFFSET $3`, runID, pager.PageSize, (pager.Page-1)*pager.PageSize)
 	if err != nil {
@@ -795,12 +795,12 @@ func (s *Service) ListTrades(ctx context.Context, runID, userID string, pager Pa
 	pager = normalizeLargePager(pager)
 	var total int
 	if err := s.pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM finv_quant_backtest_trade WHERE run_id=$1`, runID).Scan(&total); err != nil {
+		`SELECT COUNT(*) FROM quant.finv_quant_backtest_trade WHERE run_id=$1`, runID).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	rows, err := s.pool.Query(ctx, `
 SELECT trade_id, run_id, seq, ts, COALESCE(date, 0), COALESCE("time", 0), action, price, qty, amount, fee, COALESCE(profit, 0), position_after, cash_after, COALESCE(signal, ''), COALESCE(remark, '')
-FROM finv_quant_backtest_trade WHERE run_id=$1
+FROM quant.finv_quant_backtest_trade WHERE run_id=$1
 ORDER BY ts ASC
 LIMIT $2 OFFSET $3`, runID, pager.PageSize, (pager.Page-1)*pager.PageSize)
 	if err != nil {
@@ -831,12 +831,12 @@ func (s *Service) ListCashflows(ctx context.Context, runID, userID string, pager
 	pager = normalizeLargePager(pager)
 	var total int
 	if err := s.pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM finv_quant_backtest_cashflow WHERE run_id=$1`, runID).Scan(&total); err != nil {
+		`SELECT COUNT(*) FROM quant.finv_quant_backtest_cashflow WHERE run_id=$1`, runID).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	rows, err := s.pool.Query(ctx, `
 SELECT cashflow_id, run_id, seq, ts, COALESCE(date, 0), COALESCE("time", 0), flow_type, amount, cash_before, cash_after, COALESCE(trade_id, 0), COALESCE(remark, '')
-FROM finv_quant_backtest_cashflow WHERE run_id=$1
+FROM quant.finv_quant_backtest_cashflow WHERE run_id=$1
 ORDER BY seq ASC
 LIMIT $2 OFFSET $3`, runID, pager.PageSize, (pager.Page-1)*pager.PageSize)
 	if err != nil {
@@ -867,13 +867,13 @@ func (s *Service) ListPositionLogs(ctx context.Context, runID, userID string, pa
 	pager = normalizeLargePager(pager)
 	var total int
 	if err := s.pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM finv_quant_backtest_position_log WHERE run_id=$1`, runID).Scan(&total); err != nil {
+		`SELECT COUNT(*) FROM quant.finv_quant_backtest_position_log WHERE run_id=$1`, runID).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	rows, err := s.pool.Query(ctx, `
 SELECT log_id, run_id, seq, ts, COALESCE(date, 0), COALESCE("time", 0), action, price, qty,
        position_before, position_after, avg_cost_before, avg_cost_after, COALESCE(trade_id, 0), COALESCE(remark, '')
-FROM finv_quant_backtest_position_log WHERE run_id=$1
+FROM quant.finv_quant_backtest_position_log WHERE run_id=$1
 ORDER BY seq ASC
 LIMIT $2 OFFSET $3`, runID, pager.PageSize, (pager.Page-1)*pager.PageSize)
 	if err != nil {
@@ -905,7 +905,7 @@ func (s *Service) ListEventTraces(ctx context.Context, runID, userID string, pag
 	pager = normalizeLargePager(pager)
 	var total int
 	if err := s.pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM finv_quant_backtest_event_trace WHERE run_id=$1`, runID).Scan(&total); err != nil {
+		`SELECT COUNT(*) FROM quant.finv_quant_backtest_event_trace WHERE run_id=$1`, runID).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	rows, err := s.pool.Query(ctx, `
@@ -913,7 +913,7 @@ SELECT event_id, run_id, seq, action, trigger_reason, trigger_ts, trigger_date, 
        order_ts, order_date, order_time,
        exec_status, exec_ts, exec_date, exec_time, latency_bars, latency_sec, alive_sec,
        COALESCE(reject_reason, ''), price, qty, COALESCE(trade_id, 0)
-FROM finv_quant_backtest_event_trace WHERE run_id=$1
+FROM quant.finv_quant_backtest_event_trace WHERE run_id=$1
 ORDER BY seq ASC
 LIMIT $2 OFFSET $3`, runID, pager.PageSize, (pager.Page-1)*pager.PageSize)
 	if err != nil {
@@ -964,7 +964,7 @@ func (s *Service) executeRun(ctx context.Context, runID string) {
 	}
 
 	now := time.Now().UTC()
-	_, _ = s.pool.Exec(ctx, `UPDATE finv_quant_backtest_run SET status='RUNNING', started_at=$2 WHERE run_id=$1`, runID, now)
+	_, _ = s.pool.Exec(ctx, `UPDATE quant.finv_quant_backtest_run SET status='RUNNING', started_at=$2 WHERE run_id=$1`, runID, now)
 
 	// 加载行情（按 date 范围）
 	bars, err := s.loadBars(ctx, run.Usc, run.StartDate, run.EndDate)
@@ -995,7 +995,7 @@ func (s *Service) executeRun(ctx context.Context, runID string) {
 		pct := processed * 100 / total
 		if pct != lastProgress {
 			lastProgress = pct
-			_, _ = s.pool.Exec(ctx, `UPDATE finv_quant_backtest_run SET progress=$2 WHERE run_id=$1`, runID, pct)
+			_, _ = s.pool.Exec(ctx, `UPDATE quant.finv_quant_backtest_run SET progress=$2 WHERE run_id=$1`, runID, pct)
 		}
 	})
 
@@ -1023,7 +1023,7 @@ func (s *Service) loadBars(ctx context.Context, usc string, startDate, endDate i
 SELECT ts, COALESCE(date, 0), COALESCE("time", 0),
        COALESCE(open, close), COALESCE(high, close), COALESCE(low, close), COALESCE(close, open),
        COALESCE(volume, 0), COALESCE(turnover, 0)
-FROM finv_quote_secu_kline_min
+FROM quote.finv_quote_secu_kline_min
 WHERE usc = $1 AND date BETWEEN $2 AND $3
 ORDER BY ts ASC`, usc, startDate, endDate)
 	if err != nil {
@@ -1049,7 +1049,7 @@ func (s *Service) persistResult(ctx context.Context, runID string, result *Engin
 	tradeBatch := &pgx.Batch{}
 	for _, t := range result.Trades {
 		tradeBatch.Queue(`
-INSERT INTO finv_quant_backtest_trade
+INSERT INTO quant.finv_quant_backtest_trade
     (run_id, seq, ts, date, "time", action, price, qty, amount, fee, profit, position_after, cash_after, signal, remark)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
 RETURNING trade_id, seq`,
@@ -1086,7 +1086,7 @@ RETURNING trade_id, seq`,
 	batch := &pgx.Batch{}
 	for _, p := range result.EquityPoints {
 		batch.Queue(`
-INSERT INTO finv_quant_backtest_equity (run_id, seq, ts, date, "time", equity, cash, position_value, position_qty, profit, roi, drawdown)
+INSERT INTO quant.finv_quant_backtest_equity (run_id, seq, ts, date, "time", equity, cash, position_value, position_qty, profit, roi, drawdown)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
 ON CONFLICT (run_id, ts) DO UPDATE SET
   equity=EXCLUDED.equity, cash=EXCLUDED.cash, position_value=EXCLUDED.position_value,
@@ -1096,7 +1096,7 @@ ON CONFLICT (run_id, ts) DO UPDATE SET
 	}
 	for _, cf := range result.Cashflows {
 		batch.Queue(`
-INSERT INTO finv_quant_backtest_cashflow
+INSERT INTO quant.finv_quant_backtest_cashflow
     (run_id, seq, ts, date, "time", flow_type, amount, cash_before, cash_after, trade_id, remark)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
 			runID, cf.Seq, cf.TS, cf.Date, cf.Time, cf.FlowType, cf.Amount,
@@ -1104,7 +1104,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
 	}
 	for _, pl := range result.PositionLogs {
 		batch.Queue(`
-INSERT INTO finv_quant_backtest_position_log
+INSERT INTO quant.finv_quant_backtest_position_log
     (run_id, seq, ts, date, "time", action, price, qty, position_before, position_after, avg_cost_before, avg_cost_after, trade_id, remark)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
 			runID, pl.Seq, pl.TS, pl.Date, pl.Time, pl.Action, pl.Price, pl.Qty,
@@ -1113,7 +1113,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
 	}
 	for _, ev := range result.EventTraces {
 		batch.Queue(`
-INSERT INTO finv_quant_backtest_event_trace
+INSERT INTO quant.finv_quant_backtest_event_trace
     (run_id, seq, action, trigger_reason, trigger_ts, trigger_date, trigger_time,
      order_ts, order_date, order_time,
      exec_status, exec_ts, exec_date, exec_time, latency_bars, latency_sec, alive_sec,
@@ -1125,7 +1125,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$
 			ev.RejectReason, ev.Price, ev.Qty, tradeIDBySeq[ev.TradeSeq])
 	}
 	reportJSON, _ := json.Marshal(result.Report)
-	batch.Queue(`UPDATE finv_quant_backtest_run SET report=$2 WHERE run_id=$1`, runID, reportJSON)
+	batch.Queue(`UPDATE quant.finv_quant_backtest_run SET report=$2 WHERE run_id=$1`, runID, reportJSON)
 
 	results := s.pool.SendBatch(ctx, batch)
 	defer results.Close()
@@ -1180,7 +1180,7 @@ func (s *Service) resolveEnvironment(ctx context.Context, reqEnvID string, accEn
 func (s *Service) defaultEnvironment(ctx context.Context) (*Environment, error) {
 	row := s.pool.QueryRow(ctx, `
 SELECT env_id, env_code, env_name, env_type, region, market_code, config, user_id, is_default, allow_backtest, status, description, created_by, gmt_update
-FROM finv_quant_environment
+FROM quant.finv_quant_environment
 WHERE env_type='BACKTEST' AND is_default='1' AND allow_backtest='1' AND status='ENABLED'
 ORDER BY gmt_update DESC LIMIT 1`)
 	return scanEnvironment(row)
@@ -1225,13 +1225,13 @@ func (s *Service) SaveEnvironment(ctx context.Context, env *Environment) (string
 	defer tx.Rollback(ctx)
 	if env.IsDefault == FlagOn {
 		if _, err := tx.Exec(ctx,
-			`UPDATE finv_quant_environment SET is_default='0' WHERE user_id=$1 AND env_type=$2 AND env_id <> $3 AND is_default='1'`,
+			`UPDATE quant.finv_quant_environment SET is_default='0' WHERE user_id=$1 AND env_type=$2 AND env_id <> $3 AND is_default='1'`,
 			env.UserID, env.EnvType, env.EnvID); err != nil {
 			return "", err
 		}
 	}
 	_, err = tx.Exec(ctx, `
-INSERT INTO finv_quant_environment
+INSERT INTO quant.finv_quant_environment
     (env_id, env_code, env_name, env_type, region, market_code, config, user_id, is_default, allow_backtest, status, description, created_by)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
 ON CONFLICT (env_id) DO UPDATE SET
@@ -1272,12 +1272,12 @@ func (s *Service) ListEnvironments(ctx context.Context, pager Pager, userID, env
 	cond := strings.Join(where, " AND ")
 
 	var total int
-	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM finv_quant_environment WHERE `+cond, args...).Scan(&total); err != nil {
+	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM quant.finv_quant_environment WHERE `+cond, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	rows, err := s.pool.Query(ctx, `
 SELECT env_id, env_code, env_name, env_type, region, market_code, config, user_id, is_default, allow_backtest, status, description, created_by, gmt_update
-FROM finv_quant_environment
+FROM quant.finv_quant_environment
 WHERE `+cond+`
 ORDER BY is_default DESC, gmt_update DESC
 LIMIT $`+fmt.Sprint(len(args)+1)+` OFFSET $`+fmt.Sprint(len(args)+2),
@@ -1305,7 +1305,7 @@ func (s *Service) GetEnvironment(ctx context.Context, envID, userID string) (*En
 	}
 	row := s.pool.QueryRow(ctx, `
 SELECT env_id, env_code, env_name, env_type, region, market_code, config, user_id, is_default, allow_backtest, status, description, created_by, gmt_update
-FROM finv_quant_environment WHERE env_id = $1 AND (user_id = 'system' OR user_id = $2)`, envID, userID)
+FROM quant.finv_quant_environment WHERE env_id = $1 AND (user_id = 'system' OR user_id = $2)`, envID, userID)
 	env, err := scanEnvironment(row)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -1324,7 +1324,7 @@ func (s *Service) ToggleEnvironment(ctx context.Context, envID, allowBacktest, u
 	if userID == "" {
 		userID = "default"
 	}
-	tag, err := s.pool.Exec(ctx, `UPDATE finv_quant_environment SET allow_backtest=$2 WHERE env_id=$1 AND (user_id='system' OR user_id=$3)`, envID, allowBacktest, userID)
+	tag, err := s.pool.Exec(ctx, `UPDATE quant.finv_quant_environment SET allow_backtest=$2 WHERE env_id=$1 AND (user_id='system' OR user_id=$3)`, envID, allowBacktest, userID)
 	if err != nil {
 		return err
 	}
@@ -1341,13 +1341,13 @@ func (s *Service) DeleteEnvironment(ctx context.Context, envID, userID string) e
 	}
 	var runCount int
 	if err := s.pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM finv_quant_backtest_run WHERE env_id = $1`, envID).Scan(&runCount); err != nil {
+		`SELECT COUNT(*) FROM quant.finv_quant_backtest_run WHERE env_id = $1`, envID).Scan(&runCount); err != nil {
 		return err
 	}
 	if runCount > 0 {
 		return fmt.Errorf("环境已关联 %d 个回测任务，禁止删除（可改为禁用）", runCount)
 	}
-	tag, err := s.pool.Exec(ctx, `DELETE FROM finv_quant_environment WHERE env_id = $1 AND user_id = $2`, envID, userID)
+	tag, err := s.pool.Exec(ctx, `DELETE FROM quant.finv_quant_environment WHERE env_id = $1 AND user_id = $2`, envID, userID)
 	if err != nil {
 		return err
 	}
@@ -1407,7 +1407,7 @@ func (s *Service) SaveTemplate(ctx context.Context, tmpl *Template) (string, err
 	// 内置模板保护：已存在且 is_builtin='1' 时拒绝更新（防篡改内置模板）
 	if tmpl.TemplateID != "" {
 		var builtin string
-		err := s.pool.QueryRow(ctx, `SELECT is_builtin FROM finv_quant_template WHERE template_id=$1`, tmpl.TemplateID).Scan(&builtin)
+		err := s.pool.QueryRow(ctx, `SELECT is_builtin FROM quant.finv_quant_template WHERE template_id=$1`, tmpl.TemplateID).Scan(&builtin)
 		if err == nil && builtin == FlagOn {
 			return "", fmt.Errorf("内置模板禁止修改（请复制为新模板后自定义）")
 		}
@@ -1419,7 +1419,7 @@ func (s *Service) SaveTemplate(ctx context.Context, tmpl *Template) (string, err
 		return "", fmt.Errorf("模板内容序列化失败: %w", err)
 	}
 	_, err = s.pool.Exec(ctx, `
-INSERT INTO finv_quant_template
+INSERT INTO quant.finv_quant_template
     (template_id, template_code, template_name, template_type, content, user_id, is_builtin, status, description, created_by)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 ON CONFLICT (template_id) DO UPDATE SET
@@ -1457,12 +1457,12 @@ func (s *Service) ListTemplates(ctx context.Context, pager Pager, userID, templa
 	cond := strings.Join(where, " AND ")
 
 	var total int
-	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM finv_quant_template WHERE `+cond, args...).Scan(&total); err != nil {
+	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM quant.finv_quant_template WHERE `+cond, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	rows, err := s.pool.Query(ctx, `
 SELECT template_id, template_code, template_name, template_type, content, user_id, is_builtin, status, description, created_by, gmt_update
-FROM finv_quant_template
+FROM quant.finv_quant_template
 WHERE `+cond+`
 ORDER BY is_builtin DESC, gmt_update DESC
 LIMIT $`+fmt.Sprint(len(args)+1)+` OFFSET $`+fmt.Sprint(len(args)+2),
@@ -1507,7 +1507,7 @@ func (s *Service) GetTemplate(ctx context.Context, templateID, userID string) (*
 	var desc, createdBy *string
 	err := s.pool.QueryRow(ctx, `
 SELECT template_id, template_code, template_name, template_type, content, user_id, is_builtin, status, description, created_by, gmt_update
-FROM finv_quant_template WHERE template_id = $1 AND (user_id = 'system' OR user_id = $2)`, templateID, userID).Scan(
+FROM quant.finv_quant_template WHERE template_id = $1 AND (user_id = 'system' OR user_id = $2)`, templateID, userID).Scan(
 		&tmpl.TemplateID, &tmpl.TemplateCode, &tmpl.TemplateName, &tmpl.TemplateType,
 		&contentJSON, &tmpl.UserID, &tmpl.IsBuiltin, &tmpl.Status, &desc, &createdBy, &tmpl.GMTUpdate)
 	if err != nil {
@@ -1535,7 +1535,7 @@ func (s *Service) DeleteTemplate(ctx context.Context, templateID, userID string)
 	}
 	var isBuiltin, owner string
 	if err := s.pool.QueryRow(ctx,
-		`SELECT is_builtin, user_id FROM finv_quant_template WHERE template_id = $1`, templateID).Scan(&isBuiltin, &owner); err != nil {
+		`SELECT is_builtin, user_id FROM quant.finv_quant_template WHERE template_id = $1`, templateID).Scan(&isBuiltin, &owner); err != nil {
 		return fmt.Errorf("模板不存在: %s", templateID)
 	}
 	if isBuiltin == FlagOn {
@@ -1544,7 +1544,7 @@ func (s *Service) DeleteTemplate(ctx context.Context, templateID, userID string)
 	if owner != userID {
 		return fmt.Errorf("无权删除其他用户的模板")
 	}
-	tag, err := s.pool.Exec(ctx, `DELETE FROM finv_quant_template WHERE template_id = $1 AND user_id = $2`, templateID, userID)
+	tag, err := s.pool.Exec(ctx, `DELETE FROM quant.finv_quant_template WHERE template_id = $1 AND user_id = $2`, templateID, userID)
 	if err != nil {
 		return err
 	}
@@ -1563,7 +1563,7 @@ func (s *Service) markRun(ctx context.Context, runID, status string, progress in
 		reportJSON = nil
 	}
 	_, _ = s.pool.Exec(ctx, `
-UPDATE finv_quant_backtest_run
+UPDATE quant.finv_quant_backtest_run
 SET status=$2, progress=$3, error_message=$4, report=COALESCE($5, report), finished_at=now()
 WHERE run_id=$1`, runID, status, progress, nullIfEmpty(errMsg), reportJSON)
 }
@@ -1581,7 +1581,7 @@ func (s *Service) resolveDateRange(ctx context.Context, usc string, startDate, e
 		var minDate, maxDate int
 		err := s.pool.QueryRow(ctx, `
 SELECT COALESCE(MIN(date), 0), COALESCE(MAX(date), 0)
-FROM finv_quote_secu_kline_min WHERE usc = $1`, usc).Scan(&minDate, &maxDate)
+FROM quote.finv_quote_secu_kline_min WHERE usc = $1`, usc).Scan(&minDate, &maxDate)
 		if err != nil {
 			return 0, 0, err
 		}
@@ -1616,16 +1616,16 @@ func dateToTS(date int) int64 {
 // 设计（ACANX 需求）：回测任务可能产生大量无参考价值记录（净值曲线/成交/
 // 资金流水/持仓/事件追踪明细），按 run_id 删除任务及其关联记录；策略/账户/
 // 环境/模板保留。删除以异步任务执行（复用 s.tasks/s.sem 并发模式），
-// 全过程写 finv_quant_backtest_del_log 审计日志（创建/每表删除行数/成功/失败）。
+// 全过程写 quant.finv_quant_backtest_del_log 审计日志（创建/每表删除行数/成功/失败）。
 // ---------------------------------------------------------------------
 
 // deleteDetailTables 删除任务明细表的删除顺序（先子表后主表，避免中途失败遗留孤立数据）。
 var deleteDetailTables = []string{
-	"finv_quant_backtest_event_trace",
-	"finv_quant_backtest_position_log",
-	"finv_quant_backtest_cashflow",
-	"finv_quant_backtest_trade",
-	"finv_quant_backtest_equity",
+	"quant.finv_quant_backtest_event_trace",
+	"quant.finv_quant_backtest_position_log",
+	"quant.finv_quant_backtest_cashflow",
+	"quant.finv_quant_backtest_trade",
+	"quant.finv_quant_backtest_equity",
 }
 
 // DeleteRun 提交一个回测任务删除任务（异步执行）。
@@ -1638,7 +1638,7 @@ func (s *Service) DeleteRun(ctx context.Context, runID, userID string) (string, 
 	// 校验任务归属与状态
 	var owner, status string
 	if err := s.pool.QueryRow(ctx,
-		`SELECT user_id, status FROM finv_quant_backtest_run WHERE run_id=$1`, runID).Scan(&owner, &status); err != nil {
+		`SELECT user_id, status FROM quant.finv_quant_backtest_run WHERE run_id=$1`, runID).Scan(&owner, &status); err != nil {
 		if err == pgx.ErrNoRows {
 			return "", fmt.Errorf("回测任务不存在: %s", runID)
 		}
@@ -1654,7 +1654,7 @@ func (s *Service) DeleteRun(ctx context.Context, runID, userID string) (string, 
 	// 防重复：存在该 run 的进行中删除任务时拒绝
 	var activeCnt int
 	if err := s.pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM finv_quant_backtest_del_task
+		`SELECT COUNT(*) FROM quant.finv_quant_backtest_del_task
 		 WHERE run_id=$1 AND status IN ('PENDING','RUNNING')`, runID).Scan(&activeCnt); err != nil {
 		return "", err
 	}
@@ -1665,7 +1665,7 @@ func (s *Service) DeleteRun(ctx context.Context, runID, userID string) (string, 
 	// 创建删除任务（UUID 大写）
 	delTaskID := newUUID()
 	if _, err := s.pool.Exec(ctx, `
-INSERT INTO finv_quant_backtest_del_task (del_task_id, run_id, status, progress, created_by)
+INSERT INTO quant.finv_quant_backtest_del_task (del_task_id, run_id, status, progress, created_by)
 VALUES ($1,$2,$3,0,$4)`, delTaskID, runID, DelPending, userID); err != nil {
 		return "", err
 	}
@@ -1702,7 +1702,7 @@ func (s *Service) executeRunDelete(ctx context.Context, delTaskID, runID string)
 
 	// 状态置 RUNNING
 	if _, err := s.pool.Exec(ctx,
-		`UPDATE finv_quant_backtest_del_task SET status=$2, gmt_update=now() WHERE del_task_id=$1`,
+		`UPDATE quant.finv_quant_backtest_del_task SET status=$2, gmt_update=now() WHERE del_task_id=$1`,
 		delTaskID, DelRunning); err != nil {
 		s.failDelTask(context.Background(), delTaskID, runID, "更新删除任务状态失败: "+err.Error())
 		return
@@ -1738,23 +1738,23 @@ func (s *Service) executeRunDelete(ctx context.Context, delTaskID, runID string)
 			fmt.Sprintf("%s: 删除 %d 行", tbl, n))
 		progress := step * 100 / tableCnt
 		_, _ = s.pool.Exec(ctx,
-			`UPDATE finv_quant_backtest_del_task SET progress=$2, gmt_update=now() WHERE del_task_id=$1`,
+			`UPDATE quant.finv_quant_backtest_del_task SET progress=$2, gmt_update=now() WHERE del_task_id=$1`,
 			delTaskID, progress)
 	}
 
 	// 2. 删除主表
-	tag, err := s.pool.Exec(ctx, `DELETE FROM finv_quant_backtest_run WHERE run_id=$1`, runID)
+	tag, err := s.pool.Exec(ctx, `DELETE FROM quant.finv_quant_backtest_run WHERE run_id=$1`, runID)
 	if err != nil {
 		s.failDelTask(context.Background(), delTaskID, runID, "删除任务主表失败: "+err.Error())
 		return
 	}
-	counts["finv_quant_backtest_run"] = int(tag.RowsAffected())
+	counts["quant.finv_quant_backtest_run"] = int(tag.RowsAffected())
 	step++
 
 	// 3. 更新删除任务为 SUCCEEDED，登记各表删除行数
 	countsJSON, _ := json.Marshal(counts)
 	if _, err := s.pool.Exec(ctx,
-		`UPDATE finv_quant_backtest_del_task SET status=$2, progress=100, deleted_counts=$3, gmt_update=now()
+		`UPDATE quant.finv_quant_backtest_del_task SET status=$2, progress=100, deleted_counts=$3, gmt_update=now()
 		 WHERE del_task_id=$1`, delTaskID, DelSucceeded, countsJSON); err != nil {
 		s.failDelTask(context.Background(), delTaskID, runID, "更新删除任务结果失败: "+err.Error())
 		return
@@ -1767,7 +1767,7 @@ func (s *Service) executeRunDelete(ctx context.Context, delTaskID, runID string)
 // failDelTask 将删除任务标记为 FAILED 并写失败日志。
 func (s *Service) failDelTask(ctx context.Context, delTaskID, runID, reason string) {
 	_, _ = s.pool.Exec(ctx,
-		`UPDATE finv_quant_backtest_del_task SET status=$2, error_message=$3, gmt_update=now()
+		`UPDATE quant.finv_quant_backtest_del_task SET status=$2, error_message=$3, gmt_update=now()
 		 WHERE del_task_id=$1`, delTaskID, DelFailed, nullIfEmpty(reason))
 	s.appendDelLog(ctx, delTaskID, runID, "TASK_FAILED", reason)
 }
@@ -1776,10 +1776,10 @@ func (s *Service) failDelTask(ctx context.Context, delTaskID, runID, reason stri
 func (s *Service) appendDelLog(ctx context.Context, delTaskID, runID, action, detail string) {
 	var seq int
 	_ = s.pool.QueryRow(ctx,
-		`SELECT COALESCE(MAX(seq), 0)+1 FROM finv_quant_backtest_del_log WHERE del_task_id=$1`,
+		`SELECT COALESCE(MAX(seq), 0)+1 FROM quant.finv_quant_backtest_del_log WHERE del_task_id=$1`,
 		delTaskID).Scan(&seq)
 	_, _ = s.pool.Exec(ctx, `
-INSERT INTO finv_quant_backtest_del_log (del_task_id, run_id, seq, action, detail)
+INSERT INTO quant.finv_quant_backtest_del_log (del_task_id, run_id, seq, action, detail)
 VALUES ($1,$2,$3,$4,$5)`, delTaskID, runID, seq, action, detail)
 }
 
@@ -1794,7 +1794,7 @@ func (s *Service) archiveRun(ctx context.Context, delTaskID, runID string) error
 	if err := s.pool.QueryRow(ctx, `
 SELECT run_id, run_no, strategy_id, strategy_name, account_id, account_name,
        usc, period, start_date, end_date, status, error_message, report
-FROM finv_quant_backtest_run WHERE run_id=$1`, runID).Scan(
+FROM quant.finv_quant_backtest_run WHERE run_id=$1`, runID).Scan(
 		&a.RunID, &a.RunNo,
 		&strategyID, &strategyName, &accountID, &accountName,
 		&secu, &period, &startDate, &endDate,
@@ -1836,13 +1836,13 @@ FROM finv_quant_backtest_run WHERE run_id=$1`, runID).Scan(
 	// 操作者取删除任务创建人（DeleteRun 已做归属校验）
 	deletedBy := "console"
 	if err := s.pool.QueryRow(ctx,
-		`SELECT created_by FROM finv_quant_backtest_del_task WHERE del_task_id=$1`, delTaskID).Scan(&deletedBy); err != nil {
+		`SELECT created_by FROM quant.finv_quant_backtest_del_task WHERE del_task_id=$1`, delTaskID).Scan(&deletedBy); err != nil {
 		deletedBy = "console"
 	}
 	a.DeletedBy = deletedBy
 	a.DelTaskID = delTaskID
 	_, err := s.pool.Exec(ctx, `
-INSERT INTO finv_quant_backtest_run_archive
+INSERT INTO quant.finv_quant_backtest_run_archive
     (archive_id, run_id, run_no, strategy_id, strategy_name, account_id, account_name,
      usc, period, start_date, end_date, status, error_message, report_json,
      deleted_at, deleted_by, del_task_id)
@@ -1869,7 +1869,7 @@ func (s *Service) ListRunArchives(ctx context.Context, pager Pager, runID string
 		where = "run_id = $1"
 	}
 	var total int
-	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM finv_quant_backtest_run_archive WHERE `+where, args...).Scan(&total); err != nil {
+	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM quant.finv_quant_backtest_run_archive WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	rows, err := s.pool.Query(ctx, `
@@ -1878,7 +1878,7 @@ SELECT archive_id, run_id, run_no, COALESCE(strategy_id,''), COALESCE(strategy_n
        COALESCE(period,''), COALESCE(start_date,0), COALESCE(end_date,0),
        status, COALESCE(error_message,''), COALESCE(report_json,''),
        deleted_at, deleted_by, del_task_id
-FROM finv_quant_backtest_run_archive
+FROM quant.finv_quant_backtest_run_archive
 WHERE `+where+`
 ORDER BY deleted_at DESC
 LIMIT $`+fmt.Sprint(len(args)+1)+` OFFSET $`+fmt.Sprint(len(args)+2),
@@ -1920,12 +1920,12 @@ func (s *Service) ListRunDelTasks(ctx context.Context, q DelTaskListQuery, userI
 	cond := strings.Join(where, " AND ")
 
 	var total int
-	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM finv_quant_backtest_del_task WHERE `+cond, args...).Scan(&total); err != nil {
+	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM quant.finv_quant_backtest_del_task WHERE `+cond, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	rows, err := s.pool.Query(ctx, `
 SELECT del_task_id, run_id, status, progress, COALESCE(error_message, ''), COALESCE(deleted_counts, '{}'::jsonb), created_by, gmt_update
-FROM finv_quant_backtest_del_task
+FROM quant.finv_quant_backtest_del_task
 WHERE `+cond+`
 ORDER BY gmt_update DESC
 LIMIT $`+fmt.Sprint(len(args)+1)+` OFFSET $`+fmt.Sprint(len(args)+2),
@@ -1959,7 +1959,7 @@ func (s *Service) ListRunDelLogs(ctx context.Context, delTaskID, userID string) 
 	// 归属校验：删除任务须属于当前用户
 	var owner string
 	if err := s.pool.QueryRow(ctx,
-		`SELECT created_by FROM finv_quant_backtest_del_task WHERE del_task_id=$1`, delTaskID).Scan(&owner); err != nil {
+		`SELECT created_by FROM quant.finv_quant_backtest_del_task WHERE del_task_id=$1`, delTaskID).Scan(&owner); err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("删除任务不存在: %s", delTaskID)
 		}
@@ -1970,7 +1970,7 @@ func (s *Service) ListRunDelLogs(ctx context.Context, delTaskID, userID string) 
 	}
 	rows, err := s.pool.Query(ctx, `
 SELECT log_id, del_task_id, run_id, seq, action, COALESCE(detail, ''), created_at
-FROM finv_quant_backtest_del_log WHERE del_task_id=$1 ORDER BY seq ASC`, delTaskID)
+FROM quant.finv_quant_backtest_del_log WHERE del_task_id=$1 ORDER BY seq ASC`, delTaskID)
 	if err != nil {
 		return nil, err
 	}
@@ -1994,7 +1994,7 @@ func (s *Service) RetryRunDelete(ctx context.Context, delTaskID, userID string) 
 	}
 	var owner, status, runID string
 	if err := s.pool.QueryRow(ctx,
-		`SELECT created_by, status, run_id FROM finv_quant_backtest_del_task WHERE del_task_id=$1`,
+		`SELECT created_by, status, run_id FROM quant.finv_quant_backtest_del_task WHERE del_task_id=$1`,
 		delTaskID).Scan(&owner, &status, &runID); err != nil {
 		if err == pgx.ErrNoRows {
 			return "", fmt.Errorf("删除任务不存在: %s", delTaskID)
