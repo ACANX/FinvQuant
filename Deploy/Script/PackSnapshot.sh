@@ -19,7 +19,7 @@
 #   --timestamp <ts>    时间戳 yymmddHHmm（默认当前 Asia/Shanghai 时间）
 #   --base-version <v>  基础版本（默认读 VERSION 文件）
 #   --commit <sha>      提交号（默认 git rev-parse --short HEAD）
-#   --out <dir>         输出目录（默认 <仓库根>/dist）
+#   --out <dir>         输出目录（默认 <仓库根>/Dist）
 #   --build-web         强制重新构建前端（默认复用 internal/webui/dist）
 #   --keep-tmp          保留 pkg/ 临时目录便于检查
 #   -h, --help          帮助
@@ -44,7 +44,7 @@ PR=""
 TIMESTAMP=""
 COMMIT=""
 TARGET="all"
-OUT_DIR="${ROOT}/dist"
+OUT_DIR="${ROOT}/Dist"
 BUILD_WEB=0
 KEEP_TMP=0
 
@@ -244,9 +244,9 @@ build_binary() {
 target_meta() {
     local t="$1"
     case "${t}" in
-        linux/amd64)   echo "linux|amd64|ubuntu2604||tar.gz" ;;
-        linux/arm64)   echo "linux|arm64|ubuntu2604||tar.gz" ;;
-        windows/amd64) echo "windows|amd64|win11|.exe|zip" ;;
+        linux/amd64)   echo "linux|amd64|ubuntu||tar.gz" ;;
+        linux/arm64)   echo "linux|arm64|ubuntu||tar.gz" ;;
+        windows/amd64) echo "windows|amd64|windows|.exe|zip" ;;
         *) die "不支持的目标平台：${t}（可选 linux/amd64、linux/arm64、windows/amd64、all）" ;;
     esac
 }
@@ -265,7 +265,7 @@ OUT_DIR=$(cd "${OUT_DIR}" && pwd)
 # ---------------------------------------------------------------------
 for T in "${TARGETS[@]}"; do
     IFS='|' read -r GOOS_V GOARCH_V OS_LABEL EXT ARCHIVE <<< "$(target_meta "${T}")"
-    NAME="finvquant_${SNAPSHOT_VERSION}_${OS_LABEL}_${GOARCH_V}"
+    NAME="FinvQuant_${SNAPSHOT_VERSION}_${OS_LABEL}_${GOARCH_V}"
     PKG_ROOT="${ROOT}/pkg/${NAME}"
 
     log "── 构建 ${T} → ${NAME}.${ARCHIVE}"

@@ -15,7 +15,7 @@ REM   --pr <n>            关联 PR 编号（默认 00000）
 REM   --timestamp <ts>    时间戳 yymmddHHmm（默认当前 Asia/Shanghai 时间）
 REM   --base-version <v>  基础版本（默认读 VERSION 文件）
 REM   --commit <sha>      提交号（默认 git rev-parse --short HEAD）
-REM   --out <dir>         输出目录（默认 <仓库根>\dist）
+REM   --out <dir>         输出目录（默认 <仓库根>\Dist）
 REM   --build-web         强制重新构建前端
 REM   --keep-tmp          保留 pkg\ 临时目录
 REM   -h, --help          帮助

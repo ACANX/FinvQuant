@@ -32,5 +32,6 @@ Web/dist/
 # ---- 本地构建产物 ----
 bin/
 dist/
+Dist/
 *.exe
 /finvquant

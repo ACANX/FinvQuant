@@ -315,23 +315,18 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # 平台元数据（os_label 仅用于 artifact 名；包名与后缀由 PackSnapshot.sh 统一推导）
       matrix:
         include:
           - goos: linux
             goarch: amd64
-            ext: ""
-            os_label: ubuntu2604
-            archive: tar.gz
+            os_label: ubuntu
           - goos: linux
             goarch: arm64
-            ext: ""
-            os_label: ubuntu2604
-            archive: tar.gz
+            os_label: ubuntu
           - goos: windows
             goarch: amd64
-            ext: ".exe"
-            os_label: win11
-            archive: zip
+            os_label: windows
     env:
       SNAPSHOT_VERSION: ${{ needs.snapshot-meta.outputs.version }}
     steps:
@@ -355,13 +350,13 @@ jobs:
             --version "${SNAPSHOT_VERSION}" \
             --target "${{ matrix.goos }}/${{ matrix.goarch }}" \
             --commit "${{ needs.snapshot-meta.outputs.commit }}" \
-            --out dist
+            --out Dist
 
       - name: UploadPackage
         uses: actions/upload-artifact@v4
         with:
           name: snapshot-${{ matrix.os_label }}-${{ matrix.goarch }}
-          path: dist/*
+          path: Dist/*
           retention-days: 14
           if-no-files-found: error
 
@@ -381,7 +376,7 @@ jobs:
       - name: DownloadPackages
         uses: actions/download-artifact@v4
         with:
-          path: dist
+          path: Dist
           pattern: snapshot-*
           merge-multiple: true
 
@@ -391,7 +386,7 @@ jobs:
         run: |
           set -euo pipefail
           VER="${{ needs.snapshot-meta.outputs.version }}"
-          ls -lh dist
+          ls -lh Dist
           cat > notes.md <<EOF
           FinvQuant 集成分支快照（\`feat/integration\`）
 
@@ -406,9 +401,9 @@ jobs:
 
           ## 产物
 
-          - Ubuntu 26.04 x86_64（linux/amd64）：\`finvquant_${VER}_ubuntu2604_amd64.tar.gz\`
-          - Ubuntu 26.04 aarch64（linux/arm64）：\`finvquant_${VER}_ubuntu2604_arm64.tar.gz\`
-          - Windows 11 x64（windows/amd64）：\`finvquant_${VER}_win11_amd64.zip\`
+          - Ubuntu 26.04 x86_64（linux/amd64）：\`FinvQuant_${VER}_ubuntu_amd64.tar.gz\`
+          - Ubuntu 26.04 aarch64（linux/arm64）：\`FinvQuant_${VER}_ubuntu_arm64.tar.gz\`
+          - Windows 11 x64（windows/amd64）：\`FinvQuant_${VER}_windows_amd64.zip\`
 
           两个包内 \`BUILD-INFO.txt\` 的时间戳与版本号一致，可核对同源；
           \`SHA256SUMS\` 为包内文件校验和，包本身的校验见同名 \`.sha256\` 文件。
@@ -420,5 +415,5 @@ jobs:
             --title "FinvQuant 快照 ${VER}" \
             --prerelease \
             --notes-file notes.md \
-            dist/*
+            Dist/*
 
