@@ -11,7 +11,7 @@
 
 | 编号 | 标题 | 类型 | 影响面 | 风险 | 状态 |
 |---|---|---|---|---|---|
-| A | `secu_code` → `usc` 全库统一 | 重命名（破坏性） | 6 张表 + Go 15 文件 + Web 9 文件 + 文档 13 篇 | 中（新旧版本不兼容窗口） | ☑ 2026-10-24 已完成（迁移已在临时 PG18 库实测通过） |
+| A | `secu_code` → `usc` 全库统一 | 重命名（破坏性） | 6 张表 + Go 15 文件 + Web 9 文件 + 文档 13 篇 | 中（新旧版本不兼容窗口） | ☑ 2026-10-24 已完成（临时 PG18 库实测 + 生产库部署验证，服务版本 0.1.1） |
 
 **与改造项 B 的依赖**：本项必须**先完成并发布**，B 才可开始 —— 二者修改同一批 SQL（`buildUpsertSQL`、`QueryBars`、`rowParams`），且 B 的迁移脚本须使用改名后的 `usc`。
 
@@ -38,8 +38,8 @@
 | A-01 | `Deploy/Migrations/V29__rename_secu_code_to_usc.sql`（新建） | 在一个事务内对 6 张表 `RENAME COLUMN secu_code TO usc`：`finv_quote_secu_kline_min`、`finv_quote_ingest_batches`、`finv_quote_revision_log`、`finv_quant_backtest_strategy`、`finv_quant_backtest_run`、`finv_quant_backtest_run_archive`；全部用 `information_schema.columns` 存在性判断保证幂等 | 文件存在且 `BEGIN;`/`COMMIT;` 各 1 处 | ☑ 2026-10-24 |
 | A-02 | `Deploy/Migrations/V29__...sql` | 重命名依赖该列的 3 个索引：`idx_finv_quote_secu_secu_ts`→`idx_finv_quote_usc_ts`、`idx_finv_quant_backtest_strategy_secu`→`idx_finv_quant_backtest_strategy_usc`、`idx_finv_quant_backtest_run_secu`→`idx_finv_quant_backtest_run_usc`；使用 `ALTER INDEX IF EXISTS ... RENAME TO` | 三条 `RENAME TO` 各 1 处 | ☑ 2026-10-24 |
 | A-03 | `Deploy/Migrations/V29__...sql` | 主键 `finv_quote_secu_kline_min_pkey (ts, secu_code)` 保持名称不变（列引用自动跟随），脚本中不重建主键 | 脚本内无 `DROP CONSTRAINT` / `ADD CONSTRAINT ... PRIMARY KEY` | ☑ 2026-10-24 |
-| A-04 | 运行环境 | 应用迁移后核验列名 | `psql -c "\d finv_quote_secu_kline_min"` 输出含 `usc`、不含 `secu_code`；`\di idx_finv_quote_usc_ts` 存在 | ☑ 2026-10-24（临时 PG18 库实测：5 表列改名、索引改名成功） |
-| A-05 | 运行环境 | 存量数据可读性回归 | `SELECT count(*), min(ts), max(ts) FROM finv_quote_secu_kline_min;` 与迁移前一致 | ☑ 2026-10-24（临时库 V1–V28 + V29 后行数/时间戳不变；生产库待部署时复核） |
+| A-04 | 运行环境 | 应用迁移后核验列名 | `psql -c "\d finv_quote_secu_kline_min"` 输出含 `usc`、不含 `secu_code`；`\di idx_finv_quote_usc_ts` 存在 | ☑ 2026-10-24（临时 PG18 库 + **生产库实测**：6 表列改名、5 索引改名成功，`idx_finv_quote_usc_ts` 存在） |
+| A-05 | 运行环境 | 存量数据可读性回归 | `SELECT count(*), min(ts), max(ts) FROM finv_quote_secu_kline_min;` 与迁移前一致 | ☑ 2026-10-24（生产库部署后复核：2,804,329 行、3 个证券、`min(ts)=1541737200` / `max(ts)=1784615520`，与迁移前一致） |
 | A-06 | `Deploy/Migrations/V1__...`、`V21__...`、`V22__...`、`V24__...`、`V100019__...`、`V100023__...` | **保持原样不改**（历史迁移不可回改），仅在提交说明中注明「历史迁移保留 secu_code」 | `git diff --stat -- Deploy/Migrations/V1* V21* V22* V24* V100019* V100023*` 输出为空 | ☑ 2026-10-24 |
 
 ## 1.4 A2 Go 后端
@@ -128,4 +128,5 @@ cd Web && npm run build
 | 日期 | 变更 | 说明 |
 |---|---|---|
 | 2026-10-24 | 初版 | 从 `RefactorPlan.md` 拆出为独立文件，条目 `A-01`～`A-37`；影响面数字经实测（Go 15 文件 100 处、Web 9 文件 50 处、Docs 13 篇 32 处、迁移 6 文件 21 处） |
+| 2026-10-24 | 部署验证 | 备份 `Deploy/backup/finvquant_周六1024_005740.dump`（68 MB，`pg_restore --list` 可读）；重建 `finvquant:local` 镜像并重启容器，`schema_version` 中 29/30/31 均 `success=t`；`/API/V1/Version` 返回 0.1.1，健康检查 200/200，前端 200；`usc` 查询正常、`secuCode` 旧参数被拒（4001），导入表单 `usc` 一致性校验生效；日志无 ERROR |
 | 2026-10-24 | 执行完成 | 按清单逐项执行：实测替换 Go 120 处 / Web 55 处 / 文档 12 篇；`go build`、`go vet`、三个包单测、`npm run build` 全部通过；新增 `A-38`（另 2 个审计表索引改名）、`A-39`（重建 `internal/webui/dist`）；`DA-01` 定为直接切 `usc` |

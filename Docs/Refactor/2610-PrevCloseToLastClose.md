@@ -11,7 +11,7 @@
 
 | 编号 | 标题 | 类型 | 影响面 | 风险 | 状态 |
 |---|---|---|---|---|---|
-| B | `prev_close` → `last_close` 重命名 + `open` 兜底回填 | 重命名 + 数据修复 | 1 张表 + Go 2 文件 + 3 篇文档 | 低（改名零语义变化；回填不可逆） | ☑ 2026-10-24 已完成（迁移在临时 PG18 库实测；B-11 备份待部署升级时执行） |
+| B | `prev_close` → `last_close` 重命名 + `open` 兜底回填 | 重命名 + 数据修复 | 1 张表 + Go 2 文件 + 3 篇文档 | 低（改名零语义变化；回填不可逆） | ☑ 2026-10-24 已完成（临时库实测 + 生产库部署验证；备份已完成，服务版本 0.1.1） |
 
 **与改造项 A 的依赖**：`V29`（`secu_code`→`usc`）必须先完成；本节 SQL 中的证券代码列一律使用 `usc`。
 
@@ -57,9 +57,9 @@
 | B-01 | `Deploy/Migrations/V30__finv_quote_kline_rename_prev_close_to_last_close.sql`（新建，依赖 A 的 `V29` 已完成） | 单事务、幂等：`information_schema.columns` 判断存在 `prev_close` 后执行 `ALTER TABLE finv_quote_secu_kline_min RENAME COLUMN prev_close TO last_close;` | 文件存在且含存在性判断 | ☑ 2026-10-24 |
 | B-02 | 同上 | 列注释：`COMMENT ON COLUMN finv_quote_secu_kline_min.last_close IS '前收盘价（数据源 PrevClose）；与 open 独立，不可作为开盘价或开盘价替代';` | `\d+` 显示该注释 | ☑ 2026-10-24 |
 | B-03 | 运行环境 | 确认该列无索引/约束/视图依赖（改名不需重建其他对象） | `SELECT indexdef FROM pg_indexes WHERE tablename='finv_quote_secu_kline_min';` 结果中无 `prev_close` | ☑ 2026-10-24（生产库只读核实：仅 `pkey` 与 `idx_finv_quote_usc_ts`，无该列索引） |
-| B-04 | 运行环境 | 列名核验 | `\d finv_quote_secu_kline_min` 含 `last_close`、不含 `prev_close` | ☑ 2026-10-24（临时 PG18 库实测通过） |
+| B-04 | 运行环境 | 列名核验 | `\d finv_quote_secu_kline_min` 含 `last_close`、不含 `prev_close` | ☑ 2026-10-24（临时 PG18 库 + 生产库实测：`last_close` 存在、`prev_close` 不存在） |
 | B-05 | `Deploy/Migrations/V1__...` | **保持原样不改**（历史迁移不可回改） | `git diff --stat -- Deploy/Migrations/V1__*` 输出为空 | ☑ 2026-10-24 |
-| B-06 | 运行环境 | 存量数据可读性回归 | 迁移前后 `SELECT count(*), min(ts), max(ts) FROM finv_quote_secu_kline_min;` 结果一致 | ☑ 2026-10-24（临时库 V30 前后行数/时间戳不变） |
+| B-06 | 运行环境 | 存量数据可读性回归 | 迁移前后 `SELECT count(*), min(ts), max(ts) FROM finv_quote_secu_kline_min;` 结果一致 | ☑ 2026-10-24（生产库 V30 前后：2,804,329 行、时间范围 1541737200–1784615520 一致） |
 
 ## 2.4 B2 `open` 兜底回填
 
@@ -68,8 +68,8 @@
 | B-07 | `Deploy/Migrations/V31__finv_quote_kline_backfill_open_from_last_close.sql`（新建） | 单事务：`UPDATE finv_quote_secu_kline_min SET open = last_close WHERE (open IS NULL OR open = 0) AND last_close IS NOT NULL AND last_close <> 0;` | 文件存在；四个条件齐全 | ☑ 2026-10-24 |
 | B-08 | 同上 | 回填前统计并输出受影响行数：`RAISE NOTICE 'backfill rows=%', cnt;` | 脚本含 `RAISE NOTICE` | ☑ 2026-10-24 |
 | B-09 | 同上 | 留痕：向 `finv_quote_revision_log` 写一条汇总记录（`ingest_batch_id='MIGRATION_V31'`、`market_code=0`、`usc='ALL'`、`reason='last_close 回填 open（缺失/0 值）'`、`affected_rows` 为实测行数、`previous_summary`/`new_summary` 含条件与行数） | 执行后 `SELECT * FROM finv_quote_revision_log ORDER BY revision_id DESC LIMIT 1;` 可查到 | ☑ 2026-10-24 |
-| B-10 | 运行环境 | 回填结果核验 | `SELECT count(*) FROM finv_quote_secu_kline_min WHERE (open IS NULL OR open = 0) AND last_close IS NOT NULL AND last_close <> 0;` 为 `0` | ☑ 2026-10-24（临时库回填后为 0；生产库同名查询在迁移前亦为 0） |
-| B-11 | `Deploy/backup/` | 迁移前做一次逻辑备份（`pg_dump -Fc`）；回填不可逆 | 备份文件存在且 `pg_restore --list` 可读 | ☐ 部署升级时执行（`Deploy/backup/` 已有 6 份 `.dump`，本次未改动生产库） |
+| B-10 | 运行环境 | 回填结果核验 | `SELECT count(*) FROM finv_quote_secu_kline_min WHERE (open IS NULL OR open = 0) AND last_close IS NOT NULL AND last_close <> 0;` 为 `0` | ☑ 2026-10-24（生产库迁移后查询为 0；迁移前预检亦为 0，即 V31 实际回填 0 行，`revision_log` 无 `MIGRATION_V31` 记录） |
+| B-11 | `Deploy/backup/` | 迁移前做一次逻辑备份（`pg_dump -Fc`）；回填不可逆 | 备份文件存在且 `pg_restore --list` 可读 | ☑ 2026-10-24（`Deploy/backup/finvquant_周六1024_005740.dump`，68 MB，`pg_restore --list` 169 个 TOC、27 张表数据可读） |
 | B-12 | 决策 `DB-03` | 确认是否新增 `flag_open_filled SMALLINT`（`1`=由 `last_close` 回填）以便事后区分与纠错；若不加，须在本文件与 `CHANGELOG` 中声明该不可逆性 | `DB-03` 已回填结论，实现与之一致 | ☑ 2026-10-24（DB-03 定为不标记，不可逆已在 V31/CHANGELOG 声明） |
 
 ## 2.5 B3 代码与文档同步
@@ -134,4 +134,5 @@ go build ./... && go test ./...
 | 日期 | 变更 | 说明 |
 |---|---|---|
 | 2026-10-24 | 初版 | 从 `RefactorPlan.md` 拆出为独立文件；方案由「回填 + 弃用删除」改为「重命名为 `last_close` + `open` 兜底回填，删除待议」；示例数据降级为「仅供参考」，权威判定以生产库 SQL 为准并记入 `DB-01` |
+| 2026-10-24 | 部署验证 | 备份 `Deploy/backup/finvquant_周六1024_005740.dump` 后重建容器；`V30`/`V31` 均 `success=t`；`last_close` 就位、`prev_close` 消失；因生产数据 `open` 完整，`V31` 回填 0 行（无 `MIGRATION_V31` 留痕，符合幂等设计）；涨跌幅接口返回正常（如 `change=-0.7000` / `change_pct=-0.0172`） |
 | 2026-10-24 | 执行完成 | 新建 `V30`（改名，幂等 + 列注释）与 `V31`（回填 + `revision_log` 留痕 + 不可逆声明）；Go 侧 `Row.PrevClose`→`Row.LastClose`、SQL 列名同步、新增导入时 `fillOpenFromLastClose` 增量兜底；文档改 `last_close`；`DB-01` 定为只改名、`DB-03` 定为不新增标记列；`go build`/`vet`/单测通过 |
