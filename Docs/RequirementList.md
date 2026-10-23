@@ -327,7 +327,7 @@
 |---|---|---|---|
 | 10203 | 存在唯一的快照打包脚本（Windows 侧为薄封装）。 | `test -f Deploy/Script/PackSnapshot.sh` 且 `test -f Deploy/Script/PackSnapshot.cmd`；`.cmd` 含 `grep -q 'norc "%SH%"'` 命中（转调 .sh）、且不含 `go build` / `tar -` / `zip -` | |
 | 10204 | CI 调用同一脚本而非内联逻辑。 | `grep -c 'Deploy/Script/PackSnapshot.sh' .github/workflows/CI.yml` 不小于 `1`（含注释共 2 处）；`snapshot-binaries` 的 `run` 内无 `go build` | |
-| 10205 | 脚本可一次产出三个平台包。 | `bash Deploy/Script/PackSnapshot.sh --version v0.1.1.00000.2610241530` 后 `dist/` 含 `ubuntu2604_amd64`、`ubuntu2604_arm64`、`win11_amd64` 三个包与 `.sha256` | |
+| 10205 | 脚本可一次产出三个平台包。 | `bash Deploy/Script/PackSnapshot.sh --version v0.1.1.00000.2610241530` 后 `Dist/` 含 `_ubuntu_amd64`、`_ubuntu_arm64`、`_windows_amd64` 三个包与 `.sha256` | |
 | 10206 | 版本三段解析正确（含左补零）。 | `--version v0.1.1.00123.2610241530` 时输出 `PR 编号 : 00123`；不给 `--version` 时 PR 段为 `00000` | |
 | 10207 | 同一快照多产物时间戳一致。 | 三包文件名中的 `yymmddHHmm` 与包内 `BUILD-INFO.txt` 的「构建时间戳」完全相同 | |
 | 10208 | 包内结构符合约定。 | Linux 包含 `Deploy/Native/`、Windows 包含 `Deploy/Docker/` 且**不含** Dockerfile；两包均含 `Migrations/`、`VERSION`、`BUILD-INFO.txt`、`SHA256SUMS` | |
@@ -346,10 +346,22 @@
 | 10216 | `Script` 目录有配套说明文档。 | `test -f Deploy/Script/README.md` | |
 | 10217 | 文档覆盖全部参数并标出默认值。 | `grep -c '^| `--' Deploy/Script/README.md` 不小于 `9` | |
 | 10218 | 文档说明版本三段与时间戳一致性。 | `grep -c 'v{BASE_VERSION}.{PPPPP}.{yymmddHHmm}' Deploy/Script/README.md` 不小于 `1`；含「同一快照的所有产物共用同一个时间戳」 | |
-| 10219 | 文档给出两种包的目录树与 SHA256SUMS 用法。 | 含 `finvquant_v0.1.1.00123.2610241530_ubuntu2604_arm64/` 与 `sha256sum -c SHA256SUMS` | |
+| 10219 | 文档给出两种包的目录树与 SHA256SUMS 用法。 | 含 `FinvQuant_v0.1.1.00123.2610241530_ubuntu_arm64/` 与 `sha256sum -c SHA256SUMS` | |
 | 10220 | 文档说明三种运行环境与 zip 回退链。 | 含「native」「WSL」「Git Bash」三词；含 `tar.exe（bsdtar` 与 `powershell.exe` → `python3` 顺序 | |
 | 10221 | 文档给出产物校验命令。 | 含 `EM_X86_64`、`EM_AARCH64` 与「正斜杠」判定 | |
 | 10222 | `Deploy/README` 精简并链接详细文档。 | `grep -c 'Script/README.md' Deploy/README.md` 不小于 `1`；该节行数不超过 20 行 | |
+
+## 二十三、产物命名规范调整（10223–10229）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10223 | 产物目录为 `Dist`（大写首字母）。 | `grep -c 'OUT_DIR="${ROOT}/Dist"' Deploy/Script/PackSnapshot.sh` 输出 `1`；CI 中 `--out Dist` | |
+| 10224 | 包名前缀首字母大写 `FinvQuant_`。 | `ls Dist/` 中包名以 `FinvQuant_v` 开头，无小写 `finvquant_v` 开头的包 | |
+| 10225 | Linux 平台段为 `ubuntu`（不含版本号）。 | 包名匹配 `FinvQuant_.*_ubuntu_(amd64\|arm64)\.tar\.gz` | |
+| 10226 | Windows 平台段为 `windows`（不用 win11）。 | 包名匹配 `FinvQuant_.*_windows_amd64\.zip`；全仓 `--include=*.sh --include=*.cmd --include=*.yml` 中无 `win11_` | |
+| 10227 | 包内顶层目录名与包名一致。 | `tar -tzf Dist/*_ubuntu_arm64.tar.gz \| head -1` 为 `FinvQuant_<版本>_ubuntu_arm64/` | |
+| 10228 | `.gitignore` / `.dockerignore` 同时忽略 `dist/` 与 `Dist/`。 | 两文件中均有 `dist/` 与 `Dist/` 两行 | |
+| 10229 | 规范与文档同步新命名。 | `GitSpec.md` 含 `FinvQuant_{快照版本}_{ubuntu\|windows}_{amd64\|arm64}`；`Deploy/Script/README.md` 与 `Deploy/README.md` 无 `ubuntu2604`/`win11_` | |
 
 ## 汇总
 
@@ -377,7 +389,8 @@
 | feat/integration 快照构建 | 10192–10202 | 11 |
 | 本地快照打包脚本 | 10203–10215 | 13 |
 | 打包脚本文档 | 10216–10222 | 7 |
-| **合计** | **10001–10222** | **222** |
+| 产物命名规范调整 | 10223–10229 | 7 |
+| **合计** | **10001–10229** | **229** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10223` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10230` 起往后追加，不插入既有区间。

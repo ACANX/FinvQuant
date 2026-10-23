@@ -12,7 +12,7 @@
 | `PackSnapshot.cmd` | Windows 薄封装：只负责找到 Git Bash 的 `bash.exe` 并转调 `PackSnapshot.sh`，**不含任何打包逻辑** |
 
 ```
-PackSnapshot.cmd ──(定位 bash)──▶ PackSnapshot.sh ──▶ dist/ 三个包
+PackSnapshot.cmd ──(定位 bash)──▶ PackSnapshot.sh ──▶ Dist/ 三个包
                                         ▲
 GitHub Actions (snapshot-binaries) ─────┘
 ```
@@ -34,13 +34,13 @@ Deploy\Script\PackSnapshot.cmd
 产物：
 
 ```
-dist/
-├── finvquant_v0.1.1.00000.2610241530_ubuntu2604_amd64.tar.gz   14M
-├── finvquant_v0.1.1.00000.2610241530_ubuntu2604_amd64.tar.gz.sha256
-├── finvquant_v0.1.1.00000.2610241530_ubuntu2604_arm64.tar.gz   12M
-├── finvquant_v0.1.1.00000.2610241530_ubuntu2604_arm64.tar.gz.sha256
-├── finvquant_v0.1.1.00000.2610241530_win11_amd64.zip           14M
-└── finvquant_v0.1.1.00000.2610241530_win11_amd64.zip.sha256
+Dist/
+├── FinvQuant_v0.1.1.00000.2610241530_ubuntu_amd64.tar.gz   14M
+├── FinvQuant_v0.1.1.00000.2610241530_ubuntu_amd64.tar.gz.sha256
+├── FinvQuant_v0.1.1.00000.2610241530_ubuntu_arm64.tar.gz   12M
+├── FinvQuant_v0.1.1.00000.2610241530_ubuntu_arm64.tar.gz.sha256
+├── FinvQuant_v0.1.1.00000.2610241530_windows_amd64.zip           14M
+└── FinvQuant_v0.1.1.00000.2610241530_windows_amd64.zip.sha256
 ```
 
 ## 3. 参数
@@ -55,7 +55,7 @@ dist/
 | `--timestamp <ts>` | 当前 Asia/Shanghai 时间 | 格式 `yymmddHHmm`（两位年） |
 | `--base-version <v>` | `VERSION` 文件内容 | 基础版本，如 `0.1.1` |
 | `--commit <sha>` | `git rev-parse --short HEAD` | 注入二进制 `main.commit` 与 `BUILD-INFO.txt` |
-| `--out <dir>` | `<仓库根>/dist` | 产物输出目录 |
+| `--out <dir>` | `<仓库根>/Dist` | 产物输出目录 |
 | `--build-web` | 关 | 强制重新 `npm ci && npm run build` 前端（默认复用 `internal/webui/dist`） |
 | `--keep-tmp` | 关 | 保留 `pkg/` 临时目录便于检查包内结构 |
 | `-h`, `--help` | — | 打印用法 |
@@ -87,7 +87,7 @@ bash Deploy/Script/PackSnapshot.sh --version v0.1.1.00123.2610241530
 ### 5.1 Linux 包（`tar.gz`）
 
 ```
-finvquant_v0.1.1.00123.2610241530_ubuntu2604_arm64/
+FinvQuant_v0.1.1.00123.2610241530_ubuntu_arm64/
 ├── finvquant                 # 静态链接、stripped；amd64 或 aarch64（按包名）
 ├── Deploy/
 │   ├── Migrations/           # 62 个迁移脚本（V1～V37、V100000～V100024）
@@ -105,7 +105,7 @@ finvquant_v0.1.1.00123.2610241530_ubuntu2604_arm64/
 ### 5.2 Windows 包（`zip`）
 
 ```
-finvquant_v0.1.1.00123.2610241530_win11_amd64/
+FinvQuant_v0.1.1.00123.2610241530_windows_amd64/
 ├── finvquant.exe
 ├── Deploy/
 │   ├── Migrations/
@@ -124,11 +124,11 @@ finvquant_v0.1.1.00123.2610241530_win11_amd64/
 
 ```bash
 # 校验包内文件完整性
-tar -xzf finvquant_xxx_ubuntu2604_amd64.tar.gz
-cd finvquant_xxx_ubuntu2604_amd64 && sha256sum -c SHA256SUMS
+tar -xzf FinvQuant_xxx_ubuntu_amd64.tar.gz
+cd FinvQuant_xxx_ubuntu_amd64 && sha256sum -c SHA256SUMS
 
 # 校验下载到的包本身
-sha256sum -c finvquant_xxx_ubuntu2604_amd64.tar.gz.sha256
+sha256sum -c FinvQuant_xxx_ubuntu_amd64.tar.gz.sha256
 ```
 
 ## 6. 环境要求
@@ -136,7 +136,7 @@ sha256sum -c finvquant_xxx_ubuntu2604_amd64.tar.gz.sha256
 | 依赖 | 必需性 | 说明 |
 |---|---|---|
 | Go 1.25+ | 必需 | 脚本自动探测 `go` 或 `go.exe` |
-| 前端产物 `internal/webui/dist/index.html` | 必需 | 缺失时用 `--build-web` 重新构建（需要 Node 24 + npm） |
+| 前端产物 `internal/webui/Dist/index.html` | 必需 | 缺失时用 `--build-web` 重新构建（需要 Node 24 + npm） |
 | bash | 必需 | Windows 侧由 `.cmd` 负责定位（Git for Windows / MSYS2 / Cygwin） |
 | `zip` 或替代 | 仅 Windows 包 | 按可用性回退，见 §7 |
 | `tar`、`sha256sum`、`find`、`sort` | 必需 | Linux 原生 / Git Bash 均自带 |
@@ -182,19 +182,19 @@ bash Deploy/Script/PackSnapshot.sh --build-web
 
 ```bash
 # 1) 架构确认
-tar -xzOf dist/*_amd64.tar.gz  "*_amd64/finvquant"   | head -c 20 | od -An -tx1 | tail -1
+tar -xzOf Dist/*_amd64.tar.gz  "*_amd64/finvquant"   | head -c 20 | od -An -tx1 | tail -1
 #   amd64 → 02 00 3e 00       (EM_X86_64)
-tar -xzOf dist/*_arm64.tar.gz  "*_arm64/finvquant"   | head -c 20 | od -An -tx1 | tail -1
+tar -xzOf Dist/*_arm64.tar.gz  "*_arm64/finvquant"   | head -c 20 | od -An -tx1 | tail -1
 #   arm64 → 02 00 b7 00       (EM_AARCH64)
-unzip -p dist/*_win11_amd64.zip "*/finvquant.exe"    | head -c 2  | od -An -c | head -1
+unzip -p Dist/*_windows_amd64.zip "*/finvquant.exe"    | head -c 2  | od -An -c | head -1
 #   PE    → M   Z
 
 # 2) 三包时间戳一致性
-for f in dist/*.tar.gz; do tar -xzOf "$f" --wildcards '*/BUILD-INFO.txt' | grep 构建时间戳; done
-unzip -p dist/*.zip "*/BUILD-INFO.txt" | grep 构建时间戳
+for f in Dist/*.tar.gz; do tar -xzOf "$f" --wildcards '*/BUILD-INFO.txt' | grep 构建时间戳; done
+unzip -p Dist/*.zip "*/BUILD-INFO.txt" | grep 构建时间戳
 
 # 3) zip 内路径必须是正斜杠（反斜杠会在 Linux 解压出错）
-unzip -l dist/*.zip | grep -c '\\\\'   # 期望 0
+unzip -l Dist/*.zip | grep -c '\\\\'   # 期望 0
 ```
 
 ## 10. 常见问题
@@ -206,10 +206,10 @@ unzip -l dist/*.zip | grep -c '\\\\'   # 期望 0
 | WSL 下产物是 PE 文件（`file` 显示 PE32+） | `GOOS` 未传进 Windows 版 go。脚本已用 `WSLENV` 处理；手工调用时不要直接 `GOOS=linux go.exe build` |
 | 报「缺少命令：zip」/ zip 相关失败 | Git Bash 无 `zip`，脚本会回退到 Windows 自带 `tar.exe`；Windows 10 以下无 `tar.exe`，可装 `zip` 或用 WSL |
 | zip 内路径是 `dir\sub\file` | 用了 PowerShell 的 `Compress-Archive`（历史 bug）。脚本优先选 `zip` 或 bsdtar，不会走到 PowerShell，除非前两者都不可用 |
-| 报「缺少前端产物 internal/webui/dist/index.html」 | 先 `bash Deploy/Script/PackSnapshot.sh --build-web`，或手工 `cd Web && npm ci && npm run build` |
+| 报「缺少前端产物 internal/webui/Dist/index.html」 | 先 `bash Deploy/Script/PackSnapshot.sh --build-web`，或手工 `cd Web && npm ci && npm run build` |
 | 报「版本格式不合法」 | `--version` 必须严格为 `vX.Y.Z.PPPPP.yymmddHHmm`（PR 段 5 位、时间戳 10 位） |
 | 包内二进制名异常（如 `finvquant''`） | 历史 bug（`target_meta` 空字段被 `read` 丢弃）已修复；若复现请升级脚本 |
-| `dist/` 被误提交 | `.gitignore` 已忽略 `dist/`、`pkg/`、`.tmp-snap/` |
+| `Dist/` 被误提交 | `.gitignore` 已忽略 `Dist/`、`pkg/`、`.tmp-snap/` |
 
 ## 11. 与 CI 的关系
 
@@ -218,7 +218,7 @@ unzip -l dist/*.zip | grep -c '\\\\'   # 期望 0
 | job | 作用 |
 |---|---|
 | `snapshot-meta` | 计算 `v{VERSION}.{PPPPP}.{yymmddHHmm}`，输出 `version`/`base_version`/`pr`/`timestamp`/`commit` |
-| `snapshot-binaries` | 矩阵 `linux/amd64`、`linux/arm64`、`windows/amd64`，每格执行 `bash Deploy/Script/PackSnapshot.sh --version ... --target ...`，上传 `dist/*` |
+| `snapshot-binaries` | 矩阵 `linux/amd64`、`linux/arm64`、`windows/amd64`，每格执行 `bash Deploy/Script/PackSnapshot.sh --version ... --target ...`，上传 `Dist/*` |
 | `snapshot-release` | 汇总三个包，以快照版本为 tag 建 **prerelease** |
 
 CI 调用方式（与本地完全相同，只多传 `--version` 与 `--commit`）：

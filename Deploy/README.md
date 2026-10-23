@@ -64,7 +64,7 @@ REM Windows：同一份逻辑
 Deploy\Script\PackSnapshot.cmd --target windows/amd64
 ```
 
-产物落在 `dist/`（不入库）：`finvquant_<版本>_<ubuntu2604|win11>_<amd64|arm64>.{tar.gz|zip}` + 同名 `.sha256`；版本标识为 `v{VERSION}.{PPPPP}.{yymmddHHmm}`（`PPPPP` 为 PR 号，5 位左补零，无 PR 为 `00000`；时间戳 Asia/Shanghai，同一快照所有产物共用）。
+产物落在 `Dist/`（不入库）：`FinvQuant_<版本>_<ubuntu|windows>_<amd64|arm64>.{tar.gz|zip}` + 同名 `.sha256`；版本标识为 `v{VERSION}.{PPPPP}.{yymmddHHmm}`（`PPPPP` 为 PR 号，5 位左补零，无 PR 为 `00000`；时间戳 Asia/Shanghai，同一快照所有产物共用）。
 
 > 完整说明（全部参数、包内结构、跨环境差异、产物校验、常见问题、与 CI 的关系）见 [`Script/README.md`](Script/README.md)。
 
