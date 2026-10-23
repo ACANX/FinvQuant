@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS finv_quant_backtest_run_archive (
     strategy_name   TEXT,                                -- 策略名称
     account_id      TEXT,                                -- 关联账户
     account_name    TEXT,
-    secu_code       TEXT,
+    usc             TEXT,
     period          TEXT,
     start_date      INTEGER,
     end_date        INTEGER,

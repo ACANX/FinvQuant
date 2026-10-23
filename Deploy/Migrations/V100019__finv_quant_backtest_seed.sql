@@ -24,7 +24,7 @@ ON CONFLICT (account_id) DO NOTHING;
 -- 示例策略：GCMain 双均线交叉（黄金期货合约回测验证首版演示）
 INSERT INTO finv_quant_backtest_strategy
     (strategy_id, strategy_code, strategy_name, strategy_type, description,
-     definition, definition_version, data_period, secu_code, allow_backtest, status, created_by)
+     definition, definition_version, data_period, usc, allow_backtest, status, created_by)
 VALUES
     ('B0000000-0000-4000-8000-000000000001', 'STRAT-DUALMA-GC', 'GCMain 双均线交叉策略', 'RULE_BASED',
      '双均线交叉策略（示例）：快线 MA5 上穿慢线 MA20 时全仓买入，下穿时清仓卖出；3% 止损。演示通用结构化策略定义模型（指标/信号/规则/风控/成本）。',
