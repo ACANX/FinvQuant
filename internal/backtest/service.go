@@ -77,8 +77,8 @@ func (s *Service) SaveStrategy(ctx context.Context, st *Strategy) (string, error
 	if st.DataPeriod == "" {
 		st.DataPeriod = PeriodMin
 	}
-	if st.SecuCode == "" && len(st.Definition.Universe.Securities) > 0 {
-		st.SecuCode = st.Definition.Universe.Securities[0]
+	if st.Usc == "" && len(st.Definition.Universe.Securities) > 0 {
+		st.Usc = st.Definition.Universe.Securities[0]
 	}
 	if st.AllowBacktest == "" {
 		st.AllowBacktest = FlagOn
@@ -103,7 +103,7 @@ func (s *Service) SaveStrategy(ctx context.Context, st *Strategy) (string, error
 	_, err = s.pool.Exec(ctx, `
 INSERT INTO finv_quant_backtest_strategy
     (strategy_id, strategy_code, strategy_name, strategy_type, description,
-     definition, definition_version, data_period, secu_code, user_id, template_id, allow_backtest, status, created_by)
+     definition, definition_version, data_period, usc, user_id, template_id, allow_backtest, status, created_by)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
 ON CONFLICT (strategy_id) DO UPDATE SET
     strategy_code = EXCLUDED.strategy_code,
@@ -113,14 +113,14 @@ ON CONFLICT (strategy_id) DO UPDATE SET
     definition = EXCLUDED.definition,
     definition_version = EXCLUDED.definition_version,
     data_period = EXCLUDED.data_period,
-    secu_code = EXCLUDED.secu_code,
+    usc = EXCLUDED.usc,
     user_id = EXCLUDED.user_id,
     template_id = EXCLUDED.template_id,
     allow_backtest = EXCLUDED.allow_backtest,
     status = EXCLUDED.status,
     created_by = EXCLUDED.created_by`,
 		st.StrategyID, st.StrategyCode, st.StrategyName, st.StrategyType, st.Description,
-		defJSON, st.DefinitionVersion, st.DataPeriod, st.SecuCode, st.UserID, st.TemplateID,
+		defJSON, st.DefinitionVersion, st.DataPeriod, st.Usc, st.UserID, st.TemplateID,
 		st.AllowBacktest, st.Status, st.CreatedBy)
 	if err != nil {
 		return "", err
@@ -139,7 +139,7 @@ func (s *Service) ListStrategies(ctx context.Context, pager Pager, keyword, allo
 	if keyword = strings.TrimSpace(keyword); keyword != "" {
 		args = append(args, "%"+keyword+"%")
 		where = append(where, fmt.Sprintf(`(
-			strategy_code ILIKE $%d OR strategy_name ILIKE $%d OR description ILIKE $%d OR secu_code ILIKE $%d
+			strategy_code ILIKE $%d OR strategy_name ILIKE $%d OR description ILIKE $%d OR usc ILIKE $%d
 		)`, len(args), len(args), len(args), len(args)))
 	}
 	if allowBacktest == FlagOn || allowBacktest == FlagOff {
@@ -155,7 +155,7 @@ func (s *Service) ListStrategies(ctx context.Context, pager Pager, keyword, allo
 
 	rows, err := s.pool.Query(ctx, `
 SELECT strategy_id, strategy_code, strategy_name, strategy_type, description,
-       definition, definition_version, data_period, secu_code, user_id, template_id, allow_backtest, status, created_by, gmt_update
+       definition, definition_version, data_period, usc, user_id, template_id, allow_backtest, status, created_by, gmt_update
 FROM finv_quant_backtest_strategy
 WHERE `+cond+`
 ORDER BY gmt_update DESC
@@ -184,7 +184,7 @@ func (s *Service) GetStrategy(ctx context.Context, strategyID, userID string) (*
 	}
 	row := s.pool.QueryRow(ctx, `
 SELECT strategy_id, strategy_code, strategy_name, strategy_type, description,
-       definition, definition_version, data_period, secu_code, user_id, template_id, allow_backtest, status, created_by, gmt_update
+       definition, definition_version, data_period, usc, user_id, template_id, allow_backtest, status, created_by, gmt_update
 FROM finv_quant_backtest_strategy WHERE strategy_id = $1 AND user_id = $2`, strategyID, userID)
 	st, err := scanStrategy(row)
 	if err != nil {
@@ -459,12 +459,12 @@ func (s *Service) CreateRun(ctx context.Context, req CreateRunRequest) (*Run, er
 	}
 
 	// 标的：请求参数 > 策略 universe 首个证券
-	secuCode := strings.TrimSpace(req.SecuCode)
-	if secuCode == "" && len(st.Definition.Universe.Securities) > 0 {
-		secuCode = st.Definition.Universe.Securities[0]
+	usc := strings.TrimSpace(req.Usc)
+	if usc == "" && len(st.Definition.Universe.Securities) > 0 {
+		usc = st.Definition.Universe.Securities[0]
 	}
-	if secuCode == "" {
-		return nil, fmt.Errorf("未指定回测标的（secu_code 或策略 universe.securities）")
+	if usc == "" {
+		return nil, fmt.Errorf("未指定回测标的（usc 或策略 universe.securities）")
 	}
 
 	// 周期与报告精度
@@ -487,7 +487,7 @@ func (s *Service) CreateRun(ctx context.Context, req CreateRunRequest) (*Run, er
 	}
 
 	// 时间区间（date 维度）
-	startDate, endDate, err := s.resolveDateRange(ctx, secuCode, req.StartDate, req.EndDate)
+	startDate, endDate, err := s.resolveDateRange(ctx, usc, req.StartDate, req.EndDate)
 	if err != nil {
 		return nil, err
 	}
@@ -536,7 +536,7 @@ func (s *Service) CreateRun(ctx context.Context, req CreateRunRequest) (*Run, er
 
 	marketCode := 0
 	_ = s.pool.QueryRow(ctx,
-		`SELECT COALESCE(market_code, 0) FROM finv_security WHERE usc = $1 OR security_code = $1 LIMIT 1`, secuCode).Scan(&marketCode)
+		`SELECT COALESCE(market_code, 0) FROM finv_security WHERE usc = $1 OR security_code = $1 LIMIT 1`, usc).Scan(&marketCode)
 
 	runID := newUUID()
 	_, err = s.pool.Exec(ctx, `
@@ -544,13 +544,13 @@ INSERT INTO finv_quant_backtest_run
     (run_id, user_id, strategy_id, strategy_code, strategy_name, strategy_snapshot,
      account_id, account_code, account_name, account_snapshot,
      env_id, env_snapshot,
-     secu_code, market_code, period, report_precision,
+     usc, market_code, period, report_precision,
      start_ts, end_ts, start_date, end_date, options, status, progress, created_by)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,'PENDING',0,$22)`,
 		runID, userID, st.StrategyID, st.StrategyCode, st.StrategyName, defJSON,
 		acc.AccountID, acc.AccountCode, acc.AccountName, accJSON,
 		envID, envJSON,
-		secuCode, marketCode, period, precision,
+		usc, marketCode, period, precision,
 		startTS, endTS, startDate, endDate, optsJSON, createdBy)
 	if err != nil {
 		return nil, err
@@ -612,9 +612,9 @@ func (s *Service) ListRuns(ctx context.Context, q RunListQuery, userID string) (
 		args = append(args, q.Status)
 		where = append(where, fmt.Sprintf("status = $%d", len(args)))
 	}
-	if q.SecuCode != "" {
-		args = append(args, q.SecuCode)
-		where = append(where, fmt.Sprintf("secu_code = $%d", len(args)))
+	if q.Usc != "" {
+		args = append(args, q.Usc)
+		where = append(where, fmt.Sprintf("usc = $%d", len(args)))
 	}
 	if q.StrategyID != "" {
 		args = append(args, q.StrategyID)
@@ -623,7 +623,7 @@ func (s *Service) ListRuns(ctx context.Context, q RunListQuery, userID string) (
 	if q.Keyword = strings.TrimSpace(q.Keyword); q.Keyword != "" {
 		args = append(args, "%"+q.Keyword+"%")
 		where = append(where, fmt.Sprintf(`(
-			strategy_name ILIKE $%d OR account_name ILIKE $%d OR secu_code ILIKE $%d OR CAST(run_no AS TEXT) ILIKE $%d
+			strategy_name ILIKE $%d OR account_name ILIKE $%d OR usc ILIKE $%d OR CAST(run_no AS TEXT) ILIKE $%d
 		)`, len(args), len(args), len(args), len(args)))
 	}
 	cond := strings.Join(where, " AND ")
@@ -637,7 +637,7 @@ func (s *Service) ListRuns(ctx context.Context, q RunListQuery, userID string) (
 SELECT run_id, run_no, user_id, strategy_id, strategy_code, strategy_name, strategy_snapshot,
        account_id, account_code, account_name, account_snapshot,
        env_id, env_snapshot,
-       secu_code, market_code, period, report_precision,
+       usc, market_code, period, report_precision,
        start_ts, end_ts, start_date, end_date, options, status, progress, error_message, report,
        started_at, finished_at, created_by, gmt_update
 FROM finv_quant_backtest_run
@@ -670,7 +670,7 @@ func (s *Service) GetRun(ctx context.Context, runID, userID string) (*Run, error
 SELECT run_id, run_no, user_id, strategy_id, strategy_code, strategy_name, strategy_snapshot,
        account_id, account_code, account_name, account_snapshot,
        env_id, env_snapshot,
-       secu_code, market_code, period, report_precision,
+       usc, market_code, period, report_precision,
        start_ts, end_ts, start_date, end_date, options, status, progress, error_message, report,
        started_at, finished_at, created_by, gmt_update
 FROM finv_quant_backtest_run WHERE run_id = $1 AND user_id = $2`, runID, userID)
@@ -734,7 +734,7 @@ func (s *Service) loadRunForExecution(ctx context.Context, runID string) (*Run, 
 SELECT run_id, run_no, user_id, strategy_id, strategy_code, strategy_name, strategy_snapshot,
        account_id, account_code, account_name, account_snapshot,
        env_id, env_snapshot,
-       secu_code, market_code, period, report_precision,
+       usc, market_code, period, report_precision,
        start_ts, end_ts, start_date, end_date, options, status, progress, error_message, report,
        started_at, finished_at, created_by, gmt_update
 FROM finv_quant_backtest_run WHERE run_id = $1`, runID)
@@ -967,7 +967,7 @@ func (s *Service) executeRun(ctx context.Context, runID string) {
 	_, _ = s.pool.Exec(ctx, `UPDATE finv_quant_backtest_run SET status='RUNNING', started_at=$2 WHERE run_id=$1`, runID, now)
 
 	// 加载行情（按 date 范围）
-	bars, err := s.loadBars(ctx, run.SecuCode, run.StartDate, run.EndDate)
+	bars, err := s.loadBars(ctx, run.Usc, run.StartDate, run.EndDate)
 	if err != nil {
 		s.markRun(context.Background(), runID, RunFailed, 0, "加载行情失败: "+err.Error(), nil)
 		return
@@ -983,7 +983,7 @@ func (s *Service) executeRun(ctx context.Context, runID string) {
 		Definition:      run.Definition(),
 		Account:         run.AccountSnapshot,
 		Environment:     run.EnvironmentSnapshot,
-		SecuCode:        run.SecuCode,
+		Usc:             run.Usc,
 		Period:          run.Period,
 		StartTS:         run.StartTS,
 		EndTS:           run.EndTS,
@@ -1018,14 +1018,14 @@ func (s *Service) executeRun(ctx context.Context, runID string) {
 }
 
 // loadBars 加载分钟行情（date 范围，时间升序）。
-func (s *Service) loadBars(ctx context.Context, secuCode string, startDate, endDate int) ([]Bar, error) {
+func (s *Service) loadBars(ctx context.Context, usc string, startDate, endDate int) ([]Bar, error) {
 	rows, err := s.pool.Query(ctx, `
 SELECT ts, COALESCE(date, 0), COALESCE("time", 0),
        COALESCE(open, close), COALESCE(high, close), COALESCE(low, close), COALESCE(close, open),
        COALESCE(volume, 0), COALESCE(turnover, 0)
 FROM finv_quote_secu_kline_min
-WHERE secu_code = $1 AND date BETWEEN $2 AND $3
-ORDER BY ts ASC`, secuCode, startDate, endDate)
+WHERE usc = $1 AND date BETWEEN $2 AND $3
+ORDER BY ts ASC`, usc, startDate, endDate)
 	if err != nil {
 		return nil, err
 	}
@@ -1576,17 +1576,17 @@ func nullIfEmpty(s string) any {
 }
 
 // resolveDateRange 解析回测日期区间（缺省取行情最早/最晚日期）。
-func (s *Service) resolveDateRange(ctx context.Context, secuCode string, startDate, endDate int) (int, int, error) {
+func (s *Service) resolveDateRange(ctx context.Context, usc string, startDate, endDate int) (int, int, error) {
 	if startDate == 0 || endDate == 0 {
 		var minDate, maxDate int
 		err := s.pool.QueryRow(ctx, `
 SELECT COALESCE(MIN(date), 0), COALESCE(MAX(date), 0)
-FROM finv_quote_secu_kline_min WHERE secu_code = $1`, secuCode).Scan(&minDate, &maxDate)
+FROM finv_quote_secu_kline_min WHERE usc = $1`, usc).Scan(&minDate, &maxDate)
 		if err != nil {
 			return 0, 0, err
 		}
 		if minDate == 0 {
-			return 0, 0, fmt.Errorf("标的 %s 无任何行情数据", secuCode)
+			return 0, 0, fmt.Errorf("标的 %s 无任何行情数据", usc)
 		}
 		if startDate == 0 {
 			startDate = minDate
@@ -1793,7 +1793,7 @@ func (s *Service) archiveRun(ctx context.Context, delTaskID, runID string) error
 	var startDate, endDate *int
 	if err := s.pool.QueryRow(ctx, `
 SELECT run_id, run_no, strategy_id, strategy_name, account_id, account_name,
-       secu_code, period, start_date, end_date, status, error_message, report
+       usc, period, start_date, end_date, status, error_message, report
 FROM finv_quant_backtest_run WHERE run_id=$1`, runID).Scan(
 		&a.RunID, &a.RunNo,
 		&strategyID, &strategyName, &accountID, &accountName,
@@ -1814,7 +1814,7 @@ FROM finv_quant_backtest_run WHERE run_id=$1`, runID).Scan(
 		a.AccountName = *accountName
 	}
 	if secu != nil {
-		a.SecuCode = *secu
+		a.Usc = *secu
 	}
 	if period != nil {
 		a.Period = *period
@@ -1844,11 +1844,11 @@ FROM finv_quant_backtest_run WHERE run_id=$1`, runID).Scan(
 	_, err := s.pool.Exec(ctx, `
 INSERT INTO finv_quant_backtest_run_archive
     (archive_id, run_id, run_no, strategy_id, strategy_name, account_id, account_name,
-     secu_code, period, start_date, end_date, status, error_message, report_json,
+     usc, period, start_date, end_date, status, error_message, report_json,
      deleted_at, deleted_by, del_task_id)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,now(),$15,$16)`,
 		a.ArchiveID, a.RunID, a.RunNo, a.StrategyID, a.StrategyName, a.AccountID, a.AccountName,
-		a.SecuCode, a.Period, a.StartDate, a.EndDate, a.Status, a.ErrorMessage, a.ReportJSON,
+		a.Usc, a.Period, a.StartDate, a.EndDate, a.Status, a.ErrorMessage, a.ReportJSON,
 		a.DeletedBy, delTaskID)
 	if err != nil {
 		return err
@@ -1874,7 +1874,7 @@ func (s *Service) ListRunArchives(ctx context.Context, pager Pager, runID string
 	}
 	rows, err := s.pool.Query(ctx, `
 SELECT archive_id, run_id, run_no, COALESCE(strategy_id,''), COALESCE(strategy_name,''),
-       COALESCE(account_id,''), COALESCE(account_name,''), COALESCE(secu_code,''),
+       COALESCE(account_id,''), COALESCE(account_name,''), COALESCE(usc,''),
        COALESCE(period,''), COALESCE(start_date,0), COALESCE(end_date,0),
        status, COALESCE(error_message,''), COALESCE(report_json,''),
        deleted_at, deleted_by, del_task_id
@@ -1892,7 +1892,7 @@ LIMIT $`+fmt.Sprint(len(args)+1)+` OFFSET $`+fmt.Sprint(len(args)+2),
 	for rows.Next() {
 		var a RunArchive
 		if err := rows.Scan(&a.ArchiveID, &a.RunID, &a.RunNo, &a.StrategyID, &a.StrategyName,
-			&a.AccountID, &a.AccountName, &a.SecuCode, &a.Period, &a.StartDate, &a.EndDate,
+			&a.AccountID, &a.AccountName, &a.Usc, &a.Period, &a.StartDate, &a.EndDate,
 			&a.Status, &a.ErrorMessage, &a.ReportJSON, &a.DeletedAt, &a.DeletedBy, &a.DelTaskID); err != nil {
 			return nil, 0, err
 		}
@@ -2021,10 +2021,10 @@ type rowScanner interface {
 func scanStrategy(row rowScanner) (Strategy, error) {
 	var st Strategy
 	var defJSON []byte
-	// description / secu_code / created_by 列可空（种子或历史数据可能为 NULL），用指针接收
-	var desc, secuCode, createdBy *string
+	// description / usc / created_by 列可空（种子或历史数据可能为 NULL），用指针接收
+	var desc, usc, createdBy *string
 	err := row.Scan(&st.StrategyID, &st.StrategyCode, &st.StrategyName, &st.StrategyType,
-		&desc, &defJSON, &st.DefinitionVersion, &st.DataPeriod, &secuCode,
+		&desc, &defJSON, &st.DefinitionVersion, &st.DataPeriod, &usc,
 		&st.UserID, &st.TemplateID, &st.AllowBacktest, &st.Status, &createdBy, &st.GMTUpdate)
 	if err != nil {
 		return st, err
@@ -2032,8 +2032,8 @@ func scanStrategy(row rowScanner) (Strategy, error) {
 	if desc != nil {
 		st.Description = *desc
 	}
-	if secuCode != nil {
-		st.SecuCode = *secuCode
+	if usc != nil {
+		st.Usc = *usc
 	}
 	if createdBy != nil {
 		st.CreatedBy = *createdBy
@@ -2053,7 +2053,7 @@ func scanRun(row rowScanner) (Run, error) {
 	err := row.Scan(&r.RunID, &r.RunNo, &r.UserID, &r.StrategyID, &r.StrategyCode, &r.StrategyName, &defJSON,
 		&r.AccountID, &r.AccountCode, &r.AccountName, &accJSON,
 		&envID, &envJSON,
-		&r.SecuCode, &r.MarketCode, &r.Period, &r.ReportPrecision,
+		&r.Usc, &r.MarketCode, &r.Period, &r.ReportPrecision,
 		&r.StartTS, &r.EndTS, &r.StartDate, &r.EndDate, &optsJSON,
 		&r.Status, &r.Progress, &errMsg, &reportJSON,
 		&startedAt, &finishedAt, &createdBy, &r.GMTUpdate)

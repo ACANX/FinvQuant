@@ -82,7 +82,7 @@ type Strategy struct {
 	Definition        StrategyDefinition `json:"definition"`
 	DefinitionVersion int                `json:"definition_version"`
 	DataPeriod        string             `json:"data_period"`
-	SecuCode          string             `json:"secu_code"`
+	Usc               string             `json:"usc"`
 	UserID            string             `json:"user_id"`     // 所属用户（多用户隔离）
 	TemplateID        *string            `json:"template_id"` // 来源模板
 	AllowBacktest     string             `json:"allow_backtest"`
@@ -156,10 +156,10 @@ type RuleDef struct {
 	MaxPerRun    int      `json:"max_per_run"`   // 整个回测最大触发次数（0=不限制）
 	Allow        bool     `json:"allow"`         // 规则开关（false=禁用该方向交易）
 	// 滑动窗口限制（分方向，滚动 N 自然日；覆盖 risk 全局对应项）
-	MaxPerWeek     int     `json:"max_per_week"`      // 滚动 7 自然日最大触发次数（0=不限制，缺省跟随 risk）
-	MaxPerMonth    int     `json:"max_per_month"`     // 滚动 30 自然日最大触发次数（0=不限制，缺省跟随 risk）
+	MaxPerWeek      int     `json:"max_per_week"`       // 滚动 7 自然日最大触发次数（0=不限制，缺省跟随 risk）
+	MaxPerMonth     int     `json:"max_per_month"`      // 滚动 30 自然日最大触发次数（0=不限制，缺省跟随 risk）
 	MaxFeePerWindow float64 `json:"max_fee_per_window"` // 滚动窗口内手续费上限（0=不限制，缺省跟随 risk）
-	FeeWindowDays  int     `json:"fee_window_days"`   // 费用窗口天数（0=缺省 30）
+	FeeWindowDays   int     `json:"fee_window_days"`    // 费用窗口天数（0=缺省 30）
 }
 
 // BuilderDef 分批建仓（动态建仓策略）：买入信号未达目标仓位时分批加仓，而非满仓或拒绝。
@@ -182,10 +182,10 @@ type RiskDef struct {
 	Builder        *BuilderDef `json:"builder,omitempty"` // 分批建仓配置（nil=不启用，保持满仓/清仓语义）
 	ReduceTranches int         `json:"reduce_tranches"`   // 卖出分批减仓份数（>=1；每批卖出 持仓/份数，最后一批清仓）
 	// 滑动窗口交易限制（全局，滚动 N 自然日；分方向可在 rules 覆盖）
-	MaxTradesPerWeek  int     `json:"max_trades_per_week"`   // 滚动 7 自然日成交笔数上限（0=不限制）
-	MaxTradesPerMonth int     `json:"max_trades_per_month"`  // 滚动 30 自然日成交笔数上限（0=不限制）
-	MaxFeePerWindow   float64 `json:"max_fee_per_window"`    // 滚动窗口内手续费上限（0=不限制）
-	FeeWindowDays     int     `json:"fee_window_days"`       // 费用窗口天数（0=缺省 30）
+	MaxTradesPerWeek  int     `json:"max_trades_per_week"`  // 滚动 7 自然日成交笔数上限（0=不限制）
+	MaxTradesPerMonth int     `json:"max_trades_per_month"` // 滚动 30 自然日成交笔数上限（0=不限制）
+	MaxFeePerWindow   float64 `json:"max_fee_per_window"`   // 滚动窗口内手续费上限（0=不限制）
+	FeeWindowDays     int     `json:"fee_window_days"`      // 费用窗口天数（0=缺省 30）
 }
 
 // CostDef 成本覆盖（任务级优先于账户）。
@@ -253,7 +253,7 @@ type Run struct {
 	AccountSnapshot     AccountSnapshot `json:"account_snapshot"`
 	EnvID               string          `json:"env_id"`                         // 关联环境
 	EnvironmentSnapshot *Environment    `json:"environment_snapshot,omitempty"` // 环境配置快照（保证任务可复现）
-	SecuCode            string          `json:"secu_code"`
+	Usc                 string          `json:"usc"`
 	MarketCode          int             `json:"market_code"`
 	Period              string          `json:"period"`
 	ReportPrecision     string          `json:"report_precision"`
@@ -289,7 +289,7 @@ type CreateRunRequest struct {
 	AccountID       string     `json:"account_id"`
 	EnvID           string     `json:"env_id"`  // 环境（可选，缺省取账户 env_id / 默认环境）
 	UserID          string     `json:"user_id"` // 所属用户（可选，缺省 default）
-	SecuCode        string     `json:"secu_code"`
+	Usc             string     `json:"usc"`
 	StartDate       int        `json:"start_date"`       // yyyymmdd（可选，缺省用行情最早）
 	EndDate         int        `json:"end_date"`         // yyyymmdd
 	Period          string     `json:"period"`           // Min/Hour/Day（缺省取策略 data.period）
@@ -465,7 +465,7 @@ type EventTrace struct {
 // RunReport 汇总回测报告（需求报告项 ④⑤⑥⑧ 等汇总指标）。
 type RunReport struct {
 	// 基础
-	SecuCode        string `json:"secu_code"`
+	Usc             string `json:"usc"`
 	Period          string `json:"period"`
 	ReportPrecision string `json:"report_precision"`
 	StartDate       int    `json:"start_date"`
@@ -526,7 +526,7 @@ type EventStats struct {
 type RunListQuery struct {
 	Pager
 	Status     string
-	SecuCode   string
+	Usc        string
 	StrategyID string
 	Keyword    string
 }
@@ -567,7 +567,7 @@ type RunArchive struct {
 	StrategyName string    `json:"strategy_name"`
 	AccountID    string    `json:"account_id"`
 	AccountName  string    `json:"account_name"`
-	SecuCode     string    `json:"secu_code"`
+	Usc          string    `json:"usc"`
 	Period       string    `json:"period"`
 	StartDate    int       `json:"start_date"`
 	EndDate      int       `json:"end_date"`

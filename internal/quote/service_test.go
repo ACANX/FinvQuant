@@ -8,8 +8,8 @@ import (
 
 func TestBuildUpsertSQLFieldMode(t *testing.T) {
 	sql := buildUpsertSQL(UpsertModeField)
-	if !strings.Contains(sql, "ON CONFLICT (ts, secu_code) DO UPDATE SET") {
-		t.Fatal("缺少 ON CONFLICT 子句（应为 (ts, secu_code)，V21 移除 market_code）")
+	if !strings.Contains(sql, "ON CONFLICT (ts, usc) DO UPDATE SET") {
+		t.Fatal("缺少 ON CONFLICT 子句（应为 (ts, usc)，V21 移除 market_code）")
 	}
 	if strings.Contains(sql, "market_code") {
 		t.Fatal("upsert 不应再包含 market_code 列（V21 已移除）")
@@ -37,7 +37,7 @@ func TestBuildUpsertSQLRowMode(t *testing.T) {
 
 func TestBuildUpsertSQLCoversAllUpdatableColumns(t *testing.T) {
 	sql := buildUpsertSQL(UpsertModeField)
-	for _, column := range []string{"date", `"time"`, "prev_close", "open", "high", "low",
+	for _, column := range []string{"date", `"time"`, "last_close", "open", "high", "low",
 		"close", "paocd", "volume", "turnover", "ext_field", "remark"} {
 		if !strings.Contains(sql, column) {
 			t.Fatalf("upsert 未覆盖列: %s", column)

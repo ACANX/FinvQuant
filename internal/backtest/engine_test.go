@@ -59,7 +59,7 @@ func TestEngineDualMA(t *testing.T) {
 	cfg := EngineConfig{
 		Definition:      def,
 		Account:         AccountSnapshot{InitialCapital: 100000, CommissionRate: 0.0003, MarginRate: 1, MarginMode: "FULL"},
-		SecuCode:        "TEST",
+		Usc:             "TEST",
 		Period:          PeriodMin,
 		ReportPrecision: PeriodDay,
 		Options:         RunOptions{EnableBacktest: true},
@@ -106,7 +106,7 @@ func TestEngineAllInAndStopLoss(t *testing.T) {
 	cfg := EngineConfig{
 		Definition: def,
 		Account:    AccountSnapshot{InitialCapital: 100000, MarginRate: 1},
-		SecuCode:   "TEST",
+		Usc:        "TEST",
 		Period:     PeriodMin, ReportPrecision: PeriodDay,
 		Options: RunOptions{EnableBacktest: true},
 	}
@@ -151,7 +151,7 @@ func TestEngineTakeProfit(t *testing.T) {
 	cfg := EngineConfig{
 		Definition: def,
 		Account:    AccountSnapshot{InitialCapital: 100000, MarginRate: 1},
-		SecuCode:   "TEST",
+		Usc:        "TEST",
 		Period:     PeriodMin, ReportPrecision: PeriodDay,
 		Options: RunOptions{EnableBacktest: true},
 	}

@@ -55,7 +55,7 @@ func TestUserGCmainSample(t *testing.T) {
 		t.Fatalf("行数=%d，期望 6", len(result.Rows))
 	}
 	first := result.Rows[0]
-	if first.SecuCode != "GCMain" || first.MarketCode != 1320 {
+	if first.Usc != "GCMain" || first.MarketCode != 1320 {
 		t.Fatalf("证券标识错误: %+v", first)
 	}
 	if first.Date == nil || *first.Date != 20260101 {
@@ -67,8 +67,8 @@ func TestUserGCmainSample(t *testing.T) {
 	if first.Turnover == nil || *first.Turnover != "0" {
 		t.Fatalf("turnover=%v (a 列)", first.Turnover)
 	}
-	if first.PrevClose == nil || *first.PrevClose != "4332.1" {
-		t.Fatalf("prev_close=%v", first.PrevClose)
+	if first.LastClose == nil || *first.LastClose != "4332.1" {
+		t.Fatalf("last_close=%v", first.LastClose)
 	}
 }
 

@@ -47,7 +47,7 @@ func TestParseValid(t *testing.T) {
 		t.Fatalf("行数=%d，期望 3", len(result.Rows))
 	}
 	first := result.Rows[0]
-	if first.SecuCode != "NVDA" || first.MarketCode != 1 {
+	if first.Usc != "NVDA" || first.MarketCode != 1 {
 		t.Fatalf("证券标识错误: %+v", first)
 	}
 	if first.Ts != 1785720600 {
@@ -130,7 +130,7 @@ func TestParseLayoutB(t *testing.T) {
 		t.Fatalf("行数=%d，期望 3", len(result.Rows))
 	}
 	first := result.Rows[0]
-	if first.SecuCode != "GCMain" || first.MarketCode != 1320 {
+	if first.Usc != "GCMain" || first.MarketCode != 1320 {
 		t.Fatalf("证券标识错误: %+v", first)
 	}
 	if first.Ts != 1767337200 {
@@ -150,8 +150,8 @@ func TestParseLayoutB(t *testing.T) {
 	if first.Close == nil || *first.Close != "4907.5" {
 		t.Fatalf("close=%v", first.Close)
 	}
-	if first.PrevClose == nil || *first.PrevClose != "4332.1" {
-		t.Fatalf("prev_close=%v", first.PrevClose)
+	if first.LastClose == nil || *first.LastClose != "4332.1" {
+		t.Fatalf("last_close=%v", first.LastClose)
 	}
 }
 

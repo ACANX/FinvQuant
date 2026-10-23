@@ -267,7 +267,7 @@ func (h *Backtest) ListRuns(c *gin.Context) {
 	q := backtest.RunListQuery{
 		Pager:      parseBTPager(c),
 		Status:     c.Query("status"),
-		SecuCode:   c.Query("secuCode"),
+		Usc:        c.Query("usc"),
 		StrategyID: c.Query("strategyId"),
 		Keyword:    c.Query("keyword"),
 	}

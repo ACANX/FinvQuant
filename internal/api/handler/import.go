@@ -40,7 +40,7 @@ func (h *QuoteImport) Upload(c *gin.Context) {
 	remark := c.PostForm("remark")
 	// 登记字段（可选）：市场代码 / 证券代码，用于与文件头部一致性校验
 	formMarketCode := c.PostForm("market_code")
-	formSecuCode := c.PostForm("secu_code")
+	formUsc := c.PostForm("usc")
 	if source == "" {
 		source = "upload"
 	}
@@ -90,9 +90,9 @@ func (h *QuoteImport) Upload(c *gin.Context) {
 		})
 		return
 	}
-	if formSecuCode != "" && formSecuCode != parsed.Header.Values["Code"] {
+	if formUsc != "" && formUsc != parsed.Header.Values["Code"] {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"code": 4001, "message": "表单证券代码与文件头部不一致（表单=" + formSecuCode +
+			"code": 4001, "message": "表单证券代码与文件头部不一致（表单=" + formUsc +
 				"，文件=" + parsed.Header.Values["Code"] + "）",
 		})
 		return

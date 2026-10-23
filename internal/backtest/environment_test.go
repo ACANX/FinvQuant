@@ -41,7 +41,7 @@ func TestEngineEnvironmentSessions(t *testing.T) {
 		Definition:  def,
 		Account:     AccountSnapshot{InitialCapital: 100000, MarginRate: 1},
 		Environment: env,
-		SecuCode:    "TEST",
+		Usc:         "TEST",
 		Period:      PeriodMin, ReportPrecision: PeriodDay,
 		Options: RunOptions{EnableBacktest: true},
 	}
@@ -113,7 +113,7 @@ func TestEngineEnvironmentTickSize(t *testing.T) {
 		Definition:  def,
 		Account:     AccountSnapshot{InitialCapital: 100000, MarginRate: 1},
 		Environment: env,
-		SecuCode:    "TEST",
+		Usc:         "TEST",
 		Period:      PeriodMin, ReportPrecision: PeriodDay,
 		Options: RunOptions{EnableBacktest: true},
 	}

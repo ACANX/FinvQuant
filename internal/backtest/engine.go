@@ -32,7 +32,7 @@ type EngineConfig struct {
 	Definition      StrategyDefinition
 	Account         AccountSnapshot
 	Environment     *Environment // 环境快照（可空，自适应交易时段/规则/成本）
-	SecuCode        string
+	Usc             string
 	Period          string
 	StartTS         int64
 	EndTS           int64
@@ -82,15 +82,15 @@ type dayCounters struct {
 	curDate       int            // 当前日期（用于跨日重置）
 
 	// 滑动窗口计数（滚动 N 自然日，按成交 bar 的 date 判定）
-	weekDates   []int            // 近 7 日成交日期序列
-	monthDates  []int            // 近 30 日成交日期序列
-	ruleWeek    map[string][]int // 分方向：近 7 日触发日期
-	ruleMonth   map[string][]int // 分方向：近 30 日触发日期
-	feeWindows  []feeWinItem     // 滚动窗口手续费记录（date + 手续费金额）
-	ruleFees    map[string][]feeWinItem
-	builderBar  int              // 上次加仓 bar 索引（分批建仓间隔控制）
-	builderDate int              // 上次加仓日期
-	reduceRemain int             // 分批减仓剩余次数（开仓时置为 ReduceTranches，每次减仓递减）
+	weekDates    []int            // 近 7 日成交日期序列
+	monthDates   []int            // 近 30 日成交日期序列
+	ruleWeek     map[string][]int // 分方向：近 7 日触发日期
+	ruleMonth    map[string][]int // 分方向：近 30 日触发日期
+	feeWindows   []feeWinItem     // 滚动窗口手续费记录（date + 手续费金额）
+	ruleFees     map[string][]feeWinItem
+	builderBar   int // 上次加仓 bar 索引（分批建仓间隔控制）
+	builderDate  int // 上次加仓日期
+	reduceRemain int // 分批减仓剩余次数（开仓时置为 ReduceTranches，每次减仓递减）
 }
 
 // feeWinItem 滚动费用窗口单笔记录。
@@ -736,11 +736,11 @@ func (e *Engine) newEvent(eventTraces *[]EventTrace, action, reason string, b Ba
 		TriggerDate:   b.Date,
 		TriggerTime:   b.Time,
 		// ⑤委托下单时间：信号确认后立即下单（NEXT_BAR_OPEN 下挂单至下一 bar 开盘执行）
-		OrderTS:     b.TS,
-		OrderDate:   b.Date,
-		OrderTime:   b.Time,
-		ExecStatus:  "PENDING",
-		AliveSec:    0,
+		OrderTS:      b.TS,
+		OrderDate:    b.Date,
+		OrderTime:    b.Time,
+		ExecStatus:   "PENDING",
+		AliveSec:     0,
 		RejectReason: "",
 	}
 	*eventTraces = append(*eventTraces, ev)
@@ -1363,7 +1363,7 @@ func buildReport(cfg EngineConfig, bars []Bar, initialCapital, finalEquity float
 	eventStats := buildEventStats(eventTraces)
 
 	return &RunReport{
-		SecuCode:           cfg.SecuCode,
+		Usc:                cfg.Usc,
 		Period:             cfg.Period,
 		ReportPrecision:    cfg.ReportPrecision,
 		StartDate:          firstDate(bars),

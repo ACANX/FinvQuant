@@ -61,7 +61,7 @@ func TestDailyCounterResetAcrossDays(t *testing.T) {
 	cfg := EngineConfig{
 		Definition: def,
 		Account:    AccountSnapshot{InitialCapital: 100000, MarginRate: 1},
-		SecuCode:   "TEST",
+		Usc:        "TEST",
 		Period:     PeriodMin, ReportPrecision: PeriodDay,
 		Options: RunOptions{EnableBacktest: true, MaxTradesPerDay: &maxPerDay},
 	}
@@ -109,7 +109,7 @@ func TestBuilderTranches(t *testing.T) {
 	cfg := EngineConfig{
 		Definition: def,
 		Account:    AccountSnapshot{InitialCapital: 100000, MarginRate: 1},
-		SecuCode:   "TEST",
+		Usc:        "TEST",
 		Period:     PeriodMin, ReportPrecision: PeriodDay,
 		Options: RunOptions{EnableBacktest: true},
 	}
@@ -172,7 +172,7 @@ func TestReduceTranches(t *testing.T) {
 	cfg := EngineConfig{
 		Definition: def,
 		Account:    AccountSnapshot{InitialCapital: 100000, MarginRate: 1},
-		SecuCode:   "TEST",
+		Usc:        "TEST",
 		Period:     PeriodMin, ReportPrecision: PeriodDay,
 		Options: RunOptions{EnableBacktest: true},
 	}
@@ -223,7 +223,7 @@ func TestWindowTradeLimit(t *testing.T) {
 	cfg := EngineConfig{
 		Definition: def,
 		Account:    AccountSnapshot{InitialCapital: 100000, MarginRate: 1},
-		SecuCode:   "TEST",
+		Usc:        "TEST",
 		Period:     PeriodMin, ReportPrecision: PeriodDay,
 		Options: RunOptions{EnableBacktest: true},
 	}
