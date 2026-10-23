@@ -279,6 +279,19 @@
 | 10174 | 转存表可清空复用。 | `TRUNCATE export.finv_quote_secu_kline_min` 后 `count(*)` 为 `0` | |
 | 10175 | 迁移记录已登记 `V35` 且成功。 | `select success from schema_version where version::int=35` 输出 `t` | |
 
+## 十八、新增 dedup 去重 schema（10176–10183）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10176 | 存在创建 dedup schema 的迁移且幂等。 | `test -f Deploy/Migrations/V36__create_dedup_schema.sql`；含 `CREATE SCHEMA IF NOT EXISTS dedup` | |
+| 10177 | 生产库存在 `dedup` schema。 | `select count(*) from pg_namespace where nspname='dedup'` 输出 `1` | |
+| 10178 | 属主为应用角色（`finv`）。 | `select pg_get_userbyid(nspowner) from pg_namespace where nspname='dedup'` 输出 `finv` | |
+| 10179 | 应用角色具备 `USAGE` 与 `CREATE`。 | `select has_schema_privilege('finv','dedup','USAGE') and has_schema_privilege('finv','dedup','CREATE')` 为 `t` | |
+| 10180 | 数据库默认 `search_path` 含 `dedup` 且位于末尾。 | `select array_to_string(setconfig,',') from pg_db_role_setting ...` 输出 `search_path=public, quote, quant, futu, export, sche, dedup` | |
+| 10181 | 应用连接串 `search_path` 同步为七段。 | `grep -c 'search_path=public,quote,quant,futu,export,sche,dedup' internal/database/postgres.go` 输出 `1` | |
+| 10182 | 迁移记录已登记 `V36` 且成功。 | `select success from schema_version where version::int=36` 输出 `t` | |
+| 10183 | 规范文件登记 `dedup` 并说明去重层次与适用边界。 | `grep -c 'dedup' Docs/DevSpec/DbSchemaSpec.md` 不小于 `4`；含「ON CONFLICT DO NOTHING」说明 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -300,7 +313,8 @@
 | 数据库名与角色名统一为 finv | 10149–10158 | 10 |
 | 新增 export / sche 两个 schema | 10159–10166 | 8 |
 | export 行情导出转存表 | 10167–10175 | 9 |
-| **合计** | **10001–10175** | **175** |
+| 新增 dedup 去重 schema | 10176–10183 | 8 |
+| **合计** | **10001–10183** | **183** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10176` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10184` 起往后追加，不插入既有区间。
