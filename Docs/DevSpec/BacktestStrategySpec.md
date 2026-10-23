@@ -5,8 +5,8 @@
 
 ## 1. 设计目标
 
-- **通用性**：同一套策略定义模型支持 ETF / 股票 / 场外基金 / 国内期货 / 美股期货 / 黄金、石油等商品期货 / 积存金等任意**已导入分钟行情**（`finv_quote_secu_kline_min`）的证券；
-- **结构化**：策略定义以 JSONB 持久化（`finv_quant_backtest_strategy.definition`），可机器求值、可版本化（`definition_version`）、可复现（任务保存策略快照）；
+- **通用性**：同一套策略定义模型支持 ETF / 股票 / 场外基金 / 国内期货 / 美股期货 / 黄金、石油等商品期货 / 积存金等任意**已导入分钟行情**（`quote.finv_quote_secu_kline_min`）的证券；
+- **结构化**：策略定义以 JSONB 持久化（`quant.finv_quant_backtest_strategy.definition`），可机器求值、可版本化（`definition_version`）、可复现（任务保存策略快照）；
 - **可扩展**：指标类型、信号函数、数量模式均为插件式注册，后续可平滑扩展多标的、多周期、机器学习类策略（`strategy_type` 已预留 `MACHINE_LEARNING`）；
 - **高度自定义**：指标参数、信号表达式、规则限制（时间点/频率/次数/数量）、风控（止损/止盈/仓位）均可自由组合。
 
@@ -154,18 +154,18 @@ primary   := NUMBER | IDENT | FUNC(args) | ( expr )
 | 单期收益分布 | `best_day_pct` / `worst_day_pct` / `profit_days` / `loss_days` | ⑧ |
 | 信号归因 | `trade_signal_detail`（信号名→笔数） | ⑧ |
 
-**曲线数据**（`finv_quant_backtest_equity`，按报告精度 Day/Hour/Min 逐点落库）：
+**曲线数据**（`quant.finv_quant_backtest_equity`，按报告精度 Day/Hour/Min 逐点落库）：
 - ① 账户余额曲线：`equity`（总资产=现金+持仓市值，持仓换算现金）与 `cash`；
 - ② 投资收益率曲线：`roi`；
 - ③ 投资收益额曲线：`profit`；
 - ⑦ 持仓金额曲线：`position_value`（另含 `position_qty`）；
 - ⑧ 回撤曲线：`drawdown`。
 
-**成交记录**（`finv_quant_backtest_trade`）：时间/方向/价格/数量/金额/手续费/平仓盈亏/成交后持仓与现金/触发信号，支持任意时点账户状态回放。
+**成交记录**（`quant.finv_quant_backtest_trade`）：时间/方向/价格/数量/金额/手续费/平仓盈亏/成交后持仓与现金/触发信号，支持任意时点账户状态回放。
 
 ## 8. 持久化与回看
 
-- 策略/账户/任务/曲线/成交/链路追踪全部落 PostgreSQL（`finv_quant_` 前缀表，见迁移 V22~V27）；
+- 策略/账户/任务/曲线/成交/链路追踪全部落 PostgreSQL（`quant.finv_quant_` 前缀表，见迁移 V22~V27）；
 - 任务保存**策略与账户快照**：策略/账户后续修改不影响历史任务结果（可复现）；
 - 前端「回测分析」按 runId 拉取报告与曲线，支持持久化保存与随时回看。
 
@@ -173,15 +173,15 @@ primary   := NUMBER | IDENT | FUNC(args) | ( expr )
 
 持仓变动详细情况链路追踪分析，三个维度（对应迁移 V27 三张表）：
 
-**① 资金流水明细**（`finv_quant_backtest_cashflow`）：
+**① 资金流水明细**（`quant.finv_quant_backtest_cashflow`）：
 - 类型：`INITIAL_DEPOSIT`（初始资金注入）/ `BUY_PAY`（买入付款）/ `SELL_RECEIVE`（卖出收款）/ `FEE`（手续费）/ `MARGIN_HOLD`（保证金占用）/ `MARGIN_RELEASE`（保证金释放）；
 - 记录每次资金变动的金额、变动前后现金余额（流水连续可校验：下一条 cash_before = 上一条 cash_after），关联成交记录。
 
-**② 持仓变化明细**（`finv_quant_backtest_position_log`）：
+**② 持仓变化明细**（`quant.finv_quant_backtest_position_log`）：
 - 动作：`OPEN`（开仓）/ `ADD`（加仓）/ `REDUCE`（减仓）/ `CLOSE`（平仓）；
 - 记录变动前后持仓数量与加权成本（avg_cost_before/after），关联成交记录与触发信号。
 
-**③ 交易事件追踪**（`finv_quant_backtest_event_trace`，覆盖 FR-10 八项登记信息）：
+**③ 交易事件追踪**（`quant.finv_quant_backtest_event_trace`，覆盖 FR-10 八项登记信息）：
 - ① 触发原因（`trigger_reason`）：买入信号 / 卖出信号 / 止损 / 止盈；② 触发时间（`trigger_ts/date/time`）；
 - ③ 事件结果（`exec_status`）：`PENDING`（挂单）/ `FILLED`（成交）/ `REJECTED`（拒绝）/ `EXPIRED`（过期，回测结束未成交）；④ 结束时间（`exec_ts/date/time`）；
 - ⑤ 委托下单时间（`order_ts/date/time`，信号确认后立即下单，= 触发时点）；
@@ -199,7 +199,7 @@ primary   := NUMBER | IDENT | FUNC(args) | ( expr )
 
 ## 10. 环境与模板（自适应）
 
-### 10.1 环境模型（`finv_quant_environment`）
+### 10.1 环境模型（`quant.finv_quant_environment`）
 
 回测 / 模拟盘 / 仿真 / 实盘交易环境的配置差异、不同市场（COMEX 黄金 vs 沪深 ETF 等）的交易约束与交易规则差异、不同地区的习惯偏好差异，统一建模为环境：
 
@@ -216,7 +216,7 @@ primary   := NUMBER | IDENT | FUNC(args) | ( expr )
 
 **成本覆盖链**：环境 > 任务（options）> 策略（definition.cost）> 账户。
 
-### 10.2 模板模型（`finv_quant_template`）
+### 10.2 模板模型（`quant.finv_quant_template`）
 
 策略模板 / 账户模板 / 环境模板三类（`template_type`），相同部分（环境、约束、规则、限制、策略）复用，差异部分自定义：
 

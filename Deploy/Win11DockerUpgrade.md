@@ -116,6 +116,8 @@ docker compose -f Deploy/docker-compose.yml --env-file Deploy/.env logs --tail=5
 - **升级前必须备份**：执行第 2 节的 `pg_dump` 逻辑备份；本次迁移只改列名与索引名、不改数据，但备份仍是回滚的唯一依据。
 - **只读窗口内不要执行旧版前端**：前端已内嵌进镜像，浏览器强刷即可；若仍打开旧前端页面，其 `secuCode` 参数会被新后端拒绝（返回 4001）。
 - **迁移顺序**：服务启动时按版本号顺序自动应用（`V29` → 后续版本），无需手工 `psql`；若日志出现 `迁移 V29 失败`，按第 6 节处理后重新执行升级步骤。
+- **schema 迁移（`V32` 起）**：`finv_quote_*` 迁入 `quote` schema、`finv_quant_*` 迁入 `quant` schema，字典表与 `schema_version` 保留 `public`。应用连接串已固定携带 `search_path=public,quote,quant`；**手工 `psql` 运维时须写全限定名**（如 `select count(*) from quote.finv_quote_secu_kline_min;`），否则可能报「relation does not exist」。
+- **回滚约束**：schema 迁移同样不可自动回滚，回滚到 `0.1.1` 及更早版本时必须从第 2 节的备份恢复数据库。
 
 ## 4. 数据库自动迁移说明
 

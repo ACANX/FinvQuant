@@ -21,7 +21,7 @@
 | 策略信号实时推送与自动撮合 | 信号实时推送 + 模拟撮合执行 |
 | 模拟盘收益与回撤跟踪 | 模拟盘绩效跟踪与回撤监控 |
 
-> 上述能力与量化回测共用一套**环境模型**（`finv_quant_environment`，env_type 已包含
+> 上述能力与量化回测共用一套**环境模型**（`quant.finv_quant_environment`，env_type 已包含
 > PAPER / SIMULATION / LIVE）与策略模型，后续版本在现有架构上扩展。
 
 ## 3. 当前页面逻辑

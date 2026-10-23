@@ -1,6 +1,6 @@
 # POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload — 历史行情文件导入
 
-上传 MVSV-1 分钟级历史行情文件，服务端解析后**字段级覆盖**导入 PostgreSQL `finv_quote_secu_kline_min` 表（主键 `ts + usc`；V21 起不再冗余存储 `market_code`，市场信息由 `finv_security` 字典关联获取）。
+上传 MVSV-1 分钟级历史行情文件，服务端解析后**字段级覆盖**导入 PostgreSQL `quote.finv_quote_secu_kline_min` 表（主键 `ts + usc`；V21 起不再冗余存储 `market_code`，市场信息由 `finv_security` 字典关联获取）。
 
 > 📐 **MVSV-1 文件格式完整规范**（必填/可选头部键、两种列布局、数据行要求、一致性校验）见 [Docs/DataFormat/MvsvFileFormat.md](../../DataFormat/MvsvFileFormat.md)——**所有导出程序请按该规范生成文件**。
 
@@ -50,11 +50,11 @@
 
 | data 字段 | 说明 |
 |-----------|------|
-| `batch_id` | 导入批次 ID（对应 `finv_quote_ingest_batches`） |
+| `batch_id` | 导入批次 ID（对应 `quote.finv_quote_ingest_batches`） |
 | `usc` / `market_code` | 证券代码 / 市场数字代码（`usc` 来自文件头部 `Code`；`market_code` V21 起从 `finv_security` 字典关联获取，未登记返回 0） |
 | `record_count` | 本次导入记录数 |
 | `inserted` | 新增行数 |
-| `updated` | 覆盖行数（>0 时自动写入 `finv_quote_revision_log` 修正审计） |
+| `updated` | 覆盖行数（>0 时自动写入 `quote.finv_quote_revision_log` 修正审计） |
 | `mode` | 实际覆盖模式 |
 
 ### 失败（HTTP 422）
@@ -101,7 +101,7 @@ const body = await response.json()
 ## 说明
 
 - 导入按主键 `(ts, usc)` 覆盖同键数据；`FIELD` 模式只覆盖新数据有值的字段（NULL 保留旧值）。
-- 每次导入自动登记批次（`finv_quote_ingest_batches`）；发生覆盖时写入修正审计（`finv_quote_revision_log`），可追溯"改了哪些行、为什么"。
+- 每次导入自动登记批次（`quote.finv_quote_ingest_batches`）；发生覆盖时写入修正审计（`quote.finv_quote_revision_log`），可追溯"改了哪些行、为什么"。
 - 支持分批上传多个文件：每文件一次上传即一个批次，重复上传同键数据按覆盖模式更新。
 
 ## 已使用位置登记

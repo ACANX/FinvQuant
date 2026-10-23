@@ -59,7 +59,7 @@
 
 - 仅 SUCCEEDED 任务可打开报告；FAILED 任务在列表显示 error_message；
 - 曲线点数与报告精度相关（Day 精度 8 年约 2000 点；Min 精度点数极大，建议用 Day/Hour 精度查看）；
-- 报告数据持久化在 `finv_quant_backtest_run.report` 与 `finv_quant_backtest_equity` 等表，可随时回看。
+- 报告数据持久化在 `quant.finv_quant_backtest_run.report` 与 `quant.finv_quant_backtest_equity` 等表，可随时回看。
 
 ## 6. 使用的后端接口索引
 

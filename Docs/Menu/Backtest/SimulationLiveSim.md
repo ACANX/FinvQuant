@@ -21,7 +21,7 @@
 | 仿真撮合与订单生命周期 | 仿真撮合引擎与订单全生命周期管理 |
 | 策略实时执行链路验证 | 策略实时执行链路端到端验证 |
 
-> 上述能力与量化回测共用一套**环境模型**（`finv_quant_environment`，env_type 已包含
+> 上述能力与量化回测共用一套**环境模型**（`quant.finv_quant_environment`，env_type 已包含
 > PAPER / SIMULATION / LIVE）与策略模型，后续版本在现有架构上扩展。
 
 ## 3. 当前页面逻辑

@@ -22,7 +22,7 @@
 | `data_period` | string | 可选 | 默认周期 Min/Hour/Day |
 | `usc` | string | 可选 | 默认标的（缺省取 definition.universe.securities[0]） |
 | `user_id` | string | 可选 | 所属用户（默认 `default`，多用户隔离） |
-| `template_id` | string | 可选 | 来源模板（finv_quant_template） |
+| `template_id` | string | 可选 | 来源模板（quant.finv_quant_template） |
 | `allow_backtest` | string | 可选 | 回测开关 `0`/`1`（默认 `1`） |
 | `status` | string | 可选 | DRAFT/ENABLED/DISABLED（默认 ENABLED） |
 

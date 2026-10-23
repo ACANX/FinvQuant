@@ -94,6 +94,7 @@
 | A-37 | `Deploy/Win11DockerUpgrade.md`、`Deploy/upgrade.cmd` | 说明升级必须「停旧容器 → 拉新镜像 → 启动（自动迁移）」，禁止新旧镜像共存 | 文档含该约束段 | ☑ 2026-10-24 |
 | A-38 | `Deploy/Migrations/V29__...sql`（执行中新发现） | `A-02` 只列 3 个索引，实际另有 2 个审计表索引依赖该列：`idx_finv_quote_ingest_batches_secu`→`idx_finv_quote_ingest_batches_usc`、`idx_finv_quote_revision_log_secu`→`idx_finv_quote_revision_log_usc`，已在 `V29` 中一并改名 | 两条 `idx_*_usc` 各 1 处 | ☑ 2026-10-24 |
 | A-39 | `internal/webui/dist/`（执行中新发现） | All-in-One 镜像通过 `go:embed dist` 内嵌前端产物，前端改名后须重新 `npm run build` 并复制到 `internal/webui/dist/`（该目录不入库，构建时生成） | `grep -rc "secu_code" internal/webui/dist/assets/*.js` 全为 `0` | ☑ 2026-10-24 |
+| A-40 | `Deploy/Migrations/V100019__...seed.sql`、`V100023__...del_task.sql`（执行中新发现，历史迁移例外） | 这两支种子迁移在 `V29` **之后**执行却仍引用旧列名 `secu_code`（`V100019` 的 INSERT 列清单、`V100023` 的 `CREATE TABLE` 列定义），会导致**全新库首次部署失败**；仅修正这两处列名，对已应用库无影响（`schema_version` 跳过），例外规则登记在 `Docs/DevSpec/DbSchemaSpec.md` §4 | 两文件 `secu_code` 清零；全新库全链迁移通过 | ☑ 2026-10-24 |
 
 ---
 

@@ -21,7 +21,7 @@
 | 行情数据质量校验 | 缺失 / 异常 / 跳变检测 |
 | 真实 vs 仿真数据比对 | 仿真行情与真实行情一致性比对 |
 
-> 上述能力与量化回测共用一套**环境模型**（`finv_quant_environment`，env_type 已包含
+> 上述能力与量化回测共用一套**环境模型**（`quant.finv_quant_environment`，env_type 已包含
 > PAPER / SIMULATION / LIVE）与策略模型，后续版本在现有架构上扩展。
 
 ## 3. 当前页面逻辑

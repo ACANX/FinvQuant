@@ -33,6 +33,10 @@
 - **破坏性变更（数据库）**：`finv_quote_secu_kline_min.prev_close` 重命名为 `last_close`（迁移 `V30`），口径为数据源的「前收盘价」，与 `open` 独立；涨跌额/涨跌幅仍按 `close - last_close` 计算，**计算逻辑与接口字段不变**，前端零改动。
 - **数据修复**：`open` 为 `NULL` 或 `0` 且 `last_close` 有效时，用 `last_close` 兜底回填（迁移 `V31`），并写入 `finv_quote_revision_log`（`ingest_batch_id = MIGRATION_V31`）留痕；新导入数据由导入链路按同一规则实时兜底，不再产生缺 `open` 的行。
 - **升级提示**：该回填**不可逆**（覆盖了原始缺失状态），升级前务必完成 `pg_dump` 备份；如需还原只能从备份恢复。
+- **破坏性变更（数据库）**：表按业务域迁入独立 schema —— `finv_quote_*`（3 张）→ `quote`，`finv_quant_*`（13 张）→ `quant`；字典表与 `schema_version` 保留 `public`。由迁移 `V32` 幂等执行，只改对象归属、不改表名/列/数据，索引与触发器自动跟随。
+- **连接要求**：应用连接串固定携带 `search_path=public,quote,quant`（`internal/database/postgres.go`）；手工 `psql` 未设置 `search_path` 时须使用全限定名（如 `quote.finv_quote_secu_kline_min`）。
+- **全新库兼容修复**：历史种子迁移 `V100019`（INSERT 列名）与 `V100023`（建表列定义）已把 `secu_code` 改为 `usc`——这两支在 `V29` 之后执行，不改会导致全新库首次部署失败；已应用库不受影响（`schema_version` 跳过）。新增 `V100024` 把 `V100023` 在 `public` 新建的 3 张表移入 `quant`。
+- 新增规范 [`DevSpec/DbSchemaSpec.md`](DevSpec/DbSchemaSpec.md)：schema 划分、表命名、`search_path` 约定、迁移例外规则。
 
 ## [0.1.0] - 2026-08-08
 

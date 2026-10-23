@@ -1,0 +1,42 @@
+# 数据库 Schema 规范（PostgreSQL）
+
+> 适用范围：FinvQuant 服务端全部 PostgreSQL 对象（`Deploy/Migrations/`、`internal/` 中的 SQL、运维手工操作）。
+> 相关：[`LogSpec.md`](LogSpec.md)、[`ApiSpec.md`](ApiSpec.md)、[`../Refactor/2610-MoveTablesToSchemas.md`](../Refactor/2610-MoveTablesToSchemas.md)（本规范的落地改造）。
+
+## 1. Schema 划分
+
+| Schema | 归属 | 表 |
+|---|---|---|
+| `quote` | 行情域 | `finv_quote_secu_kline_min`、`finv_quote_ingest_batches`、`finv_quote_revision_log` |
+| `quant` | 量化域 | `finv_quant_backtest_*`（11 张）、`finv_quant_environment`、`finv_quant_template` |
+| `public` | 基础主数据与系统表 | `finv_security`、`finv_market`、`finv_exchange`、`finv_region`、`finv_currency`、`finv_futu_mapping_*`、`schema_version` |
+
+- **一个业务域一个 schema**，不把域对象堆在 `public`。
+- 新增域时同步在本文档登记其 schema 名与归属表，并在迁移脚本中 `CREATE SCHEMA IF NOT EXISTS <域名>`。
+
+## 2. 表命名
+
+- 表名**保留业务前缀**（`finv_quote_*`、`finv_quant_*`），schema 与前缀不重复表述业务——前缀用于跨 schema 检索、日志与 `pg_dump` 过滤，暂不裁剪。
+- 表名全小写下划线分隔，主键列名统一 `id` 语义前缀（如 `run_id`、`revision_id`）。
+- 跨域引用只走程序层（无物理外键），跨 schema 读取需显式写 `<schema>.<table>`。
+
+## 3. 连接与 search_path
+
+- 应用连接串固定带 `search_path=public,quote,quant`（见 `internal/database/postgres.go`），迁移与业务 SQL 均依赖此设置。
+- 代码中的 SQL **必须显式写 schema 前缀**（`quote.xxx`、`quant.xxx`）；`search_path` 只作为历史迁移脚本与手工 `psql` 的兜底。
+- 手工运维时若未设置 `search_path`，须写全限定名，例如 `select count(*) from quote.finv_quote_secu_kline_min;`。
+- `schema_version` 与迁移机制保留在 `public`，不随业务域迁移。
+
+## 4. 迁移约定
+
+- 结构迁移用 `V<number>__<name>.sql`（`V1`～`V99999`），种子/数据迁移用 `V100000+`，两类均按版本号升序执行。
+- **历史迁移文件不可回改**；唯一例外是「新结构已使历史迁移无法在全新库执行」的兼容修正，此类修正必须：只改被阻断语句、保持幂等、对已应用库无影响，并在 `CHANGELOG` 与对应改造清单中登记。
+  - 已发生的例子：`V29` 把 `secu_code` 改名为 `usc` 后，晚于它执行的种子迁移 `V100019`（INSERT 列清单）与 `V100023`（`CREATE TABLE` 列定义）仍引用旧列名，只修正这两处，改为 `usc`。
+- 需要排在种子段之后执行的结构收尾迁移，使用 `V1000xx` 编号并在此文档与迁移文件头注明原因。
+  - 已发生的例子：`V100024`（把 `V100023` 在 `public` 新建的 3 张 `finv_quant_*` 表移入 `quant`）。
+- 新建/移动表的迁移必须幂等（`CREATE SCHEMA IF NOT EXISTS`、`pg_tables` 位置判断），并在脚本末尾做收敛校验（`RAISE EXCEPTION` 触发整体回滚）。
+
+## 5. 变更要求
+
+- 新增或调整 schema 归属须同步：迁移脚本、`internal/` 中的 SQL、`Docs/API`、`Docs/Menu`、`Docs/DataFormat`、`Docs/DevSpec/BacktestStrategySpec.md` 与本文件。
+- 破坏性变更（schema 迁移、列改名）必须在 `CHANGELOG` 标注并说明升级约束（禁止新旧镜像共存、升级前备份）。

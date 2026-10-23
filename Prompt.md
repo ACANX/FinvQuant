@@ -134,7 +134,7 @@ FINV_PG_DATA_DIR=D:/Dev/Docker/HostFileSystem/FinvQuant/PostgreSQL
 ## 7.5 数据库建表规范
 
 - 所有业务表名必须以 **`finv_` 作为前缀**。
-- 行情模块表名统一为 **`finv_quote_xxx`**（例如 `finv_quote_secu_kline_min`、`finv_quote_ingest_batches`、`finv_quote_revision_log`）。
+- 行情模块表名统一为 **`quote.finv_quote_xxx`**（例如 `quote.finv_quote_secu_kline_min`、`quote.finv_quote_ingest_batches`、`quote.finv_quote_revision_log`）。
 - 迁移文件存放于 `Deploy/Migrations/`，命名 `V<number>__<name>.sql`，服务端启动时自动应用。
 - **迁移分段约定**：`V1~V99999` 为表结构/变更脚本（DDL），`V100000+` 为数据种子脚本（DML）；初始数据必须放在数据种子段，确保在所有表结构脚本执行完后再执行。
 
@@ -188,7 +188,7 @@ FINV_PG_DATA_DIR=D:/Dev/Docker/HostFileSystem/FinvQuant/PostgreSQL
 - **多用户/多子账户**：策略/账户/任务均带 `user_id`（多用户隔离，默认 default），账户支持 `group_id` 分组（单用户多子账户），组合回测在 universe 多证券上预留（后续版本实现组合净值）；
 - 异步任务调度：并发上限 4、进度/状态持久化、可取消；
 - 数据库：V22~V28（策略/账户/任务/净值曲线/成交记录/资金流水/持仓变化/事件追踪/环境/模板）+ V100019/V100020 种子数据（默认账户 + GCMain 双均线示例策略 + 默认环境与内置模板）。
-- **表名规范**：量化回测模块统一前缀 `finv_quant_`（如 `finv_quant_backtest_strategy` / `finv_quant_backtest_run` / `finv_quant_environment` / `finv_quant_template`）。
+- **表名规范**：量化回测模块统一前缀 `quant.finv_quant_`（如 `quant.finv_quant_backtest_strategy` / `quant.finv_quant_backtest_run` / `quant.finv_quant_environment` / `quant.finv_quant_template`）。
 
 ### API（/API/V1/Meta/FinvQuant/Backtest/**）
 
@@ -207,7 +207,7 @@ FINV_PG_DATA_DIR=D:/Dev/Docker/HostFileSystem/FinvQuant/PostgreSQL
 ### 9.6.1 评审意见落实（ACANX 评论 issuecomment-5197476192）
 
 1. **⑨ 持仓变动详细情况链路追踪分析**：资金流水明细 / 持仓变化明细 / 交易事件结果追踪（事件触发原因、成交结果与否、委托耗时、未能成交的原因）—— 已落地（见 9.5 链路追踪 + 迁移 V27）；
-2. **表名命名规则**：量化回测模块统一 `finv_quant_` 前缀（示例 `finv_quant_backtest_strategy`）—— 已落地（V22~V27 迁移与代码同步改名）。
+2. **表名命名规则**：量化回测模块统一 `quant.finv_quant_` 前缀（示例 `quant.finv_quant_backtest_strategy`）—— 已落地（V22~V27 迁移与代码同步改名）。
 
 ### 9.6.2 新增需求（2026-08-06 第三轮）
 
@@ -229,8 +229,8 @@ FINV_PG_DATA_DIR=D:/Dev/Docker/HostFileSystem/FinvQuant/PostgreSQL
 | 2026-08-04 | 目录与持久化 | `deploy/` 重命名为 `Deploy/`；PG 数据目录支持映射到 Docker 宿主机文件系统（`FINV_PG_DATA_DIR`，Windows 示例 `D:\Dev\Docker\HostFileSystem\FinvQuant\PostgreSQL`） |
 | 2026-08-04 | API 路径大写 | API 路径统一 `/API/V1/` 前缀（写入 ApiSpec 规范） |
 | 2026-08-04 | 历史行情导入 | PG 建表（`Deploy/Migrations/V1__finv_quote_secu_kline_min.sql` 启动自动迁移）；Go MVSV-1 解析器 + 字段级覆盖 upsert 导入服务；`POST /API/V1/Quote/Import/Upload`；前端新增「历史行情数据导入」菜单页（批量上传 MVSV 分钟行情） |
-| 2026-08-04 | 规范与文档 | 建表规范：`finv_` 前缀、行情表 `finv_quote_xxx`；迁移重命名 `Deploy/Migrations/V1__finv_quote_secu_kline_min.sql`（表名修正 `finv_quote_ingest_batches`/`finv_quote_revision_log`）；新增 `Docs/API/` 服务端接口文档（含 /Quote/Import/Upload 端点） |
+| 2026-08-04 | 规范与文档 | 建表规范：`finv_` 前缀、行情表 `quote.finv_quote_xxx`；迁移重命名 `Deploy/Migrations/V1__finv_quote_secu_kline_min.sql`（表名修正 `quote.finv_quote_ingest_batches`/`quote.finv_quote_revision_log`）；新增 `Docs/API/` 服务端接口文档（含 /Quote/Import/Upload 端点） |
 | 2026-08-06 | 通用量化回测 | 前端新增顶级菜单「量化策略验证/账户管理/资金管理/持仓管理/策略管理/回测分析/仿真数据验证/模拟盘验证/实盘仿真验证/实盘交易」；「量化策略验证 → 黄金期货合约回测验证」支持配置初始资金/策略/限制/回测开关并启动回测、查看报告。服务端新增 `internal/backtest`（结构化策略定义模型+指标+信号表达式引擎+回测引擎+报告生成+异步任务调度），迁移 V22~V26 + V100019 种子（默认账户 + GCMain 双均线示例策略）；API `/API/V1/Backtest/**`（策略/账户/任务/报告/曲线/成交）；规范文档 `Docs/DevSpec/BacktestStrategySpec.md` |
-| 2026-08-06 | 回测链路追踪+命名规范 | 按评审意见：① 表名统一 `finv_quant_` 前缀（V22~V26 迁移与代码同步改名）；② 新增需求⑨链路追踪——迁移 V27（资金流水 `finv_quant_backtest_cashflow`/持仓变化 `finv_quant_backtest_position_log`/事件追踪 `finv_quant_backtest_event_trace`），引擎登记触发原因/成交结果/委托耗时/未成交原因，报告新增 `event_stats` 统计，前端回测分析页新增 ⑨ 链路追踪统计与三张明细表；API 新增 `Run/Cashflows|PositionLogs|EventTraces` |
-| 2026-08-06 | 多用户/环境模板/API路径 | 按新增需求：① 多用户回测（策略/账户/任务加 `user_id`）+ 单用户多子账户（账户 `group_id` 分组）+ 组合回测预留（universe 多标的）；② 环境/模板模型——迁移 V28（`finv_quant_environment` 环境表 + `finv_quant_template` 模板表）+ V100020 种子，环境配置含交易时段/交易规则/成本基准/撮合模式，引擎自适应环境（时段过滤、tick_size 精度、成本覆盖链 环境>任务>策略>账户），任务保存环境快照，前端新增环境与模板管理页；③ API 路径 `/API/V1/Backtest/**` → `/API/V1/Meta/FinvQuant/Backtest/**`，前端菜单/路由统一加 `Meta/FinvQuant/` 前缀，代码与文档同步替换 |
+| 2026-08-06 | 回测链路追踪+命名规范 | 按评审意见：① 表名统一 `quant.finv_quant_` 前缀（V22~V26 迁移与代码同步改名）；② 新增需求⑨链路追踪——迁移 V27（资金流水 `quant.finv_quant_backtest_cashflow`/持仓变化 `quant.finv_quant_backtest_position_log`/事件追踪 `quant.finv_quant_backtest_event_trace`），引擎登记触发原因/成交结果/委托耗时/未成交原因，报告新增 `event_stats` 统计，前端回测分析页新增 ⑨ 链路追踪统计与三张明细表；API 新增 `Run/Cashflows|PositionLogs|EventTraces` |
+| 2026-08-06 | 多用户/环境模板/API路径 | 按新增需求：① 多用户回测（策略/账户/任务加 `user_id`）+ 单用户多子账户（账户 `group_id` 分组）+ 组合回测预留（universe 多标的）；② 环境/模板模型——迁移 V28（`quant.finv_quant_environment` 环境表 + `quant.finv_quant_template` 模板表）+ V100020 种子，环境配置含交易时段/交易规则/成本基准/撮合模式，引擎自适应环境（时段过滤、tick_size 精度、成本覆盖链 环境>任务>策略>账户），任务保存环境快照，前端新增环境与模板管理页；③ API 路径 `/API/V1/Backtest/**` → `/API/V1/Meta/FinvQuant/Backtest/**`，前端菜单/路由统一加 `Meta/FinvQuant/` 前缀，代码与文档同步替换 |
 | 2026-08-06 | 回测评审修复（第三轮） | 按 PR #338 审查报告逐项修复：🔴 ① `ref()` 负偏移前视漏洞（编译期常量负偏移报错 + 运行期动态负偏移返回 NaN + 表达式深度上限 64）；② 信号表达式标识符交叉校验（未声明指标保存即报错）+ buy/sell 至少一个非空。🟠 ③ 成本覆盖链统一为 环境>任务>策略>账户（抽取 `resolveCosts` + 单测）；④ 环境交易规则全部生效（T+N 交收、涨跌停、合约乘数、环境 fill_mode CURRENT_CLOSE、币种一致性校验）；⑤ 卖出数量模式 FIXED/PERCENT/AMOUNT/ALL + 方向语义校验；⑥ 多用户隔离补全（策略/账户/任务 List/Get/Toggle/Delete/CreateRun 归属校验，环境/模板同）；⑦ 事件追踪补 FR-10 ⑤委托下单时间(order_ts)与⑦存活时间(alive_sec)，V27 迁移同步加列；⑧ V26 trade remark 落值；⑨ 种子补齐布林带/MACD 策略模板 + 沪深环境模板；⑩ 文档口径修正（environment_snapshot/菜单层级/死链/关键字过滤等）。🟡 盈亏比 +Inf 哨兵 999999、平均委托耗时剔除风控事件、聚合 bar 时段判定取周期起点、Min 精度曲线降采样 2 万点、RSI 首值对齐 Wilder、重启悬挂恢复、内置模板禁改、is_default 部分唯一索引、错误码 400/404/409 映射、created_by 可传。前端：取消按钮/5s 轮询/Run-Get 深链/关键字过滤输入框/Hour 标签/成交表去双触发/模板 API 化/共享 utils/请求超时。测试新增 16 项全过；文档同步（DevSpec/API/菜单/Prompt） |
