@@ -265,6 +265,20 @@
 | 10165 | 迁移记录已登记 `V34` 且成功。 | `select success from schema_version where version::int=34` 输出 `t` | |
 | 10166 | schema 规范文件已登记两个新 schema。 | `grep -o '\`export\`\|\`sche\`' Docs/DevSpec/DbSchemaSpec.md \| wc -l` 不小于 `4` | |
 
+## 十七、export 行情导出转存表（10167–10175）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10167 | 存在创建转存表的迁移。 | `test -f Deploy/Migrations/V35__create_export_staging_kline_table.sql` | |
+| 10168 | 转存表与业务表同名。 | `select count(*) from pg_tables where schemaname='export' and tablename='finv_quote_secu_kline_min'` 输出 `1` | |
+| 10169 | 转存表列定义与业务表完全一致。 | 对 `information_schema.columns` 的 `(column_name,data_type,is_nullable,column_default)` 做双向 `EXCEPT` 后计数为 `0` | |
+| 10170 | 转存表具备主键与 `(usc,ts)` 普通索引。 | `select count(*) from pg_index ... where indisprimary` 输出 `1`；存在 `pg_get_indexdef` 含 `(usc, ts)` 的非主键索引 | |
+| 10171 | 转存表具备 `gmt_update` 触发器。 | `select count(*) from pg_trigger where tgname='trg_finv_quote_secu_kline_min_gmt_update' and tgrelid='export.finv_quote_secu_kline_min'::regclass` 输出 `1` | |
+| 10172 | 迁移可重复执行（幂等）。 | 连续执行两次迁移文件，第二次输出「已存在，跳过建表/触发器已存在」且校验通过 | |
+| 10173 | 转存可用：同日同证券行数与源表一致。 | `INSERT INTO export.... SELECT * FROM quote.... WHERE usc='NVDA' AND ts∈[2026-06,2026-07)` 后源/目标均为 `7220` | |
+| 10174 | 转存表可清空复用。 | `TRUNCATE export.finv_quote_secu_kline_min` 后 `count(*)` 为 `0` | |
+| 10175 | 迁移记录已登记 `V35` 且成功。 | `select success from schema_version where version::int=35` 输出 `t` | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -285,7 +299,8 @@
 | Archive 归档目录 | 10145–10148 | 4 |
 | 数据库名与角色名统一为 finv | 10149–10158 | 10 |
 | 新增 export / sche 两个 schema | 10159–10166 | 8 |
-| **合计** | **10001–10166** | **166** |
+| export 行情导出转存表 | 10167–10175 | 9 |
+| **合计** | **10001–10175** | **175** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10167` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10176` 起往后追加，不插入既有区间。

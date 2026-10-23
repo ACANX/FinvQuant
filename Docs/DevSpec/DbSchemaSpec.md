@@ -10,13 +10,18 @@
 | `quote` | 行情域 | `finv_quote_secu_kline_min`、`finv_quote_ingest_batches`、`finv_quote_revision_log` |
 | `quant` | 量化域 | `finv_quant_backtest_*`（11 张）、`finv_quant_environment`、`finv_quant_template` |
 | `futu` | 外部源映射域（富途 OpenAPI 编码 ↔ Finv 内部编码） | `finv_futu_mapping_cs_market`、`finv_futu_mapping_exchange`、`finv_futu_mapping_market_code`、`finv_futu_mapping_region`、`finv_futu_mapping_security` |
-| `export` | 数据导出域（导出任务、导出产物元数据等，`V34` 建 schema，表待业务迁移创建） | 暂无 |
+| `export` | 数据导出域 | `finv_quote_secu_kline_min`（行情导出转存表，与 `quote` 同名同结构，`V35` 创建） |
 | `sche` | 定时任务调度域（调度定义、执行记录等，`V34` 建 schema，表待业务迁移创建） | 暂无 |
 | `public` | 基础主数据与系统表 | `finv_security`、`finv_market`、`finv_exchange`、`finv_region`、`finv_currency`、`schema_version` |
 
 - **一个业务域一个 schema**，不把域对象堆在 `public`。
 - 新增域时同步在本文档登记其 schema 名与归属表，并在迁移脚本中 `CREATE SCHEMA IF NOT EXISTS <域名>`。
 - schema 名统一**小写短名**（`quote`/`quant`/`futu`/`export`/`sche`），不加业务前缀；`sche` 为「调度」的短名沿用（如需改为 `sched`，须 `ALTER SCHEMA sche RENAME TO sched` 并同步 `search_path`、本文件与代码）。
+- **同名同结构转存表**：允许在 `export` 等暂存域建与业务域**同名同结构**的表（如 `export.finv_quote_secu_kline_min` ↔ `quote.finv_quote_secu_kline_min`），用于导出前转存；此类表必须：
+  1. 建表用 `CREATE TABLE ... (LIKE <源表> INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES INCLUDING STORAGE INCLUDING COMMENTS)`，**触发器另行补齐**（`LIKE` 不复制触发器）；
+  2. 索引名由 PostgreSQL 按新表名自动生成，与源表索引名不同（属正常现象）；
+  3. 迁移末尾做双向列差集校验，确保与源表列名/类型/可空/默认值一致；
+  4. **任何读写必须写暂存域前缀**（`export.xxx`）——注意 `TestSQLSchemaQualified` 只校验「有没有前缀」，不校验「前缀对不对」，写错成 `quote.` 不会被测试拦下。
 
 ## 2. 表命名
 
@@ -37,6 +42,7 @@
   1. 新表一律放入明确 schema，不得落 `public`；
   2. 代码侧引用一律写全限定名（已由 `TestSQLSchemaQualified` 强制）；
   3. 若确实需要在 `public` 放同名表，必须先把 `public` 移出 `search_path` 首位，并同步核验历史种子迁移（`V100xxx` 不带 schema 前缀，依赖 `search_path` 定位 `quote`/`quant`/`futu` 与 `public` 的基础主数据表）。
+- **已存在的实例**：`quote.finv_quote_secu_kline_min` 与 `export.finv_quote_secu_kline_min` 同名（`V35` 建立的导出转存表）。因此裸写 `finv_quote_secu_kline_min` 一定命中 `quote`（`search_path` 中 `quote` 在 `export` 之前），转存表的读写必须显式写 `export.`。
 - 历史种子迁移是唯一仍依赖 `search_path` 的 SQL，改动其定位行为前必须跑「全新库全链迁移」验证。
 - 手工运维时若未设置 `search_path`，须写全限定名，例如 `select count(*) from quote.finv_quote_secu_kline_min;`。
 - `schema_version` 与迁移机制保留在 `public`，不随业务域迁移。

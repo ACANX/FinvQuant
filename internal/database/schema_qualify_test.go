@@ -12,7 +12,7 @@ import (
 // domainTablePrefixes 业务域表名前缀 → 必须使用的 schema 限定前缀。
 //
 // 为什么要强制限定：融合后不同 schema 可能出现同名表，而 search_path
-// （public, quote, quant, futu）中 public 位于首位——任何未限定的 CRUD
+// （public, quote, quant, futu, export, sche）中 public 位于首位——任何未限定的 CRUD
 // 语句都会优先命中 public 的同名表，导致读写错表。
 var domainTablePrefixes = map[string]string{
 	"finv_quote_": "quote.",
@@ -91,6 +91,11 @@ func isSQLCRUDLine(line string) bool {
 
 // unqualifiedDomainTables 返回该行中「未带 schema 前缀」的域表名前缀列表。
 // 判定规则：表名前一个字符既不是 '.' 也不是标识符字符（字母/数字/下划线）。
+//
+// 注意：本函数只判断「有没有前缀」，不判断「前缀是否正确」。当同一表名存在
+// 于多个 schema（如 quote.finv_quote_secu_kline_min 与
+// export.finv_quote_secu_kline_min 同名）时，写错前缀不会被拦下，需靠
+// Docs/DevSpec/DbSchemaSpec.md §2/§3.1 的约定保证。
 func unqualifiedDomainTables(line string) []string {
 	var found []string
 	for table := range domainTablePrefixes {

@@ -48,6 +48,9 @@
 - **Native 部署配套落地**：新增 `Deploy/Native/{README,Install,Upgrade}.md` 与 `Install.sh`、`Upgrade.sh`、`Uninstall.sh`、`FinvQuant.service`、`FinvQuant.env.example`、`Nginx.conf.example`；服务由 systemd 守护（`Restart=on-failure`、`EnvironmentFile`、安全加固、journald），安装脚本幂等并自动生成随机数据库密码、建库授权、健康检查；升级脚本按「备份 → 停服 → 备份旧二进制 → 替换 → 启动 → 健康检查」执行，支持 `--rollback` 回退程序。
 - **文件名按品牌大小写**：`FinvQuant.service`、`FinvQuant.env.example`（安装后注册为 `finvquant.service`，运维命令仍用 `systemctl ... finvquant`）。
 - 新增 [`Deploy/README.md`](Deploy/README.md)：部署目录总览——两种方式的目录边界与选择建议、共用 `Migrations/` 与 `Backup/` 的说明、两种方式共同遵守的约束（禁止新旧共存、升级前备份、schema 限定）、目录命名约定。
+- **`export` schema 新增行情导出转存表**（`V35`）：`export.finv_quote_secu_kline_min`，与 `quote.finv_quote_secu_kline_min` **同名同结构**（`LIKE ... INCLUDING DEFAULTS/CONSTRAINTS/INDEXES/STORAGE/COMMENTS` 建表 + 单独补 `gmt_update` 触发器），用于某证券月度/日历史行情导出前转存；迁移含双向列差集与主键/索引/触发器校验，幂等可重复执行。
+  - ⚠ 同名风险：`quote` 在 `search_path` 中先于 `export`，裸写表名会命中业务表，转存表读写**必须**写 `export.` 前缀（`DbSchemaSpec.md` §2/§3.1 已补规则与实例）。
+  - 验证：源/目标同期行数一致（`NVDA` 2026-06 转存 7,220 行）、`gmt_update` 触发器生效、`TRUNCATE` 后可复用，转存表现为空。
 - **新增 `export` / `sche` 两个 schema**（融合前准备）：`export` 用于数据导出域、`sche` 用于定时任务调度域；`V34` 幂等建 schema、以 `current_user` 动态设定属主并授予 `USAGE`/`CREATE`、把两者追加到数据库与连接串的 `search_path` 末尾（`public,quote,quant,futu,export,sche`，不改变既有解析优先级）、末尾做收敛校验；生产库已应用并验证（`V34 success=t`、两 schema 为空、属主 `finv`、权限齐备）。
 - **数据库名与角色名统一为 `finv`**（融合前准备，**破坏性**）：PostgreSQL 数据库 `finvquant`→`finv`、登录角色 `finvquant`→`finv`，**密码不变**；生产库已执行 `ALTER ROLE` / `ALTER DATABASE` 改名并验证（数据 2,804,329 行不变、`search_path` 随 OID 保留、授权无需重跑）。
   - 配置：`internal/config` 默认值、`docker-compose.yml`（`FINV_PG_USER`/`FINV_PG_DATABASE`/`POSTGRES_USER`/`POSTGRES_DB`/`pg_isready`）、`.env.example`、Native `FinvQuant.env.example`、`Install.sh` 兜底值、`deploy.cmd`/`upgrade.cmd` 的 `psql`/`pg_dump` 参数
