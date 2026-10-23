@@ -150,7 +150,7 @@ FINV_PG_DATA_DIR=D:/Dev/Docker/HostFileSystem/FinvQuant/PostgreSQL
 ## 9. 待办 / 规划（Roadmap）
 
 - [x] 历史行情导入：PG 建表（V1 迁移启动自动执行）、`POST /API/V1/Quote/Import/Upload` 上传导入（支持备注字段）、前端「历史行情数据导入」菜单页
-- [x] 历史行情查询：`GET /API/V1/Quote/Query`（secu_code/date/period=Min）、前端「历史行情查询」菜单页（K 线蜡烛图、红涨绿跌、悬停详情）
+- [x] 历史行情查询：`GET /API/V1/Quote/Query`（usc/date/period=Min）、前端「历史行情查询」菜单页（K 线蜡烛图、红涨绿跌、悬停详情）
 - [x] 通用量化回测：策略/账户/任务/报告全链路（见下）
 - [ ] 服务端业务模块：行情、账户、策略、订单、风控 API（实盘链路）
 - [ ] 前端业务页面：行情看板、交易面板（模拟盘/实盘）

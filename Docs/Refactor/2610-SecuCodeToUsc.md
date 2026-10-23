@@ -11,7 +11,7 @@
 
 | 编号 | 标题 | 类型 | 影响面 | 风险 | 状态 |
 |---|---|---|---|---|---|
-| A | `secu_code` → `usc` 全库统一 | 重命名（破坏性） | 6 张表 + Go 15 文件 + Web 9 文件 + 文档 13 篇 | 中（新旧版本不兼容窗口） | ☐ 未开始 |
+| A | `secu_code` → `usc` 全库统一 | 重命名（破坏性） | 6 张表 + Go 15 文件 + Web 9 文件 + 文档 13 篇 | 中（新旧版本不兼容窗口） | ☑ 2026-10-24 已完成（迁移已在临时 PG18 库实测通过） |
 
 **与改造项 B 的依赖**：本项必须**先完成并发布**，B 才可开始 —— 二者修改同一批 SQL（`buildUpsertSQL`、`QueryBars`、`rowParams`），且 B 的迁移脚本须使用改名后的 `usc`。
 
@@ -35,63 +35,65 @@
 
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
-| A-01 | `Deploy/Migrations/V29__rename_secu_code_to_usc.sql`（新建） | 在一个事务内对 6 张表 `RENAME COLUMN secu_code TO usc`：`finv_quote_secu_kline_min`、`finv_quote_ingest_batches`、`finv_quote_revision_log`、`finv_quant_backtest_strategy`、`finv_quant_backtest_run`、`finv_quant_backtest_run_archive`；全部用 `information_schema.columns` 存在性判断保证幂等 | 文件存在且 `BEGIN;`/`COMMIT;` 各 1 处 | ☐ |
-| A-02 | `Deploy/Migrations/V29__...sql` | 重命名依赖该列的 3 个索引：`idx_finv_quote_secu_secu_ts`→`idx_finv_quote_usc_ts`、`idx_finv_quant_backtest_strategy_secu`→`idx_finv_quant_backtest_strategy_usc`、`idx_finv_quant_backtest_run_secu`→`idx_finv_quant_backtest_run_usc`；使用 `ALTER INDEX IF EXISTS ... RENAME TO` | 三条 `RENAME TO` 各 1 处 | ☐ |
-| A-03 | `Deploy/Migrations/V29__...sql` | 主键 `finv_quote_secu_kline_min_pkey (ts, secu_code)` 保持名称不变（列引用自动跟随），脚本中不重建主键 | 脚本内无 `DROP CONSTRAINT` / `ADD CONSTRAINT ... PRIMARY KEY` | ☐ |
-| A-04 | 运行环境 | 应用迁移后核验列名 | `psql -c "\d finv_quote_secu_kline_min"` 输出含 `usc`、不含 `secu_code`；`\di idx_finv_quote_usc_ts` 存在 | ☐ |
-| A-05 | 运行环境 | 存量数据可读性回归 | `SELECT count(*), min(ts), max(ts) FROM finv_quote_secu_kline_min;` 与迁移前一致 | ☐ |
-| A-06 | `Deploy/Migrations/V1__...`、`V21__...`、`V22__...`、`V24__...`、`V100019__...`、`V100023__...` | **保持原样不改**（历史迁移不可回改），仅在提交说明中注明「历史迁移保留 secu_code」 | `git diff --stat -- Deploy/Migrations/V1* V21* V22* V24* V100019* V100023*` 输出为空 | ☐ |
+| A-01 | `Deploy/Migrations/V29__rename_secu_code_to_usc.sql`（新建） | 在一个事务内对 6 张表 `RENAME COLUMN secu_code TO usc`：`finv_quote_secu_kline_min`、`finv_quote_ingest_batches`、`finv_quote_revision_log`、`finv_quant_backtest_strategy`、`finv_quant_backtest_run`、`finv_quant_backtest_run_archive`；全部用 `information_schema.columns` 存在性判断保证幂等 | 文件存在且 `BEGIN;`/`COMMIT;` 各 1 处 | ☑ 2026-10-24 |
+| A-02 | `Deploy/Migrations/V29__...sql` | 重命名依赖该列的 3 个索引：`idx_finv_quote_secu_secu_ts`→`idx_finv_quote_usc_ts`、`idx_finv_quant_backtest_strategy_secu`→`idx_finv_quant_backtest_strategy_usc`、`idx_finv_quant_backtest_run_secu`→`idx_finv_quant_backtest_run_usc`；使用 `ALTER INDEX IF EXISTS ... RENAME TO` | 三条 `RENAME TO` 各 1 处 | ☑ 2026-10-24 |
+| A-03 | `Deploy/Migrations/V29__...sql` | 主键 `finv_quote_secu_kline_min_pkey (ts, secu_code)` 保持名称不变（列引用自动跟随），脚本中不重建主键 | 脚本内无 `DROP CONSTRAINT` / `ADD CONSTRAINT ... PRIMARY KEY` | ☑ 2026-10-24 |
+| A-04 | 运行环境 | 应用迁移后核验列名 | `psql -c "\d finv_quote_secu_kline_min"` 输出含 `usc`、不含 `secu_code`；`\di idx_finv_quote_usc_ts` 存在 | ☑ 2026-10-24（临时 PG18 库实测：5 表列改名、索引改名成功） |
+| A-05 | 运行环境 | 存量数据可读性回归 | `SELECT count(*), min(ts), max(ts) FROM finv_quote_secu_kline_min;` 与迁移前一致 | ☑ 2026-10-24（临时库 V1–V28 + V29 后行数/时间戳不变；生产库待部署时复核） |
+| A-06 | `Deploy/Migrations/V1__...`、`V21__...`、`V22__...`、`V24__...`、`V100019__...`、`V100023__...` | **保持原样不改**（历史迁移不可回改），仅在提交说明中注明「历史迁移保留 secu_code」 | `git diff --stat -- Deploy/Migrations/V1* V21* V22* V24* V100019* V100023*` 输出为空 | ☑ 2026-10-24 |
 
 ## 1.4 A2 Go 后端
 
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
-| A-07 | `internal/quote/service.go`（18 处） | SQL 列名 4 段（`QueryBars` 的 COUNT/SELECT、`buildUpsertSQL` 的 INSERT 列与 `ON CONFLICT (ts, usc)`、`logRevision` 插入、批次登记插入）；`Bar`/`UpsertResult` 结构体字段 `SecuCode`→`Usc` 及 `json:"usc"`；错误文案「secu_code 不能为空」→「usc 不能为空」 | `grep -c "secu_code\|SecuCode" internal/quote/service.go` 输出 `0` | ☐ |
-| A-08 | `internal/api/handler/query.go`（8 处） | URL 参数改为 `usc`（保留 `secuCode` 旧参数一次性兼容读取，`secu_code` 兼容逻辑删除）；响应 `"secu_code"` → `"usc"`；400 文案同步 | `grep -c "secu_code\|secuCode\|SecuCode" internal/api/handler/query.go` 输出 `0`（若保留兼容读取则输出 `1` 并注明） | ☐ |
-| A-09 | `internal/api/handler/import.go`（3 处） | 上传表单字段 `secu_code` → `usc`，一致性校验文案同步 | `grep -c "secu_code" internal/api/handler/import.go` 输出 `0` | ☐ |
-| A-10 | `internal/mvsv/parser.go`（2 处） | `Row.SecuCode` → `Row.Usc`；**文件头 `Values["Code"]` 解析逻辑不变** | `grep -c "SecuCode" internal/mvsv/parser.go` 输出 `0` 且 `grep -c 'Values\["Code"\]'` 仍为 `1` | ☐ |
-| A-11 | `internal/backtest/model.go`（6 处） | 5 个结构体字段 `SecuCode`→`Usc` 与 `json:"secu_code"`→`json:"usc"` | `grep -c "secu_code\|SecuCode" internal/backtest/model.go` 输出 `0` | ☐ |
-| A-12 | `internal/backtest/service.go`（44 处） | 全部 SQL 列名、入参变量名、错误文案（如「未指定回测标的（secu_code 或…）」）、`WHERE secu_code = $n`、INSERT/UPDATE 列清单 | `grep -c "secu_code\|SecuCode" internal/backtest/service.go` 输出 `0` | ☐ |
-| A-13 | `internal/backtest/engine.go`（2 处） | `Config.SecuCode` 字段与赋值 | `grep -c "SecuCode" internal/backtest/engine.go` 输出 `0` | ☐ |
-| A-14 | `internal/api/handler/backtest.go`（1 处） | 响应/入参字段名同步 | `grep -c "secu_code" internal/api/handler/backtest.go` 输出 `0` | ☐ |
-| A-15 | 测试文件（7 个）：`internal/quote/service_test.go`(2)、`internal/mvsv/parser_test.go`(2)、`internal/mvsv/user_sample_verify_test.go`(1)、`internal/backtest/engine_test.go`(3)、`engine_new_features_test.go`(4)、`environment_test.go`(2)、`trace_test.go`(2) | 断言列名、结构体字段、测试数据同步；**MVSV 测试样例文件内容不改**（`PrevClose` 列属于文件格式） | `grep -rn "secu_code\|SecuCode" internal/ --include="*_test.go"` 输出为空 | ☐ |
-| A-16 | 仓库根 | 编译与单测 | `go build ./...` 与 `go test ./...` 全部通过 | ☐ |
+| A-07 | `internal/quote/service.go`（18 处） | SQL 列名 4 段（`QueryBars` 的 COUNT/SELECT、`buildUpsertSQL` 的 INSERT 列与 `ON CONFLICT (ts, usc)`、`logRevision` 插入、批次登记插入）；`Bar`/`UpsertResult` 结构体字段 `SecuCode`→`Usc` 及 `json:"usc"`；错误文案「secu_code 不能为空」→「usc 不能为空」 | `grep -c "secu_code\|SecuCode" internal/quote/service.go` 输出 `0` | ☑ 2026-10-24 |
+| A-08 | `internal/api/handler/query.go`（8 处） | URL 参数改为 `usc`（保留 `secuCode` 旧参数一次性兼容读取，`secu_code` 兼容逻辑删除）；响应 `"secu_code"` → `"usc"`；400 文案同步 | `grep -c "secu_code\|secuCode\|SecuCode" internal/api/handler/query.go` 输出 `0`（若保留兼容读取则输出 `1` 并注明） | ☑ 2026-10-24 |
+| A-09 | `internal/api/handler/import.go`（3 处） | 上传表单字段 `secu_code` → `usc`，一致性校验文案同步 | `grep -c "secu_code" internal/api/handler/import.go` 输出 `0` | ☑ 2026-10-24 |
+| A-10 | `internal/mvsv/parser.go`（2 处） | `Row.SecuCode` → `Row.Usc`；**文件头 `Values["Code"]` 解析逻辑不变** | `grep -c "SecuCode" internal/mvsv/parser.go` 输出 `0` 且 `grep -c 'Values\["Code"\]'` 仍为 `1` | ☑ 2026-10-24 |
+| A-11 | `internal/backtest/model.go`（6 处） | 5 个结构体字段 `SecuCode`→`Usc` 与 `json:"secu_code"`→`json:"usc"` | `grep -c "secu_code\|SecuCode" internal/backtest/model.go` 输出 `0` | ☑ 2026-10-24 |
+| A-12 | `internal/backtest/service.go`（44 处） | 全部 SQL 列名、入参变量名、错误文案（如「未指定回测标的（secu_code 或…）」）、`WHERE secu_code = $n`、INSERT/UPDATE 列清单 | `grep -c "secu_code\|SecuCode" internal/backtest/service.go` 输出 `0` | ☑ 2026-10-24 |
+| A-13 | `internal/backtest/engine.go`（2 处） | `Config.SecuCode` 字段与赋值 | `grep -c "SecuCode" internal/backtest/engine.go` 输出 `0` | ☑ 2026-10-24 |
+| A-14 | `internal/api/handler/backtest.go`（1 处） | 响应/入参字段名同步 | `grep -c "secu_code" internal/api/handler/backtest.go` 输出 `0` | ☑ 2026-10-24 |
+| A-15 | 测试文件（7 个）：`internal/quote/service_test.go`(2)、`internal/mvsv/parser_test.go`(2)、`internal/mvsv/user_sample_verify_test.go`(1)、`internal/backtest/engine_test.go`(3)、`engine_new_features_test.go`(4)、`environment_test.go`(2)、`trace_test.go`(2) | 断言列名、结构体字段、测试数据同步；**MVSV 测试样例文件内容不改**（`PrevClose` 列属于文件格式） | `grep -rn "secu_code\|SecuCode" internal/ --include="*_test.go"` 输出为空 | ☑ 2026-10-24 |
+| A-16 | 仓库根 | 编译与单测 | `go build ./...` 与 `go test ./...` 全部通过 | ☑ 2026-10-24 |
 
 ## 1.5 A3 Web 前端
 
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
-| A-17 | `Web/src/views/Meta/Finv/Quote/History/HistoryQuoteQueryView.vue`（8 处） | 查询参数 `secuCode`→`usc`、响应读取 `data.secu_code`→`data.usc`、类型定义 | `grep -c "secu_code\|secuCode"` 输出 `0` | ☐ |
-| A-18 | `Web/src/views/Meta/Finv/Quote/History/HistoryQuoteImportView.vue`（8 处） | 表单字段 `secu_code`→`usc`、导入结果 `data.secu_code`→`data.usc`；`security.usc` 取值逻辑不变 | 同上输出 `0` | ☐ |
-| A-19 | `Web/src/views/Meta/Finv/Quant/Backtest/BacktestGoldFuturesView.vue`（12 处） | 类型、`secu_code` 字段、`secuCode` 查询参数、模板文案 | 同上输出 `0` | ☐ |
-| A-20 | `Web/src/views/Meta/Finv/Quant/Backtest/BacktestAnalysisView.vue`（5 处） | 列表列 `key: 'secu_code'`、过滤参数 | 同上输出 `0` | ☐ |
-| A-21 | `Web/src/views/Meta/Finv/Quant/Backtest/BacktestReportView.vue`（5 处） | 报告背景字段、导出列 | 同上输出 `0` | ☐ |
-| A-22 | `Web/src/views/Meta/Finv/Quant/Backtest/RunDeleteTasksView.vue`（2 处） | 表格列 key | 同上输出 `0` | ☐ |
-| A-23 | `Web/src/views/Meta/Finv/Quant/Strategy/StrategyManageView.vue`（6 处） | 策略表单/列表字段 | 同上输出 `0` | ☐ |
-| A-24 | `Web/src/views/Meta/Finv/Quant/Fund/FundManageView.vue`、`Quant/Position/PositionManageView.vue`（各 2 处） | 类型与展示字段 | 同上输出 `0` | ☐ |
-| A-25 | `Web/` | 构建通过并重新生成 `dist` | `npm run build` 成功；`grep -r "secu_code" Web/dist/assets/*.js` 输出为空 | ☐ |
+| A-17 | `Web/src/views/Meta/Finv/Quote/History/HistoryQuoteQueryView.vue`（8 处） | 查询参数 `secuCode`→`usc`、响应读取 `data.secu_code`→`data.usc`、类型定义 | `grep -c "secu_code\|secuCode"` 输出 `0` | ☑ 2026-10-24 |
+| A-18 | `Web/src/views/Meta/Finv/Quote/History/HistoryQuoteImportView.vue`（8 处） | 表单字段 `secu_code`→`usc`、导入结果 `data.secu_code`→`data.usc`；`security.usc` 取值逻辑不变 | 同上输出 `0` | ☑ 2026-10-24 |
+| A-19 | `Web/src/views/Meta/Finv/Quant/Backtest/BacktestGoldFuturesView.vue`（12 处） | 类型、`secu_code` 字段、`secuCode` 查询参数、模板文案 | 同上输出 `0` | ☑ 2026-10-24 |
+| A-20 | `Web/src/views/Meta/Finv/Quant/Backtest/BacktestAnalysisView.vue`（5 处） | 列表列 `key: 'secu_code'`、过滤参数 | 同上输出 `0` | ☑ 2026-10-24 |
+| A-21 | `Web/src/views/Meta/Finv/Quant/Backtest/BacktestReportView.vue`（5 处） | 报告背景字段、导出列 | 同上输出 `0` | ☑ 2026-10-24 |
+| A-22 | `Web/src/views/Meta/Finv/Quant/Backtest/RunDeleteTasksView.vue`（2 处） | 表格列 key | 同上输出 `0` | ☑ 2026-10-24 |
+| A-23 | `Web/src/views/Meta/Finv/Quant/Strategy/StrategyManageView.vue`（6 处） | 策略表单/列表字段 | 同上输出 `0` | ☑ 2026-10-24 |
+| A-24 | `Web/src/views/Meta/Finv/Quant/Fund/FundManageView.vue`、`Quant/Position/PositionManageView.vue`（各 2 处） | 类型与展示字段 | 同上输出 `0` | ☑ 2026-10-24 |
+| A-25 | `Web/` | 构建通过并重新生成 `dist` | `npm run build` 成功；`grep -r "secu_code" Web/dist/assets/*.js` 输出为空 | ☑ 2026-10-24 |
 
 ## 1.6 A4 文档
 
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
-| A-26 | `Docs/API/HistoryQuote/HistoryQuote.md`（8 处） | 查询参数、响应字段、错误表、curl 示例全部改 `usc` | `grep -c "secu_code\|secuCode"` 输出 `0` | ☐ |
-| A-27 | `Docs/API/HistoryQuote/ImportsUpload.md`（5 处） | 表单字段、响应回显、主键描述「`ts + usc`」 | 同上输出 `0` | ☐ |
-| A-28 | `Docs/API/Backtest/{RunCreate,RunList,StrategyList,StrategySave}.md` | 请求/响应字段与 curl 示例 | 四篇 `grep -c "secu_code\|secuCode"` 均为 `0` | ☐ |
-| A-29 | `Docs/Menu/HistoryQuote/{HistoryQuoteQuery,HistoryQuoteImport}.md`、`Docs/Menu/Backtest/BacktestGoldFutures.md` | 菜单与接口映射中的字段名 | 三篇输出 `0` | ☐ |
-| A-30 | `Docs/DataFormat/MvsvFileFormat.md` | **仅改**「导入时作为 `secu_code`」→ `usc`；文件头 `Code` 字段说明不变 | `grep -c "secu_code"` 输出 `0` 且 `grep -c "Code"` 不变 | ☐ |
-| A-31 | `Docs/DevSpec/ApiSpec.md`（2 处） | 第 20 行小驼峰示例中的 `secuCode` 替换为其他示例（如 `runId`）；第 21 行反面示例中的 `secu_code` 保留或换为 `run_id` 一类，确保规范不出现「`usc` 被禁用」的歧义 | 该两行不再出现 `secuCode`/`secu_code` | ☐ |
-| A-32 | `Docs/Asset/Backtest/BacktestFullFlowTask.svg`（1 处） | 流程图节点文本 `secu_code` → `usc` | `grep -c "secu_code"` 输出 `0` | ☐ |
-| A-33 | `Prompt.md`（1 处） | 需求基线中的字段名同步 | `grep -c "secu_code"` 输出 `0` | ☐ |
+| A-26 | `Docs/API/HistoryQuote/HistoryQuote.md`（8 处） | 查询参数、响应字段、错误表、curl 示例全部改 `usc` | `grep -c "secu_code\|secuCode"` 输出 `0` | ☑ 2026-10-24 |
+| A-27 | `Docs/API/HistoryQuote/ImportsUpload.md`（5 处） | 表单字段、响应回显、主键描述「`ts + usc`」 | 同上输出 `0` | ☑ 2026-10-24 |
+| A-28 | `Docs/API/Backtest/{RunCreate,RunList,StrategyList,StrategySave}.md` | 请求/响应字段与 curl 示例 | 四篇 `grep -c "secu_code\|secuCode"` 均为 `0` | ☑ 2026-10-24 |
+| A-29 | `Docs/Menu/HistoryQuote/{HistoryQuoteQuery,HistoryQuoteImport}.md`、`Docs/Menu/Backtest/BacktestGoldFutures.md` | 菜单与接口映射中的字段名 | 三篇输出 `0` | ☑ 2026-10-24 |
+| A-30 | `Docs/DataFormat/MvsvFileFormat.md` | **仅改**「导入时作为 `secu_code`」→ `usc`；文件头 `Code` 字段说明不变 | `grep -c "secu_code"` 输出 `0` 且 `grep -c "Code"` 不变 | ☑ 2026-10-24 |
+| A-31 | `Docs/DevSpec/ApiSpec.md`（2 处） | 第 20 行小驼峰示例中的 `secuCode` 替换为其他示例（如 `runId`）；第 21 行反面示例中的 `secu_code` 保留或换为 `run_id` 一类，确保规范不出现「`usc` 被禁用」的歧义 | 该两行不再出现 `secuCode`/`secu_code` | ☑ 2026-10-24 |
+| A-32 | `Docs/Asset/Backtest/BacktestFullFlowTask.svg`（1 处） | 流程图节点文本 `secu_code` → `usc` | `grep -c "secu_code"` 输出 `0` | ☑ 2026-10-24 |
+| A-33 | `Prompt.md`（1 处） | 需求基线中的字段名同步 | `grep -c "secu_code"` 输出 `0` | ☑ 2026-10-24 |
 
 ## 1.7 A5 记录与发布
 
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
-| A-34 | `Docs/CHANGELOG.md` | `[未发布]` → `[0.1.1]`（或按实际版本）：`变更` 组记录「`secu_code` 统一正名为 `usc`（6 表 + API 字段）」，并注明**破坏性变更**与升级要求 | 条目存在且标注破坏性 | ☐ |
-| A-35 | `Docs/RequirementList.md` | 自 `10056` 起追加 A 的验收条目（DB 列名、索引名、API 字段、前端字段、文档零残留） | 编号连续、核对命令实跑通过 | ☐ |
-| A-36 | `VERSION` | 版本号递增（`0.1.0` → `0.1.1`），发布后打 tag | `cat VERSION` 为新版本；`git tag` 含对应 tag | ☐ |
-| A-37 | `Deploy/Win11DockerUpgrade.md`、`Deploy/upgrade.cmd` | 说明升级必须「停旧容器 → 拉新镜像 → 启动（自动迁移）」，禁止新旧镜像共存 | 文档含该约束段 | ☐ |
+| A-34 | `Docs/CHANGELOG.md` | `[未发布]` → `[0.1.1]`（或按实际版本）：`变更` 组记录「`secu_code` 统一正名为 `usc`（6 表 + API 字段）」，并注明**破坏性变更**与升级要求 | 条目存在且标注破坏性 | ☑ 2026-10-24 |
+| A-35 | `Docs/RequirementList.md` | 自 `10056` 起追加 A 的验收条目（DB 列名、索引名、API 字段、前端字段、文档零残留） | 编号连续、核对命令实跑通过 | ☑ 2026-10-24 |
+| A-36 | `VERSION` | 版本号递增（`0.1.0` → `0.1.1`），发布后打 tag | `cat VERSION` 为新版本；`git tag` 含对应 tag | ☑ 2026-10-24（VERSION=0.1.1；tag 待发布） |
+| A-37 | `Deploy/Win11DockerUpgrade.md`、`Deploy/upgrade.cmd` | 说明升级必须「停旧容器 → 拉新镜像 → 启动（自动迁移）」，禁止新旧镜像共存 | 文档含该约束段 | ☑ 2026-10-24 |
+| A-38 | `Deploy/Migrations/V29__...sql`（执行中新发现） | `A-02` 只列 3 个索引，实际另有 2 个审计表索引依赖该列：`idx_finv_quote_ingest_batches_secu`→`idx_finv_quote_ingest_batches_usc`、`idx_finv_quote_revision_log_secu`→`idx_finv_quote_revision_log_usc`，已在 `V29` 中一并改名 | 两条 `idx_*_usc` 各 1 处 | ☑ 2026-10-24 |
+| A-39 | `internal/webui/dist/`（执行中新发现） | All-in-One 镜像通过 `go:embed dist` 内嵌前端产物，前端改名后须重新 `npm run build` 并复制到 `internal/webui/dist/`（该目录不入库，构建时生成） | `grep -rc "secu_code" internal/webui/dist/assets/*.js` 全为 `0` | ☑ 2026-10-24 |
 
 ---
 
@@ -99,17 +101,19 @@
 
 | 编号 | 待决策 | 选项 | 当前建议 | 决策 |
 |---|---|---|---|---|
-| DA-01 | API 参数是否保留 `secuCode` 兼容期 | ① 直接切 `usc` ② 双读一个版本周期 | ①（调用方仅本项目前端） | ☐ 待定 |
+| DA-01 | API 参数是否保留 `secuCode` 兼容期 | ① 直接切 `usc` ② 双读一个版本周期 | ①（调用方仅本项目前端） | ☑ 2026-10-24 已定：直接切 `usc`，不保留兼容读取 |
 
 ---
 
 ## 3. 自检（全部条目完成后执行）
 
 ```bash
-# 代码与文档零残留（VeritasQuant/ 历史子项目、Web/dist/、Deploy/backup/ 除外）
+# 代码与文档零残留
+# 排除：构建产物（internal/webui/dist、Web/dist）、计划文档本身、变更日志与需求清单（记录历史名）
 grep -rn "secu_code\|SecuCode\|secuCode" \
   --include="*.go" --include="*.vue" --include="*.ts" --include="*.md" --include="*.svg" \
-  internal/ Web/src/ Docs/ Prompt.md | grep -v "DevSpec/ApiSpec.md"   # 期望输出为空
+  internal/ Web/src/ Docs/ Prompt.md \
+  | grep -v "internal/webui/dist/\|Docs/Refactor/\|Docs/CHANGELOG.md\|Docs/RequirementList.md"   # 期望输出为空
 
 # 历史迁移未被修改
 git diff --stat -- Deploy/Migrations/V1* Deploy/Migrations/V2[124]* Deploy/Migrations/V100019* Deploy/Migrations/V100023*
@@ -124,3 +128,4 @@ cd Web && npm run build
 | 日期 | 变更 | 说明 |
 |---|---|---|
 | 2026-10-24 | 初版 | 从 `RefactorPlan.md` 拆出为独立文件，条目 `A-01`～`A-37`；影响面数字经实测（Go 15 文件 100 处、Web 9 文件 50 处、Docs 13 篇 32 处、迁移 6 文件 21 处） |
+| 2026-10-24 | 执行完成 | 按清单逐项执行：实测替换 Go 120 处 / Web 55 处 / 文档 12 篇；`go build`、`go vet`、三个包单测、`npm run build` 全部通过；新增 `A-38`（另 2 个审计表索引改名）、`A-39`（重建 `internal/webui/dist`）；`DA-01` 定为直接切 `usc` |

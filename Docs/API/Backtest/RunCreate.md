@@ -17,7 +17,7 @@
 | `env_id` | string | 可选 | 环境 ID（缺省取账户 env_id → 系统默认回测环境；环境 allow_backtest 必须为 `1`） |
 | `created_by` | string | 可选 | 创建人（默认 `console`，接入认证后为登录账号） |
 | `user_id` | string | 可选 | 所属用户（默认 `default`，多用户隔离） |
-| `secu_code` | string | 可选 | 回测标的（缺省取策略 universe.securities[0]，如 GCMain） |
+| `usc` | string | 可选 | 回测标的（缺省取策略 universe.securities[0]，如 GCMain） |
 | `start_date` | int | 可选 | 起始交易日 yyyymmdd（缺省用行情最早日期） |
 | `end_date` | int | 可选 | 结束交易日 yyyymmdd（缺省用行情最晚日期） |
 | `period` | string | 可选 | 数据周期 Min/Hour/Day（缺省取策略 data.period） |
@@ -42,7 +42,7 @@
   "strategy_id": "b0000000-0000-4000-8000-000000000001",
   "account_id": "a0000000-0000-4000-8000-000000000001",
   "env_id": "e0000000-0000-4000-8000-000000000001",
-  "secu_code": "GCMain",
+  "usc": "GCMain",
   "start_date": 20180101,
   "end_date": 20260731,
   "period": "Min",
@@ -62,7 +62,7 @@
     "run_no": 1,
     "status": "PENDING",
     "progress": 0,
-    "secu_code": "GCMain",
+    "usc": "GCMain",
     "period": "Min",
     "report_precision": "Day",
     "start_date": 20180101,

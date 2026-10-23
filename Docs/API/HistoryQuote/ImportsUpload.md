@@ -1,6 +1,6 @@
 # POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload — 历史行情文件导入
 
-上传 MVSV-1 分钟级历史行情文件，服务端解析后**字段级覆盖**导入 PostgreSQL `finv_quote_secu_kline_min` 表（主键 `ts + secu_code`；V21 起不再冗余存储 `market_code`，市场信息由 `finv_security` 字典关联获取）。
+上传 MVSV-1 分钟级历史行情文件，服务端解析后**字段级覆盖**导入 PostgreSQL `finv_quote_secu_kline_min` 表（主键 `ts + usc`；V21 起不再冗余存储 `market_code`，市场信息由 `finv_security` 字典关联获取）。
 
 > 📐 **MVSV-1 文件格式完整规范**（必填/可选头部键、两种列布局、数据行要求、一致性校验）见 [Docs/DataFormat/MvsvFileFormat.md](../../DataFormat/MvsvFileFormat.md)——**所有导出程序请按该规范生成文件**。
 
@@ -22,7 +22,7 @@
 |------|------|------|------|
 | `file` | file | ✅ | MVSV-1 行情文件（如 `US_NVDA_Min_V4_2026_2026072907_15000.mvsv`） |
 | `market_code` | string | 可选 | 市场数字代码（登记字段；填写后与文件头部 `MarketCode` 校验一致性） |
-| `secu_code` | string | 可选 | 证券代码（登记字段；填写后与文件头部 `Code` 校验一致性） |
+| `usc` | string | 可选 | 证券代码（登记字段；填写后与文件头部 `Code` 校验一致性） |
 | `source` | string | 可选 | 数据源名称（默认 `upload`） |
 | `upsert_mode` | string | 可选 | 覆盖模式：`FIELD`（字段级，默认）/ `ROW`（整行覆盖） |
 | `remark` | string | 可选 | 导入备注（非空时写入每行 `remark` 列） |
@@ -38,7 +38,7 @@
   "message": "行情导入完成",
   "data": {
     "batch_id": "import_NVDA_20260804080500",
-    "secu_code": "NVDA",
+    "usc": "NVDA",
     "market_code": 11,
     "record_count": 15000,
     "inserted": 15000,
@@ -51,7 +51,7 @@
 | data 字段 | 说明 |
 |-----------|------|
 | `batch_id` | 导入批次 ID（对应 `finv_quote_ingest_batches`） |
-| `secu_code` / `market_code` | 证券代码 / 市场数字代码（`secu_code` 来自文件头部 `Code`；`market_code` V21 起从 `finv_security` 字典关联获取，未登记返回 0） |
+| `usc` / `market_code` | 证券代码 / 市场数字代码（`usc` 来自文件头部 `Code`；`market_code` V21 起从 `finv_security` 字典关联获取，未登记返回 0） |
 | `record_count` | 本次导入记录数 |
 | `inserted` | 新增行数 |
 | `updated` | 覆盖行数（>0 时自动写入 `finv_quote_revision_log` 修正审计） |
@@ -100,7 +100,7 @@ const body = await response.json()
 
 ## 说明
 
-- 导入按主键 `(ts, secu_code)` 覆盖同键数据；`FIELD` 模式只覆盖新数据有值的字段（NULL 保留旧值）。
+- 导入按主键 `(ts, usc)` 覆盖同键数据；`FIELD` 模式只覆盖新数据有值的字段（NULL 保留旧值）。
 - 每次导入自动登记批次（`finv_quote_ingest_batches`）；发生覆盖时写入修正审计（`finv_quote_revision_log`），可追溯"改了哪些行、为什么"。
 - 支持分批上传多个文件：每文件一次上传即一个批次，重复上传同键数据按覆盖模式更新。
 

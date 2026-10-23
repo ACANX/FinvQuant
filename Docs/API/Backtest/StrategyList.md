@@ -14,7 +14,7 @@
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `keyword` | string | 可选 | 关键字，匹配 strategy_code / strategy_name / description / secu_code |
+| `keyword` | string | 可选 | 关键字，匹配 strategy_code / strategy_name / description / usc |
 | `allowBacktest` | string | 可选 | 按回测开关过滤：`0`（关闭）/ `1`（开启） |
 | `userId` | string | 可选 | 所属用户（默认 `default`，多用户隔离；接入 JWT/RBAC 后由登录态决定） |
 | `page` | int | 可选 | 页码（默认 1） |
@@ -38,7 +38,7 @@
         "definition": { "version": "1", "universe": { "securities": ["GCMain"] }, "indicators": [] },
         "definition_version": 1,
         "data_period": "Min",
-        "secu_code": "GCMain",
+        "usc": "GCMain",
         "user_id": "default",
         "template_id": null,
         "allow_backtest": "1",

@@ -54,7 +54,7 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 | 1 | `Format` | string | `"MVSV-1"` | **必须严格等于 `MVSV-1`** |
 | 2 | `Field` | string | `"ts\|dt\|o\|c\|l\|h\|v\|t\|cp\|cr\|p"` | **必须匹配 §3 支持的一种列布局**，否则报「Field 布局不支持」 |
 | 3 | `Count` | int | `15000` | **必须为非负整数**；且必须等于数据区实际记录行数（末尾不匹配报错） |
-| 4 | `Code` | string | `"NVDA"` / `"GCMain"` | 证券代码（通常与 FinvQuant 字典 usc 一致）；导入时作为 `secu_code` |
+| 4 | `Code` | string | `"NVDA"` / `"GCMain"` | 证券代码（通常与 FinvQuant 字典 usc 一致）；导入时作为 `usc` |
 | 5 | `Exchange` | string | `"NSDQ"` / `"COMEX"` | 交易所标识（**必填**，用户约定 2026-08-06） |
 | 6 | `ExchangeCode` | int | `31` / `33` | 交易所数字代码（**必填**，用户约定 2026-08-06） |
 | 7 | `Market` | string | `"NSDQ"` / `"COMEX"` | 市场标识（**必填**） |
@@ -116,7 +116,7 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 | 8 | `t` | 成交额 | Decimal | `turnover` |
 | 9 | `cp` | 涨跌值 | Decimal | **不落表**（忽略） |
 | 10 | `cr` | 涨跌幅（%） | Decimal | **不落表**（忽略） |
-| 11 | `p` | 前一收盘价 | Decimal | `prev_close` |
+| 11 | `p` | 前一收盘价 | Decimal | `last_close` |
 
 **数据行示例：**
 ```
@@ -142,7 +142,7 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 | 9 | `a` | 成交额 | Decimal | `turnover` |
 | 10 | `cp` | 涨跌值 | Decimal | **不落表**（忽略） |
 | 11 | `cr` | 涨跌幅（%） | Decimal | **不落表**（忽略） |
-| 12 | `p` | 前一收盘价 | Decimal | `prev_close` |
+| 12 | `p` | 前一收盘价 | Decimal | `last_close` |
 
 **数据行示例**（注意行尾允许残留旧 pc 空段 `\|`，解析器自动截断）：
 ```

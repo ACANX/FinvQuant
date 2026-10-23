@@ -41,7 +41,7 @@
 
 - 页面加载时并行拉取策略（allowBacktest=1）、账户（allowBacktest=1）、环境（BACKTEST 且开关开启）下拉；
   默认选中 GCMain 相关策略、首个账户、默认环境（is_default='1'）。
-- 选择策略后自动带出标的（secu_code）与默认周期（data_period）。
+- 选择策略后自动带出标的（usc）与默认周期（data_period）。
 - 日期输入为 yyyy-mm-dd，提交时转换为 yyyymmdd 整数；留空则不传（服务端取行情最早/最晚日期）。
 
 ### 4.2 后端调用链路
@@ -49,8 +49,8 @@
 | 步骤 | 接口 |
 |------|------|
 | 加载下拉选项 | `GET /API/V1/Meta/Finv/Quant/Backtest/Strategy/List`、`.../Account/List`、`.../Environment/List` |
-| 启动回测 | `POST /API/V1/Meta/Finv/Quant/Backtest/Run/Create`（含 strategy_id/account_id/env_id/secu_code/区间/周期/精度/options） |
-| 任务列表 | `GET /API/V1/Meta/Finv/Quant/Backtest/Run/List?secuCode=GCMain`（RUNNING/PENDING 时每 5s 轮询） |
+| 启动回测 | `POST /API/V1/Meta/Finv/Quant/Backtest/Run/Create`（含 strategy_id/account_id/env_id/usc/区间/周期/精度/options） |
+| 任务列表 | `GET /API/V1/Meta/Finv/Quant/Backtest/Run/List?usc=GCMain`（RUNNING/PENDING 时每 5s 轮询） |
 | 取消任务 | `POST /API/V1/Meta/Finv/Quant/Backtest/Run/Cancel`（RUNNING/PENDING 可取消） |
 
 ### 4.3 后端处理（Run/Create）

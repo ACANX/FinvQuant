@@ -20,7 +20,7 @@
 | `definition` | object | ✅ | 结构化策略定义（JSON 模型 v1，保存时编译校验） |
 | `definition_version` | int | 可选 | 定义版本（默认 1） |
 | `data_period` | string | 可选 | 默认周期 Min/Hour/Day |
-| `secu_code` | string | 可选 | 默认标的（缺省取 definition.universe.securities[0]） |
+| `usc` | string | 可选 | 默认标的（缺省取 definition.universe.securities[0]） |
 | `user_id` | string | 可选 | 所属用户（默认 `default`，多用户隔离） |
 | `template_id` | string | 可选 | 来源模板（finv_quant_template） |
 | `allow_backtest` | string | 可选 | 回测开关 `0`/`1`（默认 `1`） |

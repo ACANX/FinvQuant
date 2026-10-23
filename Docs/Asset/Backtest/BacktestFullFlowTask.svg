@@ -54,7 +54,7 @@
     <!-- 6 加载行情 -->
     <rect x="290" y="520" width="320" height="52" rx="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.5"/>
     <text x="450" y="540" text-anchor="middle" font-weight="bold">加载行情（区间过滤）</text>
-    <text x="450" y="558" text-anchor="middle" fill="#78909c" font-size="12">finv_quote_secu_kline_min 按 secu_code + date 区间 · 升序</text>
+    <text x="450" y="558" text-anchor="middle" fill="#78909c" font-size="12">finv_quote_secu_kline_min 按 usc + date 区间 · 升序</text>
     <line x1="450" y1="572" x2="450" y2="600" stroke="#546e7a" stroke-width="2" marker-end="url(#arrow)"/>
 
     <!-- 7 聚合 -->

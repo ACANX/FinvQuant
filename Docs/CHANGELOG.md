@@ -20,13 +20,19 @@
 
 - 新增本变更日志 `Docs/CHANGELOG.md`，汇总 0.1.0 及历史 VeritasQuant 版本的对外变更。
 - 开发规范新增「变更日志」强制要求：[`DevSpec/DocSpec.md`](DevSpec/DocSpec.md) 第 4 节、[`DevSpec/GitSpec.md`](DevSpec/GitSpec.md) 第 3 节，并在 [`DevSpec/FileNamingSpec.md`](DevSpec/FileNamingSpec.md) 中明确本文件名全大写。
-- 新增需求清单 [`RequirementList.md`](RequirementList.md)，采用五位数编号（自 `10001` 起），记录 2026-10-24 起的新增需求，首版 55 条；`AGENTS.md` 工作约定同步要求新增需求必须登记。
+- 新增需求清单 [`RequirementList.md`](RequirementList.md)，采用五位数编号（自 `10001` 起），记录 2026-10-24 起的新增需求，首版 65 条；`AGENTS.md` 工作约定同步要求新增需求必须登记。
 - 新增两份改造清单：改造项 A [`Refactor/2610-SecuCodeToUsc.md`](Refactor/2610-SecuCodeToUsc.md)（`secu_code` → `usc` 全库统一，`A-01`～`A-37`）、改造项 B [`Refactor/2610-PrevCloseToLastClose.md`](Refactor/2610-PrevCloseToLastClose.md)（`prev_close` → `last_close` 重命名 + `open` 兜底回填，`B-01`～`B-24`），共 61 个可勾选检查项与 4 项待决策；B 的删除动作暂缓，留待生产数据核实后另议。
 
 ### 变更
 
 - 统一跨平台换行策略：新增根目录 [`.gitattributes`](../.gitattributes)，所有文本文件以 LF 存储并检出，`*.cmd` / `*.bat` / `*.ps1` 保留 CRLF；规范见 [`DevSpec/FileEncodingSpec.md`](DevSpec/FileEncodingSpec.md) 第 4 节。
 - 按上述规则重规范化全库行尾，消除 Windows / Linux 开发环境间的纯行尾差异。
+- **破坏性变更（数据库）**：证券代码列 `secu_code` 统一正名为 `usc`，覆盖 6 张表（`finv_quote_secu_kline_min`、`finv_quote_ingest_batches`、`finv_quote_revision_log`、`finv_quant_backtest_strategy`、`finv_quant_backtest_run`、`finv_quant_backtest_run_archive`），5 个依赖索引同步改名；由迁移 `V29` 幂等执行，主键 `finv_quote_secu_kline_min_pkey` 名称不变、不重建。
+- **破坏性变更（接口）**：接口与表单中的证券代码字段统一为 `usc`，查询参数由 `secuCode` 改为 `usc`，不再接受旧名（`Quote/History/QuoteQuery`、`Imports/Upload`、`Backtest/Run/Create|List`、`Strategy/Save|List` 等）；`secu_name` 等其余字段不受影响。
+- **升级要求**：新旧镜像不可共存（旧版本无法读写新列名），必须先停旧容器再启动新版本，让服务启动时自动执行 `V29`；升级前请按备份流程做一次 `pg_dump`。
+- **破坏性变更（数据库）**：`finv_quote_secu_kline_min.prev_close` 重命名为 `last_close`（迁移 `V30`），口径为数据源的「前收盘价」，与 `open` 独立；涨跌额/涨跌幅仍按 `close - last_close` 计算，**计算逻辑与接口字段不变**，前端零改动。
+- **数据修复**：`open` 为 `NULL` 或 `0` 且 `last_close` 有效时，用 `last_close` 兜底回填（迁移 `V31`），并写入 `finv_quote_revision_log`（`ingest_batch_id = MIGRATION_V31`）留痕；新导入数据由导入链路按同一规则实时兜底，不再产生缺 `open` 的行。
+- **升级提示**：该回填**不可逆**（覆盖了原始缺失状态），升级前务必完成 `pg_dump` 备份；如需还原只能从备份恢复。
 
 ## [0.1.0] - 2026-08-08
 

@@ -17,8 +17,8 @@
 
 ## 3. URL 查询参数命名
 
-- **URL 查询参数统一使用小驼峰（lowerCamelCase）命名**：多词参数首词全小写、后续词首字母大写，例如 `pageSize`、`runId`、`secuCode`、`strategyId`、`allowBacktest`、`envType`、`templateType`、`userId`；
-- **禁止使用下划线分隔（snake_case）的查询参数名**，如 `page_size`、`run_id`、`secu_code`、`allow_backtest` 等均不允许出现在 URL 查询串中；
+- **URL 查询参数统一使用小驼峰（lowerCamelCase）命名**：多词参数首词全小写、后续词首字母大写，例如 `pageSize`、`runId`、`strategyId`、`allowBacktest`、`envType`、`templateType`、`userId`；
+- **禁止使用下划线分隔（snake_case）的查询参数名**，如 `page_size`、`run_id`、`start_ts`、`allow_backtest` 等均不允许出现在 URL 查询串中；
 - 单字参数保持全小写（如 `page`、`status`、`keyword`）；
 - 适用范围：所有 HTTP 请求的 URL 查询参数（GET 查询串与 POST 的 URL 查询部分），无论接口属于哪个业务模块；
 - **与 JSON 体字段严格区分**：JSON 请求/响应体（wire 字段）使用 snake_case，URL 查询参数使用 camelCase，两者互不套用、不得混用；
