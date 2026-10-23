@@ -13,13 +13,14 @@ import (
 
 // NewPool 建立 PG 连接池并 Ping 验证。
 //
-// search_path 固定为 public, quote, quant：
-//   - 业务表的 schema 归属：finv_quote_* 在 quote schema，finv_quant_* 在 quant schema，其余字典表保留 public；
+// search_path 固定为 public, quote, quant, futu：
+//   - 业务表的 schema 归属：finv_quote_* → quote、finv_quant_* → quant、
+//     finv_futu_* → futu，其余基础主数据表保留 public；
 //   - 历史种子迁移（V100xxx）的 SQL 写的是不带 schema 的表名，需靠 search_path 解析；
-//   - quote/quant 尚未创建时（首次建库 V1 起），PostgreSQL 会静默忽略不存在的 schema。
+//   - 这些 schema 尚未创建时（首次建库 V1 起），PostgreSQL 会静默忽略不存在的 schema。
 func NewPool(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
 	dsn := fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s?sslmode=disable&pool_max_conns=10&search_path=public,quote,quant",
+		"postgres://%s:%s@%s:%s/%s?sslmode=disable&pool_max_conns=10&search_path=public,quote,quant,futu",
 		cfg.PgUser, cfg.PgPassword, cfg.PgHost, cfg.PgPort, cfg.PgDatabase,
 	)
 	pool, err := pgxpool.New(ctx, dsn)
