@@ -1,0 +1,28 @@
+# 换行与文本属性规范（配合 Docs/DevSpec/FileEncodingSpec.md 第 4 节）
+# 原则：仓库内与工作区一律以 LF 存储和检出，Windows / Linux / macOS 三端完全一致，
+# 避免因编辑器或工具改写行尾产生「假修改」与跨平台 diff 噪声。
+# 仅 Windows 批处理脚本保留 CRLF（cmd.exe 对 LF 兼容性不稳定）。
+
+* text=auto eol=lf
+
+# Windows 批处理：必须 CRLF（且须 UTF-8 编码 + 首个有效命令 @chcp 65001）
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Shell 脚本：必须 LF（在 WSL / Linux 容器内执行，CRLF 会导致 shebang 失效）
+*.sh text eol=lf
+
+# 二进制资源：禁止换行转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.xlsx binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
