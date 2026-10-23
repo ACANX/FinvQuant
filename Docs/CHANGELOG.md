@@ -41,6 +41,15 @@
 - **连接要求更新**：`search_path` 扩展为 `public,quote,quant,futu`（应用连接串与数据库默认值同步）；Go 代码对本组表无引用，无需改后端 SQL。
 - **防回归校验**：新增 `TestSQLSchemaQualified`（`internal/database/schema_qualify_test.go`），扫描 `internal/`、`cmd/` 全部 Go 源码，要求涉及 `finv_quote_*` / `finv_quant_*` / `finv_futu_*` 的 CRUD 语句必须带 schema 全限定名（`quote.` / `quant.` / `futu.`）；漏写会让 `go test ./...` 失败，为后续系统融合的同名表场景兜底。
 - 规范补充：`DbSchemaSpec.md` 新增「融合前的同名表风险」——`public` 在 `search_path` 首位，新增同名表必须先移出首位并核验历史种子迁移。
+- **部署目录重组**：`Deploy/` 按部署方式拆分为 `Deploy/Docker/`（容器方式：`docker-compose.yml`、`Dockerfile`、`.env.example`、`deploy/upgrade/rollback` 脚本、三份 Windows Docker 文档）与 `Deploy/Native/`（宿主直装方式，当前仅说明文档）；两种方式共用的 `Migrations/`、`Backup/` 保留在 `Deploy/` 根下。
+- **目录命名**：备份目录由 `Deploy/backup/` 调整为 `Deploy/Backup/`（与 PascalCase 目录命名一致）；升级脚本、文档与 `.gitignore` 同步更新。
+- **构建路径调整**：`Dockerfile` 迁入 `Deploy/Docker/`，compose 的 `build.context` 改为 `../..`、`dockerfile` 为 `Deploy/Docker/Dockerfile`；CI workflow 的 `file` 同步更新。
+- 新增 [`Deploy/Native/README.md`](Deploy/Native/README.md)：明确 Native 方式的**适用场景与不适用场景**、采用前自检清单、与容器方式的责任边界，避免误用。
+- **Native 部署配套落地**：新增 `Deploy/Native/{README,Install,Upgrade}.md` 与 `Install.sh`、`Upgrade.sh`、`Uninstall.sh`、`FinvQuant.service`、`FinvQuant.env.example`、`Nginx.conf.example`；服务由 systemd 守护（`Restart=on-failure`、`EnvironmentFile`、安全加固、journald），安装脚本幂等并自动生成随机数据库密码、建库授权、健康检查；升级脚本按「备份 → 停服 → 备份旧二进制 → 替换 → 启动 → 健康检查」执行，支持 `--rollback` 回退程序。
+- **文件名按品牌大小写**：`FinvQuant.service`、`FinvQuant.env.example`（安装后注册为 `finvquant.service`，运维命令仍用 `systemctl ... finvquant`）。
+- **备份文件命名规范化**：数据库备份统一为 `finvquant_YYYYMMDD_HHMMSS.dump`（纯 ASCII，按名称即可排序）；
+  Docker 升级脚本改用 PowerShell 生成时间戳（不再截取 `%date%`，避免中文系统出现「周五」等字符与区域格式错乱）；
+  `Deploy/Backup/` 下 9 个历史备份已按实际生成时间重命名；规范写入 `FileNamingSpec.md` 第 5 节。
 
 ## [0.1.0] - 2026-08-08
 

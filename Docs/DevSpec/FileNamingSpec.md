@@ -21,6 +21,18 @@
 
 - 代码标识符、事件名和配置键使用清晰的**英文**。
 
+## 5. 生成物命名（备份 / 导出 / 日志归档）
+
+- 由脚本自动生成的文件（数据库备份、导出、日志归档）必须使用**纯 ASCII 的固定时间格式**：
+  - 数据库逻辑备份：`finvquant_YYYYMMDD_HHMMSS.dump`（例 `finvquant_20261024_012329.dump`）
+  - 其它生成物：`<业务名>_YYYYMMDD_HHMMSS.<扩展名>`
+- **禁止**在文件名中使用中文（含「周一/周五」等日期本地化文案）与本地化日期格式（如 `2026/08/07`）。
+- 时间戳必须由程序按固定格式生成，**不得截取系统区域化输出**：
+  - Windows Batch：`for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd_HHmmss"') do set "TS=%%i"`（不要用 `%date:~0,4%`，中文系统下 `%date%` 会包含「周五」等字符）；
+  - Shell：`date +%Y%m%d_%H%M%S`。
+- 时间取**执行机本地时区**，同一目录内按名称即天然按时间排序。
+- 备份文件不入库（`.gitignore` 覆盖 `Deploy/Backup/`），但仍须遵守本命名规则，便于跨平台拷贝与排错。
+
 ## 4. 过程文档的时间前缀（yyMM-）
 
 - 按阶段/批次新增的**过程文档**（计划、检查清单、改造方案、评审与验收报告等）文件名必须带 `yyMM-` 四位前缀：`yyMM` 为文档创建年月，后接大驼峰名称，例如 `Docs/Refactor/2610-SecuCodeToUsc.md`。

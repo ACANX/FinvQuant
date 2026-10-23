@@ -13,7 +13,11 @@
 ├── VeritasQuant/          # 子项目：VeritasQuant 量化交易平台（完整代码）
 ├── cmd/ internal/         # FinvQuant Go 服务端（量化平台服务端）
 ├── Web/                   # 前端（Vue3 + Vite8 + Vuetify4）
-├── Deploy/                # Docker Compose 部署编排
+├── Deploy/                # 部署编排（两种方式共用 Migrations/ 与 Backup/）
+│   ├── Docker/            # 容器方式：compose、Dockerfile、部署与升级脚本/文档
+│   ├── Native/            # 宿主直装方式：说明文档（脚本待补充）
+│   ├── Migrations/        # 数据库迁移（两种方式共用，内嵌进二进制）
+│   └── Backup/            # 数据库逻辑备份（两种方式共用，不入库）
 ├── .github/workflows/     # CI/CD（构建 + 推送 GHCR）
 ├── AGENTS.md              # 本文件（仓库级协作指南）
 ├── LICENSE                # MIT License（Copyright 2026 ACANX）

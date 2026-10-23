@@ -113,7 +113,7 @@
 | 10073 | 文档中除计划文档、变更日志与本清单外无旧字段名。 | `grep -rn "secu_code\|secuCode" Docs/ Prompt.md \| grep -v "Docs/Refactor/\|Docs/CHANGELOG.md\|Docs/RequirementList.md"` 输出为空 | |
 | 10074 | `CHANGELOG` 已记录该破坏性变更与升级要求。 | `grep -c "破坏性变更" Docs/CHANGELOG.md` 不小于 `2` | |
 | 10075 | 版本号已递增至 `0.1.1`。 | `cat VERSION` 输出 `0.1.1` | |
-| 10076 | 升级文档声明新旧镜像不可共存。 | `grep -c "禁止新旧镜像共存" Deploy/Win11DockerUpgrade.md` 输出 `1` | |
+| 10076 | 升级文档声明新旧镜像不可共存。 | `grep -c "禁止新旧镜像共存" Deploy/Docker/Win11DockerUpgrade.md` 输出 `1` | |
 | 10077 | 前端构建产物中不含旧字段名。 | `grep -rc "secu_code" Web/dist/assets/*.js` 全为 `0` | |
 | 10078 | `V29` 同时覆盖两个审计表的索引改名（执行中新发现，原清单 `A-02` 只列 3 个）。 | 脚本内包含 `idx_finv_quote_ingest_batches_usc` 与 `idx_finv_quote_revision_log_usc` | |
 | 10079 | All-in-One 内嵌产物 `internal/webui/dist` 已按新前端重新生成（执行中新发现，清单原未列）。 | `grep -rc "secu_code" internal/webui/dist/assets/*.js` 全为 `0` | |
@@ -191,6 +191,34 @@
 | 10123 | 代码中存在未限定表名时校验会失败（非空跑）。 | 临时新增一行 `SELECT 1 FROM finv_quote_secu_kline_min` 后 `go test ./internal/database/ -run TestSQLSchemaQualified` 退出码非 0，删除后恢复 0 | |
 | 10124 | 规范文档记录强制规则与融合前同名表风险。 | `grep -c "融合前的同名表风险" Docs/DevSpec/DbSchemaSpec.md` 输出 `1` | |
 
+## 十一、部署目录结构与 Native 说明（10125–10131）
+
+> 背景：为支持「容器」与「宿主直装」两种部署方式，`Deploy/` 按方式分目录；Native 方式须明确适用边界。
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10125 | Docker 方式专属文件位于 `Deploy/Docker/`。 | `Deploy/Docker/` 下存在 `docker-compose.yml`、`Dockerfile`、`.env.example`、`deploy.cmd`、`upgrade.cmd`、`rollback.cmd` | |
+| 10126 | 共用文件保留在 `Deploy/` 根下。 | `Deploy/Migrations/` 与 `Deploy/Backup/` 均存在 | |
+| 10127 | 备份目录名为 `Backup`（首字母大写，无小写同名目录）。 | `ls Deploy/ \| grep -x Backup` 输出 `Backup`；`ls Deploy/ \| grep -cx backup` 输出 `0`（Windows 大小写不敏感，以 `ls` 实际输出为准） | |
+| 10128 | compose 的构建路径指向新位置。 | `grep -n "dockerfile: Deploy/Docker/Dockerfile" Deploy/Docker/docker-compose.yml` 输出 `1` | |
+| 10129 | CI 使用新的 Dockerfile 路径。 | `grep -c "file: Deploy/Docker/Dockerfile" .github/workflows/CI.yml` 输出 `2` | |
+| 10130 | Native 目录含说明文档，且写明适用与不适用场景。 | `grep -c "适用场景（以下场景才建议选 Native）" Deploy/Native/README.md` 与 `grep -c "不适用场景" Deploy/Native/README.md` 均不小于 `1` | |
+| 10131 | 面向使用者的文档不再出现旧的 Docker 部署路径。 | `grep -rn "Deploy/\.env\|Deploy/docker-compose.yml\|Deploy/Win11Docker" README.md Prompt.md` 输出为空 | |
+
+## 十二、Native 部署配套与生成物命名（10132–10140）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10132 | Native 目录下脚本与配置文件采用大驼峰文件名。 | `ls Deploy/Native/` 中 `.sh` 与品牌名文件均以大写字母开头（`Install.sh`、`Upgrade.sh`、`Uninstall.sh`、`FinvQuant.service`、`FinvQuant.env.example`） | |
+| 10133 | systemd unit 源文件名按品牌写作 `FinvQuant.service`（无小写 s 变体）。 | `ls Deploy/Native/ \| grep -x FinvQuant.service` 输出 1 行；`ls Deploy/Native/ \| grep -cx Finvquant.service` 输出 `0`（Windows 大小写不敏感，以 `ls` 实际输出为准） | |
+| 10134 | unit 含运行所需关键指令。 | `grep -cE "^(ExecStart|EnvironmentFile|Restart|User|WantedBy)=" Deploy/Native/FinvQuant.service` 输出 `5` | |
+| 10135 | 三个 Shell 脚本通过语法检查。 | `bash -n Deploy/Native/{Install,Upgrade,Uninstall}.sh` 退出码均为 0 | |
+| 10136 | Native 升级脚本的备份命名为 `finvquant_YYYYMMDD_HHMMSS.dump`。 | `grep -c "finvquant_\$(date +%Y%m%d_%H%M%S).dump" Deploy/Native/Upgrade.sh` 输出 `1` | |
+| 10137 | 现有备份文件名均为纯 ASCII 且符合时间格式。 | `ls Deploy/Backup/*.dump` 的文件名全部匹配 `finvquant_[0-9]{8}_[0-9]{6}\.dump` | |
+| 10138 | Docker 升级脚本不依赖 `%date%` 截取时间。 | `grep -c "powershell -NoProfile -Command \"Get-Date -Format yyyyMMdd_HHmmss\"" Deploy/Docker/upgrade.cmd` 输出 `1`，且该文件无 `%date:~` | |
+| 10139 | 命名规范记录生成物（备份/导出）命名规则。 | `grep -c "finvquant_YYYYMMDD_HHMMSS.dump" Docs/DevSpec/FileNamingSpec.md` 输出 `1` | |
+| 10140 | Native 目录 README 的文件清单与实际文件一致。 | README 第 7 节列出的文件逐个 `test -f Deploy/Native/<name>` 均成功 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -205,7 +233,9 @@
 | 改造项 C 验收 | 10092–10107 | 16 |
 | 改造项 D 验收 | 10108–10120 | 13 |
 | SQL schema 限定防回归 | 10121–10124 | 4 |
-| **合计** | **10001–10124** | **124** |
+| 部署目录结构与 Native 说明 | 10125–10131 | 7 |
+| Native 部署配套与生成物命名 | 10132–10140 | 9 |
+| **合计** | **10001–10140** | **140** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10125` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10141` 起往后追加，不插入既有区间。

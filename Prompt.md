@@ -89,8 +89,8 @@ FinvQuant 是一个**量化策略交易平台**，采用**前后端分离**架�
 
 ```bash
 # 方式一：Compose 一键（含 PG18 / Redis8）
-cp Deploy/.env.example Deploy/.env   # 按需修改
-docker compose --env-file Deploy/.env up -d
+cp Deploy/Docker/.env.example Deploy/Docker/.env   # 按需修改
+docker compose -f Deploy/Docker/docker-compose.yml --env-file Deploy/Docker/.env up -d
 
 # 方式二：直接拉取 All-in-One 镜像运行
 docker pull ghcr.io/acanx/finvquant:latest
@@ -113,7 +113,7 @@ docker run -d --name finvquant -p 16001:16001 -p 16002:16002 \
 | Linux/macOS | `/data/finvquant/postgresql` |
 
 ```dotenv
-# Deploy/.env
+# Deploy/Docker/.env
 FINV_PG_DATA_DIR=D:/Dev/Docker/HostFileSystem/FinvQuant/PostgreSQL
 ```
 
