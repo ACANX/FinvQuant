@@ -1,0 +1,43 @@
+[Unit]
+Description=FinvQuant 量化策略交易平台（API 16001 / Web 16002）
+Documentation=file:///opt/finvquant/Docs/README.md
+# 数据库与缓存须先就绪；二者由宿主机自行安装维护
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+# 仅声明顺序依赖，不强制要求 unit 名完全一致（不同发行版 Redis unit 名不同：redis / redis-server）
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=finvquant
+Group=finvquant
+WorkingDirectory=/opt/finvquant
+
+# 配置全部来自 EnvironmentFile（键名与容器方式一致，仅连接地址不同）
+EnvironmentFile=/etc/finvquant/finvquant.env
+ExecStart=/opt/finvquant/finvquant
+Restart=on-failure
+RestartSec=5s
+# 停止时给正在进行的迁移/导入留出收尾时间
+TimeoutStopSec=30s
+
+# 资源与句柄
+LimitNOFILE=65535
+
+# 安全加固
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths=/opt/finvquant /etc/finvquant
+
+# 日志统一走 journald（journalctl -u finvquant）
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=finvquant
+
+[Install]
+WantedBy=multi-user.target
