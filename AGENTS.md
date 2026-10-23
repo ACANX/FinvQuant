@@ -51,8 +51,8 @@ FinvQuant 是一个面向多资产的**严格事件驱动量化交易平台**，
 | [`Docs/DevSpec/ApiSpec.md`](Docs/DevSpec/ApiSpec.md) | API 规范（响应信封/异常映射） |
 | [`Docs/DevSpec/ErrorCodeSpec.md`](Docs/DevSpec/ErrorCodeSpec.md) | 错误码规范（号段/目录） |
 | [`Docs/DevSpec/FileNamingSpec.md`](Docs/DevSpec/FileNamingSpec.md) | 文件命名规范 |
-| [`Docs/DevSpec/DocSpec.md`](Docs/DevSpec/DocSpec.md) | 文档规范 |
-| [`Docs/DevSpec/GitSpec.md`](Docs/DevSpec/GitSpec.md) | Git 提交规范 |
+| [`Docs/DevSpec/DocSpec.md`](Docs/DevSpec/DocSpec.md) | 文档规范（含变更日志 `Docs/CHANGELOG.md` 强制要求） |
+| [`Docs/DevSpec/GitSpec.md`](Docs/DevSpec/GitSpec.md) | Git 提交规范（含变更日志联动） |
 | [`Docs/DevSpec/FileEncodingSpec.md`](Docs/DevSpec/FileEncodingSpec.md) | 文件编码规范 |
 
 ## 工作约定
@@ -62,3 +62,4 @@ FinvQuant 是一个面向多资产的**严格事件驱动量化交易平台**，
 - Go 服务端（`cmd/`、`internal/`）与前端（`Web/`）的开发约定见 `Prompt.md` 与各自代码注释。
 - 仓库级本文件只负责结构说明；项目级规则一律以 `VeritasQuant/AGENTS.md` 为准。
 - 根目录文件（`.gitignore`、`AGENTS.md`、`LICENSE`、`README.md`）描述仓库外壳，不描述项目内部行为。
+- **新增需求必须登记**：在 [`Docs/RequirementList.md`](Docs/RequirementList.md) 追加条目（五位数编号，自 `10001` 起只增不改，一条只描述一个要求并附可执行的核对方式），并按 [`Docs/DevSpec/DocSpec.md`](Docs/DevSpec/DocSpec.md) §4 同步更新 [`Docs/CHANGELOG.md`](Docs/CHANGELOG.md)。
