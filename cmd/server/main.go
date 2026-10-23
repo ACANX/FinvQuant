@@ -48,7 +48,7 @@ func main() {
 	}
 	defer pool.Close()
 
-	// 应用数据库迁移（启动时幂等；finv_quote_secu_kline_min 建表）
+	// 应用数据库迁移（启动时幂等；quote.finv_quote_secu_kline_min 等域表建表）
 	migrateCtx, migrateCancel := context.WithTimeout(ctx, 30*time.Second)
 	if err := database.Migrate(migrateCtx, pool, cfg.MigrationsDir()); err != nil {
 		migrateCancel()
