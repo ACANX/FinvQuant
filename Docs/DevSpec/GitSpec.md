@@ -33,5 +33,6 @@
   - **同一快照的所有产物必须共用同一个时间戳**：时间戳由 CI 首个 job（`snapshot-meta`）只算一次，通过 job outputs 传给所有产物 job，禁止各 job 自行 `date`。
   - 快照包产物：Ubuntu 26.04（`tar.gz`，`amd64` + `arm64`）、Windows 11（`zip`，`amd64`）。
   - 快照 release 一律标记 prerelease，不覆盖、不复用已有版本号。
-- 产物命名：`FinvQuant_{快照版本}_{ubuntu|windows}_{amd64|arm64}.{tar.gz|zip}`，产物目录 `Dist/`。
-  - 命名示例：`FinvQuant_v0.1.1.00123.2610241530_ubuntu_arm64.tar.gz`。
+- 产物命名：`FinvQuant-{快照版本}-{ubuntu|windows}-{amd64|arm64}.{tar.gz|zip}`，产物目录 `Dist/`，各部分用连字符连接。
+  - 命名示例：`FinvQuant-v0.1.1.00123.2610241530-ubuntu-arm64.tar.gz`。
+  - 快照 release 标题：`{快照版本}-FinvQuant`（如 `v0.1.1.00123.2610241530-FinvQuant`），git tag 仍为 `{快照版本}`。

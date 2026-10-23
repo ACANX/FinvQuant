@@ -35,12 +35,12 @@ Deploy\Script\PackSnapshot.cmd
 
 ```
 Dist/
-├── FinvQuant_v0.1.1.00000.2610241530_ubuntu_amd64.tar.gz   14M
-├── FinvQuant_v0.1.1.00000.2610241530_ubuntu_amd64.tar.gz.sha256
-├── FinvQuant_v0.1.1.00000.2610241530_ubuntu_arm64.tar.gz   12M
-├── FinvQuant_v0.1.1.00000.2610241530_ubuntu_arm64.tar.gz.sha256
-├── FinvQuant_v0.1.1.00000.2610241530_windows_amd64.zip           14M
-└── FinvQuant_v0.1.1.00000.2610241530_windows_amd64.zip.sha256
+├── FinvQuant-v0.1.1.00000.2610241530-ubuntu-amd64.tar.gz   14M
+├── FinvQuant-v0.1.1.00000.2610241530-ubuntu-amd64.tar.gz.sha256
+├── FinvQuant-v0.1.1.00000.2610241530-ubuntu-arm64.tar.gz   12M
+├── FinvQuant-v0.1.1.00000.2610241530-ubuntu-arm64.tar.gz.sha256
+├── FinvQuant-v0.1.1.00000.2610241530-windows-amd64.zip           14M
+└── FinvQuant-v0.1.1.00000.2610241530-windows-amd64.zip.sha256
 ```
 
 ## 3. 参数
@@ -87,7 +87,7 @@ bash Deploy/Script/PackSnapshot.sh --version v0.1.1.00123.2610241530
 ### 5.1 Linux 包（`tar.gz`）
 
 ```
-FinvQuant_v0.1.1.00123.2610241530_ubuntu_arm64/
+FinvQuant-v0.1.1.00123.2610241530-ubuntu-arm64/
 ├── finvquant                 # 静态链接、stripped；amd64 或 aarch64（按包名）
 ├── Deploy/
 │   ├── Migrations/           # 62 个迁移脚本（V1～V37、V100000～V100024）
@@ -105,7 +105,7 @@ FinvQuant_v0.1.1.00123.2610241530_ubuntu_arm64/
 ### 5.2 Windows 包（`zip`）
 
 ```
-FinvQuant_v0.1.1.00123.2610241530_windows_amd64/
+FinvQuant-v0.1.1.00123.2610241530-windows-amd64/
 ├── finvquant.exe
 ├── Deploy/
 │   ├── Migrations/
@@ -124,11 +124,11 @@ FinvQuant_v0.1.1.00123.2610241530_windows_amd64/
 
 ```bash
 # 校验包内文件完整性
-tar -xzf FinvQuant_xxx_ubuntu_amd64.tar.gz
-cd FinvQuant_xxx_ubuntu_amd64 && sha256sum -c SHA256SUMS
+tar -xzf FinvQuant-xxx-ubuntu-amd64.tar.gz
+cd FinvQuant-xxx-ubuntu-amd64 && sha256sum -c SHA256SUMS
 
 # 校验下载到的包本身
-sha256sum -c FinvQuant_xxx_ubuntu_amd64.tar.gz.sha256
+sha256sum -c FinvQuant-xxx-ubuntu-amd64.tar.gz.sha256
 ```
 
 ## 6. 环境要求

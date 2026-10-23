@@ -48,6 +48,7 @@
 - **Native 部署配套落地**：新增 `Deploy/Native/{README,Install,Upgrade}.md` 与 `Install.sh`、`Upgrade.sh`、`Uninstall.sh`、`FinvQuant.service`、`FinvQuant.env.example`、`Nginx.conf.example`；服务由 systemd 守护（`Restart=on-failure`、`EnvironmentFile`、安全加固、journald），安装脚本幂等并自动生成随机数据库密码、建库授权、健康检查；升级脚本按「备份 → 停服 → 备份旧二进制 → 替换 → 启动 → 健康检查」执行，支持 `--rollback` 回退程序。
 - **文件名按品牌大小写**：`FinvQuant.service`、`FinvQuant.env.example`（安装后注册为 `finvquant.service`，运维命令仍用 `systemctl ... finvquant`）。
 - 新增 [`Deploy/README.md`](Deploy/README.md)：部署目录总览——两种方式的目录边界与选择建议、共用 `Migrations/` 与 `Backup/` 的说明、两种方式共同遵守的约束（禁止新旧共存、升级前备份、schema 限定）、目录命名约定。
+- **快照产物命名改用连字符**：`FinvQuant-v0.1.1.00000.2610240325-ubuntu-amd64.tar.gz`（原 `FinvQuant_v0.1.1.00000.2610240325_ubuntu_amd64.tar.gz`），包内顶层目录名同步；快照 release 标题改为 `{快照版本}-FinvQuant`（如 `v0.1.1.00000.2610240325-FinvQuant`），git tag 仍为 `{快照版本}`；release 说明删除「BUILD-INFO 时间戳一致」「SHA256SUMS 校验方式」两句冗余描述。
 - **`BUILD-INFO.txt` 补全 CI 溯源信息**：CI 构建时写入运行号（`CI run <id>`）、仓库地址与流水线链接（经 `CI_RUN_ID`/`BUILD_REPO`/`BUILD_RUN_URL` 环境变量传入），本地构建时这几行自动省略。
 - **快照产物命名规范调整**（`PackSnapshot.sh` / CI 同步）：产物目录 `dist/` → **`Dist/`**；包名前缀 `finvquant_` → **`FinvQuant_`**；平台段 `ubuntu2604` → **`ubuntu`**、`win11` → **`windows`**。新命名示例：`FinvQuant_v0.1.1.00123.2610241530_ubuntu_arm64.tar.gz`。本次仅改命名与输出目录，包内容与打包流程不变。
 - **新增 [`Deploy/Script/README.md`](Deploy/Script/README.md)（打包脚本文档）**：文件职责与「改打包只改 .sh」的维护约定、快速开始、全部参数表（含默认值）、版本三段来源与一致性保证、两种包的目录树与 `SHA256SUMS` 用法、环境要求、native/WSL/Git Bash 三环境差异与 zip 后端回退链、6 个常用配方、产物校验命令（架构字节/时间戳一致性/zip 正斜杠）、9 条常见问题、与 CI 三个 job 的调用关系；`Deploy/README.md` §2.3 相应精简为概览并链接该文档。

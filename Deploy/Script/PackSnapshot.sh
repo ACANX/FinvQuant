@@ -270,7 +270,7 @@ OUT_DIR=$(cd "${OUT_DIR}" && pwd)
 # ---------------------------------------------------------------------
 for T in "${TARGETS[@]}"; do
     IFS='|' read -r GOOS_V GOARCH_V OS_LABEL EXT ARCHIVE <<< "$(target_meta "${T}")"
-    NAME="FinvQuant_${SNAPSHOT_VERSION}_${OS_LABEL}_${GOARCH_V}"
+    NAME="FinvQuant-${SNAPSHOT_VERSION}-${OS_LABEL}-${GOARCH_V}"
     PKG_ROOT="${ROOT}/pkg/${NAME}"
 
     log "── 构建 ${T} → ${NAME}.${ARCHIVE}"

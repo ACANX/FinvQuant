@@ -405,18 +405,15 @@ jobs:
 
           ## 产物
 
-          - Ubuntu 26.04 x86_64（linux/amd64）：\`FinvQuant_${VER}_ubuntu_amd64.tar.gz\`
-          - Ubuntu 26.04 aarch64（linux/arm64）：\`FinvQuant_${VER}_ubuntu_arm64.tar.gz\`
-          - Windows 11 x64（windows/amd64）：\`FinvQuant_${VER}_windows_amd64.zip\`
-
-          两个包内 \`BUILD-INFO.txt\` 的时间戳与版本号一致，可核对同源；
-          \`SHA256SUMS\` 为包内文件校验和，包本身的校验见同名 \`.sha256\` 文件。
+          - Ubuntu 26.04 x86_64（linux/amd64）：\`FinvQuant-${VER}-ubuntu-amd64.tar.gz\`
+          - Ubuntu 26.04 aarch64（linux/arm64）：\`FinvQuant-${VER}-ubuntu-arm64.tar.gz\`
+          - Windows 11 x64（windows/amd64）：\`FinvQuant-${VER}-windows-amd64.zip\`
 
           > 快照为集成验证用预发布版本，不保证稳定，请勿用于生产。
           EOF
           gh release create "${VER}" \
             --target "${{ github.sha }}" \
-            --title "FinvQuant 快照 ${VER}" \
+            --title "${VER}-FinvQuant" \
             --prerelease \
             --notes-file notes.md \
             Dist/*
