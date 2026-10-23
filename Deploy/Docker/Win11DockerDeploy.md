@@ -1,5 +1,7 @@
 # FinvQuant 部署到 Windows 11 Docker（部署文档）
 
+> 部署方式总览（Docker / Native 两种方式与共用迁移、备份）：[`../README.md`](../README.md)
+
 > 所属：FinvQuant 部署 · 存放：`Deploy/Win11DockerDeploy.md`
 > 编排文件：[`Deploy/docker-compose.yml`](docker-compose.yml) · 环境变量示例：[`Deploy/.env.example`](.env.example)
 > 适用：首次在 **Windows 11** 上通过 Docker Compose 部署 FinvQuant（All-in-One）。

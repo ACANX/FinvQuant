@@ -47,6 +47,7 @@
 - 新增 [`Deploy/Native/README.md`](Deploy/Native/README.md)：明确 Native 方式的**适用场景与不适用场景**、采用前自检清单、与容器方式的责任边界，避免误用。
 - **Native 部署配套落地**：新增 `Deploy/Native/{README,Install,Upgrade}.md` 与 `Install.sh`、`Upgrade.sh`、`Uninstall.sh`、`FinvQuant.service`、`FinvQuant.env.example`、`Nginx.conf.example`；服务由 systemd 守护（`Restart=on-failure`、`EnvironmentFile`、安全加固、journald），安装脚本幂等并自动生成随机数据库密码、建库授权、健康检查；升级脚本按「备份 → 停服 → 备份旧二进制 → 替换 → 启动 → 健康检查」执行，支持 `--rollback` 回退程序。
 - **文件名按品牌大小写**：`FinvQuant.service`、`FinvQuant.env.example`（安装后注册为 `finvquant.service`，运维命令仍用 `systemctl ... finvquant`）。
+- 新增 [`Deploy/README.md`](Deploy/README.md)：部署目录总览——两种方式的目录边界与选择建议、共用 `Migrations/` 与 `Backup/` 的说明、两种方式共同遵守的约束（禁止新旧共存、升级前备份、schema 限定）、目录命名约定。
 - **备份文件命名规范化**：数据库备份统一为 `finvquant_YYYYMMDD_HHMMSS.dump`（纯 ASCII，按名称即可排序）；
   Docker 升级脚本改用 PowerShell 生成时间戳（不再截取 `%date%`，避免中文系统出现「周五」等字符与区域格式错乱）；
   `Deploy/Backup/` 下 9 个历史备份已按实际生成时间重命名；规范写入 `FileNamingSpec.md` 第 5 节。

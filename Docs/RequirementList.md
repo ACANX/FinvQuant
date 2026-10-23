@@ -219,6 +219,15 @@
 | 10139 | 命名规范记录生成物（备份/导出）命名规则。 | `grep -c "finvquant_YYYYMMDD_HHMMSS.dump" Docs/DevSpec/FileNamingSpec.md` 输出 `1` | |
 | 10140 | Native 目录 README 的文件清单与实际文件一致。 | README 第 7 节列出的文件逐个 `test -f Deploy/Native/<name>` 均成功 | |
 
+## 十三、Deploy 目录总览文档（10141–10144）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10141 | `Deploy/` 根下存在总览文档。 | `test -f Deploy/README.md` | |
+| 10142 | 总览文档说明两种部署方式目录与共用目录。 | `grep -c "Docker/\|Native/\|Migrations/\|Backup/" Deploy/README.md` 不小于 `4` | |
+| 10143 | 总览文档列出两种方式共同遵守的约束。 | `grep -c "禁止新旧共存\|升级前必须备份\|schema 限定" Deploy/README.md` 不小于 `3` | |
+| 10144 | 根 README 与 Native 文档均链接到该总览。 | `grep -c "Deploy/README.md" README.md` 不小于 `1`；`grep -c "../README.md" Deploy/Native/README.md` 不小于 `1` | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -235,7 +244,8 @@
 | SQL schema 限定防回归 | 10121–10124 | 4 |
 | 部署目录结构与 Native 说明 | 10125–10131 | 7 |
 | Native 部署配套与生成物命名 | 10132–10140 | 9 |
-| **合计** | **10001–10140** | **140** |
+| Deploy 目录总览文档 | 10141–10144 | 4 |
+| **合计** | **10001–10144** | **144** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10141` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10145` 起往后追加，不插入既有区间。

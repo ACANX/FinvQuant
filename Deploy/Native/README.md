@@ -3,6 +3,7 @@
 > **状态：脚本与文档已提供，尚未在目标 VPS 实机验证** —— 首次部署请先在测试机完整走一遍
 > [`Install.md`](Install.md)，确认无误后再用于生产；升级前务必阅读 [`Upgrade.md`](Upgrade.md) 的回滚约束。
 >
+> 上级目录说明（两种方式如何共存与共用迁移/备份）：[`../README.md`](../README.md)  
 > 所属：FinvQuant 部署 · 存放：`Deploy/Native/`
 > 定位：与 [`../Docker/`](../Docker/) 并列的**传统部署方式**——在 Linux 主机上直接安装 PostgreSQL、Redis
 > 与 `finvquant` 二进制，不引入任何容器运行时。
