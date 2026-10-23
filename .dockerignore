@@ -1,0 +1,36 @@
+# Docker 构建上下文排除规则
+# 说明：compose 的 build.context 是仓库根目录（Deploy/Docker/ 上两级），
+#       Dockerfile 末尾 `COPY . .` 会带走整个上下文，因此必须排除大件与敏感文件。
+# 维护：新增顶层大目录（如 samples/、tools/）时同步追加，避免构建拖慢到几百 MB。
+
+# ---- 版本控制与 CI ----
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# ---- 文档、归档与历史子项目（不参与镜像构建）----
+Docs/
+Archive/
+VeritasQuant/
+AGENTS.md
+Prompt.md
+README.md
+LICENSE
+
+# ---- 部署产物与本地数据（严禁进镜像）----
+Deploy/Backup/
+Deploy/Docker/pgdata/
+Deploy/Docker/.env
+Deploy/Docker/.env.bak
+Deploy/Native/
+
+# ---- 前端依赖与产物（镜像内重新安装与构建）----
+Web/node_modules/
+Web/dist/
+
+# ---- 本地构建产物 ----
+bin/
+dist/
+*.exe
+/finvquant

@@ -145,7 +145,7 @@ if "!NEED_UPGRADE!"=="1" (
         echo   备份 .env -^> Deploy\Docker\.env.bak
         copy /Y "Deploy\Docker\.env" "Deploy\Docker\.env.bak" >nul
         echo   备份数据库（pg_dump，含表结构与数据）...
-        docker exec fq-postgres pg_dump -U finvquant -d finvquant -F c -f /tmp/finvquant_backup.dump >nul 2>&1
+        docker exec fq-postgres pg_dump -U finv -d finv -F c -f /tmp/finvquant_backup.dump >nul 2>&1
         if errorlevel 1 (
             echo   [WARN] 数据库备份失败（可能 PG 未就绪），继续升级；如后续迁移异常请手动备份
         ) else (
@@ -203,7 +203,7 @@ curl -s http://localhost:16001/API/V1/Health/Live 2>nul & echo.
 echo   - 容器状态：
 docker ps --filter "name=finvquant" --format "  {{.Names}}: {{.Status}}"
 echo   - 数据库迁移记录（最新 3 条）：
-docker exec fq-postgres psql -U finvquant -d finvquant -tc "SELECT version FROM schema_version ORDER BY version::int DESC LIMIT 3;" 2>nul
+docker exec fq-postgres psql -U finv -d finv -tc "SELECT version FROM schema_version ORDER BY version::int DESC LIMIT 3;" 2>nul
 
 :done
 echo.

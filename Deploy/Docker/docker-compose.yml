@@ -32,9 +32,9 @@ services:
       FINV_WEB_PORT: "16002"
       FINV_PG_HOST: postgres
       FINV_PG_PORT: "5432"
-      FINV_PG_USER: ${FINV_PG_USER:-finvquant}
+      FINV_PG_USER: ${FINV_PG_USER:-finv}
       FINV_PG_PASSWORD: ${FINV_PG_PASSWORD:-finvquant}
-      FINV_PG_DATABASE: ${FINV_PG_DATABASE:-finvquant}
+      FINV_PG_DATABASE: ${FINV_PG_DATABASE:-finv}
       FINV_REDIS_ADDR: redis:6379
       FINV_REDIS_PASSWORD: ${FINV_REDIS_PASSWORD:-}
       FINV_MODE: release
@@ -54,9 +54,9 @@ services:
     image: postgres:18-alpine
     container_name: ${FINV_PG_CONTAINER_NAME:-fq-postgres}
     environment:
-      POSTGRES_USER: ${FINV_PG_USER:-finvquant}
+      POSTGRES_USER: ${FINV_PG_USER:-finv}
       POSTGRES_PASSWORD: ${FINV_PG_PASSWORD:-finvquant}
-      POSTGRES_DB: ${FINV_PG_DATABASE:-finvquant}
+      POSTGRES_DB: ${FINV_PG_DATABASE:-finv}
       TZ: ${TZ:-Asia/Shanghai}
     ports:
       # PG 端口暴露到宿主机（默认 5432，PG 客户端直接连 localhost:5432；
@@ -71,7 +71,7 @@ services:
       #    会被镜像判定为 unused mount 并拒绝启动。
       - ${FINV_PG_DATA_DIR:-./pgdata}:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${FINV_PG_USER:-finvquant} -d ${FINV_PG_DATABASE:-finvquant}"]
+      test: ["CMD-SHELL", "pg_isready -U ${FINV_PG_USER:-finv} -d ${FINV_PG_DATABASE:-finv}"]
       interval: 10s
       timeout: 5s
       retries: 5

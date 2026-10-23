@@ -182,8 +182,8 @@ fi
 # ---------------------------------------------------------------------
 if [[ "${SKIP_DB}" -eq 0 ]]; then
   step "8/9 创建数据库与角色"
-  DB_NAME="$(grep -E '^FINV_PG_DATABASE=' "${ENV_FILE}" | cut -d= -f2- || echo finvquant)"
-  DB_USER="$(grep -E '^FINV_PG_USER=' "${ENV_FILE}" | cut -d= -f2- || echo finvquant)"
+  DB_NAME="$(grep -E '^FINV_PG_DATABASE=' "${ENV_FILE}" | cut -d= -f2- || echo finv)"
+  DB_USER="$(grep -E '^FINV_PG_USER=' "${ENV_FILE}" | cut -d= -f2- || echo finv)"
   run_psql() { sudo -u postgres psql -v ON_ERROR_STOP=1 -tAc "$1" >/dev/null; }
   run_psql "DO \$\$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}') THEN

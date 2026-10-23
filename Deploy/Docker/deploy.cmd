@@ -121,7 +121,7 @@ curl -s http://localhost:16001/API/V1/Health/Live 2>nul & echo.
 echo   - 容器状态：
 docker ps --filter "name=finvquant" --filter "name=postgres" --filter "name=redis" --format "  {{.Names}}: {{.Status}}"
 echo   - 数据库迁移记录（最新 3 条）：
-docker exec fq-postgres psql -U finvquant -d finvquant -tc "SELECT version FROM schema_version ORDER BY version::int DESC LIMIT 3;" 2>nul
+docker exec fq-postgres psql -U finv -d finv -tc "SELECT version FROM schema_version ORDER BY version::int DESC LIMIT 3;" 2>nul
 
 echo.
 echo ============================================================
