@@ -37,6 +37,8 @@ __pycache__/
 .coverage
 build/
 dist/
+pkg/
+.tmp-snap/
 *.egg-info/
 
 # ---- Node（Web 前端兜底）----

@@ -1,11 +1,19 @@
 # FinvQuant CI/CD：构建并推送 All-in-One 镜像到 GitHub Packages (GHCR)
 #   - ghcr.io/acanx/finvquant（Go 服务端 16001 + 内嵌前端 16002，单镜像单进程）
 #
-# 触发：push 到 dev/main/FinvQuant、tag v*、PR、手动
+# 触发：push 到 dev/main/FinvQuant/feat/integration、tag v*、PR、手动
 # 全局版本：单一来源 = 项目根 VERSION 文件（同时用于后端 -ldflags、前端 package.json、镜像 tag）
 # tag 规则：
 #   - dev/main/FinvQuant 分支推送：latest + v{VERSION}-YYYYMMDDHHMM（Asia/Shanghai，如 v0.1.0-202608051901）
 #   - v* tag 推送（main 发布）：latest + v{VERSION}（即 git tag 名，如 v0.1.0）
+#   - feat/integration 分支推送（融合集成分支）：**不走上面的镜像规则**，改为快照模式
+#       版本：v{VERSION}.{PPPPP}.{yymmddHHmm}
+#         PPPPP  = 关联 PR 编号（5 位左补零；无 PR 时为 00000）
+#         yymmddHHmm = 构建时间戳（Asia/Shanghai），同一快照的所有产物共用同一个值
+#       产物：Ubuntu 26.04 可执行包（tar.gz, linux/amd64 + linux/arm64）
+#             Windows 11 可执行包（zip, windows/amd64）
+#       发布：以快照版本为 git tag 建 prerelease，附两个包与 SHA256SUMS
+#       镜像：feat/integration 不构建镜像（保持既有镜像模式不被集成分支污染）
 #   - 多平台构建策略（构建速度优化）：
 #     - dev/FinvQuant 分支推送 & PR 验证：仅 linux/amd64（快速迭代，缩短集成等待）
 #     - main 分支推送 / v* tag 推送（正式发布）：linux/amd64 + linux/arm64（全架构）
@@ -16,10 +24,10 @@ name: FinvQuantCICD
 
 on:
   push:
-    branches: [dev, main, FinvQuant]
+    branches: [dev, main, FinvQuant, feat/integration]
     tags: ["v*"]
   pull_request:
-    branches: [dev, main, FinvQuant, feat/backtest]
+    branches: [dev, main, FinvQuant, feat/backtest, feat/integration]
   workflow_dispatch:
 
 env:
@@ -86,13 +94,24 @@ jobs:
           npm pkg set version="$VERSION"
           npm run build
 
+      # 供 snapshot-binaries 复用真实前端产物（避免二次 npm ci + build）
+      - name: UploadWebDist
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: Web/dist
+          retention-days: 7
+          if-no-files-found: error
+
   # ------------------------------------------------------------------
   # 3. 构建并推送 All-in-One 镜像到 GHCR
   # ------------------------------------------------------------------
   docker:
     name: BuildAndPushFinvQuantImage (GHCR)
     needs: [build-server, build-web]
-    if: github.event_name != 'pull_request'
+    # feat/integration 走快照（snapshot-binaries + snapshot-release），不在此构建镜像，
+    # 避免集成分支以 v{VERSION}-YYYYMMDDHHMM 规则污染 latest 与正式镜像 tag。
+    if: github.event_name != 'pull_request' && github.ref != 'refs/heads/feat/integration'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -216,3 +235,247 @@ jobs:
           file: Deploy/Docker/Dockerfile
           push: false
           tags: ${{ env.IMAGE }}:pr-check
+
+  # ------------------------------------------------------------------
+  # 5. 快照元数据（feat/integration 专用）
+  #    版本格式：v{VERSION}.{PPPPP}.{yymmddHHmm}
+  #      PPPPP      关联 PR 编号，5 位左补零；无 PR 时 00000
+  #      yymmddHHmm 构建时间戳（Asia/Shanghai），本 job 只算一次，
+  #                 所有下游产物（Linux 包 / Windows 包 / tag / release）共用，
+  #                 保证「同一快照包的不同产物时间戳一致」
+  # ------------------------------------------------------------------
+  snapshot-meta:
+    name: ResolveSnapshotVersion
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/integration'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      base_version: ${{ steps.meta.outputs.base_version }}
+      pr: ${{ steps.meta.outputs.pr }}
+      timestamp: ${{ steps.meta.outputs.timestamp }}
+      commit: ${{ steps.meta.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: ComputeSnapshotVersion
+        id: meta
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BASE=$(cat VERSION | tr -d '[:space:]')
+          COMMIT=$(git rev-parse --short HEAD)
+
+          # PR 编号：push 事件无 PR 上下文，按优先级三次尝试
+          PR=""
+          # ① 显式 PR 事件（本 job 只在 push 触发，保留以兼容 workflow_dispatch 复用）
+          PR="${{ github.event.pull_request.number || '' }}"
+          # ② 该分支上处于 open 的 PR
+          if [[ -z "$PR" ]]; then
+            PR=$(gh pr list --head "${GITHUB_REF_NAME}" --state open --json number --limit 1 --jq '.[0].number // empty' 2>/dev/null || true)
+          fi
+          # ③ 该提交关联的 PR（push 到已有 PR 分支时生效）
+          if [[ -z "$PR" ]]; then
+            PR=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" --jq '.[0].number // empty' 2>/dev/null || true)
+          fi
+          # 兜底与规整：非纯数字一律 00000，其余左补零到 5 位
+          if ! [[ "${PR}" =~ ^[0-9]+$ ]]; then PR=0; fi
+          PR5=$(printf '%05d' "${PR}")
+
+          # 时间戳：Asia/Shanghai，两位年
+          TS=$(TZ=Asia/Shanghai date +%y%m%d%H%M)
+
+          VERSION="v${BASE}.${PR5}.${TS}"
+          echo "base_version=${BASE}" >> "$GITHUB_OUTPUT"
+          echo "pr=${PR5}"          >> "$GITHUB_OUTPUT"
+          echo "timestamp=${TS}"    >> "$GITHUB_OUTPUT"
+          echo "commit=${COMMIT}"   >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### 快照版本"
+            echo ""
+            echo "| 项 | 值 |"
+            echo "|---|---|"
+            echo "| 版本 | \`${VERSION}\` |"
+            echo "| 基础版本 | \`${BASE}\` |"
+            echo "| PR 编号 | \`${PR5}\` |"
+            echo "| 时间戳 | \`${TS}\` |"
+            echo "| 提交 | \`${COMMIT}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ------------------------------------------------------------------
+  # 6. 快照二进制包（Ubuntu 26.04 / Windows 11）
+  #    交叉编译 linux/amd64 与 windows/amd64，前端产物复用 build-web 的 artifact；
+  #    两个包的版本号与时间戳均来自 snapshot-meta，天然一致。
+  # ------------------------------------------------------------------
+  snapshot-binaries:
+    name: SnapshotBinary (${{ matrix.goos }}/${{ matrix.goarch }})
+    needs: [snapshot-meta, build-web]
+    if: needs.snapshot-meta.outputs.version != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            ext: ""
+            os_label: ubuntu2604
+            archive: tar.gz
+          - goos: linux
+            goarch: arm64
+            ext: ""
+            os_label: ubuntu2604
+            archive: tar.gz
+          - goos: windows
+            goarch: amd64
+            ext: ".exe"
+            os_label: win11
+            archive: zip
+    env:
+      SNAPSHOT_VERSION: ${{ needs.snapshot-meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25.3"
+          cache-dependency-path: go.sum
+
+      - name: FetchWebDist
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: internal/webui/dist
+
+      - name: BuildBinary
+        run: |
+          set -euo pipefail
+          # 注入完整快照版本（去掉前导 v），使 /API/V1/Version 反映快照标识
+          VER="${SNAPSHOT_VERSION#v}"
+          mkdir -p out
+          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }}             go build             -ldflags "-s -w -X main.version=${VER} -X main.commit=${{ needs.snapshot-meta.outputs.commit }}"             -o "out/finvquant${{ matrix.ext }}" ./cmd/server
+          file "out/finvquant${{ matrix.ext }}" || true
+
+      - name: AssemblePackage
+        run: |
+          set -euo pipefail
+          VER="${SNAPSHOT_VERSION}"
+          NAME="finvquant_${VER}_${{ matrix.os_label }}_${{ matrix.goarch }}"
+          ROOT="pkg/${NAME}"
+          mkdir -p "${ROOT}/Deploy"
+
+          cp "out/finvquant${{ matrix.ext }}" "${ROOT}/"
+          cp -r Deploy/Migrations "${ROOT}/Deploy/Migrations"
+          cp -r Deploy/README.md "${ROOT}/Deploy/README.md"
+
+          # Linux 包：带 Native（宿主直装 + systemd）全套脚本与文档
+          # Windows 包：带 Docker 方式编排（Windows 侧推荐容器部署）
+          if [[ "${{ matrix.goos }}" == "linux" ]]; then
+            mkdir -p "${ROOT}/Deploy/Native"
+            cp Deploy/Native/*.sh Deploy/Native/*.md Deploy/Native/*.service \
+               Deploy/Native/*.example "${ROOT}/Deploy/Native/"
+          else
+            # Windows 侧走容器：compose 直接拉 GHCR 已发布镜像，
+            # 因此不带 Dockerfile（其 build.context 指向仓库根，包内不存在源码）
+            mkdir -p "${ROOT}/Deploy/Docker"
+            cp -r Deploy/Docker/. "${ROOT}/Deploy/Docker/"
+            rm -f "${ROOT}/Deploy/Docker/.env" "${ROOT}/Deploy/Docker/.env.bak" \
+                  "${ROOT}/Deploy/Docker/Dockerfile"
+          fi
+
+          printf '%s\n' "${VER#v}" > "${ROOT}/VERSION"
+
+          # 构建信息（含与版本号一致的时间戳，便于核对产物同源）
+          cat > "${ROOT}/BUILD-INFO.txt" <<EOF
+          FinvQuant 快照包
+          ==================
+          版本        : ${VER}
+          基础版本    : ${{ needs.snapshot-meta.outputs.base_version }}
+          PR 编号     : ${{ needs.snapshot-meta.outputs.pr }}
+          构建时间戳  : ${{ needs.snapshot-meta.outputs.timestamp }} (Asia/Shanghai)
+          提交        : ${{ needs.snapshot-meta.outputs.commit }}
+          目标平台    : ${{ matrix.goos }}/${{ matrix.goarch }}
+          适用系统    : ${{ matrix.goos == 'linux' && (matrix.goarch == 'arm64' && 'Ubuntu 26.04 (aarch64)' || 'Ubuntu 26.04 (x86_64)') || 'Windows 11 (x64)' }}
+          仓库        : https://github.com/${{ github.repository }}
+          构建流水线  : ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EOF
+
+          # 校验和（包内文件）
+          ( cd "${ROOT}" && find . -type f ! -name SHA256SUMS -print0 | sort -z \
+              | xargs -0 sha256sum > SHA256SUMS )
+
+          mkdir -p dist
+          if [[ "${{ matrix.archive }}" == "zip" ]]; then
+            ( cd pkg && zip -qr "../dist/${NAME}.zip" "${NAME}" )
+          else
+            ( cd pkg && tar -czf "../dist/${NAME}.tar.gz" "${NAME}" )
+          fi
+          ( cd dist && sha256sum "${NAME}.${{ matrix.archive }}" > "${NAME}.${{ matrix.archive }}.sha256" )
+          ls -lh dist
+
+      - name: UploadPackage
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshot-${{ matrix.os_label }}-${{ matrix.goarch }}
+          path: dist/*
+          retention-days: 14
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------
+  # 7. 快照发布：以快照版本为 tag 建 prerelease，附两个平台包
+  # ------------------------------------------------------------------
+  snapshot-release:
+    name: PublishSnapshotRelease
+    needs: [snapshot-meta, snapshot-binaries]
+    if: needs.snapshot-meta.outputs.version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: DownloadPackages
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: snapshot-*
+          merge-multiple: true
+
+      - name: PublishRelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VER="${{ needs.snapshot-meta.outputs.version }}"
+          ls -lh dist
+          cat > notes.md <<EOF
+          FinvQuant 集成分支快照（\`feat/integration\`）
+
+          | 项 | 值 |
+          |---|---|
+          | 快照版本 | \`${VER}\` |
+          | 基础版本 | \`${{ needs.snapshot-meta.outputs.base_version }}\` |
+          | 关联 PR | \`${{ needs.snapshot-meta.outputs.pr }}\` |
+          | 构建时间戳 | \`${{ needs.snapshot-meta.outputs.timestamp }}\` (Asia/Shanghai) |
+          | 提交 | \`${{ needs.snapshot-meta.outputs.commit }}\` |
+          | 流水线 | ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} |
+
+          ## 产物
+
+          - Ubuntu 26.04 x86_64（linux/amd64）：\`finvquant_${VER}_ubuntu2604_amd64.tar.gz\`
+          - Ubuntu 26.04 aarch64（linux/arm64）：\`finvquant_${VER}_ubuntu2604_arm64.tar.gz\`
+          - Windows 11 x64（windows/amd64）：\`finvquant_${VER}_win11_amd64.zip\`
+
+          两个包内 \`BUILD-INFO.txt\` 的时间戳与版本号一致，可核对同源；
+          \`SHA256SUMS\` 为包内文件校验和，包本身的校验见同名 \`.sha256\` 文件。
+
+          > 快照为集成验证用预发布版本，不保证稳定，请勿用于生产。
+          EOF
+          gh release create "${VER}" \
+            --target "${{ github.sha }}" \
+            --title "FinvQuant 快照 ${VER}" \
+            --prerelease \
+            --notes-file notes.md \
+            dist/*
+
