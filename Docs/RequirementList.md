@@ -237,6 +237,21 @@
 | 10147 | 根 README 目录结构登记 `Archive/`。 | `grep -c "^├── Archive/" README.md` 输出 `1` | |
 | 10148 | 部署总览给出废弃文件去处指引。 | `grep -c "Archive/README.md" Deploy/README.md` 不小于 `1` | |
 
+## 十五、数据库名与角色名统一为 finv（10149–10158）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10149 | 源码默认的 PG 用户与库名为 `finv`，密码默认值不变。 | `grep -c 'envOr("FINV_PG_USER", "finv")\|envOr("FINV_PG_DATABASE", "finv")' internal/config/config.go` 输出 `2`；`grep -c 'envOr("FINV_PG_PASSWORD", "finvquant")'` 输出 `1` | |
+| 10150 | compose 中应用与数据库的用户/库名默认值均为 `finv`。 | `grep -c 'FINV_PG_USER:-finv}\|FINV_PG_DATABASE:-finv}' Deploy/Docker/docker-compose.yml` 不小于 `2` | |
+| 10151 | compose 健康检查使用新库名。 | `grep -c 'pg_isready -U ${FINV_PG_USER:-finv} -d ${FINV_PG_DATABASE:-finv}' Deploy/Docker/docker-compose.yml` 输出 `1` | |
+| 10152 | `.env.example` 与 Native env 模板的用户/库名为 `finv`。 | 两个文件中 `grep -cE '^FINV_PG_(USER\|DATABASE)=finv$'` 各输出 `2` | |
+| 10153 | Docker 脚本的 `psql`/`pg_dump` 使用新库名，无残留旧名。 | `grep -rc 'finvquant' Deploy/Docker/*.cmd` 中无 `-U finvquant`/`-d finvquant` | |
+| 10154 | Native 安装脚本建库/建角色兜底值为 `finv`，系统用户仍为 `finvquant`。 | `grep -c 'echo finv)' Deploy/Native/Install.sh` 输出 `2`；`grep -c 'APP_USER="finvquant"' ` 输出 `1` | |
+| 10155 | 生产库的库名、角色名已改为 `finv`，旧名不存在。 | `psql -U finv -d finv -c "select count(*) from pg_database where datname='finvquant'"` 输出 `0`；`pg_roles` 同理 | |
+| 10156 | 改名后数据与迁移记录不变。 | `select count(*) from quote.finv_quote_secu_kline_min` = `2804329`；`select max(version::int) from schema_version` = `100024` | |
+| 10157 | 改名后库级 `search_path` 与授权随 OID 保留。 | `select array_to_string(setconfig,',') from pg_db_role_setting ...` 含 `search_path=public, quote, quant, futu`；三个业务 schema owner 为 `finv` | |
+| 10158 | 仓库根存在 `.dockerignore` 且排除备份与前端依赖。 | `grep -c 'Deploy/Backup/\|Web/node_modules/' .dockerignore` 输出 `2` | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -255,7 +270,8 @@
 | Native 部署配套与生成物命名 | 10132–10140 | 9 |
 | Deploy 目录总览文档 | 10141–10144 | 4 |
 | Archive 归档目录 | 10145–10148 | 4 |
-| **合计** | **10001–10148** | **148** |
+| 数据库名与角色名统一为 finv | 10149–10158 | 10 |
+| **合计** | **10001–10158** | **158** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10149` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10159` 起往后追加，不插入既有区间。

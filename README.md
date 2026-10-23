@@ -26,7 +26,8 @@ docker compose -f Deploy/Docker/docker-compose.yml --env-file Deploy/Docker/.env
 ```bash
 docker pull ghcr.io/acanx/finvquant:latest
 docker run -d --name finvquant -p 16001:16001 -p 16002:16002 \
-  -e FINV_PG_HOST=host.docker.internal -e FINV_REDIS_ADDR=host.docker.internal:6379 \
+  -e FINV_PG_HOST=host.docker.internal -e FINV_PG_USER=finv -e FINV_PG_DATABASE=finv \
+  -e FINV_REDIS_ADDR=host.docker.internal:6379 \
   ghcr.io/acanx/finvquant:latest
 ```
 

@@ -53,11 +53,11 @@ curl -o /dev/null -w '%{http_code}\n' http://127.0.0.1:16001/API/V1/Health/Ready
 journalctl -u finvquant -n 80 --no-pager | grep -Ei 'migrat|迁移|error|panic'      # 迁移结果、无 ERROR
 
 # 迁移记录（确认新版本号已应用）
-sudo -u postgres psql -d finvquant -c \
+sudo -u postgres psql -d finv -c \
   "select version, success from schema_version order by version::int desc limit 6;"
 
 # 数据回归（示例：行情主表行数与时间范围）
-sudo -u postgres psql -d finvquant -c \
+sudo -u postgres psql -d finv -c \
   "select count(*), min(ts), max(ts) from quote.finv_quote_secu_kline_min;"
 ```
 
@@ -77,9 +77,9 @@ sudo bash Deploy/Native/Upgrade.sh --rollback
 
 ```bash
 sudo systemctl stop finvquant
-sudo -u postgres pg_restore -d finvquant --clean --if-exists \
+sudo -u postgres pg_restore -d finv --clean --if-exists \
   /var/backups/finvquant/finvquant_20261024_012329.dump
-sudo -u postgres psql -d finvquant -c "select max(version::int) from schema_version;"
+sudo -u postgres psql -d finv -c "select max(version::int) from schema_version;"
 sudo systemctl start finvquant
 ```
 

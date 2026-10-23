@@ -69,9 +69,9 @@ Copy-Item Deploy\.env.example Deploy\.env
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `FINV_PG_USER` | `finvquant` | PostgreSQL 用户 |
+| `FINV_PG_USER` | `finv` | PostgreSQL 用户 |
 | `FINV_PG_PASSWORD` | `finvquant` | PostgreSQL 密码（生产环境务必修改） |
-| `FINV_PG_DATABASE` | `finvquant` | PostgreSQL 数据库名 |
+| `FINV_PG_DATABASE` | `finv` | PostgreSQL 数据库名 |
 | `FINV_PG_EXPOSE_PORT` | `5432` | PG 暴露到宿主机的端口（本机 5432 被占时改为 5433 等） |
 | `FINV_PG_DATA_DIR` | `./pgdata` | **PG 数据目录**（Windows 推荐 `D:/Dev/Docker/HostFileSystem/FinvQuant/PostgreSQL`，见下方注意事项） |
 | `FINV_REDIS_PASSWORD` | 空 | Redis 密码（生产环境建议设置） |
@@ -124,7 +124,7 @@ docker compose -f Deploy/docker-compose.yml --env-file Deploy/.env ps
 **PG 逻辑备份（推荐，最可靠）：**
 
 ```powershell
-docker exec fq-postgres pg_dump -U finvquant -d finvquant -F c -f /tmp/finvquant_backup.dump
+docker exec fq-postgres pg_dump -U finv -d finv -F c -f /tmp/finvquant_backup.dump
 docker cp fq-postgres:/tmp/finvquant_backup.dump D:/backup/finvquant_20260805_060623.dump
 ```
 

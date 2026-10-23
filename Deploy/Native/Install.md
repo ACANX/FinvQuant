@@ -116,7 +116,7 @@ vi /etc/finvquant/finvquant.env        # 至少修改 FINV_PG_PASSWORD
 # 7) 建库建角色（密码与 env 中一致）
 sudo -u postgres psql -c "CREATE ROLE finvquant LOGIN PASSWORD '<同 env 中的密码>';"
 sudo -u postgres createdb -O finvquant finvquant
-sudo -u postgres psql -d finvquant -c "GRANT ALL ON SCHEMA public TO finvquant;"
+sudo -u postgres psql -d finv -c "GRANT ALL ON SCHEMA public TO finv;"
 
 # 8) systemd
 cp Deploy/Native/FinvQuant.service /etc/systemd/system/finvquant.service
@@ -138,7 +138,7 @@ curl -o /dev/null -w '%{http_code}\n' http://127.0.0.1:16002/                   
 迁移确认（应包含 `29`、`30`、`31`、`32`、`33`、`100024` 等）：
 
 ```bash
-sudo -u postgres psql -d finvquant -c \
+sudo -u postgres psql -d finv -c \
   "select version, success from schema_version order by version::int desc limit 8;"
 ```
 
