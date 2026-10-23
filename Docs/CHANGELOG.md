@@ -48,6 +48,7 @@
 - **Native 部署配套落地**：新增 `Deploy/Native/{README,Install,Upgrade}.md` 与 `Install.sh`、`Upgrade.sh`、`Uninstall.sh`、`FinvQuant.service`、`FinvQuant.env.example`、`Nginx.conf.example`；服务由 systemd 守护（`Restart=on-failure`、`EnvironmentFile`、安全加固、journald），安装脚本幂等并自动生成随机数据库密码、建库授权、健康检查；升级脚本按「备份 → 停服 → 备份旧二进制 → 替换 → 启动 → 健康检查」执行，支持 `--rollback` 回退程序。
 - **文件名按品牌大小写**：`FinvQuant.service`、`FinvQuant.env.example`（安装后注册为 `finvquant.service`，运维命令仍用 `systemctl ... finvquant`）。
 - 新增 [`Deploy/README.md`](Deploy/README.md)：部署目录总览——两种方式的目录边界与选择建议、共用 `Migrations/` 与 `Backup/` 的说明、两种方式共同遵守的约束（禁止新旧共存、升级前备份、schema 限定）、目录命名约定。
+- **新增 [`Deploy/Script/README.md`](Deploy/Script/README.md)（打包脚本文档）**：文件职责与「改打包只改 .sh」的维护约定、快速开始、全部参数表（含默认值）、版本三段来源与一致性保证、两种包的目录树与 `SHA256SUMS` 用法、环境要求、native/WSL/Git Bash 三环境差异与 zip 后端回退链、6 个常用配方、产物校验命令（架构字节/时间戳一致性/zip 正斜杠）、9 条常见问题、与 CI 三个 job 的调用关系；`Deploy/README.md` §2.3 相应精简为概览并链接该文档。
 - **新增 `Deploy/Script/PackSnapshot.cmd`（Windows 封装）**：仅负责定位 Git for Windows 的 `bash.exe` 并转调 `PackSnapshot.sh`，打包逻辑仍只有一份。
   - 定位顺序：`git.exe` 位置推导 `<GitRoot>\bin\bash.exe` → Git 默认安装目录 → PATH；**主动跳过 `C:\Windows\System32\bash.exe`**（WSL 转发器，无法处理 Windows 路径）
   - 找不到 bash 时给出明确指引（装 Git for Windows / MSYS2，或改用 WSL）

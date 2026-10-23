@@ -339,6 +339,18 @@
 | 10214 | Windows 侧产出的 zip 使用标准正斜杠路径。 | `unzip -l dist/*.zip` 的 Name 列为 `finvquant_.../Deploy/Migrations/...`（无 `\`）；文件数 80 | |
 | 10215 | 缺少 zip/powershell 时有回退或明确报错。 | 打 zip 时若无 `zip` 命令，依次尝试 Windows `tar.exe`、`powershell.exe`、`python3`；全无时报错列出四种可选方式 | |
 
+## 二十二、打包脚本文档（10216–10222）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10216 | `Script` 目录有配套说明文档。 | `test -f Deploy/Script/README.md` | |
+| 10217 | 文档覆盖全部参数并标出默认值。 | `grep -c '^| `--' Deploy/Script/README.md` 不小于 `9` | |
+| 10218 | 文档说明版本三段与时间戳一致性。 | `grep -c 'v{BASE_VERSION}.{PPPPP}.{yymmddHHmm}' Deploy/Script/README.md` 不小于 `1`；含「同一快照的所有产物共用同一个时间戳」 | |
+| 10219 | 文档给出两种包的目录树与 SHA256SUMS 用法。 | 含 `finvquant_v0.1.1.00123.2610241530_ubuntu2604_arm64/` 与 `sha256sum -c SHA256SUMS` | |
+| 10220 | 文档说明三种运行环境与 zip 回退链。 | 含「native」「WSL」「Git Bash」三词；含 `tar.exe（bsdtar` 与 `powershell.exe` → `python3` 顺序 | |
+| 10221 | 文档给出产物校验命令。 | 含 `EM_X86_64`、`EM_AARCH64` 与「正斜杠」判定 | |
+| 10222 | `Deploy/README` 精简并链接详细文档。 | `grep -c 'Script/README.md' Deploy/README.md` 不小于 `1`；该节行数不超过 20 行 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -364,7 +376,8 @@
 | 新增 archive 归档 schema | 10184–10191 | 8 |
 | feat/integration 快照构建 | 10192–10202 | 11 |
 | 本地快照打包脚本 | 10203–10215 | 13 |
-| **合计** | **10001–10215** | **215** |
+| 打包脚本文档 | 10216–10222 | 7 |
+| **合计** | **10001–10222** | **222** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10216` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10223` 起往后追加，不插入既有区间。
