@@ -361,6 +361,7 @@
 | 10226 | Windows 平台段为 `windows`（不用 win11）。 | 包名匹配 `FinvQuant_.*_windows_amd64\.zip`；全仓 `--include=*.sh --include=*.cmd --include=*.yml` 中无 `win11_` | |
 | 10227 | 包内顶层目录名与包名一致。 | `tar -tzf Dist/*_ubuntu_arm64.tar.gz \| head -1` 为 `FinvQuant_<版本>_ubuntu_arm64/` | |
 | 10228 | `.gitignore` / `.dockerignore` 同时忽略 `dist/` 与 `Dist/`。 | 两文件中均有 `dist/` 与 `Dist/` 两行 | |
+| 10230 | `BUILD-INFO.txt` 在 CI 中包含运行号、仓库与流水线链接。 | CI 产物内 `BUILD-INFO.txt` 含 `构建方式    : Deploy/Script/PackSnapshot.sh（CI run <数字>）`、`仓库        : https://github.com/ACANX/FinvQuant`、`构建流水线  : https://github.com/.../actions/runs/<数字>` | |
 | 10229 | 规范与文档同步新命名。 | `GitSpec.md` 含 `FinvQuant_{快照版本}_{ubuntu\|windows}_{amd64\|arm64}`；`Deploy/Script/README.md` 与 `Deploy/README.md` 无 `ubuntu2604`/`win11_` | |
 
 ## 汇总
@@ -389,8 +390,8 @@
 | feat/integration 快照构建 | 10192–10202 | 11 |
 | 本地快照打包脚本 | 10203–10215 | 13 |
 | 打包脚本文档 | 10216–10222 | 7 |
-| 产物命名规范调整 | 10223–10229 | 7 |
-| **合计** | **10001–10229** | **229** |
+| 产物命名规范调整 | 10223–10230 | 8 |
+| **合计** | **10001–10230** | **230** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10230` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10231` 起往后追加，不插入既有区间。

@@ -24,6 +24,11 @@
 #   --keep-tmp          保留 pkg/ 临时目录便于检查
 #   -h, --help          帮助
 #
+# 可选环境变量（CI 使用，本地留空即可）：
+#   CI_RUN_ID       流水线运行号，写入 BUILD-INFO.txt
+#   BUILD_REPO      owner/repo，写入 BUILD-INFO.txt 的仓库链接
+#   BUILD_RUN_URL   流水线地址，写入 BUILD-INFO.txt
+#
 # 示例：
 #   # 本地出全部三个包（无 PR 场景）
 #   bash Deploy/Script/PackSnapshot.sh
@@ -298,18 +303,24 @@ for T in "${TARGETS[@]}"; do
 
     local_sys="Windows 11 (x64)"
     [[ "${GOOS_V}" == "linux" ]] && { [[ "${GOARCH_V}" == "arm64" ]] && local_sys="Ubuntu 26.04 (aarch64)" || local_sys="Ubuntu 26.04 (x86_64)"; }
-    cat > "${PKG_ROOT}/BUILD-INFO.txt" <<EOF
-FinvQuant 快照包
-==================
-版本        : ${SNAPSHOT_VERSION}
-基础版本    : ${BASE_VERSION}
-PR 编号     : ${PR}
-构建时间戳  : ${TIMESTAMP} (Asia/Shanghai)
-提交        : ${COMMIT}
-目标平台    : ${GOOS_V}/${GOARCH_V}
-适用系统    : ${local_sys}
-构建方式    : Deploy/Script/PackSnapshot.sh${CI:+ (CI run ${CI_RUN_ID:-unknown})}
-EOF
+    {
+        echo "FinvQuant 快照包"
+        echo "=================="
+        echo "版本        : ${SNAPSHOT_VERSION}"
+        echo "基础版本    : ${BASE_VERSION}"
+        echo "PR 编号     : ${PR}"
+        echo "构建时间戳  : ${TIMESTAMP} (Asia/Shanghai)"
+        echo "提交        : ${COMMIT}"
+        echo "目标平台    : ${GOOS_V}/${GOARCH_V}"
+        echo "适用系统    : ${local_sys}"
+        if [[ -n "${BUILD_REPO:-}" ]]; then
+            echo "仓库        : https://github.com/${BUILD_REPO}"
+        fi
+        if [[ -n "${BUILD_RUN_URL:-}" ]]; then
+            echo "构建流水线  : ${BUILD_RUN_URL}"
+        fi
+        echo "构建方式    : Deploy/Script/PackSnapshot.sh${CI_RUN_ID:+（CI run ${CI_RUN_ID}）}"
+    } > "${PKG_ROOT}/BUILD-INFO.txt"
 
     ( cd "${PKG_ROOT}" && find . -type f ! -name SHA256SUMS -print0 | sort -z \
         | xargs -0 sha256sum > SHA256SUMS )

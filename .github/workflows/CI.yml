@@ -329,6 +329,10 @@ jobs:
             os_label: windows
     env:
       SNAPSHOT_VERSION: ${{ needs.snapshot-meta.outputs.version }}
+      # 供 PackSnapshot.sh 写入 BUILD-INFO.txt（本地构建时留空即可）
+      CI_RUN_ID: ${{ github.run_id }}
+      BUILD_REPO: ${{ github.repository }}
+      BUILD_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - uses: actions/checkout@v5
 
