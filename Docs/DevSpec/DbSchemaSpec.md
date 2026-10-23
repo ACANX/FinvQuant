@@ -25,6 +25,16 @@
 
 - 应用连接串固定带 `search_path=public,quote,quant,futu`（见 `internal/database/postgres.go`），迁移与业务 SQL 均依赖此设置。
 - 代码中的 SQL **必须显式写 schema 前缀**（`quote.xxx`、`quant.xxx`、`futu.xxx`）；`search_path` 只作为历史迁移脚本与手工 `psql` 的兜底。
+- **强制校验**：`internal/database/schema_qualify_test.go` 的 `TestSQLSchemaQualified` 会扫描 `internal/`、`cmd/` 下全部 Go 源码，凡含 `FROM` / `INTO` / `UPDATE` / `JOIN` / `DELETE FROM` / `TRUNCATE` 的语句，只要出现 `finv_quote_` / `finv_quant_` / `finv_futu_` 而未带对应 schema 前缀，`go test ./...` 直接失败。新增代码漏写前缀会在本地与 CI 同时被拦下。
+
+### 3.1 融合前的同名表风险（重要）
+
+- `search_path` 为 `public, quote, quant, futu`，**`public` 位于首位**：未限定的 CRUD 语句会优先命中 `public` 中的同名表。
+- 系统融合阶段若需要在其它 schema 引入与域表同名的表，必须遵守：
+  1. 新表一律放入明确 schema，不得落 `public`；
+  2. 代码侧引用一律写全限定名（已由 `TestSQLSchemaQualified` 强制）；
+  3. 若确实需要在 `public` 放同名表，必须先把 `public` 移出 `search_path` 首位，并同步核验历史种子迁移（`V100xxx` 不带 schema 前缀，依赖 `search_path` 定位 `quote`/`quant`/`futu` 与 `public` 的基础主数据表）。
+- 历史种子迁移是唯一仍依赖 `search_path` 的 SQL，改动其定位行为前必须跑「全新库全链迁移」验证。
 - 手工运维时若未设置 `search_path`，须写全限定名，例如 `select count(*) from quote.finv_quote_secu_kline_min;`。
 - `schema_version` 与迁移机制保留在 `public`，不随业务域迁移。
 

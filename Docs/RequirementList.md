@@ -180,6 +180,17 @@
 | 10119 | `DbSchemaSpec` 已登记 `futu` schema 与四段 `search_path`。 | `grep -c "futu" Docs/DevSpec/DbSchemaSpec.md` 不小于 `3` | |
 | 10120 | `CHANGELOG` 记录本项变更。 | `grep -c "finv_futu_mapping" Docs/CHANGELOG.md` 不小于 `1` | |
 
+## 十、SQL schema 限定防回归（10121–10124）
+
+> 背景：系统融合后可能出现同名表，CRUD SQL 必须显式带 schema 前缀；本组为自动化校验要求。
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10121 | 存在 SQL schema 限定的自动化校验测试。 | `test -f internal/database/schema_qualify_test.go` 且 `grep -c "func TestSQLSchemaQualified" internal/database/schema_qualify_test.go` 输出 `1` | |
+| 10122 | 该校验覆盖 `finv_quote_` / `finv_quant_` / `finv_futu_` 三类域表。 | `grep -c "finv_quote_\|finv_quant_\|finv_futu_" internal/database/schema_qualify_test.go` 不小于 `3` | |
+| 10123 | 代码中存在未限定表名时校验会失败（非空跑）。 | 临时新增一行 `SELECT 1 FROM finv_quote_secu_kline_min` 后 `go test ./internal/database/ -run TestSQLSchemaQualified` 退出码非 0，删除后恢复 0 | |
+| 10124 | 规范文档记录强制规则与融合前同名表风险。 | `grep -c "融合前的同名表风险" Docs/DevSpec/DbSchemaSpec.md` 输出 `1` | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -193,7 +204,8 @@
 | 改造项 B 验收 | 10080–10091 | 12 |
 | 改造项 C 验收 | 10092–10107 | 16 |
 | 改造项 D 验收 | 10108–10120 | 13 |
-| **合计** | **10001–10120** | **120** |
+| SQL schema 限定防回归 | 10121–10124 | 4 |
+| **合计** | **10001–10124** | **124** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10121` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10125` 起往后追加，不插入既有区间。

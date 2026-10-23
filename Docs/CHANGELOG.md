@@ -39,6 +39,8 @@
 - 新增规范 [`DevSpec/DbSchemaSpec.md`](DevSpec/DbSchemaSpec.md)：schema 划分、表命名、`search_path` 约定、迁移例外规则。
 - **破坏性变更（数据库）**：富途映射表 `finv_futu_mapping_*`（5 张：`cs_market`、`exchange`、`market_code`、`region`、`security`，共 641 行）迁入 `futu` schema，由迁移 `V33` 幂等执行；索引与触发器自动跟随，无表名/列/数据变化。
 - **连接要求更新**：`search_path` 扩展为 `public,quote,quant,futu`（应用连接串与数据库默认值同步）；Go 代码对本组表无引用，无需改后端 SQL。
+- **防回归校验**：新增 `TestSQLSchemaQualified`（`internal/database/schema_qualify_test.go`），扫描 `internal/`、`cmd/` 全部 Go 源码，要求涉及 `finv_quote_*` / `finv_quant_*` / `finv_futu_*` 的 CRUD 语句必须带 schema 全限定名（`quote.` / `quant.` / `futu.`）；漏写会让 `go test ./...` 失败，为后续系统融合的同名表场景兜底。
+- 规范补充：`DbSchemaSpec.md` 新增「融合前的同名表风险」——`public` 在 `search_path` 首位，新增同名表必须先移出首位并核验历史种子迁移。
 
 ## [0.1.0] - 2026-08-08
 
