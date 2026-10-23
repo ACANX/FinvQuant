@@ -32,7 +32,7 @@ interface StrategyOption {
   strategy_code: string
   strategy_name: string
   data_period: string
-  secu_code: string
+  usc: string
 }
 
 interface AccountOption {
@@ -58,7 +58,7 @@ interface RunRow {
   run_no: number
   strategy_name: string
   account_name: string
-  secu_code: string
+  usc: string
   period: string
   report_precision: string
   start_date: number
@@ -69,7 +69,7 @@ interface RunRow {
   created_by: string
 }
 
-// 回测任务列表仅展示最近 10 条（不分页）；后续扩展多标的时按 secu_code 过滤
+// 回测任务列表仅展示最近 10 条（不分页）；后续扩展多标的时按 usc 过滤
 const runs = ref<RunRow[]>([])
 const runPage = ref(1)
 const runPageSize = ref(10)
@@ -81,7 +81,7 @@ const environments = ref<EnvOption[]>([])
 const strategyId = ref('')
 const accountId = ref('')
 const envId = ref('')
-const secuCode = ref('GCMain')
+const usc = ref('GCMain')
 const startDate = ref('')
 const endDate = ref('')
 const period = ref('Min')
@@ -117,7 +117,7 @@ async function loadOptions() {
     environments.value = (e.list ?? []).filter((x) => x.allow_backtest === '1')
     // 默认选中 GCMain 相关策略与首个账户、默认环境
     if (!strategyId.value) {
-      const gc = strategies.value.find((x) => x.secu_code === 'GCMain')
+      const gc = strategies.value.find((x) => x.usc === 'GCMain')
       strategyId.value = gc?.strategy_id ?? strategies.value[0]?.strategy_id ?? ''
       if (gc) period.value = gc.data_period || 'Min'
     }
@@ -135,7 +135,7 @@ async function loadRuns() {
   try {
     // 仅查询最近 10 条（page=1&pageSize=10，按 run_no 倒序）
     const data = await apiGet<{ total: number; list: RunRow[] }>(
-      `/Meta/Finv/Quant/Backtest/Run/List?page=1&pageSize=10&secuCode=${encodeURIComponent(secuCode.value)}`,
+      `/Meta/Finv/Quant/Backtest/Run/List?page=1&pageSize=10&usc=${encodeURIComponent(usc.value)}`,
     )
     runs.value = data.list ?? []
   } catch (e) {
@@ -156,7 +156,7 @@ function syncPolling() {
     pollTimer = setInterval(async () => {
       try {
         const data = await apiGet<{ list: RunRow[] }>(
-          `/Meta/Finv/Quant/Backtest/Run/List?page=1&pageSize=10&secuCode=${encodeURIComponent(secuCode.value)}`,
+          `/Meta/Finv/Quant/Backtest/Run/List?page=1&pageSize=10&usc=${encodeURIComponent(usc.value)}`,
         )
         runs.value = data.list ?? []
         if (!hasActiveRuns()) syncPolling() // 全部结束后停止轮询
@@ -194,7 +194,7 @@ async function startBacktest() {
       strategy_id: strategyId.value,
       account_id: accountId.value,
       env_id: envId.value || undefined,
-      secu_code: secuCode.value || undefined,
+      usc: usc.value || undefined,
       start_date: toDateInt(startDate.value) || undefined,
       end_date: toDateInt(endDate.value) || undefined,
       period: period.value,
@@ -293,11 +293,11 @@ onBeforeUnmount(() => {
           </v-card-title>
           <v-card-text>
             <v-select v-model="strategyId" :items="strategies.map((s) => ({
-              title: `${s.strategy_code} ${s.strategy_name}（${s.secu_code || '通用'}）`,
+              title: `${s.strategy_code} ${s.strategy_name}（${s.usc || '通用'}）`,
               value: s.strategy_id,
             }))" label="交易策略 *" hint="策略在「策略管理」中维护（结构化定义）" class="mb-2" @update:model-value="(v: string) => {
               const s = strategies.find((x) => x.strategy_id === v)
-              if (s) { if (s.secu_code) secuCode = s.secu_code; if (s.data_period) period = s.data_period }
+              if (s) { if (s.usc) usc = s.usc; if (s.data_period) period = s.data_period }
             }" />
             <v-select v-model="accountId" :items="accounts.map((a) => ({
               title: `${a.account_code} ${a.account_name}（${a.initial_capital.toLocaleString()} ${a.currency_type}）`,
@@ -309,7 +309,7 @@ onBeforeUnmount(() => {
               value: e.env_id,
             }))" label="回测环境" hint="交易时段/规则/成本自适应，在「环境与模板管理」中维护" class="mb-2" />
 
-            <v-text-field v-model="secuCode" label="回测标的证券代码" hint="如 GCMain（黄金期货主连）/ 518880 / NVDA" class="mb-2" />
+            <v-text-field v-model="usc" label="回测标的证券代码" hint="如 GCMain（黄金期货主连）/ 518880 / NVDA" class="mb-2" />
 
             <v-row>
               <v-col cols="6">
@@ -384,7 +384,7 @@ onBeforeUnmount(() => {
       <v-col cols="12">
         <v-card>
           <v-card-title class="d-flex align-center">
-            <v-icon icon="mdi-history" class="mr-2" color="primary" />回测任务（{{ secuCode }} · 最近 10 条）
+            <v-icon icon="mdi-history" class="mr-2" color="primary" />回测任务（{{ usc }} · 最近 10 条）
             <v-spacer />
             <v-btn size="small" variant="tonal" prepend-icon="mdi-refresh" @click="loadRuns">刷新</v-btn>
           </v-card-title>

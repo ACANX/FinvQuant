@@ -8,7 +8,7 @@ interface RunRow {
   run_id: string
   run_no: number
   strategy_name: string
-  secu_code: string
+  usc: string
   period: string
   start_date: number
   end_date: number
@@ -110,7 +110,7 @@ onBeforeUnmount(() => {
         <v-icon icon="mdi-cash-multiple" class="mr-2" color="primary" />资金管理（回测资金数据）
         <v-spacer />
         <v-select v-model="runId" :items="runs.map((r) => ({
-          title: `#${r.run_no} ${r.strategy_name}（${r.secu_code} ${fmtDate(r.start_date)}~${fmtDate(r.end_date)}）`,
+          title: `#${r.run_no} ${r.strategy_name}（${r.usc} ${fmtDate(r.start_date)}~${fmtDate(r.end_date)}）`,
           value: r.run_id,
         }))" label="选择回测任务（已成功）" hide-details style="max-width: 520px" class="mr-2"
           @update:model-value="loadCurve" />

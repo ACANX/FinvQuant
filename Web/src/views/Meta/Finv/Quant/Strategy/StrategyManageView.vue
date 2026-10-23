@@ -11,7 +11,7 @@ interface StrategyRow {
   definition: Record<string, unknown>
   definition_version: number
   data_period: string
-  secu_code: string
+  usc: string
   template_id?: string | null
   allow_backtest: string
   status: string
@@ -39,7 +39,7 @@ interface StrategyForm {
   description: string
   definition_version: number
   data_period: string
-  secu_code: string
+  usc: string
   template_id: string | null
   allow_backtest: string
   status: string
@@ -54,7 +54,7 @@ const form = ref<StrategyForm>({
   description: '',
   definition_version: 1,
   data_period: 'Min',
-  secu_code: '',
+  usc: '',
   template_id: null,
   allow_backtest: '1',
   status: 'ENABLED',
@@ -211,7 +211,7 @@ function openCreate() {
   editing.value = false
   form.value = {
     strategy_id: '', strategy_code: '', strategy_name: '', strategy_type: 'RULE_BASED',
-    description: '', definition_version: 1, data_period: 'Min', secu_code: '',
+    description: '', definition_version: 1, data_period: 'Min', usc: '',
     template_id: null, allow_backtest: '1', status: 'ENABLED', created_by: '',
   }
   templateKey.value = ''
@@ -300,7 +300,7 @@ onMounted(async () => {
         { title: '编码', key: 'strategy_code', width: 150 },
         { title: '名称', key: 'strategy_name' },
         { title: '类型', key: 'strategy_type', width: 110 },
-        { title: '标的', key: 'secu_code', width: 110 },
+        { title: '标的', key: 'usc', width: 110 },
         { title: '周期', key: 'data_period', width: 80 },
         { title: '版本', key: 'definition_version', width: 70 },
         { title: '回测开关', key: 'allow_backtest', width: 100 },
@@ -342,7 +342,7 @@ onMounted(async () => {
               <v-select v-model="form.data_period" :items="['Min', 'Hour', 'Day']" label="默认数据周期" />
             </v-col>
             <v-col cols="4">
-              <v-text-field v-model="form.secu_code" label="默认标的证券代码" hint="如 GCMain / 518880 / NVDA" />
+              <v-text-field v-model="form.usc" label="默认标的证券代码" hint="如 GCMain / 518880 / NVDA" />
             </v-col>
             <v-col cols="4">
               <v-switch v-model="form.allow_backtest" true-value="1" false-value="0" label="回测开关"

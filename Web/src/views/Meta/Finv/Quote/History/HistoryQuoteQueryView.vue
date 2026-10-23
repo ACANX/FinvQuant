@@ -43,7 +43,7 @@ const BOLL_SERIES = [
   { name: 'BOLL下轨', color: '#7ec8e3' },
 ]
 
-const secuCode = ref('GCMain') // 证券代码（usc key），默认 GCMain
+const usc = ref('GCMain') // 证券代码（usc key），默认 GCMain
 const secuName = ref('') // 证券名称（security_name_cn），选中字典项后回填，便于确认
 const dateInput = ref<string | null>('2026-05-12') // 日历选择的日期（yyyy-MM-dd），默认 2026-05-12
 const dateMenu = ref(false)
@@ -126,7 +126,7 @@ const secuItems = computed(() =>
 )
 
 // 证券代码输入变化：若命中字典项则回填证券名称，否则清空
-function onSecuCodeInput(val: unknown) {
+function onUscInput(val: unknown) {
   // v-combobox 可能返回字符串或对象 {title,value}，统一取字符串值对比
   const s = typeof val === 'string' ? val : (val as { value?: string } | null | undefined)?.value ?? ''
   const hit = securityOptions.value.find((o) => o.usc === s)
@@ -134,7 +134,7 @@ function onSecuCodeInput(val: unknown) {
 }
 
 // 查询条件变化（证券/日期/天数/周期）自动触发查询，无需手动点“查询”
-watch([secuCode, dateInput, days, period], () => {
+watch([usc, dateInput, days, period], () => {
   query()
 })
 
@@ -342,7 +342,7 @@ async function query() {
   error.value = ''
   // v-combobox 可能返回字符串（自由输入）或对象（从字典下拉选中 {title,value}），
   // 统一归一化为纯字符串 usc 代码，避免 .trim() 对非字符串报错
-  const secuRaw = secuCode.value
+  const secuRaw = usc.value
   const secuStr = typeof secuRaw === 'string' ? secuRaw : (secuRaw as { value?: string } | null | undefined)?.value ?? ''
   if (!secuStr.trim()) {
     error.value = '证券代码不能为空'
@@ -358,7 +358,7 @@ async function query() {
     // 按日期 + N 日回溯查询（服务端转为 ts 范围返回全部记录，不分页）
     // URL 查询参数遵循小驼峰规范（ApiSpec §3）
     const params = new URLSearchParams({
-      secuCode: secuStr.trim(),
+      usc: secuStr.trim(),
       date: date.value,
       period: period.value,
       days: String(days.value),
@@ -381,7 +381,7 @@ async function query() {
         ? `${String(bars[0].date).slice(4)}-${String(bars[bars.length - 1].date).slice(4)}`
         : date.value
     const namePart = secuName.value.trim() ? `（${secuName.value.trim()}）` : ''
-    showToast(`${data.secu_code ?? '?'}${namePart} ${rangeText} ${data.period ?? 'Min'} · ${days.value}日 · 共 ${total.value} 根`)
+    showToast(`${data.usc ?? '?'}${namePart} ${rangeText} ${data.period ?? 'Min'} · ${days.value}日 · 共 ${total.value} 根`)
     await nextTick()
     if (bars.length) {
       renderChart(bars)
@@ -633,14 +633,14 @@ function renderChart(bars: QuoteBar[], preserveZoom = false) {
           <v-col cols="12" sm="3">
             <!-- 证券代码：下拉字典（usc:security_name_cn）+ 手动输入，默认 NVDA -->
             <v-combobox
-              v-model="secuCode"
+              v-model="usc"
               :items="secuItems"
               label="证券代码"
               placeholder="如: NVDA"
               density="compact"
               hide-details
               clearable
-              @update:model-value="onSecuCodeInput"
+              @update:model-value="onUscInput"
             />
           </v-col>
           <v-col cols="12" sm="3">

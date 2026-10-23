@@ -54,7 +54,7 @@ interface FileHeader {
 
 // 导入参数（上传时提交）
 const marketCode = ref('')
-const secuCode = ref('')
+const usc = ref('')
 const source = ref('')
 const upsertMode = ref('FIELD')
 const remark = ref('')
@@ -152,7 +152,7 @@ async function onPickSecu(val: string | null) {
       return
     }
     pickedSec.value = data.security
-    secuCode.value = data.security.usc
+    usc.value = data.security.usc
     // 自动带出市场代码：优先取字典 market_code（有值则用之），
     // 未维护（0）时回退到交易所代码 exchange_code；选文件后以文件头 MarketCode 二次核对
     marketCode.value = data.security.market_code > 0
@@ -241,7 +241,7 @@ function verifyStrategy1(h: FileHeader) {
     checkStatus.value = 'ok'
     checkDetail.value = `核对通过：${parts.join('；')}`
     // 文件头为准，回填导入参数
-    secuCode.value = sec.usc
+    usc.value = sec.usc
     marketCode.value = h.marketCode
   } else {
     checkStatus.value = 'mismatch'
@@ -265,7 +265,7 @@ async function autoMatch(h: FileHeader) {
     }
     matchedSec.value = data.security
     // 补全证券代码 + 市场代码（文件头 MarketCode 为准）
-    secuCode.value = data.security.usc
+    usc.value = data.security.usc
     marketCode.value = h.marketCode
   } catch (e) {
     matchError.value = (e as Error).message
@@ -328,7 +328,7 @@ async function submitImport() {
   const form = new FormData()
   form.append('file', file.value)
   if (marketCode.value.trim()) form.append('market_code', marketCode.value.trim())
-  if (secuCode.value.trim()) form.append('secu_code', secuCode.value.trim())
+  if (usc.value.trim()) form.append('usc', usc.value.trim())
   form.append('source', source.value.trim())
   form.append('upsert_mode', upsertMode.value)
   form.append('imported_by', 'gui')
@@ -343,7 +343,7 @@ async function submitImport() {
       return
     }
     const data = body.data ?? {}
-    result.value = `导入完成：${data.secu_code ?? '?'}（market=${data.market_code ?? '?'}）` +
+    result.value = `导入完成：${data.usc ?? '?'}（market=${data.market_code ?? '?'}）` +
       ` ${data.record_count ?? 0} 条` +
       `（新增 ${data.inserted ?? 0} / 覆盖 ${data.updated ?? 0}）` +
       `｜批次 ${data.batch_id ?? '-'}｜模式 ${data.mode ?? '-'}`
@@ -384,7 +384,7 @@ async function submitImport() {
           <v-row>
             <v-col cols="12" md="6">
               <v-combobox
-                v-model="secuCode"
+                v-model="usc"
                 label="证券代码（可搜索/手动输入）"
                 :items="secuItems"
                 clearable
@@ -488,7 +488,7 @@ async function submitImport() {
           <v-row>
             <v-col cols="12" md="6">
               <v-text-field
-                v-model="secuCode"
+                v-model="usc"
                 label="证券代码（自动补全）"
                 readonly
                 hint="匹配成功后自动补全，不可手工修改"

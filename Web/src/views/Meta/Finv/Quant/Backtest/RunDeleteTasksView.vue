@@ -32,7 +32,7 @@ interface RunArchiveRow {
   strategy_name: string
   account_id: string
   account_name: string
-  secu_code: string
+  usc: string
   period: string
   start_date: number
   end_date: number
@@ -333,7 +333,7 @@ onBeforeUnmount(() => {
               { title: '原任务ID', key: 'run_id', width: 120 },
               { title: '策略', key: 'strategy_name' },
               { title: '账户', key: 'account_name', width: 120 },
-              { title: '标的', key: 'secu_code', width: 90 },
+              { title: '标的', key: 'usc', width: 90 },
               { title: '区间', key: 'range', width: 180 },
               { title: '删除前状态', key: 'status', width: 110 },
               { title: '错误信息', key: 'error_message', width: 160 },

@@ -9,7 +9,7 @@ const route = useRoute()
 const router = useRouter()
 
 interface Report {
-  secu_code: string
+  usc: string
   period: string
   report_precision: string
   start_date: number
@@ -269,7 +269,7 @@ interface RunDetail {
   account_snapshot: AccountSnapshot
   env_id: string
   environment_snapshot: EnvironmentSnapshot | null
-  secu_code: string
+  usc: string
   market_code: number
   period: string
   report_precision: string
@@ -295,7 +295,7 @@ interface StrategyDetail {
   definition: Record<string, unknown>
   definition_version: number
   data_period: string
-  secu_code: string
+  usc: string
   template_id?: string | null
   allow_backtest: string
   status: string
@@ -819,7 +819,7 @@ function backgroundKV(): KV[] {
   rows.push({ label: '指标', value: snap?.indicators?.length ? snap.indicators.map(indChipText).join(' | ') : '未配置指标' })
   rows.push({ label: '买卖信号', value: signalExplainText(snap?.signals) })
   // ② 标的与市场
-  rows.push({ label: '标的代码', value: run.value?.secu_code ?? '-' })
+  rows.push({ label: '标的代码', value: run.value?.usc ?? '-' })
   rows.push({ label: '市场代码', value: run.value?.market_code ? fmtNum(run.value.market_code, 0) : '-' })
   rows.push({ label: '数据周期', value: periodName(run.value?.period) })
   rows.push({ label: '报告精度', value: report.value?.report_precision ?? '-' })
@@ -1413,7 +1413,7 @@ onBeforeUnmount(() => {
               </div>
               <div class="d-flex align-center py-1">
                 <span class="text-caption text-medium-emphasis kv-label">标的代码</span>
-                <span class="text-body-2">{{ run?.secu_code || '-' }}</span>
+                <span class="text-body-2">{{ run?.usc || '-' }}</span>
               </div>
               <div class="d-flex align-center py-1">
                 <span class="text-caption text-medium-emphasis kv-label">市场代码</span>

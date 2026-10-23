@@ -33,7 +33,7 @@ interface RunRow {
   run_no: number
   strategy_name: string
   account_name: string
-  secu_code: string
+  usc: string
   period: string
   report_precision: string
   start_date: number
@@ -45,7 +45,7 @@ interface RunRow {
 }
 
 interface Report {
-  secu_code: string
+  usc: string
   period: string
   report_precision: string
   start_date: number
@@ -99,7 +99,7 @@ async function loadRuns() {
       pageSize: String(pageSize.value),
     })
     if (statusFilter.value) params.set('status', statusFilter.value)
-    if (secuFilter.value) params.set('secuCode', secuFilter.value)
+    if (secuFilter.value) params.set('usc', secuFilter.value)
     if (keyword.value) params.set('keyword', keyword.value)
     const data = await apiGet<{ total: number; list: RunRow[] }>(`/Meta/Finv/Quant/Backtest/Run/List?${params.toString()}`)
     runs.value = data.list ?? []
@@ -123,7 +123,7 @@ function syncPolling() {
       try {
         const params = new URLSearchParams({ page: String(page.value), pageSize: String(pageSize.value) })
         if (statusFilter.value) params.set('status', statusFilter.value)
-        if (secuFilter.value) params.set('secuCode', secuFilter.value)
+        if (secuFilter.value) params.set('usc', secuFilter.value)
         if (keyword.value) params.set('keyword', keyword.value)
         const data = await apiGet<{ total: number; list: RunRow[] }>(`/Meta/Finv/Quant/Backtest/Run/List?${params.toString()}`)
         runs.value = data.list ?? []
@@ -231,7 +231,7 @@ onBeforeUnmount(() => {
           { title: '任务号', key: 'run_no', width: 90 },
           { title: '策略', key: 'strategy_name' },
           { title: '账户', key: 'account_name', width: 140 },
-          { title: '标的', key: 'secu_code', width: 100 },
+          { title: '标的', key: 'usc', width: 100 },
           { title: '区间', key: 'range', width: 110 },
           { title: '周期', key: 'period', width: 80 },
           { title: '精度', key: 'report_precision', width: 80 },
