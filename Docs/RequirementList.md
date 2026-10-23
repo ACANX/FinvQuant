@@ -321,6 +321,20 @@
 | 10201 | 既有镜像流程不被集成分支影响。 | `docker` job 的 `if` 含 `github.ref != 'refs/heads/feat/integration'`；`dev/main/FinvQuant/tag` 规则未改动 | |
 | 10202 | 版本标识规则写入规范。 | `grep -c 'PPPPP' Docs/DevSpec/GitSpec.md` 不小于 `1`；含「同一快照的所有产物必须共用同一个时间戳」 | |
 
+## 二十一、本地快照打包脚本（10203–10211）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10203 | 存在唯一的快照打包脚本。 | `test -f Deploy/Script/PackSnapshot.sh`；目录名为单数 `Script` | |
+| 10204 | CI 调用同一脚本而非内联逻辑。 | `grep -c 'Deploy/Script/PackSnapshot.sh' .github/workflows/CI.yml` 不小于 `1`（含注释共 2 处）；`snapshot-binaries` 的 `run` 内无 `go build` | |
+| 10205 | 脚本可一次产出三个平台包。 | `bash Deploy/Script/PackSnapshot.sh --version v0.1.1.00000.2610241530` 后 `dist/` 含 `ubuntu2604_amd64`、`ubuntu2604_arm64`、`win11_amd64` 三个包与 `.sha256` | |
+| 10206 | 版本三段解析正确（含左补零）。 | `--version v0.1.1.00123.2610241530` 时输出 `PR 编号 : 00123`；不给 `--version` 时 PR 段为 `00000` | |
+| 10207 | 同一快照多产物时间戳一致。 | 三包文件名中的 `yymmddHHmm` 与包内 `BUILD-INFO.txt` 的「构建时间戳」完全相同 | |
+| 10208 | 包内结构符合约定。 | Linux 包含 `Deploy/Native/`、Windows 包含 `Deploy/Docker/` 且**不含** Dockerfile；两包均含 `Migrations/`、`VERSION`、`BUILD-INFO.txt`、`SHA256SUMS` | |
+| 10209 | 非法参数被拒绝。 | `bash Deploy/Script/PackSnapshot.sh --version v0.1.1.123.2610241530; echo $?`（不加管道）退出码 `1`，并提示「版本格式不合法」 | |
+| 10210 | 缺少前端产物时给出明确提示。 | 删除 `internal/webui/dist/index.html` 后运行，报错提示「请先构建前端或加 --build-web」 | |
+| 10211 | 脚本语法与帮助可用。 | `bash -n Deploy/Script/PackSnapshot.sh` 退出码 0；`--help` 输出用法 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -345,7 +359,8 @@
 | 新增 dedup 去重 schema | 10176–10183 | 8 |
 | 新增 archive 归档 schema | 10184–10191 | 8 |
 | feat/integration 快照构建 | 10192–10202 | 11 |
-| **合计** | **10001–10202** | **202** |
+| 本地快照打包脚本 | 10203–10211 | 9 |
+| **合计** | **10001–10211** | **211** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10203` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10212` 起往后追加，不插入既有区间。

@@ -10,6 +10,7 @@ Deploy/
 ├── Docker/        # 部署方式一：容器（Docker + Compose）
 ├── Native/        # 部署方式二：宿主直装（systemd 守护，无容器）
 ├── Migrations/    # 共用：数据库迁移脚本（服务启动时自动应用）
+├── Script/        # 共用：构建/打包脚本（CI 与本地同一实现）
 ├── Backup/        # 共用：数据库逻辑备份（不入库，见 .gitignore）
 └── README.md      # 本文件
 ```
@@ -19,6 +20,7 @@ Deploy/
 | `Docker/` | 是 | `docker-compose.yml`、`Dockerfile`、`.env.example`、部署/升级/回滚脚本、Windows Docker 文档 |
 | `Native/` | 是 | systemd unit、安装/升级/卸载脚本、环境变量与 Nginx 模板、安装与升级手册 |
 | `Migrations/` | 是 | 结构迁移 `V1`～`V99999`、种子/数据迁移 `V100000+`，**历史文件不可回改** |
+| `Script/` | 是 | `PackSnapshot.sh`：快照包构建（CI 与本地共用，见 §2.3） |
 | `Backup/` | 否 | `pg_dump -Fc` 产物，两种方式共用，命名 `finvquant_YYYYMMDD_HHMMSS.dump` |
 
 ## 1. 怎么选部署方式
@@ -47,6 +49,24 @@ Deploy/
 - 由 Docker 升级脚本（`Docker/upgrade.cmd`）与 Native 升级脚本（`Native/Upgrade.sh`）生成；Native 默认写到 `/var/backups/finvquant`，可直接复制到本目录统一留存。
 - 命名规范：`finvquant_YYYYMMDD_HHMMSS.dump`（纯 ASCII，按名称即按时间排序；禁止中文与本地化日期格式），见 [`../Docs/DevSpec/FileNamingSpec.md`](../Docs/DevSpec/FileNamingSpec.md) 第 5 节。
 - 本目录已被 `.gitignore` 忽略，不随仓库分发。
+
+### 2.3 `Script/`（构建与打包脚本）
+
+`Script/PackSnapshot.sh` 是**快照二进制包的唯一实现**，CI 的 `snapshot-binaries` job 与本地手工出包都调用它：
+
+```bash
+# 本地出全部三个包（linux/amd64、linux/arm64、windows/amd64）
+bash Deploy/Script/PackSnapshot.sh
+
+# 指定版本与目标平台
+bash Deploy/Script/PackSnapshot.sh --version v0.1.1.00123.2610241530 --target linux/arm64
+```
+
+- 版本标识 `v{VERSION}.{PPPPP}.{yymmddHHmm}`：`PPPPP` 为 PR 号（5 位左补零，无 PR 为 `00000`），时间戳为 Asia/Shanghai；三者由脚本统一解析，**同一快照的多个产物共用同一时间戳**。
+- 产物落在 `dist/`（不入库）：`finvquant_<版本>_<ubuntu2604|win11>_<amd64|arm64>.{tar.gz|zip}` + 同名 `.sha256`。
+- 包内结构：二进制、`Deploy/Migrations`、`Deploy/README.md`、Linux 附 `Deploy/Native`（systemd 全套）、Windows 附 `Deploy/Docker`（compose，不含 Dockerfile）、`VERSION`、`BUILD-INFO.txt`、`SHA256SUMS`。
+- 依赖：Go 1.25+；`zip`（仅 Windows 包需要）；前端产物 `internal/webui/dist`（缺失时加 `--build-web` 重新构建）。
+- WSL 兼容：自动探测 `go` / `go.exe`，Windows 版 Go 通过 `WSLENV` 传递 `GOOS`/`GOARCH`。
 
 ## 3. 两种方式共同遵守的约束
 
