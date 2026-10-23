@@ -348,71 +348,14 @@ jobs:
           name: web-dist
           path: internal/webui/dist
 
-      - name: BuildBinary
+      # 构建 + 打包统一调用 Deploy/Script/PackSnapshot.sh（与本地出包同一实现）
+      - name: BuildAndPack
         run: |
-          set -euo pipefail
-          # 注入完整快照版本（去掉前导 v），使 /API/V1/Version 反映快照标识
-          VER="${SNAPSHOT_VERSION#v}"
-          mkdir -p out
-          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }}             go build             -ldflags "-s -w -X main.version=${VER} -X main.commit=${{ needs.snapshot-meta.outputs.commit }}"             -o "out/finvquant${{ matrix.ext }}" ./cmd/server
-          file "out/finvquant${{ matrix.ext }}" || true
-
-      - name: AssemblePackage
-        run: |
-          set -euo pipefail
-          VER="${SNAPSHOT_VERSION}"
-          NAME="finvquant_${VER}_${{ matrix.os_label }}_${{ matrix.goarch }}"
-          ROOT="pkg/${NAME}"
-          mkdir -p "${ROOT}/Deploy"
-
-          cp "out/finvquant${{ matrix.ext }}" "${ROOT}/"
-          cp -r Deploy/Migrations "${ROOT}/Deploy/Migrations"
-          cp -r Deploy/README.md "${ROOT}/Deploy/README.md"
-
-          # Linux 包：带 Native（宿主直装 + systemd）全套脚本与文档
-          # Windows 包：带 Docker 方式编排（Windows 侧推荐容器部署）
-          if [[ "${{ matrix.goos }}" == "linux" ]]; then
-            mkdir -p "${ROOT}/Deploy/Native"
-            cp Deploy/Native/*.sh Deploy/Native/*.md Deploy/Native/*.service \
-               Deploy/Native/*.example "${ROOT}/Deploy/Native/"
-          else
-            # Windows 侧走容器：compose 直接拉 GHCR 已发布镜像，
-            # 因此不带 Dockerfile（其 build.context 指向仓库根，包内不存在源码）
-            mkdir -p "${ROOT}/Deploy/Docker"
-            cp -r Deploy/Docker/. "${ROOT}/Deploy/Docker/"
-            rm -f "${ROOT}/Deploy/Docker/.env" "${ROOT}/Deploy/Docker/.env.bak" \
-                  "${ROOT}/Deploy/Docker/Dockerfile"
-          fi
-
-          printf '%s\n' "${VER#v}" > "${ROOT}/VERSION"
-
-          # 构建信息（含与版本号一致的时间戳，便于核对产物同源）
-          cat > "${ROOT}/BUILD-INFO.txt" <<EOF
-          FinvQuant 快照包
-          ==================
-          版本        : ${VER}
-          基础版本    : ${{ needs.snapshot-meta.outputs.base_version }}
-          PR 编号     : ${{ needs.snapshot-meta.outputs.pr }}
-          构建时间戳  : ${{ needs.snapshot-meta.outputs.timestamp }} (Asia/Shanghai)
-          提交        : ${{ needs.snapshot-meta.outputs.commit }}
-          目标平台    : ${{ matrix.goos }}/${{ matrix.goarch }}
-          适用系统    : ${{ matrix.goos == 'linux' && (matrix.goarch == 'arm64' && 'Ubuntu 26.04 (aarch64)' || 'Ubuntu 26.04 (x86_64)') || 'Windows 11 (x64)' }}
-          仓库        : https://github.com/${{ github.repository }}
-          构建流水线  : ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          EOF
-
-          # 校验和（包内文件）
-          ( cd "${ROOT}" && find . -type f ! -name SHA256SUMS -print0 | sort -z \
-              | xargs -0 sha256sum > SHA256SUMS )
-
-          mkdir -p dist
-          if [[ "${{ matrix.archive }}" == "zip" ]]; then
-            ( cd pkg && zip -qr "../dist/${NAME}.zip" "${NAME}" )
-          else
-            ( cd pkg && tar -czf "../dist/${NAME}.tar.gz" "${NAME}" )
-          fi
-          ( cd dist && sha256sum "${NAME}.${{ matrix.archive }}" > "${NAME}.${{ matrix.archive }}.sha256" )
-          ls -lh dist
+          bash Deploy/Script/PackSnapshot.sh \
+            --version "${SNAPSHOT_VERSION}" \
+            --target "${{ matrix.goos }}/${{ matrix.goarch }}" \
+            --commit "${{ needs.snapshot-meta.outputs.commit }}" \
+            --out dist
 
       - name: UploadPackage
         uses: actions/upload-artifact@v4
