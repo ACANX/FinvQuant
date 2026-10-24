@@ -453,6 +453,31 @@
 | 10289 | 新增 `/Bounds` 轻量接口用于默认日期范围初始化，`GCMain` 查询耗时小于 100ms。 | `curl` 请求 `/Bounds?usc=GCMain` 返回 `date_from/date_to` 且耗时 < 100ms（实测约 17ms）；两个页面首屏默认日期为 2026-06-21 ~ 2026-07-21 | |
 | 10290 | 「数据采集」一级菜单移动到「历史行情」之前（紧跟仪表盘）。 | `grep -n "key: 'data-collection'\|key: 'history-quote'" Web/src/App.vue` 中 data-collection 行号小于 history-quote；浏览器侧边栏顺序为 仪表盘 → 数据采集 → 历史行情 | |
 
+## 二十八、行情月归档导出与上传（10291–10310）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10291 | 迁移 `V41` 在 `dedup` schema 新增 12 张归档链路表。 | `grep -c 'CREATE TABLE IF NOT EXISTS dedup.finv_dedup_' Deploy/Migrations/V41__finv_dedup_export_archive_tables.sql` 输出 `12` | |
+| 10292 | 新增表全部位于 `dedup` schema 且全库无外键，不修改既有两张业务表。 | `grep -c 'REFERENCES' Deploy/Migrations/V41__finv_dedup_export_archive_tables.sql` 输出 `0`；`grep -c 'ALTER TABLE dedup.finv_quote_secu_kline_min' Deploy/Migrations/V41__finv_dedup_export_archive_tables.sql` 输出 `0` | |
+| 10293 | 12 个普通索引按 `idx_<表名去 finv_ 前缀并去下划线>_<用途>` 命名。 | `grep -c 'CREATE INDEX IF NOT EXISTS idx_dedup' Deploy/Migrations/V41__finv_dedup_export_archive_tables.sql` 输出 `12` | |
+| 10294 | 导出文件为 MVsv：16 行 `# ` 文件头 + 1 行空行 + 数据行。 | `go test ./internal/exportarchive -run TestWriteMVsvStructure` 通过 | |
+| 10295 | `# Field` 行固定为 `ts|da|ti|o|h|l|c|v|t|cp|cr|lc`。 | `go test ./internal/exportarchive -run TestWriteMVsvStructure` 通过（断言 Field 行） | |
+| 10296 | `# Count` 等于实际数据行数，不一致时写出失败且不留半成品。 | `go test ./internal/exportarchive -run 'TestWriteMVsvRowCountMismatch|TestVerifyMVsvRejectsBrokenFiles'` 通过 | |
+| 10297 | BASE / PATCH / MANIFEST 文件名符合方案稿约定。 | `go test ./internal/exportarchive -run TestFileNames` 通过 | |
+| 10298 | 上传与本地同名（`.mvsv` / `.json`），不生成、不支持 `.csv`。 | `grep -rn '\.csv' internal/exportarchive` 无输出；`go test ./internal/exportarchive -run TestFileNames` 通过 | |
+| 10299 | 导出任务以 `(usc, biz_month)` 唯一，保证幂等。 | `grep -F 'UNIQUE (usc, biz_month)' Deploy/Migrations/V41__finv_dedup_export_archive_tables.sql` 命中 | |
+| 10300 | LOAD 按日 keyset 分页、`ON CONFLICT (ts, usc) DO NOTHING` 幂等、按 `usc` + 日期范围清理。 | `grep -F 'ON CONFLICT (ts, usc) DO NOTHING' internal/exportarchive/store.go` 命中；`grep -F 'DELETE FROM ' internal/exportarchive/store.go` 命中 | |
+| 10301 | 窗口耗尽时保存游标转 `PAUSED`（预算只限制启动新任务，不中断已启动任务），续跑前校验 `loaded_rows` 与实际行数不一致则重置游标。 | `grep -F 'ResetLoadCursor' internal/exportarchive/job_export.go` 命中；`grep -F 'JobStatusPaused' internal/exportarchive/job_export.go` 命中 | |
+| 10302 | 多 worker 用行锁 + 租约 + 心跳安全领取（`FOR UPDATE SKIP LOCKED`）。 | `grep -F 'FOR UPDATE SKIP LOCKED' internal/exportarchive/store.go` 命中；`grep -F 'make_interval(secs' internal/exportarchive/store.go` 命中 | |
+| 10303 | 日预算按公式计算并落库（`factor = clamp(1.20 + 0.20*sla + 0.05*min(backlog,5), 1.20, 2.00)`）。 | `go test ./internal/exportarchive -run TestComputeBudget` 通过 | |
+| 10304 | 导出候选要求该月所有已观测日均为 `COMPLETE`/`FROZEN` 且月份已结束。 | `grep -F "HAVING bool_and(m.maturity_status IN ('COMPLETE', 'FROZEN'))" internal/exportarchive/store.go` 命中；`grep -F 'm.biz_month < $1' internal/exportarchive/store.go` 命中 | |
+| 10305 | 每个物理文件登记到 `finv_dedup_export_file`，唯一键 `(usc, biz_month, file_type, version)`。 | `grep -F 'UNIQUE (usc, biz_month, file_type, version)' Deploy/Migrations/V41__finv_dedup_export_archive_tables.sql` 命中 | |
+| 10306 | MANIFEST 在同一证券月 BASE / PATCH 全部上传完成后才领取。 | `grep -F "f.file_type <> 'MANIFEST' OR NOT EXISTS" internal/exportarchive/store_files.go` 命中 | |
+| 10307 | 上传前后校验大小与 SHA256，每次尝试写上传审计日志。 | `grep -F 's.uploader.Verify' internal/exportarchive/job_upload.go` 命中；`grep -F 'InsertUploadLog' internal/exportarchive/job_upload.go` 命中 | |
+| 10308 | 收口后数据按 L1_HOT / L2_WARM / L3_COLD 分级补丁，并登记 `finv_dedup_export_file_patch`。 | `grep -F 'PatchLevelL1Hot' internal/exportarchive/job_patch.go` 命中；`grep -F 'InsertPatchTask' internal/exportarchive/job_patch.go` 命中 | |
+| 10309 | 生命周期清理默认不删主表数据，需显式开关；本地文件需「上传成功 + 远端校验 + 网盘归档」才清理。 | `grep -F 'FINV_QUOTE_DEDUB_PURGE_MAIN_ENABLED' internal/config/config.go` 命中；`grep -F "network_status = 'ARCHIVED'" internal/exportarchive/store_files.go` 命中 | |
+| 10310 | 健康检查输出指标与告警，并登记 10 个 Job 的调度表。 | `go test ./internal/exportarchive -run 'TestBuildAlerts|TestJobRuntimes'` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -497,7 +522,8 @@
 | 每日成交额图表 | 10288 | 1 |
 | 日期边界接口 | 10289 | 1 |
 | 数据采集菜单位置 | 10290 | 1 |
-| **合计** | **10001–10290** | **290** |
+| 行情月归档导出与上传 | 10291–10310 | 20 |
+| **合计** | **10001–10310** | **310** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10291` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10311` 起往后追加，不插入既有区间。

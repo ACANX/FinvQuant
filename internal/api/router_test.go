@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/acanx/finvquant/internal/config"
+	"github.com/acanx/finvquant/internal/exportarchive"
 	"github.com/acanx/finvquant/internal/kline"
 )
 
@@ -24,14 +25,41 @@ func newTestRouter(t *testing.T) *gin.Engine {
 		t.Fatalf("创建测试连接池失败: %v", err)
 	}
 	t.Cleanup(pool.Close)
+	archiveService, err := exportarchive.NewService(pool, exportarchive.Options{UploadMode: exportarchive.UploadModeNone})
+	if err != nil {
+		t.Fatalf("创建归档服务失败: %v", err)
+	}
 	return NewRouter(&Deps{
-		Pool:    pool,
-		Redis:   nil,
-		Version: "test",
-		Commit:  "test",
-		Server:  "finvquant",
-		Config:  &config.Config{KLineMaxBatchRows: 5000, KLineMaxListSize: 5000, KLineTSUnit: "s"},
+		Pool:          pool,
+		Redis:         nil,
+		Version:       "test",
+		Commit:        "test",
+		Server:        "finvquant",
+		Config:        &config.Config{KLineMaxBatchRows: 5000, KLineMaxListSize: 5000, KLineTSUnit: "s"},
+		ExportArchive: archiveService,
 	})
+}
+
+// TestExportArchiveRoutesRegistered 校验行情月归档运维接口均已注册。
+func TestExportArchiveRoutesRegistered(t *testing.T) {
+	router := newTestRouter(t)
+	registered := map[string]bool{}
+	for _, route := range router.Routes() {
+		registered[route.Method+" "+route.Path] = true
+	}
+	expected := []string{
+		"GET /API/V1/Meta/Finv/Quote/DeDup/Status",
+		"GET /API/V1/Meta/Finv/Quote/DeDup/Job/List",
+		"GET /API/V1/Meta/Finv/Quote/DeDup/File/List",
+		"POST /API/V1/Meta/Finv/Quote/DeDup/Job/Retry",
+		"POST /API/V1/Meta/Finv/Quote/DeDup/File/Retry",
+		"POST /API/V1/Meta/Finv/Quote/DeDup/Job/Run",
+	}
+	for _, route := range expected {
+		if !registered[route] {
+			t.Fatalf("路由未注册: %s", route)
+		}
+	}
 }
 
 // TestKLineRoutesRegistered 校验新前缀、旧前缀过渡别名与运维端点均已注册。

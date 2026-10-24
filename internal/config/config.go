@@ -3,6 +3,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -40,6 +41,30 @@ type Config struct {
 	ErrorDetailMode         string
 	ErrorDebugToken         string
 	ErrorDetailAllowedCIDRs []string
+
+	// 证券行情月归档导出与上传（详见 Docs/Refactor/2610-SecuritiesQuoteExportArchive.md）
+	QuoteDeDupEnabled           bool    // 功能开关，默认关闭；开启后由进程内调度器自动跑 10 个 Job
+	QuoteDeDupTimeZone          string  // 业务时区，默认 Asia/Shanghai
+	QuoteDeDupOutputDir         string  // 本地导出根目录
+	QuoteDeDupWorkerID          string  // worker 标识，空则用 hostname-pid
+	QuoteDeDupPageSize          int     // LOAD 单页行数（5000~20000）
+	QuoteDeDupWindowStart       string  // 导出低峰窗口开始 HH:MM
+	QuoteDeDupWindowEnd         string  // 导出低峰窗口结束 HH:MM
+	QuoteDeDupLeaseSeconds      int     // 任务锁租约（秒）
+	QuoteDeDupMaxAttempts       int     // 上传最大尝试次数
+	QuoteDeDupUploadMode        string  // none / dir / http
+	QuoteDeDupUploadDir         string  // dir 模式：独享存储本地挂载根目录
+	QuoteDeDupUploadHTTPBase    string  // http 模式：PUT 根地址
+	QuoteDeDupUploadHTTPToken   string  // http 模式：Bearer 令牌（可选）
+	QuoteDeDupUploadPrefix      string  // 远端路径前缀（可选）
+	QuoteDeDupLocalRetentionDay int     // 本地文件保留天数
+	QuoteDeDupPurgeMainEnabled  bool    // 是否允许清理主表旧数据（全链路成功确认后）
+	QuoteDeDupPurgeMainMonths   int     // 主表保留月份数（默认 2）
+	QuoteDeDupMaturityThreshold float64 // 成熟度阈值（默认 0.95）
+	QuoteDeDupPatchBudgetRatio  float64 // Patch 独立预算占日预算比例（默认 0.10）
+	QuoteDeDupCompression       string  // none / gzip
+	QuoteDeDupFetchLimit        int     // 单轮候选生成上限
+	QuoteDeDupMaxJobsPerRun     int     // 单轮 RUN_DUE_EXPORT_JOBS 最多处理任务数
 }
 
 // Load 从环境变量加载配置，缺失时使用默认值。
@@ -64,6 +89,29 @@ func Load() *Config {
 		ErrorDetailMode:         envLowerOr("FINV_ERROR_DETAIL_MODE", "safe"),
 		ErrorDebugToken:         os.Getenv("FINV_ERROR_DEBUG_TOKEN"),
 		ErrorDetailAllowedCIDRs: envListOr("FINV_ERROR_DETAIL_ALLOWED_CIDRS"),
+
+		QuoteDeDupEnabled:           envBoolOr("FINV_QUOTE_DEDUB_ENABLED", false),
+		QuoteDeDupTimeZone:          envOr("FINV_QUOTE_DEDUB_TIMEZONE", "Asia/Shanghai"),
+		QuoteDeDupOutputDir:         envOr("FINV_QUOTE_DEDUB_OUTPUT_DIR", "Data/QuoteDeDup"),
+		QuoteDeDupWorkerID:          os.Getenv("FINV_QUOTE_DEDUB_WORKER_ID"),
+		QuoteDeDupPageSize:          envIntOr("FINV_QUOTE_DEDUB_PAGE_SIZE", 10000),
+		QuoteDeDupWindowStart:       envOr("FINV_QUOTE_DEDUB_WINDOW_START", "00:30"),
+		QuoteDeDupWindowEnd:         envOr("FINV_QUOTE_DEDUB_WINDOW_END", "06:30"),
+		QuoteDeDupLeaseSeconds:      envIntOr("FINV_QUOTE_DEDUB_LEASE_SECONDS", 300),
+		QuoteDeDupMaxAttempts:       envIntOr("FINV_QUOTE_DEDUB_MAX_ATTEMPTS", 8),
+		QuoteDeDupUploadMode:        envLowerOr("FINV_QUOTE_DEDUB_UPLOAD_MODE", "none"),
+		QuoteDeDupUploadDir:         envOr("FINV_QUOTE_DEDUB_UPLOAD_DIR", "Data/QuoteDeDup/Upload"),
+		QuoteDeDupUploadHTTPBase:    os.Getenv("FINV_QUOTE_DEDUB_UPLOAD_HTTP_BASE"),
+		QuoteDeDupUploadHTTPToken:   os.Getenv("FINV_QUOTE_DEDUB_UPLOAD_HTTP_TOKEN"),
+		QuoteDeDupUploadPrefix:      os.Getenv("FINV_QUOTE_DEDUB_UPLOAD_PREFIX"),
+		QuoteDeDupLocalRetentionDay: envIntOr("FINV_QUOTE_DEDUB_LOCAL_RETENTION_DAYS", 30),
+		QuoteDeDupPurgeMainEnabled:  envBoolOr("FINV_QUOTE_DEDUB_PURGE_MAIN_ENABLED", false),
+		QuoteDeDupPurgeMainMonths:   envIntOr("FINV_QUOTE_DEDUB_PURGE_MAIN_MONTHS", 2),
+		QuoteDeDupMaturityThreshold: envFloatOr("FINV_QUOTE_DEDUB_MATURITY_THRESHOLD", 0.95),
+		QuoteDeDupPatchBudgetRatio:  envFloatOr("FINV_QUOTE_DEDUB_PATCH_BUDGET_RATIO", 0.10),
+		QuoteDeDupCompression:       envLowerOr("FINV_QUOTE_DEDUB_COMPRESSION", "none"),
+		QuoteDeDupFetchLimit:        envIntOr("FINV_QUOTE_DEDUB_FETCH_LIMIT", 2000),
+		QuoteDeDupMaxJobsPerRun:     envIntOr("FINV_QUOTE_DEDUB_MAX_JOBS_PER_RUN", 200),
 	}
 }
 
@@ -111,6 +159,31 @@ func envListOr(key string) []string {
 		}
 	}
 	return items
+}
+
+// envBoolOr 读取布尔环境变量（1/true/yes/on 为真，0/false/no/off 为假）。
+func envBoolOr(key string, fallback bool) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
+}
+
+// envFloatOr 读取浮点环境变量（非法值回退默认值）。
+func envFloatOr(key string, fallback float64) float64 {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }
 
 func envIntOr(key string, fallback int) int {

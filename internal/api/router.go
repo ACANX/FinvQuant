@@ -12,6 +12,7 @@ import (
 	"github.com/acanx/finvquant/internal/api/handler"
 	"github.com/acanx/finvquant/internal/backtest"
 	"github.com/acanx/finvquant/internal/config"
+	"github.com/acanx/finvquant/internal/exportarchive"
 	"github.com/acanx/finvquant/internal/kline"
 	"github.com/acanx/finvquant/internal/meta"
 	"github.com/acanx/finvquant/internal/quote"
@@ -19,12 +20,13 @@ import (
 
 // Deps 路由依赖。
 type Deps struct {
-	Pool    *pgxpool.Pool
-	Redis   *redis.Client
-	Version string
-	Commit  string
-	Server  string
-	Config  *config.Config
+	Pool          *pgxpool.Pool
+	Redis         *redis.Client
+	Version       string
+	Commit        string
+	Server        string
+	Config        *config.Config
+	ExportArchive *exportarchive.Service
 }
 
 // NewRouter 构建 Gin 路由（默认监听端口 16001）。
@@ -89,6 +91,18 @@ func NewRouter(deps *Deps) *gin.Engine {
 		// 历史行情：导入 / 查询（统一 /Meta/Finv/Quant/Quote/ 前缀，与前端路由对应）
 		apiGroup.POST("/Meta/Finv/Quant/Quote/Import/Upload", quoteImport.Upload)
 		apiGroup.GET("/Meta/Finv/Quant/Quote/History/QuoteQuery", quoteQuery.Query)
+
+		// 证券行情月归档导出与上传（运维：状态 / 任务 / 文件 / 重试 / 手动触发）
+		if deps.ExportArchive != nil {
+			archive := handler.NewExportArchive(deps.ExportArchive)
+			group := apiGroup.Group("/Meta/Finv/Quote/DeDup")
+			group.GET("/Status", archive.Status)
+			group.GET("/Job/List", archive.JobList)
+			group.GET("/File/List", archive.FileList)
+			group.POST("/Job/Retry", archive.JobRetry)
+			group.POST("/File/Retry", archive.FileRetry)
+			group.POST("/Job/Run", archive.JobRun)
+		}
 
 		// 元数据管理：交易所 / 市场 / 证券字典维护
 		apiGroup.GET("/Meta/Finv/Quant/Metadata/Exchange/List", metaHandler.ListExchanges)
