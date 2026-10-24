@@ -493,6 +493,21 @@
 | 10319 | 包内 `BUILD-INFO.txt` 标注包类型（snapshot / pr / release）。 | `grep -F '包类型      : ${KIND}' Deploy/Script/PackSnapshot.sh` 命中 | |
 | 10320 | 手动触发（`workflow_dispatch`）可选择包类型。 | `grep -F 'options: [snapshot, pr, release]' .github/workflows/CI.yml` 命中 | |
 
+## 三十、前端月归档导出控制台（10321–10330）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10321 | 新增 3 个归档页面：总览、导出任务、文件与上传。 | `ls Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExport{Overview,Job,File}View.vue` 列出 3 个文件 | |
+| 10322 | 3 个页面在 `router.ts` 注册独立路由。 | `grep -c "path: '/Meta/Finv/Quote/DeDup/Export/" Web/src/router.ts` 输出 `3` | |
+| 10323 | 菜单挂到「数据采集 → 行情数据去重 → 月归档导出」。 | `grep -F '月归档导出' Web/src/App.vue` 命中 | |
+| 10324 | 总览页调用 `GET .../DeDup/Status` 展示指标、告警与运行参数。 | `grep -F 'Meta/Finv/Quote/DeDup/Status' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue` 命中 | |
+| 10325 | 总览页支持手动触发 Job（`POST .../Job/Run`）。 | `grep -F 'Meta/Finv/Quote/DeDup/Job/Run' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue` 命中 | |
+| 10326 | 任务页调用 `Job/List` 分页查询并支持 `Job/Retry` 人工重试。 | `grep -F 'Meta/Finv/Quote/DeDup/Job/List' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportJobView.vue` 与 `grep -F 'Job/Retry'` 均命中 | |
+| 10327 | 文件页调用 `File/List` 分页查询并支持 `File/Retry` 重试上传。 | `grep -F 'Meta/Finv/Quote/DeDup/File/List' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue` 与 `grep -F 'File/Retry'` 均命中 | |
+| 10328 | 文件页提供「仅看已上传」快捷筛选（`uploadStatus=UPLOADED`）。 | `grep -F "uploadStatus.value = 'UPLOADED'" Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue` 命中 | |
+| 10329 | 新增通用格式化工具 `fmtISO` / `fmtBytes` / `fmtMonth`。 | `grep -F 'export function fmtISO' Web/src/utils.ts` 命中 | |
+| 10330 | 前端类型检查与生产构建通过。 | `cd Web && npm run build` 成功（`vue-tsc -b && vite build`） | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -539,7 +554,8 @@
 | 数据采集菜单位置 | 10290 | 1 |
 | 行情月归档导出与上传 | 10291–10310 | 20 |
 | 三种发布包的 CI/CD | 10311–10320 | 10 |
-| **合计** | **10001–10320** | **320** |
+| 前端月归档导出控制台 | 10321–10330 | 10 |
+| **合计** | **10001–10330** | **330** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10321` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10331` 起往后追加，不插入既有区间。

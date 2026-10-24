@@ -33,6 +33,16 @@ const menuItems: (MenuLeaf | MenuGroup)[] = [
         children: [
           { key: 'dedup-kline-query', title: '去重分钟行情查询', icon: 'mdi-table-search', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query' },
           { key: 'dedup-kline-stats', title: '去重分钟行情统计', icon: 'mdi-chart-box-outline', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats' },
+          {
+            key: 'dedup-export',
+            title: '月归档导出',
+            icon: 'mdi-database-export-outline',
+            children: [
+              { key: 'dedup-export-overview', title: '归档监控总览', icon: 'mdi-monitor-dashboard', path: '/Meta/Finv/Quote/DeDup/Export/Overview' },
+              { key: 'dedup-export-job', title: '导出任务', icon: 'mdi-clipboard-list-outline', path: '/Meta/Finv/Quote/DeDup/Export/Job' },
+              { key: 'dedup-export-file', title: '文件与上传', icon: 'mdi-file-cloud-outline', path: '/Meta/Finv/Quote/DeDup/Export/File' },
+            ],
+          },
         ],
       },
     ],

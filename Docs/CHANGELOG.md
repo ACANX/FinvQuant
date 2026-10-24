@@ -27,6 +27,11 @@
 - 新增 6 个运维接口（`/API/V1/Meta/Finv/Quote/DeDup/*`）：`Status`、`Job/List`、`File/List`、`Job/Retry`、`File/Retry`、`Job/Run`，均为一接口一文档（`Docs/API/QuoteDeDup/*.md`），并在 `Docs/API/README.md` 与 `Docs/API/APIs.md` 登记。
 - 新增配置项（均在 `config.Config` 中集中解析）：`FINV_QUOTE_DEDUB_ENABLED`、`_TIMEZONE`、`_OUTPUT_DIR`、`_WORKER_ID`、`_PAGE_SIZE`、`_WINDOW_START`、`_WINDOW_END`、`_LEASE_SECONDS`、`_MAX_ATTEMPTS`、`_UPLOAD_MODE`、`_UPLOAD_DIR`、`_UPLOAD_HTTP_BASE`、`_UPLOAD_HTTP_TOKEN`、`_UPLOAD_PREFIX`、`_LOCAL_RETENTION_DAYS`、`_PURGE_MAIN_ENABLED`、`_PURGE_MAIN_MONTHS`、`_MATURITY_THRESHOLD`、`_PATCH_BUDGET_RATIO`、`_COMPRESSION`、`_FETCH_LIMIT`、`_MAX_JOBS_PER_RUN`。
 - 新增落地文档 [`Docs/Refactor/2610-005-FinvQuoteDeDubExportUpload.md`](Refactor/2610-005-FinvQuoteDeDubExportUpload.md)（流程、配置、调度、运维要点、与方案稿的差异说明、P0–P7 阶段对照）。
+- **前端月归档导出控制台**（`Web/src/views/Meta/Finv/Quote/DeDup/Export/`）：新增 3 个页面，挂到「数据采集 → 行情数据去重 → 月归档导出」菜单：
+  - **归档监控总览**（`/Meta/Finv/Quote/DeDup/Export/Overview`）：指标卡（待装载行数、积压天数、预算因子与消耗、FROZEN 缺失、近 7 天补丁、心跳超时、上传重试耗尽、待清理文件、MVsv 异常）、预算使用率与完整性进度条、任务/上传状态分布、告警列表（`alerts`）、运行参数摘要、10 个 Job 调度表与「立即运行」，支持 30 秒自动刷新；
+  - **月归档导出任务**（`.../Export/Job`）：`finv_dedup_export_job` 分页表（状态、已装载行数、BASE 版本、补丁数、收口/冻结日、执行者、心跳、下次运行、最近错误），支持状态 / 证券 / 业务月过滤与人工重试；
+  - **月归档导出文件与上传**（`.../Export/File`）：`finv_dedup_export_file` 分页表（类型、版本、行数、大小、上传状态、尝试次数、上传起止、远端校验、网盘归档、清理状态、下次重试），支持上传状态 / 文件类型过滤、「仅看已上传」快捷筛选与重试上传。
+  - 复用 `Web/src/api.ts`（`apiGet` / `apiPost`）与 `Web/src/utils.ts`（新增 `fmtISO` / `fmtBytes` / `fmtMonth`），仅调用已有 6 个后端接口，无后端改动。
 
 ### 变更
 

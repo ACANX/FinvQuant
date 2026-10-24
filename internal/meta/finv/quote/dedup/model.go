@@ -1,4 +1,4 @@
-// Package exportarchive 实现证券行情月归档的自动化链路：
+// Package dedup 实现证券行情月归档的自动化链路：
 // 成熟度扫描 → 导出候选 → LOAD（主表→中转表）→ EXPORT（中转表→MVsv 文件）
 // → CLEANUP（清理中转数据）→ 登记导出文件（上传任务唯一数据源）
 // → UPLOAD（上传独享存储库并校验 checksum）→ 补丁收口与生命周期清理。

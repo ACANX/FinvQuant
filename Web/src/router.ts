@@ -6,6 +6,9 @@ import QuoteQueryView from './views/Meta/Finv/Quote/History/HistoryQuoteQueryVie
 import QuoteImportView from './views/Meta/Finv/Quote/History/HistoryQuoteImportView.vue'
 import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue'
 import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue'
+import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue'
+import DeDupExportJobView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportJobView.vue'
+import DeDupExportFileView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue'
 import MetaExchangeView from './views/Meta/Finv/MetaData/MetaExchangeView.vue'
 import MetaMarketView from './views/Meta/Finv/MetaData/MetaMarketView.vue'
 import MetaSecurityView from './views/Meta/Finv/MetaData/MetaSecurityView.vue'
@@ -42,6 +45,25 @@ const router = createRouter({
       name: 'dedup-kline-stats',
       component: DeDupKLineStatsView,
       meta: { title: '去重分钟行情统计' },
+    },
+    // 去重行情 → 月归档导出（监控总览 / 导出任务 / 文件与上传）
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Overview',
+      name: 'dedup-export-overview',
+      component: DeDupExportOverviewView,
+      meta: { title: '月归档导出总览' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Job',
+      name: 'dedup-export-job',
+      component: DeDupExportJobView,
+      meta: { title: '月归档导出任务' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/File',
+      name: 'dedup-export-file',
+      component: DeDupExportFileView,
+      meta: { title: '月归档导出文件与上传' },
     },
     // 元数据管理 → 业务元数据维护 → 四个子菜单
     { path: '/meta/exchange', name: 'meta-exchange', component: MetaExchangeView, meta: { title: '交易所信息维护' } },
