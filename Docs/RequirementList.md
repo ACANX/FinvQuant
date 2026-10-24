@@ -478,6 +478,21 @@
 | 10309 | 生命周期清理默认不删主表数据，需显式开关；本地文件需「上传成功 + 远端校验 + 网盘归档」才清理。 | `grep -F 'FINV_QUOTE_DEDUB_PURGE_MAIN_ENABLED' internal/config/config.go` 命中；`grep -F "network_status = 'ARCHIVED'" internal/exportarchive/store_files.go` 命中 | |
 | 10310 | 健康检查输出指标与告警，并登记 10 个 Job 的调度表。 | `go test ./internal/exportarchive -run 'TestBuildAlerts|TestJobRuntimes'` 通过 | |
 
+## 二十九、三种发布包的 CI/CD（10311–10320）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10311 | 快照包在推送代码到分支时触发，版本为 `v{VERSION}.{PPPPP}.{yymmddHHmm}`。 | `grep -F 'v${BASE}.${PR5}.${TS}' .github/workflows/CI.yml` 命中 | |
+| 10312 | 构建包在 PR 合并时触发，版本为 `v{VERSION}.{PPPPP}`（不含时间戳）。 | `grep -F 'VERSION="v${BASE}.${PR5}"' .github/workflows/CI.yml` 命中 | |
+| 10313 | 正式版包在代码合并到 `main` 时触发，版本为 `v{VERSION}`。 | `grep -F 'VERSION="v${BASE}"' .github/workflows/CI.yml` 命中 | |
+| 10314 | 三个 binaries job（`snapshot-binaries` / `pr-binaries` / `release-binaries`）同级平行存在。 | `grep -c '^  [a-z-]*-binaries:$' .github/workflows/CI.yml` 输出 `3` | |
+| 10315 | 构建包采用 B 策略：同名 release/tag 已存在时删除后重建。 | `grep -F 'gh release delete "${VER}" --yes --cleanup-tag' .github/workflows/CI.yml` 命中 | |
+| 10316 | 三种场景互斥：提交已关联已合并 PR 时不出快照包。 | `grep -F '改由 pr 场景构建' .github/workflows/CI.yml` 命中 | |
+| 10317 | 正式版 tag 已存在时跳过并告警（需先 bump `VERSION`）。 | `grep -F '请先 bump VERSION' .github/workflows/CI.yml` 命中 | |
+| 10318 | `PackSnapshot.sh` 支持三种版本格式与 `--kind` 参数。 | `grep -F -- '--kind)         KIND=' Deploy/Script/PackSnapshot.sh` 命中 | |
+| 10319 | 包内 `BUILD-INFO.txt` 标注包类型（snapshot / pr / release）。 | `grep -F '包类型      : ${KIND}' Deploy/Script/PackSnapshot.sh` 命中 | |
+| 10320 | 手动触发（`workflow_dispatch`）可选择包类型。 | `grep -F 'options: [snapshot, pr, release]' .github/workflows/CI.yml` 命中 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -523,7 +538,8 @@
 | 日期边界接口 | 10289 | 1 |
 | 数据采集菜单位置 | 10290 | 1 |
 | 行情月归档导出与上传 | 10291–10310 | 20 |
-| **合计** | **10001–10310** | **310** |
+| 三种发布包的 CI/CD | 10311–10320 | 10 |
+| **合计** | **10001–10320** | **320** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10311` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10321` 起往后追加，不插入既有区间。

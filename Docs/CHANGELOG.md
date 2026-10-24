@@ -35,6 +35,13 @@
 - `Docs/DevSpec/DbSchemaSpec.md`：`dedup` schema 归属表登记新增归档链路 12 张表。
 - `Docs/RequirementList.md`：新增归档链路需求条目（自 `10291` 起）。
 - 默认不修改既有两张业务表，不新增 `export` / `sche` schema，导出/上传文件统一 `.mvsv`（不生成、不支持 `.csv`）。
+- **CI/CD 拆分为三种发布包**（`.github/workflows/CI.yml`）：新增 `pr-binaries` / `pr-publish` 与 `release-binaries` / `release-publish`，与既有 `snapshot-binaries` / `snapshot-publish` 同级平行：
+  - **快照包（snapshot）**：push 代码到分支（非 `main`，且提交未关联已合并 PR）→ `v{VERSION}.{PPPPP}.{yymmddHHmm}`（prerelease，时间戳保证同一 PR 多次 push 唯一）；
+  - **构建包（pr）**：PR 合并 → `v{VERSION}.{PPPPP}`（prerelease；**B 策略**：同名 release/tag 已存在时删除后重建）；
+  - **正式版包（release）**：代码合并到 `main` → `v{VERSION}`（正式 release、`--latest`；tag 已存在则跳过，需先 bump `VERSION`）。
+  - 三种场景互斥（提交已关联已合并 PR 时只出构建包），`push` 分支范围扩展为 `dev` / `main` / `FinvQuant` / `feat/**`，镜像构建仍仅限 `dev` / `main` / `FinvQuant` 与 `v*` tag。
+- `Deploy/Script/PackSnapshot.sh` 支持三种包版本格式（`v{BASE}`、`v{BASE}.{PPPPP}`、`v{BASE}.{PPPPP}.{yymmddHHmm}`）与 `--kind snapshot|pr|release`，包内 `BUILD-INFO.txt` 增加包类型；`workflow_dispatch` 增加 `kind` 输入，便于手动构建指定类型包。
+- `Docs/DevSpec/GitSpec.md` §4 补充三种包的版本/tag 与发布规则。
 
 ## [0.1.2] - 2026-10-24
 
