@@ -44,7 +44,7 @@ func (h *Meta) ListExchanges(c *gin.Context) {
 func (h *Meta) SaveExchange(c *gin.Context) {
 	var e meta.Exchange
 	if err := c.ShouldBindJSON(&e); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	code, err := h.service.SaveExchange(c.Request.Context(), e)
@@ -62,7 +62,7 @@ func (h *Meta) ToggleExchange(c *gin.Context) {
 		FlagEnable   string `json:"flag_enable"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	if err := h.service.ToggleExchange(c.Request.Context(), req.ExchangeCode, req.FlagEnable); err != nil {
@@ -96,7 +96,7 @@ func (h *Meta) ListMarkets(c *gin.Context) {
 func (h *Meta) SaveMarket(c *gin.Context) {
 	var m meta.Market
 	if err := c.ShouldBindJSON(&m); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	code, err := h.service.SaveMarket(c.Request.Context(), m)
@@ -114,7 +114,7 @@ func (h *Meta) ToggleMarket(c *gin.Context) {
 		FlagEnable string `json:"flag_enable"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	if err := h.service.ToggleMarket(c.Request.Context(), req.MarketCode, req.FlagEnable); err != nil {
@@ -148,7 +148,7 @@ func (h *Meta) ListSecurities(c *gin.Context) {
 func (h *Meta) SaveSecurity(c *gin.Context) {
 	var sec meta.Security
 	if err := c.ShouldBindJSON(&sec); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	usc, err := h.service.SaveSecurity(c.Request.Context(), sec)
@@ -166,7 +166,7 @@ func (h *Meta) ToggleSecurity(c *gin.Context) {
 		FlagEnable string `json:"flag_enable"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	if err := h.service.ToggleSecurity(c.Request.Context(), req.USC, req.FlagEnable); err != nil {

@@ -78,14 +78,14 @@
 | `回测开关未启用...` | 400 / 4001 | 策略 / 账户 / 环境 allow_backtest 为 `0`，或 options.enable_backtest=false |
 | `策略不存在 / 账户不存在 / 环境不存在` | 404 / 4004 | 引用对象缺失（或不属于当前用户） |
 | `环境...币种...不一致` | 409 / 4009 | 环境计价币种与账户币种不一致 |
-| `标的 xxx 无任何行情数据` | 400 / 4001 | quote.finv_quote_secu_kline_min 无该标的行情 |
+| `标的 xxx 无任何行情数据` | 400 / 4001 | dedup.finv_quote_secu_kline_min 无该标的行情 |
 | `开始日期不能晚于结束日期` | 400 / 4001 | 日期区间非法 |
 | `不支持的周期 / 报告精度` | 400 / 4001 | 枚举越界 |
 
 ## 执行链路
 
 创建任务 → 插入 `quant.finv_quant_backtest_run`（PENDING，含策略/账户/环境快照）→ 异步 goroutine：
-RUNNING → 加载行情（`quote.finv_quote_secu_kline_min` 按 date 区间）→ 按 period 聚合 →
+RUNNING → 加载行情（`dedup.finv_quote_secu_kline_min` 按 date 区间）→ 按 period 聚合 →
 回测引擎逐 bar 回放（环境交易时段过滤 / tick_size 对齐 / 成本覆盖链）→ 落库
 曲线（`quant.finv_quant_backtest_equity`）、成交（`quant.finv_quant_backtest_trade`）、
 链路追踪（`quant.finv_quant_backtest_cashflow` / `position_log` / `event_trace`）→ SUCCEEDED（report 写入）。

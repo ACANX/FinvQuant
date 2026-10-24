@@ -14,7 +14,7 @@ func TestBuildUpsertSQLFieldMode(t *testing.T) {
 	if strings.Contains(sql, "market_code") {
 		t.Fatal("upsert 不应再包含 market_code 列（V21 已移除）")
 	}
-	if !strings.Contains(sql, "close = COALESCE(EXCLUDED.close, quote.finv_quote_secu_kline_min.close)") {
+	if !strings.Contains(sql, "close = COALESCE(EXCLUDED.close, dedup.finv_quote_secu_kline_min.close)") {
 		t.Fatal("FIELD 模式应使用 COALESCE 字段级覆盖")
 	}
 	if !strings.Contains(sql, "RETURNING (xmax = 0) AS is_insert") {

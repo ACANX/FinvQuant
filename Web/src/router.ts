@@ -4,6 +4,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from './views/DashboardView.vue'
 import QuoteQueryView from './views/Meta/Finv/Quote/History/HistoryQuoteQueryView.vue'
 import QuoteImportView from './views/Meta/Finv/Quote/History/HistoryQuoteImportView.vue'
+import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue'
+import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue'
 import MetaExchangeView from './views/Meta/Finv/MetaData/MetaExchangeView.vue'
 import MetaMarketView from './views/Meta/Finv/MetaData/MetaMarketView.vue'
 import MetaSecurityView from './views/Meta/Finv/MetaData/MetaSecurityView.vue'
@@ -28,6 +30,19 @@ const router = createRouter({
     { path: '/dashboard', name: 'dashboard', component: DashboardView, meta: { title: '仪表盘' } },
     // 历史行情 → 历史行情查询
     { path: '/Meta/Finv/Quote/History/HistoryQuoteQuery', name: 'quote-query', component: QuoteQueryView, meta: { title: '历史行情查询' } },
+    // 去重行情 → 去重分钟行情查询 / 统计
+    {
+      path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query',
+      name: 'dedup-kline-query',
+      component: DeDupKLineQueryView,
+      meta: { title: '去重分钟行情查询' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats',
+      name: 'dedup-kline-stats',
+      component: DeDupKLineStatsView,
+      meta: { title: '去重分钟行情统计' },
+    },
     // 元数据管理 → 业务元数据维护 → 四个子菜单
     { path: '/meta/exchange', name: 'meta-exchange', component: MetaExchangeView, meta: { title: '交易所信息维护' } },
     { path: '/meta/market', name: 'meta-market', component: MetaMarketView, meta: { title: '交易所下设市场信息维护' } },

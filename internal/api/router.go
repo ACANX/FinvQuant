@@ -3,6 +3,7 @@ package api
 
 import (
 	"runtime"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/acanx/finvquant/internal/api/handler"
 	"github.com/acanx/finvquant/internal/backtest"
+	"github.com/acanx/finvquant/internal/config"
+	"github.com/acanx/finvquant/internal/kline"
 	"github.com/acanx/finvquant/internal/meta"
 	"github.com/acanx/finvquant/internal/quote"
 )
@@ -21,6 +24,7 @@ type Deps struct {
 	Version string
 	Commit  string
 	Server  string
+	Config  *config.Config
 }
 
 // NewRouter 构建 Gin 路由（默认监听端口 16001）。
@@ -43,11 +47,45 @@ func NewRouter(deps *Deps) *gin.Engine {
 	metaHandler := handler.NewMeta(meta.NewService(deps.Pool))
 	backtestHandler := handler.NewBacktest(backtest.NewService(deps.Pool))
 
+	// 分钟行情 K 线 API（融合 FinvQuoteDataDeDup；DC-01/DC-05/DC-06）
+	cfg := deps.Config
+	if cfg == nil {
+		cfg = config.Load()
+	}
+	klineHandler := handler.NewKLine(
+		kline.NewService(deps.Pool, kline.Options{
+			MaxBatchRows: cfg.KLineMaxBatchRows,
+			MaxListSize:  cfg.KLineMaxListSize,
+			TSUnit:       cfg.KLineTSUnit,
+		}),
+		handler.NewErrorResponder(cfg),
+	)
+	klineOps := handler.NewKLineOps(deps.Pool, deps.Server, deps.Version, kline.APIPrefix)
+
 	apiGroup := router.Group("/API/V1")
 	{
 		apiGroup.GET("/Health/Live", health.Live)
 		apiGroup.GET("/Health/Ready", health.Ready)
 		apiGroup.GET("/Version", version.Info)
+		// 分钟行情 K 线：新前缀 + 旧前缀过渡别名（同一组 handler，P7 后可移除旧前缀）
+		for _, prefix := range []string{
+			strings.TrimPrefix(kline.APIPrefix, "/API/V1/"),
+			strings.TrimPrefix(kline.LegacyAPIPrefix, "/API/V1/"),
+		} {
+			group := apiGroup.Group(prefix)
+			group.POST("/Add", klineHandler.Add)
+			group.POST("/Batch", klineHandler.BatchInsert)
+			group.POST("/Upsert", klineHandler.Upsert)
+			group.GET("/Page", klineHandler.Page)
+			group.GET("/PageUni", klineHandler.PageUni)
+			group.POST("/Query", klineHandler.Query)
+			group.PATCH("/Batch", klineHandler.BatchPatch)
+			group.DELETE("/Batch", klineHandler.BatchDelete)
+			group.GET("/Count", klineHandler.Count)
+			group.GET("/Stats", klineHandler.Stats)
+			group.GET("/Bounds", klineHandler.Bounds)
+		}
+
 		// 历史行情：导入 / 查询（统一 /Meta/Finv/Quant/Quote/ 前缀，与前端路由对应）
 		apiGroup.POST("/Meta/Finv/Quant/Quote/Import/Upload", quoteImport.Upload)
 		apiGroup.GET("/Meta/Finv/Quant/Quote/History/QuoteQuery", quoteQuery.Query)
@@ -105,6 +143,11 @@ func NewRouter(deps *Deps) *gin.Engine {
 			bt.POST("/Template/Delete", backtestHandler.DeleteTemplate)
 		}
 	}
+
+	// 运维端点：/Health（DC-02，主路径）+ /healthz（过渡别名）+ / 服务标识
+	router.GET("/Health", klineOps.Health)
+	router.GET("/healthz", klineOps.Health)
+	router.GET("/", klineOps.Root)
 
 	return router
 }

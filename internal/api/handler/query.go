@@ -40,7 +40,7 @@ func (h *QuoteQuery) Query(c *gin.Context) {
 	}
 
 	if usc == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "usc 不能为空"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "usc 不能为空"})
 		return
 	}
 
@@ -55,7 +55,7 @@ func (h *QuoteQuery) Query(c *gin.Context) {
 		var err error
 		startTS, err = strconv.ParseInt(st, 10, 64)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "startTs 必须为整数"})
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "startTs 必须为整数"})
 			return
 		}
 		et := c.Query("endTs")
@@ -63,19 +63,19 @@ func (h *QuoteQuery) Query(c *gin.Context) {
 			et = c.Query("end_ts")
 		}
 		if et == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "缺少 endTs"})
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "缺少 endTs"})
 			return
 		}
 		endTS, err = strconv.ParseInt(et, 10, 64)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "endTs 必须为整数"})
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "endTs 必须为整数"})
 			return
 		}
 	} else {
 		dateStr := c.Query("date")
 		date, err := strconv.Atoi(dateStr)
 		if err != nil || date <= 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "date 必须为有效的交易日期（yyyymmdd）"})
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "date 必须为有效的交易日期（yyyymmdd）"})
 			return
 		}
 		days := parseIntDefault(c.Query("days"), 1)
@@ -88,7 +88,7 @@ func (h *QuoteQuery) Query(c *gin.Context) {
 		startTS, endTS = quote.DateRangeToTS(date, days)
 	}
 	if startTS <= 0 || endTS < startTS {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "时间范围非法"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "时间范围非法"})
 		return
 	}
 

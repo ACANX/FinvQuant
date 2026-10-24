@@ -14,9 +14,51 @@
 
 ---
 
-## [未发布]
+## [0.1.2] - 2026-10-24
 
-> 0.1.2 开发中。变更按 `新增` / `变更` / `修复` / `移除` / `安全` 分类追加，发布时整体改为版本号并补日期。
+### 新增
+
+- **分钟行情 K 线 API 融合（FinvQuoteDataDeDup → FinvQuant）**：新增 `internal/kline`（领域服务/校验/格式化/错误目录）与 `internal/api/handler/kline*.go`，在 16001 进程内实现原 Python 服务的 8 类业务接口（`Add`、`Batch`、`Upsert`、`Page`、`PageUni`、`Query`、`PATCH Batch`、`DELETE Batch`、`Count`），统一前缀 **`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min`**；旧前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min` 作为切流期过渡别名同时注册。
+- 新增运维端点 **`GET /Health`**（探数据库，替代旧 `/healthz`，`/healthz` 保留为过渡别名）与 `GET /` 服务标识（返回 `service/prefix/docs/version`）。
+- 新增迁移 **`V38__finv_quote_kline_move_to_dedup.sql`**：分钟行情主表 `quote.finv_quote_secu_kline_min` 迁入 `dedup` schema（`SET SCHEMA`，不重写数据），补齐 `change_price`/`change_ratio`/`provider` 三列，并按 `dedup` 新结构重建 `export.finv_quote_secu_kline_min` 转存表（含触发器与收敛校验）。
+- 新增配置项：`FINV_KLINE_MAX_BATCH_ROWS`（默认 5000）、`FINV_KLINE_MAX_LIST_SIZE`（默认 5000）、`FINV_KLINE_TS_UNIT`（`s`/`ms`）、`FINV_ERROR_DETAIL_MODE`（`safe`/`admin`）、`FINV_ERROR_DEBUG_TOKEN`、`FINV_ERROR_DETAIL_ALLOWED_CIDRS`。
+- 新增 10 篇接口文档（`Docs/API/KLine/*.md`）并在 `Docs/API/README.md`、`Docs/API/APIs.md` 登记；`Docs/DevSpec/ErrorCodeSpec.md` 增补 `21xxxx` 号段与复用规则；`Docs/DevSpec/ApiSpec.md` 登记兼容例外。
+- **数据采集前端菜单**：新增一级菜单「数据采集」→ 二级菜单「行情数据去重」→ 两个三级子菜单：「去重分钟行情查询」（按 `usc` + 交易日期范围分页查询 `dedup.finv_quote_secu_kline_min`）与「去重分钟行情统计」（汇总指标、字段完整性、每日趋势与证券分布可视化）。
+- 新增迁移 **`V40__finv_quote_kline_date_indexes.sql`**：为 `dedup.finv_quote_secu_kline_min` 增加 `(usc, date, ts)` 与 `(date, usc, ts)` 复合索引，支撑「证券 + 交易日期范围」分页查询与按日聚合（此前仅 `(usc, ts)`，日期过滤需顺扫历史 2.8M 行，单次分页可达 8~17 秒）。
+- 新增接口 **`GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats`**：返回汇总统计（行数/证券数/日期范围/成交量与成交额合计/收盘价区间与均值/各列空值行数）、按日期聚合趋势、证券记录数 Top 20；文档见 `Docs/API/KLine/KLineStats.md`。
+
+### 变更
+
+- **错误码口径（DC-05）**：分钟行情 API 使用 `211xxx` 具体错误码（`211001`~`211303`，15 条，编号/HTTP/安全文案见 `internal/kline/apierr.go` 与接口文档）；其余/兜底错误复用原 HTTP 错误码（`400/404/409/413/422/503`，`500` 沿用 `2006`）。
+- **破坏性变更（接口）**：存量接口旧业务号 `4001/4004/4009` 停用，分别收敛为 `400`/`404`/`211104`（前端仅判断 `code !== 0`，不受影响；调用方如依赖具体码需同步调整）。
+- **错误详情分级（DC-06）**：错误响应默认只返回安全文案；`FINV_ERROR_DETAIL_MODE=admin` 且携带有效 `X-Debug-Token` 或来源 IP 命中内网 CIDR 时，才附加白名单 `debug` 字段；DSN、完整 SQL、堆栈、令牌、内部主机名永不进入响应；服务端日志始终记录全量并可用 `request_id` 关联。
+- `request_id` 统一为**大写 UUID4**（DC-07），与 `internal/backtest` 现有写法一致。
+- 分钟行情表归属调整为 `dedup.finv_quote_secu_kline_min`；`internal/quote`、`internal/backtest`、`Docs/API/HistoryQuote/*`、`Docs/DevSpec/DbSchemaSpec.md` 等引用同步改为 `dedup.`；`TestSQLSchemaQualified` 对该表强制 `dedup.`/`export.` 前缀。
+- **去重行情页面数字展示**：默认取消千分位分隔符，查询表格数值与总数、统计 KPI/图表提示均输出纯数字文本；大额统计按 `万/亿/万亿` 缩写展示（不再叠加千分位）。
+- **去重行情默认查询条件**：证券代码默认 `GCMain`；开始/结束日期默认最近一个月（以库内该证券最新交易日期为结束日回推 1 个月，若取不到则回退本机当天），不再默认缺省。
+- **侧边导航缩进优化**：一级→二级、二级→三级每级缩进在上一版 28px 基础上再减半至 **14px**（计算样式：二级 22px、三级 36px），三级菜单标题完整展示且留白充足；菜单图标与标题的水平间距由 32px 调整为 **约 1/3（10.67px）**；样式在 `App.vue` 内全局生效。
+- **侧边导航顺序**：「数据采集」菜单移动到「历史行情」之前，紧跟仪表盘。
+- **前端入口缓存**：`internal/static` 对 `index.html` 与 SPA 回退统一返回 `Cache-Control: no-cache, no-store, must-revalidate`（附 `Pragma/Expires`），避免前端重建后浏览器继续使用旧 `index.html` 引用旧 JS；同步刷新 `internal/webui/dist` 内嵌产物，保证非 Docker 构建也使用最新前端。
+- **去重行情统计页成交额图表**：在「每日成交量」之后新增「每日成交额」独立图表，与「每日记录数」「每日成交量」「每日收盘价均值」共用时间轴与绘图区网格（四图纵向排列、时间轴对齐）。
+- 新增轻量接口 **`GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Bounds`**：返回过滤范围 `date_from/date_to`，供前端初始化默认日期范围；实测 `usc=GCMain` 约 17ms（原用 `/Stats` 全量聚合约 8s）。
+- **去重行情统计页布局**：「每日记录数与成交量」拆分为「每日记录数」「每日成交量」两个独立图表，与「每日收盘价均值」共三个图表；三者使用同一绘图区网格与时间轴刻度配置，横向完全对齐；「字段完整性（空值行数）」独立一行；图表坐标轴显式关闭千分位（ECharts 默认格式同步覆盖）。
+- **时间展示修正**：`time=0` 按合法值展示为 `00:00:00`，仅 `null/undefined` 展示为 `-`（全局 `fmtTime` 同步修正）。
+- 分钟行情分页/查询排序调整为 `usc, date, ts`（与新增日期索引一致，`date` 与 `ts` 单调对应，结果顺序对调用方等价）。
+- 前端菜单层级调整（未发布版内）：原「去重行情」一级菜单更名为「数据采集」，其下新增二级菜单「行情数据去重」，去重查询/统计调整为该二级菜单下的三级子菜单（`Docs/RequirementList.md` 10276）。
+- 接口错误码变更、表结构变更与文档索引更新同批提交（参见 `Docs/RequirementList.md` 10241 起）。
+
+### 变更（涨跌字段补全规则）
+
+- **MVSV 导入**：`cp`/`cr` 列由“解析后忽略”改为**有值时落库**；两列均缺失时由服务端自动补全——参考价 `last_close`（非 0）优先，缺失/为 0 时回退 `open`（非 0），两者都不可用则保持 `NULL`；计算式 `change_price = close - ref`、`change_ratio = (close - ref) / ref * 100`（百分比，6 位小数，`big.Rat` 精确运算）。
+- **分钟行情 KLine API**：`/Add`、`/Batch`、`/Upsert` 在请求未提供 `change_price`/`change_ratio`（两列都为空）时按同一规则补全；API 不写 `last_close`，因此参考价回退 `open`。**任一列已有值时不做修改。**
+- 导入/写入链路补全不改变 `FIELD`/`ROW` 覆盖语义：`FIELD` 模式下补全值为 NULL 时保留库内旧值，`ROW` 模式仍整行覆盖。
+
+### 修复
+
+- **分钟行情按日期范围分页性能**：新增日期索引并调整排序后，`GCMain + 最近一个月` 分页查询由约 7 秒降至约 0.03 秒，消除 503/超时。
+- **修复去重行情页面报错 `OK` 且无数据**：前端 `apiRequest` 原先只接受 `code=0`，而分钟行情 KLine API 成功码为 `1`，导致 `/Page`、`/Stats` 被误判为失败；现按 `ApiSpec` 统一接受成功码 `{0,1,200,202}`。
+- 修正分钟行情 `ts` 精度口径：库内与接口契约均为**秒级**（原 Python 代码/文档中的「毫秒」为文档缺陷）；13 位毫秒默认拒绝（`211004`），仅 `FINV_KLINE_TS_UNIT=ms` 时换算。
+- `/Page`、`/PageUni` 的 `change_ratio` 统一按 `ROUND_HALF_UP` 输出两位小数文本；`/PageUni` 数值去尾零、`-0` 归一为 `0`。
 
 ## [0.1.1] - 2026-10-24
 

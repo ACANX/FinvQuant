@@ -26,8 +26,11 @@
 | 号段 | 含义 |
 |------|------|
 | `{0, 1, 200, 202}` | 成功 |
-| `1000-2999` | 平台、安全和依赖错误 |
-| `≥3000` | 项目自定义业务错误码 |
+| `1000-2999` | 平台、安全和依赖错误（如 `2006`） |
+| `≥3000` | 项目自定义业务错误码；**分钟行情 API 使用 `211xxx` 具体码**（见 [ErrorCodeSpec](../DevSpec/ErrorCodeSpec.md)） |
+
+> 错误码口径（DC-05）：需要区分具体错误时用 `211xxx`（如 `211101` 唯一键冲突）；其余/兜底错误复用原 HTTP 错误码（`400/404/409/413/422/503`，`500` 用例沿用 `2006`）。存量接口旧号 `4001/4004/4009` 已停用，分别收敛为 `400/404/211104`。
+> 错误详情分级（DC-06）：默认只返回安全文案；`FINV_ERROR_DETAIL_MODE=admin` 且携带有效 `X-Debug-Token`（或来自内网 CIDR）时才返回白名单 `debug` 字段。
 
 （详见 [Docs/DevSpec/ErrorCodeSpec.md](../DevSpec/ErrorCodeSpec.md)）
 
@@ -35,6 +38,19 @@
 
 - **接口总览（方法 / 路径 / 说明 / 详细文档 / 已使用位置）**：见 [APIs.md](APIs.md)。
 - **详细接口文档**：
+  - 分钟行情 K 线（`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/*`，**一个接口一个文档**）：
+    - [`KLine/KLineAdd.md`](KLine/KLineAdd.md) — `POST .../Min/Add`（单条插入）
+    - [`KLine/KLineBatchInsert.md`](KLine/KLineBatchInsert.md) — `POST .../Min/Batch`（批量插入）
+    - [`KLine/KLineUpsert.md`](KLine/KLineUpsert.md) — `POST .../Min/Upsert`（批量 upsert）
+    - [`KLine/KLinePage.md`](KLine/KLinePage.md) — `GET .../Min/Page`（分页，对象数组）
+    - [`KLine/KLinePageUni.md`](KLine/KLinePageUni.md) — `GET .../Min/PageUni`（分页，column/row）
+    - [`KLine/KLineQuery.md`](KLine/KLineQuery.md) — `POST .../Min/Query`（批量查询）
+    - [`KLine/KLineBatchPatch.md`](KLine/KLineBatchPatch.md) — `PATCH .../Min/Batch`（批量增量更新）
+    - [`KLine/KLineBatchDelete.md`](KLine/KLineBatchDelete.md) — `DELETE .../Min/Batch`（批量删除）
+    - [`KLine/KLineCount.md`](KLine/KLineCount.md) — `GET .../Min/Count`（统计总数）
+    - [`KLine/KLineStats.md`](KLine/KLineStats.md) — `GET .../Min/Stats`（汇总统计与可视化数据）
+    - [`KLine/KLineBounds.md`](KLine/KLineBounds.md) — `GET .../Min/Bounds`（交易日期边界）
+    - [`KLine/KLineHealth.md`](KLine/KLineHealth.md) — `GET /Health`（探活，含 `/healthz` 过渡别名）
   - [`HistoryQuote/ImportsUpload.md`](HistoryQuote/ImportsUpload.md) — `POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload`（MVSV 历史行情导入）
   - [`HistoryQuote/HistoryQuote.md`](HistoryQuote/HistoryQuote.md) — `GET /API/V1/Meta/Finv/Quant/Quote/History/QuoteQuery`（历史行情查询）
   - [`Meta/MetaExchange.md`](Meta/MetaExchange.md) — `GET/POST /API/V1/Meta/Finv/Quant/Metadata/Exchange/*`（交易所信息维护）

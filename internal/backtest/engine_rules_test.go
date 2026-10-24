@@ -197,10 +197,10 @@ func TestEngineTPlusRestriction(t *testing.T) {
 	}
 	env := &Environment{Config: EnvironmentConfig{TradingRules: &TradingRulesDef{TPlus: 1}}}
 	cfg := EngineConfig{
-		Definition: def,
-		Account:    AccountSnapshot{InitialCapital: 100000, MarginRate: 1},
+		Definition:  def,
+		Account:     AccountSnapshot{InitialCapital: 100000, MarginRate: 1},
 		Environment: env,
-		Period:     PeriodMin, ReportPrecision: PeriodDay,
+		Period:      PeriodMin, ReportPrecision: PeriodDay,
 		Options: RunOptions{EnableBacktest: true},
 	}
 	result, err := NewEngine(cfg, nil).Run(context.Background(), bars)

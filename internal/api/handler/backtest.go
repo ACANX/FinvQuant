@@ -36,14 +36,14 @@ func respondError(c *gin.Context, action string, err error) {
 	msg := err.Error()
 	switch {
 	case strings.Contains(msg, "不存在"):
-		c.JSON(http.StatusNotFound, gin.H{"code": 4004, "message": action + ": " + msg})
+		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": action + ": " + msg})
 	case strings.Contains(msg, "禁止") || strings.Contains(msg, "已关联") || strings.Contains(msg, "无权") ||
 		strings.Contains(msg, "已结束") || strings.Contains(msg, "无法取消") || strings.Contains(msg, "不一致"):
-		c.JSON(http.StatusConflict, gin.H{"code": 4009, "message": action + ": " + msg})
+		c.JSON(http.StatusConflict, gin.H{"code": 211104, "message": action + ": " + msg})
 	case strings.Contains(msg, "必填") || strings.Contains(msg, "仅支持") || strings.Contains(msg, "不支持") ||
 		strings.Contains(msg, "必须") || strings.Contains(msg, "不能") || strings.Contains(msg, "格式错误") ||
 		strings.Contains(msg, "非法") || strings.Contains(msg, "错误"):
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": action + ": " + msg})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": action + ": " + msg})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": action + ": " + msg})
 	}
@@ -53,7 +53,7 @@ func respondError(c *gin.Context, action string, err error) {
 func btIDQuery(c *gin.Context, key string) (string, bool) {
 	v := strings.TrimSpace(c.Query(key))
 	if v == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "缺少必填参数 " + key})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "缺少必填参数 " + key})
 		return "", false
 	}
 	return v, true
@@ -102,7 +102,7 @@ func (h *Backtest) GetStrategy(c *gin.Context) {
 func (h *Backtest) SaveStrategy(c *gin.Context) {
 	var st backtest.Strategy
 	if err := c.ShouldBindJSON(&st); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	id, err := h.service.SaveStrategy(c.Request.Context(), &st)
@@ -121,7 +121,7 @@ func (h *Backtest) ToggleStrategy(c *gin.Context) {
 		UserID        string `json:"user_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	uid := req.UserID
@@ -142,7 +142,7 @@ func (h *Backtest) DeleteStrategy(c *gin.Context) {
 		UserID     string `json:"user_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	uid := req.UserID
@@ -189,7 +189,7 @@ func (h *Backtest) GetAccount(c *gin.Context) {
 func (h *Backtest) SaveAccount(c *gin.Context) {
 	var acc backtest.Account
 	if err := c.ShouldBindJSON(&acc); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	id, err := h.service.SaveAccount(c.Request.Context(), &acc)
@@ -208,7 +208,7 @@ func (h *Backtest) ToggleAccount(c *gin.Context) {
 		UserID        string `json:"user_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	uid := req.UserID
@@ -229,7 +229,7 @@ func (h *Backtest) DeleteAccount(c *gin.Context) {
 		UserID    string `json:"user_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	uid := req.UserID
@@ -251,7 +251,7 @@ func (h *Backtest) DeleteAccount(c *gin.Context) {
 func (h *Backtest) CreateRun(c *gin.Context) {
 	var req backtest.CreateRunRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	run, err := h.service.CreateRun(c.Request.Context(), req)
@@ -300,7 +300,7 @@ func (h *Backtest) CancelRun(c *gin.Context) {
 		UserID string `json:"user_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	uid := req.UserID
@@ -322,7 +322,7 @@ func (h *Backtest) DeleteRun(c *gin.Context) {
 		UserID string `json:"user_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	uid := req.UserID
@@ -373,7 +373,7 @@ func (h *Backtest) RetryRunDelete(c *gin.Context) {
 		UserID    string `json:"user_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	uid := req.UserID
@@ -516,7 +516,7 @@ func (h *Backtest) GetEnvironment(c *gin.Context) {
 func (h *Backtest) SaveEnvironment(c *gin.Context) {
 	var env backtest.Environment
 	if err := c.ShouldBindJSON(&env); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	id, err := h.service.SaveEnvironment(c.Request.Context(), &env)
@@ -535,7 +535,7 @@ func (h *Backtest) ToggleEnvironment(c *gin.Context) {
 		UserID        string `json:"user_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	uid := req.UserID
@@ -556,7 +556,7 @@ func (h *Backtest) DeleteEnvironment(c *gin.Context) {
 		UserID string `json:"user_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	uid := req.UserID
@@ -603,7 +603,7 @@ func (h *Backtest) GetTemplate(c *gin.Context) {
 func (h *Backtest) SaveTemplate(c *gin.Context) {
 	var tmpl backtest.Template
 	if err := c.ShouldBindJSON(&tmpl); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	id, err := h.service.SaveTemplate(c.Request.Context(), &tmpl)
@@ -621,7 +621,7 @@ func (h *Backtest) DeleteTemplate(c *gin.Context) {
 		UserID     string `json:"user_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "请求体格式错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
 		return
 	}
 	uid := req.UserID

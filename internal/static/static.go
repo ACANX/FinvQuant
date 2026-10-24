@@ -33,6 +33,11 @@ func Handler(apiBaseURL string) http.Handler {
 		if path == "" {
 			path = "index.html"
 		}
+		// 入口 HTML 禁止缓存：保证前端重建后浏览器立即加载新的 hash 资源，
+		// 避免继续使用旧的 index.html（引用已不存在的旧 JS）。
+		if path == "index.html" {
+			noCache(w)
+		}
 		if _, err := fs.Stat(sub, path); err != nil {
 			// SPA 回退：直接返回 index.html（避免 FileServer 目录重定向）
 			content, readErr := fs.ReadFile(sub, "index.html")
@@ -40,12 +45,20 @@ func Handler(apiBaseURL string) http.Handler {
 				http.NotFound(w, r)
 				return
 			}
+			noCache(w)
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			_, _ = w.Write(content)
 			return
 		}
 		fileServer.ServeHTTP(w, r)
 	})
+}
+
+// noCache 设置入口 HTML 的禁止缓存响应头（前端重建后立即生效）。
+func noCache(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
 }
 
 func newReverseProxy(target string) *httputil.ReverseProxy {

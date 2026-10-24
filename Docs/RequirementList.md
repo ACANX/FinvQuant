@@ -379,6 +379,80 @@
 | 10239 | 构建上下文排除归档目录。 | `.dockerignore` 含 `Archive/`，且无独立 `VeritasQuant/` 行 | |
 | 10240 | 可执行示例与代码注释路径同步。 | `grep -rn 'Archive/VeritasQuant' Docs/API/HistoryQuote/ImportsUpload.md internal/mvsv/parser.go` 各不小于 `1` | |
 
+## 二十五、分钟行情 K 线 API 融合（10241–10263）
+
+> 来源：`FinvQuoteDataDeDup`（Python/FastAPI）退役，接口融合进 FinvQuant Go 服务端。
+> 关联文档：`Docs/API/KLine/*.md`、`Docs/API/APIs.md`、`Docs/DevSpec/ErrorCodeSpec.md`、`Docs/CHANGELOG.md`。
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10241 | 分钟行情 API 注册新前缀 `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min`。 | `grep -c "Meta/Finv/Quote/DeDup/Secu/KLine/Min" internal/api/router.go` 输出不小于 `1` | |
+| 10242 | 旧前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min` 作为过渡别名同时注册。 | `grep -c "LegacyAPIPrefix" internal/api/router.go` 输出不小于 `1` | |
+| 10243 | 提供 `GET /Health` 探活端点（含 `/healthz` 过渡别名）。 | `grep -c 'GET("/Health"' internal/api/router.go` 与 `grep -c 'GET("/healthz"' internal/api/router.go` 均为 `1` | |
+| 10244 | 分钟行情主表位于 `dedup.finv_quote_secu_kline_min`。 | `grep -c "const Table = \"dedup.finv_quote_secu_kline_min\"" internal/kline/sql.go` 输出 `1` | |
+| 10245 | 迁移 V38 将主表从 `quote` 迁入 `dedup` 并可重复执行。 | `ls Deploy/Migrations/V38__finv_quote_kline_move_to_dedup.sql` 不存在时退出码非 0；脚本含 `SET SCHEMA dedup` 与 `IF EXISTS` 幂等判断 | |
+| 10246 | 迁移 V38 补齐 `change_price`/`change_ratio`/`provider` 三列。 | `grep -c "ADD COLUMN IF NOT EXISTS change_price" Deploy/Migrations/V38__finv_quote_kline_move_to_dedup.sql` 输出 `1` | |
+| 10247 | `export.finv_quote_secu_kline_min` 按 dedup 新结构重建。 | `grep -c "LIKE dedup.finv_quote_secu_kline_min" Deploy/Migrations/V38__finv_quote_kline_move_to_dedup.sql` 输出 `1` | |
+| 10248 | `ts` 契约与库内均为秒级；13 位毫秒默认拒绝。 | `go test ./internal/kline/ -run TestTSUnit` 通过；用例覆盖秒级通过与 13 位拒绝 | |
+| 10249 | `FINV_KLINE_TS_UNIT=ms` 时毫秒入参换算为秒。 | `go test ./internal/kline/ -run TestTSUnit` 通过（含 ms 分支） | |
+| 10250 | 具体错误使用 `211xxx` 编号且全局唯一。 | `go test ./internal/kline/ -run TestCatalogIntegrity` 通过 | |
+| 10251 | 错误目录共 15 条具体码，覆盖校验/资源/容量/存储四类。 | 同上；`internal/kline/apierr.go` 中 `Code` 常量计数为 15 | |
+| 10252 | 具体码的 HTTP 映射与接口文档一致。 | `grep -c "211101" Docs/API/KLine/KLineAdd.md` 与 `grep -c "409" Docs/API/KLine/KLineAdd.md` 均不小于 `1` | |
+| 10253 | 未归类的错误兜底复用 HTTP 错误码（500 用 `2006`）。 | `go test ./internal/api/handler/ -run TestErrorResponderUnknownErrorMasked` 通过 | |
+| 10254 | 存量接口旧号 `4001/4004/4009` 已停用。 | `grep -rn '"code": *\(4001\|4004\|4009\)' internal/ cmd/` 输出为空 | |
+| 10255 | 错误响应默认（safe）不含 `debug` 与内部细节。 | `go test ./internal/api/handler/ -run TestErrorResponderSafeByDefault` 通过 | |
+| 10256 | `admin` 模式 + 正确 `X-Debug-Token` 才输出白名单 `debug`。 | `go test ./internal/api/handler/ -run TestErrorResponderAdminWithToken` 通过 | |
+| 10257 | 令牌缺失/错误时静默回退 safe 且不提示令牌错误。 | 同上用例覆盖 | |
+| 10258 | 来源 IP 命中 `FINV_ERROR_DETAIL_ALLOWED_CIDRS` 视为高权限。 | `grep -c "AllowedCIDRs" internal/config/config.go` 不小于 `1`；`grep -c "Contains(ip)" internal/api/handler/errresp.go` 输出 `1` | |
+| 10259 | `request_id` 为大写 UUID4。 | `go test ./internal/api/handler/ -run TestErrorResponderSafeByDefault` 通过 | |
+| 10260 | `/Page` 返回 `{code:1,data:{cnt,ps,pn,list,request_id,ts},message:"OK"}`。 | `grep -c '"pn":         kline.PageNumber' internal/api/handler/kline.go` 输出 `1`；手工调用 `/Page` 校验字段 | |
+| 10261 | `/Page` 的 `cr` 为两位小数文本（HALF_UP），NULL 为 `null`。 | `go test ./internal/kline/ -run TestRatioText` 通过 | |
+| 10262 | `/PageUni` 的 `column` 固定 15 项且 `row` 值全部字符串化/去尾零。 | `go test ./internal/kline/ -run TestRowUniRow` 通过 | |
+| 10263 | `PATCH /Batch` 区分「未传」与「显式 null」。 | `go test ./internal/kline/ -run TestPatchExplicitNull` 通过 | |
+
+## 二十六、涨跌字段补全规则（10264–10269）
+
+> 来源：导入/写入时 `change_price`、`change_ratio` 缺失的自动补全规则（ACANX 2026-10-24）。
+> 关联：`internal/calc/change.go`、`internal/mvsv/parser.go`、`internal/quote/service.go`、`internal/kline/request.go`。
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10264 | MVSV 文件的 `cp`/`cr` 列有值时按文件值落库，不做重算。 | `go test ./internal/mvsv/ -run TestParseChangeFields` 通过；导入含 `cp/cr` 的文件后直查两列等于文件值 | |
+| 10265 | `cp`/`cr` 均缺失且 `last_close` 非空非 0 时，用 `last_close` 作为参考价计算。 | `go test ./internal/quote/ -run TestComputeChangeFields` 通过（用例 2） | |
+| 10266 | `last_close` 缺失或为 0 且 `open` 非空非 0 时，用 `open` 作为参考价计算。 | 同上（用例 3、4）通过 | |
+| 10267 | `last_close` 与 `open` 都不可用时保持 NULL，不报错。 | 同上（用例 5）通过 | |
+| 10268 | KLine API 写入未提供 `change_price`/`change_ratio` 时按 `open` 补全；任一列有值时不修改。 | `grep -c "calc.Change" internal/kline/request.go` 输出不小于 `1`；`go test ./internal/kline/` 通过 | |
+| 10269 | 涨跌计算使用十进制精确运算（big.Rat）并保留 6 位小数。 | `go test ./internal/calc/ -run TestChangeRule` 通过（含 6 位小数用例） | |
+
+## 二十七、去重行情前端菜单与统计（10270–10275）
+
+> 来源：去重行情（`dedup` schema）前端查询与统计可视化需求（ACANX 2026-10-24）。
+> 关联：`Web/src/App.vue`、`Web/src/router.ts`、`Web/src/views/Meta/Finv/Quote/DeDup/*`、`internal/kline/stats.go`、`internal/api/handler/kline.go`。
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10270 | 前端新增一级菜单「去重行情」，下设「去重分钟行情查询」「去重分钟行情统计」两个子菜单。 | `grep -c "dedup-kline-query\|dedup-kline-stats" Web/src/App.vue` 不小于 `2`；`grep -c "DeDupKLine" Web/src/router.ts` 不小于 `4` | |
+| 10271 | 查询页支持按 `usc` 与交易日期范围（含）分页查询去重后的分钟行情。 | 打开 `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query`，输入 `GCMain` + 日期 `2026-08-06`，结果总数与 `select count(*) from dedup.finv_quote_secu_kline_min where usc='GCMain' and date=20260806;` 一致 | |
+| 10272 | 查询页支持页码/每页条数切换、重置，且开始日期晚于结束日期时前端拦截。 | 切换每页条数后请求 `offset` 随之变化；输入倒序日期点击查询不发起请求并提示 | |
+| 10273 | 新增 `/Stats` 接口，返回 `summary`（含 `null_counts`）、`daily`、`top_usc`，三组口径在同一只读事务内一致。 | `go test ./internal/api/ -run TestKLineRoutesRegistered` 通过；请求 `GET .../Stats` 返回 200 且 `summary.rows` 与 `Count` 接口一致 | |
+| 10274 | 统计页展示 KPI、字段完整性、每日记录数/成交量、每日收盘价均值、证券 Top 20 图表。 | 打开 `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats`，三类图表均渲染且切换证券/日期后刷新 | |
+| 10275 | 新增菜单文档与接口文档，并在 `Menus.md`、`APIs.md`、`README.md`、`CHANGELOG.md` 同步索引。 | `Docs/Menu/HistoryQuote/DeDupKLineQuery.md`、`DeDupKLineStats.md`、`Docs/API/KLine/KLineStats.md` 存在且 `Menus.md`/`APIs.md` 含对应条目 | |
+| 10276 | 「去重行情」一级菜单更名为「数据采集」，并在其下新增二级菜单「行情数据去重」，原「去重分钟行情查询」「去重分钟行情统计」作为该二级菜单的三级子菜单。 | `grep -A16 "key: 'data-collection'" Web/src/App.vue` 可见 `title: '数据采集'` 与 `key: 'quote-dedup'`；`Docs/Menu/Menus.md` 层级结构为 数据采集 → 行情数据去重 → 两个叶子 | |
+| 10277 | 去重行情查询/统计页面的数字展示默认不使用千分位分隔符（大额统计保留 `万/亿/万亿` 缩写）。 | 查询页总数显示 `2729329` 而非 `2,729,329`；表格数值为 `1224.3`；统计页记录总数显示 `2804329`；`grep -c "toLocaleString" Web/src/views/Meta/Finv/Quote/DeDup/*.vue` 为 `0` | |
+| 10278 | 前端 `time` 字段值为 0 时展示 `00:00:00`，仅 `null/undefined` 展示 `-`。 | `grep -n "t === undefined \|\| t === null" Web/src/utils.ts` 命中；查询 `2026-07-20` 首行时间显示 `00:00:00` | |
+| 10279 | 查询页/统计页开始与结束日期默认最近一个月，不再默认缺省；结束日取库内最新交易日期，取不到时回退本机当天。 | 打开两个页面，日期框默认 `2026-06-21` ~ `2026-07-21`（当前库最新交易日 2026-07-21），且首屏有数据 | |
+| 10280 | 查询页/统计页证券代码默认 `GCMain`。 | 打开两个页面，证券输入框默认为 `GCMain` | |
+| 10281 | 新增 `V40` 复合索引支撑证券+日期范围分页；`GCMain + 最近一个月` 分页查询耗时小于 1 秒。 | `select indexname from pg_indexes where tablename='finv_quote_secu_kline_min';` 含 `idx_finv_quote_usc_date_ts`、`idx_finv_quote_date_usc_ts`；`curl` 实测耗时 < 1s | |
+| 10282 | 去重行情统计页的「每日记录数与成交量」「每日收盘价均值」「字段完整性（空值行数）」各自独占一行；图表坐标轴不使用千分位。 | 打开统计页，「字段完整性」位于日期汇总与每日图表之间的独立行；两个每日图表上下排列且宽度相同；坐标轴显示 `2500`、`4250` 而非 `2,500`、`4,250` | |
+| 10283 | 侧边导航一级→二级、二级→三级菜单缩进各减少为原来的 50%，三级菜单标题完整展示不被遮盖。 | 浏览器计算样式：二级行 `padding-left=36px`、三级行 `64px`（原 `64px`/`120px`）；三级标题 `去重分钟行情查询` 宽度约 115px 且无省略号 | |
+| 10284 | 统计页「每日记录数与成交量」拆分为「每日记录数」「每日成交量」两个图表；与「每日收盘价均值」三个图表的时间轴（绘图区左右边界与刻度）对齐。 | 统计页可见 3 个每日图表卡片且宽度相同；三个 canvas 的 `x` 与 `width` 一致（实测 `x=309,w=1042`）；x 轴日期标签位置一致 | |
+| 10285 | 侧边导航一级→二级、二级→三级缩进在上一版基础上再减半（每级增量 28px → 14px）。 | 计算样式：二级行 `padding-left=22px`、三级行 `36px`（上一版 36/64）；三级标题完整显示 | |
+| 10286 | 侧边菜单图标与标题的水平间距调整为原来的 1/3（32px → 约 10.67px）。 | 浏览器实测图标右边界到标题左边界 `gap≈11px`（原 32px）；`--v-list-prepend-gap` 计算值为 `10.6562px` | |
+| 10287 | 前端入口 `index.html`（含 SPA 回退）禁止缓存，保证前端重建后立即加载新资源；内嵌前端产物与 `Web/dist` 保持一致。 | `curl -I http://<前端端口>/` 返回 `Cache-Control: no-cache, no-store, must-revalidate`；`grep -o "index-[^\"]*\.js" internal/webui/dist/index.html` 与 `Web/dist/index.html` 结果一致 | |
+| 10288 | 统计页在「每日成交量」之后新增「每日成交额」图表，与「每日记录数」「每日成交量」「每日收盘价均值」时间轴对齐。 | 统计页存在 4 个每日图表卡片，宽度一致，canvas `x/w` 一致（实测 `x=309,w=1042`），y 依次递增 | |
+| 10289 | 新增 `/Bounds` 轻量接口用于默认日期范围初始化，`GCMain` 查询耗时小于 100ms。 | `curl` 请求 `/Bounds?usc=GCMain` 返回 `date_from/date_to` 且耗时 < 100ms（实测约 17ms）；两个页面首屏默认日期为 2026-06-21 ~ 2026-07-21 | |
+| 10290 | 「数据采集」一级菜单移动到「历史行情」之前（紧跟仪表盘）。 | `grep -n "key: 'data-collection'\|key: 'history-quote'" Web/src/App.vue` 中 data-collection 行号小于 history-quote；浏览器侧边栏顺序为 仪表盘 → 数据采集 → 历史行情 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -407,7 +481,23 @@
 | 打包脚本文档 | 10216–10222 | 7 |
 | 产物命名规范调整 | 10223–10233 | 11 |
 | VeritasQuant 归档 | 10234–10240 | 7 |
-| **合计** | **10001–10240** | **240** |
+| 分钟行情 K 线 API 融合 | 10241–10263 | 23 |
+| 涨跌字段补全规则 | 10264–10269 | 6 |
+| 去重行情前端菜单与统计 | 10270–10275 | 6 |
+| 数据采集菜单层级调整 | 10276 | 1 |
+| 数字展示格式 | 10277 | 1 |
+| 前端默认查询与时间展示 | 10278–10280 | 3 |
+| 分钟行情日期索引 | 10281 | 1 |
+| 统计页布局与坐标轴格式 | 10282 | 1 |
+| 侧边导航缩进优化 | 10283 | 1 |
+| 统计图表拆分对齐 | 10284 | 1 |
+| 侧边导航缩进再减半 | 10285 | 1 |
+| 菜单图标标题间距 | 10286 | 1 |
+| 前端入口缓存与内嵌产物 | 10287 | 1 |
+| 每日成交额图表 | 10288 | 1 |
+| 日期边界接口 | 10289 | 1 |
+| 数据采集菜单位置 | 10290 | 1 |
+| **合计** | **10001–10290** | **290** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10241` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10291` 起往后追加，不插入既有区间。

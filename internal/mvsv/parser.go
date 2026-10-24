@@ -34,18 +34,20 @@ var RequiredHeaders = []string{
 type columnKind int
 
 const (
-	colTS        columnKind = iota // ts：UTC 时间戳（秒）
-	colDate                        // d：8 位交易日期 yyyymmdd
-	colDateTime                    // dt：14 位日期时间 yyyymmddHHMMSS
-	colTime                        // t：6 位时间 HHMMSS
-	colOpen                        // o：开盘价
-	colClose                       // c：收盘价
-	colLow                         // l：最低价
-	colHigh                        // h：最高价
-	colVolume                      // v：成交量
-	colTurnover                    // t（布局 A）/ a（布局 B）：成交额
-	colLastClose                   // p：前一收盘价
-	colIgnore                      // cp / cr / pc：解析但不落表
+	colTS          columnKind = iota // ts：UTC 时间戳（秒）
+	colDate                          // d：8 位交易日期 yyyymmdd
+	colDateTime                      // dt：14 位日期时间 yyyymmddHHMMSS
+	colTime                          // t：6 位时间 HHMMSS
+	colOpen                          // o：开盘价
+	colClose                         // c：收盘价
+	colLow                           // l：最低价
+	colHigh                          // h：最高价
+	colVolume                        // v：成交量
+	colTurnover                      // t（布局 A）/ a（布局 B）：成交额
+	colLastClose                     // p：前一收盘价
+	colChangePrice                   // cp：涨跌额（有值则落库）
+	colChangeRatio                   // cr：涨跌幅 %（有值则落库）
+	colIgnore                        // 其它多余列（如旧 pc）：解析后忽略
 )
 
 // fieldLayout 一种数据区列布局（列名序列 → 语义序列）。
@@ -62,14 +64,14 @@ var supportedLayouts = []fieldLayout{
 		Field: "ts|dt|o|c|l|h|v|t|cp|cr|p",
 		Kinds: []columnKind{
 			colTS, colDateTime, colOpen, colClose, colLow, colHigh,
-			colVolume, colTurnover, colIgnore, colIgnore, colLastClose,
+			colVolume, colTurnover, colChangePrice, colChangeRatio, colLastClose,
 		},
 	},
 	{
 		Field: "ts|d|t|o|c|l|h|v|a|cp|cr|p",
 		Kinds: []columnKind{
 			colTS, colDate, colTime, colOpen, colClose, colLow, colHigh,
-			colVolume, colTurnover, colIgnore, colIgnore, colLastClose,
+			colVolume, colTurnover, colChangePrice, colChangeRatio, colLastClose,
 		},
 	},
 }
@@ -107,23 +109,25 @@ type Header struct {
 	Layout            fieldLayout // 数据区列布局（由 # Field 决定）
 }
 
-// Row 一条分钟行情（与 quote.finv_quote_secu_kline_min 表对齐；价格保留字符串精度）。
+// Row 一条分钟行情（与 dedup.finv_quote_secu_kline_min 表对齐；价格保留字符串精度）。
 type Row struct {
-	MarketCode int
-	Usc        string
-	Ts         int64
-	Date       *int
-	Time       *int
-	LastClose  *string
-	Open       *string
-	High       *string
-	Low        *string
-	Close      *string
-	Paocd      *string
-	Volume     *int64
-	Turnover   *string
-	ExtField   *string
-	Remark     *string
+	MarketCode  int
+	Usc         string
+	Ts          int64
+	Date        *int
+	Time        *int
+	LastClose   *string
+	Open        *string
+	High        *string
+	Low         *string
+	Close       *string
+	ChangePrice *string // 涨跌额：MVSV 的 cp 列当前忽略，由导入服务按规则计算
+	ChangeRatio *string // 涨跌幅（%）：MVSV 的 cr 列当前忽略，由导入服务按规则计算
+	Paocd       *string
+	Volume      *int64
+	Turnover    *string
+	ExtField    *string
+	Remark      *string
 }
 
 // ParseResult 解析结果。
@@ -309,8 +313,14 @@ func parseRow(line string, header *Header, lineNumber int) (Row, error) {
 			row.Turnover = decimalOrNil(raw)
 		case colLastClose:
 			row.LastClose = decimalOrNil(raw)
+		case colChangePrice:
+			// cp：文件提供则落库；为空则由导入服务按 last_close → open 规则补全。
+			row.ChangePrice = decimalOrNil(raw)
+		case colChangeRatio:
+			// cr：文件提供则落库；为空则由导入服务按 last_close → open 规则补全。
+			row.ChangeRatio = decimalOrNil(raw)
 		case colIgnore:
-			// cp / cr / pc：不落表
+			// 多余列（如旧 pc）：忽略
 		}
 	}
 

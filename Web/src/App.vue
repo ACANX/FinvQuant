@@ -22,6 +22,22 @@ interface MenuGroup {
 const menuItems: (MenuLeaf | MenuGroup)[] = [
   { key: 'dashboard', title: '仪表盘', icon: 'mdi-view-dashboard', path: '/dashboard' },
   {
+    key: 'data-collection',
+    title: '数据采集',
+    icon: 'mdi-database-arrow-down',
+    children: [
+      {
+        key: 'quote-dedup',
+        title: '行情数据去重',
+        icon: 'mdi-content-duplicate',
+        children: [
+          { key: 'dedup-kline-query', title: '去重分钟行情查询', icon: 'mdi-table-search', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query' },
+          { key: 'dedup-kline-stats', title: '去重分钟行情统计', icon: 'mdi-chart-box-outline', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats' },
+        ],
+      },
+    ],
+  },
+  {
     key: 'history-quote',
     title: '历史行情',
     icon: 'mdi-chart-box',
@@ -148,7 +164,6 @@ watch(
                 :title="child.title"
                 :active="isActive(child)"
                 :to="child.path"
-                class="pl-6"
               />
 
               <!-- 二级分组（三级叶子） -->
@@ -169,7 +184,6 @@ watch(
                   :title="leaf.title"
                   :active="isActive(leaf)"
                   :to="leaf.path"
-                  class="pl-12"
                 />
               </v-list-group>
             </template>
@@ -185,3 +199,16 @@ watch(
     </v-main>
   </v-app>
 </template>
+
+<style>
+/* 侧边导航缩进：每级增量 14px（上一版 28px 的 50%），进一步释放三级菜单标题空间 */
+.v-navigation-drawer .v-list-group {
+  --list-indent-size: 4px;
+  --v-list-group-prepend: 10px;
+}
+
+/* 菜单图标与标题的水平间距：32px → 约 1/3（10.67px） */
+.v-navigation-drawer .v-list-item__prepend {
+  --v-list-prepend-gap: 10.67px;
+}
+</style>

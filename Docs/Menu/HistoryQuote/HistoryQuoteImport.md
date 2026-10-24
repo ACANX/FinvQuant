@@ -7,7 +7,7 @@
 
 ## 功能概述
 
-上传 MVSV-1 分钟级历史行情文件，服务端解析后字段级覆盖导入 PostgreSQL（`quote.finv_quote_secu_kline_min`）。
+上传 MVSV-1 分钟级历史行情文件，服务端解析后字段级覆盖导入 PostgreSQL（`dedup.finv_quote_secu_kline_min`）。
 
 **证券选择双策略**（页面顶部 tabs 切换）：
 

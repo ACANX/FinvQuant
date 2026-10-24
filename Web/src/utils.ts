@@ -9,11 +9,35 @@ export function fmtDate(d: number | undefined | null): string {
   return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`
 }
 
-/** hhmmss → HH:mm:ss（0 或空返回 '-'） */
+/** hhmmss → HH:mm:ss（null/undefined 返回 '-'；0 是合法的 00:00:00） */
 export function fmtTime(t: number | undefined | null): string {
-  if (!t) return '-'
+  if (t === undefined || t === null) return '-'
   const s = String(t).padStart(6, '0')
   return `${s.slice(0, 2)}:${s.slice(2, 4)}:${s.slice(4, 6)}`
+}
+
+/** 本地时区 Date → yyyy-MM-dd */
+export function isoDate(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
+/** 本地今天 yyyy-MM-dd */
+export function todayISO(): string {
+  return isoDate(new Date())
+}
+
+/**
+ * yyyy-MM-dd 月份平移（delta 为负数表示往前），对月末做钳制：
+ * 2026-03-31 -1 月 → 2026-02-28，而不是溢出到 3 月。
+ */
+export function shiftMonthISO(iso: string, delta: number): string {
+  const [year, month, day] = iso.split('-').map(Number)
+  const target = new Date(year, month - 1 + delta, 1)
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
+  target.setDate(Math.min(day, lastDay))
+  return isoDate(target)
 }
 
 /** 日期 + 时间组合显示 */

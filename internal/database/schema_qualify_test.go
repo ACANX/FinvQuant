@@ -20,6 +20,14 @@ var domainTablePrefixes = map[string]string{
 	"finv_futu_":  "futu.",
 }
 
+// exactTableSchema 指定个别表的固定 schema（优先于前缀规则）。
+//
+// 融合 FinvQuoteDataDeDup 后，分钟行情主表归属 dedup schema：
+// dedup.finv_quote_secu_kline_min（DC-03，迁移 V38）。
+var exactTableSchema = map[string][]string{
+	"finv_quote_secu_kline_min": {"dedup.", "export."},
+}
+
 // sqlCRUDKeywords 用于识别「该行是 SQL 语句」的上下文，避免把注释误判。
 var sqlCRUDKeywords = []string{
 	"FROM ",
@@ -61,10 +69,13 @@ func TestSQLSchemaQualified(t *testing.T) {
 				if !isSQLCRUDLine(line) {
 					continue
 				}
-				for _, table := range unqualifiedDomainTables(line) {
+				for _, table := range unqualifiedDomainTables(withoutExactTables(line)) {
 					violations = append(violations,
 						fmt.Sprintf("%s:%d: %s 必须写成 %s%s", path, lineNo+1, table,
 							domainTablePrefixes[table], table))
+				}
+				for _, message := range wrongExactSchema(line) {
+					violations = append(violations, fmt.Sprintf("%s:%d: %s", path, lineNo+1, message))
 				}
 			}
 			return nil
@@ -80,6 +91,56 @@ func TestSQLSchemaQualified(t *testing.T) {
 	}
 }
 
+// withoutExactTables 移除由 exactTableSchema 单独校验的表名，避免与前缀规则重复。
+func withoutExactTables(line string) string {
+	for table := range exactTableSchema {
+		line = strings.ReplaceAll(line, table, "")
+	}
+	return line
+}
+
+// wrongExactSchema 校验 exactTableSchema 中的表是否使用了规定 schema。
+func wrongExactSchema(line string) []string {
+	var problems []string
+	for table, allowed := range exactTableSchema {
+		want := allowed[0]
+		for offset := 0; ; {
+			index := strings.Index(line[offset:], table)
+			if index < 0 {
+				break
+			}
+			index += offset
+			offset = index + len(table)
+			// 向前解析可选 schema 前缀。
+			start := index
+			for start > 0 && isIdentifierChar(line[start-1]) {
+				start--
+			}
+			if start == 0 || line[start-1] != '.' {
+				problems = append(problems, fmt.Sprintf("%s 必须写成 %s%s", table, want, table))
+				continue
+			}
+			schemaEnd := start - 1
+			schemaStart := schemaEnd
+			for schemaStart > 0 && isIdentifierChar(line[schemaStart-1]) {
+				schemaStart--
+			}
+			schema := line[schemaStart:schemaEnd] + "."
+			matched := false
+			for _, candidate := range allowed {
+				if schema == candidate {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				problems = append(problems, fmt.Sprintf("%s 必须写成 %s%s（当前 %s%s）", table, want, table, schema, table))
+			}
+		}
+	}
+	return problems
+}
+
 func isSQLCRUDLine(line string) bool {
 	for _, keyword := range sqlCRUDKeywords {
 		if strings.Contains(line, keyword) {
@@ -93,7 +154,7 @@ func isSQLCRUDLine(line string) bool {
 // 判定规则：表名前一个字符既不是 '.' 也不是标识符字符（字母/数字/下划线）。
 //
 // 注意：本函数只判断「有没有前缀」，不判断「前缀是否正确」。当同一表名存在
-// 于多个 schema（如 quote.finv_quote_secu_kline_min 与
+// 于多个 schema（如 dedup.finv_quote_secu_kline_min 与
 // export.finv_quote_secu_kline_min 同名）时，写错前缀不会被拦下，需靠
 // Docs/DevSpec/DbSchemaSpec.md §2/§3.1 的约定保证。
 func unqualifiedDomainTables(line string) []string {

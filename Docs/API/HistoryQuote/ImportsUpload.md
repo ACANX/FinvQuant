@@ -1,6 +1,6 @@
 # POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload — 历史行情文件导入
 
-上传 MVSV-1 分钟级历史行情文件，服务端解析后**字段级覆盖**导入 PostgreSQL `quote.finv_quote_secu_kline_min` 表（主键 `ts + usc`；V21 起不再冗余存储 `market_code`，市场信息由 `finv_security` 字典关联获取）。
+上传 MVSV-1 分钟级历史行情文件，服务端解析后**字段级覆盖**导入 PostgreSQL `dedup.finv_quote_secu_kline_min` 表（主键 `ts + usc`；V21 起不再冗余存储 `market_code`，市场信息由 `finv_security` 字典关联获取）。
 
 > 📐 **MVSV-1 文件格式完整规范**（必填/可选头部键、两种列布局、数据行要求、一致性校验）见 [Docs/DataFormat/MvsvFileFormat.md](../../DataFormat/MvsvFileFormat.md)——**所有导出程序请按该规范生成文件**。
 

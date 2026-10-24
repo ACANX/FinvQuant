@@ -1023,7 +1023,7 @@ func (s *Service) loadBars(ctx context.Context, usc string, startDate, endDate i
 SELECT ts, COALESCE(date, 0), COALESCE("time", 0),
        COALESCE(open, close), COALESCE(high, close), COALESCE(low, close), COALESCE(close, open),
        COALESCE(volume, 0), COALESCE(turnover, 0)
-FROM quote.finv_quote_secu_kline_min
+FROM dedup.finv_quote_secu_kline_min
 WHERE usc = $1 AND date BETWEEN $2 AND $3
 ORDER BY ts ASC`, usc, startDate, endDate)
 	if err != nil {
@@ -1581,7 +1581,7 @@ func (s *Service) resolveDateRange(ctx context.Context, usc string, startDate, e
 		var minDate, maxDate int
 		err := s.pool.QueryRow(ctx, `
 SELECT COALESCE(MIN(date), 0), COALESCE(MAX(date), 0)
-FROM quote.finv_quote_secu_kline_min WHERE usc = $1`, usc).Scan(&minDate, &maxDate)
+FROM dedup.finv_quote_secu_kline_min WHERE usc = $1`, usc).Scan(&minDate, &maxDate)
 		if err != nil {
 			return 0, 0, err
 		}

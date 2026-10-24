@@ -38,45 +38,45 @@ func (p *Pager) Normalize() {
 
 // Exchange finv_exchange 交易所/市场字典行。
 type Exchange struct {
-	ExchangeCode      int     `json:"exchange_code"`
-	ExchangeFlag      string  `json:"exchange_flag"`
-	ExchangeAbbr      string  `json:"exchange_abbr"`
-	ExchangeName      string  `json:"exchange_name"`
-	ExchangeAbbrCN    string  `json:"exchange_abbr_cn"`
-	EnMarketType      string  `json:"en_market_type"`
-	Region            string  `json:"region"`
-	BaseCurrency      string  `json:"base_currency"`
+	ExchangeCode       int     `json:"exchange_code"`
+	ExchangeFlag       string  `json:"exchange_flag"`
+	ExchangeAbbr       string  `json:"exchange_abbr"`
+	ExchangeName       string  `json:"exchange_name"`
+	ExchangeAbbrCN     string  `json:"exchange_abbr_cn"`
+	EnMarketType       string  `json:"en_market_type"`
+	Region             string  `json:"region"`
+	BaseCurrency       string  `json:"base_currency"`
 	FtListExchangeCode *string `json:"ft_list_exchange_code"`
-	FlagEnable        string  `json:"flag_enable"`
+	FlagEnable         string  `json:"flag_enable"`
 }
 
 // Market finv_market 交易市场行。
 type Market struct {
-	MarketCode      int    `json:"market_code"`
-	MarketFlag      string `json:"market_flag"`
-	MarketAbbr      string `json:"market_abbr"`
-	MarketName      string `json:"market_name"`
-	EnSecurityType  string `json:"en_security_type"`
-	ExchangeCode    int    `json:"exchange_code"` // 所属交易所代码（对齐 finv_exchange.exchange_code，缺省 0）
-	BaseCurrency    string `json:"base_currency"`
-	FlagEnable      string `json:"flag_enable"`
+	MarketCode     int    `json:"market_code"`
+	MarketFlag     string `json:"market_flag"`
+	MarketAbbr     string `json:"market_abbr"`
+	MarketName     string `json:"market_name"`
+	EnSecurityType string `json:"en_security_type"`
+	ExchangeCode   int    `json:"exchange_code"` // 所属交易所代码（对齐 finv_exchange.exchange_code，缺省 0）
+	BaseCurrency   string `json:"base_currency"`
+	FlagEnable     string `json:"flag_enable"`
 }
 
 // Security finv_security 证券代码行。
 type Security struct {
-	USC             string  `json:"usc"`
-	ExchangeCode    int     `json:"exchange_code"`
-	MarketCode      int     `json:"market_code"` // 交易市场代码（对齐 finv_market.market_code，缺省 0）
-	SecurityType    string  `json:"security_type"`
-	SecurityCode    string  `json:"security_code"`
-	SecurityName    string  `json:"security_name"`
-	SecurityNameCN  string  `json:"security_name_cn"`
+	USC              string  `json:"usc"`
+	ExchangeCode     int     `json:"exchange_code"`
+	MarketCode       int     `json:"market_code"` // 交易市场代码（对齐 finv_market.market_code，缺省 0）
+	SecurityType     string  `json:"security_type"`
+	SecurityCode     string  `json:"security_code"`
+	SecurityName     string  `json:"security_name"`
+	SecurityNameCN   string  `json:"security_name_cn"`
 	SecurityNameFull *string `json:"security_name_full"`
-	CurrencyType    string  `json:"currency_type"`
-	InitDate        int     `json:"init_date"`
-	Timezone        *string `json:"timezone"`
-	Tz              *string `json:"tz"`
-	FlagEnable      string  `json:"flag_enable"`
+	CurrencyType     string  `json:"currency_type"`
+	InitDate         int     `json:"init_date"`
+	Timezone         *string `json:"timezone"`
+	Tz               *string `json:"tz"`
+	FlagEnable       string  `json:"flag_enable"`
 }
 
 // SecurityOption 证券下拉选项（usc 为 key，security_name_cn 为字面展示值）。
@@ -465,4 +465,3 @@ LIMIT 1`, code).Scan(
 	}
 	return &sec, nil
 }
-

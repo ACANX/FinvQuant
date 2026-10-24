@@ -31,7 +31,7 @@ func NewQuoteImport(service *quote.Service) *QuoteImport {
 func (h *QuoteImport) Upload(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "缺少上传文件字段 file"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "缺少上传文件字段 file"})
 		return
 	}
 	source := c.PostForm("source")
@@ -48,7 +48,7 @@ func (h *QuoteImport) Upload(c *gin.Context) {
 		upsertMode = string(quote.UpsertModeField)
 	}
 	if upsertMode != string(quote.UpsertModeField) && upsertMode != string(quote.UpsertModeRow) {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 4001, "message": "upsert_mode 必须为 FIELD 或 ROW"})
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "message": "upsert_mode 必须为 FIELD 或 ROW"})
 		return
 	}
 	if importedBy == "" {
@@ -68,31 +68,31 @@ func (h *QuoteImport) Upload(c *gin.Context) {
 		return
 	}
 	if len(content) == 0 {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 4001, "message": "上传文件为空"})
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "message": "上传文件为空"})
 		return
 	}
 	if len(content) > maxUploadBytes {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 4001, "message": "文件超过大小上限 50 MiB"})
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "message": "文件超过大小上限 50 MiB"})
 		return
 	}
 
 	parsed, err := mvsv.Parse(content, file.Filename)
 	if err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 4001, "message": "MVSV 解析失败: " + err.Error()})
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"code": 422, "message": "MVSV 解析失败: " + err.Error()})
 		return
 	}
 
 	// 登记字段一致性校验：表单填写了市场/证券代码时，必须与文件头部一致
 	if formMarketCode != "" && formMarketCode != parsed.Header.Values["MarketCode"] {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"code": 4001, "message": "表单市场代码与文件头部不一致（表单=" + formMarketCode +
+			"code": 422, "message": "表单市场代码与文件头部不一致（表单=" + formMarketCode +
 				"，文件=" + parsed.Header.Values["MarketCode"] + "）",
 		})
 		return
 	}
 	if formUsc != "" && formUsc != parsed.Header.Values["Code"] {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"code": 4001, "message": "表单证券代码与文件头部不一致（表单=" + formUsc +
+			"code": 422, "message": "表单证券代码与文件头部不一致（表单=" + formUsc +
 				"，文件=" + parsed.Header.Values["Code"] + "）",
 		})
 		return

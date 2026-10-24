@@ -8,6 +8,10 @@
 
 ```
 仪表盘（/dashboard）
+数据采集（分组）
+  └─ 行情数据去重（二级分组）
+      ├─ 去重分钟行情查询（/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query）
+      └─ 去重分钟行情统计（/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats）
 历史行情（分组）
   └─ 历史行情查询（/Meta/Finv/Quote/History/HistoryQuoteQuery）
 元数据管理（分组）
@@ -63,6 +67,10 @@
 | 21 | 模拟盘验证 | 一级叶子 | `simulation-paper` | `mdi-account-cash-outline` | `/Meta/Finv/Quant/Simulation/Paper` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中） | [Backtest/SimulationPaper.md](Backtest/SimulationPaper.md) |
 | 22 | 实盘仿真验证 | 一级叶子 | `simulation-live-sim` | `mdi-robot-outline` | `/Meta/Finv/Quant/Simulation/LiveSim` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中） | [Backtest/SimulationLiveSim.md](Backtest/SimulationLiveSim.md) |
 | 23 | 实盘交易 | 一级叶子 | `live-trading` | `mdi-cash-register` | `/Meta/Finv/Quant/LiveTrading` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中） | [Backtest/LiveTrading.md](Backtest/LiveTrading.md) |
+| 24 | 数据采集 | 一级分组 | `data-collection` | `mdi-database-arrow-down` | — | — | — | — |
+| 25 | 行情数据去重 | 二级分组 | `quote-dedup` | `mdi-content-duplicate` | — | — | — | — |
+| 26 | 去重分钟行情查询 | 三级叶子 | `dedup-kline-query` | `mdi-table-search` | `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query` | `Web/src/views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue` | `GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Page`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options` | [HistoryQuote/DeDupKLineQuery.md](HistoryQuote/DeDupKLineQuery.md) |
+| 27 | 去重分钟行情统计 | 三级叶子 | `dedup-kline-stats` | `mdi-chart-box-outline` | `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats` | `Web/src/views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue` | `GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options` | [HistoryQuote/DeDupKLineStats.md](HistoryQuote/DeDupKLineStats.md) |
 
 ## 说明
 
@@ -77,6 +85,8 @@
 |----------|----------------------------------|
 | `dashboard` | `DashboardView.vue` |
 | `quote-query` | `Meta/Finv/Quote/History/HistoryQuoteQueryView.vue` |
+| `dedup-kline-query` | `Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue` |
+| `dedup-kline-stats` | `Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue` |
 | `meta-exchange` | `Meta/Finv/MetaData/MetaExchangeView.vue` |
 | `meta-market` | `Meta/Finv/MetaData/MetaMarketView.vue` |
 | `meta-security` | `Meta/Finv/MetaData/MetaSecurityView.vue` |
