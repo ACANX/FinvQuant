@@ -537,6 +537,7 @@
 | 10353 | `api.ts` 新增 `apiPut` / `apiDelete`。 | `grep -F 'export async function apiPut' Web/src/api.ts` 与 `grep -F 'export async function apiDelete'` 均命中 | |
 | 10354 | `Docs/API/QuoteDeDup/` 新增 11 篇运维台接口文档。 | `ls Docs/API/QuoteDeDup/{Usc,Priority,Calendar,Maturity,Stats,Budget,Watermark,RunLog,UploadLog,Patch,JobControl}.md` 列出 11 个文件 | |
 | 10355 | Dockerfile 不再出现 `RedundantTargetPlatform` 告警（移除 Go 阶段冗余的 `$TARGETPLATFORM`）。 | `grep -c '^FROM --platform=\$TARGETPLATFORM' Deploy/Docker/Dockerfile` 输出 `0`；`docker build --check -f Deploy/Docker/Dockerfile .` 输出 `no warnings found` | |
+| 10356 | 依赖漏洞清零：Go 升到修复版，前端 `npm audit` 无漏洞。 | `grep -F 'golang.org/x/crypto v0.52.0' go.mod` 命中；`grep -F '"vite": "^8.3.5"' Web/package.json` 命中；`cd Web && npm audit` 输出 `found 0 vulnerabilities` | |
 
 ## 汇总
 
@@ -587,7 +588,8 @@
 | 前端月归档导出控制台 | 10321–10330 | 10 |
 | 归档运维台（全表查询与管理员编辑） | 10331–10354 | 24 |
 | 构建与工程化修复 | 10355 | 1 |
-| **合计** | **10001–10355** | **355** |
+| 依赖安全升级 | 10356 | 1 |
+| **合计** | **10001–10356** | **356** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10356` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10357` 起往后追加，不插入既有区间。

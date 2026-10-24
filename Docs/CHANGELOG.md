@@ -56,6 +56,10 @@
 - `Docs/DevSpec/GitSpec.md` §4 补充三种包的版本/tag 与发布规则。
 - **包目录调整**：`internal/exportarchive` 迁移到 `internal/meta/finv/quote/dedup`（包名 `dedup`），`cmd/server/main.go`、`internal/api`（handler / router / 测试）与 `Docs`（CHANGELOG、RequirementList、Refactor 落地文档）中的引用同步更新；接口路径、配置项与功能行为不变。
 - `Deploy/Docker/Dockerfile` 移除 Go 构建阶段冗余的 `--platform=$TARGETPLATFORM`（BuildKit 默认即目标平台），消除 `RedundantTargetPlatform` 构建检查告警；前端构建阶段的 `$BUILDPLATFORM` 保留（跨平台复用产物所需）。
+- **依赖安全升级（Dependabot 24 个告警清零）**：
+  - Go：`golang.org/x/crypto` 0.48.0 → **0.52.0**、`golang.org/x/net` 0.51.0 → **0.55.0**、`github.com/quic-go/quic-go` 0.59.0 → **0.59.1**（连带 `x/sys` 0.45.0、`x/text` 0.37.0、`x/sync` 0.20.0）；
+  - 前端：`vite` 8.2.0 → **8.3.5**、`vue` 3.5.40 → **3.5.44**（含 `@vue/server-renderer` 3.5.44）、`source-map-js` → **1.2.2**、`nanoid` → **3.3.20**；`package.json` 的 `vite` / `vue` 最低版本同步提升，避免回退；
+  - 验证：`go build/vet/test` 全绿、`npm audit` 输出 `found 0 vulnerabilities`、`npm run build` 通过、Docker 镜像重建并实跑健康。
 
 ## [0.1.2] - 2026-10-24
 
