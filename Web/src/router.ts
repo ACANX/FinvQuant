@@ -9,6 +9,9 @@ import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/DeDupKLineStatsVi
 import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue'
 import DeDupExportJobView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportJobView.vue'
 import DeDupExportFileView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue'
+import DeDupArchiveStatsView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveStatsView.vue'
+import DeDupArchiveConfigView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveConfigView.vue'
+import DeDupArchiveLogView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveLogView.vue'
 import MetaExchangeView from './views/Meta/Finv/MetaData/MetaExchangeView.vue'
 import MetaMarketView from './views/Meta/Finv/MetaData/MetaMarketView.vue'
 import MetaSecurityView from './views/Meta/Finv/MetaData/MetaSecurityView.vue'
@@ -64,6 +67,24 @@ const router = createRouter({
       name: 'dedup-export-file',
       component: DeDupExportFileView,
       meta: { title: '月归档导出文件与上传' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Stats',
+      name: 'dedup-export-stats',
+      component: DeDupArchiveStatsView,
+      meta: { title: '归档统计与预算' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Config',
+      name: 'dedup-export-config',
+      component: DeDupArchiveConfigView,
+      meta: { title: '归档主数据与规则' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Log',
+      name: 'dedup-export-log',
+      component: DeDupArchiveLogView,
+      meta: { title: '归档日志与补丁' },
     },
     // 元数据管理 → 业务元数据维护 → 四个子菜单
     { path: '/meta/exchange', name: 'meta-exchange', component: MetaExchangeView, meta: { title: '交易所信息维护' } },

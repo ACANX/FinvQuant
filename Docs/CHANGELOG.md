@@ -32,6 +32,13 @@
   - **月归档导出任务**（`.../Export/Job`）：`finv_dedup_export_job` 分页表（状态、已装载行数、BASE 版本、补丁数、收口/冻结日、执行者、心跳、下次运行、最近错误），支持状态 / 证券 / 业务月过滤与人工重试；
   - **月归档导出文件与上传**（`.../Export/File`）：`finv_dedup_export_file` 分页表（类型、版本、行数、大小、上传状态、尝试次数、上传起止、远端校验、网盘归档、清理状态、下次重试），支持上传状态 / 文件类型过滤、「仅看已上传」快捷筛选与重试上传。
   - 复用 `Web/src/api.ts`（`apiGet` / `apiPost`）与 `Web/src/utils.ts`（新增 `fmtISO` / `fmtBytes` / `fmtMonth`），仅调用已有 6 个后端接口，无后端改动。
+- **归档运维台（第二批：全表查询 + 管理员编辑）**：补齐 12 张 `finv_dedup_*` 表的运维能力：
+  - 新增 10 个查询接口：`Stats/Page`、`Budget/Page`、`Maturity/Page`、`Watermark/List`、`Priority/List`、`Calendar/Page`、`Usc/Page`、`RunLog/Page`、`UploadLog/Page`、`Patch/Page`；
+  - 新增 11 个管理员写接口：`PUT Usc`、`PUT|DELETE Priority`、`PUT|DELETE Calendar`、`PUT Budget/Override`、`PUT Watermark`（重置）、`POST Patch/Retry`、`POST Job/Pause`、`POST Job/Cancel`、`POST Maturity/Refresh`；
+  - 可编辑白名单 5 张表：`finv_dedup_usc`（含决定能否导出的 `day_expect_rows` 校准值）、`finv_dedup_usc_priority`、`finv_dedup_trade_calendar`、`finv_dedup_daily_budget`、`finv_dedup_scan_watermark`；其余 7 张表只读；
+  - 所有写操作追加审计（`finv_dedup_job_run_log_export_file`，`job_kind=MANUAL_ADMIN_EDIT`）；
+  - 前端新增 3 个页面：**归档统计与预算**（`.../Export/Stats`）、**归档主数据与规则**（`.../Export/Config`）、**归档日志与补丁**（`.../Export/Log`）；`Web/src/api.ts` 新增 `apiPut` / `apiDelete`；
+  - `Docs/API/QuoteDeDup/` 新增 11 篇文档（Usc / Priority / Calendar / Maturity / Stats / Budget / Watermark / RunLog / UploadLog / Patch / JobControl），`Docs/API/APIs.md` 登记 58–84 号接口并回填前端页面。
 
 ### 变更
 

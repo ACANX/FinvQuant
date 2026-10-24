@@ -102,6 +102,31 @@ func NewRouter(deps *Deps) *gin.Engine {
 			group.POST("/Job/Retry", archive.JobRetry)
 			group.POST("/File/Retry", archive.FileRetry)
 			group.POST("/Job/Run", archive.JobRun)
+
+			// 归档运维台：查询（10 张表 + 成熟度）
+			group.GET("/Usc/Page", archive.UscPage)
+			group.GET("/Priority/List", archive.PriorityList)
+			group.GET("/Calendar/Page", archive.CalendarPage)
+			group.GET("/Maturity/Page", archive.MaturityPage)
+			group.GET("/Stats/Page", archive.StatsPage)
+			group.GET("/Budget/Page", archive.BudgetPage)
+			group.GET("/Watermark/List", archive.WatermarkList)
+			group.GET("/RunLog/Page", archive.RunLogPage)
+			group.GET("/UploadLog/Page", archive.UploadLogPage)
+			group.GET("/Patch/Page", archive.PatchPage)
+
+			// 归档运维台：管理员编辑（5 张可编辑表 + 补丁重试 / 任务暂停取消 / 成熟度重算）
+			group.PUT("/Usc", archive.UscUpsert)
+			group.PUT("/Priority", archive.PriorityUpsert)
+			group.DELETE("/Priority", archive.PriorityDelete)
+			group.PUT("/Calendar", archive.CalendarUpsert)
+			group.DELETE("/Calendar", archive.CalendarDelete)
+			group.PUT("/Budget/Override", archive.BudgetOverride)
+			group.PUT("/Watermark", archive.WatermarkReset)
+			group.POST("/Patch/Retry", archive.PatchRetry)
+			group.POST("/Job/Pause", archive.JobPause)
+			group.POST("/Job/Cancel", archive.JobCancel)
+			group.POST("/Maturity/Refresh", archive.MaturityRefresh)
 		}
 
 		// 元数据管理：交易所 / 市场 / 证券字典维护

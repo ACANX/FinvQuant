@@ -29,6 +29,20 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   })
 }
 
+/** PUT JSON 请求并解析响应信封；业务码非 0 时抛出 Error(message) */
+export async function apiPut<T>(path: string, body: unknown): Promise<T> {
+  return apiRequest<T>(path, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+/** DELETE 请求并解析响应信封；业务码非 0 时抛出 Error(message) */
+export async function apiDelete<T>(path: string): Promise<T> {
+  return apiRequest<T>(path, { method: 'DELETE' })
+}
+
 async function apiRequest<T>(path: string, init: RequestInit): Promise<T> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)

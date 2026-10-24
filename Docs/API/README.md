@@ -63,6 +63,17 @@
     - [`QuoteDeDup/JobRetry.md`](QuoteDeDup/JobRetry.md) — `POST .../DeDup/Job/Retry`（重置任务为 `WAITING`）
     - [`QuoteDeDup/FileRetry.md`](QuoteDeDup/FileRetry.md) — `POST .../DeDup/File/Retry`（重置上传为 `PENDING_UPLOAD`）
     - [`QuoteDeDup/JobRun.md`](QuoteDeDup/JobRun.md) — `POST .../DeDup/Job/Run`（手动触发归档 Job，异步）
+    - [`QuoteDeDup/Usc.md`](QuoteDeDup/Usc.md) — `GET .../Usc/Page` + `PUT .../Usc`（证券主数据查询与编辑）
+    - [`QuoteDeDup/Priority.md`](QuoteDeDup/Priority.md) — `GET/PUT/DELETE .../Priority`（优先级 / SLA）
+    - [`QuoteDeDup/Calendar.md`](QuoteDeDup/Calendar.md) — `GET .../Calendar/Page` + `PUT/DELETE .../Calendar`（交易日历）
+    - [`QuoteDeDup/Maturity.md`](QuoteDeDup/Maturity.md) — `GET .../Maturity/Page` + `POST .../Maturity/Refresh`
+    - [`QuoteDeDup/Stats.md`](QuoteDeDup/Stats.md) — `GET .../Stats/Page`（入口日统计）
+    - [`QuoteDeDup/Budget.md`](QuoteDeDup/Budget.md) — `GET .../Budget/Page` + `PUT .../Budget/Override`
+    - [`QuoteDeDup/Watermark.md`](QuoteDeDup/Watermark.md) — `GET .../Watermark/List` + `PUT .../Watermark`（重置）
+    - [`QuoteDeDup/RunLog.md`](QuoteDeDup/RunLog.md) — `GET .../RunLog/Page`（Job 运行日志）
+    - [`QuoteDeDup/UploadLog.md`](QuoteDeDup/UploadLog.md) — `GET .../UploadLog/Page`（上传审计）
+    - [`QuoteDeDup/Patch.md`](QuoteDeDup/Patch.md) — `GET .../Patch/Page` + `POST .../Patch/Retry`
+    - [`QuoteDeDup/JobControl.md`](QuoteDeDup/JobControl.md) — `POST .../Job/Pause|Cancel`（暂停 / 取消）
   - 回测策略管理（`/API/V1/Meta/Finv/Quant/Backtest/Strategy/*`，**一个接口一个文档**）：
     - [`Backtest/StrategyList.md`](Backtest/StrategyList.md) — `GET .../Strategy/List`（分页查询策略）
     - [`Backtest/StrategyGet.md`](Backtest/StrategyGet.md) — `GET .../Strategy/Get`（查询策略详情）

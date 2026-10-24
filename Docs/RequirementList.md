@@ -499,7 +499,7 @@
 |---|---|---|---|
 | 10321 | 新增 3 个归档页面：总览、导出任务、文件与上传。 | `ls Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExport{Overview,Job,File}View.vue` 列出 3 个文件 | |
 | 10322 | 3 个页面在 `router.ts` 注册独立路由。 | `grep -c "path: '/Meta/Finv/Quote/DeDup/Export/" Web/src/router.ts` 输出 `3` | |
-| 10323 | 菜单挂到「数据采集 → 行情数据去重 → 月归档导出」。 | `grep -F '月归档导出' Web/src/App.vue` 命中 | |
+| 10323 | 菜单挂到「数据采集 → 行情数据归档」（二级分组 + 3 个三级叶子）。 | `grep -F '行情数据归档' Web/src/App.vue` 命中 | |
 | 10324 | 总览页调用 `GET .../DeDup/Status` 展示指标、告警与运行参数。 | `grep -F 'Meta/Finv/Quote/DeDup/Status' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue` 命中 | |
 | 10325 | 总览页支持手动触发 Job（`POST .../Job/Run`）。 | `grep -F 'Meta/Finv/Quote/DeDup/Job/Run' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue` 命中 | |
 | 10326 | 任务页调用 `Job/List` 分页查询并支持 `Job/Retry` 人工重试。 | `grep -F 'Meta/Finv/Quote/DeDup/Job/List' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportJobView.vue` 与 `grep -F 'Job/Retry'` 均命中 | |
@@ -507,6 +507,35 @@
 | 10328 | 文件页提供「仅看已上传」快捷筛选（`uploadStatus=UPLOADED`）。 | `grep -F "uploadStatus.value = 'UPLOADED'" Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue` 命中 | |
 | 10329 | 新增通用格式化工具 `fmtISO` / `fmtBytes` / `fmtMonth`。 | `grep -F 'export function fmtISO' Web/src/utils.ts` 命中 | |
 | 10330 | 前端类型检查与生产构建通过。 | `cd Web && npm run build` 成功（`vue-tsc -b && vite build`） | |
+
+## 三十一、归档运维台（全表查询与管理员编辑，10331–10354）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10331 | `GET .../Usc/Page` 分页查询证券主数据。 | `grep -F 'ListUscs' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10332 | `PUT .../Usc` 新增或更新证券主数据（含 `day_expect_rows`）。 | `grep -F 'func (s *Store) UpsertUsc' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10333 | `GET .../Priority/List` 查询优先级 / SLA。 | `grep -F 'func (s *Store) ListPriorities' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10334 | `PUT .../Priority` 新增或更新优先级。 | `grep -F 'func (s *Store) UpsertPriority' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10335 | `DELETE .../Priority` 删除优先级。 | `grep -F 'func (s *Store) DeletePriority' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10336 | `GET .../Calendar/Page` 分页查询交易日历。 | `grep -F 'func (s *Store) ListCalendar' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10337 | `PUT .../Calendar` 新增或更新交易日历标记。 | `grep -F 'func (s *Store) UpsertCalendar' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10338 | `DELETE .../Calendar` 删除交易日历记录。 | `grep -F 'func (s *Store) DeleteCalendar' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10339 | `GET .../Maturity/Page` 分页查询成熟度。 | `grep -F 'func (s *Store) ListMaturity' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10340 | `POST .../Maturity/Refresh` 异步触发成熟度重算。 | `grep -F 'MaturityRefresh' internal/api/handler/exportarchive_admin.go` 命中 | |
+| 10341 | `GET .../Stats/Page` 分页查询入口日统计。 | `grep -F 'func (s *Store) ListIngestStats' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10342 | `GET .../Budget/Page` 分页查询每日预算。 | `grep -F 'func (s *Store) ListBudgets' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10343 | `PUT .../Budget/Override` 覆盖当日预算（校验因子区间与硬上限）。 | `grep -F 'func (s *Store) OverrideBudget' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10344 | `GET .../Watermark/List` 查询扫描水位。 | `grep -F 'func (s *Store) ListWatermarks' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10345 | `PUT .../Watermark` 重置水位（RFC3339 校验）。 | `grep -F 'func (s *Store) ResetWatermark' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10346 | `GET .../RunLog/Page` 分页查询运行日志。 | `grep -F 'func (s *Store) ListRunLogs' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10347 | `GET .../UploadLog/Page` 分页查询上传审计。 | `grep -F 'func (s *Store) ListUploadLogs' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10348 | `GET .../Patch/Page` 分页查询补丁任务。 | `grep -F 'func (s *Store) ListPatches' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10349 | `POST .../Patch/Retry` 重试补丁任务（重置为 PENDING）。 | `grep -F 'func (s *Store) ResetPatchForRetry' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10350 | `POST .../Job/Pause` 与 `POST .../Job/Cancel` 暂停 / 取消任务。 | `grep -F 'JobPause' internal/api/handler/exportarchive_admin.go` 与 `grep -F 'JobCancel'` 均命中 | |
+| 10351 | 所有写操作追加审计（`job_kind=MANUAL_ADMIN_EDIT`）。 | `grep -F "MANUAL_ADMIN_EDIT" internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10352 | 前端新增 3 个运维台页面（Stats / Config / Log）。 | `ls Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchive{Stats,Config,Log}View.vue` 列出 3 个文件 | |
+| 10353 | `api.ts` 新增 `apiPut` / `apiDelete`。 | `grep -F 'export async function apiPut' Web/src/api.ts` 与 `grep -F 'export async function apiDelete'` 均命中 | |
+| 10354 | `Docs/API/QuoteDeDup/` 新增 11 篇运维台接口文档。 | `ls Docs/API/QuoteDeDup/{Usc,Priority,Calendar,Maturity,Stats,Budget,Watermark,RunLog,UploadLog,Patch,JobControl}.md` 列出 11 个文件 | |
 
 ## 汇总
 
@@ -555,7 +584,8 @@
 | 行情月归档导出与上传 | 10291–10310 | 20 |
 | 三种发布包的 CI/CD | 10311–10320 | 10 |
 | 前端月归档导出控制台 | 10321–10330 | 10 |
-| **合计** | **10001–10330** | **330** |
+| 归档运维台（全表查询与管理员编辑） | 10331–10354 | 24 |
+| **合计** | **10001–10354** | **354** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10331` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10355` 起往后追加，不插入既有区间。
