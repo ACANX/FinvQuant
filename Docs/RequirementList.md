@@ -536,6 +536,7 @@
 | 10352 | 前端新增 3 个运维台页面（Stats / Config / Log）。 | `ls Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchive{Stats,Config,Log}View.vue` 列出 3 个文件 | |
 | 10353 | `api.ts` 新增 `apiPut` / `apiDelete`。 | `grep -F 'export async function apiPut' Web/src/api.ts` 与 `grep -F 'export async function apiDelete'` 均命中 | |
 | 10354 | `Docs/API/QuoteDeDup/` 新增 11 篇运维台接口文档。 | `ls Docs/API/QuoteDeDup/{Usc,Priority,Calendar,Maturity,Stats,Budget,Watermark,RunLog,UploadLog,Patch,JobControl}.md` 列出 11 个文件 | |
+| 10355 | Dockerfile 不再出现 `RedundantTargetPlatform` 告警（移除 Go 阶段冗余的 `$TARGETPLATFORM`）。 | `grep -c '^FROM --platform=\$TARGETPLATFORM' Deploy/Docker/Dockerfile` 输出 `0`；`docker build --check -f Deploy/Docker/Dockerfile .` 输出 `no warnings found` | |
 
 ## 汇总
 
@@ -585,7 +586,8 @@
 | 三种发布包的 CI/CD | 10311–10320 | 10 |
 | 前端月归档导出控制台 | 10321–10330 | 10 |
 | 归档运维台（全表查询与管理员编辑） | 10331–10354 | 24 |
-| **合计** | **10001–10354** | **354** |
+| 构建与工程化修复 | 10355 | 1 |
+| **合计** | **10001–10355** | **355** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10355` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10356` 起往后追加，不插入既有区间。

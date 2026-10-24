@@ -55,6 +55,7 @@
 - `Deploy/Script/PackSnapshot.sh` 支持三种包版本格式（`v{BASE}`、`v{BASE}.{PPPPP}`、`v{BASE}.{PPPPP}.{yymmddHHmm}`）与 `--kind snapshot|pr|release`，包内 `BUILD-INFO.txt` 增加包类型；`workflow_dispatch` 增加 `kind` 输入，便于手动构建指定类型包。
 - `Docs/DevSpec/GitSpec.md` §4 补充三种包的版本/tag 与发布规则。
 - **包目录调整**：`internal/exportarchive` 迁移到 `internal/meta/finv/quote/dedup`（包名 `dedup`），`cmd/server/main.go`、`internal/api`（handler / router / 测试）与 `Docs`（CHANGELOG、RequirementList、Refactor 落地文档）中的引用同步更新；接口路径、配置项与功能行为不变。
+- `Deploy/Docker/Dockerfile` 移除 Go 构建阶段冗余的 `--platform=$TARGETPLATFORM`（BuildKit 默认即目标平台），消除 `RedundantTargetPlatform` 构建检查告警；前端构建阶段的 `$BUILDPLATFORM` 保留（跨平台复用产物所需）。
 
 ## [0.1.2] - 2026-10-24
 
