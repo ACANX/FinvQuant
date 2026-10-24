@@ -12,7 +12,7 @@
 //   - 导出与上传文件格式均为 .mvsv（16 行文件头 + 1 行空行 + 管道分隔数据行），不生成 .csv；
 //   - 所有 SQL 必须写 schema 全限定名（见 Docs/DevSpec/DbSchemaSpec.md §3）；
 //   - 单任务三阶段各自短事务，支持暂停续跑、多 worker 安全领取（行锁 + 租约 + 心跳）。
-package exportarchive
+package dedup
 
 import (
 	"strings"

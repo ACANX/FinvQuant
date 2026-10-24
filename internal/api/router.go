@@ -12,9 +12,9 @@ import (
 	"github.com/acanx/finvquant/internal/api/handler"
 	"github.com/acanx/finvquant/internal/backtest"
 	"github.com/acanx/finvquant/internal/config"
-	"github.com/acanx/finvquant/internal/exportarchive"
 	"github.com/acanx/finvquant/internal/kline"
 	"github.com/acanx/finvquant/internal/meta"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
 	"github.com/acanx/finvquant/internal/quote"
 )
 
@@ -26,7 +26,7 @@ type Deps struct {
 	Commit        string
 	Server        string
 	Config        *config.Config
-	ExportArchive *exportarchive.Service
+	ExportArchive *dedup.Service
 }
 
 // NewRouter 构建 Gin 路由（默认监听端口 16001）。

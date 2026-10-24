@@ -17,7 +17,7 @@ import (
 //	FINV_TEST_PG_DSN="postgres://finv:finvquant@127.0.0.1:55432/finv_migtest?sslmode=disable" \
 //	  go test -p 1 ./internal/database -run TestMigrateIntegration -v
 //
-// 注意：本测试与 internal/exportarchive 的集成测试共用同一个测试库，
+// 注意：本测试与 internal/meta/finv/quote/dedup 的集成测试共用同一个测试库，
 // 同时运行会并发执行迁移；批量运行时必须加 `-p 1` 串行。
 func TestMigrateIntegration(t *testing.T) {
 	dsn := os.Getenv("FINV_TEST_PG_DSN")

@@ -1,6 +1,6 @@
 # 证券行情月归档导出与上传（落地说明）
 
-> 归属：FinvQuant · 实施：`internal/exportarchive`（Go）+ `Deploy/Migrations/V41__finv_dedup_export_archive_tables.sql`
+> 归属：FinvQuant · 实施：`internal/meta/finv/quote/dedup`（Go）+ `Deploy/Migrations/V41__finv_dedup_export_archive_tables.sql`
 > 方案稿：`2610-002-SecuritiesQuoteExportUploadSchemeDesign.md` v5.0（设计版），本文为**落地版**，逐条说明实现方式、配置与运维要点。
 > 关联规范：[`../DevSpec/DbSchemaSpec.md`](../DevSpec/DbSchemaSpec.md)、[`../DevSpec/ApiSpec.md`](../DevSpec/ApiSpec.md)、[`../DevSpec/ErrorCodeSpec.md`](../DevSpec/ErrorCodeSpec.md)
 
@@ -176,13 +176,13 @@
 
 ## 9. 测试与验证
 
-- 单元测试（不依赖数据库）：`go test ./internal/exportarchive`，覆盖文件名/Manifest、MVsv 结构（16 行头 + 空行 + Count + gzip + 行数不一致）、预算公式、收口月份推导、退避、窗口判断、上传适配器（含目录穿越防护）、告警阈值、Job 调度表完整性。
+- 单元测试（不依赖数据库）：`go test ./internal/meta/finv/quote/dedup`，覆盖文件名/Manifest、MVsv 结构（16 行头 + 空行 + Count + gzip + 行数不一致）、预算公式、收口月份推导、退避、窗口判断、上传适配器（含目录穿越防护）、告警阈值、Job 调度表完整性。
 - 结构防回归：`go test ./internal/database` 的 `TestSQLSchemaQualified` 强制所有 SQL 写 schema 全限定名。
 - 实库集成测试（默认跳过，需可清空的测试库）：
 
   ```bash
   FINV_TEST_PG_DSN="postgres://finv:finvquant@127.0.0.1:55432/finv_migtest?sslmode=disable" \
-    go test -p 1 ./internal/database ./internal/exportarchive -count=1
+    go test -p 1 ./internal/database ./internal/meta/finv/quote/dedup -count=1
   ```
 
   覆盖：全量迁移幂等性、12 表/12 索引/无外键、成熟度→候选→领取→LOAD→导出登记→上传顺序→补丁→收口→指标→生命周期、10 个 Job 端到端（实际生成并校验 `.mvsv` 与 Manifest 文件）。两个包共用同一测试库，**必须加 `-p 1` 串行**。

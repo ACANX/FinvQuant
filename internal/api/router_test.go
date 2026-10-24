@@ -11,8 +11,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/acanx/finvquant/internal/config"
-	"github.com/acanx/finvquant/internal/exportarchive"
 	"github.com/acanx/finvquant/internal/kline"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
 )
 
 func newTestRouter(t *testing.T) *gin.Engine {
@@ -25,7 +25,7 @@ func newTestRouter(t *testing.T) *gin.Engine {
 		t.Fatalf("创建测试连接池失败: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	archiveService, err := exportarchive.NewService(pool, exportarchive.Options{UploadMode: exportarchive.UploadModeNone})
+	archiveService, err := dedup.NewService(pool, dedup.Options{UploadMode: dedup.UploadModeNone})
 	if err != nil {
 		t.Fatalf("创建归档服务失败: %v", err)
 	}

@@ -1,4 +1,4 @@
-package exportarchive
+package dedup
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 // 需要**可清空的测试库**（会执行全量迁移），并按需设置上传目录：
 //
 //	FINV_TEST_PG_DSN="postgres://finv:finvquant@127.0.0.1:55432/finv_migtest?sslmode=disable" \
-//	  go test -p 1 ./internal/exportarchive -run TestServiceIntegration -v
+//	  go test -p 1 ./internal/meta/finv/quote/dedup -run TestServiceIntegration -v
 //
 // 注意：与 internal/database 的迁移集成测试共用同一个测试库，批量运行时必须加 `-p 1` 串行。
 func TestServiceIntegration(t *testing.T) {

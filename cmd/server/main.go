@@ -22,7 +22,7 @@ import (
 	"github.com/acanx/finvquant/internal/api"
 	"github.com/acanx/finvquant/internal/config"
 	"github.com/acanx/finvquant/internal/database"
-	"github.com/acanx/finvquant/internal/exportarchive"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
 	"github.com/acanx/finvquant/internal/redisclient"
 	"github.com/acanx/finvquant/internal/static"
 )
@@ -66,12 +66,12 @@ func main() {
 
 	// 证券行情月归档导出与上传：服务始终创建（运维接口可用），
 	// 自动化调度受 FINV_QUOTE_DEDUB_ENABLED 功能开关控制（M-10）。
-	archiveService, err := exportarchive.NewService(pool, exportarchive.OptionsFromConfig(cfg))
+	archiveService, err := dedup.NewService(pool, dedup.OptionsFromConfig(cfg))
 	if err != nil {
 		log.Fatalf("[finvquant] 初始化导出归档服务失败: %v", err)
 	}
 	if cfg.QuoteDeDupEnabled {
-		go exportarchive.NewScheduler(archiveService).Run(ctx)
+		go dedup.NewScheduler(archiveService).Run(ctx)
 		log.Printf("[finvquant] 导出归档调度已启用（上传模式 %s）", archiveService.Uploader().Mode())
 	} else {
 		log.Printf("[finvquant] 导出归档调度未启用（FINV_QUOTE_DEDUB_ENABLED=false），仅提供运维接口")

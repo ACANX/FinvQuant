@@ -9,18 +9,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/acanx/finvquant/internal/exportarchive"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
 )
 
 // ExportArchive 证券行情月归档导出 / 上传运维接口处理器。
 //
 // 路径前缀：/API/V1/Meta/Finv/Quote/DeDup/**
 type ExportArchive struct {
-	service *exportarchive.Service
+	service *dedup.Service
 }
 
 // NewExportArchive 创建处理器。
-func NewExportArchive(service *exportarchive.Service) *ExportArchive {
+func NewExportArchive(service *dedup.Service) *ExportArchive {
 	return &ExportArchive{service: service}
 }
 
@@ -49,14 +49,14 @@ func (h *ExportArchive) Status(c *gin.Context) {
 				"page_size":          options.PageSize,
 				"maturity_threshold": options.MaturityThreshold,
 			},
-			"jobs": exportarchive.JobRuntimes(),
+			"jobs": dedup.JobRuntimes(),
 		},
 	})
 }
 
 // JobList 分页查询证券月导出任务（GET .../Job/List）。
 func (h *ExportArchive) JobList(c *gin.Context) {
-	filter := exportarchive.JobFilter{
+	filter := dedup.JobFilter{
 		Status: strings.TrimSpace(c.Query("status")),
 		Usc:    strings.TrimSpace(c.Query("usc")),
 	}
@@ -76,7 +76,7 @@ func (h *ExportArchive) JobList(c *gin.Context) {
 
 // FileList 分页查询导出文件登记与上传状态（GET .../File/List）。
 func (h *ExportArchive) FileList(c *gin.Context) {
-	filter := exportarchive.FileFilter{
+	filter := dedup.FileFilter{
 		UploadStatus: strings.TrimSpace(c.Query("uploadStatus")),
 		FileType:     strings.TrimSpace(c.Query("fileType")),
 		Usc:          strings.TrimSpace(c.Query("usc")),

@@ -1,4 +1,4 @@
-package exportarchive
+package dedup
 
 import (
 	"fmt"
