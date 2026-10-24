@@ -42,7 +42,7 @@ type Config struct {
 	ErrorDebugToken         string
 	ErrorDetailAllowedCIDRs []string
 
-	// 证券行情月归档导出与上传（详见 Docs/Refactor/2610-SecuritiesQuoteExportArchive.md）
+	// 证券行情月归档导出与上传（详见 Docs/Refactor/2610-005-FinvQuoteDeDubExportUpload.md）
 	QuoteDeDupEnabled           bool    // 功能开关，默认关闭；开启后由进程内调度器自动跑 10 个 Job
 	QuoteDeDupTimeZone          string  // 业务时区，默认 Asia/Shanghai
 	QuoteDeDupOutputDir         string  // 本地导出根目录

@@ -35,7 +35,7 @@
 
 ## 4. 过程文档的时间前缀（yyMM-）
 
-- 按阶段/批次新增的**过程文档**（计划、检查清单、改造方案、评审与验收报告等）文件名必须带 `yyMM-` 四位前缀：`yyMM` 为文档创建年月，后接大驼峰名称，例如 `Docs/Refactor/2610-SecuCodeToUsc.md`。
+- 按阶段/批次新增的**过程文档**（计划、检查清单、改造方案、评审与验收报告等）文件名必须带 `yyMM-` 四位前缀：`yyMM` 为文档创建年月，后接大驼峰名称，例如 `Docs/Refactor/2610-001-SecuCodeToUsc.md`。
 - 同一批交付的多份文档共用一个前缀；前缀一经确定不随后续修改月份变更。
 - 例外（**不加**前缀）：
   - 长期固定文档：`CHANGELOG.md`、`RequirementList.md`、`README.md`、`LICENSE`、`AGENTS.md`；

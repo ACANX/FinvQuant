@@ -3,7 +3,7 @@
 // → CLEANUP（清理中转数据）→ 登记导出文件（上传任务唯一数据源）
 // → UPLOAD（上传独享存储库并校验 checksum）→ 补丁收口与生命周期清理。
 //
-// 设计依据：Docs/Refactor/2610-SecuritiesQuoteExportArchive.md
+// 设计依据：Docs/Refactor/2610-005-FinvQuoteDeDubExportUpload.md
 // （方案稿 v5.0：Docs 目录内为落地版说明，本包与之逐条对应）。
 //
 // 关键约束（不可违反）：

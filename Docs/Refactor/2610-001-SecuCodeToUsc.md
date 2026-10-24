@@ -4,7 +4,7 @@
 > 使用方式：自上而下推进；完成一项把「状态」改为 `☑ YYYY-MM-DD`，并附提交短号。
 > 编号规则：本文件条目 `A-01`～`A-37`，**只增不改**；作废条目保留并标注「作废（原因）」，不删号。
 > 完成判定：每项给出可执行的核验命令或明确的代码检查点，**未通过判定不得勾选**。
-> 关联文档：同批改造项 B 见 [`2610-PrevCloseToLastClose.md`](2610-PrevCloseToLastClose.md)；需求验收条目见 [`../RequirementList.md`](../RequirementList.md)；版本变更见 [`../CHANGELOG.md`](../CHANGELOG.md)。
+> 关联文档：同批改造项 B 见 [`2610-002-PrevCloseToLastClose.md`](2610-002-PrevCloseToLastClose.md)；需求验收条目见 [`../RequirementList.md`](../RequirementList.md)；版本变更见 [`../CHANGELOG.md`](../CHANGELOG.md)。
 > 基线：仓库 `VERSION=0.1.0`，结构迁移最高版本 `V28`，种子段 `V100xxx` 不动。
 
 ## 0. 概览

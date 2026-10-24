@@ -38,7 +38,7 @@ services:
       FINV_REDIS_ADDR: redis:6379
       FINV_REDIS_PASSWORD: ${FINV_REDIS_PASSWORD:-}
       FINV_MODE: release
-      # 证券行情月归档导出与上传（详见 Docs/Design/2610-SecuritiesQuoteExportArchive.md）
+      # 证券行情月归档导出与上传（详见 Docs/Refactor/2610-005-FinvQuoteDeDubExportUpload.md）
       FINV_QUOTE_DEDUB_ENABLED: ${FINV_QUOTE_DEDUB_ENABLED:-false}
       FINV_QUOTE_DEDUB_TIMEZONE: ${FINV_QUOTE_DEDUB_TIMEZONE:-Asia/Shanghai}
       FINV_QUOTE_DEDUB_UPLOAD_MODE: ${FINV_QUOTE_DEDUB_UPLOAD_MODE:-none}

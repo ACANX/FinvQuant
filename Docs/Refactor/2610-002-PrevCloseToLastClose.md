@@ -4,7 +4,7 @@
 > 使用方式：自上而下推进；完成一项把「状态」改为 `☑ YYYY-MM-DD`，并附提交短号。**执行前置：改造项 A 已完成并发布。**
 > 编号规则：本文件条目 `B-01`～`B-24`，**只增不改**，其中 `B-23`/`B-24` 为暂缓项；作废条目保留并标注「作废（原因）」，不删号。
 > 完成判定：每项给出可执行的核验命令或明确的代码检查点，**未通过判定不得勾选**。
-> 关联文档：同批改造项 A 见 [`2610-SecuCodeToUsc.md`](2610-SecuCodeToUsc.md)；需求验收条目见 [`../RequirementList.md`](../RequirementList.md)；版本变更见 [`../CHANGELOG.md`](../CHANGELOG.md)。
+> 关联文档：同批改造项 A 见 [`2610-001-SecuCodeToUsc.md`](2610-001-SecuCodeToUsc.md)；需求验收条目见 [`../RequirementList.md`](../RequirementList.md)；版本变更见 [`../CHANGELOG.md`](../CHANGELOG.md)。
 > 基线：仓库 `VERSION=0.1.0`；本节迁移版本 `V30`（改名）、`V31`（回填），`V29` 属改造项 A。
 
 ## 0. 概览

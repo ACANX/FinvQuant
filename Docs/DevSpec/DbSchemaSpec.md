@@ -1,7 +1,7 @@
 # 数据库 Schema 规范（PostgreSQL）
 
 > 适用范围：FinvQuant 服务端全部 PostgreSQL 对象（`Deploy/Migrations/`、`internal/` 中的 SQL、运维手工操作）。
-> 相关：[`LogSpec.md`](LogSpec.md)、[`ApiSpec.md`](ApiSpec.md)、[`../Refactor/2610-MoveTablesToSchemas.md`](../Refactor/2610-MoveTablesToSchemas.md)（本规范的落地改造）。
+> 相关：[`LogSpec.md`](LogSpec.md)、[`ApiSpec.md`](ApiSpec.md)、[`../Refactor/2610-003-MoveTablesToSchemas.md`](../Refactor/2610-003-MoveTablesToSchemas.md)（本规范的落地改造）。
 
 ## 1. Schema 划分
 
@@ -12,7 +12,7 @@
 | `futu` | 外部源映射域（富途 OpenAPI 编码 ↔ Finv 内部编码） | `finv_futu_mapping_cs_market`、`finv_futu_mapping_exchange`、`finv_futu_mapping_market_code`、`finv_futu_mapping_region`、`finv_futu_mapping_security` |
 | `export` | 数据导出域 | `finv_quote_secu_kline_min`（行情导出转存表，与 `dedup` 同名同结构；`V35` 创建，`V38` 按 `dedup` 新结构重建） |
 | `sche` | 定时任务调度域（调度定义、执行记录等，`V34` 建 schema，表待业务迁移创建） | 暂无 |
-| `dedup` | 数据去重域（批内去重暂存、跨源指纹、入库审计）+ 行情月归档导出/上传元数据；`V36` 建 schema、`V41` 新增归档表 | `finv_quote_secu_kline_min`（分钟行情主表，`V38` 由 `quote` 迁入，含 `change_price`/`change_ratio`/`provider`）；归档链路 12 张：`finv_dedup_ingest_stats`、`finv_dedup_daily_budget`、`finv_dedup_scan_watermark`、`finv_dedup_usc_priority`、`finv_dedup_quote_maturity_mon`、`finv_dedup_trade_calendar`、`finv_dedup_job_run_log_export_file`、`finv_dedup_usc`、`finv_dedup_export_job`、`finv_dedup_export_file`、`finv_dedup_export_file_upload_log`、`finv_dedup_export_file_patch`（全部无外键，`V41` 创建；说明见 [`../Refactor/2610-SecuritiesQuoteExportArchive.md`](../Refactor/2610-SecuritiesQuoteExportArchive.md)） |
+| `dedup` | 数据去重域（批内去重暂存、跨源指纹、入库审计）+ 行情月归档导出/上传元数据；`V36` 建 schema、`V41` 新增归档表 | `finv_quote_secu_kline_min`（分钟行情主表，`V38` 由 `quote` 迁入，含 `change_price`/`change_ratio`/`provider`）；归档链路 12 张：`finv_dedup_ingest_stats`、`finv_dedup_daily_budget`、`finv_dedup_scan_watermark`、`finv_dedup_usc_priority`、`finv_dedup_quote_maturity_mon`、`finv_dedup_trade_calendar`、`finv_dedup_job_run_log_export_file`、`finv_dedup_usc`、`finv_dedup_export_job`、`finv_dedup_export_file`、`finv_dedup_export_file_upload_log`、`finv_dedup_export_file_patch`（全部无外键，`V41` 创建；说明见 [`../Refactor/2610-005-FinvQuoteDeDubExportUpload.md`](../Refactor/2610-005-FinvQuoteDeDubExportUpload.md)） |
 | `archive` | 冷数据归档域（历史行情按时间/证券下沉，`V37` 建 schema，表待业务迁移创建） | 暂无 |
 | `public` | 基础主数据与系统表 | `finv_security`、`finv_market`、`finv_exchange`、`finv_region`、`finv_currency`、`schema_version` |
 
@@ -58,7 +58,7 @@
   - 已发生的例子：`V29` 把 `secu_code` 改名为 `usc` 后，晚于它执行的种子迁移 `V100019`（INSERT 列清单）与 `V100023`（`CREATE TABLE` 列定义）仍引用旧列名，只修正这两处，改为 `usc`。
 - 需要排在种子段之后执行的结构收尾迁移，使用 `V1000xx` 编号并在此文档与迁移文件头注明原因。
   - 已发生的例子：`V100024`（把 `V100023` 在 `public` 新建的 3 张 `finv_quant_*` 表移入 `quant`）。
-  - 反例（无需收尾迁移）：`finv_futu_*` 的建表全部在 `V7`～`V17`，种子段只做 `INSERT`/`UPDATE`/`DELETE`，故 `V33` 一次迁移即可完成，不需要 `V1000xx` 收尾（详见 [`../Refactor/2610-MoveFutuTablesToSchema.md`](../Refactor/2610-MoveFutuTablesToSchema.md)）。
+  - 反例（无需收尾迁移）：`finv_futu_*` 的建表全部在 `V7`～`V17`，种子段只做 `INSERT`/`UPDATE`/`DELETE`，故 `V33` 一次迁移即可完成，不需要 `V1000xx` 收尾（详见 [`../Refactor/2610-004-MoveFutuTablesToSchema.md`](../Refactor/2610-004-MoveFutuTablesToSchema.md)）。
 - 新建/移动表的迁移必须幂等（`CREATE SCHEMA IF NOT EXISTS`、`pg_tables` 位置判断），并在脚本末尾做收敛校验（`RAISE EXCEPTION` 触发整体回滚）。
 
 ## 5. 变更要求

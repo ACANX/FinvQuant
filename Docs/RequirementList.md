@@ -86,20 +86,20 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10056 | 两个改造清单文件分别位于 `Docs/Refactor/2610-SecuCodeToUsc.md` 与 `Docs/Refactor/2610-PrevCloseToLastClose.md`。 | 两个路径 `test -f` 退出码均为 0 | |
-| 10057 | 改造项 A 清单编号自 `A-01` 起连续无缺号。 | `2610-SecuCodeToUsc.md` 中提取 `A-\d{2}` 编号后相邻差值恒为 1 | |
-| 10058 | 改造项 B 清单编号自 `B-01` 起连续无缺号。 | `2610-PrevCloseToLastClose.md` 中提取 `B-\d{2}` 编号后相邻差值恒为 1 | |
+| 10056 | 两个改造清单文件分别位于 `Docs/Refactor/2610-001-SecuCodeToUsc.md` 与 `Docs/Refactor/2610-002-PrevCloseToLastClose.md`。 | 两个路径 `test -f` 退出码均为 0 | |
+| 10057 | 改造项 A 清单编号自 `A-01` 起连续无缺号。 | `2610-001-SecuCodeToUsc.md` 中提取 `A-\d{2}` 编号后相邻差值恒为 1 | |
+| 10058 | 改造项 B 清单编号自 `B-01` 起连续无缺号。 | `2610-002-PrevCloseToLastClose.md` 中提取 `B-\d{2}` 编号后相邻差值恒为 1 | |
 | 10059 | 两个文件合计包含 4 项待决策（`DA-01`、`DB-01`～`DB-03`）。 | 两文件中 `DA-0[0-9]` 与 `DB-0[0-9]` 表格行合计为 4 | |
 | 10060 | `README.md` 文档列表包含指向两个改造清单的链接。 | `grep -c 'Docs/Refactor/' README.md` 输出不小于 2 | |
-| 10061 | 改造项 B 清单已声明示例数据仅供参考、权威判定以生产库 SQL 为准。 | `grep -c "示例文件不是生产数据，不能作为删除依据" Docs/Refactor/2610-PrevCloseToLastClose.md` 输出 `1` | |
-| 10062 | 改造项 B 的 `DB-01` 记录了「本次只改名、不删列」的结论。 | `grep -c "本次只改名，不删列" Docs/Refactor/2610-PrevCloseToLastClose.md` 输出 `1` | |
+| 10061 | 改造项 B 清单已声明示例数据仅供参考、权威判定以生产库 SQL 为准。 | `grep -c "示例文件不是生产数据，不能作为删除依据" Docs/Refactor/2610-002-PrevCloseToLastClose.md` 输出 `1` | |
+| 10062 | 改造项 B 的 `DB-01` 记录了「本次只改名、不删列」的结论。 | `grep -c "本次只改名，不删列" Docs/Refactor/2610-002-PrevCloseToLastClose.md` 输出 `1` | |
 | 10063 | 改造项 B 的重命名迁移与回填迁移各有一条清单条目。 | 命中 `V30__finv_quote_kline_rename_prev_close_to_last_close` 与 `V31__finv_quote_kline_backfill_open_from_last_close` 各 1 处 | |
 | 10064 | `Docs/Refactor/` 下的过程文档文件名均带 `yyMM-` 四位前缀。 | `ls Docs/Refactor/*.md` 结果全部匹配 `^[0-9]{4}-` | |
 | 10065 | `FileNamingSpec.md` 记录了 `yyMM-` 前缀规则及其例外清单。 | `grep -c "yyMM-" Docs/DevSpec/FileNamingSpec.md` 输出不小于 2 | |
 
 ## 六、改造项 A 验收（10066–10079）
 
-> 对应清单 [`Refactor/2610-SecuCodeToUsc.md`](Refactor/2610-SecuCodeToUsc.md)：`secu_code` → `usc` 全库统一。
+> 对应清单 [`Refactor/2610-001-SecuCodeToUsc.md`](Refactor/2610-001-SecuCodeToUsc.md)：`secu_code` → `usc` 全库统一。
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
@@ -120,7 +120,7 @@
 
 ## 七、改造项 B 验收（10080–10091）
 
-> 对应清单 [`Refactor/2610-PrevCloseToLastClose.md`](Refactor/2610-PrevCloseToLastClose.md)：`prev_close` → `last_close` 重命名 + `open` 兜底回填。
+> 对应清单 [`Refactor/2610-002-PrevCloseToLastClose.md`](Refactor/2610-002-PrevCloseToLastClose.md)：`prev_close` → `last_close` 重命名 + `open` 兜底回填。
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
@@ -139,7 +139,7 @@
 
 ## 八、改造项 C 验收（10092–10107）
 
-> 对应清单 [`Refactor/2610-MoveTablesToSchemas.md`](Refactor/2610-MoveTablesToSchemas.md)：`finv_quote_*` → `quote`、`finv_quant_*` → `quant` schema。
+> 对应清单 [`Refactor/2610-003-MoveTablesToSchemas.md`](Refactor/2610-003-MoveTablesToSchemas.md)：`finv_quote_*` → `quote`、`finv_quant_*` → `quant` schema。
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
@@ -162,7 +162,7 @@
 
 ## 九、改造项 D 验收（10108–10120）
 
-> 对应清单 [`Refactor/2610-MoveFutuTablesToSchema.md`](Refactor/2610-MoveFutuTablesToSchema.md)：`finv_futu_*` → `futu` schema。
+> 对应清单 [`Refactor/2610-004-MoveFutuTablesToSchema.md`](Refactor/2610-004-MoveFutuTablesToSchema.md)：`finv_futu_*` → `futu` schema。
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|

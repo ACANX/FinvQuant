@@ -4,7 +4,7 @@
 > 使用方式：自上而下推进；完成一项把「状态」改为 `☑ YYYY-MM-DD`，并附提交短号。
 > 编号规则：本文件条目 `E-01`～`E-xx`，**只增不改**；待决策用 `EE-01`～（双字母前缀）。
 > 完成判定：每项给出可执行的核验命令或明确的代码检查点，**未通过判定不得勾选**。
-> 关联文档：改造项 A～D（[`2610-SecuCodeToUsc.md`](2610-SecuCodeToUsc.md) / [`2610-PrevCloseToLastClose.md`](2610-PrevCloseToLastClose.md) / [`2610-MoveTablesToSchemas.md`](2610-MoveTablesToSchemas.md) / [`2610-MoveFutuTablesToSchema.md`](2610-MoveFutuTablesToSchema.md)）；schema 规范见 [`../DevSpec/DbSchemaSpec.md`](../DevSpec/DbSchemaSpec.md)；需求验收见 [`../RequirementList.md`](../RequirementList.md)。
+> 关联文档：改造项 A～D（[`2610-001-SecuCodeToUsc.md`](2610-001-SecuCodeToUsc.md) / [`2610-002-PrevCloseToLastClose.md`](2610-002-PrevCloseToLastClose.md) / [`2610-003-MoveTablesToSchemas.md`](2610-003-MoveTablesToSchemas.md) / [`2610-004-MoveFutuTablesToSchema.md`](2610-004-MoveFutuTablesToSchema.md)）；schema 规范见 [`../DevSpec/DbSchemaSpec.md`](../DevSpec/DbSchemaSpec.md)；需求验收见 [`../RequirementList.md`](../RequirementList.md)。
 > 基线：仓库 `VERSION=0.1.1`，结构迁移最高版本 `V33`，种子段 `V100024`。
 
 ## 0. 概览

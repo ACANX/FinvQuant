@@ -26,7 +26,7 @@
 - 新增可插拔上传适配器（`Uploader`：`Stat` / `Put` / `Verify`）：内置 `none`（不启用）、`dir`（目录 / NAS 挂载）、`http`（HTTP PUT 网关）三种实现；上传前本地校验、远端查重、上传后远端 checksum 校验，每次尝试写 `finv_dedup_export_file_upload_log`。
 - 新增 6 个运维接口（`/API/V1/Meta/Finv/Quote/DeDup/*`）：`Status`、`Job/List`、`File/List`、`Job/Retry`、`File/Retry`、`Job/Run`，均为一接口一文档（`Docs/API/QuoteDeDup/*.md`），并在 `Docs/API/README.md` 与 `Docs/API/APIs.md` 登记。
 - 新增配置项（均在 `config.Config` 中集中解析）：`FINV_QUOTE_DEDUB_ENABLED`、`_TIMEZONE`、`_OUTPUT_DIR`、`_WORKER_ID`、`_PAGE_SIZE`、`_WINDOW_START`、`_WINDOW_END`、`_LEASE_SECONDS`、`_MAX_ATTEMPTS`、`_UPLOAD_MODE`、`_UPLOAD_DIR`、`_UPLOAD_HTTP_BASE`、`_UPLOAD_HTTP_TOKEN`、`_UPLOAD_PREFIX`、`_LOCAL_RETENTION_DAYS`、`_PURGE_MAIN_ENABLED`、`_PURGE_MAIN_MONTHS`、`_MATURITY_THRESHOLD`、`_PATCH_BUDGET_RATIO`、`_COMPRESSION`、`_FETCH_LIMIT`、`_MAX_JOBS_PER_RUN`。
-- 新增落地文档 [`Docs/Refactor/2610-SecuritiesQuoteExportArchive.md`](Refactor/2610-SecuritiesQuoteExportArchive.md)（流程、配置、调度、运维要点、与方案稿的差异说明、P0–P7 阶段对照）。
+- 新增落地文档 [`Docs/Refactor/2610-005-FinvQuoteDeDubExportUpload.md`](Refactor/2610-005-FinvQuoteDeDubExportUpload.md)（流程、配置、调度、运维要点、与方案稿的差异说明、P0–P7 阶段对照）。
 
 ### 变更
 
@@ -89,7 +89,7 @@
 - 新增本变更日志 `Docs/CHANGELOG.md`，汇总 0.1.0 及历史 VeritasQuant 版本的对外变更。
 - 开发规范新增「变更日志」强制要求：[`DevSpec/DocSpec.md`](DevSpec/DocSpec.md) 第 4 节、[`DevSpec/GitSpec.md`](DevSpec/GitSpec.md) 第 3 节，并在 [`DevSpec/FileNamingSpec.md`](DevSpec/FileNamingSpec.md) 中明确本文件名全大写。
 - 新增需求清单 [`RequirementList.md`](RequirementList.md)，采用五位数编号（自 `10001` 起），记录 2026-10-24 起的新增需求，首版 65 条；`AGENTS.md` 工作约定同步要求新增需求必须登记。
-- 新增两份改造清单：改造项 A [`Refactor/2610-SecuCodeToUsc.md`](Refactor/2610-SecuCodeToUsc.md)（`secu_code` → `usc` 全库统一，`A-01`～`A-37`）、改造项 B [`Refactor/2610-PrevCloseToLastClose.md`](Refactor/2610-PrevCloseToLastClose.md)（`prev_close` → `last_close` 重命名 + `open` 兜底回填，`B-01`～`B-24`），共 61 个可勾选检查项与 4 项待决策；B 的删除动作暂缓，留待生产数据核实后另议。
+- 新增两份改造清单：改造项 A [`Refactor/2610-001-SecuCodeToUsc.md`](Refactor/2610-001-SecuCodeToUsc.md)（`secu_code` → `usc` 全库统一，`A-01`～`A-37`）、改造项 B [`Refactor/2610-002-PrevCloseToLastClose.md`](Refactor/2610-002-PrevCloseToLastClose.md)（`prev_close` → `last_close` 重命名 + `open` 兜底回填，`B-01`～`B-24`），共 61 个可勾选检查项与 4 项待决策；B 的删除动作暂缓，留待生产数据核实后另议。
 
 ### 变更
 
@@ -152,7 +152,7 @@
   - 配置：`internal/config` 默认值、`docker-compose.yml`（`FINV_PG_USER`/`FINV_PG_DATABASE`/`POSTGRES_USER`/`POSTGRES_DB`/`pg_isready`）、`.env.example`、Native `FinvQuant.env.example`、`Install.sh` 兜底值、`deploy.cmd`/`upgrade.cmd` 的 `psql`/`pg_dump` 参数
   - 不改：产品/镜像/容器/项目名 `finvquant`、Linux 系统用户与 `/opt/finvquant`、二进制名、备份文件名前缀
   - 新增 [`.dockerignore`](../.dockerignore)：构建上下文排除 `Deploy/Backup/`、`Web/node_modules/`、`Docs/`、`Archive/` 等，构建耗时降至 ~38s
-  - 改造清单：新增 [`Docs/Refactor/2610-RenameDatabaseAndRole.md`](Refactor/2610-RenameDatabaseAndRole.md)（`E-01`～`E-30`）
+  - 改造清单：新增 [`Docs/Refactor/2610-006-RenameDatabaseAndRole.md`](Refactor/2610-006-RenameDatabaseAndRole.md)（`E-01`～`E-30`）
 - 新增 [`Archive/README.md`](../Archive/README.md)：仓库级历史归档目录的用途与边界（放什么、不放什么、按来源建子目录、与原位置对照命名、须随替换提交一并入库），并在根 `README.md` 目录结构与本文件中登记；`Deploy/README.md` 增加「废弃文件去处」指引。
 - **备份文件命名规范化**：数据库备份统一为 `finvquant_YYYYMMDD_HHMMSS.dump`（纯 ASCII，按名称即可排序）；
   Docker 升级脚本改用 PowerShell 生成时间戳（不再截取 `%date%`，避免中文系统出现「周五」等字符与区域格式错乱）；
