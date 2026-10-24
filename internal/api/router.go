@@ -14,17 +14,19 @@ import (
 	"github.com/acanx/finvquant/internal/config"
 	"github.com/acanx/finvquant/internal/kline"
 	"github.com/acanx/finvquant/internal/meta"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
 	"github.com/acanx/finvquant/internal/quote"
 )
 
 // Deps 路由依赖。
 type Deps struct {
-	Pool    *pgxpool.Pool
-	Redis   *redis.Client
-	Version string
-	Commit  string
-	Server  string
-	Config  *config.Config
+	Pool          *pgxpool.Pool
+	Redis         *redis.Client
+	Version       string
+	Commit        string
+	Server        string
+	Config        *config.Config
+	ExportArchive *dedup.Service
 }
 
 // NewRouter 构建 Gin 路由（默认监听端口 16001）。
@@ -89,6 +91,43 @@ func NewRouter(deps *Deps) *gin.Engine {
 		// 历史行情：导入 / 查询（统一 /Meta/Finv/Quant/Quote/ 前缀，与前端路由对应）
 		apiGroup.POST("/Meta/Finv/Quant/Quote/Import/Upload", quoteImport.Upload)
 		apiGroup.GET("/Meta/Finv/Quant/Quote/History/QuoteQuery", quoteQuery.Query)
+
+		// 证券行情月归档导出与上传（运维：状态 / 任务 / 文件 / 重试 / 手动触发）
+		if deps.ExportArchive != nil {
+			archive := handler.NewExportArchive(deps.ExportArchive)
+			group := apiGroup.Group("/Meta/Finv/Quote/DeDup")
+			group.GET("/Status", archive.Status)
+			group.GET("/Job/List", archive.JobList)
+			group.GET("/File/List", archive.FileList)
+			group.POST("/Job/Retry", archive.JobRetry)
+			group.POST("/File/Retry", archive.FileRetry)
+			group.POST("/Job/Run", archive.JobRun)
+
+			// 归档运维台：查询（10 张表 + 成熟度）
+			group.GET("/Usc/Page", archive.UscPage)
+			group.GET("/Priority/List", archive.PriorityList)
+			group.GET("/Calendar/Page", archive.CalendarPage)
+			group.GET("/Maturity/Page", archive.MaturityPage)
+			group.GET("/Stats/Page", archive.StatsPage)
+			group.GET("/Budget/Page", archive.BudgetPage)
+			group.GET("/Watermark/List", archive.WatermarkList)
+			group.GET("/RunLog/Page", archive.RunLogPage)
+			group.GET("/UploadLog/Page", archive.UploadLogPage)
+			group.GET("/Patch/Page", archive.PatchPage)
+
+			// 归档运维台：管理员编辑（5 张可编辑表 + 补丁重试 / 任务暂停取消 / 成熟度重算）
+			group.PUT("/Usc", archive.UscUpsert)
+			group.PUT("/Priority", archive.PriorityUpsert)
+			group.DELETE("/Priority", archive.PriorityDelete)
+			group.PUT("/Calendar", archive.CalendarUpsert)
+			group.DELETE("/Calendar", archive.CalendarDelete)
+			group.PUT("/Budget/Override", archive.BudgetOverride)
+			group.PUT("/Watermark", archive.WatermarkReset)
+			group.POST("/Patch/Retry", archive.PatchRetry)
+			group.POST("/Job/Pause", archive.JobPause)
+			group.POST("/Job/Cancel", archive.JobCancel)
+			group.POST("/Maturity/Refresh", archive.MaturityRefresh)
+		}
 
 		// 元数据管理：交易所 / 市场 / 证券字典维护
 		apiGroup.GET("/Meta/Finv/Quant/Metadata/Exchange/List", metaHandler.ListExchanges)

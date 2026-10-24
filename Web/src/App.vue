@@ -35,6 +35,20 @@ const menuItems: (MenuLeaf | MenuGroup)[] = [
           { key: 'dedup-kline-stats', title: '去重分钟行情统计', icon: 'mdi-chart-box-outline', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats' },
         ],
       },
+      // 月归档导出（二级分组，含 3 个三级叶子；渲染模板仅支持「一级分组 → 二级分组 → 叶子」两级嵌套）
+      {
+        key: 'quote-archive',
+        title: '行情数据归档',
+        icon: 'mdi-database-export-outline',
+        children: [
+          { key: 'dedup-export-overview', title: '归档监控总览', icon: 'mdi-monitor-dashboard', path: '/Meta/Finv/Quote/DeDup/Export/Overview' },
+          { key: 'dedup-export-job', title: '导出任务', icon: 'mdi-clipboard-list-outline', path: '/Meta/Finv/Quote/DeDup/Export/Job' },
+          { key: 'dedup-export-file', title: '文件与上传', icon: 'mdi-file-cloud-outline', path: '/Meta/Finv/Quote/DeDup/Export/File' },
+          { key: 'dedup-export-stats', title: '归档统计与预算', icon: 'mdi-chart-box-multiple-outline', path: '/Meta/Finv/Quote/DeDup/Export/Stats' },
+          { key: 'dedup-export-config', title: '归档主数据与规则', icon: 'mdi-tune-variant', path: '/Meta/Finv/Quote/DeDup/Export/Config' },
+          { key: 'dedup-export-log', title: '归档日志与补丁', icon: 'mdi-text-box-search-outline', path: '/Meta/Finv/Quote/DeDup/Export/Log' },
+        ],
+      },
     ],
   },
   {

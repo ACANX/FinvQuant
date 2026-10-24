@@ -2,18 +2,21 @@
 # =====================================================================
 # FinvQuant 快照包构建脚本
 #
-# 唯一打包实现：CI（.github/workflows/CI.yml 的 snapshot-binaries）
-# 与本地手工出包都调用本脚本，避免两处逻辑漂移。
+# 唯一打包实现：CI（.github/workflows/CI.yml 的 snapshot-binaries / pr-binaries /
+# release-binaries）与本地手工出包都调用本脚本，避免四处逻辑漂移。
 #
-# 版本标识：v{BASE_VERSION}.{PPPPP}.{yymmddHHmm}
-#   BASE_VERSION 取自 VERSION 文件（如 0.1.1）
-#   PPPPP        关联 PR 编号，5 位左补零；无 PR 为 00000
-#   yymmddHHmm   构建时间戳（Asia/Shanghai）
+# 支持三种包类型（由 --kind 或版本格式自动识别）：
+#   snapshot 快照包    v{BASE}.{PPPPP}.{yymmddHHmm}   推送代码到分支时发布
+#   pr       构建包    v{BASE}.{PPPPP}               PR 合并时发布（同一 PR 重复合并覆盖重建）
+#   release  正式版包  v{BASE}                       代码合并到 main 时发布
+#   BASE 取自 VERSION 文件（如 0.1.3）；PPPPP 为关联 PR 编号，5 位左补零（无 PR 为 00000）
+#   yymmddHHmm 为构建时间戳（Asia/Shanghai）
 #
 # 用法：
 #   bash Deploy/Script/PackSnapshot.sh [选项]
 #
-#   --version <v>       快照版本（缺省则用 --pr/--timestamp + VERSION 现算）
+#   --version <v>       包版本（缺省则用 --kind/--pr/--timestamp + VERSION 现算）
+#   --kind <k>          snapshot | pr | release（默认按版本格式自动识别）
 #   --target <t>        linux/amd64 | linux/arm64 | windows/amd64 | all（默认 all）
 #   --pr <n>            关联 PR 编号（默认 00000）
 #   --timestamp <ts>    时间戳 yymmddHHmm（默认当前 Asia/Shanghai 时间）
@@ -44,6 +47,7 @@ ROOT=$(cd "${SCRIPT_DIR}/../.." && pwd)
 cd "${ROOT}"
 
 SNAPSHOT_VERSION="${SNAPSHOT_VERSION:-}"
+KIND=""
 BASE_VERSION=""
 PR=""
 TIMESTAMP=""
@@ -58,13 +62,14 @@ warn() { printf '[pack] 警告：%s\n' "$*" >&2; }
 die()  { printf '[pack] 错误：%s\n' "$*" >&2; exit 1; }
 
 usage() {
-    sed -n '2,40p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,42p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
     exit 0
 }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --version)      SNAPSHOT_VERSION="$2"; shift 2 ;;
+        --kind)         KIND="$2"; shift 2 ;;
         --target)       TARGET="$2"; shift 2 ;;
         --pr)           PR="$2"; shift 2 ;;
         --timestamp)    TIMESTAMP="$2"; shift 2 ;;
@@ -86,29 +91,56 @@ BASE_VERSION="${BASE_VERSION:-$(tr -d '[:space:]' < "${ROOT}/VERSION")}"
 
 if [[ -n "${SNAPSHOT_VERSION}" ]]; then
     [[ "${SNAPSHOT_VERSION}" == v* ]] || SNAPSHOT_VERSION="v${SNAPSHOT_VERSION}"
-    if [[ ! "${SNAPSHOT_VERSION}" =~ ^v([0-9]+(\.[0-9]+)+)\.([0-9]{5})\.([0-9]{10})$ ]]; then
-        die "版本格式不合法：${SNAPSHOT_VERSION}（应为 v{BASE}.{PPPPP}.{yymmddHHmm}）"
+    if [[ "${SNAPSHOT_VERSION}" =~ ^v([0-9]+(\.[0-9]+)+)\.([0-9]{5})\.([0-9]{10})$ ]]; then
+        DETECTED_KIND="snapshot"
+        BASE_VERSION="${BASH_REMATCH[1]}"
+        PR="${BASH_REMATCH[3]}"
+        TIMESTAMP="${BASH_REMATCH[4]}"
+    elif [[ "${SNAPSHOT_VERSION}" =~ ^v([0-9]+(\.[0-9]+)+)\.([0-9]{5})$ ]]; then
+        DETECTED_KIND="pr"
+        BASE_VERSION="${BASH_REMATCH[1]}"
+        PR="${BASH_REMATCH[3]}"
+        TIMESTAMP=""
+    elif [[ "${SNAPSHOT_VERSION}" =~ ^v([0-9]+(\.[0-9]+)+)$ ]]; then
+        DETECTED_KIND="release"
+        BASE_VERSION="${BASH_REMATCH[1]}"
+        PR=""
+        TIMESTAMP=""
+    else
+        die "版本格式不合法：${SNAPSHOT_VERSION}"
     fi
-    BASE_VERSION="${BASH_REMATCH[1]}"
-    PR="${BASH_REMATCH[3]}"
-    TIMESTAMP="${BASH_REMATCH[4]}"
+    if [[ -n "${KIND}" && "${KIND}" != "${DETECTED_KIND}" ]]; then
+        warn "--kind=${KIND} 与版本格式不符，按 ${DETECTED_KIND} 处理"
+    fi
+    KIND="${DETECTED_KIND}"
 else
+    KIND="${KIND:-snapshot}"
+    case "${KIND}" in
+        snapshot|pr|release) ;;
+        *) die "--kind 取值不合法：${KIND}（应为 snapshot / pr / release）" ;;
+    esac
     TIMESTAMP="${TIMESTAMP:-$(TZ=Asia/Shanghai date +%y%m%d%H%M)}"
-    [[ "${TIMESTAMP}" =~ ^[0-9]{10}$ ]] || die "时间戳格式不合法：${TIMESTAMP}（应为 yymmddHHmm）"
-    if [[ ! "${PR}" =~ ^[0-9]+$ ]]; then
-        [[ -n "${PR}" ]] && warn "PR 编号「${PR}」非纯数字，按 00000 处理"
-        PR=0
+    if [[ "${KIND}" != "release" ]]; then
+        if [[ ! "${PR}" =~ ^[0-9]+$ ]]; then
+            [[ -n "${PR}" ]] && warn "PR 编号「${PR}」非纯数字，按 00000 处理"
+            PR=0
+        fi
+        PR=$(printf '%05d' "${PR}")
     fi
-    PR=$(printf '%05d' "${PR}")
-    SNAPSHOT_VERSION="v${BASE_VERSION}.${PR}.${TIMESTAMP}"
+    case "${KIND}" in
+        snapshot) SNAPSHOT_VERSION="v${BASE_VERSION}.${PR}.${TIMESTAMP}" ;;
+        pr)       SNAPSHOT_VERSION="v${BASE_VERSION}.${PR}"; TIMESTAMP="" ;;
+        release)  SNAPSHOT_VERSION="v${BASE_VERSION}"; PR=""; TIMESTAMP="" ;;
+    esac
 fi
 
 COMMIT="${COMMIT:-$(git rev-parse --short HEAD 2>/dev/null || echo dev)}"
 
-log "快照版本   : ${SNAPSHOT_VERSION}"
+log "包类型     : ${KIND}"
+log "包版本     : ${SNAPSHOT_VERSION}"
 log "基础版本   : ${BASE_VERSION}"
-log "PR 编号    : ${PR}"
-log "时间戳     : ${TIMESTAMP} (Asia/Shanghai)"
+log "PR 编号    : ${PR:-(不适用)}"
+log "时间戳     : ${TIMESTAMP:-(不适用)}"
 log "提交       : ${COMMIT}"
 
 # ---------------------------------------------------------------------
@@ -303,13 +335,20 @@ for T in "${TARGETS[@]}"; do
 
     local_sys="Windows 11 (x64)"
     [[ "${GOOS_V}" == "linux" ]] && { [[ "${GOARCH_V}" == "arm64" ]] && local_sys="Ubuntu 26.04 (aarch64)" || local_sys="Ubuntu 26.04 (x86_64)"; }
+    case "${KIND}" in
+        snapshot) KIND_LABEL="快照包（分支推送）" ;;
+        pr)       KIND_LABEL="构建包（PR 合并）" ;;
+        release)  KIND_LABEL="正式版包（main 合并）" ;;
+        *)        KIND_LABEL="${KIND}" ;;
+    esac
     {
-        echo "FinvQuant 快照包"
+        echo "FinvQuant ${KIND_LABEL}"
         echo "=================="
+        echo "包类型      : ${KIND}（${KIND_LABEL}）"
         echo "版本        : ${SNAPSHOT_VERSION}"
         echo "基础版本    : ${BASE_VERSION}"
-        echo "PR 编号     : ${PR}"
-        echo "构建时间戳  : ${TIMESTAMP} (Asia/Shanghai)"
+        echo "PR 编号     : ${PR:-(不适用)}"
+        echo "构建时间戳  : ${TIMESTAMP:-(不适用)}"
         echo "提交        : ${COMMIT}"
         echo "目标平台    : ${GOOS_V}/${GOARCH_V}"
         echo "适用系统    : ${local_sys}"

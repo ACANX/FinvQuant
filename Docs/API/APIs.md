@@ -66,6 +66,33 @@
 | 55 | GET | `/Health` | 探活（探数据库；`/healthz` 为过渡别名） | [KLine/KLineHealth.md](KLine/KLineHealth.md) | 监控/容器 healthcheck |
 | 56 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats` | 去重行情汇总统计（汇总/每日/证券分布/空值完整性） | [KLine/KLineStats.md](KLine/KLineStats.md) | 去重分钟行情统计（`DeDupKLineStatsView.vue`） |
 | 57 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Bounds` | 交易日期边界（min/max date，轻量） | [KLine/KLineBounds.md](KLine/KLineBounds.md) | 去重分钟行情查询/统计页默认日期范围（`DeDupKLineQueryView.vue`、`DeDupKLineStatsView.vue`） |
+| 58 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Status` | 归档链路指标（任务/上传状态、积压、预算、补丁、告警）与调度表 | [QuoteDeDup/Status.md](QuoteDeDup/Status.md) | 归档监控总览 |
+| 59 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Job/List` | 分页查询证券月导出任务 | [QuoteDeDup/JobList.md](QuoteDeDup/JobList.md) | 导出任务 |
+| 60 | GET | `/API/V1/Meta/Finv/Quote/DeDup/File/List` | 分页查询导出文件与上传状态 | [QuoteDeDup/FileList.md](QuoteDeDup/FileList.md) | 文件与上传 |
+| 61 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Job/Retry` | 重试导出任务（重置为 `WAITING`） | [QuoteDeDup/JobRetry.md](QuoteDeDup/JobRetry.md) | 导出任务 |
+| 62 | POST | `/API/V1/Meta/Finv/Quote/DeDup/File/Retry` | 重试上传（重置为 `PENDING_UPLOAD`） | [QuoteDeDup/FileRetry.md](QuoteDeDup/FileRetry.md) | 文件与上传 |
+| 63 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Job/Run` | 手动触发归档 Job（异步，同类 Job 互斥） | [QuoteDeDup/JobRun.md](QuoteDeDup/JobRun.md) | 归档监控总览 |
+| 64 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Usc/Page` | 分页查询证券主数据（含 `day_expect_rows` 校准值） | [QuoteDeDup/Usc.md](QuoteDeDup/Usc.md) | 归档主数据与规则 |
+| 65 | PUT | `/API/V1/Meta/Finv/Quote/DeDup/Usc` | 新增或更新证券主数据 | [QuoteDeDup/Usc.md](QuoteDeDup/Usc.md) | 归档主数据与规则 |
+| 66 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Priority/List` | 查询证券优先级 / SLA | [QuoteDeDup/Priority.md](QuoteDeDup/Priority.md) | 归档主数据与规则 |
+| 67 | PUT | `/API/V1/Meta/Finv/Quote/DeDup/Priority` | 新增或更新优先级 | [QuoteDeDup/Priority.md](QuoteDeDup/Priority.md) | 归档主数据与规则 |
+| 68 | DELETE | `/API/V1/Meta/Finv/Quote/DeDup/Priority` | 删除优先级 | [QuoteDeDup/Priority.md](QuoteDeDup/Priority.md) | 归档主数据与规则 |
+| 69 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Calendar/Page` | 分页查询交易日历 | [QuoteDeDup/Calendar.md](QuoteDeDup/Calendar.md) | 归档主数据与规则 |
+| 70 | PUT | `/API/V1/Meta/Finv/Quote/DeDup/Calendar` | 新增或更新交易日历标记 | [QuoteDeDup/Calendar.md](QuoteDeDup/Calendar.md) | 归档主数据与规则 |
+| 71 | DELETE | `/API/V1/Meta/Finv/Quote/DeDup/Calendar` | 删除交易日历记录 | [QuoteDeDup/Calendar.md](QuoteDeDup/Calendar.md) | 归档主数据与规则 |
+| 72 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Maturity/Page` | 分页查询成熟度 | [QuoteDeDup/Maturity.md](QuoteDeDup/Maturity.md) | 归档统计与预算 |
+| 73 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Maturity/Refresh` | 异步触发成熟度重算 | [QuoteDeDup/Maturity.md](QuoteDeDup/Maturity.md) | 归档统计与预算 |
+| 74 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Stats/Page` | 分页查询入口日统计 | [QuoteDeDup/Stats.md](QuoteDeDup/Stats.md) | 归档统计与预算 |
+| 75 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Budget/Page` | 分页查询每日预算 | [QuoteDeDup/Budget.md](QuoteDeDup/Budget.md) | 归档统计与预算 |
+| 76 | PUT | `/API/V1/Meta/Finv/Quote/DeDup/Budget/Override` | 管理员覆盖当日预算 | [QuoteDeDup/Budget.md](QuoteDeDup/Budget.md) | 归档统计与预算 |
+| 77 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Watermark/List` | 查询扫描水位 | [QuoteDeDup/Watermark.md](QuoteDeDup/Watermark.md) | 归档统计与预算 |
+| 78 | PUT | `/API/V1/Meta/Finv/Quote/DeDup/Watermark` | 重置扫描水位（高危） | [QuoteDeDup/Watermark.md](QuoteDeDup/Watermark.md) | 归档统计与预算 |
+| 79 | GET | `/API/V1/Meta/Finv/Quote/DeDup/RunLog/Page` | 分页查询 Job 运行日志 | [QuoteDeDup/RunLog.md](QuoteDeDup/RunLog.md) | 归档日志与补丁 |
+| 80 | GET | `/API/V1/Meta/Finv/Quote/DeDup/UploadLog/Page` | 分页查询上传审计 | [QuoteDeDup/UploadLog.md](QuoteDeDup/UploadLog.md) | 归档日志与补丁 |
+| 81 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Patch/Page` | 分页查询补丁任务 | [QuoteDeDup/Patch.md](QuoteDeDup/Patch.md) | 归档日志与补丁 |
+| 82 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Patch/Retry` | 重试补丁任务（重置为 `PENDING`） | [QuoteDeDup/Patch.md](QuoteDeDup/Patch.md) | 归档日志与补丁 |
+| 83 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Job/Pause` | 暂停导出任务 | [QuoteDeDup/JobControl.md](QuoteDeDup/JobControl.md) | 导出任务 |
+| 84 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Job/Cancel` | 取消导出任务 | [QuoteDeDup/JobControl.md](QuoteDeDup/JobControl.md) | 导出任务 |
 
 ## 说明
 

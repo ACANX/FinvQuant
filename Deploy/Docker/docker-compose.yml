@@ -38,6 +38,18 @@ services:
       FINV_REDIS_ADDR: redis:6379
       FINV_REDIS_PASSWORD: ${FINV_REDIS_PASSWORD:-}
       FINV_MODE: release
+      # 证券行情月归档导出与上传（详见 Docs/Refactor/2610-005-FinvQuoteDeDubExportUpload.md）
+      FINV_QUOTE_DEDUB_ENABLED: ${FINV_QUOTE_DEDUB_ENABLED:-false}
+      FINV_QUOTE_DEDUB_TIMEZONE: ${FINV_QUOTE_DEDUB_TIMEZONE:-Asia/Shanghai}
+      FINV_QUOTE_DEDUB_UPLOAD_MODE: ${FINV_QUOTE_DEDUB_UPLOAD_MODE:-none}
+      FINV_QUOTE_DEDUB_UPLOAD_PREFIX: ${FINV_QUOTE_DEDUB_UPLOAD_PREFIX:-}
+      FINV_QUOTE_DEDUB_WINDOW_START: ${FINV_QUOTE_DEDUB_WINDOW_START:-00:30}
+      FINV_QUOTE_DEDUB_WINDOW_END: ${FINV_QUOTE_DEDUB_WINDOW_END:-06:30}
+      FINV_QUOTE_DEDUB_PAGE_SIZE: ${FINV_QUOTE_DEDUB_PAGE_SIZE:-10000}
+      FINV_QUOTE_DEDUB_PURGE_MAIN_ENABLED: ${FINV_QUOTE_DEDUB_PURGE_MAIN_ENABLED:-false}
+    volumes:
+      # 本地导出与上传暂存目录（容器重建不丢文件；独享存储可用 NAS 挂载目录）
+      - ${FINV_QUOTE_DEDUB_HOST_DIR:-./exportarchive}:/app/Data/ExportArchive
     depends_on:
       postgres:
         condition: service_healthy

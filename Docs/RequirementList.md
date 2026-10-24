@@ -86,20 +86,20 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10056 | 两个改造清单文件分别位于 `Docs/Refactor/2610-SecuCodeToUsc.md` 与 `Docs/Refactor/2610-PrevCloseToLastClose.md`。 | 两个路径 `test -f` 退出码均为 0 | |
-| 10057 | 改造项 A 清单编号自 `A-01` 起连续无缺号。 | `2610-SecuCodeToUsc.md` 中提取 `A-\d{2}` 编号后相邻差值恒为 1 | |
-| 10058 | 改造项 B 清单编号自 `B-01` 起连续无缺号。 | `2610-PrevCloseToLastClose.md` 中提取 `B-\d{2}` 编号后相邻差值恒为 1 | |
+| 10056 | 两个改造清单文件分别位于 `Docs/Refactor/2610-001-SecuCodeToUsc.md` 与 `Docs/Refactor/2610-002-PrevCloseToLastClose.md`。 | 两个路径 `test -f` 退出码均为 0 | |
+| 10057 | 改造项 A 清单编号自 `A-01` 起连续无缺号。 | `2610-001-SecuCodeToUsc.md` 中提取 `A-\d{2}` 编号后相邻差值恒为 1 | |
+| 10058 | 改造项 B 清单编号自 `B-01` 起连续无缺号。 | `2610-002-PrevCloseToLastClose.md` 中提取 `B-\d{2}` 编号后相邻差值恒为 1 | |
 | 10059 | 两个文件合计包含 4 项待决策（`DA-01`、`DB-01`～`DB-03`）。 | 两文件中 `DA-0[0-9]` 与 `DB-0[0-9]` 表格行合计为 4 | |
 | 10060 | `README.md` 文档列表包含指向两个改造清单的链接。 | `grep -c 'Docs/Refactor/' README.md` 输出不小于 2 | |
-| 10061 | 改造项 B 清单已声明示例数据仅供参考、权威判定以生产库 SQL 为准。 | `grep -c "示例文件不是生产数据，不能作为删除依据" Docs/Refactor/2610-PrevCloseToLastClose.md` 输出 `1` | |
-| 10062 | 改造项 B 的 `DB-01` 记录了「本次只改名、不删列」的结论。 | `grep -c "本次只改名，不删列" Docs/Refactor/2610-PrevCloseToLastClose.md` 输出 `1` | |
+| 10061 | 改造项 B 清单已声明示例数据仅供参考、权威判定以生产库 SQL 为准。 | `grep -c "示例文件不是生产数据，不能作为删除依据" Docs/Refactor/2610-002-PrevCloseToLastClose.md` 输出 `1` | |
+| 10062 | 改造项 B 的 `DB-01` 记录了「本次只改名、不删列」的结论。 | `grep -c "本次只改名，不删列" Docs/Refactor/2610-002-PrevCloseToLastClose.md` 输出 `1` | |
 | 10063 | 改造项 B 的重命名迁移与回填迁移各有一条清单条目。 | 命中 `V30__finv_quote_kline_rename_prev_close_to_last_close` 与 `V31__finv_quote_kline_backfill_open_from_last_close` 各 1 处 | |
 | 10064 | `Docs/Refactor/` 下的过程文档文件名均带 `yyMM-` 四位前缀。 | `ls Docs/Refactor/*.md` 结果全部匹配 `^[0-9]{4}-` | |
 | 10065 | `FileNamingSpec.md` 记录了 `yyMM-` 前缀规则及其例外清单。 | `grep -c "yyMM-" Docs/DevSpec/FileNamingSpec.md` 输出不小于 2 | |
 
 ## 六、改造项 A 验收（10066–10079）
 
-> 对应清单 [`Refactor/2610-SecuCodeToUsc.md`](Refactor/2610-SecuCodeToUsc.md)：`secu_code` → `usc` 全库统一。
+> 对应清单 [`Refactor/2610-001-SecuCodeToUsc.md`](Refactor/2610-001-SecuCodeToUsc.md)：`secu_code` → `usc` 全库统一。
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
@@ -120,7 +120,7 @@
 
 ## 七、改造项 B 验收（10080–10091）
 
-> 对应清单 [`Refactor/2610-PrevCloseToLastClose.md`](Refactor/2610-PrevCloseToLastClose.md)：`prev_close` → `last_close` 重命名 + `open` 兜底回填。
+> 对应清单 [`Refactor/2610-002-PrevCloseToLastClose.md`](Refactor/2610-002-PrevCloseToLastClose.md)：`prev_close` → `last_close` 重命名 + `open` 兜底回填。
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
@@ -139,7 +139,7 @@
 
 ## 八、改造项 C 验收（10092–10107）
 
-> 对应清单 [`Refactor/2610-MoveTablesToSchemas.md`](Refactor/2610-MoveTablesToSchemas.md)：`finv_quote_*` → `quote`、`finv_quant_*` → `quant` schema。
+> 对应清单 [`Refactor/2610-003-MoveTablesToSchemas.md`](Refactor/2610-003-MoveTablesToSchemas.md)：`finv_quote_*` → `quote`、`finv_quant_*` → `quant` schema。
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
@@ -162,7 +162,7 @@
 
 ## 九、改造项 D 验收（10108–10120）
 
-> 对应清单 [`Refactor/2610-MoveFutuTablesToSchema.md`](Refactor/2610-MoveFutuTablesToSchema.md)：`finv_futu_*` → `futu` schema。
+> 对应清单 [`Refactor/2610-004-MoveFutuTablesToSchema.md`](Refactor/2610-004-MoveFutuTablesToSchema.md)：`finv_futu_*` → `futu` schema。
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
@@ -453,6 +453,92 @@
 | 10289 | 新增 `/Bounds` 轻量接口用于默认日期范围初始化，`GCMain` 查询耗时小于 100ms。 | `curl` 请求 `/Bounds?usc=GCMain` 返回 `date_from/date_to` 且耗时 < 100ms（实测约 17ms）；两个页面首屏默认日期为 2026-06-21 ~ 2026-07-21 | |
 | 10290 | 「数据采集」一级菜单移动到「历史行情」之前（紧跟仪表盘）。 | `grep -n "key: 'data-collection'\|key: 'history-quote'" Web/src/App.vue` 中 data-collection 行号小于 history-quote；浏览器侧边栏顺序为 仪表盘 → 数据采集 → 历史行情 | |
 
+## 二十八、行情月归档导出与上传（10291–10310）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10291 | 迁移 `V41` 在 `dedup` schema 新增 12 张归档链路表。 | `grep -c 'CREATE TABLE IF NOT EXISTS dedup.finv_dedup_' Deploy/Migrations/V41__finv_dedup_export_archive_tables.sql` 输出 `12` | |
+| 10292 | 新增表全部位于 `dedup` schema 且全库无外键，不修改既有两张业务表。 | `grep -c 'REFERENCES' Deploy/Migrations/V41__finv_dedup_export_archive_tables.sql` 输出 `0`；`grep -c 'ALTER TABLE dedup.finv_quote_secu_kline_min' Deploy/Migrations/V41__finv_dedup_export_archive_tables.sql` 输出 `0` | |
+| 10293 | 12 个普通索引按 `idx_<表名去 finv_ 前缀并去下划线>_<用途>` 命名。 | `grep -c 'CREATE INDEX IF NOT EXISTS idx_dedup' Deploy/Migrations/V41__finv_dedup_export_archive_tables.sql` 输出 `12` | |
+| 10294 | 导出文件为 MVsv：16 行 `# ` 文件头 + 1 行空行 + 数据行。 | `go test ./internal/meta/finv/quote/dedup -run TestWriteMVsvStructure` 通过 | |
+| 10295 | `# Field` 行固定为 `ts|da|ti|o|h|l|c|v|t|cp|cr|lc`。 | `go test ./internal/meta/finv/quote/dedup -run TestWriteMVsvStructure` 通过（断言 Field 行） | |
+| 10296 | `# Count` 等于实际数据行数，不一致时写出失败且不留半成品。 | `go test ./internal/meta/finv/quote/dedup -run 'TestWriteMVsvRowCountMismatch|TestVerifyMVsvRejectsBrokenFiles'` 通过 | |
+| 10297 | BASE / PATCH / MANIFEST 文件名符合方案稿约定。 | `go test ./internal/meta/finv/quote/dedup -run TestFileNames` 通过 | |
+| 10298 | 上传与本地同名（`.mvsv` / `.json`），不生成、不支持 `.csv`。 | `grep -rn '\.csv' internal/meta/finv/quote/dedup` 无输出；`go test ./internal/meta/finv/quote/dedup -run TestFileNames` 通过 | |
+| 10299 | 导出任务以 `(usc, biz_month)` 唯一，保证幂等。 | `grep -F 'UNIQUE (usc, biz_month)' Deploy/Migrations/V41__finv_dedup_export_archive_tables.sql` 命中 | |
+| 10300 | LOAD 按日 keyset 分页、`ON CONFLICT (ts, usc) DO NOTHING` 幂等、按 `usc` + 日期范围清理。 | `grep -F 'ON CONFLICT (ts, usc) DO NOTHING' internal/meta/finv/quote/dedup/store.go` 命中；`grep -F 'DELETE FROM ' internal/meta/finv/quote/dedup/store.go` 命中 | |
+| 10301 | 窗口耗尽时保存游标转 `PAUSED`（预算只限制启动新任务，不中断已启动任务），续跑前校验 `loaded_rows` 与实际行数不一致则重置游标。 | `grep -F 'ResetLoadCursor' internal/meta/finv/quote/dedup/job_export.go` 命中；`grep -F 'JobStatusPaused' internal/meta/finv/quote/dedup/job_export.go` 命中 | |
+| 10302 | 多 worker 用行锁 + 租约 + 心跳安全领取（`FOR UPDATE SKIP LOCKED`）。 | `grep -F 'FOR UPDATE SKIP LOCKED' internal/meta/finv/quote/dedup/store.go` 命中；`grep -F 'make_interval(secs' internal/meta/finv/quote/dedup/store.go` 命中 | |
+| 10303 | 日预算按公式计算并落库（`factor = clamp(1.20 + 0.20*sla + 0.05*min(backlog,5), 1.20, 2.00)`）。 | `go test ./internal/meta/finv/quote/dedup -run TestComputeBudget` 通过 | |
+| 10304 | 导出候选要求该月所有已观测日均为 `COMPLETE`/`FROZEN` 且月份已结束。 | `grep -F "HAVING bool_and(m.maturity_status IN ('COMPLETE', 'FROZEN'))" internal/meta/finv/quote/dedup/store.go` 命中；`grep -F 'm.biz_month < $1' internal/meta/finv/quote/dedup/store.go` 命中 | |
+| 10305 | 每个物理文件登记到 `finv_dedup_export_file`，唯一键 `(usc, biz_month, file_type, version)`。 | `grep -F 'UNIQUE (usc, biz_month, file_type, version)' Deploy/Migrations/V41__finv_dedup_export_archive_tables.sql` 命中 | |
+| 10306 | MANIFEST 在同一证券月 BASE / PATCH 全部上传完成后才领取。 | `grep -F "f.file_type <> 'MANIFEST' OR NOT EXISTS" internal/meta/finv/quote/dedup/store_files.go` 命中 | |
+| 10307 | 上传前后校验大小与 SHA256，每次尝试写上传审计日志。 | `grep -F 's.uploader.Verify' internal/meta/finv/quote/dedup/job_upload.go` 命中；`grep -F 'InsertUploadLog' internal/meta/finv/quote/dedup/job_upload.go` 命中 | |
+| 10308 | 收口后数据按 L1_HOT / L2_WARM / L3_COLD 分级补丁，并登记 `finv_dedup_export_file_patch`。 | `grep -F 'PatchLevelL1Hot' internal/meta/finv/quote/dedup/job_patch.go` 命中；`grep -F 'InsertPatchTask' internal/meta/finv/quote/dedup/job_patch.go` 命中 | |
+| 10309 | 生命周期清理默认不删主表数据，需显式开关；本地文件需「上传成功 + 远端校验 + 网盘归档」才清理。 | `grep -F 'FINV_QUOTE_DEDUB_PURGE_MAIN_ENABLED' internal/config/config.go` 命中；`grep -F "network_status = 'ARCHIVED'" internal/meta/finv/quote/dedup/store_files.go` 命中 | |
+| 10310 | 健康检查输出指标与告警，并登记 10 个 Job 的调度表。 | `go test ./internal/meta/finv/quote/dedup -run 'TestBuildAlerts|TestJobRuntimes'` 通过 | |
+
+## 二十九、三种发布包的 CI/CD（10311–10320）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10311 | 快照包在推送代码到分支时触发，版本为 `v{VERSION}.{PPPPP}.{yymmddHHmm}`。 | `grep -F 'v${BASE}.${PR5}.${TS}' .github/workflows/CI.yml` 命中 | |
+| 10312 | 构建包在 PR 合并时触发，版本为 `v{VERSION}.{PPPPP}`（不含时间戳）。 | `grep -F 'VERSION="v${BASE}.${PR5}"' .github/workflows/CI.yml` 命中 | |
+| 10313 | 正式版包在代码合并到 `main` 时触发，版本为 `v{VERSION}`。 | `grep -F 'VERSION="v${BASE}"' .github/workflows/CI.yml` 命中 | |
+| 10314 | 三个 binaries job（`snapshot-binaries` / `pr-binaries` / `release-binaries`）同级平行存在。 | `grep -c '^  [a-z-]*-binaries:$' .github/workflows/CI.yml` 输出 `3` | |
+| 10315 | 构建包采用 B 策略：同名 release/tag 已存在时删除后重建。 | `grep -F 'gh release delete "${VER}" --yes --cleanup-tag' .github/workflows/CI.yml` 命中 | |
+| 10316 | 三种场景互斥：提交已关联已合并 PR 时不出快照包。 | `grep -F '改由 pr 场景构建' .github/workflows/CI.yml` 命中 | |
+| 10317 | 正式版 tag 已存在时跳过并告警（需先 bump `VERSION`）。 | `grep -F '请先 bump VERSION' .github/workflows/CI.yml` 命中 | |
+| 10318 | `PackSnapshot.sh` 支持三种版本格式与 `--kind` 参数。 | `grep -F -- '--kind)         KIND=' Deploy/Script/PackSnapshot.sh` 命中 | |
+| 10319 | 包内 `BUILD-INFO.txt` 标注包类型（snapshot / pr / release）。 | `grep -F '包类型      : ${KIND}' Deploy/Script/PackSnapshot.sh` 命中 | |
+| 10320 | 手动触发（`workflow_dispatch`）可选择包类型。 | `grep -F 'options: [snapshot, pr, release]' .github/workflows/CI.yml` 命中 | |
+
+## 三十、前端月归档导出控制台（10321–10330）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10321 | 新增 3 个归档页面：总览、导出任务、文件与上传。 | `ls Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExport{Overview,Job,File}View.vue` 列出 3 个文件 | |
+| 10322 | 3 个页面在 `router.ts` 注册独立路由。 | `grep -c "path: '/Meta/Finv/Quote/DeDup/Export/" Web/src/router.ts` 输出 `3` | |
+| 10323 | 菜单挂到「数据采集 → 行情数据归档」（二级分组 + 3 个三级叶子）。 | `grep -F '行情数据归档' Web/src/App.vue` 命中 | |
+| 10324 | 总览页调用 `GET .../DeDup/Status` 展示指标、告警与运行参数。 | `grep -F 'Meta/Finv/Quote/DeDup/Status' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue` 命中 | |
+| 10325 | 总览页支持手动触发 Job（`POST .../Job/Run`）。 | `grep -F 'Meta/Finv/Quote/DeDup/Job/Run' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue` 命中 | |
+| 10326 | 任务页调用 `Job/List` 分页查询并支持 `Job/Retry` 人工重试。 | `grep -F 'Meta/Finv/Quote/DeDup/Job/List' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportJobView.vue` 与 `grep -F 'Job/Retry'` 均命中 | |
+| 10327 | 文件页调用 `File/List` 分页查询并支持 `File/Retry` 重试上传。 | `grep -F 'Meta/Finv/Quote/DeDup/File/List' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue` 与 `grep -F 'File/Retry'` 均命中 | |
+| 10328 | 文件页提供「仅看已上传」快捷筛选（`uploadStatus=UPLOADED`）。 | `grep -F "uploadStatus.value = 'UPLOADED'" Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue` 命中 | |
+| 10329 | 新增通用格式化工具 `fmtISO` / `fmtBytes` / `fmtMonth`。 | `grep -F 'export function fmtISO' Web/src/utils.ts` 命中 | |
+| 10330 | 前端类型检查与生产构建通过。 | `cd Web && npm run build` 成功（`vue-tsc -b && vite build`） | |
+
+## 三十一、归档运维台（全表查询与管理员编辑，10331–10354）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10331 | `GET .../Usc/Page` 分页查询证券主数据。 | `grep -F 'ListUscs' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10332 | `PUT .../Usc` 新增或更新证券主数据（含 `day_expect_rows`）。 | `grep -F 'func (s *Store) UpsertUsc' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10333 | `GET .../Priority/List` 查询优先级 / SLA。 | `grep -F 'func (s *Store) ListPriorities' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10334 | `PUT .../Priority` 新增或更新优先级。 | `grep -F 'func (s *Store) UpsertPriority' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10335 | `DELETE .../Priority` 删除优先级。 | `grep -F 'func (s *Store) DeletePriority' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10336 | `GET .../Calendar/Page` 分页查询交易日历。 | `grep -F 'func (s *Store) ListCalendar' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10337 | `PUT .../Calendar` 新增或更新交易日历标记。 | `grep -F 'func (s *Store) UpsertCalendar' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10338 | `DELETE .../Calendar` 删除交易日历记录。 | `grep -F 'func (s *Store) DeleteCalendar' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10339 | `GET .../Maturity/Page` 分页查询成熟度。 | `grep -F 'func (s *Store) ListMaturity' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10340 | `POST .../Maturity/Refresh` 异步触发成熟度重算。 | `grep -F 'MaturityRefresh' internal/api/handler/exportarchive_admin.go` 命中 | |
+| 10341 | `GET .../Stats/Page` 分页查询入口日统计。 | `grep -F 'func (s *Store) ListIngestStats' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10342 | `GET .../Budget/Page` 分页查询每日预算。 | `grep -F 'func (s *Store) ListBudgets' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10343 | `PUT .../Budget/Override` 覆盖当日预算（校验因子区间与硬上限）。 | `grep -F 'func (s *Store) OverrideBudget' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10344 | `GET .../Watermark/List` 查询扫描水位。 | `grep -F 'func (s *Store) ListWatermarks' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10345 | `PUT .../Watermark` 重置水位（RFC3339 校验）。 | `grep -F 'func (s *Store) ResetWatermark' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10346 | `GET .../RunLog/Page` 分页查询运行日志。 | `grep -F 'func (s *Store) ListRunLogs' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10347 | `GET .../UploadLog/Page` 分页查询上传审计。 | `grep -F 'func (s *Store) ListUploadLogs' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10348 | `GET .../Patch/Page` 分页查询补丁任务。 | `grep -F 'func (s *Store) ListPatches' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10349 | `POST .../Patch/Retry` 重试补丁任务（重置为 PENDING）。 | `grep -F 'func (s *Store) ResetPatchForRetry' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10350 | `POST .../Job/Pause` 与 `POST .../Job/Cancel` 暂停 / 取消任务。 | `grep -F 'JobPause' internal/api/handler/exportarchive_admin.go` 与 `grep -F 'JobCancel'` 均命中 | |
+| 10351 | 所有写操作追加审计（`job_kind=MANUAL_ADMIN_EDIT`）。 | `grep -F "MANUAL_ADMIN_EDIT" internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
+| 10352 | 前端新增 3 个运维台页面（Stats / Config / Log）。 | `ls Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchive{Stats,Config,Log}View.vue` 列出 3 个文件 | |
+| 10353 | `api.ts` 新增 `apiPut` / `apiDelete`。 | `grep -F 'export async function apiPut' Web/src/api.ts` 与 `grep -F 'export async function apiDelete'` 均命中 | |
+| 10354 | `Docs/API/QuoteDeDup/` 新增 11 篇运维台接口文档。 | `ls Docs/API/QuoteDeDup/{Usc,Priority,Calendar,Maturity,Stats,Budget,Watermark,RunLog,UploadLog,Patch,JobControl}.md` 列出 11 个文件 | |
+| 10355 | Dockerfile 不再出现 `RedundantTargetPlatform` 告警（移除 Go 阶段冗余的 `$TARGETPLATFORM`）。 | `grep -c '^FROM --platform=\$TARGETPLATFORM' Deploy/Docker/Dockerfile` 输出 `0`；`docker build --check -f Deploy/Docker/Dockerfile .` 输出 `no warnings found` | |
+| 10356 | 依赖漏洞清零：Go 升到修复版，前端 `npm audit` 无漏洞。 | `grep -F 'golang.org/x/crypto v0.52.0' go.mod` 命中；`grep -F '"vite": "^8.3.5"' Web/package.json` 命中；`cd Web && npm audit` 输出 `found 0 vulnerabilities` | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -497,7 +583,13 @@
 | 每日成交额图表 | 10288 | 1 |
 | 日期边界接口 | 10289 | 1 |
 | 数据采集菜单位置 | 10290 | 1 |
-| **合计** | **10001–10290** | **290** |
+| 行情月归档导出与上传 | 10291–10310 | 20 |
+| 三种发布包的 CI/CD | 10311–10320 | 10 |
+| 前端月归档导出控制台 | 10321–10330 | 10 |
+| 归档运维台（全表查询与管理员编辑） | 10331–10354 | 24 |
+| 构建与工程化修复 | 10355 | 1 |
+| 依赖安全升级 | 10356 | 1 |
+| **合计** | **10001–10356** | **356** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10291` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10357` 起往后追加，不插入既有区间。

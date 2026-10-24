@@ -4,7 +4,7 @@
 > 使用方式：自上而下推进；完成一项把「状态」改为 `☑ YYYY-MM-DD`，并附提交短号。
 > 编号规则：本文件条目 `D-01`～`D-xx`，**只增不改**；待决策用 `DD-01`～（双字母前缀，与改造项 C 文档内的 `D-01`～`D-03` 区分）。
 > 完成判定：每项给出可执行的核验命令或明确的代码检查点，**未通过判定不得勾选**。
-> 关联文档：改造项 C [`2610-MoveTablesToSchemas.md`](2610-MoveTablesToSchemas.md)（quote/quant 分 schema，本项为其补充遗漏）；需求验收条目见 [`../RequirementList.md`](../RequirementList.md)；版本变更见 [`../CHANGELOG.md`](../CHANGELOG.md)。
+> 关联文档：改造项 C [`2610-003-MoveTablesToSchemas.md`](2610-003-MoveTablesToSchemas.md)（quote/quant 分 schema，本项为其补充遗漏）；需求验收条目见 [`../RequirementList.md`](../RequirementList.md)；版本变更见 [`../CHANGELOG.md`](../CHANGELOG.md)。
 > 基线：仓库 `VERSION=0.1.1`，结构迁移最高版本 `V32`，种子段 `V100xxx`。
 
 ## 0. 概览

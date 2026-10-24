@@ -18,6 +18,49 @@
 
 > 0.1.3 开发中。变更按 `新增` / `变更` / `修复` / `移除` / `安全` 分类追加，发布时整体改为版本号并补日期。
 
+### 新增
+
+- **证券行情月归档导出与上传自动化链路**：新增 `internal/meta/finv/quote/dedup`，按「成熟度 → 候选 → LOAD（主表→`export` 中转表）→ EXPORT（→ MVsv 文件）→ CLEANUP（清理中转）→ 上传独享存储 → 收口补丁 → 生命周期清理」实现 10 个 Job（`CALC_DAILY_INGEST_STATS`、`CALC_DAILY_EXPORT_BUDGET`、`REFRESH_QUOTE_MATURITY`、`MARK_SEALED_JOBS_FROZEN`、`RUN_DUE_EXPORT_JOBS`、`UPLOAD_PENDING_EXPORT_FILES`、`SCAN_POST_SEAL_PATCHES`、`CLEAN_EXPIRED_EXPORT_ARTIFACTS`、`RECOVER_TIMEOUT_EXPORT_JOBS`、`CHECK_EXPORT_JOB_HEALTH`）；每日预算自适应（`factor = clamp(1.20 + 0.20*sla + 0.05*min(backlog,5), 1.20, 2.00)`）、keyset 分页、行锁 + 租约 + 心跳、暂停续跑、指数退避。
+- 新增迁移 **`V41__finv_dedup_export_archive_tables.sql`**：在 `dedup` schema 新建 12 张 `finv_dedup_*` 表（入口统计、日预算、扫描水位、优先级、成熟度、交易日历、运行日志、证券主数据、导出任务、导出文件、上传审计、补丁任务）与 12 个规范命名索引，全库无外键，末尾做收敛校验；**不修改** `dedup.finv_quote_secu_kline_min` 与 `export.finv_quote_secu_kline_min`。
+- 新增导出格式实现：MVsv「16 行文件头 + 1 行空行 + `ts|da|ti|o|h|l|c|v|t|cp|cr|lc` 数据行」、临时文件 + SHA256 + 原子 `rename`、结构与 `Count` 校验、可选 gzip；BASE / PATCH / MANIFEST 命名与 Manifest 字段按方案稿落地。
+- 新增可插拔上传适配器（`Uploader`：`Stat` / `Put` / `Verify`）：内置 `none`（不启用）、`dir`（目录 / NAS 挂载）、`http`（HTTP PUT 网关）三种实现；上传前本地校验、远端查重、上传后远端 checksum 校验，每次尝试写 `finv_dedup_export_file_upload_log`。
+- 新增 6 个运维接口（`/API/V1/Meta/Finv/Quote/DeDup/*`）：`Status`、`Job/List`、`File/List`、`Job/Retry`、`File/Retry`、`Job/Run`，均为一接口一文档（`Docs/API/QuoteDeDup/*.md`），并在 `Docs/API/README.md` 与 `Docs/API/APIs.md` 登记。
+- 新增配置项（均在 `config.Config` 中集中解析）：`FINV_QUOTE_DEDUB_ENABLED`、`_TIMEZONE`、`_OUTPUT_DIR`、`_WORKER_ID`、`_PAGE_SIZE`、`_WINDOW_START`、`_WINDOW_END`、`_LEASE_SECONDS`、`_MAX_ATTEMPTS`、`_UPLOAD_MODE`、`_UPLOAD_DIR`、`_UPLOAD_HTTP_BASE`、`_UPLOAD_HTTP_TOKEN`、`_UPLOAD_PREFIX`、`_LOCAL_RETENTION_DAYS`、`_PURGE_MAIN_ENABLED`、`_PURGE_MAIN_MONTHS`、`_MATURITY_THRESHOLD`、`_PATCH_BUDGET_RATIO`、`_COMPRESSION`、`_FETCH_LIMIT`、`_MAX_JOBS_PER_RUN`。
+- 新增落地文档 [`Docs/Refactor/2610-005-FinvQuoteDeDubExportUpload.md`](Refactor/2610-005-FinvQuoteDeDubExportUpload.md)（流程、配置、调度、运维要点、与方案稿的差异说明、P0–P7 阶段对照）。
+- **前端月归档导出控制台**（`Web/src/views/Meta/Finv/Quote/DeDup/Export/`）：新增 3 个页面，挂到「数据采集 → 行情数据去重 → 月归档导出」菜单：
+  - **归档监控总览**（`/Meta/Finv/Quote/DeDup/Export/Overview`）：指标卡（待装载行数、积压天数、预算因子与消耗、FROZEN 缺失、近 7 天补丁、心跳超时、上传重试耗尽、待清理文件、MVsv 异常）、预算使用率与完整性进度条、任务/上传状态分布、告警列表（`alerts`）、运行参数摘要、10 个 Job 调度表与「立即运行」，支持 30 秒自动刷新；
+  - **月归档导出任务**（`.../Export/Job`）：`finv_dedup_export_job` 分页表（状态、已装载行数、BASE 版本、补丁数、收口/冻结日、执行者、心跳、下次运行、最近错误），支持状态 / 证券 / 业务月过滤与人工重试；
+  - **月归档导出文件与上传**（`.../Export/File`）：`finv_dedup_export_file` 分页表（类型、版本、行数、大小、上传状态、尝试次数、上传起止、远端校验、网盘归档、清理状态、下次重试），支持上传状态 / 文件类型过滤、「仅看已上传」快捷筛选与重试上传。
+  - 复用 `Web/src/api.ts`（`apiGet` / `apiPost`）与 `Web/src/utils.ts`（新增 `fmtISO` / `fmtBytes` / `fmtMonth`），仅调用已有 6 个后端接口，无后端改动。
+- **归档运维台（第二批：全表查询 + 管理员编辑）**：补齐 12 张 `finv_dedup_*` 表的运维能力：
+  - 新增 10 个查询接口：`Stats/Page`、`Budget/Page`、`Maturity/Page`、`Watermark/List`、`Priority/List`、`Calendar/Page`、`Usc/Page`、`RunLog/Page`、`UploadLog/Page`、`Patch/Page`；
+  - 新增 11 个管理员写接口：`PUT Usc`、`PUT|DELETE Priority`、`PUT|DELETE Calendar`、`PUT Budget/Override`、`PUT Watermark`（重置）、`POST Patch/Retry`、`POST Job/Pause`、`POST Job/Cancel`、`POST Maturity/Refresh`；
+  - 可编辑白名单 5 张表：`finv_dedup_usc`（含决定能否导出的 `day_expect_rows` 校准值）、`finv_dedup_usc_priority`、`finv_dedup_trade_calendar`、`finv_dedup_daily_budget`、`finv_dedup_scan_watermark`；其余 7 张表只读；
+  - 所有写操作追加审计（`finv_dedup_job_run_log_export_file`，`job_kind=MANUAL_ADMIN_EDIT`）；
+  - 前端新增 3 个页面：**归档统计与预算**（`.../Export/Stats`）、**归档主数据与规则**（`.../Export/Config`）、**归档日志与补丁**（`.../Export/Log`）；`Web/src/api.ts` 新增 `apiPut` / `apiDelete`；
+  - `Docs/API/QuoteDeDup/` 新增 11 篇文档（Usc / Priority / Calendar / Maturity / Stats / Budget / Watermark / RunLog / UploadLog / Patch / JobControl），`Docs/API/APIs.md` 登记 58–84 号接口并回填前端页面。
+
+### 变更
+
+- 服务启动流程（`cmd/server/main.go`）：始终创建归档服务（运维接口可用），仅当 `FINV_QUOTE_DEDUB_ENABLED=true` 时启动进程内调度器（每 30 秒 tick；多实例由数据库行锁 + 租约防重）。
+- `internal/api/router.go`：新增 `Deps.ExportArchive` 与 `/Meta/Finv/Quote/DeDup/**` 路由组（服务未注入时不注册）。
+- `Docs/DevSpec/DbSchemaSpec.md`：`dedup` schema 归属表登记新增归档链路 12 张表。
+- `Docs/RequirementList.md`：新增归档链路需求条目（自 `10291` 起）。
+- 默认不修改既有两张业务表，不新增 `export` / `sche` schema，导出/上传文件统一 `.mvsv`（不生成、不支持 `.csv`）。
+- **CI/CD 拆分为三种发布包**（`.github/workflows/CI.yml`）：新增 `pr-binaries` / `pr-publish` 与 `release-binaries` / `release-publish`，与既有 `snapshot-binaries` / `snapshot-publish` 同级平行：
+  - **快照包（snapshot）**：push 代码到分支（非 `main`，且提交未关联已合并 PR）→ `v{VERSION}.{PPPPP}.{yymmddHHmm}`（prerelease，时间戳保证同一 PR 多次 push 唯一）；
+  - **构建包（pr）**：PR 合并 → `v{VERSION}.{PPPPP}`（prerelease；**B 策略**：同名 release/tag 已存在时删除后重建）；
+  - **正式版包（release）**：代码合并到 `main` → `v{VERSION}`（正式 release、`--latest`；tag 已存在则跳过，需先 bump `VERSION`）。
+  - 三种场景互斥（提交已关联已合并 PR 时只出构建包），`push` 分支范围扩展为 `dev` / `main` / `FinvQuant` / `feat/**`，镜像构建仍仅限 `dev` / `main` / `FinvQuant` 与 `v*` tag。
+- `Deploy/Script/PackSnapshot.sh` 支持三种包版本格式（`v{BASE}`、`v{BASE}.{PPPPP}`、`v{BASE}.{PPPPP}.{yymmddHHmm}`）与 `--kind snapshot|pr|release`，包内 `BUILD-INFO.txt` 增加包类型；`workflow_dispatch` 增加 `kind` 输入，便于手动构建指定类型包。
+- `Docs/DevSpec/GitSpec.md` §4 补充三种包的版本/tag 与发布规则。
+- **包目录调整**：`internal/exportarchive` 迁移到 `internal/meta/finv/quote/dedup`（包名 `dedup`），`cmd/server/main.go`、`internal/api`（handler / router / 测试）与 `Docs`（CHANGELOG、RequirementList、Refactor 落地文档）中的引用同步更新；接口路径、配置项与功能行为不变。
+- `Deploy/Docker/Dockerfile` 移除 Go 构建阶段冗余的 `--platform=$TARGETPLATFORM`（BuildKit 默认即目标平台），消除 `RedundantTargetPlatform` 构建检查告警；前端构建阶段的 `$BUILDPLATFORM` 保留（跨平台复用产物所需）。
+- **依赖安全升级（Dependabot 24 个告警清零）**：
+  - Go：`golang.org/x/crypto` 0.48.0 → **0.52.0**、`golang.org/x/net` 0.51.0 → **0.55.0**、`github.com/quic-go/quic-go` 0.59.0 → **0.59.1**（连带 `x/sys` 0.45.0、`x/text` 0.37.0、`x/sync` 0.20.0）；
+  - 前端：`vite` 8.2.0 → **8.3.5**、`vue` 3.5.40 → **3.5.44**（含 `@vue/server-renderer` 3.5.44）、`source-map-js` → **1.2.2**、`nanoid` → **3.3.20**；`package.json` 的 `vite` / `vue` 最低版本同步提升，避免回退；
+  - 验证：`go build/vet/test` 全绿、`npm audit` 输出 `found 0 vulnerabilities`、`npm run build` 通过、Docker 镜像重建并实跑健康。
+
 ## [0.1.2] - 2026-10-24
 
 ### 新增
@@ -71,7 +114,7 @@
 - 新增本变更日志 `Docs/CHANGELOG.md`，汇总 0.1.0 及历史 VeritasQuant 版本的对外变更。
 - 开发规范新增「变更日志」强制要求：[`DevSpec/DocSpec.md`](DevSpec/DocSpec.md) 第 4 节、[`DevSpec/GitSpec.md`](DevSpec/GitSpec.md) 第 3 节，并在 [`DevSpec/FileNamingSpec.md`](DevSpec/FileNamingSpec.md) 中明确本文件名全大写。
 - 新增需求清单 [`RequirementList.md`](RequirementList.md)，采用五位数编号（自 `10001` 起），记录 2026-10-24 起的新增需求，首版 65 条；`AGENTS.md` 工作约定同步要求新增需求必须登记。
-- 新增两份改造清单：改造项 A [`Refactor/2610-SecuCodeToUsc.md`](Refactor/2610-SecuCodeToUsc.md)（`secu_code` → `usc` 全库统一，`A-01`～`A-37`）、改造项 B [`Refactor/2610-PrevCloseToLastClose.md`](Refactor/2610-PrevCloseToLastClose.md)（`prev_close` → `last_close` 重命名 + `open` 兜底回填，`B-01`～`B-24`），共 61 个可勾选检查项与 4 项待决策；B 的删除动作暂缓，留待生产数据核实后另议。
+- 新增两份改造清单：改造项 A [`Refactor/2610-001-SecuCodeToUsc.md`](Refactor/2610-001-SecuCodeToUsc.md)（`secu_code` → `usc` 全库统一，`A-01`～`A-37`）、改造项 B [`Refactor/2610-002-PrevCloseToLastClose.md`](Refactor/2610-002-PrevCloseToLastClose.md)（`prev_close` → `last_close` 重命名 + `open` 兜底回填，`B-01`～`B-24`），共 61 个可勾选检查项与 4 项待决策；B 的删除动作暂缓，留待生产数据核实后另议。
 
 ### 变更
 
@@ -134,7 +177,7 @@
   - 配置：`internal/config` 默认值、`docker-compose.yml`（`FINV_PG_USER`/`FINV_PG_DATABASE`/`POSTGRES_USER`/`POSTGRES_DB`/`pg_isready`）、`.env.example`、Native `FinvQuant.env.example`、`Install.sh` 兜底值、`deploy.cmd`/`upgrade.cmd` 的 `psql`/`pg_dump` 参数
   - 不改：产品/镜像/容器/项目名 `finvquant`、Linux 系统用户与 `/opt/finvquant`、二进制名、备份文件名前缀
   - 新增 [`.dockerignore`](../.dockerignore)：构建上下文排除 `Deploy/Backup/`、`Web/node_modules/`、`Docs/`、`Archive/` 等，构建耗时降至 ~38s
-  - 改造清单：新增 [`Docs/Refactor/2610-RenameDatabaseAndRole.md`](Refactor/2610-RenameDatabaseAndRole.md)（`E-01`～`E-30`）
+  - 改造清单：新增 [`Docs/Refactor/2610-006-RenameDatabaseAndRole.md`](Refactor/2610-006-RenameDatabaseAndRole.md)（`E-01`～`E-30`）
 - 新增 [`Archive/README.md`](../Archive/README.md)：仓库级历史归档目录的用途与边界（放什么、不放什么、按来源建子目录、与原位置对照命名、须随替换提交一并入库），并在根 `README.md` 目录结构与本文件中登记；`Deploy/README.md` 增加「废弃文件去处」指引。
 - **备份文件命名规范化**：数据库备份统一为 `finvquant_YYYYMMDD_HHMMSS.dump`（纯 ASCII，按名称即可排序）；
   Docker 升级脚本改用 PowerShell 生成时间戳（不再截取 `%date%`，避免中文系统出现「周五」等字符与区域格式错乱）；
