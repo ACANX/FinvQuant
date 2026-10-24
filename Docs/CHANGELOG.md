@@ -18,6 +18,24 @@
 
 > 0.1.3 开发中。变更按 `新增` / `变更` / `修复` / `移除` / `安全` 分类追加，发布时整体改为版本号并补日期。
 
+### 新增
+
+- **证券行情月归档导出与上传自动化链路**：新增 `internal/exportarchive`，按「成熟度 → 候选 → LOAD（主表→`export` 中转表）→ EXPORT（→ MVsv 文件）→ CLEANUP（清理中转）→ 上传独享存储 → 收口补丁 → 生命周期清理」实现 10 个 Job（`CALC_DAILY_INGEST_STATS`、`CALC_DAILY_EXPORT_BUDGET`、`REFRESH_QUOTE_MATURITY`、`MARK_SEALED_JOBS_FROZEN`、`RUN_DUE_EXPORT_JOBS`、`UPLOAD_PENDING_EXPORT_FILES`、`SCAN_POST_SEAL_PATCHES`、`CLEAN_EXPIRED_EXPORT_ARTIFACTS`、`RECOVER_TIMEOUT_EXPORT_JOBS`、`CHECK_EXPORT_JOB_HEALTH`）；每日预算自适应（`factor = clamp(1.20 + 0.20*sla + 0.05*min(backlog,5), 1.20, 2.00)`）、keyset 分页、行锁 + 租约 + 心跳、暂停续跑、指数退避。
+- 新增迁移 **`V41__finv_dedup_export_archive_tables.sql`**：在 `dedup` schema 新建 12 张 `finv_dedup_*` 表（入口统计、日预算、扫描水位、优先级、成熟度、交易日历、运行日志、证券主数据、导出任务、导出文件、上传审计、补丁任务）与 12 个规范命名索引，全库无外键，末尾做收敛校验；**不修改** `dedup.finv_quote_secu_kline_min` 与 `export.finv_quote_secu_kline_min`。
+- 新增导出格式实现：MVsv「16 行文件头 + 1 行空行 + `ts|da|ti|o|h|l|c|v|t|cp|cr|lc` 数据行」、临时文件 + SHA256 + 原子 `rename`、结构与 `Count` 校验、可选 gzip；BASE / PATCH / MANIFEST 命名与 Manifest 字段按方案稿落地。
+- 新增可插拔上传适配器（`Uploader`：`Stat` / `Put` / `Verify`）：内置 `none`（不启用）、`dir`（目录 / NAS 挂载）、`http`（HTTP PUT 网关）三种实现；上传前本地校验、远端查重、上传后远端 checksum 校验，每次尝试写 `finv_dedup_export_file_upload_log`。
+- 新增 6 个运维接口（`/API/V1/Meta/Finv/Quote/DeDup/*`）：`Status`、`Job/List`、`File/List`、`Job/Retry`、`File/Retry`、`Job/Run`，均为一接口一文档（`Docs/API/QuoteDeDup/*.md`），并在 `Docs/API/README.md` 与 `Docs/API/APIs.md` 登记。
+- 新增配置项（均在 `config.Config` 中集中解析）：`FINV_QUOTE_DEDUB_ENABLED`、`_TIMEZONE`、`_OUTPUT_DIR`、`_WORKER_ID`、`_PAGE_SIZE`、`_WINDOW_START`、`_WINDOW_END`、`_LEASE_SECONDS`、`_MAX_ATTEMPTS`、`_UPLOAD_MODE`、`_UPLOAD_DIR`、`_UPLOAD_HTTP_BASE`、`_UPLOAD_HTTP_TOKEN`、`_UPLOAD_PREFIX`、`_LOCAL_RETENTION_DAYS`、`_PURGE_MAIN_ENABLED`、`_PURGE_MAIN_MONTHS`、`_MATURITY_THRESHOLD`、`_PATCH_BUDGET_RATIO`、`_COMPRESSION`、`_FETCH_LIMIT`、`_MAX_JOBS_PER_RUN`。
+- 新增落地文档 [`Docs/Refactor/2610-SecuritiesQuoteExportArchive.md`](Refactor/2610-SecuritiesQuoteExportArchive.md)（流程、配置、调度、运维要点、与方案稿的差异说明、P0–P7 阶段对照）。
+
+### 变更
+
+- 服务启动流程（`cmd/server/main.go`）：始终创建归档服务（运维接口可用），仅当 `FINV_QUOTE_DEDUB_ENABLED=true` 时启动进程内调度器（每 30 秒 tick；多实例由数据库行锁 + 租约防重）。
+- `internal/api/router.go`：新增 `Deps.ExportArchive` 与 `/Meta/Finv/Quote/DeDup/**` 路由组（服务未注入时不注册）。
+- `Docs/DevSpec/DbSchemaSpec.md`：`dedup` schema 归属表登记新增归档链路 12 张表。
+- `Docs/RequirementList.md`：新增归档链路需求条目（自 `10291` 起）。
+- 默认不修改既有两张业务表，不新增 `export` / `sche` schema，导出/上传文件统一 `.mvsv`（不生成、不支持 `.csv`）。
+
 ## [0.1.2] - 2026-10-24
 
 ### 新增

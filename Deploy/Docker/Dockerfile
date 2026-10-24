@@ -48,6 +48,10 @@ COPY --from=builder /app/Deploy/Migrations /etc/finvquant/Migrations
 
 ENV FINV_MIGRATIONS_DIR=/etc/finvquant/Migrations
 
+# 运行目录与导出归档目录（非 root 用户需要可写）
+WORKDIR /app
+RUN mkdir -p /app/Data/ExportArchive && chown -R finvquant:finvquant /app
+
 USER finvquant
 EXPOSE 16001 16002
 

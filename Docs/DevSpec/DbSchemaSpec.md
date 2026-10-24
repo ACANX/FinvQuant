@@ -12,7 +12,7 @@
 | `futu` | 外部源映射域（富途 OpenAPI 编码 ↔ Finv 内部编码） | `finv_futu_mapping_cs_market`、`finv_futu_mapping_exchange`、`finv_futu_mapping_market_code`、`finv_futu_mapping_region`、`finv_futu_mapping_security` |
 | `export` | 数据导出域 | `finv_quote_secu_kline_min`（行情导出转存表，与 `dedup` 同名同结构；`V35` 创建，`V38` 按 `dedup` 新结构重建） |
 | `sche` | 定时任务调度域（调度定义、执行记录等，`V34` 建 schema，表待业务迁移创建） | 暂无 |
-| `dedup` | 数据去重域（批内去重暂存、跨源指纹、入库审计；`V36` 建 schema） | `finv_quote_secu_kline_min`（分钟行情主表，`V38` 由 `quote` 迁入，含 `change_price`/`change_ratio`/`provider`） |
+| `dedup` | 数据去重域（批内去重暂存、跨源指纹、入库审计）+ 行情月归档导出/上传元数据；`V36` 建 schema、`V41` 新增归档表 | `finv_quote_secu_kline_min`（分钟行情主表，`V38` 由 `quote` 迁入，含 `change_price`/`change_ratio`/`provider`）；归档链路 12 张：`finv_dedup_ingest_stats`、`finv_dedup_daily_budget`、`finv_dedup_scan_watermark`、`finv_dedup_usc_priority`、`finv_dedup_quote_maturity_mon`、`finv_dedup_trade_calendar`、`finv_dedup_job_run_log_export_file`、`finv_dedup_usc`、`finv_dedup_export_job`、`finv_dedup_export_file`、`finv_dedup_export_file_upload_log`、`finv_dedup_export_file_patch`（全部无外键，`V41` 创建；说明见 [`../Refactor/2610-SecuritiesQuoteExportArchive.md`](../Refactor/2610-SecuritiesQuoteExportArchive.md)） |
 | `archive` | 冷数据归档域（历史行情按时间/证券下沉，`V37` 建 schema，表待业务迁移创建） | 暂无 |
 | `public` | 基础主数据与系统表 | `finv_security`、`finv_market`、`finv_exchange`、`finv_region`、`finv_currency`、`schema_version` |
 

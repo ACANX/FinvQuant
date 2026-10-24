@@ -66,6 +66,12 @@
 | 55 | GET | `/Health` | 探活（探数据库；`/healthz` 为过渡别名） | [KLine/KLineHealth.md](KLine/KLineHealth.md) | 监控/容器 healthcheck |
 | 56 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats` | 去重行情汇总统计（汇总/每日/证券分布/空值完整性） | [KLine/KLineStats.md](KLine/KLineStats.md) | 去重分钟行情统计（`DeDupKLineStatsView.vue`） |
 | 57 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Bounds` | 交易日期边界（min/max date，轻量） | [KLine/KLineBounds.md](KLine/KLineBounds.md) | 去重分钟行情查询/统计页默认日期范围（`DeDupKLineQueryView.vue`、`DeDupKLineStatsView.vue`） |
+| 58 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Status` | 归档链路指标（任务/上传状态、积压、预算、补丁、告警）与调度表 | [QuoteDeDup/Status.md](QuoteDeDup/Status.md) | 运维排查（暂无前端菜单） |
+| 59 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Job/List` | 分页查询证券月导出任务 | [QuoteDeDup/JobList.md](QuoteDeDup/JobList.md) | 运维排查（暂无前端菜单） |
+| 60 | GET | `/API/V1/Meta/Finv/Quote/DeDup/File/List` | 分页查询导出文件与上传状态 | [QuoteDeDup/FileList.md](QuoteDeDup/FileList.md) | 运维排查（暂无前端菜单） |
+| 61 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Job/Retry` | 重试导出任务（重置为 `WAITING`） | [QuoteDeDup/JobRetry.md](QuoteDeDup/JobRetry.md) | 运维排查（暂无前端菜单） |
+| 62 | POST | `/API/V1/Meta/Finv/Quote/DeDup/File/Retry` | 重试上传（重置为 `PENDING_UPLOAD`） | [QuoteDeDup/FileRetry.md](QuoteDeDup/FileRetry.md) | 运维排查（暂无前端菜单） |
+| 63 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Job/Run` | 手动触发归档 Job（异步，同类 Job 互斥） | [QuoteDeDup/JobRun.md](QuoteDeDup/JobRun.md) | 运维排查与灰度验证（暂无前端菜单） |
 
 ## 说明
 
