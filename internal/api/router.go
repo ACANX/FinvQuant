@@ -76,7 +76,9 @@ func NewRouter(deps *Deps) *gin.Engine {
 		publicGroup.GET("/Health/Ready", health.Ready)
 		publicGroup.GET("/Version", version.Info)
 		if deps.Auth != nil {
-			publicGroup.POST("/Auth/Login", handler.NewAuth(deps.Auth).Login)
+			// 认证接口统一挂在 /Meta/Finv/Auth 下，与 /Meta/Finv/Quote、
+			// /Meta/Finv/Quant 等业务域保持同一层级结构
+			publicGroup.POST("/Meta/Finv/Auth/Login", handler.NewAuth(deps.Auth).Login)
 		}
 	}
 
@@ -88,9 +90,10 @@ func NewRouter(deps *Deps) *gin.Engine {
 	{
 		if deps.Auth != nil {
 			authHandler := handler.NewAuth(deps.Auth)
-			apiGroup.POST("/Auth/Logout", authHandler.Logout)
-			apiGroup.POST("/Auth/ChangePassword", authHandler.ChangePassword)
-			apiGroup.GET("/Auth/Profile", authHandler.Profile)
+			authGroup := apiGroup.Group("/Meta/Finv/Auth")
+			authGroup.POST("/Logout", authHandler.Logout)
+			authGroup.POST("/ChangePassword", authHandler.ChangePassword)
+			authGroup.GET("/Profile", authHandler.Profile)
 		}
 		// 分钟行情 K 线：新前缀 + 旧前缀过渡别名（同一组 handler，P7 后可移除旧前缀）
 		for _, prefix := range []string{

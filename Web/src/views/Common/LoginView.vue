@@ -42,7 +42,7 @@ async function onSubmit(): Promise<void> {
   }
   loading.value = true
   try {
-    const data = await apiPost<LoginResult>('/Auth/Login', {
+    const data = await apiPost<LoginResult>('/Meta/Finv/Auth/Login', {
       uid: account,
       password: password.value,
     })
@@ -50,7 +50,7 @@ async function onSubmit(): Promise<void> {
     password.value = ''
     showPassword.value = false
     setSession(data.token, data.user, data.expires_at)
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard'
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/Dashboard'
     await router.replace(redirect)
   } catch (e) {
     errorMessage.value = (e as Error).message || '登录失败'

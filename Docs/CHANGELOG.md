@@ -511,8 +511,18 @@
 
 ### 变更
 
+- **前端基础路由改为大驼峰（需求 10764）**
+  - `/dashboard` → `/Dashboard`、`/login` → `/Login`，与 `/Meta/Finv/...` 风格统一。路由 `name`（`dashboard` / `login`）保持不变，仅调整 URL。
+  - **旧路径归一化不走路由级 redirect**：`vue-router` 4 的路径匹配默认大小写不敏感（`sensitive: false`），`/login` 会直接命中 `/Login` 路由，路由表里的 `{ path: '/login', redirect: '/Login' }` **永远匹配不到**。改在 `beforeEach` 守卫里用 `LEGACY_PATH_MAP` 归一化——此时 `to.path` 仍是访问时的原始大小写，是唯一可靠的位置。
+  - 同步修正 `App.vue` 菜单项路径、`LoginView.vue` 默认回跳目标、`App.vue` 退出登录跳转。
+
+- **认证接口前缀统一到 /Meta/Finv/Auth（需求 10765）**
+  - `/API/V1/Auth/{Login,Logout,ChangePassword,Profile}` → `/API/V1/Meta/Finv/Auth/*`，与 `/Meta/Finv/Quote`、`/Meta/Finv/Quant` 同层级。旧路径返回 404（不保留别名）。
+  - 同步前端三处调用与 `Docs/API/{Auth/Auth.md,APIs.md,README.md}`。
+  - **顺带修掉一个真实 bug**：`api.ts` 原先对所有 401 一律执行「清空会话 + 广播失效事件 + 抛『未登录或登录已过期』」。登录接口本身用 401 表示口令错误，导致用户输错密码时看到的是「未登录或登录已过期」，并且误清一次本就不存在的会话。改为按路径分流：登录接口的 401 走正常信封解析，服务端 `message`（如「用户名或密码错误」）原样抛给用户。
+
 - **登录后修改密码（需求 10763）**
-  - **接口**：新增 `POST /API/V1/Auth/ChangePassword`，请求体 `{current_password, new_password}`，返回 `{revoked_sessions}`。
+  - **接口**：新增 `POST /API/V1/Meta/Finv/Auth/ChangePassword`，请求体 `{current_password, new_password}`，返回 `{revoked_sessions}`。
   - **校验顺序**：当前密码 → 新旧是否相同 → 新密码强度。任一失败返回 400 且 `message` 指明原因（「当前密码不正确」/「新密码不能与当前密码相同」/「新密码不符合强度要求：…」）。
   - **强度规则**：长度 8–64 位，且含大写/小写/数字/符号中至少 3 类。前端 `strengthOk` 与服务端 `ValidatePasswordStrength` 同口径，但裁决权在服务端。
   - **哈希轮换**：每次改密重新 `GenerateSalt` 并计算 argon2id 哈希，`modify_by` 记当前 uid；旧盐与旧哈希不保留。
@@ -524,7 +534,7 @@
   - **用户与口令**：`sys.sys_user` 新增初始账号 `finv`（idn=1028）。口令原文**不入库**：argon2id（`m=65536,t=3,p=2,keyLen=32`）哈希为 97 字符 PHC 串存 `password`，16 字节随机盐 hex 32 字符存 `password_salt`；校验用 `crypto/subtle` 常量时间比较。
   - **防账号枚举**：用户不存在时仍执行一次等价耗时的 argon2 计算，两条失败路径统一返回 401「用户名或密码错误」。
   - **会话**：令牌 32 字节随机 → hex 64 字符，存 Redis `finv:auth:session:<token>`；有效期读 `sys_config` 20012（默认 480 分钟），命中且剩余不足一半时滑动续期；登出即删键，服务端可即时吊销。
-  - **接口拦截**：新增 `RequireAuth` 中间件，除 `/Health/Live`、`/Health/Ready`、`/Version`、`/Auth/Login` 外全部要求 `Authorization: Bearer <token>`；新增 `POST /Auth/Login`、`POST /Auth/Logout`、`GET /Auth/Profile`。
+  - **接口拦截**：新增 `RequireAuth` 中间件，除 `/Health/Live`、`/Health/Ready`、`/Version`、`/Meta/Finv/Auth/Login` 外全部要求 `Authorization: Bearer <token>`；新增 `POST /Meta/Finv/Auth/Login`、`POST /Meta/Finv/Auth/Logout`、`GET /Meta/Finv/Auth/Profile`。
   - **前端**：新增登录页 `LoginView.vue` 与 `auth.ts`（localStorage 持久化）；`router.ts` 加 `beforeEach` 守卫，未登录重定向 `/login?redirect=<来源>`；`api.ts` 自动附加令牌并在 401 时清空会话、广播 `finvquant:unauthorized`；`App.vue` 登录页不渲染导航框架，顶栏新增用户菜单与「退出登录」。
   - **迁移**：`V100081` 补 `uk_sys_user_uid` 唯一索引（V74 建表时 uid 无唯一约束，登录以 uid 为标识必须唯一）；`V200055` 幂等插入 `finv`（`WHERE NOT EXISTS`，不覆盖已改口令）；`V200056` 新增配置 20012（会话有效期，合法区间 5~43200）。
   - **验证**：明文命中 0；无令牌访问业务接口 401、健康检查 200；错误口令与不存在账号同为 401 且文案一致；正确口令返回 64 字符 token 且可访问业务接口；伪造令牌 401；登出后原 token 401；前端 `/login` 深链可直达。

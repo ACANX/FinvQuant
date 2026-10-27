@@ -85,7 +85,7 @@ async function onSubmit(): Promise<void> {
   errorMessage.value = ''
   submitting.value = true
   try {
-    const data = await apiPost<ChangeResult>('/Auth/ChangePassword', {
+    const data = await apiPost<ChangeResult>('/Meta/Finv/Auth/ChangePassword', {
       current_password: currentPassword.value,
       new_password: newPassword.value,
     })

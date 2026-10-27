@@ -39,9 +39,9 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     // 登录页：公开路由，不渲染主框架（见 App.vue 的 meta.public 判断）
-    { path: '/login', name: 'login', component: LoginView, meta: { title: '登录', public: true } },
-    { path: '/', redirect: '/dashboard' },
-    { path: '/dashboard', name: 'dashboard', component: DashboardView, meta: { title: '仪表盘' } },
+    { path: '/Login', name: 'login', component: LoginView, meta: { title: '登录', public: true } },
+    { path: '/', redirect: '/Dashboard' },
+    { path: '/Dashboard', name: 'dashboard', component: DashboardView, meta: { title: '仪表盘' } },
     // 历史行情 → 历史行情查询
     { path: '/Meta/Finv/Quote/History/HistoryQuoteQuery', name: 'quote-query', component: QuoteQueryView, meta: { title: '历史行情查询' } },
     // 去重行情 → 去重分钟行情查询 / 统计
@@ -157,17 +157,32 @@ const router = createRouter({
   ],
 })
 
+// 旧的小写路径归一化。
+//
+// 为什么不用路由级 redirect：vue-router 4 的路径匹配默认大小写不敏感
+// （sensitive: false），`/login` 会直接命中 `/Login` 路由，redirect 记录
+// 永远匹配不到；此时 to.path 仍是访问时的原始大小写，因此在守卫里归一化
+// 是唯一可靠的位置。
+const LEGACY_PATH_MAP: Record<string, string> = {
+  '/login': '/Login',
+  '/dashboard': '/Dashboard',
+}
+
 // 登录守卫：未登录一律重定向到登录页，并记录来源路径供登录后回跳
 router.beforeEach((to) => {
+  const normalized = LEGACY_PATH_MAP[to.path]
+  if (normalized) {
+    return { path: normalized, query: to.query, hash: to.hash, replace: true }
+  }
   if (to.meta.public) {
     // 已登录时访问登录页直接回首页，避免重复登录
     if (to.name === 'login' && isLoggedIn()) {
-      return { path: '/dashboard' }
+      return { path: '/Dashboard' }
     }
     return true
   }
   if (!isLoggedIn()) {
-    return { path: '/login', query: { redirect: to.fullPath } }
+    return { path: '/Login', query: { redirect: to.fullPath } }
   }
   return true
 })
@@ -176,7 +191,7 @@ router.beforeEach((to) => {
 window.addEventListener(UNAUTHORIZED_EVENT, () => {
   const current = router.currentRoute.value
   if (current.meta.public) return
-  void router.replace({ path: '/login', query: { redirect: current.fullPath } })
+  void router.replace({ path: '/Login', query: { redirect: current.fullPath } })
 })
 
 router.afterEach((to) => {

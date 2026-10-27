@@ -24,7 +24,7 @@ interface MenuGroup {
 }
 
 const menuItems: (MenuLeaf | MenuGroup)[] = [
-  { key: 'dashboard', title: '仪表盘', icon: 'mdi-view-dashboard', path: '/dashboard' },
+  { key: 'dashboard', title: '仪表盘', icon: 'mdi-view-dashboard', path: '/Dashboard' },
   {
     key: 'data-collection',
     title: '数据采集',
@@ -136,12 +136,12 @@ function onChangePasswordDone(revokedSessions: number): void {
 /** 退出登录：先尽力吊销服务端会话，再清本地状态并回登录页 */
 async function onLogout(): Promise<void> {
   try {
-    await apiPost('/Auth/Logout', {})
+    await apiPost('/Meta/Finv/Auth/Logout', {})
   } catch {
     // 服务端会话可能已过期；本地状态必须清理，因此忽略该错误
   }
   clearSession()
-  await router.replace('/login')
+  await router.replace('/Login')
 }
 
 // 当前激活菜单项 key（叶子路径匹配）

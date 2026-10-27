@@ -11,12 +11,12 @@
 
 | # | 方法 | 路径 | 说明 | 详细文档 | 已使用位置（业务菜单） |
 |---|------|------|------|----------|------------------------|
-| A1 | POST | `/API/V1/Auth/Login` | 校验用户名口令并签发会话令牌（argon2id 校验，失败统一「用户名或密码错误」） | [Auth/Auth.md](Auth/Auth.md) | 登录页（`LoginView.vue`） |
-| A2 | POST | `/API/V1/Auth/Logout` | 吊销当前会话（删除 Redis 令牌，立即失效） | [Auth/Auth.md](Auth/Auth.md) | 顶栏用户菜单 |
-| A3 | GET | `/API/V1/Auth/Profile` | 查询当前登录用户资料（不含口令字段） | [Auth/Auth.md](Auth/Auth.md) | 顶栏用户菜单 |
-| A4 | POST | `/API/V1/Auth/ChangePassword` | 修改当前用户密码（校验当前口令 + 强度规则，改后重新加盐哈希并吊销其它设备会话） | [Auth/Auth.md](Auth/Auth.md) | 顶栏用户菜单 → 修改密码 |
+| A1 | POST | `/API/V1/Meta/Finv/Auth/Login` | 校验用户名口令并签发会话令牌（argon2id 校验，失败统一「用户名或密码错误」） | [Auth/Auth.md](Auth/Auth.md) | 登录页（`LoginView.vue`） |
+| A2 | POST | `/API/V1/Meta/Finv/Auth/Logout` | 吊销当前会话（删除 Redis 令牌，立即失效） | [Auth/Auth.md](Auth/Auth.md) | 顶栏用户菜单 |
+| A3 | GET | `/API/V1/Meta/Finv/Auth/Profile` | 查询当前登录用户资料（不含口令字段） | [Auth/Auth.md](Auth/Auth.md) | 顶栏用户菜单 |
+| A4 | POST | `/API/V1/Meta/Finv/Auth/ChangePassword` | 修改当前用户密码（校验当前口令 + 强度规则，改后重新加盐哈希并吊销其它设备会话） | [Auth/Auth.md](Auth/Auth.md) | 顶栏用户菜单 → 修改密码 |
 
-> 🔒 除 `/Health/Live`、`/Health/Ready`、`/Version`、`/Auth/Login` 外，下表所有接口都要求 `Authorization: Bearer <token>`，否则返回 `401`。
+> 🔒 除 `/Health/Live`、`/Health/Ready`、`/Version`、`/Meta/Finv/Auth/Login` 外，下表所有接口都要求 `Authorization: Bearer <token>`，否则返回 `401`。
 
 ### 业务接口
 

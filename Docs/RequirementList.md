@@ -1885,7 +1885,7 @@ COMMIT;
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10761 | 基于 `sys.sys_user` 建立登录认证：① 创建用户 `finv`，口令 `finv@2026!finv` **不得明文入库**，采用 argon2id（m=64MB/t=3/p=2/keyLen=32）哈希，盐 16 字节随机 hex 存 `password_salt`、PHC 串存 `password`；② 登录成功后签发随机会话令牌，会话存 Redis 并按 `sys_config` 20012 控制有效期（默认 480 分钟，命中且剩余不足一半时滑动续期）；③ 除健康检查、版本、登录外的全部接口必须携带 `Authorization: Bearer <token>`，否则 401；④ 前端新增登录页并加路由守卫，未登录一律重定向到 `/login`，接口 401 时自动清理本地会话并回登录页。 | `select count(*) from sys.sys_user where password like '%finv@2026%'` = 0；`select password from sys.sys_user where uid='finv'` 以 `$argon2id$v=19$m=65536,t=3,p=2$` 开头且长度为 97；`select password_salt from sys.sys_user where uid='finv'` 匹配 `^[0-9a-f]{32}$`；无令牌 `GET /API/V1/Meta/Finv/Quote/DeDup/Status` = 401 且 `GET /API/V1/Health/Live` = 200；错误口令与不存在账号均返回 401「用户名或密码错误」；正确口令返回 `code=0` 与 64 字符 token，携带该 token 请求业务接口 = 200；调用 `/Auth/Logout` 后原 token 再访问 = 401；`grep -c 'isLoggedIn' Web/src/router.ts` ≥ 1 且 `test -f Web/src/views/Common/LoginView.vue` | √ |
+| 10761 | 基于 `sys.sys_user` 建立登录认证：① 创建用户 `finv`，口令 `finv@2026!finv` **不得明文入库**，采用 argon2id（m=64MB/t=3/p=2/keyLen=32）哈希，盐 16 字节随机 hex 存 `password_salt`、PHC 串存 `password`；② 登录成功后签发随机会话令牌，会话存 Redis 并按 `sys_config` 20012 控制有效期（默认 480 分钟，命中且剩余不足一半时滑动续期）；③ 除健康检查、版本、登录外的全部接口必须携带 `Authorization: Bearer <token>`，否则 401；④ 前端新增登录页并加路由守卫，未登录一律重定向到 `/login`，接口 401 时自动清理本地会话并回登录页。 | `select count(*) from sys.sys_user where password like '%finv@2026%'` = 0；`select password from sys.sys_user where uid='finv'` 以 `$argon2id$v=19$m=65536,t=3,p=2$` 开头且长度为 97；`select password_salt from sys.sys_user where uid='finv'` 匹配 `^[0-9a-f]{32}$`；无令牌 `GET /API/V1/Meta/Finv/Quote/DeDup/Status` = 401 且 `GET /API/V1/Health/Live` = 200；错误口令与不存在账号均返回 401「用户名或密码错误」；正确口令返回 `code=0` 与 64 字符 token，携带该 token 请求业务接口 = 200；调用 `/Meta/Finv/Auth/Logout` 后原 token 再访问 = 401；`grep -c 'isLoggedIn' Web/src/router.ts` ≥ 1 且 `test -f Web/src/views/Common/LoginView.vue` | √ |
 
 ### 10761 实现要点
 
@@ -1898,7 +1898,7 @@ COMMIT;
 | 会话 | 令牌 32 字节随机 → hex 64 字符；Redis 键 `finv:auth:session:<token>`，值为 JSON 会话记录 |
 | 有效期 | 每次登录读 `sys_config` 20012；`Touch` 用 `ExpiresAt-CreatedAt` 推算续期长度，运行期改配置不影响已签发会话 |
 | 吊销 | 登出即 `DEL` Redis 键，服务端可即时失效（无状态 JWT 做不到） |
-| 白名单 | `/Health/Live`、`/Health/Ready`、`/Version`、`/Auth/Login` 不校验令牌（容器探针必需） |
+| 白名单 | `/Health/Live`、`/Health/Ready`、`/Version`、`/Meta/Finv/Auth/Login` 不校验令牌（容器探针必需） |
 
 ### 10761 迁移
 
@@ -1931,7 +1931,7 @@ COMMIT;
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10763 | 登录用户可自助修改密码：① 必须校验当前密码；② 新密码需满足强度规则（长度 8–64 位，且含大写/小写/数字/符号中至少 3 类）；③ 新密码不得与当前密码相同；④ 修改时重新生成盐与 argon2id 哈希（**不落明文**）；⑤ 修改成功后吊销该用户在其它设备上的全部会话，**保留当前会话**避免本人被踢出；⑥ 前端在顶栏用户菜单提供入口，对话框中三个口令输入框都支持右侧眼睛图标切换明文/密文。 | `POST /API/V1/Auth/ChangePassword`：旧密码错、仅小写 8 位、新旧相同三种情形均返回 400 且 `message` 指明原因；正常修改返回 `code=0` 与 `data.revoked_sessions`；改后旧密码登录 401、新密码登录 200；操作会话仍可访问 `/Auth/Profile`（200），另一并发会话变 401；`select password_salt from sys.sys_user where uid='finv'` 在改密前后取值不同且匹配 `^[0-9a-f]{32}$`；`select count(*) from sys.sys_user where password like '%finv@2026%'` = 0；`grep -c 'append-inner-icon' Web/src/views/Common/ChangePasswordDialog.vue` ≥ 3 | √ |
+| 10763 | 登录用户可自助修改密码：① 必须校验当前密码；② 新密码需满足强度规则（长度 8–64 位，且含大写/小写/数字/符号中至少 3 类）；③ 新密码不得与当前密码相同；④ 修改时重新生成盐与 argon2id 哈希（**不落明文**）；⑤ 修改成功后吊销该用户在其它设备上的全部会话，**保留当前会话**避免本人被踢出；⑥ 前端在顶栏用户菜单提供入口，对话框中三个口令输入框都支持右侧眼睛图标切换明文/密文。 | `POST /API/V1/Meta/Finv/Auth/ChangePassword`：旧密码错、仅小写 8 位、新旧相同三种情形均返回 400 且 `message` 指明原因；正常修改返回 `code=0` 与 `data.revoked_sessions`；改后旧密码登录 401、新密码登录 200；操作会话仍可访问 `/Meta/Finv/Auth/Profile`（200），另一并发会话变 401；`select password_salt from sys.sys_user where uid='finv'` 在改密前后取值不同且匹配 `^[0-9a-f]{32}$`；`select count(*) from sys.sys_user where password like '%finv@2026%'` = 0；`grep -c 'append-inner-icon' Web/src/views/Common/ChangePasswordDialog.vue` ≥ 3 | √ |
 
 ### 10763 口令强度规则
 
@@ -1958,6 +1958,52 @@ finv:auth:user:<user_id>   (Set，保存该用户全部 token)
 | 修改密码 | 遍历索引，`DEL` 除当前 token 外的全部会话键并 `SREM`；索引项无论会话是否仍存在一律移除（顺带清理过期残留） |
 
 > 索引不设 TTL，但每次吊销都会清理对应项，不会无限增长。
+
+## 九十九、前端基础路由改为大驼峰（10764）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10764 | 前端基础路由 `/dashboard`、`/login` 统一改为大驼峰 `/Dashboard`、`/Login`，与既有 `/Meta/Finv/...` 风格一致；旧的小写路径保留归一化重定向，避免历史书签失效。路由 `name`（`dashboard` / `login`）保持不变，仅调整 URL 路径。 | `grep -c "path: '/Dashboard'\|path: '/Login'" Web/src/router.ts` ≥ 2；`grep -rn "'/dashboard'\|'/login'" Web/src --include=*.ts --include=*.vue` 仅出现在归一化映射表中；浏览器访问 `/login` 落到 `/Login`、访问 `/dashboard` 落到 `/Dashboard`（未登录时为 `/Login?redirect=/Dashboard`）；已登录访问 `/Login` 落到 `/Dashboard` | √ |
+
+### 10764 为什么不能用路由级 redirect
+
+`vue-router` 4 的路径匹配默认 **大小写不敏感**（`sensitive: false`），`/login` 会直接命中 `/Login` 路由，写在路由表里的 `{ path: '/login', redirect: '/Login' }` **永远匹配不到**，实测访问 `/login` 时 URL 停留在 `/login`。
+
+改为在 `beforeEach` 守卫里做归一化——此时 `to.path` 仍是访问时的原始大小写，是唯一可靠的位置：
+
+```ts
+const LEGACY_PATH_MAP: Record<string, string> = {
+  '/login': '/Login',
+  '/dashboard': '/Dashboard',
+}
+if (LEGACY_PATH_MAP[to.path]) {
+  return { path: LEGACY_PATH_MAP[to.path], query: to.query, hash: to.hash, replace: true }
+}
+```
+
+## 一百、认证接口前缀统一到 /Meta/Finv/Auth（10765）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10765 | 认证接口由 `/API/V1/Auth/*` 统一调整为 `/API/V1/Meta/Finv/Auth/*`，与 `/Meta/Finv/Quote`、`/Meta/Finv/Quant` 同层级。同步修正前端调用与接口文档，并修复 `api.ts` 把登录接口的 401 误判为「会话失效」的问题。 | `grep -rn '"/Auth' internal --include=*.go` 无输出；`grep -rn "'/Auth/" Web/src` 无输出；`POST /API/V1/Meta/Finv/Auth/Login` 返回 `code=0`，旧路径 `POST /API/V1/Auth/Login` 返回 404；浏览器用错误口令登录时页面提示「用户名或密码错误」而非「未登录或登录已过期」，且路径停留在 `/Login`；正确口令登录落到 `/Dashboard`；改密对话框可正常打开 | √ |
+
+### 10765 端点映射
+
+| 旧路径 | 新路径 |
+|---|---|
+| `POST /API/V1/Auth/Login` | `POST /API/V1/Meta/Finv/Auth/Login` |
+| `POST /API/V1/Auth/Logout` | `POST /API/V1/Meta/Finv/Auth/Logout` |
+| `POST /API/V1/Auth/ChangePassword` | `POST /API/V1/Meta/Finv/Auth/ChangePassword` |
+| `GET /API/V1/Auth/Profile` | `GET /API/V1/Meta/Finv/Auth/Profile` |
+
+### 10765 顺带修掉的 401 误判
+
+`api.ts` 原先对所有 401 一律执行「清空会话 + 广播失效事件 + 抛『未登录或登录已过期』」。登录接口本身用 401 表示「用户名或密码错误」，于是：
+
+- 用户输错密码看到的是「未登录或登录已过期」，完全误导
+- 还会误清一次本来就不存在的会话并触发一次无效的路由跳转
+
+修正为按路径分流：`path.endsWith('/Auth/Login')` 的 401 走正常信封解析，把服务端 `message` 原样抛给用户；其余 401 才执行会话失效流程。
 
 ## 汇总
 
@@ -2083,7 +2129,9 @@ finv:auth:user:<user_id>   (Set，保存该用户全部 token)
 | 登录认证与访问拦截 | 10761 | 1 |
 | 认证与配置模块目录归位 | 10762 | 1 |
 | 登录后修改密码 | 10763 | 1 |
-| **合计** | **10001–10763** | **763** |
+| 前端基础路由改大驼峰 | 10764 | 1 |
+| 认证接口前缀统一 | 10765 | 1 |
+| **合计** | **10001–10765** | **765** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10764` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10766` 起往后追加，不插入既有区间。

@@ -68,8 +68,13 @@ async function apiRequest<T>(path: string, init: RequestInit): Promise<T> {
   } finally {
     clearTimeout(timer)
   }
-  // 401：会话失效，清空本地会话并通知路由层跳转登录页
-  if (response.status === 401) {
+  // 401：会话失效，清空本地会话并通知路由层跳转登录页。
+  //
+  // 例外：登录接口自身的 401 表示「用户名或密码错误」，必须把服务端消息
+  // 原样抛给用户；若也走会话失效分支，用户会看到「未登录或登录已过期」，
+  // 完全误导（而且会误清一次本来就不存在的会话）。
+  const isLoginRequest = path.endsWith('/Meta/Finv/Auth/Login')
+  if (response.status === 401 && !isLoginRequest) {
     clearSession()
     window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT))
     throw new Error('未登录或登录已过期，请重新登录')

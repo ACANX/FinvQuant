@@ -7,13 +7,13 @@
 
 ### 登录认证（需求 10761）
 
-除 `/Health/Live`、`/Health/Ready`、`/Version`、`/Auth/Login` 外的全部接口都要求登录：
+除 `/Health/Live`、`/Health/Ready`、`/Version`、`/Meta/Finv/Auth/Login` 外的全部接口都要求登录：
 
 ```
 Authorization: Bearer <token>
 ```
 
-令牌由 `POST /Auth/Login` 签发，存 Redis，有效期取 `sys_config` 20012（默认 480 分钟）。缺失或失效统一返回 `401`「未登录或登录已过期」。详见 [`Auth/Auth.md`](Auth/Auth.md)。
+令牌由 `POST /Meta/Finv/Auth/Login` 签发，存 Redis，有效期取 `sys_config` 20012（默认 480 分钟）。缺失或失效统一返回 `401`「未登录或登录已过期」。详见 [`Auth/Auth.md`](Auth/Auth.md)。
 
 ### 响应信封
 
@@ -49,7 +49,7 @@ Authorization: Bearer <token>
 - **接口总览（方法 / 路径 / 说明 / 详细文档 / 已使用位置）**：见 [APIs.md](APIs.md)。
 - **详细接口文档**：
   - 登录认证（需求 10761）：
-    - [`Auth/Auth.md`](Auth/Auth.md) — `POST /Auth/Login`（登录发令牌）、`POST /Auth/Logout`（吊销会话）、`GET /Auth/Profile`（当前用户）；含认证模型、401 口径与口令轮换方式
+    - [`Auth/Auth.md`](Auth/Auth.md) — `POST /Meta/Finv/Auth/Login`（登录发令牌）、`POST /Meta/Finv/Auth/Logout`（吊销会话）、`GET /Meta/Finv/Auth/Profile`（当前用户）；含认证模型、401 口径与口令轮换方式
   - 分钟行情 K 线（`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/*`，**一个接口一个文档**）：
     - [`KLine/KLineAdd.md`](KLine/KLineAdd.md) — `POST .../Min/Add`（单条插入）
     - [`KLine/KLineBatchInsert.md`](KLine/KLineBatchInsert.md) — `POST .../Min/Batch`（批量插入）

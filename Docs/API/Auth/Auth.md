@@ -20,19 +20,19 @@
 | GET | `/Health/Live` | 存活探针（容器健康检查依赖，必须放行） |
 | GET | `/Health/Ready` | 就绪探针 |
 | GET | `/Version` | 版本信息 |
-| POST | `/Auth/Login` | 登录 |
+| POST | `/Meta/Finv/Auth/Login` | 登录 |
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/Auth/Logout` | 退出登录（吊销当前会话） |
-| POST | `/Auth/ChangePassword` | 修改当前用户密码 |
-| GET | `/Auth/Profile` | 当前登录用户资料 |
+| POST | `/Meta/Finv/Auth/Logout` | 退出登录（吊销当前会话） |
+| POST | `/Meta/Finv/Auth/ChangePassword` | 修改当前用户密码 |
+| GET | `/Meta/Finv/Auth/Profile` | 当前登录用户资料 |
 
 > 除公开端点外的**所有** `/API/V1/**` 接口（含上表后三个）都要求有效令牌，缺失或失效统一返回 `401`。
 
 ---
 
-## POST /Auth/Login
+## POST /Meta/Finv/Auth/Login
 
 校验用户名口令并签发会话。
 
@@ -75,7 +75,7 @@
 
 ---
 
-## POST /Auth/Logout 🔒
+## POST /Meta/Finv/Auth/Logout 🔒
 
 吊销当前会话。
 
@@ -96,7 +96,7 @@
 
 ---
 
-## GET /Auth/Profile 🔒
+## GET /Meta/Finv/Auth/Profile 🔒
 
 返回当前登录用户资料。
 
@@ -122,7 +122,7 @@
 
 ---
 
-## POST /Auth/ChangePassword 🔒
+## POST /Meta/Finv/Auth/ChangePassword 🔒
 
 修改当前登录用户的口令。
 
