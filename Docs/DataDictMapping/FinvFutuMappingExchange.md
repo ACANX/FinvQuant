@@ -1,7 +1,7 @@
 # FinvFutuMappingExchange — 富途交易所映射
 
 > 所属：FinvQuant 数据字典映射 · 存放：`Docs/DataDictMapping/FinvFutuMappingExchange.md`
-> 数据表：`futu.finv_futu_mapping_exchange`（表结构：[`Deploy/Migrations/V14__finv_futu_mapping_exchange.sql`](../../Deploy/Migrations/V14__finv_futu_mapping_exchange.sql)；增量列：[`Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql`](../../Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql)；初始数据：[`Deploy/Migrations/V100006__finv_futu_mapping_exchange_seed.sql`](../../Deploy/Migrations/V100006__finv_futu_mapping_exchange_seed.sql)；全量替换：[`Deploy/Migrations/V100013__finv_futu_mapping_exchange_seed_full.sql`](../../Deploy/Migrations/V100013__finv_futu_mapping_exchange_seed_full.sql)）
+> 数据表：`futu.finv_futu_mapping_exchange`（表结构：[`Deploy/Migrations/V100014__finv_futu_mapping_exchange.sql`](../../Deploy/Migrations/V100014__finv_futu_mapping_exchange.sql)；增量列：[`Deploy/Migrations/V100017__finv_futu_mapping_add_flag_enable.sql`](../../Deploy/Migrations/V100017__finv_futu_mapping_add_flag_enable.sql)；初始数据：[`Deploy/Migrations/V200006__finv_futu_mapping_exchange_seed.sql`](../../Deploy/Migrations/V200006__finv_futu_mapping_exchange_seed.sql)；全量替换：[`Deploy/Migrations/V200013__finv_futu_mapping_exchange_seed_full.sql`](../../Deploy/Migrations/V200013__finv_futu_mapping_exchange_seed_full.sql)）
 > 用途：富途行情源 exchange 字典（30 类）的字段映射表，记录富途交易所代码、对应地区与 finv 侧交易所标识。
 
 ## 1. 表结构
@@ -13,7 +13,7 @@
 | `abbr` | TEXT | NOT NULL | 地区简写（对齐 [FinvRegion](FinvRegion.md)，如 `HK` / `CN` / `USA`；`—` 用 `N/A`） |
 | `exchange_name` | TEXT | NOT NULL | 交易所/市场名称（如 `香港交易所`） |
 | `finv_exchange` | TEXT | NOT NULL | finv 侧交易所标识（对齐 [FinvExchange](FinvExchange.md) `exchange_abbr`，如 `HKEX` / `SSE` / `TSE`） |
-| `flag_enable` | CHAR(1) | NOT NULL DEFAULT '0' | 启用标志（`0`=禁用 / `1`=启用，V17 新增） |
+| `flag_enable` | CHAR(1) | NOT NULL DEFAULT '0' | 启用标志（`0`=禁用 / `1`=启用，V100017 新增） |
 | `gmt_create` | TIMESTAMPTZ | NOT NULL DEFAULT now() | 首次插入时间 |
 | `gmt_update` | TIMESTAMPTZ | NOT NULL DEFAULT now() | 最后更新时间（触发器维护） |
 

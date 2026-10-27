@@ -1,6 +1,6 @@
 # 证券行情月归档导出与上传（落地说明）
 
-> 归属：FinvQuant · 实施：`internal/meta/finv/quote/dedup`（Go）+ `Deploy/Migrations/V41__finv_dedup_export_archive_tables.sql`
+> 归属：FinvQuant · 实施：`internal/meta/finv/quote/dedup`（Go）+ `Deploy/Migrations/V100041__finv_dedup_export_archive_tables.sql`
 > 方案稿：`2610-002-SecuritiesQuoteExportUploadSchemeDesign.md` v5.0（设计版），本文为**落地版**，逐条说明实现方式、配置与运维要点。
 > 关联规范：[`../DevSpec/DbSchemaSpec.md`](../DevSpec/DbSchemaSpec.md)、[`../DevSpec/ApiSpec.md`](../DevSpec/ApiSpec.md)、[`../DevSpec/ErrorCodeSpec.md`](../DevSpec/ErrorCodeSpec.md)
 
@@ -28,17 +28,17 @@
 | `finv_dedup_ingest_stats` | 每日入口流量统计 | 主键 `stat_date` |
 | `finv_dedup_daily_budget` | 每日预算快照（因子 / 消耗） | 主键 `biz_date` |
 | `finv_dedup_scan_watermark` | 扫描水位（成熟度、补丁） | 主键 `watermark_name` |
-| `finv_dedup_usc_priority` | 证券优先级与 SLA | 主键 `usc` |
 | `finv_dedup_quote_maturity_mon` | 证券日成熟度 | 主键 `(usc, trade_date)` |
 | `finv_dedup_trade_calendar` | 交易日历 | 主键 `(usc, trade_date)` |
-| `finv_dedup_job_run_log_export_file` | Job 运行日志 | 主键 `run_id` |
+| `finv_dedup_job_run_log_export_file` | Job 运行日志（含阶段 / 进度 / 心跳） | 主键 `run_id` |
 | `finv_dedup_usc` | 证券主数据（文件头/文件名来源） | 主键 `usc` |
 | `finv_dedup_export_job` | 证券月导出任务 | 主键 `job_id`，唯一键 `(usc, biz_month)` |
 | `finv_dedup_export_file` | 导出文件登记（上传任务唯一来源） | 主键 `file_id`，唯一键 `(usc, biz_month, file_type, version)` |
 | `finv_dedup_export_file_upload_log` | 上传尝试审计 | 主键 `log_id` |
 | `finv_dedup_export_file_patch` | 收口后补丁任务 | 主键 `patch_id` |
+| `finv_dedup_runtime_setting` | 运行时设置（低峰窗口在线修改） | 主键 `setting_key` |
 
-索引命名遵循 `idx_<表名去 finv_ 前缀并去下划线>_<用途>`（例：`idx_dedupexportfileuploadlog_file`），共 12 个；迁移末尾做收敛校验（表数 / 索引数 / 无外键 / schema 归属）。
+索引命名遵循 `idx_<表名去 finv_ 前缀并去下划线>_<用途>`（例：`idx_dedupexportfileuploadlog_file`），`V41` 共建 12 个；迁移末尾做收敛校验（表数 / 索引数 / 无外键 / schema 归属）。`V42` 另为运行日志增加 `stage` / `progress_percent` / `progress_detail` / `gmt_heartbeat` 四列与未结束记录部分索引 `idx_dedupjobrunlogexportfile_running`；`V43` 新增 `finv_dedup_runtime_setting`（键值表），保存后由服务热更新，优先于 `FINV_QUOTE_DEDUB_WINDOW_START/_END`。
 
 > 说明：`finv_dedup_quote_maturity_mon.gmt_seale` 沿用方案稿列名（语义为 seal 时间），避免与既有设计核对时产生差异。
 
@@ -47,7 +47,7 @@
 - **MVsv**：16 行 `# ` 文件头 + **1 行空行** + 数据行；数据行 12 列固定为 `ts|da|ti|o|h|l|c|v|t|cp|cr|lc`（`da`=date、`ti`=time，避免与 `t`=turnover 混淆）；空值留空（出现 `||`）；UTF-8 无 BOM、LF 换行；`Count` 等于实际数据行数。
 - **计数与校验**：写文件前用 `COUNT(*)` 预统计 `Count`，写完校验「实际行数 = 预统计 = 登记行数」；先写同目录临时文件，`fsync` 后原子 `rename`；返回 SHA256 与字节数写入 `finv_dedup_export_file`。
 - **命名**（本地与上传目标同名，不生成、不支持 `.csv`）：
-  - BASE：`{region}_{market}_{usc}_Min_{provider}_Mon_{yyyyMM}.mvsv`
+  - BASE：`{region}_{market}_{usc}_Min_{provider}_Mon_{yyyyMM}_Base.mvsv`（需求 10743 起带 `_Base` 后缀）
   - PATCH：`{region}_{market}_{usc}_Min_{provider}_Mon_{yyyyMM}_Incr_{n}.mvsv`
   - MANIFEST：`{region}_{market}_{usc}_Min_{provider}_Mon_{yyyyMM}_Manifest.json`
 - **Manifest 必填字段**：`usc`、`biz_month`、`format=mvsv`、`delimiter=|`、`encoding=utf-8`、`compression`、`header_lines=16`、`blank_line_after_header=true`、`columns`、`base`（文件名/行数/大小/checksum/version）、`patches[]`、`row_count`、`checksum`、`seal_date`、`schema_version`、`generated_at`。
@@ -88,15 +88,71 @@
   - **L1_HOT**：base 尚未上传成功 → 全量重写 base（`base_version+1`，同名原子覆盖），旧记录 `SUPERSEDED`；
   - **L2_WARM**：base 已上传、未归档/未清理 → 生成 `..._Incr_{n}.mvsv` 并更新 Manifest；
   - **L3_COLD**：base 已归档或本地已清理 → 同样生成增量补丁（离线补丁包）并记录补丁任务；
-  - 补丁受独立小预算约束（日预算 × `FINV_QUOTE_DEDUB_PATCH_BUDGET_RATIO`，默认 10%），超出则留待下一轮。
+  - 补丁与正常导出共用中转表：先按日期 + `ts` keyset 分页把增量（L1 为整月）装入 `export.finv_quote_secu_kline_min`，再从转存表写 BASE/PATCH 文件，成功后清理中转数据；数据量大时不会从主表直接流式写文件；
+  - 补丁原受独立小预算约束（日预算 × `FINV_QUOTE_DEDUB_PATCH_BUDGET_RATIO`，默认 10%）；为避免历史基线重新聚合等大数据量场景长期无法收敛，超出预算只记录告警，仍按完整补丁执行。
 
 > 与方案稿的差异：K-01 规定「seal 窗口内到达的延迟数据走正常增量、不视为 Patch」。本实现对**已上传成功**的 base 一律走补丁（含 seal 之前），因为修改已上传的归档文件不可追溯；仅当 base 未上传成功时才走 L1_HOT 重写。
 
 ### 4.5 生命周期
 
 - 本地文件清理条件：`UPLOADED` + 远端校验通过 + `network_status='ARCHIVED'` + 无待处理补丁 + 保留期（默认 30 天）到达；
-- 主表旧数据清理：**默认关闭**（`FINV_QUOTE_DEDUB_PURGE_MAIN_ENABLED=false`），开启后只清理「任务全部 `EXPORTED`、base 已上传且归档、本地已清理、无待处理补丁」的月份，按批删除；
+- 主表旧数据清理：改由**系统配置 `20007`** 承载（`FINV_QUOTE_DEDUB_PURGE_MAIN_ENABLED` / `_PURGE_MAIN_MONTHS` 已废弃），见 §4.6；
+
 - 中转表：`CLEAN_EXPIRED_EXPORT_ARTIFACTS` 每轮删除不属于任何活跃任务范围的残留（每批 5 万行），空表 `TRUNCATE`。
+
+### 4.6 主表数据释放（系统配置 20007）
+
+`20007 = 导出成功后立即删除主表行情数据标志`（`sys.sys_config`，`char_value`：`1`-删除（默认）/ `0`-保留）。
+
+删除**只作用于 `dedup.finv_quote_secu_kline_min`**；`quote.finv_quote_secu_kline_min` 是回测/查询专用的独立副本，**不参与删除**。
+
+删除有两条触发路径，二者互补：
+
+| 路径 | 触发点 | 判定条件 | 覆盖场景 |
+|---|---|---|---|
+| **① 上传后立即删** | `UPLOAD_PENDING_EXPORT_FILES` 单个文件上传成功之后 | 本次发生了真实上传动作且远端校验通过 | 常态：新数据导出 → 上传 → 删 |
+| **② 沉淀月补偿清理** | `CLEAN_EXPIRED_EXPORT_ARTIFACTS` 每轮执行（仅当 `20007=1`） | 见下方三重条件 | 漏网 + 存量：文件因内容未变而跳过上传时 |
+
+#### 为什么需要路径 ②
+
+`RegisterFile` 在 **checksum 未变**时会保持原有的 `UPLOADED` 状态（避免重复上传同一份内容）。因此「重新导出内容相同的月份」**不会产生上传动作**，路径 ① 永远不触发，数据永久留在主表：
+
+```
+重新导出 → checksum 未变 → 保持 UPLOADED，不进上传队列
+        → 无上传动作 → 20007 路径 ① 不触发 → 数据不删
+        → 水位线已推进 → delta 恒为 0 → 也不会生成 INCR
+```
+
+结果形成一个「死水区」：数据既不释放，也不产生增量。路径 ② 就是为了兜住这种沉淀状态。
+
+#### 路径 ② 的判定条件（三重，全部满足才删）
+
+```sql
+SELECT f.file_id, f.usc, f.biz_month
+  FROM dedup.finv_dedup_export_file f
+ WHERE f.file_type = 'BASE'
+   AND f.export_status = 'EXPORTED'                     -- ① 已导出
+   AND f.upload_status = 'UPLOADED'                     -- ② 已上传成功
+   AND EXISTS (主表该月有数据)                            -- ③ 本地确实还有副本
+   AND NOT EXISTS (
+       SELECT 1 FROM 主表 m
+        WHERE m.usc = f.usc AND m.date BETWEEN 该月首末
+          AND (m.gmt_create > f.gmt_create             -- ④ 文件生成后无新增
+               OR m.gmt_update > f.gmt_create))        --    也无更新
+```
+
+条件 ④ 是关键保护：**只要有一行数据在 BASE 文件生成之后被写入或修改，就说明远端文件不包含它**，必须先走 INCR 补丁流程，绝不能直接删除。
+
+#### 删除方式与观测
+
+- 按 `(usc, biz_month)` 逐月删除，单月按 `50000` 行一批循环删空（`PurgeMainSecurityMonth`）；
+- **不做行级备份**（需求方明确约定）：数据在远端 BASE 文件与 `quote` 副本中各有一份完整拷贝；
+- 观测字段：`CLEAN_EXPIRED_EXPORT_ARTIFACTS` 的 `details.settled_months_purged` / `details.settled_rows_purged`，以及逐月日志 `20007 沉淀月清理 usc=… biz_month=… rows=… file_id=…`；
+- 单轮最多处理 `500` 个月（`settledPurgeBatch`），避免长时间占用连接。
+
+#### 与增量导出的关系
+
+删除是**增量链路恢复的前提**：主表数据释放后，后续采集写入的新数据 `gmt_create` 必然晚于水位线，`CountMainDelta > 0`，`SCAN_POST_SEAL_PATCHES` 才会生成 INCR 动态任务并产出 `_Incr_N.mvsv`。若数据长期不释放，水位线会持续推进并越过所有历史数据，导致永久性 `delta = 0`。
 
 ## 5. 配置项
 
@@ -104,19 +160,20 @@
 |---|---|---|
 | `FINV_QUOTE_DEDUB_ENABLED` | `false` | 功能开关；关闭时只提供运维接口，不自动调度（M-10） |
 | `FINV_QUOTE_DEDUB_TIMEZONE` | `Asia/Shanghai` | 业务时区（预算日期、调度窗口、`AT TIME ZONE` 换算） |
-| `FINV_QUOTE_DEDUB_OUTPUT_DIR` | `Data/ExportArchive` | 本地导出根目录（按 `{usc}/{yyyyMM}/` 分层） |
+| `FINV_QUOTE_DEDUB_OUTPUT_DIR` | `/data/App/FinvQuant/Export` | 本地导出根目录（按 `{usc}/{yyyyMM}/` 分层） |
 | `FINV_QUOTE_DEDUB_WORKER_ID` | `hostname-pid` | worker 标识（写入 `locked_by`） |
 | `FINV_QUOTE_DEDUB_PAGE_SIZE` | `10000` | LOAD 单页行数（收敛到 1000–20000） |
 | `FINV_QUOTE_DEDUB_WINDOW_START` / `_END` | `00:30` / `06:30` | 导出低峰窗口（支持跨零点） |
 | `FINV_QUOTE_DEDUB_LEASE_SECONDS` | `300` | 任务锁租约（心跳续租） |
 | `FINV_QUOTE_DEDUB_MAX_ATTEMPTS` | `8` | 上传最大尝试次数 |
 | `FINV_QUOTE_DEDUB_UPLOAD_MODE` | `none` | 上传实现：`none`（不启用）/ `dir`（目录或 NAS 挂载）/ `http`（HTTP PUT 网关） |
-| `FINV_QUOTE_DEDUB_UPLOAD_DIR` | `Data/ExportArchive/Upload` | `dir` 模式的独享存储根目录 |
+| `FINV_QUOTE_DEDUB_UPLOAD_DIR` | `/data/App/FinvQuant/Export/Upload` | `dir` 模式的独享存储根目录 |
 | `FINV_QUOTE_DEDUB_UPLOAD_HTTP_BASE` / `_TOKEN` | 空 | `http` 模式的 PUT 根地址与 Bearer 令牌 |
 | `FINV_QUOTE_DEDUB_UPLOAD_PREFIX` | 空 | 远端路径前缀（如 `cn/quotes`） |
+| `FINV_QUOTE_DEDUB_UPLOAD_GITHUB_API_BASE` | 空（即 `https://api.github.com`） | GitHub Enterprise 覆盖 API 端点；GitHub 上传的开关/PAT/仓库定位在 `sys_config` 20002/20003/20004（见后文补录） |
 | `FINV_QUOTE_DEDUB_LOCAL_RETENTION_DAYS` | `30` | 本地文件保留天数 |
-| `FINV_QUOTE_DEDUB_PURGE_MAIN_ENABLED` | `false` | 是否允许清理主表旧数据 |
-| `FINV_QUOTE_DEDUB_PURGE_MAIN_MONTHS` | `2` | 主表保留月份数 |
+| ~~`FINV_QUOTE_DEDUB_PURGE_MAIN_ENABLED`~~ | ~~`false`~~ | **已废弃**：改由 `sys_config` 20007 承载 |
+| ~~`FINV_QUOTE_DEDUB_PURGE_MAIN_MONTHS`~~ | ~~`2`~~ | **已废弃**：不再保留「按月份数延迟清理」语义 |
 | `FINV_QUOTE_DEDUB_MATURITY_THRESHOLD` | `0.95` | 成熟度阈值（实际/预期） |
 | `FINV_QUOTE_DEDUB_PATCH_BUDGET_RATIO` | `0.10` | Patch 独立预算比例 |
 | `FINV_QUOTE_DEDUB_COMPRESSION` | `none` | `none` / `gzip`（扩展名保持 `.mvsv`） |
@@ -144,10 +201,10 @@
 
 ## 7. 运维要点
 
-1. **首次开通**：执行迁移 → 校准 `dedup.finv_dedup_usc`（`day_expect_rows`、`region/market/provider/name/timezone/currency`）→ 按需插入 `dedup.finv_dedup_usc_priority` → 设置 `FINV_QUOTE_DEDUB_ENABLED=true`。
+1. **首次开通**：执行迁移 → 校准 `dedup.finv_dedup_usc`（`day_expect_rows`、`region/market/provider/name/timezone/currency`）→ 按需在 `dedup.finv_dedup_usc` 上设置 `priority_rank`/`sla_days`/`max_wait_days` → 设置 `FINV_QUOTE_DEDUB_ENABLED=true`。
 2. **未校准的证券不会导出**：`day_expect_rows` 为空时该日成熟度保持 `PARTIAL`，证券月无法进入候选（安全默认）。
 3. **网盘归档**：本实现不负责网盘上传，需外部流程完成后更新 `finv_dedup_export_file.network_status='ARCHIVED'`（否则本地文件不会被清理）。
-4. **人工干预**：`POST .../Job/Retry`、`POST .../File/Retry` 重置状态；`POST .../Job/Run` 手动触发 Job；`GET .../Status` 查看指标与告警。
+4. **人工干预**：`POST .../Job/Retry`、`POST .../File/Retry` 重置状态；`POST .../Job/Run` 手动触发 Job；`GET .../Status` 查看指标与告警；`GET .../Job/Runtime` 查看 10 个 Job 的当前阶段 / 进度 / 心跳与最近结果（流程页每 5 秒轮询）；`PUT .../Settings/Window` 在线修改低峰窗口，保存后立即生效。
 5. **核对命令**：
    ```sql
    -- 任务状态分布

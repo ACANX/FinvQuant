@@ -1,7 +1,7 @@
 # FinvFutuMappingMarketCode — 富途市场代码映射
 
 > 所属：FinvQuant 数据字典映射 · 存放：`Docs/DataDictMapping/FinvFutuMappingMarketCode.md`
-> 数据表：`futu.finv_futu_mapping_market_code`（表结构：[`Deploy/Migrations/V8__finv_futu_mapping_market_code.sql`](../../Deploy/Migrations/V8__finv_futu_mapping_market_code.sql)；重建列序：[`Deploy/Migrations/V15__finv_futu_mapping_market_code_reorder.sql`](../../Deploy/Migrations/V15__finv_futu_mapping_market_code_reorder.sql)；增量列：[`Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql`](../../Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql)；初始数据：[`Deploy/Migrations/V100007__finv_futu_mapping_market_code_seed.sql`](../../Deploy/Migrations/V100007__finv_futu_mapping_market_code_seed.sql)）
+> 数据表：`futu.finv_futu_mapping_market_code`（表结构：[`Deploy/Migrations/V100008__finv_futu_mapping_market_code.sql`](../../Deploy/Migrations/V100008__finv_futu_mapping_market_code.sql)；重建列序：[`Deploy/Migrations/V100015__finv_futu_mapping_market_code_reorder.sql`](../../Deploy/Migrations/V100015__finv_futu_mapping_market_code_reorder.sql)；增量列：[`Deploy/Migrations/V100017__finv_futu_mapping_add_flag_enable.sql`](../../Deploy/Migrations/V100017__finv_futu_mapping_add_flag_enable.sql)；初始数据：[`Deploy/Migrations/V200007__finv_futu_mapping_market_code_seed.sql`](../../Deploy/Migrations/V200007__finv_futu_mapping_market_code_seed.sql)）
 > 用途：FT（富途/moomoo）行情源市场代码与交易市场代码（finv_market.market_code）的字段映射表。
 
 ## 1. 表结构
@@ -12,7 +12,7 @@
 | `market_name` | TEXT | 可空 | 市场名称（如 `港股主板` / `美股指数` / `上交所 A 股`） |
 | `exchange` | TEXT | 可空 | 对应交易所（富途 exchange 代码，如 `SEHK` / `US` / `SSE`；无交易所用 `N/A`） |
 | `finv_market_code` | INTEGER | NOT NULL，1~999999 | 交易市场代码（关联 [FinvMarket](FinvMarket.md) `market_code`；暂与 futu 同值，待字典对齐） |
-| `flag_enable` | CHAR(1) | NOT NULL DEFAULT '0' | 启用标志（`0`=禁用 / `1`=启用，V17 新增） |
+| `flag_enable` | CHAR(1) | NOT NULL DEFAULT '0' | 启用标志（`0`=禁用 / `1`=启用，V100017 新增） |
 | `gmt_create` | TIMESTAMPTZ | NOT NULL DEFAULT now() | 首次插入时间 |
 | `gmt_update` | TIMESTAMPTZ | NOT NULL DEFAULT now() | 最后更新时间（触发器维护） |
 

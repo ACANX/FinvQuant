@@ -21,6 +21,33 @@
 
 - 代码标识符、事件名和配置键使用清晰的**英文**。
 
+## 4. 过程文档编号（yyMM-NNN-）
+
+- 按阶段/批次新增的**过程文档**（计划、检查清单、改造方案、评审与验收报告等）文件名格式：
+  **`yyMM-NNN-大驼峰名称.md`**
+  - `yyMM`：文档创建年月，同一批交付的多份文档共用；
+  - `NNN`：三位顺序号，**在 `Docs/` 下全局唯一**，只增不减、**不得重号、不得复用**（即使原文档被删除或改名）；
+  - 示例：`Docs/Refactor/2610-007-CDEUProcessModelDesign.md`。
+- 新增或改名过程文档前必须检查编号占用情况，以下命令必须无输出：
+
+  ```bash
+  find Docs -type f -name '*.md' -printf '%f\n' \
+    | grep -E '^[0-9]{4}-[0-9]{3}-' \
+    | cut -d- -f1-2 | sort | uniq -d
+  ```
+
+  或直接执行自动校验（重号会使测试失败）：
+
+  ```bash
+  go test ./internal/docs
+  ```
+
+- 调整编号时必须同步更新所有引用（`Docs/CHANGELOG.md`、`Docs/RequirementList.md`、其他文档中的链接），不得只改文件名。
+- 例外（**不加**编号前缀）：
+  - 长期固定文档：`CHANGELOG.md`、`RequirementList.md`、`README.md`、`LICENSE`、`AGENTS.md`；
+  - 按内容命名的规范/接口/菜单/数据字典文档：`Docs/DevSpec/`、`Docs/API/`、`Docs/Menu/`、`Docs/DataDictMapping/`、`Docs/DataFormat/`。
+- 新增过程文档时先确认是否已有同类目录（如 `Docs/Refactor/`），同类文档放入同一目录内，不得平行新建重复目录。
+
 ## 5. 生成物命名（备份 / 导出 / 日志归档）
 
 - 由脚本自动生成的文件（数据库备份、导出、日志归档）必须使用**纯 ASCII 的固定时间格式**：
@@ -32,12 +59,3 @@
   - Shell：`date +%Y%m%d_%H%M%S`。
 - 时间取**执行机本地时区**，同一目录内按名称即天然按时间排序。
 - 备份文件不入库（`.gitignore` 覆盖 `Deploy/Backup/`），但仍须遵守本命名规则，便于跨平台拷贝与排错。
-
-## 4. 过程文档的时间前缀（yyMM-）
-
-- 按阶段/批次新增的**过程文档**（计划、检查清单、改造方案、评审与验收报告等）文件名必须带 `yyMM-` 四位前缀：`yyMM` 为文档创建年月，后接大驼峰名称，例如 `Docs/Refactor/2610-001-SecuCodeToUsc.md`。
-- 同一批交付的多份文档共用一个前缀；前缀一经确定不随后续修改月份变更。
-- 例外（**不加**前缀）：
-  - 长期固定文档：`CHANGELOG.md`、`RequirementList.md`、`README.md`、`LICENSE`、`AGENTS.md`；
-  - 按内容命名的规范/接口/菜单/数据字典文档：`Docs/DevSpec/`、`Docs/API/`、`Docs/Menu/`、`Docs/DataDictMapping/`、`Docs/DataFormat/`。
-- 新增过程文档时先确认是否已有同类目录（如 `Docs/Refactor/`），同类文档放入同一目录内，不得平行新建重复目录。

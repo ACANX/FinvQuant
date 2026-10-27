@@ -33,16 +33,16 @@
         "biz_month": 202609,
         "file_type": "BASE",
         "version": 1,
-        "file_name": "CN_SZ_159934_Min_FTMM_Mon_202609.mvsv",
-        "file_path": "Data/ExportArchive/159934/202609/CN_SZ_159934_Min_FTMM_Mon_202609.mvsv",
-        "target_file_name": "CN_SZ_159934_Min_FTMM_Mon_202609.mvsv",
-        "upload_target": "cn/quotes/CN_SZ_159934_Min_FTMM_Mon_202609.mvsv",
+        "file_name": "CN_SZ_159934_Min_FTMM_Mon_202609_Base.mvsv",
+        "file_path": "/data/App/FinvQuant/Export/159934/202609/CN_SZ_159934_Min_FTMM_Mon_202609_Base.mvsv",
+        "target_file_name": "CN_SZ_159934_Min_FTMM_Mon_202609_Base.mvsv",
+        "upload_target": "cn/quotes/CN_SZ_159934_Min_FTMM_Mon_202609_Base.mvsv",
         "format": "mvsv",
         "compression": "none",
         "row_count": 4820,
         "file_size": 524288,
         "checksum": "3f8f0c1c6f4f0d6a5d1f5f2b7a9c0e3d4b6a8c2e1f7d9a0b3c5e7f1a2b4c6d8e",
-        "manifest_path": "Data/ExportArchive/159934/202609/CN_SZ_159934_Min_FTMM_Mon_202609_Manifest.json",
+        "manifest_path": "/data/App/FinvQuant/Export/159934/202609/CN_SZ_159934_Min_FTMM_Mon_202609_Manifest.json",
         "seal_date": "2026-10-25T00:00:00Z",
         "export_status": "EXPORTED",
         "upload_status": "UPLOADED",
@@ -66,9 +66,11 @@
 | 字段 | 说明 |
 |---|---|
 | `file_name` / `target_file_name` | 本地文件名 / 上传目标文件名（当前一致，均为 `.mvsv` 或 `.json`，不做扩展名改名） |
-| `upload_target` | 远端相对路径（`FINV_QUOTE_DEDUB_UPLOAD_PREFIX` + 文件名） |
+| `file_type` | `BASE` / `PATCH`（`.mvsv` 数据文件，参与上传）/ `MANIFEST`（`xx_..._Manifest.json`，**不上传**，仅留本地校验） |
+| `upload_target` | 远端相对路径（`FINV_QUOTE_DEDUB_UPLOAD_PREFIX` + `{region}_{market}/{usc}/` + 文件名，`FINV_QUOTE_DEDUB_UPLOAD_LAYOUT=flat` 时不含证券目录） |
 | `checksum` | 文件 SHA256（小写十六进制）；gzip 时为压缩后内容 |
 | `export_status` | `EXPORTED`/`SUPERSEDED`（被 L1_HOT 重写覆盖）/`SKIPPED` |
+| `upload_status` | `PENDING_UPLOAD`/`UPLOADING`/`UPLOADED`/`UPLOAD_FAILED`/`SKIPPED`（`SKIPPED` = 按约定不上传，含 `MANIFEST` 与被覆盖文件） |
 | `network_status` | `NONE`/`ARCHIVED`（网盘归档由外部流程更新） |
 | `cleanup_status` | `NONE`/`LOCAL_DELETED` |
 

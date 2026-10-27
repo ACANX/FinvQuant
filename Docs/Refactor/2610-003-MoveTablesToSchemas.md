@@ -1,5 +1,12 @@
 # 改造项 C：`finv_quote_*` → `quote` schema、`finv_quant_*` → `quant` schema（检查清单）
 
+> ⚠️ **时效声明（2026-10-27 补）**：本清单记录的是 **2026-10-24 改造项 C 完成时**的状态。
+> 其中与 `finv_quote_secu_kline_min` 相关的条目（`C-10`、`C-11`、`C-16`、`C-18`、`C-20`、`C-22`，见各条状态列）
+> 曾于同日被 **`V38`**（`SET SCHEMA dedup` + 代码改 `dedup.` 前缀）推翻，
+> 又于 2026-10-27 由 **`V76`** 按原双 schema 隔离设计恢复。
+> **当前权威状态以 [`../DevSpec/DbSchemaSpec.md`](../DevSpec/DbSchemaSpec.md) §0（红线）与 §1（schema 划分）为准**，
+> 不要依据本清单的旧验收标记判断表的归属。
+
 > 用途：把按业务域分表的工作拆成**可逐条勾选的检查项**，按编号顺序执行以避免漏改；执行中或执行后新发现的改造点，追加到末尾（编号顺延），不插入既有编号。
 > 使用方式：自上而下推进；完成一项把「状态」改为 `☑ YYYY-MM-DD`，并附提交短号。
 > 编号规则：本文件条目 `C-01`～`C-xx`，**只增不改**；作废条目保留并标注「作废（原因）」，不删号。
@@ -53,7 +60,7 @@
 
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
-| C-01 | `Deploy/Migrations/V32__move_finv_tables_to_quote_quant_schemas.sql`（新建） | 单事务：`CREATE SCHEMA IF NOT EXISTS quote;`、`CREATE SCHEMA IF NOT EXISTS quant;` | 文件存在，含两条 `CREATE SCHEMA IF NOT EXISTS` | ☑ 2026-10-24 |
+| C-01 | `Deploy/Migrations/V100032__move_finv_tables_to_quote_quant_schemas.sql`（新建） | 单事务：`CREATE SCHEMA IF NOT EXISTS quote;`、`CREATE SCHEMA IF NOT EXISTS quant;` | 文件存在，含两条 `CREATE SCHEMA IF NOT EXISTS` | ☑ 2026-10-24 |
 | C-02 | 同上 | 3 张 `finv_quote_*` 表 `ALTER TABLE public.<t> SET SCHEMA quote;`，逐表用 `pg_tables` 判断当前 schema 保证幂等 | 脚本内 3 个表名齐全且含 `schemaname = 'public'` 判断 | ☑ 2026-10-24 |
 | C-03 | 同上 | 13 张 `finv_quant_*` 表 `SET SCHEMA quant`，同样幂等判断 | 脚本内 13 个表名齐全 | ☑ 2026-10-24 |
 | C-04 | 同上 | `ALTER DATABASE <当前库> SET search_path TO public, quote, quant;`（用 `current_database()` 动态取库名，避免写死） | 脚本含 `ALTER DATABASE` 与 `current_database()` | ☑ 2026-10-24 |
@@ -67,8 +74,8 @@
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
 | C-09 | `internal/database/postgres.go` | DSN 追加 `search_path=public,quote,quant`（pgx runtime param），保证连接池每条连接自带搜索路径，兼容历史种子迁移与未加前缀的 SQL | `grep -c "search_path=public,quote,quant" internal/database/postgres.go` 输出 `1` | ☑ 2026-10-24 |
-| C-10 | `internal/quote/service.go`（9 处） | 表名加 schema 前缀：`quote.finv_quote_secu_kline_min`、`quote.finv_quote_revision_log`、`quote.finv_quote_ingest_batches`（含 `ON CONFLICT`/`COALESCE` 中的表名引用） | 该文件内 `finv_quote_` 前均带 `quote.` 或位于注释 | ☑ 2026-10-24 |
-| C-11 | `internal/backtest/service.go`（93 处） | `quant.finv_quant_*` 全量前缀；其中 `FROM finv_quote_secu_kline_min` 改为 `FROM quote.finv_quote_secu_kline_min` | `grep -c "quant\.finv_quant_" internal/backtest/service.go` 与表名出现次数一致 | ☑ 2026-10-24 |
+| C-10 | `internal/quote/service.go`（9 处） | 表名加 schema 前缀：`quote.finv_quote_secu_kline_min`、`quote.finv_quote_revision_log`、`quote.finv_quote_ingest_batches`（含 `ON CONFLICT`/`COALESCE` 中的表名引用） | 该文件内 `finv_quote_` 前均带 `quote.` 或位于注释 | ⚠ **作废**：`V38` 改为 `dedup.`，`V76` 已恢复 `quote.`（当前实现见 `internal/quote/service.go`） |
+| C-11 | `internal/backtest/service.go`（93 处） | `quant.finv_quant_*` 全量前缀；其中 `FROM finv_quote_secu_kline_min` 改为 `FROM quote.finv_quote_secu_kline_min` | `grep -c "quant\.finv_quant_" internal/backtest/service.go` 与表名出现次数一致 | ⚠ **作废**：`V38` 改为 `dedup.`，`V76` 已恢复 `quote.`（当前实现见 `internal/backtest/service.go`） |
 | C-12 | `internal/mvsv/parser.go`（1 处注释） | 注释中的表名同步为 `quote.finv_quote_secu_kline_min` | 注释已更新 | ☑ 2026-10-24 |
 | C-13 | `internal/quote/service_test.go`、`internal/backtest/run_delete_test.go` | 断言中的表名同步（SQL 字符串断言、表名列表） | `go test ./...` 通过 | ☑ 2026-10-24 |
 | C-14 | 仓库根 | 编译与单测 | `go build ./...`、`go vet ./...`、`go test ./...` 全部通过 | ☑ 2026-10-24 |
@@ -78,16 +85,16 @@
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
 | C-15 | 生产库 | 迁移前备份（`pg_dump -Fc`），回滚唯一依据 | 备份文件存在且 `pg_restore --list` 可读 | ☑ 2026-10-24（`Deploy/backup/finvquant_周六1024_011446.dump`，68 MB，27 张表数据可读） |
-| C-16 | 生产库 | 迁移后数据完整性回归：行数与时间范围与迁移前一致 | `SELECT count(*), min(ts), max(ts) FROM quote.finv_quote_secu_kline_min;` 与迁移前一致 | ☑ 2026-10-24（迁移后 2,804,329 行、1541737200–1784615520，与迁移前一致） |
+| C-16 | 生产库 | 迁移后数据完整性回归：行数与时间范围与迁移前一致 | `SELECT count(*), min(ts), max(ts) FROM quote.finv_quote_secu_kline_min;` 与迁移前一致 | ⚠ **作废**：该判定以 `quote.` 表存在为前提；`V38` 后该表消失，`V76` 恢复后需重跑（当前 quote 侧 2,802,911 行） |
 | C-17 | 生产库 | 触发器仍生效：更新一行后 `gmt_update` 自动刷新 | `UPDATE quote.finv_quote_secu_kline_min SET remark = remark WHERE ts = (SELECT min(ts) ...)` 后 `gmt_update > gmt_create` | ☑ 2026-10-24（更新一行后 `gmt_update` 刷新为迁移当日，触发器跨 schema 仍生效） |
 
 ## 1.7 C4 文档
 
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
-| C-18 | `Docs/API/HistoryQuote/{HistoryQuote,ImportsUpload}.md` | 表名加 `quote.` 前缀 | `grep -c "quote.finv_quote_"` 不小于 1 | ☑ 2026-10-24 |
+| C-18 | `Docs/API/HistoryQuote/{HistoryQuote,ImportsUpload}.md` | 表名加 `quote.` 前缀 | `grep -c "quote.finv_quote_"` 不小于 1 | ⚠ **作废**：`V38` 曾改为 `dedup.`，2026-10-27 已改回 `quote.`（`Docs/API/HistoryQuote/ImportsUpload.md`） |
 | C-19 | `Docs/API/Backtest/{RunCreate,StrategySave}.md`、`Docs/Menu/Backtest/*.md`（5 篇） | 表名加 `quant.` 前缀 | 各文件旧写法清零（无未加前缀的 `finv_quant_`） | ☑ 2026-10-24 |
-| C-20 | `Docs/DataFormat/MvsvFileFormat.md`、`Docs/Menu/HistoryQuote/HistoryQuoteImport.md` | 落库表名加 `quote.` 前缀 | 同上 | ☑ 2026-10-24 |
+| C-20 | `Docs/DataFormat/MvsvFileFormat.md`、`Docs/Menu/HistoryQuote/HistoryQuoteImport.md` | 落库表名加 `quote.` 前缀 | 同上 | ⚠ **作废**：同上，落库表名现为 `quote.finv_quote_secu_kline_min` |
 | C-21 | `Docs/DevSpec/BacktestStrategySpec.md` | 第 13 章表结构说明中的表名加 `quant.` 前缀 | 同上 | ☑ 2026-10-24 |
 | C-22 | `Prompt.md` | 技术基线段中的表名同步 | 同上 | ☑ 2026-10-24 |
 | C-23 | `Docs/DevSpec/DocSpec.md` 或 `FileNamingSpec.md` | 补充「数据库对象命名：按域分 schema，表名保留业务前缀」约定 | 规范含该条款 | ☑ 2026-10-24 |
@@ -108,8 +115,8 @@
 | C-28 | 运行环境 | 服务与接口回归 | `/API/V1/Version` 正常、`/Health/Ready` 200、`QuoteQuery?usc=GCMain` 返回 bars、回测 `Run/List` 正常 | ☑ 2026-10-24（版本 0.1.1、`QuoteQuery` 正常、`Run/List`/`Strategy/List`/`Environment/List` 正常、前端 200） |
 | C-29 | 运行环境 | `search_path` 生效确认 | `SHOW search_path;` 含 `public, quote, quant` | ☑ 2026-10-24（`public, quote, quant`） |
 | C-30 | 运行环境 | 容器日志无 ERROR | `docker logs finvquant 2>&1 \| grep -ciE "ERROR\|失败\|panic"` 为 `0` | ☑ 2026-10-24（0 条） |
-| C-31 | `Deploy/Migrations/V100024__finv_quant_seed_tables_move_to_quant_schema.sql`（新建，执行中新发现） | `V32` 早于种子段，而 `V100023` 用 `CREATE TABLE IF NOT EXISTS` 新建了 3 张 `finv_quant_*` 表（`backtest_del_task`/`del_log`/`run_archive`），在全新库中会落到 `search_path` 首个 schema（`public`）；新增 `V100024`（编号 > 100023）在种子之后把这 3 张表移入 `quant`，存量库中为空操作（幂等） | 文件存在且含 `SET SCHEMA quant`；全新库验证后 `quant` 表数为 13 | ☑ 2026-10-24 |
-| C-32 | `Deploy/Migrations/V100019__...seed.sql`、`V100023__...del_task.sql`（执行中新发现，历史迁移例外） | A 改造已把 `secu_code` 改名 `usc`，但这两个种子迁移在 `V29` **之后**执行且仍引用旧列名：`V100019` 的 INSERT 列表、`V100023` 的 `CREATE TABLE` 列定义。不改会让**全新库首次部署在 V100019 失败**（实测报错：column "secu_code" ... does not exist）；本次仅改这两处列名，对已应用库无影响（`schema_version` 跳过），并在 `DbSchemaSpec` §4 登记为例外 | 两个文件内 `secu_code` 清零；全新库全链迁移成功 | ☑ 2026-10-24 |
+| C-31 | `Deploy/Migrations/V200024__finv_quant_seed_tables_move_to_quant_schema.sql`（新建，执行中新发现） | `V32` 早于种子段，而 `V100023` 用 `CREATE TABLE IF NOT EXISTS` 新建了 3 张 `finv_quant_*` 表（`backtest_del_task`/`del_log`/`run_archive`），在全新库中会落到 `search_path` 首个 schema（`public`）；新增 `V100024`（编号 > 100023）在种子之后把这 3 张表移入 `quant`，存量库中为空操作（幂等） | 文件存在且含 `SET SCHEMA quant`；全新库验证后 `quant` 表数为 13 | ☑ 2026-10-24 |
+| C-32 | `Deploy/Migrations/V200019__...seed.sql`、`V200023__...del_task.sql`（执行中新发现，历史迁移例外） | A 改造已把 `secu_code` 改名 `usc`，但这两个种子迁移在 `V29` **之后**执行且仍引用旧列名：`V100019` 的 INSERT 列表、`V100023` 的 `CREATE TABLE` 列定义。不改会让**全新库首次部署在 V100019 失败**（实测报错：column "secu_code" ... does not exist）；本次仅改这两处列名，对已应用库无影响（`schema_version` 跳过），并在 `DbSchemaSpec` §4 登记为例外 | 两个文件内 `secu_code` 清零；全新库全链迁移成功 | ☑ 2026-10-24 |
 
 ---
 
@@ -127,8 +134,8 @@
 
 ```bash
 # 迁移脚本结构
-grep -c "CREATE SCHEMA IF NOT EXISTS" Deploy/Migrations/V32__move_finv_tables_to_quote_quant_schemas.sql   # 期望 2
-grep -c "SET SCHEMA" Deploy/Migrations/V32__move_finv_tables_to_quote_quant_schemas.sql                    # 期望 16
+grep -c "CREATE SCHEMA IF NOT EXISTS" Deploy/Migrations/V100032__move_finv_tables_to_quote_quant_schemas.sql   # 期望 2
+grep -c "SET SCHEMA" Deploy/Migrations/V100032__move_finv_tables_to_quote_quant_schemas.sql                    # 期望 16
 
 # 代码中的表名均带 schema 前缀（排除纯注释行较难，人工复核注释即可）
 grep -rn "FROM finv_quote_\|INTO finv_quote_\|FROM finv_quant_\|INTO finv_quant_\|UPDATE finv_quant_\|UPDATE finv_quote_" internal/ --include="*.go"   # 期望为空

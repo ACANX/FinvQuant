@@ -1,7 +1,7 @@
 # FinvCurrency — 货币字典映射
 
 > 所属：FinvQuant 数据字典映射 · 存放：`Docs/DataDictMapping/FinvCurrency.md`
-> 数据表：`finv_currency`（表结构：[`Deploy/Migrations/V4__finv_currency.sql`](../../Deploy/Migrations/V4__finv_currency.sql)；初始数据：[`Deploy/Migrations/V100001__finv_currency_seed.sql`](../../Deploy/Migrations/V100001__finv_currency_seed.sql)）
+> 数据表：`finv_currency`（表结构：[`Deploy/Migrations/V100004__finv_currency.sql`](../../Deploy/Migrations/V100004__finv_currency.sql)；初始数据：[`Deploy/Migrations/V200001__finv_currency_seed.sql`](../../Deploy/Migrations/V200001__finv_currency_seed.sql)）
 > 用途：货币类型/名称/最新兑换人民币汇率字典，供市场与行情计价换算使用。
 
 ## 1. 表结构

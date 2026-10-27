@@ -35,12 +35,12 @@
 
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
-| A-01 | `Deploy/Migrations/V29__rename_secu_code_to_usc.sql`（新建） | 在一个事务内对 6 张表 `RENAME COLUMN secu_code TO usc`：`finv_quote_secu_kline_min`、`finv_quote_ingest_batches`、`finv_quote_revision_log`、`finv_quant_backtest_strategy`、`finv_quant_backtest_run`、`finv_quant_backtest_run_archive`；全部用 `information_schema.columns` 存在性判断保证幂等 | 文件存在且 `BEGIN;`/`COMMIT;` 各 1 处 | ☑ 2026-10-24 |
-| A-02 | `Deploy/Migrations/V29__...sql` | 重命名依赖该列的 3 个索引：`idx_finv_quote_secu_secu_ts`→`idx_finv_quote_usc_ts`、`idx_finv_quant_backtest_strategy_secu`→`idx_finv_quant_backtest_strategy_usc`、`idx_finv_quant_backtest_run_secu`→`idx_finv_quant_backtest_run_usc`；使用 `ALTER INDEX IF EXISTS ... RENAME TO` | 三条 `RENAME TO` 各 1 处 | ☑ 2026-10-24 |
-| A-03 | `Deploy/Migrations/V29__...sql` | 主键 `finv_quote_secu_kline_min_pkey (ts, secu_code)` 保持名称不变（列引用自动跟随），脚本中不重建主键 | 脚本内无 `DROP CONSTRAINT` / `ADD CONSTRAINT ... PRIMARY KEY` | ☑ 2026-10-24 |
+| A-01 | `Deploy/Migrations/V100029__rename_secu_code_to_usc.sql`（新建） | 在一个事务内对 6 张表 `RENAME COLUMN secu_code TO usc`：`finv_quote_secu_kline_min`、`finv_quote_ingest_batches`、`finv_quote_revision_log`、`finv_quant_backtest_strategy`、`finv_quant_backtest_run`、`finv_quant_backtest_run_archive`；全部用 `information_schema.columns` 存在性判断保证幂等 | 文件存在且 `BEGIN;`/`COMMIT;` 各 1 处 | ☑ 2026-10-24 |
+| A-02 | `Deploy/Migrations/V100029__...sql` | 重命名依赖该列的 3 个索引：`idx_finv_quote_secu_secu_ts`→`idx_finv_quote_usc_ts`、`idx_finv_quant_backtest_strategy_secu`→`idx_finv_quant_backtest_strategy_usc`、`idx_finv_quant_backtest_run_secu`→`idx_finv_quant_backtest_run_usc`；使用 `ALTER INDEX IF EXISTS ... RENAME TO` | 三条 `RENAME TO` 各 1 处 | ☑ 2026-10-24 |
+| A-03 | `Deploy/Migrations/V100029__...sql` | 主键 `finv_quote_secu_kline_min_pkey (ts, secu_code)` 保持名称不变（列引用自动跟随），脚本中不重建主键 | 脚本内无 `DROP CONSTRAINT` / `ADD CONSTRAINT ... PRIMARY KEY` | ☑ 2026-10-24 |
 | A-04 | 运行环境 | 应用迁移后核验列名 | `psql -c "\d finv_quote_secu_kline_min"` 输出含 `usc`、不含 `secu_code`；`\di idx_finv_quote_usc_ts` 存在 | ☑ 2026-10-24（临时 PG18 库 + **生产库实测**：6 表列改名、5 索引改名成功，`idx_finv_quote_usc_ts` 存在） |
 | A-05 | 运行环境 | 存量数据可读性回归 | `SELECT count(*), min(ts), max(ts) FROM finv_quote_secu_kline_min;` 与迁移前一致 | ☑ 2026-10-24（生产库部署后复核：2,804,329 行、3 个证券、`min(ts)=1541737200` / `max(ts)=1784615520`，与迁移前一致） |
-| A-06 | `Deploy/Migrations/V1__...`、`V21__...`、`V22__...`、`V24__...`、`V100019__...`、`V100023__...` | **保持原样不改**（历史迁移不可回改），仅在提交说明中注明「历史迁移保留 secu_code」 | `git diff --stat -- Deploy/Migrations/V1* V21* V22* V24* V100019* V100023*` 输出为空 | ☑ 2026-10-24 |
+| A-06 | `Deploy/Migrations/V100001__...`、`V100021__...`、`V100022__...`、`V100024__...`、`V200019__...`、`V200023__...` | **保持原样不改**（历史迁移不可回改），仅在提交说明中注明「历史迁移保留 secu_code」 | `git diff --stat -- Deploy/Migrations/V1* V21* V22* V24* V100019* V100023*` 输出为空 | ☑ 2026-10-24 |
 
 ## 1.4 A2 Go 后端
 
@@ -92,9 +92,9 @@
 | A-35 | `Docs/RequirementList.md` | 自 `10056` 起追加 A 的验收条目（DB 列名、索引名、API 字段、前端字段、文档零残留） | 编号连续、核对命令实跑通过 | ☑ 2026-10-24 |
 | A-36 | `VERSION` | 版本号递增（`0.1.0` → `0.1.1`），发布后打 tag | `cat VERSION` 为新版本；`git tag` 含对应 tag | ☑ 2026-10-24（VERSION=0.1.1；tag 待发布） |
 | A-37 | `Deploy/Win11DockerUpgrade.md`、`Deploy/upgrade.cmd` | 说明升级必须「停旧容器 → 拉新镜像 → 启动（自动迁移）」，禁止新旧镜像共存 | 文档含该约束段 | ☑ 2026-10-24 |
-| A-38 | `Deploy/Migrations/V29__...sql`（执行中新发现） | `A-02` 只列 3 个索引，实际另有 2 个审计表索引依赖该列：`idx_finv_quote_ingest_batches_secu`→`idx_finv_quote_ingest_batches_usc`、`idx_finv_quote_revision_log_secu`→`idx_finv_quote_revision_log_usc`，已在 `V29` 中一并改名 | 两条 `idx_*_usc` 各 1 处 | ☑ 2026-10-24 |
+| A-38 | `Deploy/Migrations/V100029__...sql`（执行中新发现） | `A-02` 只列 3 个索引，实际另有 2 个审计表索引依赖该列：`idx_finv_quote_ingest_batches_secu`→`idx_finv_quote_ingest_batches_usc`、`idx_finv_quote_revision_log_secu`→`idx_finv_quote_revision_log_usc`，已在 `V29` 中一并改名 | 两条 `idx_*_usc` 各 1 处 | ☑ 2026-10-24 |
 | A-39 | `internal/webui/dist/`（执行中新发现） | All-in-One 镜像通过 `go:embed dist` 内嵌前端产物，前端改名后须重新 `npm run build` 并复制到 `internal/webui/dist/`（该目录不入库，构建时生成） | `grep -rc "secu_code" internal/webui/dist/assets/*.js` 全为 `0` | ☑ 2026-10-24 |
-| A-40 | `Deploy/Migrations/V100019__...seed.sql`、`V100023__...del_task.sql`（执行中新发现，历史迁移例外） | 这两支种子迁移在 `V29` **之后**执行却仍引用旧列名 `secu_code`（`V100019` 的 INSERT 列清单、`V100023` 的 `CREATE TABLE` 列定义），会导致**全新库首次部署失败**；仅修正这两处列名，对已应用库无影响（`schema_version` 跳过），例外规则登记在 `Docs/DevSpec/DbSchemaSpec.md` §4 | 两文件 `secu_code` 清零；全新库全链迁移通过 | ☑ 2026-10-24 |
+| A-40 | `Deploy/Migrations/V200019__...seed.sql`、`V200023__...del_task.sql`（执行中新发现，历史迁移例外） | 这两支种子迁移在 `V29` **之后**执行却仍引用旧列名 `secu_code`（`V100019` 的 INSERT 列清单、`V100023` 的 `CREATE TABLE` 列定义），会导致**全新库首次部署失败**；仅修正这两处列名，对已应用库无影响（`schema_version` 跳过），例外规则登记在 `Docs/DevSpec/DbSchemaSpec.md` §4 | 两文件 `secu_code` 清零；全新库全链迁移通过 | ☑ 2026-10-24 |
 
 ---
 

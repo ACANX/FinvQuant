@@ -1,16 +1,16 @@
 # FinvRegion — 区域字典映射
 
 > 所属：FinvQuant 数据字典映射 · 存放：`Docs/DataDictMapping/FinvRegion.md`
-> 数据表：`finv_region`（表结构：[`Deploy/Migrations/V6__finv_region.sql`](../../Deploy/Migrations/V6__finv_region.sql)；约束放宽：[`Deploy/Migrations/V11__finv_region_allow_idx_zero.sql`](../../Deploy/Migrations/V11__finv_region_allow_idx_zero.sql)；新增 name 列：[`Deploy/Migrations/V12__finv_region_add_name.sql`](../../Deploy/Migrations/V12__finv_region_add_name.sql)；初始数据：[`Deploy/Migrations/V100004__finv_region_seed.sql`](../../Deploy/Migrations/V100004__finv_region_seed.sql)）
+> 数据表：`finv_region`（表结构：[`Deploy/Migrations/V100006__finv_region.sql`](../../Deploy/Migrations/V100006__finv_region.sql)；约束放宽：[`Deploy/Migrations/V100011__finv_region_allow_idx_zero.sql`](../../Deploy/Migrations/V100011__finv_region_allow_idx_zero.sql)；新增 name 列：[`Deploy/Migrations/V100012__finv_region_add_name.sql`](../../Deploy/Migrations/V100012__finv_region_add_name.sql)；初始数据：[`Deploy/Migrations/V200004__finv_region_seed.sql`](../../Deploy/Migrations/V200004__finv_region_seed.sql)）
 > 用途：区域代码字典（idx 数字序号 + region 区域简写 + name 中文名称），供交易所/市场按区域归类与查询。
 
 ## 1. 表结构
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
-| `idx` | INTEGER | PK，0~999999 | 区域序号（数字）；V11 起允许 0（未知/默认） |
+| `idx` | INTEGER | PK，0~999999 | 区域序号（数字）；V100011 起允许 0（未知/默认） |
 | `region` | TEXT | NOT NULL, UNIQUE | 区域简写（如 `CN` / `HK` / `USA` / `JP`） |
-| `name` | TEXT | 可空 | 区域中文名称（如 `中国大陆` / `香港` / `美国`，V12 新增） |
+| `name` | TEXT | 可空 | 区域中文名称（如 `中国大陆` / `香港` / `美国`，V100012 新增） |
 | `gmt_create` | TIMESTAMPTZ | NOT NULL DEFAULT now() | 首次插入时间 |
 | `gmt_update` | TIMESTAMPTZ | NOT NULL DEFAULT now() | 最后更新时间（触发器维护） |
 
@@ -49,7 +49,7 @@
 ## 3. 说明
 
 - **idx=0**：V6 原约束 `CHECK (idx BETWEEN 1 AND 999999)` 不允许 0；V11 放宽为 `0~999999`（DROP + ADD 同约束名，幂等），以与富途 region 源数据一一对应。
-- **name 列**：V12 新增（TEXT 可空）；种子 `ON CONFLICT (idx) DO UPDATE SET name = EXCLUDED.name`，已存在数据（如手动插入）也会自动回填 name。
+- **name 列**：V100012 新增（TEXT 可空）；种子 `ON CONFLICT (idx) DO UPDATE SET name = EXCLUDED.name`，已存在数据（如手动插入）也会自动回填 name。
 - **idx 段位**：0~1 为保留区（未知/默认、全球），101~123 为正式区域（原值 +99），2~100 段预留扩展。
 - **关联参考**：[`FinvExchange.md`](FinvExchange.md) 中 `finv_exchange.region`（如 `CN` / `HK` / `USA` / `JP`）可对齐本表 `region` 建立区域维度归类（关联规则待定，不建物理外键，程序层控制）。
 - **审计字段**：`gmt_create` / `gmt_update` 与既有表规范一致，`gmt_update` 由 `vq_set_gmt_update()` 触发器自动维护。

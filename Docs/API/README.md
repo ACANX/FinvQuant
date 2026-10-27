@@ -58,6 +58,10 @@
   - [`Meta/MetaSecurity.md`](Meta/MetaSecurity.md) — `GET/POST /API/V1/Meta/Finv/Quant/Metadata/Security/*`（规范证券信息维护，含 `Options` 下拉与 `Lookup` 详情查询）
   - 证券行情月归档导出与上传（`/API/V1/Meta/Finv/Quote/DeDup/*`，**一个接口一个文档**）：
     - [`QuoteDeDup/Status.md`](QuoteDeDup/Status.md) — `GET .../DeDup/Status`（归档链路指标、运行参数与调度表）
+    - [`QuoteDeDup/JobRuntime.md`](QuoteDeDup/JobRuntime.md) — `GET .../DeDup/Job/Runtime`（10 个 Job 运行快照：阶段 / 进度 / 心跳 / 最近结果）
+    - [`QuoteDeDup/Settings.md`](QuoteDeDup/Settings.md) — `GET .../DeDup/Settings` + `PUT .../Settings/Window`（低峰窗口在线修改）
+    - [`QuoteDeDup/CDEUOverview.md`](QuoteDeDup/CDEUOverview.md) — `GET .../DeDup/CDEU/Overview`（CDEU 工作流定义树 + 运行状态 + 历史运行）
+    - [`QuoteDeDup/CDEUWorkflowRun.md`](QuoteDeDup/CDEUWorkflowRun.md) — `POST .../DeDup/CDEU/Workflow/Run`（手动启动完整 CDEU 工作流；兼容旧 `/Process/Run`）
     - [`QuoteDeDup/JobList.md`](QuoteDeDup/JobList.md) — `GET .../DeDup/Job/List`（分页查询导出任务）
     - [`QuoteDeDup/FileList.md`](QuoteDeDup/FileList.md) — `GET .../DeDup/File/List`（分页查询导出文件与上传状态）
     - [`QuoteDeDup/JobRetry.md`](QuoteDeDup/JobRetry.md) — `POST .../DeDup/Job/Retry`（重置任务为 `WAITING`）
@@ -70,7 +74,7 @@
     - [`QuoteDeDup/Stats.md`](QuoteDeDup/Stats.md) — `GET .../Stats/Page`（入口日统计）
     - [`QuoteDeDup/Budget.md`](QuoteDeDup/Budget.md) — `GET .../Budget/Page` + `PUT .../Budget/Override`
     - [`QuoteDeDup/Watermark.md`](QuoteDeDup/Watermark.md) — `GET .../Watermark/List` + `PUT .../Watermark`（重置）
-    - [`QuoteDeDup/RunLog.md`](QuoteDeDup/RunLog.md) — `GET .../RunLog/Page`（Job 运行日志）
+    - [`QuoteDeDup/RunLog.md`](QuoteDeDup/RunLog.md) — `GET .../RunLog/Page`（Job 运行日志）+ `GET .../RunLog/Detail`（单次详细日志）
     - [`QuoteDeDup/UploadLog.md`](QuoteDeDup/UploadLog.md) — `GET .../UploadLog/Page`（上传审计）
     - [`QuoteDeDup/Patch.md`](QuoteDeDup/Patch.md) — `GET .../Patch/Page` + `POST .../Patch/Retry`
     - [`QuoteDeDup/JobControl.md`](QuoteDeDup/JobControl.md) — `POST .../Job/Pause|Cancel`（暂停 / 取消）

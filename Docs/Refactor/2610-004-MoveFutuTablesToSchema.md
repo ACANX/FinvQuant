@@ -50,7 +50,7 @@
 
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
-| D-01 | `Deploy/Migrations/V33__move_finv_futu_tables_to_futu_schema.sql`（新建） | 单事务：`CREATE SCHEMA IF NOT EXISTS futu;` | 文件存在且含该语句 | ☑ 2026-10-24 |
+| D-01 | `Deploy/Migrations/V100033__move_finv_futu_tables_to_futu_schema.sql`（新建） | 单事务：`CREATE SCHEMA IF NOT EXISTS futu;` | 文件存在且含该语句 | ☑ 2026-10-24 |
 | D-02 | 同上 | 5 张表 `ALTER TABLE public.<t> SET SCHEMA futu`（`cs_market` / `exchange` / `market_code` / `region` / `security`），逐表 `pg_tables` 判断保证幂等 | 脚本内 5 个表名齐全且含 `schemaname = 'public'` 判断 | ☑ 2026-10-24 |
 | D-03 | 同上 | `ALTER DATABASE <当前库> SET search_path TO public, quote, quant, futu;`（`current_database()` 动态取库名） | 脚本含 `ALTER DATABASE` 与 `current_database()` | ☑ 2026-10-24 |
 | D-04 | 同上 | 收敛校验：`public` 中不得残留 `finv_futu_*`，且 `futu` 中 5 张表齐全，否则 `RAISE EXCEPTION` 整体回滚 | 脚本含两条 `RAISE EXCEPTION` | ☑ 2026-10-24 |
@@ -119,8 +119,8 @@
 
 ```bash
 # 迁移脚本结构
-grep -c "CREATE SCHEMA IF NOT EXISTS futu" Deploy/Migrations/V33__move_finv_futu_tables_to_futu_schema.sql   # 期望 1
-grep -oE "'finv_futu_[a-z_]+" Deploy/Migrations/V33__move_finv_futu_tables_to_futu_schema.sql | sort -u | wc -l   # 期望 5
+grep -c "CREATE SCHEMA IF NOT EXISTS futu" Deploy/Migrations/V100033__move_finv_futu_tables_to_futu_schema.sql   # 期望 1
+grep -oE "'finv_futu_[a-z_]+" Deploy/Migrations/V100033__move_finv_futu_tables_to_futu_schema.sql | sort -u | wc -l   # 期望 5
 
 # 代码与文档零裸表名（计划文档/变更日志/需求清单除外）
 grep -rn "finv_futu" internal/ --include="*.go" | grep -v "// "                               # 期望为空

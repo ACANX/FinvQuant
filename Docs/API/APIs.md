@@ -71,7 +71,7 @@
 | 60 | GET | `/API/V1/Meta/Finv/Quote/DeDup/File/List` | 分页查询导出文件与上传状态 | [QuoteDeDup/FileList.md](QuoteDeDup/FileList.md) | 文件与上传 |
 | 61 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Job/Retry` | 重试导出任务（重置为 `WAITING`） | [QuoteDeDup/JobRetry.md](QuoteDeDup/JobRetry.md) | 导出任务 |
 | 62 | POST | `/API/V1/Meta/Finv/Quote/DeDup/File/Retry` | 重试上传（重置为 `PENDING_UPLOAD`） | [QuoteDeDup/FileRetry.md](QuoteDeDup/FileRetry.md) | 文件与上传 |
-| 63 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Job/Run` | 手动触发归档 Job（异步，同类 Job 互斥） | [QuoteDeDup/JobRun.md](QuoteDeDup/JobRun.md) | 归档监控总览 |
+| 63 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Job/Run` | 手动触发归档 Job（异步，返回 `run_log_id`，可选续跑后续 JOB） | [QuoteDeDup/JobRun.md](QuoteDeDup/JobRun.md) | 归档监控总览 |
 | 64 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Usc/Page` | 分页查询证券主数据（含 `day_expect_rows` 校准值） | [QuoteDeDup/Usc.md](QuoteDeDup/Usc.md) | 归档主数据与规则 |
 | 65 | PUT | `/API/V1/Meta/Finv/Quote/DeDup/Usc` | 新增或更新证券主数据 | [QuoteDeDup/Usc.md](QuoteDeDup/Usc.md) | 归档主数据与规则 |
 | 66 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Priority/List` | 查询证券优先级 / SLA | [QuoteDeDup/Priority.md](QuoteDeDup/Priority.md) | 归档主数据与规则 |
@@ -87,12 +87,18 @@
 | 76 | PUT | `/API/V1/Meta/Finv/Quote/DeDup/Budget/Override` | 管理员覆盖当日预算 | [QuoteDeDup/Budget.md](QuoteDeDup/Budget.md) | 归档统计与预算 |
 | 77 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Watermark/List` | 查询扫描水位 | [QuoteDeDup/Watermark.md](QuoteDeDup/Watermark.md) | 归档统计与预算 |
 | 78 | PUT | `/API/V1/Meta/Finv/Quote/DeDup/Watermark` | 重置扫描水位（高危） | [QuoteDeDup/Watermark.md](QuoteDeDup/Watermark.md) | 归档统计与预算 |
-| 79 | GET | `/API/V1/Meta/Finv/Quote/DeDup/RunLog/Page` | 分页查询 Job 运行日志 | [QuoteDeDup/RunLog.md](QuoteDeDup/RunLog.md) | 归档日志与补丁 |
+| 79 | GET | `/API/V1/Meta/Finv/Quote/DeDup/RunLog/Page` | 分页查询 Job 运行日志（含阶段 / 进度 / 心跳） | [QuoteDeDup/RunLog.md](QuoteDeDup/RunLog.md) | 归档日志与补丁 |
 | 80 | GET | `/API/V1/Meta/Finv/Quote/DeDup/UploadLog/Page` | 分页查询上传审计 | [QuoteDeDup/UploadLog.md](QuoteDeDup/UploadLog.md) | 归档日志与补丁 |
 | 81 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Patch/Page` | 分页查询补丁任务 | [QuoteDeDup/Patch.md](QuoteDeDup/Patch.md) | 归档日志与补丁 |
 | 82 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Patch/Retry` | 重试补丁任务（重置为 `PENDING`） | [QuoteDeDup/Patch.md](QuoteDeDup/Patch.md) | 归档日志与补丁 |
 | 83 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Job/Pause` | 暂停导出任务 | [QuoteDeDup/JobControl.md](QuoteDeDup/JobControl.md) | 导出任务 |
 | 84 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Job/Cancel` | 取消导出任务 | [QuoteDeDup/JobControl.md](QuoteDeDup/JobControl.md) | 导出任务 |
+| 85 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Job/Runtime` | 10 个 Job 的运行快照（当前阶段 / 进度 / 心跳 / 最近结果 / 24 小时统计） | [QuoteDeDup/JobRuntime.md](QuoteDeDup/JobRuntime.md) | 端到端链路 |
+| 86 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Settings` | 查询运行时设置（低峰窗口、来源、更新时间、是否在窗口内） | [QuoteDeDup/Settings.md](QuoteDeDup/Settings.md) | 端到端链路 |
+| 87 | PUT | `/API/V1/Meta/Finv/Quote/DeDup/Settings/Window` | 在线修改低峰窗口（保存后立即生效） | [QuoteDeDup/Settings.md](QuoteDeDup/Settings.md) | 端到端链路 |
+| 88 | GET | `/API/V1/Meta/Finv/Quote/DeDup/CDEU/Overview` | CDEU 工作流定义树、指定运行状态与历史运行 | [QuoteDeDup/CDEUOverview.md](QuoteDeDup/CDEUOverview.md) | 工作流控制与监控 |
+| 89 | POST | `/API/V1/Meta/Finv/Quote/DeDup/CDEU/Workflow/Run` | 手动启动完整 CDEU 工作流（后台按 Phase → Process → JOB → Step 执行） | [QuoteDeDup/CDEUWorkflowRun.md](QuoteDeDup/CDEUWorkflowRun.md) | 工作流控制与监控 |
+| 90 | GET | `/API/V1/Meta/Finv/Quote/DeDup/RunLog/Detail` | 查询单次 Job 运行汇总与详细日志行 | [QuoteDeDup/RunLog.md](QuoteDeDup/RunLog.md) | 归档日志与补丁 / 工作流控制与监控 |
 
 ## 说明
 

@@ -54,18 +54,18 @@
 
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
-| B-01 | `Deploy/Migrations/V30__finv_quote_kline_rename_prev_close_to_last_close.sql`（新建，依赖 A 的 `V29` 已完成） | 单事务、幂等：`information_schema.columns` 判断存在 `prev_close` 后执行 `ALTER TABLE finv_quote_secu_kline_min RENAME COLUMN prev_close TO last_close;` | 文件存在且含存在性判断 | ☑ 2026-10-24 |
+| B-01 | `Deploy/Migrations/V100030__finv_quote_kline_rename_prev_close_to_last_close.sql`（新建，依赖 A 的 `V29` 已完成） | 单事务、幂等：`information_schema.columns` 判断存在 `prev_close` 后执行 `ALTER TABLE finv_quote_secu_kline_min RENAME COLUMN prev_close TO last_close;` | 文件存在且含存在性判断 | ☑ 2026-10-24 |
 | B-02 | 同上 | 列注释：`COMMENT ON COLUMN finv_quote_secu_kline_min.last_close IS '前收盘价（数据源 PrevClose）；与 open 独立，不可作为开盘价或开盘价替代';` | `\d+` 显示该注释 | ☑ 2026-10-24 |
 | B-03 | 运行环境 | 确认该列无索引/约束/视图依赖（改名不需重建其他对象） | `SELECT indexdef FROM pg_indexes WHERE tablename='finv_quote_secu_kline_min';` 结果中无 `prev_close` | ☑ 2026-10-24（生产库只读核实：仅 `pkey` 与 `idx_finv_quote_usc_ts`，无该列索引） |
 | B-04 | 运行环境 | 列名核验 | `\d finv_quote_secu_kline_min` 含 `last_close`、不含 `prev_close` | ☑ 2026-10-24（临时 PG18 库 + 生产库实测：`last_close` 存在、`prev_close` 不存在） |
-| B-05 | `Deploy/Migrations/V1__...` | **保持原样不改**（历史迁移不可回改） | `git diff --stat -- Deploy/Migrations/V1__*` 输出为空 | ☑ 2026-10-24 |
+| B-05 | `Deploy/Migrations/V100001__...` | **保持原样不改**（历史迁移不可回改） | `git diff --stat -- Deploy/Migrations/V100001__*` 输出为空 | ☑ 2026-10-24 |
 | B-06 | 运行环境 | 存量数据可读性回归 | 迁移前后 `SELECT count(*), min(ts), max(ts) FROM finv_quote_secu_kline_min;` 结果一致 | ☑ 2026-10-24（生产库 V30 前后：2,804,329 行、时间范围 1541737200–1784615520 一致） |
 
 ## 2.4 B2 `open` 兜底回填
 
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
-| B-07 | `Deploy/Migrations/V31__finv_quote_kline_backfill_open_from_last_close.sql`（新建） | 单事务：`UPDATE finv_quote_secu_kline_min SET open = last_close WHERE (open IS NULL OR open = 0) AND last_close IS NOT NULL AND last_close <> 0;` | 文件存在；四个条件齐全 | ☑ 2026-10-24 |
+| B-07 | `Deploy/Migrations/V100031__finv_quote_kline_backfill_open_from_last_close.sql`（新建） | 单事务：`UPDATE finv_quote_secu_kline_min SET open = last_close WHERE (open IS NULL OR open = 0) AND last_close IS NOT NULL AND last_close <> 0;` | 文件存在；四个条件齐全 | ☑ 2026-10-24 |
 | B-08 | 同上 | 回填前统计并输出受影响行数：`RAISE NOTICE 'backfill rows=%', cnt;` | 脚本含 `RAISE NOTICE` | ☑ 2026-10-24 |
 | B-09 | 同上 | 留痕：向 `finv_quote_revision_log` 写一条汇总记录（`ingest_batch_id='MIGRATION_V31'`、`market_code=0`、`usc='ALL'`、`reason='last_close 回填 open（缺失/0 值）'`、`affected_rows` 为实测行数、`previous_summary`/`new_summary` 含条件与行数） | 执行后 `SELECT * FROM finv_quote_revision_log ORDER BY revision_id DESC LIMIT 1;` 可查到 | ☑ 2026-10-24 |
 | B-10 | 运行环境 | 回填结果核验 | `SELECT count(*) FROM finv_quote_secu_kline_min WHERE (open IS NULL OR open = 0) AND last_close IS NOT NULL AND last_close <> 0;` 为 `0` | ☑ 2026-10-24（生产库迁移后查询为 0；迁移前预检亦为 0，即 V31 实际回填 0 行，`revision_log` 无 `MIGRATION_V31` 记录） |
@@ -123,7 +123,7 @@ grep -rn "PrevClose" internal/ --include="*.go" | grep -v "FieldName" # 期望�
 grep -rn "prev_close\|prevClose" Web/src/                             # 期望输出为空
 
 # 历史迁移未被修改
-git diff --stat -- Deploy/Migrations/V1__*
+git diff --stat -- Deploy/Migrations/V100001__*
 
 # 构建与测试
 go build ./... && go test ./...
