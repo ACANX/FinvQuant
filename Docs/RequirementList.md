@@ -1927,6 +1927,38 @@ COMMIT;
 |---|---|---|---|
 | 10762 | 新增与既有的两个通用模块按 `internal/meta/finv/<域>/` 结构归位：`internal/auth` → `internal/meta/finv/auth`，`internal/syscfg` → `internal/meta/finv/sys`。仅移动目录与更新 import 路径，包名、行为与导出符号一律不变。 | `test ! -d internal/auth && test ! -d internal/syscfg`；`ls internal/meta/finv/auth/*.go internal/meta/finv/sys/*.go` 各有 4 个与 2 个文件；`grep -rn 'finvquant/internal/auth"\|finvquant/internal/syscfg"' --include=*.go .` 无输出；`go build ./... && go vet ./... && go test ./...` 全绿 | √ |
 
+## 九十八、登录后修改密码（10763）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10763 | 登录用户可自助修改密码：① 必须校验当前密码；② 新密码需满足强度规则（长度 8–64 位，且含大写/小写/数字/符号中至少 3 类）；③ 新密码不得与当前密码相同；④ 修改时重新生成盐与 argon2id 哈希（**不落明文**）；⑤ 修改成功后吊销该用户在其它设备上的全部会话，**保留当前会话**避免本人被踢出；⑥ 前端在顶栏用户菜单提供入口，对话框中三个口令输入框都支持右侧眼睛图标切换明文/密文。 | `POST /API/V1/Auth/ChangePassword`：旧密码错、仅小写 8 位、新旧相同三种情形均返回 400 且 `message` 指明原因；正常修改返回 `code=0` 与 `data.revoked_sessions`；改后旧密码登录 401、新密码登录 200；操作会话仍可访问 `/Auth/Profile`（200），另一并发会话变 401；`select password_salt from sys.sys_user where uid='finv'` 在改密前后取值不同且匹配 `^[0-9a-f]{32}$`；`select count(*) from sys.sys_user where password like '%finv@2026%'` = 0；`grep -c 'append-inner-icon' Web/src/views/Common/ChangePasswordDialog.vue` ≥ 3 | √ |
+
+### 10763 口令强度规则
+
+| 规则 | 取值 | 理由 |
+|---|---|---|
+| 长度 | 8–64 位 | 上限防止超长输入拖慢 argon2（每字节都参与计算） |
+| 类别 | 大写/小写/数字/符号中至少 **3** 类 | 强制四类会逼出 `Passw0rd!` 这类可预测变形，3 类在可用性与强度间更平衡 |
+| 新旧 | 不得相同 | 轮换应产生新凭据，而不是原地重复 |
+
+服务端 `ValidatePasswordStrength` 与前端 `strengthOk` 使用同一口径，前端仅做即时反馈，**裁决权在服务端**。
+
+### 10763 会话吊销设计
+
+会话键是 `token → 会话`，无法按用户反查，因此新增反向索引：
+
+```
+finv:auth:user:<user_id>   (Set，保存该用户全部 token)
+```
+
+| 时机 | 动作 |
+|---|---|
+| 登录成功 | `SADD` 索引 |
+| 登出 | `DEL` 会话键 + `SREM` 索引 |
+| 修改密码 | 遍历索引，`DEL` 除当前 token 外的全部会话键并 `SREM`；索引项无论会话是否仍存在一律移除（顺带清理过期残留） |
+
+> 索引不设 TTL，但每次吊销都会清理对应项，不会无限增长。
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2050,7 +2082,8 @@ COMMIT;
 | 回填数据与完整链路验证 | 10760 | 1 |
 | 登录认证与访问拦截 | 10761 | 1 |
 | 认证与配置模块目录归位 | 10762 | 1 |
-| **合计** | **10001–10762** | **762** |
+| 登录后修改密码 | 10763 | 1 |
+| **合计** | **10001–10763** | **763** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10763` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10764` 起往后追加，不插入既有区间。

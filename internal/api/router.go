@@ -89,6 +89,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 		if deps.Auth != nil {
 			authHandler := handler.NewAuth(deps.Auth)
 			apiGroup.POST("/Auth/Logout", authHandler.Logout)
+			apiGroup.POST("/Auth/ChangePassword", authHandler.ChangePassword)
 			apiGroup.GET("/Auth/Profile", authHandler.Profile)
 		}
 		// 分钟行情 K 线：新前缀 + 旧前缀过渡别名（同一组 handler，P7 后可移除旧前缀）

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -20,6 +21,12 @@ const ContextSessionKey = "finv.auth.session"
 
 // sessionKeyPrefix Redis 会话键前缀。
 const sessionKeyPrefix = "finv:auth:session:"
+
+// userSessionsKeyPrefix 用户会话索引键前缀（Set，保存该用户的全部令牌）。
+//
+// 有了这个索引才能实现「改密后踢掉该用户在别处的登录」：会话键是
+// token → 会话，无法按 userID 反查，必须额外维护反向索引。
+const userSessionsKeyPrefix = "finv:auth:user:"
 
 // tokenBytes 会话令牌随机字节数（hex 后 64 字符）。
 const tokenBytes = 32
@@ -79,6 +86,11 @@ func (s *SessionStore) Create(ctx context.Context, userID int64, uid, nickName s
 	if err := s.rdb.Set(ctx, sessionKeyPrefix+session.Token, payload, ttl).Err(); err != nil {
 		return nil, fmt.Errorf("写入会话失败: %w", err)
 	}
+	// 维护用户会话索引，供改密时批量吊销；索引不设 TTL，
+	// 过期残留由 Revoke 与 RevokeOthers 顺带清理，不会无限增长。
+	if err := s.rdb.SAdd(ctx, userSessionsKey(userID), session.Token).Err(); err != nil {
+		return nil, fmt.Errorf("写入会话索引失败: %w", err)
+	}
 	return session, nil
 }
 
@@ -105,15 +117,54 @@ func (s *SessionStore) Resolve(ctx context.Context, token string) (*Session, err
 	return &session, nil
 }
 
-// Revoke 吊销会话（登出）。
-func (s *SessionStore) Revoke(ctx context.Context, token string) error {
-	if token == "" {
+// Revoke 吊销单个会话并清理其索引项。
+func (s *SessionStore) Revoke(ctx context.Context, session *Session) error {
+	if session == nil || session.Token == "" {
 		return nil
 	}
-	if err := s.rdb.Del(ctx, sessionKeyPrefix+token).Err(); err != nil {
+	if err := s.rdb.Del(ctx, sessionKeyPrefix+session.Token).Err(); err != nil {
 		return fmt.Errorf("吊销会话失败: %w", err)
 	}
+	_ = s.rdb.SRem(ctx, userSessionsKey(session.UserID), session.Token).Err()
 	return nil
+}
+
+// RevokeOthers 吊销同一用户除 keepToken 外的全部会话，返回实际吊销数量。
+//
+// 用于修改口令后让其它设备/标签页的登录立即失效：口令已变而旧会话仍有效
+// 是典型的安全缺口。当前会话保留，避免用户自己刚改完密码就被踢出。
+func (s *SessionStore) RevokeOthers(ctx context.Context, userID int64, keepToken string) (int, error) {
+	if userID == 0 {
+		return 0, nil
+	}
+	key := userSessionsKey(userID)
+	tokens, err := s.rdb.SMembers(ctx, key).Result()
+	if err != nil {
+		return 0, fmt.Errorf("读取用户会话索引失败: %w", err)
+	}
+
+	removed := 0
+	for _, token := range tokens {
+		if token == keepToken {
+			continue
+		}
+		deleted, err := s.rdb.Del(ctx, sessionKeyPrefix+token).Result()
+		if err != nil {
+			// 单条失败不阻断其余会话的吊销
+			continue
+		}
+		if deleted > 0 {
+			removed++
+		}
+		// 无论会话键是否存在都从索引移除：过期的残留也一并清掉
+		_ = s.rdb.SRem(ctx, key, token).Err()
+	}
+	return removed, nil
+}
+
+// userSessionsKey 用户会话索引键。
+func userSessionsKey(userID int64) string {
+	return userSessionsKeyPrefix + strconv.FormatInt(userID, 10)
 }
 
 // Touch 滑动续期：仅在剩余时间不足一半时延长，避免每次请求都写 Redis。

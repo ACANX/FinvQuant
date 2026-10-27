@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { apiPost } from './api'
 import { authState, clearSession } from './auth'
+import ChangePasswordDialog from './views/Common/ChangePasswordDialog.vue'
 
 // 多级菜单定义（支持两级分组：顶级 → 二级 → 三级菜单项）
 // 每个叶子菜单项对应独立 URL 路由路径（见 Web/src/router.ts）
@@ -117,6 +118,21 @@ const drawer = ref(true)
 // 公开页（登录）不渲染导航框架，避免未登录时先闪一下侧边栏
 const isPublicRoute = computed(() => Boolean(route.meta.public))
 
+// 修改密码对话框（需求 10763）
+const changePasswordOpen = ref(false)
+// 顶部提示条：改密结果与吊销的其它会话数
+const toast = ref(false)
+const toastText = ref('')
+
+/** 改密成功回调：当前会话保留，仅提示结果 */
+function onChangePasswordDone(revokedSessions: number): void {
+  toastText.value =
+    revokedSessions > 0
+      ? `密码已修改，已退出其它 ${revokedSessions} 个设备的登录`
+      : '密码已修改'
+  toast.value = true
+}
+
 /** 退出登录：先尽力吊销服务端会话，再清本地状态并回登录页 */
 async function onLogout(): Promise<void> {
   try {
@@ -181,6 +197,11 @@ watch(
             prepend-icon="mdi-account"
           />
           <v-divider />
+          <v-list-item
+            prepend-icon="mdi-lock-reset"
+            title="修改密码"
+            @click="changePasswordOpen = true"
+          />
           <v-list-item prepend-icon="mdi-logout" title="退出登录" @click="onLogout" />
         </v-list>
       </v-menu>
@@ -255,6 +276,11 @@ watch(
         <router-view />
       </v-container>
     </v-main>
+
+    <ChangePasswordDialog v-model="changePasswordOpen" @changed="onChangePasswordDone" />
+    <v-snackbar v-model="toast" :timeout="4000" color="success" location="top">
+      {{ toastText }}
+    </v-snackbar>
     </template>
   </v-app>
 </template>

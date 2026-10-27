@@ -78,6 +78,57 @@ func (h *Auth) Login(c *gin.Context) {
 	})
 }
 
+// changePasswordRequest 修改口令请求体。
+type changePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+// ChangePassword 修改当前登录用户的口令（POST /API/V1/Auth/ChangePassword）。
+//
+// 成功后该用户在其它设备上的会话会被吊销，当前会话保留，因此调用方无需重新登录。
+func (h *Auth) ChangePassword(c *gin.Context) {
+	session, ok := SessionFrom(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录或登录已过期"})
+		return
+	}
+
+	var request changePasswordRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式非法"})
+		return
+	}
+
+	revoked, err := h.service.ChangePassword(
+		c.Request.Context(), session.UserID, session.Token,
+		request.CurrentPassword, request.NewPassword,
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, auth.ErrPasswordMismatch):
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		case errors.Is(err, auth.ErrPasswordSameAsOld):
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		case errors.Is(err, auth.ErrPasswordTooWeak):
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		case errors.Is(err, auth.ErrUserDisabled):
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": err.Error()})
+		case errors.Is(err, auth.ErrUserNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "修改密码失败: " + err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "密码修改成功",
+		"data":    gin.H{"revoked_sessions": revoked},
+	})
+}
+
 // Logout 吊销当前会话（POST /API/V1/Auth/Logout）。
 func (h *Auth) Logout(c *gin.Context) {
 	session, ok := SessionFrom(c)
