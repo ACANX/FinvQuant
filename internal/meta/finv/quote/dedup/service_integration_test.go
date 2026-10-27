@@ -1,4 +1,4 @@
-package dedup
+package dedup_test
 
 import (
 	"context"
@@ -12,7 +12,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/acanx/finvquant/internal/database"
+
+	. "github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
+	_ "github.com/acanx/finvquant/internal/meta/finv/quote/dedup/job"
 )
+
+const integrationUsc = "IT159934"
 
 // TestServiceIntegration 端到端验证 10 个 Job 的编排（默认跳过）。
 //
@@ -38,13 +43,13 @@ func TestServiceIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("解析测试 DSN 失败: %v", err)
 	}
-	config.ConnConfig.RuntimeParams["search_path"] = "public,quote,quant,futu,export,sche,dedup,archive"
+	config.ConnConfig.RuntimeParams["search_path"] = "public,quote,quant,futu,export,sche,dedup,cdeu,archive,sys"
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		t.Fatalf("连接测试库失败: %v", err)
 	}
 	defer pool.Close()
-	if err := database.Migrate(ctx, pool, filepath.Join("..", "..", "Deploy", "Migrations")); err != nil {
+	if err := database.Migrate(ctx, pool, filepath.Join("..", "..", "..", "..", "..", "Deploy", "Migrations")); err != nil {
 		t.Fatalf("执行迁移失败: %v", err)
 	}
 
@@ -63,8 +68,6 @@ func TestServiceIntegration(t *testing.T) {
 		UploadMode:        UploadModeDir,
 		UploadDir:         filepath.Join(root, "upload"),
 		LocalRetention:    0,
-		PurgeMainEnabled:  false,
-		PurgeMainMonths:   2,
 		MaturityThreshold: 0.95,
 		PatchBudgetRatio:  0.5,
 		Compression:       CompressionNone,
@@ -80,47 +83,57 @@ func TestServiceIntegration(t *testing.T) {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cleanupCancel()
 		for _, statement := range []string{
-			`DELETE FROM dedup.finv_dedup_export_file_upload_log WHERE file_id IN (SELECT file_id FROM dedup.finv_dedup_export_file WHERE usc = $1)`,
-			`DELETE FROM dedup.finv_dedup_export_file_patch WHERE usc = $1`,
-			`DELETE FROM dedup.finv_dedup_export_file WHERE usc = $1`,
-			`DELETE FROM dedup.finv_dedup_export_job WHERE usc = $1`,
-			`DELETE FROM dedup.finv_dedup_quote_maturity_mon WHERE usc = $1`,
-			`DELETE FROM dedup.finv_dedup_usc_priority WHERE usc = $1`,
-			`DELETE FROM dedup.finv_dedup_usc WHERE usc = $1`,
-			`DELETE FROM dedup.finv_quote_secu_kline_min WHERE usc = $1`,
+			`DELETE FROM cdeu.finv_quote_cdeu_export_file_upload_log WHERE file_id IN (SELECT file_id FROM cdeu.finv_quote_cdeu_export_file WHERE usc = $1)`,
+			`DELETE FROM cdeu.finv_quote_cdeu_export_file_patch WHERE usc = $1`,
+			`DELETE FROM cdeu.finv_quote_cdeu_export_file WHERE usc = $1`,
+			`DELETE FROM cdeu.finv_quote_cdeu_export_job WHERE usc = $1`,
+			`DELETE FROM cdeu.finv_quote_cdeu_quote_maturity_mon WHERE usc = $1`,
+			`DELETE FROM cdeu.finv_quote_cdeu_usc WHERE usc = $1`,
+			`DELETE FROM cdeu.finv_quote_secu_kline_min WHERE usc = $1`,
 			`DELETE FROM export.finv_quote_secu_kline_min WHERE usc = $1`,
-			`DELETE FROM dedup.finv_dedup_job_run_log_export_file WHERE usc = $1`,
+			`DELETE FROM cdeu.finv_quote_cdeu_job_run_log_export_file WHERE usc = $1`,
 		} {
 			if _, execErr := pool.Exec(cleanupCtx, statement, integrationUsc); execErr != nil {
 				t.Logf("清理测试数据失败（可忽略）: %v", execErr)
 			}
 		}
 		_, _ = pool.Exec(cleanupCtx,
-			`DELETE FROM dedup.finv_dedup_scan_watermark WHERE watermark_name LIKE $1`,
+			`DELETE FROM cdeu.finv_quote_cdeu_scan_watermark WHERE watermark_name LIKE $1`,
 			"POST_SEAL_PATCH_"+integrationUsc+"_%")
 		// 当日预算与入口统计同样清理，保证测试可重复运行。
-		_, _ = pool.Exec(cleanupCtx, `DELETE FROM dedup.finv_dedup_daily_budget WHERE biz_date = current_date`)
-		_, _ = pool.Exec(cleanupCtx, `DELETE FROM dedup.finv_dedup_ingest_stats WHERE stat_date = current_date`)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM cdeu.finv_quote_cdeu_daily_budget WHERE biz_date = current_date`)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM cdeu.finv_quote_cdeu_ingest_stats WHERE stat_date = current_date`)
+		// CDEU 运行实例按日累积；测试库每次清空，保证完成条件断言可重复。
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM cdeu.finv_quote_cdeu_job_step_dynamic`)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM cdeu.finv_quote_cdeu_job_dynamic`)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM cdeu.finv_quote_cdeu_export_batch`)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM cdeu.finv_quote_cdeu_job_step_run`)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM cdeu.finv_quote_cdeu_job_run`)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM cdeu.finv_quote_cdeu_process_run`)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM cdeu.finv_quote_cdeu_phase_run`)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM cdeu.finv_quote_cdeu_workflow_run`)
 	}
 	cleanup()
 	defer cleanup()
 
 	// ---- 准备数据 ----
 	if _, err := pool.Exec(ctx, `
-INSERT INTO dedup.finv_dedup_usc
+INSERT INTO cdeu.finv_quote_cdeu_usc
   (usc, category, day_expect_rows, region, market, provider, name, timezone, currency)
 VALUES ($1, 'A_SHARE', 3, 'CN', 'SZ', 'FTMM', '集成测试证券', 'Asia/Shanghai', 'CNY')`,
 		integrationUsc); err != nil {
 		t.Fatalf("插入证券主数据失败: %v", err)
 	}
+	// V200051 起优先级已合并进 finv_dedup_usc，直接更新主表列。
 	if _, err := pool.Exec(ctx, `
-INSERT INTO dedup.finv_dedup_usc_priority (usc, priority_rank, sla_days, max_wait_days)
-VALUES ($1, 1, 5, 7)`, integrationUsc); err != nil {
-		t.Fatalf("插入证券优先级失败: %v", err)
+UPDATE cdeu.finv_quote_cdeu_usc
+   SET priority_rank = 1, sla_days = 5, max_wait_days = 7, priority_gmt_update = now()
+ WHERE usc = $1`, integrationUsc); err != nil {
+		t.Fatalf("设置证券优先级失败: %v", err)
 	}
 	insertMainRow := func(ts int64, clock int) {
 		if _, err := pool.Exec(ctx, `
-INSERT INTO dedup.finv_quote_secu_kline_min
+INSERT INTO cdeu.finv_quote_secu_kline_min
   (usc, ts, date, "time", open, high, low, close, paocd, volume, turnover,
    change_price, change_ratio, last_close, provider)
 VALUES ($1, $2, 20250102, $3, 1.1, 1.2, 1.0, 1.15, 1.12, 100, 115.5, 0.05, 4.5, 1.10, 'FTMM')
@@ -153,7 +166,7 @@ ON CONFLICT (ts, usc) DO NOTHING`, integrationUsc, ts, clock); err != nil {
 	// 测试库当日入口仅 3 行，按真实公式预算也是 3 行；这里放大当日预算，
 	// 以便一次跑完导出 + 补丁链路（预算公式本身由 TestComputeBudget 覆盖）。
 	if _, err := pool.Exec(ctx, `
-UPDATE dedup.finv_dedup_daily_budget
+UPDATE cdeu.finv_quote_cdeu_daily_budget
    SET budget_rows = 1000, budget_bytes = 1000000,
        consumed_rows = 0, consumed_bytes = 0, status = 'CALCULATED'
  WHERE biz_date = $1::date`, options.Today()); err != nil {
@@ -186,7 +199,7 @@ UPDATE dedup.finv_dedup_daily_budget
 	var loadedRows int64
 	if err := pool.QueryRow(ctx, `
 SELECT status, patch_count, base_version, loaded_rows
-  FROM dedup.finv_dedup_export_job WHERE usc = $1 AND biz_month = 202501`,
+  FROM cdeu.finv_quote_cdeu_export_job WHERE usc = $1 AND biz_month = 202501`,
 		integrationUsc).Scan(&jobStatus, &patchCount, &baseVersion, &loadedRows); err != nil {
 		t.Fatalf("读取任务状态失败: %v", err)
 	}
@@ -226,7 +239,7 @@ SELECT status, patch_count, base_version, loaded_rows
 	}
 	var pendingUploads int64
 	if err := pool.QueryRow(ctx, `
-SELECT count(*) FROM dedup.finv_dedup_export_file
+SELECT count(*) FROM cdeu.finv_quote_cdeu_export_file
  WHERE usc = $1 AND upload_status <> 'UPLOADED'`, integrationUsc).Scan(&pendingUploads); err != nil {
 		t.Fatalf("统计上传状态失败: %v", err)
 	}
@@ -235,8 +248,8 @@ SELECT count(*) FROM dedup.finv_dedup_export_file
 	}
 	var uploadLogs int64
 	if err := pool.QueryRow(ctx, `
-SELECT count(*) FROM dedup.finv_dedup_export_file_upload_log l
-  JOIN dedup.finv_dedup_export_file f ON f.file_id = l.file_id
+SELECT count(*) FROM cdeu.finv_quote_cdeu_export_file_upload_log l
+  JOIN cdeu.finv_quote_cdeu_export_file f ON f.file_id = l.file_id
  WHERE f.usc = $1 AND l.status = 'SUCCESS'`, integrationUsc).Scan(&uploadLogs); err != nil {
 		t.Fatalf("统计上传审计日志失败: %v", err)
 	}
@@ -266,8 +279,8 @@ SELECT count(*) FROM dedup.finv_dedup_export_file_upload_log l
 
 	var patchLevel, patchStatus string
 	if err := pool.QueryRow(ctx, `
-SELECT patch_level, status FROM dedup.finv_dedup_export_file_patch
- WHERE job_id = (SELECT job_id FROM dedup.finv_dedup_export_job WHERE usc = $1 AND biz_month = 202501)
+SELECT patch_level, status FROM cdeu.finv_quote_cdeu_export_file_patch
+ WHERE job_id = (SELECT job_id FROM cdeu.finv_quote_cdeu_export_job WHERE usc = $1 AND biz_month = 202501)
  ORDER BY patch_id DESC LIMIT 1`, integrationUsc).Scan(&patchLevel, &patchStatus); err != nil {
 		t.Fatalf("读取补丁任务失败: %v", err)
 	}
@@ -298,7 +311,7 @@ SELECT patch_level, status FROM dedup.finv_dedup_export_file_patch
 
 	// ---- 7) 生命周期：网盘归档后才允许清理本地文件 ----
 	fileRows, err := pool.Query(ctx, `
-SELECT file_id FROM dedup.finv_dedup_export_file
+SELECT file_id FROM cdeu.finv_quote_cdeu_export_file
  WHERE usc = $1 AND file_type = 'BASE' AND export_status = 'EXPORTED'`, integrationUsc)
 	if err != nil {
 		t.Fatalf("读取 BASE 文件失败: %v", err)
@@ -326,6 +339,96 @@ SELECT file_id FROM dedup.finv_dedup_export_file
 	// ---- 8) 超时回收 ----
 	if _, err := service.Run(ctx, JobRecoverTimeoutExportJobs); err != nil {
 		t.Fatalf("%s 失败: %v", JobRecoverTimeoutExportJobs, err)
+	}
+
+	// ---- 9) CDEU 结构化运行树 ----
+	var cdeuStatus string
+	if err := pool.QueryRow(ctx, `
+SELECT status FROM cdeu.finv_quote_cdeu_workflow_run ORDER BY run_id DESC LIMIT 1`).Scan(&cdeuStatus); err != nil {
+		t.Fatalf("读取 CDEU 流程运行失败: %v", err)
+	}
+	if cdeuStatus != CDEUStatusSuccess {
+		t.Fatalf("CDEU 流程状态应为 SUCCESS，实际 %s", cdeuStatus)
+	}
+	var cdeuJobRuns int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM cdeu.finv_quote_cdeu_job_run`).Scan(&cdeuJobRuns); err != nil {
+		t.Fatalf("统计 CDEU 作业运行失败: %v", err)
+	}
+	if cdeuJobRuns != 15 {
+		t.Fatalf("CDEU 作业运行应为 15 条，实际 %d", cdeuJobRuns)
+	}
+	var cdeuJobStepRuns int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM cdeu.finv_quote_cdeu_job_step_run`).Scan(&cdeuJobStepRuns); err != nil {
+		t.Fatalf("统计 CDEU JOB Step 运行失败: %v", err)
+	}
+	if cdeuJobStepRuns != 15 {
+		t.Fatalf("CDEU JOB Step 运行应为 15 条，实际 %d", cdeuJobStepRuns)
+	}
+	overview, err := service.CDEUOverview(ctx, 0, 5)
+	if err != nil {
+		t.Fatalf("读取 CDEU 流程视图失败: %v", err)
+	}
+	if overview.Run == nil || overview.Run.Status != CDEUStatusSuccess {
+		t.Fatalf("CDEU 最近运行应为 SUCCESS: %+v", overview.Run)
+	}
+	if len(overview.Phases) != 6 {
+		t.Fatalf("CDEU 阶段数应为 6，实际 %d", len(overview.Phases))
+	}
+	viewJobs := 0
+	for _, phase := range overview.Phases {
+		for _, process := range phase.Processes {
+			viewJobs += len(process.Jobs)
+		}
+	}
+	dynamicJobs := 0
+	for _, phase := range overview.Phases {
+		for _, process := range phase.Processes {
+			for _, job := range process.Jobs {
+				if job.IsDynamic {
+					dynamicJobs++
+				}
+			}
+		}
+	}
+	if viewJobs < 10 || dynamicJobs == 0 {
+		t.Fatalf("CDEU 视图作业数异常: total=%d dynamic=%d", viewJobs, dynamicJobs)
+	}
+	viewSteps := 0
+	for _, phase := range overview.Phases {
+		for _, process := range phase.Processes {
+			for _, job := range process.Jobs {
+				viewSteps += len(job.Steps)
+			}
+		}
+	}
+	if viewSteps == 0 {
+		t.Fatal("CDEU 视图应至少包含一个静态 JOB Step")
+	}
+	var dynamicSteps int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM cdeu.finv_quote_cdeu_job_step_dynamic`).Scan(&dynamicSteps); err != nil {
+		t.Fatalf("统计动态 JOB Step 失败: %v", err)
+	}
+	if dynamicSteps < dynamicJobs || dynamicJobs < 1 {
+		t.Fatalf("动态 JOB Step 数量不足: dynamic_jobs=%d steps=%d", dynamicJobs, dynamicSteps)
+	}
+	var uploadDynamicJobs, uploadDynamicSteps int
+	if err := pool.QueryRow(ctx, `
+SELECT (SELECT count(*) FROM cdeu.finv_quote_cdeu_job_dynamic WHERE job_category = 'UPLOAD'),
+       (SELECT count(*) FROM cdeu.finv_quote_cdeu_job_step_dynamic ds
+         JOIN cdeu.finv_quote_cdeu_job_dynamic dj ON dj.dynamic_job_id = ds.dynamic_job_id
+        WHERE dj.job_category = 'UPLOAD' AND ds.step_code = 'STEP_UPLOAD')`).
+		Scan(&uploadDynamicJobs, &uploadDynamicSteps); err != nil {
+		t.Fatalf("统计上传动态 JOB 失败: %v", err)
+	}
+	if uploadDynamicJobs == 0 || uploadDynamicSteps != uploadDynamicJobs {
+		t.Fatalf("上传动态 JOB 配置不符: jobs=%d steps=%d", uploadDynamicJobs, uploadDynamicSteps)
+	}
+	var batchCount int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM cdeu.finv_quote_cdeu_export_batch`).Scan(&batchCount); err != nil {
+		t.Fatalf("统计证券导出批次清单失败: %v", err)
+	}
+	if batchCount == 0 {
+		t.Fatal("证券导出批次清单不应为空")
 	}
 
 	// ---- 9) 指标接口 ----

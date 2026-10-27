@@ -35,13 +35,13 @@ func TestStoreIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("解析测试 DSN 失败: %v", err)
 	}
-	config.ConnConfig.RuntimeParams["search_path"] = "public,quote,quant,futu,export,sche,dedup,archive"
+	config.ConnConfig.RuntimeParams["search_path"] = "public,quote,quant,futu,export,sche,dedup,cdeu,archive,sys"
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		t.Fatalf("连接测试库失败: %v", err)
 	}
 	defer pool.Close()
-	if err := database.Migrate(ctx, pool, filepath.Join("..", "..", "Deploy", "Migrations")); err != nil {
+	if err := database.Migrate(ctx, pool, filepath.Join("..", "..", "..", "..", "..", "Deploy", "Migrations")); err != nil {
 		t.Fatalf("执行迁移失败: %v", err)
 	}
 
@@ -50,46 +50,47 @@ func TestStoreIntegration(t *testing.T) {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cleanupCancel()
 		statements := []string{
-			`DELETE FROM dedup.finv_dedup_export_file_upload_log WHERE file_id IN (SELECT file_id FROM dedup.finv_dedup_export_file WHERE usc = $1)`,
-			`DELETE FROM dedup.finv_dedup_export_file_patch WHERE usc = $1`,
-			`DELETE FROM dedup.finv_dedup_export_file WHERE usc = $1`,
-			`DELETE FROM dedup.finv_dedup_export_job WHERE usc = $1`,
-			`DELETE FROM dedup.finv_dedup_quote_maturity_mon WHERE usc = $1`,
-			`DELETE FROM dedup.finv_dedup_usc_priority WHERE usc = $1`,
-			`DELETE FROM dedup.finv_dedup_usc WHERE usc = $1`,
-			`DELETE FROM dedup.finv_quote_secu_kline_min WHERE usc = $1`,
+			`DELETE FROM cdeu.finv_quote_cdeu_export_file_upload_log WHERE file_id IN (SELECT file_id FROM cdeu.finv_quote_cdeu_export_file WHERE usc = $1)`,
+			`DELETE FROM cdeu.finv_quote_cdeu_export_file_patch WHERE usc = $1`,
+			`DELETE FROM cdeu.finv_quote_cdeu_export_file WHERE usc = $1`,
+			`DELETE FROM cdeu.finv_quote_cdeu_export_job WHERE usc = $1`,
+			`DELETE FROM cdeu.finv_quote_cdeu_quote_maturity_mon WHERE usc = $1`,
+			`DELETE FROM cdeu.finv_quote_cdeu_usc WHERE usc = $1`,
+			`DELETE FROM cdeu.finv_quote_secu_kline_min WHERE usc = $1`,
 			`DELETE FROM export.finv_quote_secu_kline_min WHERE usc = $1`,
 		}
 		for _, statement := range statements {
 			_, _ = pool.Exec(cleanupCtx, statement, integrationUsc)
 		}
 		_, _ = pool.Exec(cleanupCtx,
-			`DELETE FROM dedup.finv_dedup_scan_watermark WHERE watermark_name LIKE $1`,
+			`DELETE FROM cdeu.finv_quote_cdeu_scan_watermark WHERE watermark_name LIKE $1`,
 			"POST_SEAL_PATCH_"+integrationUsc+"_%")
 		_, _ = pool.Exec(cleanupCtx,
-			`DELETE FROM dedup.finv_dedup_scan_watermark WHERE watermark_name = 'IT_WATERMARK'`)
+			`DELETE FROM cdeu.finv_quote_cdeu_scan_watermark WHERE watermark_name = 'IT_WATERMARK'`)
 		_, _ = pool.Exec(cleanupCtx,
-			`DELETE FROM dedup.finv_dedup_job_run_log_export_file WHERE usc = $1`, integrationUsc)
+			`DELETE FROM cdeu.finv_quote_cdeu_job_run_log_export_file WHERE usc = $1`, integrationUsc)
 	}
 	cleanup()
 	defer cleanup()
 
 	// ---- 准备：证券主数据、优先级、主表 3 行（2025-01-02）----
 	if _, err := pool.Exec(ctx, `
-INSERT INTO dedup.finv_dedup_usc
+INSERT INTO cdeu.finv_quote_cdeu_usc
   (usc, category, day_expect_rows, region, market, provider, name, timezone, currency)
 VALUES ($1, 'A_SHARE', 3, 'CN', 'SZ', 'FTMM', '集成测试证券', 'Asia/Shanghai', 'CNY')`,
 		integrationUsc); err != nil {
 		t.Fatalf("插入证券主数据失败: %v", err)
 	}
+	// V200051 起优先级已合并进 finv_dedup_usc，直接更新主表列。
 	if _, err := pool.Exec(ctx, `
-INSERT INTO dedup.finv_dedup_usc_priority (usc, priority_rank, sla_days, max_wait_days)
-VALUES ($1, 1, 5, 7)`, integrationUsc); err != nil {
-		t.Fatalf("插入证券优先级失败: %v", err)
+UPDATE cdeu.finv_quote_cdeu_usc
+   SET priority_rank = 1, sla_days = 5, max_wait_days = 7, priority_gmt_update = now()
+ WHERE usc = $1`, integrationUsc); err != nil {
+		t.Fatalf("设置证券优先级失败: %v", err)
 	}
 	for index := 0; index < 3; index++ {
 		if _, err := pool.Exec(ctx, `
-INSERT INTO dedup.finv_quote_secu_kline_min
+INSERT INTO cdeu.finv_quote_secu_kline_min
   (usc, ts, date, "time", open, high, low, close, paocd, volume, turnover,
    change_price, change_ratio, last_close, provider)
 VALUES ($1, $2, 20250102, $3, 1.1, 1.2, 1.0, 1.15, 1.12, 100, 115.5, 0.05, 4.5, 1.10, 'FTMM')
@@ -108,7 +109,7 @@ ON CONFLICT (ts, usc) DO NOTHING`,
 	var maturityStatus string
 	if err := pool.QueryRow(ctx, `
 SELECT actual_rows, expected_rows, maturity_status
-  FROM dedup.finv_dedup_quote_maturity_mon WHERE usc = $1 AND trade_date = 20250102`,
+  FROM cdeu.finv_quote_cdeu_quote_maturity_mon WHERE usc = $1 AND trade_date = 20250102`,
 		integrationUsc).Scan(&actualRows, &expectedRows, &maturityStatus); err != nil {
 		t.Fatalf("读取成熟度失败: %v", err)
 	}
@@ -116,8 +117,11 @@ SELECT actual_rows, expected_rows, maturity_status
 		t.Fatalf("成熟度不符：actual=%d expected=%d status=%s", actualRows, expectedRows, maturityStatus)
 	}
 
-	// ---- 候选生成（202501 已结束且全月 COMPLETE）----
-	created, err := store.InsertCandidateJobs(ctx, 202601, 10)
+	// ---- 批次清单 → 候选生成（202501 已结束且全月 COMPLETE）----
+	if _, _, err := store.GenerateExportBatch(ctx, now, 202601); err != nil {
+		t.Fatalf("生成导出批次清单失败: %v", err)
+	}
+	created, err := store.InsertCandidateJobs(ctx, now.Format("20060102"), 202601, 10)
 	if err != nil {
 		t.Fatalf("生成候选任务失败: %v", err)
 	}
@@ -438,7 +442,7 @@ SELECT actual_rows, expected_rows, maturity_status
 	if value, found, err := store.Watermark(ctx, "IT_WATERMARK"); err != nil || !found || !value.Equal(watermark) {
 		t.Fatalf("读取水位不符: %v found=%v err=%v", value, found, err)
 	}
-	if _, err := pool.Exec(ctx, `DELETE FROM dedup.finv_dedup_scan_watermark WHERE watermark_name = 'IT_WATERMARK'`); err != nil {
+	if _, err := pool.Exec(ctx, `DELETE FROM cdeu.finv_quote_cdeu_scan_watermark WHERE watermark_name = 'IT_WATERMARK'`); err != nil {
 		t.Fatalf("清理测试水位失败: %v", err)
 	}
 }

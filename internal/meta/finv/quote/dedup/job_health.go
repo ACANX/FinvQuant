@@ -2,8 +2,6 @@ package dedup
 
 import (
 	"context"
-	"log"
-	"os"
 	"time"
 )
 
@@ -11,42 +9,6 @@ import (
 const healthVerifyLimit = 20
 
 // runCheckExportJobHealth 汇总指标、抽检 MVsv 结构并输出告警（M-06 / M-07 / 5.2 / 5.3）。
-func (s *Service) runCheckExportJobHealth(ctx context.Context, result *Result) error {
-	metrics, err := s.buildMetrics(ctx)
-	if err != nil {
-		return err
-	}
-
-	// MVsv 结构抽检：第 16 行文件头、第 17 行空行、# Field 行、# Count 与实际行数。
-	files, err := s.store.RecentFilesForVerify(ctx, healthVerifyLimit)
-	if err != nil {
-		return err
-	}
-	var anomalies int64
-	for _, file := range files {
-		if _, statErr := os.Stat(file.FilePath); statErr != nil {
-			continue
-		}
-		if verifyErr := VerifyMVsv(file.FilePath, file.Compression, file.RowCount); verifyErr != nil {
-			anomalies++
-			log.Printf("[exportarchive] ALERT MVsv 结构异常 file_id=%d file=%s err=%v",
-				file.FileID, file.FileName, verifyErr)
-		}
-	}
-	metrics.MvsvAnomalies = anomalies
-	metrics.Alerts = BuildAlerts(*metrics, s.options)
-	for _, alert := range metrics.Alerts {
-		log.Printf("[exportarchive] ALERT code=%s level=%s message=%s", alert.Code, alert.Level, alert.Message)
-	}
-
-	result.ProcessedRows = metrics.PendingRows
-	result.Details = metrics
-	log.Printf("[exportarchive] %s 完成 pending_rows=%d backlog_days=%.2f budget_factor=%.2f staging_rows=%d alerts=%d",
-		JobCheckExportJobHealth, metrics.PendingRows, metrics.BacklogDays,
-		metrics.BudgetFactor, metrics.StagingRows, len(metrics.Alerts))
-	return nil
-}
-
 // buildMetrics 汇总归档链路指标。
 func (s *Service) buildMetrics(ctx context.Context) (*Metrics, error) {
 	metrics := &Metrics{
@@ -61,6 +23,16 @@ func (s *Service) buildMetrics(ctx context.Context) (*Metrics, error) {
 		return nil, err
 	}
 	metrics.JobStatus = jobStatus
+	batchCounts, err := s.store.JobStatusCountsByMonth(ctx, s.options.CurrentMonth())
+	if err != nil {
+		return nil, err
+	}
+	metrics.JobProgress = SummarizeJobProgress(batchCounts)
+	patchCounts, err := s.store.PatchStatusCountsByMonth(ctx, s.options.CurrentMonth())
+	if err != nil {
+		return nil, err
+	}
+	metrics.JobProgress = mergePatchProgress(metrics.JobProgress, patchCounts)
 
 	uploadStatus, err := s.store.UploadStatusCounts(ctx)
 	if err != nil {
@@ -112,6 +84,54 @@ func (s *Service) buildMetrics(ctx context.Context) (*Metrics, error) {
 		return nil, err
 	}
 	return metrics, nil
+}
+
+// SummarizeJobProgress 把任务状态分布汇总为批次进度（成功 / 失败 / 进行中 / 待执行 / 暂停 / 冻结）。
+func SummarizeJobProgress(counts map[string]int64) JobProgress {
+	progress := JobProgress{}
+	for status, count := range counts {
+		progress.Total += count
+		switch status {
+		case JobStatusExported:
+			progress.Success += count
+		case JobStatusFailed:
+			progress.Failed += count
+		case JobStatusLoading:
+			progress.Running += count
+			progress.Loading += count
+		case JobStatusLoaded:
+			progress.Running += count
+			progress.Loaded += count
+		case JobStatusExporting:
+			progress.Running += count
+			progress.Exporting += count
+		case JobStatusWaiting:
+			progress.Waiting += count
+		case JobStatusPaused:
+			progress.Paused += count
+		case JobStatusFrozen:
+			progress.Frozen += count
+		}
+	}
+	return progress
+}
+
+// mergePatchProgress 把补丁任务状态合并进批次进度（成功 / 失败 / 运行中 / 待处理）。
+func mergePatchProgress(progress JobProgress, counts map[string]int64) JobProgress {
+	for status, count := range counts {
+		progress.PatchTotal += count
+		switch status {
+		case PatchStatusDone:
+			progress.PatchSuccess += count
+		case PatchStatusFailed:
+			progress.PatchFailed += count
+		case PatchStatusRunning:
+			progress.PatchRunning += count
+		case PatchStatusPending:
+			progress.PatchPending += count
+		}
+	}
+	return progress
 }
 
 // BuildAlerts 按方案稿 5.3 的阈值生成告警项。

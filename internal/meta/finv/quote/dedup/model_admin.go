@@ -3,7 +3,7 @@ package dedup
 import "time"
 
 // 本文件定义归档运维台（查询 + 管理员编辑）所需的 DTO。
-// 字段与 dedup.finv_dedup_* 表列一一对应（时间列统一用 time.Time，可空列用指针）。
+// 字段与 cdeu.finv_quote_cdeu_* 表列一一对应（时间列统一用 time.Time，可空列用指针）。
 
 // AdminFilter 运维台通用分页过滤条件（各接口按需取用其中字段）。
 type AdminFilter struct {
@@ -20,7 +20,7 @@ type AdminFilter struct {
 	PageSize int
 }
 
-// IngestStat 每日入口流量统计（dedup.finv_dedup_ingest_stats）。
+// IngestStat 每日入口流量统计（cdeu.finv_quote_cdeu_ingest_stats）。
 type IngestStat struct {
 	StatDate   time.Time `db:"stat_date" json:"stat_date"`
 	TotalRows  int64     `db:"total_rows" json:"total_rows"`
@@ -28,7 +28,7 @@ type IngestStat struct {
 	GmtUpdate  time.Time `db:"gmt_update" json:"gmt_update"`
 }
 
-// DailyBudget 每日导出预算（dedup.finv_dedup_daily_budget）。
+// DailyBudget 每日导出预算（cdeu.finv_quote_cdeu_daily_budget）。
 type DailyBudget struct {
 	BizDate       time.Time `db:"biz_date" json:"biz_date"`
 	BaseRows      int64     `db:"base_rows" json:"base_rows"`
@@ -46,7 +46,7 @@ type DailyBudget struct {
 	GmtCreate     time.Time `db:"gmt_create" json:"gmt_create"`
 }
 
-// MaturityRow 证券日成熟度（dedup.finv_dedup_quote_maturity_mon）。
+// MaturityRow 证券日成熟度（cdeu.finv_quote_cdeu_quote_maturity_mon）。
 type MaturityRow struct {
 	Usc            string     `db:"usc" json:"usc"`
 	TradeDate      int        `db:"trade_date" json:"trade_date"`
@@ -60,30 +60,32 @@ type MaturityRow struct {
 	GmtUpdate      time.Time  `db:"gmt_update" json:"gmt_update"`
 }
 
-// WatermarkRow 扫描水位（dedup.finv_dedup_scan_watermark）。
+// WatermarkRow 扫描水位（cdeu.finv_quote_cdeu_scan_watermark）。
 type WatermarkRow struct {
 	WatermarkName string    `db:"watermark_name" json:"watermark_name"`
 	LastValue     time.Time `db:"last_value" json:"last_value"`
 	GmtUpdate     time.Time `db:"gmt_update" json:"gmt_update"`
 }
 
-// PriorityRow 证券优先级与 SLA（dedup.finv_dedup_usc_priority）。
+// PriorityRow 证券优先级与 SLA（V200051 起数据源为 cdeu.finv_quote_cdeu_usc）。
+//
+// 只包含已配置覆盖的证券；未配置的证券不在此列表出现（在 UscRow 里为 NULL）。
 type PriorityRow struct {
-	Usc          string    `db:"usc" json:"usc"`
-	PriorityRank int       `db:"priority_rank" json:"priority_rank"`
-	SlaDays      int       `db:"sla_days" json:"sla_days"`
-	MaxWaitDays  int       `db:"max_wait_days" json:"max_wait_days"`
-	GmtUpdate    time.Time `db:"gmt_update" json:"gmt_update"`
+	Usc               string    `db:"usc" json:"usc"`
+	PriorityRank      int       `db:"priority_rank" json:"priority_rank"`
+	SlaDays           int       `db:"sla_days" json:"sla_days"`
+	MaxWaitDays       int       `db:"max_wait_days" json:"max_wait_days"`
+	PriorityGmtUpdate time.Time `db:"priority_gmt_update" json:"priority_gmt_update"`
 }
 
-// CalendarRow 交易日历（dedup.finv_dedup_trade_calendar）。
+// CalendarRow 交易日历（cdeu.finv_quote_cdeu_trade_calendar）。
 type CalendarRow struct {
 	Usc          string `db:"usc" json:"usc"`
 	TradeDate    int    `db:"trade_date" json:"trade_date"`
 	FlagTradeDay bool   `db:"flag_trade_day" json:"flag_trade_day"`
 }
 
-// UscRow 证券主数据（dedup.finv_dedup_usc）。
+// UscRow 证券主数据（cdeu.finv_quote_cdeu_usc）。
 type UscRow struct {
 	Usc              string     `db:"usc" json:"usc"`
 	Category         *string    `db:"category" json:"category"`
@@ -97,26 +99,91 @@ type UscRow struct {
 	Name             *string    `db:"name" json:"name"`
 	Timezone         *string    `db:"timezone" json:"timezone"`
 	Currency         *string    `db:"currency" json:"currency"`
-	GmtCreate        time.Time  `db:"gmt_create" json:"gmt_create"`
-	GmtUpdate        time.Time  `db:"gmt_update" json:"gmt_update"`
+	// 归档优先级覆盖配置（V100051 由 finv_dedup_usc_priority 合并而来）：
+	// 三列同时为 NULL 表示未配置，分别按 100 / 5 / 7 兜底。
+	PriorityRank      *int       `db:"priority_rank" json:"priority_rank"`
+	SlaDays           *int       `db:"sla_days" json:"sla_days"`
+	MaxWaitDays       *int       `db:"max_wait_days" json:"max_wait_days"`
+	PriorityGmtUpdate *time.Time `db:"priority_gmt_update" json:"priority_gmt_update"`
+	GmtCreate         time.Time  `db:"gmt_create" json:"gmt_create"`
+	GmtUpdate         time.Time  `db:"gmt_update" json:"gmt_update"`
 }
 
-// RunLogRow Job 运行日志（dedup.finv_dedup_job_run_log_export_file）。
+// RunLogRow Job 运行日志（cdeu.finv_quote_cdeu_job_run_log_export_file）。
 type RunLogRow struct {
-	RunID          int64      `db:"run_id" json:"run_id"`
-	JobKind        string     `db:"job_kind" json:"job_kind"`
-	JobID          *int64     `db:"job_id" json:"job_id"`
-	Usc            *string    `db:"usc" json:"usc"`
-	BizMonth       *int       `db:"biz_month" json:"biz_month"`
-	GmtStart       time.Time  `db:"gmt_start" json:"gmt_start"`
-	GmtFinish      *time.Time `db:"gmt_finish" json:"gmt_finish"`
-	Status         *string    `db:"status" json:"status"`
-	ProcessedRows  *int64     `db:"processed_rows" json:"processed_rows"`
-	ProcessedBytes *int64     `db:"processed_bytes" json:"processed_bytes"`
-	Error          *string    `db:"error" json:"error"`
+	RunID           int64      `db:"run_id" json:"run_id"`
+	JobKind         string     `db:"job_kind" json:"job_kind"`
+	JobID           *int64     `db:"job_id" json:"job_id"`
+	Usc             *string    `db:"usc" json:"usc"`
+	BizMonth        *int       `db:"biz_month" json:"biz_month"`
+	GmtStart        time.Time  `db:"gmt_start" json:"gmt_start"`
+	GmtFinish       *time.Time `db:"gmt_finish" json:"gmt_finish"`
+	Status          *string    `db:"status" json:"status"`
+	ProcessedRows   *int64     `db:"processed_rows" json:"processed_rows"`
+	ProcessedBytes  *int64     `db:"processed_bytes" json:"processed_bytes"`
+	Error           *string    `db:"error" json:"error"`
+	Stage           *string    `db:"stage" json:"stage"`
+	ProgressPercent *float64   `db:"progress_percent" json:"progress_percent"`
+	ProgressDetail  *string    `db:"progress_detail" json:"progress_detail"`
+	GmtHeartbeat    *time.Time `db:"gmt_heartbeat" json:"gmt_heartbeat"`
 }
 
-// UploadLogRow 上传审计（dedup.finv_dedup_export_file_upload_log）。
+// RunLogLine Job 运行详细日志行（cdeu.finv_quote_cdeu_job_run_log_line）。
+type RunLogLine struct {
+	LineID          int64     `db:"line_id" json:"line_id"`
+	RunID           int64     `db:"run_id" json:"run_id"`
+	Level           string    `db:"level" json:"level"`
+	Stage           *string   `db:"stage" json:"stage"`
+	Message         string    `db:"message" json:"message"`
+	ProgressPercent *float64  `db:"progress_percent" json:"progress_percent"`
+	GmtCreate       time.Time `db:"gmt_create" json:"gmt_create"`
+}
+
+// RunLogDetail Job 运行汇总 + 详细日志行。
+type RunLogDetail struct {
+	RunLogRow
+	Lines []RunLogLine `json:"lines"`
+}
+
+// JobRuntimeState 单个 Job 的运行快照（总览页可视化：是否在跑、当前阶段、最近结果与 24 小时统计）。
+type JobRuntimeState struct {
+	JobKind    string `json:"job_kind"`
+	Name       string `json:"name"`
+	Summary    string `json:"summary"`
+	Flow       string `json:"flow"`
+	Details    string `json:"details"`
+	Cautions   string `json:"cautions"`
+	Schedule   string `json:"schedule"`
+	DailyAt    string `json:"daily_at,omitempty"`
+	Interval   int    `json:"interval_seconds,omitempty"`
+	Windowed   bool   `json:"windowed"`
+	InProcess  bool   `json:"in_process"`
+	ElapsedSec int64  `json:"elapsed_seconds"`
+	// Stale 为 true 表示存在未结束记录但心跳已超时（进程崩溃 / 卡住），需人工关注。
+	Stale           bool       `json:"stale"`
+	HeartbeatAgeSec *int64     `json:"heartbeat_age_seconds"`
+	Running         *RunLogRow `json:"running,omitempty"`
+	Last            *RunLogRow `json:"last,omitempty"`
+	LastSuccessAt   *time.Time `json:"last_success_at"`
+	LastFailureAt   *time.Time `json:"last_failure_at"`
+	Success24h      int64      `json:"success_24h"`
+	Failed24h       int64      `json:"failed_24h"`
+	Paused24h       int64      `json:"paused_24h"`
+	Total24h        int64      `json:"total_24h"`
+}
+
+// JobRunAggregate 单个 Job 在统计窗口内的运行结果聚合。
+type JobRunAggregate struct {
+	JobKind       string
+	Success       int64
+	Failed        int64
+	Paused        int64
+	Total         int64
+	LastSuccessAt *time.Time
+	LastFailureAt *time.Time
+}
+
+// UploadLogRow 上传审计（cdeu.finv_quote_cdeu_export_file_upload_log）。
 type UploadLogRow struct {
 	LogID         int64      `db:"log_id" json:"log_id"`
 	FileID        int64      `db:"file_id" json:"file_id"`
@@ -129,7 +196,7 @@ type UploadLogRow struct {
 	Error         *string    `db:"error" json:"error"`
 }
 
-// PatchRow 补丁任务（dedup.finv_dedup_export_file_patch，不含 tstzrange 列）。
+// PatchRow 补丁任务（cdeu.finv_quote_cdeu_export_file_patch，不含 tstzrange 列）。
 type PatchRow struct {
 	PatchID      int64      `db:"patch_id" json:"patch_id"`
 	JobID        int64      `db:"job_id" json:"job_id"`
@@ -167,7 +234,9 @@ type UscUpsertInput struct {
 	Currency         *string
 }
 
-// PriorityUpsertInput 优先级 upsert 入参。
+// PriorityUpsertInput 优先级覆盖设置入参（V200051 起落到 finv_dedup_usc）。
+//
+// 三列同为一组：要么全有值（设置覆盖），要么通过 SetUscPriority(ctx, usc, nil) 整组清空。
 type PriorityUpsertInput struct {
 	Usc          string
 	PriorityRank int

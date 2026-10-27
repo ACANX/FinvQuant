@@ -4,30 +4,35 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/acanx/finvquant/internal/syscfg"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // 表名常量（全部 schema 全限定，见 Docs/DevSpec/DbSchemaSpec.md §3）。
 const (
-	tableMain        = "dedup.finv_quote_secu_kline_min"
+	tableMain        = "cdeu.finv_quote_secu_kline_min"
 	tableStaging     = "export.finv_quote_secu_kline_min"
-	tableIngestStats = "dedup.finv_dedup_ingest_stats"
-	tableBudget      = "dedup.finv_dedup_daily_budget"
-	tableWatermark   = "dedup.finv_dedup_scan_watermark"
-	tablePriority    = "dedup.finv_dedup_usc_priority"
-	tableMaturity    = "dedup.finv_dedup_quote_maturity_mon"
-	tableCalendar    = "dedup.finv_dedup_trade_calendar"
-	tableRunLog      = "dedup.finv_dedup_job_run_log_export_file"
-	tableUsc         = "dedup.finv_dedup_usc"
-	tableJob         = "dedup.finv_dedup_export_job"
-	tableFile        = "dedup.finv_dedup_export_file"
-	tableUploadLog   = "dedup.finv_dedup_export_file_upload_log"
-	tablePatch       = "dedup.finv_dedup_export_file_patch"
+	tableIngestStats = "cdeu.finv_quote_cdeu_ingest_stats"
+	tableBudget      = "cdeu.finv_quote_cdeu_daily_budget"
+	tableWatermark   = "cdeu.finv_quote_cdeu_scan_watermark"
+	tableMaturity    = "cdeu.finv_quote_cdeu_quote_maturity_mon"
+	tableCalendar    = "cdeu.finv_quote_cdeu_trade_calendar"
+	tableRunLog      = "cdeu.finv_quote_cdeu_job_run_log_export_file"
+	tableRunLogLine  = "cdeu.finv_quote_cdeu_job_run_log_line"
+	tableUsc         = "cdeu.finv_quote_cdeu_usc"
+	tableJob         = "cdeu.finv_quote_cdeu_export_job"
+	tableFile        = "cdeu.finv_quote_cdeu_export_file"
+	tableUploadLog   = "cdeu.finv_quote_cdeu_export_file_upload_log"
+	tablePatch       = "cdeu.finv_quote_cdeu_export_file_patch"
+	tableBatch       = "cdeu.finv_quote_cdeu_export_batch"
+	tableDynamicJob  = "cdeu.finv_quote_cdeu_job_dynamic"
+	tableDynamicStep = "cdeu.finv_quote_cdeu_job_step_dynamic"
 )
 
 // jobColumns 任务查询列（顺序与 Job 结构体 db 标签一致）。
@@ -107,12 +112,20 @@ func (s *Store) StartRun(ctx context.Context, kind string, jobID *int64, usc str
 	}
 	var runID int64
 	err := s.pool.QueryRow(ctx, `
-INSERT INTO `+tableRunLog+` (job_kind, job_id, usc, biz_month)
-VALUES ($1, $2, $3, $4) RETURNING run_id`, kind, jobID, uscArg, bizMonth).Scan(&runID)
-	return runID, err
+INSERT INTO `+tableRunLog+` (job_kind, job_id, usc, biz_month, status, stage, progress_percent, gmt_heartbeat)
+VALUES ($1, $2, $3, $4, 'RUNNING', 'RUNNING', 0, now()) RETURNING run_id`, kind, jobID, uscArg, bizMonth).Scan(&runID)
+	if err != nil {
+		return runID, err
+	}
+	// 详细日志是辅助诊断信息，写入失败不影响 Job 主流程。
+	_ = s.AppendRunLog(ctx, runID, "INFO", "RUNNING", "JOB 开始 · "+kind, nil)
+	return runID, nil
 }
 
 // FinishRun 结束一次 Job 运行并记录处理量与结果。
+//
+// 结束时同步收口阶段与进度：成功记 DONE/100，失败与暂停沿用终态作为阶段，
+// 便于总览页直接展示「最近一次跑到哪一步」。
 func (s *Store) FinishRun(ctx context.Context, runID int64, status string, rows, bytes int64, errText string) error {
 	var errArg *string
 	if errText != "" {
@@ -120,8 +133,61 @@ func (s *Store) FinishRun(ctx context.Context, runID int64, status string, rows,
 	}
 	_, err := s.pool.Exec(ctx, `
 UPDATE `+tableRunLog+`
-   SET gmt_finish = now(), status = $2, processed_rows = $3, processed_bytes = $4, error = $5
+   SET gmt_finish = now(), status = $2, processed_rows = $3, processed_bytes = $4, error = $5,
+       stage = CASE WHEN $2 = 'SUCCESS' THEN 'DONE' ELSE $2 END,
+       progress_percent = CASE WHEN $2 = 'SUCCESS' THEN 100 ELSE progress_percent END,
+       gmt_heartbeat = now()
  WHERE run_id = $1`, runID, status, rows, bytes, errArg)
+	if err != nil {
+		return err
+	}
+	level := "INFO"
+	if status != RunStatusSuccess {
+		level = "ERROR"
+	}
+	message := "JOB 完成 · " + status
+	if errText != "" {
+		message += " · " + errText
+	}
+	_ = s.AppendRunLog(ctx, runID, level, status, message, nil)
+	return nil
+}
+
+// UpdateRunProgress 更新运行中的阶段、进度与心跳。
+//
+// 心跳用于前端判断「正常进行中 / 卡住」；percent 为负表示无法估算总量的不确定进度。
+func (s *Store) UpdateRunProgress(ctx context.Context, runID int64, stage string, percent float64, detail string) error {
+	var detailArg *string
+	if detail != "" {
+		detailArg = &detail
+	}
+	_, err := s.pool.Exec(ctx, `
+UPDATE `+tableRunLog+`
+   SET stage = $2, progress_percent = $3, progress_detail = $4, gmt_heartbeat = now()
+ WHERE run_id = $1`, runID, stage, percent, detailArg)
+	if err != nil {
+		return err
+	}
+	message := detail
+	if message == "" {
+		message = stage
+	}
+	_ = s.AppendRunLog(ctx, runID, "INFO", stage, message, &percent)
+	return nil
+}
+
+// AppendRunLog 追加一条 Job 运行详细日志；line 写入失败不应中断主流程。
+func (s *Store) AppendRunLog(ctx context.Context, runID int64, level, stage, message string, percent *float64) error {
+	if runID <= 0 || message == "" {
+		return nil
+	}
+	var stageArg *string
+	if stage != "" {
+		stageArg = &stage
+	}
+	_, err := s.pool.Exec(ctx, `
+INSERT INTO `+tableRunLogLine+` (run_id, level, stage, message, progress_percent)
+VALUES ($1, $2, $3, $4, $5)`, runID, level, stageArg, message, percent)
 	return err
 }
 
@@ -373,6 +439,70 @@ UPDATE `+tableUsc+` u
 	return inserted, nil
 }
 
+// RefreshSecurityMetadata 从 finv_security / finv_exchange / finv_market / finv_region 刷新证券主数据。
+//
+// 取值口径（ACANX 2026-10-26 调整，见迁移 V100036）：
+//   - market：取 finv_market.market_symbol（市场符号，如 SH / SZ / BJ / NSDQ / CFD）；
+//     为空串时依次回退 market_flag、exchange_flag，避免字段未维护时值变成 NULL。
+//     历史口径直接拄 market_flag（SSE-A / US-NSDQ 这种板块级标识），与归档
+//     目录 {region}_{market} 需要的市场级符号不一致，故改从 market_symbol 取。
+//   - region：以 finv_region 字典为准（LEFT JOIN 规范化，如 exchange.region 写成
+//     USA 时按字典取 US）；字典无对应项时回退 exchange.region 原值，不丢信息。
+//
+// 覆盖策略：region / market / currency 是**派生值**，以主数据为准覆盖（新值为
+// NULL 时保留旧值）；其余列（category/date_list/name/timezone）仍仅在缺失时
+// 补齐——name/timezone 可能被人工维护（中文名、时区别名），不盲覆盖。
+//
+// 关于 currency：取自 finv_security.currency_type（如港股人民币柜台 81810 =
+// CNY）。早期版本只补 NULL，导致主数据修正后 usc 长期停在旧币种，进而写错
+// MVsv 文件头的 "# Currency" 行，故改为可覆盖。
+func (s *Store) RefreshSecurityMetadata(ctx context.Context) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `
+INSERT INTO `+tableUsc+`
+    (usc, category, date_list, flag_auto_discover, region, market, name, timezone, currency, gmt_update)
+SELECT s.usc,
+       NULLIF(s.security_type, ''),
+       CASE
+           WHEN s.init_date BETWEEN 19500101 AND 21001231
+           THEN to_date(s.init_date::text, 'YYYYMMDD')
+           ELSE NULL
+       END,
+       false,
+       COALESCE(r.region, NULLIF(e.region, '')),
+       COALESCE(NULLIF(m.market_symbol, ''), NULLIF(m.market_flag, ''), NULLIF(e.exchange_flag, '')),
+       COALESCE(NULLIF(s.security_name_cn, ''), NULLIF(s.security_name, '')),
+       COALESCE(NULLIF(s.tz, ''), NULLIF(s.timezone, '')),
+       NULLIF(s.currency_type, ''),
+       now()
+  FROM public.finv_security s
+  LEFT JOIN public.finv_exchange e ON e.exchange_code = s.exchange_code
+  LEFT JOIN public.finv_market m ON m.market_code = s.market_code
+  LEFT JOIN public.finv_region r ON r.region = e.region
+ WHERE COALESCE(s.flag_enable, '1') = '1'
+ON CONFLICT (usc) DO UPDATE SET
+    category = COALESCE(`+tableUsc+`.category, EXCLUDED.category),
+    date_list = COALESCE(`+tableUsc+`.date_list, EXCLUDED.date_list),
+    -- 派生列：以字典/主数据为准覆盖（新值为 NULL 时保留旧值）
+    region = COALESCE(EXCLUDED.region, `+tableUsc+`.region),
+    market = COALESCE(EXCLUDED.market, `+tableUsc+`.market),
+    name = COALESCE(`+tableUsc+`.name, EXCLUDED.name),
+    timezone = COALESCE(`+tableUsc+`.timezone, EXCLUDED.timezone),
+    currency = COALESCE(EXCLUDED.currency, `+tableUsc+`.currency),
+    gmt_update = now()
+ WHERE EXCLUDED.region IS NOT NULL AND `+tableUsc+`.region IS DISTINCT FROM EXCLUDED.region
+    OR EXCLUDED.market IS NOT NULL AND `+tableUsc+`.market IS DISTINCT FROM EXCLUDED.market
+    OR EXCLUDED.currency IS NOT NULL AND `+tableUsc+`.currency IS DISTINCT FROM EXCLUDED.currency
+    OR `+tableUsc+`.category IS NULL
+    OR `+tableUsc+`.date_list IS NULL
+    OR `+tableUsc+`.name IS NULL
+    OR `+tableUsc+`.timezone IS NULL
+    OR `+tableUsc+`.currency IS NULL`)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
 // SealMaturity 把已到收口日（含）以前的月份成熟度统一冻结为 FROZEN（J-06）。
 func (s *Store) SealMaturity(ctx context.Context, maxBizMonth int) (int64, error) {
 	tag, err := s.pool.Exec(ctx, `
@@ -428,30 +558,423 @@ HAVING COALESCE(sum(GREATEST(m.expected_rows - m.actual_rows, 0)), 0) > 0
 // 任务：候选生成、领取、进度、状态
 // ---------------------------------------------------------------------
 
-// InsertCandidateJobs 生成导出候选任务（幂等：同一 (usc, biz_month) 只建一次）。
+// GenerateExportBatch 生成当前批次的导出清单，写入 cdeu.finv_quote_cdeu_export_batch。
 //
-// 候选条件：月份已结束（biz_month < 当前月）、该月所有已观测日均为 COMPLETE/FROZEN、
-// 证券元数据齐备且未退市（或退市日晚于该月首日）。
-func (s *Store) InsertCandidateJobs(ctx context.Context, currentMonth int, limit int) (int64, error) {
-	rows, err := s.pool.Query(ctx, `
-SELECT m.usc,
-       m.biz_month,
-       COALESCE(p.priority_rank, 100),
-       COALESCE(p.sla_days, 5),
-       MIN(m.trade_date)
+// BASE：按成熟度/元数据条件生成待导出证券月；
+// INCR：已存在 BASE 文件的证券月作为增量候选。
+// 该表作为后续 PROCESS_EXPORT_FILE_MON_BASE / PROCESS_EXPORT_FILE_MON_INCR 的输入。
+func (s *Store) GenerateExportBatch(ctx context.Context, bizDate time.Time, currentMonth int) (int64, int64, error) {
+	batchNo := bizDate.Format("20060102")
+	if _, err := s.pool.Exec(ctx, `DELETE FROM `+tableBatch+` WHERE batch_no = $1`, batchNo); err != nil {
+		return 0, 0, err
+	}
+
+	baseTag, err := s.pool.Exec(ctx, `
+INSERT INTO `+tableBatch+`
+    (batch_no, biz_date, usc, biz_month, export_type, source_job_id, status)
+SELECT $1, $2::date, m.usc, m.biz_month, 'BASE', NULL, 'READY'
   FROM `+tableMaturity+` m
   JOIN `+tableUsc+` u ON u.usc = m.usc
-  LEFT JOIN `+tablePriority+` p ON p.usc = m.usc
- WHERE m.biz_month < $1
+ WHERE m.biz_month < $3
    AND u.region IS NOT NULL AND u.market IS NOT NULL AND u.provider IS NOT NULL
    AND u.name IS NOT NULL AND u.timezone IS NOT NULL AND u.currency IS NOT NULL
    AND (u.date_delist IS NULL OR u.date_delist >= make_date(m.biz_month / 100, m.biz_month % 100, 1))
    AND NOT EXISTS (
-       SELECT 1 FROM `+tableJob+` j WHERE j.usc = m.usc AND j.biz_month = m.biz_month)
- GROUP BY m.usc, m.biz_month, p.priority_rank, p.sla_days
+       SELECT 1 FROM `+tableJob+` j
+        WHERE j.usc = m.usc AND j.biz_month = m.biz_month
+          AND j.status IN ('LOADING', 'LOADED', 'EXPORTING', 'EXPORTED'))
+ GROUP BY m.usc, m.biz_month, u.priority_rank, u.sla_days
 HAVING bool_and(m.maturity_status IN ('COMPLETE', 'FROZEN'))
- ORDER BY COALESCE(p.priority_rank, 100), MIN(m.trade_date)
- LIMIT $2`, currentMonth, limit)
+ON CONFLICT (batch_no, usc, biz_month, export_type) DO UPDATE SET
+    biz_date = EXCLUDED.biz_date,
+    status = 'READY',
+    gmt_update = now()`, batchNo, bizDate, currentMonth)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	incrTag, err := s.pool.Exec(ctx, `
+INSERT INTO `+tableBatch+`
+    (batch_no, biz_date, usc, biz_month, export_type, source_job_id, status)
+SELECT $1, $2::date, j.usc, j.biz_month, 'INCR', j.job_id, 'READY'
+  FROM `+tableJob+` j
+ WHERE j.status = 'EXPORTED'
+   AND EXISTS (
+       SELECT 1 FROM `+tableFile+` f
+        WHERE f.job_id = j.job_id AND f.file_type = 'BASE' AND f.export_status = 'EXPORTED')
+ON CONFLICT (batch_no, usc, biz_month, export_type) DO UPDATE SET
+    biz_date = EXCLUDED.biz_date,
+    source_job_id = EXCLUDED.source_job_id,
+    status = 'READY',
+    gmt_update = now()`, batchNo, bizDate)
+	if err != nil {
+		return baseTag.RowsAffected(), 0, err
+	}
+	return baseTag.RowsAffected(), incrTag.RowsAffected(), nil
+}
+
+// GenerateDynamicJobs 按批次清单生成单证券导出 JOB。
+//
+// BASE 条目挂在 PROCESS_EXPORT_FILE_MON_BASE，INCR 条目挂在
+// PROCESS_EXPORT_FILE_MON_INCR；自 V200045 起唯一键为
+// (workflow_run_id, usc, biz_month)，每次运行各自持有独立实例。
+func (s *Store) GenerateDynamicJobs(ctx context.Context, batchNo string) (int64, error) {
+	batchRunID := cdeuRunIDFromContext(ctx)
+	tag, err := s.pool.Exec(ctx, `
+INSERT INTO `+tableDynamicJob+`
+    (process_id, job_code, name, usc, biz_month, export_type, export_job_id,
+     job_category, seq_no, status, workflow_run_id)
+SELECT p.process_id,
+       'JOB_EXPORT_' || b.export_type || '_' ||
+       regexp_replace(b.usc, '[^A-Za-z0-9]', '_', 'g') || '_' || b.biz_month,
+       'EXPORT_MON_' || b.export_type || '_' || b.usc || '_' || b.biz_month,
+       b.usc, b.biz_month, b.export_type,
+       COALESCE(b.source_job_id, j.job_id), 'EXPORT',
+       row_number() OVER (PARTITION BY p.process_id ORDER BY b.usc, b.biz_month),
+       'PENDING', NULLIF($2::bigint, 0)
+  FROM `+tableBatch+` b
+  JOIN cdeu.finv_quote_cdeu_process p
+    ON p.process_code = CASE b.export_type
+        WHEN 'BASE' THEN 'PROCESS_EXPORT_FILE_MON_BASE'
+        ELSE 'PROCESS_EXPORT_FILE_MON_INCR'
+       END
+  LEFT JOIN `+tableJob+` j ON j.usc = b.usc AND j.biz_month = b.biz_month
+ WHERE b.batch_no = $1
+   AND b.export_type = 'BASE'
+   AND (b.source_job_id IS NOT NULL OR j.job_id IS NOT NULL)
+ON CONFLICT (workflow_run_id, usc, biz_month) WHERE job_category = 'EXPORT' DO NOTHING`,
+		batchNo, batchRunID)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := s.pool.Exec(ctx, `
+INSERT INTO `+tableDynamicStep+`
+    (dynamic_job_id, step_code, name, seq_no, status)
+SELECT dj.dynamic_job_id, v.step_code, v.name, v.seq_no, 'PENDING'
+  FROM `+tableDynamicJob+` dj
+ CROSS JOIN (VALUES
+    ('STEP_LOAD', '装载', 1),
+    ('STEP_EXPORT', '文件生成', 2),
+    ('STEP_REGISTER', '文件登记', 3),
+    ('STEP_CLEANUP', '中转清理', 4)
+ ) AS v(step_code, name, seq_no)
+ WHERE dj.process_id IN (
+     SELECT process_id FROM cdeu.finv_quote_cdeu_process
+      WHERE process_code IN ('PROCESS_EXPORT_FILE_MON_BASE', 'PROCESS_EXPORT_FILE_MON_INCR'))
+   AND dj.workflow_run_id IS NOT DISTINCT FROM NULLIF($1::bigint, 0)
+ON CONFLICT DO NOTHING`, batchRunID); err != nil {
+		return tag.RowsAffected(), err
+	}
+	return tag.RowsAffected(), nil
+}
+
+// dynamicJobSelectionSQL 生成「按 (usc, biz_month) 定位目标动态导出实例」的子查询。
+//
+// 自 V200045 起动态实例按运行隔离，定位规则：
+//
+//	优先匹配调用方上下文携带的 workflow run（runParam 为 0 时视为无）；
+//	无匹配时回退到最新一条，兼容手动单实例执行。
+//
+// 子查询固定使用 $1=usc、$2=biz_month，运行 ID 占位由 runParam 指定。
+func dynamicJobSelectionSQL(runParam string) string {
+	return `(
+    SELECT dj2.dynamic_job_id
+      FROM cdeu.finv_quote_cdeu_job_dynamic dj2
+     WHERE dj2.usc = $1 AND dj2.biz_month = $2 AND dj2.job_category = 'EXPORT'
+       AND (` + runParam + `::bigint = 0 OR dj2.workflow_run_id = ` + runParam + `::bigint)
+     ORDER BY (dj2.workflow_run_id = ` + runParam + `::bigint) DESC NULLS LAST,
+              dj2.dynamic_job_id DESC
+     LIMIT 1)`
+}
+
+// MarkDynamicJobStepStatus 更新动态 JOB 内指定 Step 状态。
+//
+// 自 V200045 起动态实例按运行隔离，目标实例由 dynamicJobSelectionSQL 定位。
+func (s *Store) MarkDynamicJobStepStatus(ctx context.Context, usc string, bizMonth int,
+	stepCode, status, errText string) error {
+	var errArg *string
+	if errText != "" {
+		errArg = &errText
+	}
+	_, err := s.pool.Exec(ctx, `
+UPDATE `+tableDynamicStep+` ds
+   SET status = $4,
+       started_at = CASE WHEN $4 = 'RUNNING' THEN COALESCE(ds.started_at, now()) ELSE ds.started_at END,
+       finished_at = CASE WHEN $4 IN ('SUCCESS','PARTIAL','FAILED','PAUSED','CANCELLED','SKIPPED') THEN now() ELSE ds.finished_at END,
+       error = $5,
+       gmt_update = now()
+ WHERE ds.dynamic_job_id = `+dynamicJobSelectionSQL("$6")+`
+   AND ds.step_code = $3`,
+		usc, bizMonth, stepCode, status, errArg, cdeuRunIDFromContext(ctx))
+	return err
+}
+
+// FailDynamicJobSteps 将动态 JOB 内未结束的 Step 统一置为失败。
+func (s *Store) FailDynamicJobSteps(ctx context.Context, usc string, bizMonth int, errText string) error {
+	var errArg *string
+	if errText != "" {
+		errArg = &errText
+	}
+	_, err := s.pool.Exec(ctx, `
+UPDATE `+tableDynamicStep+` ds
+   SET status = 'FAILED', finished_at = now(), error = $3, gmt_update = now()
+ WHERE ds.dynamic_job_id = `+dynamicJobSelectionSQL("$4")+`
+   AND ds.status IN ('PENDING','RUNNING')`,
+		usc, bizMonth, errArg, cdeuRunIDFromContext(ctx))
+	return err
+}
+
+// CompleteDynamicJobSteps 将动态 JOB 内未结束的 Step 统一置为成功。
+func (s *Store) CompleteDynamicJobSteps(ctx context.Context, usc string, bizMonth int) error {
+	_, err := s.pool.Exec(ctx, `
+UPDATE `+tableDynamicStep+` ds
+   SET status = 'SUCCESS', finished_at = COALESCE(ds.finished_at, now()), error = NULL, gmt_update = now()
+ WHERE ds.dynamic_job_id = `+dynamicJobSelectionSQL("$3")+`
+   AND ds.status IN ('PENDING','RUNNING')`,
+		usc, bizMonth, cdeuRunIDFromContext(ctx))
+	return err
+}
+
+// GenerateUploadDynamicJobs 基于已导出且未完成上传的月归档文件生成上传动态 JOB。
+//
+// 自 V200045 起唯一键为 (workflow_run_id, file_id)，每次运行各自持有独立实例。
+func (s *Store) GenerateUploadDynamicJobs(ctx context.Context) (int64, error) {
+	uploadRunID := cdeuRunIDFromContext(ctx)
+	tag, err := s.pool.Exec(ctx, `
+INSERT INTO `+tableDynamicJob+`
+    (process_id, job_code, name, usc, biz_month, export_type, export_job_id,
+     job_category, file_id, file_type, file_version, seq_no, status, workflow_run_id)
+SELECT p.process_id,
+       'JOB_UPLOAD_' || f.file_type || '_V' || f.version || '_' || upper(f.usc) || '_' || f.biz_month,
+       'UPLOAD_' || f.file_type || '_V' || f.version || '_' || f.usc || '_' || f.biz_month,
+       f.usc, f.biz_month, NULL, f.job_id,
+       'UPLOAD', f.file_id, f.file_type, f.version,
+       row_number() OVER (PARTITION BY p.process_id ORDER BY f.file_id),
+       -- 上传实例初始状态（需求 10738）：UPLOADING 是「上一次上传被中断」留下的脏状态，
+       -- 必须回到 PENDING 重新排队。原实现映射为 RUNNING 且不写 gmt_start，会生成
+       -- 一条永不执行、也不超时的僵尸实例（run 60 的 JOB_UPLOAD_BASE_V2_GCMAIN_202201）。
+       CASE f.upload_status
+           WHEN 'UPLOAD_FAILED' THEN 'FAILED'
+           ELSE 'PENDING'
+       END,
+       NULLIF($1::bigint, 0)
+  FROM `+tableFile+` f
+  JOIN cdeu.finv_quote_cdeu_process p ON p.process_code = 'PROCESS_UPLOAD'
+ WHERE f.export_status = 'EXPORTED'
+   AND f.upload_status NOT IN ('UPLOADED', 'SKIPPED')
+ON CONFLICT (workflow_run_id, file_id) WHERE job_category = 'UPLOAD' DO NOTHING`,
+		uploadRunID)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := s.pool.Exec(ctx, `
+INSERT INTO `+tableDynamicStep+`
+    (dynamic_job_id, step_code, name, seq_no, status)
+SELECT dj.dynamic_job_id, 'STEP_UPLOAD', '文件上传', 1, 'PENDING'
+  FROM `+tableDynamicJob+` dj
+ WHERE dj.job_category = 'UPLOAD'
+   AND dj.workflow_run_id IS NOT DISTINCT FROM NULLIF($1::bigint, 0)
+ON CONFLICT DO NOTHING`, uploadRunID); err != nil {
+		return tag.RowsAffected(), err
+	}
+	// 修正僵尸上传实例（需求 10738）：
+	// 历史实现会把「上次上传被中断」的 UPLOADING 文件映射成 RUNNING 实例，
+	// 且不写 gmt_start；这类实例永远不会被上传循环选中，也不会超时，
+	// 在界面上就是「一直转圈」的 JOB。判定口径：RUNNING 但从未有 gmt_start。
+	if _, err := s.pool.Exec(ctx, `
+UPDATE `+tableDynamicJob+` dj
+   SET status = 'PENDING',
+       error = NULL,
+       gmt_update = now()
+ WHERE dj.job_category = 'UPLOAD'
+   AND dj.status = 'RUNNING'
+   AND dj.gmt_start IS NULL`); err != nil {
+		return tag.RowsAffected(), err
+	}
+	return tag.RowsAffected(), nil
+}
+
+// MarkDynamicUploadJobStatus 更新指定文件的上传动态 JOB 状态。
+func (s *Store) MarkDynamicUploadJobStatus(ctx context.Context, fileID int64,
+	status, errText string, runLogID int64) error {
+	var errArg *string
+	if errText != "" {
+		errArg = &errText
+	}
+	var workflowRunID *int64
+	err := s.pool.QueryRow(ctx, `
+UPDATE `+tableDynamicJob+` dj
+   SET status = $2,
+       gmt_start = CASE WHEN $2 = 'RUNNING' THEN COALESCE(gmt_start, now()) ELSE gmt_start END,
+       gmt_finish = CASE WHEN $2 IN ('SUCCESS','PARTIAL','FAILED','PAUSED','CANCELLED','SKIPPED') THEN now() ELSE gmt_finish END,
+       error = $3,
+       run_log_id = COALESCE(NULLIF($4::bigint, 0), run_log_id),
+       workflow_run_id = COALESCE(workflow_run_id, NULLIF($5::bigint, 0)),
+       gmt_update = now()
+ WHERE dj.dynamic_job_id = (
+       SELECT dj2.dynamic_job_id
+         FROM `+tableDynamicJob+` dj2
+        WHERE dj2.job_category = 'UPLOAD' AND dj2.file_id = $1
+          AND ($5::bigint = 0 OR dj2.workflow_run_id = $5::bigint)
+        ORDER BY (dj2.workflow_run_id = $5::bigint) DESC NULLS LAST,
+                 dj2.dynamic_job_id DESC
+        LIMIT 1)
+ RETURNING workflow_run_id`, fileID, status, errArg, runLogID, cdeuRunIDFromContext(ctx)).Scan(&workflowRunID)
+	if err != nil {
+		return err
+	}
+	if workflowRunID != nil {
+		_ = s.EvaluateCDEURunProcesses(ctx, *workflowRunID)
+	}
+	return nil
+}
+
+// MarkDynamicUploadJobStepStatus 更新上传动态 JOB 的 STEP_UPLOAD。
+func (s *Store) MarkDynamicUploadJobStepStatus(ctx context.Context, fileID int64, status, errText string) error {
+	var errArg *string
+	if errText != "" {
+		errArg = &errText
+	}
+	_, err := s.pool.Exec(ctx, `
+UPDATE `+tableDynamicStep+` ds
+   SET status = $2,
+       started_at = CASE WHEN $2 = 'RUNNING' THEN COALESCE(ds.started_at, now()) ELSE ds.started_at END,
+       finished_at = CASE WHEN $2 IN ('SUCCESS','PARTIAL','FAILED','PAUSED','CANCELLED','SKIPPED') THEN now() ELSE ds.finished_at END,
+       error = $3, gmt_update = now()
+ WHERE ds.dynamic_job_id = (
+       SELECT dj2.dynamic_job_id
+         FROM `+tableDynamicJob+` dj2
+        WHERE dj2.job_category = 'UPLOAD' AND dj2.file_id = $1
+          AND ($4::bigint = 0 OR dj2.workflow_run_id = $4::bigint)
+        ORDER BY (dj2.workflow_run_id = $4::bigint) DESC NULLS LAST,
+                 dj2.dynamic_job_id DESC
+        LIMIT 1)
+   AND ds.step_code = 'STEP_UPLOAD'`, fileID, status, errArg, cdeuRunIDFromContext(ctx))
+	return err
+}
+
+// MarkDynamicJobStatus 更新动态 JOB 最近一次运行状态。
+func (s *Store) MarkDynamicJobStatus(ctx context.Context, usc string, bizMonth int,
+	status, errText string, runLogID int64) error {
+	var errArg *string
+	if errText != "" {
+		errArg = &errText
+	}
+	var workflowRunID *int64
+	err := s.pool.QueryRow(ctx, `
+UPDATE `+tableDynamicJob+` dj
+   SET status = $3,
+       gmt_start = CASE WHEN $3 = 'RUNNING' THEN COALESCE(gmt_start, now()) ELSE gmt_start END,
+       gmt_finish = CASE WHEN $3 IN ('SUCCESS','PARTIAL','FAILED','PAUSED','CANCELLED','SKIPPED') THEN now() ELSE gmt_finish END,
+       error = $4,
+       run_log_id = COALESCE(NULLIF($5::bigint, 0), run_log_id),
+       workflow_run_id = COALESCE(workflow_run_id, NULLIF($6::bigint, 0)),
+       gmt_update = now()
+ WHERE dj.dynamic_job_id = `+dynamicJobSelectionSQL("$6")+`
+ RETURNING workflow_run_id`, usc, bizMonth, status, errArg, runLogID,
+		cdeuRunIDFromContext(ctx)).Scan(&workflowRunID)
+	if err != nil {
+		return err
+	}
+	if workflowRunID != nil {
+		_ = s.EvaluateCDEURunProcesses(ctx, *workflowRunID)
+	}
+	return nil
+}
+
+// EnsureDynamicExportJob 在实际检测到增量后创建单证券 INCR 动态 JOB。
+// 批次清单只负责候选扫描，不能在确认 delta > 0 前生成 INCR 任务。
+//
+// 自 V200045 起唯一键为 (workflow_run_id, usc, biz_month)：
+// 同一运行内重复调用为幂等 UPSERT（重置为 PENDING），
+// 不同运行各自持有独立实例，不再把上一轮的记录改写成本轮。
+func (s *Store) EnsureDynamicExportJob(ctx context.Context, processCode, usc string, bizMonth int,
+	exportType string, exportJobID int64) error {
+	jobCode := fmt.Sprintf("JOB_EXPORT_%s_%s_%d", exportType, usc, bizMonth)
+	name := fmt.Sprintf("EXPORT_MON_%s_%s_%d", exportType, usc, bizMonth)
+	runID := cdeuRunIDFromContext(ctx)
+	if _, err := s.pool.Exec(ctx, `
+INSERT INTO `+tableDynamicJob+`
+    (process_id, job_code, name, usc, biz_month, export_type, export_job_id,
+     job_category, seq_no, status, workflow_run_id)
+SELECT p.process_id, $2, $3, $4, $5, $6, NULLIF($7, 0),
+       'EXPORT', 1, 'PENDING', NULLIF($8, 0)
+  FROM cdeu.finv_quote_cdeu_process p
+ WHERE p.process_code = $1
+ON CONFLICT (workflow_run_id, usc, biz_month) WHERE job_category = 'EXPORT' DO UPDATE SET
+    export_job_id = COALESCE(EXCLUDED.export_job_id, `+tableDynamicJob+`.export_job_id),
+    status = 'PENDING',
+    error = NULL,
+    gmt_start = NULL,
+    gmt_finish = NULL,
+    run_log_id = NULL,
+    gmt_update = now()`,
+		processCode, jobCode, name, usc, bizMonth, exportType, exportJobID, runID); err != nil {
+		return err
+	}
+	// Step 写入拆为两步，避开「同时违反两个唯一约束」的并发冲突：
+	//   cdeu_job_step_dynamic 上有 UNIQUE(dynamic_job_id, step_code) 和 UNIQUE(dynamic_job_id, seq_no)；
+	//   ON CONFLICT 若只声明一个冲突目标，另一个被违反时仍会报 23505（历史 run 55 即因此失败）。
+	//   因此：① 用不指定目标的 ON CONFLICT DO NOTHING 保证存在；② 单独 UPDATE 重置为 PENDING。
+	if _, err := s.pool.Exec(ctx, `
+INSERT INTO `+tableDynamicStep+`
+    (dynamic_job_id, step_code, name, seq_no, status)
+SELECT dj.dynamic_job_id, v.step_code, v.name, v.seq_no, 'PENDING'
+  FROM `+tableDynamicJob+` dj
+ CROSS JOIN (VALUES
+    ('STEP_LOAD', '装载', 1),
+    ('STEP_EXPORT', '文件生成', 2),
+    ('STEP_REGISTER', '文件登记', 3),
+    ('STEP_CLEANUP', '中转清理', 4)
+ ) AS v(step_code, name, seq_no)
+ WHERE dj.usc = $1 AND dj.biz_month = $2
+   AND dj.job_category = 'EXPORT' AND dj.export_type = $3
+   AND dj.workflow_run_id IS NOT DISTINCT FROM NULLIF($4::bigint, 0)
+ON CONFLICT DO NOTHING`,
+		usc, bizMonth, exportType, runID); err != nil {
+		return err
+	}
+	_, err := s.pool.Exec(ctx, `
+UPDATE `+tableDynamicStep+` ds
+   SET status = 'PENDING',
+       error = NULL,
+       started_at = NULL,
+       finished_at = NULL,
+       gmt_update = now()
+  FROM `+tableDynamicJob+` dj
+ WHERE ds.dynamic_job_id = dj.dynamic_job_id
+   AND dj.usc = $1 AND dj.biz_month = $2
+   AND dj.job_category = 'EXPORT' AND dj.export_type = $3
+   AND dj.workflow_run_id IS NOT DISTINCT FROM NULLIF($4::bigint, 0)`,
+		usc, bizMonth, exportType, runID)
+	return err
+}
+
+// InsertCandidateJobs 从当前批次清单读取 BASE 条目并生成导出任务
+// （幂等：同一 (usc, biz_month) 只建一次）。
+func (s *Store) InsertCandidateJobs(ctx context.Context, batchNo string, currentMonth int, limit int) (int64, error) {
+	rows, err := s.pool.Query(ctx, `
+SELECT m.usc,
+       m.biz_month,
+       COALESCE(u.priority_rank, 100),
+       COALESCE(u.sla_days, 5),
+       MIN(m.trade_date)
+  FROM `+tableBatch+` b
+  JOIN `+tableMaturity+` m ON m.usc = b.usc AND m.biz_month = b.biz_month
+  JOIN `+tableUsc+` u ON u.usc = m.usc
+ WHERE b.batch_no = $1 AND b.export_type = 'BASE'
+   AND m.biz_month < $2
+   AND u.region IS NOT NULL AND u.market IS NOT NULL AND u.provider IS NOT NULL
+   AND u.name IS NOT NULL AND u.timezone IS NOT NULL AND u.currency IS NOT NULL
+   AND (u.date_delist IS NULL OR u.date_delist >= make_date(m.biz_month / 100, m.biz_month % 100, 1))
+   AND NOT EXISTS (
+       SELECT 1 FROM `+tableJob+` j
+        WHERE j.usc = m.usc AND j.biz_month = m.biz_month
+          AND j.status IN ('LOADING', 'LOADED', 'EXPORTING', 'EXPORTED'))
+ GROUP BY m.usc, m.biz_month, u.priority_rank, u.sla_days
+HAVING bool_and(m.maturity_status IN ('COMPLETE', 'FROZEN'))
+ ORDER BY COALESCE(u.priority_rank, 100), MIN(m.trade_date)
+ LIMIT $3`, batchNo, currentMonth, limit)
 	if err != nil {
 		return 0, err
 	}
@@ -536,6 +1059,40 @@ UPDATE `+tableJob+` j
   FROM picked
  WHERE j.job_id = picked.job_id
 RETURNING `+jobColumnsAliased, worker, lease.Seconds())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	job, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[Job])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &job, nil
+}
+
+// ClaimJobByID 人工领取指定导出任务（用于动态 JOB 的单任务手动执行）。
+func (s *Store) ClaimJobByID(ctx context.Context, jobID int64, worker string, lease time.Duration) (*Job, error) {
+	rows, err := s.pool.Query(ctx, `
+WITH picked AS (
+  SELECT job_id
+    FROM `+tableJob+`
+   WHERE job_id = $1
+     AND status IN ('WAITING', 'PAUSED', 'FROZEN', 'FAILED')
+   FOR UPDATE SKIP LOCKED
+)
+UPDATE `+tableJob+` j
+   SET status = 'LOADING',
+       locked_by = $2,
+       locked_until = now() + make_interval(secs => $3::double precision),
+       gmt_heartbeat = now(),
+       attempt = j.attempt + 1,
+       gmt_update = now()
+  FROM picked
+ WHERE j.job_id = picked.job_id
+RETURNING `+jobColumnsAliased, jobID, worker, lease.Seconds())
 	if err != nil {
 		return nil, err
 	}
@@ -778,6 +1335,38 @@ SELECT COALESCE((SELECT max(ts) FROM page), $3)::bigint,
 	return result, err
 }
 
+// LoadPatchPage 把主表增量（since 非空）或整月（since 为 nil）的一页装入中转表。
+//
+// 与 LoadPage 的区别：额外按 gmt_create / gmt_update 过滤补丁增量，供补丁链路复用
+// 与正常导出相同的中转表 + 写文件 + 清理流程，避免大数据量直接流式写文件。
+func (s *Store) LoadPatchPage(ctx context.Context, usc string, date int, tsAfter int64, since *time.Time, limit int) (LoadPageResult, error) {
+	var result LoadPageResult
+	err := s.pool.QueryRow(ctx, `
+WITH page AS (
+  SELECT ts, date, "time", open, high, low, close, paocd, volume, turnover,
+         change_price, change_ratio, ext_field, last_close, remark, provider
+    FROM `+tableMain+`
+   WHERE usc = $1 AND date = $2 AND ts > $3
+     AND ($5::timestamptz IS NULL OR gmt_create > $5 OR gmt_update > $5)
+   ORDER BY ts
+   LIMIT $4
+), ins AS (
+  INSERT INTO `+tableStaging+`
+    (usc, ts, date, "time", open, high, low, close, paocd, volume, turnover,
+     change_price, change_ratio, ext_field, last_close, remark, provider)
+  SELECT $1, ts, date, "time", open, high, low, close, paocd, volume, turnover,
+         change_price, change_ratio, ext_field, last_close, remark, provider
+    FROM page
+  ON CONFLICT (ts, usc) DO NOTHING
+  RETURNING 1
+)
+SELECT COALESCE((SELECT max(ts) FROM page), $3)::bigint,
+       (SELECT count(*) FROM page)::bigint,
+       (SELECT count(*) FROM ins)::bigint`, usc, date, tsAfter, limit, since).
+		Scan(&result.MaxTS, &result.PageRows, &result.InsertedRows)
+	return result, err
+}
+
 // CountStaging 统计中转表中该证券日期范围内的行数。
 func (s *Store) CountStaging(ctx context.Context, usc string, from, to int) (int64, error) {
 	var count int64
@@ -902,6 +1491,282 @@ SELECT count(*) FROM `+tableMain+`
 // ---------------------------------------------------------------------
 // 工具函数
 // ---------------------------------------------------------------------
+
+// dynamicJobRetentionDays 历史运行动态实例的保留天数。
+//
+// 自 V200045 起动态 JOB 每次运行一条，会持续累积；
+// 超过保留期且所属运行已终态的实例由 CLEAN_EXPIRED_EXPORT_ARTIFACTS 清理。
+const dynamicJobRetentionDays = 30
+
+// PurgeStaleDynamicJobRuns 删除超过保留期的历史运行动态实例及其 Step。
+//
+// 只处理同时满足以下条件的实例，当前运行与未终态实例一律不动：
+//   - workflow_run_id 非空；
+//   - 所属 cdeu_workflow_run 已终态且 gmt_create 早于保留期；
+//   - 实例自身也已终态。
+//
+// 返回删除的 dynamic_job 行数。
+func (s *Store) PurgeStaleDynamicJobRuns(ctx context.Context, keepDays, limit int) (int64, error) {
+	if keepDays <= 0 {
+		keepDays = dynamicJobRetentionDays
+	}
+	if limit <= 0 {
+		limit = 5000
+	}
+	rows, err := s.pool.Query(ctx, `
+SELECT dj.dynamic_job_id
+  FROM `+tableDynamicJob+` dj
+  JOIN cdeu.finv_quote_cdeu_workflow_run wr ON wr.run_id = dj.workflow_run_id
+ WHERE dj.workflow_run_id IS NOT NULL
+   AND wr.status IN ('SUCCESS','PARTIAL','FAILED','PAUSED','CANCELLED','SKIPPED')
+   AND wr.gmt_create < now() - make_interval(days => $1)
+   AND dj.status IN ('SUCCESS','PARTIAL','FAILED','PAUSED','CANCELLED','SKIPPED')
+ ORDER BY dj.dynamic_job_id
+ LIMIT $2`, keepDays, limit)
+	if err != nil {
+		return 0, err
+	}
+	ids := make([]int64, 0, limit)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	if _, err := s.pool.Exec(ctx, `
+DELETE FROM `+tableDynamicStep+` WHERE dynamic_job_id = ANY($1)`, ids); err != nil {
+		return 0, err
+	}
+	tag, err := s.pool.Exec(ctx, `
+DELETE FROM `+tableDynamicJob+` WHERE dynamic_job_id = ANY($1)
+   AND workflow_run_id IS NOT NULL
+   AND status IN ('SUCCESS','PARTIAL','FAILED','PAUSED','CANCELLED','SKIPPED')`, ids)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
+// cdeuTerminalRunStatusSQL 终态运行状态集合（用于历史运行数据清理的门槛判断）。
+const cdeuTerminalRunStatusSQL = `('SUCCESS','PARTIAL','FAILED','PAUSED','CANCELLED','SKIPPED')`
+
+// PurgeHistoryRuns 按策略整体清理历史流程运行数据（需求 10723）。
+//
+// policy 取 syscfg.HistoryPurgeOff / HistoryPurgeDays / HistoryPurgeCount：
+//   - Off   直接返回，不删任何记录；
+//   - Days  删除「已终态 + 启动时间早于 keep 天前」的 workflow_run；
+//   - Count 只保留最近 keep 个 workflow_run，其余删除。
+//
+// 安全约束：
+//   - 只处理终态 run，PENDING/READY/RUNNING 一律跳过；
+//   - 永远保留 run_id 最大的那一个（防 keep=1 时把当前运行删掉）；
+//   - 孤立 run（cdeu_job_run 有 workflow_run_id 但 cdeu_workflow_run 已缺失）按
+//     cdeu_job_run 的 gmt_create 一并判定，不依赖父表是否存在。
+//
+// 返回各子表的删除行数汇总。
+func (s *Store) PurgeHistoryRuns(ctx context.Context, policy string, keep, limit int) (map[string]int64, error) {
+	stats := map[string]int64{
+		"runs": 0, "phase_runs": 0, "process_runs": 0, "job_runs": 0,
+		"job_step_runs": 0, "dynamic_jobs": 0, "dynamic_steps": 0,
+		"run_log_lines": 0, "run_log_files": 0,
+	}
+	if policy == syscfg.HistoryPurgeOff {
+		return stats, nil
+	}
+	if keep <= 0 {
+		keep = syscfg.HistoryPurgeKeepDefault
+	}
+	if limit <= 0 {
+		limit = 200
+	}
+
+	runIDs, err := s.cdeuHistoryRunIDs(ctx, policy, keep, limit)
+	if err != nil {
+		return stats, err
+	}
+	orphanIDs, err := s.cdeuOrphanHistoryRunIDs(ctx, policy, keep, limit)
+	if err != nil {
+		return stats, err
+	}
+	if len(runIDs) == 0 && len(orphanIDs) == 0 {
+		return stats, nil
+	}
+
+	// 孤儿 run 没有父行，单独清子表。
+	if len(orphanIDs) > 0 {
+		if err := s.purgeCdeuRunChildren(ctx, orphanIDs, stats, false); err != nil {
+			return stats, err
+		}
+		stats["orphan_runs"] = int64(len(orphanIDs))
+	}
+	if len(runIDs) == 0 {
+		return stats, nil
+	}
+
+	if err := s.purgeCdeuRunChildren(ctx, runIDs, stats, true); err != nil {
+		return stats, err
+	}
+	tag, err := s.pool.Exec(ctx, `
+DELETE FROM cdeu.finv_quote_cdeu_workflow_run
+ WHERE run_id = ANY($1)
+   AND status IN `+cdeuTerminalRunStatusSQL+`
+   AND run_id <> (SELECT max(run_id) FROM cdeu.finv_quote_cdeu_workflow_run)`, runIDs)
+	if err != nil {
+		return stats, err
+	}
+	stats["runs"] = tag.RowsAffected()
+	return stats, nil
+}
+
+// cdeuHistoryRunIDs 选出待清理的 workflow_run。
+func (s *Store) cdeuHistoryRunIDs(ctx context.Context, policy string, keep, limit int) ([]int64, error) {
+	var (
+		rows pgx.Rows
+		err  error
+	)
+	switch policy {
+	case syscfg.HistoryPurgeCount:
+		// 按 run_id 倒序排名，保留前 keep 个。
+		rows, err = s.pool.Query(ctx, `
+WITH ranked AS (
+    SELECT run_id, row_number() OVER (ORDER BY run_id DESC) AS rn
+      FROM cdeu.finv_quote_cdeu_workflow_run
+     WHERE status IN `+cdeuTerminalRunStatusSQL+`
+)
+SELECT run_id FROM ranked WHERE rn > $1 ORDER BY run_id LIMIT $2`, keep, limit)
+	default: // HistoryPurgeDays
+		rows, err = s.pool.Query(ctx, `
+SELECT run_id
+  FROM cdeu.finv_quote_cdeu_workflow_run
+ WHERE status IN `+cdeuTerminalRunStatusSQL+`
+   AND started_at < now() - make_interval(days => $1)
+   AND run_id <> (SELECT max(run_id) FROM cdeu.finv_quote_cdeu_workflow_run)
+ ORDER BY run_id
+ LIMIT $2`, keep, limit)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := make([]int64, 0, limit)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// cdeuOrphanHistoryRunIDs 选出「有运行子表但父 workflow_run 已缺失」的历史 run_id。
+//
+// 这类数据来自早期清理遗留（当前库中有 13 个，run_id 40–48、50 等），
+// 由于父行不在，无法用 cdeu_workflow_run.started_at 判定，改用子表的 gmt_create。
+func (s *Store) cdeuOrphanHistoryRunIDs(ctx context.Context, policy string, keep, limit int) ([]int64, error) {
+	// Count 策略下孤儿按 run_id 排名，与其他 run 混排会错位；此处只对 Days 生效。
+	if policy != syscfg.HistoryPurgeDays {
+		return nil, nil
+	}
+	rows, err := s.pool.Query(ctx, `
+SELECT jr.workflow_run_id
+  FROM cdeu.finv_quote_cdeu_job_run jr
+  LEFT JOIN cdeu.finv_quote_cdeu_workflow_run wr ON wr.run_id = jr.workflow_run_id
+ WHERE wr.run_id IS NULL
+   AND jr.workflow_run_id IS NOT NULL
+   AND jr.gmt_create < now() - make_interval(days => $1)
+   AND jr.status IN ('SUCCESS','PARTIAL','FAILED','PAUSED','CANCELLED','SKIPPED')
+ GROUP BY jr.workflow_run_id
+ ORDER BY jr.workflow_run_id
+ LIMIT $2`, keep, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := make([]int64, 0, limit)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// purgeCdeuRunChildren 按子→父顺序删除某批 run 的全部子表记录。
+//
+// withParent=true 时还包含 cdeu_phase_run / cdeu_process_run（仅对存在的父 run 有效）。
+func (s *Store) purgeCdeuRunChildren(ctx context.Context, runIDs []int64, stats map[string]int64, withParent bool) error {
+	steps, err := s.pool.Exec(ctx, `
+DELETE FROM cdeu.finv_quote_cdeu_job_step_dynamic
+ WHERE dynamic_job_id IN (
+       SELECT dynamic_job_id FROM cdeu.finv_quote_cdeu_job_dynamic WHERE workflow_run_id = ANY($1))`, runIDs)
+	if err != nil {
+		return err
+	}
+	stats["dynamic_steps"] += steps.RowsAffected()
+
+	dyn, err := s.pool.Exec(ctx, `
+DELETE FROM cdeu.finv_quote_cdeu_job_dynamic WHERE workflow_run_id = ANY($1)`, runIDs)
+	if err != nil {
+		return err
+	}
+	stats["dynamic_jobs"] += dyn.RowsAffected()
+
+	stepRuns, err := s.pool.Exec(ctx, `
+DELETE FROM cdeu.finv_quote_cdeu_job_step_run WHERE workflow_run_id = ANY($1)`, runIDs)
+	if err != nil {
+		return err
+	}
+	stats["job_step_runs"] += stepRuns.RowsAffected()
+
+	jobRuns, err := s.pool.Exec(ctx, `
+DELETE FROM cdeu.finv_quote_cdeu_job_run WHERE workflow_run_id = ANY($1)`, runIDs)
+	if err != nil {
+		return err
+	}
+	stats["job_runs"] += jobRuns.RowsAffected()
+
+	if withParent {
+		procRuns, err := s.pool.Exec(ctx, `
+DELETE FROM cdeu.finv_quote_cdeu_process_run WHERE workflow_run_id = ANY($1)`, runIDs)
+		if err != nil {
+			return err
+		}
+		stats["process_runs"] += procRuns.RowsAffected()
+
+		phaseRuns, err := s.pool.Exec(ctx, `
+DELETE FROM cdeu.finv_quote_cdeu_phase_run WHERE workflow_run_id = ANY($1)`, runIDs)
+		if err != nil {
+			return err
+		}
+		stats["phase_runs"] += phaseRuns.RowsAffected()
+	}
+
+	// 运行日志：run_id 是日志批次 ID（= cdeu_job_run.run_log_id），不是 workflow_run_id。
+	logs, err := s.pool.Exec(ctx, `
+DELETE FROM cdeu.finv_quote_cdeu_job_run_log_line
+ WHERE run_id IN (
+       SELECT DISTINCT run_log_id FROM cdeu.finv_quote_cdeu_job_run
+        WHERE workflow_run_id = ANY($1) AND run_log_id IS NOT NULL)`, runIDs)
+	if err != nil {
+		// 子表已删，日志清理失败不回滚，下次运行会因 job_run 已空而无法定位——记日志即可。
+		log.Printf("[cdeu] 清理运行日志失败 runs=%d err=%v", len(runIDs), err)
+		return nil
+	}
+	stats["run_log_lines"] += logs.RowsAffected()
+	return nil
+}
 
 func normalizePage(page int) int {
 	if page <= 0 {

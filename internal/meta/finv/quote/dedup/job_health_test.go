@@ -5,6 +5,40 @@ import (
 	"time"
 )
 
+// TestSummarizeJobProgress 校验批次进度汇总（成功 / 失败 / 进行中 / 待执行 / 暂停 / 冻结）。
+func TestSummarizeJobProgress(t *testing.T) {
+	counts := map[string]int64{
+		JobStatusWaiting:   2,
+		JobStatusLoading:   1,
+		JobStatusLoaded:    1,
+		JobStatusExporting: 3,
+		JobStatusExported:  8,
+		JobStatusPaused:    1,
+		JobStatusFailed:    2,
+		JobStatusFrozen:    1,
+	}
+	progress := SummarizeJobProgress(counts)
+	if progress.Total != 19 || progress.Success != 8 || progress.Failed != 2 ||
+		progress.Running != 5 || progress.Waiting != 2 || progress.Paused != 1 || progress.Frozen != 1 ||
+		progress.Loading != 1 || progress.Loaded != 1 || progress.Exporting != 3 {
+		t.Fatalf("批次进度汇总不符: %+v", progress)
+	}
+}
+
+// TestMergePatchProgress 校验补丁任务合并进批次进度。
+func TestMergePatchProgress(t *testing.T) {
+	progress := mergePatchProgress(JobProgress{}, map[string]int64{
+		PatchStatusPending: 2,
+		PatchStatusRunning: 1,
+		PatchStatusDone:    5,
+		PatchStatusFailed:  1,
+	})
+	if progress.PatchTotal != 9 || progress.PatchSuccess != 5 || progress.PatchFailed != 1 ||
+		progress.PatchRunning != 1 || progress.PatchPending != 2 {
+		t.Fatalf("补丁进度汇总不符: %+v", progress)
+	}
+}
+
 // TestBuildAlerts 校验告警阈值（方案稿 5.3）。
 func TestBuildAlerts(t *testing.T) {
 	clean := Metrics{PatchLast7Days: 1, BudgetFactor: 1.2, FrozenMissingRatio: 0}

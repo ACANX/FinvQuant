@@ -8,7 +8,17 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+// ErrRunLogNotFound 指定的 Job 运行记录不存在。
+var ErrRunLogNotFound = errors.New("Job 运行记录不存在")
+
+// ErrUscNotFound 指定的证券在 finv_dedup_usc 中不存在（需求 10745）。
+//
+// V200051 起优先级不再是独立行，必须依附于已存在的证券，因此设置优先级
+// 前需先登记证券；handler 据此返回 404。
+var ErrUscNotFound = errors.New("证券不存在")
 
 // 本文件实现归档运维台的数据访问：10 张表的分页查询 + 5 张可编辑表的管理员写入。
 // 约束：所有 SQL 使用 schema 全限定名；写操作统一写一条管理审计（run log，job_kind=MANUAL_ADMIN_EDIT）。
@@ -128,13 +138,15 @@ func (s *Store) ListWatermarks(ctx context.Context, f AdminFilter) (Page[Waterma
 		"watermark_name, last_value, gmt_update", nil, nil, "watermark_name", f)
 }
 
-// ListPriorities 查询证券优先级（数据量小，不分页）。
+// ListPriorities 查询已配置归档优先级的证券（V200051 起数据源为 finv_dedup_usc）。
+//
+// 只返回 priority_rank IS NOT NULL 的行；未配置的证券在 ListUscs 中三列为 NULL。
 func (s *Store) ListPriorities(ctx context.Context, f AdminFilter) (Page[PriorityRow], error) {
-	conds := []string{}
+	conds := []string{"priority_rank IS NOT NULL"}
 	args := []any{}
 	conds, args = appendUscCond(conds, args, f.Usc)
-	return pagedList[PriorityRow](ctx, s, tablePriority,
-		"usc, priority_rank, sla_days, max_wait_days, gmt_update", conds, args, "priority_rank, usc", f)
+	return pagedList[PriorityRow](ctx, s, tableUsc,
+		"usc, priority_rank, sla_days, max_wait_days, priority_gmt_update", conds, args, "priority_rank, usc", f)
 }
 
 // ListCalendar 分页查询交易日历。
@@ -164,7 +176,9 @@ func (s *Store) ListUscs(ctx context.Context, f AdminFilter) (Page[UscRow], erro
 	}
 	return pagedList[UscRow](ctx, s, tableUsc,
 		`usc, category, day_expect_rows, date_list, date_delist, flag_auto_discover,
-		 region, market, provider, name, timezone, currency, gmt_create, gmt_update`,
+		 region, market, provider, name, timezone, currency,
+		 priority_rank, sla_days, max_wait_days, priority_gmt_update,
+		 gmt_create, gmt_update`,
 		conds, args, "usc", f)
 }
 
@@ -188,8 +202,125 @@ func (s *Store) ListRunLogs(ctx context.Context, f AdminFilter) (Page[RunLogRow]
 	conds, args = appendDateRange(conds, args, "gmt_start", f.DateFrom, f.DateTo)
 	return pagedList[RunLogRow](ctx, s, tableRunLog,
 		`run_id, job_kind, job_id, usc, biz_month, gmt_start, gmt_finish, status,
-		 processed_rows, processed_bytes, error`,
+		 processed_rows, processed_bytes, error, stage, progress_percent, progress_detail, gmt_heartbeat`,
 		conds, args, "gmt_start DESC", f)
+}
+
+// RunLogDetail 查询单次 Job 运行汇总及其详细日志行。
+func (s *Store) RunLogDetail(ctx context.Context, runID int64) (*RunLogDetail, error) {
+	var detail RunLogDetail
+	err := s.pool.QueryRow(ctx, `
+SELECT run_id, job_kind, job_id, usc, biz_month, gmt_start, gmt_finish, status,
+       processed_rows, processed_bytes, error, stage, progress_percent, progress_detail, gmt_heartbeat
+  FROM `+tableRunLog+`
+ WHERE run_id = $1`, runID).Scan(
+		&detail.RunID, &detail.JobKind, &detail.JobID, &detail.Usc, &detail.BizMonth,
+		&detail.GmtStart, &detail.GmtFinish, &detail.Status,
+		&detail.ProcessedRows, &detail.ProcessedBytes, &detail.Error,
+		&detail.Stage, &detail.ProgressPercent, &detail.ProgressDetail, &detail.GmtHeartbeat)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrRunLogNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.pool.Query(ctx, `
+SELECT line_id, run_id, level, stage, message, progress_percent, gmt_create
+  FROM `+tableRunLogLine+`
+ WHERE run_id = $1
+ ORDER BY line_id`, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	lines, err := pgx.CollectRows(rows, pgx.RowToStructByName[RunLogLine])
+	if err != nil {
+		return nil, err
+	}
+	detail.Lines = lines
+	return &detail, nil
+}
+
+// ListRecentRunsByKind 每个 Job 取最近 limit 条运行记录（含未结束记录），供运行快照与历史展示。
+func (s *Store) ListRecentRunsByKind(ctx context.Context, kinds []string, limit int) (map[string][]RunLogRow, error) {
+	result := map[string][]RunLogRow{}
+	if len(kinds) == 0 {
+		return result, nil
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	rows, err := s.pool.Query(ctx, `
+SELECT run_id, job_kind, job_id, usc, biz_month, gmt_start, gmt_finish, status,
+       processed_rows, processed_bytes, error, stage, progress_percent, progress_detail, gmt_heartbeat
+  FROM (
+    SELECT *, row_number() OVER (PARTITION BY job_kind ORDER BY gmt_start DESC) AS rn
+      FROM `+tableRunLog+`
+     WHERE job_kind = ANY($1)
+       AND (gmt_start >= now() - interval '30 days' OR gmt_finish IS NULL)
+  ) t
+ WHERE rn <= $2
+ ORDER BY job_kind, gmt_start DESC`, kinds, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	list, err := pgx.CollectRows(rows, pgx.RowToStructByName[RunLogRow])
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range list {
+		result[row.JobKind] = append(result[row.JobKind], row)
+	}
+	return result, nil
+}
+
+// JobRunAggregates 统计每个 Job 的运行结果分布与最近成功 / 失败时间。
+//
+// 结果计数只统计 since 之后的记录；最近成功 / 失败时间不受 since 限制（每日类 Job 可能多日未跑）。
+func (s *Store) JobRunAggregates(ctx context.Context, kinds []string, since time.Time) (map[string]JobRunAggregate, error) {
+	result := map[string]JobRunAggregate{}
+	if len(kinds) == 0 {
+		return result, nil
+	}
+	rows, err := s.pool.Query(ctx, `
+SELECT k.kind AS job_kind,
+       COALESCE(c.success, 0), COALESCE(c.failed, 0), COALESCE(c.paused, 0), COALESCE(c.total, 0),
+       s.gmt_finish AS last_success_at, f.gmt_finish AS last_failure_at
+  FROM unnest($1::text[]) AS k(kind)
+  LEFT JOIN (
+    SELECT job_kind,
+           count(*) FILTER (WHERE status = 'SUCCESS') AS success,
+           count(*) FILTER (WHERE status = 'FAILED')  AS failed,
+           count(*) FILTER (WHERE status = 'PAUSED')  AS paused,
+           count(*)                                   AS total
+      FROM `+tableRunLog+`
+     WHERE job_kind = ANY($1) AND gmt_start >= $2
+     GROUP BY job_kind
+  ) c ON c.job_kind = k.kind
+  LEFT JOIN LATERAL (
+    SELECT gmt_finish FROM `+tableRunLog+`
+     WHERE job_kind = k.kind AND status = 'SUCCESS'
+     ORDER BY gmt_start DESC LIMIT 1
+  ) s ON true
+  LEFT JOIN LATERAL (
+    SELECT gmt_finish FROM `+tableRunLog+`
+     WHERE job_kind = k.kind AND status = 'FAILED'
+     ORDER BY gmt_start DESC LIMIT 1
+  ) f ON true`, kinds, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var item JobRunAggregate
+		if err := rows.Scan(&item.JobKind, &item.Success, &item.Failed, &item.Paused, &item.Total,
+			&item.LastSuccessAt, &item.LastFailureAt); err != nil {
+			return nil, err
+		}
+		result[item.JobKind] = item
+	}
+	return result, rows.Err()
 }
 
 // ListUploadLogs 分页查询上传审计。
@@ -255,28 +386,37 @@ UPDATE `+tableWatermark+` SET last_value = $2, gmt_update = now() WHERE watermar
 	return nil
 }
 
-// UpsertPriority 新增或更新证券优先级。
-func (s *Store) UpsertPriority(ctx context.Context, in PriorityUpsertInput) error {
-	_, err := s.pool.Exec(ctx, `
-INSERT INTO `+tablePriority+` (usc, priority_rank, sla_days, max_wait_days, gmt_update)
-VALUES ($1, $2, $3, $4, now())
-ON CONFLICT (usc) DO UPDATE SET
-  priority_rank = EXCLUDED.priority_rank,
-  sla_days = EXCLUDED.sla_days,
-  max_wait_days = EXCLUDED.max_wait_days,
-  gmt_update = now()`,
-		in.Usc, in.PriorityRank, in.SlaDays, in.MaxWaitDays)
-	return err
-}
-
-// DeletePriority 删除证券优先级。
-func (s *Store) DeletePriority(ctx context.Context, usc string) error {
-	tag, err := s.pool.Exec(ctx, `DELETE FROM `+tablePriority+` WHERE usc = $1`, usc)
+// SetUscPriority 设置或清除证券的归档优先级覆盖（V200051 起写入 finv_dedup_usc）。
+//
+// in 为 nil 表示清空覆盖（三列同时置 NULL），退回默认 100 / 5 / 7。
+// 与旧 UpsertPriority 的差异：不再可以给不存在的证券单独建优先级行——
+// 优先级是证券的属性，证券不存在时返回错误。
+func (s *Store) SetUscPriority(ctx context.Context, usc string, in *PriorityUpsertInput) error {
+	if strings.TrimSpace(usc) == "" {
+		return errors.New("usc 不能为空")
+	}
+	var (
+		tag pgconn.CommandTag
+		err error
+	)
+	if in == nil {
+		tag, err = s.pool.Exec(ctx, `
+UPDATE `+tableUsc+`
+   SET priority_rank = NULL, sla_days = NULL, max_wait_days = NULL,
+       priority_gmt_update = now(), gmt_update = now()
+ WHERE usc = $1`, usc)
+	} else {
+		tag, err = s.pool.Exec(ctx, `
+UPDATE `+tableUsc+`
+   SET priority_rank = $2, sla_days = $3, max_wait_days = $4,
+       priority_gmt_update = now(), gmt_update = now()
+ WHERE usc = $1`, usc, in.PriorityRank, in.SlaDays, in.MaxWaitDays)
+	}
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("优先级 %s 不存在", usc)
+		return ErrUscNotFound
 	}
 	return nil
 }

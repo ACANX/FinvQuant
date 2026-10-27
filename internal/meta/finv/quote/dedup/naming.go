@@ -33,9 +33,18 @@ const (
 // MvsvColumns 数据行 12 列（顺序固定，变更须走版本号并在 Manifest 标注 schema_version）。
 var MvsvColumns = []string{"ts", "da", "ti", "o", "h", "l", "c", "v", "t", "cp", "cr", "lc"}
 
-// BaseFileName BASE 文件名：{region}_{market}_{usc}_Min_{provider}_Mon_{yyyyMM}.mvsv。
+// BaseFileName BASE 文件名：{region}_{market}_{usc}_Min_{provider}_Mon_{yyyyMM}_Base.mvsv。
+//
+// 需求 10743：BASE 与 PATCH / MANIFEST 一样带上类型后缀，让文件名自解释：
+//
+//	..._Mon_201812_Base.mvsv      基期全量
+//	..._Mon_201812_Incr_1.mvsv    第 1 次增量
+//	..._Mon_201812_Manifest.json  清单
+//
+// 注意：改名后新文件与历史上传的旧名文件（无 _Base 后缀）在远端并存，
+// 旧文件不会被自动删除——BASE 的「同名覆盖」语义只对新命名生效。
 func (m FileMeta) BaseFileName() string {
-	return fmt.Sprintf("%s_%s_%s_Min_%s_Mon_%d.mvsv",
+	return fmt.Sprintf("%s_%s_%s_Min_%s_Mon_%d_Base.mvsv",
 		sanitizeFilePart(m.Region), sanitizeFilePart(m.Market), sanitizeFilePart(m.Usc),
 		sanitizeFilePart(m.Provider), m.BizMonth)
 }

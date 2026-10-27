@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// PatchTask 补丁任务（dedup.finv_dedup_export_file_patch 一行）。
+// PatchTask 补丁任务（cdeu.finv_quote_cdeu_export_file_patch 一行）。
 type PatchTask struct {
 	PatchID      int64
 	JobID        int64
@@ -34,10 +34,31 @@ type Alert struct {
 	Message string `json:"message"`
 }
 
+// JobProgress 导出任务批次进度（按任务状态聚合，供端到端链路的批次大节点展示）。
+type JobProgress struct {
+	Total     int64 `json:"total"`
+	Success   int64 `json:"success"`
+	Failed    int64 `json:"failed"`
+	Running   int64 `json:"running"`
+	Waiting   int64 `json:"waiting"`
+	Paused    int64 `json:"paused"`
+	Frozen    int64 `json:"frozen"`
+	Loading   int64 `json:"loading"`
+	Loaded    int64 `json:"loaded"`
+	Exporting int64 `json:"exporting"`
+
+	PatchTotal   int64 `json:"patch_total"`
+	PatchSuccess int64 `json:"patch_success"`
+	PatchFailed  int64 `json:"patch_failed"`
+	PatchRunning int64 `json:"patch_running"`
+	PatchPending int64 `json:"patch_pending"`
+}
+
 // Metrics 归档链路指标（M-06 / 5.2）。
 type Metrics struct {
 	GeneratedAt              string           `json:"generated_at"`
 	JobStatus                map[string]int64 `json:"job_status"`
+	JobProgress              JobProgress      `json:"job_progress"`
 	UploadStatus             map[string]int64 `json:"upload_status"`
 	PendingRows              int64            `json:"pending_rows"`
 	StagingRows              int64            `json:"staging_rows"`
@@ -126,7 +147,11 @@ ON CONFLICT (usc, biz_month, file_type, version) DO UPDATE
        export_status = EXCLUDED.export_status,
        upload_status = CASE
            WHEN `+tableFile+`.checksum = EXCLUDED.checksum
-                AND `+tableFile+`.upload_status = 'UPLOADED' THEN 'UPLOADED'
+                AND (`+tableFile+`.upload_status = 'UPLOADED'
+                     -- MANIFEST 按业务约定不上传（保持 SKIPPED），避免重导出后又进待传队列
+                     OR (`+tableFile+`.upload_status = 'SKIPPED'
+                         AND EXCLUDED.file_type = 'MANIFEST'))
+               THEN `+tableFile+`.upload_status
            ELSE 'PENDING_UPLOAD' END,
        remote_checksum_verified = (`+tableFile+`.checksum = EXCLUDED.checksum
                                    AND `+tableFile+`.remote_checksum_verified),
@@ -205,10 +230,53 @@ UPDATE `+tableFile+`
 	return err
 }
 
+// SkipManifestUploads 把 MANIFEST 文件标记为 SKIPPED（按业务约定不上传）。
+//
+// 业务约定：只上传 .mvsv 数据文件（BASE / PATCH）；xx_..._Manifest.json 仅留在
+// 本地用于校验，不推送到远端仓库。标记为 SKIPPED 而不是继续留在 PENDING_UPLOAD，
+// 是为了让上传动态作业生成、本地清理与监控指标都能把 MANIFEST 视为已终结状态。
+//
+// 返回被跳过的文件描述（含尝试次数与目标文件名），供调用方写上传审计日志。
+type SkippedManifest struct {
+	FileID     int64
+	Attempt    int
+	TargetName string
+}
+
+func (s *Store) SkipManifestUploads(ctx context.Context) ([]SkippedManifest, error) {
+	rows, err := s.pool.Query(ctx, `
+UPDATE `+tableFile+`
+   SET upload_status = 'SKIPPED',
+       gmt_next_retry = NULL,
+       gmt_update = now()
+ WHERE file_type = 'MANIFEST'
+   AND upload_status IN ('PENDING_UPLOAD', 'UPLOAD_FAILED')
+RETURNING file_id, upload_attempt, target_file_name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	skipped := make([]SkippedManifest, 0, 8)
+	for rows.Next() {
+		var item SkippedManifest
+		if err := rows.Scan(&item.FileID, &item.Attempt, &item.TargetName); err != nil {
+			return nil, err
+		}
+		skipped = append(skipped, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return skipped, nil
+}
+
 // PickUploadFile 领取一个待上传文件（行锁 + SKIP LOCKED）。
 //
 // 规则（G-08 / G-14 / 4.5）：只领取 PENDING_UPLOAD / UPLOAD_FAILED 且 gmt_next_retry 到期的记录；
-// BASE / PATCH 优先，同一证券月的 MANIFEST 必须等该月其它文件全部上传完成后才领取。
+// **仅上传 .mvsv 数据文件（BASE / PATCH）**——MANIFEST（xx_..._Manifest.json）
+// 只留本地用于校验，不推送远端仓库，故此处直接排除（其状态由
+// SkipManifestUploads 统一标记为 SKIPPED）。
 func (s *Store) PickUploadFile(ctx context.Context) (*File, error) {
 	rows, err := s.pool.Query(ctx, `
 WITH picked AS (
@@ -217,12 +285,8 @@ WITH picked AS (
    WHERE f.upload_status IN ('PENDING_UPLOAD', 'UPLOAD_FAILED')
      AND (f.gmt_next_retry IS NULL OR f.gmt_next_retry <= now())
      AND f.export_status = 'EXPORTED'
-     AND (f.file_type <> 'MANIFEST' OR NOT EXISTS (
-            SELECT 1 FROM `+tableFile+` o
-             WHERE o.usc = f.usc AND o.biz_month = f.biz_month
-               AND o.file_type <> 'MANIFEST'
-               AND o.upload_status IN ('PENDING_UPLOAD', 'UPLOADING', 'UPLOAD_FAILED')))
-   ORDER BY CASE WHEN f.file_type = 'MANIFEST' THEN 1 ELSE 0 END, f.gmt_create, f.file_id
+     AND f.file_type <> 'MANIFEST'
+   ORDER BY f.gmt_create, f.file_id
    LIMIT 1
    FOR UPDATE SKIP LOCKED
 )
@@ -377,15 +441,89 @@ UPDATE `+tableFile+` SET cleanup_status = 'LOCAL_DELETED', gmt_update = now() WH
 	return err
 }
 
+// LocalFileToPurge 待清理的本地导出文件（需求 10744）。
+type LocalFileToPurge struct {
+	FileID   int64
+	Usc      string
+	BizMonth int
+	FileType string
+	Version  int
+	FilePath string
+}
+
+// LocalFilesForSettledMonths 返回「该证券月全部文件已交付且已过保留窗口」的本地文件。
+//
+// 判据（全部满足）：
+//  1. 该 (usc, biz_month) 的 BASE 与全部 PATCH 均已 upload_status='UPLOADED'；
+//  2. 上述 BASE/PATCH 的 remote_checksum_verified 全部为 true；
+//  3. 最后一个文件的上传完成时间早于 now() - delay（默认 24 小时，留人工干预窗口）；
+//  4. 该月没有 PENDING/RUNNING 状态的补丁记录；
+//  5. 文件尚未标记 LOCAL_DELETED 且 file_path 非空。
+//
+// 返回值包含该月的 MANIFEST（.json），它不上传远端但同属本次导出产物，需要一起释放。
+func (s *Store) LocalFilesForSettledMonths(ctx context.Context, delay time.Duration, limit int) ([]LocalFileToPurge, error) {
+	if limit <= 0 {
+		limit = 500
+	}
+	rows, err := s.pool.Query(ctx, `
+WITH settled AS (
+    SELECT f.usc AS usc,
+           f.biz_month AS biz_month,
+           max(f.gmt_upload_finish) AS last_upload_at,
+           bool_and(f.upload_status = 'UPLOADED') AS all_uploaded,
+           bool_and(CASE WHEN f.file_type IN ('BASE','PATCH')
+                         THEN f.remote_checksum_verified ELSE true END) AS all_verified,
+           bool_or(f.file_type = 'BASE') AS has_base
+      FROM `+tableFile+` f
+     WHERE f.file_type IN ('BASE','PATCH')
+     GROUP BY f.usc, f.biz_month
+)
+SELECT f.file_id, f.usc, f.biz_month, f.file_type, f.version, f.file_path
+  FROM `+tableFile+` f
+  JOIN settled s ON s.usc = f.usc AND s.biz_month = f.biz_month
+ WHERE s.all_uploaded
+   AND s.all_verified
+   AND s.has_base
+   AND s.last_upload_at IS NOT NULL
+   AND s.last_upload_at < now() - make_interval(secs => $1::double precision)
+   AND f.cleanup_status <> 'LOCAL_DELETED'
+   AND f.file_path <> ''
+   AND NOT EXISTS (
+       SELECT 1 FROM `+tablePatch+` p
+        WHERE p.usc = f.usc AND p.biz_month = f.biz_month
+          AND p.status IN ('PENDING','RUNNING'))
+ ORDER BY s.last_upload_at, f.file_id
+ LIMIT $2`, delay.Seconds(), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]LocalFileToPurge, 0, limit)
+	for rows.Next() {
+		var item LocalFileToPurge
+		if err := rows.Scan(&item.FileID, &item.Usc, &item.BizMonth, &item.FileType,
+			&item.Version, &item.FilePath); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
 // LocalCleanupCandidates 返回满足本地清理条件的文件：
 // 上传成功 + 远端校验通过 + 网盘归档完成 + 无待处理补丁 + 保留期到达（L-02）。
+//
+// 例外：MANIFEST 按约定不上传（upload_status=SKIPPED），无需远端校验，
+// 只要网盘归档完成且保留期到达即可清理，避免本地残留少量 json 永不释放。
 func (s *Store) LocalCleanupCandidates(ctx context.Context, retention time.Duration, limit int) ([]File, error) {
 	rows, err := s.pool.Query(ctx, `
 SELECT `+fileColumns+`
   FROM `+tableFile+` f
  WHERE f.cleanup_status = 'NONE'
-   AND f.upload_status = 'UPLOADED'
-   AND f.remote_checksum_verified
+   AND (
+        (f.upload_status = 'UPLOADED' AND f.remote_checksum_verified)
+        OR (f.file_type = 'MANIFEST' AND f.upload_status IN ('UPLOADED', 'SKIPPED'))
+       )
    AND f.network_status = 'ARCHIVED'
    AND f.gmt_create < now() - make_interval(secs => $1::double precision)
    AND NOT EXISTS (
@@ -448,8 +586,115 @@ DELETE FROM `+tableMain+`
 	return tag.RowsAffected(), nil
 }
 
+// PurgeMainSecurityMonth 删除指定证券某月的全部主表行情数据（20007=1 上传成功后调用）。
+//
+// 只删 dedup schema 的主表；quote schema 是回测/查询专用的独立副本，不参与本操作。
+// 分批删除（ctid 子查询 + LIMIT），避免长事务与大量 WAL。
+func (s *Store) PurgeMainSecurityMonth(ctx context.Context, usc string, bizMonth, limit int) (int64, error) {
+	if limit <= 0 {
+		limit = 50000
+	}
+	from, to := MonthRange(bizMonth)
+	tag, err := s.pool.Exec(ctx, `
+DELETE FROM `+tableMain+`
+ WHERE ctid IN (
+   SELECT ctid FROM `+tableMain+`
+    WHERE usc = $1 AND date BETWEEN $2 AND $3
+    LIMIT $4)`, usc, from, to, limit)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
+// SettledSecurityMonth 一个「已沉淀」的证券月：已导出并已上传，且导出后数据未再变化。
+type SettledSecurityMonth struct {
+	Usc      string
+	BizMonth int
+	FileID   int64
+}
+
+// SettledSecurityMonths 返回可按 20007 释放主表数据的证券月列表。
+//
+// 判定条件（全部满足）：
+//  1. 存在 BASE 文件且 export_status='EXPORTED'、upload_status='UPLOADED'；
+//  2. 主表该月仍有数据；
+//  3. BASE 文件生成之后，该月主表没有任何新增/更新
+//     （gmt_create > BASE.gmt_create 或 gmt_update > BASE.gmt_create）。
+//
+// 条件 3 用于避免误删：只要有行在文件生成后被写入或修改，就说明远端 BASE 不包含
+// 这部分内容，必须先走 INCR 补丁流程，不能直接删除。
+func (s *Store) SettledSecurityMonths(ctx context.Context, limit int) ([]SettledSecurityMonth, error) {
+	if limit <= 0 {
+		limit = 500
+	}
+	// 判据（需求 10720）：该证券月的 **BASE 与全部 PATCH** 都已 UPLOADED，
+	// 且主表仍留有该月数据、且数据在最后一个文件生成后没有再次变化。
+	//
+	// 相比旧实现（只看 BASE）多了一层「全部 PATCH 已上传」约束，避免把尚未
+	// 交付增量补丁的月份当作已沉淀而提前删除。
+	rows, err := s.pool.Query(ctx, `
+WITH settled AS (
+    SELECT f.usc AS usc,
+           f.biz_month AS biz_month,
+           min(f.file_id) AS base_file_id,
+           max(f.gmt_create) AS last_file_at,
+           bool_and(f.upload_status = 'UPLOADED') AS all_uploaded,
+           bool_or(f.file_type = 'BASE') AS has_base
+      FROM `+tableFile+` f
+     WHERE f.export_status = 'EXPORTED'
+       AND f.file_type IN ('BASE','PATCH')
+     GROUP BY f.usc, f.biz_month
+)
+SELECT s.base_file_id, s.usc, s.biz_month
+  FROM settled s
+ WHERE s.all_uploaded
+   AND s.has_base
+   AND EXISTS (
+       SELECT 1 FROM `+tableMain+` m
+        WHERE m.usc = s.usc
+          AND m.date BETWEEN s.biz_month * 100 + 1 AND s.biz_month * 100 + 31)
+   AND NOT EXISTS (
+       SELECT 1 FROM `+tableMain+` m
+        WHERE m.usc = s.usc
+          AND m.date BETWEEN s.biz_month * 100 + 1 AND s.biz_month * 100 + 31
+          AND (m.gmt_create > s.last_file_at OR m.gmt_update > s.last_file_at))
+ ORDER BY s.biz_month, s.usc
+ LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]SettledSecurityMonth, 0, limit)
+	for rows.Next() {
+		var item SettledSecurityMonth
+		if err := rows.Scan(&item.FileID, &item.Usc, &item.BizMonth); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
 // PatchCandidates 返回需要检查补丁的已导出证券月。
-func (s *Store) PatchCandidates(ctx context.Context, limit int) ([]PatchCandidate, error) {
+func (s *Store) PatchCandidates(ctx context.Context, batchNo string, limit int) ([]PatchCandidate, error) {
+	if batchNo != "" {
+		rows, err := s.pool.Query(ctx, `
+SELECT j.job_id, j.usc, j.biz_month, j.seal_date, j.base_version, j.patch_count
+  FROM `+tableBatch+` b
+  JOIN `+tableJob+` j ON j.job_id = b.source_job_id
+ WHERE b.batch_no = $1 AND b.export_type = 'INCR'
+   AND j.status = 'EXPORTED'
+   AND EXISTS (
+       SELECT 1 FROM `+tableFile+` f
+        WHERE f.job_id = j.job_id AND f.file_type = 'BASE' AND f.export_status = 'EXPORTED')
+ ORDER BY j.gmt_update, j.job_id
+ LIMIT $2`, batchNo, limit)
+		if err != nil {
+			return nil, err
+		}
+		return scanPatchCandidates(rows)
+	}
 	rows, err := s.pool.Query(ctx, `
 SELECT j.job_id, j.usc, j.biz_month, j.seal_date, j.base_version, j.patch_count
   FROM `+tableJob+` j
@@ -462,6 +707,10 @@ SELECT j.job_id, j.usc, j.biz_month, j.seal_date, j.base_version, j.patch_count
 	if err != nil {
 		return nil, err
 	}
+	return scanPatchCandidates(rows)
+}
+
+func scanPatchCandidates(rows pgx.Rows) ([]PatchCandidate, error) {
 	defer rows.Close()
 	candidates := make([]PatchCandidate, 0, 16)
 	for rows.Next() {
@@ -548,13 +797,23 @@ func (s *Store) JobStatusCounts(ctx context.Context) (map[string]int64, error) {
 	return s.countBy(ctx, `SELECT status, count(*) FROM `+tableJob+` GROUP BY status`)
 }
 
+// JobStatusCountsByMonth 按业务月份聚合任务状态（用于导出任务批次的完成进度）。
+func (s *Store) JobStatusCountsByMonth(ctx context.Context, bizMonth int) (map[string]int64, error) {
+	return s.countBy(ctx, `SELECT status, count(*) FROM `+tableJob+` WHERE biz_month = $1 GROUP BY status`, bizMonth)
+}
+
+// PatchStatusCountsByMonth 按业务月份聚合补丁任务状态（补丁属于本月导出批次的一部分）。
+func (s *Store) PatchStatusCountsByMonth(ctx context.Context, bizMonth int) (map[string]int64, error) {
+	return s.countBy(ctx, `SELECT status, count(*) FROM `+tablePatch+` WHERE biz_month = $1 GROUP BY status`, bizMonth)
+}
+
 // UploadStatusCounts 按上传状态聚合文件数。
 func (s *Store) UploadStatusCounts(ctx context.Context) (map[string]int64, error) {
 	return s.countBy(ctx, `SELECT upload_status, count(*) FROM `+tableFile+` GROUP BY upload_status`)
 }
 
-func (s *Store) countBy(ctx context.Context, sql string) (map[string]int64, error) {
-	rows, err := s.pool.Query(ctx, sql)
+func (s *Store) countBy(ctx context.Context, sql string, args ...any) (map[string]int64, error) {
+	rows, err := s.pool.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -614,8 +873,12 @@ func (s *Store) LocalFilesPendingCleanup(ctx context.Context) (int64, error) {
 	var count int64
 	err := s.pool.QueryRow(ctx, `
 SELECT count(*) FROM `+tableFile+`
- WHERE cleanup_status = 'NONE' AND upload_status = 'UPLOADED'
-   AND remote_checksum_verified AND network_status = 'ARCHIVED'`).Scan(&count)
+ WHERE cleanup_status = 'NONE'
+   AND (
+        (upload_status = 'UPLOADED' AND remote_checksum_verified)
+        OR (file_type = 'MANIFEST' AND upload_status IN ('UPLOADED', 'SKIPPED'))
+       )
+   AND network_status = 'ARCHIVED'`).Scan(&count)
 	return count, err
 }
 

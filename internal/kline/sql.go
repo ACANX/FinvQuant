@@ -6,7 +6,7 @@ import (
 )
 
 // Table 业务表（必须 schema 全限定，见 Docs/DevSpec/DbSchemaSpec.md）。
-const Table = "dedup.finv_quote_secu_kline_min"
+const Table = "cdeu.finv_quote_secu_kline_min"
 
 // maxParamsPerStatement PostgreSQL 单条语句参数上限 65535，按 60000 留余量。
 const maxParamsPerStatement = 60000

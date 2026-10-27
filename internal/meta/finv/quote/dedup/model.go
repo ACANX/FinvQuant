@@ -7,7 +7,7 @@
 // （方案稿 v5.0：Docs 目录内为落地版说明，本包与之逐条对应）。
 //
 // 关键约束（不可违反）：
-//   - 不修改 dedup.finv_quote_secu_kline_min 与 export.finv_quote_secu_kline_min 的结构；
+//   - 不修改 cdeu.finv_quote_secu_kline_min 与 export.finv_quote_secu_kline_min 的结构；
 //   - 新增表全部在 dedup schema（finv_dedup_* 前缀），全库无外键；
 //   - 导出与上传文件格式均为 .mvsv（16 行文件头 + 1 行空行 + 管道分隔数据行），不生成 .csv；
 //   - 所有 SQL 必须写 schema 全限定名（见 Docs/DevSpec/DbSchemaSpec.md §3）；
@@ -36,14 +36,45 @@ const (
 	// JobScanPostSealPatches 每日：扫描收口后到达的数据，生成 L1/L2/L3 补丁。
 	JobScanPostSealPatches = "SCAN_POST_SEAL_PATCHES"
 	// JobCleanExpiredExportArtifacts 每日：清理超期中转残留、过期本地文件与主表旧数据。
+	//
+	// Deprecated（需求 10717）：自 V200048 起已拆为 JobCleanExportStorage（存储）、
+	// JobPurgeExportedMonth（主表）、JobPurgeStaleDynamic（动态实例）三个独立 JOB，
+	// 并整体迁至 PHASE_REVIEW（归档复核）。保留常量仅供历史运行记录追溯。
 	JobCleanExpiredExportArtifacts = "CLEAN_EXPIRED_EXPORT_ARTIFACTS"
 	// JobRecoverTimeoutExportJobs 每 5 分钟：回收心跳/租约超时的 RUNNING 任务。
 	JobRecoverTimeoutExportJobs = "RECOVER_TIMEOUT_EXPORT_JOBS"
 	// JobCheckExportJobHealth 每 15 分钟：检查积压、预算因子、SLA、上传重试、MVsv 结构并告警。
 	JobCheckExportJobHealth = "CHECK_EXPORT_JOB_HEALTH"
+
+	// 以下四个 JOB 均属 PHASE_REVIEW（归档复核），见需求 10716–10723。
+	//
+	// JobPurgeExportedMonth 归档复核：扫描「全部文件已上传」的证券月，按 20007 释放 dedup 主表数据。
+	// 扫描式判据同时覆盖「本次上传完成」与「历史遗留已上传未清理」，不再区分两者。
+	JobPurgeExportedMonth = "PURGE_EXPORTED_MONTH"
+	// JobPurgeLocalExportFiles 归档复核：按 20011 清理本地导出的 .mvsv / Manifest 文件（需求 10744）。
+	// 排在 JobPurgeExportedMonth 之后执行；判据为「该月全部文件上传成功且超过 24 小时」。
+	JobPurgeLocalExportFiles = "PURGE_LOCAL_EXPORT_FILES"
+	// JobCleanExportStorage 归档复核：清理中转表残留与保留期到期的本地导出文件。
+	JobCleanExportStorage = "CLEAN_EXPORT_STORAGE"
+	// JobPurgeStaleDynamic 归档复核：按 20008 保留期清理历史动态 JOB 实例。
+	JobPurgeStaleDynamic = "PURGE_STALE_DYNAMIC"
+	// JobPurgeHistoryRuns 归档复核：按 20009/20010 策略清理历史流程运行数据（workflow_run 及其子表）。
+	JobPurgeHistoryRuns = "PURGE_HISTORY_RUNS"
+
+	// JobCheckIngestReadiness 采集阶段：检查 quote 侧数据新鲜度（需求 10741）。
+	// 采集本身由外部程序负责，本 JOB 只做只读体检，把「最新交易日/滞后天数/总行数」写入运行明细。
+	JobCheckIngestReadiness = "CHECK_INGEST_READINESS"
+	// JobEvaluateExportCondition 决策阶段：只读评估哪些证券月满足 BASE 导出条件，
+	// 并给出各排除原因的分布（需求 10741）。
+	// 判定口径与 GenerateExportBatch 的 BASE 分支一致，只是不落批次表——
+	// 让「导出条件判定」从内嵌逻辑变成可观测的独立步骤。
+	JobEvaluateExportCondition = "EVALUATE_EXPORT_CONDITION"
 )
 
 // AllJobKinds 返回全部 Job 标识（顺序与方案稿 2.2 节编排一致）。
+//
+// 需求 10717：CLEAN_EXPIRED_EXPORT_ARTIFACTS 已停用，不再登记调度；
+// 其职责由 PURGE_EXPORTED_MONTH / CLEAN_EXPORT_STORAGE / PURGE_STALE_DYNAMIC 接管。
 func AllJobKinds() []string {
 	return []string{
 		JobCalcDailyIngestStats,
@@ -53,7 +84,13 @@ func AllJobKinds() []string {
 		JobRunDueExportJobs,
 		JobUploadPendingExportFiles,
 		JobScanPostSealPatches,
-		JobCleanExpiredExportArtifacts,
+		JobCheckIngestReadiness,
+		JobEvaluateExportCondition,
+		JobPurgeExportedMonth,
+		JobPurgeLocalExportFiles,
+		JobCleanExportStorage,
+		JobPurgeStaleDynamic,
+		JobPurgeHistoryRuns,
 		JobRecoverTimeoutExportJobs,
 		JobCheckExportJobHealth,
 	}
@@ -143,7 +180,7 @@ const (
 	RunStatusPaused  = "PAUSED"
 )
 
-// Job 证券月导出任务（dedup.finv_dedup_export_job 一行）。
+// Job 证券月导出任务（cdeu.finv_quote_cdeu_export_job 一行）。
 type Job struct {
 	JobID             int64      `db:"job_id" json:"job_id"`
 	Usc               string     `db:"usc" json:"usc"`
@@ -168,7 +205,7 @@ type Job struct {
 	GmtUpdate         time.Time  `db:"gmt_update" json:"gmt_update"`
 }
 
-// File 导出文件登记（dedup.finv_dedup_export_file 一行）。
+// File 导出文件登记（cdeu.finv_quote_cdeu_export_file 一行）。
 type File struct {
 	FileID                 int64      `db:"file_id" json:"file_id"`
 	JobID                  int64      `db:"job_id" json:"job_id"`
@@ -336,7 +373,7 @@ type PatchCandidate struct {
 	PatchCount  int
 }
 
-// FileMeta MVsv 文件头与文件名的元数据来源（dedup.finv_dedup_usc）。
+// FileMeta MVsv 文件头与文件名的元数据来源（cdeu.finv_quote_cdeu_usc）。
 type FileMeta struct {
 	Usc      string
 	BizMonth int

@@ -32,7 +32,7 @@ type WriteResult struct {
 //  2. 1 行空行（不得省略）；
 //  3. 数据行：12 列以 `|` 分隔，空值为空串（即出现 `||`）；
 //  4. 先写同目录临时文件，校验实际行数与 expectedRows 一致后原子 rename；
-//  5. 返回文件大小与 SHA256，供 dedup.finv_dedup_export_file 登记与上传校验。
+//  5. 返回文件大小与 SHA256，供 cdeu.finv_quote_cdeu_export_file 登记与上传校验。
 //
 // expectedRows 必须由调用方预统计（COUNT(*)），传负数视为 0。
 func WriteMVsv(dest string, meta FileMeta, compression string, expectedRows int64, source RowSource) (WriteResult, error) {

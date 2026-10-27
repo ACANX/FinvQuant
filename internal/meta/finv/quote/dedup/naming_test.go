@@ -21,7 +21,7 @@ func testMeta() FileMeta {
 // TestFileNames 校验 BASE / PATCH / MANIFEST 命名契约（C-01~C-03）。
 func TestFileNames(t *testing.T) {
 	meta := testMeta()
-	if got, want := meta.BaseFileName(), "CN_SZ_159934_Min_FTMM_Mon_202610.mvsv"; got != want {
+	if got, want := meta.BaseFileName(), "CN_SZ_159934_Min_FTMM_Mon_202610_Base.mvsv"; got != want {
 		t.Fatalf("BASE 文件名不符：got=%q want=%q", got, want)
 	}
 	if got, want := meta.PatchFileName(2), "CN_SZ_159934_Min_FTMM_Mon_202610_Incr_2.mvsv"; got != want {

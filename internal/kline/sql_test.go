@@ -6,18 +6,20 @@ import (
 )
 
 func TestTableConstantQualified(t *testing.T) {
-	if !strings.HasPrefix(Table, "dedup.") {
-		t.Fatalf("Table 常量必须使用 dedup. 前缀，实际 %s", Table)
+	// K 线 API（写入/查询）自 V100080 起读写 cdeu.finv_quote_secu_kline_min
+	// （原 dedup 副本的数据已迁入 cdeu，dedup 侧待淘汰）。
+	if !strings.HasPrefix(Table, "cdeu.") {
+		t.Fatalf("Table 常量必须使用 cdeu. 前缀，实际 %s", Table)
 	}
 }
 
 func TestInsertSQLUsesSchemaQualifiedTable(t *testing.T) {
 	sql := insertSQL(2, "")
-	if !strings.Contains(sql, "INSERT INTO dedup.finv_quote_secu_kline_min") {
+	if !strings.Contains(sql, "INSERT INTO cdeu.finv_quote_secu_kline_min") {
 		t.Fatalf("缺少 schema 全限定表名: %s", sql)
 	}
 	if strings.Contains(sql, "quote.finv_quote_secu_kline_min") &&
-		!strings.Contains(sql, "dedup.finv_quote_secu_kline_min") {
+		!strings.Contains(sql, "cdeu.finv_quote_secu_kline_min") {
 		t.Fatal("不得使用 quote. 前缀")
 	}
 	// 两行共 32 个参数占位符：$1..$32。
@@ -55,7 +57,7 @@ func TestUpsertSQLModes(t *testing.T) {
 
 func TestPatchSQLCasts(t *testing.T) {
 	sql := patchSQL([]string{ColVolume, ColRemark}, 2)
-	if !strings.Contains(sql, "UPDATE dedup.finv_quote_secu_kline_min AS t") {
+	if !strings.Contains(sql, "UPDATE cdeu.finv_quote_secu_kline_min AS t") {
 		t.Fatalf("缺少表名: %s", sql)
 	}
 	for _, cast := range []string{"$1::varchar", "$2::bigint", "$3::numeric(20,6)", "$4::text"} {

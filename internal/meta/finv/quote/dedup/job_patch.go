@@ -12,68 +12,15 @@ import (
 const patchBatchLimit = 100
 
 // runScanPostSealPatches 扫描收口后到达的数据，按 L1_HOT / L2_WARM / L3_COLD 分级补丁（K-01~K-11）。
-func (s *Service) runScanPostSealPatches(ctx context.Context, result *Result) error {
-	budget, err := s.ensureBudget(ctx, s.options.Today())
-	if err != nil {
-		return err
-	}
-	allowed := int64(float64(budget.BudgetRows) * s.options.PatchBudgetRatio)
-	if allowed <= 0 {
-		allowed = 1
-	}
-
-	candidates, err := s.store.PatchCandidates(ctx, patchBatchLimit)
-	if err != nil {
-		return err
-	}
-
-	var rows, rewritten, patched int64
-	for _, candidate := range candidates {
-		if ctx.Err() != nil {
-			break
-		}
-		if rows >= allowed {
-			break
-		}
-		outcome, patchErr := s.processPatchCandidate(ctx, candidate, allowed-rows)
-		if patchErr != nil {
-			log.Printf("[exportarchive] 补丁处理失败 job_id=%d usc=%s biz_month=%d err=%v",
-				candidate.JobID, candidate.Usc, candidate.BizMonth, patchErr)
-			continue
-		}
-		rows += outcome.Rows
-		switch outcome.Level {
-		case PatchLevelL1Hot:
-			rewritten++
-		case PatchLevelL2Warm, PatchLevelL3Cold:
-			if outcome.Rows > 0 {
-				patched++
-			}
-		}
-	}
-
-	result.ProcessedRows = rows
-	result.Details = map[string]any{
-		"candidates":        len(candidates),
-		"rewritten_base":    rewritten,
-		"patches":           patched,
-		"patch_rows":        rows,
-		"patch_budget_rows": allowed,
-	}
-	log.Printf("[exportarchive] %s 完成 candidates=%d rewritten_base=%d patches=%d patch_rows=%d patch_budget_rows=%d",
-		JobScanPostSealPatches, len(candidates), rewritten, patched, rows, allowed)
-	return nil
-}
-
-// patchOutcome 单个证券月补丁处理结果。
-type patchOutcome struct {
+// PatchOutcome 单个证券月补丁处理结果。
+type PatchOutcome struct {
 	Rows  int64
 	Level string
 }
 
 // processPatchCandidate 处理单个证券月：脏数据为 0 则只推进水位，否则重写 base 或生成补丁。
-func (s *Service) processPatchCandidate(ctx context.Context, candidate PatchCandidate, rowsLeft int64) (patchOutcome, error) {
-	outcome := patchOutcome{}
+func (s *Service) processPatchCandidate(ctx context.Context, candidate PatchCandidate, rowsLeft int64) (PatchOutcome, error) {
+	outcome := PatchOutcome{}
 	base, err := s.store.LatestBaseFile(ctx, candidate.JobID)
 	if err != nil || base == nil {
 		return outcome, err
@@ -105,6 +52,12 @@ func (s *Service) processPatchCandidate(ctx context.Context, candidate PatchCand
 	if !info.Complete() {
 		return outcome, fmt.Errorf("证券 %s 元数据不完整，跳过补丁", candidate.Usc)
 	}
+	// 只有确认 delta > 0 后才创建 INCR 动态 JOB，避免零增量任务出现在 JOB 清单。
+	if err := s.store.EnsureDynamicExportJob(ctx, "PROCESS_EXPORT_FILE_MON_INCR",
+		candidate.Usc, candidate.BizMonth, "INCR", candidate.JobID); err != nil {
+		return outcome, err
+	}
+	_ = s.store.MarkDynamicJobStatus(ctx, candidate.Usc, candidate.BizMonth, CDEUStatusRunning, "", runIDFromContext(ctx))
 	meta := info.Meta(candidate.BizMonth)
 	job := &Job{
 		JobID:       candidate.JobID,
@@ -115,22 +68,43 @@ func (s *Service) processPatchCandidate(ctx context.Context, candidate PatchCand
 		PatchCount:  candidate.PatchCount,
 	}
 
-	// L1_HOT：base 尚未上传成功 → 重写 base（base_version+1），原子覆盖同名文件。
-	if base.UploadStatus == UploadStatusPending || base.UploadStatus == UploadStatusFailed ||
-		base.UploadStatus == UploadStatusUploading {
+	// 20007=0（保留主表数据）：重复导出**直接重写同名 BASE 覆盖**，不生成 INCR。
+	//
+	// 语义与 20007=1 互斥：
+	//   - 20007=0 → 始终 rewriteBase（主表数据还在，可整月重写）；
+	//   - 20007=1 → 保持原有分级逻辑（BASE 未上传成功时 rewriteBase；已上传则生成 INCR，
+	//     因为此时主表该月数据可能已在上传成功后被删除，无法再整月重写）。
+	//
+	// 注意：BASE 文件名不含版本号，重写即同名覆盖，不存在「版本号递增」；
+	// 只有 INCR 文件名（_Incr_N.mvsv）的 N 会随 patch_count 递增。
+	forceRewriteBase := !s.PurgeAfterExportEnabled(ctx)
+	baseNotUploaded := base.UploadStatus == UploadStatusPending || base.UploadStatus == UploadStatusFailed ||
+		base.UploadStatus == UploadStatusUploading
+	if forceRewriteBase && !baseNotUploaded {
+		log.Printf("[cdeu] 20007=0 覆盖 BASE（不生成 INCR）job_id=%d usc=%s biz_month=%d 原上传状态=%s",
+			candidate.JobID, candidate.Usc, candidate.BizMonth, base.UploadStatus)
+	}
+
+	// L1_HOT：base 尚未上传成功，或 20007=0 强制覆盖 → 重写 base，原子覆盖同名文件。
+	if baseNotUploaded || forceRewriteBase {
 		outcome.Level = PatchLevelL1Hot
-		outcome.Rows = delta
-		if err := s.rewriteBase(ctx, job, base, meta); err != nil {
+		if delta > rowsLeft {
+			log.Printf("[cdeu] L1 重写 base 数据量较大 job_id=%d usc=%s delta=%d 预算剩余=%d，仍按完整数据执行",
+				job.JobID, job.Usc, delta, rowsLeft)
+		}
+		written, err := s.rewriteBase(ctx, job, base, meta)
+		if err != nil {
 			return outcome, err
 		}
+		outcome.Rows = written
 		task := &PatchTask{
 			JobID:        job.JobID,
 			Usc:          job.Usc,
 			BizMonth:     job.BizMonth,
 			PatchLevel:   PatchLevelL1Hot,
 			PatchVersion: 0,
-			SourceRows:   delta,
-			PatchRows:    delta,
+			SourceRows:   written,
+			PatchRows:    written,
 			Reason:       PatchReasonLateArrival,
 			ArrivalStart: since,
 			ArrivalEnd:   scanUntil,
@@ -145,10 +119,10 @@ func (s *Service) processPatchCandidate(ctx context.Context, candidate PatchCand
 		if base.NetworkStatus == NetworkStatusArchived || base.CleanupStatus == CleanupStatusLocalDeleted {
 			outcome.Level = PatchLevelL3Cold
 		}
-		// 补丁受独立小预算控制；超出本轮预算则留待下一轮（不推进水位）。
+		// 数据量大的补丁也必须完整导出（走中转表 / 分页装载）；超出小预算只记录告警，不截断。
 		if delta > rowsLeft {
-			outcome.Level = ""
-			return outcome, nil
+			log.Printf("[cdeu] 补丁数据量较大 job_id=%d usc=%s biz_month=%d delta=%d 预算剩余=%d，仍按完整补丁执行",
+				job.JobID, job.Usc, job.BizMonth, delta, rowsLeft)
 		}
 		written, err := s.writePatch(ctx, job, base, meta, since, delta, outcome.Level, scanUntil)
 		if err != nil {
@@ -160,17 +134,82 @@ func (s *Service) processPatchCandidate(ctx context.Context, candidate PatchCand
 	if err := s.store.UpsertWatermark(ctx, watermarkName, scanUntil); err != nil {
 		return outcome, err
 	}
-	log.Printf("[exportarchive] 补丁完成 job_id=%d usc=%s biz_month=%d level=%s rows=%d",
+	log.Printf("[cdeu] 补丁完成 job_id=%d usc=%s biz_month=%d level=%s rows=%d",
 		job.JobID, job.Usc, job.BizMonth, outcome.Level, outcome.Rows)
 	return outcome, nil
 }
 
+// stagePatchRows 将补丁数据分页装入中转表（与正常导出共用 export.finv_quote_secu_kline_min）。
+//
+// since 为 nil 表示整月（L1 重写 base），否则只装载 gmt_create/gmt_update 晚于水位的增量。
+// 装载前会清理该证券月残留，避免上次失败数据混入；写文件后由 cleanupPatchStaging 统一清理。
+func (s *Service) stagePatchRows(ctx context.Context, job *Job, from, to int, since *time.Time, expected int64) (int64, error) {
+	if _, err := s.store.CleanupStaging(ctx, job.Usc, from, to); err != nil {
+		return 0, err
+	}
+	var loaded int64
+	for date := from; date <= to; date = nextDate(date) {
+		cursor := int64(0)
+		for {
+			page, err := s.store.LoadPatchPage(ctx, job.Usc, date, cursor, since, s.options.PageSize)
+			if err != nil {
+				return loaded, err
+			}
+			loaded += page.InsertedRows
+			cursor = page.MaxTS
+			percent := -1.0
+			if expected > 0 {
+				percent = float64(loaded) / float64(expected) * 100
+				if percent > 100 {
+					percent = 100
+				}
+			}
+			s.reportProgress(ctx, "PATCH", percent,
+				fmt.Sprintf("补丁装载 %s date=%d 已装载 %d/%d 行", job.Usc, date, loaded, expected))
+			if page.PageRows == 0 || page.PageRows < int64(s.options.PageSize) {
+				break
+			}
+		}
+	}
+	return loaded, nil
+}
+
+// cleanupPatchStaging 清理补丁占用的中转数据（成功/失败均调用，避免残留）。
+func (s *Service) cleanupPatchStaging(ctx context.Context, job *Job, from, to int) {
+	cleanupCtx := context.WithoutCancel(ctx)
+	if _, err := s.store.CleanupStaging(cleanupCtx, job.Usc, from, to); err != nil {
+		log.Printf("[cdeu] 清理补丁中转数据失败 usc=%s biz_month=%d err=%v", job.Usc, job.BizMonth, err)
+		return
+	}
+	if truncated, err := s.store.TruncateStagingIfEmpty(cleanupCtx); err != nil {
+		log.Printf("[cdeu] TRUNCATE 中转表失败 err=%v", err)
+	} else if truncated {
+		log.Printf("[cdeu] 补丁完成后中转表已清空，执行 TRUNCATE")
+	}
+}
+
 // rewriteBase L1_HOT：以主表整月数据重写 BASE（base_version+1），旧记录标记 SUPERSEDED。
-func (s *Service) rewriteBase(ctx context.Context, job *Job, oldBase *File, meta FileMeta) error {
+func (s *Service) rewriteBase(ctx context.Context, job *Job, oldBase *File, meta FileMeta) (int64, error) {
 	from, to := MonthRange(job.BizMonth)
 	rowCount, err := s.store.CountMainMonth(ctx, job.Usc, from, to)
 	if err != nil {
-		return err
+		return 0, err
+	}
+	if rowCount <= 0 {
+		return 0, fmt.Errorf("主表 %s %d 月无数据，无法重写 base", job.Usc, job.BizMonth)
+	}
+	if _, err := s.stagePatchRows(ctx, job, from, to, nil, rowCount); err != nil {
+		s.cleanupPatchStaging(ctx, job, from, to)
+		return 0, err
+	}
+	defer s.cleanupPatchStaging(ctx, job, from, to)
+
+	actual, err := s.store.CountStaging(ctx, job.Usc, from, to)
+	if err != nil {
+		return 0, err
+	}
+	if actual <= 0 {
+		return 0, fmt.Errorf("补丁中转表为空（期望 %d 行）", rowCount)
 	}
 
 	folder := s.jobFolder(meta)
@@ -178,16 +217,16 @@ func (s *Service) rewriteBase(ctx context.Context, job *Job, oldBase *File, meta
 	manifestPath := filepath.Join(folder, meta.ManifestFileName())
 	version := oldBase.Version + 1
 
-	write, err := WriteMVsv(basePath, meta, s.options.Compression, rowCount,
-		s.mainSource(ctx, job.Usc, from, to, nil))
+	write, err := WriteMVsv(basePath, meta, s.options.Compression, actual,
+		s.stagingSource(ctx, job.Usc, from, to))
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if err := VerifyMVsv(basePath, s.options.Compression, rowCount); err != nil {
-		return fmt.Errorf("MVsv 结构校验失败（L1_HOT 重写）: %w", err)
+	if err := VerifyMVsv(basePath, s.options.Compression, actual); err != nil {
+		return 0, fmt.Errorf("MVsv 结构校验失败（L1_HOT 重写）: %w", err)
 	}
 
-	target := s.options.TargetPath(meta.BaseFileName())
+	target := s.options.ArchiveTargetPath(meta.Region, meta.Market, meta.Usc, meta.BaseFileName())
 	sealDate := job.SealDate
 	if _, err := s.store.RegisterFile(ctx, &File{
 		JobID:          job.JobID,
@@ -209,26 +248,42 @@ func (s *Service) rewriteBase(ctx context.Context, job *Job, oldBase *File, meta
 		ExportStatus:   ExportStatusExported,
 		UploadStatus:   UploadStatusPending,
 	}); err != nil {
-		return err
+		return 0, err
 	}
 	if err := s.store.SupersedeFile(ctx, oldBase.FileID); err != nil {
-		return err
+		return 0, err
 	}
 	if _, err := s.rebuildManifest(ctx, job, meta, manifestPath); err != nil {
-		return err
+		return 0, err
 	}
 	job.BaseVersion = version
 	if err := s.store.UpdateJobPatchState(ctx, job.JobID, version, job.PatchCount); err != nil {
-		return err
+		return 0, err
 	}
-	log.Printf("[exportarchive] L1_HOT 重写 base job_id=%d usc=%s biz_month=%d version=%d rows=%d",
+	log.Printf("[cdeu] L1_HOT 重写 base（经中转表）job_id=%d usc=%s biz_month=%d version=%d rows=%d",
 		job.JobID, job.Usc, job.BizMonth, version, write.RowCount)
-	return nil
+	return write.RowCount, nil
 }
 
 // writePatch 生成增量补丁文件（..._Incr_{n}.mvsv）并登记 PATCH + MANIFEST。
+//
+// 与全量导出一致：先把增量装入中转表，再从中间表写补丁文件，最后清理中转数据。
 func (s *Service) writePatch(ctx context.Context, job *Job, base *File, meta FileMeta, since time.Time, expectedRows int64, level string, scanUntil time.Time) (int64, error) {
 	from, to := MonthRange(job.BizMonth)
+	if _, err := s.stagePatchRows(ctx, job, from, to, &since, expectedRows); err != nil {
+		s.cleanupPatchStaging(ctx, job, from, to)
+		return 0, err
+	}
+	defer s.cleanupPatchStaging(ctx, job, from, to)
+
+	actual, err := s.store.CountStaging(ctx, job.Usc, from, to)
+	if err != nil {
+		return 0, err
+	}
+	if actual <= 0 {
+		return 0, fmt.Errorf("补丁中转表为空（期望 %d 行）", expectedRows)
+	}
+
 	version, err := s.store.NextPatchVersion(ctx, job.JobID)
 	if err != nil {
 		return 0, err
@@ -238,18 +293,17 @@ func (s *Service) writePatch(ctx context.Context, job *Job, base *File, meta Fil
 	patchName := meta.PatchFileName(version)
 	patchPath := filepath.Join(folder, patchName)
 	manifestPath := filepath.Join(folder, meta.ManifestFileName())
-	sinceArg := since
 
-	write, err := WriteMVsv(patchPath, meta, s.options.Compression, expectedRows,
-		s.mainSource(ctx, job.Usc, from, to, &sinceArg))
+	write, err := WriteMVsv(patchPath, meta, s.options.Compression, actual,
+		s.stagingSource(ctx, job.Usc, from, to))
 	if err != nil {
 		return 0, err
 	}
-	if err := VerifyMVsv(patchPath, s.options.Compression, expectedRows); err != nil {
+	if err := VerifyMVsv(patchPath, s.options.Compression, actual); err != nil {
 		return 0, fmt.Errorf("MVsv 结构校验失败（Patch）: %w", err)
 	}
 
-	target := s.options.TargetPath(patchName)
+	target := s.options.ArchiveTargetPath(meta.Region, meta.Market, meta.Usc, patchName)
 	sealDate := job.SealDate
 	fileID, err := s.store.RegisterFile(ctx, &File{
 		JobID:          job.JobID,
@@ -281,7 +335,7 @@ func (s *Service) writePatch(ctx context.Context, job *Job, base *File, meta Fil
 		BizMonth:     job.BizMonth,
 		PatchLevel:   level,
 		PatchVersion: version,
-		SourceRows:   expectedRows,
+		SourceRows:   write.RowCount,
 		PatchRows:    write.RowCount,
 		Reason:       PatchReasonLateArrival,
 		ArrivalStart: since,
@@ -301,7 +355,7 @@ func (s *Service) writePatch(ctx context.Context, job *Job, base *File, meta Fil
 		return 0, err
 	}
 	job.PatchCount = version
-	log.Printf("[exportarchive] 生成补丁 job_id=%d usc=%s biz_month=%d level=%s n=%d rows=%d checksum=%s",
+	log.Printf("[cdeu] 生成补丁（经中转表）job_id=%d usc=%s biz_month=%d level=%s n=%d rows=%d checksum=%s",
 		job.JobID, job.Usc, job.BizMonth, level, version, write.RowCount, write.Checksum)
 	return write.RowCount, nil
 }

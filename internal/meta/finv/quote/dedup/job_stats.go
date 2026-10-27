@@ -2,7 +2,6 @@ package dedup
 
 import (
 	"context"
-	"log"
 	"math"
 	"time"
 )
@@ -94,49 +93,7 @@ func (s *Service) ensureBudget(ctx context.Context, today time.Time) (*Budget, e
 }
 
 // runCalcDailyIngestStats 每日统计入口流量（H-01）。
-func (s *Service) runCalcDailyIngestStats(ctx context.Context, result *Result) error {
-	now := s.options.Now()
-	from := s.options.Today().AddDate(0, 0, -30)
-	updated, err := s.store.CalcIngestStats(ctx, from, now.Add(time.Minute), s.options.TimeZone)
-	if err != nil {
-		return err
-	}
-	result.Details = map[string]any{
-		"stat_days":   updated,
-		"window_from": from.Format(time.RFC3339),
-		"window_to":   now.Format(time.RFC3339),
-		"time_zone":   s.options.TimeZone,
-	}
-	log.Printf("[exportarchive] %s 完成 stat_days=%d", JobCalcDailyIngestStats, updated)
-	return nil
-}
-
 // runCalcDailyExportBudget 每日计算导出预算（H-02 / H-03 / H-07）。
-func (s *Service) runCalcDailyExportBudget(ctx context.Context, result *Result) error {
-	today := s.options.Today()
-	baseline, err := s.store.IngestStatsBaseline(ctx, today.AddDate(0, 0, -30), today)
-	if err != nil {
-		return err
-	}
-	pending, err := s.store.PendingRows(ctx)
-	if err != nil {
-		return err
-	}
-	pressure, err := s.store.SLAPressure(ctx, today, 3)
-	if err != nil {
-		return err
-	}
-	budget := ComputeBudget(today, baseline, pending, pressure)
-	if err := s.store.UpsertBudget(ctx, budget); err != nil {
-		return err
-	}
-	result.Details = budget
-	log.Printf("[exportarchive] %s 完成 biz_date=%s base_rows=%.0f p75_rows=%.0f backlog_days=%.2f sla_pressure=%.2f factor=%.2f budget_rows=%d hard_cap_rows=%d",
-		JobCalcDailyExportBudget, today.Format("2006-01-02"), baseline.BaseRows, baseline.P75Rows,
-		budget.BacklogRatio, budget.SLAPressure, budget.Factor, budget.BudgetRows, budget.HardCapRows)
-	return nil
-}
-
 func clampFloat(value, min, max float64) float64 {
 	if value < min {
 		return min
