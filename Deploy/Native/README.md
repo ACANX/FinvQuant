@@ -112,6 +112,6 @@
 1. **迁移不可自动回滚**：破坏性版本（列改名、schema 迁移）升级后如需回退，只能从升级前的 `pg_dump` 恢复数据库；升级前务必完成备份。
 2. **禁止新旧并用**：新旧二进制不得同时连接同一数据库（列名/schema 不兼容），升级必须「停旧 → 备份 → 起新」一次完成。
 3. **不要手工改迁移**：`Deploy/Migrations/` 是历史记录，改动只允许新增；已有例外的判定标准见 `DbSchemaSpec.md` §4。
-4. **`search_path` 依赖**：应用连接串固定为 `public,quote,quant,futu`；手工 `psql` 时若未设置，须写全限定名（如 `quote.finv_quote_secu_kline_min`），否则可能报 `relation does not exist`。
+4. **`search_path` 依赖**：应用连接串固定为 `public,quote,quant,futu,export,sche,dedup,archive,sys`；手工 `psql` 时若未设置，须写全限定名（如 `quote.finv_quote_secu_kline_min`），否则可能报 `relation does not exist`。
 5. **unit 名与服务名**：仓库内源文件为 `FinvQuant.service`，安装后注册为 `finvquant.service`（小写），两者是同一份配置，不要按仓库文件名去 `systemctl`。
 6. **本项目不提供 Native 方式的主机环境兜底**：OS 版本、SELinux、防火墙、磁盘与内核参数等问题需要部署者自行处理；文档只覆盖应用侧配置与操作。

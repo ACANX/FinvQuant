@@ -19,7 +19,7 @@ Deploy/
 |---|---|---|
 | `Docker/` | 是 | `docker-compose.yml`、`Dockerfile`、`.env.example`、部署/升级/回滚脚本、Windows Docker 文档 |
 | `Native/` | 是 | systemd unit、安装/升级/卸载脚本、环境变量与 Nginx 模板、安装与升级手册 |
-| `Migrations/` | 是 | 结构迁移 `V1`～`V99999`、种子/数据迁移 `V100000+`，**历史文件不可回改** |
+| `Migrations/` | 是 | 结构迁移 `V100001`～`V199999`、种子/数据迁移 `V200000+`，**历史文件不可回改** |
 | `Script/` | 是 | `PackSnapshot.sh`（快照包构建，CI 与本地共用）+ `PackSnapshot.cmd`（Windows 封装，转调 .sh），见 §2.3 |
 | `Backup/` | 否 | `pg_dump -Fc` 产物，两种方式共用，命名 `finvquant_YYYYMMDD_HHMMSS.dump` |
 
@@ -38,7 +38,7 @@ Deploy/
 
 ### 2.1 `Migrations/`（数据库迁移）
 
-- 命名 `V<版本号>__<描述>.sql`；结构迁移用 `V1`～`V99999`，种子/数据迁移用 `V100000+`，全部按版本号升序执行。
+- 命名 `V<版本号>__<描述>.sql`；结构迁移用 `V100001`～`V199999`，种子/数据迁移用 `V200000+`，全部按版本号升序执行。
 - 服务（容器或二进制）**启动时自动应用未执行版本**，记录在 `public.schema_version`；单事务执行，失败整体回滚。
 - **历史迁移文件不可回改**（已应用库会按 `schema_version` 跳过，改动会造成存量库与全新库结构分叉）；唯一例外是「新结构已使历史迁移无法在全新库执行」的兼容修正，规则见 [`../Docs/DevSpec/DbSchemaSpec.md`](../Docs/DevSpec/DbSchemaSpec.md) §4。
 - 目录位置：容器方式构建时拷入镜像 `/etc/finvquant/Migrations`；Native 方式由安装/升级脚本同步到 `/etc/finvquant/Migrations`；统一由环境变量 `FINV_MIGRATIONS_DIR` 指向。
@@ -74,7 +74,7 @@ Deploy\Script\PackSnapshot.cmd --target windows/amd64
 |---|---|
 | 禁止新旧共存 | 破坏性版本（列改名、schema 迁移）变更后，新旧程序**不得同时连接同一数据库**；升级必须「停旧 → 备份 → 起新」 |
 | 升级前必须备份 | 迁移**不可自动回滚**，回退数据库只能靠升级前的 `pg_dump` |
-| schema 限定 | 业务表按域位于 `quote` / `quant` / `futu` / `export`（导出）/ `sche`（调度）/ `dedup`（去重）/ `archive`（冷数据归档）schema，`search_path = public,quote,quant,futu,export,sche,dedup,archive`；手工 `psql` 须写全限定名（如 `quote.finv_quote_secu_kline_min`） |
+| schema 限定 | 业务表按域位于 `quote` / `quant` / `futu` / `export`（导出）/ `sche`（调度）/ `dedup`（去重）/ `archive`（冷数据归档）/ `sys`（系统域）schema，`search_path = public,quote,quant,futu,export,sche,dedup,archive,sys`；手工 `psql` 须写全限定名（如 `quote.finv_quote_secu_kline_min`） |
 | 端口约定 | API `16001`、前端 `16002`；生产建议只绑 `127.0.0.1` 并由 Nginx 反代 |
 
 ## 4. 各方式的快速入口

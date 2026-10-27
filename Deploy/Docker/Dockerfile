@@ -31,6 +31,9 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
+# 先清空 embed 位置：`COPY . .` 会把工作区里残留的旧前端产物（不同 hash 的 index-*.js）带进镜像，
+# 若不清空，旧文件会与新构建产物叠加并被 go:embed 一并打包 —— 表现为字符串扫描仍能搜到已修复的旧文案。
+RUN rm -rf /app/internal/webui/dist
 # 将前端构建产物放入 embed 位置（internal/webui/dist）——来自 BUILDPLATFORM 阶段，双平台共享
 COPY --from=web-builder /web/dist /app/internal/webui/dist
 
@@ -52,7 +55,7 @@ ENV FINV_MIGRATIONS_DIR=/etc/finvquant/Migrations
 
 # 运行目录与导出归档目录（非 root 用户需要可写）
 WORKDIR /app
-RUN mkdir -p /app/Data/ExportArchive && chown -R finvquant:finvquant /app
+RUN mkdir -p /data/App/FinvQuant/Export && chown -R finvquant:finvquant /app /data
 
 USER finvquant
 EXPOSE 16001 16002

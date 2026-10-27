@@ -108,9 +108,9 @@ docker compose -f Deploy/Docker/docker-compose.yml --env-file Deploy/Docker/.env
 
 > 升级后首次启动会自动执行数据库迁移（默认超时 30 秒），期间 `/Health/Ready` 短暂不通过属正常；若迁移失败，`finvquant` 会启动失败并退出，见 [6. 常见问题](#6-常见问题)。
 
-## 3.3 破坏性变更版本的升级约束（V29 起）
+## 3.3 破坏性变更版本的升级约束（V100029 起）
 
-自 `V29__rename_secu_code_to_usc.sql` 起，数据库列名与接口字段由 `secu_code` 改为 `usc`，属**破坏性变更**：
+自 `V100029__rename_secu_code_to_usc.sql` 起，数据库列名与接口字段由 `secu_code` 改为 `usc`，属**破坏性变更**：
 
 - **禁止新旧镜像共存**：旧镜像（`0.1.0` 及更早）无法读写新列名，新镜像也不兼容旧列名。升级必须按「**停旧容器 → 拉取新镜像 → 启动（自动迁移）**」一次完成，不得让两个版本同时对同一数据库提供服务。
 - **升级前必须备份**：执行第 2 节的 `pg_dump` 逻辑备份；本次迁移只改列名与索引名、不改数据，但备份仍是回滚的唯一依据。
@@ -121,7 +121,7 @@ docker compose -f Deploy/Docker/docker-compose.yml --env-file Deploy/Docker/.env
 
 ## 4. 数据库自动迁移说明
 
-- 迁移文件：`Deploy/Migrations/V<number>__<name>.sql`（表结构 V1~V99999，种子数据 V100000+）。
+- 迁移文件：`Deploy/Migrations/V<number>__<name>.sql`（表结构 V100001~V199999，种子数据 V200000+）。
 - 记录表：`schema_version`（`version` 主键 + `success` 标记）；已成功的版本不会重复执行，**支持重复启动（幂等）**。
 - 迁移在**单事务**内执行（脚本含 `BEGIN/COMMIT`），失败自动回滚并导致服务启动失败。
 - 新增迁移脚本只需放入 `Deploy/Migrations/`（随镜像发布），升级时服务启动即自动应用，无需手动 `psql`。

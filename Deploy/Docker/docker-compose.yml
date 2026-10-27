@@ -41,15 +41,21 @@ services:
       # 证券行情月归档导出与上传（详见 Docs/Refactor/2610-005-FinvQuoteDeDubExportUpload.md）
       FINV_QUOTE_DEDUB_ENABLED: ${FINV_QUOTE_DEDUB_ENABLED:-false}
       FINV_QUOTE_DEDUB_TIMEZONE: ${FINV_QUOTE_DEDUB_TIMEZONE:-Asia/Shanghai}
+      FINV_QUOTE_DEDUB_OUTPUT_DIR: ${FINV_QUOTE_DEDUB_OUTPUT_DIR:-/data/App/FinvQuant/Export}
+      FINV_QUOTE_DEDUB_UPLOAD_DIR: ${FINV_QUOTE_DEDUB_UPLOAD_DIR:-/data/App/FinvQuant/Export/Upload}
       FINV_QUOTE_DEDUB_UPLOAD_MODE: ${FINV_QUOTE_DEDUB_UPLOAD_MODE:-none}
+      # GitHub Enterprise 可覆盖 API 端点（默认 https://api.github.com）；
+      # 归档上传 GitHub 的开关/PAT/仓库定位在 sys_config 20002/20003/20004。
+      FINV_QUOTE_DEDUB_UPLOAD_GITHUB_API_BASE: ${FINV_QUOTE_DEDUB_UPLOAD_GITHUB_API_BASE:-}
       FINV_QUOTE_DEDUB_UPLOAD_PREFIX: ${FINV_QUOTE_DEDUB_UPLOAD_PREFIX:-}
-      FINV_QUOTE_DEDUB_WINDOW_START: ${FINV_QUOTE_DEDUB_WINDOW_START:-00:30}
-      FINV_QUOTE_DEDUB_WINDOW_END: ${FINV_QUOTE_DEDUB_WINDOW_END:-06:30}
+      # 远端目录布局：by_security（默认，{region}_{market}/{usc}/文件）/ flat（仅文件名）
+      FINV_QUOTE_DEDUB_UPLOAD_LAYOUT: ${FINV_QUOTE_DEDUB_UPLOAD_LAYOUT:-by_security}
+      # 导出低峰窗口改由 sys.sys_config 20006 承载（格式 HH:MM:SS|HH:MM:SS），
+      # 不再从环境变量读取；缺失或非法时按内置默认 00:30:00|06:30:00 兜底。
       FINV_QUOTE_DEDUB_PAGE_SIZE: ${FINV_QUOTE_DEDUB_PAGE_SIZE:-10000}
-      FINV_QUOTE_DEDUB_PURGE_MAIN_ENABLED: ${FINV_QUOTE_DEDUB_PURGE_MAIN_ENABLED:-false}
     volumes:
       # 本地导出与上传暂存目录（容器重建不丢文件；独享存储可用 NAS 挂载目录）
-      - ${FINV_QUOTE_DEDUB_HOST_DIR:-./exportarchive}:/app/Data/ExportArchive
+      - ${FINV_QUOTE_DEDUB_HOST_DIR:-./data/App/FinvQuant/Export}:/data/App/FinvQuant/Export
     depends_on:
       postgres:
         condition: service_healthy
