@@ -107,14 +107,14 @@
 | `dedup_frozen` | **[已冻结] 原 `dedup` 域**（`V100080` 迁数据、需求 10757 切代码、10759 重命名冻结；数据保留待清理淘汰）。原描述：数据去重域（批内去重暂存、跨源指纹、入库审计）+ 行情月归档导出/上传元数据 + CDEU 流程模型；`V100036` 建 schema、`V100041` 新增归档表、`V100044` 新增 CDEU 表 | `finv_quote_secu_kline_min`（分钟行情主表，`V100038` 由 `quote` 迁入，含 `change_price`/`change_ratio`/`provider`）；归档链路 11 张（`finv_dedup_runtime_setting` 已于 `V100041` 删除，窗口改由 `sys.sys_config` 20006 承载；`finv_dedup_usc_priority` 已于 `V100051` 合并进 `finv_dedup_usc`，优先级/SLA 成为证券主表上的三个可选覆盖列 `priority_rank` / `sla_days` / `max_wait_days` + `priority_gmt_update`，未配置时按 100/5/7 兜底，由 `finv_dedup_usc_priority_group_check` 保证三列同 NULL 或同有值）：`finv_dedup_ingest_stats`、`finv_dedup_daily_budget`、`finv_dedup_scan_watermark`、`finv_dedup_quote_maturity_mon`、`finv_dedup_trade_calendar`、`finv_dedup_job_run_log_export_file`、`finv_dedup_usc`、`finv_dedup_export_job`、`finv_dedup_export_file`、`finv_dedup_export_file_upload_log`、`finv_dedup_export_file_patch`；CDEU 12 张（`V100044` / `V100050` / `V100061` / `V100062`）：`cdeu_workflow`、`cdeu_phase`、`cdeu_process`、`cdeu_job`、`cdeu_job_step`、`cdeu_job_dynamic`、`cdeu_job_step_dynamic`（`V100047` 由 `cdeu_job_dynamic_step` 改名，命名与 `cdeu_job_step` / `cdeu_job_step_run` 同族）、`cdeu_workflow_run`、`cdeu_phase_run`、`cdeu_process_run`、`cdeu_job_run`、`cdeu_job_step_run`（全部无外键；`V100041` 创建归档表，`V100042` 为运行日志增加 `stage` / `progress_percent` / `progress_detail` / `gmt_heartbeat` 四列与未结束记录部分索引，`V100043` 新增的运行时设置表已于 `V100041` 删除，`V100044` 新增 CDEU 定义/运行表并 seed 13 个作业，`V100050` 将旧 `Process → Phase → Step → JOB` 重构为 `Workflow → Phase → Process → JOB → Step`，`V100061` 新增运行时单证券动态 JOB 表，`V100062` 新增动态 JOB 的串行 Step 表（`V100047` 将该表连同其序列、主键、唯一约束(2)、检查约束、非空约束与索引一并从 `cdeu_job_dynamic_step` / `cdeu_dynamic_job_step_*` 改名为 `cdeu_job_step_dynamic` / `cdeu_job_step_dynamic_*`）；`V100043`/`V100044` 给 `cdeu_process_run` / `cdeu_job_run` 补 `workflow_run_id` 冗余列并**删除自增代理键** `process_run_id` / `job_run_id`，改为业务复合主键 `cdeu_process_run(workflow_run_id, process_id)`、`cdeu_job_run(workflow_run_id, process_id, job_id)`；`cdeu_job_step_run` 保留自增 `step_run_id`，其 `job_run_id` 改为三元组引用并新增 `workflow_run_id`/`process_id`/`job_id`；`cdeu_job_run.dynamic_job_id` 记录对应动态工作项（非批次 JOB 为 NULL）；`V100045` 把 `cdeu_job_dynamic` 的唯一键从「(usc, biz_month) 全局唯一」改为**按运行唯一**（`(workflow_run_id, usc, biz_month)` / `(workflow_run_id, file_id)`，均 `NULLS NOT DISTINCT`），消除「上一轮运行的动态 JOB 被下一轮接管并覆盖 workflow_run_id」的缺陷；历史运行实例由 `CLEAN_EXPIRED_EXPORT_ARTIFACTS` 按 30 天保留期清理；`cdeu_workflow_run.run_id` 保持唯一的运行流水自增；说明见 [`../Refactor/2610-005-FinvQuoteDeDubExportUpload.md`](../Refactor/2610-005-FinvQuoteDeDubExportUpload.md) 与 [`../Refactor/2610-008-CDEUWorkflowProcessModelRefactor.md`](../Refactor/2610-008-CDEUWorkflowProcessModelRefactor.md)） |
 | `cdeu` | **CDEU 工作流域**（Workflow / Phase / Process / JOB / Step 的定义表与运行实例）；`V100077` 建 schema，`V100078` 依 `dedup` 结构建表，`V100079` 统一前缀 | **26 张**（`V100080` 已从 `dedup` 迁入 133,260 行数据），**全部统一为 `finv_quote_cdeu_` 前缀**：原 `cdeu_*` 12 张（`_workflow` / `_phase` / `_process` / `_job` / `_job_step` / `_job_dynamic` / `_job_step_dynamic` / `_workflow_run` / `_phase_run` / `_process_run` / `_job_run` / `_job_step_run`）+ 原 `finv_dedup_*` 13 张（`_daily_budget` / `_export_batch` / `_export_file` / `_export_file_patch` / `_export_file_upload_log` / `_export_job` / `_ingest_stats` / `_job_run_log_export_file` / `_job_run_log_line` / `_quote_maturity_mon` / `_scan_watermark` / `_trade_calendar` / `_usc`）+ `finv_quote_secu_kline_min`（表名不变）；`prep_bak_*` 5 张**不创建**。**`V100080` 迁入数据后，需求 10757 已把代码全部切换到 `cdeu.*`**；`dedup.*` 数据保留但不再被读写，待观察后清理淘汰（约束见 §1.1） |
 | `archive` | 冷数据归档域（历史行情按时间/证券下沉，`V100037` 建 schema，表待业务迁移创建） | 暂无 |
-| `sys` | 系统域（用户/角色/权限、系统参数、审计留痕等平台级对象，`V100071` 建 schema） | `sys_config`（系统配置表，`V100072` 创建，按 `config_no` 的键值配置，含 `int_value`/`char_value`/`str_value`/`json_value` 四类值与 `gmt_modify` 触发器）；`sys_dict`（数据字典主表，`V100073` 创建，字典定义与分级字段）、`sys_dict_sub`（数据字典子表，`V100073` 创建，主键 `(dict_no, sub_key)`，字典项与 `flag_enable` 启用标志，无物理外键）；`sys_user`（系统用户表，`V100074` 创建，主键 `idn` 为 `bigint identity`（初值对齐 1028），`email` / `mobile_phone_no` 各自唯一，`flag_delete` 逻辑删除，无物理外键） |
+| `sys` | 系统域（用户/角色/权限、系统参数、审计留痕等平台级对象，`V100071` 建 schema） | `sys_config`（系统配置表，`V100072` 创建，按 `config_no` 的键值配置，含 `int_value`/`char_value`/`str_value`/`json_value` 四类值与 `gmt_modify` 触发器）；`sys_dict`（数据字典主表，`V100073` 创建，字典定义与分级字段）、`sys_dict_sub`（数据字典子表，`V100073` 创建，主键 `(dict_no, sub_key)`，字典项与 `flag_enable` 启用标志，无物理外键）；`sys_user`（系统用户表，`V100074` 创建，主键 `idn` 为 `bigint identity`（初值对齐 1028），`uid` / `email` / `mobile_phone_no` 各自唯一（`uid` 唯一索引 `uk_sys_user_uid` 由 `V100081` 补齐，登录以 `uid` 为账号标识），口令以 `argon2id` 哈希存 `password`、随机盐存 `password_salt`，**不存明文**，`flag_delete` 逻辑删除，无物理外键） |
 | `public` | 基础主数据与系统表 | `finv_security`、`finv_market`、`finv_exchange`、`finv_region`、`finv_currency`、`schema_version` |
 
 - **一个业务域一个 schema**，不把域对象堆在 `public`。
 
 ### 1.1 `cdeu` 域搬迁约束（需求 10753）
 
-`V100077` 只建了空 schema 并把 `cdeu` 纳入 `search_path`，**表未搬迁**。后续把 12 张 `cdeu_*` 表从 `dedup` 迁入 `cdeu` 时：
+`V100077` 只建空 schema 并把 `cdeu` 纳入 `search_path`；`V100078`–`V100080` 完成 26 张表建立（前缀统一 `finv_quote_cdeu_`）与 133,260 行数据迁移，需求 10757 完成代码切换、10759 把旧 `dedup` 重命名为 `dedup_frozen` 冻结。当时（`V100077` 阶段）确定的原则仍然适用：
 
 | 禁止 | 要求 |
 |---|---|
@@ -129,7 +129,7 @@
 
 **过渡期约定**：表迁入 `cdeu` 前，`schema_qualify_test.go` 的 `cdeuTables` 清单登记了 12 个表名，但不强制 `cdeu.` 前缀；迁移完成后需把对应表名从 `dedup.` 白名单切到 `{dedup., cdeu.}` 或 `{cdeu.}`。
 - 新增域时同步在本文档登记其 schema 名与归属表，并在迁移脚本中 `CREATE SCHEMA IF NOT EXISTS <域名>`。
-- schema 名统一**小写短名**（`quote`/`quant`/`futu`/`export`/`sche`/`dedup`/`archive`/`sys`），不加业务前缀；`sche` 为「调度」的短名沿用（如需改为 `sched`，须 `ALTER SCHEMA sche RENAME TO sched` 并同步 `search_path`、本文件与代码）。
+- schema 名统一**小写短名**（`quote`/`quant`/`futu`/`export`/`sche`/`cdeu`/`archive`/`sys`；`dedup` 已冻结为 `dedup_frozen`），不加业务前缀；`sche` 为「调度」的短名沿用（如需改为 `sched`，须 `ALTER SCHEMA sche RENAME TO sched` 并同步 `search_path`、本文件与代码）。
 - **同名同结构转存表**：允许在 `export` 等暂存域建与业务域**同名同结构**的表（如 `export.finv_quote_secu_kline_min` ↔ `dedup.finv_quote_secu_kline_min`），用于导出前转存；此类表必须：
   1. 建表用 `CREATE TABLE ... (LIKE <源表> INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES INCLUDING STORAGE INCLUDING COMMENTS)`，**触发器另行补齐**（`LIKE` 不复制触发器）；
   2. 索引名由 PostgreSQL 按新表名自动生成，与源表索引名不同（属正常现象）；
@@ -145,20 +145,20 @@
 
 ## 3. 连接与 search_path
 
-- 应用连接串固定带 `search_path=public,quote,quant,futu,export,sche,dedup,archive,sys`（见 `internal/database/postgres.go`），迁移与业务 SQL 均依赖此设置。
-- 代码中的 SQL **必须显式写 schema 前缀**（`quote.xxx`、`quant.xxx`、`futu.xxx`、`export.xxx`、`sche.xxx`、`dedup.xxx`、`archive.xxx`、`sys.xxx`）；`search_path` 只作为历史迁移脚本与手工 `psql` 的兜底。
+- 应用连接串固定带 `search_path=public,quote,quant,futu,export,sche,cdeu,archive,sys`（见 `internal/database/postgres.go`），迁移与业务 SQL 均依赖此设置。
+- 代码中的 SQL **必须显式写 schema 前缀**（`quote.xxx`、`quant.xxx`、`futu.xxx`、`export.xxx`、`sche.xxx`、`cdeu.xxx`、`archive.xxx`、`sys.xxx`）；`search_path` 只作为历史迁移脚本与手工 `psql` 的兜底。
 - **强制校验**：`internal/database/schema_qualify_test.go` 的 `TestSQLSchemaQualified` 会扫描 `internal/`、`cmd/` 下全部 Go 源码，凡含 `FROM` / `INTO` / `UPDATE` / `JOIN` / `DELETE FROM` / `TRUNCATE` 的语句，只要出现 `finv_quote_` / `finv_quant_` / `finv_futu_` 而未带对应 schema 前缀，`go test ./...` 直接失败。新增代码漏写前缀会在本地与 CI 同时被拦下。
 
 ### 3.1 融合前的同名表风险（重要）
 
-- `search_path` 为 `public, quote, quant, futu, export, sche, dedup, archive, sys`，**`public` 位于首位**：未限定的 CRUD 语句会优先命中 `public` 中的同名表。
+- `search_path` 为 `public, quote, quant, futu, export, sche, cdeu, archive, sys`（`cdeu` 于 `V100077` 纳入；`dedup` 已按需求 10759 重命名为 `dedup_frozen` 并移出），**`public` 位于首位**：未限定的 CRUD 语句会优先命中 `public` 中的同名表。
 - 系统融合阶段若需要在其它 schema 引入与域表同名的表，必须遵守：
   1. 新表一律放入明确 schema，不得落 `public`；
   2. 代码侧引用一律写全限定名（已由 `TestSQLSchemaQualified` 强制）；
   3. 若确实需要在 `public` 放同名表，必须先把 `public` 移出 `search_path` 首位，并同步核验历史种子迁移（`V100100xxx` 不带 schema 前缀，依赖 `search_path` 定位 `quote`/`quant`/`futu` 与 `public` 的基础主数据表）。
-- **已存在的实例**：`finv_quote_secu_kline_min` 有 3 份（`quote.` / `dedup.` / `export.`，见 §0.2 保护名单）。裸写表名会按 `search_path` 命中**排在最前的 `quote.`**，因此三类使用者各自必须写自己的前缀：回测/查询写 `quote.`、K 线 API 与导出链路写 `dedup.`、中转写 `export.`。**不要以「主表在哪」为理由去改其它副本**。
+- **已存在的实例**：`finv_quote_secu_kline_min` 有 4 份（`quote.` / `dedup_frozen.` / `export.` / `cdeu.`，见 §0.2 保护名单）。裸写表名会按 `search_path` 命中**排在最前的 `quote.`**，因此各类使用者各自必须写自己的前缀：回测/查询写 `quote.`、K 线 API 与导出链路写 `cdeu.`、中转写 `export.`；`dedup_frozen` 为冻结副本，代码不得再写入。**不要以「主表在哪」为理由去改其它副本**。
 - 历史种子迁移是唯一仍依赖 `search_path` 的 SQL，改动其定位行为前必须跑「全新库全链迁移」验证。
-- 手工运维时若未设置 `search_path`，须写全限定名，例如 `select count(*) from dedup.finv_quote_secu_kline_min;`。
+- 手工运维时若未设置 `search_path`，须写全限定名，例如 `select count(*) from cdeu.finv_quote_secu_kline_min;`。
 - `schema_version` 与迁移机制保留在 `public`，不随业务域迁移。
 - **归档域的边界（`archive` schema）**：`archive` 是**数据库冷数据归档**，与仓库根目录 `Archive/`（**文件**归档：废弃脚本/文档）无关，两者不要混淆。归档表通常沿用业务表名，会与 `dedup`、`export` 形成多处同名（如 `finv_quote_secu_kline_min`），因此库内读写必须写 `archive.` 前缀；跨域搬数据用 `INSERT INTO archive.x SELECT ... FROM dedup.x` 后按批次删除源数据，整个过程需在 `sche` 记录批次以便回溯。
 - **系统域（`sys` schema）的边界**：`sys` 只承载平台级对象（用户/角色/权限、系统参数、审计留痕等），不得用来放行情/量化/映射等业务表；其表名建议沿用前缀风格（如 `sys.finv_sys_*`），读写必须写 `sys.` 前缀。`sys` 位于 `search_path` 末位，新增同名表不会改变既有解析优先级，但同样的裸写风险依然存在。

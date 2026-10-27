@@ -843,8 +843,8 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10577 | 新增 `internal/syscfg` 读取 `sys.sys_config` 的 `20002`/`20003`/`20004`，带 30s TTL 缓存且 SQL 显式限定 `sys.`。 | `test -f internal/syscfg/syscfg.go`；`grep -n 'FROM sys.sys_config' internal/syscfg/syscfg.go` 有输出；`go test ./internal/syscfg/` 通过 | |
-| 10578 | `20004` 按 `{owner}:{repo}:{branch}:{pre_path_key}` 解析；段数不符/空段/`..` 越界等返回可读错误。 | `go test ./internal/syscfg/ -run TestParseRepoSpec -v` 全部通过（含 11 个正反用例） | |
+| 10577 | 新增 `internal/meta/finv/sys`（需求 10762 归位前为 `internal/syscfg`）读取 `sys.sys_config` 的 `20002`/`20003`/`20004`，带 30s TTL 缓存且 SQL 显式限定 `sys.`。 | `test -f internal/meta/finv/sys/syscfg.go`；`grep -n 'FROM sys.sys_config' internal/meta/finv/sys/syscfg.go` 有输出；`go test ./internal/meta/finv/sys/` 通过 | |
+| 10578 | `20004` 按 `{owner}:{repo}:{branch}:{pre_path_key}` 解析；段数不符/空段/`..` 越界等返回可读错误。 | `go test ./internal/meta/finv/sys/ -run TestParseRepoSpec -v` 全部通过（含 11 个正反用例） | |
 | 10579 | 用 GitHub Contents API（纯 `net/http`）实现上传，未引入第三方 SDK。 | `grep -rn 'github.com/google/go-github\|github.com/go-github' go.mod internal/` 无输出；`grep -n 'net/http' internal/meta/finv/quote/dedup/uploader_github.go` 有输出 | |
 | 10580 | `20002='1'` 时上传自动路由到 GitHub；`'0'` 时保持原 `none/dir/http`，在线切换无需重启。 | 生产验证：`20002=0` → `Status.options.upload_mode=dir`；临时置 `1`（等缓存过期）→ `github`；回置 `0` → `dir` | |
 | 10581 | 上传幂等：远端内容（大小 + git blob sha）一致时不重复提交；内容不同时携带远端 sha 覆盖。 | `go test ./internal/meta/finv/quote/dedup/ -run 'TestGitHubPut' -v` 通过（含 `SkipsIdenticalContent` 断言 PUT 0 次、`UpdatesWithRemoteSHA` 断言携带 sha） | |
@@ -870,7 +870,7 @@
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
 | 10593 | 上传相对路径改为 `{region}_{market}/{usc}/{文件名}`（最终 = 20004 的 `pre_path_key` + 分层），行为默认开启。 | `go test ./internal/meta/finv/quote/dedup/ -run TestArchiveTargetPath -v` 通过（含默认分层、外层前缀、flat 回退、空 layout 四个子用例） | |
-| 10594 | 分层规则写在代码（与命名契约同源），而**非**塞进 `sys_config` 20004；20004 仍只描述仓库定位。 | `grep -n 'ArchiveTargetPath' internal/meta/finv/quote/dedup/options.go` 有实现与设计理由注释；`grep -n 'region_market\|{region}' internal/syscfg/syscfg.go` 无输出（配置层不感知分层） | |
+| 10594 | 分层规则写在代码（与命名契约同源），而**非**塞进 `sys_config` 20004；20004 仍只描述仓库定位。 | `grep -n 'ArchiveTargetPath' internal/meta/finv/quote/dedup/options.go` 有实现与设计理由注释；`grep -n 'region_market\|{region}' internal/meta/finv/sys/syscfg.go` 无输出（配置层不感知分层） | |
 | 10595 | 提供 `FINV_QUOTE_DEDUB_UPLOAD_LAYOUT`（`by_security` 默认 / `flat` 旧行为），非法值回退默认。 | `go test ./internal/meta/finv/quote/dedup/ -run TestNormalizedLayout -v` 通过；`grep -n 'UPLOAD_LAYOUT' Deploy/Docker/docker-compose.yml Deploy/Docker/.env.example` 有输出 | |
 | 10596 | `region/market` 从 `dedup.finv_dedup_usc` 读取，缺失时退回扁平并告警（不阻塞上传）。 | `grep -n '证券元数据缺 region/market' internal/meta/finv/quote/dedup/job_upload.go` 有输出 | |
 | 10597 | 登记阶段（`upload_target`）与上传阶段用同一函数计算路径，不出现两套规则。 | `grep -rn 'ArchiveTargetPath' internal/meta/finv/quote/dedup/job_export.go internal/meta/finv/quote/dedup/job_patch.go` 共 4 处；`grep -n 's.options.TargetPath(' internal/meta/finv/quote/dedup/job_upload.go` 仅作为 flat/回退分支 | |
@@ -971,7 +971,7 @@
 | 10647 | 迁移 `V100040` 幂等且**不覆盖用户已配值**（`ON CONFLICT DO NOTHING` + 快照硬校验）；重跑影响 0 行。 | 重跑后 `schema_version` 仍 `success=t`；已有值被改写时抛 `RAISE EXCEPTION` | |
 | 10648 | `Manual`（默认）时进程内调度器**不自动触发任何 CDEU Job**；手动 `POST .../Job/Run` 不受限。 | 部署后日志含「CDEU 运行模式 = Manual（默认）：调度器不自动触发任何 Job」；间隔类 Job 到期后 6 分钟零新增 `finv_dedup_job_run_log_export_file` 记录 | |
 | 10649 | `Auto` 时按定时任务时间自动跑（行为同改造前）。 | 将 20005 改为 `Auto` 并重启后，日志含「CDEU 运行模式 = Auto」，间隔类 Job 到期后出现新运行日志 | |
-| 10650 | 取值大小写不敏感；空值/未知值/未配置一律按 `Manual` 兜底（安全侧不自动跑）。 | `go test ./internal/syscfg -run 'TestNormalizeCDEUMode\|TestValuesCDEUScheduleEnabled'` 通过 | |
+| 10650 | 取值大小写不敏感；空值/未知值/未配置一律按 `Manual` 兜底（安全侧不自动跑）。 | `go test ./internal/meta/finv/sys -run 'TestNormalizeCDEUMode\|TestValuesCDEUScheduleEnabled'` 通过 | |
 | 10651 | `GET .../DeDup/Status` 的 `options` 暴露 `cdeu_mode` / `cdeu_schedule_enabled` / `cdeu_mode_error`。 | 调用接口返回 `"cdeu_mode":"Manual"`、`"cdeu_schedule_enabled":false` | |
 | 10652 | 文档同步：`DbSchemaSpec` 种子清单、`CHANGELOG`、`Docs/API/QuoteDeDup/Status.md` 均描述 20005。 | 三处 `grep -c '20005'` 均 ≥ 1；`Status.md` 含 `cdeu_mode` 字段说明 | |
 
@@ -1881,6 +1881,52 @@ COMMIT;
 
 至此可确认：**代码已 100% 切换到 `cdeu`，不再有任何 `dedup` 依赖**。`dedup_frozen` 可安全进入观察期后清理。
 
+## 九十六、登录认证与访问拦截（10761）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10761 | 基于 `sys.sys_user` 建立登录认证：① 创建用户 `finv`，口令 `finv@2026!finv` **不得明文入库**，采用 argon2id（m=64MB/t=3/p=2/keyLen=32）哈希，盐 16 字节随机 hex 存 `password_salt`、PHC 串存 `password`；② 登录成功后签发随机会话令牌，会话存 Redis 并按 `sys_config` 20012 控制有效期（默认 480 分钟，命中且剩余不足一半时滑动续期）；③ 除健康检查、版本、登录外的全部接口必须携带 `Authorization: Bearer <token>`，否则 401；④ 前端新增登录页并加路由守卫，未登录一律重定向到 `/login`，接口 401 时自动清理本地会话并回登录页。 | `select count(*) from sys.sys_user where password like '%finv@2026%'` = 0；`select password from sys.sys_user where uid='finv'` 以 `$argon2id$v=19$m=65536,t=3,p=2$` 开头且长度为 97；`select password_salt from sys.sys_user where uid='finv'` 匹配 `^[0-9a-f]{32}$`；无令牌 `GET /API/V1/Meta/Finv/Quote/DeDup/Status` = 401 且 `GET /API/V1/Health/Live` = 200；错误口令与不存在账号均返回 401「用户名或密码错误」；正确口令返回 `code=0` 与 64 字符 token，携带该 token 请求业务接口 = 200；调用 `/Auth/Logout` 后原 token 再访问 = 401；`grep -c 'isLoggedIn' Web/src/router.ts` ≥ 1 且 `test -f Web/src/views/Common/LoginView.vue` | √ |
+
+### 10761 实现要点
+
+| 项 | 说明 |
+|---|---|
+| 哈希算法 | argon2id，参数 `m=65536` `t=3` `p=2` `keyLen=32`；输出 PHC 串 97 字符，适配 `password` varchar(128) |
+| 盐 | `crypto/rand` 16 字节 → hex 32 字符，独立存 `password_salt`（varchar(64)） |
+| 校验 | `crypto/subtle.ConstantTimeCompare` 常量时间比较，防时序侧信道 |
+| 防账号枚举 | 用户不存在时仍执行一次等价耗时的 argon2 计算，失败文案与密码错误完全相同 |
+| 会话 | 令牌 32 字节随机 → hex 64 字符；Redis 键 `finv:auth:session:<token>`，值为 JSON 会话记录 |
+| 有效期 | 每次登录读 `sys_config` 20012；`Touch` 用 `ExpiresAt-CreatedAt` 推算续期长度，运行期改配置不影响已签发会话 |
+| 吊销 | 登出即 `DEL` Redis 键，服务端可即时失效（无状态 JWT 做不到） |
+| 白名单 | `/Health/Live`、`/Health/Ready`、`/Version`、`/Auth/Login` 不校验令牌（容器探针必需） |
+
+### 10761 迁移
+
+| 迁移 | 内容 |
+|---|---|
+| `V100081__sys_user_uid_unique.sql` | 新增 `uk_sys_user_uid` 唯一索引（V74 建表时 uid 未加唯一约束，登录以 uid 为标识必须唯一） |
+| `V200055__sys_user_seed_finv.sql` | 插入 `uid='finv'`，含盐与 PHC 哈希；`WHERE NOT EXISTS` 保证幂等且不覆盖已改口令 |
+| `V200056__sys_config_seed_auth_session_ttl.sql` | 新增配置 20012（会话有效期，默认 480 分钟，合法区间 5~43200） |
+
+### 10761 新增文件
+
+| 文件 | 职责 |
+|---|---|
+| `internal/meta/finv/auth/password.go` | argon2id 哈希生成与校验、随机盐、PHC 解析 |
+| `internal/meta/finv/auth/session.go` | Redis 会话存储：Create / Resolve / Revoke / Touch |
+| `internal/meta/finv/auth/store.go` | 按 uid 查询 `sys.sys_user` |
+| `internal/meta/finv/auth/service.go` | 登录编排、防枚举等时处理、资料查询 |
+| `internal/api/middleware.go` | `RequireAuth` 中间件与 Bearer 解析 |
+| `internal/api/handler/auth.go` | Login / Logout / Profile 处理器与 `SessionFrom` |
+| `Web/src/auth.ts` | 会话状态、localStorage 持久化、失效事件 |
+| `Web/src/views/Common/LoginView.vue` | 登录页（口令不留存前端） |
+
+## 九十七、认证与配置模块目录归位（10762）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10762 | 新增与既有的两个通用模块按 `internal/meta/finv/<域>/` 结构归位：`internal/auth` → `internal/meta/finv/auth`，`internal/syscfg` → `internal/meta/finv/sys`。仅移动目录与更新 import 路径，包名、行为与导出符号一律不变。 | `test ! -d internal/auth && test ! -d internal/syscfg`；`ls internal/meta/finv/auth/*.go internal/meta/finv/sys/*.go` 各有 4 个与 2 个文件；`grep -rn 'finvquant/internal/auth"\|finvquant/internal/syscfg"' --include=*.go .` 无输出；`go build ./... && go vet ./... && go test ./...` 全绿 | √ |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2002,7 +2048,9 @@ COMMIT;
 | 前端文案与镜像构建修正 | 10758 | 1 |
 | dedup 重命名与流程验证 | 10759 | 1 |
 | 回填数据与完整链路验证 | 10760 | 1 |
-| **合计** | **10001–10760** | **760** |
+| 登录认证与访问拦截 | 10761 | 1 |
+| 认证与配置模块目录归位 | 10762 | 1 |
+| **合计** | **10001–10762** | **762** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10761` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10763` 起往后追加，不插入既有区间。

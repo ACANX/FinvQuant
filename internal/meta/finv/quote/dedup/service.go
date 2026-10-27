@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	jobdef "github.com/acanx/finvquant/internal/meta/finv/quote/dedup/jobmeta"
-	"github.com/acanx/finvquant/internal/syscfg"
+	"github.com/acanx/finvquant/internal/meta/finv/sys"
 )
 
 // Result 一次 Job 执行的结果（同时写入 finv_dedup_job_run_log_export_file）。

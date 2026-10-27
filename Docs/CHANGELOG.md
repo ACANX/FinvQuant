@@ -368,7 +368,7 @@
 
 - **新增系统配置 20005「CDEU工作流运行模式」，把「是否自动跑」从低峰窗口里独立出来**（迁移 `V100040`）：`sys.sys_config` 新增 `20005`（`data_type='3'` 字符串，`str_value` 默认 `Manual`）——`Manual`=手动模式（默认），进程内调度器不自动触发任何 CDEU Job，只有 `POST .../Job/Run` 手动触发才执行；`Auto`=自动模式，每天按定时任务设定的时间（`cdeu_job.schedule_value`）自动跑。
   - **背景**：原有实现中「调度触发」与「手动触发」共用同一条 Job 领取路径（`Store.ClaimJob` 只按 `status` + 到期时间领取，`CDEUTrigger*` 仅写入运行日志），所以只要处于低峰窗口且 Job 到期，调度器就一定会自动执行，运维无法只跑手动流程。现在窗口（`EXPORT_WINDOW_*`）控制「什么时段可以跑」，`20005` 控制「是否允许自动跑」，两者独立。
-  - **实现**：`internal/syscfg` 新增 `KeyCDEUMode`/`CDEUModeManual`/`CDEUModeAuto`/`NormalizeCDEUMode`/`Values.CDEUScheduleEnabled()`；`dedup.Service` 新增 `CDEUMode(ctx)` 与 `CDEUScheduleEnabled(ctx)`；`Scheduler.fire` 入口在窗口判断**之前**先判 `20005`，非 `Auto` 直接返回（手动 `Job/Run` 不经过该函数，不受限）；`GET .../DeDup/Status` 的 `options` 新增 `cdeu_mode`、`cdeu_schedule_enabled`、`cdeu_mode_error`。读配置失败/空值/未知取值一律按 `Manual` 兜底（安全侧）。
+  - **实现**：`internal/meta/finv/sys`（需求 10762 归位前为 `internal/syscfg`）新增 `KeyCDEUMode`/`CDEUModeManual`/`CDEUModeAuto`/`NormalizeCDEUMode`/`Values.CDEUScheduleEnabled()`；`dedup.Service` 新增 `CDEUMode(ctx)` 与 `CDEUScheduleEnabled(ctx)`；`Scheduler.fire` 入口在窗口判断**之前**先判 `20005`，非 `Auto` 直接返回（手动 `Job/Run` 不经过该函数，不受限）；`GET .../DeDup/Status` 的 `options` 新增 `cdeu_mode`、`cdeu_schedule_enabled`、`cdeu_mode_error`。读配置失败/空值/未知取值一律按 `Manual` 兜底（安全侧）。
   - **验证**：部署后日志输出 `CDEU 运行模式 = Manual（默认）：调度器不自动触发任何 Job`；间隔类 Job（`UPLOAD_PENDING_EXPORT_FILES` 每 300 秒，部署前 02:32:49 刚跑过）在应到期的 02:37:56 未触发，部署后 6 分钟零新增运行日志，101 个导出 job 全部保持 `FROZEN`，本地导出目录 0 文件。
 
 - **证券行情月归档导出与上传自动化链路**：新增 `internal/meta/finv/quote/dedup`，按「成熟度 → 候选 → LOAD（主表→`export` 中转表）→ EXPORT（→ MVsv 文件）→ CLEANUP（清理中转）→ 上传独享存储 → 收口补丁 → 生命周期清理」实现 10 个 Job（`CALC_DAILY_INGEST_STATS`、`CALC_DAILY_EXPORT_BUDGET`、`REFRESH_QUOTE_MATURITY`、`MARK_SEALED_JOBS_FROZEN`、`RUN_DUE_EXPORT_JOBS`、`UPLOAD_PENDING_EXPORT_FILES`、`SCAN_POST_SEAL_PATCHES`、`CLEAN_EXPIRED_EXPORT_ARTIFACTS`、`RECOVER_TIMEOUT_EXPORT_JOBS`、`CHECK_EXPORT_JOB_HEALTH`）；每日预算自适应（`factor = clamp(1.20 + 0.20*sla + 0.05*min(backlog,5), 1.20, 2.00)`）、keyset 分页、行锁 + 租约 + 心跳、暂停续跑、指数退避。
@@ -504,12 +504,25 @@
 - **`sys_config` 20001 备注文案修订**（`V100033`）：`0 被动收集（默认，外部程序通过暴露的API接口添加），1-主动采集模式…` 改为 `0-被动收集（默认），外部程序通过暴露的API接口添加；1-主动采集模式，服务主动从外部源采集入库保存`（结构更清晰：`0-`/`1-` 两档用「；」分隔）；只改 `remark`，`create_by='fqe'`、类型与默认值不变，`IS DISTINCT FROM` 保证重跑影响 0 行。
 - **新增月归档自动上传 Git 的两条配置**（`V100034`，种子段）：`20002`「启用月归档数据自动上传Git仓库标志」（`data_type='2'`，`char_value='0'`，备注 `0-关闭(默认) 1-启用`）与 `20003`「归档数据上传GitHub仓库的PAT值」（`data_type='3'`，`str_value` **无默认值（NULL）**，由用户自行配置）；因 `char_value` 为 `char(1)` 装不下 PAT，令牌走 `varchar(6000)` 的 `str_value`；**只 DO NOTHING、不 DO UPDATE**，并用迁移前临时快照硬校验「已有值未被覆盖」（已实测：用户改 `20002='1'` + 写入模拟 PAT 后重跑，`INSERT 0 0` 且两值原样保留）。
 - **新增文件上传仓库配置**（`V100035`，种子段）：`20004`「文件上传仓库配置」，`data_type='3'`、`str_value` **无默认值（NULL）**，取值格式 `{owner}:{repo}:{branch}:{pre_path_key}`（owner 仓库所有者、repo 仓库名、branch 分支名、pre_path_key 目录前缀）；与 `20002`（是否上传）/`20003`（PAT）三件套配合；沿用 `DO NOTHING` + 快照守值，另对**用户已配置**的值做只读格式检查——不合约定只 `RAISE WARNING`不阻断部署（避免用户配错导致升级失败），由运行时应用层校验报错。
-- **月归档上传 GitHub 仓库（Contents API）**：新增 `internal/syscfg` 读取 `sys.sys_config` 的 `20002` 开关 / `20003` PAT / `20004` 仓库定位（`{owner}:{repo}:{branch}:{pre_path_key}`），带 30 秒 TTL 缓存，**在线改配置无需重启**；新增 `internal/meta/finv/quote/dedup/uploader_github.go`，用 GitHub Contents API（纯 `net/http`，**未引入任何第三方 SDK**）实现 `Uploader`：流式 base64 构造 PUT 请求体（不把大文件读进内存）、远端内容一致时**不重复提交**（幂等）、内容变更时携带远端 sha 覆盖、上传后按大小与 git blob sha 做内容级校验；新增 `uploader_dynamic.go` 按 `20002` 实时路由到 GitHub 或原 `none/dir/http`；配置缺失/非法时返回可读错误并写入上传审计日志（不静默回退到其它目标）。`GET /API/V1/Meta/Finv/Quote/DeDup/Status` 的 `upload_mode` 实时反映生效模式（`github` / `dir` / `http` / `none`）。
+- **月归档上传 GitHub 仓库（Contents API）**：新增 `internal/meta/finv/sys`（需求 10762 归位前为 `internal/syscfg`）读取 `sys.sys_config` 的 `20002` 开关 / `20003` PAT / `20004` 仓库定位（`{owner}:{repo}:{branch}:{pre_path_key}`），带 30 秒 TTL 缓存，**在线改配置无需重启**；新增 `internal/meta/finv/quote/dedup/uploader_github.go`，用 GitHub Contents API（纯 `net/http`，**未引入任何第三方 SDK**）实现 `Uploader`：流式 base64 构造 PUT 请求体（不把大文件读进内存）、远端内容一致时**不重复提交**（幂等）、内容变更时携带远端 sha 覆盖、上传后按大小与 git blob sha 做内容级校验；新增 `uploader_dynamic.go` 按 `20002` 实时路由到 GitHub 或原 `none/dir/http`；配置缺失/非法时返回可读错误并写入上传审计日志（不静默回退到其它目标）。`GET /API/V1/Meta/Finv/Quote/DeDup/Status` 的 `upload_mode` 实时反映生效模式（`github` / `dir` / `http` / `none`）。
 - **新增配置项 `FINV_QUOTE_DEDUB_UPLOAD_GITHUB_API_BASE`**（可选，默认 `https://api.github.com`）：供 GitHub Enterprise 覆盖 API 端点；已同步 `Deploy/Docker/docker-compose.yml` 与 `.env.example`。
 - **证券主数据 region/market 口径修正**（迁移 `V100036` + `RefreshSecurityMetadata`）：`dedup.finv_dedup_usc.market` 改为关联 `finv_market.market_symbol` 取值（`SH`/`SZ`/`BJ`/`HK`/`NSDQ`/`CFD` 等市场级符号），不再直接抄板块级 `market_flag`（`SSE-A`/`US-NSDQ`）；`region` 改为以 `finv_region` 字典规范化（`finv_exchange.region='USA'` 统一为 `US`），字典无对应项时回退原值。`RefreshSecurityMetadata` 对这两列改为「以字典为准覆盖」（新值为空时保留旧值），其余列仍只补缺。已重绑 39 行：`CN→SH/SZ/BJ`、`HK→HK/HKR`、`FX→CFD`、`US→BMS/COMEX/NSDQ`；**影响**：新导出文件的 MVsv 文件名与归档目录随之变化（如 `CN_SH_600519_…mvsv`，目录 `CN_SH/600519/`）。
 - **`finv_market` 新增 `market_symbol` 市场符号列**（迁移 `V75`）：类型 `TEXT NOT NULL DEFAULT ''`，用于表达市场的对外标识（如 `US-NSDQ` / `FX-CFD` / `SZ`）并与行情链路的 market 取值对齐；空串表示未维护。`GET/POST .../Metadata/Market/List|Save` 同步返回与写入该字段，列表 `keyword` 检索覆盖该列；前端「元数据 → 交易市场」列表新增「市场符号」列与编辑项。`ADD COLUMN IF NOT EXISTS` 幂等，末尾校验类型/可空性/默认值与列注释。
 
 ### 变更
+
+- **登录认证与访问拦截（需求 10761）**
+  - **用户与口令**：`sys.sys_user` 新增初始账号 `finv`（idn=1028）。口令原文**不入库**：argon2id（`m=65536,t=3,p=2,keyLen=32`）哈希为 97 字符 PHC 串存 `password`，16 字节随机盐 hex 32 字符存 `password_salt`；校验用 `crypto/subtle` 常量时间比较。
+  - **防账号枚举**：用户不存在时仍执行一次等价耗时的 argon2 计算，两条失败路径统一返回 401「用户名或密码错误」。
+  - **会话**：令牌 32 字节随机 → hex 64 字符，存 Redis `finv:auth:session:<token>`；有效期读 `sys_config` 20012（默认 480 分钟），命中且剩余不足一半时滑动续期；登出即删键，服务端可即时吊销。
+  - **接口拦截**：新增 `RequireAuth` 中间件，除 `/Health/Live`、`/Health/Ready`、`/Version`、`/Auth/Login` 外全部要求 `Authorization: Bearer <token>`；新增 `POST /Auth/Login`、`POST /Auth/Logout`、`GET /Auth/Profile`。
+  - **前端**：新增登录页 `LoginView.vue` 与 `auth.ts`（localStorage 持久化）；`router.ts` 加 `beforeEach` 守卫，未登录重定向 `/login?redirect=<来源>`；`api.ts` 自动附加令牌并在 401 时清空会话、广播 `finvquant:unauthorized`；`App.vue` 登录页不渲染导航框架，顶栏新增用户菜单与「退出登录」。
+  - **迁移**：`V100081` 补 `uk_sys_user_uid` 唯一索引（V74 建表时 uid 无唯一约束，登录以 uid 为标识必须唯一）；`V200055` 幂等插入 `finv`（`WHERE NOT EXISTS`，不覆盖已改口令）；`V200056` 新增配置 20012（会话有效期，合法区间 5~43200）。
+  - **验证**：明文命中 0；无令牌访问业务接口 401、健康检查 200；错误口令与不存在账号同为 401 且文案一致；正确口令返回 64 字符 token 且可访问业务接口；伪造令牌 401；登出后原 token 401；前端 `/login` 深链可直达。
+
+- **认证与配置模块目录归位（需求 10762）**
+  - `internal/auth` → `internal/meta/finv/auth`，`internal/syscfg` → `internal/meta/finv/sys`，与 `internal/meta/finv/quote/dedup` 同构。
+  - 仅移动目录与更新 import 路径，包名（`auth` / `syscfg`）与导出符号不变；同步更新 `Docs/RequirementList.md` 中 10577/10578/10594/10650 的核对命令路径，保证历史需求仍可复核。
 
 - **回填历史数据并验证完整导出/上传/归档链路（需求 10760）**
   - **准备**：停容器 → 从 `quote.finv_quote_secu_kline_min` 回填 93 个月 / **2,802,911 行**到 `cdeu.finv_quote_secu_kline_min`（耗时 195.8 秒，`gmt_create` 取 `now()`）→ 清空产物登记（`upload_log` 202 / `file` 202 / `batch` 202 / `watermark` 101）→ 101 个 job 重置 `WAITING` → 清本地 176.3 MB / 202 个旧文件 → 起容器。

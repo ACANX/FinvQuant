@@ -31,10 +31,15 @@ import ConfigManageView from './views/Meta/Finv/Quant/Backtest/ConfigManageView.
 import EnvironmentView from './views/Meta/Finv/Quant/Backtest/EnvironmentView.vue'
 import TemplateView from './views/Meta/Finv/Quant/Backtest/TemplateView.vue'
 import PlaceholderView from './views/Common/PlaceholderView.vue'
+import LoginView from './views/Common/LoginView.vue'
+
+import { UNAUTHORIZED_EVENT, isLoggedIn } from './auth'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+    // 登录页：公开路由，不渲染主框架（见 App.vue 的 meta.public 判断）
+    { path: '/login', name: 'login', component: LoginView, meta: { title: '登录', public: true } },
     { path: '/', redirect: '/dashboard' },
     { path: '/dashboard', name: 'dashboard', component: DashboardView, meta: { title: '仪表盘' } },
     // 历史行情 → 历史行情查询
@@ -150,6 +155,28 @@ const router = createRouter({
     { path: '/Meta/Finv/Quant/Simulation/LiveSim', name: 'simulation-live-sim', component: PlaceholderView, meta: { title: '实盘仿真验证' } },
     { path: '/Meta/Finv/Quant/LiveTrading', name: 'live-trading', component: PlaceholderView, meta: { title: '实盘交易' } },
   ],
+})
+
+// 登录守卫：未登录一律重定向到登录页，并记录来源路径供登录后回跳
+router.beforeEach((to) => {
+  if (to.meta.public) {
+    // 已登录时访问登录页直接回首页，避免重复登录
+    if (to.name === 'login' && isLoggedIn()) {
+      return { path: '/dashboard' }
+    }
+    return true
+  }
+  if (!isLoggedIn()) {
+    return { path: '/login', query: { redirect: to.fullPath } }
+  }
+  return true
+})
+
+// 接口返回 401 时（令牌过期或被吊销）由 api 层广播，这里统一切回登录页
+window.addEventListener(UNAUTHORIZED_EVENT, () => {
+  const current = router.currentRoute.value
+  if (current.meta.public) return
+  void router.replace({ path: '/login', query: { redirect: current.fullPath } })
 })
 
 router.afterEach((to) => {

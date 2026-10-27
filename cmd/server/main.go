@@ -22,8 +22,10 @@ import (
 	"github.com/acanx/finvquant/internal/api"
 	"github.com/acanx/finvquant/internal/config"
 	"github.com/acanx/finvquant/internal/database"
+	"github.com/acanx/finvquant/internal/meta/finv/auth"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
 	_ "github.com/acanx/finvquant/internal/meta/finv/quote/dedup/job"
+	"github.com/acanx/finvquant/internal/meta/finv/sys"
 	"github.com/acanx/finvquant/internal/redisclient"
 	"github.com/acanx/finvquant/internal/static"
 )
@@ -84,10 +86,13 @@ func main() {
 		log.Printf("[finvquant] 导出归档调度未启用（FINV_QUOTE_DEDUB_ENABLED=false），仅提供运维接口")
 	}
 
+	// 登录认证：会话存 Redis，有效期取自 sys.sys_config 20012（默认 480 分钟）。
+	authService := auth.NewService(pool, rdb, syscfg.NewStore(pool))
+
 	// 16001：API 服务
 	apiServer := &http.Server{
 		Addr:              cfg.ListenAddr(),
-		Handler:           api.NewRouter(&api.Deps{Pool: pool, Redis: rdb, Version: version, Commit: commit, Server: "finvquant", Config: cfg, ExportArchive: archiveService}),
+		Handler:           api.NewRouter(&api.Deps{Pool: pool, Redis: rdb, Version: version, Commit: commit, Server: "finvquant", Config: cfg, ExportArchive: archiveService, Auth: authService}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

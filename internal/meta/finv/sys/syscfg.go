@@ -55,7 +55,31 @@ const (
 	// （char_value：'1' 清理（默认） / '0' 不清理）。
 	// 由 PHASE_REVIEW 的 PROCESS_PURGE / JOB_PURGE_LOCAL_FILES 执行。
 	KeyPurgeLocalExportFiles = 20011
+	// KeyAuthSessionTTLMinutes 登录会话有效期（int_value，分钟，默认 480）。
+	// 会话存放于 Redis；每次命中且剩余时间不足一半时滑动续期，
+	// 因此该值同时是「空闲超时」的上界。见需求 10761。
+	KeyAuthSessionTTLMinutes = 20012
 )
+
+// 20012 登录会话有效期取值约束。
+const (
+	// AuthSessionTTLDefaultMinutes 缺失或非法时的内置默认值（8 小时）。
+	AuthSessionTTLDefaultMinutes = 480
+	// AuthSessionTTLMinMinutes 允许的最小值。
+	AuthSessionTTLMinMinutes = 5
+	// AuthSessionTTLMaxMinutes 允许的最大值（约 30 天）。
+	AuthSessionTTLMaxMinutes = 43200
+)
+
+// NormalizeAuthSessionTTLMinutes 把 20012 的原始取值归一化到合法区间。
+//
+// 越界或非法（<= 0）时回退默认 480 分钟，保证会话有效期始终有意义。
+func NormalizeAuthSessionTTLMinutes(raw int) int {
+	if raw < AuthSessionTTLMinMinutes || raw > AuthSessionTTLMaxMinutes {
+		return AuthSessionTTLDefaultMinutes
+	}
+	return raw
+}
 
 // PurgeLocalExportFilesDelay 本地文件在上传成功后的最短保留时长（需求 10744）。
 //
@@ -280,7 +304,9 @@ type Values struct {
 	// HistoryPurgeKeep 20010 解析结果（天数或个数，取决于 20009）；缺失或非法时为默认 30。
 	HistoryPurgeKeep int // 20010
 	// PurgeLocalExportFiles 20011：归档复核阶段是否清理本地导出文件（默认 true）。
-	PurgeLocalExportFiles bool      // 20011 != '0'
+	PurgeLocalExportFiles bool // 20011 != '0'
+	// AuthSessionTTLMinutes 20012：登录会话有效期（分钟，默认 480）。
+	AuthSessionTTLMinutes int       // 20012（已归一化到 5~43200）
 	LoadedAt              time.Time // 快照时间
 }
 
@@ -317,7 +343,7 @@ func (v Values) ArchiveTarget() (Target, error) {
 const selectConfigSQL = `
 SELECT config_no, char_value, str_value, int_value
   FROM sys.sys_config
- WHERE config_no IN ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
+ WHERE config_no IN ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
 
 // Store sys.sys_config 读取器（短 TTL 缓存；并发安全）。
 type Store struct {
@@ -426,7 +452,7 @@ func (s *Store) cachedValues() (Values, bool) {
 
 // loadFromPool 从 sys.sys_config 读取配置并解析。
 func loadFromPool(ctx context.Context, pool *pgxpool.Pool) (Values, error) {
-	rows, err := pool.Query(ctx, selectConfigSQL, KeyArchiveUpload, KeyArchiveUploadToken, KeyArchiveRepoSpec, KeyCDEUMode, KeyExportWindow, KeyPurgeAfterExport, KeyDynamicJobRetentionDays, KeyHistoryPurgePolicy, KeyHistoryPurgeKeep, KeyPurgeLocalExportFiles)
+	rows, err := pool.Query(ctx, selectConfigSQL, KeyArchiveUpload, KeyArchiveUploadToken, KeyArchiveRepoSpec, KeyCDEUMode, KeyExportWindow, KeyPurgeAfterExport, KeyDynamicJobRetentionDays, KeyHistoryPurgePolicy, KeyHistoryPurgeKeep, KeyPurgeLocalExportFiles, KeyAuthSessionTTLMinutes)
 	if err != nil {
 		return Values{}, fmt.Errorf("查询 sys.sys_config 失败: %w", err)
 	}
@@ -438,6 +464,7 @@ func loadFromPool(ctx context.Context, pool *pgxpool.Pool) (Values, error) {
 	policySeen := false
 	keepSeen := false
 	localSeen := false
+	authTTLSeen := false
 	for rows.Next() {
 		var (
 			configNo  int
@@ -486,6 +513,9 @@ func loadFromPool(ctx context.Context, pool *pgxpool.Pool) (Values, error) {
 			localSeen = true
 			// '0' 不清理；其余（'1'、空）按清理——与 20007 同口径。
 			values.PurgeLocalExportFiles = strings.TrimSpace(stringValue(charValue)) != "0"
+		case KeyAuthSessionTTLMinutes:
+			authTTLSeen = true
+			values.AuthSessionTTLMinutes = NormalizeAuthSessionTTLMinutes(int(intValueValue(intValue)))
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -518,6 +548,10 @@ func loadFromPool(ctx context.Context, pool *pgxpool.Pool) (Values, error) {
 	// 20011 缺行时按 '1'（清理）兜底，与种子默认值一致。
 	if !localSeen {
 		values.PurgeLocalExportFiles = true
+	}
+	// 20012 缺行时按默认 480 分钟（8 小时）兜底。
+	if !authTTLSeen {
+		values.AuthSessionTTLMinutes = AuthSessionTTLDefaultMinutes
 	}
 	// 20006 缺行或为空时按内置默认值降级（不再回读环境变量）。
 	if values.ExportWindowRaw == "" {

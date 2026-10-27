@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useDisplay } from 'vuetify'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+
+import { apiPost } from './api'
+import { authState, clearSession } from './auth'
 
 // 多级菜单定义（支持两级分组：顶级 → 二级 → 三级菜单项）
 // 每个叶子菜单项对应独立 URL 路由路径（见 Web/src/router.ts）
@@ -107,8 +110,23 @@ const menuItems: (MenuLeaf | MenuGroup)[] = [
 ]
 
 const route = useRoute()
+const router = useRouter()
 const display = useDisplay()
 const drawer = ref(true)
+
+// 公开页（登录）不渲染导航框架，避免未登录时先闪一下侧边栏
+const isPublicRoute = computed(() => Boolean(route.meta.public))
+
+/** 退出登录：先尽力吊销服务端会话，再清本地状态并回登录页 */
+async function onLogout(): Promise<void> {
+  try {
+    await apiPost('/Auth/Logout', {})
+  } catch {
+    // 服务端会话可能已过期；本地状态必须清理，因此忽略该错误
+  }
+  clearSession()
+  await router.replace('/login')
+}
 
 // 当前激活菜单项 key（叶子路径匹配）
 function isLeaf(item: MenuLeaf | MenuGroup): item is MenuLeaf {
@@ -136,12 +154,36 @@ watch(
 
 <template>
   <v-app>
+    <!-- 公开页（登录）：全屏渲染，不显示导航框架 -->
+    <router-view v-if="isPublicRoute" />
+
+    <template v-else>
     <v-app-bar color="primary" density="comfortable">
       <v-app-bar-nav-icon @click="drawer = !drawer" />
       <v-app-bar-title>
         <v-icon icon="mdi-finance" class="mr-2" />
         FinvQuant 量化策略交易平台
       </v-app-bar-title>
+      <!-- 当前登录用户与退出入口 -->
+      <v-menu location="bottom end">
+        <template #activator="{ props }">
+          <v-btn
+            v-bind="props"
+            variant="text"
+            prepend-icon="mdi-account-circle-outline"
+            :text="authState.user?.nick_name || authState.user?.uid || '未登录'"
+          />
+        </template>
+        <v-list density="compact" min-width="180">
+          <v-list-item
+            :title="authState.user?.nick_name || '-'"
+            :subtitle="authState.user?.uid || ''"
+            prepend-icon="mdi-account"
+          />
+          <v-divider />
+          <v-list-item prepend-icon="mdi-logout" title="退出登录" @click="onLogout" />
+        </v-list>
+      </v-menu>
     </v-app-bar>
 
     <v-navigation-drawer
@@ -213,6 +255,7 @@ watch(
         <router-view />
       </v-container>
     </v-main>
+    </template>
   </v-app>
 </template>
 

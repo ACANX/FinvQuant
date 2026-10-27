@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/acanx/finvquant/internal/syscfg"
+	"github.com/acanx/finvquant/internal/meta/finv/sys"
 )
 
 // archiveConfigStore 抽象 syscfg.Store 的读取能力（生产实现为 *syscfg.Store，测试可注入 fake）。

@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/acanx/finvquant/internal/syscfg"
+	"github.com/acanx/finvquant/internal/meta/finv/sys"
 )
 
 // TestDynamicUploaderModeFollowsConfig 断言上传模式完全由 sys_config 20002 决定。

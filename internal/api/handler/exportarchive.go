@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
-	"github.com/acanx/finvquant/internal/syscfg"
+	"github.com/acanx/finvquant/internal/meta/finv/sys"
 )
 
 // ExportArchive 证券行情月归档导出 / 上传运维接口处理器。

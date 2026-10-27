@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/acanx/finvquant/internal/syscfg"
+	"github.com/acanx/finvquant/internal/meta/finv/sys"
 )
 
 const (

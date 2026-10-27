@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/acanx/finvquant/internal/syscfg"
+	"github.com/acanx/finvquant/internal/meta/finv/sys"
 )
 
 // Scheduler 进程内调度器：按 JobRuntimes 的每日时刻或固定间隔触发 Job。

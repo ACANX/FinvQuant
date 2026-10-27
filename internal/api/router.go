@@ -14,6 +14,7 @@ import (
 	"github.com/acanx/finvquant/internal/config"
 	"github.com/acanx/finvquant/internal/kline"
 	"github.com/acanx/finvquant/internal/meta"
+	"github.com/acanx/finvquant/internal/meta/finv/auth"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
 	"github.com/acanx/finvquant/internal/quote"
 )
@@ -27,6 +28,9 @@ type Deps struct {
 	Server        string
 	Config        *config.Config
 	ExportArchive *dedup.Service
+	// Auth 登录认证服务；为 nil 时不启用登录校验（仅供单元测试构造）。
+	// 生产环境由 cmd/server 注入，任何业务请求都必须携带有效令牌。
+	Auth *auth.Service
 }
 
 // NewRouter 构建 Gin 路由（默认监听端口 16001）。
@@ -64,11 +68,29 @@ func NewRouter(deps *Deps) *gin.Engine {
 	)
 	klineOps := handler.NewKLineOps(deps.Pool, deps.Server, deps.Version, kline.APIPrefix)
 
-	apiGroup := router.Group("/API/V1")
+	// 公开端点：健康检查、版本、登录（不校验令牌）。
+	// 健康检查供容器探针使用，不能被登录拦截。
+	publicGroup := router.Group("/API/V1")
 	{
-		apiGroup.GET("/Health/Live", health.Live)
-		apiGroup.GET("/Health/Ready", health.Ready)
-		apiGroup.GET("/Version", version.Info)
+		publicGroup.GET("/Health/Live", health.Live)
+		publicGroup.GET("/Health/Ready", health.Ready)
+		publicGroup.GET("/Version", version.Info)
+		if deps.Auth != nil {
+			publicGroup.POST("/Auth/Login", handler.NewAuth(deps.Auth).Login)
+		}
+	}
+
+	// 业务端点：统一要求登录（Authorization: Bearer <token>）。
+	apiGroup := router.Group("/API/V1")
+	if deps.Auth != nil {
+		apiGroup.Use(RequireAuth(deps.Auth))
+	}
+	{
+		if deps.Auth != nil {
+			authHandler := handler.NewAuth(deps.Auth)
+			apiGroup.POST("/Auth/Logout", authHandler.Logout)
+			apiGroup.GET("/Auth/Profile", authHandler.Profile)
+		}
 		// 分钟行情 K 线：新前缀 + 旧前缀过渡别名（同一组 handler，P7 后可移除旧前缀）
 		for _, prefix := range []string{
 			strings.TrimPrefix(kline.APIPrefix, "/API/V1/"),

@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
-	"github.com/acanx/finvquant/internal/syscfg"
+	"github.com/acanx/finvquant/internal/meta/finv/sys"
 )
 
 func init() {

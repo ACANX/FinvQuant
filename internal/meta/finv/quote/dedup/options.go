@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/acanx/finvquant/internal/config"
-	"github.com/acanx/finvquant/internal/syscfg"
+	"github.com/acanx/finvquant/internal/meta/finv/sys"
 )
 
 // Options 归档导出运行参数（由 FINV_QUOTE_DEDUB_* 环境变量经 config 派生）。
