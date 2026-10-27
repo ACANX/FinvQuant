@@ -109,7 +109,7 @@ type Header struct {
 	Layout            fieldLayout // 数据区列布局（由 # Field 决定）
 }
 
-// Row 一条分钟行情（与 dedup.finv_quote_secu_kline_min 表对齐；价格保留字符串精度）。
+// Row 一条分钟行情（与 cdeu.finv_quote_secu_kline_min 表对齐；价格保留字符串精度）。
 type Row struct {
 	MarketCode  int
 	Usc         string
