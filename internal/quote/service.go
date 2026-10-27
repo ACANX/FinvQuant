@@ -82,14 +82,14 @@ func (s *Service) QueryBars(ctx context.Context, usc, period string, startTS, en
 	var total int
 	if err := s.pool.QueryRow(ctx, `
 SELECT COUNT(*)
-FROM dedup.finv_quote_secu_kline_min
+FROM quote.finv_quote_secu_kline_min
 WHERE usc = $1 AND ts BETWEEN $2 AND $3`, usc, startTS, endTS).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
 	rows, err := s.pool.Query(ctx, `
 SELECT ts, date, "time", open, high, low, close, volume, turnover, last_close, remark
-FROM dedup.finv_quote_secu_kline_min
+FROM quote.finv_quote_secu_kline_min
 WHERE usc = $1 AND ts BETWEEN $2 AND $3
 ORDER BY ts ASC`, usc, startTS, endTS)
 	if err != nil {
@@ -145,7 +145,10 @@ func DateRangeToTS(date, days int) (int64, int64) {
 	return startDate, endDate + 86400 - 1
 }
 
-// ImportRows 将解析后的行情行批量 upsert 到 dedup.finv_quote_secu_kline_min。
+// ImportRows 将解析后的行情行批量 upsert 到 quote.finv_quote_secu_kline_min。
+//
+// 归属说明：本包（查询 + 文件导入）服务回测与历史行情查询，统一读写 quote schema；
+// 去重/导出/上传链路与 K 线 API 的写入走 dedup schema（见 internal/kline），两边隔离。
 // 字段级覆盖（FIELD）或整行覆盖（ROW）；发生覆盖时写入修正审计日志。
 // remark 为表单备注：非空时写入每行的 remark 列。
 func (s *Service) ImportRows(ctx context.Context, rows []mvsv.Row, mode UpsertMode, importedBy, source, remark string) (*UpsertResult, error) {
@@ -161,7 +164,7 @@ func (s *Service) ImportRows(ctx context.Context, rows []mvsv.Row, mode UpsertMo
 			rows[index].Remark = &value
 		}
 	}
-	// 增量兜底：开盘价缺失（NULL 或 0）时用前收盘价填充，与迁移 V31 同规则，
+	// 增量兜底：开盘价缺失（NULL 或 0）时用前收盘价填充，与迁移 V100031 同规则，
 	// 保证新导入数据不再产生缺 open 的行。
 	fillOpenFromLastClose(rows)
 	// 涨跌额/涨跌幅：文件 cp/cr 列当前忽略；缺失时按「last_close → open → 不写」
@@ -193,7 +196,7 @@ func (s *Service) ImportRows(ctx context.Context, rows []mvsv.Row, mode UpsertMo
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
-	// market_code 已从主表移除（V21）：从 finv_security 字典关联获取，保持响应字段兼容
+	// market_code 已从主表移除（V100021）：从 finv_security 字典关联获取，保持响应字段兼容
 	marketCode := 0
 	if err := s.pool.QueryRow(ctx,
 		`SELECT market_code FROM finv_security WHERE usc = $1 OR security_code = $1 LIMIT 1`,
@@ -221,7 +224,7 @@ func buildUpsertSQL(mode UpsertMode) string {
 		"paocd", "volume", "turnover", "ext_field", "remark",
 	}
 	base := `
-INSERT INTO dedup.finv_quote_secu_kline_min
+INSERT INTO quote.finv_quote_secu_kline_min
     (usc, ts, date, "time", last_close, open, high, low, close,
      change_price, change_ratio,
      paocd, volume, turnover, ext_field, remark)
@@ -234,7 +237,7 @@ ON CONFLICT (ts, usc) DO UPDATE SET
 			assignments = append(assignments, fmt.Sprintf("    %s = EXCLUDED.%s", column, column))
 		} else {
 			assignments = append(assignments,
-				fmt.Sprintf("    %s = COALESCE(EXCLUDED.%s, dedup.finv_quote_secu_kline_min.%s)", column, column, column))
+				fmt.Sprintf("    %s = COALESCE(EXCLUDED.%s, quote.finv_quote_secu_kline_min.%s)", column, column, column))
 		}
 	}
 	return base + strings.Join(assignments, ",\n") + "\nRETURNING (xmax = 0) AS is_insert"
@@ -302,7 +305,7 @@ func computeChangeFields(rows []mvsv.Row) {
 }
 
 // fillOpenFromLastClose 兜底：`open` 为 NULL 或 0 时用 `last_close` 填充。
-// 触发条件与迁移 V31 一致（要求 last_close 非 NULL 且非 0），返回填充行数。
+// 触发条件与迁移 V100031 一致（要求 last_close 非 NULL 且非 0），返回填充行数。
 func fillOpenFromLastClose(rows []mvsv.Row) int {
 	filled := 0
 	for index := range rows {

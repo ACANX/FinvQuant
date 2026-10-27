@@ -23,6 +23,7 @@ import (
 	"github.com/acanx/finvquant/internal/config"
 	"github.com/acanx/finvquant/internal/database"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
+	_ "github.com/acanx/finvquant/internal/meta/finv/quote/dedup/job"
 	"github.com/acanx/finvquant/internal/redisclient"
 	"github.com/acanx/finvquant/internal/static"
 )
@@ -50,7 +51,11 @@ func main() {
 	defer pool.Close()
 
 	// 应用数据库迁移（启动时幂等；quote.finv_quote_secu_kline_min 等域表建表）
-	migrateCtx, migrateCancel := context.WithTimeout(ctx, 30*time.Second)
+	//
+	// 超时给到 10 分钟：迁移里可能包含存量数据回填（如 V100076 恢复 quote 隔离副本需
+	// 搬运数百万行，实测 280 万行耗时约 4 分钟；慢盘/低配环境更久），
+	// 30 秒会在大表上超时，导致服务启动失败。
+	migrateCtx, migrateCancel := context.WithTimeout(ctx, 10*time.Minute)
 	if err := database.Migrate(migrateCtx, pool, cfg.MigrationsDir()); err != nil {
 		migrateCancel()
 		log.Fatalf("[finvquant] 数据库迁移失败: %v", err)
@@ -70,6 +75,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("[finvquant] 初始化导出归档服务失败: %v", err)
 	}
+	// 低峰窗口与 CDEU 运行模式不再在启动时加载到内存：两者统一从 sys.sys_config
+	// （20006 / 20005）读取，由 syscfg.Store 的 30s TTL 缓存保证在线修改即时生效。
 	if cfg.QuoteDeDupEnabled {
 		go dedup.NewScheduler(archiveService).Run(ctx)
 		log.Printf("[finvquant] 导出归档调度已启用（上传模式 %s）", archiveService.Uploader().Mode())

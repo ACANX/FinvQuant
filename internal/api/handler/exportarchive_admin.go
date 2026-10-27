@@ -2,6 +2,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -143,11 +144,16 @@ func (h *ExportArchive) PriorityUpsert(c *gin.Context) {
 		SlaDays:      request.SlaDays,
 		MaxWaitDays:  request.MaxWaitDays,
 	}
-	if err := h.service.Store().UpsertPriority(c.Request.Context(), input); err != nil {
-		c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "更新优先级失败: " + err.Error()})
+	if err := h.service.Store().SetUscPriority(c.Request.Context(), input.Usc, &input); err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, dedup.ErrUscNotFound) {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{"code": status, "message": "更新优先级失败: " + err.Error()})
 		return
 	}
-	h.audit(c, fmt.Sprintf("PUT /Priority usc=%s rank=%d sla=%d", input.Usc, input.PriorityRank, input.SlaDays))
+	h.audit(c, fmt.Sprintf("PUT /Priority usc=%s rank=%d sla=%d maxwait=%d",
+		input.Usc, input.PriorityRank, input.SlaDays, input.MaxWaitDays))
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "已更新", "data": gin.H{"usc": input.Usc}})
 }
 
@@ -158,12 +164,17 @@ func (h *ExportArchive) PriorityDelete(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "usc 不能为空"})
 		return
 	}
-	if err := h.service.Store().DeletePriority(c.Request.Context(), usc); err != nil {
-		c.JSON(http.StatusConflict, gin.H{"code": 409, "message": "删除优先级失败: " + err.Error()})
+	// V200051 起「删除优先级」等价于「清空覆盖」，证券行本身保留。
+	if err := h.service.Store().SetUscPriority(c.Request.Context(), usc, nil); err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, dedup.ErrUscNotFound) {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{"code": status, "message": "清除优先级失败: " + err.Error()})
 		return
 	}
 	h.audit(c, "DELETE /Priority usc="+usc)
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "已删除", "data": gin.H{"usc": usc}})
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "已清除优先级覆盖", "data": gin.H{"usc": usc}})
 }
 
 // CalendarPage 分页查询交易日历（GET .../Calendar/Page）。
@@ -412,12 +423,13 @@ func (h *ExportArchive) setJobStatus(c *gin.Context, status, reason string) {
 
 // runJobAsync 异步触发一个 Job（供成熟度重算等复用）。
 func (h *ExportArchive) runJobAsync(c *gin.Context, kind, label string) {
-	if err := h.service.Trigger(kind); err != nil {
+	runLogID, err := h.service.TriggerWithOptions(c.Request.Context(), kind, false)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
 	}
 	h.audit(c, "POST /Trigger "+label)
-	c.JSON(http.StatusAccepted, gin.H{"code": 202, "message": "已接受，任务异步执行", "data": gin.H{"job_kind": kind}})
+	c.JSON(http.StatusAccepted, gin.H{"code": 202, "message": "已接受，任务异步执行", "data": gin.H{"job_kind": kind, "run_log_id": runLogID}})
 }
 
 // queryInt64Param 读取小驼峰 int64 查询参数；缺省或非法时返回 (0, false)。

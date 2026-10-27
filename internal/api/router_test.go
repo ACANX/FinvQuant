@@ -49,6 +49,13 @@ func TestExportArchiveRoutesRegistered(t *testing.T) {
 	}
 	expected := []string{
 		"GET /API/V1/Meta/Finv/Quote/DeDup/Status",
+		"GET /API/V1/Meta/Finv/Quote/DeDup/Settings",
+		"PUT /API/V1/Meta/Finv/Quote/DeDup/Settings/Window",
+		"GET /API/V1/Meta/Finv/Quote/DeDup/Job/Runtime",
+		"GET /API/V1/Meta/Finv/Quote/DeDup/CDEU/Overview",
+		"POST /API/V1/Meta/Finv/Quote/DeDup/CDEU/Workflow/Run",
+		"POST /API/V1/Meta/Finv/Quote/DeDup/CDEU/Workflow/Terminate",
+		"POST /API/V1/Meta/Finv/Quote/DeDup/CDEU/Process/Run",
 		"GET /API/V1/Meta/Finv/Quote/DeDup/Job/List",
 		"GET /API/V1/Meta/Finv/Quote/DeDup/File/List",
 		"POST /API/V1/Meta/Finv/Quote/DeDup/Job/Retry",

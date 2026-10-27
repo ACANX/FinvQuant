@@ -97,11 +97,20 @@ func NewRouter(deps *Deps) *gin.Engine {
 			archive := handler.NewExportArchive(deps.ExportArchive)
 			group := apiGroup.Group("/Meta/Finv/Quote/DeDup")
 			group.GET("/Status", archive.Status)
+			group.GET("/Settings", archive.Settings)
+			group.PUT("/Settings/Window", archive.SettingsWindow)
+			group.GET("/Job/Runtime", archive.JobRuntime)
+			group.GET("/CDEU/Overview", archive.CDEUOverview)
+			group.POST("/CDEU/Workflow/Run", archive.CDEUWorkflowRun)
+			group.POST("/CDEU/Workflow/Terminate", archive.CDEUWorkflowTerminate)
+			// 兼容旧路径；新前端统一使用 /CDEU/Workflow/Run。
+			group.POST("/CDEU/Process/Run", archive.CDEUWorkflowRun)
 			group.GET("/Job/List", archive.JobList)
 			group.GET("/File/List", archive.FileList)
 			group.POST("/Job/Retry", archive.JobRetry)
 			group.POST("/File/Retry", archive.FileRetry)
 			group.POST("/Job/Run", archive.JobRun)
+			group.POST("/Job/Dynamic/Run", archive.DynamicJobRun)
 
 			// 归档运维台：查询（10 张表 + 成熟度）
 			group.GET("/Usc/Page", archive.UscPage)
@@ -112,6 +121,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 			group.GET("/Budget/Page", archive.BudgetPage)
 			group.GET("/Watermark/List", archive.WatermarkList)
 			group.GET("/RunLog/Page", archive.RunLogPage)
+			group.GET("/RunLog/Detail", archive.RunLogDetail)
 			group.GET("/UploadLog/Page", archive.UploadLogPage)
 			group.GET("/Patch/Page", archive.PatchPage)
 
