@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 去重分钟行情查询：按 usc + 交易日期范围分页查询 dedup.finv_quote_secu_kline_min
+// 去重分钟行情查询：按 usc + 交易日期范围分页查询 cdeu.finv_quote_secu_kline_min
 import { onMounted, ref, watch } from 'vue'
 
 import { apiGet } from '../../../../../api'
@@ -278,8 +278,8 @@ onMounted(async () => {
       <v-card variant="tonal" color="surface-variant" class="mt-4">
         <v-card-text class="text-caption text-medium-emphasis">
           <div class="text-body-2 text-high-emphasis mb-1">页面说明</div>
-          <div>查询 dedup.finv_quote_secu_kline_min 去重后的分钟行情；支持按证券代码[USC]与交易日期范围过滤。</div>
-          <div class="mt-1">数据来源：dedup.finv_quote_secu_kline_min（按 usc + ts 去重后的分钟 K 线；列表不含 remark / last_close）。</div>
+          <div>查询 cdeu.finv_quote_secu_kline_min 去重后的分钟行情；支持按证券代码[USC]与交易日期范围过滤。</div>
+          <div class="mt-1">数据来源：cdeu.finv_quote_secu_kline_min（按 usc + ts 去重后的分钟 K 线；列表不含 remark / last_close）。</div>
         </v-card-text>
       </v-card>
     </v-card-text>

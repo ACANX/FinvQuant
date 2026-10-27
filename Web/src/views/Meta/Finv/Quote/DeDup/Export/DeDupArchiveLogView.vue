@@ -11,6 +11,16 @@ interface PageData<T> {
   list: T[]
 }
 
+interface JobDoc {
+  job_kind: string
+  name: string
+  summary: string
+  flow: string
+  details: string
+  cautions: string
+  schedule: string
+}
+
 interface RunLogRow {
   run_id: number
   job_kind: string
@@ -91,6 +101,23 @@ const patchUsc = ref('')
 const patchStatus = ref('')
 const patchLoading = ref(false)
 const retrying = ref<number | null>(null)
+
+// Job 中文名与说明（来自 /Status 的 jobs，加载一次缓存）
+const jobDocs = ref<Map<string, JobDoc>>(new Map())
+async function loadJobDocs() {
+  try {
+    const data = await apiGet<{ jobs: JobDoc[] }>('/Meta/Finv/Quote/DeDup/Status')
+    jobDocs.value = new Map(data.jobs.map((job) => [job.job_kind, job]))
+  } catch {
+    // 名称/说明加载失败时仅显示 Job 标识
+  }
+}
+function jobDoc(kind: string): JobDoc | undefined {
+  return jobDocs.value.get(kind)
+}
+function jobName(kind: string): string {
+  return jobDoc(kind)?.name || kind
+}
 
 const runHeaders = [
   { title: 'Run ID', key: 'run_id', width: 90, sortable: false },
@@ -207,7 +234,7 @@ watch([patchPage, patchPageSize], () => {
 })
 
 onMounted(async () => {
-  await Promise.all([loadRunLogs(), loadUploadLogs(), loadPatches()])
+  await Promise.all([loadRunLogs(), loadUploadLogs(), loadPatches(), loadJobDocs()])
 })
 </script>
 
@@ -266,6 +293,24 @@ onMounted(async () => {
             density="compact"
             class="text-no-wrap"
           >
+            <template #item.job_kind="{ item }">
+              <v-tooltip location="top" max-width="480" open-delay="150">
+                <template #activator="{ props }">
+                  <div v-bind="props">
+                    <div class="text-body-2">{{ jobName(item.job_kind) }}</div>
+                    <div class="text-caption text-medium-emphasis">{{ item.job_kind }}</div>
+                  </div>
+                </template>
+                <div class="tooltip-doc text-caption">
+                  <div class="font-weight-bold mb-1">{{ jobName(item.job_kind) }}（{{ item.job_kind }}）</div>
+                  <div v-if="jobDoc(item.job_kind)?.schedule" class="mb-1">调度：{{ jobDoc(item.job_kind)?.schedule }}</div>
+                  <div class="mb-1">功能：{{ jobDoc(item.job_kind)?.summary }}</div>
+                  <div class="mb-1">流程：{{ jobDoc(item.job_kind)?.flow }}</div>
+                  <div class="mb-1">工作细节：{{ jobDoc(item.job_kind)?.details }}</div>
+                  <div>注意事项：{{ jobDoc(item.job_kind)?.cautions }}</div>
+                </div>
+              </v-tooltip>
+            </template>
             <template #item.target="{ item }">
               <span v-if="item.job_id">任务 {{ item.job_id }}</span>
               <span v-else>{{ item.usc ?? '—' }}</span>
@@ -398,3 +443,11 @@ onMounted(async () => {
     <v-snackbar v-model="toast" :timeout="3000" color="success">{{ toastText }}</v-snackbar>
   </v-card>
 </template>
+
+<style scoped>
+.tooltip-doc {
+  white-space: normal;
+  text-align: left;
+  line-height: 1.5;
+}
+</style>

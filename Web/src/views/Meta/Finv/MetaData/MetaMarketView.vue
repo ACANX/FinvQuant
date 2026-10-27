@@ -7,6 +7,7 @@ import { apiGet, apiPost } from '../../../../api'
 interface MarketRow {
   market_code: number
   market_flag: string
+  market_symbol: string
   market_abbr: string
   market_name: string
   en_security_type: string
@@ -29,6 +30,7 @@ const editing = ref(false)
 const form = ref<MarketRow>({
   market_code: 0,
   market_flag: '',
+  market_symbol: '',
   market_abbr: '',
   market_name: '',
   en_security_type: '',
@@ -57,8 +59,9 @@ function openCreate() {
   form.value = {
     market_code: 0,
     market_flag: '',
+    market_symbol: '',
     market_abbr: '',
-    market_name: '',
+    market_name: '', 
     en_security_type: '',
     base_currency: '',
     flag_enable: '1',
@@ -87,6 +90,7 @@ async function save() {
     await apiPost('/Meta/Finv/Quant/Metadata/Market/Save', {
       market_code: form.value.market_code,
       market_flag: form.value.market_flag.trim(),
+      market_symbol: form.value.market_symbol.trim(),
       market_abbr: form.value.market_abbr.trim(),
       market_name: form.value.market_name.trim(),
       en_security_type: form.value.en_security_type.trim(),
@@ -158,6 +162,7 @@ onMounted(load)
         :headers="[
           { title: '市场代码', key: 'market_code', width: 100 },
           { title: '市场标识', key: 'market_flag', width: 110 },
+          { title: '市场符号', key: 'market_symbol', width: 130 },
           { title: '简码', key: 'market_abbr', width: 90 },
           { title: '市场名称', key: 'market_name' },
           { title: '证券类型', key: 'en_security_type', width: 120 },
@@ -210,6 +215,9 @@ onMounted(load)
             </v-col>
             <v-col cols="6">
               <v-text-field v-model="form.market_flag" label="市场标识（如 SSE-A / HKEX-H / US-I）" density="compact" />
+            </v-col>
+            <v-col cols="6">
+              <v-text-field v-model="form.market_symbol" label="市场符号（如 US-NSDQ / FX-CFD / SZ）" density="compact" />
             </v-col>
             <v-col cols="6">
               <v-text-field v-model="form.market_abbr" label="交易所简码（如 SSE / HKEX / US）" density="compact" />

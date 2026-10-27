@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 归档主数据与规则：证券主数据（关键参数 day_expect_rows）、优先级 / SLA、交易日历，均支持管理员编辑
-// 接口：Usc/Page + Usc、Priority/List + Priority（PUT/DELETE）、Calendar/Page + Calendar（PUT/DELETE）
-import { onMounted, ref, watch } from 'vue'
+// 接口：Usc/Page + Usc、Priority（PUT/DELETE，V100051 起写入 finv_dedup_usc）、Calendar/Page + Calendar（PUT/DELETE）
+import { computed, onMounted, ref, watch } from 'vue'
 
 import { apiDelete, apiGet, apiPut } from '../../../../../../api'
 import { fmtISO, fmtNum, isoDate } from '../../../../../../utils'
@@ -24,14 +24,11 @@ interface UscRow {
   name: string | null
   timezone: string | null
   currency: string | null
-  gmt_update: string
-}
-
-interface PriorityRow {
-  usc: string
-  priority_rank: number
-  sla_days: number
-  max_wait_days: number
+  // 归档优先级覆盖配置（V100051 由 finv_dedup_usc_priority 合并而来）
+  priority_rank: number | null
+  sla_days: number | null
+  max_wait_days: number | null
+  priority_gmt_update: string | null
   gmt_update: string
 }
 
@@ -70,11 +67,12 @@ const uscForm = ref({
 })
 
 // ---- 优先级 ----
-const priorityRows = ref<PriorityRow[]>([])
-const priorityLoading = ref(false)
+// 优先级覆盖编辑（V100051 起是 finv_dedup_usc 的列，随证券行内联编辑）
 const priorityDialog = ref(false)
 const prioritySaving = ref(false)
 const priorityForm = ref({ usc: '', priority_rank: 1, sla_days: 5, max_wait_days: 7 })
+// currentUscRow 当前打开优先级对话框的原始证券行，用于判断是否已有覆盖。
+const currentUscRow = ref<UscRow | null>(null)
 
 // ---- 交易日历 ----
 const calendarRows = ref<PageData<CalendarRow>>({ total: 0, list: [] })
@@ -100,15 +98,10 @@ const uscHeaders = [
   { title: '数据源', key: 'provider', width: 110, sortable: false },
   { title: '时区', key: 'timezone', width: 130, sortable: false },
   { title: '币种', key: 'currency', width: 80, sortable: false },
+  { title: '优先级', key: 'priority_rank', align: 'end' as const, width: 90, sortable: false },
+  { title: 'SLA 天数', key: 'sla_days', align: 'end' as const, width: 95, sortable: false },
+  { title: '最大等待', key: 'max_wait_days', align: 'end' as const, width: 95, sortable: false },
   { title: '更新时间', key: 'gmt_update', width: 165, sortable: false },
-  { title: '操作', key: 'actions', width: 90, sortable: false },
-]
-const priorityHeaders = [
-  { title: '证券[USC]', key: 'usc', sortable: false },
-  { title: '优先级', key: 'priority_rank', align: 'end' as const, width: 100, sortable: false },
-  { title: 'SLA 天数', key: 'sla_days', align: 'end' as const, width: 110, sortable: false },
-  { title: '最大等待天数', key: 'max_wait_days', align: 'end' as const, width: 130, sortable: false },
-  { title: '更新时间', key: 'gmt_update', width: 170, sortable: false },
   { title: '操作', key: 'actions', width: 150, sortable: false },
 ]
 const calendarHeaders = [
@@ -135,19 +128,6 @@ async function loadUsc() {
     error.value = (e as Error).message
   } finally {
     uscLoading.value = false
-  }
-}
-
-async function loadPriority() {
-  priorityLoading.value = true
-  error.value = ''
-  try {
-    const data = await apiGet<PageData<PriorityRow>>('/Meta/Finv/Quote/DeDup/Priority/List?pageSize=200')
-    priorityRows.value = data.list ?? []
-  } catch (e) {
-    error.value = (e as Error).message
-  } finally {
-    priorityLoading.value = false
   }
 }
 
@@ -242,10 +222,15 @@ async function saveUsc() {
   }
 }
 
-function openPriority(row?: PriorityRow) {
-  priorityForm.value = row
-    ? { usc: row.usc, priority_rank: row.priority_rank, sla_days: row.sla_days, max_wait_days: row.max_wait_days }
-    : { usc: '', priority_rank: 1, sla_days: 5, max_wait_days: 7 }
+// openPriority 从证券行打开优先级覆盖编辑：未配置时给默认值（100 / 5 / 7）作起点。
+function openPriority(row: UscRow) {
+  currentUscRow.value = row
+  priorityForm.value = {
+    usc: row.usc,
+    priority_rank: row.priority_rank ?? 100,
+    sla_days: row.sla_days ?? 5,
+    max_wait_days: row.max_wait_days ?? 7,
+  }
   priorityDialog.value = true
 }
 
@@ -254,10 +239,10 @@ async function savePriority() {
   error.value = ''
   try {
     await apiPut<{ usc: string }>('/Meta/Finv/Quote/DeDup/Priority', priorityForm.value)
-    toastText.value = '优先级已保存'
+    toastText.value = `${priorityForm.value.usc} 优先级已保存`
     toast.value = true
     priorityDialog.value = false
-    await loadPriority()
+    await loadUsc()
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -265,18 +250,25 @@ async function savePriority() {
   }
 }
 
-async function removePriority(row: PriorityRow) {
-  if (!window.confirm(`确认删除 ${row.usc} 的优先级配置？`)) return
+// clearPriority 撤销该证券的自定义优先级，退回默认 100 / 5 / 7（证券行保留）。
+async function clearPriority(usc: string) {
+  if (!usc) return
+  if (!window.confirm(`确认清除 ${usc} 的优先级覆盖？将退回默认 100 / 5 / 7。`)) return
   error.value = ''
   try {
-    await apiDelete<{ usc: string }>(`/Meta/Finv/Quote/DeDup/Priority?usc=${encodeURIComponent(row.usc)}`)
-    toastText.value = `${row.usc} 优先级已删除`
+    await apiDelete<{ usc: string }>(`/Meta/Finv/Quote/DeDup/Priority?usc=${encodeURIComponent(usc)}`)
+    toastText.value = `${usc} 优先级覆盖已清除`
     toast.value = true
-    await loadPriority()
+    priorityDialog.value = false
+    await loadUsc()
   } catch (e) {
     error.value = (e as Error).message
   }
 }
+
+// priorityConfigured 当前编辑项是否已有覆盖（决定「清除覆盖」按钮是否可用）。
+const priorityConfigured = computed(() => currentUscRow.value?.priority_rank !== null
+  && currentUscRow.value?.priority_rank !== undefined)
 
 function openCalendar(row?: CalendarRow) {
   calendarForm.value = row
@@ -322,7 +314,7 @@ watch([calendarPage, calendarPageSize], () => {
 })
 
 onMounted(async () => {
-  await Promise.all([loadUsc(), loadPriority(), loadCalendar()])
+  await Promise.all([loadUsc(), loadCalendar()])
 })
 </script>
 
@@ -336,7 +328,6 @@ onMounted(async () => {
     <v-card-text>
       <v-tabs v-model="tab" density="compact" class="mb-3">
         <v-tab value="usc">证券主数据</v-tab>
-        <v-tab value="priority">优先级 / SLA</v-tab>
         <v-tab value="calendar">交易日历</v-tab>
       </v-tabs>
 
@@ -363,6 +354,10 @@ onMounted(async () => {
           </v-row>
           <v-alert type="info" density="compact" variant="tonal" class="mb-3">
             <strong>day_expect_rows</strong> 为空时该证券的「日校准」无法判定，成熟度会长期停留在 PARTIAL，导致永不导出——请优先补全。
+          </v-alert>
+          <v-alert type="info" density="compact" variant="tonal" class="mb-3">
+            归档优先级 / SLA 已并入证券行（V100051）：未配置时按 <strong>100 / 5 / 7</strong> 兜底，
+            点行尾「优先级」可设置覆盖，清除覆盖不影响证券本身。
           </v-alert>
           <v-data-table-server
             v-model:page="uscPage"
@@ -394,38 +389,30 @@ onMounted(async () => {
             <template #item.provider="{ item }">{{ item.provider ?? '—' }}</template>
             <template #item.timezone="{ item }">{{ item.timezone ?? '—' }}</template>
             <template #item.currency="{ item }">{{ item.currency ?? '—' }}</template>
+            <!-- 优先级覆盖：未配置时显示默认值并置灰，提示走 100 / 5 / 7 兜底 -->
+            <template #item.priority_rank="{ item }">
+              <v-chip v-if="item.priority_rank !== null" size="small" variant="tonal" color="primary">
+                {{ item.priority_rank }}
+              </v-chip>
+              <span v-else class="text-medium-emphasis text-caption">默认 100</span>
+            </template>
+            <template #item.sla_days="{ item }">
+              <span :class="item.sla_days === null ? 'text-medium-emphasis' : ''">
+                {{ item.sla_days ?? '未配置(5)' }}
+              </span>
+            </template>
+            <template #item.max_wait_days="{ item }">
+              <span :class="item.max_wait_days === null ? 'text-medium-emphasis' : ''">
+                {{ item.max_wait_days ?? '未配置(7)' }}
+              </span>
+            </template>
             <template #item.gmt_update="{ item }">{{ fmtISO(item.gmt_update) }}</template>
             <template #item.actions="{ item }">
               <v-btn size="small" variant="text" color="primary" prepend-icon="mdi-pencil" @click="openUsc(item)">编辑</v-btn>
+              <v-btn size="small" variant="text" color="info" prepend-icon="mdi-tune" @click="openPriority(item)">优先级</v-btn>
             </template>
             <template #no-data><div class="py-6 text-medium-emphasis">暂无证券主数据</div></template>
           </v-data-table-server>
-        </v-window-item>
-
-        <!-- 优先级 / SLA -->
-        <v-window-item value="priority">
-          <v-row dense align="center" class="mb-3">
-            <v-col cols="auto">
-              <v-btn variant="tonal" color="success" prepend-icon="mdi-plus" @click="openPriority()">新增</v-btn>
-            </v-col>
-            <v-col cols="12" md="auto" class="ml-md-auto text-caption text-medium-emphasis">
-              共 <strong>{{ priorityRows.length }}</strong> 条
-            </v-col>
-          </v-row>
-          <v-data-table
-            :headers="priorityHeaders"
-            :items="priorityRows"
-            :loading="priorityLoading"
-            item-value="usc"
-            density="compact"
-          >
-            <template #item.gmt_update="{ item }">{{ fmtISO(item.gmt_update) }}</template>
-            <template #item.actions="{ item }">
-              <v-btn size="small" variant="text" color="primary" prepend-icon="mdi-pencil" @click="openPriority(item)">编辑</v-btn>
-              <v-btn size="small" variant="text" color="error" prepend-icon="mdi-delete" @click="removePriority(item)">删除</v-btn>
-            </template>
-            <template #no-data><div class="py-6 text-medium-emphasis">暂无优先级配置</div></template>
-          </v-data-table>
         </v-window-item>
 
         <!-- 交易日历 -->
@@ -474,7 +461,7 @@ onMounted(async () => {
       <v-card variant="tonal" color="surface-variant" class="mt-4">
         <v-card-text class="text-caption text-medium-emphasis">
           <div class="text-body-2 text-high-emphasis mb-1">页面说明</div>
-          <div>可编辑表：finv_dedup_usc（证券主数据）、finv_dedup_usc_priority（优先级 / SLA）、finv_dedup_trade_calendar（交易日历）。</div>
+          <div>可编辑表：finv_dedup_usc（证券主数据 + 归档优先级 / SLA）、finv_dedup_trade_calendar（交易日历）。</div>
           <div class="mt-1">所有保存 / 删除操作都会写一条管理员审计（job_kind=MANUAL_ADMIN_EDIT），可在「归档日志与补丁 → 运行日志」中追溯。</div>
         </v-card-text>
       </v-card>
@@ -537,12 +524,14 @@ onMounted(async () => {
       <v-card>
         <v-card-title>优先级 / SLA</v-card-title>
         <v-card-text>
-          <v-text-field v-model="priorityForm.usc" label="证券[USC]" density="compact" class="mb-2" />
+          <v-text-field v-model="priorityForm.usc" label="证券[USC]" density="compact" readonly class="mb-2" />
           <v-text-field v-model.number="priorityForm.priority_rank" type="number" label="优先级（正整数，越小越先导出）" density="compact" class="mb-2" />
           <v-text-field v-model.number="priorityForm.sla_days" type="number" label="SLA 天数" density="compact" class="mb-2" />
           <v-text-field v-model.number="priorityForm.max_wait_days" type="number" label="最大等待天数" density="compact" />
         </v-card-text>
         <v-card-actions>
+          <v-btn v-if="priorityConfigured" variant="text" color="error" :disabled="prioritySaving"
+                 @click="clearPriority(priorityForm.usc)">清除覆盖</v-btn>
           <v-spacer />
           <v-btn variant="text" @click="priorityDialog = false">取消</v-btn>
           <v-btn color="primary" :loading="prioritySaving" @click="savePriority">保存</v-btn>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 月归档导出文件与上传：分页查询 dedup.finv_dedup_export_file，按上传状态 / 文件类型 / 证券 / 业务月过滤
+// 月归档导出文件与上传：分页查询 cdeu.finv_quote_cdeu_export_file，按上传状态 / 文件类型 / 证券 / 业务月过滤
 // 后端接口：GET /Meta/Finv/Quote/DeDup/File/List、POST /Meta/Finv/Quote/DeDup/File/Retry
 import { onMounted, ref, watch } from 'vue'
 
@@ -325,7 +325,7 @@ onMounted(load)
       <v-card variant="tonal" color="surface-variant" class="mt-4">
         <v-card-text class="text-caption text-medium-emphasis">
           <div class="text-body-2 text-high-emphasis mb-1">页面说明</div>
-          <div>数据来源：dedup.finv_dedup_export_file；接口 GET /API/V1/Meta/Finv/Quote/DeDup/File/List。</div>
+          <div>数据来源：cdeu.finv_quote_cdeu_export_file；接口 GET /API/V1/Meta/Finv/Quote/DeDup/File/List。</div>
           <div class="mt-1">
             「仅看已上传」等价于 uploadStatus=UPLOADED，用于查看已上传文件清单；「重试上传」调用 POST /File/Retry，
             把文件重置为 PENDING_UPLOAD。

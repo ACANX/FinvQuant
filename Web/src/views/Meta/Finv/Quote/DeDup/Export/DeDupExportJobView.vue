@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 月归档导出任务：分页查询 dedup.finv_dedup_export_job，支持状态/证券/业务月过滤与人工重试
+// 月归档导出任务：分页查询 cdeu.finv_quote_cdeu_export_job，支持状态/证券/业务月过滤与人工重试
 // 后端接口：GET /Meta/Finv/Quote/DeDup/Job/List、POST /Meta/Finv/Quote/DeDup/Job/Retry
 import { onMounted, ref, watch } from 'vue'
 
@@ -256,7 +256,7 @@ onMounted(load)
       <v-card variant="tonal" color="surface-variant" class="mt-4">
         <v-card-text class="text-caption text-medium-emphasis">
           <div class="text-body-2 text-high-emphasis mb-1">页面说明</div>
-          <div>数据来源：dedup.finv_dedup_export_job；接口 GET /API/V1/Meta/Finv/Quote/DeDup/Job/List。</div>
+          <div>数据来源：cdeu.finv_quote_cdeu_export_job；接口 GET /API/V1/Meta/Finv/Quote/DeDup/Job/List。</div>
           <div class="mt-1">「重试」调用 POST /Job/Retry，将任务重置为 WAITING；仅失败 / 暂停等可重试状态生效，否则返回冲突提示。</div>
         </v-card-text>
       </v-card>

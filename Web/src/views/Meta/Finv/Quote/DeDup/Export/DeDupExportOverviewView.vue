@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // 月归档导出总览：归档链路指标、告警、运行参数与 Job 调度（后端 GET /Meta/Finv/Quote/DeDup/Status）
-// 数据来源：dedup.finv_dedup_export_job / finv_dedup_export_file / finv_dedup_daily_budget 等聚合
+// 数据来源：cdeu.finv_quote_cdeu_export_job / finv_dedup_export_file / finv_dedup_daily_budget 等聚合
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { apiGet, apiPost } from '../../../../../../api'
@@ -51,6 +51,11 @@ interface StatusOptions {
 
 interface JobRuntime {
   job_kind: string
+  name: string
+  summary: string
+  flow: string
+  details: string
+  cautions: string
   daily_at?: string
   interval_seconds?: number
   windowed: boolean
@@ -396,7 +401,22 @@ onBeforeUnmount(clearTimer)
           hide-default-footer
         >
           <template #item.job_kind="{ item }">
-            <span class="text-body-2">{{ item.job_kind }}</span>
+            <v-tooltip location="top" max-width="480" open-delay="150">
+              <template #activator="{ props }">
+                <div v-bind="props">
+                  <div class="text-body-2">{{ item.name || item.job_kind }}</div>
+                  <div class="text-caption text-medium-emphasis">{{ item.job_kind }}</div>
+                </div>
+              </template>
+              <div class="tooltip-doc text-caption">
+                <div class="font-weight-bold mb-1">{{ item.name }}（{{ item.job_kind }}）</div>
+                <div class="mb-1">调度：{{ item.schedule }}</div>
+                <div class="mb-1">功能：{{ item.summary }}</div>
+                <div class="mb-1">流程：{{ item.flow }}</div>
+                <div class="mb-1">工作细节：{{ item.details }}</div>
+                <div>注意事项：{{ item.cautions }}</div>
+              </div>
+            </v-tooltip>
           </template>
           <template #item.schedule="{ item }">{{ item.schedule }}</template>
           <template #item.windowed="{ item }">
@@ -434,3 +454,11 @@ onBeforeUnmount(clearTimer)
     <v-snackbar v-model="toast" :timeout="3000" color="success">{{ toastText }}</v-snackbar>
   </v-card>
 </template>
+
+<style scoped>
+.tooltip-doc {
+  white-space: normal;
+  text-align: left;
+  line-height: 1.5;
+}
+</style>

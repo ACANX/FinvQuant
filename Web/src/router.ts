@@ -7,6 +7,9 @@ import QuoteImportView from './views/Meta/Finv/Quote/History/HistoryQuoteImportV
 import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue'
 import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue'
 import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue'
+import DeDupArchiveChainView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue'
+import DeDupCDEUView from './views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue'
+import DeDupCDEUWorkflowView from './views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue'
 import DeDupExportJobView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportJobView.vue'
 import DeDupExportFileView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue'
 import DeDupArchiveStatsView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveStatsView.vue'
@@ -55,6 +58,24 @@ const router = createRouter({
       name: 'dedup-export-overview',
       component: DeDupExportOverviewView,
       meta: { title: '月归档导出总览' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Chain',
+      name: 'dedup-export-chain',
+      component: DeDupArchiveChainView,
+      meta: { title: '端到端链路' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/CDEU',
+      name: 'dedup-export-cdeu',
+      component: DeDupCDEUView,
+      meta: { title: '工作流控制与监控' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/CDEUWorkflow',
+      name: 'dedup-export-cdeu-workflow',
+      component: DeDupCDEUWorkflowView,
+      meta: { title: '全流程拓扑' },
     },
     {
       path: '/Meta/Finv/Quote/DeDup/Export/Job',

@@ -743,7 +743,7 @@ onBeforeUnmount(() => {
       <v-card variant="tonal" color="surface-variant" class="mt-4">
         <v-card-text class="text-caption text-medium-emphasis">
           <div class="text-body-2 text-high-emphasis mb-1">页面说明</div>
-          <div>dedup.finv_quote_secu_kline_min 汇总指标、字段完整性与分布可视化；支持按证券代码[USC]与交易日期范围过滤。</div>
+          <div>cdeu.finv_quote_secu_kline_min 汇总指标、字段完整性与分布可视化；支持按证券代码[USC]与交易日期范围过滤。</div>
           <div class="mt-1">统计口径：汇总、每日趋势与证券分布在同一只读事务内完成；空值占比 = 空值行数 / 记录总数。</div>
         </v-card-text>
       </v-card>
