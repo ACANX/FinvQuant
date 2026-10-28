@@ -142,6 +142,16 @@ func WrapOpenAPIResponse() gin.HandlerFunc {
 		original.Header().Del("Content-Length")
 
 		if status >= http.StatusOK && status < http.StatusMultipleChoices && status != http.StatusNoContent {
+			// 内部 handler 若已返回 {code,data,message} 信封（如列表端点），
+			// 取内层 data，避免外部信封嵌套。
+			var payload map[string]json.RawMessage
+			if err := json.Unmarshal(body, &payload); err == nil {
+				if _, hasCode := payload["code"]; hasCode {
+					if inner, hasData := payload["data"]; hasData {
+						body = inner
+					}
+				}
+			}
 			data := json.RawMessage(body)
 			if len(bytes.TrimSpace(body)) == 0 {
 				data = json.RawMessage("null")

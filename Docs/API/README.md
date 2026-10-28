@@ -65,6 +65,7 @@ Authorization: Bearer <token>
     - [`Quote/Cdeu/Min/KLineHealth.md`](Quote/Cdeu/Min/KLineHealth.md) — `GET /Health`（探活，含 `/healthz` 过渡别名）
   - **外部 OpenAPI**（`/OpenAPI/V1/*`，静态密钥 `FINV_OPENAPI_KEY`，与登录会话不通用）：
     - [`OpenAPI/Quote/Cdeu/Min/Upsert.md`](../OpenAPI/Quote/Cdeu/Min/Upsert.md) — `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`（批量 upsert；成功码默认 0；契约 [.yml](../OpenAPI/Quote/Cdeu/Min/Upsert.yml)）
+    - [`OpenAPI/Quote/Cdeu/Min/PageUni.md`](../OpenAPI/Quote/Cdeu/Min/PageUni.md) — `GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni`（分页，column/row；成功码默认 0；契约 [.yml](../OpenAPI/Quote/Cdeu/Min/PageUni.yml)）
   - [`HistoryQuote/ImportsUpload.md`](HistoryQuote/ImportsUpload.md) — `POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload`（MVSV 历史行情导入）
   - [`HistoryQuote/HistoryQuote.md`](HistoryQuote/HistoryQuote.md) — `GET /API/V1/Meta/Finv/Quant/Quote/History/QuoteQuery`（历史行情查询）
   - [`Meta/MetaExchange.md`](Meta/MetaExchange.md) — `GET/POST /API/V1/Meta/Finv/Quant/Metadata/Exchange/*`（交易所信息维护）

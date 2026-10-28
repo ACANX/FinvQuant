@@ -113,6 +113,7 @@
 | 89 | POST | `/API/V1/Meta/Finv/Quote/DeDup/CDEU/Workflow/Run` | 手动启动完整 CDEU 工作流（后台按 Phase → Process → JOB → Step 执行） | [QuoteDeDup/CDEUWorkflowRun.md](QuoteDeDup/CDEUWorkflowRun.md) | 工作流控制与监控 |
 | 90 | GET | `/API/V1/Meta/Finv/Quote/DeDup/RunLog/Detail` | 查询单次 Job 运行汇总与详细日志行 | [QuoteDeDup/RunLog.md](QuoteDeDup/RunLog.md) | 归档日志与补丁 / 工作流控制与监控 |
 | 91 | POST | `/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert` | 外部 OpenAPI 示例：批量 upsert（静态密钥认证；成功响应 `{code,data,message}`，code 默认 0） | [../OpenAPI/Quote/Cdeu/Min/Upsert.md](../OpenAPI/Quote/Cdeu/Min/Upsert.md) | 外部 HOOK / 采集端 |
+| 92 | GET | `/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni` | 外部 OpenAPI：条件分页查询（column/row；成功响应 `{code,data,message}`，code 默认 0） | [../OpenAPI/Quote/Cdeu/Min/PageUni.md](../OpenAPI/Quote/Cdeu/Min/PageUni.md) | 外部 HOOK / 核对工具 |
 
 ## 说明
 

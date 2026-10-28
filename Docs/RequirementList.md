@@ -2127,6 +2127,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10788 | `/OpenAPI/V1` 下接口成功响应统一为 `{"code":0,"data":<原业务数据>,"message":"OK"}`：业务字段放入 `data`；成功码默认 `0`，`1`/`200`/`202` 兼容；非 2xx 与 `204` 原样透传。补充外部端点文档（`.md` + `.yml`）。 | `grep -c '"code": 0' internal/api/middleware.go` = 1；`go test ./internal/api -run TestWrapOpenAPIResponseEnvelope -v` 通过（断言 `code=0`、`data.affected`、`data.mode`、204 无 body、错误原样）；`grep -c 'code: 0' Docs/OpenAPI/Quote/Cdeu/Min/Upsert.yml` ≥ 1 且 `enum` 含 0/1/200/202；`ls Docs/OpenAPI/Quote/Cdeu/Min/Upsert.{md,yml}` 均存在；`go test ./internal/docs` 通过 | |
 
+## 一百二十一、外部 OpenAPI PageUni 查询端点（10789）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10789 | 为内部 `/API/V1/Meta/Finv/Quote/Cdeu/Min/PageUni` 暴露外部端点 `GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni`：复用 `KLine.PageUni` handler；静态密钥认证；成功响应 `{code:0,data,message}`（内部列表信封解包后放入 `data`）；补 `.md` + `.yml` 文档。 | `grep -c 'OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni' internal/api/router.go` = 1；`go test ./internal/api -run TestOpenAPIPageUniRoute -v` 通过（注册、401、`limit=0` → 422）；`go test ./internal/api -run TestWrapOpenAPIResponseEnvelope -v` 通过（内部信封解包不嵌套）；`ls Docs/OpenAPI/Quote/Cdeu/Min/PageUni.{md,yml}` 均存在；`PageUni.yml` 可解析且 paths 正确；`go test ./internal/docs` 通过；全仓链接 0 失效 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2275,7 +2281,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 外部 HOOK 接入方案文档 | 10786 | 1 |
 | 外部 OpenAPI 示例端点 | 10787 | 1 |
 | 外部 OpenAPI 响应信封规范化 | 10788 | 1 |
-| **合计** | **10001–10788** | **788** |
+| 外部 OpenAPI PageUni 查询端点 | 10789 | 1 |
+| **合计** | **10001–10789** | **789** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10789` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10790` 起往后追加，不插入既有区间。

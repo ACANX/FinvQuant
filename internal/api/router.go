@@ -118,6 +118,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 			// 静态密钥鉴权 + 统一响应信封 {code,data,message}（需求 10787 / 10788）
 			openGroup.Use(RequireOpenAPIKey(openAPIKey), WrapOpenAPIResponse())
 			openGroup.POST("/Meta/Finv/Quote/Cdeu/Min/Upsert", klineHandler.Upsert)
+			openGroup.GET("/Meta/Finv/Quote/Cdeu/Min/PageUni", klineHandler.PageUni)
 		}
 
 		// 历史行情：导入 / 查询（统一 /Meta/Finv/Quant/Quote/ 前缀，与前端路由对应）

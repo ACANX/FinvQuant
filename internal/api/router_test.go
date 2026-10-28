@@ -242,6 +242,9 @@ func TestWrapOpenAPIResponseEnvelope(t *testing.T) {
 	router.POST("/ok", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"affected": 1, "mode": "update"})
 	})
+	router.POST("/enveloped", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"code": 1, "data": gin.H{"cnt": 1}, "message": "OK"})
+	})
 	router.POST("/empty", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 	router.POST("/err", func(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 211001, "message": "缺少必填参数"})
@@ -269,6 +272,22 @@ func TestWrapOpenAPIResponseEnvelope(t *testing.T) {
 		t.Fatalf("data 节点不符合预期: %v", envelope["data"])
 	}
 
+	enveloped := serve("/enveloped")
+	var envBody map[string]any
+	if err := json.Unmarshal(enveloped.Body.Bytes(), &envBody); err != nil {
+		t.Fatalf("解析解包信封失败: %v", err)
+	}
+	if envBody["code"] != float64(0) {
+		t.Fatalf("解包后 code 应默认 0: %v", envBody)
+	}
+	inner, isMap := envBody["data"].(map[string]any)
+	if !isMap || inner["cnt"] != float64(1) {
+		t.Fatalf("应提取内部 data，实际: %v", envBody["data"])
+	}
+	if _, nested := inner["code"]; nested {
+		t.Fatalf("不应嵌套内部信封: %v", inner)
+	}
+
 	if noContent := serve("/empty"); noContent.Code != http.StatusNoContent || noContent.Body.Len() != 0 {
 		t.Fatalf("204 应原样无 body，实际 %d %q", noContent.Code, noContent.Body.String())
 	}
@@ -276,5 +295,42 @@ func TestWrapOpenAPIResponseEnvelope(t *testing.T) {
 	bad := serve("/err")
 	if bad.Code != http.StatusBadRequest || !strings.Contains(bad.Body.String(), `"code":211001`) {
 		t.Fatalf("错误响应应原样透传，实际 %d %s", bad.Code, bad.Body.String())
+	}
+}
+
+// TestOpenAPIPageUniRoute 校验外部 PageUni 端点（需求 10789）：
+// 注册、未授权 401、正确密钥可进入 handler（limit=0 → 422 / 211004，不依赖数据库）。
+func TestOpenAPIPageUniRoute(t *testing.T) {
+	const path = "/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni"
+	router := newTestRouterWithConfig(t, &config.Config{
+		KLineMaxBatchRows: 5000, KLineMaxListSize: 5000, KLineTSUnit: "s",
+		OpenAPIKey: "test-openapi-key",
+	})
+
+	registered := false
+	for _, route := range router.Routes() {
+		if route.Method == http.MethodGet && route.Path == path {
+			registered = true
+		}
+	}
+	if !registered {
+		t.Fatalf("应注册 GET %s", path)
+	}
+
+	do := func(headers map[string]string) int {
+		req := httptest.NewRequest(http.MethodGet, path+"?limit=0", nil)
+		for key, value := range headers {
+			req.Header.Set(key, value)
+		}
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, req)
+		return recorder.Code
+	}
+
+	if got := do(nil); got != http.StatusUnauthorized {
+		t.Fatalf("无密钥期望 401，实际 %d", got)
+	}
+	if got := do(map[string]string{"X-API-Key": "test-openapi-key"}); got != http.StatusUnprocessableEntity {
+		t.Fatalf("正确密钥 + limit=0 应进入 handler（422 / 211004），实际 %d", got)
 	}
 }

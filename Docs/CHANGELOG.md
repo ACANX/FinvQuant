@@ -20,6 +20,12 @@
 
 ### 新增
 
+- **外部 OpenAPI：PageUni 查询端点（需求 10789）**
+  - `/OpenAPI/V1` 新增 `GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni`，业务逻辑复用内部 `KLine.PageUni` handler；认证与响应信封同外部 Upsert。
+  - 成功响应 `{"code":0,"data":{"cnt","ps","pn","column","row","request_id","ts"},"message":"OK"}`；包装中间件识别内部 `{code,data,message}` 信封并解包内层 `data`，避免信封嵌套。
+  - 新增 `Docs/OpenAPI/Quote/Cdeu/Min/PageUni.md` + 同名 `.yml`（OpenAPI 3.1，8 个 query 参数、15 列定义、成功码 0/1/200/202）；`APIs.md`、`README.md` 同步。
+  - 单测覆盖：注册、未授权 401、正确密钥进入 handler（`limit=0` → 422 / 211004）、内部信封解包。
+
 - **外部 OpenAPI 响应规范化为 `{code,data,message}`（需求 10788）**
   - `/OpenAPI/V1` 路由组新增响应包装：成功时输出 `{"code":0,"data":<原 handler JSON>,"message":"OK"}`，业务字段统一收敛到 `data` 节点；`204` 与 `401`、业务错误保持原样。
   - 成功码默认 **`0`**；`1` / `200` / `202` 同样视为正常响应（兼容），服务端默认输出 `0`。
