@@ -63,6 +63,7 @@ func main() {
 func openPool(ctx context.Context, pgURL string) (*pgxpool.Pool, error) {
 	dsn := strings.TrimSpace(pgURL)
 	if dsn == "" {
+		ensureEnvLoaded()
 		cfg := config.Load()
 		dsn = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
 			cfg.PgUser, cfg.PgPassword, cfg.PgHost, cfg.PgPort, cfg.PgDatabase)
