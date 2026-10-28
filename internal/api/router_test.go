@@ -180,24 +180,12 @@ func TestRootAndHealth(t *testing.T) {
 	}
 }
 
-// TestOpenAPIExampleRoute 校验外部示例端点（需求 10787）：
-//   - 未配置 FINV_OPENAPI_KEY 时不注册；
-//   - 配置后注册，且 Bearer / X-API-Key 两种方式都可通过静态密钥校验；
-//   - 业务逻辑复用内部 handler（空 items 返回 400 / 211001，说明已进入 handler）。
+// TestOpenAPIExampleRoute 校验外部示例端点（需求 10787 / 10790）：
+// 当前暂不鉴权，路由始终注册；空 items 返回 400 / 211001（说明已进入 handler）。
 func TestOpenAPIExampleRoute(t *testing.T) {
 	const path = "/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert"
 
-	plain := newTestRouter(t)
-	for _, route := range plain.Routes() {
-		if route.Path == path {
-			t.Fatalf("未配置 FINV_OPENAPI_KEY 时不应注册 %s", path)
-		}
-	}
-
-	router := newTestRouterWithConfig(t, &config.Config{
-		KLineMaxBatchRows: 5000, KLineMaxListSize: 5000, KLineTSUnit: "s",
-		OpenAPIKey: "test-openapi-key",
-	})
+	router := newTestRouter(t)
 	registered := false
 	for _, route := range router.Routes() {
 		if route.Method == http.MethodPost && route.Path == path {
@@ -205,31 +193,15 @@ func TestOpenAPIExampleRoute(t *testing.T) {
 		}
 	}
 	if !registered {
-		t.Fatalf("配置 FINV_OPENAPI_KEY 后应注册 %s", path)
+		t.Fatalf("应注册 POST %s", path)
 	}
 
-	do := func(headers map[string]string) int {
-		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"items":[]}`))
-		req.Header.Set("Content-Type", "application/json")
-		for key, value := range headers {
-			req.Header.Set(key, value)
-		}
-		recorder := httptest.NewRecorder()
-		router.ServeHTTP(recorder, req)
-		return recorder.Code
-	}
-
-	if got := do(nil); got != http.StatusUnauthorized {
-		t.Fatalf("无密钥期望 401，实际 %d", got)
-	}
-	if got := do(map[string]string{"Authorization": "Bearer wrong-key"}); got != http.StatusUnauthorized {
-		t.Fatalf("错误密钥期望 401，实际 %d", got)
-	}
-	if got := do(map[string]string{"Authorization": "Bearer test-openapi-key"}); got != http.StatusBadRequest {
-		t.Fatalf("Bearer 正确密钥应进入 handler（空 items → 400），实际 %d", got)
-	}
-	if got := do(map[string]string{"X-API-Key": "test-openapi-key"}); got != http.StatusBadRequest {
-		t.Fatalf("X-API-Key 正确密钥应进入 handler（空 items → 400），实际 %d", got)
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"items":[]}`))
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("空 items 应进入 handler（400 / 211001），实际 %d", recorder.Code)
 	}
 }
 
@@ -298,15 +270,12 @@ func TestWrapOpenAPIResponseEnvelope(t *testing.T) {
 	}
 }
 
-// TestOpenAPIPageUniRoute 校验外部 PageUni 端点（需求 10789）：
-// 注册、未授权 401、正确密钥可进入 handler（limit=0 → 422 / 211004，不依赖数据库）。
+// TestOpenAPIPageUniRoute 校验外部 PageUni 端点（需求 10789 / 10790）：
+// 当前暂不鉴权，路由始终注册；limit=0 返回 422 / 211004（说明已进入 handler）。
 func TestOpenAPIPageUniRoute(t *testing.T) {
 	const path = "/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni"
-	router := newTestRouterWithConfig(t, &config.Config{
-		KLineMaxBatchRows: 5000, KLineMaxListSize: 5000, KLineTSUnit: "s",
-		OpenAPIKey: "test-openapi-key",
-	})
 
+	router := newTestRouter(t)
 	registered := false
 	for _, route := range router.Routes() {
 		if route.Method == http.MethodGet && route.Path == path {
@@ -317,20 +286,10 @@ func TestOpenAPIPageUniRoute(t *testing.T) {
 		t.Fatalf("应注册 GET %s", path)
 	}
 
-	do := func(headers map[string]string) int {
-		req := httptest.NewRequest(http.MethodGet, path+"?limit=0", nil)
-		for key, value := range headers {
-			req.Header.Set(key, value)
-		}
-		recorder := httptest.NewRecorder()
-		router.ServeHTTP(recorder, req)
-		return recorder.Code
-	}
-
-	if got := do(nil); got != http.StatusUnauthorized {
-		t.Fatalf("无密钥期望 401，实际 %d", got)
-	}
-	if got := do(map[string]string{"X-API-Key": "test-openapi-key"}); got != http.StatusUnprocessableEntity {
-		t.Fatalf("正确密钥 + limit=0 应进入 handler（422 / 211004），实际 %d", got)
+	req := httptest.NewRequest(http.MethodGet, path+"?limit=0", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("limit=0 应进入 handler（422 / 211004），实际 %d", recorder.Code)
 	}
 }

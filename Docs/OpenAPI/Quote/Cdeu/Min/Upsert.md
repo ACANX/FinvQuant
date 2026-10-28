@@ -19,15 +19,14 @@
 
 ## 2. 认证
 
-| 项 | 说明 |
-|---|---|
-| 凭据 | 服务端配置项 `FINV_OPENAPI_KEY`（静态密钥，过渡方案） |
-| 传递方式 | `Authorization: Bearer <FINV_OPENAPI_KEY>` 或 `X-API-Key: <FINV_OPENAPI_KEY>` |
-| 校验 | 常量时间比较；错误/缺失 → `401` |
-| 未配置 | 服务端**不注册**该路由（返回 404），不会无认证暴露 |
-| 后续 | 由 `sys.sys_open_api_key`（API Key）体系替换，见 `Docs/Refactor/2610-009-ExternalHookApiKey.md` |
+> **当前版本暂不鉴权（需求 10790）**：`/OpenAPI/V1` 路由组公开访问，无需 token 或 API Key。
+> 上线前请通过防火墙/内网限制来源；API Key 体系（`FINV_OPENAPI_KEY` → `sys.sys_open_api_key`）
+> 落地后再恢复鉴权。
 
-> 该密钥与登录会话令牌（`Authorization: Bearer <session token>`）**不通用**。
+| 项 | 当前状态 | 后续（API Key 落地后） |
+|---|---|---|
+| 认证 | 无（公开） | `Authorization: Bearer <key>` 或 `X-API-Key: <key>` |
+| 401 | 不会返回（除未来启用鉴权） | 未携带/错误密钥 → `401` |
 
 ## 3. 请求
 
@@ -130,15 +129,8 @@
 ## 6. 示例
 
 ```bash
-# Bearer 方式
+# 当前无需认证
 curl -X POST 'http://127.0.0.1:16001/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert?onConflict=update' \
-  -H "Authorization: Bearer ${FINV_OPENAPI_KEY}" \
-  -H 'Content-Type: application/json' \
-  -d '{"items":[{"usc":"GCMain","ts":1700000000,"close":3.60}]}'
-
-# X-API-Key 方式
-curl -X POST 'http://127.0.0.1:16001/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert?onConflict=skip' \
-  -H "X-API-Key: ${FINV_OPENAPI_KEY}" \
   -H 'Content-Type: application/json' \
   -d '{"items":[{"usc":"GCMain","ts":1700000000,"close":3.60}]}'
 ```

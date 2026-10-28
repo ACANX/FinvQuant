@@ -19,9 +19,11 @@ servers:
 tags:
   - name: OpenAPI/Cdeu/Min
     description: 外部 OpenAPI（分钟行情）
-security:
-  - bearerAuth: []
-  - apiKeyHeader: []
+# 需求 10790：当前暂不鉴权；API Key 落地后改为:
+# security:
+#   - bearerAuth: []
+#   - apiKeyHeader: []
+security: []
 paths:
   /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni:
     get:
@@ -105,12 +107,12 @@ components:
       type: http
       scheme: bearer
       description: |
-        `Authorization: Bearer <FINV_OPENAPI_KEY>`（静态密钥，与登录会话令牌不通用）。
+        **预留（当前未启用，需求 10790）**：后续为 `Authorization: Bearer <FINV_OPENAPI_KEY>`。
     apiKeyHeader:
       type: apiKey
       in: header
       name: X-API-Key
-      description: 直接传 `<FINV_OPENAPI_KEY>`；与 bearerAuth 二选一。
+      description: "**预留（当前未启用）**：后续直接传 `<FINV_OPENAPI_KEY>`。"
   parameters:
     Usc:
       name: usc

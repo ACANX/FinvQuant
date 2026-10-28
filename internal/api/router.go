@@ -110,16 +110,14 @@ func NewRouter(deps *Deps) *gin.Engine {
 		group.GET("/Stats", klineHandler.Stats)
 		group.GET("/Bounds", klineHandler.Bounds)
 
-		// 外部 OpenAPI：独立前缀 /OpenAPI/V1，使用静态密钥认证（需求 10787，过渡方案）。
-		// 示例端点仅接入 K 线 Upsert，业务逻辑复用内部 handler；
-		// 未配置 FINV_OPENAPI_KEY 时不注册，避免无认证暴露。
-		if openAPIKey := strings.TrimSpace(cfg.OpenAPIKey); openAPIKey != "" {
-			openGroup := router.Group("/OpenAPI/V1")
-			// 静态密钥鉴权 + 统一响应信封 {code,data,message}（需求 10787 / 10788）
-			openGroup.Use(RequireOpenAPIKey(openAPIKey), WrapOpenAPIResponse())
-			openGroup.POST("/Meta/Finv/Quote/Cdeu/Min/Upsert", klineHandler.Upsert)
-			openGroup.GET("/Meta/Finv/Quote/Cdeu/Min/PageUni", klineHandler.PageUni)
-		}
+		// 外部 OpenAPI：独立前缀 /OpenAPI/V1，业务逻辑复用内部 handler。
+		// 需求 10790：当前**暂不鉴权**（公开访问），仅统一响应信封；
+		// API Key 体系（sys.sys_open_api_key）落地后恢复：
+		//   openGroup.Use(RequireOpenAPIKey(cfg.OpenAPIKey), WrapOpenAPIResponse())
+		openGroup := router.Group("/OpenAPI/V1")
+		openGroup.Use(WrapOpenAPIResponse())
+		openGroup.POST("/Meta/Finv/Quote/Cdeu/Min/Upsert", klineHandler.Upsert)
+		openGroup.GET("/Meta/Finv/Quote/Cdeu/Min/PageUni", klineHandler.PageUni)
 
 		// 历史行情：导入 / 查询（统一 /Meta/Finv/Quant/Quote/ 前缀，与前端路由对应）
 		apiGroup.POST("/Meta/Finv/Quant/Quote/Import/Upload", quoteImport.Upload)

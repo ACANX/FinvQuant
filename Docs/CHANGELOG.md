@@ -552,6 +552,12 @@
 
 ### 变更
 
+- **外部 OpenAPI 暂不鉴权（需求 10790）**
+  - `/OpenAPI/V1` 路由组移除 `RequireOpenAPIKey`，公开访问；仅保留 `WrapOpenAPIResponse` 统一信封。
+  - `RequireOpenAPIKey`、`FINV_OPENAPI_KEY` 与 `config.OpenAPIKey` 保留（当前不生效），待 API Key（`sys.sys_open_api_key`）落地后恢复。
+  - 文档/契约同步：外部 Upsert/PageUni 的认证章节改为「暂不鉴权」，两份 `.yml` 的 `security` 置空、securitySchemes 标注预留；`FinvQuant.env.example`、方案文档 §5.5、`APIs.md`/`README.md` 同步。
+  - **风险提示**：公开端点可写入/查询分钟行情，部署时必须用防火墙/安全组或内网限制来源。
+
 - **`KLinePageUni.md` 按 OpenAPI 3.1 样板重写并拆分契约（需求 10785）**
   - 正文补齐：Header/Query 参数表（`usc`、`provider`、`dateFrom/dateTo`、`tsFrom/tsTo`、`limit`、`offset` 及兼容旧名）、过滤/排序（`usc,date,ts` 升序）/分页语义、15 列定义与单元格取值规则（去尾零、负零归一、`cr` 两位小数 ROUND_HALF_UP、NULL→null）、响应信封、15 个错误码及本接口触发场景、curl 与错误示例。
   - 新增同名 `KLinePageUni.yml`（OpenAPI 3.1：8 个 query 参数、`PageUniResponse`/`PageUniData`/`ErrorResponse`/`ErrorObject`）。
