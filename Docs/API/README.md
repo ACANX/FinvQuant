@@ -53,8 +53,6 @@ Authorization: Bearer <token>
   - 分钟行情 K 线（`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/*`，**一个接口一个文档**）：
     - [`KLine/KLineAdd.md`](KLine/KLineAdd.md) — `POST .../Min/Add`（单条插入）
     - [`KLine/KLineBatchInsert.md`](KLine/KLineBatchInsert.md) — `POST .../Min/Batch`（批量插入）
-    - [`KLine/KLinePage.md`](KLine/KLinePage.md) — `GET .../Min/Page`（分页，对象数组）
-    - [`KLine/KLinePageUni.md`](KLine/KLinePageUni.md) — `GET .../Min/PageUni`（分页，column/row）
     - [`KLine/KLineQuery.md`](KLine/KLineQuery.md) — `POST .../Min/Query`（批量查询）
     - [`KLine/KLineBatchPatch.md`](KLine/KLineBatchPatch.md) — `PATCH .../Min/Batch`（批量增量更新）
     - [`KLine/KLineBatchDelete.md`](KLine/KLineBatchDelete.md) — `DELETE .../Min/Batch`（批量删除）
@@ -62,7 +60,10 @@ Authorization: Bearer <token>
     - [`KLine/KLineStats.md`](KLine/KLineStats.md) — `GET .../Min/Stats`（汇总统计与可视化数据）
     - [`KLine/KLineBounds.md`](KLine/KLineBounds.md) — `GET .../Min/Bounds`（交易日期边界）
     - [`KLine/KLineHealth.md`](KLine/KLineHealth.md) — `GET /Health`（探活，含 `/healthz` 过渡别名）
-  - [`Quote/Cdeu/Min/KLineUpsert.md`](Quote/Cdeu/Min/KLineUpsert.md) — `POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`（批量 upsert，独立于 K 线前缀）
+  - 分钟行情 CDEU 目录（`Docs/API/Quote/Cdeu/Min/`，**一个接口一个文档**）：
+    - [`Quote/Cdeu/Min/KLineUpsert.md`](Quote/Cdeu/Min/KLineUpsert.md) — `POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`（批量 upsert）
+    - [`Quote/Cdeu/Min/KLinePage.md`](Quote/Cdeu/Min/KLinePage.md) — `GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Page`（分页，对象数组）
+    - [`Quote/Cdeu/Min/KLinePageUni.md`](Quote/Cdeu/Min/KLinePageUni.md) — `GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/PageUni`（分页，column/row）
   - [`HistoryQuote/ImportsUpload.md`](HistoryQuote/ImportsUpload.md) — `POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload`（MVSV 历史行情导入）
   - [`HistoryQuote/HistoryQuote.md`](HistoryQuote/HistoryQuote.md) — `GET /API/V1/Meta/Finv/Quant/Quote/History/QuoteQuery`（历史行情查询）
   - [`Meta/MetaExchange.md`](Meta/MetaExchange.md) — `GET/POST /API/V1/Meta/Finv/Quant/Metadata/Exchange/*`（交易所信息维护）

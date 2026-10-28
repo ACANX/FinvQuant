@@ -2,7 +2,7 @@
 
 > 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/HistoryQuote/DeDupKLineQuery.md`
 > 对应视图：`Web/src/views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue`
-> 接口契约：见 [Docs/API/KLine/KLinePage.md](../../API/KLine/KLinePage.md)
+> 接口契约：见 [Docs/API/Quote/Cdeu/Min/KLinePage.md](../../API/Quote/Cdeu/Min/KLinePage.md)
 
 ## 1. 菜单入口
 

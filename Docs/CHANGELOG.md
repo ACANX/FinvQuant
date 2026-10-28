@@ -530,6 +530,11 @@
 
 ### 变更
 
+- **KLinePage / KLinePageUni 文档迁入 `Docs/API/Quote/Cdeu/Min/`（需求 10780）**
+  - `Docs/API/KLine/KLinePage.md`、`KLinePageUni.md` → `Docs/API/Quote/Cdeu/Min/`（端点路径未变，仍为 `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Page(Uni)`）。
+  - 同步 `APIs.md` 索引、`README.md` 接口索引（新增「分钟行情 CDEU 目录」小节）、`Docs/Menu/HistoryQuote/DeDupKLineQuery.md` 链接。
+  - 顺带修复 4 处失效相对链接：`Deploy/Docker/Win11DockerUpgrade.md` 的「迁移目录」改为 `../Migrations/`；`Archive/.../Windows11Deployment.md` 3 处 `Docs/...` 改为 `../Docs/...`。
+
 - **分钟行情批量 Upsert 端点迁移到 CDEU 前缀（需求 10777）**
   - 路径：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Upsert` → **`/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`**。
   - 旧路径（含旧前缀别名的 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Upsert`）**不再注册**；其它 K 线端点（`Add`/`Batch`/`Page`/`PageUni`/`Query`/`Count`/`Stats`/`Bounds`）不变。

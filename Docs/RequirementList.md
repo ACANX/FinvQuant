@@ -2079,6 +2079,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10779 | 仓库内所有 Markdown 文档（根目录、`Docs/`、`Deploy/`、`Archive/`）的表格必须：① 有表头与分隔行；② 分隔行、数据行列数与表头一致（单元格内 `\|` 才表示字面管道）；③ 表头列与真实表结构一致。由 `internal/docs` 自动校验。 | `go test ./internal/docs` 通过；全仓扫描脚本（跳过 `.git`/`node_modules`/`Dist`/`pkg`）输出 0 处「缺表头/列数不一致」；`grep -c 'market_code' Docs/DataDictMapping/FinvSecurity.md` 的表格行不含该列（`finv_security` 无此字段）；`go test ./internal/docs -run TestMarkdownTablesHaveHeader -v` 通过 | |
 
+## 一百一十三、KLinePage 系列文档目录归位（10780）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10780 | 把 `KLinePage.md`、`KLinePageUni.md` 从 `Docs/API/KLine/` 移动到 `Docs/API/Quote/Cdeu/Min/`，并同步所有索引与链接（端点路径保持不变）；同时修复仓库内失效的 Markdown 相对链接。 | `ls Docs/API/Quote/Cdeu/Min/{KLinePage.md,KLinePageUni.md,KLineUpsert.md}` 均存在；`ls Docs/API/KLine/KLinePage*.md` 不存在；`grep -rn 'KLine/KLinePage' Docs/` 无输出；全仓 Markdown 相对链接校验 0 处失效；`go test ./internal/docs` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2219,7 +2225,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | Upsert 端点迁移到 CDEU 前缀 | 10777 | 1 |
 | Markdown 表格必须带表头 | 10778 | 1 |
 | 全仓 Markdown 表格结构合法 | 10779 | 1 |
-| **合计** | **10001–10779** | **779** |
+| KLinePage 系列文档目录归位 | 10780 | 1 |
+| **合计** | **10001–10780** | **780** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10780` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10781` 起往后追加，不插入既有区间。

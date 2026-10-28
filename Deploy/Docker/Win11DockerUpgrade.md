@@ -148,4 +148,4 @@ docker compose -f Deploy/Docker/docker-compose.yml --env-file Deploy/Docker/.env
 
 ---
 
-相关文档：[Win11 部署文档](Win11DockerDeploy.md) · [docker-compose.yml](docker-compose.yml) · [.env.example](.env.example) · [迁移目录](Migrations/)
+相关文档：[Win11 部署文档](Win11DockerDeploy.md) · [docker-compose.yml](docker-compose.yml) · [.env.example](.env.example) · [迁移目录](../Migrations/)
