@@ -79,7 +79,7 @@ func TestKLineRoutesRegistered(t *testing.T) {
 	expected := []string{
 		"POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Add",
 		"POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch",
-		"POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Upsert",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert",
 		"GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Page",
 		"GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/PageUni",
 		"POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query",
@@ -100,6 +100,15 @@ func TestKLineRoutesRegistered(t *testing.T) {
 	for _, route := range expected {
 		if !registered[route] {
 			t.Fatalf("路由未注册: %s", route)
+		}
+	}
+	// 需求 10777：Upsert 已移至 CDEU 前缀，旧路径与新/旧 KLine 前缀均不得再注册
+	for _, gone := range []string{
+		"POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Upsert",
+		"POST /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Upsert",
+	} {
+		if registered[gone] {
+			t.Fatalf("旧 Upsert 路径不应再注册: %s", gone)
 		}
 	}
 	// 同一路径不同方法必须共存（Gin 不允许重复注册同一 方法+路径）。

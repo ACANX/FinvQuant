@@ -103,7 +103,8 @@ func NewRouter(deps *Deps) *gin.Engine {
 			group := apiGroup.Group(prefix)
 			group.POST("/Add", klineHandler.Add)
 			group.POST("/Batch", klineHandler.BatchInsert)
-			group.POST("/Upsert", klineHandler.Upsert)
+			// 批量 Upsert 已独立到 /Meta/Finv/Quote/Cdeu/Min/Upsert（需求 10777），
+			// 新前缀与旧前缀均不再注册该子路径。
 			group.GET("/Page", klineHandler.Page)
 			group.GET("/PageUni", klineHandler.PageUni)
 			group.POST("/Query", klineHandler.Query)
@@ -113,6 +114,9 @@ func NewRouter(deps *Deps) *gin.Engine {
 			group.GET("/Stats", klineHandler.Stats)
 			group.GET("/Bounds", klineHandler.Bounds)
 		}
+
+		// 分钟行情批量 Upsert：独立使用 CDEU 前缀（需求 10777）
+		apiGroup.POST(strings.TrimPrefix(kline.CdeuUpsertPath, "/API/V1"), klineHandler.Upsert)
 
 		// 历史行情：导入 / 查询（统一 /Meta/Finv/Quant/Quote/ 前缀，与前端路由对应）
 		apiGroup.POST("/Meta/Finv/Quant/Quote/Import/Upload", quoteImport.Upload)

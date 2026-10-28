@@ -53,7 +53,7 @@ Authorization: Bearer <token>
   - 分钟行情 K 线（`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/*`，**一个接口一个文档**）：
     - [`KLine/KLineAdd.md`](KLine/KLineAdd.md) — `POST .../Min/Add`（单条插入）
     - [`KLine/KLineBatchInsert.md`](KLine/KLineBatchInsert.md) — `POST .../Min/Batch`（批量插入）
-    - [`KLine/KLineUpsert.md`](KLine/KLineUpsert.md) — `POST .../Min/Upsert`（批量 upsert）
+    - [`KLine/KLineUpsert.md`](KLine/KLineUpsert.md) — `POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`（批量 upsert，独立于 K 线前缀）
     - [`KLine/KLinePage.md`](KLine/KLinePage.md) — `GET .../Min/Page`（分页，对象数组）
     - [`KLine/KLinePageUni.md`](KLine/KLinePageUni.md) — `GET .../Min/PageUni`（分页，column/row）
     - [`KLine/KLineQuery.md`](KLine/KLineQuery.md) — `POST .../Min/Query`（批量查询）

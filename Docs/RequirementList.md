@@ -2061,6 +2061,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10776 | 部署包（快照包 / 构建包 / 正式包）必须包含 `Deploy/Script/*.sql` 一次性运维脚本及其 `README.md`；`Install.sh` 安装后需留存到 `<PREFIX>/Deploy/Script/`（权限 0644），且该目录**不进入** `Deploy/Migrations/` 迁移链。 | 执行 `bash Deploy/Script/PackSnapshot.sh --target linux/arm64` 后：`tar -tzf Dist/*.tar.gz \| grep 'Deploy/Script/MigratePublicKlineToCdeu.sql'` 命中；Windows zip 用 `unzip -l` 同样命中；包内该文件权限为 `0644`。安装后 `ls -l /data/App/FinvQuant/Deploy/Script/` 存在 SQL 与 README。源码目录与安装目录同布局时重复执行 `Install.sh` 不报错。 | |
 
+## 一百一十、分钟行情 Upsert 端点迁移到 CDEU 前缀（10777）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10777 | 把分钟行情批量 Upsert 端点从 `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Upsert` 调整为 `/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`；旧路径（含 legacy 前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Upsert`）不再注册；其它 K 线端点保持不变。 | `grep -c 'CdeuUpsertPath' internal/kline/model.go internal/api/router.go` ≥ 2；`grep -c '/Cdeu/Min/Upsert' internal/api/router_test.go` ≥ 1；`grep -c 'POST ...DeDup/Secu/KLine/Min/Upsert'` 在 router.go 中为 0；运行 `go test ./internal/api -run TestKLineRoutesRegistered` 通过（新路径已注册、两条旧路径未注册）；`curl -X POST http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert` 不再返回 404，旧路径返回 404 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2198,7 +2204,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | Nginx 分阶段模板（80 默认 / 443 注释） | 10774 | 1 |
 | Nginx 部署文档与上游 Issue 草案 | 10775 | 1 |
 | 部署包包含一次性运维 SQL | 10776 | 1 |
-| **合计** | **10001–10776** | **776** |
+| Upsert 端点迁移到 CDEU 前缀 | 10777 | 1 |
+| **合计** | **10001–10777** | **777** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10777` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10778` 起往后追加，不插入既有区间。

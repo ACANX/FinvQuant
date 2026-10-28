@@ -319,7 +319,14 @@ func (p PatchItem) DebugString() string {
 }
 
 // APIPrefix 分钟行情 K 线 API 的统一前缀（DC-01）。
+// 注意：批量 Upsert 已独立到 CDEU 前缀（见 CdeuUpsertPath），不再挂在本前缀下。
 const APIPrefix = "/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min"
 
 // LegacyAPIPrefix 旧 Python 服务前缀，切流期作为过渡别名保留。
 const LegacyAPIPrefix = "/API/V1/Meta/Finv/Quote/Secu/KLine/Min"
+
+// CdeuAPIPrefix CDEU 分钟行情 API 前缀：批量 Upsert 独立于此（需求 10777）。
+const CdeuAPIPrefix = "/API/V1/Meta/Finv/Quote/Cdeu/Min"
+
+// CdeuUpsertPath 分钟行情批量 Upsert 的完整路径。
+const CdeuUpsertPath = CdeuAPIPrefix + "/Upsert"

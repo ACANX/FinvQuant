@@ -118,7 +118,7 @@ func (o OptStr) Value() *string {
 	return &value
 }
 
-// ItemIn 写入模型（/Add、/Batch、/Upsert，亦用于 /Batch PATCH 的解析）。
+// ItemIn 写入模型（/Add、/Batch、/Cdeu/Min/Upsert，亦用于 /Batch PATCH 的解析）。
 //
 // prev_close 为兼容字段：open 为空（未传或 null）时回填 open，自身不落库。
 type ItemIn struct {

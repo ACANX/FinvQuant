@@ -69,7 +69,7 @@
 | 45 | POST | `/API/V1/Meta/Finv/Quant/Backtest/Template/Delete` | 删除模板（内置禁止） | [Backtest/TemplateDelete.md](Backtest/TemplateDelete.md) | 模板管理（同上） |
 | 46 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Add` | 分钟行情 K 线单条插入（原 FinvQuoteDataDeDup API-01） | [KLine/KLineAdd.md](KLine/KLineAdd.md) | 分钟行情采集端 |
 | 47 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch` | 批量插入（冲突整体回滚、请求内重复拦截） | [KLine/KLineBatchInsert.md](KLine/KLineBatchInsert.md) | 分钟行情采集端 |
-| 48 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Upsert` | 批量 upsert（`onConflict=skip\|update`，整行覆盖） | [KLine/KLineUpsert.md](KLine/KLineUpsert.md) | 分钟行情采集端 |
+| 48 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert` | 批量 upsert（`onConflict=skip\|update`，整行覆盖） | [KLine/KLineUpsert.md](KLine/KLineUpsert.md) | 分钟行情采集端 |
 | 49 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Page` | 条件分页查询（紧凑字段对象数组） | [KLine/KLinePage.md](KLine/KLinePage.md) | 采集端/核对工具、去重分钟行情查询（`DeDupKLineQueryView.vue`） |
 | 50 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/PageUni` | 条件分页查询（column/row 行数组） | [KLine/KLinePageUni.md](KLine/KLinePageUni.md) | 表格类前端/核对工具 |
 | 51 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query` | 按 `(usc,ts)`/`uscs`/`provider` 批量查询 | [KLine/KLineQuery.md](KLine/KLineQuery.md) | 采集端回读校验 |
@@ -117,6 +117,7 @@
 
 - 接口清单以 `internal/api/router.go` 实际注册为准；新增接口须同步更新本索引及 [Docs/API/README.md](README.md) 端点索引。
 - 分钟行情 K 线接口注册了**两套前缀**：新前缀 `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min`（对外承诺）与旧前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min`（切流期过渡别名，P7 后移除）。
+- **例外**：批量 Upsert 独立使用 `/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`，不再挂在上面的新/旧 K 线前缀下（需求 10777）。
 - 「详细文档」列指向对应接口文档（`Docs/API/xxx/XXXX.md`，见 [ApiSpec.md](../DevSpec/ApiSpec.md) 第 7 节）；暂无独立文档的接口以 `—` 标注。
 - 「已使用位置（业务菜单）」列与菜单文档中的接口引用互为索引（见 [MenuSpec.md](../DevSpec/MenuSpec.md) 第 3 节）；接口新增使用方或下线时须同步更新。
 - 通用探针/信息接口（health、version）不强制要求独立文档，但契约变更须同步本索引。

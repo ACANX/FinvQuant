@@ -1,12 +1,12 @@
-# POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Upsert — 批量 Upsert
+# POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert — 批量 Upsert
 
 批量写入；主键冲突时按 `onConflict` 跳过或整行覆盖。
 
 ## 请求
 
 - **方法**：`POST`
-- **路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Upsert`
-- **旧前缀（过渡别名）**：`/API/V1/Meta/Finv/Quote/Secu/KLine/Min` + 相同子路径（切流期保留，P7 后可移除）
+- **路径**：`/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`（独立于 K 线新/旧前缀，需求 10777）
+- **旧路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Upsert` 与 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Upsert` **已不再注册**
 - **Content-Type**：`application/json`
 
 ### Query 参数（小驼峰）

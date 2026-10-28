@@ -530,6 +530,13 @@
 
 ### 变更
 
+- **分钟行情批量 Upsert 端点迁移到 CDEU 前缀（需求 10777）**
+  - 路径：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Upsert` → **`/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`**。
+  - 旧路径（含旧前缀别名的 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Upsert`）**不再注册**；其它 K 线端点（`Add`/`Batch`/`Page`/`PageUni`/`Query`/`Count`/`Stats`/`Bounds`）不变。
+  - 新增常量 `kline.CdeuAPIPrefix`、`kline.CdeuUpsertPath`；`router_test.go` 增加「旧路径必须不存在」断言。
+  - 文档同步：`Docs/API/APIs.md`、`Docs/API/KLine/KLineUpsert.md`、`Docs/API/README.md`、`Docs/DevSpec/DbSchemaSpec.md`。
+  - **破坏性变更**：外部采集端/调用方需在升级前把 URL 改为新路径。
+
 - **`Nginx.conf.example` 改为「阶段一 HTTP/80 + 阶段二 HTTPS/443」分阶段模板（需求 10774）**
   - 阶段一默认启用：`listen 80 default_server;` + `server_name _;`，无需域名与证书，`http://<服务器IP>` 直接访问；前端 16002、API `/API/` → 16001、上传体积/超时/安全头/ACME 目录均在此块。
   - 阶段二（443 + `http2 on;` + 证书 + 80→443 跳转）以**整段注释**放在文件末尾，取消注释即可切换；注释内含启用步骤与 nginx < 1.25.1 的写法说明。

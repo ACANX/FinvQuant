@@ -29,7 +29,7 @@ type Config struct {
 	Mode string
 
 	// 分钟行情 API（融合 FinvQuoteDataDeDup）上限
-	KLineMaxBatchRows int // POST /Batch、POST /Upsert 的 items 上限（默认 5000）
+	KLineMaxBatchRows int // POST /Batch、POST /Cdeu/Min/Upsert 的 items 上限（默认 5000）
 	KLineMaxListSize  int // keys/uscs/PATCH 条目上限（默认 5000）
 
 	// KLineTSUnit 入参 ts 单位：s=秒级（默认，与库内一致）；ms=接受 13 位毫秒并换算为秒。
