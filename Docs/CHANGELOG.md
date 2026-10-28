@@ -534,7 +534,7 @@
   - 路径：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Upsert` → **`/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`**。
   - 旧路径（含旧前缀别名的 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Upsert`）**不再注册**；其它 K 线端点（`Add`/`Batch`/`Page`/`PageUni`/`Query`/`Count`/`Stats`/`Bounds`）不变。
   - 新增常量 `kline.CdeuAPIPrefix`、`kline.CdeuUpsertPath`；`router_test.go` 增加「旧路径必须不存在」断言。
-  - 文档同步：`Docs/API/APIs.md`、`Docs/API/KLine/KLineUpsert.md`、`Docs/API/README.md`、`Docs/DevSpec/DbSchemaSpec.md`。
+  - 文档同步：`Docs/API/APIs.md`、`Docs/API/Quote/Cdeu/Min/KLineUpsert.md`、`Docs/API/README.md`、`Docs/DevSpec/DbSchemaSpec.md`。
   - **破坏性变更**：外部采集端/调用方需在升级前把 URL 改为新路径。
 
 - **`Nginx.conf.example` 改为「阶段一 HTTP/80 + 阶段二 HTTPS/443」分阶段模板（需求 10774）**
@@ -835,15 +835,15 @@
 - **部署目录重组**：`Deploy/` 按部署方式拆分为 `Deploy/Docker/`（容器方式：`docker-compose.yml`、`Dockerfile`、`.env.example`、`deploy/upgrade/rollback` 脚本、三份 Windows Docker 文档）与 `Deploy/Native/`（宿主直装方式，当前仅说明文档）；两种方式共用的 `Migrations/`、`Backup/` 保留在 `Deploy/` 根下。
 - **目录命名**：备份目录由 `Deploy/backup/` 调整为 `Deploy/Backup/`（与 PascalCase 目录命名一致）；升级脚本、文档与 `.gitignore` 同步更新。
 - **构建路径调整**：`Dockerfile` 迁入 `Deploy/Docker/`，compose 的 `build.context` 改为 `../..`、`dockerfile` 为 `Deploy/Docker/Dockerfile`；CI workflow 的 `file` 同步更新。
-- 新增 [`Deploy/Native/README.md`](Deploy/Native/README.md)：明确 Native 方式的**适用场景与不适用场景**、采用前自检清单、与容器方式的责任边界，避免误用。
+- 新增 [`Deploy/Native/README.md`](../Deploy/Native/README.md)：明确 Native 方式的**适用场景与不适用场景**、采用前自检清单、与容器方式的责任边界，避免误用。
 - **Native 部署配套落地**：新增 `Deploy/Native/{README,Install,Upgrade}.md` 与 `Install.sh`、`Upgrade.sh`、`Uninstall.sh`、`FinvQuant.service`、`FinvQuant.env.example`、`Nginx.conf.example`；服务由 systemd 守护（`Restart=on-failure`、`EnvironmentFile`、安全加固、journald），安装脚本幂等并自动生成随机数据库密码、建库授权、健康检查；升级脚本按「备份 → 停服 → 备份旧二进制 → 替换 → 启动 → 健康检查」执行，支持 `--rollback` 回退程序。
 - **文件名按品牌大小写**：`FinvQuant.service`、`FinvQuant.env.example`（安装后注册为 `finvquant.service`，运维命令仍用 `systemctl ... finvquant`）。
-- 新增 [`Deploy/README.md`](Deploy/README.md)：部署目录总览——两种方式的目录边界与选择建议、共用 `Migrations/` 与 `Backup/` 的说明、两种方式共同遵守的约束（禁止新旧共存、升级前备份、schema 限定）、目录命名约定。
+- 新增 [`Deploy/README.md`](../Deploy/README.md)：部署目录总览——两种方式的目录边界与选择建议、共用 `Migrations/` 与 `Backup/` 的说明、两种方式共同遵守的约束（禁止新旧共存、升级前备份、schema 限定）、目录命名约定。
 - **`VeritasQuant/` 子项目整体移入 `Archive/VeritasQuant/`**（`git mv`，保留提交历史，590 个文件 / 6.4 MB）：该 Python 量化平台为 FinvQuant 前身，现已不参与构建、测试与部署；其 `.github/workflows/` 从未生效（GitHub 只识别仓库根），保留仅为追溯。同步更新根 `README.md`、`AGENTS.md`、`Prompt.md` 的目录结构与路径、`.dockerignore`（改为整体排除 `Archive/`）、`Archive/README.md`（新增归档登记表）、`Docs/API/HistoryQuote/ImportsUpload.md` 示例命令、`internal/mvsv/parser.go` 注释与 `Docs/CHANGELOG.md` 历史章节的链接。
 - **快照产物命名改用连字符**：`FinvQuant-v0.1.1.00000.2610240325-ubuntu-amd64.tar.gz`（原 `FinvQuant_v0.1.1.00000.2610240325_ubuntu_amd64.tar.gz`），包内顶层目录名同步；快照 release 标题改为 `{快照版本}-FinvQuant`（如 `v0.1.1.00000.2610240325-FinvQuant`），git tag 仍为 `{快照版本}`；release 说明删除「产物」列表整节与「BUILD-INFO 时间戳一致」「SHA256SUMS 校验方式」两句冗余描述（附件已由 release assets 列表呈现，正文无需重复）。
 - **`BUILD-INFO.txt` 补全 CI 溯源信息**：CI 构建时写入运行号（`CI run <id>`）、仓库地址与流水线链接（经 `CI_RUN_ID`/`BUILD_REPO`/`BUILD_RUN_URL` 环境变量传入），本地构建时这几行自动省略。
 - **快照产物命名规范调整**（`PackSnapshot.sh` / CI 同步）：产物目录 `dist/` → **`Dist/`**；包名前缀 `finvquant_` → **`FinvQuant_`**；平台段 `ubuntu2604` → **`ubuntu`**、`win11` → **`windows`**。新命名示例：`FinvQuant_v0.1.1.00123.2610241530_ubuntu_arm64.tar.gz`。本次仅改命名与输出目录，包内容与打包流程不变。
-- **新增 [`Deploy/Script/README.md`](Deploy/Script/README.md)（打包脚本文档）**：文件职责与「改打包只改 .sh」的维护约定、快速开始、全部参数表（含默认值）、版本三段来源与一致性保证、两种包的目录树与 `SHA256SUMS` 用法、环境要求、native/WSL/Git Bash 三环境差异与 zip 后端回退链、6 个常用配方、产物校验命令（架构字节/时间戳一致性/zip 正斜杠）、9 条常见问题、与 CI 三个 job 的调用关系；`Deploy/README.md` §2.3 相应精简为概览并链接该文档。
+- **新增 [`Deploy/Script/README.md`](../Deploy/Script/README.md)（打包脚本文档）**：文件职责与「改打包只改 .sh」的维护约定、快速开始、全部参数表（含默认值）、版本三段来源与一致性保证、两种包的目录树与 `SHA256SUMS` 用法、环境要求、native/WSL/Git Bash 三环境差异与 zip 后端回退链、6 个常用配方、产物校验命令（架构字节/时间戳一致性/zip 正斜杠）、9 条常见问题、与 CI 三个 job 的调用关系；`Deploy/README.md` §2.3 相应精简为概览并链接该文档。
 - **新增 `Deploy/Script/PackSnapshot.cmd`（Windows 封装）**：仅负责定位 Git for Windows 的 `bash.exe` 并转调 `PackSnapshot.sh`，打包逻辑仍只有一份。
   - 定位顺序：`git.exe` 位置推导 `<GitRoot>\bin\bash.exe` → Git 默认安装目录 → PATH；**主动跳过 `C:\Windows\System32\bash.exe`**（WSL 转发器，无法处理 Windows 路径）
   - 找不到 bash 时给出明确指引（装 Git for Windows / MSYS2，或改用 WSL）
