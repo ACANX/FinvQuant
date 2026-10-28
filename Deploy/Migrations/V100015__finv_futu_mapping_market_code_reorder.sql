@@ -14,10 +14,16 @@
 
 BEGIN;
 
+-- 兼容修正（需求 10772，2026-10-28）：
+--   本迁移原先所有表名均未限定 schema；search_path 首位为 public 时，
+--   DROP / RENAME 会作用到 public 中的同名表（可能是其它服务的表）。
+--   该表按设计常驻 public，这里显式加 public. 前缀，语义不变、风险消除。
+
+
 -- ---------------------------------------------------------------------
 -- 1. 新表（目标列顺序）
 -- ---------------------------------------------------------------------
-CREATE TABLE finv_futu_mapping_market_code_new (
+CREATE TABLE public.finv_futu_mapping_market_code_new (
     futu_market_code  INTEGER     PRIMARY KEY,             -- 富途行情源市场代码（如 1 / 10 / 30 / 70 / 360）
     market_name       TEXT,                                -- 市场名称（如 港股主板 / 美股指数）
     exchange          TEXT,                                -- 对应交易所（如 SEHK / US / SSE；无交易所 N/A）
@@ -31,33 +37,33 @@ CREATE TABLE finv_futu_mapping_market_code_new (
 -- 2. 迁移数据（旧表 V8 无 market_name / exchange 列，占位 NULL；
 --    该两列数据由 V100007 种子填充）
 -- ---------------------------------------------------------------------
-INSERT INTO finv_futu_mapping_market_code_new
+INSERT INTO public.finv_futu_mapping_market_code_new
     (futu_market_code, market_name, exchange, finv_market_code, gmt_create, gmt_update)
 SELECT futu_market_code, NULL, NULL, finv_market_code, gmt_create, gmt_update
-FROM finv_futu_mapping_market_code;
+FROM public.finv_futu_mapping_market_code;
 
 -- ---------------------------------------------------------------------
 -- 3. 删除旧表（连带旧索引/触发器）
 -- ---------------------------------------------------------------------
-DROP TABLE finv_futu_mapping_market_code;
+DROP TABLE public.finv_futu_mapping_market_code;
 
 -- ---------------------------------------------------------------------
 -- 4. 重命名新表
 -- ---------------------------------------------------------------------
-ALTER TABLE finv_futu_mapping_market_code_new
+ALTER TABLE public.finv_futu_mapping_market_code_new
     RENAME TO finv_futu_mapping_market_code;
 
 -- ---------------------------------------------------------------------
 -- 5. 重建索引
 -- ---------------------------------------------------------------------
 CREATE INDEX idx_finv_futu_mapping_market_code_finv
-    ON finv_futu_mapping_market_code (finv_market_code, futu_market_code);
+    ON public.finv_futu_mapping_market_code (finv_market_code, futu_market_code);
 
 -- ---------------------------------------------------------------------
 -- 6. 重建触发器（gmt_update 自动维护）
 -- ---------------------------------------------------------------------
 CREATE TRIGGER trg_finv_futu_mapping_market_code_gmt_update
-    BEFORE UPDATE ON finv_futu_mapping_market_code
+    BEFORE UPDATE ON public.finv_futu_mapping_market_code
     FOR EACH ROW EXECUTE FUNCTION vq_set_gmt_update();
 
 COMMIT;

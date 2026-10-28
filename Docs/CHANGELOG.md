@@ -680,6 +680,10 @@
 
 ### 修复
 
+- **历史迁移中未限定的 `DROP TABLE` 加固（需求 10772）**
+  - 核查全部 139 个迁移与运行期代码：**不存在** `DROP TABLE` / `TRUNCATE` / `ALTER TABLE` 作用到 `public.finv_quote_secu_kline_min` 的语句（涉及该表的 `DROP` 均带 `export.` / `dedup.` 前缀；运行期 `tableStaging = "export.finv_quote_secu_kline_min"` 亦带前缀）。
+  - 唯一同类隐患：`V100015` 重建 `finv_futu_mapping_market_code` 时 `CREATE/INSERT/DROP/ALTER/INDEX/TRIGGER` 全部未限定 schema，`search_path` 首位为 `public` 时 `DROP` 会作用到 public 中的同名表。已全部显式加 `public.` 前缀（该表按设计常驻 public，语义不变）。
+
 - **全新库首次部署：与共享 `public` 同名表冲突、以及 V200xxx 迁移链断裂（需求 10771）**
   - **public 冲突（核心）**：`V100001` 的 3 张表 / 2 个索引 / 触发器改为显式 `quote.`；`V100021`、`V100029`、`V100030`、`V100031` 同步限定；`V100032` 搬表增加「目标 schema 已有则跳过」，收敛断言改为白名单 + 目标 schema 存在性（`public` 中其它服务的同名表只 `NOTICE`）。**全程不对 `public` 中他人表执行任何 DDL/DML**。
   - **`V100080`**：前置校验由「dedup 必须 26 张」改为「≥26 且 cdeu=26」；无对应目标表的源表跳过；复制列清单改为「源 ∩ 目标」交集（修复 `workflow_run_id` 不存在）。

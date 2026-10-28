@@ -2041,6 +2041,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10771 | 让全新数据库在 `public` 已存在**其它服务**同名表（如 `public.finv_quote_secu_kline_min`）时也能完成首次部署：① 历史迁移中本程序自有表的建表/ALTER/DML 全部显式限定 `quote.`；② `V100032` 不得从 `public` 搬移非本程序创建的表（目标 schema 已有则跳过）；③ 修复全新库下 `V100080`（表数/列漂移）、`V200039`（空库断言）、`V200048`/`V200050`（硬编码 phase_id）导致的迁移中断；④ 新增 `V200057` 将 dedup 侧 CDEU 配置同步到 cdeu。 | 在临时 PG18 上先建 `public.finv_quote_secu_kline_min`（含注释、索引与 3 行数据），再执行全部迁移：`grep -cE 'ERROR|FATAL'` = 0；该校验前后 `select md5(string_agg(t::text,'\|' order by id)) from public.finv_quote_secu_kline_min t` 结果一致且 `pg_dump --schema-only -t public.finv_quote_secu_kline_min` 除 `\restrict` 随机 token 外无差异；`select count(*) from pg_tables where schemaname='quote' and tablename in ('finv_quote_secu_kline_min','finv_quote_ingest_batches','finv_quote_revision_log')` = 3；`select count(*) from cdeu.finv_quote_cdeu_process` 与 `select count(*) from dedup.cdeu_process` 相等；`grep -c 'AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = '\''quote'\''' Deploy/Migrations/V100032__*.sql` ≥ 1；`grep -c 'phase_id = 12' Deploy/Migrations/V200048__*.sql Deploy/Migrations/V200050__*.sql` = 0 | |
 
+## 一百零七、历史迁移不得删除 public 中非本程序表（10772）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10772 | 历史迁移中不得存在针对 `public` 中非本程序表的 `DROP TABLE` / `TRUNCATE` / `ALTER TABLE`：涉及 `finv_quote_secu_kline_min` 的删除操作一律带 `export.`/`dedup.` 前缀；`V100015` 重建 `finv_futu_mapping_market_code` 的 `CREATE/INSERT/DROP/ALTER/INDEX/TRIGGER` 全部显式加 `public.`；运行期 `TRUNCATE` 使用带 `export.` 前缀的常量。 | `grep -rnE 'DROP TABLE|TRUNCATE' Deploy/Migrations/*.sql | grep -i kline_min` 命中的语句均带 `export.` 或 `dedup.` 前缀；`grep -cE 'DROP TABLE( IF EXISTS)? +[a-z_]+ *;' Deploy/Migrations/*.sql` = 0；`grep -c 'public.finv_futu_mapping_market_code' Deploy/Migrations/V100015__*.sql` ≥ 6；`grep -n 'tableStaging' internal/meta/finv/quote/dedup/store.go` 显示值为 `export.finv_quote_secu_kline_min`；在 `public` 预置同名表后执行全部 139 个迁移，`public` 表数据与结构前后一致 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2173,7 +2179,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 配置放安装根目录 + 摘要渲染修复 | 10769 | 1 |
 | 安装脚本支持备份后重建空库（已移除） | 10770 | 1 |
 | 首次部署兼容共享 public 同名表 | 10771 | 1 |
-| **合计** | **10001–10771** | **771** |
+| 历史迁移不删除 public 非本程序表 | 10772 | 1 |
+| **合计** | **10001–10772** | **772** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10772` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10773` 起往后追加，不插入既有区间。
