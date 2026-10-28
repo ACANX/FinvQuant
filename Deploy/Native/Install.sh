@@ -107,10 +107,14 @@ fi
 ok "二进制：${BINARY_SRC}"
 
 MIGRATIONS_SRC=""
-for candidate in "${REPO_ROOT}/Deploy/Migrations" "${SCRIPT_DIR}/Migrations"; do
+# ① 发行包/安装后布局：<PREFIX>/Migrations（与 Deploy/ 同级）
+# ② 源码仓库：<repo>/Deploy/Migrations
+# ③ 其它：脚本同级或上一级
+for candidate in "${REPO_ROOT}/Migrations" "${REPO_ROOT}/Deploy/Migrations" \
+                 "${SCRIPT_DIR}/Migrations" "${SCRIPT_DIR}/../Migrations"; do
   if [[ -d "${candidate}" ]]; then MIGRATIONS_SRC="${candidate}"; break; fi
 done
-[[ -n "${MIGRATIONS_SRC}" ]] || die "找不到迁移目录 Deploy/Migrations"
+[[ -n "${MIGRATIONS_SRC}" ]] || die "找不到迁移目录（已尝试 <PREFIX>/Migrations、<repo>/Deploy/Migrations、脚本同级与上一级）"
 ok "迁移目录：${MIGRATIONS_SRC}（$(ls -1 "${MIGRATIONS_SRC}"/*.sql | wc -l) 个脚本）"
 
 # ---------------------------------------------------------------------
@@ -215,10 +219,14 @@ step "6/9 安装二进制、迁移脚本与部署文件"
 install -o root -g root -m 0755 "${BINARY_SRC}" "${BINARY}"
 ln -sfn "${BINARY}" "${BINARY_LINK}"
 ok "二进制：${BINARY}（软链 ${BINARY_LINK}）"
-cp -f "${MIGRATIONS_SRC}"/*.sql "${MIGRATIONS_DIR}/"
+if [[ "$(readlink -f "${MIGRATIONS_SRC}")" == "$(readlink -f "${MIGRATIONS_DIR}" 2>/dev/null || echo -)" ]]; then
+  ok "迁移目录即安装目录，无需复制：${MIGRATIONS_DIR}"
+else
+  cp -f "${MIGRATIONS_SRC}"/*.sql "${MIGRATIONS_DIR}/"
+  ok "迁移脚本：$(ls -1 "${MIGRATIONS_DIR}"/*.sql | wc -l) 个 → ${MIGRATIONS_DIR}"
+fi
 chown -R root:"${APP_GROUP}" "${MIGRATIONS_DIR}"
 chmod 0644 "${MIGRATIONS_DIR}"/*.sql
-ok "迁移脚本：$(ls -1 "${MIGRATIONS_DIR}"/*.sql | wc -l) 个 → ${MIGRATIONS_DIR}"
 
 # 部署脚本与模板随安装目录留存：后续可直接在 <PREFIX>/Deploy 内升级/卸载
 # 注意：若直接在 <PREFIX>/Deploy 内执行本脚本，源与目标为同一文件，必须跳过
@@ -230,7 +238,7 @@ copy_deploy_file() {
 }
 for f in Install.sh Upgrade.sh Uninstall.sh FinvQuant.service FinvQuant.env.example Nginx.conf.example; do
   copy_deploy_file "${SCRIPT_DIR}/${f}" "${DEPLOY_DIR}/${f}"
- done
+done
 for md in "${SCRIPT_DIR}"/*.md; do
   [[ -f "${md}" ]] || continue
   copy_deploy_file "${md}" "${DEPLOY_DIR}/$(basename "${md}")"

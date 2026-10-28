@@ -314,7 +314,8 @@ for T in "${TARGETS[@]}"; do
     cp "${ROOT}/pkg/finvquant${EXT}" "${PKG_ROOT}/"
     rm -f "${ROOT}/pkg/finvquant${EXT}"
 
-    cp -r Deploy/Migrations "${PKG_ROOT}/Deploy/Migrations"
+    # 迁移脚本放在包顶层（与 Deploy/ 同级），与安装后的 FINV_MIGRATIONS_DIR=<PREFIX>/Migrations 一致
+    cp -r Deploy/Migrations "${PKG_ROOT}/Migrations"
     cp    Deploy/README.md "${PKG_ROOT}/Deploy/README.md"
 
     if [[ "${GOOS_V}" == "linux" ]]; then

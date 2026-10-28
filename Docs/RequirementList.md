@@ -2017,6 +2017,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10767 | 新增一键下载脚本 `Deploy/Script/Download.sh`（及 Windows 薄封装 `Download.cmd`）：自动检查操作系统与硬件架构，自动下载匹配的最新发行包（支持 `auto`/`release`/`snapshot`/`pr` 四种渠道，`auto` 包含快照版），校验 SHA256 后解压到指定目录（默认 `/data/App/FinvQuant`）；支持 `--version`、`--list`、`--dry-run`、`--no-extract`、`--keep-top`、`--force`、`--base-url`、`--token`。 | `bash -n Deploy/Script/Download.sh` 退出码 0；`bash Deploy/Script/Download.sh --help` 输出包含 `--channel` 与 `--base-url`；`bash Deploy/Script/Download.sh --list` 列出至少 1 个 `v` 开头版本；`bash Deploy/Script/Download.sh --dry-run -v <某快照 tag>` 输出 `FinvQuant-<tag>-ubuntu-amd64.tar.gz` 与 `/data/App/FinvQuant`；在本地镜像（`python3 -m http.server` + 伪造包）上执行 `Download.sh -v v9.9.9 --base-url <镜像> -d /tmp/t` 后 `test -f /tmp/t/finvquant && test -d /tmp/t/Deploy/Native` 且日志含「SHA256 校验通过」「包内 SHA256SUMS 校验通过」；对同一目录不加 `--force` 重跑返回非 0；篡改 `.sha256` 后重跑返回非 0；`file Deploy/Script/Download.cmd` 含 `CRLF` 且首行为 `@chcp 65001 >nul` | |
 
+## 一百零三、发行包 Migrations 提到包顶层（10768）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10768 | 发行包内迁移目录由 `Deploy/Migrations/` 改为**包顶层 `Migrations/`**（与 `Deploy/` 同级），使解压到 `/data/App/FinvQuant` 后的目录与安装后的 `FINV_MIGRATIONS_DIR=/data/App/FinvQuant/Migrations` 完全一致；`Install.sh`/`Upgrade.sh` 的迁移目录探测顺序同步调整为 `<PREFIX>/Migrations` → `<repo>/Deploy/Migrations` → 脚本同级/上一级，且当源即安装目标时跳过复制。 | `grep -n 'PKG_ROOT}/Migrations' Deploy/Script/PackSnapshot.sh` 命中且无 `PKG_ROOT}/Deploy/Migrations`；`bash Deploy/Script/PackSnapshot.sh --target linux/amd64 --keep-tmp` 后 `tar -tzf Dist/FinvQuant-*-ubuntu-amd64.tar.gz \| grep -cE '^FinvQuant-[^/]+/Migrations/.*\.sql$'` > 0 且 `tar -tzf ... \| grep -c 'Deploy/Migrations/'` = 0；在解压目录执行 `sudo bash Deploy/Native/Install.sh --prefix <dir>` 日志含「迁移目录即安装目录，无需复制」；`grep -c 'REPO_ROOT}/Migrations' Deploy/Native/Install.sh Deploy/Native/Upgrade.sh` 各 ≥ 1 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2145,7 +2151,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 认证接口前缀统一 | 10765 | 1 |
 | Native 安装到 /data/App/FinvQuant | 10766 | 1 |
 | 一键下载脚本 | 10767 | 1 |
-| **合计** | **10001–10767** | **767** |
+| 发行包 Migrations 提到包顶层 | 10768 | 1 |
+| **合计** | **10001–10768** | **768** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10768` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10769` 起往后追加，不插入既有区间。

@@ -64,20 +64,23 @@ bash Deploy/Script/Download.sh --dry-run
 ```
 
 脚本会自动：识别 Linux/Windows 与 amd64/arm64 → 选对应资产 → 下载并校验（资产 `.sha256` + 包内 `SHA256SUMS`）→ 安全解压到目标目录（非空目录需 `--force`）。
-包内已含 `finvquant`、`Deploy/Migrations`、`Deploy/Native` 全套脚本，可直接进入第 3 节安装。
+包内已含 `finvquant`、`Migrations/`（顶层，与 `Deploy/` 同级）、`Deploy/Native` 全套脚本，可直接进入第 3 节安装。
 详细参数见 [`../Script/README.md`](../Script/README.md) §13。
 
 ### 2.2 从源码构建（开发/自定义版本）
 
-`Install.sh` 会在以下位置查找 `finvquant` 与 `Deploy/Migrations`：
+`Install.sh` 会在以下位置查找 `finvquant` 与迁移目录（按顺序）：
 
-1. 仓库根（脚本位于 `<repo>/Deploy/Native/` 时自动识别）：
-   - 二进制：`<repo>/finvquant`
-   - 迁移：`<repo>/Deploy/Migrations/`
-2. 独立发行包（脚本与产物同目录）：
+1. 发行包顶层（与 `Deploy/` 同级，安装后的 `FINV_MIGRATIONS_DIR`）：
    - 二进制：`<dir>/finvquant`
    - 迁移：`<dir>/Migrations/`
-3. `--binary /path/to/finvquant` 显式指定二进制
+2. 源码仓库（脚本位于 `<repo>/Deploy/Native/` 时自动识别）：
+   - 二进制：`<repo>/finvquant`
+   - 迁移：`<repo>/Deploy/Migrations/`
+3. 脚本同级或上一级：`<dir>/Migrations/`、`<dir>/../Migrations/`（兼容旧包结构）
+4. `--binary /path/to/finvquant` 显式指定二进制
+
+> 若迁移目录就是安装后的 `<PREFIX>/Migrations`（下载包解压到同一目录的情形），安装脚本会跳过复制，避免“源与目标相同”。
 
 构建二进制（在仓库根）：
 

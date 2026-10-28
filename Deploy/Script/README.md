@@ -93,8 +93,8 @@ bash Deploy/Script/PackSnapshot.sh --version v0.1.1.00123.2610241530
 ```
 FinvQuant-v0.1.1.00123.2610241530-ubuntu-arm64/
 ├── finvquant                 # 静态链接、stripped；amd64 或 aarch64（按包名）
+├── Migrations/               # 迁移脚本（与 Deploy/ 同级，即安装后的 FINV_MIGRATIONS_DIR）
 ├── Deploy/
-│   ├── Migrations/           # 62 个迁移脚本（V1～V37、V100000～V100024）
 │   ├── Native/               # 宿主直装全套：Install/Upgrade/Uninstall.sh、
 │   │                         #   FinvQuant.service、FinvQuant.env.example、
 │   │                         #   Nginx.conf.example、README/Install/Upgrade.md
@@ -104,15 +104,15 @@ FinvQuant-v0.1.1.00123.2610241530-ubuntu-arm64/
 └── SHA256SUMS                # 包内每个文件的 sha256
 ```
 
-共 76 个文件。适用 Ubuntu 26.04（x86_64 / aarch64），部署方式见 `Deploy/Native/Install.md`。
+适用 Ubuntu 26.04（x86_64 / aarch64），部署方式见 `Deploy/Native/Install.md`。
 
 ### 5.2 Windows 包（`zip`）
 
 ```
 FinvQuant-v0.1.1.00123.2610241530-windows-amd64/
 ├── finvquant.exe
+├── Migrations/               # 迁移脚本（与 Deploy/ 同级）
 ├── Deploy/
-│   ├── Migrations/
 │   ├── Docker/               # compose + .env.example + 三个 .cmd + 文档
 │   │                         #   注意：不含 Dockerfile（其 build.context 指向仓库根，
 │   │                         #   包内无源码；Windows 侧直接 docker compose 拉 GHCR 镜像）
@@ -122,7 +122,11 @@ FinvQuant-v0.1.1.00123.2610241530-windows-amd64/
 └── SHA256SUMS
 ```
 
-共 80 个文件。适用 Windows 11 x64。
+适用 Windows 11 x64。
+
+> **Migrations 位置**：两种包都把 `Migrations/` 放在**包顶层**（与 `Deploy/` 同级），
+> 解压到 `/data/App/FinvQuant` 后与安装后的 `FINV_MIGRATIONS_DIR=/data/App/FinvQuant/Migrations`
+> 完全一致，`Install.sh` 无需再复制。包内文件数随迁移脚本增减变化，以 `SHA256SUMS` 为准。
 
 ### 5.3 `SHA256SUMS` 用法
 

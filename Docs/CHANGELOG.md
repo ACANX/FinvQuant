@@ -520,6 +520,12 @@
 
 ### 变更
 
+- **发行包把 `Migrations/` 提到包顶层，与 `Deploy/` 同级（需求 10768）**
+  - **原因**：此前包内为 `Deploy/Migrations/`，而安装后的 `FINV_MIGRATIONS_DIR` 是 `<PREFIX>/Migrations`，两者不一致，靠 `Install.sh` 额外复制一次才能对齐。
+  - **包结构**：`PackSnapshot.sh` 改为 `cp -r Deploy/Migrations "${PKG_ROOT}/Migrations"`；Linux `tar.gz` 与 Windows `zip` 同步生效，`SHA256SUMS` 自动覆盖新位置。
+  - **安装/升级脚本**：迁移目录候选改为按序探测 `<PREFIX>/Migrations`（包顶层）→ `<repo>/Deploy/Migrations`（源码仓库）→ `<dir>/Migrations` → `<dir>/../Migrations`；当迁移目录就是安装目标（下载包直接解到 `/data/App/FinvQuant` 的情形）时**跳过复制**，避免 “源与目标相同” 报错。
+  - **文档**：`Deploy/Script/README.md` §5 包内结构图、`Deploy/Native/Install.md` §2 查找顺序同步更新。
+
 - **Native 安装统一到 `/data/App/FinvQuant/`（需求 10766）**
   - **目录布局**：`bin/finvquant`（软链 `/usr/local/bin/finvquant`）、`Migrations/`、`etc/finvquant.env`（600）、`Deploy/`（`Install.sh`/`Upgrade.sh`/`Uninstall.sh`、`finvquant.service`、env 与 Nginx 模板、手册）、`Backup/`、`Export/` 全部收拢到同一安装根目录；原 `/opt/finvquant`、`/etc/finvquant`、`/var/backups/finvquant` 不再使用。
   - **可自定义根目录**：`Install.sh --prefix <dir>`（或环境变量 `FINVQ_PREFIX`）可改装到其它绝对路径；`Upgrade.sh` / `Uninstall.sh` 默认从 systemd unit 的 `ExecStart` 推断，无需重复指定。

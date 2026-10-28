@@ -117,10 +117,14 @@ NEW_VER="$("${BINARY_SRC}" --version 2>/dev/null || true)"
 if [[ -n "${NEW_VER}" ]]; then ok "版本：${NEW_VER}"; fi
 
 MIGRATIONS_SRC=""
-for candidate in "${REPO_ROOT}/Deploy/Migrations" "${SCRIPT_DIR}/Migrations"; do
+# ① 发行包/安装后布局：<PREFIX>/Migrations（与 Deploy/ 同级）
+# ② 源码仓库：<repo>/Deploy/Migrations
+# ③ 其它：脚本同级或上一级
+for candidate in "${REPO_ROOT}/Migrations" "${REPO_ROOT}/Deploy/Migrations" \
+                 "${SCRIPT_DIR}/Migrations" "${SCRIPT_DIR}/../Migrations"; do
   if [[ -d "${candidate}" ]]; then MIGRATIONS_SRC="${candidate}"; break; fi
 done
-[[ -n "${MIGRATIONS_SRC}" ]] || die "找不到迁移目录 Deploy/Migrations"
+[[ -n "${MIGRATIONS_SRC}" ]] || die "找不到迁移目录（已尝试 <PREFIX>/Migrations、<repo>/Deploy/Migrations、脚本同级与上一级）"
 ok "迁移目录：${MIGRATIONS_SRC}"
 
 # ---------------------------------------------------------------------
@@ -161,10 +165,14 @@ fi
 install -o root -g root -m 0755 "${BINARY_SRC}" "${BINARY}"
 ln -sfn "${BINARY}" "${BINARY_LINK}"
 ok "二进制已替换：${BINARY}"
-cp -f "${MIGRATIONS_SRC}"/*.sql "${MIGRATIONS_DIR}/"
+if [[ "$(readlink -f "${MIGRATIONS_SRC}")" == "$(readlink -f "${MIGRATIONS_DIR}" 2>/dev/null || echo -)" ]]; then
+  ok "迁移目录即安装目录，无需同步：${MIGRATIONS_DIR}"
+else
+  cp -f "${MIGRATIONS_SRC}"/*.sql "${MIGRATIONS_DIR}/"
+  ok "迁移脚本已同步（$(ls -1 "${MIGRATIONS_DIR}"/*.sql | wc -l) 个）"
+fi
 chown -R root:"${APP_GROUP}" "${MIGRATIONS_DIR}"
 chmod 0644 "${MIGRATIONS_DIR}"/*.sql
-ok "迁移脚本已同步（$(ls -1 "${MIGRATIONS_DIR}"/*.sql | wc -l) 个）"
 
 # 刷新部署脚本与模板（脚本自身也在此目录，源与目标相同时跳过，避免 cp 自我复制失败）
 install -d -o root -g root -m 0755 "${DEPLOY_DIR}"
