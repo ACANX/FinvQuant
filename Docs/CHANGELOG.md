@@ -21,7 +21,7 @@
 ### 新增
 
 - **外部 HOOK 接入方案文档（API Key，需求 10786）**
-  - 新增 `Docs/Refactor/2610-009-ExternalHookApiKey.md`（状态：方案草案，未实施）：现状认证分析、4 种方案对比、推荐「API Key + 独立 `/API/V1/Hook` 路由组」、`sys.sys_api_key` DDL 草案、`RequireAPIKey` 中间件流程、端点开放清单、管理接口、限流/审计/配置、12 项待确认决策点、验收标准与分阶段实施计划。
+  - 新增 `Docs/Refactor/2610-009-ExternalHookApiKey.md`（状态：**方案已确认，未实施**）：现状认证分析、4 种方案对比、推荐「API Key + 独立 `/API/V1/Hook` 路由组」、`sys.sys_open_api_key` DDL 草案（默认 180 天、key 级限流、多 scope）、`RequireOpenAPIKey` 中间件流程、端点开放清单（待接入方确定）、管理接口、限流/审计/配置、13 项已确认决策与 4 项后续待决策、验收标准与分阶段计划。
   - 仅文档，不改动现有认证与路由。
 
 - **一次性数据迁移脚本：`public.finv_quote_secu_kline_min` → `cdeu.finv_quote_secu_kline_min`（需求 10773）**

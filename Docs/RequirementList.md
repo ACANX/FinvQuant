@@ -2113,7 +2113,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10786 | 产出外部 HOOK 接入的方案文档（不含实现）：覆盖现状认证、方案对比、推荐方案的凭据/数据模型/中间件/路由/限流/审计/配置/安全、待确认决策点、验收标准与实施计划。 | `test -f Docs/Refactor/2610-009-ExternalHookApiKey.md`；文档含「方案对比」「待确认的细节」「验收标准」「实施计划」章节且决策点 ≥ 10 项；过程文档编号 `2610-009` 全局唯一（`go test ./internal/docs -run TestProcessDocNumberUnique` 通过）；`go test ./internal/docs` 通过 | |
+| 10786 | 产出外部 HOOK 接入的方案文档（不含实现）：覆盖现状认证、方案对比、推荐方案的凭据/数据模型/中间件/路由/限流/审计/配置/安全、待确认决策点、验收标准与实施计划。 | `test -f Docs/Refactor/2610-009-ExternalHookApiKey.md`；文档含「方案对比」「已确认的决策」「验收标准」「实施计划」章节，决策点 ≥ 10 项且含最终表名 `sys.sys_open_api_key`；过程文档编号 `2610-009` 全局唯一（`go test ./internal/docs -run TestProcessDocNumberUnique` 通过）；`go test ./internal/docs` 通过 | |
 
 ## 汇总
 
