@@ -22,7 +22,8 @@ const (
 	ColTurnover    = "turnover"
 	ColChangePrice = "change_price"
 	ColChangeRatio = "change_ratio"
-	ColPaocd       = "paocd"
+	ColLastClose   = "last_close"
+	ColPaocd       = "paocd" // 库列名；对外 API 字段为 pacd
 	ColExtField    = "ext_field"
 	ColRemark      = "remark"
 	ColProvider    = "provider"
@@ -30,7 +31,7 @@ const (
 
 // InsertColumns 写入列（gmt_* 由数据库默认值与触发器维护）。
 var InsertColumns = []string{
-	ColUsc, ColTs, ColDate, ColTime, ColOpen, ColHigh, ColLow, ColClose,
+	ColUsc, ColTs, ColDate, ColTime, ColOpen, ColHigh, ColLow, ColClose, ColLastClose,
 	ColVolume, ColTurnover, ColChangePrice, ColChangeRatio, ColPaocd,
 	ColExtField, ColRemark, ColProvider,
 }
@@ -82,7 +83,7 @@ func CompactFields() []string {
 var NumericColumns = map[string]bool{
 	ColOpen: true, ColHigh: true, ColLow: true, ColClose: true,
 	ColVolume: true, ColTurnover: true, ColChangePrice: true,
-	ColChangeRatio: true, ColPaocd: true,
+	ColChangeRatio: true, ColLastClose: true, ColPaocd: true,
 }
 
 // Row 落库 / 查询行；所有 numeric 值以字符串承载，避免 float64 精度损失。
@@ -95,11 +96,12 @@ type Row struct {
 	High        *string
 	Low         *string
 	Close       *string
+	LastClose   *string
 	Volume      *string
 	Turnover    *string
 	ChangePrice *string
 	ChangeRatio *string
-	Paocd       *string
+	Pacd        *string
 	ExtField    *string
 	Remark      *string
 	Provider    *string
@@ -178,7 +180,7 @@ func (r Row) ListItem() ListItem {
 		T:    numericJSON(r.Turnover),
 		Cr:   RatioText(r.ChangeRatio),
 		Cp:   numericJSON(r.ChangePrice),
-		Pa:   numericJSON(r.Paocd),
+		Pa:   numericJSON(r.Pacd),
 		Pv:   r.Provider,
 		Ext:  r.ExtField,
 	}
@@ -198,7 +200,7 @@ func (r Row) UniRow() []*string {
 		&r.Usc, &tsText, intText(r.Date), intText(r.Time),
 		CellText(r.Open), CellText(r.High), CellText(r.Low), CellText(r.Close),
 		CellText(r.Volume), CellText(r.Turnover), RatioText(r.ChangeRatio),
-		CellText(r.ChangePrice), CellText(r.Paocd), r.Provider, r.ExtField,
+		CellText(r.ChangePrice), CellText(r.Pacd), r.Provider, r.ExtField,
 	}
 }
 
@@ -215,11 +217,12 @@ func (r Row) MarshalJSON() ([]byte, error) {
 	writeNumericField(&buf, "high", r.High)
 	writeNumericField(&buf, "low", r.Low)
 	writeNumericField(&buf, "close", r.Close)
+	writeNumericField(&buf, "last_close", r.LastClose)
 	writeNumericField(&buf, "volume", r.Volume)
 	writeNumericField(&buf, "turnover", r.Turnover)
 	writeNumericField(&buf, "change_price", r.ChangePrice)
 	writeNumericField(&buf, "change_ratio", r.ChangeRatio)
-	writeNumericField(&buf, "paocd", r.Paocd)
+	writeNumericField(&buf, "pacd", r.Pacd)
 	writeOptionalString(&buf, "ext_field", r.ExtField)
 	writeOptionalString(&buf, "remark", r.Remark)
 	writeOptionalString(&buf, "provider", r.Provider)

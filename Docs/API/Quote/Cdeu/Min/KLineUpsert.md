@@ -43,19 +43,48 @@
 | `ts` | integer(int64) | **是** | 0 ≤ ts ≤ 100000000000 | 是 | UTC 秒级时间戳；`FINV_KLINE_TS_UNIT=ms` 时可传 13 位毫秒并自动 /1000 |
 | `date` | integer \| null | 否 | 19500101–21001231 | 是 | 交易日期 `yyyyMMdd` |
 | `time` | integer \| null | 否 | 0–235959 | 是 | 交易时间 `HHmmss` |
-| `open` | number \| null | 否 | — | 是 | 起始价；缺失时用 `prev_close` 回填 |
+| `open` | number \| null | 否 | — | 是 | 起始价；缺失时用 `last_close` 回填 |
 | `high` | number \| null | 否 | — | 是 | 区间最高价 |
 | `low` | number \| null | 否 | — | 是 | 区间最低价 |
 | `close` | number \| null | 否 | — | 是 | 最新价/收盘价 |
+| `last_close` | number \| null | 否 | — | 是 | 上一收盘价；参与涨跌计算，`open` 缺失时回填 `open` |
 | `volume` | number \| null | 否 | ≥ 0 | 是 | 成交量（支持小数，`numeric(20,6)`） |
 | `turnover` | number \| null | 否 | ≥ 0 | 是 | 成交金额 |
 | `change_price` | number \| null | 否 | — | 是 | 涨跌额；与 `change_ratio` 均未传时自动计算 |
 | `change_ratio` | number \| null | 否 | — | 是 | 涨跌幅；与 `change_price` 均未传时自动计算 |
-| `paocd` | number \| null | 否 | — | 是 | 当日累计均价 |
+| `pacd` | number \| null | 否 | — | 是 | 当日累计均价（库列名 `paocd`） |
 | `ext_field` | string \| null | 否 | — | 是 | 预留扩展字段 |
 | `remark` | string \| null | 否 | — | 是 | 备注 |
 | `provider` | string \| null | 否 | ≤ 255 字符 | 是 | 数据来源（如 `FT`） |
-| `prev_close` | number \| null | 否 | — | **否** | 兼容字段：仅用于回填 `open`，自身不落库 |
+
+
+完整请求示例（包含全部 17 个字段）：
+
+```json
+{
+  "items": [
+    {
+      "usc": "GCMain",
+      "ts": 1700000000,
+      "date": 20231114,
+      "time": 93000,
+      "open": 3.51,
+      "high": 3.62,
+      "low": 3.50,
+      "close": 3.60,
+      "last_close": 3.50,
+      "volume": 1000,
+      "turnover": 3560.00,
+      "change_price": 0.10,
+      "change_ratio": 2.857143,
+      "pacd": 3.56,
+      "ext_field": null,
+      "remark": null,
+      "provider": "FT"
+    }
+  ]
+}
+```
 
 数值字段只接受 **JSON 数字或 `null`**（字符串 `"3.60"` 会触发 422 / `211003`）。
 
@@ -69,7 +98,7 @@
 | `update`（默认） | `ON CONFLICT (usc, ts) DO UPDATE SET …` | 提前返回 409 / `211102` | 插入 + 覆盖影响行数 |
 
 `update` 覆盖的列为除 `usc`、`ts` 外的全部业务列（`date`、`time`、`open`、`high`、`low`、
-`close`、`volume`、`turnover`、`change_price`、`change_ratio`、`paocd`、`ext_field`、
+`close`、`last_close`、`volume`、`turnover`、`change_price`、`change_ratio`、`pacd`、`ext_field`、
 `remark`、`provider`），并刷新 `gmt_update = now()`。
 
 ### 3.2 整行覆盖
@@ -79,7 +108,7 @@
 
 ### 3.3 字段补全与兼容
 
-- `prev_close` → `open`：`open` 未传或为 `null` 时用 `prev_close` 回填；`prev_close` 本身不落库。
+- `last_close`：落库（上一收盘价）；`open` 未传或为 `null` 时用 `last_close` 回填 `open`。
 - `change_price` / `change_ratio`：两者都未提供时，服务端用 `close` 与参考价（`open`）计算。
 - `gmt_create` / `gmt_update` 由数据库默认值与触发器维护，请求体不接受。
 
@@ -150,8 +179,14 @@ curl -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert?onCo
         "high": 3.62,
         "low": 3.50,
         "close": 3.60,
+        "last_close": 3.50,
         "volume": 1000,
         "turnover": 3560.00,
+        "change_price": 0.10,
+        "change_ratio": 2.857143,
+        "pacd": 3.56,
+        "ext_field": null,
+        "remark": null,
         "provider": "FT"
       }
     ]
@@ -161,7 +196,10 @@ curl -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert?onCo
 ### 5.2 成功响应（HTTP 200）
 
 ```json
-{"affected": 1, "mode": "update"}
+{
+  "affected": 1,
+  "mode": "update"
+}
 ```
 
 ### 5.3 常见错误

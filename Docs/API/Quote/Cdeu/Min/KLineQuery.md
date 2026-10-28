@@ -32,7 +32,7 @@
 ```json
 {"count":1,"items":[{"usc":"000001","ts":1792373400,"date":20261019,"time":93000,
  "open":null,"high":null,"low":null,"close":11.48,"volume":392600,"turnover":4507048,
- "change_price":-0.02,"change_ratio":-0.17,"paocd":null,"ext_field":null,
+ "change_price":-0.02,"change_ratio":-0.17,"pacd":null,"ext_field":null,
  "remark":null,"provider":"FTMM"}]}
 ```
 

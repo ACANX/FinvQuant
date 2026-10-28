@@ -22,8 +22,8 @@ func TestInsertSQLUsesSchemaQualifiedTable(t *testing.T) {
 		!strings.Contains(sql, "cdeu.finv_quote_secu_kline_min") {
 		t.Fatal("不得使用 quote. 前缀")
 	}
-	// 两行共 32 个参数占位符：$1..$32。
-	for _, placeholder := range []string{"$1,", "$16)", "($17,", "$32)"} {
+	// 两行共 34 个参数占位符（17 列 × 2）：$1..$34。
+	for _, placeholder := range []string{"$1,", "$17)", "($18,", "$34)"} {
 		if !strings.Contains(sql, placeholder) {
 			t.Fatalf("缺少占位符 %s: %s", placeholder, sql)
 		}

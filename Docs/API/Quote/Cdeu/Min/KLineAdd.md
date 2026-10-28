@@ -19,10 +19,10 @@
 | `time` | int | — | 交易时间 `HHmmss`（0~235959） |
 | `open` / `high` / `low` / `close` | number | — | 价格 |
 | `volume` / `turnover` | number | — | ≥0 |
-| `change_price` / `change_ratio` / `paocd` | number | — | 涨跌额/涨跌幅/当日累计均价 |
+| `change_price` / `change_ratio` / `pacd` | number | — | 涨跌额/涨跌幅/当日累计均价（库列 `paocd`） |
 | `ext_field` / `remark` | string | — | 扩展字段/备注 |
 | `provider` | string | — | 数据来源，≤255 |
-| `prev_close` | number | — | **兼容字段**：`open` 为空时回填 `open`，自身不落库 |
+| `last_close` | number | — | 上一收盘价；落库，参与涨跌计算，`open` 为空时回填 `open` |
 
 ```json
 {"usc":"000001","ts":1792373400,"date":20261019,"time":93000,
@@ -38,13 +38,13 @@
 
 ### 成功（HTTP 201）
 
-返回整行对象（16 个业务字段，不含 `gmt_create`/`gmt_update`/`prev_close`）；numeric 字段为 JSON 数字。
+返回整行对象（17 个业务字段，含 `last_close`；不含 `gmt_create`/`gmt_update`）；numeric 字段为 JSON 数字。
 
 ```json
 {"usc":"000001","ts":1792373400,"date":20261019,"time":93000,
  "open":11.5,"high":11.6,"low":11.4,"close":11.48,
  "volume":392600,"turnover":4507048,"change_price":-0.02,
- "change_ratio":-0.17,"paocd":null,"ext_field":null,"remark":null,"provider":"FTMM"}
+ "change_ratio":-0.17,"pacd":null,"ext_field":null,"remark":null,"provider":"FTMM"}
 ```
 
 ### 错误

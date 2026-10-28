@@ -51,6 +51,7 @@ CREATE TABLE `+testTable+` (
     high          numeric(20,6),
     low           numeric(20,6),
     close         numeric(20,6),
+    last_close    numeric(20,6),
     volume        numeric(20,6),
     turnover      numeric(30,8),
     change_price  numeric(20,6),

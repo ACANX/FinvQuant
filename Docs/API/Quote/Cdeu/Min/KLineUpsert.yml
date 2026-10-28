@@ -35,9 +35,9 @@ paths:
           全部业务列并刷新 `gmt_update`；请求内重复键提前返回 409（211102）。
         - `update` 为整行覆盖：未提供的业务列会被写成 `NULL`；只改部分字段请用
           `PATCH /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch`。
-        - `prev_close` 为兼容字段：仅当 `open` 未传或为 `null` 时回填 `open`，自身不落库。
-        - `change_price` / `change_ratio` 均未提供时，服务端按 `close` 与 `open`
-          自动计算（参考价回退 `open`）。
+        - `last_close` 落库（上一收盘价）；`open` 未传或为 `null` 时用 `last_close` 回填。
+        - `change_price` / `change_ratio` 均未提供时，服务端按 `close` 与参考价
+          自动计算（参考价优先 `last_close`，其次 `open`）。
       parameters:
         - $ref: '#/components/parameters/OnConflict'
       requestBody:
@@ -59,8 +59,14 @@ paths:
                       high: 3.62
                       low: 3.50
                       close: 3.60
+                      last_close: 3.50
                       volume: 1000
                       turnover: 3560.00
+                      change_price: 0.10
+                      change_ratio: 2.857143
+                      pacd: 3.56
+                      ext_field: null
+                      remark: null
                       provider: FT
               skipMode:
                 summary: skip 模式（已存在键跳过）
@@ -162,7 +168,7 @@ components:
           description: 交易时间 `HHmmss`。
         open:
           type: [number, 'null']
-          description: 起始价。未传或 `null` 时由 `prev_close` 回填（兼容旧客户端）。
+          description: 起始价。未传或 `null` 时由 `last_close` 回填。
         high:
           type: [number, 'null']
           description: 区间最高价。
@@ -172,6 +178,10 @@ components:
         close:
           type: [number, 'null']
           description: 最新价/收盘价。
+        last_close:
+          type: [number, 'null']
+          description: |
+            上一收盘价；落库，参与涨跌计算；`open` 未传或为 `null` 时回填 `open`。
         volume:
           type: [number, 'null']
           minimum: 0
@@ -188,9 +198,9 @@ components:
         change_ratio:
           type: [number, 'null']
           description: 涨跌幅。与 `change_price` 均未提供时由服务端自动计算。
-        paocd:
+        pacd:
           type: [number, 'null']
-          description: 当日累计均价。
+          description: 当日累计均价（库列名 `paocd`）。
         ext_field:
           type: [string, 'null']
           description: 预留扩展字段。
@@ -201,10 +211,7 @@ components:
           type: [string, 'null']
           maxLength: 255
           description: 数据来源（如 `FT`）。
-        prev_close:
-          type: [number, 'null']
-          description: |
-            兼容字段：仅在 `open` 未传或 `null` 时回填 `open`；自身不落库。
+
     UpsertResponse:
       type: object
       required: [affected, mode]

@@ -79,7 +79,7 @@
 | 10 | `t` | `turnover` | string（数值） \| null | 成交金额 |
 | 11 | `cr` | `change_ratio` | string（两位小数） \| null | 涨跌幅 |
 | 12 | `cp` | `change_price` | string（数值） \| null | 涨跌额 |
-| 13 | `pa` | `paocd` | string（数值） \| null | 当日累计均价 |
+| 13 | `pa` | `pacd`（库列 `paocd`） | string（数值） \| null | 当日累计均价 |
 | 14 | `pv` | `provider` | string \| null | 数据来源 |
 | 15 | `ext` | `ext_field` | string \| null | 预留扩展字段 |
 
@@ -106,9 +106,41 @@
     "cnt": 43756,
     "ps": 50,
     "pn": 1,
-    "column": ["usc", "ts", "date", "time", "o", "h", "l", "c", "v", "t", "cr", "cp", "pa", "pv", "ext"],
+    "column": [
+      "usc",
+      "ts",
+      "date",
+      "time",
+      "o",
+      "h",
+      "l",
+      "c",
+      "v",
+      "t",
+      "cr",
+      "cp",
+      "pa",
+      "pv",
+      "ext"
+    ],
     "row": [
-      ["000001", "1792373400", "20261019", "93000", null, null, null, "11.48", "392600", "4507048", "-0.17", "-0.02", null, "FTMM", null]
+      [
+        "000001",
+        "1792373400",
+        "20261019",
+        "93000",
+        null,
+        null,
+        null,
+        "11.48",
+        "392600",
+        "4507048",
+        "-0.17",
+        "-0.02",
+        null,
+        "FTMM",
+        null
+      ]
     ],
     "request_id": "B7C63349-EB36-49AB-B16A-E8E1BE475D3B",
     "ts": 1792695045

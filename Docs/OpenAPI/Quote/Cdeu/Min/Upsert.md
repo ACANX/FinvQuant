@@ -56,19 +56,20 @@
 | `ts` | integer(int64) | **是** | 0 ≤ ts ≤ 100000000000 | 是 | UTC 秒级时间戳；`FINV_KLINE_TS_UNIT=ms` 时可传 13 位毫秒并自动 /1000 |
 | `date` | integer \| null | 否 | 19500101–21001231 | 是 | 交易日期 `yyyyMMdd` |
 | `time` | integer \| null | 否 | 0–235959 | 是 | 交易时间 `HHmmss` |
-| `open` | number \| null | 否 | — | 是 | 起始价；缺失时用 `prev_close` 回填 |
+| `open` | number \| null | 否 | — | 是 | 起始价；缺失时用 `last_close` 回填 |
 | `high` | number \| null | 否 | — | 是 | 区间最高价 |
 | `low` | number \| null | 否 | — | 是 | 区间最低价 |
 | `close` | number \| null | 否 | — | 是 | 最新价/收盘价 |
+| `last_close` | number \| null | 否 | — | 是 | 上一收盘价；参与涨跌计算，`open` 缺失时回填 `open` |
 | `volume` | number \| null | 否 | ≥ 0 | 是 | 成交量（支持小数，`numeric(20,6)`） |
 | `turnover` | number \| null | 否 | ≥ 0 | 是 | 成交金额 |
 | `change_price` | number \| null | 否 | — | 是 | 涨跌额；与 `change_ratio` 均未传时自动计算 |
 | `change_ratio` | number \| null | 否 | — | 是 | 涨跌幅；与 `change_price` 均未传时自动计算 |
-| `paocd` | number \| null | 否 | — | 是 | 当日累计均价 |
+| `pacd` | number \| null | 否 | — | 是 | 当日累计均价（库列名 `paocd`） |
 | `ext_field` | string \| null | 否 | — | 是 | 预留扩展字段 |
 | `remark` | string \| null | 否 | — | 是 | 备注 |
 | `provider` | string \| null | 否 | ≤ 255 字符 | 是 | 数据来源（如 `FT`） |
-| `prev_close` | number \| null | 否 | — | **否** | 兼容字段：仅用于回填 `open`，自身不落库 |
+
 
 数值字段只接受 **JSON 数字或 `null`**（字符串 `"3.60"` 会触发 422 / `211003`）。
 
@@ -84,8 +85,14 @@
       "high": 3.62,
       "low": 3.50,
       "close": 3.60,
+      "last_close": 3.50,
       "volume": 1000,
       "turnover": 3560.00,
+      "change_price": 0.10,
+      "change_ratio": 2.857143,
+      "pacd": 3.56,
+      "ext_field": null,
+      "remark": null,
       "provider": "FT"
     }
   ]
@@ -99,7 +106,10 @@
 ```json
 {
   "code": 0,
-  "data": {"affected": 1, "mode": "update"},
+  "data": {
+    "affected": 1,
+    "mode": "update"
+  },
   "message": "OK"
 }
 ```

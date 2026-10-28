@@ -40,8 +40,8 @@ func NewService(pool *pgxpool.Pool, opts Options) *Service {
 // rowArgs 按 InsertColumns 顺序展开参数。
 func rowArgs(row Row) []any {
 	return []any{
-		row.Usc, row.Ts, row.Date, row.Time, row.Open, row.High, row.Low, row.Close,
-		row.Volume, row.Turnover, row.ChangePrice, row.ChangeRatio, row.Paocd,
+		row.Usc, row.Ts, row.Date, row.Time, row.Open, row.High, row.Low, row.Close, row.LastClose,
+		row.Volume, row.Turnover, row.ChangePrice, row.ChangeRatio, row.Pacd,
 		row.ExtField, row.Remark, row.Provider,
 	}
 }
@@ -49,8 +49,8 @@ func rowArgs(row Row) []any {
 // rowTargets 按 selectColumnsSQL 的列顺序提供扫描目标。
 func rowTargets(row *Row) []any {
 	return []any{
-		&row.Usc, &row.Ts, &row.Date, &row.Time, &row.Open, &row.High, &row.Low, &row.Close,
-		&row.Volume, &row.Turnover, &row.ChangePrice, &row.ChangeRatio, &row.Paocd,
+		&row.Usc, &row.Ts, &row.Date, &row.Time, &row.Open, &row.High, &row.Low, &row.Close, &row.LastClose,
+		&row.Volume, &row.Turnover, &row.ChangePrice, &row.ChangeRatio, &row.Pacd,
 		&row.ExtField, &row.Remark, &row.Provider,
 	}
 }

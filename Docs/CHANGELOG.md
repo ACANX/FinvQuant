@@ -552,6 +552,12 @@
 
 ### 变更
 
+- **K 线 API 字段调整：`paocd` → `pacd`、`prev_close` → `last_close`（并落库，需求 10794）**
+  - 请求/响应 JSON 字段 `paocd` 改为 `pacd`（数据库列仍为 `paocd`，内部映射）；`prev_close` 改为 `last_close`。
+  - `last_close` 不再是“仅回填 open、不落库”：写入 `last_close` 列（`InsertColumns` 17 列），`upsert`/`PATCH`/查询/JSON 输出全部支持；`open` 缺失时仍用 `last_close` 回填；涨跌自动计算的参考价优先 `last_close`。
+  - 文档：内部/外部 `KLineUpsert`（字段表、完整 17 字段请求示例、§4.1 成功响应格式化）、`KLineAdd`/`KLineBatchPatch`/`KLineQuery`/`KLinePage`/`KLinePageUni` 同步；两份 `KLineUpsert.yml` 的 `KLineItem` schema 更新为 17 字段（含 `pacd`/`last_close`）。
+  - 验证：`go build`、`go test ./internal/kline` 通过（新增 `last_close` 落库与 PATCH 断言）；数据库无需迁移（`last_close` 列已存在）。
+
 - **外部 OpenAPI 文档改为自包含，不再引用内部 API 文档（需求 10793）**
   - `Docs/OpenAPI/Quote/Cdeu/Min/Upsert.md`：内联 `KLineItem` 17 字段表与 15 条错误目录；删除对 `Docs/API/.../KLineUpsert.md`、`KLineUpsert.yml` 的引用。
   - `Docs/OpenAPI/Quote/Cdeu/Min/Upsert.yml`：`KLineItem` schema 内联，移除跨文件 `$ref`，对外契约独立可分发。

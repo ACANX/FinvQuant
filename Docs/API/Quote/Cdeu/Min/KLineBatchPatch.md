@@ -18,7 +18,7 @@
 
 - 每条必须含 `usc` + `ts`；仅带定位键的条目跳过（不计 `updated`）。
 - 未传字段不变；显式 `null` → 写入 NULL（与「未传」区分）。
-- `prev_close` 兼容：转为对 `open` 的更新（`open` 同时传且非空时以 `open` 为准）。
+- `last_close`：落库；`open` 未传或为空时用 `last_close` 回填 `open`（`open` 同时传且非空时以 `open` 为准）。
 - 条目数 ≤ `FINV_KLINE_MAX_LIST_SIZE`；内部按「显式更新列集合」分组，每组一条 `UPDATE ... FROM (VALUES ...)`，VALUES 每列显式类型转换。
 - `gmt_update` 由数据库触发器刷新。
 

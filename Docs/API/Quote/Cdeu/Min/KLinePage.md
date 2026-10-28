@@ -31,7 +31,7 @@
  "message":"OK"}
 ```
 
-- 紧凑字段映射（顺序固定）：`o=open`、`h=high`、`l=low`、`c=close`、`v=volume`、`t=turnover`、`cr=change_ratio`、`cp=change_price`、`pa=paocd`、`pv=provider`、`ext=ext_field`。
+- 紧凑字段映射（顺序固定）：`o=open`、`h=high`、`l=low`、`c=close`、`v=volume`、`t=turnover`、`cr=change_ratio`、`cp=change_price`、`pa=pacd`、`pv=provider`、`ext=ext_field`。
 - 数值列统一输出字符串并去尾零；`v`（成交量）为 `numeric(20,6)`，支持小数。
 - `request_id` 为大写 UUID4；成功与错误响应使用同一个值（DC-07）。
 - `cr` 为**两位小数文本**（`ROUND_HALF_UP`，如 `"-0.00"`），其余 numeric 为 JSON 数字。

@@ -2157,6 +2157,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10793 | `Docs/OpenAPI/` 对外文档必须自包含：字段表、错误码、schema 全部内联，**不得引用 `Docs/API/` 内部文档或内部 `.yml`**；`ApiSpec §7.7` 增加该规则。 | `grep -rn '\.\./.*API/' Docs/OpenAPI/` 无输出；`grep -rn 'Docs/API/' Docs/OpenAPI/` 无输出；`grep -c 'API/Quote/Cdeu/Min/KLine' Docs/OpenAPI/Quote/Cdeu/Min/Upsert.yml` = 0；`Upsert.yml` 含 `KLineItem:` schema 且无跨文件 `$ref`；`Upsert.md` 含完整 17 字段表与 15 条错误码；`PageUni.md` 含 15 列定义与取值规则；`grep -c '内部/外部分离且自包含' Docs/DevSpec/ApiSpec.md` = 1；`go test ./internal/docs` 通过 | |
 
+## 一百二十六、K 线字段改名与 last_close 落库（10794）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10794 | 分钟行情写入接口的 `paocd` 参数改为 `pacd`（库列仍 `paocd`）；`prev_close` 改为 `last_close` 并**落库**（不再仅回填 open），upsert/PATCH/查询/JSON 输出与文档同步；请求示例必须包含完整 17 字段，成功响应 JSON 格式化。 | `grep -c '"pacd"' internal/kline/request.go` = 1；`grep -c 'ColLastClose' internal/kline/model.go` ≥ 2；`go test ./internal/kline -run 'TestLastCloseCompat\|TestPatchLastClose\|TestRowJSON' -v` 通过；`grep -rn 'paocd\|prev_close' Docs/API/Quote/Cdeu/Min Docs/OpenAPI/Quote/Cdeu/Min` 仅剩「库列」说明；两份 `KLineUpsert.yml` 的 `KLineItem` 均为 17 字段且含 `pacd`/`last_close`；`go test ./internal/docs` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2310,7 +2316,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | cdeu 成交量改为浮点 | 10791 | 1 |
 | volume 全链路浮点化 | 10792 | 1 |
 | 外部 OpenAPI 文档自包含 | 10793 | 1 |
-| **合计** | **10001–10793** | **793** |
+| K 线字段改名与 last_close 落库 | 10794 | 1 |
+| **合计** | **10001–10794** | **794** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10794` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10795` 起往后追加，不插入既有区间。
