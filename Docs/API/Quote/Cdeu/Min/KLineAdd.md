@@ -17,10 +17,17 @@
 | `ts` | int64 | ✅ | **秒级** Unix 时间戳（13 位毫秒默认拒绝，见 `FINV_KLINE_TS_UNIT`） |
 | `date` | int | — | 交易日期 `yyyyMMdd`（19500101~21001231） |
 | `time` | int | — | 交易时间 `HHmmss`（0~235959） |
-| `open` / `high` / `low` / `close` | number | — | 价格 |
-| `volume` / `turnover` | number | — | ≥0 |
-| `change_price` / `change_ratio` / `pacd` | number | — | 涨跌额/涨跌幅/当日累计均价（库列 `paocd`） |
-| `ext_field` / `remark` | string | — | 扩展字段/备注 |
+| `open` | number | — | 开盘价 |
+| `high` | number | — | 最高价 |
+| `low` | number | — | 最低价 |
+| `close` | number | — | 收盘价 |
+| `volume` | number | — | 成交量，≥0，支持小数 |
+| `turnover` | number | — | 成交金额，≥0 |
+| `change_price` | number | — | 涨跌额 |
+| `change_ratio` | number | — | 涨跌幅 |
+| `pacd` | number | — | 当日累计均价（库列 `paocd`） |
+| `ext_field` | string | — | 扩展字段 |
+| `remark` | string | — | 备注 |
 | `provider` | string | — | 数据来源，≤255 |
 | `last_close` | number | — | 上一收盘价；落库，参与涨跌计算，`open` 为空时回填 `open` |
 

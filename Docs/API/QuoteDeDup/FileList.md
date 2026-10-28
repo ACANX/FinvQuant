@@ -65,7 +65,8 @@
 
 | 字段 | 说明 |
 |---|---|
-| `file_name` / `target_file_name` | 本地文件名 / 上传目标文件名（当前一致，均为 `.mvsv` 或 `.json`，不做扩展名改名） |
+| `file_name` | 本地文件名（`.mvsv` 或 `.json`） |
+| `target_file_name` | 上传目标文件名（当前与 `file_name` 一致，不做扩展名改名） |
 | `file_type` | `BASE` / `PATCH`（`.mvsv` 数据文件，参与上传）/ `MANIFEST`（`xx_..._Manifest.json`，**不上传**，仅留本地校验） |
 | `upload_target` | 远端相对路径（`FINV_QUOTE_DEDUB_UPLOAD_PREFIX` + `{region}_{market}/{usc}/` + 文件名，`FINV_QUOTE_DEDUB_UPLOAD_LAYOUT=flat` 时不含证券目录） |
 | `checksum` | 文件 SHA256（小写十六进制）；gzip 时为压缩后内容 |

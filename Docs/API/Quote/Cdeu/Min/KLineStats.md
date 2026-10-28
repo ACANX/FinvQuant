@@ -43,10 +43,14 @@
 |---|---|---|
 | `summary.rows` | int | 过滤范围内总行数 |
 | `summary.usc_count` | int | 去重证券数 |
-| `summary.date_from` / `date_to` | int/null | 交易日期最小/最大值（`date` 为空时为 null） |
+| `summary.date_from` | int/null | 交易日期最小值（`date` 为空时为 null） |
+| `summary.date_to` | int/null | 交易日期最大值（`date` 为空时为 null） |
 | `summary.date_count` | int | 去重交易日数 |
-| `summary.volume_sum` / `turnover_sum` | string/null | 成交量/成交额合计（numeric 文本，保留精度） |
-| `summary.close_min` / `close_max` / `close_avg` | string/null | 收盘价最小/最大/均值（6 位小数） |
+| `summary.volume_sum` | string/null | 成交量合计（numeric 文本，保留精度） |
+| `summary.turnover_sum` | string/null | 成交额合计（numeric 文本，保留精度） |
+| `summary.close_min` | string/null | 收盘价最小值（6 位小数） |
+| `summary.close_max` | string/null | 收盘价最大值（6 位小数） |
+| `summary.close_avg` | string/null | 收盘价均值（6 位小数） |
 | `summary.null_counts.*` | int | 对应列的空值行数（`date/open/.../provider`） |
 | `daily[]` | array | 按交易日期升序聚合：记录数、成交量/额合计、收盘价最小/最大/均值 |
 | `top_usc[]` | array | 按记录数倒序的证券 Top 20（`usc` + `rows`） |

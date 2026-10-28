@@ -143,15 +143,31 @@ primary   := NUMBER | IDENT | FUNC(args) | ( expr )
 
 | 指标 | 字段 | 对应需求 |
 |------|------|----------|
-| 初始资金 / 期末总资产 | `initial_capital` / `final_equity` | ① |
-| 总收益额 / 总收益率 | `total_profit` / `total_return_pct` | ②③⑥ |
+| 初始资金 | `initial_capital` | ① |
+| 期末总资产 | `final_equity` | ① |
+| 总收益额 | `total_profit` | ②③⑥ |
+| 总收益率 | `total_return_pct` | ②③⑥ |
 | 年化收益率 | `annual_return_pct` | ⑧ |
-| 最大回撤（含区间） | `max_drawdown_pct` / `max_drawdown_start_ts` / `max_drawdown_end_ts` | ⑧ |
-| 夏普比率 / 年化波动率 | `sharpe_ratio` / `volatility_pct` | ⑧ |
+| 最大回撤 | `max_drawdown_pct` | ⑧ |
+| 最大回撤起始时间 | `max_drawdown_start_ts` | ⑧ |
+| 最大回撤结束时间 | `max_drawdown_end_ts` | ⑧ |
+| 夏普比率 | `sharpe_ratio` | ⑧ |
+| 年化波动率 | `volatility_pct` | ⑧ |
 | 最大投入金额 | `max_invested` | ④ |
-| 平均投入金额（持仓期时间加权） | `avg_invested` + `invested_days` | ⑤ |
-| 交易统计 | `trade_count` / `buy_count` / `sell_count` / `win_count` / `loss_count` / `win_rate_pct` / `profit_factor` / `total_fee` | ⑧ |
-| 单期收益分布 | `best_day_pct` / `worst_day_pct` / `profit_days` / `loss_days` | ⑧ |
+| 平均投入金额（持仓期时间加权） | `avg_invested` | ⑤ |
+| 投入天数 | `invested_days` | ⑤ |
+| 交易笔数 | `trade_count` | ⑧ |
+| 买入笔数 | `buy_count` | ⑧ |
+| 卖出笔数 | `sell_count` | ⑧ |
+| 盈利笔数 | `win_count` | ⑧ |
+| 亏损笔数 | `loss_count` | ⑧ |
+| 胜率（%） | `win_rate_pct` | ⑧ |
+| 盈亏比 | `profit_factor` | ⑧ |
+| 总手续费 | `total_fee` | ⑧ |
+| 单期最佳收益（%） | `best_day_pct` | ⑧ |
+| 单期最差收益（%） | `worst_day_pct` | ⑧ |
+| 盈利天数 | `profit_days` | ⑧ |
+| 亏损天数 | `loss_days` | ⑧ |
 | 信号归因 | `trade_signal_detail`（信号名→笔数） | ⑧ |
 
 **曲线数据**（`quant.finv_quant_backtest_equity`，按报告精度 Day/Hour/Min 逐点落库）：
@@ -206,7 +222,8 @@ primary   := NUMBER | IDENT | FUNC(args) | ( expr )
 | 字段 | 说明 |
 |------|------|
 | `env_type` | BACKTEST 回测 / PAPER 模拟盘 / SIMULATION 仿真 / LIVE 实盘 |
-| `region` / `market_code` | 地区与市场（CN/US/HK...） |
+| `region` | 地区（CN/US/HK...） |
+| `market_code` | 市场代码 |
 | `config.trading_sessions` | 交易时段（hhmmss 数组，如 COMEX `082000-133000`、沪深 `093000-113000 + 130000-150000`），非时段信号 → 拒绝事件「不在环境交易时段内」 |
 | `config.trading_rules` | T+N 交收、涨跌停幅度、合约乘数、`tick_size` 最小变动单位（成交价自动对齐）——**全部在引擎中生效**：T+N 当日买入持仓不可卖出（卖出信号/止损止盈均拒绝并登记事件）；涨跌停基于前一交易日收盘价，买入触及涨停/卖出触及跌停拒绝成交；合约乘数用于成交金额/持仓市值/数量折算（股票 ETF=1，期货如 COMEX 黄金=100）；tick_size 成交价自动对齐 |
 | `config.cost` | 成本基准（手续费/滑点） |

@@ -66,7 +66,8 @@
 |-----------|------|
 | `usc` | 查询的证券代码（原样回显） |
 | `secu_name` | 证券名称（前端回传时原样回显，可为空） |
-| `start_ts` / `end_ts` | 实际查询的 ts 范围（UTC 秒，闭区间） |
+| `start_ts` | 实际查询的起始 ts（UTC 秒，闭区间） |
+| `end_ts` | 实际查询的结束 ts（UTC 秒，闭区间） |
 | `period` | 周期（Min） |
 | `total` | 时间范围内总条数（= `count`，不分页） |
 | `count` | 返回条数 |
@@ -76,7 +77,10 @@
 | `ts` | UTC 时间戳（秒，主键列，如 `1784160000`） |
 | `date` | 交易日期（yyyymmdd，多日查询时用于区分每日分段） |
 | `time` | 交易时间（hhmmss） |
-| `open` / `high` / `low` / `close` | 开 / 高 / 低 / 收（数值字符串；缺失为 null） |
+| `open` | 开盘价（数值字符串；缺失为 null） |
+| `high` | 最高价（数值字符串；缺失为 null） |
+| `low` | 最低价（数值字符串；缺失为 null） |
+| `close` | 收盘价（数值字符串；缺失为 null） |
 | `volume` | 成交量（浮点，支持小数；缺失为 null，前端有值才展示） |
 | `turnover` | 成交额（缺失为 null，前端有值才展示） |
 | `change` | 涨跌额 = close - last_close（缺失为 null） |
@@ -87,7 +91,7 @@
 
 | 场景 | HTTP | code |
 |------|------|------|
-| `usc` 为空 / `date` 非法 / `start_ts`/`end_ts` 非法 | 400 | 4001 |
+| `usc` 为空、`date` 非法、`start_ts` 或 `end_ts` 非法 | 400 | 4001 |
 | `period` 暂不支持 | 500 | 2006 |
 | 服务端内部错误 | 500 | 2006 |
 

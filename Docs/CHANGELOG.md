@@ -20,6 +20,15 @@
 
 ### 新增
 
+- **BRS 数据备份服务（首期：PostgreSQL 表级备份，需求 10800）**
+  - 新增 `brs` schema 与 `brs.brs_bak_rdb_table`：`idn`、`rdb_type`、`schema_name`、`table_name`、`flag_enable`（char(1)）、`priority`（**必填且唯一**）、`bak_scope`、`bak_method`、`compression`（none/gzip/zstd）、`where_clause`、`remark`、`creator`（uid）、`gmt_create`、`gmt_update`；唯一键 `(rdb_type, schema_name, table_name)`、`UNIQUE (priority)`。
+  - `sys.sys_config` 新增 **39001**：6 段 cron（秒 分 时 日 月 周），默认 `0 0 3 * * *`。
+  - 新增独立包 `internal/meta/base/cron`（手写 6 段解析/匹配/Next，仅标准库）与 `internal/brs`（登记读取、cron 调度、`pg_dump` 执行、日志）；`cmd/server` 启动调度。
+  - 新增 `internal/meta/base/oss` 对象存储抽象（`Store` 接口 + `Config` + 注册式 `New`），首期实现 `oss/local`；`oss/s3` 二期使用 `aws-sdk-go-v2`，**不使用 minio-go 及 MinIO 官方库**，切换客户端只改适配器。
+  - 备份文件：`<PREFIX>/Backup/BRS/<yyyyMMdd>/<schema>.<table>_<HHmmss>.dump`，`-Fc` + `--compress=zstd:3`；失败继续下一张表。
+  - 预置 12 条登记（sys 系统表 + cdeu 配置表），**不含** `cdeu.finv_quote_secu_kline_min`。
+  - 文档：`Docs/FinvQuant/Brs.md`（运维/恢复/二期）、`2610-011` 实施记录、`Install.md` 与 `FINV_BRS_BACKUP_DIR`。
+
 - **qmio 数据搬运工具：MVSV-2 导出/导入（需求 10799）**
   - 新增 `cmd/qmio`（`export` / `import` / `verify`），安装到 **`<PREFIX>/bin/qmio`（与 `finvquant` 同目录）**，软链 `/usr/local/bin/qmio`。
   - `internal/mvsv` 新增 **MVSV-2**：单文件全表、含 `usc` 列、19 列（含 `gmt_*`）或 17 列（`--no-gmt`），导入按列名映射；MVSV-1 解析保持不变。

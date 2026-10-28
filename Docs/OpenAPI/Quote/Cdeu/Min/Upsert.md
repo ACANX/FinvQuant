@@ -143,10 +143,10 @@
 
 | 错误码 | HTTP | 名称 | retryable | 触发场景 | 白名单 `debug` 键 |
 |---|---|---|---|---|---|
-| `211001` | 400 | `KLineMissingParam` | 否 | 缺少 `usc`/`ts`/`items` | `field` |
+| `211001` | 400 | `KLineMissingParam` | 否 | 缺少 `usc`、`ts`、`items` | `field` |
 | `211002` | 400 | `KLineMalformedJSON` | 否 | 请求体不是合法 JSON | `err_class` |
 | `211003` | 422 | `KLineTypeMismatch` | 否 | 字段类型不匹配 | `field`、`want`、`got` |
-| `211004` | 422 | `KLineOutOfRange` | 否 | `usc` 超长、`ts`/`date`/`time` 越界、负 `volume`/`turnover` | `field`、`min`、`max` |
+| `211004` | 422 | `KLineOutOfRange` | 否 | `usc` 超长，`ts`、`date`、`time` 越界，`volume`、`turnover` 为负 | `field`、`min`、`max` |
 | `211005` | 422 | `KLineUnknownField` | 否 | 请求含未定义字段 | `field` |
 | `211006` | 400 | `KLineInvalidEnum` | 否 | `onConflict` 不是 `skip`/`update` | `field`、`allowed` |
 | `211101` | 409 | `KLineDuplicateKey` | 否 | 数据库主键/唯一键冲突 | `pg_code`、`sqlstate`、`constraint` |

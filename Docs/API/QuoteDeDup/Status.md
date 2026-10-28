@@ -67,9 +67,12 @@
 | `job_status` | `finv_dedup_export_job` 按状态聚合 |
 | `upload_status` | `finv_dedup_export_file` 按上传状态聚合 |
 | `pending_rows` | 未完成导出的 COMPLETE/FROZEN 证券月行数（积压量） |
-| `staging_rows` / `staging_uscs` | 中转表 `export.finv_quote_secu_kline_min` 残留行数与证券数 |
+| `staging_rows` | 中转表 `export.finv_quote_secu_kline_min` 残留行数 |
+| `staging_uscs` | 中转表残留证券数 |
 | `backlog_days` | 积压天数（积压量 / 近 30 天日均入口条数） |
-| `budget_factor` / `budget_rows` / `budget_consumed_rows` | 当日预算因子、预算条数、已消耗条数 |
+| `budget_factor` | 当日预算因子 |
+| `budget_rows` | 当日预算条数 |
+| `budget_consumed_rows` | 当日已消耗条数 |
 | `frozen_missing_*` | FROZEN 证券月缺失行数、预期行数与缺失比例 |
 | `alerts[].code` | `BACKLOG_TOO_HIGH`、`BUDGET_FACTOR_HIGH`、`HEARTBEAT_TIMEOUT`、`UPLOAD_RETRY_EXHAUSTED`、`PATCH_FREQUENCY_HIGH`、`STAGING_RESIDUAL`、`FROZEN_MISSING_HIGH`、`MVSV_STRUCTURE_INVALID` |
 | `options` | 当前生效的运行参数（不包含任何凭据） |

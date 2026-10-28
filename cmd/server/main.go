@@ -20,6 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/acanx/finvquant/internal/api"
+	"github.com/acanx/finvquant/internal/brs"
 	"github.com/acanx/finvquant/internal/config"
 	"github.com/acanx/finvquant/internal/database"
 	"github.com/acanx/finvquant/internal/logging"
@@ -81,6 +82,16 @@ func main() {
 		log.Fatalf("[finvquant] %v", err)
 	}
 	defer rdb.Close()
+
+	// BRS 每日备份（首期：pg_dump 表级备份，cron 读 sys_config 39001）
+	go brs.Start(ctx, pool, brs.Options{
+		BackupDir: cfg.BrsBackupDir,
+		Host:      cfg.PgHost,
+		Port:      cfg.PgPort,
+		User:      cfg.PgUser,
+		Password:  cfg.PgPassword,
+		Database:  cfg.PgDatabase,
+	})
 
 	// 证券行情月归档导出与上传：服务始终创建（运维接口可用），
 	// 自动化调度受 FINV_QUOTE_DEDUB_ENABLED 功能开关控制（M-10）。

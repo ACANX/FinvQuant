@@ -18,6 +18,7 @@
 | 迁移脚本 | `/data/App/FinvQuant/Deploy/Migrations/`（与仓库结构一致，服务启动时自动应用未执行版本） |
 | 部署脚本与文件 | `/data/App/FinvQuant/Deploy/`（`Install.sh`/`Upgrade.sh`/`Uninstall.sh`、`finvquant.service`、env 与 Nginx 模板、本手册） |
 | 一次性运维脚本 | `/data/App/FinvQuant/Deploy/Script/`（如 `MigratePublicKlineToCdeu.sql`；不进入迁移链） |
+| BRS 备份 | `/data/App/FinvQuant/Backup/BRS/<yyyyMMdd>/`（每日表级 `pg_dump`，见 [Brs.md](../../Docs/FinvQuant/Brs.md)） |
 | 服务日志 | `/data/App/FinvQuant/Log/FinvQuant.log`（`FINV_LOG_DIR`；10MB 切分、按日 `tar.gz` 归档） |
 | 备份 | `/data/App/FinvQuant/Backup/`（升级脚本写入 `finvquant_YYYYMMDD_HHMMSS.dump`） |
 | 导出 | `/data/App/FinvQuant/Export/`（行情归档导出，与容器方式一致） |

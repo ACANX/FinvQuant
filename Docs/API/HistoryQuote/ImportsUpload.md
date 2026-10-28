@@ -51,7 +51,8 @@
 | data 字段 | 说明 |
 |-----------|------|
 | `batch_id` | 导入批次 ID（对应 `quote.finv_quote_ingest_batches`） |
-| `usc` / `market_code` | 证券代码 / 市场数字代码（`usc` 来自文件头部 `Code`；`market_code` V100021 起从 `finv_security` 字典关联获取，未登记返回 0） |
+| `usc` | 证券代码（来自文件头部 `Code`） |
+| `market_code` | 市场数字代码（V100021 起从 `finv_security` 字典关联获取，未登记返回 0） |
 | `record_count` | 本次导入记录数 |
 | `inserted` | 新增行数 |
 | `updated` | 覆盖行数（>0 时自动写入 `quote.finv_quote_revision_log` 修正审计） |

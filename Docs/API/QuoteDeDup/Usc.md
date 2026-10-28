@@ -9,7 +9,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | usc | string | 否 | 证券代码精确匹配 |
-| keyword | string | 否 | `usc` / `name` 模糊匹配 |
+| keyword | string | 否 | 按 `usc` 或 `name` 模糊匹配 |
 | page / pageSize | int | 否 | 默认 1 / 20（最大 200） |
 
 响应 `data`：`{ total, list: [{ usc, category, day_expect_rows, date_list, date_delist, flag_auto_discover, region, market, provider, name, timezone, currency, gmt_create, gmt_update }] }`

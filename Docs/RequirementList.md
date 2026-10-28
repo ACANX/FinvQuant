@@ -2193,6 +2193,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10799 | 新增 `qmio` 数据搬运工具（与 `finvquant` 同目录 `<PREFIX>/bin/qmio`）：导出 `cdeu.finv_quote_secu_kline_min` 为 MVSV-2（默认 gzip、含 gmt、可 `--no-gmt`），导入默认 `upsert`（可选 append/replace，replace 需 `--force`），支持 `verify`（sha256/行数）；打包/安装/升级/卸载同步。 | `ls cmd/qmio`；`go build ./cmd/qmio` 通过；`go test ./internal/mvsv -v` 含 `TestWriteV2RoundTripGmt/NoGmt` 通过；`grep -c 'qmio' Deploy/Script/PackSnapshot.sh Deploy/Native/Install.sh` 各 ≥ 1；临时 PG 导出→清空→导入→重复导入行数不变；`--no-gmt` 文件 `Field` 为 17 列且导入后 `gmt_create` 非空；`qmio verify` 通过；`go build ./...` 通过 | |
 
+## 一百三十二、BRS 数据备份服务（10800）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10800 | 新增 `brs` schema 与 `brs.brs_bak_rdb_table` 备份登记表（`priority` 唯一）；`sys.sys_config 39001` 配置 6 段 cron；服务内每日按 `priority` 倒序对启用表执行 `pg_dump -Fc`（按 `compression` 压缩），备份到 `<PREFIX>/Backup/BRS/<yyyyMMdd>/`，只写日志；预置系统表与 CDEU 配置表种子（不含 `cdeu.finv_quote_secu_kline_min`）；对象存储通过 `internal/meta/base/oss` 抽象，首期不启用上传。 | `test -f Deploy/Migrations/V200060__brs_backup_table.sql`；临时 PG 执行全部 142 个迁移 0 错误，`select count(*) from brs.brs_bak_rdb_table` = 12，`select count(distinct priority)` = 12，`select str_value from sys.sys_config where config_no=39001` = `0 0 3 * * *`；`go test ./internal/brs ./internal/meta/base/cron ./internal/meta/base/oss/...` 通过；`go build ./...` 通过；`grep -c 'FINV_BRS_BACKUP_DIR' internal/config/config.go Deploy/Native/FinvQuant.env.example` 各 ≥ 1；`grep -rn 'minio-go' internal/` 无输出 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2352,7 +2358,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 日志切分与按日归档 | 10797 | 1 |
 | cdeu 行情导出/导入工具方案 | 10798 | 1 |
 | qmio 数据搬运工具 | 10799 | 1 |
-| **合计** | **10001–10799** | **799** |
+| BRS 数据备份服务 | 10800 | 1 |
+| **合计** | **10001–10800** | **800** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10800` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10801` 起往后追加，不插入既有区间。

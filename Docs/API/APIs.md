@@ -22,9 +22,9 @@
 
 | # | 方法 | 路径 | 说明 | 详细文档 | 已使用位置（业务菜单） |
 |---|------|------|------|----------|------------------------|
-| 1 | GET | `/API/V1/Health/Live` | 存活探针：进程存活即 200，返回 `status` / `server` | — | 仪表盘（`DashboardView.vue`） |
+| 1 | GET | `/API/V1/Health/Live` | 存活探针：进程存活即 200，返回 `status`、`server` | — | 仪表盘（`DashboardView.vue`） |
 | 2 | GET | `/API/V1/Health/Ready` | 就绪探针：PG 与 Redis 均可达才 200，否则 503 | — | — |
-| 3 | GET | `/API/V1/Version` | 服务端版本信息：`name` / `version` / `go_version` / `commit` | — | — |
+| 3 | GET | `/API/V1/Version` | 服务端版本信息：`name`、`version`、`go_version`、`commit` | — | — |
 | 4 | POST | `/API/V1/Meta/Finv/Quant/Quote/Import/Upload` | 上传 MVSV 历史行情文件并导入 PG（字段级/整行覆盖） | [HistoryQuote/ImportsUpload.md](HistoryQuote/ImportsUpload.md) | 历史行情数据导入（`QuoteImportView.vue`） |
 | 5 | GET | `/API/V1/Meta/Finv/Quant/Quote/History/QuoteQuery` | 按证券代码+日期查询分钟级 K 线（周期 Min，1日/5日回溯，分页；可选回传证券名称 secu_name） | [HistoryQuote/HistoryQuote.md](HistoryQuote/HistoryQuote.md) | 历史行情查询（[Menus.md](../Menu/Menus.md#3) 之历史行情查询菜单，文档见 [HistoryQuote/HistoryQuoteQuery.md](../Menu/HistoryQuote/HistoryQuoteQuery.md)） |
 | 6 | GET | `/API/V1/Meta/Finv/Quant/Metadata/Exchange/List` | 分页查询交易所字典 finv_exchange | [Meta/MetaExchange.md](Meta/MetaExchange.md) | 交易所信息维护（[Menus.md](../Menu/Menus.md#6)，文档见 [Meta/MetaExchange.md](../Menu/Meta/MetaExchange.md)） |
@@ -72,7 +72,7 @@
 | 48 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert` | 批量 upsert（`onConflict=skip\|update`，整行覆盖） | [Quote/Cdeu/Min/KLineUpsert.md](Quote/Cdeu/Min/KLineUpsert.md) | 分钟行情采集端 |
 | 49 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/Min/Page` | 条件分页查询（紧凑字段对象数组） | [Quote/Cdeu/Min/KLinePage.md](Quote/Cdeu/Min/KLinePage.md) | 采集端/核对工具、去重分钟行情查询（`DeDupKLineQueryView.vue`） |
 | 50 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/Min/PageUni` | 条件分页查询（column/row 行数组） | [Quote/Cdeu/Min/KLinePageUni.md](Quote/Cdeu/Min/KLinePageUni.md) | 表格类前端/核对工具 |
-| 51 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/Min/Query` | 按 `(usc,ts)`/`uscs`/`provider` 批量查询 | [Quote/Cdeu/Min/KLineQuery.md](Quote/Cdeu/Min/KLineQuery.md) | 采集端回读校验 |
+| 51 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/Min/Query` | 按 `(usc,ts)`、`uscs`、`provider` 批量查询 | [Quote/Cdeu/Min/KLineQuery.md](Quote/Cdeu/Min/KLineQuery.md) | 采集端回读校验 |
 | 52 | PATCH | `/API/V1/Meta/Finv/Quote/Cdeu/Min/Batch` | 批量增量更新（仅更新显式字段） | [Quote/Cdeu/Min/KLineBatchPatch.md](Quote/Cdeu/Min/KLineBatchPatch.md) | 数据修正工具 |
 | 53 | DELETE | `/API/V1/Meta/Finv/Quote/Cdeu/Min/Batch` | 批量删除（keys/uscs OR 语义） | [Quote/Cdeu/Min/KLineBatchDelete.md](Quote/Cdeu/Min/KLineBatchDelete.md) | 数据清理工具 |
 | 54 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/Min/Count` | 分钟行情记录总数统计 | [Quote/Cdeu/Min/KLineCount.md](Quote/Cdeu/Min/KLineCount.md) | 采集端入库量统计 |
