@@ -13,7 +13,7 @@
 |---|---|
 | 安装根目录 | `/data/App/FinvQuant/`（`--prefix <dir>` 或 `FINVQ_PREFIX` 可改） |
 | 二进制 | `/data/App/FinvQuant/bin/finvquant`（软链 `/usr/local/bin/finvquant`） |
-| 配置 | `/data/App/FinvQuant/etc/finvquant.env`（权限 600，含随机生成的数据库密码） |
+| 配置 | `/data/App/FinvQuant/finvquant.env`（权限 600，含随机生成的数据库密码） |
 | 迁移脚本 | `/data/App/FinvQuant/Deploy/Migrations/`（与仓库结构一致，服务启动时自动应用未执行版本） |
 | 部署脚本与文件 | `/data/App/FinvQuant/Deploy/`（`Install.sh`/`Upgrade.sh`/`Uninstall.sh`、`finvquant.service`、env 与 Nginx 模板、本手册） |
 | 备份 | `/data/App/FinvQuant/Backup/`（升级脚本写入 `finvquant_YYYYMMDD_HHMMSS.dump`） |
@@ -28,7 +28,7 @@
 |---|---|
 | `bin/` | `root:root 0755` |
 | `Deploy/Migrations/` | `root:finvquant 0755` |
-| `etc/` | `root:finvquant 0750`，其中 `finvquant.env` 为 `root:root 0600` |
+| `finvquant.env` | `root:root 0600`（安装根目录下，与 `bin/`、`Deploy/` 同级） |
 | `Deploy/` | `root:root 0755` |
 | `Backup/` | `root:finvquant 0750` |
 | `Export/` | `finvquant:finvquant 0755` |
@@ -166,12 +166,11 @@ cp Deploy/Native/*.sh "$PREFIX/Deploy/"
 cp Deploy/Native/*.md Deploy/Native/*.example Deploy/Native/FinvQuant.service "$PREFIX/Deploy/"
 chmod 0755 "$PREFIX/Deploy/"*.sh
 
-# 6) 配置（路径按实际安装根目录改）
-install -d -o root -g finvquant -m 0750 "$PREFIX/etc"
+# 6) 配置（安装根目录下，路径按实际根目录改）
 sed "s|/data/App/FinvQuant|$PREFIX|g" Deploy/Native/FinvQuant.env.example \
-  > "$PREFIX/etc/finvquant.env"
-chmod 600 "$PREFIX/etc/finvquant.env"
-vi "$PREFIX/etc/finvquant.env"        # 至少修改 FINV_PG_PASSWORD
+  > "$PREFIX/finvquant.env"
+chmod 600 "$PREFIX/finvquant.env"
+vi "$PREFIX/finvquant.env"        # 至少修改 FINV_PG_PASSWORD
 
 # 7) 建库建角色（密码与 env 中一致；默认用户名/库名均为 finv）
 sudo -u postgres psql -c "CREATE ROLE finv LOGIN PASSWORD '<同 env 中的密码>';"
@@ -198,7 +197,7 @@ curl -o /dev/null -w '%{http_code}\n' http://127.0.0.1:16001/API/V1/Health/Ready
 curl -o /dev/null -w '%{http_code}\n' http://127.0.0.1:16002/                      # 200
 
 # 安装布局自检
-ls -l /data/App/FinvQuant/{bin,etc,Deploy} && ls /data/App/FinvQuant/Deploy/Migrations | head -3
+ls -l /data/App/FinvQuant/{bin,Deploy,finvquant.env} && ls /data/App/FinvQuant/Deploy/Migrations | head -3
 ```
 
 迁移确认（应包含 `29`、`30`、`31`、`32`、`33`、`100024` 等）：

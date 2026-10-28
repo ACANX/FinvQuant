@@ -143,4 +143,4 @@ find "${BACKUP_DIR}" -name 'finvquant_*.dump' -mtime +14 -delete
 | 回滚后仍报列不存在 | 数据库已被迁移改动，需按 3.2 从备份恢复 |
 | 备份文件为 0 字节 | `pg_dump` 失败（磁盘满/权限），检查后重新备份（脚本会删除空备份并中止） |
 | 服务反复重启 | `systemctl status finvquant` + `journalctl`；确认 `FINV_PG_*` 与 `pg_hba.conf` |
-| 提示 `未找到 /.../etc/finvquant.env` | 安装根目录不是默认值：用 `--prefix` 指定，或确认 unit 的 `ExecStart` 指向正确目录 |
+| 提示 `未找到 /.../finvquant.env` | 安装根目录不是默认值：用 `--prefix` 指定，或确认 unit 的 `ExecStart` 指向正确目录（旧布局 `etc/finvquant.env` 会被自动迁移） |

@@ -10,7 +10,7 @@
 # 安装根目录：/data/App/FinvQuant（可用 --prefix 或 FINVQ_PREFIX 覆盖），布局：
 #   <PREFIX>/bin/finvquant          二进制（另建软链 /usr/local/bin/finvquant）
 #   <PREFIX>/Deploy/Migrations/     数据库迁移脚本（与仓库结构一致，FINV_MIGRATIONS_DIR 指向此目录）
-#   <PREFIX>/etc/finvquant.env      核心配置（环境变量，权限 600）
+#   <PREFIX>/finvquant.env          核心配置（环境变量，权限 600）
 #   <PREFIX>/Deploy/                部署脚本与部署文件（Install/Upgrade/Uninstall、unit、模板、手册）
 #   <PREFIX>/Backup/                数据库逻辑备份（升级脚本写入）
 #   <PREFIX>/Export/                行情归档导出目录（与容器方式一致）
@@ -33,12 +33,11 @@ APP_GROUP="finvquant"
 # 安装根目录：默认 /data/App/FinvQuant，可用 --prefix 或环境变量 FINVQ_PREFIX 覆盖
 PREFIX="${FINVQ_PREFIX:-/data/App/FinvQuant}"
 BIN_DIR="${PREFIX}/bin"
-ETC_DIR="${PREFIX}/etc"
 MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"
 BACKUP_DIR="${PREFIX}/Backup"
 EXPORT_DIR="${PREFIX}/Export"
 DEPLOY_DIR="${PREFIX}/Deploy"
-ENV_FILE="${ETC_DIR}/finvquant.env"
+ENV_FILE="${PREFIX}/finvquant.env"
 BINARY="${BIN_DIR}/finvquant"
 BINARY_LINK="/usr/local/bin/finvquant"
 SERVICE_FILE="/etc/systemd/system/finvquant.service"
@@ -63,10 +62,10 @@ while [[ $# -gt 0 ]]; do
     --skip-redis) SKIP_REDIS=1; shift ;;
     --binary)     BINARY_SRC="${2:-}"; shift 2 ;;
     --prefix)     PREFIX="${2:-}"; shift 2
-                  BIN_DIR="${PREFIX}/bin"; ETC_DIR="${PREFIX}/etc"
+                  BIN_DIR="${PREFIX}/bin"
                   MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"; BACKUP_DIR="${PREFIX}/Backup"
                   EXPORT_DIR="${PREFIX}/Export"; DEPLOY_DIR="${PREFIX}/Deploy"
-                  ENV_FILE="${ETC_DIR}/finvquant.env"; BINARY="${BIN_DIR}/finvquant" ;;
+                  ENV_FILE="${PREFIX}/finvquant.env"; BINARY="${BIN_DIR}/finvquant" ;;
     -h|--help)    sed -n '2,26p' "$0"; exit 0 ;;
     *)            die "未知参数：$1（--help 查看用法）" ;;
   esac
@@ -208,10 +207,9 @@ install -d -o root -g root -m 0755 "${BIN_DIR}"
 # Deploy/ 先于其下的 Migrations/（迁移脚本与仓库结构一致放在 Deploy 下）
 install -d -o root -g root -m 0755 "${DEPLOY_DIR}"
 install -d -o root -g "${APP_GROUP}" -m 0755 "${MIGRATIONS_DIR}"
-install -d -o root -g "${APP_GROUP}" -m 0750 "${ETC_DIR}"
 install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0755 "${EXPORT_DIR}"
-ok "目录：${BIN_DIR} / ${MIGRATIONS_DIR} / ${ETC_DIR} / ${BACKUP_DIR} / ${EXPORT_DIR} / ${DEPLOY_DIR}"
+ok "目录：${BIN_DIR} / ${MIGRATIONS_DIR} / ${BACKUP_DIR} / ${EXPORT_DIR} / ${DEPLOY_DIR}（配置：${ENV_FILE}）"
 
 # ---------------------------------------------------------------------
 # 6. 安装二进制、迁移脚本与部署文件
@@ -256,6 +254,14 @@ ok "部署文件：${DEPLOY_DIR}（脚本、unit 模板、env 模板、Nginx 示
 # ---------------------------------------------------------------------
 step "7/9 环境变量文件"
 DB_PASSWORD=""
+# 兼容旧布局：<PREFIX>/etc/finvquant.env → <PREFIX>/finvquant.env（保留原密码，不重新生成）
+LEGACY_ENV_FILE="${PREFIX}/etc/finvquant.env"
+if [[ ! -f "${ENV_FILE}" && -f "${LEGACY_ENV_FILE}" ]]; then
+  mv -f "${LEGACY_ENV_FILE}" "${ENV_FILE}"
+  chmod 0600 "${ENV_FILE}"
+  rmdir "${PREFIX}/etc" 2>/dev/null || true
+  ok "已迁移旧配置 ${LEGACY_ENV_FILE} → ${ENV_FILE}"
+fi
 if [[ -f "${ENV_FILE}" ]]; then
   ok "已存在 ${ENV_FILE}，保留现有配置（如需重置请先备份后删除）"
   DB_PASSWORD="$(grep -E '^FINV_PG_PASSWORD=' "${ENV_FILE}" | cut -d= -f2- || true)"
@@ -289,6 +295,18 @@ if [[ "${SKIP_DB}" -eq 0 ]]; then
   ok "角色 ${DB_USER} 已就绪"
   if sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1; then
     ok "数据库 ${DB_NAME} 已存在"
+    # 已存在的库若不是本程序初始化的（缺 public.schema_version 但已有表），迁移会从头执行并撞表
+    HAS_SV="$(sudo -u postgres psql -d "${DB_NAME}" -tAc \
+      "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='schema_version'" 2>/dev/null || true)"
+    TBL_CNT="$(sudo -u postgres psql -d "${DB_NAME}" -tAc \
+      "SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema')" 2>/dev/null || echo 0)"
+    if [[ -z "${HAS_SV}" && "${TBL_CNT:-0}" -gt 0 ]]; then
+      warn "数据库 ${DB_NAME} 内有 ${TBL_CNT} 张表，但缺少 public.schema_version（非本程序初始化或旧库）"
+      warn "迁移将从 V100001 起执行，遇到已有同名表会失败（relation ... already exists）"
+      warn "若确认该库数据可丢弃，请重建后重跑本脚本："
+      warn "  sudo -u postgres dropdb ${DB_NAME} && sudo -u postgres createdb -O ${DB_USER} ${DB_NAME}"
+      warn "若需保留数据，请先 pg_dump 备份，并改用与现有结构版本匹配的迁移记录（勿手工插 schema_version）"
+    fi
   else
     sudo -u postgres createdb -O "${DB_USER}" "${DB_NAME}"
     ok "已创建数据库 ${DB_NAME}（owner=${DB_USER}）"
@@ -328,22 +346,18 @@ for i in $(seq 1 30); do
   sleep 1
 done
 
-cat <<EOF
-
-\033[1;32m安装完成\033[0m（安装根目录：${PREFIX}）
-  服务管理：systemctl status|restart|stop ${SERVICE}
-  日志查看：journalctl -u ${SERVICE} -f
-  二进制：${BINARY}（软链 ${BINARY_LINK}）
-  配置文件：${ENV_FILE}（权限 600）
-  迁移目录：${MIGRATIONS_DIR}（启动时自动应用未执行版本）
-  部署脚本：${DEPLOY_DIR}/Upgrade.sh、${DEPLOY_DIR}/Uninstall.sh
-  备份目录：${BACKUP_DIR}
-  导出目录：${EXPORT_DIR}
-  接口验证：curl http://127.0.0.1:16001/API/V1/Version
-  前端地址：http://<服务器IP>:16002（建议用 Nginx 反向代理，见 ${DEPLOY_DIR}/Nginx.conf.example）
-
-后续步骤：
-  1) 按需配置 Nginx 反向代理与 TLS（${DEPLOY_DIR}/Nginx.conf.example）
-  2) 建立数据库定时备份到 ${BACKUP_DIR}（参考 Upgrade.md）
-  3) 防火墙只放行 80/443（16001/16002 建议只绑 127.0.0.1）
-EOF
+printf '\n\033[1;32m安装完成\033[0m（安装根目录：%s）\n' "${PREFIX}"
+printf '  服务管理：systemctl status|restart|stop %s\n' "${SERVICE}"
+printf '  日志查看：journalctl -u %s -f\n' "${SERVICE}"
+printf '  二进制：%s（软链 %s）\n' "${BINARY}" "${BINARY_LINK}"
+printf '  配置文件：%s（权限 600）\n' "${ENV_FILE}"
+printf '  迁移目录：%s（启动时自动应用未执行版本）\n' "${MIGRATIONS_DIR}"
+printf '  部署脚本：%s/Upgrade.sh、%s/Uninstall.sh\n' "${DEPLOY_DIR}" "${DEPLOY_DIR}"
+printf '  备份目录：%s\n' "${BACKUP_DIR}"
+printf '  导出目录：%s\n' "${EXPORT_DIR}"
+printf '  接口验证：curl http://127.0.0.1:16001/API/V1/Version\n'
+printf '  前端地址：http://<服务器IP>:16002（建议用 Nginx 反向代理，见 %s/Nginx.conf.example）\n' "${DEPLOY_DIR}"
+printf '\n后续步骤：\n'
+printf '  1) 按需配置 Nginx 反向代理与 TLS（%s/Nginx.conf.example）\n' "${DEPLOY_DIR}"
+printf '  2) 建立数据库定时备份到 %s（参考 Upgrade.md）\n' "${BACKUP_DIR}"
+printf '  3) 防火墙只放行 80/443（16001/16002 建议只绑 127.0.0.1）\n'

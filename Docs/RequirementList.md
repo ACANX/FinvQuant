@@ -2023,6 +2023,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10768 | 迁移目录与仓库结构保持一致：安装后为 `<PREFIX>/Deploy/Migrations`（默认 `/data/App/FinvQuant/Deploy/Migrations`），发行包内同样为 `Deploy/Migrations/`；`FINV_MIGRATIONS_DIR` 指向该目录，`Install.sh`/`Upgrade.sh` 按 `<PREFIX>/Deploy/Migrations` → `<repo>/Deploy/Migrations` → Native 脚本上一级/同级顺序探测，源即安装目标时跳过复制。 | `grep -c 'FINV_MIGRATIONS_DIR=/data/App/FinvQuant/Deploy/Migrations' Deploy/Native/FinvQuant.env.example` = 1；`grep -n 'cp -r Deploy/Migrations "${PKG_ROOT}/Deploy/Migrations"' Deploy/Script/PackSnapshot.sh` 命中；`bash Deploy/Script/PackSnapshot.sh --target linux/amd64 --keep-tmp` 后 `tar -tzf Dist/FinvQuant-*-ubuntu-amd64.tar.gz \| grep -cE '^FinvQuant-[^/]+/Deploy/Migrations/.*\.sql$'` > 0；在解压目录执行 `sudo bash Deploy/Native/Install.sh --prefix <dir>` 日志含「迁移目录即安装目录，无需复制」且 `test -x <dir>/Deploy/Migrations` 成立；`grep -c 'PREFIX}/Deploy/Migrations' Deploy/Native/Install.sh Deploy/Native/Upgrade.sh Deploy/Native/Uninstall.sh` 各 ≥ 1 | |
 
+## 一百零四、核心配置放到安装根目录并修复安装摘要渲染（10769）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10769 | ① Native 方式的核心配置文件为 `<PREFIX>/finvquant.env`（默认 `/data/App/FinvQuant/finvquant.env`），不再放在 `<PREFIX>/etc/`；systemd unit 的 `EnvironmentFile` 指向该文件；`Install.sh`/`Upgrade.sh` 自动把旧布局 `<PREFIX>/etc/finvquant.env` 迁移到新位置并保留原密码；② 安装完成摘要用 `printf` 输出，ANSI 颜色正常渲染，不再出现字面 `\033[1;32m`。 | `grep -n 'EnvironmentFile=@PREFIX@/finvquant.env' Deploy/Native/FinvQuant.service` 命中；`grep -c 'ENV_FILE="${PREFIX}/finvquant.env"' Deploy/Native/Install.sh Deploy/Native/Upgrade.sh` 各 ≥ 1；在存在 `/data/App/FinvQuant/etc/finvquant.env` 的机器上重跑 `sudo bash /data/App/FinvQuant/Deploy/Native/Install.sh`，日志含「已迁移旧配置」且 `test -f /data/App/FinvQuant/finvquant.env` 成立、`test ! -d /data/App/FinvQuant/etc` 成立；`systemctl show -p EnvironmentFiles finvquant` 显示 `/data/App/FinvQuant/finvquant.env`；安装脚本尾部输出含彩色「安装完成」且不出现字面 `\033[1;32m`（`sudo bash Deploy/Native/Install.sh 2>&1 | grep -c '\\033\[1;32m'` = 0） | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2152,7 +2158,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | Native 安装到 /data/App/FinvQuant | 10766 | 1 |
 | 一键下载脚本 | 10767 | 1 |
 | 发行包 Migrations 提到包顶层 | 10768 | 1 |
-| **合计** | **10001–10768** | **768** |
+| 配置放安装根目录 + 摘要渲染修复 | 10769 | 1 |
+| **合计** | **10001–10769** | **769** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10769` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10770` 起往后追加，不插入既有区间。

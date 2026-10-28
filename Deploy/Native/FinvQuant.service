@@ -15,7 +15,7 @@ Group=finvquant
 WorkingDirectory=@PREFIX@
 
 # 配置全部来自 EnvironmentFile（键名与容器方式一致，仅连接地址不同）
-EnvironmentFile=@PREFIX@/etc/finvquant.env
+EnvironmentFile=@PREFIX@/finvquant.env
 ExecStart=@PREFIX@/bin/finvquant
 Restart=on-failure
 RestartSec=5s

@@ -520,6 +520,12 @@
 
 ### 变更
 
+- **核心配置文件移到安装根目录 `<PREFIX>/finvquant.env`（需求 10769）**
+  - 由 `<PREFIX>/etc/finvquant.env` 改为 `<PREFIX>/finvquant.env`，与 `bin/`、`Deploy/` 同级；systemd unit 的 `EnvironmentFile` 同步为 `@PREFIX@/finvquant.env`。
+  - **兼容旧布局**：`Install.sh` / `Upgrade.sh` 检测到 `<PREFIX>/etc/finvquant.env` 且新路径不存在时，自动 `mv` 到新位置并保留原数据库密码（不重新生成），随后清理空 `etc/`。
+  - **Uninstall**：`--purge` 删除新路径的 `finvquant.env`（并兜底清理旧 `etc/`）。
+  - 文档 `Native/README.md`（§6 布局与权限表、§9）、`Install.md`（§0、§4 手工步骤、§5 自检）、`Upgrade.md` 同步。
+
 - **Migrations 目录统一为 `<PREFIX>/Deploy/Migrations`（需求 10768）**
   - **原因**：一处是安装后的 `FINV_MIGRATIONS_DIR=<PREFIX>/Migrations`，一处是包内的 `Deploy/Migrations`，两套路径容易混淆且需要额外复制才能对齐。
   - **结论**：与仓库结构保持一致，安装后即 `<PREFIX>/Deploy/Migrations`（默认 `/data/App/FinvQuant/Deploy/Migrations`）。
@@ -668,6 +674,12 @@
   - 验证：`go build/vet/test` 全绿、`npm audit` 输出 `found 0 vulnerabilities`、`npm run build` 通过、Docker 镜像重建并实跑健康。
 
 ### 修复
+
+- **安装完成摘要输出显示字面 `\033[1;32m`（需求 10769 修复）**
+  - 摘要块原用 `cat <<EOF` 输出，未解释 ANSI 转义；改为 `printf` 逐行输出，终端颜色正常渲染。
+
+- **已存在但未被本程序初始化的数据库缺少启动告警（需求 10766 修复）**
+  - `Install.sh` 第 8 步：当目标库已存在、库内有表却缺 `public.schema_version` 时，明确提示“迁移将从 V100001 起执行并可能撞已有表（`relation ... already exists`）”，并给出重建库命令与“先备份、勿手工插 `schema_version`”的指引。
 
 - **Native 安装脚本无法创建用户、Redis 误报未启动（需求 10766 修复）**
   - **`useradd` 失败**：脚本先 `groupadd --system finvquant`，随后 `useradd --system ...` 未指定主组；Debian/Ubuntu 的 `useradd` 默认会再建同名组，遇到已存在的组直接报错退出（`group 'finvquant' exists - ... use -g`），导致用户/目录/建库/systemd 全未执行。改为 `useradd --system --gid finvquant ...`；已存在用户时用 `usermod -g` 补正主组（手工调建组场景）。

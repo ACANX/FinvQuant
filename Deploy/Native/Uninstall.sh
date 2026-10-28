@@ -54,14 +54,13 @@ done
 
 [[ "${PREFIX}" == /* ]] || die "--prefix 必须是绝对路径（当前：${PREFIX}）"
 BIN_DIR="${PREFIX}/bin"
-ETC_DIR="${PREFIX}/etc"
 MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"
 DEPLOY_DIR="${PREFIX}/Deploy"
 BACKUP_DIR="${PREFIX}/Backup"
 EXPORT_DIR="${PREFIX}/Export"
 BINARY="${BIN_DIR}/finvquant"
 BINARY_PREV="${BIN_DIR}/finvquant.prev"
-ENV_FILE="${ETC_DIR}/finvquant.env"
+ENV_FILE="${PREFIX}/finvquant.env"
 
 [[ "$(id -u)" -eq 0 ]] || die "请用 root 执行：sudo $0"
 ok "安装根目录：${PREFIX}"
@@ -84,11 +83,11 @@ ok "已删除二进制与软链（${BIN_DIR} 目录保留，可用 --purge 清�
 
 step "3/4 处理配置、迁移与部署文件"
 if [[ "${PURGE}" -eq 1 ]]; then
-  rm -rf "${ETC_DIR}" "${MIGRATIONS_DIR}" "${DEPLOY_DIR}" "${BIN_DIR}"
-  ok "已删除 ${ETC_DIR} / ${MIGRATIONS_DIR} / ${DEPLOY_DIR} / ${BIN_DIR}"
+  rm -rf "${ENV_FILE}" "${PREFIX}/etc" "${MIGRATIONS_DIR}" "${DEPLOY_DIR}" "${BIN_DIR}"
+  ok "已删除 ${ENV_FILE} / ${MIGRATIONS_DIR} / ${DEPLOY_DIR} / ${BIN_DIR}"
   warn "保留数据目录：${BACKUP_DIR}、${EXPORT_DIR}（如需清理见 --purge-data）"
 else
-  warn "保留 ${ETC_DIR}（含 finvquant.env）、${MIGRATIONS_DIR}、${DEPLOY_DIR}（如需删除请加 --purge）"
+  warn "保留 ${ENV_FILE}、${MIGRATIONS_DIR}、${DEPLOY_DIR}（如需删除请加 --purge）"
 fi
 
 step "4/4 数据处置"

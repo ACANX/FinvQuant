@@ -6,7 +6,7 @@
 #             可用 --prefix 或环境变量 FINVQ_PREFIX 覆盖）
 #   <PREFIX>/bin/finvquant        当前二进制（升级备份为 finvquant.prev）
 #   <PREFIX>/Deploy/Migrations/   数据库迁移脚本
-#   <PREFIX>/etc/finvquant.env    核心配置
+#   <PREFIX>/finvquant.env        核心配置
 #   <PREFIX>/Deploy/              部署脚本与部署文件（升级时一并刷新）
 #   <PREFIX>/Backup/              数据库逻辑备份（本脚本写入）
 #
@@ -59,10 +59,9 @@ set_prefix() {
   PREFIX="$1"
   BIN_DIR="${PREFIX}/bin"
   MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"
-  ETC_DIR="${PREFIX}/etc"
   DEPLOY_DIR="${PREFIX}/Deploy"
   BACKUP_DIR="${PREFIX}/Backup"
-  ENV_FILE="${ETC_DIR}/finvquant.env"
+  ENV_FILE="${PREFIX}/finvquant.env"
   BINARY="${BIN_DIR}/finvquant"
   BINARY_PREV="${BIN_DIR}/finvquant.prev"
 }
@@ -82,6 +81,14 @@ done
 set_prefix "${PREFIX}"
 
 [[ "$(id -u)" -eq 0 ]] || die "请用 root 执行：sudo $0"
+# 兼容旧布局：<PREFIX>/etc/finvquant.env → <PREFIX>/finvquant.env
+LEGACY_ENV_FILE="${PREFIX}/etc/finvquant.env"
+if [[ ! -f "${ENV_FILE}" && -f "${LEGACY_ENV_FILE}" ]]; then
+  mv -f "${LEGACY_ENV_FILE}" "${ENV_FILE}"
+  chmod 0600 "${ENV_FILE}"
+  rmdir "${PREFIX}/etc" 2>/dev/null || true
+  ok "已迁移旧配置 ${LEGACY_ENV_FILE} → ${ENV_FILE}"
+fi
 [[ -f "${ENV_FILE}" ]] || die "未找到 ${ENV_FILE}，请先执行 Install.sh（或用 --prefix 指定安装根目录）"
 ok "安装根目录：${PREFIX}"
 
