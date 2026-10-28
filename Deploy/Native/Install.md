@@ -17,6 +17,7 @@
 | 迁移脚本 | `/data/App/FinvQuant/Deploy/Migrations/`（与仓库结构一致，服务启动时自动应用未执行版本） |
 | 部署脚本与文件 | `/data/App/FinvQuant/Deploy/`（`Install.sh`/`Upgrade.sh`/`Uninstall.sh`、`finvquant.service`、env 与 Nginx 模板、本手册） |
 | 一次性运维脚本 | `/data/App/FinvQuant/Deploy/Script/`（如 `MigratePublicKlineToCdeu.sql`；不进入迁移链） |
+| 服务日志 | `/data/App/FinvQuant/Logs/finvquant.log`（`FINV_LOG_DIR`；可配合 logrotate 轮转） |
 | 备份 | `/data/App/FinvQuant/Backup/`（升级脚本写入 `finvquant_YYYYMMDD_HHMMSS.dump`） |
 | 导出 | `/data/App/FinvQuant/Export/`（行情归档导出，与容器方式一致） |
 | systemd unit | `/etc/systemd/system/finvquant.service`（由 `Deploy/FinvQuant.service` 渲染，两处内容一致） |
@@ -229,6 +230,30 @@ sudo nginx -t && sudo systemctl reload nginx
 ```bash
 ufw allow 80/tcp
 ufw enable
+```
+
+### 日志与轮转
+
+Native 方式日志**同时**写入文件与 journald：
+
+- 文件：`/data/App/FinvQuant/Logs/finvquant.log`
+- 实时查看：`tail -f /data/App/FinvQuant/Logs/finvquant.log`
+- journald：`journalctl -u finvquant -f`
+
+环境变量（`finvquant.env`）：
+
+```env
+# 留空则仅输出到 journald（容器方式默认）
+FINV_LOG_DIR=/data/App/FinvQuant/Logs
+FINV_LOG_FILE=finvquant.log
+```
+
+轮转（可选，建议生产启用）：
+
+```bash
+sudo cp /data/App/FinvQuant/Deploy/FinvQuant.logrotate.example /etc/logrotate.d/finvquant
+sudo chmod 0644 /etc/logrotate.d/finvquant
+sudo logrotate -d /etc/logrotate.d/finvquant   # 干跑校验
 ```
 
 SSL 证书申请下来后切到阶段二（HTTPS/443 + HTTP/2）：按模板末尾【块 A】【块 B】的

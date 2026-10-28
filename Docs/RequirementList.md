@@ -2169,6 +2169,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10795 | 所有接口文档的字段表必须把「类型」与「可空」拆成两列，不得在类型列写 `X \| null`；嵌套可空用 `array<array<string>>` + 说明文字表达；`ApiSpec §7.7` 增加该约定。 | `grep -rn '\| null' Docs --include=*.md` 仅命中 `ApiSpec.md` 的规则示例；内部/外部 `KLineUpsert` 字段表表头含「类型」「可空」两列；`PageUni` 列定义同样拆分；`grep -c 'array<array<string>>' Docs/API/Quote/Cdeu/Min/KLinePageUni.md Docs/OpenAPI/Quote/Cdeu/Min/PageUni.md` ≥ 1；`go test ./internal/docs` 通过（表格列数一致） | |
 
+## 一百二十八、Native 日志落盘（10796）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10796 | Native 方式支持把日志写入文件：`FINV_LOG_DIR`/`FINV_LOG_FILE` 控制路径（默认 `<PREFIX>/Logs/finvquant.log`），标准库日志与 gin 访问日志同时写文件并保留 journald；安装脚本创建目录、渲染/补齐配置；提供 logrotate 示例。 | `grep -c 'FINV_LOG_DIR' internal/config/config.go Deploy/Native/FinvQuant.env.example Deploy/Native/Install.sh` 各 ≥ 1；`go test ./internal/logging -v` 通过（写文件、空目录 no-op、默认文件名）；`grep -c 'MultiWriter' internal/logging/logging.go` ≥ 2；`test -f Deploy/Native/FinvQuant.logrotate.example`；安装后 `test -d /data/App/FinvQuant/Logs` 且 `tail -f /data/App/FinvQuant/Logs/finvquant.log` 有输出；`journalctl -u finvquant` 仍可用；`go build ./...` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2324,7 +2330,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 外部 OpenAPI 文档自包含 | 10793 | 1 |
 | K 线字段改名与 last_close 落库 | 10794 | 1 |
 | 字段表类型/可空分列 | 10795 | 1 |
-| **合计** | **10001–10795** | **795** |
+| Native 日志落盘 | 10796 | 1 |
+| **合计** | **10001–10796** | **796** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10796` 起往后追加，不插入既有区间。

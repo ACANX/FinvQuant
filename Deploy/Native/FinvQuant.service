@@ -36,7 +36,8 @@ RestrictSUIDSGID=true
 # 安装根目录（二进制、配置、迁移、备份、导出）是唯一需要可写的位置
 ReadWritePaths=@PREFIX@
 
-# 日志统一走 journald（journalctl -u finvquant）
+# 日志：应用同时写入 @PREFIX@/Logs/finvquant.log（FINV_LOG_DIR），journald 仍保留；
+# 轮转示例见 @PREFIX@/Deploy/FinvQuant.logrotate.example
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=finvquant

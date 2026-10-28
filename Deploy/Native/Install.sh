@@ -14,6 +14,7 @@
 #   <PREFIX>/Deploy/                部署脚本与部署文件（Install/Upgrade/Uninstall、unit、模板、手册）
 #   <PREFIX>/Backup/                数据库逻辑备份（升级脚本写入）
 #   <PREFIX>/Export/                行情归档导出目录（与容器方式一致）
+#   <PREFIX>/Logs/                  服务日志（FINV_LOG_DIR 指向此目录，可由 logrotate 轮转）
 #   /etc/systemd/system/finvquant.service   systemd unit（由 <PREFIX>/Deploy 的模板渲染后注册）
 #
 # 用法：
@@ -36,6 +37,7 @@ BIN_DIR="${PREFIX}/bin"
 MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"
 BACKUP_DIR="${PREFIX}/Backup"
 EXPORT_DIR="${PREFIX}/Export"
+LOG_DIR="${PREFIX}/Logs"
 DEPLOY_DIR="${PREFIX}/Deploy"
 ENV_FILE="${PREFIX}/finvquant.env"
 BINARY="${BIN_DIR}/finvquant"
@@ -64,7 +66,7 @@ while [[ $# -gt 0 ]]; do
     --prefix)     PREFIX="${2:-}"; shift 2
                   BIN_DIR="${PREFIX}/bin"
                   MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"; BACKUP_DIR="${PREFIX}/Backup"
-                  EXPORT_DIR="${PREFIX}/Export"; DEPLOY_DIR="${PREFIX}/Deploy"
+                  EXPORT_DIR="${PREFIX}/Export"; LOG_DIR="${PREFIX}/Logs"; DEPLOY_DIR="${PREFIX}/Deploy"
                   ENV_FILE="${PREFIX}/finvquant.env"; BINARY="${BIN_DIR}/finvquant" ;;
     -h|--help)    sed -n '2,26p' "$0"; exit 0 ;;
     *)            die "未知参数：$1（--help 查看用法）" ;;
@@ -209,7 +211,8 @@ install -d -o root -g root -m 0755 "${DEPLOY_DIR}"
 install -d -o root -g "${APP_GROUP}" -m 0755 "${MIGRATIONS_DIR}"
 install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0755 "${EXPORT_DIR}"
-ok "目录：${BIN_DIR} / ${MIGRATIONS_DIR} / ${BACKUP_DIR} / ${EXPORT_DIR} / ${DEPLOY_DIR}（配置：${ENV_FILE}）"
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${LOG_DIR}"
+ok "目录：${BIN_DIR} / ${MIGRATIONS_DIR} / ${BACKUP_DIR} / ${EXPORT_DIR} / ${LOG_DIR} / ${DEPLOY_DIR}（配置：${ENV_FILE}）"
 
 # ---------------------------------------------------------------------
 # 6. 安装二进制、迁移脚本与部署文件
@@ -235,7 +238,7 @@ copy_deploy_file() {
     cp -f "${src}" "${dst}"
   fi
 }
-for f in Install.sh Upgrade.sh Uninstall.sh FinvQuant.service FinvQuant.env.example Nginx.conf.example; do
+for f in Install.sh Upgrade.sh Uninstall.sh FinvQuant.service FinvQuant.env.example Nginx.conf.example FinvQuant.logrotate.example; do
   copy_deploy_file "${SCRIPT_DIR}/${f}" "${DEPLOY_DIR}/${f}"
 done
 for md in "${SCRIPT_DIR}"/*.md; do
@@ -280,6 +283,11 @@ fi
 if [[ -f "${ENV_FILE}" ]]; then
   ok "已存在 ${ENV_FILE}，保留现有配置（如需重置请先备份后删除）"
   DB_PASSWORD="$(grep -E '^FINV_PG_PASSWORD=' "${ENV_FILE}" | cut -d= -f2- || true)"
+  # 旧配置补齐日志项（不覆盖已有值）
+  if ! grep -q '^FINV_LOG_DIR=' "${ENV_FILE}"; then
+    printf '\n# 日志目录（安装脚本自动补齐）\nFINV_LOG_DIR=%s\n' "${LOG_DIR}" >> "${ENV_FILE}"
+    ok "已补齐 FINV_LOG_DIR=${LOG_DIR}"
+  fi
 else
   DB_PASSWORD="$(openssl rand -hex 16)"
   install -o root -g root -m 0600 "${SCRIPT_DIR}/FinvQuant.env.example" "${ENV_FILE}"
@@ -288,6 +296,7 @@ else
   sed -i "s|^FINV_MIGRATIONS_DIR=.*|FINV_MIGRATIONS_DIR=${MIGRATIONS_DIR}|" "${ENV_FILE}"
   sed -i "s|^FINV_QUOTE_DEDUB_OUTPUT_DIR=.*|FINV_QUOTE_DEDUB_OUTPUT_DIR=${EXPORT_DIR}|" "${ENV_FILE}"
   sed -i "s|^FINV_QUOTE_DEDUB_UPLOAD_DIR=.*|FINV_QUOTE_DEDUB_UPLOAD_DIR=${EXPORT_DIR}/Upload|" "${ENV_FILE}"
+  sed -i "s|^FINV_LOG_DIR=.*|FINV_LOG_DIR=${LOG_DIR}|" "${ENV_FILE}"
   ok "已生成 ${ENV_FILE}（随机数据库密码，权限 600）"
 fi
 [[ -n "${DB_PASSWORD}" ]] || die "未能读取或生成数据库密码，请检查 ${ENV_FILE}"
@@ -369,6 +378,7 @@ printf '  迁移目录：%s（启动时自动应用未执行版本）\n' "${MIGR
 printf '  部署脚本：%s/Upgrade.sh、%s/Uninstall.sh\n' "${DEPLOY_DIR}" "${DEPLOY_DIR}"
 printf '  备份目录：%s\n' "${BACKUP_DIR}"
 printf '  导出目录：%s\n' "${EXPORT_DIR}"
+printf '  日志文件：%s/%s（logrotate 示例见 %s/FinvQuant.logrotate.example）\n' "${LOG_DIR}" "finvquant.log" "${DEPLOY_DIR}"
 printf '  接口验证：curl http://127.0.0.1:16001/API/V1/Version\n'
 printf '  前端地址：http://<服务器IP>:16002（建议用 Nginx 反向代理，见 %s/Nginx.conf.example）\n' "${DEPLOY_DIR}"
 printf '\n后续步骤：\n'

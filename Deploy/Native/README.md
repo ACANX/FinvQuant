@@ -93,9 +93,11 @@
 │   ├── FinvQuant.service             # unit 模板（@PREFIX@ 占位）
 │   ├── FinvQuant.env.example         # 环境变量模板
 │   ├── Nginx.conf.example            # 反向代理示例
+│   ├── FinvQuant.logrotate.example   # 日志轮转示例（logrotate）
 │   └── README.md / Install.md / Upgrade.md
 ├── finvquant.env                     # 核心配置环境变量（权限 600）
 ├── Backup/                           # 数据库逻辑备份（Upgrade.sh 写入 finvquant_*.dump）
+├── Logs/                             # 服务日志（FINV_LOG_DIR，默认 finvquant.log）
 └── Export/                           # 行情归档导出目录（与容器方式一致）
     └── Upload/                       # 上传暂存（UPLOAD_MODE=dir 时使用）
 ```

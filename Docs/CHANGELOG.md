@@ -20,6 +20,13 @@
 
 ### 新增
 
+- **Native 日志落盘支持（`FINV_LOG_DIR`，需求 10796）**
+  - 新增 `internal/logging`：标准库日志与 gin 访问日志**同时**写入 `<FINV_LOG_DIR>/<FINV_LOG_FILE>`（默认 `<PREFIX>/Logs/finvquant.log`），journald 仍保留。
+  - `FINV_LOG_DIR` 为空时保持仅 stdout/stderr（容器方式不受影响）；目录/文件创建失败仅告警，不阻断启动。
+  - `Install.sh`：创建 `<PREFIX>/Logs`（`finvquant:finvquant 0750`）、新装渲染/旧配置补齐 `FINV_LOG_DIR`，摘要输出日志路径。
+  - 新增 `Deploy/Native/FinvQuant.logrotate.example`（daily / 50M / 保留 14 份 / copytruncate），随安装包分发。
+  - 文档：`Install.md` 新增「日志与轮转」、`README.md` 目录树与权限表、`FinvQuant.env.example`、unit 注释、`Uninstall.sh` 保留提示。
+
 - **外部 OpenAPI：PageUni 查询端点（需求 10789）**
   - `/OpenAPI/V1` 新增 `GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni`，业务逻辑复用内部 `KLine.PageUni` handler；认证与响应信封同外部 Upsert。
   - 成功响应 `{"code":0,"data":{"cnt","ps","pn","column","row","request_id","ts"},"message":"OK"}`；包装中间件识别内部 `{code,data,message}` 信封并解包内层 `data`，避免信封嵌套。

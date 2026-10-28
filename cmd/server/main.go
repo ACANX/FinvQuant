@@ -22,6 +22,7 @@ import (
 	"github.com/acanx/finvquant/internal/api"
 	"github.com/acanx/finvquant/internal/config"
 	"github.com/acanx/finvquant/internal/database"
+	"github.com/acanx/finvquant/internal/logging"
 	"github.com/acanx/finvquant/internal/meta/finv/auth"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
 	_ "github.com/acanx/finvquant/internal/meta/finv/quote/dedup/job"
@@ -38,6 +39,16 @@ var (
 
 func main() {
 	cfg := config.Load()
+
+	// 日志落盘：Native 方式由 FINV_LOG_DIR 指定；容器方式留空（仅 stdout/stderr）。
+	// 初始化失败不阻断启动，降级为仅标准输出。
+	if logCloser, logErr := logging.Setup(cfg.LogDir, cfg.LogFile); logErr != nil {
+		log.Printf("[finvquant] 日志文件初始化失败（继续输出到 stderr）: %v", logErr)
+	} else if logCloser != nil {
+		defer logCloser.Close()
+		log.Printf("[finvquant] 日志写入 %s", cfg.LogDir)
+	}
+
 	if cfg.Mode == "release" {
 		gin.SetMode(gin.ReleaseMode)
 	}

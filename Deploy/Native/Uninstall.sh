@@ -58,6 +58,7 @@ MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"
 DEPLOY_DIR="${PREFIX}/Deploy"
 BACKUP_DIR="${PREFIX}/Backup"
 EXPORT_DIR="${PREFIX}/Export"
+LOG_DIR="${PREFIX}/Logs"
 BINARY="${BIN_DIR}/finvquant"
 BINARY_PREV="${BIN_DIR}/finvquant.prev"
 ENV_FILE="${PREFIX}/finvquant.env"
@@ -85,7 +86,7 @@ step "3/4 处理配置、迁移与部署文件"
 if [[ "${PURGE}" -eq 1 ]]; then
   rm -rf "${ENV_FILE}" "${PREFIX}/etc" "${MIGRATIONS_DIR}" "${DEPLOY_DIR}" "${BIN_DIR}"
   ok "已删除 ${ENV_FILE} / ${MIGRATIONS_DIR} / ${DEPLOY_DIR} / ${BIN_DIR}"
-  warn "保留数据目录：${BACKUP_DIR}、${EXPORT_DIR}（如需清理见 --purge-data）"
+  warn "保留数据目录：${BACKUP_DIR}、${EXPORT_DIR}、${LOG_DIR}（如需清理见 --purge-data）"
 else
   warn "保留 ${ENV_FILE}、${MIGRATIONS_DIR}、${DEPLOY_DIR}（如需删除请加 --purge）"
 fi
