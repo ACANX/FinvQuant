@@ -30,8 +30,8 @@ sudo bash Deploy/Native/Upgrade.sh
 # 3) 或指定二进制路径
 sudo bash Deploy/Native/Upgrade.sh --binary /tmp/finvquant
 
-# 4) 安装目录被 --prefix 改过、且 unit 已损坏时显式指定
-sudo bash Deploy/Native/Upgrade.sh --prefix /data/App/FinvQuant
+# 4) 安装目录非默认值、且 unit 已损坏无法推断时显式指定（默认 /data/App/FinvQuant 可省略）
+sudo bash Deploy/Native/Upgrade.sh --prefix /opt/FinvQuant
 
 # 5) 应急跳过备份（不建议）
 sudo bash Deploy/Native/Upgrade.sh --skip-backup

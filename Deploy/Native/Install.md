@@ -101,8 +101,9 @@ CGO_ENABLED=0 go build -trimpath \
 cd /root/finvquant-src
 sudo bash Deploy/Native/Install.sh
 
-# 需要装到其它目录时（必须是绝对路径）
-sudo bash Deploy/Native/Install.sh --prefix /data/App/FinvQuant
+# 默认安装根目录即 /data/App/FinvQuant，无需 --prefix；
+# 需要装到其它目录时再显式指定（必须是绝对路径）
+sudo bash Deploy/Native/Install.sh --prefix /opt/FinvQuant
 ```
 
 常用参数：

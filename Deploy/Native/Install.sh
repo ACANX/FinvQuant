@@ -21,7 +21,7 @@
 #   sudo ./Install.sh --skip-db           # 跳过 PostgreSQL 安装与建库
 #   sudo ./Install.sh --skip-redis        # 跳过 Redis 安装
 #   sudo ./Install.sh --binary /path/to/finvquant   # 指定二进制路径
-#   sudo ./Install.sh --prefix /data/App/FinvQuant   # 指定安装根目录
+#   sudo ./Install.sh --prefix /opt/FinvQuant        # 装到其它目录（默认 /data/App/FinvQuant）
 #
 # 退出码：0 成功；非 0 失败（已在对应步骤打印原因）
 # =====================================================================

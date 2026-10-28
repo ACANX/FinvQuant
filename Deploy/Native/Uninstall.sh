@@ -15,7 +15,7 @@
 #   sudo ./Uninstall.sh
 #   sudo ./Uninstall.sh --purge
 #   sudo ./Uninstall.sh --purge --purge-data
-#   sudo ./Uninstall.sh --prefix /data/App/FinvQuant
+#   sudo ./Uninstall.sh --prefix /opt/FinvQuant  # 仅在安装根目录非默认值且 unit 无法推断时
 # =====================================================================
 set -euo pipefail
 

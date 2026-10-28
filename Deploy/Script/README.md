@@ -324,7 +324,8 @@ Deploy\Script\Download.cmd -d D:\FinvQuant
 
 ```bash
 sudo bash Deploy/Script/Download.sh -d /data/App/FinvQuant
-sudo bash /data/App/FinvQuant/Deploy/Native/Install.sh --prefix /data/App/FinvQuant
+# 安装根目录默认即 /data/App/FinvQuant，可省略 --prefix
+sudo bash /data/App/FinvQuant/Deploy/Native/Install.sh
 ```
 
 包内已含 `finvquant`、`Deploy/Migrations`、`Deploy/Native` 全套脚本，`Install.sh` 会补齐用户/目录/数据库/Redis/systemd 并启动服务（见 [`../Native/Install.md`](../Native/Install.md)）。

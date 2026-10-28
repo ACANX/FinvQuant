@@ -17,7 +17,7 @@
 #   sudo ./Upgrade.sh                          # 使用仓库/脚本目录下的 finvquant 升级
 #   sudo ./Upgrade.sh --binary /tmp/finvquant  # 指定新二进制
 #   sudo ./Upgrade.sh --skip-backup            # 跳过数据库备份（仅应急）
-#   sudo ./Upgrade.sh --prefix /data/App/FinvQuant
+#   sudo ./Upgrade.sh --prefix /opt/FinvQuant    # 仅在安装根目录非默认值且 unit 无法推断时
 #
 # 回滚：sudo ./Upgrade.sh --rollback
 # 说明：数据库迁移由新二进制启动时自动执行，**不可自动回滚**；如需回退数据库，
