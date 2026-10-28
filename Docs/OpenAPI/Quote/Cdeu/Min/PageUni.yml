@@ -3,7 +3,7 @@
 # 与同目录 PageUni.md 成对维护：
 #   - .md 正文是人类可读说明；
 #   - 本文件是机器可读契约。
-# 请求参数与内部 KLinePageUni.yml 一致；响应外层统一为 {code,data,message}。
+# 本契约自包含，不引用内部 API 契约；响应外层统一为 {code,data,message}。
 #
 openapi: 3.1.0
 info:

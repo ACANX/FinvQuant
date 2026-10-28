@@ -552,6 +552,12 @@
 
 ### 变更
 
+- **外部 OpenAPI 文档改为自包含，不再引用内部 API 文档（需求 10793）**
+  - `Docs/OpenAPI/Quote/Cdeu/Min/Upsert.md`：内联 `KLineItem` 17 字段表与 15 条错误目录；删除对 `Docs/API/.../KLineUpsert.md`、`KLineUpsert.yml` 的引用。
+  - `Docs/OpenAPI/Quote/Cdeu/Min/Upsert.yml`：`KLineItem` schema 内联，移除跨文件 `$ref`，对外契约独立可分发。
+  - `Docs/OpenAPI/Quote/Cdeu/Min/PageUni.md`：内联 15 列定义与单元格取值规则，删除内部文档引用，修正章节层级（4.2/4.3/4.4）。
+  - `Docs/DevSpec/ApiSpec.md` §7.7：新增「内部/外部分离且自包含」规则——`Docs/API/` 为内部文档、`Docs/OpenAPI/` 为对外契约，对外文档不得引用内部文档或内部 `.yml`。
+
 - **分钟行情 volume 全链路统一为浮点 `numeric(20,6)`（需求 10792）**
   - 新增迁移 `V200059__kline_min_volume_numeric_all_schemas.sql`：把 `quote` / `export` / `dedup` 三张同名表的 `volume` 从 `bigint` 改为 `numeric(20,6)`（与 `V200058` 的 `cdeu` 一致），重建 `CHECK (volume >= 0)`，幂等、无损。
   - `internal/mvsv/parser.go`：`Row.Volume` 由 `*int64` 改为 `*string`（`numericTextOrNil` 原样保留小数文本），修复含小数 MVsv 导入时 volume 被静默丢弃的问题。

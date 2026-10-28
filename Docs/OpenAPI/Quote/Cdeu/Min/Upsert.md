@@ -5,8 +5,8 @@
 > 正文（第 1~6 节）是人读说明，第 8 节附录链接机器可读契约
 > [`Upsert.yml`](Upsert.yml)。契约变更时两者须同时更新。
 >
-> - 实现：`internal/api/router.go`（`/OpenAPI/V1` 路由组）、`internal/api/middleware.go`（`RequireOpenAPIKey`、`WrapOpenAPIResponse`）
-> - 内部同业务接口：[`KLineUpsert.md`](../../../../API/Quote/Cdeu/Min/KLineUpsert.md)
+> - 实现：`internal/api/router.go`（`/OpenAPI/V1` 路由组）、`internal/api/middleware.go`（`WrapOpenAPIResponse`）
+> - 说明：本文件是**对外独立契约**，字段/错误码/示例全部自包含，不引用内部 API 文档。
 
 ## 1. 概述
 
@@ -46,10 +46,31 @@
 
 ### 3.3 请求体
 
-与内部接口完全一致，字段定义见
-[`KLineUpsert.md` §2.3](../../../../API/Quote/Cdeu/Min/KLineUpsert.md#23-条目-klineitem)；
-机器可读 schema 复用
-[`KLineUpsert.yml#/components/schemas/KLineItem`](../../../../API/Quote/Cdeu/Min/KLineUpsert.yml)。
+请求体结构为 `{"items": [KLineItem, ...]}`；`items` 必填，1 ≤ 条数 ≤ 5000（由
+`FINV_KLINE_MAX_BATCH_ROWS` 控制）。字段定义如下（机器可读 schema 见
+[`Upsert.yml`](Upsert.yml) 的 `KLineItem`）：
+
+| 字段 | 类型 | 必填 | 约束 | 落库 | 说明 |
+|---|---|---|---|---|---|
+| `usc` | string | **是** | 1–255 字符 | 是 | 统一证券代码（`GCMain` / `518880`） |
+| `ts` | integer(int64) | **是** | 0 ≤ ts ≤ 100000000000 | 是 | UTC 秒级时间戳；`FINV_KLINE_TS_UNIT=ms` 时可传 13 位毫秒并自动 /1000 |
+| `date` | integer \| null | 否 | 19500101–21001231 | 是 | 交易日期 `yyyyMMdd` |
+| `time` | integer \| null | 否 | 0–235959 | 是 | 交易时间 `HHmmss` |
+| `open` | number \| null | 否 | — | 是 | 起始价；缺失时用 `prev_close` 回填 |
+| `high` | number \| null | 否 | — | 是 | 区间最高价 |
+| `low` | number \| null | 否 | — | 是 | 区间最低价 |
+| `close` | number \| null | 否 | — | 是 | 最新价/收盘价 |
+| `volume` | number \| null | 否 | ≥ 0 | 是 | 成交量（支持小数，`numeric(20,6)`） |
+| `turnover` | number \| null | 否 | ≥ 0 | 是 | 成交金额 |
+| `change_price` | number \| null | 否 | — | 是 | 涨跌额；与 `change_ratio` 均未传时自动计算 |
+| `change_ratio` | number \| null | 否 | — | 是 | 涨跌幅；与 `change_price` 均未传时自动计算 |
+| `paocd` | number \| null | 否 | — | 是 | 当日累计均价 |
+| `ext_field` | string \| null | 否 | — | 是 | 预留扩展字段 |
+| `remark` | string \| null | 否 | — | 是 | 备注 |
+| `provider` | string \| null | 否 | ≤ 255 字符 | 是 | 数据来源（如 `FT`） |
+| `prev_close` | number \| null | 否 | — | **否** | 兼容字段：仅用于回填 `open`，自身不落库 |
+
+数值字段只接受 **JSON 数字或 `null`**（字符串 `"3.60"` 会触发 422 / `211003`）。
 
 ```json
 {
@@ -110,21 +131,24 @@
 
 ## 5. 错误码
 
-与内部接口一致（详见 [`KLineUpsert.md` §4](../../../../API/Quote/Cdeu/Min/KLineUpsert.md#4-错误目录)），
-外部入口额外可能返回：
-
-| 错误码 | HTTP | 说明 |
-|---|---|---|
-| — | `401` | 未携带密钥或密钥错误（`{"code":401,"message":"未登录或登录已过期"}`） |
-| `211001` | 400 | 缺少 `usc`/`ts`/`items` |
-| `211003` | 422 | 字段类型不匹配 |
-| `211004` | 422 | 字段取值越界 |
-| `211005` | 422 | 未知字段 |
-| `211006` | 400 | `onConflict` 非法 |
-| `211102` | 409 | `update` 模式请求内重复键 |
-| `211201` | 413 | `items` 超过上限（默认 5000） |
-| `211301` | 500 | 数据库错误（可重试） |
-| `211302` | 503 | 数据库不可用（可重试） |
+| 错误码 | HTTP | 名称 | retryable | 触发场景 | 白名单 `debug` 键 |
+|---|---|---|---|---|---|
+| `211001` | 400 | `KLineMissingParam` | 否 | 缺少 `usc`/`ts`/`items` | `field` |
+| `211002` | 400 | `KLineMalformedJSON` | 否 | 请求体不是合法 JSON | `err_class` |
+| `211003` | 422 | `KLineTypeMismatch` | 否 | 字段类型不匹配 | `field`、`want`、`got` |
+| `211004` | 422 | `KLineOutOfRange` | 否 | `usc` 超长、`ts`/`date`/`time` 越界、负 `volume`/`turnover` | `field`、`min`、`max` |
+| `211005` | 422 | `KLineUnknownField` | 否 | 请求含未定义字段 | `field` |
+| `211006` | 400 | `KLineInvalidEnum` | 否 | `onConflict` 不是 `skip`/`update` | `field`、`allowed` |
+| `211101` | 409 | `KLineDuplicateKey` | 否 | 数据库主键/唯一键冲突 | `pg_code`、`sqlstate`、`constraint` |
+| `211102` | 409 | `KLineDuplicateInRequest` | 否 | `update` 模式请求内重复 `(usc, ts)` | `first_dup`、`count` |
+| `211103` | 404 | `KLineNotFound` | 否 | 记录不存在（本接口不产生） | `usc`、`ts` |
+| `211104` | 409 | `KLineStateConflict` | 否 | 当前状态不允许该操作 | `state`、`reason_class` |
+| `211201` | 413 | `KLineBatchTooLarge` | 否 | `items` 超过上限（默认 5000） | `limit`、`got` |
+| `211202` | 413 | `KLineListTooLarge` | 否 | 列表长度超过上限 | `limit`、`got` |
+| `211301` | 500 | `KLineDBError` | **是** | 数据库执行错误 | `pg_code`、`sqlstate`、`err_class` |
+| `211302` | 503 | `KLineDBUnavailable` | **是** | 连接池不可用/数据库不可达 | `pool_state` |
+| `211303` | 422 | `KLineDBConstraint` | 否 | 违反业务约束 | `pg_code`、`constraint` |
+| — | `401` | — | 否 | 仅未来启用鉴权后出现 | — |
 
 ## 6. 示例
 
@@ -141,10 +165,10 @@ curl -X POST 'http://127.0.0.1:16001/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert?
 
 ## 8. 附录：OpenAPI 3.1 契约（机器可读）
 
-完整契约见同目录 [`Upsert.yml`](Upsert.yml)（`openapi: 3.1.0`），请求体 schema
-通过相对 `$ref` 复用内部 [`KLineUpsert.yml`](../../../../API/Quote/Cdeu/Min/KLineUpsert.yml)。
+完整契约见同目录 [`Upsert.yml`](Upsert.yml)（`openapi: 3.1.0`，**自包含**；
+`KLineItem` schema 已内联，不依赖内部契约）。
 
 ```bash
-npx @redocly/cli lint Docs/API/OpenAPI/Quote/Cdeu/Min/Upsert.yml
-npx @redocly/cli preview-docs Docs/API/OpenAPI/Quote/Cdeu/Min/Upsert.yml
+npx @redocly/cli lint Docs/OpenAPI/Quote/Cdeu/Min/Upsert.yml
+npx @redocly/cli preview-docs Docs/OpenAPI/Quote/Cdeu/Min/Upsert.yml
 ```

@@ -3,7 +3,7 @@
 # 与同目录 Upsert.md 成对维护：
 #   - .md 正文是人类可读说明；
 #   - 本文件是机器可读契约。
-# 请求体 schema 通过相对 $ref 复用内部 KLineUpsert.yml，避免重复定义。
+# 本契约自包含：KLineItem schema 内联，不引用内部 API 契约。
 #
 openapi: 3.1.0
 info:
@@ -56,7 +56,7 @@ paths:
                   minItems: 1
                   maxItems: 5000
                   items:
-                    $ref: '../../../API/Quote/Cdeu/Min/KLineUpsert.yml#/components/schemas/KLineItem'
+                    $ref: '#/components/schemas/KLineItem'
             examples:
               oneItem:
                 summary: 单条写入
@@ -113,6 +113,81 @@ components:
       name: X-API-Key
       description: "**预留（当前未启用）**：后续直接传 `<FINV_OPENAPI_KEY>`。"
   schemas:
+    KLineItem:
+      type: object
+      required: [usc, ts]
+      additionalProperties: false
+      description: |
+        单条分钟行情。未列出的字段名会触发 422 / 211005（严格解码，未知字段报错）。
+      properties:
+        usc:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: 统一证券代码（全局唯一，如 `GCMain` / `518880`）。
+        ts:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 100000000000
+          description: |
+            UTC 时间戳（秒级）。上限 100000000000：超过且服务端配置
+            `FINV_KLINE_TS_UNIT=ms` 时按毫秒除以 1000 归一，否则返回 422 / 211004。
+        date:
+          type: [integer, 'null']
+          minimum: 19500101
+          maximum: 21001231
+          description: 交易日期 `yyyyMMdd`。
+        time:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 235959
+          description: 交易时间 `HHmmss`。
+        open:
+          type: [number, 'null']
+          description: 起始价。未传或 `null` 时由 `prev_close` 回填（兼容旧客户端）。
+        high:
+          type: [number, 'null']
+          description: 区间最高价。
+        low:
+          type: [number, 'null']
+          description: 区间最低价。
+        close:
+          type: [number, 'null']
+          description: 最新价/收盘价。
+        volume:
+          type: [number, 'null']
+          minimum: 0
+          description: 成交量（支持小数；库内 `numeric(20,6)`，不得为负）。
+        turnover:
+          type: [number, 'null']
+          minimum: 0
+          description: 成交金额（不得为负）。
+        change_price:
+          type: [number, 'null']
+          description: |
+            涨跌额。与 `change_ratio` 均未提供时由服务端按 `close - open`（参考价回退
+            `open`）自动计算。
+        change_ratio:
+          type: [number, 'null']
+          description: 涨跌幅。与 `change_price` 均未提供时由服务端自动计算。
+        paocd:
+          type: [number, 'null']
+          description: 当日累计均价。
+        ext_field:
+          type: [string, 'null']
+          description: 预留扩展字段。
+        remark:
+          type: [string, 'null']
+          description: 备注。
+        provider:
+          type: [string, 'null']
+          maxLength: 255
+          description: 数据来源（如 `FT`）。
+        prev_close:
+          type: [number, 'null']
+          description: |
+            兼容字段：仅在 `open` 未传或 `null` 时回填 `open`；自身不落库。
     OpenAPIResponse:
       type: object
       required: [code, data, message]

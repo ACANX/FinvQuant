@@ -5,8 +5,8 @@
 > 正文（第 1~6 节）是人读说明，第 8 节附录链接机器可读契约
 > [`PageUni.yml`](PageUni.yml)。
 >
-> - 实现：`internal/api/router.go`（`/OpenAPI/V1` 路由组）、`internal/api/middleware.go`（`RequireOpenAPIKey`、`WrapOpenAPIResponse`）
-> - 内部同业务接口：[`KLinePageUni.md`](../../../../API/Quote/Cdeu/Min/KLinePageUni.md)
+> - 实现：`internal/api/router.go`（`/OpenAPI/V1` 路由组）、`internal/api/middleware.go`（`WrapOpenAPIResponse`）
+> - 说明：本文件是**对外独立契约**，参数/列定义/示例全部自包含，不引用内部 API 文档。
 
 ## 1. 概述
 
@@ -84,10 +84,41 @@
 | `data.ts` | integer(int64) | 服务端响应时间（Unix 秒） |
 | `message` | string | 成功固定 `OK` |
 
-列定义与单元格取值规则（去尾零、负零归一、`cr` 两位小数、NULL→`null`）见
-[`KLinePageUni.md` §3.3~3.4](../../../../API/Quote/Cdeu/Min/KLinePageUni.md)。
+### 4.2 列定义
 
-### 4.2 失败（非 2xx）
+| # | `column` | 对应字段 | 类型（单元格） | 说明 |
+|---|---|---|---|---|
+| 1 | `usc` | `usc` | string | 统一证券代码 |
+| 2 | `ts` | `ts` | string（整数） | UTC 秒级时间戳 |
+| 3 | `date` | `date` | string（整数） \| null | 交易日期 `yyyyMMdd` |
+| 4 | `time` | `time` | string（整数） \| null | 交易时间 `HHmmss` |
+| 5 | `o` | `open` | string（数值） \| null | 起始价 |
+| 6 | `h` | `high` | string（数值） \| null | 区间最高价 |
+| 7 | `l` | `low` | string（数值） \| null | 区间最低价 |
+| 8 | `c` | `close` | string（数值） \| null | 最新价/收盘价 |
+| 9 | `v` | `volume` | string（数值，支持小数） \| null | 成交量（`numeric(20,6)`，输出时去尾零） |
+| 10 | `t` | `turnover` | string（数值） \| null | 成交金额 |
+| 11 | `cr` | `change_ratio` | string（两位小数） \| null | 涨跌幅 |
+| 12 | `cp` | `change_price` | string（数值） \| null | 涨跌额 |
+| 13 | `pa` | `paocd` | string（数值） \| null | 当日累计均价 |
+| 14 | `pv` | `provider` | string \| null | 数据来源 |
+| 15 | `ext` | `ext_field` | string \| null | 预留扩展字段 |
+
+### 4.3 单元格取值规则
+
+| 场景 | 规则 | 示例 |
+|---|---|---|
+| 数值去尾零 | 去掉无意义尾随零与小数点 | `11.480000` → `"11.48"`、`3.600000` → `"3.6"` |
+| 负零归一 | `-0` / `-0.000000` → `"0"` | `-0.000000` → `"0"` |
+| 科学计数法 | 转为普通十进制文本 | `1.2e3` → `"1200"` |
+| `cr`（涨跌幅） | 固定两位小数，`ROUND_HALF_UP`（远离零） | `-0.004` → `"-0.00"`、`-0.005` → `"-0.01"` |
+| 整数列 | `ts` / `date` / `time` 输出整数字符串 | `1792373400` → `"1792373400"` |
+| 空值 | 输出 JSON `null`（不是 `""`） | `null` |
+| 字符串列 | `usc` / `provider` / `ext_field` 原样输出 | `FTMM` |
+
+> 所有数值均以**字符串**返回，避免 JSON number 的精度损失；调用方按需自行解析。
+
+### 4.4 失败（非 2xx）
 
 沿用内部错误信封（不再套 `data`）：
 

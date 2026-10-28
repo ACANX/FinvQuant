@@ -2151,6 +2151,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10792 | 把 `quote` / `export` / `dedup` 三张同名表的 `volume` 与 `cdeu` 统一为 `numeric(20,6)`；`internal/mvsv` 解析保留小数文本；`internal/quote` 查询输出支持小数；保证导入/导出/补丁/回测链路不截断。 | 临时 PG 执行全部迁移后 `select table_schema, data_type from information_schema.columns where column_name='volume' and table_name='finv_quote_secu_kline_min' and table_schema in ('quote','dedup','export','cdeu')` 四行均为 `numeric`；`12.345678` 在四表写入/读回一致；重复执行 V200059 输出「已是 numeric，跳过」；`go test ./internal/mvsv` 含 `TestParseNumericVolume` 通过；`go build ./...`、`go test ./internal/quote ./internal/kline` 通过；`HistoryQuote.md` volume 标注支持小数 | |
 
+## 一百二十五、外部 OpenAPI 文档自包含（10793）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10793 | `Docs/OpenAPI/` 对外文档必须自包含：字段表、错误码、schema 全部内联，**不得引用 `Docs/API/` 内部文档或内部 `.yml`**；`ApiSpec §7.7` 增加该规则。 | `grep -rn '\.\./.*API/' Docs/OpenAPI/` 无输出；`grep -rn 'Docs/API/' Docs/OpenAPI/` 无输出；`grep -c 'API/Quote/Cdeu/Min/KLine' Docs/OpenAPI/Quote/Cdeu/Min/Upsert.yml` = 0；`Upsert.yml` 含 `KLineItem:` schema 且无跨文件 `$ref`；`Upsert.md` 含完整 17 字段表与 15 条错误码；`PageUni.md` 含 15 列定义与取值规则；`grep -c '内部/外部分离且自包含' Docs/DevSpec/ApiSpec.md` = 1；`go test ./internal/docs` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2303,7 +2309,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 外部 OpenAPI 暂不鉴权 | 10790 | 1 |
 | cdeu 成交量改为浮点 | 10791 | 1 |
 | volume 全链路浮点化 | 10792 | 1 |
-| **合计** | **10001–10792** | **792** |
+| 外部 OpenAPI 文档自包含 | 10793 | 1 |
+| **合计** | **10001–10793** | **793** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10793` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10794` 起往后追加，不插入既有区间。
