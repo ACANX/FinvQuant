@@ -20,8 +20,11 @@ Deploy/
 | `Docker/` | 是 | `docker-compose.yml`、`Dockerfile`、`.env.example`、部署/升级/回滚脚本、Windows Docker 文档 |
 | `Native/` | 是 | systemd unit、安装/升级/卸载脚本、环境变量与 Nginx 模板、安装与升级手册 |
 | `Migrations/` | 是 | 结构迁移 `V100001`～`V199999`、种子/数据迁移 `V200000+`，**历史文件不可回改** |
-| `Script/` | 是 | `PackSnapshot.sh`（快照包构建，CI 与本地共用）+ `PackSnapshot.cmd`（Windows 封装，转调 .sh），见 §2.3 |
+| `Script/` | 是 | `PackSnapshot.sh`（快照包构建，CI 与本地共用）+ `PackSnapshot.cmd`（Windows 封装，转调 .sh）+ `Download.sh`/`Download.cmd`（一键下载发行包），见 §2.3 |
 | `Backup/` | 否 | `pg_dump -Fc` 产物，两种方式共用，命名 `finvquant_YYYYMMDD_HHMMSS.dump` |
+
+> Native 方式在宿主机上的安装根目录统一为 `/data/App/FinvQuant/`（二进制、迁移、配置、部署文件、备份与导出），
+> 详见 [`Native/README.md`](Native/README.md) 第 6 节；容器方式仍在镜像内使用 `/etc/finvquant/Migrations`。
 
 ## 1. 怎么选部署方式
 
@@ -41,18 +44,20 @@ Deploy/
 - 命名 `V<版本号>__<描述>.sql`；结构迁移用 `V100001`～`V199999`，种子/数据迁移用 `V200000+`，全部按版本号升序执行。
 - 服务（容器或二进制）**启动时自动应用未执行版本**，记录在 `public.schema_version`；单事务执行，失败整体回滚。
 - **历史迁移文件不可回改**（已应用库会按 `schema_version` 跳过，改动会造成存量库与全新库结构分叉）；唯一例外是「新结构已使历史迁移无法在全新库执行」的兼容修正，规则见 [`../Docs/DevSpec/DbSchemaSpec.md`](../Docs/DevSpec/DbSchemaSpec.md) §4。
-- 目录位置：容器方式构建时拷入镜像 `/etc/finvquant/Migrations`；Native 方式由安装/升级脚本同步到 `/etc/finvquant/Migrations`；统一由环境变量 `FINV_MIGRATIONS_DIR` 指向。
+- 目录位置：容器方式构建时拷入镜像 `/etc/finvquant/Migrations`（镜像内部路径）；Native 方式由安装/升级脚本同步到安装根目录 `/data/App/FinvQuant/Migrations`；统一由环境变量 `FINV_MIGRATIONS_DIR` 指向。
 - 手工执行迁移**不推荐**：请用服务启动自迁移，避免 `schema_version` 与实际结构不一致。
 
 ### 2.2 `Backup/`（数据库备份）
 
-- 由 Docker 升级脚本（`Docker/upgrade.cmd`）与 Native 升级脚本（`Native/Upgrade.sh`）生成；Native 默认写到 `/var/backups/finvquant`，可直接复制到本目录统一留存。
+- 由 Docker 升级脚本（`Docker/upgrade.cmd`）与 Native 升级脚本（`Native/Upgrade.sh`）生成；Native 默认写到 `/data/App/FinvQuant/Backup`，可直接复制到本目录统一留存。
 - 命名规范：`finvquant_YYYYMMDD_HHMMSS.dump`（纯 ASCII，按名称即按时间排序；禁止中文与本地化日期格式），见 [`../Docs/DevSpec/FileNamingSpec.md`](../Docs/DevSpec/FileNamingSpec.md) 第 5 节。
 - 本目录已被 `.gitignore` 忽略，不随仓库分发。
 
-### 2.3 `Script/`（快照包构建脚本）
+### 2.3 `Script/`（构建与下载脚本）
 
 `Script/PackSnapshot.sh` 是**快照二进制包的唯一实现**，CI 的 `snapshot-binaries` job 与本地手工出包都调用它；`Script/PackSnapshot.cmd` 是 Windows 薄封装（定位 Git Bash 后转调 `.sh`，不含打包逻辑）。
+
+同理，`Script/Download.sh` 是**一键下载的唯一实现**（检测 OS/架构 → 选版本（正式版/快照）→ 下载 + SHA256 校验 → 安全解压到指定目录），`Script/Download.cmd` 为 Windows 薄封装。
 
 ```bash
 # Linux / WSL / macOS：默认一次出三个包（linux/amd64、linux/arm64、windows/amd64）
@@ -64,9 +69,17 @@ REM Windows：同一份逻辑
 Deploy\Script\PackSnapshot.cmd --target windows/amd64
 ```
 
+下载与解压（不构建，直接取官方发行包，默认最新且含快照）：
+
+```bash
+bash Deploy/Script/Download.sh                        # → /data/App/FinvQuant
+bash Deploy/Script/Download.sh -c release -d /opt/FinvQuant
+bash Deploy/Script/Download.sh --list                 # 看最近版本
+```
+
 产物落在 `Dist/`（不入库）：`FinvQuant-<版本>-<ubuntu|windows>-<amd64|arm64>.{tar.gz|zip}` + 同名 `.sha256`；版本标识为 `v{VERSION}.{PPPPP}.{yymmddHHmm}`（`PPPPP` 为 PR 号，5 位左补零，无 PR 为 `00000`；时间戳 Asia/Shanghai，同一快照所有产物共用）。
 
-> 完整说明（全部参数、包内结构、跨环境差异、产物校验、常见问题、与 CI 的关系）见 [`Script/README.md`](Script/README.md)。
+> 完整说明（全部参数、包内结构、跨环境差异、产物校验、常见问题、与 CI 的关系、一键下载）见 [`Script/README.md`](Script/README.md)。
 
 ## 3. 两种方式共同遵守的约束
 

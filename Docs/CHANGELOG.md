@@ -20,6 +20,15 @@
 
 ### 新增
 
+- **新增一键下载脚本 `Deploy/Script/Download.sh`（需求 10767）**
+  - **一键到位**：自动识别操作系统（Linux / Windows）与 CPU 架构（amd64 / arm64）→ 选对应官方资产 → 下载 → 双层 SHA256 校验（资产 `.sha256` + 包内 `SHA256SUMS`）→ 安全解压到指定目录（默认 `/data/App/FinvQuant`，与 Native 安装根目录一致）。
+  - **版本渠道**：`--channel auto`（默认，最新且**包含快照/构建包**）/ `release`（仅正式版）/ `snapshot`（prerelease）/ `pr`（PR 构建包），可用 `--version` 固定 tag、`--list` 列最近 10 个版本、`--dry-run` 预览下载地址。
+  - **取源方式**：未提供 token 时走公开 `releases.atom`（近 10 条、含 prerelease、不含 draft）；有 `--token` / `GH_TOKEN` / `GITHUB_TOKEN` 时走 Releases API（近 100 条，排除 draft），支持私有仓库；`--base-url` 可指向内网镜像/加速代理，`-v` 模式不联网解析列表。
+  - **安全与防误操作**：解压前扫描包内路径（拒绝绝对路径与 `..`）、先解到临时目录再落盘、目标目录非空需 `--force`；`--force` 下同名文件覆盖、同名目录合并，**不删除**目标已有文件。
+  - **两种落盘**：默认铺平（`finvquant` + `Deploy/` 直接进目标目录，可直接接 `Install.sh`），`--keep-top` 保留 `FinvQuant-<版本>-<os>-<arch>/`。
+  - **Windows 封装**：新增 `Deploy/Script/Download.cmd`（定位 Git Bash 后转调 `.sh`，不含下载逻辑，排除 System32 的 WSL 转发器）。
+  - **文档**：`Deploy/Script/README.md` 新增 §13（渠道/平台映射/校验解压/参数/与 PackSnapshot 的关系/常见问题），`Deploy/README.md` 与 `Deploy/Native/Install.md` 同步新增入口。
+
 - **把 `dedup` 表数据迁入 `cdeu` 对应表（需求 10756，已部署 V100080）**
   - **范围**：26 张表、合计 **133,260 行**。映射 `dedup.cdeu_*` / `dedup.finv_dedup_*` → `cdeu.finv_quote_cdeu_*`，`dedup.finv_quote_secu_kline_min` → `cdeu.finv_quote_secu_kline_min`；`prep_bak_*` 5 张不迁。
   - **只复制不删源**：`dedup` 侧 31 张表数据一行未删，供后续逐步清理淘汰。
@@ -510,6 +519,15 @@
 - **`finv_market` 新增 `market_symbol` 市场符号列**（迁移 `V75`）：类型 `TEXT NOT NULL DEFAULT ''`，用于表达市场的对外标识（如 `US-NSDQ` / `FX-CFD` / `SZ`）并与行情链路的 market 取值对齐；空串表示未维护。`GET/POST .../Metadata/Market/List|Save` 同步返回与写入该字段，列表 `keyword` 检索覆盖该列；前端「元数据 → 交易市场」列表新增「市场符号」列与编辑项。`ADD COLUMN IF NOT EXISTS` 幂等，末尾校验类型/可空性/默认值与列注释。
 
 ### 变更
+
+- **Native 安装统一到 `/data/App/FinvQuant/`（需求 10766）**
+  - **目录布局**：`bin/finvquant`（软链 `/usr/local/bin/finvquant`）、`Migrations/`、`etc/finvquant.env`（600）、`Deploy/`（`Install.sh`/`Upgrade.sh`/`Uninstall.sh`、`finvquant.service`、env 与 Nginx 模板、手册）、`Backup/`、`Export/` 全部收拢到同一安装根目录；原 `/opt/finvquant`、`/etc/finvquant`、`/var/backups/finvquant` 不再使用。
+  - **可自定义根目录**：`Install.sh --prefix <dir>`（或环境变量 `FINVQ_PREFIX`）可改装到其它绝对路径；`Upgrade.sh` / `Uninstall.sh` 默认从 systemd unit 的 `ExecStart` 推断，无需重复指定。
+  - **unit 模板化**：`FinvQuant.service` 改用 `@PREFIX@` 占位（`WorkingDirectory` / `EnvironmentFile` / `ExecStart` / `ReadWritePaths` / `Documentation`），安装或升级时渲染为 `<PREFIX>/Deploy/finvquant.service` 并注册到 `/etc/systemd/system/finvquant.service`。
+  - **升级脚本**：备份写入 `<PREFIX>/Backup`（由 root 重定向，避免 `postgres` 对目录无写权限，失败时清理空文件）；同步替换二进制、迁移脚本、部署脚本/模板与 unit 并 `daemon-reload`；拒绝「新二进制 == 已安装二进制」的误操作。
+  - **卸载脚本**：`--purge` 删除 `bin`/`etc`/`Migrations`/`Deploy`，**保留** `Backup` 与 `Export` 数据；`--purge-data` 只打印删库与清理备份/导出的指引。
+  - **环境变量模板**：`FINV_MIGRATIONS_DIR=/data/App/FinvQuant/Migrations`，新增 `FINV_QUOTE_DEDUB_OUTPUT_DIR`/`FINV_QUOTE_DEDUB_UPLOAD_DIR`/`FINV_QUOTE_DEDUB_UPLOAD_MODE`（与容器方式 `/data/App/FinvQuant/Export` 口径一致），安装脚本按实际根目录改写。
+  - **文档同步**：`Deploy/Native/{README,Install,Upgrade}.md` 与 `Deploy/README.md` 的路径、权限矩阵、手工安装步骤、定时备份示例全部改为安装根目录口径。
 
 - **前端基础路由改为大驼峰（需求 10764）**
   - `/dashboard` → `/Dashboard`、`/login` → `/Login`，与 `/Meta/Finv/...` 风格统一。路由 `name`（`dashboard` / `login`）保持不变，仅调整 URL。

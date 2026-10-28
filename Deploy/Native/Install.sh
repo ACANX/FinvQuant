@@ -3,15 +3,25 @@
 # FinvQuant Native 安装脚本（宿主直装，不使用容器）
 #
 # 适用：Debian 12+ / Ubuntu 22.04+（systemd），root 执行
-# 作用：装依赖 → 建用户与目录 → 创建数据库与角色 → 安装二进制与迁移
-#       → 写入环境变量 → 注册并启动 systemd 服务 → 健康检查
-# 特性：幂等（重复执行只补齐缺失项，不覆盖已有的 /etc/finvquant/finvquant.env）
+# 作用：装依赖 → 建用户与目录 → 创建数据库与角色 → 安装二进制、迁移脚本、
+#       部署脚本与环境变量文件到统一安装根目录 → 注册并启动 systemd 服务 → 健康检查
+# 特性：幂等（重复执行只补齐缺失项，不覆盖已有的 finvquant.env）
+#
+# 安装根目录：/data/App/FinvQuant（可用 --prefix 或 FINVQ_PREFIX 覆盖），布局：
+#   <PREFIX>/bin/finvquant          二进制（另建软链 /usr/local/bin/finvquant）
+#   <PREFIX>/Migrations/            数据库迁移脚本（FINV_MIGRATIONS_DIR 指向此目录）
+#   <PREFIX>/etc/finvquant.env      核心配置（环境变量，权限 600）
+#   <PREFIX>/Deploy/                部署脚本与部署文件（Install/Upgrade/Uninstall、unit、模板、手册）
+#   <PREFIX>/Backup/                数据库逻辑备份（升级脚本写入）
+#   <PREFIX>/Export/                行情归档导出目录（与容器方式一致）
+#   /etc/systemd/system/finvquant.service   systemd unit（由 <PREFIX>/Deploy 的模板渲染后注册）
 #
 # 用法：
 #   sudo ./Install.sh                     # 全量安装
 #   sudo ./Install.sh --skip-db           # 跳过 PostgreSQL 安装与建库
 #   sudo ./Install.sh --skip-redis        # 跳过 Redis 安装
 #   sudo ./Install.sh --binary /path/to/finvquant   # 指定二进制路径
+#   sudo ./Install.sh --prefix /data/App/FinvQuant   # 指定安装根目录
 #
 # 退出码：0 成功；非 0 失败（已在对应步骤打印原因）
 # =====================================================================
@@ -19,11 +29,20 @@ set -euo pipefail
 
 APP_USER="finvquant"
 APP_GROUP="finvquant"
-APP_DIR="/opt/finvquant"
-ETC_DIR="/etc/finvquant"
-MIGRATIONS_DIR="${ETC_DIR}/Migrations"
+
+# 安装根目录：默认 /data/App/FinvQuant，可用 --prefix 或环境变量 FINVQ_PREFIX 覆盖
+PREFIX="${FINVQ_PREFIX:-/data/App/FinvQuant}"
+BIN_DIR="${PREFIX}/bin"
+ETC_DIR="${PREFIX}/etc"
+MIGRATIONS_DIR="${PREFIX}/Migrations"
+BACKUP_DIR="${PREFIX}/Backup"
+EXPORT_DIR="${PREFIX}/Export"
+DEPLOY_DIR="${PREFIX}/Deploy"
+ENV_FILE="${ETC_DIR}/finvquant.env"
+BINARY="${BIN_DIR}/finvquant"
+BINARY_LINK="/usr/local/bin/finvquant"
 SERVICE_FILE="/etc/systemd/system/finvquant.service"
-BINARY_DST="/usr/local/bin/finvquant"
+SERVICE="finvquant"
 
 SKIP_DB=0
 SKIP_REDIS=0
@@ -43,10 +62,17 @@ while [[ $# -gt 0 ]]; do
     --skip-db)    SKIP_DB=1; shift ;;
     --skip-redis) SKIP_REDIS=1; shift ;;
     --binary)     BINARY_SRC="${2:-}"; shift 2 ;;
-    -h|--help)    sed -n '2,20p' "$0"; exit 0 ;;
+    --prefix)     PREFIX="${2:-}"; shift 2
+                  BIN_DIR="${PREFIX}/bin"; ETC_DIR="${PREFIX}/etc"
+                  MIGRATIONS_DIR="${PREFIX}/Migrations"; BACKUP_DIR="${PREFIX}/Backup"
+                  EXPORT_DIR="${PREFIX}/Export"; DEPLOY_DIR="${PREFIX}/Deploy"
+                  ENV_FILE="${ETC_DIR}/finvquant.env"; BINARY="${BIN_DIR}/finvquant" ;;
+    -h|--help)    sed -n '2,26p' "$0"; exit 0 ;;
     *)            die "未知参数：$1（--help 查看用法）" ;;
   esac
 done
+
+[[ "${PREFIX}" == /* ]] || die "--prefix 必须是绝对路径（当前：${PREFIX}）"
 
 # ---------------------------------------------------------------------
 # 0. 前置检查
@@ -61,6 +87,7 @@ case "${ID:-}" in
   debian|ubuntu) ok "系统：${PRETTY_NAME}" ;;
   *) die "暂只支持 Debian/Ubuntu（当前：${PRETTY_NAME:-unknown}）；其它发行版请参考 Install.md 手工安装" ;;
 esac
+ok "安装根目录：${PREFIX}"
 
 # ---------------------------------------------------------------------
 # 1. 定位二进制与迁移目录
@@ -68,7 +95,11 @@ esac
 step "1/9 定位安装产物"
 if [[ -z "${BINARY_SRC}" ]]; then
   for candidate in "${REPO_ROOT}/finvquant" "${SCRIPT_DIR}/finvquant" "$(command -v finvquant || true)"; do
-    if [[ -n "${candidate}" && -f "${candidate}" ]]; then BINARY_SRC="${candidate}"; break; fi
+    if [[ -n "${candidate}" && -f "${candidate}" ]]; then
+      # 跳过已安装位置自身（软链 /usr/local/bin/finvquant → <PREFIX>/bin/finvquant），避免 install 自我覆盖
+      if [[ "$(readlink -f "${candidate}")" == "$(readlink -f "${BINARY}" 2>/dev/null || echo -)" ]]; then continue; fi
+      BINARY_SRC="${candidate}"; break
+    fi
   done
 fi
 [[ -n "${BINARY_SRC}" && -f "${BINARY_SRC}" ]] || \
@@ -125,7 +156,7 @@ if [[ "${SKIP_REDIS}" -eq 0 ]]; then
     ok "已安装 redis-server $(redis-server --version | awk '{print $3}')"
   fi
   REDIS_UNIT="redis-server"
-  systemctl list-unit-files | grep -q '^redis.service' && REDIS_UNIT="redis"
+  if systemctl list-unit-files | grep -q '^redis.service'; then REDIS_UNIT="redis"; fi
   systemctl enable --now "${REDIS_UNIT}" >/dev/null 2>&1 || warn "Redis 服务启动失败，请检查 journalctl -u ${REDIS_UNIT}"
   REDIS_VER="$(redis-server --version | awk '{print $3}' | cut -d= -f2 | cut -d. -f1)"
   [[ "${REDIS_VER:-0}" -ge 8 ]] || warn "当前 Redis 主版本为 ${REDIS_VER}，项目参考版本为 8；基础 KV 用法兼容，如需严格对齐请用 packages.redis.io 官方源"
@@ -134,37 +165,68 @@ else
 fi
 
 # ---------------------------------------------------------------------
-# 5. 系统用户与目录
+# 5. 系统用户与目录（全部落在安装根目录下）
 # ---------------------------------------------------------------------
 step "5/9 创建用户与目录"
+if getent group "${APP_GROUP}" >/dev/null 2>&1; then
+  ok "用户组 ${APP_GROUP} 已存在"
+else
+  groupadd --system "${APP_GROUP}"
+  ok "已创建用户组 ${APP_GROUP}"
+fi
 if id -u "${APP_USER}" >/dev/null 2>&1; then
   ok "用户 ${APP_USER} 已存在"
 else
-  useradd --system --create-home --home-dir "${APP_DIR}" --shell /usr/sbin/nologin "${APP_USER}"
+  useradd --system --no-create-home --home-dir "${PREFIX}" --shell /usr/sbin/nologin "${APP_USER}"
   ok "已创建系统用户 ${APP_USER}"
 fi
-install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0755 "${APP_DIR}"
-install -d -o root -g "${APP_GROUP}" -m 0750 "${ETC_DIR}"
+install -d -o root -g root -m 0755 "${PREFIX}"
+install -d -o root -g root -m 0755 "${BIN_DIR}"
 install -d -o root -g "${APP_GROUP}" -m 0755 "${MIGRATIONS_DIR}"
-ok "目录：${APP_DIR} / ${ETC_DIR} / ${MIGRATIONS_DIR}"
+install -d -o root -g "${APP_GROUP}" -m 0750 "${ETC_DIR}"
+install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0755 "${EXPORT_DIR}"
+install -d -o root -g root -m 0755 "${DEPLOY_DIR}"
+ok "目录：${BIN_DIR} / ${MIGRATIONS_DIR} / ${ETC_DIR} / ${BACKUP_DIR} / ${EXPORT_DIR} / ${DEPLOY_DIR}"
 
 # ---------------------------------------------------------------------
-# 6. 安装二进制与迁移脚本
+# 6. 安装二进制、迁移脚本与部署文件
 # ---------------------------------------------------------------------
-step "6/9 安装二进制与迁移脚本"
-install -o root -g root -m 0755 "${BINARY_SRC}" "${APP_DIR}/finvquant"
-ln -sfn "${APP_DIR}/finvquant" "${BINARY_DST}"
-ok "二进制：${APP_DIR}/finvquant（软链 ${BINARY_DST}）"
+step "6/9 安装二进制、迁移脚本与部署文件"
+install -o root -g root -m 0755 "${BINARY_SRC}" "${BINARY}"
+ln -sfn "${BINARY}" "${BINARY_LINK}"
+ok "二进制：${BINARY}（软链 ${BINARY_LINK}）"
 cp -f "${MIGRATIONS_SRC}"/*.sql "${MIGRATIONS_DIR}/"
 chown -R root:"${APP_GROUP}" "${MIGRATIONS_DIR}"
 chmod 0644 "${MIGRATIONS_DIR}"/*.sql
-ok "迁移脚本：$(ls -1 "${MIGRATIONS_DIR}"/*.sql | wc -l) 个"
+ok "迁移脚本：$(ls -1 "${MIGRATIONS_DIR}"/*.sql | wc -l) 个 → ${MIGRATIONS_DIR}"
+
+# 部署脚本与模板随安装目录留存：后续可直接在 <PREFIX>/Deploy 内升级/卸载
+# 注意：若直接在 <PREFIX>/Deploy 内执行本脚本，源与目标为同一文件，必须跳过
+copy_deploy_file() {
+  local src="$1" dst="$2"
+  if [[ "$(readlink -f "${src}")" != "$(readlink -f "${dst}" 2>/dev/null || echo -)" ]]; then
+    cp -f "${src}" "${dst}"
+  fi
+}
+for f in Install.sh Upgrade.sh Uninstall.sh FinvQuant.service FinvQuant.env.example Nginx.conf.example; do
+  copy_deploy_file "${SCRIPT_DIR}/${f}" "${DEPLOY_DIR}/${f}"
+ done
+for md in "${SCRIPT_DIR}"/*.md; do
+  [[ -f "${md}" ]] || continue
+  copy_deploy_file "${md}" "${DEPLOY_DIR}/$(basename "${md}")"
+done
+chown -R root:root "${DEPLOY_DIR}"
+chmod 0755 "${DEPLOY_DIR}"/*.sh
+for f in "${DEPLOY_DIR}"/*.md "${DEPLOY_DIR}"/*.example "${DEPLOY_DIR}"/*.service; do
+  if [[ -f "${f}" ]]; then chmod 0644 "${f}"; fi
+done
+ok "部署文件：${DEPLOY_DIR}（脚本、unit 模板、env 模板、Nginx 示例、手册）"
 
 # ---------------------------------------------------------------------
 # 7. 环境变量文件（存在则不覆盖）
 # ---------------------------------------------------------------------
 step "7/9 环境变量文件"
-ENV_FILE="${ETC_DIR}/finvquant.env"
 DB_PASSWORD=""
 if [[ -f "${ENV_FILE}" ]]; then
   ok "已存在 ${ENV_FILE}，保留现有配置（如需重置请先备份后删除）"
@@ -173,6 +235,10 @@ else
   DB_PASSWORD="$(openssl rand -hex 16)"
   install -o root -g root -m 0600 "${SCRIPT_DIR}/FinvQuant.env.example" "${ENV_FILE}"
   sed -i "s/^FINV_PG_PASSWORD=.*/FINV_PG_PASSWORD=${DB_PASSWORD}/" "${ENV_FILE}"
+  # 模板中的默认路径按实际安装根目录改写
+  sed -i "s|^FINV_MIGRATIONS_DIR=.*|FINV_MIGRATIONS_DIR=${MIGRATIONS_DIR}|" "${ENV_FILE}"
+  sed -i "s|^FINV_QUOTE_DEDUB_OUTPUT_DIR=.*|FINV_QUOTE_DEDUB_OUTPUT_DIR=${EXPORT_DIR}|" "${ENV_FILE}"
+  sed -i "s|^FINV_QUOTE_DEDUB_UPLOAD_DIR=.*|FINV_QUOTE_DEDUB_UPLOAD_DIR=${EXPORT_DIR}/Upload|" "${ENV_FILE}"
   ok "已生成 ${ENV_FILE}（随机数据库密码，权限 600）"
 fi
 [[ -n "${DB_PASSWORD}" ]] || die "未能读取或生成数据库密码，请检查 ${ENV_FILE}"
@@ -208,14 +274,18 @@ else
 fi
 
 # ---------------------------------------------------------------------
-# 9. systemd 服务
+# 9. systemd 服务（unit 由模板渲染，同时留存到安装目录）
 # ---------------------------------------------------------------------
 step "9/9 注册并启动 systemd 服务"
-install -o root -g root -m 0644 "${SCRIPT_DIR}/FinvQuant.service" "${SERVICE_FILE}"
+sed "s|@PREFIX@|${PREFIX}|g" "${SCRIPT_DIR}/FinvQuant.service" > "${DEPLOY_DIR}/finvquant.service"
+chown root:root "${DEPLOY_DIR}/finvquant.service"
+chmod 0644 "${DEPLOY_DIR}/finvquant.service"
+install -o root -g root -m 0644 "${DEPLOY_DIR}/finvquant.service" "${SERVICE_FILE}"
+ok "unit：${SERVICE_FILE}（副本 ${DEPLOY_DIR}/finvquant.service）"
 systemctl daemon-reload
-systemctl enable finvquant >/dev/null 2>&1
-systemctl restart finvquant
-ok "已注册 finvquant.service 并启动"
+systemctl enable "${SERVICE}" >/dev/null 2>&1
+systemctl restart "${SERVICE}"
+ok "已注册 ${SERVICE}.service 并启动"
 
 HEALTH_URL="http://127.0.0.1:16001/API/V1/Health/Ready"
 for i in $(seq 1 30); do
@@ -224,7 +294,7 @@ for i in $(seq 1 30); do
     break
   fi
   if [[ "${i}" -eq 30 ]]; then
-    warn "健康检查未通过（30s）；请执行：journalctl -u finvquant -n 80 --no-pager"
+    warn "健康检查未通过（30s）；请执行：journalctl -u ${SERVICE} -n 80 --no-pager"
     warn "常见原因：数据库连接失败、迁移执行失败、端口被占用"
   fi
   sleep 1
@@ -232,16 +302,20 @@ done
 
 cat <<EOF
 
-\033[1;32m安装完成\033[0m
-  服务管理：systemctl status|restart|stop finvquant
-  日志查看：journalctl -u finvquant -f
+\033[1;32m安装完成\033[0m（安装根目录：${PREFIX}）
+  服务管理：systemctl status|restart|stop ${SERVICE}
+  日志查看：journalctl -u ${SERVICE} -f
+  二进制：${BINARY}（软链 ${BINARY_LINK}）
   配置文件：${ENV_FILE}（权限 600）
   迁移目录：${MIGRATIONS_DIR}（启动时自动应用未执行版本）
+  部署脚本：${DEPLOY_DIR}/Upgrade.sh、${DEPLOY_DIR}/Uninstall.sh
+  备份目录：${BACKUP_DIR}
+  导出目录：${EXPORT_DIR}
   接口验证：curl http://127.0.0.1:16001/API/V1/Version
-  前端地址：http://<服务器IP>:16002（建议用 Nginx 反向代理，见 Nginx.conf.example）
+  前端地址：http://<服务器IP>:16002（建议用 Nginx 反向代理，见 ${DEPLOY_DIR}/Nginx.conf.example）
 
 后续步骤：
-  1) 按需配置 Nginx 反向代理与 TLS（Nginx.conf.example）
-  2) 建立数据库定时备份（参考 Upgrade.md 的备份命令）
+  1) 按需配置 Nginx 反向代理与 TLS（${DEPLOY_DIR}/Nginx.conf.example）
+  2) 建立数据库定时备份到 ${BACKUP_DIR}（参考 Upgrade.md）
   3) 防火墙只放行 80/443（16001/16002 建议只绑 127.0.0.1）
 EOF

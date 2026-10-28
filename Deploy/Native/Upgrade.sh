@@ -2,13 +2,22 @@
 # =====================================================================
 # FinvQuant Native 升级脚本（宿主直装，systemd 守护）
 #
-# 流程：备份数据库 → 停服务 → 备份旧二进制 → 替换二进制与迁移
+# 安装根目录：/data/App/FinvQuant（由 systemd unit 的 ExecStart 推断，
+#             可用 --prefix 或环境变量 FINVQ_PREFIX 覆盖）
+#   <PREFIX>/bin/finvquant        当前二进制（升级备份为 finvquant.prev）
+#   <PREFIX>/Migrations/          数据库迁移脚本
+#   <PREFIX>/etc/finvquant.env    核心配置
+#   <PREFIX>/Deploy/              部署脚本与部署文件（升级时一并刷新）
+#   <PREFIX>/Backup/              数据库逻辑备份（本脚本写入）
+#
+# 流程：备份数据库 → 停服务 → 备份旧二进制 → 替换二进制/迁移/部署文件
 #       → 启动服务 → 健康检查（失败时给出一键回滚命令）
 #
 # 用法：
 #   sudo ./Upgrade.sh                          # 使用仓库/脚本目录下的 finvquant 升级
 #   sudo ./Upgrade.sh --binary /tmp/finvquant  # 指定新二进制
 #   sudo ./Upgrade.sh --skip-backup            # 跳过数据库备份（仅应急）
+#   sudo ./Upgrade.sh --prefix /data/App/FinvQuant
 #
 # 回滚：sudo ./Upgrade.sh --rollback
 # 说明：数据库迁移由新二进制启动时自动执行，**不可自动回滚**；如需回退数据库，
@@ -16,14 +25,22 @@
 # =====================================================================
 set -euo pipefail
 
-APP_DIR="/opt/finvquant"
-ETC_DIR="/etc/finvquant"
-MIGRATIONS_DIR="${ETC_DIR}/Migrations"
-BACKUP_DIR="/var/backups/finvquant"
-BINARY="${APP_DIR}/finvquant"
-BINARY_PREV="${APP_DIR}/finvquant.prev"
-ENV_FILE="${ETC_DIR}/finvquant.env"
+APP_USER="finvquant"
+APP_GROUP="finvquant"
 SERVICE="finvquant"
+SERVICE_FILE="/etc/systemd/system/${SERVICE}.service"
+BINARY_LINK="/usr/local/bin/finvquant"
+
+PREFIX_EXPLICIT=0
+# 安装根目录：优先 --prefix / FINVQ_PREFIX，其次由 unit 的 ExecStart 推断，最后回退默认值
+infer_prefix() {
+  local detected=""
+  if [[ "${PREFIX_EXPLICIT}" -eq 0 && -f "${SERVICE_FILE}" ]]; then
+    detected="$(sed -n 's|^ExecStart=\(.*\)/bin/finvquant$|\1|p' "${SERVICE_FILE}" | head -1)"
+  fi
+  printf '%s' "${detected:-/data/App/FinvQuant}"
+}
+PREFIX="${FINVQ_PREFIX:-$(infer_prefix)}"
 
 BINARY_SRC=""
 SKIP_BACKUP=0
@@ -38,18 +55,35 @@ warn() { printf '\033[1;33m  [WARN]\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31m  [ERROR]\033[0m %s\n' "$*" >&2; exit 1; }
 step() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 
+set_prefix() {
+  PREFIX="$1"
+  BIN_DIR="${PREFIX}/bin"
+  MIGRATIONS_DIR="${PREFIX}/Migrations"
+  ETC_DIR="${PREFIX}/etc"
+  DEPLOY_DIR="${PREFIX}/Deploy"
+  BACKUP_DIR="${PREFIX}/Backup"
+  ENV_FILE="${ETC_DIR}/finvquant.env"
+  BINARY="${BIN_DIR}/finvquant"
+  BINARY_PREV="${BIN_DIR}/finvquant.prev"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --binary)      BINARY_SRC="${2:-}"; shift 2 ;;
+    --prefix)      PREFIX_EXPLICIT=1; PREFIX="${2:-}"; shift 2 ;;
     --skip-backup) SKIP_BACKUP=1; shift ;;
     --rollback)    ROLLBACK=1; shift ;;
-    -h|--help)     sed -n '2,18p' "$0"; exit 0 ;;
+    -h|--help)     sed -n '2,25p' "$0"; exit 0 ;;
     *)             die "未知参数：$1（--help 查看用法）" ;;
   esac
 done
 
+[[ "${PREFIX}" == /* ]] || die "--prefix 必须是绝对路径（当前：${PREFIX}）"
+set_prefix "${PREFIX}"
+
 [[ "$(id -u)" -eq 0 ]] || die "请用 root 执行：sudo $0"
-[[ -f "${ENV_FILE}" ]] || die "未找到 ${ENV_FILE}，请先执行 Install.sh"
+[[ -f "${ENV_FILE}" ]] || die "未找到 ${ENV_FILE}，请先执行 Install.sh（或用 --prefix 指定安装根目录）"
+ok "安装根目录：${PREFIX}"
 
 # ---------------------------------------------------------------------
 # 回滚模式：换回 .prev 二进制
@@ -66,7 +100,7 @@ if [[ "${ROLLBACK}" -eq 1 ]]; then
 fi
 
 # ---------------------------------------------------------------------
-# 1. 定位新二进制
+# 1. 定位新二进制与迁移目录
 # ---------------------------------------------------------------------
 step "1/6 定位新二进制"
 if [[ -z "${BINARY_SRC}" ]]; then
@@ -75,9 +109,12 @@ if [[ -z "${BINARY_SRC}" ]]; then
   done
 fi
 [[ -n "${BINARY_SRC}" && -f "${BINARY_SRC}" ]] || die "找不到新二进制；请用 --binary 指定"
+if [[ "$(readlink -f "${BINARY_SRC}")" == "$(readlink -f "${BINARY}" 2>/dev/null || echo -)" ]]; then
+  die "新二进制与已安装二进制为同一文件（${BINARY}）；请用 --binary 指定真正的升级包"
+fi
 ok "新二进制：${BINARY_SRC}"
 NEW_VER="$("${BINARY_SRC}" --version 2>/dev/null || true)"
-[[ -n "${NEW_VER}" ]] && ok "版本：${NEW_VER}"
+if [[ -n "${NEW_VER}" ]]; then ok "版本：${NEW_VER}"; fi
 
 MIGRATIONS_SRC=""
 for candidate in "${REPO_ROOT}/Deploy/Migrations" "${SCRIPT_DIR}/Migrations"; do
@@ -87,17 +124,19 @@ done
 ok "迁移目录：${MIGRATIONS_SRC}"
 
 # ---------------------------------------------------------------------
-# 2. 备份数据库
+# 2. 备份数据库（写入安装目录下的 Backup/）
 # ---------------------------------------------------------------------
 if [[ "${SKIP_BACKUP}" -eq 0 ]]; then
   step "2/6 备份数据库"
-  mkdir -p "${BACKUP_DIR}"
-  DB_NAME="$(grep -E '^FINV_PG_DATABASE=' "${ENV_FILE}" | cut -d= -f2- || echo finvquant)"
+  install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
+  DB_NAME="$(grep -E '^FINV_PG_DATABASE=' "${ENV_FILE}" | cut -d= -f2- || echo finv)"
   BK_FILE="${BACKUP_DIR}/finvquant_$(date +%Y%m%d_%H%M%S).dump"
-  if sudo -u postgres pg_dump -Fc "${DB_NAME}" -f "${BK_FILE}"; then
+  # 由 root 重定向写入（目录属主 root，postgres 无权写入）
+  if sudo -u postgres pg_dump -Fc "${DB_NAME}" > "${BK_FILE}"; then
     chmod 0600 "${BK_FILE}"
     ok "备份完成：${BK_FILE}（$(du -h "${BK_FILE}" | cut -f1)）"
   else
+    rm -f "${BK_FILE}"
     die "数据库备份失败；如确认可跳过请加 --skip-backup（不建议）"
   fi
 else
@@ -112,19 +151,47 @@ systemctl stop "${SERVICE}"
 ok "服务已停止（避免新旧二进制同时连接数据库）"
 
 # ---------------------------------------------------------------------
-# 4. 替换二进制与迁移
+# 4. 替换二进制、迁移与部署文件
 # ---------------------------------------------------------------------
-step "4/6 替换二进制与迁移脚本"
+step "4/6 替换二进制、迁移脚本与部署文件"
 if [[ -f "${BINARY}" ]]; then
   install -o root -g root -m 0755 "${BINARY}" "${BINARY_PREV}"
   ok "旧二进制已备份为 ${BINARY_PREV}（可用 --rollback 回退程序）"
 fi
 install -o root -g root -m 0755 "${BINARY_SRC}" "${BINARY}"
-ok "二进制已替换"
+ln -sfn "${BINARY}" "${BINARY_LINK}"
+ok "二进制已替换：${BINARY}"
 cp -f "${MIGRATIONS_SRC}"/*.sql "${MIGRATIONS_DIR}/"
-chown -R root:finvquant "${MIGRATIONS_DIR}"
+chown -R root:"${APP_GROUP}" "${MIGRATIONS_DIR}"
 chmod 0644 "${MIGRATIONS_DIR}"/*.sql
 ok "迁移脚本已同步（$(ls -1 "${MIGRATIONS_DIR}"/*.sql | wc -l) 个）"
+
+# 刷新部署脚本与模板（脚本自身也在此目录，源与目标相同时跳过，避免 cp 自我复制失败）
+install -d -o root -g root -m 0755 "${DEPLOY_DIR}"
+copy_deploy_file() {
+  local src="$1" dst="$2"
+  if [[ "$(readlink -f "${src}")" != "$(readlink -f "${dst}" 2>/dev/null || echo -)" ]]; then
+    cp -f "${src}" "${dst}"
+  fi
+}
+for f in Install.sh Upgrade.sh Uninstall.sh FinvQuant.service FinvQuant.env.example Nginx.conf.example; do
+  copy_deploy_file "${SCRIPT_DIR}/${f}" "${DEPLOY_DIR}/${f}"
+done
+for md in "${SCRIPT_DIR}"/*.md; do
+  [[ -f "${md}" ]] || continue
+  copy_deploy_file "${md}" "${DEPLOY_DIR}/$(basename "${md}")"
+done
+chown -R root:root "${DEPLOY_DIR}"
+chmod 0755 "${DEPLOY_DIR}"/*.sh
+for f in "${DEPLOY_DIR}"/*.md "${DEPLOY_DIR}"/*.example "${DEPLOY_DIR}"/*.service; do
+  if [[ -f "${f}" ]]; then chmod 0644 "${f}"; fi
+done
+sed "s|@PREFIX@|${PREFIX}|g" "${DEPLOY_DIR}/FinvQuant.service" > "${DEPLOY_DIR}/finvquant.service"
+chown root:root "${DEPLOY_DIR}/finvquant.service"
+chmod 0644 "${DEPLOY_DIR}/finvquant.service"
+install -o root -g root -m 0644 "${DEPLOY_DIR}/finvquant.service" "${SERVICE_FILE}"
+systemctl daemon-reload
+ok "部署文件与 unit 已刷新：${DEPLOY_DIR}"
 
 # ---------------------------------------------------------------------
 # 5. 启动

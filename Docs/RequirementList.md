@@ -2005,6 +2005,18 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 修正为按路径分流：`path.endsWith('/Auth/Login')` 的 401 走正常信封解析，把服务端 `message` 原样抛给用户；其余 401 才执行会话失效流程。
 
+## 一百零一、Native 安装到统一根目录 /data/App/FinvQuant（10766）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10766 | Native（宿主直装）方式把程序、数据库脚本、核心配置、部署脚本与部署文件统一安装到 `/data/App/FinvQuant/`：① 二进制 `bin/finvquant`（软链 `/usr/local/bin/finvquant`）；② 迁移脚本 `Migrations/`；③ 配置 `etc/finvquant.env`（权限 600）；④ 部署文件 `Deploy/`（`Install.sh`/`Upgrade.sh`/`Uninstall.sh`、unit、env 与 Nginx 模板、手册）；⑤ 备份 `Backup/`、导出 `Export/`；⑥ systemd unit 由 `Deploy/FinvQuant.service` 的 `@PREFIX@` 渲染后注册。安装根目录可用 `--prefix` 覆盖，升级/卸载脚本自动从 unit 的 `ExecStart` 推断。 | `grep -c 'FINVQ_PREFIX' Deploy/Native/Install.sh` ≥ 1；`grep -rn '/opt/finvquant\|/var/backups/finvquant' Deploy/Native/` 无输出；在测试机执行 `sudo bash Deploy/Native/Install.sh` 后 `test -x /data/App/FinvQuant/bin/finvquant && test -f /data/App/FinvQuant/etc/finvquant.env && test -d /data/App/FinvQuant/Migrations && test -x /data/App/FinvQuant/Deploy/Upgrade.sh && test -d /data/App/FinvQuant/Backup && test -d /data/App/FinvQuant/Export`；`grep -E '^(WorkingDirectory|EnvironmentFile|ExecStart|ReadWritePaths)=/data/App/FinvQuant' /etc/systemd/system/finvquant.service` 全部命中；`systemctl status finvquant` 为 `active (running)`；`curl -o /dev/null -w '%{http_code}' http://127.0.0.1:16001/API/V1/Health/Ready` = 200 | |
+
+## 一百零二、一键下载脚本（10767）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10767 | 新增一键下载脚本 `Deploy/Script/Download.sh`（及 Windows 薄封装 `Download.cmd`）：自动检查操作系统与硬件架构，自动下载匹配的最新发行包（支持 `auto`/`release`/`snapshot`/`pr` 四种渠道，`auto` 包含快照版），校验 SHA256 后解压到指定目录（默认 `/data/App/FinvQuant`）；支持 `--version`、`--list`、`--dry-run`、`--no-extract`、`--keep-top`、`--force`、`--base-url`、`--token`。 | `bash -n Deploy/Script/Download.sh` 退出码 0；`bash Deploy/Script/Download.sh --help` 输出包含 `--channel` 与 `--base-url`；`bash Deploy/Script/Download.sh --list` 列出至少 1 个 `v` 开头版本；`bash Deploy/Script/Download.sh --dry-run -v <某快照 tag>` 输出 `FinvQuant-<tag>-ubuntu-amd64.tar.gz` 与 `/data/App/FinvQuant`；在本地镜像（`python3 -m http.server` + 伪造包）上执行 `Download.sh -v v9.9.9 --base-url <镜像> -d /tmp/t` 后 `test -f /tmp/t/finvquant && test -d /tmp/t/Deploy/Native` 且日志含「SHA256 校验通过」「包内 SHA256SUMS 校验通过」；对同一目录不加 `--force` 重跑返回非 0；篡改 `.sha256` 后重跑返回非 0；`file Deploy/Script/Download.cmd` 含 `CRLF` 且首行为 `@chcp 65001 >nul` | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2131,7 +2143,9 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 登录后修改密码 | 10763 | 1 |
 | 前端基础路由改大驼峰 | 10764 | 1 |
 | 认证接口前缀统一 | 10765 | 1 |
-| **合计** | **10001–10765** | **765** |
+| Native 安装到 /data/App/FinvQuant | 10766 | 1 |
+| 一键下载脚本 | 10767 | 1 |
+| **合计** | **10001–10767** | **767** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10766` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10768` 起往后追加，不插入既有区间。
