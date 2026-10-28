@@ -33,7 +33,7 @@
 
 ## 4. 请求与响应
 
-- 请求：`GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Page?usc=&dateFrom=&dateTo=&limit=&offset=`
+- 请求：`GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Page?usc=&dateFrom=&dateTo=&limit=&offset=`
 - 响应：`data.cnt`（总数）、`data.list`（紧凑字段数组）。
 - 错误：`body.code !== 0` 时展示 `message`；网络异常提示“网络错误：无法连接服务端”。
 

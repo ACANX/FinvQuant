@@ -6,7 +6,7 @@
 
 - **方法**：`GET`
 - **路径**：`/Health`
-- **旧前缀（过渡别名）**：`/API/V1/Meta/Finv/Quote/Secu/KLine/Min` + 相同子路径（切流期保留，P7 后可移除）
+- **旧前缀（过渡别名）**：不适用（`GET /Health` 与 `GET /healthz` 为运维根端点，不属 KLine 前缀）
 - **Content-Type**：`application/json`
 
 - **主路径**：`GET /Health`（无 `/API/V1` 前缀）

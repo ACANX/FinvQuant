@@ -180,7 +180,7 @@ async function load() {
   if (to) params.set('dateTo', to)
   try {
     data.value = await apiGet<StatsData>(
-      `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats?${params.toString()}`,
+      `/Meta/Finv/Quote/Cdeu/Min/Stats?${params.toString()}`,
     )
     await nextTick()
     renderCharts()
@@ -197,7 +197,7 @@ async function load() {
 async function resolveDefaultRange(): Promise<{ from: string; to: string }> {
   try {
     const bounds = await apiGet<{ date_to: number | null }>(
-      `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Bounds?usc=${DEFAULT_USC}`,
+      `/Meta/Finv/Quote/Cdeu/Min/Bounds?usc=${DEFAULT_USC}`,
     )
     const end = bounds.date_to ? fmtDate(bounds.date_to) : todayISO()
     return { from: shiftMonthISO(end, -1), to: end }

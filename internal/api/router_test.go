@@ -77,21 +77,17 @@ func TestKLineRoutesRegistered(t *testing.T) {
 		registered[route.Method+" "+route.Path] = true
 	}
 	expected := []string{
-		"POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Add",
-		"POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Add",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch",
 		"POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert",
-		"GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Page",
-		"GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/PageUni",
-		"POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query",
-		"PATCH /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch",
-		"DELETE /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch",
-		"GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Count",
-		"GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats",
-		"GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Bounds",
-		// 旧前缀过渡别名
-		"POST /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Add",
-		"PATCH /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Batch",
-		"DELETE /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Batch",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Page",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Min/PageUni",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Query",
+		"PATCH /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch",
+		"DELETE /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Count",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Stats",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Bounds",
 		// 运维端点
 		"GET /Health",
 		"GET /healthz",
@@ -102,19 +98,39 @@ func TestKLineRoutesRegistered(t *testing.T) {
 			t.Fatalf("路由未注册: %s", route)
 		}
 	}
-	// 需求 10777：Upsert 已移至 CDEU 前缀，旧路径与新/旧 KLine 前缀均不得再注册
+	// 需求 10782：全部 K 线端点已迁到 CDEU，新/旧 KLine 前缀均不得再注册
 	for _, gone := range []string{
+		"POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Add",
+		"POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch",
 		"POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Upsert",
+		"GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Page",
+		"GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/PageUni",
+		"POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query",
+		"PATCH /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch",
+		"DELETE /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch",
+		"GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Count",
+		"GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats",
+		"GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Bounds",
+		"POST /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Add",
+		"POST /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Batch",
 		"POST /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Upsert",
+		"GET /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Page",
+		"GET /API/V1/Meta/Finv/Quote/Secu/KLine/Min/PageUni",
+		"POST /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Query",
+		"PATCH /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Batch",
+		"DELETE /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Batch",
+		"GET /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Count",
+		"GET /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Stats",
+		"GET /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Bounds",
 	} {
 		if registered[gone] {
-			t.Fatalf("旧 Upsert 路径不应再注册: %s", gone)
+			t.Fatalf("旧路径不应再注册: %s", gone)
 		}
 	}
 	// 同一路径不同方法必须共存（Gin 不允许重复注册同一 方法+路径）。
-	if !registered["POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch"] ||
-		!registered["PATCH /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch"] ||
-		!registered["DELETE /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch"] {
+	if !registered["POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch"] ||
+		!registered["PATCH /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch"] ||
+		!registered["DELETE /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch"] {
 		t.Fatal("POST/PATCH/DELETE /Batch 未全部注册")
 	}
 }

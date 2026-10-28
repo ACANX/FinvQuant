@@ -1,12 +1,12 @@
-# GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Count — 统计总记录数
+# GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Count — 统计总记录数
 
 按证券/来源/日期统计记录总数（无分页）。
 
 ## 请求
 
 - **方法**：`GET`
-- **路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Count`
-- **旧前缀（过渡别名）**：`/API/V1/Meta/Finv/Quote/Secu/KLine/Min` + 相同子路径（切流期保留，P7 后可移除）
+- **路径**：`/API/V1/Meta/Finv/Quote/Cdeu/Min/Count`
+- **旧路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Count` 与 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Count` **已不再注册**（需求 10782）
 - **Content-Type**：`application/json`
 
 ### Query 参数（小驼峰）

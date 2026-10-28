@@ -318,15 +318,20 @@ func (p PatchItem) DebugString() string {
 	return fmt.Sprintf("%s@%d:%s", p.Usc, p.Ts, strings.Join(p.Columns, ","))
 }
 
-// APIPrefix 分钟行情 K 线 API 的统一前缀（DC-01）。
-// 注意：批量 Upsert 已独立到 CDEU 前缀（见 CdeuUpsertPath），不再挂在本前缀下。
-const APIPrefix = "/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min"
+// APIPrefix 分钟行情 K 线 API 的统一前缀（需求 10782 起统一到 CDEU）。
+const APIPrefix = "/API/V1/Meta/Finv/Quote/Cdeu/Min"
 
-// LegacyAPIPrefix 旧 Python 服务前缀，切流期作为过渡别名保留。
+// LegacyAPIPrefix 旧 Python 服务前缀；自需求 10782 起不再注册，仅保留常量供引用/文档追溯。
 const LegacyAPIPrefix = "/API/V1/Meta/Finv/Quote/Secu/KLine/Min"
 
-// CdeuAPIPrefix CDEU 分钟行情 API 前缀：批量 Upsert 独立于此（需求 10777）。
-const CdeuAPIPrefix = "/API/V1/Meta/Finv/Quote/Cdeu/Min"
+// CdeuAPIPrefix 与 APIPrefix 相同，保留别名以兼容既有引用（需求 10777/10781）。
+const CdeuAPIPrefix = APIPrefix
 
 // CdeuUpsertPath 分钟行情批量 Upsert 的完整路径。
 const CdeuUpsertPath = CdeuAPIPrefix + "/Upsert"
+
+// CdeuPagePath 分钟行情条件分页（对象数组）的完整路径。
+const CdeuPagePath = CdeuAPIPrefix + "/Page"
+
+// CdeuPageUniPath 分钟行情条件分页（column/row）的完整路径。
+const CdeuPageUniPath = CdeuAPIPrefix + "/PageUni"

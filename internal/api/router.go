@@ -95,28 +95,20 @@ func NewRouter(deps *Deps) *gin.Engine {
 			authGroup.POST("/ChangePassword", authHandler.ChangePassword)
 			authGroup.GET("/Profile", authHandler.Profile)
 		}
-		// 分钟行情 K 线：新前缀 + 旧前缀过渡别名（同一组 handler，P7 后可移除旧前缀）
-		for _, prefix := range []string{
-			strings.TrimPrefix(kline.APIPrefix, "/API/V1/"),
-			strings.TrimPrefix(kline.LegacyAPIPrefix, "/API/V1/"),
-		} {
-			group := apiGroup.Group(prefix)
-			group.POST("/Add", klineHandler.Add)
-			group.POST("/Batch", klineHandler.BatchInsert)
-			// 批量 Upsert 已独立到 /Meta/Finv/Quote/Cdeu/Min/Upsert（需求 10777），
-			// 新前缀与旧前缀均不再注册该子路径。
-			group.GET("/Page", klineHandler.Page)
-			group.GET("/PageUni", klineHandler.PageUni)
-			group.POST("/Query", klineHandler.Query)
-			group.PATCH("/Batch", klineHandler.BatchPatch)
-			group.DELETE("/Batch", klineHandler.BatchDelete)
-			group.GET("/Count", klineHandler.Count)
-			group.GET("/Stats", klineHandler.Stats)
-			group.GET("/Bounds", klineHandler.Bounds)
-		}
-
-		// 分钟行情批量 Upsert：独立使用 CDEU 前缀（需求 10777）
-		apiGroup.POST(strings.TrimPrefix(kline.CdeuUpsertPath, "/API/V1"), klineHandler.Upsert)
+		// 分钟行情 K 线：统一 /Meta/Finv/Quote/Cdeu/Min 前缀（需求 10782）。
+		// 旧 /DeDup/Secu/KLine/Min 与 legacy /Secu/KLine/Min 均不再注册。
+		group := apiGroup.Group(strings.TrimPrefix(kline.APIPrefix, "/API/V1/"))
+		group.POST("/Add", klineHandler.Add)
+		group.POST("/Batch", klineHandler.BatchInsert)
+		group.POST("/Upsert", klineHandler.Upsert)
+		group.GET("/Page", klineHandler.Page)
+		group.GET("/PageUni", klineHandler.PageUni)
+		group.POST("/Query", klineHandler.Query)
+		group.PATCH("/Batch", klineHandler.BatchPatch)
+		group.DELETE("/Batch", klineHandler.BatchDelete)
+		group.GET("/Count", klineHandler.Count)
+		group.GET("/Stats", klineHandler.Stats)
+		group.GET("/Bounds", klineHandler.Bounds)
 
 		// 历史行情：导入 / 查询（统一 /Meta/Finv/Quant/Quote/ 前缀，与前端路由对应）
 		apiGroup.POST("/Meta/Finv/Quant/Quote/Import/Upload", quoteImport.Upload)

@@ -1,12 +1,12 @@
-# GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Page — 条件查询 + 分页（对象数组）
+# GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Page — 条件查询 + 分页（对象数组）
 
 按证券/来源/日期/时间戳过滤并分页，输出紧凑字段对象数组。
 
 ## 请求
 
 - **方法**：`GET`
-- **路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Page`
-- **旧前缀（过渡别名）**：`/API/V1/Meta/Finv/Quote/Secu/KLine/Min` + 相同子路径（切流期保留，P7 后可移除）
+- **路径**：`/API/V1/Meta/Finv/Quote/Cdeu/Min/Page`（独立于 K 线新/旧前缀，需求 10781）
+- **旧路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Page` 与 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Page` **已不再注册**
 - **Content-Type**：`application/json`
 
 ### Query 参数（小驼峰；旧下划线名兼容）

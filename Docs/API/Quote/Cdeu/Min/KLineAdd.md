@@ -1,12 +1,12 @@
-# POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Add — 单条插入
+# POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Add — 单条插入
 
 向分钟行情表插入一条 K 线；主键 `(usc, ts)` 冲突返回 409。
 
 ## 请求
 
 - **方法**：`POST`
-- **路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Add`
-- **旧前缀（过渡别名）**：`/API/V1/Meta/Finv/Quote/Secu/KLine/Min` + 相同子路径（切流期保留，P7 后可移除）
+- **路径**：`/API/V1/Meta/Finv/Quote/Cdeu/Min/Add`
+- **旧路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Add` 与 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Add` **已不再注册**（需求 10782）
 - **Content-Type**：`application/json`
 
 ### 请求体（snake_case）

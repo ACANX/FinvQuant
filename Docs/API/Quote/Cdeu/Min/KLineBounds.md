@@ -1,12 +1,12 @@
-# GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Bounds — 交易日期边界
+# GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Bounds — 交易日期边界
 
 返回过滤范围内的最小/最大交易日期（轻量端点，供前端初始化默认日期范围使用）。
 
 ## 请求
 
 - **方法**：`GET`
-- **路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Bounds`
-- **旧前缀（过渡别名）**：`/API/V1/Meta/Finv/Quote/Secu/KLine/Min` + 相同子路径
+- **路径**：`/API/V1/Meta/Finv/Quote/Cdeu/Min/Bounds`
+- **旧路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Bounds` 与 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Bounds` **已不再注册**（需求 10782）
 - **Query 参数**：与 `/Page` 一致（`usc`、`dateFrom/dateTo`、`tsFrom/tsTo`），通常只传 `usc`。
 
 ### 成功（HTTP 200）

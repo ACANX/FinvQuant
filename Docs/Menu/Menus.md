@@ -69,8 +69,8 @@
 | 23 | 实盘交易 | 一级叶子 | `live-trading` | `mdi-cash-register` | `/Meta/Finv/Quant/LiveTrading` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中） | [Backtest/LiveTrading.md](Backtest/LiveTrading.md) |
 | 24 | 数据采集 | 一级分组 | `data-collection` | `mdi-database-arrow-down` | — | — | — | — |
 | 25 | 行情数据去重 | 二级分组 | `quote-dedup` | `mdi-content-duplicate` | — | — | — | — |
-| 26 | 去重分钟行情查询 | 三级叶子 | `dedup-kline-query` | `mdi-table-search` | `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query` | `Web/src/views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue` | `GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Page`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options` | [HistoryQuote/DeDupKLineQuery.md](HistoryQuote/DeDupKLineQuery.md) |
-| 27 | 去重分钟行情统计 | 三级叶子 | `dedup-kline-stats` | `mdi-chart-box-outline` | `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats` | `Web/src/views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue` | `GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options` | [HistoryQuote/DeDupKLineStats.md](HistoryQuote/DeDupKLineStats.md) |
+| 26 | 去重分钟行情查询 | 三级叶子 | `dedup-kline-query` | `mdi-table-search` | `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query` | `Web/src/views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue` | `GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Page`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options` | [HistoryQuote/DeDupKLineQuery.md](HistoryQuote/DeDupKLineQuery.md) |
+| 27 | 去重分钟行情统计 | 三级叶子 | `dedup-kline-stats` | `mdi-chart-box-outline` | `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats` | `Web/src/views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue` | `GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Stats`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options` | [HistoryQuote/DeDupKLineStats.md](HistoryQuote/DeDupKLineStats.md) |
 
 ## 说明
 

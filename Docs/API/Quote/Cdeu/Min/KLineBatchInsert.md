@@ -1,12 +1,12 @@
-# POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch — 批量插入
+# POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch — 批量插入
 
 批量插入 K 线；**任一条冲突整体回滚**，请求内重复键在写库前拦截。
 
 ## 请求
 
 - **方法**：`POST`
-- **路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch`
-- **旧前缀（过渡别名）**：`/API/V1/Meta/Finv/Quote/Secu/KLine/Min` + 相同子路径（切流期保留，P7 后可移除）
+- **路径**：`/API/V1/Meta/Finv/Quote/Cdeu/Min/Batch`
+- **旧路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch` 与 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Batch` **已不再注册**（需求 10782）
 - **Content-Type**：`application/json`
 
 ### 请求体

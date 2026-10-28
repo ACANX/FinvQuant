@@ -1,12 +1,12 @@
-# GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats — 去重行情统计分析
+# GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Stats — 去重行情统计分析
 
 按证券（`usc`）与交易日期范围统计 `dedup.finv_quote_secu_kline_min` 的去重后数据，返回汇总指标、每日趋势、证券分布与空值完整性，供前端“去重分钟行情统计”页面做可视化。
 
 ## 请求
 
 - **方法**：`GET`
-- **路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats`
-- **旧前缀（过渡别名）**：`/API/V1/Meta/Finv/Quote/Secu/KLine/Min` + 相同子路径（切流期保留，P7 后可移除）
+- **路径**：`/API/V1/Meta/Finv/Quote/Cdeu/Min/Stats`
+- **旧路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats` 与 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Stats` **已不再注册**（需求 10782）
 - **Content-Type**：`application/json`
 
 ### Query 参数（小驼峰）

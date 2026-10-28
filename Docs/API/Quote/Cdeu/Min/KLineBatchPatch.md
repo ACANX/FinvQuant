@@ -1,12 +1,12 @@
-# PATCH /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch — 批量增量更新
+# PATCH /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch — 批量增量更新
 
 请求体为**数组**；只更新显式传入的字段，`null` 表示写入 NULL。
 
 ## 请求
 
 - **方法**：`PATCH`
-- **路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch`
-- **旧前缀（过渡别名）**：`/API/V1/Meta/Finv/Quote/Secu/KLine/Min` + 相同子路径（切流期保留，P7 后可移除）
+- **路径**：`/API/V1/Meta/Finv/Quote/Cdeu/Min/Batch`
+- **旧路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch` 与 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Batch` **已不再注册**（需求 10782）
 - **Content-Type**：`application/json`
 
 ### 请求体（数组，不是 `{"items":...}`）

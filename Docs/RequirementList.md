@@ -2085,6 +2085,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10780 | 把 `KLinePage.md`、`KLinePageUni.md` 从 `Docs/API/KLine/` 移动到 `Docs/API/Quote/Cdeu/Min/`，并同步所有索引与链接（端点路径保持不变）；同时修复仓库内失效的 Markdown 相对链接。 | `ls Docs/API/Quote/Cdeu/Min/{KLinePage.md,KLinePageUni.md,KLineUpsert.md}` 均存在；`ls Docs/API/KLine/KLinePage*.md` 不存在；`grep -rn 'KLine/KLinePage' Docs/` 无输出；全仓 Markdown 相对链接校验 0 处失效；`go test ./internal/docs` 通过 | |
 
+## 一百一十四、全部分钟行情端点统一 Cdeu 前缀（10782）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10782 | 把分钟行情全部端点（`Add`、`Batch` POST/PATCH/DELETE、`Upsert`、`Page`、`PageUni`、`Query`、`Count`、`Stats`、`Bounds`）统一到 `/API/V1/Meta/Finv/Quote/Cdeu/Min/*`；旧 `DeDup/Secu/KLine/Min` 与 legacy `Secu/KLine/Min` 不再注册；`Docs/API/KLine/` 下全部文档迁入 `Docs/API/Quote/Cdeu/Min/`；前端 API 调用同步（页面路由不变）。 | `grep -c 'Cdeu/Min' internal/kline/model.go` ≥ 1；`grep -c 'Secu/KLine/Min' internal/api/router.go` = 0（仅注释例外）；`go test ./internal/api -run TestKLineRoutesRegistered` 通过（新路径已注册、22 条旧路径未注册）；`ls Docs/API/Quote/Cdeu/Min/*.md \| wc -l` = 12 且 `Docs/API/KLine` 不存在；全仓 Markdown 相对链接 0 失效；`go test ./internal/docs` 通过；`curl -X POST http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Min/Batch` 非 404，旧路径返回 404 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2226,7 +2232,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | Markdown 表格必须带表头 | 10778 | 1 |
 | 全仓 Markdown 表格结构合法 | 10779 | 1 |
 | KLinePage 系列文档目录归位 | 10780 | 1 |
-| **合计** | **10001–10780** | **780** |
+| 全部分钟行情端点统一 Cdeu | 10782 | 1 |
+| **合计** | **10001–10782** | **782** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10781` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10783` 起往后追加，不插入既有区间。

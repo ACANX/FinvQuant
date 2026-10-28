@@ -1,12 +1,12 @@
-# POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query — 批量查询
+# POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Query — 批量查询
 
 按 `(usc, ts)` / `uscs` / `provider` 组合查询（AND），返回完整字段。
 
 ## 请求
 
 - **方法**：`POST`
-- **路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query`
-- **旧前缀（过渡别名）**：`/API/V1/Meta/Finv/Quote/Secu/KLine/Min` + 相同子路径（切流期保留，P7 后可移除）
+- **路径**：`/API/V1/Meta/Finv/Quote/Cdeu/Min/Query`
+- **旧路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query` 与 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Query` **已不再注册**（需求 10782）
 - **Content-Type**：`application/json`
 
 ### 请求体

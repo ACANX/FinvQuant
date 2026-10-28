@@ -50,20 +50,19 @@ Authorization: Bearer <token>
 - **详细接口文档**：
   - 登录认证（需求 10761）：
     - [`Auth/Auth.md`](Auth/Auth.md) — `POST /Meta/Finv/Auth/Login`（登录发令牌）、`POST /Meta/Finv/Auth/Logout`（吊销会话）、`GET /Meta/Finv/Auth/Profile`（当前用户）；含认证模型、401 口径与口令轮换方式
-  - 分钟行情 K 线（`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/*`，**一个接口一个文档**）：
-    - [`KLine/KLineAdd.md`](KLine/KLineAdd.md) — `POST .../Min/Add`（单条插入）
-    - [`KLine/KLineBatchInsert.md`](KLine/KLineBatchInsert.md) — `POST .../Min/Batch`（批量插入）
-    - [`KLine/KLineQuery.md`](KLine/KLineQuery.md) — `POST .../Min/Query`（批量查询）
-    - [`KLine/KLineBatchPatch.md`](KLine/KLineBatchPatch.md) — `PATCH .../Min/Batch`（批量增量更新）
-    - [`KLine/KLineBatchDelete.md`](KLine/KLineBatchDelete.md) — `DELETE .../Min/Batch`（批量删除）
-    - [`KLine/KLineCount.md`](KLine/KLineCount.md) — `GET .../Min/Count`（统计总数）
-    - [`KLine/KLineStats.md`](KLine/KLineStats.md) — `GET .../Min/Stats`（汇总统计与可视化数据）
-    - [`KLine/KLineBounds.md`](KLine/KLineBounds.md) — `GET .../Min/Bounds`（交易日期边界）
-    - [`KLine/KLineHealth.md`](KLine/KLineHealth.md) — `GET /Health`（探活，含 `/healthz` 过渡别名）
-  - 分钟行情 CDEU 目录（`Docs/API/Quote/Cdeu/Min/`，**一个接口一个文档**）：
-    - [`Quote/Cdeu/Min/KLineUpsert.md`](Quote/Cdeu/Min/KLineUpsert.md) — `POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`（批量 upsert）
-    - [`Quote/Cdeu/Min/KLinePage.md`](Quote/Cdeu/Min/KLinePage.md) — `GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Page`（分页，对象数组）
-    - [`Quote/Cdeu/Min/KLinePageUni.md`](Quote/Cdeu/Min/KLinePageUni.md) — `GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/PageUni`（分页，column/row）
+  - 分钟行情 K 线（`/API/V1/Meta/Finv/Quote/Cdeu/Min/*`，**一个接口一个文档**）：
+    - [`Quote/Cdeu/Min/KLineAdd.md`](Quote/Cdeu/Min/KLineAdd.md) — `POST .../Min/Add`（单条插入）
+    - [`Quote/Cdeu/Min/KLineBatchInsert.md`](Quote/Cdeu/Min/KLineBatchInsert.md) — `POST .../Min/Batch`（批量插入）
+    - [`Quote/Cdeu/Min/KLineUpsert.md`](Quote/Cdeu/Min/KLineUpsert.md) — `POST .../Min/Upsert`（批量 upsert）
+    - [`Quote/Cdeu/Min/KLinePage.md`](Quote/Cdeu/Min/KLinePage.md) — `GET .../Min/Page`（分页，对象数组）
+    - [`Quote/Cdeu/Min/KLinePageUni.md`](Quote/Cdeu/Min/KLinePageUni.md) — `GET .../Min/PageUni`（分页，column/row）
+    - [`Quote/Cdeu/Min/KLineQuery.md`](Quote/Cdeu/Min/KLineQuery.md) — `POST .../Min/Query`（批量查询）
+    - [`Quote/Cdeu/Min/KLineBatchPatch.md`](Quote/Cdeu/Min/KLineBatchPatch.md) — `PATCH .../Min/Batch`（批量增量更新）
+    - [`Quote/Cdeu/Min/KLineBatchDelete.md`](Quote/Cdeu/Min/KLineBatchDelete.md) — `DELETE .../Min/Batch`（批量删除）
+    - [`Quote/Cdeu/Min/KLineCount.md`](Quote/Cdeu/Min/KLineCount.md) — `GET .../Min/Count`（统计总数）
+    - [`Quote/Cdeu/Min/KLineStats.md`](Quote/Cdeu/Min/KLineStats.md) — `GET .../Min/Stats`（汇总统计与可视化数据）
+    - [`Quote/Cdeu/Min/KLineBounds.md`](Quote/Cdeu/Min/KLineBounds.md) — `GET .../Min/Bounds`（交易日期边界）
+    - [`Quote/Cdeu/Min/KLineHealth.md`](Quote/Cdeu/Min/KLineHealth.md) — `GET /Health`（探活，含 `/healthz` 过渡别名）
   - [`HistoryQuote/ImportsUpload.md`](HistoryQuote/ImportsUpload.md) — `POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload`（MVSV 历史行情导入）
   - [`HistoryQuote/HistoryQuote.md`](HistoryQuote/HistoryQuote.md) — `GET /API/V1/Meta/Finv/Quant/Quote/History/QuoteQuery`（历史行情查询）
   - [`Meta/MetaExchange.md`](Meta/MetaExchange.md) — `GET/POST /API/V1/Meta/Finv/Quant/Metadata/Exchange/*`（交易所信息维护）

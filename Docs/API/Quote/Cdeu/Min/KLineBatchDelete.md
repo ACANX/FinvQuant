@@ -1,12 +1,12 @@
-# DELETE /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch — 批量删除
+# DELETE /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch — 批量删除
 
 按 `keys` / `uscs` 批量删除（OR 语义），删除不可恢复。
 
 ## 请求
 
 - **方法**：`DELETE`
-- **路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch`
-- **旧前缀（过渡别名）**：`/API/V1/Meta/Finv/Quote/Secu/KLine/Min` + 相同子路径（切流期保留，P7 后可移除）
+- **路径**：`/API/V1/Meta/Finv/Quote/Cdeu/Min/Batch`
+- **旧路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch` 与 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Batch` **已不再注册**（需求 10782）
 - **Content-Type**：`application/json`
 
 ### 请求体

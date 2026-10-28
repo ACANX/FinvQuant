@@ -118,7 +118,7 @@ async function load() {
   if (from) params.set('dateFrom', from)
   if (to) params.set('dateTo', to)
   try {
-    const data = await apiGet<PageData>(`/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Page?${params.toString()}`)
+    const data = await apiGet<PageData>(`/Meta/Finv/Quote/Cdeu/Min/Page?${params.toString()}`)
     rows.value = (data.list ?? []).map((row) => ({ ...row, _key: `${row.usc}-${row.ts}` }))
     total.value = data.cnt ?? 0
   } catch (e) {
@@ -143,7 +143,7 @@ function search() {
 async function resolveDefaultRange(): Promise<{ from: string; to: string }> {
   try {
     const bounds = await apiGet<{ date_to: number | null }>(
-      `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Bounds?usc=${DEFAULT_USC}`,
+      `/Meta/Finv/Quote/Cdeu/Min/Bounds?usc=${DEFAULT_USC}`,
     )
     const end = bounds.date_to ? fmtDate(bounds.date_to) : todayISO()
     return { from: shiftMonthISO(end, -1), to: end }

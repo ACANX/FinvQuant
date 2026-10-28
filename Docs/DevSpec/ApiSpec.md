@@ -68,9 +68,10 @@ API 契约测试必须覆盖：
 
 ### 7.5 分钟行情 K 线接口的兼容例外（2026-10-24）
 
-融合 `FinvQuoteDataDeDup` 后，`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/*` 与运维端点存在以下**已登记例外**，不属于违规：
+融合 `FinvQuoteDataDeDup` 后，分钟行情接口统一为 `/API/V1/Meta/Finv/Quote/Cdeu/Min/*`（旧
+`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/*` 与 Python 服务前缀已不再注册），运维端点存在以下**已登记例外**，不属于违规：
 
-- **过渡前缀别名**：同时注册旧前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/*`（切流期用，P7 后移除）；对外承诺路径为新前缀。
+- **运维根端点**：`GET /Health`、`GET /healthz` 不挂在业务前缀下（探针/脚本使用），不属于前缀违规。
 - **URL 查询参数双读**：`dateFrom/dateTo/tsFrom/tsTo/onConflict`（小驼峰，规范名）与 `date_from/date_to/ts_from/ts_to/on_conflict`（旧下划线名）同时接受；文档以规范名为准。
 - **列表信封沿用旧契约**：`GET /Page`、`GET /PageUni` 成功响应为 `{"code":1,"data":{...},"message":"OK"}`（成功码 `1` 属成功码集合，允许）。
 - **错误体为超集**：`{code,message,detail,request_id,error}`，保留旧客户端依赖的 `detail` 字段；`code` 见 `ErrorCodeSpec` §1.1。

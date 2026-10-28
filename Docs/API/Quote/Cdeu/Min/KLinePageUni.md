@@ -1,12 +1,12 @@
-# GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/PageUni — 条件查询 + 分页（column/row）
+# GET /API/V1/Meta/Finv/Quote/Cdeu/Min/PageUni — 条件查询 + 分页（column/row）
 
 查询参数与 `/Page` 完全一致，输出 `column` + `row` 行数组（单元格为字符串或 null）。
 
 ## 请求
 
 - **方法**：`GET`
-- **路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/PageUni`
-- **旧前缀（过渡别名）**：`/API/V1/Meta/Finv/Quote/Secu/KLine/Min` + 相同子路径（切流期保留，P7 后可移除）
+- **路径**：`/API/V1/Meta/Finv/Quote/Cdeu/Min/PageUni`（独立于 K 线新/旧前缀，需求 10781）
+- **旧路径**：`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/PageUni` 与 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/PageUni` **已不再注册**
 - **Content-Type**：`application/json`
 
 ### 成功（HTTP 200）

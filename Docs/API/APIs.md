@@ -67,18 +67,18 @@
 | 43 | GET | `/API/V1/Meta/Finv/Quant/Backtest/Template/Get` | 查询模板详情 | [Backtest/TemplateGet.md](Backtest/TemplateGet.md) | 模板管理（同上） |
 | 44 | POST | `/API/V1/Meta/Finv/Quant/Backtest/Template/Save` | 新增/修改模板 | [Backtest/TemplateSave.md](Backtest/TemplateSave.md) | 模板管理（同上） |
 | 45 | POST | `/API/V1/Meta/Finv/Quant/Backtest/Template/Delete` | 删除模板（内置禁止） | [Backtest/TemplateDelete.md](Backtest/TemplateDelete.md) | 模板管理（同上） |
-| 46 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Add` | 分钟行情 K 线单条插入（原 FinvQuoteDataDeDup API-01） | [KLine/KLineAdd.md](KLine/KLineAdd.md) | 分钟行情采集端 |
-| 47 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch` | 批量插入（冲突整体回滚、请求内重复拦截） | [KLine/KLineBatchInsert.md](KLine/KLineBatchInsert.md) | 分钟行情采集端 |
+| 46 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/Min/Add` | 分钟行情 K 线单条插入（原 FinvQuoteDataDeDup API-01） | [Quote/Cdeu/Min/KLineAdd.md](Quote/Cdeu/Min/KLineAdd.md) | 分钟行情采集端 |
+| 47 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/Min/Batch` | 批量插入（冲突整体回滚、请求内重复拦截） | [Quote/Cdeu/Min/KLineBatchInsert.md](Quote/Cdeu/Min/KLineBatchInsert.md) | 分钟行情采集端 |
 | 48 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert` | 批量 upsert（`onConflict=skip\|update`，整行覆盖） | [Quote/Cdeu/Min/KLineUpsert.md](Quote/Cdeu/Min/KLineUpsert.md) | 分钟行情采集端 |
-| 49 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Page` | 条件分页查询（紧凑字段对象数组） | [Quote/Cdeu/Min/KLinePage.md](Quote/Cdeu/Min/KLinePage.md) | 采集端/核对工具、去重分钟行情查询（`DeDupKLineQueryView.vue`） |
-| 50 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/PageUni` | 条件分页查询（column/row 行数组） | [Quote/Cdeu/Min/KLinePageUni.md](Quote/Cdeu/Min/KLinePageUni.md) | 表格类前端/核对工具 |
-| 51 | POST | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query` | 按 `(usc,ts)`/`uscs`/`provider` 批量查询 | [KLine/KLineQuery.md](KLine/KLineQuery.md) | 采集端回读校验 |
-| 52 | PATCH | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch` | 批量增量更新（仅更新显式字段） | [KLine/KLineBatchPatch.md](KLine/KLineBatchPatch.md) | 数据修正工具 |
-| 53 | DELETE | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch` | 批量删除（keys/uscs OR 语义） | [KLine/KLineBatchDelete.md](KLine/KLineBatchDelete.md) | 数据清理工具 |
-| 54 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Count` | 分钟行情记录总数统计 | [KLine/KLineCount.md](KLine/KLineCount.md) | 采集端入库量统计 |
-| 55 | GET | `/Health` | 探活（探数据库；`/healthz` 为过渡别名） | [KLine/KLineHealth.md](KLine/KLineHealth.md) | 监控/容器 healthcheck |
-| 56 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats` | 去重行情汇总统计（汇总/每日/证券分布/空值完整性） | [KLine/KLineStats.md](KLine/KLineStats.md) | 去重分钟行情统计（`DeDupKLineStatsView.vue`） |
-| 57 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Bounds` | 交易日期边界（min/max date，轻量） | [KLine/KLineBounds.md](KLine/KLineBounds.md) | 去重分钟行情查询/统计页默认日期范围（`DeDupKLineQueryView.vue`、`DeDupKLineStatsView.vue`） |
+| 49 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/Min/Page` | 条件分页查询（紧凑字段对象数组） | [Quote/Cdeu/Min/KLinePage.md](Quote/Cdeu/Min/KLinePage.md) | 采集端/核对工具、去重分钟行情查询（`DeDupKLineQueryView.vue`） |
+| 50 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/Min/PageUni` | 条件分页查询（column/row 行数组） | [Quote/Cdeu/Min/KLinePageUni.md](Quote/Cdeu/Min/KLinePageUni.md) | 表格类前端/核对工具 |
+| 51 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/Min/Query` | 按 `(usc,ts)`/`uscs`/`provider` 批量查询 | [Quote/Cdeu/Min/KLineQuery.md](Quote/Cdeu/Min/KLineQuery.md) | 采集端回读校验 |
+| 52 | PATCH | `/API/V1/Meta/Finv/Quote/Cdeu/Min/Batch` | 批量增量更新（仅更新显式字段） | [Quote/Cdeu/Min/KLineBatchPatch.md](Quote/Cdeu/Min/KLineBatchPatch.md) | 数据修正工具 |
+| 53 | DELETE | `/API/V1/Meta/Finv/Quote/Cdeu/Min/Batch` | 批量删除（keys/uscs OR 语义） | [Quote/Cdeu/Min/KLineBatchDelete.md](Quote/Cdeu/Min/KLineBatchDelete.md) | 数据清理工具 |
+| 54 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/Min/Count` | 分钟行情记录总数统计 | [Quote/Cdeu/Min/KLineCount.md](Quote/Cdeu/Min/KLineCount.md) | 采集端入库量统计 |
+| 55 | GET | `/Health` | 探活（探数据库；`/healthz` 为过渡别名） | [Quote/Cdeu/Min/KLineHealth.md](Quote/Cdeu/Min/KLineHealth.md) | 监控/容器 healthcheck |
+| 56 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/Min/Stats` | 去重行情汇总统计（汇总/每日/证券分布/空值完整性） | [Quote/Cdeu/Min/KLineStats.md](Quote/Cdeu/Min/KLineStats.md) | 去重分钟行情统计（`DeDupKLineStatsView.vue`） |
+| 57 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/Min/Bounds` | 交易日期边界（min/max date，轻量） | [Quote/Cdeu/Min/KLineBounds.md](Quote/Cdeu/Min/KLineBounds.md) | 去重分钟行情查询/统计页默认日期范围（`DeDupKLineQueryView.vue`、`DeDupKLineStatsView.vue`） |
 | 58 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Status` | 归档链路指标（任务/上传状态、积压、预算、补丁、告警）与调度表 | [QuoteDeDup/Status.md](QuoteDeDup/Status.md) | 归档监控总览 |
 | 59 | GET | `/API/V1/Meta/Finv/Quote/DeDup/Job/List` | 分页查询证券月导出任务 | [QuoteDeDup/JobList.md](QuoteDeDup/JobList.md) | 导出任务 |
 | 60 | GET | `/API/V1/Meta/Finv/Quote/DeDup/File/List` | 分页查询导出文件与上传状态 | [QuoteDeDup/FileList.md](QuoteDeDup/FileList.md) | 文件与上传 |
@@ -116,8 +116,7 @@
 ## 说明
 
 - 接口清单以 `internal/api/router.go` 实际注册为准；新增接口须同步更新本索引及 [Docs/API/README.md](README.md) 端点索引。
-- 分钟行情 K 线接口注册了**两套前缀**：新前缀 `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min`（对外承诺）与旧前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min`（切流期过渡别名，P7 后移除）。
-- **例外**：批量 Upsert 独立使用 `/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`，不再挂在上面的新/旧 K 线前缀下（需求 10777）。
+- 分钟行情 K 线接口**统一使用** `/API/V1/Meta/Finv/Quote/Cdeu/Min/*`；旧前缀 `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min` 与 Python 服务前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min` **均已不再注册**（需求 10777 / 10781 / 10782）。
 - 「详细文档」列指向对应接口文档（`Docs/API/xxx/XXXX.md`，见 [ApiSpec.md](../DevSpec/ApiSpec.md) 第 7 节）；暂无独立文档的接口以 `—` 标注。
 - 「已使用位置（业务菜单）」列与菜单文档中的接口引用互为索引（见 [MenuSpec.md](../DevSpec/MenuSpec.md) 第 3 节）；接口新增使用方或下线时须同步更新。
 - 通用探针/信息接口（health、version）不强制要求独立文档，但契约变更须同步本索引。

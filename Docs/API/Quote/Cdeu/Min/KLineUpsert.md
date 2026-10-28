@@ -17,7 +17,7 @@
 
 ### 请求体
 
-同 [`KLineBatchInsert.md`](../../../KLine/KLineBatchInsert.md)。
+同 [`KLineBatchInsert.md`](KLineBatchInsert.md)。
 
 ### 行为
 

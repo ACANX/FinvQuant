@@ -530,8 +530,15 @@
 
 ### 变更
 
+- **全部分钟行情端点统一到 `/API/V1/Meta/Finv/Quote/Cdeu/Min/*`（需求 10782）**
+  - 端点：`Add`、`Batch`（POST/PATCH/DELETE）、`Upsert`、`Page`、`PageUni`、`Query`、`Count`、`Stats`、`Bounds` 全部改挂 CDEU 前缀；旧 `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/*` 与 Python 服务前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/*` **不再注册**（返回 404）。
+  - 代码：`kline.APIPrefix` 改为 CDEU 前缀，router 单前缀注册全部端点（不再循环两套前缀），`router_test` 断言 22 条旧路径均不存在。
+  - 前端：3 处 API 调用（`Bounds`×2、`Stats`）改为 CDEU；Vue 页面路由（`/Meta/Finv/Quote/DeDup/Secu/KLine/Min/*`）保持不变。
+  - 文档：`Docs/API/KLine/` 剩余 9 个文档全部迁入 `Docs/API/Quote/Cdeu/Min/`（共 12 个），标题/路径/旧路径说明同步；`Docs/API/KLine` 目录移除；`APIs.md`、`README.md`、`Docs/Menu/*`、`DbSchemaSpec`、`ApiSpec` 同步。
+  - **破坏性变更**：所有调用方需把 K 线 API 路径前缀改为 `/API/V1/Meta/Finv/Quote/Cdeu/Min`（`GET /Health`、`GET /healthz` 运维端点不受影响）。
+
 - **KLinePage / KLinePageUni 文档迁入 `Docs/API/Quote/Cdeu/Min/`（需求 10780）**
-  - `Docs/API/KLine/KLinePage.md`、`KLinePageUni.md` → `Docs/API/Quote/Cdeu/Min/`（端点路径未变，仍为 `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Page(Uni)`）。
+  - `Docs/API/KLine/KLinePage.md`、`KLinePageUni.md` → `Docs/API/Quote/Cdeu/Min/`（当时端点未变，随后由需求 10781 迁到 `/API/V1/Meta/Finv/Quote/Cdeu/Min/Page(Uni)`）。
   - 同步 `APIs.md` 索引、`README.md` 接口索引（新增「分钟行情 CDEU 目录」小节）、`Docs/Menu/HistoryQuote/DeDupKLineQuery.md` 链接。
   - 顺带修复 4 处失效相对链接：`Deploy/Docker/Win11DockerUpgrade.md` 的「迁移目录」改为 `../Migrations/`；`Archive/.../Windows11Deployment.md` 3 处 `Docs/...` 改为 `../Docs/...`。
 
