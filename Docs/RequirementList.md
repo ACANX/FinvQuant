@@ -2067,6 +2067,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10777 | 把分钟行情批量 Upsert 端点从 `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Upsert` 调整为 `/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`；旧路径（含 legacy 前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Upsert`）不再注册；其它 K 线端点保持不变。 | `grep -c 'CdeuUpsertPath' internal/kline/model.go internal/api/router.go` ≥ 2；`grep -c '/Cdeu/Min/Upsert' internal/api/router_test.go` ≥ 1；`grep -c 'POST ...DeDup/Secu/KLine/Min/Upsert'` 在 router.go 中为 0；运行 `go test ./internal/api -run TestKLineRoutesRegistered` 通过（新路径已注册、两条旧路径未注册）；`curl -X POST http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert` 不再返回 404，旧路径返回 404 | |
 
+## 一百一十一、Markdown 表格必须带表头（10778）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10778 | `Docs/` 下所有 Markdown 表格必须包含表头行与 `|---|` 分隔行，不得出现只有数据行的“伪表格”（本次修复 KLine 系列 11 处错误码表格）；并在 `internal/docs` 中增加自动校验防回归。 | `go test ./internal/docs -run TestMarkdownTablesHaveHeader` 通过；`Docs/API/Quote/Cdeu/Min/KLineUpsert.md` 中错误码表格首两行为 `| 错误码 \| HTTP \| 说明 \|` 与 `\|---\|---\|---\|`；用任意 Markdown 渲染器（或 `pandoc -f gfm`）渲染该文件，错误码呈现为三列表格而非连续文本 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2205,7 +2211,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | Nginx 部署文档与上游 Issue 草案 | 10775 | 1 |
 | 部署包包含一次性运维 SQL | 10776 | 1 |
 | Upsert 端点迁移到 CDEU 前缀 | 10777 | 1 |
-| **合计** | **10001–10777** | **777** |
+| Markdown 表格必须带表头 | 10778 | 1 |
+| **合计** | **10001–10778** | **778** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10778` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10779` 起往后追加，不插入既有区间。

@@ -698,6 +698,11 @@
 
 ### 修复
 
+- **错误码表格缺表头导致文档渲染异常（需求 10778）**
+  - `Docs/API/Quote/Cdeu/Min/KLineUpsert.md` 与 `Docs/API/KLine/*.md` 共 **11 处**错误码表格只有数据行，缺少 `| 错误码 | HTTP | 说明 |` 表头与 `|---|` 分隔行，Markdown 渲染为普通文本。
+  - 全部补齐表头并清理表格行尾空格；涉及 `KLineAdd`、`KLineBatchDelete`、`KLineBatchInsert`、`KLineBatchPatch`、`KLineBounds`、`KLineCount`、`KLinePage`、`KLinePageUni`、`KLineQuery`、`KLineStats`、`KLineUpsert`。
+  - 新增 `internal/docs/table_test.go::TestMarkdownTablesHaveHeader`：扫描 `Docs/**/*.md`（跳过 ``` 代码块），任何表格块无表头/分隔行即失败，防止同类问题回归。
+
 - **部署包漏发一次性运维 SQL 脚本（`Deploy/Script/*.sql`，需求 10776）**
   - 现象：快照包/构建包/正式包只打包 `Deploy/Migrations`、`Deploy/Native`、`Deploy/Docker`，`Deploy/Script/` 下的 `MigratePublicKlineToCdeu.sql` 下载后不存在。
   - `PackSnapshot.sh`：所有平台包新增 `Deploy/Script/`，拷入 `*.sql` 与 `README.md` 并统一 `chmod 0644`。
