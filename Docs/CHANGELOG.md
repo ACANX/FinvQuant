@@ -20,6 +20,10 @@
 
 ### 新增
 
+- **外部 HOOK 接入方案文档（API Key，需求 10786）**
+  - 新增 `Docs/Refactor/2610-009-ExternalHookApiKey.md`（状态：方案草案，未实施）：现状认证分析、4 种方案对比、推荐「API Key + 独立 `/API/V1/Hook` 路由组」、`sys.sys_api_key` DDL 草案、`RequireAPIKey` 中间件流程、端点开放清单、管理接口、限流/审计/配置、12 项待确认决策点、验收标准与分阶段实施计划。
+  - 仅文档，不改动现有认证与路由。
+
 - **一次性数据迁移脚本：`public.finv_quote_secu_kline_min` → `cdeu.finv_quote_secu_kline_min`（需求 10773）**
   - 新增 `Deploy/Script/MigratePublicKlineToCdeu.sql`：早期版本把分钟 K 线建在 `public`，新版本只读写 `cdeu`，脚本把历史数据一次性搬入。
   - 特性：对源表**只读**（不改名/删除/TRUNCATE）；幂等（`ON CONFLICT (ts, usc) DO NOTHING`，可重复执行）；列名映射（`secu_code → usc`、`prev_close → last_close`，`market_code` 丢弃）；同键多 `market_code` 去重保留最新；单事务 + 计数校验，异常整体回滚。

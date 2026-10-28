@@ -2109,6 +2109,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10785 | `KLinePageUni.md` 按 `KLineUpsert.md` 样板重写：补齐全部 Query 参数（`usc`/`provider`/`dateFrom`/`dateTo`/`tsFrom`/`tsTo`/`limit`/`offset` 及兼容旧名）、过滤/排序/分页语义、15 列定义与单元格取值规则、响应信封、全量错误码、示例；并拆出同名 `.yml` OpenAPI 3.1 契约。 | `ls Docs/API/Quote/Cdeu/Min/KLinePageUni.{md,yml}` 均存在；`KLinePageUni.yml` 可解析且 `paths` 为 `/API/V1/Meta/Finv/Quote/Cdeu/Min/PageUni`；`grep -c '```yaml' Docs/API/Quote/Cdeu/Min/KLinePageUni.md` = 0；`grep -c 'limit.*1–1000' Docs/API/Quote/Cdeu/Min/KLinePageUni.md` ≥ 1；`go test ./internal/docs` 通过；全仓 Markdown 链接 0 失效 | |
 
+## 一百一十八、外部 HOOK 接入方案（10786）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10786 | 产出外部 HOOK 接入的方案文档（不含实现）：覆盖现状认证、方案对比、推荐方案的凭据/数据模型/中间件/路由/限流/审计/配置/安全、待确认决策点、验收标准与实施计划。 | `test -f Docs/Refactor/2610-009-ExternalHookApiKey.md`；文档含「方案对比」「待确认的细节」「验收标准」「实施计划」章节且决策点 ≥ 10 项；过程文档编号 `2610-009` 全局唯一（`go test ./internal/docs -run TestProcessDocNumberUnique` 通过）；`go test ./internal/docs` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2254,7 +2260,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 接口文档按 OpenAPI 3.1 编写 | 10783 | 1 |
 | OpenAPI 契约独立为同名 .yml | 10784 | 1 |
 | KLinePageUni 按 OpenAPI 样板重写 | 10785 | 1 |
-| **合计** | **10001–10785** | **785** |
+| 外部 HOOK 接入方案文档 | 10786 | 1 |
+| **合计** | **10001–10786** | **786** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10786` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10787` 起往后追加，不插入既有区间。
