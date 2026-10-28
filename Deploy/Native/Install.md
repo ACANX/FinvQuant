@@ -209,19 +209,30 @@ sudo -u postgres psql -d finv -c \
 
 ## 6. 反向代理与对外暴露
 
+模板按两个阶段组织，**默认是阶段一（HTTP/80，IP 直连，无需域名与证书）**：
+
 ```bash
 sudo cp /data/App/FinvQuant/Deploy/Nginx.conf.example /etc/nginx/sites-available/finvquant
 sudo ln -sf /etc/nginx/sites-available/finvquant /etc/nginx/sites-enabled/finvquant
-sudo vi /etc/nginx/sites-available/finvquant    # 改 server_name 与证书路径
+# Ubuntu/Debian 自带站点同样声明 default_server，必须先移除（否则会冲突或落到欢迎页）
+sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t && sudo systemctl reload nginx
+
+# 浏览器访问 http://<服务器IP>
 ```
 
-防火墙（只放行 80/443，16001/16002 保持 127.0.0.1 监听）：
+阶段一**不需要修改任何内容**（`server_name _;` + `listen 80 default_server;`）。
+
+防火墙（阶段一只需 80；443 待证书就绪后再放通；16001/16002 保持 127.0.0.1 监听）：
 
 ```bash
-ufw allow 80,443/tcp
+ufw allow 80/tcp
 ufw enable
 ```
+
+SSL 证书申请下来后切到阶段二（HTTPS/443 + HTTP/2）：按模板末尾【块 A】【块 B】的
+步骤取消注释、删除阶段一块、填真实域名与证书路径、放通 443，再 `nginx -t` 重载。
+完整操作见 [`../../Docs/FinvQuant/Nginx-Deploy.md`](../../Docs/FinvQuant/Nginx-Deploy.md)。
 
 ## 7. 常见问题
 

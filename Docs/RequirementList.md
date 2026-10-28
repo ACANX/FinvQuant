@@ -2047,6 +2047,14 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10772 | 历史迁移中不得存在针对 `public` 中非本程序表的 `DROP TABLE` / `TRUNCATE` / `ALTER TABLE`：涉及 `finv_quote_secu_kline_min` 的删除操作一律带 `export.`/`dedup.` 前缀；`V100015` 重建 `finv_futu_mapping_market_code` 的 `CREATE/INSERT/DROP/ALTER/INDEX/TRIGGER` 全部显式加 `public.`；运行期 `TRUNCATE` 使用带 `export.` 前缀的常量。 | `grep -rnE 'DROP TABLE|TRUNCATE' Deploy/Migrations/*.sql | grep -i kline_min` 命中的语句均带 `export.` 或 `dedup.` 前缀；`grep -cE 'DROP TABLE( IF EXISTS)? +[a-z_]+ *;' Deploy/Migrations/*.sql` = 0；`grep -c 'public.finv_futu_mapping_market_code' Deploy/Migrations/V100015__*.sql` ≥ 6；`grep -n 'tableStaging' internal/meta/finv/quote/dedup/store.go` 显示值为 `export.finv_quote_secu_kline_min`；在 `public` 预置同名表后执行全部 139 个迁移，`public` 表数据与结构前后一致 | |
 
+## 一百零八、Native 暴露与历史数据迁移（10773–10775）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10773 | 提供**一次性**数据迁移脚本 `Deploy/Script/MigratePublicKlineToCdeu.sql`，把目标库 `public.finv_quote_secu_kline_min` 的历史数据搬入 `cdeu.finv_quote_secu_kline_min`：源表只读；列名映射 `secu_code→usc`、`prev_close→last_close`，`market_code` 丢弃；同 `(ts,usc)` 多 `market_code` 去重保留最新；`ON CONFLICT (ts,usc) DO NOTHING` 幂等；单事务 + 计数校验，异常整体回滚；不进入迁移链。 | 在含旧结构 `public` 表（5 行，含 1 组重复 `ts`+`secu_code`）的库上执行全部迁移后再跑脚本：源表行数保持 5、目标表 4 行、重复组保留 `gmt_update` 最新值、`last_close` 等于源 `prev_close`；重复执行输出「新增 0 行」且目标仍为 4 行；`grep -c 'ON CONFLICT (ts, usc) DO NOTHING' Deploy/Script/MigratePublicKlineToCdeu.sql` ≥ 1 | |
+| 10774 | `Nginx.conf.example` 改为**分阶段**模板：阶段一默认 HTTP/80 + `server_name _;` + `default_server`，无需域名/证书即可 `http://<IP>` 访问；阶段二（443 + `http2 on;` + 证书路径 + 80→443 跳转）以整段注释保留，取消注释即可启用；注释内含切换步骤与 nginx < 1.25.1 写法说明；文档说明需移除 Ubuntu 自带 `sites-enabled/default`。 | `grep -vE '^\s*#' Deploy/Native/Nginx.conf.example \| grep -cE 'listen\s+443\|ssl_certificate\|return 301 https'` = 0；`grep -c 'listen 80 default_server;'` ≥ 1；`grep -c 'server_name _;'` ≥ 1；`grep -cE '^#\s+listen 443 ssl;'` ≥ 1 且 `grep -cE '^#\s+ssl_certificate\s'` ≥ 1；删除自带 default 站点后 `nginx -t` 通过（阶段一）；取消注释块并按 1.24 写法替换后 `nginx -t` 通过（阶段二） | |
+| 10775 | 在 `Docs/FinvQuant/` 提供两份文档：`Nginx-Deploy.md`（阶段一部署/验证/常见问题、阶段二切换/回滚、与 systemd 的关系）与 `Nginx.conf.example-ChangeRequest.md`（可直接作为上游 Issue 正文：问题现象、期望行为、逐项改动、验收标准、兼容性）。 | `ls Docs/FinvQuant/Nginx-Deploy.md Docs/FinvQuant/Nginx.conf.example-ChangeRequest.md` 均存在；前者含「阶段一」「阶段二」「常见问题」「回滚」章节；后者含「建议 Issue 标题」「验收标准」「兼容性」章节；`Deploy/Native/Install.md` §6 与 `Deploy/Native/README.md` 文件表描述已同步为分阶段 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2180,7 +2188,10 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 安装脚本支持备份后重建空库（已移除） | 10770 | 1 |
 | 首次部署兼容共享 public 同名表 | 10771 | 1 |
 | 历史迁移不删除 public 非本程序表 | 10772 | 1 |
-| **合计** | **10001–10772** | **772** |
+| 一次性 K 线数据迁移脚本 | 10773 | 1 |
+| Nginx 分阶段模板（80 默认 / 443 注释） | 10774 | 1 |
+| Nginx 部署文档与上游 Issue 草案 | 10775 | 1 |
+| **合计** | **10001–10775** | **775** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10773` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10776` 起往后追加，不插入既有区间。

@@ -20,10 +20,15 @@
 
 ### 新增
 
-- **`Install.sh --recreate-db`：备份后重建数据库（需求 10770）**
-  - 用于“库已存在但不是本程序初始化”的首次部署卡点（缺 `public.schema_version` 且已有表，迁移从 V100001 起执行撞 `relation ... already exists`）。
-  - 行为：先 `pg_dump -Fc` 到 `<PREFIX>/Backup/finv_before_recreate_<时间戳>.dump`（失败则中止且不动库）→ `dropdb` → `createdb -O <用户>`；不加该参数时保持原逻辑（只告警，不删库）。
-  - 文档 `Deploy/Native/Install.md` 参数表与常见问题同步。
+- **一次性数据迁移脚本：`public.finv_quote_secu_kline_min` → `cdeu.finv_quote_secu_kline_min`（需求 10773）**
+  - 新增 `Deploy/Script/MigratePublicKlineToCdeu.sql`：早期版本把分钟 K 线建在 `public`，新版本只读写 `cdeu`，脚本把历史数据一次性搬入。
+  - 特性：对源表**只读**（不改名/删除/TRUNCATE）；幂等（`ON CONFLICT (ts, usc) DO NOTHING`，可重复执行）；列名映射（`secu_code → usc`、`prev_close → last_close`，`market_code` 丢弃）；同键多 `market_code` 去重保留最新；单事务 + 计数校验，异常整体回滚。
+  - 文档：`Docs/FinvQuant/MigratePublicKlineToCdeu.md`（执行、验证、回滚、注意事项）；脚本不进入 `Deploy/Migrations/` 迁移链，验证通过后可作废。
+- **Nginx 分阶段部署文档（需求 10775）**
+  - `Docs/FinvQuant/Nginx-Deploy.md`：阶段一（HTTP/80 + IP 直连）部署、验证、常见问题；阶段二（HTTPS/443 + HTTP/2）切换与回滚。
+  - `Docs/FinvQuant/Nginx.conf.example-ChangeRequest.md`：可**直接作为上游 Issue 正文**提交的模板改造建议（问题现象、期望行为、逐项改动、验收标准、兼容性）。
+
+- ~~`Install.sh --recreate-db`：备份后重建数据库（需求 10770）~~ **该方案已移除**：目标库常与其它服务共用，重建库风险不可接受；现改为只读预检 + 撞表告警，并让迁移脚本兼容 `public` 中他人同名表（见需求 10771）。
 
 - **新增一键下载脚本 `Deploy/Script/Download.sh`（需求 10767）**
   - **一键到位**：自动识别操作系统（Linux / Windows）与 CPU 架构（amd64 / arm64）→ 选对应官方资产 → 下载 → 双层 SHA256 校验（资产 `.sha256` + 包内 `SHA256SUMS`）→ 安全解压到指定目录（默认 `/data/App/FinvQuant`，与 Native 安装根目录一致）。
@@ -524,6 +529,12 @@
 - **`finv_market` 新增 `market_symbol` 市场符号列**（迁移 `V75`）：类型 `TEXT NOT NULL DEFAULT ''`，用于表达市场的对外标识（如 `US-NSDQ` / `FX-CFD` / `SZ`）并与行情链路的 market 取值对齐；空串表示未维护。`GET/POST .../Metadata/Market/List|Save` 同步返回与写入该字段，列表 `keyword` 检索覆盖该列；前端「元数据 → 交易市场」列表新增「市场符号」列与编辑项。`ADD COLUMN IF NOT EXISTS` 幂等，末尾校验类型/可空性/默认值与列注释。
 
 ### 变更
+
+- **`Nginx.conf.example` 改为「阶段一 HTTP/80 + 阶段二 HTTPS/443」分阶段模板（需求 10774）**
+  - 阶段一默认启用：`listen 80 default_server;` + `server_name _;`，无需域名与证书，`http://<服务器IP>` 直接访问；前端 16002、API `/API/` → 16001、上传体积/超时/安全头/ACME 目录均在此块。
+  - 阶段二（443 + `http2 on;` + 证书 + 80→443 跳转）以**整段注释**放在文件末尾，取消注释即可切换；注释内含启用步骤与 nginx < 1.25.1 的写法说明。
+  - 明确 Ubuntu/Debian 需先 `rm -f /etc/nginx/sites-enabled/default`（其 `default_server` 会冲突或导致 IP 访问落到欢迎页）。
+  - `Deploy/Native/Install.md` §6、`Deploy/Native/README.md` 文件表同步。
 
 - **核心配置文件移到安装根目录 `<PREFIX>/finvquant.env`（需求 10769）**
   - 由 `<PREFIX>/etc/finvquant.env` 改为 `<PREFIX>/finvquant.env`，与 `bin/`、`Deploy/` 同级；systemd unit 的 `EnvironmentFile` 同步为 `@PREFIX@/finvquant.env`。

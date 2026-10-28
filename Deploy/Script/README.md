@@ -13,6 +13,7 @@
 | `PackSnapshot.cmd` | Windows 薄封装：只负责找到 Git Bash 的 `bash.exe` 并转调 `PackSnapshot.sh`，**不含任何打包逻辑** |
 | `Download.sh` | **一键下载逻辑的唯一实现**：检测 OS/架构 → 选版本（正式版/快照）→ 下载 + SHA256 校验 → 安全解压到指定目录（见 §13） |
 | `Download.cmd` | Windows 薄封装：定位 Git Bash 后转调 `Download.sh`，不含下载逻辑 |
+| `MigratePublicKlineToCdeu.sql` | **一次性**数据迁移：`public.finv_quote_secu_kline_min` → `cdeu.finv_quote_secu_kline_min`（只读源表、幂等、列名映射）；说明见 [`../../Docs/FinvQuant/MigratePublicKlineToCdeu.md`](../../Docs/FinvQuant/MigratePublicKlineToCdeu.md) |
 
 ```
 PackSnapshot.cmd ──(定位 bash)──▶ PackSnapshot.sh ──▶ Dist/ 三个包

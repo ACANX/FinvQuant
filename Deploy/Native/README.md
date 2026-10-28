@@ -129,7 +129,7 @@
 | [`Uninstall.sh`](Uninstall.sh) | 卸载：停服禁用 → 删 unit 与二进制；`--purge` 删配置/迁移/部署文件，不自动删库与备份/导出 |
 | [`FinvQuant.service`](FinvQuant.service) | systemd unit 模板（`@PREFIX@` 占位，安装时渲染为 `finvquant.service`；`Restart=on-failure`、`EnvironmentFile`、安全加固、journald） |
 | [`FinvQuant.env.example`](FinvQuant.env.example) | 环境变量模板（`FINV_*`，与容器方式键名一致；默认路径指向 `/data/App/FinvQuant`） |
-| [`Nginx.conf.example`](Nginx.conf.example) | 反向代理示例（80→443 跳转、前端 16002、API `/API/` → 16001、上传体积、TLS） |
+| [`Nginx.conf.example`](Nginx.conf.example) | 反向代理示例：**阶段一** HTTP/80 + IP 直连（默认启用）；**阶段二** HTTPS/443 + HTTP/2（整段注释，证书就绪后取消注释）。前端 16002、API `/API/` → 16001、上传体积 |
 
 > 文件名统一采用大驼峰（PascalCase）；品牌词写作 **FinvQuant**（与产品名一致）。
 > 安装到系统时，unit 会以 `finvquant.service`（全小写，systemd 服务名惯例）注册，因此运维命令是 `systemctl status finvquant`。

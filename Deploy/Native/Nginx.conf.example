@@ -1,47 +1,65 @@
 # =====================================================================
-# FinvQuant Native 部署：Nginx 反向代理示例
+# FinvQuant Native 部署：Nginx 反向代理示例（分阶段模板）
 #
-# 使用：
+# 本模板按「两个阶段」组织，默认启用阶段一：
+#
+#   阶段一（默认，当前可用）：仅 HTTP/80，不需要域名与证书，
+#                            浏览器直接用 http://<服务器IP> 访问；
+#   阶段二（SSL 证书就绪后）：启用 HTTPS/443 + HTTP/2，80 端口只保留
+#                            ACME 校验与 301 跳转。相关配置在文件末尾
+#                            以【整段注释】形式提供，取消注释即可启用。
+#
+# ---------------------------------------------------------------------
+# 阶段一快速使用（默认即为本阶段，无需改动任何内容）：
 #   sudo cp Deploy/Native/Nginx.conf.example /etc/nginx/sites-available/finvquant
 #   sudo ln -sf /etc/nginx/sites-available/finvquant /etc/nginx/sites-enabled/finvquant
-#   # 修改下方 server_name 与证书路径后：
+#   # Ubuntu/Debian 自带站点同样声明了 default_server，必须先移除，否则
+#   # nginx -t 会报 "duplicate default server"，或 IP 访问落到欢迎页：
+#   sudo rm -f /etc/nginx/sites-enabled/default
 #   sudo nginx -t && sudo systemctl reload nginx
+#   浏览器访问：http://<服务器IP>   （等价于 http://<服务器IP>:80）
 #
+#   如需改用其它端口（如 8080），把下面「阶段一」里两处 80 改成 8080：
+#   浏览器访问 http://<服务器IP>:8080
+#
+# ---------------------------------------------------------------------
+# 阶段二（证书申请下来后）启用步骤：
+#   1) 先取得证书（certbot --nginx -d <域名>，或手工放置证书文件）；
+#   2) 取消文件末尾【块 A】【块 B】的整段注释；
+#   3) 删除或注释掉下面「阶段一」的 server 块；
+#   4) 把 server_name 改成真实域名，证书路径按实际填写；
+#   5) sudo nginx -t && sudo systemctl reload nginx
+#   注意：443 端口与 HTTP/2 需要在安全组/防火墙上放通，且必须有有效证书；
+#         这两项当前不具备条件，因此相关配置保持注释状态。
+#
+# ---------------------------------------------------------------------
 # 说明：
 #   - finvquant 默认只监听 127.0.0.1:16001（API）与 127.0.0.1:16002（前端）
 #   - 前端为 SPA（Vue3），静态资源已内嵌进二进制，无需单独 root 目录
 #   - API 路径前缀为 /API/，与前端同域可避免 CORS
+#   - HTTP/2 在 nginx 1.25.1+ 用 `http2 on;`；旧版本改为
+#     `listen 443 ssl http2;` 并从块 B 中删掉 `http2 on;`
 # =====================================================================
 
-# ---------- HTTP → HTTPS 跳转 ----------
-server {
-    listen 80;
-    listen [::]:80;
-    server_name finvquant.example.com;
 
-    # Let's Encrypt HTTP-01 校验（未用 certbot 时可删除）
+# =====================================================================
+# 阶段一：HTTP / 80（当前启用）
+#   - 无域名、无证书，使用 IP 直连：http://<服务器IP>
+#   - server_name 用 `_` 表示不依赖域名；default_server 保证该块接收
+#     所有未匹配的请求
+# =====================================================================
+server {
+    # default_server：确保 IP 直连的请求全部落到本站点；
+    # 若 nginx -t 报 duplicate default server，删除 /etc/nginx/sites-enabled/default
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+
+    # Let's Encrypt HTTP-01 校验目录（阶段二申请证书时使用；
+    # 阶段一保留也无副作用，申请证书时不要删掉）
     location /.well-known/acme-challenge/ {
         root /var/www/html;
     }
-
-    location / {
-        return 301 https://$host$request_uri;
-    }
-}
-
-# ---------- HTTPS 主站 ----------
-server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    http2 on;
-    server_name finvquant.example.com;
-
-    # 证书（certbot 默认路径；自签/商用证书请替换）
-    ssl_certificate     /etc/letsencrypt/live/finvquant.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/finvquant.example.com/privkey.pem;
-    ssl_protocols       TLSv1.2 TLSv1.3;
-    ssl_ciphers         HIGH:!aNULL:!MD5;
-    ssl_session_cache   shared:SSL:10m;
 
     # 前端为单文件包，导入行情等接口可能上传较大 MVSV 文件
     client_max_body_size 512m;
@@ -81,3 +99,82 @@ server {
         access_log off;
     }
 }
+
+
+# =====================================================================
+# 阶段二：HTTPS / 443 + HTTP/2（当前未启用 —— 证书未就绪，整段注释）
+#
+# 启用时：取消【块 A】【块 B】的注释，并删除上方「阶段一」的 server 块。
+# 下面所有行都以 `# ` 开头，逐行取消注释即可；块内没有嵌套注释。
+# =====================================================================
+
+# ---------- 【块 A】HTTP(80) → HTTPS(443) 跳转 ----------
+# server {
+#     listen 80;
+#     listen [::]:80;
+#     server_name finvquant.example.com;          # ← 改成真实域名
+#
+#     # 证书续期仍需 80 端口的 ACME 校验目录
+#     location /.well-known/acme-challenge/ {
+#         root /var/www/html;
+#     }
+#
+#     location / {
+#         return 301 https://$host$request_uri;
+#     }
+# }
+
+# ---------- 【块 B】HTTPS(443) 主站 + HTTP/2 ----------
+# server {
+#     listen 443 ssl;
+#     listen [::]:443 ssl;
+#     http2 on;                                    # nginx < 1.25.1 改为 listen 443 ssl http2;
+#     server_name finvquant.example.com;           # ← 改成真实域名
+#
+#     # 证书（certbot 默认路径；自签/商用证书请替换）
+#     ssl_certificate     /etc/letsencrypt/live/finvquant.example.com/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/finvquant.example.com/privkey.pem;
+#     ssl_protocols       TLSv1.2 TLSv1.3;
+#     ssl_ciphers         HIGH:!aNULL:!MD5;
+#     ssl_session_cache   shared:SSL:10m;
+#
+#     # 前端为单文件包，导入行情等接口可能上传较大 MVSV 文件
+#     client_max_body_size 512m;
+#     proxy_read_timeout   300s;
+#     proxy_send_timeout   300s;
+#
+#     # 安全响应头（按需调整）
+#     add_header X-Content-Type-Options nosniff always;
+#     add_header X-Frame-Options SAMEORIGIN always;
+#     add_header Referrer-Policy strict-origin-when-cross-origin always;
+#     # HSTS：确认全站 HTTPS 后再启用
+#     # add_header Strict-Transport-Security "max-age=31536000" always;
+#
+#     # ---------- 前端（Vue3 SPA，资源内嵌在 finvquant 内）----------
+#     location / {
+#         proxy_pass http://127.0.0.1:16002;
+#         proxy_http_version 1.1;
+#         proxy_set_header Host              $host;
+#         proxy_set_header X-Real-IP         $remote_addr;
+#         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#         proxy_set_header Upgrade           $http_upgrade;
+#         proxy_set_header Connection        "upgrade";
+#     }
+#
+#     # ---------- API（同域，避免 CORS）----------
+#     location /API/ {
+#         proxy_pass http://127.0.0.1:16001;
+#         proxy_http_version 1.1;
+#         proxy_set_header Host              $host;
+#         proxy_set_header X-Real-IP         $remote_addr;
+#         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#     }
+#
+#     # ---------- 健康检查（可选：暴露给外部探活）----------
+#     location = /healthz {
+#         proxy_pass http://127.0.0.1:16001/API/V1/Health/Ready;
+#         access_log off;
+#     }
+# }
