@@ -2181,6 +2181,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10797 | 日志目录改为 `<PREFIX>/Log`，活动文件名 `FinvQuant.log`；单文件超过 10MB（`FINV_LOG_MAX_MB`）切分为 `FinvQuant-yyyyMMdd-NN.log`（NN 从 01 自增）；跨日把此前日期的切分文件打包为 `FinvQuant-yyyyMMdd.tar.gz` 并删除源 `.log`；启动时归档历史切分文件。 | `go test ./internal/logging -v` 通过（`TestRotateBySize` 断言 `FinvQuant-20261028-01.log`；`TestArchiveOnNextDay` 断言 `FinvQuant-20261028.tar.gz` 且 `.log` 已删除）；`grep -c 'FinvQuant-yyyyMMdd-NN.log\|FinvQuant-yyyyMMdd.tar.gz' internal/logging/logging.go` ≥ 2；`grep -c 'FINV_LOG_MAX_MB' internal/config/config.go Deploy/Native/FinvQuant.env.example` 各 = 1；`grep -rn 'Logs/' Deploy/Native` 无输出；安装后 `Log/FinvQuant.log` 存在；`go build ./...` 通过 | |
 
+## 一百三十、cdeu 行情导出/导入工具方案（10798）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10798 | 产出 `cdeu.finv_quote_secu_kline_min` 导出/导入工具方案文档（不含实现）：命令设计、文件格式（CSV.gz/binary）、导入模式（append/upsert/replace）、一致性快照、校验与安全、性能预估、待确认决策点与实施计划。 | `test -f Docs/Refactor/2610-010-CdeuKlineDumpImport.md`；文档含「方案对比」「推荐方案设计」「待确认的决策点」「验收标准」「实施计划」章节且决策点 ≥ 8 项；过程文档编号 `2610-010` 全局唯一（`go test ./internal/docs -run TestProcessDocNumberUnique` 通过）；全仓 Markdown 链接 0 失效；`go test ./internal/docs` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2338,7 +2344,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 字段表类型/可空分列 | 10795 | 1 |
 | Native 日志落盘 | 10796 | 1 |
 | 日志切分与按日归档 | 10797 | 1 |
-| **合计** | **10001–10797** | **797** |
+| cdeu 行情导出/导入工具方案 | 10798 | 1 |
+| **合计** | **10001–10798** | **798** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10798` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10799` 起往后追加，不插入既有区间。

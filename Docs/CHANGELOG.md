@@ -20,6 +20,9 @@
 
 ### 新增
 
+- **cdeu 分钟行情导出/导入工具方案文档（需求 10798）**
+  - 新增 `Docs/Refactor/2610-010-CdeuKlineDumpImport.md`（状态：方案草案，未实施）：交付形态/文件格式/导入模式对比，推荐「psql 脚本 + CSV.gz + append 幂等导入」，含命令设计、一致性快照导出、三种导入模式、sha256/gzip 校验、性能预估、10 项待确认决策点与验收标准。
+
 - **Native 日志落盘支持（`FINV_LOG_DIR`，需求 10796）**
   - 新增 `internal/logging`：标准库日志与 gin 访问日志**同时**写入 `<FINV_LOG_DIR>/<FINV_LOG_FILE>`（默认 `<PREFIX>/Log/FinvQuant.log`），journald 仍保留。
   - `FINV_LOG_DIR` 为空时保持仅 stdout/stderr（容器方式不受影响）；目录/文件创建失败仅告警，不阻断启动。
