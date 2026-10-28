@@ -47,7 +47,7 @@
 | `high` | number \| null | 否 | — | 是 | 区间最高价 |
 | `low` | number \| null | 否 | — | 是 | 区间最低价 |
 | `close` | number \| null | 否 | — | 是 | 最新价/收盘价 |
-| `volume` | number \| null | 否 | ≥ 0 | 是 | 成交量 |
+| `volume` | number \| null | 否 | ≥ 0 | 是 | 成交量（支持小数，`numeric(20,6)`） |
 | `turnover` | number \| null | 否 | ≥ 0 | 是 | 成交金额 |
 | `change_price` | number \| null | 否 | — | 是 | 涨跌额；与 `change_ratio` 均未传时自动计算 |
 | `change_ratio` | number \| null | 否 | — | 是 | 涨跌幅；与 `change_price` 均未传时自动计算 |

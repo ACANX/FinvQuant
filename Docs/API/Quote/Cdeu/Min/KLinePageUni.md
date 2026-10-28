@@ -75,7 +75,7 @@
 | 6 | `h` | `high` | string（数值） \| null | 区间最高价 |
 | 7 | `l` | `low` | string（数值） \| null | 区间最低价 |
 | 8 | `c` | `close` | string（数值） \| null | 最新价/收盘价 |
-| 9 | `v` | `volume` | string（数值） \| null | 成交量 |
+| 9 | `v` | `volume` | string（数值，支持小数） \| null | 成交量（`numeric(20,6)`，输出时去尾零） |
 | 10 | `t` | `turnover` | string（数值） \| null | 成交金额 |
 | 11 | `cr` | `change_ratio` | string（两位小数） \| null | 涨跌幅 |
 | 12 | `cp` | `change_price` | string（数值） \| null | 涨跌额 |

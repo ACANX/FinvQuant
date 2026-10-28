@@ -175,7 +175,7 @@ components:
         volume:
           type: [number, 'null']
           minimum: 0
-          description: 成交量（不得为负）。
+          description: 成交量（支持小数；库内 `numeric(20,6)`，不得为负）。
         turnover:
           type: [number, 'null']
           minimum: 0
