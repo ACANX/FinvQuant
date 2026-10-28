@@ -530,6 +530,11 @@
 
 ### 变更
 
+- **接口文档样板：`KLineUpsert.md` 按 OpenAPI 3.1 规范重写（需求 10783）**
+  - 新增完整 `openapi: 3.1.0` 契约：`paths`、`parameters`、`requestBody`、`responses`、`components`（`KLineItem` 17 字段 schema、`UpsertResponse`、`ErrorResponse`/`ErrorObject`、Bearer 认证）。
+  - 补齐此前被省略的内容：请求体不再写「同 KLineBatchInsert.md」，改为逐字段表；补充字段约束（`usc` 1–255、`ts` 0–1e11、`date`/`time` 范围、`volume`/`turnover` ≥ 0、`provider` ≤ 255）、行为语义（skip/update、整行覆盖、`prev_close` 回填、`change_*` 自动计算、单事务/幂等）、全量错误目录（15 个 code + HTTP + retryable + debug 键）、curl/成功/错误示例。
+  - `Docs/DevSpec/ApiSpec.md` 新增 §7.7「接口文档样板（OpenAPI 3.1）」；`Docs/API/README.md` 将本文标注为样板。
+
 - **全部分钟行情端点统一到 `/API/V1/Meta/Finv/Quote/Cdeu/Min/*`（需求 10782）**
   - 端点：`Add`、`Batch`（POST/PATCH/DELETE）、`Upsert`、`Page`、`PageUni`、`Query`、`Count`、`Stats`、`Bounds` 全部改挂 CDEU 前缀；旧 `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/*` 与 Python 服务前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/*` **不再注册**（返回 404）。
   - 代码：`kline.APIPrefix` 改为 CDEU 前缀，router 单前缀注册全部端点（不再循环两套前缀），`router_test` 断言 22 条旧路径均不存在。

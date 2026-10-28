@@ -2091,6 +2091,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10782 | 把分钟行情全部端点（`Add`、`Batch` POST/PATCH/DELETE、`Upsert`、`Page`、`PageUni`、`Query`、`Count`、`Stats`、`Bounds`）统一到 `/API/V1/Meta/Finv/Quote/Cdeu/Min/*`；旧 `DeDup/Secu/KLine/Min` 与 legacy `Secu/KLine/Min` 不再注册；`Docs/API/KLine/` 下全部文档迁入 `Docs/API/Quote/Cdeu/Min/`；前端 API 调用同步（页面路由不变）。 | `grep -c 'Cdeu/Min' internal/kline/model.go` ≥ 1；`grep -c 'Secu/KLine/Min' internal/api/router.go` = 0（仅注释例外）；`go test ./internal/api -run TestKLineRoutesRegistered` 通过（新路径已注册、22 条旧路径未注册）；`ls Docs/API/Quote/Cdeu/Min/*.md \| wc -l` = 12 且 `Docs/API/KLine` 不存在；全仓 Markdown 相对链接 0 失效；`go test ./internal/docs` 通过；`curl -X POST http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Min/Batch` 非 404，旧路径返回 404 | |
 
+## 一百一十五、接口文档按 OpenAPI 3.1 编写（10783）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10783 | `KLineUpsert.md` 按 OpenAPI 3.1 规范重写并作为后续接口文档样板：必须包含完整 `openapi` 代码块（paths/parameters/requestBody/responses/components）、逐字段约束表、行为语义、全量错误目录（code/HTTP/retryable/debug 键）、curl 与成功/错误示例；不得用「同 XXX 文档」省略契约。`ApiSpec` 增加 §7.7 样板约定。 | `grep -c 'openapi: 3.1.0' Docs/API/Quote/Cdeu/Min/KLineUpsert.md` = 1；YAML 块可被 `yaml.safe_load` 解析且含 `paths`/`components.schemas`；`grep -c '同 \[`KLineBatchInsert.md`'` = 0；错误码 `211001`–`211303` 共 15 个全部出现在错误表中；`grep -c '7.7 接口文档样板' Docs/DevSpec/ApiSpec.md` = 1；全仓 Markdown 链接 0 失效；`go test ./internal/docs` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2233,7 +2239,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 全仓 Markdown 表格结构合法 | 10779 | 1 |
 | KLinePage 系列文档目录归位 | 10780 | 1 |
 | 全部分钟行情端点统一 Cdeu | 10782 | 1 |
-| **合计** | **10001–10782** | **782** |
+| 接口文档按 OpenAPI 3.1 编写 | 10783 | 1 |
+| **合计** | **10001–10783** | **783** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10783` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10784` 起往后追加，不插入既有区间。

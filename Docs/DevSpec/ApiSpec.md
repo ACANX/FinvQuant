@@ -77,6 +77,20 @@ API 契约测试必须覆盖：
 - **错误体为超集**：`{code,message,detail,request_id,error}`，保留旧客户端依赖的 `detail` 字段；`code` 见 `ErrorCodeSpec` §1.1。
 - **运维端点无 `/API/V1` 前缀**：`GET /Health`（旧 `/healthz` 过渡别名）、`GET /` 服务标识。
 
+### 7.7 接口文档样板（OpenAPI 3.1）
+
+自 2026-10-28 起，接口文档统一按
+[`Docs/API/Quote/Cdeu/Min/KLineUpsert.md`](../API/Quote/Cdeu/Min/KLineUpsert.md) 的结构编写：
+
+- 给出**完整** OpenAPI 3.1 `openapi` 代码块（`paths` / `parameters` / `requestBody` / `responses` / `components`），**不得**用「同 XXX 文档」省略契约；
+- 字段表逐项列出类型、必填、约束、是否落库、说明；
+- 行为语义（冲突处理、事务边界、幂等、兼容字段、自动计算）写明；
+- 错误目录列全 `code` / HTTP / `retryable` / 触发场景 / 白名单 debug 键；
+- 示例至少包含 curl、成功响应、典型错误；
+- 同步 `Docs/API/APIs.md`、`Docs/API/README.md` 与 `Docs/CHANGELOG.md`。
+
+该文件同时作为评审基准：新增接口文档缺少上述任一项，应退回补充。
+
 ### 7.6 已使用位置登记
 
 - **API 接口被哪些地方（业务菜单）使用了，须在 API 接口文档中添加对应的已使用位置登记**：列出使用该接口的业务菜单及其文档引用（如 `Docs/Menu/xxx/XXXX.md`），与菜单文档中的接口引用形成双向索引；新增使用方或接口下线时须同步更新登记。
