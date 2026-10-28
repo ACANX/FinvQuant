@@ -20,6 +20,11 @@
 
 ### 新增
 
+- **`Install.sh --recreate-db`：备份后重建数据库（需求 10770）**
+  - 用于“库已存在但不是本程序初始化”的首次部署卡点（缺 `public.schema_version` 且已有表，迁移从 V100001 起执行撞 `relation ... already exists`）。
+  - 行为：先 `pg_dump -Fc` 到 `<PREFIX>/Backup/finv_before_recreate_<时间戳>.dump`（失败则中止且不动库）→ `dropdb` → `createdb -O <用户>`；不加该参数时保持原逻辑（只告警，不删库）。
+  - 文档 `Deploy/Native/Install.md` 参数表与常见问题同步。
+
 - **新增一键下载脚本 `Deploy/Script/Download.sh`（需求 10767）**
   - **一键到位**：自动识别操作系统（Linux / Windows）与 CPU 架构（amd64 / arm64）→ 选对应官方资产 → 下载 → 双层 SHA256 校验（资产 `.sha256` + 包内 `SHA256SUMS`）→ 安全解压到指定目录（默认 `/data/App/FinvQuant`，与 Native 安装根目录一致）。
   - **版本渠道**：`--channel auto`（默认，最新且**包含快照/构建包**）/ `release`（仅正式版）/ `snapshot`（prerelease）/ `pr`（PR 构建包），可用 `--version` 固定 tag、`--list` 列最近 10 个版本、`--dry-run` 预览下载地址。

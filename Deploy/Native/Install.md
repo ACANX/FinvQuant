@@ -114,6 +114,7 @@ sudo bash Deploy/Native/Install.sh --prefix /opt/FinvQuant
 | `--skip-redis` | 已有 Redis，跳过安装 |
 | `--binary <path>` | 指定二进制路径 |
 | `--prefix <dir>` | 指定安装根目录（默认 `/data/App/FinvQuant`，也可用环境变量 `FINVQ_PREFIX`） |
+| `--recreate-db` | **危险**：先把现有库 `pg_dump` 备份到 `<PREFIX>/Backup/`，再 `dropdb` + `createdb` 重建空库。仅用于「库已存在但不是本程序初始化」（缺 `public.schema_version` 且已有表，迁移撞 `relation already exists`）的首次部署场景 |
 
 脚本执行顺序：前置检查 → 定位产物 → 装基础依赖 → 装 PostgreSQL 18（PGDG 源）→ 装 Redis → 建用户与目录（`/data/App/FinvQuant/{bin,etc,Backup,Export,Deploy}` + `Deploy/Migrations`）→ 装二进制、迁移与部署文件 → 生成 env（随机 DB 密码）→ 建库建角色并授权 → 渲染并注册 systemd unit → 健康检查。
 
@@ -230,6 +231,7 @@ ufw enable
 | `systemctl status` 显示 `failed` | `journalctl -u finvquant -n 100 --no-pager` 看具体错误 |
 | 启动报 `Failed to load environment files` / 找不到二进制 | 确认 unit 里的 `@PREFIX@` 已渲染（`grep -n 'data/App' /etc/systemd/system/finvquant.service`），且 `/data` 已挂载 |
 | 日志含 `迁移 V<n> 失败` | 迁移单事务执行、失败已回滚；多为权限不足（需 `CREATE SCHEMA` 权限，见第 3 节授权） |
+| `迁移 V100001 失败: relation "finv_quote_secu_kline_min" already exists` | 目标库非空且不是本程序初始化的（缺 `public.schema_version`），V100001 的 `CREATE TABLE` 按 `search_path` 落到 `public` 撞表。确认库内数据可丢弃后执行 `sudo bash Deploy/Native/Install.sh --recreate-db`（会先自动备份），或手工 `dropdb`/`createdb` 后重跑 |
 | `PG 连通性检查失败` | 检查 `FINV_PG_HOST/PORT/USER/PASSWORD` 与 `pg_hba.conf`（`127.0.0.1/32` 是否 `scram-sha-256`） |
 | 健康检查通过但 Web 打不开 | 确认 `FINV_SERVER_HOST=127.0.0.1` 且 Nginx 反代指向 16002；或临时改 0.0.0.0 直连验证 |
 | 手工 `psql` 报 `relation does not exist` | 表在 `quote`/`quant`/`futu`/`export`/`sche`/`dedup`/`archive`/`sys` schema，需写全限定名或设置 `search_path`，见 `Docs/DevSpec/DbSchemaSpec.md` |

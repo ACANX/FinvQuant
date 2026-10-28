@@ -2029,6 +2029,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10769 | ① Native 方式的核心配置文件为 `<PREFIX>/finvquant.env`（默认 `/data/App/FinvQuant/finvquant.env`），不再放在 `<PREFIX>/etc/`；systemd unit 的 `EnvironmentFile` 指向该文件；`Install.sh`/`Upgrade.sh` 自动把旧布局 `<PREFIX>/etc/finvquant.env` 迁移到新位置并保留原密码；② 安装完成摘要用 `printf` 输出，ANSI 颜色正常渲染，不再出现字面 `\033[1;32m`。 | `grep -n 'EnvironmentFile=@PREFIX@/finvquant.env' Deploy/Native/FinvQuant.service` 命中；`grep -c 'ENV_FILE="${PREFIX}/finvquant.env"' Deploy/Native/Install.sh Deploy/Native/Upgrade.sh` 各 ≥ 1；在存在 `/data/App/FinvQuant/etc/finvquant.env` 的机器上重跑 `sudo bash /data/App/FinvQuant/Deploy/Native/Install.sh`，日志含「已迁移旧配置」且 `test -f /data/App/FinvQuant/finvquant.env` 成立、`test ! -d /data/App/FinvQuant/etc` 成立；`systemctl show -p EnvironmentFiles finvquant` 显示 `/data/App/FinvQuant/finvquant.env`；安装脚本尾部输出含彩色「安装完成」且不出现字面 `\033[1;32m`（`sudo bash Deploy/Native/Install.sh 2>&1 | grep -c '\\033\[1;32m'` = 0） | |
 
+## 一百零五、安装脚本支持备份后重建空库（10770）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10770 | `Install.sh` 新增 `--recreate-db`：当目标库已存在但非本程序初始化（缺 `public.schema_version` 且已有表，迁移撞 `relation already exists`）时，先自动 `pg_dump -Fc` 备份到 `<PREFIX>/Backup/`，再 `dropdb` + `createdb -O <DB_USER>` 重建空库；未加该参数时**只告警不删库**。 | `grep -n 'recreate-db' Deploy/Native/Install.sh` 命中且帮助文本含该参数；在非空旧库上执行 `sudo bash Deploy/Native/Install.sh --recreate-db` 后：`ls <PREFIX>/Backup/finv_before_recreate_*.dump` 存在且非 0 字节、日志含「已重建空数据库」、`systemctl status finvquant` 为 `active (running)`、`select count(*) from public.schema_version` > 0；不加 `--recreate-db` 时日志只出现「数据库 … 已存在」与撞表告警，库未被删除 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2159,7 +2165,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 一键下载脚本 | 10767 | 1 |
 | 发行包 Migrations 提到包顶层 | 10768 | 1 |
 | 配置放安装根目录 + 摘要渲染修复 | 10769 | 1 |
-| **合计** | **10001–10769** | **769** |
+| 安装脚本支持备份后重建空库 | 10770 | 1 |
+| **合计** | **10001–10770** | **770** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10770` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10771` 起往后追加，不插入既有区间。
