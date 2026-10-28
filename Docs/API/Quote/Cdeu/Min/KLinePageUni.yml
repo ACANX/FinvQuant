@@ -1,0 +1,314 @@
+# FinvQuant — 分钟行情分页查询（column/row，OpenAPI 3.1 契约）
+#
+# 与同目录 KLinePageUni.md 成对维护：
+#   - .md 正文（第 1~6 节）是人类可读说明；
+#   - 本文件是机器可读契约，供 lint / 生成客户端 / 交互文档使用。
+# 契约变更时两者必须同步更新。
+#
+openapi: 3.1.0
+info:
+  title: FinvQuant — 分钟行情分页查询（column/row）
+  version: 1.0.0
+  description: |
+    按证券/来源/交易日期/时间戳过滤并分页，输出 column + row 行数组。
+    column 固定 15 项；非空单元格统一为字符串（数值去尾零，change_ratio 两位小数），
+    NULL 输出 JSON null。行按 usc、date、ts 升序。
+servers:
+  - url: http://127.0.0.1:16001
+    description: 本机直连（生产经 Nginx 反代时替换为 https://<域名>）
+tags:
+  - name: Quote/Cdeu/Min
+    description: 分钟行情 K 线（CDEU）
+security:
+  - bearerAuth: []
+paths:
+  /API/V1/Meta/Finv/Quote/Cdeu/Min/PageUni:
+    get:
+      operationId: pageUniCdeuKLineMin
+      tags: [Quote/Cdeu/Min]
+      summary: 条件查询 + 分页（column/row 行数组）
+      description: |
+        查询参数与 `/Page` 完全一致，差异仅在响应格式：本接口返回固定 15 列的
+        `column` 与等长 `row` 数组，便于表格组件直接渲染。
+
+        过滤条件之间为 AND：
+        - `usc`、`provider` 精确匹配；
+        - `dateFrom`/`dateTo`、`tsFrom`/`tsTo` 为闭区间（含端点）。
+      parameters:
+        - $ref: '#/components/parameters/Usc'
+        - $ref: '#/components/parameters/Provider'
+        - $ref: '#/components/parameters/DateFrom'
+        - $ref: '#/components/parameters/DateTo'
+        - $ref: '#/components/parameters/TsFrom'
+        - $ref: '#/components/parameters/TsTo'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageUniResponse'
+              examples:
+                onePage:
+                  summary: 单页结果（1 条）
+                  value:
+                    code: 1
+                    data:
+                      cnt: 43756
+                      ps: 50
+                      pn: 1
+                      column:
+                        - usc
+                        - ts
+                        - date
+                        - time
+                        - o
+                        - h
+                        - l
+                        - c
+                        - v
+                        - t
+                        - cr
+                        - cp
+                        - pa
+                        - pv
+                        - ext
+                      row:
+                        - - '000001'
+                          - '1792373400'
+                          - '20261019'
+                          - '93000'
+                          - null
+                          - null
+                          - null
+                          - '11.48'
+                          - '392600'
+                          - '4507048'
+                          - '-0.17'
+                          - '-0.02'
+                          - null
+                          - FTMM
+                          - null
+                      request_id: B7C63349-EB36-49AB-B16A-E8E1BE475D3B
+                      ts: 1792695045
+                    message: OK
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        登录接口 `POST /API/V1/Meta/Finv/Auth/Login` 获取令牌后，
+        以 `Authorization: Bearer <token>` 携带。
+  parameters:
+    Usc:
+      name: usc
+      in: query
+      required: false
+      description: 统一证券代码，精确匹配。
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+    Provider:
+      name: provider
+      in: query
+      required: false
+      description: 数据来源，精确匹配（如 `FTMM`）。
+      schema:
+        type: string
+        maxLength: 255
+    DateFrom:
+      name: dateFrom
+      in: query
+      required: false
+      description: 交易日期下限（含），`yyyyMMdd`。兼容旧名 `date_from`。
+      schema:
+        type: integer
+        minimum: 19500101
+        maximum: 21001231
+    DateTo:
+      name: dateTo
+      in: query
+      required: false
+      description: 交易日期上限（含），`yyyyMMdd`。兼容旧名 `date_to`。
+      schema:
+        type: integer
+        minimum: 19500101
+        maximum: 21001231
+    TsFrom:
+      name: tsFrom
+      in: query
+      required: false
+      description: 时间戳下限（含，UTC 秒）。兼容旧名 `ts_from`。
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
+    TsTo:
+      name: tsTo
+      in: query
+      required: false
+      description: 时间戳上限（含，UTC 秒）。兼容旧名 `ts_to`。
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: 每页条数。兼容旧名 `pageSize` / `page_size`。
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 50
+    Offset:
+      name: offset
+      in: query
+      required: false
+      description: 偏移量（从 0 开始）。
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+  schemas:
+    PageUniResponse:
+      type: object
+      required: [code, data, message]
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+          const: 1
+          description: 成功码（本接口成功固定为 1）。
+        data:
+          $ref: '#/components/schemas/PageUniData'
+        message:
+          type: string
+          const: OK
+    PageUniData:
+      type: object
+      required: [cnt, ps, pn, column, row, request_id, ts]
+      additionalProperties: false
+      properties:
+        cnt:
+          type: integer
+          format: int64
+          minimum: 0
+          description: 满足过滤条件的总记录数。
+        ps:
+          type: integer
+          description: 每页条数（回显请求的 `limit`，默认 50）。
+        pn:
+          type: integer
+          description: 页码（从 1 开始，按 `offset / limit + 1` 计算）。
+        column:
+          type: array
+          description: 固定 15 列，顺序不可变。
+          minItems: 15
+          maxItems: 15
+          items:
+            type: string
+            enum: [usc, ts, date, time, o, h, l, c, v, t, cr, cp, pa, pv, ext]
+        row:
+          type: array
+          description: 行数组；每行与 `column` 等长（15 项）。
+          items:
+            type: array
+            minItems: 15
+            maxItems: 15
+            items:
+              type: [string, 'null']
+        request_id:
+          type: string
+          description: 请求标识，便于与服务端日志关联。
+        ts:
+          type: integer
+          format: int64
+          description: 服务端响应时间（Unix 秒）。
+    ErrorResponse:
+      type: object
+      required: [code, message, detail, request_id, error]
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+        detail:
+          type: string
+        request_id:
+          type: string
+        error:
+          $ref: '#/components/schemas/ErrorObject'
+        debug:
+          type: object
+          additionalProperties: { type: string }
+          description: |
+            仅当 `FINV_ERROR_DETAIL_MODE=admin` 且来自内网 CIDR 或携带有效
+            `X-Debug-Token` 时返回。
+    ErrorObject:
+      type: object
+      required: [code, catalog_version, retryable]
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+        catalog_version:
+          type: string
+        retryable:
+          type: boolean
+  responses:
+    BadRequest:
+      description: 缺少必填参数 / 请求体格式错误 / 枚举非法（211001、211002、211006）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: 未登录或令牌无效（认证中间件返回，非 KLine 错误目录）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    PayloadTooLarge:
+      description: 列表长度超过上限（211202）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnprocessableEntity:
+      description: 参数类型/范围/未知字段/数据库约束问题（211003、211004、211005、211303）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: 服务内部错误（211301，可重试）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServiceUnavailable:
+      description: 数据服务不可用（211302，可重试）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

@@ -2103,6 +2103,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10784 | 接口文档的机器可读契约从 `.md` 中拆出为**同名 `.yml`**（如 `KLineUpsert.md` + `KLineUpsert.yml`）：`.md` 正文只保留人类可读说明与契约链接/命令，`.yml` 为完整 OpenAPI 3.1；并增加自动校验。 | `ls Docs/API/Quote/Cdeu/Min/KLineUpsert.{md,yml}` 均存在；`grep -c '```yaml' Docs/API/Quote/Cdeu/Min/KLineUpsert.md` = 0；`KLineUpsert.yml` 可被 YAML 解析且含 `openapi`/`paths`；`go test ./internal/docs -run TestOpenAPISpecsValid` 通过；`grep -c '同名 `.yml`' Docs/DevSpec/ApiSpec.md` ≥ 1；全仓 Markdown 相对链接 0 失效 | |
 
+## 一百一十七、KLinePageUni 按 OpenAPI 样板重写（10785）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10785 | `KLinePageUni.md` 按 `KLineUpsert.md` 样板重写：补齐全部 Query 参数（`usc`/`provider`/`dateFrom`/`dateTo`/`tsFrom`/`tsTo`/`limit`/`offset` 及兼容旧名）、过滤/排序/分页语义、15 列定义与单元格取值规则、响应信封、全量错误码、示例；并拆出同名 `.yml` OpenAPI 3.1 契约。 | `ls Docs/API/Quote/Cdeu/Min/KLinePageUni.{md,yml}` 均存在；`KLinePageUni.yml` 可解析且 `paths` 为 `/API/V1/Meta/Finv/Quote/Cdeu/Min/PageUni`；`grep -c '```yaml' Docs/API/Quote/Cdeu/Min/KLinePageUni.md` = 0；`grep -c 'limit.*1–1000' Docs/API/Quote/Cdeu/Min/KLinePageUni.md` ≥ 1；`go test ./internal/docs` 通过；全仓 Markdown 链接 0 失效 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2247,7 +2253,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 全部分钟行情端点统一 Cdeu | 10782 | 1 |
 | 接口文档按 OpenAPI 3.1 编写 | 10783 | 1 |
 | OpenAPI 契约独立为同名 .yml | 10784 | 1 |
-| **合计** | **10001–10784** | **784** |
+| KLinePageUni 按 OpenAPI 样板重写 | 10785 | 1 |
+| **合计** | **10001–10785** | **785** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10785` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10786` 起往后追加，不插入既有区间。

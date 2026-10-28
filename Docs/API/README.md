@@ -55,7 +55,7 @@ Authorization: Bearer <token>
     - [`Quote/Cdeu/Min/KLineBatchInsert.md`](Quote/Cdeu/Min/KLineBatchInsert.md) — `POST .../Min/Batch`（批量插入）
     - [`Quote/Cdeu/Min/KLineUpsert.md`](Quote/Cdeu/Min/KLineUpsert.md) — `POST .../Min/Upsert`（批量 upsert；**OpenAPI 3.1 文档样板**：人读 [.md](Quote/Cdeu/Min/KLineUpsert.md) + 机读 [.yml](Quote/Cdeu/Min/KLineUpsert.yml)，见 [ApiSpec §7.7](../DevSpec/ApiSpec.md)）
     - [`Quote/Cdeu/Min/KLinePage.md`](Quote/Cdeu/Min/KLinePage.md) — `GET .../Min/Page`（分页，对象数组）
-    - [`Quote/Cdeu/Min/KLinePageUni.md`](Quote/Cdeu/Min/KLinePageUni.md) — `GET .../Min/PageUni`（分页，column/row）
+    - [`Quote/Cdeu/Min/KLinePageUni.md`](Quote/Cdeu/Min/KLinePageUni.md) — `GET .../Min/PageUni`（分页，column/row；契约 [.yml](Quote/Cdeu/Min/KLinePageUni.yml)）
     - [`Quote/Cdeu/Min/KLineQuery.md`](Quote/Cdeu/Min/KLineQuery.md) — `POST .../Min/Query`（批量查询）
     - [`Quote/Cdeu/Min/KLineBatchPatch.md`](Quote/Cdeu/Min/KLineBatchPatch.md) — `PATCH .../Min/Batch`（批量增量更新）
     - [`Quote/Cdeu/Min/KLineBatchDelete.md`](Quote/Cdeu/Min/KLineBatchDelete.md) — `DELETE .../Min/Batch`（批量删除）

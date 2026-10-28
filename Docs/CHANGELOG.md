@@ -530,6 +530,11 @@
 
 ### 变更
 
+- **`KLinePageUni.md` 按 OpenAPI 3.1 样板重写并拆分契约（需求 10785）**
+  - 正文补齐：Header/Query 参数表（`usc`、`provider`、`dateFrom/dateTo`、`tsFrom/tsTo`、`limit`、`offset` 及兼容旧名）、过滤/排序（`usc,date,ts` 升序）/分页语义、15 列定义与单元格取值规则（去尾零、负零归一、`cr` 两位小数 ROUND_HALF_UP、NULL→null）、响应信封、15 个错误码及本接口触发场景、curl 与错误示例。
+  - 新增同名 `KLinePageUni.yml`（OpenAPI 3.1：8 个 query 参数、`PageUniResponse`/`PageUniData`/`ErrorResponse`/`ErrorObject`）。
+  - `Docs/API/README.md` 标注其伴生契约文件。
+
 - **OpenAPI 契约拆分为同名 `.yml` 文件（需求 10784）**
   - 新增 `Docs/API/Quote/Cdeu/Min/KLineUpsert.yml`：从 `.md` 内嵌代码块抽出的完整 OpenAPI 3.1 契约，供 lint、`preview-docs`、`openapi-generator` 直接消费。
   - `KLineUpsert.md` 第 8 节只保留契约链接与校验/生成命令，不再重复 YAML（避免两处维护漂移）。
