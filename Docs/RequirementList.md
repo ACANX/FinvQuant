@@ -2173,7 +2173,13 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10796 | Native 方式支持把日志写入文件：`FINV_LOG_DIR`/`FINV_LOG_FILE` 控制路径（默认 `<PREFIX>/Logs/finvquant.log`），标准库日志与 gin 访问日志同时写文件并保留 journald；安装脚本创建目录、渲染/补齐配置；提供 logrotate 示例。 | `grep -c 'FINV_LOG_DIR' internal/config/config.go Deploy/Native/FinvQuant.env.example Deploy/Native/Install.sh` 各 ≥ 1；`go test ./internal/logging -v` 通过（写文件、空目录 no-op、默认文件名）；`grep -c 'MultiWriter' internal/logging/logging.go` ≥ 2；`test -f Deploy/Native/FinvQuant.logrotate.example`；安装后 `test -d /data/App/FinvQuant/Logs` 且 `tail -f /data/App/FinvQuant/Logs/finvquant.log` 有输出；`journalctl -u finvquant` 仍可用；`go build ./...` 通过 | |
+| 10796 | Native 方式支持把日志写入文件：`FINV_LOG_DIR`/`FINV_LOG_FILE` 控制路径（默认 `<PREFIX>/Log/FinvQuant.log`），标准库日志与 gin 访问日志同时写文件并保留 journald；安装脚本创建目录、渲染/补齐配置；提供 logrotate 示例。 | `grep -c 'FINV_LOG_DIR' internal/config/config.go Deploy/Native/FinvQuant.env.example Deploy/Native/Install.sh` 各 ≥ 1；`go test ./internal/logging -v` 通过（写文件、空目录 no-op、默认文件名）；`grep -c 'MultiWriter' internal/logging/logging.go` ≥ 2；`test -f Deploy/Native/FinvQuant.logrotate.example`；安装后 `test -d /data/App/FinvQuant/Log` 且 `tail -f /data/App/FinvQuant/Log/FinvQuant.log` 有输出；`journalctl -u finvquant` 仍可用；`go build ./...` 通过 | |
+
+## 一百二十九、日志切分与按日归档（10797）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10797 | 日志目录改为 `<PREFIX>/Log`，活动文件名 `FinvQuant.log`；单文件超过 10MB（`FINV_LOG_MAX_MB`）切分为 `FinvQuant-yyyyMMdd-NN.log`（NN 从 01 自增）；跨日把此前日期的切分文件打包为 `FinvQuant-yyyyMMdd.tar.gz` 并删除源 `.log`；启动时归档历史切分文件。 | `go test ./internal/logging -v` 通过（`TestRotateBySize` 断言 `FinvQuant-20261028-01.log`；`TestArchiveOnNextDay` 断言 `FinvQuant-20261028.tar.gz` 且 `.log` 已删除）；`grep -c 'FinvQuant-yyyyMMdd-NN.log\|FinvQuant-yyyyMMdd.tar.gz' internal/logging/logging.go` ≥ 2；`grep -c 'FINV_LOG_MAX_MB' internal/config/config.go Deploy/Native/FinvQuant.env.example` 各 = 1；`grep -rn 'Logs/' Deploy/Native` 无输出；安装后 `Log/FinvQuant.log` 存在；`go build ./...` 通过 | |
 
 ## 汇总
 
@@ -2331,7 +2337,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | K 线字段改名与 last_close 落库 | 10794 | 1 |
 | 字段表类型/可空分列 | 10795 | 1 |
 | Native 日志落盘 | 10796 | 1 |
-| **合计** | **10001–10796** | **796** |
+| 日志切分与按日归档 | 10797 | 1 |
+| **合计** | **10001–10797** | **797** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10796` 起往后追加，不插入既有区间。

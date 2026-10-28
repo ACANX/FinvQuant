@@ -14,7 +14,7 @@
 #   <PREFIX>/Deploy/                部署脚本与部署文件（Install/Upgrade/Uninstall、unit、模板、手册）
 #   <PREFIX>/Backup/                数据库逻辑备份（升级脚本写入）
 #   <PREFIX>/Export/                行情归档导出目录（与容器方式一致）
-#   <PREFIX>/Logs/                  服务日志（FINV_LOG_DIR 指向此目录，可由 logrotate 轮转）
+#   <PREFIX>/Log/                   服务日志（FINV_LOG_DIR；10MB 切分、按日 tar.gz 归档）
 #   /etc/systemd/system/finvquant.service   systemd unit（由 <PREFIX>/Deploy 的模板渲染后注册）
 #
 # 用法：
@@ -37,7 +37,7 @@ BIN_DIR="${PREFIX}/bin"
 MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"
 BACKUP_DIR="${PREFIX}/Backup"
 EXPORT_DIR="${PREFIX}/Export"
-LOG_DIR="${PREFIX}/Logs"
+LOG_DIR="${PREFIX}/Log"
 DEPLOY_DIR="${PREFIX}/Deploy"
 ENV_FILE="${PREFIX}/finvquant.env"
 BINARY="${BIN_DIR}/finvquant"
@@ -66,7 +66,7 @@ while [[ $# -gt 0 ]]; do
     --prefix)     PREFIX="${2:-}"; shift 2
                   BIN_DIR="${PREFIX}/bin"
                   MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"; BACKUP_DIR="${PREFIX}/Backup"
-                  EXPORT_DIR="${PREFIX}/Export"; LOG_DIR="${PREFIX}/Logs"; DEPLOY_DIR="${PREFIX}/Deploy"
+                  EXPORT_DIR="${PREFIX}/Export"; LOG_DIR="${PREFIX}/Log"; DEPLOY_DIR="${PREFIX}/Deploy"
                   ENV_FILE="${PREFIX}/finvquant.env"; BINARY="${BIN_DIR}/finvquant" ;;
     -h|--help)    sed -n '2,26p' "$0"; exit 0 ;;
     *)            die "未知参数：$1（--help 查看用法）" ;;
@@ -238,7 +238,7 @@ copy_deploy_file() {
     cp -f "${src}" "${dst}"
   fi
 }
-for f in Install.sh Upgrade.sh Uninstall.sh FinvQuant.service FinvQuant.env.example Nginx.conf.example FinvQuant.logrotate.example; do
+for f in Install.sh Upgrade.sh Uninstall.sh FinvQuant.service FinvQuant.env.example Nginx.conf.example; do
   copy_deploy_file "${SCRIPT_DIR}/${f}" "${DEPLOY_DIR}/${f}"
 done
 for md in "${SCRIPT_DIR}"/*.md; do
@@ -285,7 +285,7 @@ if [[ -f "${ENV_FILE}" ]]; then
   DB_PASSWORD="$(grep -E '^FINV_PG_PASSWORD=' "${ENV_FILE}" | cut -d= -f2- || true)"
   # 旧配置补齐日志项（不覆盖已有值）
   if ! grep -q '^FINV_LOG_DIR=' "${ENV_FILE}"; then
-    printf '\n# 日志目录（安装脚本自动补齐）\nFINV_LOG_DIR=%s\n' "${LOG_DIR}" >> "${ENV_FILE}"
+    printf '\n# 日志目录（安装脚本自动补齐）\nFINV_LOG_DIR=%s\nFINV_LOG_FILE=FinvQuant.log\nFINV_LOG_MAX_MB=10\n' "${LOG_DIR}" >> "${ENV_FILE}"
     ok "已补齐 FINV_LOG_DIR=${LOG_DIR}"
   fi
 else
@@ -378,7 +378,7 @@ printf '  迁移目录：%s（启动时自动应用未执行版本）\n' "${MIGR
 printf '  部署脚本：%s/Upgrade.sh、%s/Uninstall.sh\n' "${DEPLOY_DIR}" "${DEPLOY_DIR}"
 printf '  备份目录：%s\n' "${BACKUP_DIR}"
 printf '  导出目录：%s\n' "${EXPORT_DIR}"
-printf '  日志文件：%s/%s（logrotate 示例见 %s/FinvQuant.logrotate.example）\n' "${LOG_DIR}" "finvquant.log" "${DEPLOY_DIR}"
+printf '  日志目录：%s（活动文件 FinvQuant.log；10MB 切分，按日归档为 FinvQuant-yyyyMMdd.tar.gz）\n' "${LOG_DIR}"
 printf '  接口验证：curl http://127.0.0.1:16001/API/V1/Version\n'
 printf '  前端地址：http://<服务器IP>:16002（建议用 Nginx 反向代理，见 %s/Nginx.conf.example）\n' "${DEPLOY_DIR}"
 printf '\n后续步骤：\n'

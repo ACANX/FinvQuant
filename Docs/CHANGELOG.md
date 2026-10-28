@@ -21,10 +21,9 @@
 ### 新增
 
 - **Native 日志落盘支持（`FINV_LOG_DIR`，需求 10796）**
-  - 新增 `internal/logging`：标准库日志与 gin 访问日志**同时**写入 `<FINV_LOG_DIR>/<FINV_LOG_FILE>`（默认 `<PREFIX>/Logs/finvquant.log`），journald 仍保留。
+  - 新增 `internal/logging`：标准库日志与 gin 访问日志**同时**写入 `<FINV_LOG_DIR>/<FINV_LOG_FILE>`（默认 `<PREFIX>/Log/FinvQuant.log`），journald 仍保留。
   - `FINV_LOG_DIR` 为空时保持仅 stdout/stderr（容器方式不受影响）；目录/文件创建失败仅告警，不阻断启动。
-  - `Install.sh`：创建 `<PREFIX>/Logs`（`finvquant:finvquant 0750`）、新装渲染/旧配置补齐 `FINV_LOG_DIR`，摘要输出日志路径。
-  - 新增 `Deploy/Native/FinvQuant.logrotate.example`（daily / 50M / 保留 14 份 / copytruncate），随安装包分发。
+  - `Install.sh`：创建 `<PREFIX>/Log`（`finvquant:finvquant 0750`）、新装渲染/旧配置补齐 `FINV_LOG_DIR`，摘要输出日志路径。
   - 文档：`Install.md` 新增「日志与轮转」、`README.md` 目录树与权限表、`FinvQuant.env.example`、unit 注释、`Uninstall.sh` 保留提示。
 
 - **外部 OpenAPI：PageUni 查询端点（需求 10789）**
@@ -558,6 +557,12 @@
 - **`finv_market` 新增 `market_symbol` 市场符号列**（迁移 `V75`）：类型 `TEXT NOT NULL DEFAULT ''`，用于表达市场的对外标识（如 `US-NSDQ` / `FX-CFD` / `SZ`）并与行情链路的 market 取值对齐；空串表示未维护。`GET/POST .../Metadata/Market/List|Save` 同步返回与写入该字段，列表 `keyword` 检索覆盖该列；前端「元数据 → 交易市场」列表新增「市场符号」列与编辑项。`ADD COLUMN IF NOT EXISTS` 幂等，末尾校验类型/可空性/默认值与列注释。
 
 ### 变更
+
+- **日志目录与切分/归档规则调整（需求 10797）**
+  - 目录 `Logs/` 改为 **`Log/`**，活动文件名改为 **`FinvQuant.log`**。
+  - 单文件超过 `FINV_LOG_MAX_MB`（默认 **10MB**）自动切分为 `FinvQuant-yyyyMMdd-NN.log`（`NN` 从 `01` 自增）。
+  - 跨日把此前日期的切分文件打包为 `FinvQuant-yyyyMMdd.tar.gz`，打包成功后删除对应 `.log`；服务启动时也会归档停机期间遗留的历史切分文件。
+  - 移除 `FinvQuant.logrotate.example`（改由应用内轮转，避免两套机制冲突）；`Install.sh`/`Uninstall.sh`/`env.example`/unit/文档同步。
 
 - **字段表「类型 / 可空」拆分（需求 10795）**
   - 全部字段表不再在类型列写 `X \| null`：新增「可空」列（是/否），类型列只保留基础类型（`number` / `integer` / `string` / `object` 等）。

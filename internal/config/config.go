@@ -37,8 +37,10 @@ type Config struct {
 
 	// LogDir 日志目录（Native 方式写文件；为空则仅输出到 stdout/stderr）。
 	LogDir string
-	// LogFile 日志文件名（默认 finvquant.log）。
+	// LogFile 活动日志文件名（默认 FinvQuant.log）。
 	LogFile string
+	// LogMaxMB 单文件上限（MB，默认 10）；超过后按日期+序号切分。
+	LogMaxMB int
 
 	// OpenAPIKey 外部 OpenAPI（/OpenAPI/V1）静态访问密钥（需求 10787，过渡方案）。
 	// 为空时不注册外部路由；后续 API Key 体系落地后由 DB 凭证替换。
@@ -98,7 +100,8 @@ func Load() *Config {
 		KLineTSUnit:       envLowerOr("FINV_KLINE_TS_UNIT", "s"),
 		OpenAPIKey:        envOr("FINV_OPENAPI_KEY", ""),
 		LogDir:            envOr("FINV_LOG_DIR", ""),
-		LogFile:           envOr("FINV_LOG_FILE", "finvquant.log"),
+		LogFile:           envOr("FINV_LOG_FILE", "FinvQuant.log"),
+		LogMaxMB:          envIntOr("FINV_LOG_MAX_MB", 10),
 
 		ErrorDetailMode:         envLowerOr("FINV_ERROR_DETAIL_MODE", "safe"),
 		ErrorDebugToken:         os.Getenv("FINV_ERROR_DEBUG_TOKEN"),
