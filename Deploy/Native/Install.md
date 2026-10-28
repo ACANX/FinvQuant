@@ -14,7 +14,7 @@
 | 安装根目录 | `/data/App/FinvQuant/`（`--prefix <dir>` 或 `FINVQ_PREFIX` 可改） |
 | 二进制 | `/data/App/FinvQuant/bin/finvquant`（软链 `/usr/local/bin/finvquant`） |
 | 配置 | `/data/App/FinvQuant/etc/finvquant.env`（权限 600，含随机生成的数据库密码） |
-| 迁移脚本 | `/data/App/FinvQuant/Migrations/`（服务启动时自动应用未执行版本） |
+| 迁移脚本 | `/data/App/FinvQuant/Deploy/Migrations/`（与仓库结构一致，服务启动时自动应用未执行版本） |
 | 部署脚本与文件 | `/data/App/FinvQuant/Deploy/`（`Install.sh`/`Upgrade.sh`/`Uninstall.sh`、`finvquant.service`、env 与 Nginx 模板、本手册） |
 | 备份 | `/data/App/FinvQuant/Backup/`（升级脚本写入 `finvquant_YYYYMMDD_HHMMSS.dump`） |
 | 导出 | `/data/App/FinvQuant/Export/`（行情归档导出，与容器方式一致） |
@@ -27,7 +27,7 @@
 | 目录 | 属主 / 权限 |
 |---|---|
 | `bin/` | `root:root 0755` |
-| `Migrations/` | `root:finvquant 0755` |
+| `Deploy/Migrations/` | `root:finvquant 0755` |
 | `etc/` | `root:finvquant 0750`，其中 `finvquant.env` 为 `root:root 0600` |
 | `Deploy/` | `root:root 0755` |
 | `Backup/` | `root:finvquant 0750` |
@@ -64,23 +64,23 @@ bash Deploy/Script/Download.sh --dry-run
 ```
 
 脚本会自动：识别 Linux/Windows 与 amd64/arm64 → 选对应资产 → 下载并校验（资产 `.sha256` + 包内 `SHA256SUMS`）→ 安全解压到目标目录（非空目录需 `--force`）。
-包内已含 `finvquant`、`Migrations/`（顶层，与 `Deploy/` 同级）、`Deploy/Native` 全套脚本，可直接进入第 3 节安装。
+包内已含 `finvquant`、`Deploy/Migrations`、`Deploy/Native` 全套脚本，可直接进入第 3 节安装。
 详细参数见 [`../Script/README.md`](../Script/README.md) §13。
 
 ### 2.2 从源码构建（开发/自定义版本）
 
 `Install.sh` 会在以下位置查找 `finvquant` 与迁移目录（按顺序）：
 
-1. 发行包顶层（与 `Deploy/` 同级，安装后的 `FINV_MIGRATIONS_DIR`）：
+1. 发行包/安装后布局（迁移与仓库结构一致放在 `Deploy/` 下）：
    - 二进制：`<dir>/finvquant`
-   - 迁移：`<dir>/Migrations/`
+   - 迁移：`<dir>/Deploy/Migrations/`
 2. 源码仓库（脚本位于 `<repo>/Deploy/Native/` 时自动识别）：
    - 二进制：`<repo>/finvquant`
    - 迁移：`<repo>/Deploy/Migrations/`
-3. 脚本同级或上一级：`<dir>/Migrations/`、`<dir>/../Migrations/`（兼容旧包结构）
+3. 其它：Native 脚本的上一级/同级 `Migrations/`
 4. `--binary /path/to/finvquant` 显式指定二进制
 
-> 若迁移目录就是安装后的 `<PREFIX>/Migrations`（下载包解压到同一目录的情形），安装脚本会跳过复制，避免“源与目标相同”。
+> 若迁移目录就是安装后的 `<PREFIX>/Deploy/Migrations`（下载包解压到同一目录的情形），安装脚本会跳过复制，避免“源与目标相同”。
 
 构建二进制（在仓库根）：
 
@@ -114,7 +114,7 @@ sudo bash Deploy/Native/Install.sh --prefix /data/App/FinvQuant
 | `--binary <path>` | 指定二进制路径 |
 | `--prefix <dir>` | 指定安装根目录（默认 `/data/App/FinvQuant`，也可用环境变量 `FINVQ_PREFIX`） |
 
-脚本执行顺序：前置检查 → 定位产物 → 装基础依赖 → 装 PostgreSQL 18（PGDG 源）→ 装 Redis → 建用户与目录（`/data/App/FinvQuant/{bin,Migrations,etc,Backup,Export,Deploy}`）→ 装二进制、迁移与部署文件 → 生成 env（随机 DB 密码）→ 建库建角色并授权 → 渲染并注册 systemd unit → 健康检查。
+脚本执行顺序：前置检查 → 定位产物 → 装基础依赖 → 装 PostgreSQL 18（PGDG 源）→ 装 Redis → 建用户与目录（`/data/App/FinvQuant/{bin,etc,Backup,Export,Deploy}` + `Deploy/Migrations`）→ 装二进制、迁移与部署文件 → 生成 env（随机 DB 密码）→ 建库建角色并授权 → 渲染并注册 systemd unit → 健康检查。
 
 成功标志：
 
@@ -151,7 +151,7 @@ groupadd --system finvquant
 useradd --system --gid finvquant --no-create-home --home-dir "$PREFIX" --shell /usr/sbin/nologin finvquant
 install -d -o root -g root -m 0755 "$PREFIX"
 install -d -o root -g root -m 0755 "$PREFIX/bin"
-install -d -o root -g finvquant -m 0755 "$PREFIX/Migrations"
+install -d -o root -g finvquant -m 0755 "$PREFIX/Deploy/Migrations"
 install -d -o root -g finvquant -m 0750 "$PREFIX/etc"
 install -d -o root -g finvquant -m 0750 "$PREFIX/Backup"
 install -d -o finvquant -g finvquant -m 0755 "$PREFIX/Export"
@@ -160,7 +160,7 @@ install -d -o root -g root -m 0755 "$PREFIX/Deploy"
 # 5) 二进制、迁移与部署文件
 install -o root -g root -m 0755 ./finvquant "$PREFIX/bin/finvquant"
 ln -sfn "$PREFIX/bin/finvquant" /usr/local/bin/finvquant
-cp Deploy/Migrations/*.sql "$PREFIX/Migrations/" && chmod 0644 "$PREFIX/Migrations/"*.sql
+cp Deploy/Migrations/*.sql "$PREFIX/Deploy/Migrations/" && chmod 0644 "$PREFIX/Deploy/Migrations/"*.sql
 cp Deploy/Native/*.sh "$PREFIX/Deploy/"
 cp Deploy/Native/*.md Deploy/Native/*.example Deploy/Native/FinvQuant.service "$PREFIX/Deploy/"
 chmod 0755 "$PREFIX/Deploy/"*.sh
@@ -197,7 +197,7 @@ curl -o /dev/null -w '%{http_code}\n' http://127.0.0.1:16001/API/V1/Health/Ready
 curl -o /dev/null -w '%{http_code}\n' http://127.0.0.1:16002/                      # 200
 
 # 安装布局自检
-ls -l /data/App/FinvQuant/{bin,Migrations,etc,Deploy}
+ls -l /data/App/FinvQuant/{bin,etc,Deploy} && ls /data/App/FinvQuant/Deploy/Migrations | head -3
 ```
 
 迁移确认（应包含 `29`、`30`、`31`、`32`、`33`、`100024` 等）：

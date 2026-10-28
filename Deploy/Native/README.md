@@ -67,7 +67,7 @@
 | 维度 | `Deploy/Docker/` | `Deploy/Native/`（本目录） |
 |---|---|---|
 | 交付物 | All-in-One 镜像（前端经 `go:embed` 内嵌） | **同一份** `finvquant` 二进制（前端同样内嵌，无需外置静态资源） |
-| 数据库迁移 | 镜像内 `/etc/finvquant/Migrations`（构建时拷入），启动时自动应用 | 同一批脚本由安装/升级脚本同步到 `/data/App/FinvQuant/Migrations`，启动时自动应用（`FINV_MIGRATIONS_DIR` 指定） |
+| 数据库迁移 | 镜像内 `/etc/finvquant/Migrations`（构建时拷入），启动时自动应用 | 同一批脚本随包放在 `Deploy/Migrations`，安装后即 `/data/App/FinvQuant/Deploy/Migrations`（`FINV_MIGRATIONS_DIR` 指定），启动时自动应用 |
 | 配置 | `Deploy/Docker/.env` | `/data/App/FinvQuant/etc/finvquant.env`（systemd `EnvironmentFile`），键名一致 |
 | 端口 | 16001（API）+ 16002（前端） | 相同；通常再前置 Nginx 统一入口 |
 | 升级动作 | 停容器 → 拉镜像 → 起容器 | 停服务 → 备份 → 换二进制 → 起服务 |
@@ -86,16 +86,16 @@
 ├── bin/
 │   ├── finvquant                     # 二进制（软链 /usr/local/bin/finvquant）
 │   └── finvquant.prev                # 升级前的上一版本（可用于 --rollback）
-├── Migrations/                       # 数据库迁移脚本（FINV_MIGRATIONS_DIR）
-├── etc/
-│   └── finvquant.env                 # 核心配置环境变量（权限 600）
-├── Deploy/                           # 部署脚本与部署文件（安装时留存，可直接在此升级/卸载）
+├── Deploy/                           # 部署脚本、部署文件与数据库脚本（与仓库结构一致）
+│   ├── Migrations/                   # 数据库迁移脚本（FINV_MIGRATIONS_DIR）
 │   ├── Install.sh / Upgrade.sh / Uninstall.sh
 │   ├── finvquant.service             # 渲染后的 unit（systemd 注册用）
 │   ├── FinvQuant.service             # unit 模板（@PREFIX@ 占位）
 │   ├── FinvQuant.env.example         # 环境变量模板
 │   ├── Nginx.conf.example            # 反向代理示例
 │   └── README.md / Install.md / Upgrade.md
+├── etc/
+│   └── finvquant.env                 # 核心配置环境变量（权限 600）
 ├── Backup/                           # 数据库逻辑备份（Upgrade.sh 写入 finvquant_*.dump）
 └── Export/                           # 行情归档导出目录（与容器方式一致）
     └── Upload/                       # 上传暂存（UPLOAD_MODE=dir 时使用）
@@ -104,7 +104,7 @@
 | 目录 | 权限 / 属主 | 说明 |
 |---|---|---|
 | `bin/` | `root:root 0755` | 二进制只读，升级时整体替换 |
-| `Migrations/` | `root:finvquant 0755` | 迁移脚本只读，服务以 `finvquant` 读取 |
+| `Deploy/Migrations/` | `root:finvquant 0755` | 迁移脚本只读，服务以 `finvquant` 读取 |
 | `etc/` | `root:finvquant 0750`（文件 600） | 含数据库密码，仅 root 可改 |
 | `Deploy/` | `root:root 0755` | 脚本与模板，运维直接在此目录执行 |
 | `Backup/` | `root:finvquant 0750` | 备份由 root 写入，避免 `postgres` 越权 |
@@ -140,7 +140,7 @@
 沿用同一套 `FINV_*` 环境变量（键名见 [`../Docker/.env.example`](../Docker/.env.example)），差异仅在连接地址：
 
 - `FINV_PG_HOST=127.0.0.1`、`FINV_REDIS_ADDR=127.0.0.1:6379`（Docker 方式为服务名 `postgres` / `redis`）
-- `FINV_MIGRATIONS_DIR=/data/App/FinvQuant/Migrations`、`FINV_QUOTE_DEDUB_OUTPUT_DIR=/data/App/FinvQuant/Export`（安装脚本按实际安装根目录改写）
+- `FINV_MIGRATIONS_DIR=/data/App/FinvQuant/Deploy/Migrations`、`FINV_QUOTE_DEDUB_OUTPUT_DIR=/data/App/FinvQuant/Export`（安装脚本按实际安装根目录改写）
 - PG 与 Redis 建议**只绑 `127.0.0.1`**，由本机 `finvquant` 访问；对外只暴露 Web/反代端口
 - 配置文件路径：`/data/App/FinvQuant/etc/finvquant.env`（systemd `EnvironmentFile`，不要加 `export` 与引号）
 

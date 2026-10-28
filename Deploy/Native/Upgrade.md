@@ -13,7 +13,7 @@
 | 备份 | 升级脚本默认先 `pg_dump -Fc` 到 `/data/App/FinvQuant/Backup/`；无备份不回滚数据库 |
 | 禁止并用 | 新旧二进制**不得**同时连接同一数据库（列名/schema 已变） |
 | 破坏性版本 | 含 `V29`（列改名）、`V32`/`V33`（schema 迁移）的版本升级后**无法靠换回旧二进制恢复数据**，必须用备份恢复 |
-| 迁移来源 | 迁移脚本在 `/data/App/FinvQuant/Migrations/`（由 `FINV_MIGRATIONS_DIR` 指定），升级脚本会同步新版本脚本 |
+| 迁移来源 | 迁移脚本在 `/data/App/FinvQuant/Deploy/Migrations/`（由 `FINV_MIGRATIONS_DIR` 指定），升级脚本会同步新版本脚本 |
 | 部署文件 | 二进制、迁移、部署脚本与 unit 在同一安装根目录；升级时脚本、模板与 unit 会一并刷新 |
 | 磁盘 | `/data` 需同时容纳旧二进制、数据库备份与新迁移脚本 |
 

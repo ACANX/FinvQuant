@@ -520,11 +520,12 @@
 
 ### 变更
 
-- **发行包把 `Migrations/` 提到包顶层，与 `Deploy/` 同级（需求 10768）**
-  - **原因**：此前包内为 `Deploy/Migrations/`，而安装后的 `FINV_MIGRATIONS_DIR` 是 `<PREFIX>/Migrations`，两者不一致，靠 `Install.sh` 额外复制一次才能对齐。
-  - **包结构**：`PackSnapshot.sh` 改为 `cp -r Deploy/Migrations "${PKG_ROOT}/Migrations"`；Linux `tar.gz` 与 Windows `zip` 同步生效，`SHA256SUMS` 自动覆盖新位置。
-  - **安装/升级脚本**：迁移目录候选改为按序探测 `<PREFIX>/Migrations`（包顶层）→ `<repo>/Deploy/Migrations`（源码仓库）→ `<dir>/Migrations` → `<dir>/../Migrations`；当迁移目录就是安装目标（下载包直接解到 `/data/App/FinvQuant` 的情形）时**跳过复制**，避免 “源与目标相同” 报错。
-  - **文档**：`Deploy/Script/README.md` §5 包内结构图、`Deploy/Native/Install.md` §2 查找顺序同步更新。
+- **Migrations 目录统一为 `<PREFIX>/Deploy/Migrations`（需求 10768）**
+  - **原因**：一处是安装后的 `FINV_MIGRATIONS_DIR=<PREFIX>/Migrations`，一处是包内的 `Deploy/Migrations`，两套路径容易混淆且需要额外复制才能对齐。
+  - **结论**：与仓库结构保持一致，安装后即 `<PREFIX>/Deploy/Migrations`（默认 `/data/App/FinvQuant/Deploy/Migrations`）。
+  - **包结构**：`PackSnapshot.sh` 保持 `cp -r Deploy/Migrations "${PKG_ROOT}/Deploy/Migrations"`，Linux `tar.gz` / Windows `zip` 同构。
+  - **安装/升级脚本**：`MIGRATIONS_DIR=<PREFIX>/Deploy/Migrations`；探测顺序 `<PREFIX>/Deploy/Migrations` → `<repo>/Deploy/Migrations` → Native 脚本上一级/同级；源即目标时**跳过复制**；升级时自动补建目录。
+  - **模板与文档**：`FINV_MIGRATIONS_DIR=/data/App/FinvQuant/Deploy/Migrations`，Native README/Install/Upgrade、`Deploy/README.md`、`Script/README.md` §5 全部对齐。
 
 - **Native 安装统一到 `/data/App/FinvQuant/`（需求 10766）**
   - **目录布局**：`bin/finvquant`（软链 `/usr/local/bin/finvquant`）、`Migrations/`、`etc/finvquant.env`（600）、`Deploy/`（`Install.sh`/`Upgrade.sh`/`Uninstall.sh`、`finvquant.service`、env 与 Nginx 模板、手册）、`Backup/`、`Export/` 全部收拢到同一安装根目录；原 `/opt/finvquant`、`/etc/finvquant`、`/var/backups/finvquant` 不再使用。

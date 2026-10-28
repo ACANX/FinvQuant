@@ -5,7 +5,7 @@
 # 安装根目录：/data/App/FinvQuant（由 systemd unit 的 ExecStart 推断，
 #             可用 --prefix 或环境变量 FINVQ_PREFIX 覆盖）
 #   <PREFIX>/bin/finvquant        当前二进制（升级备份为 finvquant.prev）
-#   <PREFIX>/Migrations/          数据库迁移脚本
+#   <PREFIX>/Deploy/Migrations/   数据库迁移脚本
 #   <PREFIX>/etc/finvquant.env    核心配置
 #   <PREFIX>/Deploy/              部署脚本与部署文件（升级时一并刷新）
 #   <PREFIX>/Backup/              数据库逻辑备份（本脚本写入）
@@ -58,7 +58,7 @@ step() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 set_prefix() {
   PREFIX="$1"
   BIN_DIR="${PREFIX}/bin"
-  MIGRATIONS_DIR="${PREFIX}/Migrations"
+  MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"
   ETC_DIR="${PREFIX}/etc"
   DEPLOY_DIR="${PREFIX}/Deploy"
   BACKUP_DIR="${PREFIX}/Backup"
@@ -117,14 +117,14 @@ NEW_VER="$("${BINARY_SRC}" --version 2>/dev/null || true)"
 if [[ -n "${NEW_VER}" ]]; then ok "版本：${NEW_VER}"; fi
 
 MIGRATIONS_SRC=""
-# ① 发行包/安装后布局：<PREFIX>/Migrations（与 Deploy/ 同级）
+# ① 发行包与安装后布局：<PREFIX>/Deploy/Migrations（与仓库结构一致）
 # ② 源码仓库：<repo>/Deploy/Migrations
-# ③ 其它：脚本同级或上一级
-for candidate in "${REPO_ROOT}/Migrations" "${REPO_ROOT}/Deploy/Migrations" \
-                 "${SCRIPT_DIR}/Migrations" "${SCRIPT_DIR}/../Migrations"; do
+# ③ 其它：Native 脚本的同级/上一级
+for candidate in "${REPO_ROOT}/Deploy/Migrations" "${SCRIPT_DIR}/../Migrations" \
+                 "${SCRIPT_DIR}/Migrations"; do
   if [[ -d "${candidate}" ]]; then MIGRATIONS_SRC="${candidate}"; break; fi
 done
-[[ -n "${MIGRATIONS_SRC}" ]] || die "找不到迁移目录（已尝试 <PREFIX>/Migrations、<repo>/Deploy/Migrations、脚本同级与上一级）"
+[[ -n "${MIGRATIONS_SRC}" ]] || die "找不到迁移目录（已尝试 <PREFIX>/Deploy/Migrations、<repo>/Deploy/Migrations、脚本上一级与同级）"
 ok "迁移目录：${MIGRATIONS_SRC}"
 
 # ---------------------------------------------------------------------
@@ -165,6 +165,7 @@ fi
 install -o root -g root -m 0755 "${BINARY_SRC}" "${BINARY}"
 ln -sfn "${BINARY}" "${BINARY_LINK}"
 ok "二进制已替换：${BINARY}"
+install -d -o root -g "${APP_GROUP}" -m 0755 "${MIGRATIONS_DIR}"
 if [[ "$(readlink -f "${MIGRATIONS_SRC}")" == "$(readlink -f "${MIGRATIONS_DIR}" 2>/dev/null || echo -)" ]]; then
   ok "迁移目录即安装目录，无需同步：${MIGRATIONS_DIR}"
 else

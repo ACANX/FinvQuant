@@ -9,7 +9,7 @@
 #
 # 安装根目录：/data/App/FinvQuant（可用 --prefix 或 FINVQ_PREFIX 覆盖），布局：
 #   <PREFIX>/bin/finvquant          二进制（另建软链 /usr/local/bin/finvquant）
-#   <PREFIX>/Migrations/            数据库迁移脚本（FINV_MIGRATIONS_DIR 指向此目录）
+#   <PREFIX>/Deploy/Migrations/     数据库迁移脚本（与仓库结构一致，FINV_MIGRATIONS_DIR 指向此目录）
 #   <PREFIX>/etc/finvquant.env      核心配置（环境变量，权限 600）
 #   <PREFIX>/Deploy/                部署脚本与部署文件（Install/Upgrade/Uninstall、unit、模板、手册）
 #   <PREFIX>/Backup/                数据库逻辑备份（升级脚本写入）
@@ -34,7 +34,7 @@ APP_GROUP="finvquant"
 PREFIX="${FINVQ_PREFIX:-/data/App/FinvQuant}"
 BIN_DIR="${PREFIX}/bin"
 ETC_DIR="${PREFIX}/etc"
-MIGRATIONS_DIR="${PREFIX}/Migrations"
+MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"
 BACKUP_DIR="${PREFIX}/Backup"
 EXPORT_DIR="${PREFIX}/Export"
 DEPLOY_DIR="${PREFIX}/Deploy"
@@ -64,7 +64,7 @@ while [[ $# -gt 0 ]]; do
     --binary)     BINARY_SRC="${2:-}"; shift 2 ;;
     --prefix)     PREFIX="${2:-}"; shift 2
                   BIN_DIR="${PREFIX}/bin"; ETC_DIR="${PREFIX}/etc"
-                  MIGRATIONS_DIR="${PREFIX}/Migrations"; BACKUP_DIR="${PREFIX}/Backup"
+                  MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"; BACKUP_DIR="${PREFIX}/Backup"
                   EXPORT_DIR="${PREFIX}/Export"; DEPLOY_DIR="${PREFIX}/Deploy"
                   ENV_FILE="${ETC_DIR}/finvquant.env"; BINARY="${BIN_DIR}/finvquant" ;;
     -h|--help)    sed -n '2,26p' "$0"; exit 0 ;;
@@ -107,14 +107,14 @@ fi
 ok "二进制：${BINARY_SRC}"
 
 MIGRATIONS_SRC=""
-# ① 发行包/安装后布局：<PREFIX>/Migrations（与 Deploy/ 同级）
+# ① 发行包与安装后布局：<PREFIX>/Deploy/Migrations（与仓库结构一致）
 # ② 源码仓库：<repo>/Deploy/Migrations
-# ③ 其它：脚本同级或上一级
-for candidate in "${REPO_ROOT}/Migrations" "${REPO_ROOT}/Deploy/Migrations" \
-                 "${SCRIPT_DIR}/Migrations" "${SCRIPT_DIR}/../Migrations"; do
+# ③ 其它：Native 脚本的同级/上一级
+for candidate in "${REPO_ROOT}/Deploy/Migrations" "${SCRIPT_DIR}/../Migrations" \
+                 "${SCRIPT_DIR}/Migrations"; do
   if [[ -d "${candidate}" ]]; then MIGRATIONS_SRC="${candidate}"; break; fi
 done
-[[ -n "${MIGRATIONS_SRC}" ]] || die "找不到迁移目录（已尝试 <PREFIX>/Migrations、<repo>/Deploy/Migrations、脚本同级与上一级）"
+[[ -n "${MIGRATIONS_SRC}" ]] || die "找不到迁移目录（已尝试 <PREFIX>/Deploy/Migrations、<repo>/Deploy/Migrations、脚本上一级与同级）"
 ok "迁移目录：${MIGRATIONS_SRC}（$(ls -1 "${MIGRATIONS_SRC}"/*.sql | wc -l) 个脚本）"
 
 # ---------------------------------------------------------------------
@@ -205,11 +205,12 @@ else
 fi
 install -d -o root -g root -m 0755 "${PREFIX}"
 install -d -o root -g root -m 0755 "${BIN_DIR}"
+# Deploy/ 先于其下的 Migrations/（迁移脚本与仓库结构一致放在 Deploy 下）
+install -d -o root -g root -m 0755 "${DEPLOY_DIR}"
 install -d -o root -g "${APP_GROUP}" -m 0755 "${MIGRATIONS_DIR}"
 install -d -o root -g "${APP_GROUP}" -m 0750 "${ETC_DIR}"
 install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0755 "${EXPORT_DIR}"
-install -d -o root -g root -m 0755 "${DEPLOY_DIR}"
 ok "目录：${BIN_DIR} / ${MIGRATIONS_DIR} / ${ETC_DIR} / ${BACKUP_DIR} / ${EXPORT_DIR} / ${DEPLOY_DIR}"
 
 # ---------------------------------------------------------------------

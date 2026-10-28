@@ -44,7 +44,7 @@ Deploy/
 - 命名 `V<版本号>__<描述>.sql`；结构迁移用 `V100001`～`V199999`，种子/数据迁移用 `V200000+`，全部按版本号升序执行。
 - 服务（容器或二进制）**启动时自动应用未执行版本**，记录在 `public.schema_version`；单事务执行，失败整体回滚。
 - **历史迁移文件不可回改**（已应用库会按 `schema_version` 跳过，改动会造成存量库与全新库结构分叉）；唯一例外是「新结构已使历史迁移无法在全新库执行」的兼容修正，规则见 [`../Docs/DevSpec/DbSchemaSpec.md`](../Docs/DevSpec/DbSchemaSpec.md) §4。
-- 目录位置：容器方式构建时拷入镜像 `/etc/finvquant/Migrations`（镜像内部路径）；Native 方式由安装/升级脚本同步到安装根目录 `/data/App/FinvQuant/Migrations`；统一由环境变量 `FINV_MIGRATIONS_DIR` 指向。
+- 目录位置：容器方式构建时拷入镜像 `/etc/finvquant/Migrations`（镜像内部路径）；Native 方式随包放在 `<PREFIX>/Deploy/Migrations`（与仓库结构一致，默认 `/data/App/FinvQuant/Deploy/Migrations`），安装/升级脚本按需同步；统一由环境变量 `FINV_MIGRATIONS_DIR` 指向。
 - 手工执行迁移**不推荐**：请用服务启动自迁移，避免 `schema_version` 与实际结构不一致。
 
 ### 2.2 `Backup/`（数据库备份）

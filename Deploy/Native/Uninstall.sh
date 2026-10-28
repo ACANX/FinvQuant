@@ -55,7 +55,7 @@ done
 [[ "${PREFIX}" == /* ]] || die "--prefix 必须是绝对路径（当前：${PREFIX}）"
 BIN_DIR="${PREFIX}/bin"
 ETC_DIR="${PREFIX}/etc"
-MIGRATIONS_DIR="${PREFIX}/Migrations"
+MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"
 DEPLOY_DIR="${PREFIX}/Deploy"
 BACKUP_DIR="${PREFIX}/Backup"
 EXPORT_DIR="${PREFIX}/Export"
