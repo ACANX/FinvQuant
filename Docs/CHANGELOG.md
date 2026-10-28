@@ -552,6 +552,13 @@
 
 ### 变更
 
+- **分钟行情 volume 全链路统一为浮点 `numeric(20,6)`（需求 10792）**
+  - 新增迁移 `V200059__kline_min_volume_numeric_all_schemas.sql`：把 `quote` / `export` / `dedup` 三张同名表的 `volume` 从 `bigint` 改为 `numeric(20,6)`（与 `V200058` 的 `cdeu` 一致），重建 `CHECK (volume >= 0)`，幂等、无损。
+  - `internal/mvsv/parser.go`：`Row.Volume` 由 `*int64` 改为 `*string`（`numericTextOrNil` 原样保留小数文本），修复含小数 MVsv 导入时 volume 被静默丢弃的问题。
+  - `internal/quote/service.go`：查询结果 `Bar.Volume` 由 `*int64` 改为 `*float64`，JSON 输出保持数字并支持小数。
+  - 文档：`HistoryQuote.md` 标注 volume 支持小数；`MvsvFileFormat.md` 已为 `Decimal(20,6)`。
+  - 验证：临时 PG18 上 141 个迁移 0 错误；四表 volume 均为 `numeric(20,6)`；`12.345678` 在四表写入/读回一致；重复执行 V200059 全部跳过；`go build`、`mvsv/quote/kline` 测试通过（新增小数解析用例）。
+
 - **cdeu 分钟行情成交量改为浮点（`numeric(20,6)`，需求 10791）**
   - 新增迁移 `V200058__cdeu_kline_min_volume_numeric.sql`：`cdeu.finv_quote_secu_kline_min.volume` 由 `bigint` 改为 `numeric(20,6)`，重建 `CHECK (volume >= 0)`；幂等（已是 numeric 直接跳过），`bigint → numeric` 无损。
   - 仅调整 `cdeu` 表；`public` / `quote` / `dedup` / `export` 的同名表不动。

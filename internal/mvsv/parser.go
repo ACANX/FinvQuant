@@ -124,7 +124,7 @@ type Row struct {
 	ChangePrice *string // 涨跌额：MVSV 的 cp 列当前忽略，由导入服务按规则计算
 	ChangeRatio *string // 涨跌幅（%）：MVSV 的 cr 列当前忽略，由导入服务按规则计算
 	Paocd       *string
-	Volume      *int64
+	Volume      *string // 成交量（十进制文本，保留小数与精度）
 	Turnover    *string
 	ExtField    *string
 	Remark      *string
@@ -308,7 +308,7 @@ func parseRow(line string, header *Header, lineNumber int) (Row, error) {
 		case colHigh:
 			row.High = decimalOrNil(raw)
 		case colVolume:
-			row.Volume = int64OrNil(raw)
+			row.Volume = numericTextOrNil(raw)
 		case colTurnover:
 			row.Turnover = decimalOrNil(raw)
 		case colLastClose:
@@ -356,14 +356,14 @@ func decimalOrNil(raw string) *string {
 	return &value
 }
 
-func int64OrNil(raw string) *int64 {
+// numericTextOrNil 返回十进制数值文本（保留小数/精度）；空值或非法数值返回 nil。
+func numericTextOrNil(raw string) *string {
 	value := strings.TrimSpace(raw)
 	if value == "" {
 		return nil
 	}
-	parsed, err := strconv.ParseInt(value, 10, 64)
-	if err != nil {
+	if _, err := strconv.ParseFloat(value, 64); err != nil {
 		return nil
 	}
-	return &parsed
+	return &value
 }

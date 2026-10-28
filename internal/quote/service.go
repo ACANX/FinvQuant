@@ -48,18 +48,18 @@ func NewService(pool *pgxpool.Pool) *Service {
 
 // Bar 查询返回的分钟级 K 线（涨跌额/涨跌幅由 close 与 last_close 计算）。
 type Bar struct {
-	TS        int64   `json:"ts"`         // UTC 时间戳（秒，主键列，如 1754398800）
-	Date      int     `json:"date"`       // 交易日期 yyyymmdd（多日查询时用于区分）
-	Time      int     `json:"time"`       // 交易时间 hhmmss
-	Open      *string `json:"open"`       // 开盘价
-	High      *string `json:"high"`       // 最高价
-	Low       *string `json:"low"`        // 最低价
-	Close     *string `json:"close"`      // 收盘价
-	Volume    *int64  `json:"volume"`     // 成交量（有值才展示）
-	Turnover  *string `json:"turnover"`   // 成交额（有值才展示）
-	Change    *string `json:"change"`     // 涨跌额（close - last_close）
-	ChangePct *string `json:"change_pct"` // 涨跌幅 %
-	Remark    *string `json:"remark"`     // 备注
+	TS        int64    `json:"ts"`         // UTC 时间戳（秒，主键列，如 1754398800）
+	Date      int      `json:"date"`       // 交易日期 yyyymmdd（多日查询时用于区分）
+	Time      int      `json:"time"`       // 交易时间 hhmmss
+	Open      *string  `json:"open"`       // 开盘价
+	High      *string  `json:"high"`       // 最高价
+	Low       *string  `json:"low"`        // 最低价
+	Close     *string  `json:"close"`      // 收盘价
+	Volume    *float64 `json:"volume"`     // 成交量（支持小数，有值才展示）
+	Turnover  *string  `json:"turnover"`   // 成交额（有值才展示）
+	Change    *string  `json:"change"`     // 涨跌额（close - last_close）
+	ChangePct *string  `json:"change_pct"` // 涨跌幅 %
+	Remark    *string  `json:"remark"`     // 备注
 }
 
 // QueryBars 按证券代码 + ts 时间范围查询分钟级 K 线（周期目前仅支持 Min=1 分钟）。

@@ -2145,6 +2145,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10791 | 将 `cdeu.finv_quote_secu_kline_min.volume` 由 `bigint` 改为浮点 `numeric(20,6)`，保留 `volume >= 0` 约束；幂等迁移，仅改 `cdeu` 表。 | `grep -c 'numeric(20,6)' Deploy/Migrations/V200058__cdeu_kline_min_volume_numeric.sql` ≥ 1；临时 PG 执行全部迁移后 `select data_type from information_schema.columns where table_schema='cdeu' and table_name='finv_quote_secu_kline_min' and column_name='volume'` = `numeric`；插入 `12.345678` 后读回一致；重复执行 V200058 输出「已是 numeric，跳过」；`go build ./...`、`go test ./internal/kline` 通过；`MVsvFileFormat.md` 中 `v` 类型为 `Decimal(20,6)` | |
 
+## 一百二十四、volume 全链路浮点化（10792）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10792 | 把 `quote` / `export` / `dedup` 三张同名表的 `volume` 与 `cdeu` 统一为 `numeric(20,6)`；`internal/mvsv` 解析保留小数文本；`internal/quote` 查询输出支持小数；保证导入/导出/补丁/回测链路不截断。 | 临时 PG 执行全部迁移后 `select table_schema, data_type from information_schema.columns where column_name='volume' and table_name='finv_quote_secu_kline_min' and table_schema in ('quote','dedup','export','cdeu')` 四行均为 `numeric`；`12.345678` 在四表写入/读回一致；重复执行 V200059 输出「已是 numeric，跳过」；`go test ./internal/mvsv` 含 `TestParseNumericVolume` 通过；`go build ./...`、`go test ./internal/quote ./internal/kline` 通过；`HistoryQuote.md` volume 标注支持小数 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2296,7 +2302,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 外部 OpenAPI PageUni 查询端点 | 10789 | 1 |
 | 外部 OpenAPI 暂不鉴权 | 10790 | 1 |
 | cdeu 成交量改为浮点 | 10791 | 1 |
-| **合计** | **10001–10791** | **791** |
+| volume 全链路浮点化 | 10792 | 1 |
+| **合计** | **10001–10792** | **792** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10792` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10793` 起往后追加，不插入既有区间。

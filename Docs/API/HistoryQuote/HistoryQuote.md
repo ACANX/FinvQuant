@@ -77,7 +77,7 @@
 | `date` | 交易日期（yyyymmdd，多日查询时用于区分每日分段） |
 | `time` | 交易时间（hhmmss） |
 | `open` / `high` / `low` / `close` | 开 / 高 / 低 / 收（数值字符串；缺失为 null） |
-| `volume` | 成交量（缺失为 null，前端有值才展示） |
+| `volume` | 成交量（浮点，支持小数；缺失为 null，前端有值才展示） |
 | `turnover` | 成交额（缺失为 null，前端有值才展示） |
 | `change` | 涨跌额 = close - last_close（缺失为 null） |
 | `change_pct` | 涨跌幅 %（缺失为 null） |
