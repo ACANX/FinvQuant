@@ -15,30 +15,38 @@
 --   - 迁移顺序：先删依赖 market_code 的索引，再删主键约束，
 --     再删列，最后按新主键重建；单事务、失败回滚。
 -- =====================================================================
+-- ---------------------------------------------------------------------
+-- 兼容修正（需求 10771，2026-10-28）：
+--   历史迁移未给表名加 schema 前缀，首次建库时按 search_path 落到 public；
+--   若 public 中已存在**其它服务**的同名表，V100001 会直接撞表
+--   （relation "finv_quote_secu_kline_min" already exists），V100032 还会把
+--   别人的表搬进 quote。此处把本程序自有表显式限定到 quote，全程不触碰 public。
+--   本修正只影响全新库；已应用库按 schema_version 跳过，结构不变。
+-- ---------------------------------------------------------------------
 
 BEGIN;
 
 -- ---------------------------------------------------------------------
 -- 1. 删除依赖 market_code 的索引（幂等）
 -- ---------------------------------------------------------------------
-DROP INDEX IF EXISTS idx_finv_quote_secu_market_ts;
+DROP INDEX IF EXISTS quote.idx_finv_quote_secu_market_ts;
 
 -- ---------------------------------------------------------------------
 -- 2. 删除原主键（隐含依赖 market_code 列）
 -- ---------------------------------------------------------------------
-ALTER TABLE finv_quote_secu_kline_min
+ALTER TABLE quote.finv_quote_secu_kline_min
     DROP CONSTRAINT IF EXISTS finv_quote_secu_kline_min_pkey;
 
 -- ---------------------------------------------------------------------
 -- 3. 删除 market_code 列
 -- ---------------------------------------------------------------------
-ALTER TABLE finv_quote_secu_kline_min
+ALTER TABLE quote.finv_quote_secu_kline_min
     DROP COLUMN IF EXISTS market_code;
 
 -- ---------------------------------------------------------------------
 -- 4. 按新主键 (ts, secu_code) 重建
 -- ---------------------------------------------------------------------
-ALTER TABLE finv_quote_secu_kline_min
+ALTER TABLE quote.finv_quote_secu_kline_min
     ADD CONSTRAINT finv_quote_secu_kline_min_pkey PRIMARY KEY (ts, secu_code);
 
 COMMIT;

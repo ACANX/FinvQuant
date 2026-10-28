@@ -104,6 +104,14 @@ DECLARE
     v_back  INT;
     v_rows  BIGINT;
 BEGIN
+    -- 兼容修正（需求 10771）：全新库中没有任何 GCMain 行情，清理与校验均不适用，
+    -- 原断言会误报「备份表没有 GCMain 月K记录」而中断首次部署。
+    SELECT count(*) INTO v_rows FROM dedup.finv_quote_secu_kline_min WHERE usc = 'GCMain';
+    IF v_rows = 0 THEN
+        RAISE NOTICE 'V100039: 库内无 GCMain 行情数据（全新库），跳过清理与校验';
+        RETURN;
+    END IF;
+
     SELECT count(*) INTO v_left
       FROM dedup.finv_quote_secu_kline_min
      WHERE usc = 'GCMain' AND time = 0 AND date % 100 = 1

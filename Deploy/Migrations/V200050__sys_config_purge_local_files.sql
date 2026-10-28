@@ -20,6 +20,11 @@
 
 BEGIN;
 
+-- 兼容修正（需求 10771，2026-10-28）：
+--   原实现硬编码 phase_id = 12（PHASE_REVIEW），全新库中该 id 由序列分配
+--   （实测为 7）导致前置校验失败；改为按 phase_code 解析。
+
+
 -- ---------------------------------------------------------------------
 -- 1. 前置校验
 -- ---------------------------------------------------------------------
@@ -28,7 +33,7 @@ DECLARE
     v_purge bigint;
 BEGIN
     SELECT process_id INTO v_purge FROM dedup.cdeu_process
-     WHERE phase_id = 12 AND process_code = 'PROCESS_PURGE';
+     WHERE phase_id = (SELECT phase_id FROM dedup.cdeu_phase WHERE phase_code = 'PHASE_REVIEW') AND process_code = 'PROCESS_PURGE';
     IF v_purge IS NULL THEN
         RAISE EXCEPTION 'V100050 前置校验失败：PROCESS_PURGE 不存在（需先执行 V100048）';
     END IF;
@@ -57,7 +62,7 @@ SELECT p.process_id, 'JOB_PURGE_LOCAL_FILES', '本地导出文件清理', 'PURGE
        2, true, true, 'SCHEDULED', 'DIRECT', true, 'DAILY', '06:15',
        1, 60, true, true
   FROM dedup.cdeu_process p
- WHERE p.phase_id = 12 AND p.process_code = 'PROCESS_PURGE'
+ WHERE p.phase_id = (SELECT phase_id FROM dedup.cdeu_phase WHERE phase_code = 'PHASE_REVIEW') AND p.process_code = 'PROCESS_PURGE'
 ON CONFLICT (process_id, job_code) DO UPDATE
    SET name = EXCLUDED.name,
        job_kind = EXCLUDED.job_kind,
@@ -92,7 +97,7 @@ BEGIN
     SELECT count(*) INTO v_jobs
       FROM dedup.cdeu_job j
       JOIN dedup.cdeu_process p ON p.process_id = j.process_id
-     WHERE p.phase_id = 12 AND p.process_code = 'PROCESS_PURGE' AND j.enabled;
+     WHERE p.phase_id = (SELECT phase_id FROM dedup.cdeu_phase WHERE phase_code = 'PHASE_REVIEW') AND p.process_code = 'PROCESS_PURGE' AND j.enabled;
     IF v_jobs <> 2 THEN
         RAISE EXCEPTION 'V100050 收敛失败：PROCESS_PURGE 应有 2 个启用 JOB，实际 %', v_jobs;
     END IF;
@@ -100,7 +105,7 @@ BEGIN
     SELECT string_agg(j.job_code || ':' || j.seq_no, ',' ORDER BY j.seq_no) INTO v_seq
       FROM dedup.cdeu_job j
       JOIN dedup.cdeu_process p ON p.process_id = j.process_id
-     WHERE p.phase_id = 12 AND p.process_code = 'PROCESS_PURGE' AND j.enabled;
+     WHERE p.phase_id = (SELECT phase_id FROM dedup.cdeu_phase WHERE phase_code = 'PHASE_REVIEW') AND p.process_code = 'PROCESS_PURGE' AND j.enabled;
     IF v_seq <> 'JOB_PURGE_EXPORTED_MONTH:1,JOB_PURGE_LOCAL_FILES:2' THEN
         RAISE EXCEPTION 'V100050 收敛失败：PROCESS_PURGE 的 JOB 顺序为 %', v_seq;
     END IF;

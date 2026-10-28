@@ -2033,7 +2033,13 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10770 | `Install.sh` 新增 `--recreate-db`：当目标库已存在但非本程序初始化（缺 `public.schema_version` 且已有表，迁移撞 `relation already exists`）时，先自动 `pg_dump -Fc` 备份到 `<PREFIX>/Backup/`，再 `dropdb` + `createdb -O <DB_USER>` 重建空库；未加该参数时**只告警不删库**。 | `grep -n 'recreate-db' Deploy/Native/Install.sh` 命中且帮助文本含该参数；在非空旧库上执行 `sudo bash Deploy/Native/Install.sh --recreate-db` 后：`ls <PREFIX>/Backup/finv_before_recreate_*.dump` 存在且非 0 字节、日志含「已重建空数据库」、`systemctl status finvquant` 为 `active (running)`、`select count(*) from public.schema_version` > 0；不加 `--recreate-db` 时日志只出现「数据库 … 已存在」与撞表告警，库未被删除 | |
+| 10770 | `Install.sh` 对「已存在但非本程序初始化」的数据库只做**只读预检**：目标库非空且缺 `public.schema_version` 时输出撞表风险与「改用独立库名/独立 PG 实例」指引，**不执行 `dropdb`/`createdb`，不删除、不改名、不迁移任何已有表**。 | `grep -c 'recreate-db' Deploy/Native/Install.sh` = 0；在非空旧库上执行 `sudo bash Deploy/Native/Install.sh`，日志含「数据库 … 已存在」与撞表告警、且执行前后 `select count(*) from information_schema.tables where table_schema not in ('pg_catalog','information_schema')` 不变 | |
+
+## 一百零六、首次部署兼容共享 public 同名表并修复迁移链（10771）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10771 | 让全新数据库在 `public` 已存在**其它服务**同名表（如 `public.finv_quote_secu_kline_min`）时也能完成首次部署：① 历史迁移中本程序自有表的建表/ALTER/DML 全部显式限定 `quote.`；② `V100032` 不得从 `public` 搬移非本程序创建的表（目标 schema 已有则跳过）；③ 修复全新库下 `V100080`（表数/列漂移）、`V200039`（空库断言）、`V200048`/`V200050`（硬编码 phase_id）导致的迁移中断；④ 新增 `V200057` 将 dedup 侧 CDEU 配置同步到 cdeu。 | 在临时 PG18 上先建 `public.finv_quote_secu_kline_min`（含注释、索引与 3 行数据），再执行全部迁移：`grep -cE 'ERROR|FATAL'` = 0；该校验前后 `select md5(string_agg(t::text,'\|' order by id)) from public.finv_quote_secu_kline_min t` 结果一致且 `pg_dump --schema-only -t public.finv_quote_secu_kline_min` 除 `\restrict` 随机 token 外无差异；`select count(*) from pg_tables where schemaname='quote' and tablename in ('finv_quote_secu_kline_min','finv_quote_ingest_batches','finv_quote_revision_log')` = 3；`select count(*) from cdeu.finv_quote_cdeu_process` 与 `select count(*) from dedup.cdeu_process` 相等；`grep -c 'AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = '\''quote'\''' Deploy/Migrations/V100032__*.sql` ≥ 1；`grep -c 'phase_id = 12' Deploy/Migrations/V200048__*.sql Deploy/Migrations/V200050__*.sql` = 0 | |
 
 ## 汇总
 
@@ -2165,8 +2171,9 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 一键下载脚本 | 10767 | 1 |
 | 发行包 Migrations 提到包顶层 | 10768 | 1 |
 | 配置放安装根目录 + 摘要渲染修复 | 10769 | 1 |
-| 安装脚本支持备份后重建空库 | 10770 | 1 |
-| **合计** | **10001–10770** | **770** |
+| 安装脚本支持备份后重建空库（已移除） | 10770 | 1 |
+| 首次部署兼容共享 public 同名表 | 10771 | 1 |
+| **合计** | **10001–10771** | **771** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10771` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10772` 起往后追加，不插入既有区间。

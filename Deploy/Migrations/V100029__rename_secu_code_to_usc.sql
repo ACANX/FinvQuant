@@ -24,6 +24,7 @@ BEGIN;
 DO $$
 DECLARE
     t TEXT;
+    sch TEXT;
 BEGIN
     FOREACH t IN ARRAY ARRAY[
         'finv_quote_secu_kline_min',
@@ -33,14 +34,21 @@ BEGIN
         'finv_quant_backtest_run',
         'finv_quant_backtest_run_archive'
     ] LOOP
-        IF EXISTS (
+        -- 按实际所在 schema 定位（兼容修正：不再用 current_schema()，避免命中 public
+        -- 中其它服务的同名表）；优先本程序域 quote/quant，老库回退 public。
+        sch := NULL;
+        IF to_regclass(format('quote.%I', t)) IS NOT NULL THEN sch := 'quote';
+        ELSIF to_regclass(format('quant.%I', t)) IS NOT NULL THEN sch := 'quant';
+        ELSIF to_regclass(format('public.%I', t)) IS NOT NULL THEN sch := 'public';
+        END IF;
+        IF sch IS NOT NULL AND EXISTS (
             SELECT 1 FROM information_schema.columns
-            WHERE table_schema = current_schema()
+            WHERE table_schema = sch
               AND table_name = t
               AND column_name = 'secu_code'
         ) THEN
-            EXECUTE format('ALTER TABLE %I RENAME COLUMN secu_code TO usc', t);
-            RAISE NOTICE 'V29: %.secu_code -> usc', t;
+            EXECUTE format('ALTER TABLE %I.%I RENAME COLUMN secu_code TO usc', sch, t);
+            RAISE NOTICE 'V29: %.%.secu_code -> usc', sch, t;
         ELSE
             RAISE NOTICE 'V29: %.secu_code 不存在，跳过', t;
         END IF;
@@ -53,6 +61,7 @@ END $$;
 DO $$
 DECLARE
     r RECORD;
+    idx_sch TEXT;
 BEGIN
     FOR r IN
         SELECT * FROM (VALUES
@@ -63,10 +72,19 @@ BEGIN
             ('idx_finv_quant_backtest_run_secu',      'idx_finv_quant_backtest_run_usc')
         ) AS v(old_name, new_name)
     LOOP
-        IF EXISTS (SELECT 1 FROM pg_class WHERE relname = r.old_name AND relkind = 'i')
-           AND NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = r.new_name AND relkind = 'i') THEN
-            EXECUTE format('ALTER INDEX %I RENAME TO %I', r.old_name, r.new_name);
-            RAISE NOTICE 'V29: 索引 % -> %', r.old_name, r.new_name;
+        -- 只在目标 schema 内定位并改名（避免按 search_path 命中 public 中其它服务的同名索引）
+        SELECT n.nspname INTO idx_sch
+          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE c.relkind = 'i' AND c.relname = r.old_name
+           AND n.nspname IN ('quote', 'quant', 'public')
+         LIMIT 1;
+        IF idx_sch IS NOT NULL
+           AND NOT EXISTS (
+                SELECT 1 FROM pg_class c2 JOIN pg_namespace n2 ON n2.oid = c2.relnamespace
+                 WHERE c2.relkind = 'i' AND c2.relname = r.new_name AND n2.nspname = idx_sch
+           ) THEN
+            EXECUTE format('ALTER INDEX %I.%I RENAME TO %I', idx_sch, r.old_name, r.new_name);
+            RAISE NOTICE 'V29: 索引 %.% -> %', idx_sch, r.old_name, r.new_name;
         ELSE
             RAISE NOTICE 'V29: 索引 % 无需改名（已改名或不存在）', r.old_name;
         END IF;
@@ -79,6 +97,7 @@ END $$;
 DO $$
 DECLARE
     t TEXT;
+    sch TEXT;
 BEGIN
     FOREACH t IN ARRAY ARRAY[
         'finv_quote_secu_kline_min',
@@ -88,15 +107,20 @@ BEGIN
         'finv_quant_backtest_run',
         'finv_quant_backtest_run_archive'
     ] LOOP
-        IF EXISTS (
+        sch := NULL;
+        IF to_regclass(format('quote.%I', t)) IS NOT NULL THEN sch := 'quote';
+        ELSIF to_regclass(format('quant.%I', t)) IS NOT NULL THEN sch := 'quant';
+        ELSIF to_regclass(format('public.%I', t)) IS NOT NULL THEN sch := 'public';
+        END IF;
+        IF sch IS NOT NULL AND EXISTS (
             SELECT 1 FROM information_schema.columns
-            WHERE table_schema = current_schema()
+            WHERE table_schema = sch
               AND table_name = t
               AND column_name = 'usc'
         ) THEN
             EXECUTE format(
-                'COMMENT ON COLUMN %I.usc IS %L',
-                t,
+                'COMMENT ON COLUMN %I.%I.usc IS %L',
+                sch, t,
                 '统一证券代码（usc，全局唯一，关联字典表 finv_security.usc）'
             );
         END IF;

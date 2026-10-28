@@ -40,7 +40,9 @@ BEGIN
         'finv_quote_ingest_batches',
         'finv_quote_revision_log'
     ] LOOP
-        IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = t) THEN
+        -- 兼容修正：目标 schema 已有同名表时绝不从 public 搬（public 里可能是其它服务的表）
+        IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = t)
+           AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'quote' AND tablename = t) THEN
             EXECUTE format('ALTER TABLE public.%I SET SCHEMA quote', t);
             RAISE NOTICE 'V32: public.% -> quote.%', t, t;
         ELSE
@@ -71,7 +73,9 @@ BEGIN
         'finv_quant_environment',
         'finv_quant_template'
     ] LOOP
-        IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = t) THEN
+        -- 兼容修正：目标 schema 已有同名表时绝不从 public 搬（public 里可能是其它服务的表）
+        IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = t)
+           AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'quant' AND tablename = t) THEN
             EXECUTE format('ALTER TABLE public.%I SET SCHEMA quant', t);
             RAISE NOTICE 'V32: public.% -> quant.%', t, t;
         ELSE
@@ -90,34 +94,68 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------
--- 5. 收敛校验：已存在的表必须都在目标 schema；未创建的表（种子段 V100023
---    才建的 finv_quant_backtest_del_task / del_log / run_archive）跳过
+-- 5. 收敛校验（兼容修正，需求 10771）
+--    原实现用 `tablename LIKE 'finv_quote_%' AND schemaname <> 'quote'` 统计，
+--    会把**其它服务**在 public 中的同名表误判为“本程序错位”而中断迁移。
+--    改为白名单 + 目标 schema 存在性检查；public 中的同名表只提示、不阻断，
+--    且本迁移全程不会对其执行任何 DDL。
 -- ---------------------------------------------------------------------
 DO $$
 DECLARE
-    misplaced_quote INT;
-    misplaced_quant INT;
-    missing_quote   TEXT;
+    t TEXT;
+    missing TEXT := '';
+    pub_left INT := 0;
 BEGIN
-    SELECT count(*), string_agg(tablename, ',')
-      INTO misplaced_quant, missing_quote
-      FROM pg_tables
-     WHERE tablename LIKE 'finv\_quant\_%'
-       AND schemaname <> 'quant';
+    -- quote 域：本程序自有表必须位于 quote
+    FOREACH t IN ARRAY ARRAY[
+        'finv_quote_secu_kline_min',
+        'finv_quote_ingest_batches',
+        'finv_quote_revision_log'
+    ] LOOP
+        IF to_regclass(format('quote.%I', t)) IS NULL THEN
+            missing := missing || t || ' ';
+        END IF;
+    END LOOP;
 
-    SELECT count(*) INTO misplaced_quote
-      FROM pg_tables
-     WHERE tablename LIKE 'finv\_quote\_%'
-       AND schemaname <> 'quote';
+    -- quant 域：本程序已创建（quant 或 public 存在）的表必须位于 quant；
+    -- 尚未创建的表（如种子段才建的 del_task/del_log/run_archive）跳过
+    FOREACH t IN ARRAY ARRAY[
+        'finv_quant_backtest_account',
+        'finv_quant_backtest_cashflow',
+        'finv_quant_backtest_del_log',
+        'finv_quant_backtest_del_task',
+        'finv_quant_backtest_equity',
+        'finv_quant_backtest_event_trace',
+        'finv_quant_backtest_position_log',
+        'finv_quant_backtest_run',
+        'finv_quant_backtest_run_archive',
+        'finv_quant_backtest_strategy',
+        'finv_quant_backtest_trade',
+        'finv_quant_environment',
+        'finv_quant_template'
+    ] LOOP
+        IF to_regclass(format('quant.%I', t)) IS NULL
+           AND to_regclass(format('public.%I', t)) IS NOT NULL THEN
+            missing := missing || t || ' ';
+        END IF;
+    END LOOP;
 
-    IF misplaced_quote > 0 THEN
-        RAISE EXCEPTION 'V32: 有 % 张 finv_quote_* 表不在 quote schema', misplaced_quote;
+    IF missing <> '' THEN
+        RAISE EXCEPTION 'V32: 以下表未迁入目标 schema：%', missing;
     END IF;
-    IF misplaced_quant > 0 THEN
-        RAISE EXCEPTION 'V32: 有 % 张 finv_quant_* 表不在 quant schema（%）', misplaced_quant, missing_quote;
+
+    -- public 中与本程序同名的表：判定为其它服务所有，仅提示（本迁移未触碰）
+    SELECT count(*) INTO pub_left
+      FROM pg_tables
+     WHERE schemaname = 'public'
+       AND tablename IN ('finv_quote_secu_kline_min',
+                         'finv_quote_ingest_batches',
+                         'finv_quote_revision_log');
+    IF pub_left > 0 THEN
+        RAISE NOTICE 'V32: public 中存在 % 张与本程序同名的表（其它服务所有，未触碰）', pub_left;
     END IF;
 
-    RAISE NOTICE 'V32: 校验通过（quote=%, quant=%, public 残留=0）',
+    RAISE NOTICE 'V32: 校验通过（quote=%, quant=%）',
         (SELECT count(*) FROM pg_tables WHERE schemaname = 'quote' AND tablename LIKE 'finv\_quote\_%'),
         (SELECT count(*) FROM pg_tables WHERE schemaname = 'quant' AND tablename LIKE 'finv\_quant\_%');
 END $$;

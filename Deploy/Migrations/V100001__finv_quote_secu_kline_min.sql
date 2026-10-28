@@ -15,7 +15,18 @@ BEGIN;
 -- ---------------------------------------------------------------------
 -- 1. 历史分钟 K 线行情主表
 -- ---------------------------------------------------------------------
-CREATE TABLE finv_quote_secu_kline_min (
+-- ---------------------------------------------------------------------
+-- 兼容修正（需求 10771，2026-10-28）：
+--   历史迁移未给表名加 schema 前缀，首次建库时按 search_path 落到 public；
+--   若 public 中已存在**其它服务**的同名表，V100001 会直接撞表
+--   （relation "finv_quote_secu_kline_min" already exists），V100032 还会把
+--   别人的表搬进 quote。此处把本程序自有表显式限定到 quote，全程不触碰 public。
+--   本修正只影响全新库；已应用库按 schema_version 跳过，结构不变。
+-- ---------------------------------------------------------------------
+
+CREATE SCHEMA IF NOT EXISTS quote;
+
+CREATE TABLE quote.finv_quote_secu_kline_min (
     market_code  INTEGER        NOT NULL CHECK (market_code BETWEEN 0 AND 99999999),
     -- ↑ 证券市场数字代码（Finv 编码：1=上交所、11=美股；具体以市场字典为准）
     secu_code    TEXT           NOT NULL,                    -- 证券代码（如 518880 / NVDA）
@@ -39,10 +50,10 @@ CREATE TABLE finv_quote_secu_kline_min (
 
 -- 回放/按证券查询：secu_code + 时间范围（覆盖 MySQL 的 idx_secucode 且更有用）
 CREATE INDEX idx_finv_quote_secu_secu_ts
-    ON finv_quote_secu_kline_min (secu_code, ts);
+    ON quote.finv_quote_secu_kline_min (secu_code, ts);
 -- 市场维度查询
 CREATE INDEX idx_finv_quote_secu_market_ts
-    ON finv_quote_secu_kline_min (market_code, ts);
+    ON quote.finv_quote_secu_kline_min (market_code, ts);
 
 -- gmt_update 自动维护（等价 MySQL 的 ON UPDATE CURRENT_TIMESTAMP(6)）
 CREATE OR REPLACE FUNCTION vq_set_gmt_update()
@@ -54,13 +65,13 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_finv_quote_secu_kline_min_gmt_update
-    BEFORE UPDATE ON finv_quote_secu_kline_min
+    BEFORE UPDATE ON quote.finv_quote_secu_kline_min
     FOR EACH ROW EXECUTE FUNCTION vq_set_gmt_update();
 
 -- ---------------------------------------------------------------------
 -- 2. 导入批次登记表（程序层审计：谁、何时、导入/修正了什么）
 -- ---------------------------------------------------------------------
-CREATE TABLE finv_quote_ingest_batches (
+CREATE TABLE quote.finv_quote_ingest_batches (
     ingest_batch_id     TEXT        PRIMARY KEY,
     source              TEXT        NOT NULL,                 -- 数据源（如 FT）
     market_code         INTEGER     NOT NULL CHECK (market_code BETWEEN 0 AND 99999999),
@@ -76,12 +87,12 @@ CREATE TABLE finv_quote_ingest_batches (
     notes               TEXT
 );
 CREATE INDEX idx_finv_quote_ingest_batches_secu
-    ON finv_quote_ingest_batches (market_code, secu_code, imported_at);
+    ON quote.finv_quote_ingest_batches (market_code, secu_code, imported_at);
 
 -- ---------------------------------------------------------------------
 -- 3. 修正审计日志（每次覆盖修正留痕：改了哪些行、为什么、前后摘要）
 -- ---------------------------------------------------------------------
-CREATE TABLE finv_quote_revision_log (
+CREATE TABLE quote.finv_quote_revision_log (
     revision_id      BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ingest_batch_id  TEXT        NOT NULL,
     market_code      INTEGER     NOT NULL CHECK (market_code BETWEEN 0 AND 99999999),
@@ -94,8 +105,8 @@ CREATE TABLE finv_quote_revision_log (
     new_summary      JSONB       -- 修正后摘要
 );
 CREATE INDEX idx_finv_quote_revision_log_secu
-    ON finv_quote_revision_log (market_code, secu_code, revised_at);
+    ON quote.finv_quote_revision_log (market_code, secu_code, revised_at);
 CREATE INDEX idx_finv_quote_revision_log_batch
-    ON finv_quote_revision_log (ingest_batch_id);
+    ON quote.finv_quote_revision_log (ingest_batch_id);
 
 COMMIT;

@@ -17,6 +17,14 @@
 -- 迁移策略：与既有迁移一致，单事务、失败回滚。
 -- 前置：V30（prev_close -> last_close）已应用。
 -- =====================================================================
+-- ---------------------------------------------------------------------
+-- 兼容修正（需求 10771，2026-10-28）：
+--   历史迁移未给表名加 schema 前缀，首次建库时按 search_path 落到 public；
+--   若 public 中已存在**其它服务**的同名表，V100001 会直接撞表
+--   （relation "finv_quote_secu_kline_min" already exists），V100032 还会把
+--   别人的表搬进 quote。此处把本程序自有表显式限定到 quote，全程不触碰 public。
+--   本修正只影响全新库；已应用库按 schema_version 跳过，结构不变。
+-- ---------------------------------------------------------------------
 
 BEGIN;
 
@@ -25,7 +33,7 @@ DECLARE
     cnt BIGINT := 0;
 BEGIN
     SELECT count(*) INTO cnt
-    FROM finv_quote_secu_kline_min
+    FROM quote.finv_quote_secu_kline_min
     WHERE (open IS NULL OR open = 0)
       AND last_close IS NOT NULL
       AND last_close <> 0;
@@ -37,13 +45,13 @@ BEGIN
         RETURN;
     END IF;
 
-    UPDATE finv_quote_secu_kline_min
+    UPDATE quote.finv_quote_secu_kline_min
        SET open = last_close
      WHERE (open IS NULL OR open = 0)
        AND last_close IS NOT NULL
        AND last_close <> 0;
 
-    INSERT INTO finv_quote_revision_log
+    INSERT INTO quote.finv_quote_revision_log
         (ingest_batch_id, market_code, usc, affected_rows, reason, revised_by,
          previous_summary, new_summary)
     VALUES (

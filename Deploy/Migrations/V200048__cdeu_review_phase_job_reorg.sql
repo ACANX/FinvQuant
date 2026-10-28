@@ -48,7 +48,6 @@ BEGIN
     SELECT phase_id INTO v_upload FROM dedup.cdeu_phase WHERE phase_code = 'PHASE_UPLOAD';
     IF v_review IS NULL THEN RAISE EXCEPTION 'V100048 前置校验失败：PHASE_REVIEW 不存在'; END IF;
     IF v_upload IS NULL THEN RAISE EXCEPTION 'V100048 前置校验失败：PHASE_UPLOAD 不存在'; END IF;
-    IF v_review <> 12 THEN RAISE EXCEPTION 'V100048 前置校验失败：PHASE_REVIEW 应为 12，实际 %', v_review; END IF;
 END $$;
 
 -- ---------------------------------------------------------------------
@@ -56,7 +55,7 @@ END $$;
 -- ---------------------------------------------------------------------
 UPDATE dedup.cdeu_process
    SET enabled = false, gmt_update = now()
- WHERE phase_id = 4 AND process_code IN ('PROCESS_LIFECYCLE_CLEAN', 'PROCESS_HEALTH');
+ WHERE phase_id = (SELECT phase_id FROM dedup.cdeu_phase WHERE phase_code = 'PHASE_UPLOAD') AND process_code IN ('PROCESS_LIFECYCLE_CLEAN', 'PROCESS_HEALTH');
 
 UPDATE dedup.cdeu_job j
    SET enabled = false, gmt_update = now()
@@ -71,11 +70,11 @@ UPDATE dedup.cdeu_job j
 -- ---------------------------------------------------------------------
 UPDATE dedup.cdeu_process
    SET seq_no = 2, affects_completion = true, critical = true, gmt_update = now()
- WHERE phase_id = 12 AND process_code = 'PROCESS_REVIEW';
+ WHERE phase_id = (SELECT phase_id FROM dedup.cdeu_phase WHERE phase_code = 'PHASE_REVIEW') AND process_code = 'PROCESS_REVIEW';
 
 UPDATE dedup.cdeu_process
-   SET phase_id = 12, seq_no = 1, affects_completion = true, critical = true, gmt_update = now()
- WHERE phase_id = 3 AND process_code = 'PROCESS_RECOVER';
+   SET phase_id = (SELECT phase_id FROM dedup.cdeu_phase WHERE phase_code = 'PHASE_REVIEW'), seq_no = 1, affects_completion = true, critical = true, gmt_update = now()
+ WHERE process_code = 'PROCESS_RECOVER';
 
 -- ---------------------------------------------------------------------
 -- 4. PHASE_REVIEW 新建三个流程（seq 3/4/5）
@@ -84,9 +83,9 @@ INSERT INTO dedup.cdeu_process
     (phase_id, process_code, name, seq_no, critical, affects_completion,
      run_mode, batch_enabled, max_parallel, failure_policy, completion_rule, enabled)
 VALUES
-    (12, 'PROCESS_PURGE',         '归档数据清理', 3, true, true, 'INHERIT', false, 1, 'FAIL_FAST', '{"mode":"ALL"}'::jsonb, true),
-    (12, 'PROCESS_STORAGE_CLEAN', '存储清理',     4, true, true, 'INHERIT', false, 1, 'FAIL_FAST', '{"mode":"ALL"}'::jsonb, true),
-    (12, 'PROCESS_RETENTION',     '运行记录保留', 5, true, true, 'INHERIT', false, 1, 'FAIL_FAST', '{"mode":"ALL"}'::jsonb, true)
+    ((SELECT phase_id FROM dedup.cdeu_phase WHERE phase_code = 'PHASE_REVIEW'), 'PROCESS_PURGE',         '归档数据清理', 3, true, true, 'INHERIT', false, 1, 'FAIL_FAST', '{"mode":"ALL"}'::jsonb, true),
+    ((SELECT phase_id FROM dedup.cdeu_phase WHERE phase_code = 'PHASE_REVIEW'), 'PROCESS_STORAGE_CLEAN', '存储清理',     4, true, true, 'INHERIT', false, 1, 'FAIL_FAST', '{"mode":"ALL"}'::jsonb, true),
+    ((SELECT phase_id FROM dedup.cdeu_phase WHERE phase_code = 'PHASE_REVIEW'), 'PROCESS_RETENTION',     '运行记录保留', 5, true, true, 'INHERIT', false, 1, 'FAIL_FAST', '{"mode":"ALL"}'::jsonb, true)
 ON CONFLICT (phase_id, process_code) DO UPDATE
    SET name = EXCLUDED.name,
        seq_no = EXCLUDED.seq_no,
@@ -100,7 +99,7 @@ ON CONFLICT (phase_id, process_code) DO UPDATE
 -- 5. JOB_CHECK_HEALTH 改挂到 PROCESS_REVIEW（原 PROCESS_HEALTH）
 -- ---------------------------------------------------------------------
 UPDATE dedup.cdeu_job
-   SET process_id = (SELECT process_id FROM dedup.cdeu_process WHERE phase_id = 12 AND process_code = 'PROCESS_REVIEW'),
+   SET process_id = (SELECT process_id FROM dedup.cdeu_process WHERE phase_id = (SELECT phase_id FROM dedup.cdeu_phase WHERE phase_code = 'PHASE_REVIEW') AND process_code = 'PROCESS_REVIEW'),
        seq_no = 1,
        affects_completion = true,
        critical = true,
@@ -129,7 +128,7 @@ SELECT p.process_id, v.job_code, v.name, v.job_kind, v.seq_no, true, true,
         ('PROCESS_RETENTION',     'JOB_PURGE_STALE_DYNAMIC',  '历史动态JOB实例清理',  'PURGE_STALE_DYNAMIC',   1, '06:30'),
         ('PROCESS_RETENTION',     'JOB_PURGE_HISTORY_RUNS',   '历史流程运行数据清理', 'PURGE_HISTORY_RUNS',    2, '06:40')
        ) AS v(process_code, job_code, name, job_kind, seq_no, daily_at)
-  JOIN dedup.cdeu_process p ON p.phase_id = 12 AND p.process_code = v.process_code
+  JOIN dedup.cdeu_process p ON p.phase_id = (SELECT phase_id FROM dedup.cdeu_phase WHERE phase_code = 'PHASE_REVIEW') AND p.process_code = v.process_code
 ON CONFLICT (process_id, job_code) DO UPDATE
    SET name = EXCLUDED.name,
        job_kind = EXCLUDED.job_kind,
@@ -168,13 +167,13 @@ DECLARE
     v_cfg    int;
 BEGIN
     -- 8.1 PHASE_REVIEW 下五个流程按序
-    SELECT count(*) INTO v_proc FROM dedup.cdeu_process WHERE phase_id = 12 AND enabled;
+    SELECT count(*) INTO v_proc FROM dedup.cdeu_process WHERE phase_id = (SELECT phase_id FROM dedup.cdeu_phase WHERE phase_code = 'PHASE_REVIEW') AND enabled;
     IF v_proc <> 5 THEN
         RAISE EXCEPTION 'V100048 收敛失败：PHASE_REVIEW 应有 5 个启用流程，实际 %', v_proc;
     END IF;
 
     SELECT string_agg(process_code || ':' || seq_no, ',' ORDER BY seq_no) INTO v_seq
-      FROM dedup.cdeu_process WHERE phase_id = 12 AND enabled;
+      FROM dedup.cdeu_process WHERE phase_id = (SELECT phase_id FROM dedup.cdeu_phase WHERE phase_code = 'PHASE_REVIEW') AND enabled;
     IF v_seq <> 'PROCESS_RECOVER:1,PROCESS_REVIEW:2,PROCESS_PURGE:3,PROCESS_STORAGE_CLEAN:4,PROCESS_RETENTION:5' THEN
         RAISE EXCEPTION 'V100048 收敛失败：PHASE_REVIEW 流程顺序为 %', v_seq;
     END IF;
@@ -183,7 +182,7 @@ BEGIN
     SELECT count(*) INTO v_jobs
       FROM dedup.cdeu_job j
       JOIN dedup.cdeu_process p ON p.process_id = j.process_id
-     WHERE p.phase_id = 12 AND j.enabled;
+     WHERE p.phase_id = (SELECT phase_id FROM dedup.cdeu_phase WHERE phase_code = 'PHASE_REVIEW') AND j.enabled;
     IF v_jobs <> 6 THEN
         RAISE EXCEPTION 'V100048 收敛失败：PHASE_REVIEW 应有 6 个启用 JOB（5 流程 + RETENTION 2 个），实际 %', v_jobs;
     END IF;
@@ -192,13 +191,13 @@ BEGIN
     SELECT count(*) INTO v_key
       FROM dedup.cdeu_job j
       JOIN dedup.cdeu_process p ON p.process_id = j.process_id
-     WHERE p.phase_id = 12 AND j.enabled AND j.affects_completion = false;
+     WHERE p.phase_id = (SELECT phase_id FROM dedup.cdeu_phase WHERE phase_code = 'PHASE_REVIEW') AND j.enabled AND j.affects_completion = false;
     IF v_key <> 0 THEN
         RAISE EXCEPTION 'V100048 收敛失败：PHASE_REVIEW 下仍有 % 个非关键 JOB', v_key;
     END IF;
 
     -- 8.4 PHASE_UPLOAD 只剩一个流程
-    SELECT count(*) INTO v_upload FROM dedup.cdeu_process WHERE phase_id = 4 AND enabled;
+    SELECT count(*) INTO v_upload FROM dedup.cdeu_process WHERE phase_id = (SELECT phase_id FROM dedup.cdeu_phase WHERE phase_code = 'PHASE_UPLOAD') AND enabled;
     IF v_upload <> 1 THEN
         RAISE EXCEPTION 'V100048 收敛失败：PHASE_UPLOAD 应有 1 个启用流程，实际 %', v_upload;
     END IF;

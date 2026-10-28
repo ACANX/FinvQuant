@@ -20,15 +20,22 @@ BEGIN;
 -- 1. 列改名：prev_close -> last_close（幂等）
 -- ---------------------------------------------------------------------
 DO $$
+DECLARE
+    sch TEXT;
 BEGIN
-    IF EXISTS (
+    -- 兼容修正：按实际所在 schema 定位（优先 quote，老库回退 public），
+    -- 避免 current_schema()=public 时命中其它服务的同名表。
+    IF to_regclass('quote.finv_quote_secu_kline_min') IS NOT NULL THEN sch := 'quote';
+    ELSIF to_regclass('public.finv_quote_secu_kline_min') IS NOT NULL THEN sch := 'public';
+    END IF;
+    IF sch IS NOT NULL AND EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_schema = current_schema()
+        WHERE table_schema = sch
           AND table_name = 'finv_quote_secu_kline_min'
           AND column_name = 'prev_close'
     ) THEN
-        ALTER TABLE finv_quote_secu_kline_min RENAME COLUMN prev_close TO last_close;
-        RAISE NOTICE 'V30: finv_quote_secu_kline_min.prev_close -> last_close';
+        EXECUTE format('ALTER TABLE %I.finv_quote_secu_kline_min RENAME COLUMN prev_close TO last_close', sch);
+        RAISE NOTICE 'V30: %.finv_quote_secu_kline_min.prev_close -> last_close', sch;
     ELSE
         RAISE NOTICE 'V30: prev_close 不存在，跳过（已改名为 last_close 或表结构已更新）';
     END IF;
@@ -38,15 +45,21 @@ END $$;
 -- 2. 列注释：写明口径，避免再被误当作回调价/开盘价
 -- ---------------------------------------------------------------------
 DO $$
+DECLARE
+    sch TEXT;
 BEGIN
-    IF EXISTS (
+    IF to_regclass('quote.finv_quote_secu_kline_min') IS NOT NULL THEN sch := 'quote';
+    ELSIF to_regclass('public.finv_quote_secu_kline_min') IS NOT NULL THEN sch := 'public';
+    END IF;
+    IF sch IS NOT NULL AND EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_schema = current_schema()
+        WHERE table_schema = sch
           AND table_name = 'finv_quote_secu_kline_min'
           AND column_name = 'last_close'
     ) THEN
-        EXECUTE 'COMMENT ON COLUMN finv_quote_secu_kline_min.last_close IS '
-             || quote_literal('前收盘价（数据源 MVSV 的 PrevClose / p 列）；与 open 独立，不可作为开盘价或开盘价的替代');
+        EXECUTE format('COMMENT ON COLUMN %I.finv_quote_secu_kline_min.last_close IS %L',
+                       sch,
+                       '前收盘价（数据源 MVSV 的 PrevClose / p 列）；与 open 独立，不可作为开盘价或开盘价的替代');
     END IF;
 END $$;
 

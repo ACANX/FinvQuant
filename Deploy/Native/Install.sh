@@ -22,7 +22,6 @@
 #   sudo ./Install.sh --skip-redis        # 跳过 Redis 安装
 #   sudo ./Install.sh --binary /path/to/finvquant   # 指定二进制路径
 #   sudo ./Install.sh --prefix /opt/FinvQuant        # 装到其它目录（默认 /data/App/FinvQuant）
-#   sudo ./Install.sh --recreate-db       # 备份后重建数据库（仅在旧库残缺/非本程序创建时使用）
 #
 # 退出码：0 成功；非 0 失败（已在对应步骤打印原因）
 # =====================================================================
@@ -45,7 +44,6 @@ SERVICE_FILE="/etc/systemd/system/finvquant.service"
 SERVICE="finvquant"
 
 SKIP_DB=0
-RECREATE_DB=0
 SKIP_REDIS=0
 BINARY_SRC=""
 
@@ -62,14 +60,13 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-db)    SKIP_DB=1; shift ;;
     --skip-redis) SKIP_REDIS=1; shift ;;
-    --recreate-db) RECREATE_DB=1; shift ;;
     --binary)     BINARY_SRC="${2:-}"; shift 2 ;;
     --prefix)     PREFIX="${2:-}"; shift 2
                   BIN_DIR="${PREFIX}/bin"
                   MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"; BACKUP_DIR="${PREFIX}/Backup"
                   EXPORT_DIR="${PREFIX}/Export"; DEPLOY_DIR="${PREFIX}/Deploy"
                   ENV_FILE="${PREFIX}/finvquant.env"; BINARY="${BIN_DIR}/finvquant" ;;
-    -h|--help)    sed -n '2,27p' "$0"; exit 0 ;;
+    -h|--help)    sed -n '2,26p' "$0"; exit 0 ;;
     *)            die "未知参数：$1（--help 查看用法）" ;;
   esac
 done
@@ -296,23 +293,7 @@ if [[ "${SKIP_DB}" -eq 0 ]]; then
       END IF;
     END \$\$;"
   ok "角色 ${DB_USER} 已就绪"
-  if [[ "${RECREATE_DB}" -eq 1 ]]; then
-    if sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1; then
-      BK_FILE="${BACKUP_DIR}/finv_before_recreate_$(date +%Y%m%d_%H%M%S).dump"
-      warn "按 --recreate-db 重建数据库 ${DB_NAME}；先备份到 ${BK_FILE}"
-      if sudo -u postgres pg_dump -Fc "${DB_NAME}" > "${BK_FILE}"; then
-        chmod 0600 "${BK_FILE}"
-        ok "数据库已备份：${BK_FILE}（$(du -h "${BK_FILE}" | cut -f1)）"
-      else
-        rm -f "${BK_FILE}"
-        die "备份失败，已中止重建（数据库未改动）"
-      fi
-      sudo -u postgres dropdb "${DB_NAME}"
-      ok "已删除旧数据库 ${DB_NAME}（备份已保留）"
-    fi
-    sudo -u postgres createdb -O "${DB_USER}" "${DB_NAME}"
-    ok "已重建空数据库 ${DB_NAME}（迁移将从头执行）"
-  elif sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1; then
+  if sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1; then
     ok "数据库 ${DB_NAME} 已存在"
     # 已存在的库若不是本程序初始化的（缺 public.schema_version 但已有表），迁移会从头执行并撞表
     HAS_SV="$(sudo -u postgres psql -d "${DB_NAME}" -tAc \
@@ -322,9 +303,8 @@ if [[ "${SKIP_DB}" -eq 0 ]]; then
     if [[ -z "${HAS_SV}" && "${TBL_CNT:-0}" -gt 0 ]]; then
       warn "数据库 ${DB_NAME} 内有 ${TBL_CNT} 张表，但缺少 public.schema_version（非本程序初始化或旧库）"
       warn "迁移将从 V100001 起执行，遇到已有同名表会失败（relation ... already exists）"
-      warn "若确认该库数据可丢弃，请重建后重跑本脚本："
-      warn "  sudo -u postgres dropdb ${DB_NAME} && sudo -u postgres createdb -O ${DB_USER} ${DB_NAME}"
-      warn "若需保留数据，请先 pg_dump 备份，并改用与现有结构版本匹配的迁移记录（勿手工插 schema_version）"
+      warn "本脚本不会删除、重命名或迁移该库中的任何表；迁移将以未限定名在同一库内继续执行"
+      warn "如需规避同名表冲突，请在 env 中改用独立数据库（FINV_PG_DATABASE），或改用独立 PG 实例"
     fi
   else
     sudo -u postgres createdb -O "${DB_USER}" "${DB_NAME}"

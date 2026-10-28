@@ -32,10 +32,12 @@ BEGIN
      WHERE n.nspname = 'dedup' AND c.relkind = 'r' AND c.relname NOT LIKE 'prep_bak%';
     SELECT count(*) INTO v_dst FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
      WHERE n.nspname = 'cdeu' AND c.relkind = 'r';
-    IF v_src <> 26 OR v_dst <> 26 THEN
-        RAISE EXCEPTION 'V100080 前置校验失败：dedup 应 26 张源表（实际 %）、cdeu 应 26 张目标表（实际 %）', v_src, v_dst;
+    -- 兼容修正（需求 10771）：dedup 在 V100080 之后又新增了 runtime_setting / usc_priority
+    -- 等表（cdeu 侧无对应表，不需要迁移），因此源表数改为「>= 26」，目标仍要求 26。
+    IF v_src < 26 OR v_dst <> 26 THEN
+        RAISE EXCEPTION 'V100080 前置校验失败：dedup 至少 26 张源表（实际 %）、cdeu 应 26 张目标表（实际 %）', v_src, v_dst;
     END IF;
-    RAISE NOTICE 'V100080 前置校验：源 26 张 / 目标 26 张，开始复制';
+    RAISE NOTICE 'V100080 前置校验：源 % 张 / 目标 26 张，开始复制（无对应目标表的源表将跳过）', v_src;
 END $$;
 
 -- ---------------------------------------------------------------------
@@ -66,19 +68,28 @@ BEGIN
                  ELSE r.src
                END;
 
-        -- 目标表必须存在
+        -- 无对应目标表的源表（V100080 之后新增的 dedup 表，如 runtime_setting / usc_priority）
+        -- 不参与本次迁移，跳过
         IF to_regclass('cdeu.' || dst) IS NULL THEN
-            RAISE EXCEPTION 'V100080 失败：目标表 cdeu.% 不存在', dst;
+            RAISE NOTICE 'V100080 跳过 dedup.%（无对应目标表 cdeu.%）', r.src, dst;
+            CONTINUE;
         END IF;
 
-        -- 动态列清单（按目标表列顺序，保证与源表一一对应）
-        SELECT string_agg(quote_ident(column_name), ',' ORDER BY ordinal_position)
+        -- 兼容修正（需求 10771）：取「源表 ∩ 目标表」的列交集。
+        -- cdeu 侧结构由 V100078 依据当时的 dedup 重建，之后 dedup 旧表与 cdeu 表
+        -- 各自演化（如 cdeu 新增 workflow_run_id、dedup 未加），按目标表全列生成
+        -- INSERT ... SELECT 会引用源表不存在的列而在全新库上失败。
+        -- 交集列复制后，目标表其余列由默认值/NULL 填充。
+        SELECT string_agg(quote_ident(c.column_name), ',' ORDER BY c.ordinal_position)
           INTO cols
-          FROM information_schema.columns
-         WHERE table_schema = 'cdeu' AND table_name = dst;
+          FROM information_schema.columns c
+          JOIN information_schema.columns s
+            ON s.table_schema = 'dedup' AND s.table_name = r.src
+           AND s.column_name = c.column_name
+         WHERE c.table_schema = 'cdeu' AND c.table_name = dst;
 
         IF cols IS NULL THEN
-            RAISE EXCEPTION 'V100080 失败：取不到 cdeu.% 的列清单', dst;
+            RAISE EXCEPTION 'V100080 失败：cdeu.% 与 dedup.% 无公共列', dst, r.src;
         END IF;
 
         EXECUTE format('INSERT INTO cdeu.%I (%s) SELECT %s FROM dedup.%I ON CONFLICT DO NOTHING',
@@ -143,6 +154,9 @@ BEGIN
                  WHEN r.src LIKE 'finv\_dedup\_%' THEN 'finv_quote_cdeu_' || substr(r.src, length('finv_dedup_') + 1)
                  ELSE r.src
                END;
+        IF to_regclass('cdeu.' || dst) IS NULL THEN
+            CONTINUE;  -- 无对应目标表，未参与迁移，不校验
+        END IF;
         EXECUTE format('SELECT count(*) FROM dedup.%I', r.src) INTO src_cnt;
         EXECUTE format('SELECT count(*) FROM cdeu.%I', dst) INTO dst_cnt;
         IF src_cnt <> dst_cnt THEN
@@ -153,7 +167,7 @@ BEGIN
     IF bad <> '' THEN
         RAISE EXCEPTION 'V100080 收敛失败：行数不一致 %', bad;
     END IF;
-    RAISE NOTICE 'V100080 收敛校验通过：26 张表行数与 dedup 完全一致';
+    RAISE NOTICE 'V100080 收敛校验通过：有 cdeu 对应表的源表行数与 dedup 完全一致';
 END $$;
 
 -- ---------------------------------------------------------------------
