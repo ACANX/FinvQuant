@@ -20,6 +20,14 @@
 
 ### 新增
 
+- **BRS 对象存储上传（二期，需求 10801）**
+  - `brs.brs_bak_rdb_table` 增加 `flag_upload char(1)`（默认 `'1'`：上传 / `'0'` 只留本地）。
+  - `sys.sys_config` 新增 **39002**（JSON）：`enabled/provider/endpoint/bucket/region/access_key/secret_key/prefix`，默认 `enabled=false`。
+  - 新增 `internal/meta/base/oss/s3` 适配器（`aws-sdk-go-v2/service/s3`，path-style），**不使用 minio-go 及 MinIO 官方库**；通过 `oss.Store` 抽象接入，切换客户端只换适配器。
+  - 备份成功后按 `flag_upload` 上传到 `<prefix>/<yyyyMMdd>/<schema>.<table>_<HHmmss>.dump`；失败保留本地文件并记日志，不影响下一张表。
+  - 文档：`Docs/FinvQuant/Brs.md` §6 更新为已实现；`2610-011` 实施记录补充二期。
+  - 验证：143 个迁移 0 错误；39002 默认 `enabled=false`、`provider=s3`；`go build ./...`、`go test ./internal/brs ./internal/meta/base/oss/...` 通过。
+
 - **BRS 数据备份服务（首期：PostgreSQL 表级备份，需求 10800）**
   - 新增 `brs` schema 与 `brs.brs_bak_rdb_table`：`idn`、`rdb_type`、`schema_name`、`table_name`、`flag_enable`（char(1)）、`priority`（**必填且唯一**）、`bak_scope`、`bak_method`、`compression`（none/gzip/zstd）、`where_clause`、`remark`、`creator`（uid）、`gmt_create`、`gmt_update`；唯一键 `(rdb_type, schema_name, table_name)`、`UNIQUE (priority)`。
   - `sys.sys_config` 新增 **39001**：6 段 cron（秒 分 时 日 月 周），默认 `0 0 3 * * *`。

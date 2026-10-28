@@ -9,6 +9,7 @@ package brs
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -49,13 +50,14 @@ type Table struct {
 	BakMethod   string
 	Compression string
 	WhereClause string
+	FlagUpload  string
 }
 
 // LoadTables 读取启用的备份登记（priority 倒序）。
 func LoadTables(ctx context.Context, pool *pgxpool.Pool) ([]Table, error) {
 	const query = `
 SELECT idn, schema_name, table_name, priority, bak_scope, bak_method, compression,
-       COALESCE(where_clause, '')
+       COALESCE(where_clause, ''), flag_upload
   FROM brs.brs_bak_rdb_table
  WHERE rdb_type = 'postgresql' AND flag_enable = '1'
  ORDER BY priority DESC, idn ASC`
@@ -69,7 +71,7 @@ SELECT idn, schema_name, table_name, priority, bak_scope, bak_method, compressio
 	for rows.Next() {
 		var table Table
 		if err := rows.Scan(&table.IDN, &table.SchemaName, &table.TableName, &table.Priority,
-			&table.BakScope, &table.BakMethod, &table.Compression, &table.WhereClause); err != nil {
+			&table.BakScope, &table.BakMethod, &table.Compression, &table.WhereClause, &table.FlagUpload); err != nil {
 			return nil, err
 		}
 		tables = append(tables, table)
@@ -181,6 +183,16 @@ func RunOnce(ctx context.Context, pool *pgxpool.Pool, opts Options) error {
 		return fmt.Errorf("创建备份目录失败: %w", err)
 	}
 
+	store := opts.Store
+	if store == nil {
+		loaded, err := loadOssStore(ctx, pool)
+		if err != nil {
+			log.Printf("[brs] 对象存储配置无效，跳过上传: %v", err)
+		} else {
+			store = loaded
+		}
+	}
+
 	log.Printf("[brs] 开始备份：%d 张表 → %s", len(tables), dayDir)
 	var failed int
 	for _, table := range tables {
@@ -190,8 +202,8 @@ func RunOnce(ctx context.Context, pool *pgxpool.Pool, opts Options) error {
 			log.Printf("[brs] 备份失败 %s.%s（priority=%d）: %v", table.SchemaName, table.TableName, table.Priority, err)
 			continue
 		}
-		if opts.Store != nil {
-			if err := upload(ctx, opts.Store, day, path); err != nil {
+		if store != nil && table.FlagUpload == "1" {
+			if err := upload(ctx, store, day, path); err != nil {
 				log.Printf("[brs] 上传失败 %s: %v（本地文件保留）", path, err)
 			}
 		}
@@ -305,4 +317,51 @@ func humanSize(bytes int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %ciB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// OssSettings 39002 的对象存储配置（JSON）。
+type OssSettings struct {
+	Enabled   bool   `json:"enabled"`
+	Provider  string `json:"provider"`
+	Endpoint  string `json:"endpoint"`
+	Bucket    string `json:"bucket"`
+	Region    string `json:"region"`
+	AccessKey string `json:"access_key"`
+	SecretKey string `json:"secret_key"`
+	Prefix    string `json:"prefix"`
+}
+
+// loadOssStore 读取 39002 并构造对象存储客户端；未启用/缺配置返回 nil。
+func loadOssStore(ctx context.Context, pool *pgxpool.Pool) (oss.Store, error) {
+	var raw string
+	err := pool.QueryRow(ctx,
+		`SELECT COALESCE(json_value::text, '') FROM sys.sys_config WHERE config_no = 39002`).Scan(&raw)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	var settings OssSettings
+	if err := json.Unmarshal([]byte(raw), &settings); err != nil {
+		return nil, fmt.Errorf("解析 39002 失败: %w", err)
+	}
+	if !settings.Enabled {
+		return nil, nil
+	}
+	if strings.TrimSpace(settings.Provider) == "" {
+		settings.Provider = "s3"
+	}
+	if strings.TrimSpace(settings.Region) == "" {
+		settings.Region = "auto"
+	}
+	return oss.New(oss.Config{
+		Provider:  settings.Provider,
+		Endpoint:  settings.Endpoint,
+		Bucket:    settings.Bucket,
+		Region:    settings.Region,
+		AccessKey: settings.AccessKey,
+		SecretKey: settings.SecretKey,
+		Prefix:    settings.Prefix,
+	})
 }

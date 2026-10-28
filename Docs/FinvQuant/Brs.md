@@ -75,14 +75,36 @@ pg_restore -h 127.0.0.1 -U finv -d finv \
 
 **未包含** `cdeu.finv_quote_secu_kline_min`（大表后续单独处理）。
 
-## 6. 对象存储（二期）
+## 6. 对象存储上传（已实现）
 
-- 抽象层：`internal/meta/base/oss`（`Store` 接口 + `Config` + `New`），业务只依赖接口；
-- 适配器：`oss/local`（单测/离线）、`oss/s3`（二期，`aws-sdk-go-v2/service/s3`）；
-- **不使用 `minio-go` 及任何 MinIO 官方库**；
-- 配置 `sys.sys_config 39002`（JSON）：`enabled/provider/endpoint/bucket/region/access_key/secret_key/prefix`；
-- 上传 key：`<prefix>/<yyyyMMdd>/<schema>.<table>_<HHmmss>.dump`；
-- 失败保留本地文件并重试，不影响下一张表。
+- 抽象层：`internal/meta/base/oss`（`Store` 接口 + `Config` + 注册式 `New`），业务只依赖接口；
+- 适配器：`oss/local`（单测/离线）、`oss/s3`（`aws-sdk-go-v2/service/s3`）；
+- **不使用 `minio-go` 及任何 MinIO 官方库**；切换客户端只替换适配器；
+- 配置 `sys.sys_config 39002`（JSON）：
+
+```json
+{
+  "enabled": false,
+  "provider": "s3",
+  "endpoint": "https://<account>.r2.cloudflarestorage.com",
+  "bucket": "finvquant-backup",
+  "region": "auto",
+  "access_key": "...",
+  "secret_key": "...",
+  "prefix": "brs/"
+}
+```
+
+| 项 | 说明 |
+|---|---|
+| 全局开关 | 39002 `enabled`（默认 `false`） |
+| 表级开关 | `brs_bak_rdb_table.flag_upload`（`'1'` 上传 / `'0'` 只留本地，默认 `'1'`） |
+| 上传 key | `<prefix>/<yyyyMMdd>/<schema>.<table>_<HHmmss>.dump` |
+| 凭证 | `access_key`/`secret_key` 存 `sys_config`（`access_level` 限制），不写日志 |
+| 失败 | 保留本地文件并记日志，不影响下一张表 |
+| 下载 | `aws s3 cp` / `rclone` 等任意 S3 兼容工具 |
+
+> 39002 修改后下一轮备份生效；上传失败不影响本地备份结果。
 
 ## 7. 手动验证
 

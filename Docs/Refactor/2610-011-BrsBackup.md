@@ -1,6 +1,6 @@
 # BRS 数据备份服务设计方案（待批准，未实施）
 
-> 状态：**已实施（首期，2026-10-29）**
+> 状态：**已实施（首期 + 二期，2026-10-29）**
 > 日期：2026-10-28
 > 需求编号：10800（待批准后登记）
 > 关联：[`2610-010-CdeuKlineDumpImport.md`](2610-010-CdeuKlineDumpImport.md)（qmio，独立工具）
@@ -14,7 +14,8 @@
 | 调度/备份 | `internal/brs`（登记读取、cron 调度、`pg_dump`） |
 | 对象存储 | `internal/meta/base/oss`（`Store` 接口 + `Config` + `New` 注册机制）；首期实现 `oss/local`；`oss/s3` 二期（`aws-sdk-go-v2`，**不使用 minio-go**） |
 | 配置 | `FINV_BRS_BACKUP_DIR`（默认 `<PREFIX>/Backup/BRS`） |
-| 验证 | 142 个迁移 0 错误；种子 12 行；39001=`0 0 3 * * *`；priority 唯一（12/12）；`go build`、`go test ./internal/brs ./internal/meta/base/cron ./internal/meta/base/oss/...` 通过 |
+| 二期（对象存储） | `V200061__brs_upload.sql`：`flag_upload`（默认 '1'）、`39002` JSON（默认 enabled=false）；`oss/s3` 适配器（aws-sdk-go-v2，无 minio-go）；`brs.RunOnce` 按 `flag_upload` 上传，失败保留本地 |
+| 验证 | 143 个迁移 0 错误；种子 12 行；39001=`0 0 3 * * *`；39002 enabled=false/provider=s3；priority 唯一（12/12）；`go build`、`go test ./internal/brs ./internal/meta/base/cron ./internal/meta/base/oss/...` 通过 |
 
 ## 1. 背景与目标
 
