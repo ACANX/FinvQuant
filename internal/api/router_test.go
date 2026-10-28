@@ -232,3 +232,49 @@ func TestOpenAPIExampleRoute(t *testing.T) {
 		t.Fatalf("X-API-Key 正确密钥应进入 handler（空 items → 400），实际 %d", got)
 	}
 }
+
+// TestWrapOpenAPIResponseEnvelope 校验外部 OpenAPI 成功响应统一为
+// {"code":0,"data":<原始 JSON>,"message":"OK"}（成功码默认 0）；非 2xx 原样透传；204 不包装。
+func TestWrapOpenAPIResponseEnvelope(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(WrapOpenAPIResponse())
+	router.POST("/ok", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"affected": 1, "mode": "update"})
+	})
+	router.POST("/empty", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	router.POST("/err", func(c *gin.Context) {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 211001, "message": "缺少必填参数"})
+	})
+
+	serve := func(path string) *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, path, nil))
+		return recorder
+	}
+
+	ok := serve("/ok")
+	if ok.Code != http.StatusOK {
+		t.Fatalf("ok 期望 200，实际 %d", ok.Code)
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal(ok.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("解析信封失败: %v", err)
+	}
+	if envelope["code"] != float64(0) || envelope["message"] != "OK" {
+		t.Fatalf("信封 code/message 不符合预期: %v", envelope)
+	}
+	data, isMap := envelope["data"].(map[string]any)
+	if !isMap || data["affected"] != float64(1) || data["mode"] != "update" {
+		t.Fatalf("data 节点不符合预期: %v", envelope["data"])
+	}
+
+	if noContent := serve("/empty"); noContent.Code != http.StatusNoContent || noContent.Body.Len() != 0 {
+		t.Fatalf("204 应原样无 body，实际 %d %q", noContent.Code, noContent.Body.String())
+	}
+
+	bad := serve("/err")
+	if bad.Code != http.StatusBadRequest || !strings.Contains(bad.Body.String(), `"code":211001`) {
+		t.Fatalf("错误响应应原样透传，实际 %d %s", bad.Code, bad.Body.String())
+	}
+}

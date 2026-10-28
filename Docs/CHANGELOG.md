@@ -20,6 +20,12 @@
 
 ### 新增
 
+- **外部 OpenAPI 响应规范化为 `{code,data,message}`（需求 10788）**
+  - `/OpenAPI/V1` 路由组新增响应包装：成功时输出 `{"code":0,"data":<原 handler JSON>,"message":"OK"}`，业务字段统一收敛到 `data` 节点；`204` 与 `401`、业务错误保持原样。
+  - 成功码默认 **`0`**；`1` / `200` / `202` 同样视为正常响应（兼容），服务端默认输出 `0`。
+  - 新增外部端点文档 `Docs/OpenAPI/Quote/Cdeu/Min/Upsert.md` + 同名 `.yml`（OpenAPI 3.1，请求体 schema 通过相对 `$ref` 复用内部 `KLineUpsert.yml`）；`Docs/API/APIs.md`、`README.md`、方案文档 §5.5 同步。
+  - 单测覆盖信封结构、`code=0`、`204` 不包装、错误原样透传。
+
 - **外部 OpenAPI 示例端点（需求 10787）**
   - 新增独立路由组 `/OpenAPI/V1`（不使用登录会话），示例端点 `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert` 直接复用内部 `KLine.Upsert` handler。
   - 过渡鉴权：配置 `FINV_OPENAPI_KEY` 后启用，同时接受 `Authorization: Bearer <key>` 与 `X-API-Key: <key>`（常量时间比较）；未配置时不注册（404），避免无认证暴露。

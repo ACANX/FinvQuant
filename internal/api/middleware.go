@@ -1,7 +1,9 @@
 package api
 
 import (
+	"bytes"
 	"crypto/subtle"
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -80,5 +82,84 @@ func RequireOpenAPIKey(expected string) gin.HandlerFunc {
 			return
 		}
 		c.Next()
+	}
+}
+
+// responseCapture 缓冲 handler 输出，便于外部 OpenAPI 统一包装响应。
+type responseCapture struct {
+	gin.ResponseWriter
+	body    bytes.Buffer
+	status  int
+	written bool
+}
+
+func (w *responseCapture) WriteHeader(code int) {
+	if !w.written {
+		w.status = code
+		w.written = true
+	}
+}
+
+func (w *responseCapture) Write(data []byte) (int, error) {
+	if !w.written {
+		w.status = http.StatusOK
+		w.written = true
+	}
+	return w.body.Write(data)
+}
+
+func (w *responseCapture) WriteString(text string) (int, error) {
+	return w.Write([]byte(text))
+}
+
+func (w *responseCapture) Status() int {
+	if w.status == 0 {
+		return http.StatusOK
+	}
+	return w.status
+}
+
+func (w *responseCapture) Size() int { return w.body.Len() }
+
+func (w *responseCapture) Written() bool { return w.written }
+
+// WrapOpenAPIResponse 把外部 OpenAPI 路由的成功响应包装为统一信封（需求 10788）：
+//
+//	{"code": 0, "data": <handler 原始 JSON>, "message": "OK"}
+//
+// 成功码默认 0；1 / 200 / 202 同样视为正常响应（兼容），服务端默认输出 0。
+// 非 2xx 响应保持 handler 原始错误信封（已含 code/message/detail/request_id）不变。
+func WrapOpenAPIResponse() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		original := c.Writer
+		capture := &responseCapture{ResponseWriter: original}
+		c.Writer = capture
+		c.Next()
+		c.Writer = original
+
+		status := capture.Status()
+		body := capture.body.Bytes()
+		original.Header().Del("Content-Length")
+
+		if status >= http.StatusOK && status < http.StatusMultipleChoices && status != http.StatusNoContent {
+			data := json.RawMessage(body)
+			if len(bytes.TrimSpace(body)) == 0 {
+				data = json.RawMessage("null")
+			}
+			wrapped, err := json.Marshal(gin.H{"code": 0, "data": data, "message": "OK"})
+			if err != nil {
+				original.Header().Set("Content-Type", "application/json; charset=utf-8")
+				original.WriteHeader(http.StatusInternalServerError)
+				_, _ = original.Write([]byte(`{"code":211301,"message":"服务内部错误，请稍后重试"}`))
+				return
+			}
+			original.Header().Set("Content-Type", "application/json; charset=utf-8")
+			original.WriteHeader(status)
+			_, _ = original.Write(wrapped)
+			return
+		}
+
+		original.WriteHeader(status)
+		_, _ = original.Write(body)
 	}
 }

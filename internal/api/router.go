@@ -115,7 +115,8 @@ func NewRouter(deps *Deps) *gin.Engine {
 		// 未配置 FINV_OPENAPI_KEY 时不注册，避免无认证暴露。
 		if openAPIKey := strings.TrimSpace(cfg.OpenAPIKey); openAPIKey != "" {
 			openGroup := router.Group("/OpenAPI/V1")
-			openGroup.Use(RequireOpenAPIKey(openAPIKey))
+			// 静态密钥鉴权 + 统一响应信封 {code,data,message}（需求 10787 / 10788）
+			openGroup.Use(RequireOpenAPIKey(openAPIKey), WrapOpenAPIResponse())
 			openGroup.POST("/Meta/Finv/Quote/Cdeu/Min/Upsert", klineHandler.Upsert)
 		}
 

@@ -2121,6 +2121,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10787 | 新增外部 OpenAPI 示例端点 `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`，业务逻辑复用内部 `KLine.Upsert` handler；使用独立路由组与静态密钥 `FINV_OPENAPI_KEY`（支持 Bearer 与 `X-API-Key`），未配置时不注册。 | `grep -c '/OpenAPI/V1' internal/api/router.go` ≥ 1；`grep -c 'RequireOpenAPIKey' internal/api/router.go internal/api/middleware.go` ≥ 2；`go test ./internal/api -run TestOpenAPIExampleRoute -v` 通过（未配置不注册、错误密钥 401、Bearer/X-API-Key 正确密钥均进入 handler 返回 400/211001）；未设置 `FINV_OPENAPI_KEY` 时 `curl -X POST http://127.0.0.1:16001/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert` 返回 404 | |
 
+## 一百二十、外部 OpenAPI 响应信封规范化（10788）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10788 | `/OpenAPI/V1` 下接口成功响应统一为 `{"code":0,"data":<原业务数据>,"message":"OK"}`：业务字段放入 `data`；成功码默认 `0`，`1`/`200`/`202` 兼容；非 2xx 与 `204` 原样透传。补充外部端点文档（`.md` + `.yml`）。 | `grep -c '"code": 0' internal/api/middleware.go` = 1；`go test ./internal/api -run TestWrapOpenAPIResponseEnvelope -v` 通过（断言 `code=0`、`data.affected`、`data.mode`、204 无 body、错误原样）；`grep -c 'code: 0' Docs/OpenAPI/Quote/Cdeu/Min/Upsert.yml` ≥ 1 且 `enum` 含 0/1/200/202；`ls Docs/OpenAPI/Quote/Cdeu/Min/Upsert.{md,yml}` 均存在；`go test ./internal/docs` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2268,7 +2274,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | KLinePageUni 按 OpenAPI 样板重写 | 10785 | 1 |
 | 外部 HOOK 接入方案文档 | 10786 | 1 |
 | 外部 OpenAPI 示例端点 | 10787 | 1 |
-| **合计** | **10001–10787** | **787** |
+| 外部 OpenAPI 响应信封规范化 | 10788 | 1 |
+| **合计** | **10001–10788** | **788** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10788` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10789` 起往后追加，不插入既有区间。
