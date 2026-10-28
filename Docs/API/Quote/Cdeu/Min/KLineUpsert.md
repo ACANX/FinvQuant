@@ -1,7 +1,7 @@
 # POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert — 批量 Upsert
 
-> **本文是接口文档的 OpenAPI 3.1 样板**：第 2 节的 `openapi` 代码块是机器可读契约，
-> 第 3~6 节是与之逐项对应的人类可读说明。后续新增/修改接口文档请按本结构编写
+> **本文是接口文档的 OpenAPI 3.1 样板**：正文（第 1~6 节）是人类可读说明；
+> 第 8 节附录是与之逐项对应的机器可读 `openapi` 契约。后续新增/修改接口文档请按本结构编写
 > （约定见 [`Docs/DevSpec/ApiSpec.md`](../../../../DevSpec/ApiSpec.md) §7.7）。
 >
 > - 变更记录：需求 10777（迁移到 CDEU 前缀）、10782（全量统一 CDEU）、10783（本文按 OpenAPI 3.1 重写）
@@ -17,7 +17,182 @@
 
 整个请求在**单个数据库事务**内完成：任一条目校验失败或写库失败，全部回滚。
 
-## 2. OpenAPI 3.1 描述
+## 2. 请求参数说明
+
+### 2.1 Query 参数
+
+| 参数 | 位置 | 类型 | 必填 | 默认 | 取值 | 说明 |
+|---|---|---|---|---|---|---|
+| `onConflict` | query | string | 否 | `update` | `skip` / `update` | 冲突处理模式；兼容旧名 `on_conflict`，推荐小驼峰 |
+| `Authorization` | header | string | 是 | — | `Bearer <token>` | 认证令牌（登录接口获取） |
+| `Content-Type` | header | string | 是 | — | `application/json` | 请求体为 JSON |
+
+### 2.2 请求体 `UpsertRequest`
+
+| 字段 | 类型 | 必填 | 约束 | 说明 |
+|---|---|---|---|---|
+| `items` | array\<KLineItem\> | 是 | 1 ≤ 条数 ≤ 5000 | 待写入条目；上限由 `FINV_KLINE_MAX_BATCH_ROWS` 控制（默认 5000） |
+
+> 请求体采用**严格解码**：出现未定义字段直接返回 422 / `211005`，不会静默忽略。
+
+### 2.3 条目 `KLineItem`
+
+| 字段 | 类型 | 必填 | 约束 | 落库 | 说明 |
+|---|---|---|---|---|---|
+| `usc` | string | **是** | 1–255 字符 | 是 | 统一证券代码（`GCMain` / `518880`） |
+| `ts` | integer(int64) | **是** | 0 ≤ ts ≤ 100000000000 | 是 | UTC 秒级时间戳；`FINV_KLINE_TS_UNIT=ms` 时可传 13 位毫秒并自动 /1000 |
+| `date` | integer \| null | 否 | 19500101–21001231 | 是 | 交易日期 `yyyyMMdd` |
+| `time` | integer \| null | 否 | 0–235959 | 是 | 交易时间 `HHmmss` |
+| `open` | number \| null | 否 | — | 是 | 起始价；缺失时用 `prev_close` 回填 |
+| `high` | number \| null | 否 | — | 是 | 区间最高价 |
+| `low` | number \| null | 否 | — | 是 | 区间最低价 |
+| `close` | number \| null | 否 | — | 是 | 最新价/收盘价 |
+| `volume` | number \| null | 否 | ≥ 0 | 是 | 成交量 |
+| `turnover` | number \| null | 否 | ≥ 0 | 是 | 成交金额 |
+| `change_price` | number \| null | 否 | — | 是 | 涨跌额；与 `change_ratio` 均未传时自动计算 |
+| `change_ratio` | number \| null | 否 | — | 是 | 涨跌幅；与 `change_price` 均未传时自动计算 |
+| `paocd` | number \| null | 否 | — | 是 | 当日累计均价 |
+| `ext_field` | string \| null | 否 | — | 是 | 预留扩展字段 |
+| `remark` | string \| null | 否 | — | 是 | 备注 |
+| `provider` | string \| null | 否 | ≤ 255 字符 | 是 | 数据来源（如 `FT`） |
+| `prev_close` | number \| null | 否 | — | **否** | 兼容字段：仅用于回填 `open`，自身不落库 |
+
+数值字段只接受 **JSON 数字或 `null`**（字符串 `"3.60"` 会触发 422 / `211003`）。
+
+## 3. 行为与语义
+
+### 3.1 冲突处理
+
+| `onConflict` | 生成 SQL | 请求内重复 `(usc, ts)` | `affected` 含义 |
+|---|---|---|---|
+| `skip` | `ON CONFLICT (usc, ts) DO NOTHING` | 不报错，天然去重 | 实际插入行数 |
+| `update`（默认） | `ON CONFLICT (usc, ts) DO UPDATE SET …` | 提前返回 409 / `211102` | 插入 + 覆盖影响行数 |
+
+`update` 覆盖的列为除 `usc`、`ts` 外的全部业务列（`date`、`time`、`open`、`high`、`low`、
+`close`、`volume`、`turnover`、`change_price`、`change_ratio`、`paocd`、`ext_field`、
+`remark`、`provider`），并刷新 `gmt_update = now()`。
+
+### 3.2 整行覆盖
+
+`update` 模式是**整行覆盖**：请求中未提供（或显式 `null`）的业务列会被写成 `NULL`。
+如需只改部分字段，请使用 `PATCH /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch`。
+
+### 3.3 字段补全与兼容
+
+- `prev_close` → `open`：`open` 未传或为 `null` 时用 `prev_close` 回填；`prev_close` 本身不落库。
+- `change_price` / `change_ratio`：两者都未提供时，服务端用 `close` 与参考价（`open`）计算。
+- `gmt_create` / `gmt_update` 由数据库默认值与触发器维护，请求体不接受。
+
+### 3.4 事务与幂等
+
+- 单事务：条目校验 → 请求内重复检查（仅 `update`）→ 分批 `INSERT` → 提交；任一步失败整体回滚；
+- `skip` 模式天然幂等；`update` 模式重复提交相同内容结果一致。
+
+## 4. 错误目录
+
+| 错误码 | HTTP | 名称 | retryable | 触发场景 | 白名单 `debug` 键 |
+|---|---|---|---|---|---|
+| `211001` | 400 | `KLineMissingParam` | 否 | 缺少 `usc`/`ts`/`items` | `field` |
+| `211002` | 400 | `KLineMalformedJSON` | 否 | 请求体不是合法 JSON | `err_class` |
+| `211003` | 422 | `KLineTypeMismatch` | 否 | 字段类型不匹配（如数值字段传字符串） | `field`、`want`、`got` |
+| `211004` | 422 | `KLineOutOfRange` | 否 | `usc` 超长、`ts`/`date`/`time` 越界、负 `volume`/`turnover` | `field`、`min`、`max` |
+| `211005` | 422 | `KLineUnknownField` | 否 | 请求含未定义字段 | `field` |
+| `211006` | 400 | `KLineInvalidEnum` | 否 | `onConflict` 不是 `skip`/`update` | `field`、`allowed` |
+| `211101` | 409 | `KLineDuplicateKey` | 否 | 数据库主键/唯一键冲突 | `pg_code`、`sqlstate`、`constraint` |
+| `211102` | 409 | `KLineDuplicateInRequest` | 否 | `update` 模式下请求内重复 `(usc, ts)` | `first_dup`、`count` |
+| `211103` | 404 | `KLineNotFound` | 否 | 记录不存在（本接口不产生，供其它 K 线接口复用） | `usc`、`ts` |
+| `211104` | 409 | `KLineStateConflict` | 否 | 当前状态不允许该操作 | `state`、`reason_class` |
+| `211201` | 413 | `KLineBatchTooLarge` | 否 | `items` 条数超过上限 | `limit`、`got` |
+| `211202` | 413 | `KLineListTooLarge` | 否 | 列表长度超过上限（其它接口复用） | `limit`、`got` |
+| `211301` | 500 | `KLineDBError` | **是** | 数据库执行错误 | `pg_code`、`sqlstate`、`err_class` |
+| `211302` | 503 | `KLineDBUnavailable` | **是** | 连接池不可用/数据库不可达 | `pool_state` |
+| `211303` | 422 | `KLineDBConstraint` | 否 | 违反业务约束（CHECK/外键等） | `pg_code`、`constraint` |
+
+错误响应示例（`update` 模式请求内重复）：
+
+```json
+{
+  "code": 211102,
+  "message": "请求内存在重复主键",
+  "detail": "请求内存在重复主键",
+  "request_id": "6f1c0f7a9d2e4b0c",
+  "error": {
+    "code": 211102,
+    "catalog_version": "finvquant-1",
+    "retryable": false
+  },
+  "debug": {
+    "first_dup": "GCMain@1700000000",
+    "count": "2"
+  }
+}
+```
+
+> `debug` 仅在 `FINV_ERROR_DETAIL_MODE=admin` 且来自内网 CIDR 或携带有效
+> `X-Debug-Token` 时出现；默认安全模式不返回。
+
+## 5. 示例
+
+### 5.1 curl
+
+```bash
+curl -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert?onConflict=update' \
+  -H 'Authorization: Bearer <token>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "items": [
+      {
+        "usc": "GCMain",
+        "ts": 1700000000,
+        "date": 20231114,
+        "time": 93000,
+        "open": 3.51,
+        "high": 3.62,
+        "low": 3.50,
+        "close": 3.60,
+        "volume": 1000,
+        "turnover": 3560.00,
+        "provider": "FT"
+      }
+    ]
+  }'
+```
+
+### 5.2 成功响应（HTTP 200）
+
+```json
+{"affected": 1, "mode": "update"}
+```
+
+### 5.3 常见错误
+
+| 场景 | HTTP | 响应 `code` |
+|---|---|---|
+| 缺少 `items` 或 `items: []` | 400 | `211001` |
+| `ts` 传字符串 `"1700000000"` | 422 | `211003` |
+| 多传字段 `foo` | 422 | `211005` |
+| `onConflict=merge` | 400 | `211006` |
+| `update` 模式两条相同 `(usc, ts)` | 409 | `211102` |
+| `items` 超过 5000 条 | 413 | `211201` |
+
+## 6. 已使用位置登记
+
+- 分钟行情采集端增量回补（`onConflict=update`）
+- 采集端重复投递兜底（`onConflict=skip`）
+
+## 7. 编写约定（样板说明）
+
+新接口文档按本文件结构组织，**不允许**省略契约：
+
+1. **机器可读契约**：给出完整 OpenAPI 3.1 `openapi` 代码块（`paths`、`parameters`、
+   `requestBody`、`responses`、`components` 全量），不得用「同 XXX 文档」代替；
+2. **字段表**：每个请求/响应字段列出类型、必填、约束、落库与否、说明；
+3. **行为语义**：冲突处理、事务边界、幂等、兼容字段、自动计算规则写清楚；
+4. **错误目录**：列全本接口可能返回的 `code`、HTTP、`retryable`、触发场景与 debug 键；
+5. **示例**：至少给出 curl、成功响应、典型错误；
+6. **索引同步**：新增/修改接口须同步 `Docs/API/APIs.md` 与 `Docs/API/README.md`；
+7. **变更日志**：使用者可感知的契约变更须同步 `Docs/CHANGELOG.md`。
+## 8. 附录：OpenAPI 3.1 描述（机器可读）
 
 ```yaml
 openapi: 3.1.0
@@ -242,7 +417,7 @@ components:
       properties:
         code:
           type: integer
-          description: 业务错误码（见第 5 节错误目录）。
+          description: 业务错误码（见第 4 节错误目录）。
         message:
           type: string
           description: 面向调用方的安全文案。
@@ -259,7 +434,7 @@ components:
           additionalProperties: { type: string }
           description: |
             仅当 `FINV_ERROR_DETAIL_MODE=admin` 且请求来自内网 CIDR 或携带有效
-            `X-Debug-Token` 时返回；键为白名单（见第 5 节）。
+            `X-Debug-Token` 时返回；键为白名单（见第 4 节）。
     ErrorObject:
       type: object
       required: [code, catalog_version, retryable]
@@ -324,178 +499,3 @@ components:
             $ref: '#/components/schemas/ErrorResponse'
 ```
 
-## 3. 请求参数说明
-
-### 3.1 Query 参数
-
-| 参数 | 位置 | 类型 | 必填 | 默认 | 取值 | 说明 |
-|---|---|---|---|---|---|---|
-| `onConflict` | query | string | 否 | `update` | `skip` / `update` | 冲突处理模式；兼容旧名 `on_conflict`，推荐小驼峰 |
-| `Authorization` | header | string | 是 | — | `Bearer <token>` | 认证令牌（登录接口获取） |
-| `Content-Type` | header | string | 是 | — | `application/json` | 请求体为 JSON |
-
-### 3.2 请求体 `UpsertRequest`
-
-| 字段 | 类型 | 必填 | 约束 | 说明 |
-|---|---|---|---|---|
-| `items` | array\<KLineItem\> | 是 | 1 ≤ 条数 ≤ 5000 | 待写入条目；上限由 `FINV_KLINE_MAX_BATCH_ROWS` 控制（默认 5000） |
-
-> 请求体采用**严格解码**：出现未定义字段直接返回 422 / `211005`，不会静默忽略。
-
-### 3.3 条目 `KLineItem`
-
-| 字段 | 类型 | 必填 | 约束 | 落库 | 说明 |
-|---|---|---|---|---|---|
-| `usc` | string | **是** | 1–255 字符 | 是 | 统一证券代码（`GCMain` / `518880`） |
-| `ts` | integer(int64) | **是** | 0 ≤ ts ≤ 100000000000 | 是 | UTC 秒级时间戳；`FINV_KLINE_TS_UNIT=ms` 时可传 13 位毫秒并自动 /1000 |
-| `date` | integer \| null | 否 | 19500101–21001231 | 是 | 交易日期 `yyyyMMdd` |
-| `time` | integer \| null | 否 | 0–235959 | 是 | 交易时间 `HHmmss` |
-| `open` | number \| null | 否 | — | 是 | 起始价；缺失时用 `prev_close` 回填 |
-| `high` | number \| null | 否 | — | 是 | 区间最高价 |
-| `low` | number \| null | 否 | — | 是 | 区间最低价 |
-| `close` | number \| null | 否 | — | 是 | 最新价/收盘价 |
-| `volume` | number \| null | 否 | ≥ 0 | 是 | 成交量 |
-| `turnover` | number \| null | 否 | ≥ 0 | 是 | 成交金额 |
-| `change_price` | number \| null | 否 | — | 是 | 涨跌额；与 `change_ratio` 均未传时自动计算 |
-| `change_ratio` | number \| null | 否 | — | 是 | 涨跌幅；与 `change_price` 均未传时自动计算 |
-| `paocd` | number \| null | 否 | — | 是 | 当日累计均价 |
-| `ext_field` | string \| null | 否 | — | 是 | 预留扩展字段 |
-| `remark` | string \| null | 否 | — | 是 | 备注 |
-| `provider` | string \| null | 否 | ≤ 255 字符 | 是 | 数据来源（如 `FT`） |
-| `prev_close` | number \| null | 否 | — | **否** | 兼容字段：仅用于回填 `open`，自身不落库 |
-
-数值字段只接受 **JSON 数字或 `null`**（字符串 `"3.60"` 会触发 422 / `211003`）。
-
-## 4. 行为与语义
-
-### 4.1 冲突处理
-
-| `onConflict` | 生成 SQL | 请求内重复 `(usc, ts)` | `affected` 含义 |
-|---|---|---|---|
-| `skip` | `ON CONFLICT (usc, ts) DO NOTHING` | 不报错，天然去重 | 实际插入行数 |
-| `update`（默认） | `ON CONFLICT (usc, ts) DO UPDATE SET …` | 提前返回 409 / `211102` | 插入 + 覆盖影响行数 |
-
-`update` 覆盖的列为除 `usc`、`ts` 外的全部业务列（`date`、`time`、`open`、`high`、`low`、
-`close`、`volume`、`turnover`、`change_price`、`change_ratio`、`paocd`、`ext_field`、
-`remark`、`provider`），并刷新 `gmt_update = now()`。
-
-### 4.2 整行覆盖
-
-`update` 模式是**整行覆盖**：请求中未提供（或显式 `null`）的业务列会被写成 `NULL`。
-如需只改部分字段，请使用 `PATCH /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch`。
-
-### 4.3 字段补全与兼容
-
-- `prev_close` → `open`：`open` 未传或为 `null` 时用 `prev_close` 回填；`prev_close` 本身不落库。
-- `change_price` / `change_ratio`：两者都未提供时，服务端用 `close` 与参考价（`open`）计算。
-- `gmt_create` / `gmt_update` 由数据库默认值与触发器维护，请求体不接受。
-
-### 4.4 事务与幂等
-
-- 单事务：条目校验 → 请求内重复检查（仅 `update`）→ 分批 `INSERT` → 提交；任一步失败整体回滚；
-- `skip` 模式天然幂等；`update` 模式重复提交相同内容结果一致。
-
-## 5. 错误目录
-
-| 错误码 | HTTP | 名称 | retryable | 触发场景 | 白名单 `debug` 键 |
-|---|---|---|---|---|---|
-| `211001` | 400 | `KLineMissingParam` | 否 | 缺少 `usc`/`ts`/`items` | `field` |
-| `211002` | 400 | `KLineMalformedJSON` | 否 | 请求体不是合法 JSON | `err_class` |
-| `211003` | 422 | `KLineTypeMismatch` | 否 | 字段类型不匹配（如数值字段传字符串） | `field`、`want`、`got` |
-| `211004` | 422 | `KLineOutOfRange` | 否 | `usc` 超长、`ts`/`date`/`time` 越界、负 `volume`/`turnover` | `field`、`min`、`max` |
-| `211005` | 422 | `KLineUnknownField` | 否 | 请求含未定义字段 | `field` |
-| `211006` | 400 | `KLineInvalidEnum` | 否 | `onConflict` 不是 `skip`/`update` | `field`、`allowed` |
-| `211101` | 409 | `KLineDuplicateKey` | 否 | 数据库主键/唯一键冲突 | `pg_code`、`sqlstate`、`constraint` |
-| `211102` | 409 | `KLineDuplicateInRequest` | 否 | `update` 模式下请求内重复 `(usc, ts)` | `first_dup`、`count` |
-| `211103` | 404 | `KLineNotFound` | 否 | 记录不存在（本接口不产生，供其它 K 线接口复用） | `usc`、`ts` |
-| `211104` | 409 | `KLineStateConflict` | 否 | 当前状态不允许该操作 | `state`、`reason_class` |
-| `211201` | 413 | `KLineBatchTooLarge` | 否 | `items` 条数超过上限 | `limit`、`got` |
-| `211202` | 413 | `KLineListTooLarge` | 否 | 列表长度超过上限（其它接口复用） | `limit`、`got` |
-| `211301` | 500 | `KLineDBError` | **是** | 数据库执行错误 | `pg_code`、`sqlstate`、`err_class` |
-| `211302` | 503 | `KLineDBUnavailable` | **是** | 连接池不可用/数据库不可达 | `pool_state` |
-| `211303` | 422 | `KLineDBConstraint` | 否 | 违反业务约束（CHECK/外键等） | `pg_code`、`constraint` |
-
-错误响应示例（`update` 模式请求内重复）：
-
-```json
-{
-  "code": 211102,
-  "message": "请求内存在重复主键",
-  "detail": "请求内存在重复主键",
-  "request_id": "6f1c0f7a9d2e4b0c",
-  "error": {
-    "code": 211102,
-    "catalog_version": "finvquant-1",
-    "retryable": false
-  },
-  "debug": {
-    "first_dup": "GCMain@1700000000",
-    "count": "2"
-  }
-}
-```
-
-> `debug` 仅在 `FINV_ERROR_DETAIL_MODE=admin` 且来自内网 CIDR 或携带有效
-> `X-Debug-Token` 时出现；默认安全模式不返回。
-
-## 6. 示例
-
-### 6.1 curl
-
-```bash
-curl -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert?onConflict=update' \
-  -H 'Authorization: Bearer <token>' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "items": [
-      {
-        "usc": "GCMain",
-        "ts": 1700000000,
-        "date": 20231114,
-        "time": 93000,
-        "open": 3.51,
-        "high": 3.62,
-        "low": 3.50,
-        "close": 3.60,
-        "volume": 1000,
-        "turnover": 3560.00,
-        "provider": "FT"
-      }
-    ]
-  }'
-```
-
-### 6.2 成功响应（HTTP 200）
-
-```json
-{"affected": 1, "mode": "update"}
-```
-
-### 6.3 常见错误
-
-| 场景 | HTTP | 响应 `code` |
-|---|---|---|
-| 缺少 `items` 或 `items: []` | 400 | `211001` |
-| `ts` 传字符串 `"1700000000"` | 422 | `211003` |
-| 多传字段 `foo` | 422 | `211005` |
-| `onConflict=merge` | 400 | `211006` |
-| `update` 模式两条相同 `(usc, ts)` | 409 | `211102` |
-| `items` 超过 5000 条 | 413 | `211201` |
-
-## 7. 已使用位置登记
-
-- 分钟行情采集端增量回补（`onConflict=update`）
-- 采集端重复投递兜底（`onConflict=skip`）
-
-## 8. 编写约定（样板说明）
-
-新接口文档按本文件结构组织，**不允许**省略契约：
-
-1. **机器可读契约**：给出完整 OpenAPI 3.1 `openapi` 代码块（`paths`、`parameters`、
-   `requestBody`、`responses`、`components` 全量），不得用「同 XXX 文档」代替；
-2. **字段表**：每个请求/响应字段列出类型、必填、约束、落库与否、说明；
-3. **行为语义**：冲突处理、事务边界、幂等、兼容字段、自动计算规则写清楚；
-4. **错误目录**：列全本接口可能返回的 `code`、HTTP、`retryable`、触发场景与 debug 键；
-5. **示例**：至少给出 curl、成功响应、典型错误；
-6. **索引同步**：新增/修改接口须同步 `Docs/API/APIs.md` 与 `Docs/API/README.md`；
-7. **变更日志**：使用者可感知的契约变更须同步 `Docs/CHANGELOG.md`。
