@@ -155,9 +155,20 @@ if [[ "${SKIP_REDIS}" -eq 0 ]]; then
     apt-get install -y -qq redis-server >/dev/null
     ok "已安装 redis-server $(redis-server --version | awk '{print $3}')"
   fi
+  # unit 名优先用 redis-server（Debian/Ubuntu 主 unit）；redis.service 通常只是它的 alias，
+  # alias 无法 enable（会报 "no installation config"），不能作为首选。
   REDIS_UNIT="redis-server"
-  if systemctl list-unit-files | grep -q '^redis.service'; then REDIS_UNIT="redis"; fi
-  systemctl enable --now "${REDIS_UNIT}" >/dev/null 2>&1 || warn "Redis 服务启动失败，请检查 journalctl -u ${REDIS_UNIT}"
+  if ! systemctl list-unit-files 2>/dev/null | grep -qE '^redis-server\.service'; then
+    REDIS_UNIT="redis"
+  fi
+  systemctl enable "${REDIS_UNIT}" >/dev/null 2>&1 || true
+  systemctl start "${REDIS_UNIT}" >/dev/null 2>&1 || true
+  if systemctl is-active --quiet "${REDIS_UNIT}"; then
+    ok "Redis 运行中（${REDIS_UNIT}）"
+  else
+    warn "Redis 服务未运行（${REDIS_UNIT}）；最近日志："
+    journalctl -u "${REDIS_UNIT}" -n 15 --no-pager 2>/dev/null || true
+  fi
   REDIS_VER="$(redis-server --version | awk '{print $3}' | cut -d= -f2 | cut -d. -f1)"
   [[ "${REDIS_VER:-0}" -ge 8 ]] || warn "当前 Redis 主版本为 ${REDIS_VER}，项目参考版本为 8；基础 KV 用法兼容，如需严格对齐请用 packages.redis.io 官方源"
 else
@@ -176,9 +187,17 @@ else
 fi
 if id -u "${APP_USER}" >/dev/null 2>&1; then
   ok "用户 ${APP_USER} 已存在"
+  # 主组不一致时补正（例如先手工 groupadd 再 useradd 的场景）
+  if [[ "$(id -gn "${APP_USER}")" != "${APP_GROUP}" ]]; then
+    usermod -g "${APP_GROUP}" "${APP_USER}"
+    ok "已将 ${APP_USER} 的主组补正为 ${APP_GROUP}"
+  fi
 else
-  useradd --system --no-create-home --home-dir "${PREFIX}" --shell /usr/sbin/nologin "${APP_USER}"
-  ok "已创建系统用户 ${APP_USER}"
+  # 必须先 -g 指定已存在的组：useradd 默认会尝试创建同名组，组已存在时直接报错
+  # “useradd: group 'finvquant' exists - if you want to add this user to that group, use -g.”
+  useradd --system --gid "${APP_GROUP}" --no-create-home --home-dir "${PREFIX}" \
+    --shell /usr/sbin/nologin "${APP_USER}"
+  ok "已创建系统用户 ${APP_USER}（主组 ${APP_GROUP}）"
 fi
 install -d -o root -g root -m 0755 "${PREFIX}"
 install -d -o root -g root -m 0755 "${BIN_DIR}"

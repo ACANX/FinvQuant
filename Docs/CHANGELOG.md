@@ -662,6 +662,11 @@
 
 ### 修复
 
+- **Native 安装脚本无法创建用户、Redis 误报未启动（需求 10766 修复）**
+  - **`useradd` 失败**：脚本先 `groupadd --system finvquant`，随后 `useradd --system ...` 未指定主组；Debian/Ubuntu 的 `useradd` 默认会再建同名组，遇到已存在的组直接报错退出（`group 'finvquant' exists - ... use -g`），导致用户/目录/建库/systemd 全未执行。改为 `useradd --system --gid finvquant ...`；已存在用户时用 `usermod -g` 补正主组（手工调建组场景）。
+  - **Redis 选错 unit**：原逻辑优先 `redis.service`，而它在 Ubuntu 上只是 `redis-server.service` 的 alias，alias 不能 `enable`，`systemctl enable --now redis` 整体失败 → 仅打 WARN、Redis 实际未启动。改为**优先 `redis-server`**（不存在才用 `redis`），`enable` / `start` 分开执行，用 `systemctl is-active` 判定真实状态，未运行时自动打印最近 15 行 journal。
+  - **文档**：`Deploy/Native/Install.md` 手工安装步骤的 `useradd` 同步补 `--gid`。
+
 - **CDEU 概览不再因「最近一次运行没处理实例」而显示 0 个 JOB**（修正展示缺陷）：
   - **根因**：`cdeu_job_dynamic` 是**跨运行累积的工作项**（每个 `usc+biz_month` 只有一行，状态随每次运行更新，无历史快照），但 `attachCDEURun` 按 `workflow_run_id == 当前展示 run` 过滤实例。当最新一次运行恰好没有处理任何实例时（如预算耗尽那一轮），整棵树显示 0 个 JOB，看起来像「实例没生成」——实际库里 BASE 89 / INCR 12 / UPLOAD 317 条都在。
   - **修正**：`attachCDEURun` 不再按 run 过滤动态实例，改为保留全部并标记 `from_current_run`（是否属于当前展示的这次运行）；`CDEUJobView` 新增 `from_current_run` 字段。前端 `processJobText` 改为「`x/y JOB · N 实例（成功 k）`」，节点悬浮提示列出前 8 条实例明细（`usc 月份 类型 [状态]`）。

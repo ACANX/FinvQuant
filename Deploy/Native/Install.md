@@ -145,7 +145,7 @@ apt-get install -y redis-server && systemctl enable --now redis-server
 
 # 4) 用户与目录（全部在安装根目录下）
 groupadd --system finvquant
-useradd --system --no-create-home --home-dir "$PREFIX" --shell /usr/sbin/nologin finvquant
+useradd --system --gid finvquant --no-create-home --home-dir "$PREFIX" --shell /usr/sbin/nologin finvquant
 install -d -o root -g root -m 0755 "$PREFIX"
 install -d -o root -g root -m 0755 "$PREFIX/bin"
 install -d -o root -g finvquant -m 0755 "$PREFIX/Migrations"
