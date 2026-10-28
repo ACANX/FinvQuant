@@ -37,8 +37,8 @@
 
 > 基础初始数据 15 条（V100002，见下表）；**增量补充 500 条**（V100009，基于 `futu.finv_futu_mapping_security` 的 finv_usc，覆盖港股/美股/A股/期货/外汇/加密货币/债券/基金/板块等，清单见种子脚本）。
 
-| usc | exchange_code | market_code | security_type | security_code | security_name | security_name_cn | security_name_full | currency_type | init_date | timezone | tz |
-|-----|--------------:|---------------|---------------|---------------|------------------|--------------------|---------------|-----------|-----------|-----|
+| usc | exchange_code | security_type | security_code | security_name | security_name_cn | security_name_full | currency_type | init_date | timezone | tz |
+|-----|--------------:|---------------|---------------|------------------|--------------------|---------------|-----------|-----------|-----|-----|
 | GCMain | 33 | Futures | GCMain | GCMain2512 | 黄金期货主连 | 黄金期货主连 | USD | 19710101 | -04:00 | America/New_York |
 | HSTI | 21 | StockIndex | 800700 | 恒生科技指数 | 恒生科技指数 | 恒生科技指数 | HKD | 20000000 | +08:00 | Asia/Shanghai |
 | SHI | 11 | StockIndex | 000001 | 上证综合指数 | 上证综指数 | 上证综指数 | CNY | 20000000 | +08:00 | Asia/Shanghai |

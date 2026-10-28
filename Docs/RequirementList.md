@@ -144,7 +144,7 @@
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
 | 10092 | 存在 `V32` 迁移且创建两个业务 schema。 | `grep -c "CREATE SCHEMA IF NOT EXISTS" Deploy/Migrations/V100032__move_finv_tables_to_quote_quant_schemas.sql` 输出 `2` | |
-| 10093 | `V32` 覆盖 16 张表的迁移（3 张 quote + 13 张 quant，通过数组循环执行 `SET SCHEMA`）。 | `grep -oE "'finv_(quote|quant)_[a-z_]+" Deploy/Migrations/V100032__move_finv_tables_to_quote_quant_schemas.sql \| sort -u \| wc -l` 输出 `16` | |
+| 10093 | `V32` 覆盖 16 张表的迁移（3 张 quote + 13 张 quant，通过数组循环执行 `SET SCHEMA`）。 | `grep -oE "'finv_(quote\|quant)_[a-z_]+" Deploy/Migrations/V100032__move_finv_tables_to_quote_quant_schemas.sql \| sort -u \| wc -l` 输出 `16` | |
 | 10094 | `V32` 设置数据库默认 `search_path`。 | 脚本内含 `ALTER DATABASE` 与 `current_database()` | |
 | 10095 | `V32` 具备收敛校验，失败整体回滚。 | `grep -c "RAISE EXCEPTION" Deploy/Migrations/V100032__move_finv_tables_to_quote_quant_schemas.sql` 不小于 `2` | |
 | 10096 | 存在 `V100024` 收尾迁移，处理种子段新建的 3 张 quant 表。 | `test -f Deploy/Migrations/V200024__finv_quant_seed_tables_move_to_quant_schema.sql` | |
@@ -153,7 +153,7 @@
 | 10099 | 文档中表名均带 schema 前缀。 | `grep -rn "FROM finv_quote_\|FROM finv_quant_" Docs/ Prompt.md \| grep -v "Docs/Refactor/\|Docs/CHANGELOG.md\|Docs/RequirementList.md"` 输出为空 | |
 | 10100 | 生产库 `quote` schema 含 3 张行情表。 | `SELECT count(*) FROM pg_tables WHERE schemaname='quote'` 为 `3` | |
 | 10101 | 生产库 `quant` schema 含 13 张量化表。 | `SELECT count(*) FROM pg_tables WHERE schemaname='quant'` 为 `13` | |
-| 10102 | 生产库 `public` 不再有业务域表。 | `SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename ~ '^finv_(quote|quant)_'` 为 `0` | |
+| 10102 | 生产库 `public` 不再有业务域表。 | `SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename ~ '^finv_(quote\|quant)_'` 为 `0` | |
 | 10103 | 数据库与连接 `search_path` 为 `public, quote, quant`。 | `SHOW search_path;` 输出含 `public, quote, quant` | |
 | 10104 | 表迁移后 `gmt_update` 触发器仍生效。 | 更新一行后 `gmt_update` 大于 `gmt_create` | |
 | 10105 | 存在数据库 schema 规范文档。 | `test -f Docs/DevSpec/DbSchemaSpec.md` | |
@@ -211,7 +211,7 @@
 |---|---|---|---|
 | 10132 | Native 目录下脚本与配置文件采用大驼峰文件名。 | `ls Deploy/Native/` 中 `.sh` 与品牌名文件均以大写字母开头（`Install.sh`、`Upgrade.sh`、`Uninstall.sh`、`FinvQuant.service`、`FinvQuant.env.example`） | |
 | 10133 | systemd unit 源文件名按品牌写作 `FinvQuant.service`（无小写 s 变体）。 | `ls Deploy/Native/ \| grep -x FinvQuant.service` 输出 1 行；`ls Deploy/Native/ \| grep -cx Finvquant.service` 输出 `0`（Windows 大小写不敏感，以 `ls` 实际输出为准） | |
-| 10134 | unit 含运行所需关键指令。 | `grep -cE "^(ExecStart|EnvironmentFile|Restart|User|WantedBy)=" Deploy/Native/FinvQuant.service` 输出 `5` | |
+| 10134 | unit 含运行所需关键指令。 | `grep -cE "^(ExecStart\|EnvironmentFile\|Restart\|User\|WantedBy)=" Deploy/Native/FinvQuant.service` 输出 `5` | |
 | 10135 | 三个 Shell 脚本通过语法检查。 | `bash -n Deploy/Native/{Install,Upgrade,Uninstall}.sh` 退出码均为 0 | |
 | 10136 | Native 升级脚本的备份命名为 `finvquant_YYYYMMDD_HHMMSS.dump`。 | `grep -c "finvquant_\$(date +%Y%m%d_%H%M%S).dump" Deploy/Native/Upgrade.sh` 输出 `1` | |
 | 10137 | 现有备份文件名均为纯 ASCII 且符合时间格式。 | `ls Deploy/Backup/*.dump` 的文件名全部匹配 `finvquant_[0-9]{8}_[0-9]{6}\.dump` | |
@@ -344,7 +344,7 @@
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
 | 10216 | `Script` 目录有配套说明文档。 | `test -f Deploy/Script/README.md` | |
-| 10217 | 文档覆盖全部参数并标出默认值。 | `grep -c '^| `--' Deploy/Script/README.md` 不小于 `9` | |
+| 10217 | 文档覆盖全部参数并标出默认值。 | `grep -c '^\| `--' Deploy/Script/README.md` 不小于 `9` | |
 | 10218 | 文档说明版本三段与时间戳一致性。 | `grep -c 'v{BASE_VERSION}.{PPPPP}.{yymmddHHmm}' Deploy/Script/README.md` 不小于 `1`；含「同一快照的所有产物共用同一个时间戳」 | |
 | 10219 | 文档给出两种包的目录树与 SHA256SUMS 用法。 | 含 `FinvQuant_v0.1.1.00123.2610241530_ubuntu_arm64/` 与 `sha256sum -c SHA256SUMS` | |
 | 10220 | 文档说明三种运行环境与 zip 回退链。 | 含「native」「WSL」「Git Bash」三词；含 `tar.exe（bsdtar` 与 `powershell.exe` → `python3` 顺序 | |
@@ -461,8 +461,8 @@
 | 10292 | 新增表全部位于 `dedup` schema 且全库无外键，不修改既有两张业务表。 | `grep -c 'REFERENCES' Deploy/Migrations/V100041__finv_dedup_export_archive_tables.sql` 输出 `0`；`grep -c 'ALTER TABLE dedup.finv_quote_secu_kline_min' Deploy/Migrations/V100041__finv_dedup_export_archive_tables.sql` 输出 `0` | |
 | 10293 | 12 个普通索引按 `idx_<表名去 finv_ 前缀并去下划线>_<用途>` 命名。 | `grep -c 'CREATE INDEX IF NOT EXISTS idx_dedup' Deploy/Migrations/V100041__finv_dedup_export_archive_tables.sql` 输出 `12` | |
 | 10294 | 导出文件为 MVsv：16 行 `# ` 文件头 + 1 行空行 + 数据行。 | `go test ./internal/meta/finv/quote/dedup -run TestWriteMVsvStructure` 通过 | |
-| 10295 | `# Field` 行固定为 `ts|da|ti|o|h|l|c|v|t|cp|cr|lc`。 | `go test ./internal/meta/finv/quote/dedup -run TestWriteMVsvStructure` 通过（断言 Field 行） | |
-| 10296 | `# Count` 等于实际数据行数，不一致时写出失败且不留半成品。 | `go test ./internal/meta/finv/quote/dedup -run 'TestWriteMVsvRowCountMismatch|TestVerifyMVsvRejectsBrokenFiles'` 通过 | |
+| 10295 | `# Field` 行固定为 `ts\|da\|ti\|o\|h\|l\|c\|v\|t\|cp\|cr\|lc`。 | `go test ./internal/meta/finv/quote/dedup -run TestWriteMVsvStructure` 通过（断言 Field 行） | |
+| 10296 | `# Count` 等于实际数据行数，不一致时写出失败且不留半成品。 | `go test ./internal/meta/finv/quote/dedup -run 'TestWriteMVsvRowCountMismatch\|TestVerifyMVsvRejectsBrokenFiles'` 通过 | |
 | 10297 | BASE / PATCH / MANIFEST 文件名符合方案稿约定。 | `go test ./internal/meta/finv/quote/dedup -run TestFileNames` 通过 | |
 | 10298 | 上传与本地同名（`.mvsv` / `.json`），不生成、不支持 `.csv`。 | `grep -rn '\.csv' internal/meta/finv/quote/dedup` 无输出；`go test ./internal/meta/finv/quote/dedup -run TestFileNames` 通过 | |
 | 10299 | 导出任务以 `(usc, biz_month)` 唯一，保证幂等。 | `grep -F 'UNIQUE (usc, biz_month)' Deploy/Migrations/V100041__finv_dedup_export_archive_tables.sql` 命中 | |
@@ -476,7 +476,7 @@
 | 10307 | 上传前后校验大小与 SHA256，每次尝试写上传审计日志。 | `grep -F 's.uploader.Verify' internal/meta/finv/quote/dedup/job_upload.go` 命中；`grep -F 'InsertUploadLog' internal/meta/finv/quote/dedup/job_upload.go` 命中 | |
 | 10308 | 收口后数据按 L1_HOT / L2_WARM / L3_COLD 分级补丁，并登记 `finv_dedup_export_file_patch`。 | `grep -F 'PatchLevelL1Hot' internal/meta/finv/quote/dedup/job_patch.go` 命中；`grep -F 'InsertPatchTask' internal/meta/finv/quote/dedup/job_patch.go` 命中 | |
 | 10309 | 生命周期清理默认不删主表数据，需显式开关；本地文件需「上传成功 + 远端校验 + 网盘归档」才清理。 | `grep -F 'FINV_QUOTE_DEDUB_PURGE_MAIN_ENABLED' internal/config/config.go` 命中；`grep -F "network_status = 'ARCHIVED'" internal/meta/finv/quote/dedup/store_files.go` 命中 | |
-| 10310 | 健康检查输出指标与告警，并登记 10 个 Job 的调度表。 | `go test ./internal/meta/finv/quote/dedup -run 'TestBuildAlerts|TestJobRuntimes'` 通过 | |
+| 10310 | 健康检查输出指标与告警，并登记 10 个 Job 的调度表。 | `go test ./internal/meta/finv/quote/dedup -run 'TestBuildAlerts\|TestJobRuntimes'` 通过 | |
 
 ## 二十九、三种发布包的 CI/CD（10311–10320）
 
@@ -638,8 +638,8 @@
 | 10449 | 低峰窗口支持 `00:00:00` ~ `23:59:59` 全天候测试；窗口按分钟粒度判定，`23:59` 分钟包含在窗口内，`HH:MM:SS` 输入兼容并归一为分钟保存。 | `grep -F '00:00:00 ~ 23:59:59' internal/meta/finv/quote/dedup/options.go` 命中；`grep -F 'fullDay' internal/meta/finv/quote/dedup/options_test.go` 命中；`go test ./internal/meta/finv/quote/dedup` 通过 | |
 | 10450 | CDEU 控制台的 JOB 清单支持水平滚动：列总宽超出容器时出现横向滚动条，可查看右侧的执行阶段、状态、异常、操作等列。 | `grep -F 'job-table-scroll' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'overflow-x: auto' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10451 | 修复人工清理 CDEU 定义数据后 `StartCDEUWorkflow` 报「未登记 CDEU_DAILY 工作流定义」：新增幂等迁移重建缺失的 15 个 JOB 与 Job Step 定义。 | `test -f Deploy/Migrations/V100067__finv_dedup_cdeu_reseed_jobs.sql` 退出码为 0；`grep -F 'JOB_FETCH_EXPORT_BATCH' Deploy/Migrations/V100067__finv_dedup_cdeu_reseed_jobs.sql` 命中；`go test ./internal/database` 通过 | |
-| 10452 | 上传动态 JOB 的编码/名称统一为 `JOB_UPLOAD_{FILE_TYPE}_V{VERSION}_{USC大写}_{YYYYMM}`（如 `JOB_UPLOAD_BASE_V1_GCMAIN_201910`）；调度标识由 `DYNAMIC_EXPORT` 改为 `DYNAMIC_UPLOAD`，并回填已有上传动态 JOB。 | `grep -F "JOB_UPLOAD_' || f.file_type" internal/meta/finv/quote/dedup/store.go` 命中；`grep -F 'DYNAMIC_UPLOAD' internal/meta/finv/quote/dedup/cdeu_admin.go` 命中；`test -f Deploy/Migrations/V100068__finv_dedup_cdeu_upload_dynamic_name.sql` 退出码为 0；`go test ./internal/meta/finv/quote/dedup ./internal/database` 通过 | |
-| 10453 | 上传动态 JOB 的 `name` 与 `job_code` 分离：`job_code` 为 `JOB_UPLOAD_BASE_V1_GCMAIN_201910`，`name` 为 `UPLOAD_BASE_V1_GCMain_201910`；回填已有上传动态 JOB。 | `grep -F "'UPLOAD_' || f.file_type" internal/meta/finv/quote/dedup/store.go` 命中；`test -f Deploy/Migrations/V100069__finv_dedup_cdeu_upload_dynamic_display_name.sql` 退出码为 0；`grep -F "UPLOAD_' || file_type" Deploy/Migrations/V100069__finv_dedup_cdeu_upload_dynamic_display_name.sql` 命中；`go test ./internal/meta/finv/quote/dedup ./internal/database` 通过 | |
+| 10452 | 上传动态 JOB 的编码/名称统一为 `JOB_UPLOAD_{FILE_TYPE}_V{VERSION}_{USC大写}_{YYYYMM}`（如 `JOB_UPLOAD_BASE_V1_GCMAIN_201910`）；调度标识由 `DYNAMIC_EXPORT` 改为 `DYNAMIC_UPLOAD`，并回填已有上传动态 JOB。 | `grep -F "JOB_UPLOAD_' \|\| f.file_type" internal/meta/finv/quote/dedup/store.go` 命中；`grep -F 'DYNAMIC_UPLOAD' internal/meta/finv/quote/dedup/cdeu_admin.go` 命中；`test -f Deploy/Migrations/V100068__finv_dedup_cdeu_upload_dynamic_name.sql` 退出码为 0；`go test ./internal/meta/finv/quote/dedup ./internal/database` 通过 | |
+| 10453 | 上传动态 JOB 的 `name` 与 `job_code` 分离：`job_code` 为 `JOB_UPLOAD_BASE_V1_GCMAIN_201910`，`name` 为 `UPLOAD_BASE_V1_GCMain_201910`；回填已有上传动态 JOB。 | `grep -F "'UPLOAD_' \|\| f.file_type" internal/meta/finv/quote/dedup/store.go` 命中；`test -f Deploy/Migrations/V100069__finv_dedup_cdeu_upload_dynamic_display_name.sql` 退出码为 0；`grep -F "UPLOAD_' \|\| file_type" Deploy/Migrations/V100069__finv_dedup_cdeu_upload_dynamic_display_name.sql` 命中；`go test ./internal/meta/finv/quote/dedup ./internal/database` 通过 | |
 | 10454 | 动态 JOB 关联执行日志与工作流运行：新增 `run_log_id` / `workflow_run_id` 字段；动态 JOB 完成后可在 JOB 清单查看执行日志；当前工作流 JOB 清单只展示本轮生成的动态 JOB，避免历史任务混入。 | `grep -F 'run_log_id = COALESCE' internal/meta/finv/quote/dedup/store.go` 命中；`grep -F 'workflow_run_id' internal/meta/finv/quote/dedup/cdeu_admin.go` 命中；`test -f Deploy/Migrations/V100070__finv_dedup_cdeu_dynamic_job_run_link.sql` 退出码为 0；`go test ./internal/meta/finv/quote/dedup ./internal/database` 通过 | |
 | 10455 | 补丁扫描中的每个证券月单独登记 Job 运行日志，动态补丁 JOB 的执行日志只展示该证券月的处理过程，不再全部共用父级补丁任务日志。 | `grep -F 'candidateRunID' internal/meta/finv/quote/dedup/job_patch.go` 命中；`grep -F 'MarkDynamicJobStatus(ctx, candidate.Usc' internal/meta/finv/quote/dedup/job_patch.go` 命中；`go test ./internal/meta/finv/quote/dedup` 通过 | |
 | 10456 | CDEU JOB 清单的 Step 列只展示当前执行到的 Step（优先 RUNNING，否则最后一个已完成 Step），并显示 `当前序号/总 Step 数`，不再把所有 Step 挤在单元格里。 | `grep -F 'currentJobStep' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F '当前执行到的 Step' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
@@ -658,7 +658,7 @@
 | 10469 | CDEU 手动执行 JOB 前弹出确认框，默认只执行当前 JOB；勾选「自动续跑同流程下的后续 JOB」后，当前 JOB 完成时按工作流顺序继续执行后续 JOB（同一 `job_kind` 只执行一次）。 | `grep -F '自动续跑同流程下的后续 JOB' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'runSubsequentJobs' internal/meta/finv/quote/dedup/service.go` 命中；`go test ./internal/meta/finv/quote/dedup -run TestSubsequentJobDefinitions` 通过 | |
 | 10470 | 手动触发静态/动态 JOB 时接口立即返回 `run_log_id`，前端无需等待刷新即可打开执行日志弹窗；动态 JOB 改为异步执行。 | `grep -F 'run_log_id' internal/api/handler/exportarchive.go` 命中；`grep -F 'openJobLogByID' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`go test ./internal/api/...` 通过 | |
 | 10471 | JOB 执行日志弹窗支持全屏/退出全屏切换，全屏时日志区域占满可用高度。 | `grep -F 'logFullscreen' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'job-log-body-fullscreen' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`npm run build` 通过 | |
-| 10472 | 修复动态导出 JOB 勾选自动续跑后只执行静态后续 JOB 的问题：先按 `dynamic_job_id` 顺序续跑同 Process 的后续动态导出 JOB，再执行静态后续 JOB；日志弹窗展示自动续跑状态，JOB 清单在续跑期间改为 1 秒刷新。 | `grep -F 'runSubsequentDynamicExportJobs' internal/meta/finv/quote/dedup/job_export.go` 命中；`grep -F '手动续跑动态 JOB' internal/meta/finv/quote/dedup/job_export.go` 命中；`docker logs finvquant 2>&1 | grep '手动续跑动态 JOB'` 观察到连续动态 JOB；`go test ./...` 通过 | |
+| 10472 | 修复动态导出 JOB 勾选自动续跑后只执行静态后续 JOB 的问题：先按 `dynamic_job_id` 顺序续跑同 Process 的后续动态导出 JOB，再执行静态后续 JOB；日志弹窗展示自动续跑状态，JOB 清单在续跑期间改为 1 秒刷新。 | `grep -F 'runSubsequentDynamicExportJobs' internal/meta/finv/quote/dedup/job_export.go` 命中；`grep -F '手动续跑动态 JOB' internal/meta/finv/quote/dedup/job_export.go` 命中；`docker logs finvquant 2>&1 \| grep '手动续跑动态 JOB'` 观察到连续动态 JOB；`go test ./...` 通过 | |
 | 10473 | 修复 CDEU JOB 清单「处理量」列为空：动态导出 JOB 关联运行日志读取 `processed_rows`/`processed_bytes`，动态上传 JOB 关联导出文件读取 `row_count`/`file_size`；静态 JOB 在 CDEU 运行记录为 0 时回退读取运行日志。 | `curl 'http://localhost:16001/API/V1/Meta/Finv/Quote/DeDup/CDEU/Overview'` 返回的 `JOB_EXPORT_BASE_*` 含非零 `processed_rows`/`processed_bytes`，`JOB_UPLOAD_*` 含非零行数/字节数；`go test ./...` 通过 | |
 | 10474 | CDEU Process / JOB 清单「耗时」列在耗时不超过 10 秒时展示毫秒精度（不足 1 秒为 `xxxms`，1–10 秒为 `x.xxxs`），超过 10 秒继续按秒 / 分 / 小时展示。 | `grep -F 'millisecondPrecision' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'durationMs <= 10_000' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`npm run build` 通过 | |
 
@@ -747,7 +747,7 @@
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
 | 10525 | 字典子项数据以种子段迁移形式提供（`V200000+`）且幂等。 | `test -f Deploy/Migrations/V200027__sys_dict_sub_seed.sql`；含 `INSERT INTO sys.sys_dict_sub` 与 `ON CONFLICT (dict_no, sub_key) DO NOTHING` | |
-| 10526 | 三组字典子项条数正确：`3120` = 14、`3121` = 11、`3122` = 64，共 89 条。 | `select dict_no, count(*) from sys.sys_dict_sub where dict_no in (3120,3121,3122) group by dict_no order by dict_no` 输出 `3120|14`、`3121|11`、`3122|64` | |
+| 10526 | 三组字典子项条数正确：`3120` = 14、`3121` = 11、`3122` = 64，共 89 条。 | `select dict_no, count(*) from sys.sys_dict_sub where dict_no in (3120,3121,3122) group by dict_no order by dict_no` 输出 `3120\|14`、`3121\|11`、`3122\|64` | |
 | 10527 | `3120` 子键完整（`0`–`9`、`A`–`D`）且 `en_sys_str` 两种顺序正确：`0/1/2/8/9/A/B/C/D` 为 `gat,gax,gcq,gaa,tms,pbs`，`3/4/5/6/7` 为 `gat,gcq,gax,gaa,tms,pbs`。 | `select count(*) from sys.sys_dict_sub where dict_no=3120 and sub_key in ('0','1','2','8','9','A','B','C','D') and en_sys_str='gat,gax,gcq,gaa,tms,pbs'` 输出 `9`；`select count(*) from sys.sys_dict_sub where dict_no=3120 and sub_key in ('3','4','5','6','7') and en_sys_str='gat,gcq,gax,gaa,tms,pbs'` 输出 `5` | |
 | 10528 | `3121` 共 11 条，`en_sys_str` 均为 `act`，`name_en` 均为 `NULL`，且包含 `HKD`→`香港元`。 | `select count(*) from sys.sys_dict_sub where dict_no=3121 and en_sys_str='act' and name_en is null` 输出 `11`；`select sub_val from sys.sys_dict_sub where dict_no=3121 and sub_key='HKD'` 输出 `香港元` | |
 | 10529 | `3122` 共 64 条，含 `OTH`→`其它` 且其 `en_sys_str` 为 `NULL`，其余 `en_sys_str` 均为 `cic`。 | `select count(*) from sys.sys_dict_sub where dict_no=3122` 输出 `64`；`select en_sys_str from sys.sys_dict_sub where dict_no=3122 and sub_key='OTH'` 输出空值；`select count(*) from sys.sys_dict_sub where dict_no=3122 and sub_key<>'OTH' and en_sys_str='cic'` 输出 `63` | |
@@ -759,7 +759,7 @@
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
 | 10532 | 地区/国籍子项数据以种子段迁移形式提供（`V200000+`）且幂等。 | `test -f Deploy/Migrations/V200028__sys_dict_sub_seed_area.sql`；含 `ON CONFLICT (dict_no, sub_key) DO NOTHING` | |
-| 10533 | 三组条数不少于预期：`3103` = 249、`3104` = 5、`3105` = 133（共 387）。 | `select dict_no, count(*) from sys.sys_dict_sub where dict_no in (3103,3104,3105) group by dict_no order by dict_no` 输出 `3103|249`、`3104|5`、`3105|133` | |
+| 10533 | 三组条数不少于预期：`3103` = 249、`3104` = 5、`3105` = 133（共 387）。 | `select dict_no, count(*) from sys.sys_dict_sub where dict_no in (3103,3104,3105) group by dict_no order by dict_no` 输出 `3103\|249`、`3104\|5`、`3105\|133` | |
 | 10534 | `3103` 首尾为 `ABW` 阿鲁巴 / `ZWE` 津巴布韦，且 `en_sys_str` 只出现 `trade`、`cic,gft,gaa,act`、`act,cic` 或 `NULL`。 | `select count(*) from sys.sys_dict_sub where dict_no=3103 and en_sys_str is not null and en_sys_str not in ('trade','cic,gft,gaa,act','act,cic')` 输出 `0` | |
 | 10535 | `3103` 例外行正确：`ANT/ATF/BVT/COD/COK/DMA/ERI/EST/FLK/FSM/GEO/GLP/HMD/IOT/KGZ/LVA/MDA/MKD/MNP/MTQ/MYT/PLW/REU/SGS/SHN/SJM/SPM/TCA/TJK/UMI/UZB/VAT/VCT/WLF/WSM` 为 `access_level=2` 且 `en_sys_str IS NULL`；`CCK` 为 `1/NULL`；`CSR/PST/TMP` 为 `2/cic,gft,gaa,act`；`GGY` 为 `2/act,cic`。 | `select count(*) from sys.sys_dict_sub where dict_no=3103 and sub_key in ('ANT','ATF','BVT','COD','COK','DMA','ERI','EST','FLK','FSM','GEO','GLP','HMD','IOT','KGZ','LVA','MDA','MKD','MNP','MTQ','MYT','PLW','REU','SGS','SHN','SJM','SPM','TCA','TJK','UMI','UZB','VAT','VCT','WLF','WSM') and not (access_level=2 and en_sys_str is null)` 输出 `0` | |
 | 10536 | `3104` 五条电话区号正确（`CHN`=86、`CTN`=886、`HKG`=852、`MAC`=853、`USA`=001），且 `en_sys_str` 为 `NULL`、`access_level=1`。 | `select sub_key, sub_val from sys.sys_dict_sub where dict_no=3104 order by sub_key` 输出五行；`select count(*) from sys.sys_dict_sub where dict_no=3104 and en_sys_str is null and access_level=1` 输出 `5` | |
@@ -786,7 +786,7 @@
 | 10547 | 本批新增的 102 个 `sub_key`（`474`–`894`）全部存在。 | `select count(*) from sys.sys_dict_sub where dict_no=3105 and sub_key >= '474'` 输出 `102` | |
 | 10548 | 新增首尾正确：`474`→马提尼克、`894`→赞比亚。 | `select sub_val from sys.sys_dict_sub where dict_no=3105 and sub_key='474'` 输出 `马提尼克`；`... sub_key='894'` 输出 `赞比亚` | |
 | 10549 | `3105` 全量 235 条均为 `flag_enable='0'`、`access_level=2`、`en_sys_str='trade'`。 | `select count(*) from sys.sys_dict_sub where dict_no=3105 and not (flag_enable='0' and access_level=2 and en_sys_str='trade')` 输出 `0` | |
-| 10550 | `3103`（249）与 `3104`（5）不受本次增量影响；迁移登记 `V100030` 成功。 | `select dict_no, count(*) from sys.sys_dict_sub where dict_no in (3103,3104) group by dict_no order by dict_no` 输出 `3103|249`、`3104|5`；`select success from schema_version where version='100030'` 输出 `t` | |
+| 10550 | `3103`（249）与 `3104`（5）不受本次增量影响；迁移登记 `V100030` 成功。 | `select dict_no, count(*) from sys.sys_dict_sub where dict_no in (3103,3104) group by dict_no order by dict_no` 输出 `3103\|249`、`3104\|5`；`select success from schema_version where version='100030'` 输出 `t` | |
 
 ## 四十三、sys_config 新增运行/收集模式配置（10551–10556）
 
@@ -851,7 +851,7 @@
 | 10582 | 上传后校验大小与内容 sha，不一致时报错并计入上传审计。 | `go test ... -run TestGitHubVerify -v` 通过（含大小不一致、内容被替换两个失败分支） | |
 | 10583 | 配置缺失/非法时返回可读错误（含 `20002`/`20003` 编号），不静默回退到其它目标。 | `go test ... -run TestGitHubPutRequiresCredential -v` 通过 | |
 | 10584 | 大文件拦截：超过 Contents API 单文件上限时明确报错且不发请求。 | `go test ... -run TestGitHubPutRejectsOversizeFile -v` 通过 | |
-| 10585 | 5xx/429/网络错误做有限重试；请求体为合法 JSON 且 base64 无换行、`Content-Length` 精确。 | `go test ... -run 'TestGitHubPutRetriesServerError|TestBuildContentsBody|TestBase64Length' -v` 通过 | |
+| 10585 | 5xx/429/网络错误做有限重试；请求体为合法 JSON 且 base64 无换行、`Content-Length` 精确。 | `go test ... -run 'TestGitHubPutRetriesServerError\|TestBuildContentsBody\|TestBase64Length' -v` 通过 | |
 | 10586 | 全量回归通过，且文档同步（CHANGELOG / Status.md / JobRun.md / `.env.example` / compose）。 | 容器内 `go test ./...` 全部 `ok`；`grep -n 'upload_mode' Docs/API/QuoteDeDup/Status.md` 含 `github` 说明；`grep -n 'UPLOAD_GITHUB_API_BASE' Deploy/Docker/docker-compose.yml Deploy/Docker/.env.example` 有输出 | |
 
 ## 四十九、上传范围收窄为仅 .mvsv（10587–10592）
@@ -2009,7 +2009,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10766 | Native（宿主直装）方式把程序、数据库脚本、核心配置、部署脚本与部署文件统一安装到 `/data/App/FinvQuant/`：① 二进制 `bin/finvquant`（软链 `/usr/local/bin/finvquant`）；② 迁移脚本 `Migrations/`；③ 配置 `etc/finvquant.env`（权限 600）；④ 部署文件 `Deploy/`（`Install.sh`/`Upgrade.sh`/`Uninstall.sh`、unit、env 与 Nginx 模板、手册）；⑤ 备份 `Backup/`、导出 `Export/`；⑥ systemd unit 由 `Deploy/FinvQuant.service` 的 `@PREFIX@` 渲染后注册。安装根目录可用 `--prefix` 覆盖，升级/卸载脚本自动从 unit 的 `ExecStart` 推断。 | `grep -c 'FINVQ_PREFIX' Deploy/Native/Install.sh` ≥ 1；`grep -rn '/opt/finvquant\|/var/backups/finvquant' Deploy/Native/` 无输出；在测试机执行 `sudo bash Deploy/Native/Install.sh` 后 `test -x /data/App/FinvQuant/bin/finvquant && test -f /data/App/FinvQuant/etc/finvquant.env && test -d /data/App/FinvQuant/Migrations && test -x /data/App/FinvQuant/Deploy/Upgrade.sh && test -d /data/App/FinvQuant/Backup && test -d /data/App/FinvQuant/Export`；`grep -E '^(WorkingDirectory|EnvironmentFile|ExecStart|ReadWritePaths)=/data/App/FinvQuant' /etc/systemd/system/finvquant.service` 全部命中；`systemctl status finvquant` 为 `active (running)`；`curl -o /dev/null -w '%{http_code}' http://127.0.0.1:16001/API/V1/Health/Ready` = 200 | |
+| 10766 | Native（宿主直装）方式把程序、数据库脚本、核心配置、部署脚本与部署文件统一安装到 `/data/App/FinvQuant/`：① 二进制 `bin/finvquant`（软链 `/usr/local/bin/finvquant`）；② 迁移脚本 `Migrations/`；③ 配置 `etc/finvquant.env`（权限 600）；④ 部署文件 `Deploy/`（`Install.sh`/`Upgrade.sh`/`Uninstall.sh`、unit、env 与 Nginx 模板、手册）；⑤ 备份 `Backup/`、导出 `Export/`；⑥ systemd unit 由 `Deploy/FinvQuant.service` 的 `@PREFIX@` 渲染后注册。安装根目录可用 `--prefix` 覆盖，升级/卸载脚本自动从 unit 的 `ExecStart` 推断。 | `grep -c 'FINVQ_PREFIX' Deploy/Native/Install.sh` ≥ 1；`grep -rn '/opt/finvquant\|/var/backups/finvquant' Deploy/Native/` 无输出；在测试机执行 `sudo bash Deploy/Native/Install.sh` 后 `test -x /data/App/FinvQuant/bin/finvquant && test -f /data/App/FinvQuant/etc/finvquant.env && test -d /data/App/FinvQuant/Migrations && test -x /data/App/FinvQuant/Deploy/Upgrade.sh && test -d /data/App/FinvQuant/Backup && test -d /data/App/FinvQuant/Export`；`grep -E '^(WorkingDirectory\|EnvironmentFile\|ExecStart\|ReadWritePaths)=/data/App/FinvQuant' /etc/systemd/system/finvquant.service` 全部命中；`systemctl status finvquant` 为 `active (running)`；`curl -o /dev/null -w '%{http_code}' http://127.0.0.1:16001/API/V1/Health/Ready` = 200 | |
 
 ## 一百零二、一键下载脚本（10767）
 
@@ -2027,7 +2027,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10769 | ① Native 方式的核心配置文件为 `<PREFIX>/finvquant.env`（默认 `/data/App/FinvQuant/finvquant.env`），不再放在 `<PREFIX>/etc/`；systemd unit 的 `EnvironmentFile` 指向该文件；`Install.sh`/`Upgrade.sh` 自动把旧布局 `<PREFIX>/etc/finvquant.env` 迁移到新位置并保留原密码；② 安装完成摘要用 `printf` 输出，ANSI 颜色正常渲染，不再出现字面 `\033[1;32m`。 | `grep -n 'EnvironmentFile=@PREFIX@/finvquant.env' Deploy/Native/FinvQuant.service` 命中；`grep -c 'ENV_FILE="${PREFIX}/finvquant.env"' Deploy/Native/Install.sh Deploy/Native/Upgrade.sh` 各 ≥ 1；在存在 `/data/App/FinvQuant/etc/finvquant.env` 的机器上重跑 `sudo bash /data/App/FinvQuant/Deploy/Native/Install.sh`，日志含「已迁移旧配置」且 `test -f /data/App/FinvQuant/finvquant.env` 成立、`test ! -d /data/App/FinvQuant/etc` 成立；`systemctl show -p EnvironmentFiles finvquant` 显示 `/data/App/FinvQuant/finvquant.env`；安装脚本尾部输出含彩色「安装完成」且不出现字面 `\033[1;32m`（`sudo bash Deploy/Native/Install.sh 2>&1 | grep -c '\\033\[1;32m'` = 0） | |
+| 10769 | ① Native 方式的核心配置文件为 `<PREFIX>/finvquant.env`（默认 `/data/App/FinvQuant/finvquant.env`），不再放在 `<PREFIX>/etc/`；systemd unit 的 `EnvironmentFile` 指向该文件；`Install.sh`/`Upgrade.sh` 自动把旧布局 `<PREFIX>/etc/finvquant.env` 迁移到新位置并保留原密码；② 安装完成摘要用 `printf` 输出，ANSI 颜色正常渲染，不再出现字面 `\033[1;32m`。 | `grep -n 'EnvironmentFile=@PREFIX@/finvquant.env' Deploy/Native/FinvQuant.service` 命中；`grep -c 'ENV_FILE="${PREFIX}/finvquant.env"' Deploy/Native/Install.sh Deploy/Native/Upgrade.sh` 各 ≥ 1；在存在 `/data/App/FinvQuant/etc/finvquant.env` 的机器上重跑 `sudo bash /data/App/FinvQuant/Deploy/Native/Install.sh`，日志含「已迁移旧配置」且 `test -f /data/App/FinvQuant/finvquant.env` 成立、`test ! -d /data/App/FinvQuant/etc` 成立；`systemctl show -p EnvironmentFiles finvquant` 显示 `/data/App/FinvQuant/finvquant.env`；安装脚本尾部输出含彩色「安装完成」且不出现字面 `\033[1;32m`（`sudo bash Deploy/Native/Install.sh 2>&1 \| grep -c '\\033\[1;32m'` = 0） | |
 
 ## 一百零五、安装脚本支持备份后重建空库（10770）
 
@@ -2039,13 +2039,13 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10771 | 让全新数据库在 `public` 已存在**其它服务**同名表（如 `public.finv_quote_secu_kline_min`）时也能完成首次部署：① 历史迁移中本程序自有表的建表/ALTER/DML 全部显式限定 `quote.`；② `V100032` 不得从 `public` 搬移非本程序创建的表（目标 schema 已有则跳过）；③ 修复全新库下 `V100080`（表数/列漂移）、`V200039`（空库断言）、`V200048`/`V200050`（硬编码 phase_id）导致的迁移中断；④ 新增 `V200057` 将 dedup 侧 CDEU 配置同步到 cdeu。 | 在临时 PG18 上先建 `public.finv_quote_secu_kline_min`（含注释、索引与 3 行数据），再执行全部迁移：`grep -cE 'ERROR|FATAL'` = 0；该校验前后 `select md5(string_agg(t::text,'\|' order by id)) from public.finv_quote_secu_kline_min t` 结果一致且 `pg_dump --schema-only -t public.finv_quote_secu_kline_min` 除 `\restrict` 随机 token 外无差异；`select count(*) from pg_tables where schemaname='quote' and tablename in ('finv_quote_secu_kline_min','finv_quote_ingest_batches','finv_quote_revision_log')` = 3；`select count(*) from cdeu.finv_quote_cdeu_process` 与 `select count(*) from dedup.cdeu_process` 相等；`grep -c 'AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = '\''quote'\''' Deploy/Migrations/V100032__*.sql` ≥ 1；`grep -c 'phase_id = 12' Deploy/Migrations/V200048__*.sql Deploy/Migrations/V200050__*.sql` = 0 | |
+| 10771 | 让全新数据库在 `public` 已存在**其它服务**同名表（如 `public.finv_quote_secu_kline_min`）时也能完成首次部署：① 历史迁移中本程序自有表的建表/ALTER/DML 全部显式限定 `quote.`；② `V100032` 不得从 `public` 搬移非本程序创建的表（目标 schema 已有则跳过）；③ 修复全新库下 `V100080`（表数/列漂移）、`V200039`（空库断言）、`V200048`/`V200050`（硬编码 phase_id）导致的迁移中断；④ 新增 `V200057` 将 dedup 侧 CDEU 配置同步到 cdeu。 | 在临时 PG18 上先建 `public.finv_quote_secu_kline_min`（含注释、索引与 3 行数据），再执行全部迁移：`grep -cE 'ERROR\|FATAL'` = 0；该校验前后 `select md5(string_agg(t::text,'\|' order by id)) from public.finv_quote_secu_kline_min t` 结果一致且 `pg_dump --schema-only -t public.finv_quote_secu_kline_min` 除 `\restrict` 随机 token 外无差异；`select count(*) from pg_tables where schemaname='quote' and tablename in ('finv_quote_secu_kline_min','finv_quote_ingest_batches','finv_quote_revision_log')` = 3；`select count(*) from cdeu.finv_quote_cdeu_process` 与 `select count(*) from dedup.cdeu_process` 相等；`grep -c 'AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = '\''quote'\''' Deploy/Migrations/V100032__*.sql` ≥ 1；`grep -c 'phase_id = 12' Deploy/Migrations/V200048__*.sql Deploy/Migrations/V200050__*.sql` = 0 | |
 
 ## 一百零七、历史迁移不得删除 public 中非本程序表（10772）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10772 | 历史迁移中不得存在针对 `public` 中非本程序表的 `DROP TABLE` / `TRUNCATE` / `ALTER TABLE`：涉及 `finv_quote_secu_kline_min` 的删除操作一律带 `export.`/`dedup.` 前缀；`V100015` 重建 `finv_futu_mapping_market_code` 的 `CREATE/INSERT/DROP/ALTER/INDEX/TRIGGER` 全部显式加 `public.`；运行期 `TRUNCATE` 使用带 `export.` 前缀的常量。 | `grep -rnE 'DROP TABLE|TRUNCATE' Deploy/Migrations/*.sql | grep -i kline_min` 命中的语句均带 `export.` 或 `dedup.` 前缀；`grep -cE 'DROP TABLE( IF EXISTS)? +[a-z_]+ *;' Deploy/Migrations/*.sql` = 0；`grep -c 'public.finv_futu_mapping_market_code' Deploy/Migrations/V100015__*.sql` ≥ 6；`grep -n 'tableStaging' internal/meta/finv/quote/dedup/store.go` 显示值为 `export.finv_quote_secu_kline_min`；在 `public` 预置同名表后执行全部 139 个迁移，`public` 表数据与结构前后一致 | |
+| 10772 | 历史迁移中不得存在针对 `public` 中非本程序表的 `DROP TABLE` / `TRUNCATE` / `ALTER TABLE`：涉及 `finv_quote_secu_kline_min` 的删除操作一律带 `export.`/`dedup.` 前缀；`V100015` 重建 `finv_futu_mapping_market_code` 的 `CREATE/INSERT/DROP/ALTER/INDEX/TRIGGER` 全部显式加 `public.`；运行期 `TRUNCATE` 使用带 `export.` 前缀的常量。 | `grep -rnE 'DROP TABLE\|TRUNCATE' Deploy/Migrations/*.sql \| grep -i kline_min` 命中的语句均带 `export.` 或 `dedup.` 前缀；`grep -cE 'DROP TABLE( IF EXISTS)? +[a-z_]+ *;' Deploy/Migrations/*.sql` = 0；`grep -c 'public.finv_futu_mapping_market_code' Deploy/Migrations/V100015__*.sql` ≥ 6；`grep -n 'tableStaging' internal/meta/finv/quote/dedup/store.go` 显示值为 `export.finv_quote_secu_kline_min`；在 `public` 预置同名表后执行全部 139 个迁移，`public` 表数据与结构前后一致 | |
 
 ## 一百零八、Native 暴露与历史数据迁移（10773–10775）
 
@@ -2071,7 +2071,13 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10778 | `Docs/` 下所有 Markdown 表格必须包含表头行与 `|---|` 分隔行，不得出现只有数据行的“伪表格”（本次修复 KLine 系列 11 处错误码表格）；并在 `internal/docs` 中增加自动校验防回归。 | `go test ./internal/docs -run TestMarkdownTablesHaveHeader` 通过；`Docs/API/Quote/Cdeu/Min/KLineUpsert.md` 中错误码表格首两行为 `| 错误码 \| HTTP \| 说明 \|` 与 `\|---\|---\|---\|`；用任意 Markdown 渲染器（或 `pandoc -f gfm`）渲染该文件，错误码呈现为三列表格而非连续文本 | |
+| 10778 | `Docs/` 下所有 Markdown 表格必须包含表头行与 `\|---\|` 分隔行，不得出现只有数据行的“伪表格”（本次修复 KLine 系列 11 处错误码表格）；并在 `internal/docs` 中增加自动校验防回归。 | `go test ./internal/docs -run TestMarkdownTablesHaveHeader` 通过；`Docs/API/Quote/Cdeu/Min/KLineUpsert.md` 中错误码表格首两行为 `\| 错误码 \| HTTP \| 说明 \|` 与 `\|---\|---\|---\|`；用任意 Markdown 渲染器（或 `pandoc -f gfm`）渲染该文件，错误码呈现为三列表格而非连续文本 | |
+
+## 一百一十二、全仓 Markdown 表格结构合法（10779）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10779 | 仓库内所有 Markdown 文档（根目录、`Docs/`、`Deploy/`、`Archive/`）的表格必须：① 有表头与分隔行；② 分隔行、数据行列数与表头一致（单元格内 `\|` 才表示字面管道）；③ 表头列与真实表结构一致。由 `internal/docs` 自动校验。 | `go test ./internal/docs` 通过；全仓扫描脚本（跳过 `.git`/`node_modules`/`Dist`/`pkg`）输出 0 处「缺表头/列数不一致」；`grep -c 'market_code' Docs/DataDictMapping/FinvSecurity.md` 的表格行不含该列（`finv_security` 无此字段）；`go test ./internal/docs -run TestMarkdownTablesHaveHeader -v` 通过 | |
 
 ## 汇总
 
@@ -2212,7 +2218,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 部署包包含一次性运维 SQL | 10776 | 1 |
 | Upsert 端点迁移到 CDEU 前缀 | 10777 | 1 |
 | Markdown 表格必须带表头 | 10778 | 1 |
-| **合计** | **10001–10778** | **778** |
+| 全仓 Markdown 表格结构合法 | 10779 | 1 |
+| **合计** | **10001–10779** | **779** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10779` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10780` 起往后追加，不插入既有区间。

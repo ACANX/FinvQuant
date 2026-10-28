@@ -698,6 +698,13 @@
 
 ### 修复
 
+- **全仓 Markdown 表格渲染修复与校验范围扩展（需求 10779）**
+  - 扫描全仓 `.md`（根目录、`Docs/`、`Deploy/`、`Archive/`），修复 **23 处**表格问题：
+    - 单元格内裸 `|` 未转义导致列错位：`ts|da|ti|...`、正则 `(quote|quant)`、shell `||`、`2>&1 | grep`、`3120|14` 等（`RequirementList.md`、`Prompt.md`、`MvsvFileFormat.md`）；
+    - `Docs/DataDictMapping/FinvSecurity.md` 表头多出 `finv_security` 表并不存在的 `market_code` 列（与 `V100005` 表结构不符），表头 12 → 11 列；
+    - `Archive/.../DevelopmentDocumentIndex.md` 1 处表格缺表头。
+  - `internal/docs/table_test.go`：扫描根目录从 `Docs/` 扩展到仓库根（跳过 `.git`/`node_modules`/`Dist`/`pkg`），并新增「分隔行/数据行列数必须等于表头列数」校验。
+
 - **错误码表格缺表头导致文档渲染异常（需求 10778）**
   - `Docs/API/Quote/Cdeu/Min/KLineUpsert.md` 与 `Docs/API/KLine/*.md` 共 **11 处**错误码表格只有数据行，缺少 `| 错误码 | HTTP | 说明 |` 表头与 `|---|` 分隔行，Markdown 渲染为普通文本。
   - 全部补齐表头并清理表格行尾空格；涉及 `KLineAdd`、`KLineBatchDelete`、`KLineBatchInsert`、`KLineBatchPatch`、`KLineBounds`、`KLineCount`、`KLinePage`、`KLinePageUni`、`KLineQuery`、`KLineStats`、`KLineUpsert`。
