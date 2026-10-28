@@ -552,6 +552,12 @@
 
 ### 变更
 
+- **cdeu 分钟行情成交量改为浮点（`numeric(20,6)`，需求 10791）**
+  - 新增迁移 `V200058__cdeu_kline_min_volume_numeric.sql`：`cdeu.finv_quote_secu_kline_min.volume` 由 `bigint` 改为 `numeric(20,6)`，重建 `CHECK (volume >= 0)`；幂等（已是 numeric 直接跳过），`bigint → numeric` 无损。
+  - 仅调整 `cdeu` 表；`public` / `quote` / `dedup` / `export` 的同名表不动。
+  - 代码无需改动：`internal/kline` 已按 numeric 文本读写（`volume::text`、`CellText` 去尾零），集成测试表本为 `numeric(20,6)`；`MVsvFileFormat.md` 中 `v` 的类型由 `Long` 更新为 `Decimal(20,6)`。
+  - 验证：临时 PG18 上 140 个迁移 0 错误；`12.345678` 写入/读回正常；重复执行 V200058 输出「已是 numeric，跳过」。
+
 - **外部 OpenAPI 暂不鉴权（需求 10790）**
   - `/OpenAPI/V1` 路由组移除 `RequireOpenAPIKey`，公开访问；仅保留 `WrapOpenAPIResponse` 统一信封。
   - `RequireOpenAPIKey`、`FINV_OPENAPI_KEY` 与 `config.OpenAPIKey` 保留（当前不生效），待 API Key（`sys.sys_open_api_key`）落地后恢复。

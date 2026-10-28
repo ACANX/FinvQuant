@@ -2139,6 +2139,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10790 | 暂时放开 `/OpenAPI/V1/*` 的鉴权（公开访问），仅保留统一响应信封；`RequireOpenAPIKey` 与 `FINV_OPENAPI_KEY` 代码保留、待 API Key 体系落地后恢复；文档与契约同步标注「暂不鉴权 + 后续恢复」。 | `grep -c 'openGroup.Use(WrapOpenAPIResponse())' internal/api/router.go` = 1；`go test ./internal/api -run 'TestOpenAPIExampleRoute\|TestOpenAPIPageUniRoute' -v` 通过（**无密钥**调用分别返回 400/422，说明已进入 handler）；两份 `Docs/OpenAPI/**/*.yml` 含 `security: []` 且可解析；外部 `.md` 含「暂不鉴权」；`go test ./internal/docs` 通过；全仓 Markdown 链接 0 失效 | |
 
+## 一百二十三、cdeu 成交量改为浮点（10791）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10791 | 将 `cdeu.finv_quote_secu_kline_min.volume` 由 `bigint` 改为浮点 `numeric(20,6)`，保留 `volume >= 0` 约束；幂等迁移，仅改 `cdeu` 表。 | `grep -c 'numeric(20,6)' Deploy/Migrations/V200058__cdeu_kline_min_volume_numeric.sql` ≥ 1；临时 PG 执行全部迁移后 `select data_type from information_schema.columns where table_schema='cdeu' and table_name='finv_quote_secu_kline_min' and column_name='volume'` = `numeric`；插入 `12.345678` 后读回一致；重复执行 V200058 输出「已是 numeric，跳过」；`go build ./...`、`go test ./internal/kline` 通过；`MVsvFileFormat.md` 中 `v` 类型为 `Decimal(20,6)` | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2289,7 +2295,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 外部 OpenAPI 响应信封规范化 | 10788 | 1 |
 | 外部 OpenAPI PageUni 查询端点 | 10789 | 1 |
 | 外部 OpenAPI 暂不鉴权 | 10790 | 1 |
-| **合计** | **10001–10790** | **790** |
+| cdeu 成交量改为浮点 | 10791 | 1 |
+| **合计** | **10001–10791** | **791** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10791` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10792` 起往后追加，不插入既有区间。

@@ -114,7 +114,7 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 | 4 | `c` | 收盘价 | Decimal | `close` |
 | 5 | `l` | 最低价 | Decimal | `low` |
 | 6 | `h` | 最高价 | Decimal | `high` |
-| 7 | `v` | 成交量（股/手） | Long | `volume` |
+| 7 | `v` | 成交量（股/手，支持小数） | Decimal(20,6) | `volume` |
 | 8 | `t` | 成交额 | Decimal | `turnover` |
 | 9 | `cp` | 涨跌值 | Decimal | **落库**（有值优先；为空时由服务端补全） |
 | 10 | `cr` | 涨跌幅（%） | Decimal | **落库**（有值优先；为空时由服务端补全） |
@@ -140,7 +140,7 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 | 5 | `c` | 收盘价 | Decimal | `close` |
 | 6 | `l` | 最低价 | Decimal | `low` |
 | 7 | `h` | 最高价 | Decimal | `high` |
-| 8 | `v` | 成交量 | Long | `volume` |
+| 8 | `v` | 成交量（支持小数） | Decimal(20,6) | `volume` |
 | 9 | `a` | 成交额 | Decimal | `turnover` |
 | 10 | `cp` | 涨跌值 | Decimal | **不落表**（忽略） |
 | 11 | `cr` | 涨跌幅（%） | Decimal | **不落表**（忽略） |
