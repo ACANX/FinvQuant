@@ -50,25 +50,25 @@
 `FINV_KLINE_MAX_BATCH_ROWS` 控制）。字段定义如下（机器可读 schema 见
 [`Upsert.yml`](Upsert.yml) 的 `KLineItem`）：
 
-| 字段 | 类型 | 必填 | 约束 | 落库 | 说明 |
-|---|---|---|---|---|---|
-| `usc` | string | **是** | 1–255 字符 | 是 | 统一证券代码（`GCMain` / `518880`） |
-| `ts` | integer(int64) | **是** | 0 ≤ ts ≤ 100000000000 | 是 | UTC 秒级时间戳；`FINV_KLINE_TS_UNIT=ms` 时可传 13 位毫秒并自动 /1000 |
-| `date` | integer \| null | 否 | 19500101–21001231 | 是 | 交易日期 `yyyyMMdd` |
-| `time` | integer \| null | 否 | 0–235959 | 是 | 交易时间 `HHmmss` |
-| `open` | number \| null | 否 | — | 是 | 起始价；缺失时用 `last_close` 回填 |
-| `high` | number \| null | 否 | — | 是 | 区间最高价 |
-| `low` | number \| null | 否 | — | 是 | 区间最低价 |
-| `close` | number \| null | 否 | — | 是 | 最新价/收盘价 |
-| `last_close` | number \| null | 否 | — | 是 | 上一收盘价；参与涨跌计算，`open` 缺失时回填 `open` |
-| `volume` | number \| null | 否 | ≥ 0 | 是 | 成交量（支持小数，`numeric(20,6)`） |
-| `turnover` | number \| null | 否 | ≥ 0 | 是 | 成交金额 |
-| `change_price` | number \| null | 否 | — | 是 | 涨跌额；与 `change_ratio` 均未传时自动计算 |
-| `change_ratio` | number \| null | 否 | — | 是 | 涨跌幅；与 `change_price` 均未传时自动计算 |
-| `pacd` | number \| null | 否 | — | 是 | 当日累计均价（库列名 `paocd`） |
-| `ext_field` | string \| null | 否 | — | 是 | 预留扩展字段 |
-| `remark` | string \| null | 否 | — | 是 | 备注 |
-| `provider` | string \| null | 否 | ≤ 255 字符 | 是 | 数据来源（如 `FT`） |
+| 字段 | 类型 | 可空 | 必填 | 约束 | 落库 | 说明 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `usc` | string | 否 | **是** | 1–255 字符 | 是 | 统一证券代码（`GCMain` / `518880`） |
+| `ts` | integer(int64) | 否 | **是** | 0 ≤ ts ≤ 100000000000 | 是 | UTC 秒级时间戳；`FINV_KLINE_TS_UNIT=ms` 时可传 13 位毫秒并自动 /1000 |
+| `date` | integer | 是 | 否 | 19500101–21001231 | 是 | 交易日期 `yyyyMMdd` |
+| `time` | integer | 是 | 否 | 0–235959 | 是 | 交易时间 `HHmmss` |
+| `open` | number | 是 | 否 | — | 是 | 起始价；缺失时用 `last_close` 回填 |
+| `high` | number | 是 | 否 | — | 是 | 区间最高价 |
+| `low` | number | 是 | 否 | — | 是 | 区间最低价 |
+| `close` | number | 是 | 否 | — | 是 | 最新价/收盘价 |
+| `last_close` | number | 是 | 否 | — | 是 | 上一收盘价；参与涨跌计算，`open` 缺失时回填 `open` |
+| `volume` | number | 是 | 否 | ≥ 0 | 是 | 成交量（支持小数，`numeric(20,6)`） |
+| `turnover` | number | 是 | 否 | ≥ 0 | 是 | 成交金额 |
+| `change_price` | number | 是 | 否 | — | 是 | 涨跌额；与 `change_ratio` 均未传时自动计算 |
+| `change_ratio` | number | 是 | 否 | — | 是 | 涨跌幅；与 `change_price` 均未传时自动计算 |
+| `pacd` | number | 是 | 否 | — | 是 | 当日累计均价（库列名 `paocd`） |
+| `ext_field` | string | 是 | 否 | — | 是 | 预留扩展字段 |
+| `remark` | string | 是 | 否 | — | 是 | 备注 |
+| `provider` | string | 是 | 否 | ≤ 255 字符 | 是 | 数据来源（如 `FT`） |
 
 
 数值字段只接受 **JSON 数字或 `null`**（字符串 `"3.60"` 会触发 422 / `211003`）。

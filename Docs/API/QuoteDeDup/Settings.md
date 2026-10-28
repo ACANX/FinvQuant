@@ -10,15 +10,15 @@
 
 响应 `data`：
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| window_start | string | 当前生效的低峰窗口开始，`HH:MM:SS` |
-| dynamic_job_retention_days | int | 历史运行动态 JOB 实例保留天数（`sys.sys_config` 20008，默认 30，越界回退 30） |
-| window_end | string | 当前生效的低峰窗口结束，`HH:MM:SS` |
-| source | string | `sysconfig`（来自 20006 且格式合法）/ `default`（20006 缺失或非法，已回退内置默认 `00:30:00\|06:30:00`） |
-| updated_at | string \| null | 配置快照时间；读配置失败时为 null |
-| time_zone | string | 业务时区 |
-| in_window | bool | 当前时刻是否处于窗口内 |
+| 字段 | 类型 | 可空 | 说明 |
+| --- | --- | --- | --- |
+| window_start | string | 否 | 当前生效的低峰窗口开始，`HH:MM:SS` |
+| dynamic_job_retention_days | int | 否 | 历史运行动态 JOB 实例保留天数（`sys.sys_config` 20008，默认 30，越界回退 30） |
+| window_end | string | 否 | 当前生效的低峰窗口结束，`HH:MM:SS` |
+| source | string | 否 | `sysconfig`（来自 20006 且格式合法）/ `default`（20006 缺失或非法，已回退内置默认 `00:30:00\|06:30:00`） |
+| updated_at | string | 是 | 配置快照时间；读配置失败时为 null |
+| time_zone | string | 否 | 业务时区 |
+| in_window | bool | 否 | 当前时刻是否处于窗口内 |
 
 响应示例：
 

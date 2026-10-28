@@ -82,6 +82,7 @@ API 契约测试必须覆盖：
 自 2026-10-28 起，接口文档统一按
 [`Docs/API/Quote/Cdeu/Min/KLineUpsert.md`](../API/Quote/Cdeu/Min/KLineUpsert.md) 的结构编写：
 
+- **字段表分列**：字段表的「类型」与「可空」必须分两列，**不得**在类型列写 `X \| null`；嵌套可空（如数组元素可为 null）用类型 `array<array<string>>` + 说明文字表达；
 - **正文优先人类可读**：概述、参数表、行为语义、错误目录、示例放在 `.md` 前面；
 - **契约独立成文件**：完整 OpenAPI 3.1 契约放在**同名 `.yml`**（如 `KLineUpsert.md` + `KLineUpsert.yml`），`.md` 末尾仅保留链接与校验/生成命令；`.yml` 含 `paths` / `components`（含 `securitySchemes`），**不得**用「同 XXX 文档」省略契约；
 - **内部/外部分离且自包含**：`Docs/API/` 是内部接口文档，`Docs/OpenAPI/` 是对外契约；**对外文档不得引用内部文档或内部 `.yml`**（字段表、错误码、schema 必须内联复制，允许通过索引页链接到对外文档，但对外文档正文不反向依赖内部文档）；

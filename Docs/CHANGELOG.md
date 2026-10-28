@@ -552,6 +552,12 @@
 
 ### 变更
 
+- **字段表「类型 / 可空」拆分（需求 10795）**
+  - 全部字段表不再在类型列写 `X \| null`：新增「可空」列（是/否），类型列只保留基础类型（`number` / `integer` / `string` / `object` 等）。
+  - 涉及内部/外部 Upsert（§2.3/§3.3）、PageUni 列定义、`QuoteDeDup` 的 `CDEUOverview` / `JobRuntime` / `Settings` 等 7 张表。
+  - 嵌套可空（`array<array<string \| null>>`）改为 `array<array<string>>`，由说明文字注明「单元格可为 null」。
+  - `Docs/DevSpec/ApiSpec.md` §7.7 新增约定：字段表「类型」与「可空」必须分两列，类型列不得写 `X \| null`。
+
 - **K 线 API 字段调整：`paocd` → `pacd`、`prev_close` → `last_close`（并落库，需求 10794）**
   - 请求/响应 JSON 字段 `paocd` 改为 `pacd`（数据库列仍为 `paocd`，内部映射）；`prev_close` 改为 `last_close`。
   - `last_close` 不再是“仅回填 open、不落库”：写入 `last_close` 列（`InsertColumns` 17 列），`upsert`/`PATCH`/查询/JSON 输出全部支持；`open` 缺失时仍用 `last_close` 回填；涨跌自动计算的参考价优先 `last_close`。

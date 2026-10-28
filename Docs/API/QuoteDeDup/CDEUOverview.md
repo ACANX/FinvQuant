@@ -15,15 +15,15 @@
 
 响应 `data`：
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| generated_at | string | 查询时间（RFC3339） |
-| cdeu_mode | string | 系统配置 20005 的 CDEU 工作流运行模式：`Manual`（仅手动触发，调度器不自动跑）/ `Auto`（按定时任务自动触发）；读取失败或未配置时按 `Manual` 兜底 |
-| cdeu_schedule_enabled | bool | 是否允许调度器自动触发，仅 `cdeu_mode=Auto` 时为 `true` |
-| workflow | object | 工作流定义（`workflow_code`、名称、版本、运行模式、调度时间、时区、完成条件） |
-| run | object \| null | 当前 / 指定运行摘要；库中尚无运行时为 null |
-| phases | array | 阶段定义树；每项含 `processes`，每个 Process 含 `jobs`，每个 JOB 含 `steps` |
-| history | array | 最近运行摘要（`run_id`、`biz_date`、`trigger_type`、`status`、开始/结束时间等） |
+| 字段 | 类型 | 可空 | 说明 |
+| --- | --- | --- | --- |
+| generated_at | string | 否 | 查询时间（RFC3339） |
+| cdeu_mode | string | 否 | 系统配置 20005 的 CDEU 工作流运行模式：`Manual`（仅手动触发，调度器不自动跑）/ `Auto`（按定时任务自动触发）；读取失败或未配置时按 `Manual` 兜底 |
+| cdeu_schedule_enabled | bool | 否 | 是否允许调度器自动触发，仅 `cdeu_mode=Auto` 时为 `true` |
+| workflow | object | 否 | 工作流定义（`workflow_code`、名称、版本、运行模式、调度时间、时区、完成条件） |
+| run | object | 是 | 当前 / 指定运行摘要；库中尚无运行时为 null |
+| phases | array | 否 | 阶段定义树；每项含 `processes`，每个 Process 含 `jobs`，每个 JOB 含 `steps` |
+| history | array | 否 | 最近运行摘要（`run_id`、`biz_date`、`trigger_type`、`status`、开始/结束时间等） |
 
 状态取值：
 

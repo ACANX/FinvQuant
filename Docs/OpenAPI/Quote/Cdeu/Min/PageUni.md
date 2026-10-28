@@ -111,30 +111,30 @@
 | `data.ps` | integer | 每页条数（回显 `limit`） |
 | `data.pn` | integer | 页码（`offset / limit + 1`，从 1 开始） |
 | `data.column` | array\<string\> | 固定 15 列，顺序不可变 |
-| `data.row` | array\<array\<string \| null\>\> | 每行与 `column` 等长 |
+| `data.row` | array\<array\<string\>\> | 行数据；单元格可为 `null`，每行与 `column` 等长 |
 | `data.request_id` | string | 请求标识 |
 | `data.ts` | integer(int64) | 服务端响应时间（Unix 秒） |
 | `message` | string | 成功固定 `OK` |
 
 ### 4.2 列定义
 
-| # | `column` | 对应字段 | 类型（单元格） | 说明 |
-|---|---|---|---|---|
-| 1 | `usc` | `usc` | string | 统一证券代码 |
-| 2 | `ts` | `ts` | string（整数） | UTC 秒级时间戳 |
-| 3 | `date` | `date` | string（整数） \| null | 交易日期 `yyyyMMdd` |
-| 4 | `time` | `time` | string（整数） \| null | 交易时间 `HHmmss` |
-| 5 | `o` | `open` | string（数值） \| null | 起始价 |
-| 6 | `h` | `high` | string（数值） \| null | 区间最高价 |
-| 7 | `l` | `low` | string（数值） \| null | 区间最低价 |
-| 8 | `c` | `close` | string（数值） \| null | 最新价/收盘价 |
-| 9 | `v` | `volume` | string（数值，支持小数） \| null | 成交量（`numeric(20,6)`，输出时去尾零） |
-| 10 | `t` | `turnover` | string（数值） \| null | 成交金额 |
-| 11 | `cr` | `change_ratio` | string（两位小数） \| null | 涨跌幅 |
-| 12 | `cp` | `change_price` | string（数值） \| null | 涨跌额 |
-| 13 | `pa` | `pacd`（库列 `paocd`） | string（数值） \| null | 当日累计均价 |
-| 14 | `pv` | `provider` | string \| null | 数据来源 |
-| 15 | `ext` | `ext_field` | string \| null | 预留扩展字段 |
+| # | `column` | 对应字段 | 类型（单元格） | 可空 | 说明 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `usc` | `usc` | string | 否 | 统一证券代码 |
+| 2 | `ts` | `ts` | string（整数） | 否 | UTC 秒级时间戳 |
+| 3 | `date` | `date` | string（整数） | 是 | 交易日期 `yyyyMMdd` |
+| 4 | `time` | `time` | string（整数） | 是 | 交易时间 `HHmmss` |
+| 5 | `o` | `open` | string（数值） | 是 | 起始价 |
+| 6 | `h` | `high` | string（数值） | 是 | 区间最高价 |
+| 7 | `l` | `low` | string（数值） | 是 | 区间最低价 |
+| 8 | `c` | `close` | string（数值） | 是 | 最新价/收盘价 |
+| 9 | `v` | `volume` | string（数值，支持小数） | 是 | 成交量（`numeric(20,6)`，输出时去尾零） |
+| 10 | `t` | `turnover` | string（数值） | 是 | 成交金额 |
+| 11 | `cr` | `change_ratio` | string（两位小数） | 是 | 涨跌幅 |
+| 12 | `cp` | `change_price` | string（数值） | 是 | 涨跌额 |
+| 13 | `pa` | `pacd`（库列 `paocd`） | string（数值） | 是 | 当日累计均价 |
+| 14 | `pv` | `provider` | string | 是 | 数据来源 |
+| 15 | `ext` | `ext_field` | string | 是 | 预留扩展字段 |
 
 ### 4.3 单元格取值规则
 

@@ -20,21 +20,21 @@
 
 `jobs[]` 字段：
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| job_kind | string | Job 标识 |
-| name | string | Job 中文名称 |
-| summary / flow / details / cautions | string | 任务功能 / 流程 / 工作细节 / 注意事项（供前端悬浮展示） |
-| schedule | string | 调度描述 |
-| daily_at / interval_seconds / windowed | string / int / bool | 调度配置（同 `GET /Status`） |
-| in_process | bool | 是否由当前进程执行中 |
-| elapsed_seconds | int | 已运行秒数（未运行时为 0） |
-| stale | bool | 存在未结束记录但心跳超时（进程崩溃 / 卡住），需人工关注 |
-| heartbeat_age_seconds | int \| null | 最近心跳距今秒数（未运行时为 null） |
-| running | object \| null | 当前未结束的运行记录（字段同 RunLog：`run_id`、`gmt_start`、`stage`、`progress_percent`、`progress_detail`、`gmt_heartbeat` 等） |
-| last | object \| null | 最近一次已结束的运行记录（含 `status`、`gmt_finish`、`processed_rows`、`error`、`stage`） |
-| last_success_at / last_failure_at | string \| null | 最近成功 / 失败时间（不受 24 小时窗口限制） |
-| success_24h / failed_24h / paused_24h / total_24h | int | 最近 24 小时运行结果统计 |
+| 字段 | 类型 | 可空 | 说明 |
+| --- | --- | --- | --- |
+| job_kind | string | 否 | Job 标识 |
+| name | string | 否 | Job 中文名称 |
+| summary / flow / details / cautions | string | 否 | 任务功能 / 流程 / 工作细节 / 注意事项（供前端悬浮展示） |
+| schedule | string | 否 | 调度描述 |
+| daily_at / interval_seconds / windowed | string / int / bool | 否 | 调度配置（同 `GET /Status`） |
+| in_process | bool | 否 | 是否由当前进程执行中 |
+| elapsed_seconds | int | 否 | 已运行秒数（未运行时为 0） |
+| stale | bool | 否 | 存在未结束记录但心跳超时（进程崩溃 / 卡住），需人工关注 |
+| heartbeat_age_seconds | int | 是 | 最近心跳距今秒数（未运行时为 null） |
+| running | object | 是 | 当前未结束的运行记录（字段同 RunLog：`run_id`、`gmt_start`、`stage`、`progress_percent`、`progress_detail`、`gmt_heartbeat` 等） |
+| last | object | 是 | 最近一次已结束的运行记录（含 `status`、`gmt_finish`、`processed_rows`、`error`、`stage`） |
+| last_success_at / last_failure_at | string | 是 | 最近成功 / 失败时间（不受 24 小时窗口限制） |
+| success_24h / failed_24h / paused_24h / total_24h | int | 否 | 最近 24 小时运行结果统计 |
 
 ### 说明
 
