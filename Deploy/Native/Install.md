@@ -16,6 +16,7 @@
 | 配置 | `/data/App/FinvQuant/finvquant.env`（权限 600，含随机生成的数据库密码） |
 | 迁移脚本 | `/data/App/FinvQuant/Deploy/Migrations/`（与仓库结构一致，服务启动时自动应用未执行版本） |
 | 部署脚本与文件 | `/data/App/FinvQuant/Deploy/`（`Install.sh`/`Upgrade.sh`/`Uninstall.sh`、`finvquant.service`、env 与 Nginx 模板、本手册） |
+| 一次性运维脚本 | `/data/App/FinvQuant/Deploy/Script/`（如 `MigratePublicKlineToCdeu.sql`；不进入迁移链） |
 | 备份 | `/data/App/FinvQuant/Backup/`（升级脚本写入 `finvquant_YYYYMMDD_HHMMSS.dump`） |
 | 导出 | `/data/App/FinvQuant/Export/`（行情归档导出，与容器方式一致） |
 | systemd unit | `/etc/systemd/system/finvquant.service`（由 `Deploy/FinvQuant.service` 渲染，两处内容一致） |

@@ -691,6 +691,13 @@
 
 ### 修复
 
+- **部署包漏发一次性运维 SQL 脚本（`Deploy/Script/*.sql`，需求 10776）**
+  - 现象：快照包/构建包/正式包只打包 `Deploy/Migrations`、`Deploy/Native`、`Deploy/Docker`，`Deploy/Script/` 下的 `MigratePublicKlineToCdeu.sql` 下载后不存在。
+  - `PackSnapshot.sh`：所有平台包新增 `Deploy/Script/`，拷入 `*.sql` 与 `README.md` 并统一 `chmod 0644`。
+  - `Install.sh`：安装时把 `Deploy/Script/*.sql` 留存到 `<PREFIX>/Deploy/Script/`（源码目录与目标目录同一布局时自动跳过）。
+  - 文档同步：`Deploy/Script/README.md`（随包分发说明）、`Deploy/Native/Install.md`（安装目录清单）、`Docs/FinvQuant/MigratePublicKlineToCdeu.md`（分发路径）。
+  - 注意：已发布的旧包不含该文件，需要重新触发一次快照/正式构建并重新下载。
+
 - **历史迁移中未限定的 `DROP TABLE` 加固（需求 10772）**
   - 核查全部 139 个迁移与运行期代码：**不存在** `DROP TABLE` / `TRUNCATE` / `ALTER TABLE` 作用到 `public.finv_quote_secu_kline_min` 的语句（涉及该表的 `DROP` 均带 `export.` / `dedup.` 前缀；运行期 `tableStaging = "export.finv_quote_secu_kline_min"` 亦带前缀）。
   - 唯一同类隐患：`V100015` 重建 `finv_futu_mapping_market_code` 时 `CREATE/INSERT/DROP/ALTER/INDEX/TRIGGER` 全部未限定 schema，`search_path` 首位为 `public` 时 `DROP` 会作用到 public 中的同名表。已全部显式加 `public.` 前缀（该表按设计常驻 public，语义不变）。

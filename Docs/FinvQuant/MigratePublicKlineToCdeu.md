@@ -2,6 +2,8 @@
 
 > 所属：FinvQuant 部署文档 · 脚本：`Deploy/Script/MigratePublicKlineToCdeu.sql`
 > 性质：**一次性任务**，不进入 `Deploy/Migrations/` 迁移链；上线验证通过后可注释/删除。
+> 分发：随快照包/构建包/正式包一起发布（`PackSnapshot.sh`），`Install.sh` 安装后位于
+> `<PREFIX>/Deploy/Script/MigratePublicKlineToCdeu.sql`。
 
 ## 1. 背景
 

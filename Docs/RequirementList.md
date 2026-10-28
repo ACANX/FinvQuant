@@ -2055,6 +2055,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10774 | `Nginx.conf.example` 改为**分阶段**模板：阶段一默认 HTTP/80 + `server_name _;` + `default_server`，无需域名/证书即可 `http://<IP>` 访问；阶段二（443 + `http2 on;` + 证书路径 + 80→443 跳转）以整段注释保留，取消注释即可启用；注释内含切换步骤与 nginx < 1.25.1 写法说明；文档说明需移除 Ubuntu 自带 `sites-enabled/default`。 | `grep -vE '^\s*#' Deploy/Native/Nginx.conf.example \| grep -cE 'listen\s+443\|ssl_certificate\|return 301 https'` = 0；`grep -c 'listen 80 default_server;'` ≥ 1；`grep -c 'server_name _;'` ≥ 1；`grep -cE '^#\s+listen 443 ssl;'` ≥ 1 且 `grep -cE '^#\s+ssl_certificate\s'` ≥ 1；删除自带 default 站点后 `nginx -t` 通过（阶段一）；取消注释块并按 1.24 写法替换后 `nginx -t` 通过（阶段二） | |
 | 10775 | 在 `Docs/FinvQuant/` 提供两份文档：`Nginx-Deploy.md`（阶段一部署/验证/常见问题、阶段二切换/回滚、与 systemd 的关系）与 `Nginx.conf.example-ChangeRequest.md`（可直接作为上游 Issue 正文：问题现象、期望行为、逐项改动、验收标准、兼容性）。 | `ls Docs/FinvQuant/Nginx-Deploy.md Docs/FinvQuant/Nginx.conf.example-ChangeRequest.md` 均存在；前者含「阶段一」「阶段二」「常见问题」「回滚」章节；后者含「建议 Issue 标题」「验收标准」「兼容性」章节；`Deploy/Native/Install.md` §6 与 `Deploy/Native/README.md` 文件表描述已同步为分阶段 | |
 
+## 一百零九、部署包包含一次性运维 SQL（10776）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10776 | 部署包（快照包 / 构建包 / 正式包）必须包含 `Deploy/Script/*.sql` 一次性运维脚本及其 `README.md`；`Install.sh` 安装后需留存到 `<PREFIX>/Deploy/Script/`（权限 0644），且该目录**不进入** `Deploy/Migrations/` 迁移链。 | 执行 `bash Deploy/Script/PackSnapshot.sh --target linux/arm64` 后：`tar -tzf Dist/*.tar.gz \| grep 'Deploy/Script/MigratePublicKlineToCdeu.sql'` 命中；Windows zip 用 `unzip -l` 同样命中；包内该文件权限为 `0644`。安装后 `ls -l /data/App/FinvQuant/Deploy/Script/` 存在 SQL 与 README。源码目录与安装目录同布局时重复执行 `Install.sh` 不报错。 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2191,7 +2197,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 一次性 K 线数据迁移脚本 | 10773 | 1 |
 | Nginx 分阶段模板（80 默认 / 443 注释） | 10774 | 1 |
 | Nginx 部署文档与上游 Issue 草案 | 10775 | 1 |
-| **合计** | **10001–10775** | **775** |
+| 部署包包含一次性运维 SQL | 10776 | 1 |
+| **合计** | **10001–10776** | **776** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10776` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10777` 起往后追加，不插入既有区间。

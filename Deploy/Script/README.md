@@ -15,6 +15,10 @@
 | `Download.cmd` | Windows 薄封装：定位 Git Bash 后转调 `Download.sh`，不含下载逻辑 |
 | `MigratePublicKlineToCdeu.sql` | **一次性**数据迁移：`public.finv_quote_secu_kline_min` → `cdeu.finv_quote_secu_kline_min`（只读源表、幂等、列名映射）；说明见 [`../../Docs/FinvQuant/MigratePublicKlineToCdeu.md`](../../Docs/FinvQuant/MigratePublicKlineToCdeu.md) |
 
+> `*.sql` 会随**快照包 / 构建包 / 正式包**一起分发（`PackSnapshot.sh`），
+> 并在 `Install.sh` 安装后留存到 `<PREFIX>/Deploy/Script/`。
+> 它们**不进入** `Deploy/Migrations/` 迁移链，不参与 `schema_version` 版本化。
+
 ```
 PackSnapshot.cmd ──(定位 bash)──▶ PackSnapshot.sh ──▶ Dist/ 三个包
                                         ▲

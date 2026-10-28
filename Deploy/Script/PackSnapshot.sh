@@ -318,6 +318,17 @@ for T in "${TARGETS[@]}"; do
     cp -r Deploy/Migrations "${PKG_ROOT}/Deploy/Migrations"
     cp    Deploy/README.md "${PKG_ROOT}/Deploy/README.md"
 
+    # 一次性运维脚本（如 public→cdeu 历史数据迁移）随包分发：
+    # 安装后在 <PREFIX>/Deploy/Script/，不进入 schema_version 迁移链
+    if compgen -G "Deploy/Script/*.sql" > /dev/null; then
+        mkdir -p "${PKG_ROOT}/Deploy/Script"
+        cp Deploy/Script/*.sql "${PKG_ROOT}/Deploy/Script/"
+        if [[ -f Deploy/Script/README.md ]]; then
+            cp Deploy/Script/README.md "${PKG_ROOT}/Deploy/Script/"
+        fi
+        chmod 0644 "${PKG_ROOT}/Deploy/Script/"*
+    fi
+
     if [[ "${GOOS_V}" == "linux" ]]; then
         # Linux：宿主直装（systemd）全套脚本与文档
         mkdir -p "${PKG_ROOT}/Deploy/Native"

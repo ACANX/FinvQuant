@@ -247,7 +247,22 @@ chmod 0755 "${DEPLOY_DIR}"/*.sh
 for f in "${DEPLOY_DIR}"/*.md "${DEPLOY_DIR}"/*.example "${DEPLOY_DIR}"/*.service; do
   if [[ -f "${f}" ]]; then chmod 0644 "${f}"; fi
 done
-ok "部署文件：${DEPLOY_DIR}（脚本、unit 模板、env 模板、Nginx 示例、手册）"
+# 一次性运维脚本（Deploy/Script/*.sql）随安装目录留存；与 DEPLOY_DIR 相同布局时跳过
+SCRIPT_SRC_DIR="${SCRIPT_DIR}/../Script"
+if [[ -d "${SCRIPT_SRC_DIR}" ]] && \
+   [[ "$(readlink -f "${SCRIPT_SRC_DIR}")" != "$(readlink -f "${DEPLOY_DIR}/Script" 2>/dev/null || echo -)" ]]; then
+  mkdir -p "${DEPLOY_DIR}/Script"
+  if compgen -G "${SCRIPT_SRC_DIR}/*.sql" > /dev/null; then
+    cp -f "${SCRIPT_SRC_DIR}"/*.sql "${DEPLOY_DIR}/Script/"
+  fi
+  if [[ -f "${SCRIPT_SRC_DIR}/README.md" ]]; then
+    cp -f "${SCRIPT_SRC_DIR}/README.md" "${DEPLOY_DIR}/Script/README.md"
+  fi
+fi
+if [[ -d "${DEPLOY_DIR}/Script" ]]; then
+  chmod 0644 "${DEPLOY_DIR}/Script/"* 2>/dev/null || true
+fi
+ok "部署文件：${DEPLOY_DIR}（脚本、unit 模板、env 模板、Nginx 示例、运维 SQL 脚本、手册）"
 
 # ---------------------------------------------------------------------
 # 7. 环境变量文件（存在则不覆盖）
