@@ -171,8 +171,14 @@ func RequireAPIKey(store *apikey.Store, needScope string) gin.HandlerFunc {
 
 ### 5.5 路由与端点开放清单（**开放范围由接入方后续确定**）
 
-> 决策点 1：本期**不预置**任何业务端点；接入方确定清单后，按本表逐项登记并实现。
-> 路由统一挂在 `/API/V1/Hook` 下，handler 直接复用；下表中的「建议 scope」仅作登记模板。
+> 决策点 1：除下列**示例端点**外，本期不预置其它业务端点；接入方确定清单后按本表逐项登记。
+>
+> **示例端点（已实现，过渡方案）**：
+> `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert` → 复用内部 `KLine.Upsert` handler；
+> 认证使用配置项 `FINV_OPENAPI_KEY`（静态密钥），支持 `Authorization: Bearer <key>` 与
+> `X-API-Key: <key>`；未配置时不注册该路由组。后续由 `sys.sys_open_api_key` 体系替换。
+>
+> 正式 Hook 路由统一挂在 `/API/V1/Hook` 下，handler 直接复用；下表中的「建议 scope」仅作登记模板。
 
 | # | 端点 | 方法 | 建议 scope | 是否开放（待接入方勾选） | 理由 |
 |---|---|---|---|---|---|

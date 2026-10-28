@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -16,6 +17,14 @@ import (
 )
 
 func newTestRouter(t *testing.T) *gin.Engine {
+	t.Helper()
+	return newTestRouterWithConfig(t, &config.Config{
+		KLineMaxBatchRows: 5000, KLineMaxListSize: 5000, KLineTSUnit: "s",
+	})
+}
+
+// newTestRouterWithConfig 用指定配置构造路由，便于覆盖外部 OpenAPI 等开关。
+func newTestRouterWithConfig(t *testing.T, cfg *config.Config) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	// 惰性连接池：不会真正连上数据库，用于构造路由（请求数据库的端点会返回 503）。
@@ -35,7 +44,7 @@ func newTestRouter(t *testing.T) *gin.Engine {
 		Version:       "test",
 		Commit:        "test",
 		Server:        "finvquant",
-		Config:        &config.Config{KLineMaxBatchRows: 5000, KLineMaxListSize: 5000, KLineTSUnit: "s"},
+		Config:        cfg,
 		ExportArchive: archiveService,
 	})
 }
@@ -168,5 +177,58 @@ func TestRootAndHealth(t *testing.T) {
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 	if recorder.Code != http.StatusServiceUnavailable {
 		t.Fatalf("/healthz 期望 503，实际 %d", recorder.Code)
+	}
+}
+
+// TestOpenAPIExampleRoute 校验外部示例端点（需求 10787）：
+//   - 未配置 FINV_OPENAPI_KEY 时不注册；
+//   - 配置后注册，且 Bearer / X-API-Key 两种方式都可通过静态密钥校验；
+//   - 业务逻辑复用内部 handler（空 items 返回 400 / 211001，说明已进入 handler）。
+func TestOpenAPIExampleRoute(t *testing.T) {
+	const path = "/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert"
+
+	plain := newTestRouter(t)
+	for _, route := range plain.Routes() {
+		if route.Path == path {
+			t.Fatalf("未配置 FINV_OPENAPI_KEY 时不应注册 %s", path)
+		}
+	}
+
+	router := newTestRouterWithConfig(t, &config.Config{
+		KLineMaxBatchRows: 5000, KLineMaxListSize: 5000, KLineTSUnit: "s",
+		OpenAPIKey: "test-openapi-key",
+	})
+	registered := false
+	for _, route := range router.Routes() {
+		if route.Method == http.MethodPost && route.Path == path {
+			registered = true
+		}
+	}
+	if !registered {
+		t.Fatalf("配置 FINV_OPENAPI_KEY 后应注册 %s", path)
+	}
+
+	do := func(headers map[string]string) int {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"items":[]}`))
+		req.Header.Set("Content-Type", "application/json")
+		for key, value := range headers {
+			req.Header.Set(key, value)
+		}
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, req)
+		return recorder.Code
+	}
+
+	if got := do(nil); got != http.StatusUnauthorized {
+		t.Fatalf("无密钥期望 401，实际 %d", got)
+	}
+	if got := do(map[string]string{"Authorization": "Bearer wrong-key"}); got != http.StatusUnauthorized {
+		t.Fatalf("错误密钥期望 401，实际 %d", got)
+	}
+	if got := do(map[string]string{"Authorization": "Bearer test-openapi-key"}); got != http.StatusBadRequest {
+		t.Fatalf("Bearer 正确密钥应进入 handler（空 items → 400），实际 %d", got)
+	}
+	if got := do(map[string]string{"X-API-Key": "test-openapi-key"}); got != http.StatusBadRequest {
+		t.Fatalf("X-API-Key 正确密钥应进入 handler（空 items → 400），实际 %d", got)
 	}
 }

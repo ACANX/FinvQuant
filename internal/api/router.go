@@ -110,6 +110,15 @@ func NewRouter(deps *Deps) *gin.Engine {
 		group.GET("/Stats", klineHandler.Stats)
 		group.GET("/Bounds", klineHandler.Bounds)
 
+		// 外部 OpenAPI：独立前缀 /OpenAPI/V1，使用静态密钥认证（需求 10787，过渡方案）。
+		// 示例端点仅接入 K 线 Upsert，业务逻辑复用内部 handler；
+		// 未配置 FINV_OPENAPI_KEY 时不注册，避免无认证暴露。
+		if openAPIKey := strings.TrimSpace(cfg.OpenAPIKey); openAPIKey != "" {
+			openGroup := router.Group("/OpenAPI/V1")
+			openGroup.Use(RequireOpenAPIKey(openAPIKey))
+			openGroup.POST("/Meta/Finv/Quote/Cdeu/Min/Upsert", klineHandler.Upsert)
+		}
+
 		// 历史行情：导入 / 查询（统一 /Meta/Finv/Quant/Quote/ 前缀，与前端路由对应）
 		apiGroup.POST("/Meta/Finv/Quant/Quote/Import/Upload", quoteImport.Upload)
 		apiGroup.GET("/Meta/Finv/Quant/Quote/History/QuoteQuery", quoteQuery.Query)

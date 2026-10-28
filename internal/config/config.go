@@ -35,6 +35,10 @@ type Config struct {
 	// KLineTSUnit 入参 ts 单位：s=秒级（默认，与库内一致）；ms=接受 13 位毫秒并换算为秒。
 	KLineTSUnit string
 
+	// OpenAPIKey 外部 OpenAPI（/OpenAPI/V1）静态访问密钥（需求 10787，过渡方案）。
+	// 为空时不注册外部路由；后续 API Key 体系落地后由 DB 凭证替换。
+	OpenAPIKey string
+
 	// 错误详情分级（DC-06）：
 	//   safe  = 只输出安全文案（默认）
 	//   admin = 允许高权限主体（调试令牌/内网 CIDR）获取 debug 字段
@@ -87,6 +91,7 @@ func Load() *Config {
 		KLineMaxBatchRows: envIntOr("FINV_KLINE_MAX_BATCH_ROWS", 5000),
 		KLineMaxListSize:  envIntOr("FINV_KLINE_MAX_LIST_SIZE", 5000),
 		KLineTSUnit:       envLowerOr("FINV_KLINE_TS_UNIT", "s"),
+		OpenAPIKey:        envOr("FINV_OPENAPI_KEY", ""),
 
 		ErrorDetailMode:         envLowerOr("FINV_ERROR_DETAIL_MODE", "safe"),
 		ErrorDebugToken:         os.Getenv("FINV_ERROR_DEBUG_TOKEN"),

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/subtle"
 	"net/http"
 	"strings"
 
@@ -49,4 +50,35 @@ func abortUnauthorized(c *gin.Context) {
 		"code":    401,
 		"message": "未登录或登录已过期",
 	})
+}
+
+// OpenAPIKeyHeader 外部 OpenAPI 密钥头（与 Authorization: Bearer 二选一）。
+const OpenAPIKeyHeader = "X-API-Key"
+
+// OpenAPIKeyFromRequest 解析外部 OpenAPI 密钥：优先 X-API-Key，其次 Authorization: Bearer。
+func OpenAPIKeyFromRequest(c *gin.Context) string {
+	if key := strings.TrimSpace(c.GetHeader(OpenAPIKeyHeader)); key != "" {
+		return key
+	}
+	return BearerToken(c.GetHeader("Authorization"))
+}
+
+// RequireOpenAPIKey 校验外部 OpenAPI 静态密钥（需求 10787，过渡方案）。
+//
+// 仅用于 /OpenAPI/V1 路由组；与登录会话 RequireAuth 完全独立。
+// 未配置密钥时路由组不应注册（见 router.go），此处再兜底拒绝。
+func RequireOpenAPIKey(expected string) gin.HandlerFunc {
+	secret := strings.TrimSpace(expected)
+	return func(c *gin.Context) {
+		if secret == "" {
+			abortUnauthorized(c)
+			return
+		}
+		provided := OpenAPIKeyFromRequest(c)
+		if subtle.ConstantTimeCompare([]byte(provided), []byte(secret)) != 1 {
+			abortUnauthorized(c)
+			return
+		}
+		c.Next()
+	}
 }

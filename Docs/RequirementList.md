@@ -2115,6 +2115,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10786 | 产出外部 HOOK 接入的方案文档（不含实现）：覆盖现状认证、方案对比、推荐方案的凭据/数据模型/中间件/路由/限流/审计/配置/安全、待确认决策点、验收标准与实施计划。 | `test -f Docs/Refactor/2610-009-ExternalHookApiKey.md`；文档含「方案对比」「已确认的决策」「验收标准」「实施计划」章节，决策点 ≥ 10 项且含最终表名 `sys.sys_open_api_key`；过程文档编号 `2610-009` 全局唯一（`go test ./internal/docs -run TestProcessDocNumberUnique` 通过）；`go test ./internal/docs` 通过 | |
 
+## 一百一十九、外部 OpenAPI 示例端点（10787）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10787 | 新增外部 OpenAPI 示例端点 `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`，业务逻辑复用内部 `KLine.Upsert` handler；使用独立路由组与静态密钥 `FINV_OPENAPI_KEY`（支持 Bearer 与 `X-API-Key`），未配置时不注册。 | `grep -c '/OpenAPI/V1' internal/api/router.go` ≥ 1；`grep -c 'RequireOpenAPIKey' internal/api/router.go internal/api/middleware.go` ≥ 2；`go test ./internal/api -run TestOpenAPIExampleRoute -v` 通过（未配置不注册、错误密钥 401、Bearer/X-API-Key 正确密钥均进入 handler 返回 400/211001）；未设置 `FINV_OPENAPI_KEY` 时 `curl -X POST http://127.0.0.1:16001/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert` 返回 404 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2261,7 +2267,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | OpenAPI 契约独立为同名 .yml | 10784 | 1 |
 | KLinePageUni 按 OpenAPI 样板重写 | 10785 | 1 |
 | 外部 HOOK 接入方案文档 | 10786 | 1 |
-| **合计** | **10001–10786** | **786** |
+| 外部 OpenAPI 示例端点 | 10787 | 1 |
+| **合计** | **10001–10787** | **787** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10787` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10788` 起往后追加，不插入既有区间。
