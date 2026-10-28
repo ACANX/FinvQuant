@@ -106,7 +106,9 @@ type Header struct {
 	Count             int
 	TimeZone          string      // 解析用时区（优先 TimeZone，回退 EffectiveTimeZone；空=未提供）
 	EffectiveTimeZone string      // 头部 EffectiveTimeZone 原始值（仅参考，非必填）
-	Layout            fieldLayout // 数据区列布局（由 # Field 决定）
+	Layout            fieldLayout // V1 数据区列布局（由 # Field 决定）
+	Format            string      // MVSV-1 / MVSV-2
+	Columns           []string    // V2 数据区列名（按 # Field 顺序）
 }
 
 // Row 一条分钟行情（与 cdeu.finv_quote_secu_kline_min 表对齐；价格保留字符串精度）。
@@ -128,6 +130,9 @@ type Row struct {
 	Turnover    *string
 	ExtField    *string
 	Remark      *string
+	Provider    *string
+	GmtCreate   *string
+	GmtUpdate   *string
 }
 
 // ParseResult 解析结果。
@@ -207,6 +212,9 @@ func parseHeaderLine(line string) (string, string, bool) {
 }
 
 func buildHeader(values map[string]string) (*Header, error) {
+	if values["Format"] == FormatV2 {
+		return buildHeaderV2(values)
+	}
 	for _, key := range RequiredHeaders {
 		if _, ok := values[key]; !ok {
 			return nil, fmt.Errorf("缺少必填头部: %s", key)
@@ -250,6 +258,9 @@ func buildHeader(values map[string]string) (*Header, error) {
 }
 
 func parseRow(line string, header *Header, lineNumber int) (Row, error) {
+	if header.Format == FormatV2 {
+		return parseRowV2(line, header, lineNumber)
+	}
 	fields := strings.Split(line, "|")
 	coreLen := len(header.Layout.Kinds)
 	if len(fields) < coreLen {

@@ -20,6 +20,15 @@
 
 ### 新增
 
+- **qmio 数据搬运工具：MVSV-2 导出/导入（需求 10799）**
+  - 新增 `cmd/qmio`（`export` / `import` / `verify`），安装到 **`<PREFIX>/bin/qmio`（与 `finvquant` 同目录）**，软链 `/usr/local/bin/qmio`。
+  - `internal/mvsv` 新增 **MVSV-2**：单文件全表、含 `usc` 列、19 列（含 `gmt_*`）或 17 列（`--no-gmt`），导入按列名映射；MVSV-1 解析保持不变。
+  - 导出：`REPEATABLE READ READ ONLY` 快照、gzip、临时文件原子改名、行数校验、`.sha256`。
+  - 导入：默认 `upsert`（冲突覆盖业务列）；`append` / `replace`（需 `--force`）；批量 1000 行/批；`--skip-verify` 可跳过 sha256。
+  - `PackSnapshot.sh` 包根目录同时产出 `finvquant` 与 `qmio`；`Install.sh`/`Upgrade.sh`/`Uninstall.sh` 同步安装/替换/删除。
+  - 文档：`Docs/FinvQuant/Qmio.md`、`MvsvFileFormat.md` 增加 MVSV-2 章节、`Install.md`/`README.md` 目录与用法、`2610-010` 实施记录。
+  - 验证：临时 PG 导出→清空→导入→重复导入（幂等）通过；`--no-gmt` 17 列通过；`go build ./...`、`go test ./internal/mvsv` 通过。
+
 - **cdeu 分钟行情导出/导入工具方案文档（需求 10798）**
   - 新增 `Docs/Refactor/2610-010-CdeuKlineDumpImport.md`（状态：方案草案，未实施）：交付形态/文件格式/导入模式对比，推荐「psql 脚本 + CSV.gz + append 幂等导入」，含命令设计、一致性快照导出、三种导入模式、sha256/gzip 校验、性能预估、10 项待确认决策点与验收标准。
 

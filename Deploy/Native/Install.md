@@ -13,6 +13,7 @@
 |---|---|
 | 安装根目录 | `/data/App/FinvQuant/`（`--prefix <dir>` 或 `FINVQ_PREFIX` 可改） |
 | 二进制 | `/data/App/FinvQuant/bin/finvquant`（软链 `/usr/local/bin/finvquant`） |
+| 数据搬运工具 | `/data/App/FinvQuant/bin/qmio`（软链 `/usr/local/bin/qmio`；用法见 [Qmio.md](../../Docs/FinvQuant/Qmio.md)） |
 | 配置 | `/data/App/FinvQuant/finvquant.env`（权限 600，含随机生成的数据库密码） |
 | 迁移脚本 | `/data/App/FinvQuant/Deploy/Migrations/`（与仓库结构一致，服务启动时自动应用未执行版本） |
 | 部署脚本与文件 | `/data/App/FinvQuant/Deploy/`（`Install.sh`/`Upgrade.sh`/`Uninstall.sh`、`finvquant.service`、env 与 Nginx 模板、本手册） |
@@ -163,6 +164,9 @@ install -d -o root -g root -m 0755 "$PREFIX/Deploy"
 # 5) 二进制、迁移与部署文件
 install -o root -g root -m 0755 ./finvquant "$PREFIX/bin/finvquant"
 ln -sfn "$PREFIX/bin/finvquant" /usr/local/bin/finvquant
+# qmio 与 finvquant 必须同目录（安装包根目录内的 qmio）
+install -o root -g root -m 0755 ./qmio "$PREFIX/bin/qmio"
+ln -sfn "$PREFIX/bin/qmio" /usr/local/bin/qmio
 cp Deploy/Migrations/*.sql "$PREFIX/Deploy/Migrations/" && chmod 0644 "$PREFIX/Deploy/Migrations/"*.sql
 cp Deploy/Native/*.sh "$PREFIX/Deploy/"
 cp Deploy/Native/*.md Deploy/Native/*.example Deploy/Native/FinvQuant.service "$PREFIX/Deploy/"

@@ -2187,6 +2187,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10798 | 产出 `cdeu.finv_quote_secu_kline_min` 导出/导入工具方案文档（不含实现）：命令设计、文件格式（CSV.gz/binary）、导入模式（append/upsert/replace）、一致性快照、校验与安全、性能预估、待确认决策点与实施计划。 | `test -f Docs/Refactor/2610-010-CdeuKlineDumpImport.md`；文档含「方案对比」「推荐方案设计」「待确认的决策点」「验收标准」「实施计划」章节且决策点 ≥ 8 项；过程文档编号 `2610-010` 全局唯一（`go test ./internal/docs -run TestProcessDocNumberUnique` 通过）；全仓 Markdown 链接 0 失效；`go test ./internal/docs` 通过 | |
 
+## 一百三十一、qmio 数据搬运工具（10799）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10799 | 新增 `qmio` 数据搬运工具（与 `finvquant` 同目录 `<PREFIX>/bin/qmio`）：导出 `cdeu.finv_quote_secu_kline_min` 为 MVSV-2（默认 gzip、含 gmt、可 `--no-gmt`），导入默认 `upsert`（可选 append/replace，replace 需 `--force`），支持 `verify`（sha256/行数）；打包/安装/升级/卸载同步。 | `ls cmd/qmio`；`go build ./cmd/qmio` 通过；`go test ./internal/mvsv -v` 含 `TestWriteV2RoundTripGmt/NoGmt` 通过；`grep -c 'qmio' Deploy/Script/PackSnapshot.sh Deploy/Native/Install.sh` 各 ≥ 1；临时 PG 导出→清空→导入→重复导入行数不变；`--no-gmt` 文件 `Field` 为 17 列且导入后 `gmt_create` 非空；`qmio verify` 通过；`go build ./...` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2345,7 +2351,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | Native 日志落盘 | 10796 | 1 |
 | 日志切分与按日归档 | 10797 | 1 |
 | cdeu 行情导出/导入工具方案 | 10798 | 1 |
-| **合计** | **10001–10798** | **798** |
+| qmio 数据搬运工具 | 10799 | 1 |
+| **合计** | **10001–10799** | **799** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10799` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10800` 起往后追加，不插入既有区间。

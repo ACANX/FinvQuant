@@ -41,7 +41,9 @@ LOG_DIR="${PREFIX}/Log"
 DEPLOY_DIR="${PREFIX}/Deploy"
 ENV_FILE="${PREFIX}/finvquant.env"
 BINARY="${BIN_DIR}/finvquant"
+QMIO_BINARY="${BIN_DIR}/qmio"
 BINARY_LINK="/usr/local/bin/finvquant"
+QMIO_LINK="/usr/local/bin/qmio"
 SERVICE_FILE="/etc/systemd/system/finvquant.service"
 SERVICE="finvquant"
 
@@ -67,7 +69,8 @@ while [[ $# -gt 0 ]]; do
                   BIN_DIR="${PREFIX}/bin"
                   MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"; BACKUP_DIR="${PREFIX}/Backup"
                   EXPORT_DIR="${PREFIX}/Export"; LOG_DIR="${PREFIX}/Log"; DEPLOY_DIR="${PREFIX}/Deploy"
-                  ENV_FILE="${PREFIX}/finvquant.env"; BINARY="${BIN_DIR}/finvquant" ;;
+                  ENV_FILE="${PREFIX}/finvquant.env"; BINARY="${BIN_DIR}/finvquant"
+                  QMIO_BINARY="${BIN_DIR}/qmio" ;;
     -h|--help)    sed -n '2,26p' "$0"; exit 0 ;;
     *)            die "未知参数：$1（--help 查看用法）" ;;
   esac
@@ -221,6 +224,19 @@ step "6/9 安装二进制、迁移脚本与部署文件"
 install -o root -g root -m 0755 "${BINARY_SRC}" "${BINARY}"
 ln -sfn "${BINARY}" "${BINARY_LINK}"
 ok "二进制：${BINARY}（软链 ${BINARY_LINK}）"
+
+# qmio：数据搬运工具，必须与 finvquant 同目录（<PREFIX>/bin/qmio）
+QMIO_SRC=""
+for candidate in "${SCRIPT_DIR}/../qmio" "${SCRIPT_DIR}/qmio"; do
+  if [[ -f "${candidate}" ]]; then QMIO_SRC="${candidate}"; break; fi
+done
+if [[ -n "${QMIO_SRC}" ]]; then
+  install -o root -g root -m 0755 "${QMIO_SRC}" "${QMIO_BINARY}"
+  ln -sfn "${QMIO_BINARY}" "${QMIO_LINK}"
+  ok "qmio：${QMIO_BINARY}（软链 ${QMIO_LINK}）"
+else
+  warn "未找到 qmio（期望 ${SCRIPT_DIR}/../qmio），跳过（不影响主服务）"
+fi
 if [[ "$(readlink -f "${MIGRATIONS_SRC}")" == "$(readlink -f "${MIGRATIONS_DIR}" 2>/dev/null || echo -)" ]]; then
   ok "迁移目录即安装目录，无需复制：${MIGRATIONS_DIR}"
 else
@@ -373,6 +389,7 @@ printf '\n\033[1;32m安装完成\033[0m（安装根目录：%s）\n' "${PREFIX}"
 printf '  服务管理：systemctl status|restart|stop %s\n' "${SERVICE}"
 printf '  日志查看：journalctl -u %s -f\n' "${SERVICE}"
 printf '  二进制：%s（软链 %s）\n' "${BINARY}" "${BINARY_LINK}"
+printf '  qmio：%s（软链 %s）\n' "${QMIO_BINARY}" "${QMIO_LINK}"
 printf '  配置文件：%s（权限 600）\n' "${ENV_FILE}"
 printf '  迁移目录：%s（启动时自动应用未执行版本）\n' "${MIGRATIONS_DIR}"
 printf '  部署脚本：%s/Upgrade.sh、%s/Uninstall.sh\n' "${DEPLOY_DIR}" "${DEPLOY_DIR}"

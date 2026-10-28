@@ -85,6 +85,7 @@
 /data/App/FinvQuant/                  # 安装根目录（--prefix / FINVQ_PREFIX 可改）
 ├── bin/
 │   ├── finvquant                     # 二进制（软链 /usr/local/bin/finvquant）
+│   ├── qmio                          # 数据搬运工具（导出/导入 MVSV-2，与 finvquant 同目录）
 │   └── finvquant.prev                # 升级前的上一版本（可用于 --rollback）
 ├── Deploy/                           # 部署脚本、部署文件与数据库脚本（与仓库结构一致）
 │   ├── Migrations/                   # 数据库迁移脚本（FINV_MIGRATIONS_DIR）

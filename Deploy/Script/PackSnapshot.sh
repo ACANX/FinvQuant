@@ -254,7 +254,7 @@ PYPACK
 }
 
 build_binary() {
-    local goos="$1" goarch="$2" out="$3"
+    local goos="$1" goarch="$2" out="$3" pkg="${4:-./cmd/server}"
     local ver="${SNAPSHOT_VERSION#v}"
     local out_arg="${out}"
     [[ "${GO_IS_WINDOWS}" == "1" ]] && out_arg="$(to_win_path "${out}")"
@@ -264,12 +264,12 @@ build_binary() {
         WSLENV=GOOS/w:GOARCH/w:CGO_ENABLED/w \
         GOOS="${goos}" GOARCH="${goarch}" CGO_ENABLED=0 \
             "${GO_CMD}" build -ldflags "-s -w -X main.version=${ver} -X main.commit=${COMMIT}" \
-            -o "${out_arg}" ./cmd/server
+            -o "${out_arg}" "${pkg}"
     else
         # 原生 / Git Bash：直接传环境变量即可
         GOOS="${goos}" GOARCH="${goarch}" CGO_ENABLED=0 \
             "${GO_CMD}" build -ldflags "-s -w -X main.version=${ver} -X main.commit=${COMMIT}" \
-            -o "${out_arg}" ./cmd/server
+            -o "${out_arg}" "${pkg}"
     fi
 }
 
@@ -313,6 +313,11 @@ for T in "${TARGETS[@]}"; do
     build_binary "${GOOS_V}" "${GOARCH_V}" "${ROOT}/pkg/finvquant${EXT}"
     cp "${ROOT}/pkg/finvquant${EXT}" "${PKG_ROOT}/"
     rm -f "${ROOT}/pkg/finvquant${EXT}"
+
+    # qmio（数据搬运工具）：与 finvquant 放在包根目录，安装后同在 <PREFIX>/bin/
+    build_binary "${GOOS_V}" "${GOARCH_V}" "${ROOT}/pkg/qmio${EXT}" ./cmd/qmio
+    cp "${ROOT}/pkg/qmio${EXT}" "${PKG_ROOT}/qmio${EXT}"
+    rm -f "${ROOT}/pkg/qmio${EXT}"
 
     # 迁移脚本放在 Deploy/ 下（与仓库结构、安装后的 FINV_MIGRATIONS_DIR=<PREFIX>/Deploy/Migrations 一致）
     cp -r Deploy/Migrations "${PKG_ROOT}/Deploy/Migrations"

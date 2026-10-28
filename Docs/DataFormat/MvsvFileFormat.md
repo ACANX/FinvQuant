@@ -338,3 +338,44 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 | 1.3 | 2026-08-06 | 必填键 9→11：新增 `Exchange` / `ExchangeCode`（与 `Market` / `MarketCode` 四键必填）；`MarketCode` 通常为四位；示例统一 NVDA→1315、GCMain→1320 |
 | 1.4 | 2026-08-06 | 必填键 11→20：新增 `Title` / `Region` / `Name` / `Period` / `Dsv` / `FieldType` / `FieldName` / `字段名称` / `StockId`（溯源类键强制） |
 | 1.5 | 2026-08-06 | 布局匹配放宽：`# Field` 以核心布局开头即可，多余列（如已过时 `pc`）允许并忽略（修复 13 列 GCmain 文件无法导入） |
+
+## 5. MVSV-2（多证券，qmio 导出/导入）
+
+> 用途：单文件搬运整张 `cdeu.finv_quote_secu_kline_min`（灌数据/联调）。
+> 与 MVSV-1 并列，`Format` 字段区分；MVSV-1 的解析与导出链路不变。
+
+### 5.1 与 MVSV-1 的差异
+
+| 项 | MVSV-1 | MVSV-2 |
+|---|---|---|
+| 证券范围 | 单证券（头 `Code/StockId`） | **多证券**（数据区含 `usc` 列） |
+| 列数 | 12/13 | **19**（含 `gmt_*`）或 **17**（`--no-gmt`） |
+| 列顺序 | 固定布局 A/B | 由 `# Field` 声明，导入按列名映射 |
+| 用途 | 行情交换/上传 | 整表灌数 |
+
+### 5.2 文件头示例（19 列）
+
+```
+# Title : "CdeuKline_20261028_120000"
+# Format : "MVSV-2"
+# Field : "usc|ts|date|time|open|high|low|close|last_close|volume|turnover|change_price|change_ratio|paocd|ext_field|remark|provider|gmt_create|gmt_update"
+# FieldType : "String|Int|Int|Int|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|String|String|String|Timestamp|Timestamp"
+# FieldName : "Usc|Ts|Date|Time|Open|High|Low|Close|LastClose|Volume|Turnover|ChangePrice|ChangeRatio|Paocd|ExtField|Remark|Provider|GmtCreate|GmtUpdate"
+# 字段名称 : "证券代码|时间戳(UTC)|交易日期|交易时间|开盘价|最高价|最低价|收盘价|上一收盘价|成交量|成交额|涨跌额|涨跌幅|累计均价|扩展字段|备注|数据来源|创建时间|更新时间"
+# Count : 2
+# DataScope : "all"
+# ExportTime : "2026-10-28T12:00:00+08:00"
+...
+```
+
+### 5.3 数据行示例
+
+```
+GCMain|1000|20261028|93000|3.500000|3.620000|3.400000|3.600000|3.500000|12.345678|3560.00000000||||||FT|2026-10-27 15:47:29+00|2026-10-27 15:47:29+00
+```
+
+### 5.4 兼容性
+
+- `Format=MVSV-2` 时按 `Field` 列名动态解析（`usc`/`ts` 必填）；
+- 旧 `MVSV-1` 文件继续走原固定布局解析，互不影响；
+- 工具实现见 [`Docs/FinvQuant/Qmio.md`](../FinvQuant/Qmio.md)。

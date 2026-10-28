@@ -22,6 +22,7 @@ set -euo pipefail
 SERVICE="finvquant"
 SERVICE_FILE="/etc/systemd/system/${SERVICE}.service"
 BINARY_LINK="/usr/local/bin/finvquant"
+QMIO_LINK="/usr/local/bin/qmio"
 
 PREFIX_EXPLICIT=0
 infer_prefix() {
@@ -61,6 +62,8 @@ EXPORT_DIR="${PREFIX}/Export"
 LOG_DIR="${PREFIX}/Log"
 BINARY="${BIN_DIR}/finvquant"
 BINARY_PREV="${BIN_DIR}/finvquant.prev"
+QMIO_BINARY="${BIN_DIR}/qmio"
+QMIO_PREV="${BIN_DIR}/qmio.prev"
 ENV_FILE="${PREFIX}/finvquant.env"
 
 [[ "$(id -u)" -eq 0 ]] || die "请用 root 执行：sudo $0"
@@ -80,6 +83,7 @@ rm -f "${SERVICE_FILE}"
 systemctl daemon-reload
 ok "已删除 ${SERVICE_FILE}"
 rm -f "${BINARY_LINK}" "${BINARY}" "${BINARY_PREV}"
+rm -f "${QMIO_LINK}" "${QMIO_BINARY}" "${QMIO_PREV}"
 ok "已删除二进制与软链（${BIN_DIR} 目录保留，可用 --purge 清理）"
 
 step "3/4 处理配置、迁移与部署文件"

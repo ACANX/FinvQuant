@@ -64,6 +64,8 @@ set_prefix() {
   ENV_FILE="${PREFIX}/finvquant.env"
   BINARY="${BIN_DIR}/finvquant"
   BINARY_PREV="${BIN_DIR}/finvquant.prev"
+  QMIO_BINARY="${BIN_DIR}/qmio"
+  QMIO_PREV="${BIN_DIR}/qmio.prev"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -100,6 +102,11 @@ if [[ "${ROLLBACK}" -eq 1 ]]; then
   [[ -f "${BINARY_PREV}" ]] || die "未找到备份二进制 ${BINARY_PREV}，无法回滚"
   systemctl stop "${SERVICE}"
   install -o root -g root -m 0755 "${BINARY_PREV}" "${BINARY}"
+  if [[ -f "${QMIO_PREV}" ]]; then
+    install -o root -g root -m 0755 "${QMIO_PREV}" "${QMIO_BINARY}"
+    ln -sfn "${QMIO_BINARY}" "/usr/local/bin/qmio"
+    ok "qmio 已回滚：${QMIO_BINARY}"
+  fi
   systemctl start "${SERVICE}"
   ok "已回滚并启动；请执行 journalctl -u ${SERVICE} -n 50 确认"
   warn "注意：数据库结构不会随二进制回退（迁移已应用）。若新版本含破坏性迁移（如 V29～V33 列/schema 变更），必须从升级前备份恢复数据库。"
@@ -172,6 +179,17 @@ fi
 install -o root -g root -m 0755 "${BINARY_SRC}" "${BINARY}"
 ln -sfn "${BINARY}" "${BINARY_LINK}"
 ok "二进制已替换：${BINARY}"
+
+# qmio：与 finvquant 同目录；源为升级包同目录的 qmio（可选）
+QMIO_SRC="$(dirname "${BINARY_SRC}")/qmio"
+if [[ -f "${QMIO_SRC}" ]]; then
+  if [[ -f "${QMIO_BINARY}" ]]; then
+    install -o root -g root -m 0755 "${QMIO_BINARY}" "${QMIO_PREV}"
+  fi
+  install -o root -g root -m 0755 "${QMIO_SRC}" "${QMIO_BINARY}"
+  ln -sfn "${QMIO_BINARY}" "/usr/local/bin/qmio"
+  ok "qmio 已替换：${QMIO_BINARY}"
+fi
 install -d -o root -g "${APP_GROUP}" -m 0755 "${MIGRATIONS_DIR}"
 if [[ "$(readlink -f "${MIGRATIONS_SRC}")" == "$(readlink -f "${MIGRATIONS_DIR}" 2>/dev/null || echo -)" ]]; then
   ok "迁移目录即安装目录，无需同步：${MIGRATIONS_DIR}"
