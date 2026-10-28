@@ -104,7 +104,35 @@ pg_restore -h 127.0.0.1 -U finv -d finv \
 | 失败 | 保留本地文件并记日志，不影响下一张表 |
 | 下载 | `aws s3 cp` / `rclone` 等任意 S3 兼容工具 |
 
-> 39002 修改后下一轮备份生效；上传失败不影响本地备份结果。
+### 6.1 配置步骤（Cloudflare R2 示例）
+
+1. 在 Cloudflare Dashboard → R2 创建桶（如 `finvquant-backup`）；
+2. 进入 **Manage R2 API Tokens** → **Create API Token**，权限选 **Object Read & Write**；
+3. 记录 **Access Key ID** 与 **Secret Access Key**（Secret 只显示一次）；
+4. 更新 39002：
+
+```sql
+UPDATE sys.sys_config
+   SET json_value = '{
+     "enabled": true,
+     "provider": "s3",
+     "endpoint": "https://<account_id>.r2.cloudflarestorage.com",
+     "bucket": "finvquant-backup",
+     "region": "auto",
+     "access_key": "<ACCESS_KEY>",
+     "secret_key": "<SECRET_KEY>",
+     "prefix": "brs/"
+   }'::json,
+       gmt_modify = now()
+ WHERE config_no = 39002;
+```
+
+5. 下一轮备份自动上传；可用 `aws s3 ls s3://<bucket>/brs/ --endpoint-url <endpoint>` 或 `rclone` 验证。
+
+> 39002 的 `remark` 已写入完整字段说明与 R2/AWS/MinIO 配置差异，可直接查询：
+> `select remark from sys.sys_config where config_no = 39002;`
+
+**注意**：39002 修改后下一轮备份生效；上传失败不影响本地备份结果。
 
 ## 7. 手动验证
 

@@ -2205,6 +2205,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10801 | BRS 二期：备份产物上传 S3 兼容对象存储（R2 等）。`brs_bak_rdb_table` 增加 `flag_upload`；`sys.sys_config 39002` 保存对象存储 JSON 配置（默认 `enabled=false`）；通过 `internal/meta/base/oss` 抽象 + `oss/s3` 适配器（`aws-sdk-go-v2`，**不使用 minio-go**），上传失败保留本地。 | `grep -c 'flag_upload' Deploy/Migrations/V200061__brs_upload.sql` ≥ 1；临时 PG 执行全部 143 个迁移 0 错误；`select json_value->>'enabled' from sys.sys_config where config_no=39002` = `false`；`go test ./internal/meta/base/oss/... ./internal/brs` 通过（含 s3 适配器 httptest 用例）；`grep -rn 'minio' internal/meta/base/oss internal/brs` 无官方库引用；`go build ./...` 通过 | |
 
+## 一百三十四、BRS 对象存储配置说明（10802）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10802 | `sys.sys_config 39002` 的 `remark` 必须包含完整配置说明：字段含义、R2/AWS/MinIO 的 endpoint/region 差异、R2 API Token 获取步骤、示例 JSON、注意事项；不能只写一句话。`Brs.md` 同步配置步骤。 | `grep -c 'R2 示例' Deploy/Migrations/V200061__brs_upload.sql` ≥ 1；临时库执行后 `select length(remark) from sys.sys_config where config_no=39002` ≥ 500；`select remark from ...` 含 `enabled`、`endpoint`、`R2`、`flag_upload`；`go test ./internal/docs` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2366,7 +2372,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | qmio 数据搬运工具 | 10799 | 1 |
 | BRS 数据备份服务 | 10800 | 1 |
 | BRS 对象存储上传 | 10801 | 1 |
-| **合计** | **10001–10801** | **801** |
+| BRS 对象存储配置说明 | 10802 | 1 |
+| **合计** | **10001–10802** | **802** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10802` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

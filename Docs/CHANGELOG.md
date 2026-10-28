@@ -20,6 +20,10 @@
 
 ### 新增
 
+- **BRS 对象存储配置说明（39002 remark，需求 10802）**
+  - `V200061` 中 `sys.sys_config 39002` 的 `remark` 补全为完整配置说明（`enabled/provider/endpoint/bucket/region/access_key/secret_key/prefix` 字段含义、R2/AWS/MinIO 差异、R2 API Token 获取步骤、注意事项、示例 JSON），约 1KB。
+  - `Docs/FinvQuant/Brs.md` §6.1 增加 R2 配置步骤与验证命令。
+
 - **BRS 对象存储上传（二期，需求 10801）**
   - `brs.brs_bak_rdb_table` 增加 `flag_upload char(1)`（默认 `'1'`：上传 / `'0'` 只留本地）。
   - `sys.sys_config` 新增 **39002**（JSON）：`enabled/provider/endpoint/bucket/region/access_key/secret_key/prefix`，默认 `enabled=false`。
