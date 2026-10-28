@@ -530,8 +530,14 @@
 
 ### 变更
 
+- **OpenAPI 契约拆分为同名 `.yml` 文件（需求 10784）**
+  - 新增 `Docs/API/Quote/Cdeu/Min/KLineUpsert.yml`：从 `.md` 内嵌代码块抽出的完整 OpenAPI 3.1 契约，供 lint、`preview-docs`、`openapi-generator` 直接消费。
+  - `KLineUpsert.md` 第 8 节只保留契约链接与校验/生成命令，不再重复 YAML（避免两处维护漂移）。
+  - `Docs/DevSpec/ApiSpec.md` §7.7：约定接口文档由「同名 `.md`（人读）+ `.yml`（机读）」成对组成。
+  - 新增 `internal/docs/openapi_test.go`：校验 `Docs/**/*.yml|yaml` 可解析且含 `openapi`/`paths`；`github.com/goccy/go-yaml` 由间接依赖转为直接依赖。
+
 - **接口文档样板：`KLineUpsert.md` 按 OpenAPI 3.1 规范重写（需求 10783）**
-  - 正文按「人先看」组织（概述 → 参数表 → 行为语义 → 错误目录 → 示例 → 使用登记 → 编写约定），完整 `openapi: 3.1.0` 契约作为**末尾附录**（`paths`、`parameters`、`requestBody`、`responses`、`components`，含 `KLineItem` 17 字段 schema、`UpsertResponse`、`ErrorResponse`/`ErrorObject`、Bearer 认证）。
+  - 正文按「人先看」组织（概述 → 参数表 → 行为语义 → 错误目录 → 示例 → 使用登记 → 编写约定），完整 `openapi: 3.1.0` 契约作为末尾附录（`paths`、`parameters`、`requestBody`、`responses`、`components`，含 `KLineItem` 17 字段 schema、`UpsertResponse`、`ErrorResponse`/`ErrorObject`、Bearer 认证）；该契约随后在需求 10784 拆为同名 `.yml`。
   - 补齐此前被省略的内容：请求体不再写「同 KLineBatchInsert.md」，改为逐字段表；补充字段约束（`usc` 1–255、`ts` 0–1e11、`date`/`time` 范围、`volume`/`turnover` ≥ 0、`provider` ≤ 255）、行为语义（skip/update、整行覆盖、`prev_close` 回填、`change_*` 自动计算、单事务/幂等）、全量错误目录（15 个 code + HTTP + retryable + debug 键）、curl/成功/错误示例。
   - `Docs/DevSpec/ApiSpec.md` 新增 §7.7「接口文档样板（OpenAPI 3.1）」；`Docs/API/README.md` 将本文标注为样板。
 

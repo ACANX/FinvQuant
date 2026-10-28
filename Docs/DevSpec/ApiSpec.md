@@ -82,7 +82,8 @@ API 契约测试必须覆盖：
 自 2026-10-28 起，接口文档统一按
 [`Docs/API/Quote/Cdeu/Min/KLineUpsert.md`](../API/Quote/Cdeu/Min/KLineUpsert.md) 的结构编写：
 
-- **正文优先人类可读**：概述、参数表、行为语义、错误目录、示例放在前面；完整 OpenAPI 3.1 `openapi` 代码块作为**文档末尾附录**（`paths` / `parameters` / `requestBody` / `responses` / `components`），**不得**用「同 XXX 文档」省略契约；
+- **正文优先人类可读**：概述、参数表、行为语义、错误目录、示例放在 `.md` 前面；
+- **契约独立成文件**：完整 OpenAPI 3.1 契约放在**同名 `.yml`**（如 `KLineUpsert.md` + `KLineUpsert.yml`），`.md` 末尾仅保留链接与校验/生成命令；`.yml` 含 `paths` / `components`（含 `securitySchemes`），**不得**用「同 XXX 文档」省略契约；
 - 字段表逐项列出类型、必填、约束、是否落库、说明；
 - 行为语义（冲突处理、事务边界、幂等、兼容字段、自动计算）写明；
 - 错误目录列全 `code` / HTTP / `retryable` / 触发场景 / 白名单 debug 键；

@@ -2097,6 +2097,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10783 | `KLineUpsert.md` 按 OpenAPI 3.1 规范重写并作为后续接口文档样板：必须包含完整 `openapi` 代码块（paths/parameters/requestBody/responses/components）、逐字段约束表、行为语义、全量错误目录（code/HTTP/retryable/debug 键）、curl 与成功/错误示例；不得用「同 XXX 文档」省略契约。`ApiSpec` 增加 §7.7 样板约定。 | `grep -c 'openapi: 3.1.0' Docs/API/Quote/Cdeu/Min/KLineUpsert.md` = 1；YAML 块可被 `yaml.safe_load` 解析且含 `paths`/`components.schemas`；`grep -c '同 \[`KLineBatchInsert.md`'` = 0；错误码 `211001`–`211303` 共 15 个全部出现在错误表中；`grep -c '7.7 接口文档样板' Docs/DevSpec/ApiSpec.md` = 1；全仓 Markdown 链接 0 失效；`go test ./internal/docs` 通过 | |
 
+## 一百一十六、OpenAPI 契约独立为同名 .yml（10784）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10784 | 接口文档的机器可读契约从 `.md` 中拆出为**同名 `.yml`**（如 `KLineUpsert.md` + `KLineUpsert.yml`）：`.md` 正文只保留人类可读说明与契约链接/命令，`.yml` 为完整 OpenAPI 3.1；并增加自动校验。 | `ls Docs/API/Quote/Cdeu/Min/KLineUpsert.{md,yml}` 均存在；`grep -c '```yaml' Docs/API/Quote/Cdeu/Min/KLineUpsert.md` = 0；`KLineUpsert.yml` 可被 YAML 解析且含 `openapi`/`paths`；`go test ./internal/docs -run TestOpenAPISpecsValid` 通过；`grep -c '同名 `.yml`' Docs/DevSpec/ApiSpec.md` ≥ 1；全仓 Markdown 相对链接 0 失效 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2240,7 +2246,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | KLinePage 系列文档目录归位 | 10780 | 1 |
 | 全部分钟行情端点统一 Cdeu | 10782 | 1 |
 | 接口文档按 OpenAPI 3.1 编写 | 10783 | 1 |
-| **合计** | **10001–10783** | **783** |
+| OpenAPI 契约独立为同名 .yml | 10784 | 1 |
+| **合计** | **10001–10784** | **784** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10784` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10785` 起往后追加，不插入既有区间。
