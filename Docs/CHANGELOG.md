@@ -24,7 +24,7 @@
   - 新增 `internal/logging`：标准库日志与 gin 访问日志**同时**写入 `<FINV_LOG_DIR>/<FINV_LOG_FILE>`（默认 `<PREFIX>/Log/FinvQuant.log`），journald 仍保留。
   - `FINV_LOG_DIR` 为空时保持仅 stdout/stderr（容器方式不受影响）；目录/文件创建失败仅告警，不阻断启动。
   - `Install.sh`：创建 `<PREFIX>/Log`（`finvquant:finvquant 0750`）、新装渲染/旧配置补齐 `FINV_LOG_DIR`，摘要输出日志路径。
-  - 文档：`Install.md` 新增「日志与轮转」、`README.md` 目录树与权限表、`FinvQuant.env.example`、unit 注释、`Uninstall.sh` 保留提示。
+  - 文档：`Install.md` 新增「日志与归档」、`README.md` 目录树与权限表、`FinvQuant.env.example`、unit 注释、`Uninstall.sh` 保留提示。
 
 - **外部 OpenAPI：PageUni 查询端点（需求 10789）**
   - `/OpenAPI/V1` 新增 `GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni`，业务逻辑复用内部 `KLine.PageUni` handler；认证与响应信封同外部 Upsert。

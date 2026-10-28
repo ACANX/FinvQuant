@@ -2173,7 +2173,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10796 | Native 方式支持把日志写入文件：`FINV_LOG_DIR`/`FINV_LOG_FILE` 控制路径（默认 `<PREFIX>/Log/FinvQuant.log`），标准库日志与 gin 访问日志同时写文件并保留 journald；安装脚本创建目录、渲染/补齐配置；提供 logrotate 示例。 | `grep -c 'FINV_LOG_DIR' internal/config/config.go Deploy/Native/FinvQuant.env.example Deploy/Native/Install.sh` 各 ≥ 1；`go test ./internal/logging -v` 通过（写文件、空目录 no-op、默认文件名）；`grep -c 'MultiWriter' internal/logging/logging.go` ≥ 2；`test -f Deploy/Native/FinvQuant.logrotate.example`；安装后 `test -d /data/App/FinvQuant/Log` 且 `tail -f /data/App/FinvQuant/Log/FinvQuant.log` 有输出；`journalctl -u finvquant` 仍可用；`go build ./...` 通过 | |
+| 10796 | Native 方式支持把日志写入文件：`FINV_LOG_DIR`/`FINV_LOG_FILE` 控制路径（默认 `<PREFIX>/Log/FinvQuant.log`），标准库日志与 gin 访问日志同时写文件并保留 journald；安装脚本创建目录、渲染/补齐配置（切分/按日归档规则见 10797）。 | `grep -c 'FINV_LOG_DIR' internal/config/config.go Deploy/Native/FinvQuant.env.example Deploy/Native/Install.sh` 各 ≥ 1；`go test ./internal/logging -v` 通过（写文件、空目录 no-op、默认文件名）；`grep -c 'MultiWriter' internal/logging/logging.go` ≥ 2；安装后 `test -d /data/App/FinvQuant/Log` 且 `tail -f /data/App/FinvQuant/Log/FinvQuant.log` 有输出；`journalctl -u finvquant` 仍可用；`go build ./...` 通过 | |
 
 ## 一百二十九、日志切分与按日归档（10797）
 
@@ -2341,4 +2341,4 @@ if (LEGACY_PATH_MAP[to.path]) {
 | **合计** | **10001–10797** | **797** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
-> 编号连续、不跳号；新增需求从 `10796` 起往后追加，不插入既有区间。
+> 编号连续、不跳号；新增需求从 `10798` 起往后追加，不插入既有区间。
