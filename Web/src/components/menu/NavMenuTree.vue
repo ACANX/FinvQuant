@@ -12,8 +12,6 @@ const props = defineProps<{
   system: MenuSystem
   /** 当前路由路径 */
   activePath: string
-  /** 视觉风格 */
-  visual: 'classic' | 'webcms'
 }>()
 
 const emit = defineEmits<{
@@ -105,7 +103,6 @@ function onToggle(key: string): void {
       :parent-key="system.key"
       :open-keys="openKeys"
       :active-path="activePath"
-      :visual="visual"
       @toggle="onToggle"
       @navigate="emit('navigate')"
     />

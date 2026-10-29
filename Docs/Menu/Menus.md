@@ -106,7 +106,7 @@
 - **一级系统**由顶栏切换器选择（`Web/src/components/menu/SystemSwitcher.vue`），左侧抽屉只渲染当前系统的二~四级菜单；系统归属按 `MenuSystem.match` 前缀判定（最长前缀优先）。
 - 各系统上次访问的路由记录在 `localStorage['finvquant.nav.lastPathBySystem.v1']`，切换系统时回到该系统上次页面，首次进入落到系统落地路由。
 - 菜单展开状态按系统分桶持久化在 `localStorage['finvquant.nav.openKeys.v1']`；深链接直开时自动展开祖先链。
-- 导航视觉风格由 `Web/src/config/uiConfig.ts` 控制：默认 `webcms`（当前菜单项左侧 3px 主色激活条），可在右上角用户菜单 →「WebCMS 视觉风格」开关即时切回改造前视觉（选择被记住）。
+- 导航视觉固定为 WebCMS 风格：当前菜单项左侧 3px 主色激活条、祖先分组标题主色（无风格开关；如需调整见 2610-012 §3.7）。
 - 登录后每个页面底部显示页脚 `© 2026 ACANX`。
 - 图标统一使用 Material Design Icons（`@mdi/font`），**二/三/四级菜单均保留图标**；**注意：`mdi-chart-candlestick` 在 @mdi/font 7.4.47 中不存在**，K 线类菜单使用 `mdi-chart-line` / `mdi-chart-box`。
 - 三个字典维护菜单（交易所/市场/证券）的 List 分页：**启用的（flag_enable='1'）优先展示，禁用的排后面**，同状态按 code 升序（见 `internal/meta/service.go`）。

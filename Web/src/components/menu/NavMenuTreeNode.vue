@@ -20,8 +20,6 @@ const props = defineProps<{
   openKeys: Set<string>
   /** 当前路由路径 */
   activePath: string
-  /** 视觉风格：classic 保持原样式，webcms 追加激活条等 */
-  visual: 'classic' | 'webcms'
 }>()
 
 const emit = defineEmits<{
@@ -79,7 +77,6 @@ function hasActive(node: MenuNode, path: string): boolean {
           :parent-key="nodeKey"
           :open-keys="openKeys"
           :active-path="activePath"
-          :visual="visual"
           @toggle="emit('toggle', $event)"
           @navigate="emit('navigate')"
         />
@@ -91,7 +88,7 @@ function hasActive(node: MenuNode, path: string): boolean {
       v-else
       class="finv-nav-item finv-nav-leaf"
       :class="{
-        'finv-nav-leaf--active': isActive && visual === 'webcms',
+        'finv-nav-leaf--active': isActive,
         'finv-nav-item--ancestor': containsActive && !isActive,
       }"
       :style="{ '--finv-nav-indent': `${indent}px`, '--finv-nav-font-size': fontSize }"
@@ -127,7 +124,7 @@ function hasActive(node: MenuNode, path: string): boolean {
   color: rgb(var(--v-theme-primary));
 }
 
-/* webcms 视觉：激活叶子左侧 3px 主色条（用内阴影避免布局位移） */
+/* WebCMS 视觉：激活叶子左侧 3px 主色条（用内阴影避免布局位移） */
 .finv-nav-leaf--active.v-list-item--active {
   box-shadow: inset 3px 0 0 0 rgb(var(--v-theme-primary));
 }

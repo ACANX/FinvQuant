@@ -50,7 +50,7 @@
 - **系统归属**按 `match` 前缀判定（最长前缀优先）；未命中时回落到首个系统并输出 `console.warn`。新增系统必须提供覆盖其全部路由的 `match` 前缀。
 - **分组节点不填 `path`**（点击仅展开/折叠）；叶子节点必须有 `path`。菜单深度上限 4 级，且**不得为凑满层级而人为增设空壳分组**。
 - **`subtitle` 为可选字段**：不填时单行渲染，填写时以副标题展示，不得为占位而编造文案。
-- **视觉开关**：导航视觉风格由 `Web/src/config/uiConfig.ts` 的 `uiDefaults.navVisualStyle` 控制（`classic` / `webcms`），运行入口为右上角用户菜单 →「WebCMS 视觉风格」开关（`toggleNavVisualStyle`）；新增菜单样式必须同时兼容两种风格，不得依赖 URL 参数。
+- **导航视觉**：固定使用 WebCMS 风格（当前菜单项左侧 3px 主色激活条 + 祖先标题主色 + 页面页脚 `© 2026 ACANX`），**不提供风格开关，也不得引入 `?nav=` 等 URL 参数**；调整视觉统一改 `NavMenuTreeNode.vue` / `App.vue` 的样式。
 - **展开状态**按系统分桶持久化在 `localStorage['finvquant.nav.openKeys.v1']`，键为「父链 key 拼接」（如 `finvquant.data-collection.quote-archive`）。
 
 ### 1.3 自定义组件显式导入（强制）

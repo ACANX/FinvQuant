@@ -8,13 +8,7 @@ import { authState, clearSession } from './auth'
 import NavMenuTree from './components/menu/NavMenuTree.vue'
 import SystemSwitcher from './components/menu/SystemSwitcher.vue'
 import { menuSystems, resolveSystem } from './config/menuConfig'
-import {
-  NAV_LAST_PATH_STORAGE_KEY,
-  navVisualStyle,
-  readStorage,
-  toggleNavVisualStyle,
-  writeStorage,
-} from './config/uiConfig'
+import { NAV_LAST_PATH_STORAGE_KEY, readStorage, writeStorage } from './config/uiConfig'
 import ChangePasswordDialog from './views/Common/ChangePasswordDialog.vue'
 
 // 导航结构：一级 = 系统（顶栏切换器），左侧抽屉渲染当前系统的二~四级菜单。
@@ -130,8 +124,8 @@ watch(
       <!-- 占位：把登录用户按钮推回顶栏最右侧（与改动前一致），不与一级菜单切换器撮堆 -->
       <v-spacer />
 
-      <!-- 当前登录用户与退出入口（菜单内提供视觉风格开关） -->
-      <v-menu location="bottom end" :close-on-content-click="false">
+      <!-- 当前登录用户与退出入口 -->
+      <v-menu location="bottom end">
         <template #activator="{ props }">
           <v-btn
             v-bind="props"
@@ -146,24 +140,6 @@ watch(
             :subtitle="authState.user?.uid || ''"
             prepend-icon="mdi-account"
           />
-          <v-divider />
-          <!-- 视觉风格开关：即时切换 classic / webcms，选择结果记住 -->
-          <v-list-item>
-            <template #prepend>
-              <v-icon icon="mdi-palette-outline" />
-            </template>
-            <v-list-item-title>WebCMS 视觉风格</v-list-item-title>
-            <v-list-item-subtitle>开启：主色激活条 + 面包屑</v-list-item-subtitle>
-            <template #append>
-              <v-switch
-                :model-value="navVisualStyle === 'webcms'"
-                :color="navVisualStyle === 'webcms' ? 'green' : 'grey'"
-                density="compact"
-                hide-details
-                @update:model-value="toggleNavVisualStyle"
-              />
-            </template>
-          </v-list-item>
           <v-divider />
           <v-list-item
             prepend-icon="mdi-lock-reset"
@@ -185,7 +161,6 @@ watch(
       <NavMenuTree
         :system="currentSystem"
         :active-path="route.path"
-        :visual="navVisualStyle"
         @navigate="onMenuNavigate"
       />
     </v-navigation-drawer>
