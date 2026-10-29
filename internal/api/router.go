@@ -14,9 +14,9 @@ import (
 	"github.com/acanx/finvquant/internal/meta"
 	"github.com/acanx/finvquant/internal/meta/finv/auth"
 	"github.com/acanx/finvquant/internal/meta/finv/quant/backtest"
+	"github.com/acanx/finvquant/internal/meta/finv/quote"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
-	"github.com/acanx/finvquant/internal/quote"
 )
 
 // Deps 路由依赖。

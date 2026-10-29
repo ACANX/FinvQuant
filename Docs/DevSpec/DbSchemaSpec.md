@@ -67,7 +67,7 @@
 | 时间 | 事件 | 后果 |
 |---|---|---|
 | 2026-10-24 01:15 | `V100032` 按改造项 C 把 3 张 `finv_quote_*` 迁入 `quote`，清单 `C-10`/`C-11`/`C-16` 验收通过（☑） | 回测与导入正常使用 `quote.` |
-| 2026-10-24 14:06 | `V100038` 以"融合 FinvQuoteDataDeDup、API 路径属 DeDup 域"为由，`ALTER TABLE quote.finv_quote_secu_kline_min SET SCHEMA dedup`；同提交把 `internal/quote`/`internal/backtest` 的 SQL 从 `quote.` 改成 `dedup.` | `quote` 副本消失，回测与去重/导出链路共用一张表，隔离设计失效；`2610-003` 的验收清单未作废，两份文档互相矛盾 |
+| 2026-10-24 14:06 | `V100038` 以"融合 FinvQuoteDataDeDup、API 路径属 DeDup 域"为由，`ALTER TABLE quote.finv_quote_secu_kline_min SET SCHEMA dedup`；同提交把 `internal/meta/finv/quote`/`internal/backtest` 的 SQL 从 `quote.` 改成 `dedup.` | `quote` 副本消失，回测与去重/导出链路共用一张表，隔离设计失效；`2610-003` 的验收清单未作废，两份文档互相矛盾 |
 | 2026-10-27 | `V100076` 按原设计恢复 `quote.` 副本（结构对齐 + 一次性回填 280 万行），代码回退为"`quote` 包/回测读 `quote.`，`kline`/导出写 `dedup.`" | 隔离恢复 |
 
 **教训**：
@@ -165,7 +165,7 @@
 - **分钟行情表的双 schema 隔离（ACANX 2026-10-27 纠偏）**：同名表 `finv_quote_secu_kline_min` 存在三份、职责不同，**不允许合并或跨表复用**：
   | schema | 使用者 | 说明 |
   |---|---|---|
-  | `quote.` | 历史行情导入、行情查询、回测 | `internal/quote`（`Import/Upload` 与 `History/QuoteQuery`）与 `internal/meta/finv/quant/backtest`；回测 SQL 必须写 `quote.` 前缀 |
+  | `quote.` | 历史行情导入、行情查询、回测 | `internal/meta/finv/quote`（`Import/Upload` 与 `History/QuoteQuery`）与 `internal/meta/finv/quant/backtest`；回测 SQL 必须写 `quote.` 前缀 |
   | `dedup.` | K 线 API 写入、去重 / 导出 / 上传链路 | `internal/meta/finv/quote/cdeu/kline`（`Cdeu/Min/{Add,Batch,Upsert,Page,Query,Patch,BatchDelete}` 等）与 `internal/meta/finv/quote/dedup`；写入与重写（含导出前清洗） |
   | `export.` | 导出中转 | 快照暂存表，允许清空 |
   隔离靠 schema 前缀强制：漏写前缀会命中 `search_path` 里的另一张表，`internal/database/schema_qualify_test.go` 的 `exactTableSchema` 已把三者列为白名单。`V100076` 恢复了被 `V100038` 迁走的 `quote.` 副本（结构与 `dedup` 对齐、数据一次性回填，之后各自演进）。

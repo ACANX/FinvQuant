@@ -132,7 +132,7 @@
 | 10085 | `V31` 向 `finv_quote_revision_log` 写入留痕记录。 | 脚本内含 `MIGRATION_V31` 与 `INSERT INTO finv_quote_revision_log` | |
 | 10086 | `V31` 明确声明回填不可逆。 | `grep -c "不可逆" Deploy/Migrations/V100031__finv_quote_kline_backfill_open_from_last_close.sql` 不小于 `1` | |
 | 10087 | Go 代码中不再用旧列名（MVSV 文件头文本与 ATR 局部变量除外）。 | `grep -rn "prev_close" internal/ --include="*.go"` 输出为空 | |
-| 10088 | 导入链路按同一规则增量兜底 `open`。 | `grep -c "fillOpenFromLastClose" internal/quote/service.go` 不小于 `2` | |
+| 10088 | 导入链路按同一规则增量兜底 `open`。 | `grep -c "fillOpenFromLastClose" internal/meta/finv/quote/service.go` 不小于 `2` | |
 | 10089 | 数据格式与接口文档已改用 `last_close`。 | `grep -c "last_close" Docs/DataFormat/MvsvFileFormat.md Docs/API/HistoryQuote/HistoryQuote.md` 各不小于 `1` | |
 | 10090 | 前端源码不含该字段引用。 | `grep -rn "prev_close\|prevClose" Web/src/` 输出为空 | |
 | 10091 | `CHANGELOG` 记录改名、回填与不可逆提示。 | `grep -c "last_close" Docs/CHANGELOG.md` 不小于 `2` | |
@@ -413,12 +413,12 @@
 ## 二十六、涨跌字段补全规则（10264–10269）
 
 > 来源：导入/写入时 `change_price`、`change_ratio` 缺失的自动补全规则（ACANX 2026-10-24）。
-> 关联：`internal/calc/change.go`、`internal/mvsv/parser.go`、`internal/quote/service.go`、`internal/meta/finv/quote/cdeu/kline/request.go`。
+> 关联：`internal/calc/change.go`、`internal/mvsv/parser.go`、`internal/meta/finv/quote/service.go`、`internal/meta/finv/quote/cdeu/kline/request.go`。
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
 | 10264 | MVSV 文件的 `cp`/`cr` 列有值时按文件值落库，不做重算。 | `go test ./internal/mvsv/ -run TestParseChangeFields` 通过；导入含 `cp/cr` 的文件后直查两列等于文件值 | |
-| 10265 | `cp`/`cr` 均缺失且 `last_close` 非空非 0 时，用 `last_close` 作为参考价计算。 | `go test ./internal/quote/ -run TestComputeChangeFields` 通过（用例 2） | |
+| 10265 | `cp`/`cr` 均缺失且 `last_close` 非空非 0 时，用 `last_close` 作为参考价计算。 | `go test ./internal/meta/finv/quote/ -run TestComputeChangeFields` 通过（用例 2） | |
 | 10266 | `last_close` 缺失或为 0 且 `open` 非空非 0 时，用 `open` 作为参考价计算。 | 同上（用例 3、4）通过 | |
 | 10267 | `last_close` 与 `open` 都不可用时保持 NULL，不报错。 | 同上（用例 5）通过 | |
 | 10268 | KLine API 写入未提供 `change_price`/`change_ratio` 时按 `open` 补全；任一列有值时不修改。 | `grep -c "calc.Change" internal/meta/finv/quote/cdeu/kline/request.go` 输出不小于 `1`；`go test ./internal/meta/finv/quote/cdeu/kline/` 通过 | |
@@ -943,12 +943,12 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10632 | `internal/quote`（`Import/Upload` 文件导入、`History/QuoteQuery` 查询）一律读写 `quote.finv_quote_secu_kline_min`。 | `grep -c 'quote.finv_quote_secu_kline_min' internal/quote/service.go` ≥ 4；`grep 'dedup.finv_quote_secu_kline_min' internal/quote/*.go` 无输出 | |
+| 10632 | `internal/meta/finv/quote`（`Import/Upload` 文件导入、`History/QuoteQuery` 查询）一律读写 `quote.finv_quote_secu_kline_min`。 | `grep -c 'quote.finv_quote_secu_kline_min' internal/meta/finv/quote/service.go` ≥ 4；`grep 'dedup.finv_quote_secu_kline_min' internal/meta/finv/quote/*.go` 无输出 | |
 | 10633 | `internal/meta/finv/quant/backtest` 行情加载与日期区间解析读取 `quote.`（回测只读 quote）。 | `grep -n 'quote.finv_quote_secu_kline_min' internal/meta/finv/quant/backtest/service.go` 输出 2 行；包内无 `dedup.finv_quote_secu_kline_min` | |
 | 10634 | `internal/meta/finv/quote/cdeu/kline`（K 线 API 写入/查询）保持 `dedup.`，不得改回 `quote.`。 | `grep -n 'const Table' internal/meta/finv/quote/cdeu/kline/sql.go` 输出 `"dedup.finv_quote_secu_kline_min"`；`go test ./internal/meta/finv/quote/cdeu/kline` 通过 | |
 | 10635 | 端到端隔离：K 线 API `/Add` 写入后数据仅落 `dedup`，`History/QuoteQuery` 查同一 `usc` 查不到。 | 实测：`/Add` 返回 201 后 `dedup=1 / quote=0`；`QuoteQuery` 返回 `total: 0` | |
 | 10636 | `schema_qualify_test.go` 白名单含 `quote.`、`dedup.`、`export.` 三者，`go test ./...` 全绿。 | `grep -n 'finv_quote_secu_kline_min' internal/database/schema_qualify_test.go` 含三者；`go test ./...` 通过 | |
-| 10637 | 文档同步：导入/回测/查询 API 文档与 `DbSchemaSpec` 均按新归属描述。 | `Docs/API/HistoryQuote/ImportsUpload.md`、`Docs/API/Backtest/RunCreate.md` 含 `quote.finv_quote_secu_kline_min`；`DbSchemaSpec.md` 隔离表列出 `internal/quote` / `internal/meta/finv/quote/cdeu/kline` 归属 | |
+| 10637 | 文档同步：导入/回测/查询 API 文档与 `DbSchemaSpec` 均按新归属描述。 | `Docs/API/HistoryQuote/ImportsUpload.md`、`Docs/API/Backtest/RunCreate.md` 含 `quote.finv_quote_secu_kline_min`；`DbSchemaSpec.md` 隔离表列出 `internal/meta/finv/quote` / `internal/meta/finv/quote/cdeu/kline` 归属 | |
 
 ## 五十八、数据库表保护红线（10638–10645）
 
@@ -2149,7 +2149,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10792 | 把 `quote` / `export` / `dedup` 三张同名表的 `volume` 与 `cdeu` 统一为 `numeric(20,6)`；`internal/mvsv` 解析保留小数文本；`internal/quote` 查询输出支持小数；保证导入/导出/补丁/回测链路不截断。 | 临时 PG 执行全部迁移后 `select table_schema, data_type from information_schema.columns where column_name='volume' and table_name='finv_quote_secu_kline_min' and table_schema in ('quote','dedup','export','cdeu')` 四行均为 `numeric`；`12.345678` 在四表写入/读回一致；重复执行 V200059 输出「已是 numeric，跳过」；`go test ./internal/mvsv` 含 `TestParseNumericVolume` 通过；`go build ./...`、`go test ./internal/quote ./internal/meta/finv/quote/cdeu/kline` 通过；`HistoryQuote.md` volume 标注支持小数 | |
+| 10792 | 把 `quote` / `export` / `dedup` 三张同名表的 `volume` 与 `cdeu` 统一为 `numeric(20,6)`；`internal/mvsv` 解析保留小数文本；`internal/meta/finv/quote` 查询输出支持小数；保证导入/导出/补丁/回测链路不截断。 | 临时 PG 执行全部迁移后 `select table_schema, data_type from information_schema.columns where column_name='volume' and table_name='finv_quote_secu_kline_min' and table_schema in ('quote','dedup','export','cdeu')` 四行均为 `numeric`；`12.345678` 在四表写入/读回一致；重复执行 V200059 输出「已是 numeric，跳过」；`go test ./internal/mvsv` 含 `TestParseNumericVolume` 通过；`go build ./...`、`go test ./internal/meta/finv/quote ./internal/meta/finv/quote/cdeu/kline` 通过；`HistoryQuote.md` volume 标注支持小数 | |
 
 ## 一百二十五、外部 OpenAPI 文档自包含（10793）
 
