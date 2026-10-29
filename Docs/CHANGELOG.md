@@ -20,6 +20,10 @@
 
 ### 变更
 
+- **`AGENTS.md` 新增「授权边界（强制）」条款**
+  - 明确以下动作先问后做、未获明确同意不得执行：新建 / 移动 / 重命名 / 删除文件；修改 `AGENTS.md`、`Docs/DevSpec/*`、`Docs/RequirementList.md`、`Docs/CHANGELOG.md`；新增或撤销需求编号；`git push`、`git reset`、改 tag。
+  - 要求执行前先输出「拟改动清单 + 待确认决策点」；需求含歧义（放哪个目录、文件叫什么、算不算规范、算不算需求）时默认不执行，只给选项并提问。
+  - 每个提交只包含用户点名的一件事，不做"顺手"修改；越界修改由用户决定回滚或保留。
 - 版本号由 `0.1.3` 切换至 `0.1.4`（`VERSION`），开启下一轮开发；`v0.1.3` 已作为正式版本打 tag。
 - **CDEU 前端路由迁移到 `Quote/Cdeu` 段**
   - 页面路由：`/Meta/Finv/Quote/DeDup/CDEU` → **`/Meta/Finv/Quote/Cdeu/CdeuOverview`**；`/Meta/Finv/Quote/DeDup/CDEUWorkflow` → **`/Meta/Finv/Quote/Cdeu/CdeuWorkflow`**（`Web/src/router.ts`）。

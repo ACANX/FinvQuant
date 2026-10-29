@@ -70,4 +70,10 @@ FinvQuant 是一个面向多资产的**严格事件驱动量化交易平台**，
 - Go 服务端（`cmd/`、`internal/`）与前端（`Web/`）的开发约定见 `Docs/FinvQuant/V1/Prompt.md` 与各自代码注释。
 - 仓库级本文件只负责结构说明；现行项目级规则以本文件与 `Docs/` 下规范为准，归档子项目的规则仅作追溯。
 - 根目录文件（`.gitignore`、`AGENTS.md`、`LICENSE`、`README.md`）描述仓库外壳，不描述项目内部行为。
+- **授权边界（强制）**：以下动作**先问后做**，未获明确同意不得执行——新建 / 移动 / 重命名 / 删除文件；修改 `AGENTS.md`、`Docs/DevSpec/*`、`Docs/RequirementList.md`、`Docs/CHANGELOG.md`；新增或撤销需求编号；`git push`、`git reset`、改 tag。
+  - 执行前须先输出「拟改动清单 + 待确认决策点」，得到同意后再落盘。
+  - 需求本身含歧义（放哪个目录、文件叫什么、算不算规范、算不算需求）时，**默认不执行**，只给选项并提问。
+  - 每个提交只包含用户点名的一件事，不做"顺手"修改；越界修改一旦被指出，由用户决定回滚或保留，不自行解释辩护。
+  - 该规则的例外只有两种：用户在同一条消息里**明确点名**要改的项；或仓库规范（如本条与 `Docs/DevSpec/DocSpec.md` §4）强制联动的同一处改动——后者也须在回复中显式说明改了哪两处。
+
 - **新增需求必须登记**：在 [`Docs/RequirementList.md`](Docs/RequirementList.md) 追加条目（五位数编号，自 `10001` 起只增不改，一条只描述一个要求并附可执行的核对方式），并按 [`Docs/DevSpec/DocSpec.md`](Docs/DevSpec/DocSpec.md) §4 同步更新 [`Docs/CHANGELOG.md`](Docs/CHANGELOG.md)。
