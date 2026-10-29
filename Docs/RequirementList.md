@@ -2246,6 +2246,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10812 | CDEU 页面路由由 `/Meta/Finv/Quote/DeDup/CDEU`、`/Meta/Finv/Quote/DeDup/CDEUWorkflow` 调整为 `/Meta/Finv/Quote/Cdeu/CdeuOverview`、`/Meta/Finv/Quote/Cdeu/CdeuWorkflow`；菜单项与页面内「全流程拓扑」跳转同步；后端 API 路径（`/API/V1/Meta/Finv/Quote/DeDup/CDEU/*`）保持不变。 | `grep -c '/Meta/Finv/Quote/Cdeu/CdeuOverview' Web/src/router.ts Web/src/config/menuConfig.ts` 各 ≥ 1；`grep -c '/Meta/Finv/Quote/Cdeu/CdeuWorkflow' Web/src/router.ts Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 各 ≥ 1；`grep -c "Quote/DeDup/CDEU'" Web/src/router.ts` 为 0；`cd Web && npm run build` 通过 | |
 
+## 一百四十、CDEU 归档工作流设计文档（10813）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10813 | 在 `Docs/Design/` 下新增 CDEU（采集 → 去重 → 导出 → 上传）归档工作流设计文档，体例对齐 AHA `Docs/Design`（元信息 + 变更日志 + 编号章节 + 表格化结论）：覆盖五级层级模型、状态机与完成条件、六个阶段、17 个 Process、22 个 JOB、15 个静态 Step 的「输入 / 处理 / 输出 / 解决的问题」，以及数据契约、系统配置项、阈值清单、运维排障与 `CdeuOverview`、`CdeuWorkflow` 页面映射。 | `test -f Docs/Design/CdeuWorkflowDesign.md`；`grep -c '^## ' Docs/Design/CdeuWorkflowDesign.md` ≥ 10；`grep -o 'JOB_[A-Z_]*' Docs/Design/CdeuWorkflowDesign.md \| sort -u \| wc -l` ≥ 20；`go test ./internal/docs` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2413,7 +2419,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 登录后页面页脚 | 10809 | 1 |
 | 深色/浅色主题切换 | 10810–10811 | 2 |
 | CDEU 前端路由调整 | 10812 | 1 |
-| **合计** | **10001–10812** | **812** |
+| CDEU 归档工作流设计文档 | 10813 | 1 |
+| **合计** | **10001–10813** | **813** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

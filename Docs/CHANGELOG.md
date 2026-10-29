@@ -65,6 +65,11 @@
 
 ### 新增
 
+- **CDEU 归档工作流设计文档（需求 10813）**
+  - 新增 **`Docs/Design/CdeuWorkflowDesign.md`**，体例对齐 AHA `Docs/Design`：文档元信息 + 变更日志 + 编号章节 + 表格化结论。
+  - 内容覆盖：五级层级（Workflow → Phase → Process → JOB → Step）、定义/运行/动态实例分离、9 种运行状态、完成条件、触发与执行模式、六个阶段（收集 / 去重 / 决策 / 导出 / 上传 / 复核）、17 个 Process、22 个 JOB（含 1 个已停用）、15 个静态 Step。
+  - 每个阶段给出「目标—输入—输出—流程—关键规则—失败边界」，每个 JOB 给出「输入—处理—输出—解决的问题」，另含数据契约（关键表、文件命名与 16 行文件头、校验规则）、系统配置 20001–20012、阈值清单、运维排障表与两个页面（`CdeuOverview`、`CdeuWorkflow`）的监控映射。
+
 - **深色 / 浅色主题切换（需求 10810）**
   - 右上角用户菜单新增「深色主题」开关，即时切换 Vuetify `light` / `dark` 主题；选择保存在 `localStorage['finvquant.ui.theme']`，**不做服务端持久化**（待办 10811）。
   - 初始主题优先级：本地选择 > 浏览器 `prefers-color-scheme` > 深色默认（`Web/src/main.ts` + `Web/src/config/uiConfig.ts`）。
