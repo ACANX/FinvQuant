@@ -19,7 +19,7 @@
 │  └─ 行情数据归档（三级分组）
 │     ├─ 归档监控总览（/Meta/Finv/Quote/DeDup/Export/Overview）
 │     ├─ 端到端链路（/Meta/Finv/Quote/DeDup/Export/Chain）
-│     ├─ 工作流控制与监控（/Meta/Finv/Quote/DeDup/CDEU）
+│     ├─ 工作流控制与监控（/Meta/Finv/Quote/Cdeu/CdeuOverview）
 │     ├─ 导出任务（/Meta/Finv/Quote/DeDup/Export/Job）
 │     ├─ 文件与上传（/Meta/Finv/Quote/DeDup/Export/File）
 │     ├─ 归档统计与预算（/Meta/Finv/Quote/DeDup/Export/Stats）
@@ -69,7 +69,7 @@
 | 7 | 行情数据归档 | 金融投资 | 三级分组 | `quote-archive` | `mdi-database-export-outline` | — | — | — | — |
 | 8 | 归档监控总览 | 金融投资 | 四级叶子 | `dedup-export-overview` | `mdi-monitor-dashboard` | `/Meta/Finv/Quote/DeDup/Export/Overview` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue` | `GET .../Quote/Cdeu/Overview` | — |
 | 9 | 端到端链路 | 金融投资 | 四级叶子 | `dedup-export-chain` | `mdi-transit-connection-variant` | `/Meta/Finv/Quote/DeDup/Export/Chain` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` | `GET .../Quote/Cdeu/Chain` | — |
-| 10 | 工作流控制与监控 | 金融投资 | 四级叶子 | `dedup-export-cdeu` | `mdi-sitemap-outline` | `/Meta/Finv/Quote/DeDup/CDEU` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` | `GET .../Quote/Cdeu/Status`、`POST .../Quote/Cdeu/Step/Run` | — |
+| 10 | 工作流控制与监控 | 金融投资 | 四级叶子 | `dedup-export-cdeu` | `mdi-sitemap-outline` | `/Meta/Finv/Quote/Cdeu/CdeuOverview` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` | `GET .../Quote/Cdeu/Status`、`POST .../Quote/Cdeu/Step/Run` | — |
 | 11 | 导出任务 | 金融投资 | 四级叶子 | `dedup-export-job` | `mdi-clipboard-list-outline` | `/Meta/Finv/Quote/DeDup/Export/Job` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportJobView.vue` | `GET .../Quote/Cdeu/Export/Job/List` | — |
 | 12 | 文件与上传 | 金融投资 | 四级叶子 | `dedup-export-file` | `mdi-file-cloud-outline` | `/Meta/Finv/Quote/DeDup/Export/File` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue` | `GET .../Quote/Cdeu/Export/File/List` | — |
 | 13 | 归档统计与预算 | 金融投资 | 四级叶子 | `dedup-export-stats` | `mdi-chart-box-multiple-outline` | `/Meta/Finv/Quote/DeDup/Export/Stats` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveStatsView.vue` | `GET .../Quote/Cdeu/Export/Stats` | — |

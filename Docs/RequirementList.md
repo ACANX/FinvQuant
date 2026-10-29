@@ -575,7 +575,7 @@
 | 10386 | 新增 CDEU 抽象概念模型设计文档：Process / Phase / Step / Job 四层、运行模式、批处理、完成条件、表结构与 13 个 Job 登记映射。 | `test -f Docs/Refactor/2610-007-CDEUProcessModelDesign.md` 退出码为 0；`grep -c 'cdeu_process' Docs/Refactor/2610-007-CDEUProcessModelDesign.md` 输出大于 `0` | |
 | 10387 | 规范要求过程文档 `yyMM-NNN-` 编号在 `Docs/` 下全局唯一，不得重号或复用，并提供自动校验。 | `grep -F '全局唯一' Docs/DevSpec/FileNamingSpec.md` 命中；`go test ./internal/docs` 通过（重号时失败） | |
 | 10388 | 按 CDEU 模型新增 8 张 `dedup.cdeu_*` 表并 seed 1 个流程 / 4 个阶段 / 10 个步骤 / 13 个作业（V45 将旁路步骤并入导出/上传阶段）；现有 Job 执行时双写 CDEU 运行树并按完成条件逐级评估。 | `test -f Deploy/Migrations/V100044__finv_dedup_cdeu_process_model.sql` 退出码为 0；`grep -F 'CDEU_DAILY' Deploy/Migrations/V100044__finv_dedup_cdeu_process_model.sql` 命中；`go test ./internal/meta/finv/quote/dedup` 通过 | |
-| 10389 | 前端新增「流程控制与监控」菜单，按 Process / Phase / Step / Job 展示 CDEU 运行状态、历史运行与手动触发；后端新增 `GET /CDEU/Overview`。 | `grep -F '/Meta/Finv/Quote/DeDup/CDEU' Web/src/App.vue Web/src/router.ts` 命中；`grep -F 'CDEU/Overview' internal/api/router.go` 命中；`cd Web && npm run build` 通过 | |
+| 10389 | 前端新增「流程控制与监控」菜单，按 Process / Phase / Step / Job 展示 CDEU 运行状态、历史运行与手动触发；后端新增 `GET /CDEU/Overview`。 | `grep -F '/Meta/Finv/Quote/Cdeu/CdeuOverview' Web/src/router.ts Web/src/config/menuConfig.ts` 命中；`grep -F 'CDEU/Overview' internal/api/router.go` 命中；`cd Web && npm run build` 通过 | |
 | 10390 | 流程控制页默认「总体视图」，阶段悬浮展示概要；支持启动完整 CDEU 流程（`POST /CDEU/Process/Run`）。 | `grep -F 'viewMode' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'v-tooltip' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'CDEU/Process/Run' internal/api/router.go` 命中；`cd Web && npm run build` 通过 | |
 | 10391 | 总体视图点击阶段后，在「阶段概览」位置展示该阶段的步骤清单表格（步骤状态、作业/批次进度、开始时间、耗时、异常），不再重复展示阶段汇总表。 | `grep -F 'selectedPhase' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'selectedPhase.steps' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10392 | 「阶段流转」改为画布式工作流：悬浮节点 + 点阵画布 + 阶段间有向箭头，箭头由前序阶段指向后续阶段，点击节点切换步骤清单。 | `grep -F 'workflow-canvas' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'marker-end' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
@@ -618,7 +618,7 @@
 | 10429 | 阶段内 Process 拓扑支持「流程拓扑」开关显示/隐藏，默认显示；导出阶段将 `PROCESS_RECOVER` 作为与 `PROCESS_EXPORT_FILE_MON_BASE` 并行的支路展示。 | `grep -F 'processTopologyVisible' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'processTopologyHasParallel' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10430 | 导出决策阶段按依赖调整：入口流量统计与行情成熟度扫描并行，每日导出预算计算在其后；调度改为 00:05 启动统计/成熟度、00:10 启动预算，拓扑图展示并行汇合关系。 | `test -f Deploy/Migrations/V100064__finv_dedup_cdeu_decision_parallel_schedule.sql` 退出码为 0；`grep -F "JOB_CALC_BUDGET" Deploy/Migrations/V100064__finv_dedup_cdeu_decision_parallel_schedule.sql` 命中；`grep -F "processTopologyMode" Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
 | 10431 | 画布上阶段与 Process 视觉样式区分：阶段为实线大卡片，Process 为虚线紧凑卡片；开始/结束节点由圆形改为矩形。 | `grep -F 'border-radius: 8px' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'border: 1px dashed' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
-| 10432 | 新增 `/Meta/Finv/Quote/DeDup/CDEUWorkflow` 菜单与「全流程拓扑」页面：每个阶段以虚线框圈定范围，框内展开该阶段全部 Process，并绘制阶段内及跨阶段的完整依赖连接。 | `grep -F "path: '/Meta/Finv/Quote/DeDup/CDEUWorkflow'" Web/src/router.ts` 命中；`grep -F "全流程拓扑" Web/src/App.vue` 命中；`test -f Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 退出码为 0；`cd Web && npm run build` 通过 | |
+| 10432 | 新增 `/Meta/Finv/Quote/DeDup/CDEUWorkflow` 菜单与「全流程拓扑」页面：每个阶段以虚线框圈定范围，框内展开该阶段全部 Process，并绘制阶段内及跨阶段的完整依赖连接。 | `grep -F "path: '/Meta/Finv/Quote/Cdeu/CdeuWorkflow'" Web/src/router.ts` 命中；`grep -F "全流程拓扑" Web/src/App.vue` 命中；`test -f Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 退出码为 0；`cd Web && npm run build` 通过 | |
 | 10433 | 「全流程拓扑」图例绘制在拓扑画布内部，随画布一起滚动，不再放在画布外部的页面区域。 | `grep -F 'fulltopo-legend-in-canvas' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`grep -F 'legendTop' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10434 | 「全流程拓扑」中阶段内部并行流程的分叉点绘制在阶段虚线框内部；所有阶段虚线框高度统一，宽度按该阶段流程列数自适应。 | `grep -F 'FORK_SPACE' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`grep -F 'phaseHeight' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`grep -F 'fulltopo-fork' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10435 | 「全流程拓扑」去掉阶段虚线框左侧的绿色实边，阶段框仅保留虚线边界；增大阶段内分叉点到 Process 入口的间距，分叉后的折线、箭头与节点入口保持清晰距离。 | `grep -F '.fulltopo-phase::before' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 无命中；`grep -F 'const FORK_SPACE = 72' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`grep -F 'to.x - 16' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`cd Web && npm run build` 通过 | |
@@ -2240,6 +2240,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10810 | 用户可在右上角用户菜单内切换深色/浅色主题，选择保存在浏览器 `localStorage['finvquant.ui.theme']`；初始主题按「本地选择 > 系统偏好 > 深色」取。 | `grep -F "finvquant.ui.theme" Web/src/config/uiConfig.ts` 命中；`grep -F "resolveInitialTheme" Web/src/main.ts Web/src/config/uiConfig.ts` 各命中；人工：切换后全站配色立即变化、刷新后保持 | |
 | 10811 | **待办（未实施）**：主题偏好做服务端持久化（存 `sys.sys_user` 或 `sys_config`，登录后跨设备同步）。 | 未实施；落地时须补迁移、接口与文档 | |
 
+## 一百三十九、CDEU 前端路由调整（10812）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10812 | CDEU 页面路由由 `/Meta/Finv/Quote/DeDup/CDEU`、`/Meta/Finv/Quote/DeDup/CDEUWorkflow` 调整为 `/Meta/Finv/Quote/Cdeu/CdeuOverview`、`/Meta/Finv/Quote/Cdeu/CdeuWorkflow`；菜单项与页面内「全流程拓扑」跳转同步；后端 API 路径（`/API/V1/Meta/Finv/Quote/DeDup/CDEU/*`）保持不变。 | `grep -c '/Meta/Finv/Quote/Cdeu/CdeuOverview' Web/src/router.ts Web/src/config/menuConfig.ts` 各 ≥ 1；`grep -c '/Meta/Finv/Quote/Cdeu/CdeuWorkflow' Web/src/router.ts Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 各 ≥ 1；`grep -c "Quote/DeDup/CDEU'" Web/src/router.ts` 为 0；`cd Web && npm run build` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2406,7 +2412,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | V200057 迁移兼容 dedup 缺失 | 10808 | 1 |
 | 登录后页面页脚 | 10809 | 1 |
 | 深色/浅色主题切换 | 10810–10811 | 2 |
-| **合计** | **10001–10811** | **811** |
+| CDEU 前端路由调整 | 10812 | 1 |
+| **合计** | **10001–10812** | **812** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

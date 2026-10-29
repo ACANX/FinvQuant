@@ -21,6 +21,13 @@
 ### 变更
 
 - 版本号由 `0.1.3` 切换至 `0.1.4`（`VERSION`），开启下一轮开发；`v0.1.3` 已作为正式版本打 tag。
+- **CDEU 前端路由迁移到 `Quote/Cdeu` 段**
+  - 页面路由：`/Meta/Finv/Quote/DeDup/CDEU` → **`/Meta/Finv/Quote/Cdeu/CdeuOverview`**；`/Meta/Finv/Quote/DeDup/CDEUWorkflow` → **`/Meta/Finv/Quote/Cdeu/CdeuWorkflow`**（`Web/src/router.ts`）。
+  - 菜单项 `dedup-export-cdeu` 的 `path` 与 CDEU 页面内「全流程拓扑」跳转 `href` 同步更新；菜单 `key` 不变，展开状态与上次访问记忆不受影响。
+  - 后端 API 路径保持 `/API/V1/Meta/Finv/Quote/DeDup/CDEU/{Overview,Workflow/Run,Workflow/Terminate}` 不变，页面内 `apiGet`/`apiPost` 调用零改动。
+  - 文档：`Docs/Menu/Menus.md` 路由列、`Docs/RequirementList.md`（10389、10432 核对命令）同步；历史 CHANGELOG 与 `Docs/Refactor/2610-012` 中的旧路径按原样保留。
+  - 注意：旧路径未保留 redirect，浏览器书签/历史链接需手动改为新路径。
+
 - **计算与 MVSV 解析包归入 `meta/finv` 域，`internal/` 顶层收敛**
   - `internal/calc`（`change.go`、`change_test.go`）→ **`internal/meta/finv/quant/calc`**；`internal/mvsv`（10 个文件：MVSV-1/2 解析与写出、流式读、样例验证）→ **`internal/meta/finv/quote/mvsv`**；包名 `calc` / `mvsv` 保持不变。
   - import 同步：`internal/api/handler/import.go`、`internal/meta/finv/quote/{service.go,change_test.go}`、`internal/meta/finv/quote/cdeu/kline/request.go`、`cmd/qmio/{export.go,import.go,verify.go}`。

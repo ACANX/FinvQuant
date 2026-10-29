@@ -73,13 +73,13 @@ const router = createRouter({
       meta: { title: '端到端链路' },
     },
     {
-      path: '/Meta/Finv/Quote/DeDup/CDEU',
+      path: '/Meta/Finv/Quote/Cdeu/CdeuOverview',
       name: 'dedup-export-cdeu',
       component: DeDupCDEUView,
       meta: { title: '工作流控制与监控' },
     },
     {
-      path: '/Meta/Finv/Quote/DeDup/CDEUWorkflow',
+      path: '/Meta/Finv/Quote/Cdeu/CdeuWorkflow',
       name: 'dedup-export-cdeu-workflow',
       component: DeDupCDEUWorkflowView,
       meta: { title: '全流程拓扑' },
