@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useDisplay } from 'vuetify'
+import { useDisplay, useTheme } from 'vuetify'
 import { useRoute, useRouter } from 'vue-router'
 
 import { apiPost } from './api'
@@ -8,7 +8,7 @@ import { authState, clearSession } from './auth'
 import NavMenuTree from './components/menu/NavMenuTree.vue'
 import SystemSwitcher from './components/menu/SystemSwitcher.vue'
 import { menuSystems, resolveSystem } from './config/menuConfig'
-import { NAV_LAST_PATH_STORAGE_KEY, readStorage, writeStorage } from './config/uiConfig'
+import { NAV_LAST_PATH_STORAGE_KEY, readStorage, setNavTheme, writeStorage } from './config/uiConfig'
 import ChangePasswordDialog from './views/Common/ChangePasswordDialog.vue'
 
 // 导航结构：一级 = 系统（顶栏切换器），左侧抽屉渲染当前系统的二~四级菜单。
@@ -17,7 +17,17 @@ import ChangePasswordDialog from './views/Common/ChangePasswordDialog.vue'
 const route = useRoute()
 const router = useRouter()
 const display = useDisplay()
+const theme = useTheme()
 const drawer = ref(true)
+// 当前是否深色主题（用户菜单内开关控制，选择写 localStorage）
+const isDarkTheme = computed(() => theme.global.name.value === 'dark')
+
+/** 切换深色/浅色主题：即时生效并记入浏览器本地 */
+function toggleTheme(): void {
+  const next = isDarkTheme.value ? 'light' : 'dark'
+  theme.global.name.value = next
+  setNavTheme(next)
+}
 
 // 当前系统（按路由前缀判定；未命中回落到金融投资）
 const currentSystem = computed(() => resolveSystem(route.path))
@@ -141,6 +151,22 @@ watch(
             prepend-icon="mdi-account"
           />
           <v-divider />
+          <!-- 主题开关：深色/浅色（仅存本地，不做服务端持久化） -->
+          <v-list-item @click="toggleTheme">
+            <template #prepend>
+              <v-icon :icon="isDarkTheme ? 'mdi-weather-night' : 'mdi-weather-sunny'" />
+            </template>
+            <v-list-item-title>深色主题</v-list-item-title>
+            <template #append>
+              <v-switch
+                :model-value="isDarkTheme"
+                :color="isDarkTheme ? 'green' : 'grey'"
+                density="compact"
+                hide-details
+                style="pointer-events: none"
+              />
+            </template>
+          </v-list-item>
           <v-list-item
             prepend-icon="mdi-lock-reset"
             title="修改密码"

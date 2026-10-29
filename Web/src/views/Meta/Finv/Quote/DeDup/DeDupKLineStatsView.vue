@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // 去重分钟行情统计：汇总指标 + 空值完整性 + ECharts 可视化
 import * as echarts from 'echarts'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useTheme } from 'vuetify'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { apiGet } from '../../../../../api'
 import { fmtDate, shiftMonthISO, todayISO } from '../../../../../utils'
@@ -92,7 +93,12 @@ let topDom: HTMLDivElement | null = null
 let observer: ResizeObserver | null = null
 
 const AXIS_COLOR = '#9aa4b2'
-const SPLIT_COLOR = 'rgba(255,255,255,0.08)'
+
+// 坐标轴线/分割线颜色随主题变化：深色用浅色半透明，浅色用深色半透明
+const theme = useTheme()
+function splitColor(): string {
+  return theme.global.name.value === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.10)'
+}
 
 const summary = computed(() => data.value?.summary ?? null)
 const daily = computed(() => data.value?.daily ?? [])
@@ -262,7 +268,7 @@ function dailyXAxis() {
     boundaryGap: true,
     data: daily.value.map((item) => shortDate(item.date)),
     axisLabel: { color: AXIS_COLOR, hideOverlap: true, interval: timeLabelInterval() },
-    axisLine: { lineStyle: { color: SPLIT_COLOR } },
+    axisLine: { lineStyle: { color: splitColor() } },
     axisTick: { alignWithLabel: true },
   }
 }
@@ -302,7 +308,7 @@ function renderCharts() {
           name: '记录数',
           nameTextStyle: { color: AXIS_COLOR },
           axisLabel: { color: AXIS_COLOR, formatter: (value: number) => String(value) },
-          splitLine: { lineStyle: { color: SPLIT_COLOR } },
+          splitLine: { lineStyle: { color: splitColor() } },
         },
         series: [
           {
@@ -336,7 +342,7 @@ function renderCharts() {
           name: '成交量',
           nameTextStyle: { color: AXIS_COLOR },
           axisLabel: { color: AXIS_COLOR, formatter: (value: number) => fmtCompact(value) },
-          splitLine: { lineStyle: { color: SPLIT_COLOR } },
+          splitLine: { lineStyle: { color: splitColor() } },
         },
         series: [
           {
@@ -370,7 +376,7 @@ function renderCharts() {
           name: '成交额',
           nameTextStyle: { color: AXIS_COLOR },
           axisLabel: { color: AXIS_COLOR, formatter: (value: number) => fmtCompact(value) },
-          splitLine: { lineStyle: { color: SPLIT_COLOR } },
+          splitLine: { lineStyle: { color: splitColor() } },
         },
         series: [
           {
@@ -405,7 +411,7 @@ function renderCharts() {
           name: '收盘价均值',
           nameTextStyle: { color: AXIS_COLOR },
           axisLabel: { color: AXIS_COLOR, formatter: (value: number) => String(value) },
-          splitLine: { lineStyle: { color: SPLIT_COLOR } },
+          splitLine: { lineStyle: { color: splitColor() } },
         },
         series: [
           {
@@ -448,13 +454,13 @@ function renderCharts() {
         xAxis: {
           type: 'value',
           axisLabel: { color: AXIS_COLOR, formatter: (value: number) => fmtCompact(value) },
-          splitLine: { lineStyle: { color: SPLIT_COLOR } },
+          splitLine: { lineStyle: { color: splitColor() } },
         },
         yAxis: {
           type: 'category',
           data: reversed.map((item) => item.usc),
           axisLabel: { color: AXIS_COLOR },
-          axisLine: { lineStyle: { color: SPLIT_COLOR } },
+          axisLine: { lineStyle: { color: splitColor() } },
         },
         series: [
           {
@@ -491,6 +497,15 @@ function resizeCharts() {
   }
   for (const chart of [countChart, volumeChart, turnoverChart, avgChart, topChart]) chart?.resize()
 }
+
+// 主题切换后重绘（分割线/轴线颜色随主题变化）
+watch(
+  () => theme.global.name.value,
+  () => {
+    renderCharts()
+    resizeCharts()
+  },
+)
 
 onMounted(async () => {
   try {

@@ -20,6 +20,12 @@
 
 ### 新增
 
+- **深色 / 浅色主题切换（需求 10810）**
+  - 右上角用户菜单新增「深色主题」开关，即时切换 Vuetify `light` / `dark` 主题；选择保存在 `localStorage['finvquant.ui.theme']`，**不做服务端持久化**（待办 10811）。
+  - 初始主题优先级：本地选择 > 浏览器 `prefers-color-scheme` > 深色默认（`Web/src/main.ts` + `Web/src/config/uiConfig.ts`）。
+  - 图表适配：历史行情查询（ECharts 画布/坐标轴/图例/tooltip/布林中轨线）与去重分钟行情统计（坐标轴分割线）改为随主题取值，并在主题切换时重绘；登录页保持独立深色视觉。
+  - 文档：`Docs/DevSpec/UiSpec.md` 新增 §3「主题（深色/浅色）切换」。
+
 - **BRS 对象存储配置说明（39002 remark，需求 10802）**
   - `V200061` 中 `sys.sys_config 39002` 的 `remark` 补全为完整配置说明（`enabled/provider/endpoint/bucket/region/access_key/secret_key/prefix` 字段含义、R2/AWS/MinIO 差异、R2 API Token 获取步骤、注意事项、示例 JSON），约 1KB。
   - `Docs/FinvQuant/Brs.md` §6.1 增加 R2 配置步骤与验证命令。

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import * as echarts from 'echarts'
+import { useTheme } from 'vuetify'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 
 import { apiGet } from '../../../../../api'
@@ -42,6 +43,24 @@ const BOLL_SERIES = [
   { name: 'BOLL中轨', color: '#ffffff' },
   { name: 'BOLL下轨', color: '#7ec8e3' },
 ]
+
+// 图表配色随 Vuetify 深色/浅色主题变化（中轨线在浅色下用深灰，避免不可见）
+const theme = useTheme()
+function chartPalette() {
+  const dark = theme.global.name.value === 'dark'
+  return {
+    bg: dark ? '#1e1e1e' : '#ffffff',
+    pointerLabel: dark ? '#3a3a3a' : '#d0d0d0',
+    tooltipBg: dark ? '#2d2d2d' : '#ffffff',
+    tooltipBorder: dark ? '#444444' : '#c0c0c0',
+    tooltipText: dark ? '#eee' : '#212121',
+    legendText: dark ? '#ccc' : '#424242',
+    axisText: dark ? '#aaa' : '#555555',
+    axisLine: dark ? '#3a3a3a' : '#c0c0c0',
+    splitLine: dark ? '#333333' : '#e0e0e0',
+    bollMid: dark ? '#ffffff' : '#303030',
+  }
+}
 
 const usc = ref('GCMain') // 证券代码（usc key），默认 GCMain
 const secuName = ref('') // 证券名称（security_name_cn），选中字典项后回填，便于确认
@@ -298,6 +317,7 @@ function computeBOLL(closes: (number | null)[], n: number, k: number): [(number 
 // 三行图例配置：第一行 K线；第二行 均线总开关 + MA5/10/20/60/120/250；
 // 第三行 布林总开关 + 上/中/下轨。总开关选中态由 groupToggles 驱动，成员由 seriesVisible 驱动。
 function renderLegendOption() {
+  const p = chartPalette()
   return [
     {
       top: 4,
@@ -305,7 +325,7 @@ function renderLegendOption() {
       itemWidth: 14,
       itemHeight: 8,
       icon: 'roundRect',
-      textStyle: { fontSize: 11, color: '#ccc' },
+      textStyle: { fontSize: 11, color: p.legendText },
       data: ['K线'],
       selected: { K线: seriesVisible.K线 },
     },
@@ -315,7 +335,7 @@ function renderLegendOption() {
       itemWidth: 14,
       itemHeight: 8,
       icon: 'roundRect',
-      textStyle: { fontSize: 11, color: '#ccc' },
+      textStyle: { fontSize: 11, color: p.legendText },
       data: ['均线', ...maNames],
       selected: {
         均线: groupToggles.均线,
@@ -328,7 +348,7 @@ function renderLegendOption() {
       itemWidth: 14,
       itemHeight: 8,
       icon: 'roundRect',
-      textStyle: { fontSize: 11, color: '#ccc' },
+      textStyle: { fontSize: 11, color: p.legendText },
       data: ['布林', ...bollNames],
       selected: {
         布林: groupToggles.布林,
@@ -395,9 +415,18 @@ async function query() {
   }
 }
 
+// 主题切换后按当前主题重绘图表（保留缩放状态）
+watch(
+  () => theme.global.name.value,
+  () => {
+    if (lastBars.length > 0) renderChart(lastBars, true)
+  },
+)
+
 function renderChart(bars: QuoteBar[], preserveZoom = false) {
   if (!chartEl.value) return
   lastBars = bars
+  const p = chartPalette()
   // 图例点击触发的重绘（preserveZoom）保留用户缩放区间；新查询则重置为全量
   const zoomRaw = preserveZoom ? ((chart?.getOption().dataZoom ?? []) as Array<{ start?: number; end?: number }>) : []
   const prevZoom = zoomRaw[0]?.start != null ? { start: zoomRaw[0].start, end: zoomRaw[0].end } : null
@@ -461,21 +490,21 @@ function renderChart(bars: QuoteBar[], preserveZoom = false) {
   // 顶层 color 与 lineStyle.color 同源：图例 icon 与图中线颜色必须一致
   const bollSeries = [
     { name: BOLL_SERIES[0].name, type: 'line' as const, data: bollUp, smooth: true, showSymbol: false, connectNulls: false, color: BOLL_SERIES[0].color, lineStyle: { width: 1, color: BOLL_SERIES[0].color }, emphasis: { disabled: true }, z: 2 },
-    { name: BOLL_SERIES[1].name, type: 'line' as const, data: bollMid, smooth: true, showSymbol: false, connectNulls: false, color: BOLL_SERIES[1].color, lineStyle: { width: 1, color: BOLL_SERIES[1].color }, emphasis: { disabled: true }, z: 2 },
+    { name: BOLL_SERIES[1].name, type: 'line' as const, data: bollMid, smooth: true, showSymbol: false, connectNulls: false, color: p.bollMid, lineStyle: { width: 1, color: p.bollMid }, emphasis: { disabled: true }, z: 2 },
     { name: BOLL_SERIES[2].name, type: 'line' as const, data: bollLow, smooth: true, showSymbol: false, connectNulls: false, color: BOLL_SERIES[2].color, lineStyle: { width: 1, color: BOLL_SERIES[2].color }, emphasis: { disabled: true }, z: 2 },
   ]
 
   chart.setOption(
     {
       animation: false,
-      backgroundColor: '#1e1e1e',
+      backgroundColor: p.bg,
       axisPointer: { link: [{ xAxisIndex: 'all' }] },
       tooltip: {
         trigger: 'axis',
-        axisPointer: { type: 'cross', label: { backgroundColor: '#3a3a3a' } },
-        backgroundColor: '#2d2d2d',
-        borderColor: '#444444',
-        textStyle: { color: '#eee', fontSize: 12 },
+        axisPointer: { type: 'cross', label: { backgroundColor: p.pointerLabel } },
+        backgroundColor: p.tooltipBg,
+        borderColor: p.tooltipBorder,
+        textStyle: { color: p.tooltipText, fontSize: 12 },
         formatter: (params: unknown) => {
           const list = params as Array<{ dataIndex: number; seriesName: string; value: number | number[] | null }>
           if (!list?.length) return ''
@@ -531,11 +560,11 @@ function renderChart(bars: QuoteBar[], preserveZoom = false) {
           type: 'category',
           data: labels,
           boundaryGap: true,
-          axisLine: { lineStyle: { color: '#3a3a3a' } },
+          axisLine: { lineStyle: { color: p.axisLine } },
           axisTick: { show: false },
           // 整点刻度：1 日模式标整点，5 日模式 0 点标日期 + 4/8/12/16/20 点标时刻
           axisLabel: {
-            color: '#aaa',
+            color: p.axisText,
             fontSize: 11,
             hideOverlap: true,
             formatter: (val: string) => {
@@ -549,7 +578,7 @@ function renderChart(bars: QuoteBar[], preserveZoom = false) {
           type: 'category',
           data: labels,
           gridIndex: 1,
-          axisLine: { lineStyle: { color: '#3a3a3a' } },
+          axisLine: { lineStyle: { color: p.axisLine } },
           axisTick: { show: false },
           axisLabel: { show: false },
         },
@@ -559,10 +588,10 @@ function renderChart(bars: QuoteBar[], preserveZoom = false) {
           scale: true,
           position: 'left',
           // 价格轴左侧展示，去除千分位（直接数值格式）
-          axisLabel: { color: '#aaa', fontSize: 11, formatter: (v: number) => String(v) },
+          axisLabel: { color: p.axisText, fontSize: 11, formatter: (v: number) => String(v) },
           axisLine: { show: false },
           axisTick: { show: false },
-          splitLine: { lineStyle: { color: '#333333' } },
+          splitLine: { lineStyle: { color: p.splitLine } },
         },
         {
           gridIndex: 1,
@@ -577,8 +606,8 @@ function renderChart(bars: QuoteBar[], preserveZoom = false) {
       series: [
         // 占位 series（隐藏且无数据）：让「均线」「布林」成为真实 series，
         // ECharts 才会渲染这两个总开关图例项，点击才能正常翻转其选中态
-        { name: '均线', type: 'line', data: [], silent: true, tooltip: { show: false }, legendHoverLink: false, itemStyle: { color: '#aaa' }, emphasis: { disabled: true }, z: -10 },
-        { name: '布林', type: 'line', data: [], silent: true, tooltip: { show: false }, legendHoverLink: false, itemStyle: { color: '#aaa' }, emphasis: { disabled: true }, z: -10 },
+        { name: '均线', type: 'line', data: [], silent: true, tooltip: { show: false }, legendHoverLink: false, itemStyle: { color: p.axisText }, emphasis: { disabled: true }, z: -10 },
+        { name: '布林', type: 'line', data: [], silent: true, tooltip: { show: false }, legendHoverLink: false, itemStyle: { color: p.axisText }, emphasis: { disabled: true }, z: -10 },
         {
           name: 'K线',
           type: 'candlestick',

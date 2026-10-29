@@ -63,3 +63,15 @@
 | CANCELLED（已取消） | `mdi-cancel` | orange |
 
 参考实现：`Web/src/views/Meta/Finv/Quant/Backtest/BacktestGoldFuturesView.vue`（`statusMeta` / `statusIcon*` 辅助函数 + `.spin` 旋转动画）。
+
+## 3. 主题（深色 / 浅色）切换
+
+- **主题机制**：由 Vuetify `useTheme()` 驱动（`light` / `dark` 两套内置主题），切换后全站生效，无需刷新。
+- **切换入口**：右上角用户菜单 →「深色主题」开关（遵循 §1：开启 `green`、关闭 `grey`，`density="compact"` + `hide-details`）。
+- **初始主题优先级**：`localStorage['finvquant.ui.theme']`（用户本地选择） > 浏览器 `prefers-color-scheme` > 深色默认（项目默认）。
+- **持久化范围**：仅保存在**用户浏览器本地**，**不做服务端持久化**（待办，见 `Docs/RequirementList.md` 10811）。
+- **新增页面/组件约束**（强制）：
+  - 禁止硬编码深色背景与浅色文本，优先使用主题变量（`rgb(var(--v-theme-surface))`、`rgb(var(--v-theme-on-surface))`、`rgb(var(--v-theme-primary))` 等）；
+  - Canvas 图表（ECharts）的颜色必须按 `theme.global.name` 取值，并在主题切换后重绘（参考 `HistoryQuoteQueryView.vue` 的 `chartPalette()` + `watch(theme.global.name)`、`DeDupKLineStatsView.vue` 的 `splitColor()` + 重绘）；
+  - 登录页（`LoginView.vue`）保持独立深色视觉，不跟随主题。
+- **回归自检**：切换主题后逐个页面检查表格斑马纹、图表坐标轴/图例/tooltip、输入框边框、页脚文字是否可读；发现硬编码颜色应在同一变更中改为主题变量。
