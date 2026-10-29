@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 去重分钟行情查询：按 usc + 交易日期范围分页查询 dedup.finv_quote_secu_kline_min
+// 去重分钟行情查询：按 usc + 交易日期范围分页查询 cdeu.finv_quote_secu_kline_min
 import { onMounted, ref, watch } from 'vue'
 
 import { apiGet } from '../../../../../api'
@@ -118,7 +118,7 @@ async function load() {
   if (from) params.set('dateFrom', from)
   if (to) params.set('dateTo', to)
   try {
-    const data = await apiGet<PageData>(`/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Page?${params.toString()}`)
+    const data = await apiGet<PageData>(`/Meta/Finv/Quote/Cdeu/Min/Page?${params.toString()}`)
     rows.value = (data.list ?? []).map((row) => ({ ...row, _key: `${row.usc}-${row.ts}` }))
     total.value = data.cnt ?? 0
   } catch (e) {
@@ -143,7 +143,7 @@ function search() {
 async function resolveDefaultRange(): Promise<{ from: string; to: string }> {
   try {
     const bounds = await apiGet<{ date_to: number | null }>(
-      `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Bounds?usc=${DEFAULT_USC}`,
+      `/Meta/Finv/Quote/Cdeu/Min/Bounds?usc=${DEFAULT_USC}`,
     )
     const end = bounds.date_to ? fmtDate(bounds.date_to) : todayISO()
     return { from: shiftMonthISO(end, -1), to: end }
@@ -278,8 +278,8 @@ onMounted(async () => {
       <v-card variant="tonal" color="surface-variant" class="mt-4">
         <v-card-text class="text-caption text-medium-emphasis">
           <div class="text-body-2 text-high-emphasis mb-1">页面说明</div>
-          <div>查询 dedup.finv_quote_secu_kline_min 去重后的分钟行情；支持按证券代码[USC]与交易日期范围过滤。</div>
-          <div class="mt-1">数据来源：dedup.finv_quote_secu_kline_min（按 usc + ts 去重后的分钟 K 线；列表不含 remark / last_close）。</div>
+          <div>查询 cdeu.finv_quote_secu_kline_min 去重后的分钟行情；支持按证券代码[USC]与交易日期范围过滤。</div>
+          <div class="mt-1">数据来源：cdeu.finv_quote_secu_kline_min（按 usc + ts 去重后的分钟 K 线；列表不含 remark / last_close）。</div>
         </v-card-text>
       </v-card>
     </v-card-text>

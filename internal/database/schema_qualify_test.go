@@ -12,20 +12,76 @@ import (
 // domainTablePrefixes 业务域表名前缀 → 必须使用的 schema 限定前缀。
 //
 // 为什么要强制限定：融合后不同 schema 可能出现同名表，而 search_path
-// （public, quote, quant, futu, export, sche, dedup, archive）中 public 位于首位——任何未限定的 CRUD
+// （public, quote, quant, futu, export, sche, dedup, cdeu, archive, sys）中 public 位于首位——任何未限定的 CRUD
 // 语句都会优先命中 public 的同名表，导致读写错表。
 var domainTablePrefixes = map[string]string{
-	"finv_quote_": "quote.",
-	"finv_quant_": "quant.",
-	"finv_futu_":  "futu.",
+	// CDEU 工作流域（V100078 建表、V100079 统一前缀、V100080 迁入数据）：
+	// finv_quote_cdeu_* 必须写 cdeu. 前缀，不得落到 quote.finv_quote_cdeu_*（不存在）或无限定。
+	"finv_quote_cdeu_": "cdeu.",
+	"finv_quote_":      "quote.",
+	"finv_quant_":      "quant.",
+	"finv_futu_":       "futu.",
+}
+
+// cdeuTables CDEU 工作流域的表清单（V100078 建表、V100079 统一前缀，共 26 张）。
+//
+// 全部 25 张业务表统一为 finv_quote_cdeu_ 前缀：
+//
+//	· 原 cdeu_*（12 张）：V100079 把 cdeu_ 替换为 finv_quote_cdeu_
+//	· 原 finv_dedup_*（13 张）：V100078 建表时即替换
+//
+// 另有 cdeu.finv_quote_secu_kline_min 副本，由 exactTableSchema 单独管控。
+//
+// 过渡期说明：dedup 下同名同构的表仍在使用（代码尚未切到 cdeu），
+// 因此这里不强制 cdeu. 前缀；工作流改造切换读写后，再把对应表名从 dedup. 白名单
+// 切到 {dedup., cdeu.} 或 {cdeu.}。
+var cdeuTables = map[string]bool{
+	// 原 cdeu_*（V100079 改名）
+	"finv_quote_cdeu_workflow":         true,
+	"finv_quote_cdeu_phase":            true,
+	"finv_quote_cdeu_process":          true,
+	"finv_quote_cdeu_job":              true,
+	"finv_quote_cdeu_job_step":         true,
+	"finv_quote_cdeu_job_dynamic":      true,
+	"finv_quote_cdeu_job_step_dynamic": true,
+	"finv_quote_cdeu_workflow_run":     true,
+	"finv_quote_cdeu_phase_run":        true,
+	"finv_quote_cdeu_process_run":      true,
+	"finv_quote_cdeu_job_run":          true,
+	"finv_quote_cdeu_job_step_run":     true,
+
+	// 原 finv_dedup_*（V100078 建表时改名）
+	"finv_quote_cdeu_daily_budget":            true,
+	"finv_quote_cdeu_export_batch":            true,
+	"finv_quote_cdeu_export_file":             true,
+	"finv_quote_cdeu_export_file_patch":       true,
+	"finv_quote_cdeu_export_file_upload_log":  true,
+	"finv_quote_cdeu_export_job":              true,
+	"finv_quote_cdeu_ingest_stats":            true,
+	"finv_quote_cdeu_job_run_log_export_file": true,
+	"finv_quote_cdeu_job_run_log_line":        true,
+	"finv_quote_cdeu_quote_maturity_mon":      true,
+	"finv_quote_cdeu_scan_watermark":          true,
+	"finv_quote_cdeu_trade_calendar":          true,
+	"finv_quote_cdeu_usc":                     true,
+
+	// 表名不变
+	"finv_quote_secu_kline_min": true,
 }
 
 // exactTableSchema 指定个别表的固定 schema（优先于前缀规则）。
 //
-// 融合 FinvQuoteDataDeDup 后，分钟行情主表归属 dedup schema：
-// dedup.finv_quote_secu_kline_min（DC-03，迁移 V38）。
+// finv_quote_secu_kline_min 存在**多 schema 隔离副本**（ACANX 2026-10-27 纠偏 + 2026-10-28 迁入 cdeu）：
+//   - quote.finv_quote_secu_kline_min：量化回测专用（回测 SQL 必须写 quote. 前缀）；
+//   - cdeu.finv_quote_secu_kline_min：去重 / 导出 / 上传链路专用（V100080 起代码读写此处，
+//     数据自 dedup 一次性迁入）；
+//   - export.finv_quote_secu_kline_min：导出中转暂存（快照表，允许清空）；
+//   - dedup.finv_quote_secu_kline_min：历史副本，代码已不读写，待运维清理淘汰。
+//
+// 各副本同名同构但职责不同，靠 schema 前缀强制隔离；漏写前缀会命中 search_path
+// 里的另一张表，所以这里要求必须显式限定为其中之一。
 var exactTableSchema = map[string][]string{
-	"finv_quote_secu_kline_min": {"dedup.", "export."},
+	"finv_quote_secu_kline_min": {"dedup.", "quote.", "export.", "cdeu."},
 }
 
 // sqlCRUDKeywords 用于识别「该行是 SQL 语句」的上下文，避免把注释误判。
@@ -154,12 +210,24 @@ func isSQLCRUDLine(line string) bool {
 // 判定规则：表名前一个字符既不是 '.' 也不是标识符字符（字母/数字/下划线）。
 //
 // 注意：本函数只判断「有没有前缀」，不判断「前缀是否正确」。当同一表名存在
-// 于多个 schema（如 dedup.finv_quote_secu_kline_min 与
+// 于多个 schema（如 cdeu.finv_quote_secu_kline_min 与
 // export.finv_quote_secu_kline_min 同名）时，写错前缀不会被拦下，需靠
 // Docs/DevSpec/DbSchemaSpec.md §2/§3.1 的约定保证。
 func unqualifiedDomainTables(line string) []string {
 	var found []string
 	for table := range domainTablePrefixes {
+		// 若本前缀是另一个更长前缀的头部（如 finv_quote_ 之于 finv_quote_cdeu_），
+		// 跳过它，由最长前缀负责判定，避免同一处报出两条互相矛盾的建议。
+		shadowed := false
+		for other := range domainTablePrefixes {
+			if other != table && strings.HasPrefix(other, table) {
+				shadowed = true
+				break
+			}
+		}
+		if shadowed {
+			continue
+		}
 		offset := 0
 		for {
 			index := strings.Index(line[offset:], table)

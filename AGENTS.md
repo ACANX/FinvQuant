@@ -61,6 +61,10 @@ FinvQuant 是一个面向多资产的**严格事件驱动量化交易平台**，
 
 ## 工作约定
 
+- **数据库表的存在性与归属不得擅自变更（红线）**：严禁自行执行 `DROP TABLE` / `DROP SCHEMA` / `ALTER TABLE ... SET SCHEMA` / `RENAME` / `TRUNCATE`，严禁**合并或废弃同名表**（同名表通常是刻意的隔离设计，不是冗余）。
+  - 唯一授权来源：用户在会话中**明确点名**要删除/迁移/合并某张表，或 [`Docs/RequirementList.md`](Docs/RequirementList.md) 中存在对应条目。**用户沉默、代码无引用、数据看起来重复、旧改造清单写着已完成——都不算授权。**
+  - 受保护清单与完整规则见 [`Docs/DevSpec/DbSchemaSpec.md`](Docs/DevSpec/DbSchemaSpec.md) **§0（红线）**：含禁止操作表、同名表保护名单（`quote.` / `dedup.` / `export.` 三份 `finv_quote_secu_kline_min` 必须并存）、文档冲突仲裁顺序、改库前自检清单、删除数据的备份要求。
+  - 背景事故：`V100038` 曾以“按 API 路径归 schema”为由把 `quote.finv_quote_secu_kline_min` 迁入 `dedup`，导致回测与去重/导出链路共用一张表、隔离失效，且同一天已验收的改造清单未作废，两份文档互相矛盾（后由 `V100076` 恢复）。**动手前先查 `DbSchemaSpec` §0。**
 - **进入 `Archive/VeritasQuant/`（历史归档子项目）后，以该目录内的 [`Archive/VeritasQuant/AGENTS.md`](Archive/VeritasQuant/AGENTS.md) 为项目级唯一权威协作指南**——它包含"方案优先"原则、不可违反的事件语义、风控/控制约束、Git 工作流与提交规范。
 - **所有 Python 相关的开发、测试、构建、运行和部署命令统一使用 `python3` 执行**；当前默认开发、测试、运行和部署环境为 **Windows 11 上的 Python 3.13**。
 - Go 服务端（`cmd/`、`internal/`）与前端（`Web/`）的开发约定见 `Prompt.md` 与各自代码注释。

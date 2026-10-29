@@ -118,9 +118,9 @@ func (o OptStr) Value() *string {
 	return &value
 }
 
-// ItemIn 写入模型（/Add、/Batch、/Upsert，亦用于 /Batch PATCH 的解析）。
+// ItemIn 写入模型（/Add、/Batch、/Cdeu/Min/Upsert，亦用于 /Batch PATCH 的解析）。
 //
-// prev_close 为兼容字段：open 为空（未传或 null）时回填 open，自身不落库。
+// last_close 落库（上一收盘价，参与涨跌计算）；open 为空（未传或 null）时回填 open。
 type ItemIn struct {
 	Usc         *string `json:"usc"`
 	Ts          *int64  `json:"ts"`
@@ -134,11 +134,11 @@ type ItemIn struct {
 	Turnover    OptDec  `json:"turnover"`
 	ChangePrice OptDec  `json:"change_price"`
 	ChangeRatio OptDec  `json:"change_ratio"`
-	Paocd       OptDec  `json:"paocd"`
+	Pacd        OptDec  `json:"pacd"`
 	ExtField    OptStr  `json:"ext_field"`
 	Remark      OptStr  `json:"remark"`
 	Provider    OptStr  `json:"provider"`
-	PrevClose   OptDec  `json:"prev_close"`
+	LastClose   OptDec  `json:"last_close"`
 }
 
 // BatchIn 批量写入请求体。
@@ -243,7 +243,7 @@ func validateRange(name string, value, min, max int) *Error {
 	return nil
 }
 
-// ToRow 校验并转换为落库行（应用 prev_close 兼容规则）。
+// ToRow 校验并转换为落库行（应用 last_close 回填与涨跌计算规则）。
 func (item ItemIn) ToRow(unit string) (Row, *Error) {
 	usc, ts, keyErr := validateKey(item.Usc, item.Ts, unit)
 	if keyErr != nil {
@@ -264,10 +264,11 @@ func (item ItemIn) ToRow(unit string) (Row, *Error) {
 		}
 		row.Time = &clock
 	}
-	// prev_close 兼容：open 未传/为 null 时用 prev_close 回填（自身不落库）。
+	// last_close 落库；open 未传/为 null 时用 last_close 回填 open（兼容旧客户端）。
+	row.LastClose = item.LastClose.Value()
 	open := item.Open
-	if (!open.Set || open.Null) && item.PrevClose.Set && !item.PrevClose.Null {
-		open = item.PrevClose
+	if (!open.Set || open.Null) && item.LastClose.Set && !item.LastClose.Null {
+		open = item.LastClose
 	}
 	row.Open = open.Value()
 	row.High = item.High.Value()
@@ -283,16 +284,16 @@ func (item ItemIn) ToRow(unit string) (Row, *Error) {
 	}
 	row.ChangePrice = item.ChangePrice.Value()
 	row.ChangeRatio = item.ChangeRatio.Value()
-	row.Paocd = item.Paocd.Value()
+	row.Pacd = item.Pacd.Value()
 	row.ExtField = item.ExtField.Value()
 	row.Remark = item.Remark.Value()
 	row.Provider = item.Provider.Value()
 	if row.Provider != nil && len(*row.Provider) > 255 {
 		return Row{}, New(CodeOutOfRange).WithDebug("field", "provider").WithDebug("max", "255")
 	}
-	// 自动补全（仅当两列都未提供时）：API 不写 last_close，参考价回退 open。
+	// 自动补全（仅当两列都未提供时）：参考价优先 last_close，其次 open。
 	if row.ChangePrice == nil && row.ChangeRatio == nil {
-		row.ChangePrice, row.ChangeRatio = calc.Change(row.Close, nil, row.Open)
+		row.ChangePrice, row.ChangeRatio = calc.Change(row.Close, row.LastClose, row.Open)
 	}
 	return row, nil
 }
@@ -305,8 +306,8 @@ func (item ItemIn) ToPatchItem(unit string) (PatchItem, *Error) {
 	}
 	patch := PatchItem{Usc: usc, Ts: ts}
 	open := item.Open
-	if (!open.Set || open.Null) && item.PrevClose.Set && !item.PrevClose.Null {
-		open = item.PrevClose
+	if (!open.Set || open.Null) && item.LastClose.Set && !item.LastClose.Null {
+		open = item.LastClose
 	}
 	appendCol := func(column string, value *string) {
 		patch.Columns = append(patch.Columns, column)
@@ -317,6 +318,7 @@ func (item ItemIn) ToPatchItem(unit string) (PatchItem, *Error) {
 		value  OptDec
 	}{
 		{ColOpen, open},
+		{ColLastClose, item.LastClose},
 		{ColHigh, item.High},
 		{ColLow, item.Low},
 		{ColClose, item.Close},
@@ -324,7 +326,7 @@ func (item ItemIn) ToPatchItem(unit string) (PatchItem, *Error) {
 		{ColTurnover, item.Turnover},
 		{ColChangePrice, item.ChangePrice},
 		{ColChangeRatio, item.ChangeRatio},
-		{ColPaocd, item.Paocd},
+		{ColPaocd, item.Pacd},
 	} {
 		if field.value.Set {
 			appendCol(field.column, field.value.Value())

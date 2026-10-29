@@ -1,0 +1,316 @@
+# FinvQuant — 分钟行情批量 Upsert（OpenAPI 3.1 契约）
+#
+# 与同目录 KLineUpsert.md 成对维护：
+#   - 本文档正文（第 1~6 节）是人类可读说明；
+#   - 本文件是机器可读契约（OpenAPI 3.1），供 lint / 生成客户端 / 交互文档使用。
+# 契约变更时两者必须同步更新。
+#
+openapi: 3.1.0
+info:
+  title: FinvQuant — 分钟行情批量 Upsert
+  version: 1.0.0
+  description: |
+    批量写入分钟行情 K 线（主键 usc + ts）。
+    onConflict=skip 时已存在键跳过；onConflict=update 时整行覆盖。
+    请求在单事务内执行，任一条目失败整体回滚。
+servers:
+  - url: http://127.0.0.1:16001
+    description: 本机直连（生产经 Nginx 反代时替换为 https://<域名>）
+tags:
+  - name: Quote/Cdeu/Min
+    description: 分钟行情 K 线（CDEU）
+security:
+  - bearerAuth: []
+paths:
+  /API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert:
+    post:
+      operationId: upsertCdeuKLineMin
+      tags: [Quote/Cdeu/Min]
+      summary: 批量写入分钟行情 K 线（upsert）
+      description: |
+        批量写入；主键冲突时按 `onConflict` 跳过或整行覆盖。
+
+        - `skip`：`ON CONFLICT (usc, ts) DO NOTHING`；请求内重复键不报错。
+        - `update`：`ON CONFLICT (usc, ts) DO UPDATE`，覆盖除 `usc`/`ts` 外的
+          全部业务列并刷新 `gmt_update`；请求内重复键提前返回 409（211102）。
+        - `update` 为整行覆盖：未提供的业务列会被写成 `NULL`；只改部分字段请用
+          `PATCH /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch`。
+        - `last_close` 落库（上一收盘价）；`open` 未传或为 `null` 时用 `last_close` 回填。
+        - `change_price` / `change_ratio` 均未提供时，服务端按 `close` 与参考价
+          自动计算（参考价优先 `last_close`，其次 `open`）。
+      parameters:
+        - $ref: '#/components/parameters/OnConflict'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertRequest'
+            examples:
+              updateMode:
+                summary: 默认 update 模式（整行覆盖）
+                value:
+                  items:
+                    - usc: GCMain
+                      ts: 1700000000
+                      date: 20231114
+                      time: 93000
+                      open: 3.51
+                      high: 3.62
+                      low: 3.50
+                      close: 3.60
+                      last_close: 3.50
+                      volume: 1000
+                      turnover: 3560.00
+                      change_price: 0.10
+                      change_ratio: 2.857143
+                      pacd: 3.56
+                      ext_field: null
+                      remark: null
+                      provider: FT
+              skipMode:
+                summary: skip 模式（已存在键跳过）
+                value:
+                  items:
+                    - usc: GCMain
+                      ts: 1700000060
+                      close: 3.65
+      responses:
+        '200':
+          description: 写入成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpsertResponse'
+              examples:
+                update:
+                  value: { affected: 100, mode: update }
+                skip:
+                  value: { affected: 98, mode: skip }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        登录接口 `POST /API/V1/Meta/Finv/Auth/Login` 获取令牌后，
+        以 `Authorization: Bearer <token>` 携带。
+  parameters:
+    OnConflict:
+      name: onConflict
+      in: query
+      required: false
+      description: |
+        冲突处理模式。兼容旧下划线名 `on_conflict`（同时接受，推荐小驼峰）。
+      schema:
+        type: string
+        enum: [skip, update]
+        default: update
+  schemas:
+    UpsertRequest:
+      type: object
+      required: [items]
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          description: 待写入的 K 线条目；1 ≤ 条数 ≤ `FINV_KLINE_MAX_BATCH_ROWS`（默认 5000）。
+          minItems: 1
+          maxItems: 5000
+          items:
+            $ref: '#/components/schemas/KLineItem'
+    KLineItem:
+      type: object
+      required: [usc, ts]
+      additionalProperties: false
+      description: |
+        单条分钟行情。未列出的字段名会触发 422 / 211005（严格解码，未知字段报错）。
+      properties:
+        usc:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: 统一证券代码（全局唯一，如 `GCMain` / `518880`）。
+        ts:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 100000000000
+          description: |
+            UTC 时间戳（秒级）。上限 100000000000：超过且服务端配置
+            `FINV_KLINE_TS_UNIT=ms` 时按毫秒除以 1000 归一，否则返回 422 / 211004。
+        date:
+          type: [integer, 'null']
+          minimum: 19500101
+          maximum: 21001231
+          description: 交易日期 `yyyyMMdd`。
+        time:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 235959
+          description: 交易时间 `HHmmss`。
+        open:
+          type: [number, 'null']
+          description: 起始价。未传或 `null` 时由 `last_close` 回填。
+        high:
+          type: [number, 'null']
+          description: 区间最高价。
+        low:
+          type: [number, 'null']
+          description: 区间最低价。
+        close:
+          type: [number, 'null']
+          description: 最新价/收盘价。
+        last_close:
+          type: [number, 'null']
+          description: |
+            上一收盘价；落库，参与涨跌计算；`open` 未传或为 `null` 时回填 `open`。
+        volume:
+          type: [number, 'null']
+          minimum: 0
+          description: 成交量（支持小数；库内 `numeric(20,6)`，不得为负）。
+        turnover:
+          type: [number, 'null']
+          minimum: 0
+          description: 成交金额（不得为负）。
+        change_price:
+          type: [number, 'null']
+          description: |
+            涨跌额。与 `change_ratio` 均未提供时由服务端按 `close - open`（参考价回退
+            `open`）自动计算。
+        change_ratio:
+          type: [number, 'null']
+          description: 涨跌幅。与 `change_price` 均未提供时由服务端自动计算。
+        pacd:
+          type: [number, 'null']
+          description: 当日累计均价（库列名 `paocd`）。
+        ext_field:
+          type: [string, 'null']
+          description: 预留扩展字段。
+        remark:
+          type: [string, 'null']
+          description: 备注。
+        provider:
+          type: [string, 'null']
+          maxLength: 255
+          description: 数据来源（如 `FT`）。
+
+    UpsertResponse:
+      type: object
+      required: [affected, mode]
+      additionalProperties: false
+      properties:
+        affected:
+          type: integer
+          format: int64
+          minimum: 0
+          description: |
+            `skip` 模式为实际插入行数；`update` 模式为插入 + 覆盖影响的行数。
+        mode:
+          type: string
+          enum: [skip, update]
+          description: 本次请求实际使用的冲突处理模式。
+    ErrorResponse:
+      type: object
+      required: [code, message, detail, request_id, error]
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+          description: 业务错误码（见第 4 节错误目录）。
+        message:
+          type: string
+          description: 面向调用方的安全文案。
+        detail:
+          type: string
+          description: 兼容字段，与 `message` 相同（旧客户端依赖）。
+        request_id:
+          type: string
+          description: 请求标识，便于与服务端日志关联。
+        error:
+          $ref: '#/components/schemas/ErrorObject'
+        debug:
+          type: object
+          additionalProperties: { type: string }
+          description: |
+            仅当 `FINV_ERROR_DETAIL_MODE=admin` 且请求来自内网 CIDR 或携带有效
+            `X-Debug-Token` 时返回；键为白名单（见第 4 节）。
+    ErrorObject:
+      type: object
+      required: [code, catalog_version, retryable]
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+        catalog_version:
+          type: string
+          description: 错误目录版本（当前 `finvquant-1`）。
+        retryable:
+          type: boolean
+          description: 是否建议重试（仅 211301 / 211302 为 `true`）。
+  responses:
+    BadRequest:
+      description: 缺少必填参数 / 请求体格式错误 / 枚举非法（211001、211002、211006）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: 未登录或令牌无效（由认证中间件返回，非 KLine 错误目录）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: 记录不存在（211103）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: 唯一键冲突 / 请求内重复主键 / 状态冲突（211101、211102、211104）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    PayloadTooLarge:
+      description: 批量条数或列表长度超过上限（211201、211202）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnprocessableEntity:
+      description: 字段类型/范围/未知字段/数据库约束问题（211003、211004、211005、211303）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: 服务内部错误（211301，可重试）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServiceUnavailable:
+      description: 数据服务不可用（211302，可重试）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

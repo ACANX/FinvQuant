@@ -114,7 +114,7 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 | 4 | `c` | 收盘价 | Decimal | `close` |
 | 5 | `l` | 最低价 | Decimal | `low` |
 | 6 | `h` | 最高价 | Decimal | `high` |
-| 7 | `v` | 成交量（股/手） | Long | `volume` |
+| 7 | `v` | 成交量（股/手，支持小数） | Decimal(20,6) | `volume` |
 | 8 | `t` | 成交额 | Decimal | `turnover` |
 | 9 | `cp` | 涨跌值 | Decimal | **落库**（有值优先；为空时由服务端补全） |
 | 10 | `cr` | 涨跌幅（%） | Decimal | **落库**（有值优先；为空时由服务端补全） |
@@ -140,7 +140,7 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 | 5 | `c` | 收盘价 | Decimal | `close` |
 | 6 | `l` | 最低价 | Decimal | `low` |
 | 7 | `h` | 最高价 | Decimal | `high` |
-| 8 | `v` | 成交量 | Long | `volume` |
+| 8 | `v` | 成交量（支持小数） | Decimal(20,6) | `volume` |
 | 9 | `a` | 成交额 | Decimal | `turnover` |
 | 10 | `cp` | 涨跌值 | Decimal | **不落表**（忽略） |
 | 11 | `cr` | 涨跌幅（%） | Decimal | **不落表**（忽略） |
@@ -160,7 +160,7 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 |------|------|-----------|
 | 列分隔符 | 竖线 `\|`，**每行列数必须与 `# Field` 声明完全一致** | 强制 |
 | 行尾空段 | 布局 B 允许行尾残留旧 pc 空段（`...\|4332.1\|` 末尾多一个 `\|`），解析器自动截断；布局 A 不允许多余列 | 布局 B 可选 |
-| 空值 | 数值列允许为空（解析为 NULL）；但 `ts`、`d`/`dt` 缺失会影响一致性校验（缺失时跳过校验） | 可选 |
+| 空值 | 数值列允许为空（解析为 NULL）；但 `ts`、`d`、`dt` 缺失会影响一致性校验（缺失时跳过校验） | 可选 |
 | 数字格式 | 价格/成交额保留原始字符串精度（不做四舍五入），建议十进制原样输出 | 建议 |
 | 成交量 | 非负整数；负数解析为 NULL | 建议 |
 | 空行 | 数据区中的空行会被跳过（不计入 Count） | — |
@@ -311,7 +311,7 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 
 - **`Code`**：建议使用 FinvQuant `finv_security` 字典的 **usc**（如 `NVDA`、`GCMain`、`518880`），导入时可被 `Security/Lookup` 匹配；若用源证券代码（security_code），Lookup 也支持。
 - **`MarketCode`**：建议与 FinvQuant `finv_market.market_code` 编码体系一致（**通常四位**，如 1315=美股（NVDA）、1320=COMEX 期货（GCMain）等）；导入时会与表单/字典做一致性核对。
-- 主表 `dedup.finv_quote_secu_kline_min` 不再存储 market_code（V21 起），市场信息由 `finv_security` 字典关联获取；文件头 `MarketCode` 仍参与导入一致性校验。
+- 主表 `dedup.finv_quote_secu_kline_min` 不再存储 market_code（V100021 起），市场信息由 `finv_security` 字典关联获取；文件头 `MarketCode` 仍参与导入一致性校验。
 
 ---
 
@@ -333,8 +333,49 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 | 版本 | 日期 | 变更 |
 |------|------|------|
 | 1.0 | 2026-08-06 | 初版：双布局（11 列/13 列）规范，必填/可选要求明细（对应 `internal/mvsv/parser.go` 双布局支持） |
-| 1.1 | 2026-08-06 | 更正：布局 B 实为 12 列（`ts|d|t|o|c|l|h|v|a|cp|cr|p`，pc 已过时移除）；补充行尾空段容忍说明 |
+| 1.1 | 2026-08-06 | 更正：布局 B 实为 12 列（`ts\|d\|t\|o\|c\|l\|h\|v\|a\|cp\|cr\|p`，pc 已过时移除）；补充行尾空段容忍说明 |
 | 1.2 | 2026-08-06 | 时区规则更正：解析以头部 `TimeZone` 为准，`EffectiveTimeZone` 仅参考且非必填；两者都缺失时跳过 ts 一致性校验 |
 | 1.3 | 2026-08-06 | 必填键 9→11：新增 `Exchange` / `ExchangeCode`（与 `Market` / `MarketCode` 四键必填）；`MarketCode` 通常为四位；示例统一 NVDA→1315、GCMain→1320 |
 | 1.4 | 2026-08-06 | 必填键 11→20：新增 `Title` / `Region` / `Name` / `Period` / `Dsv` / `FieldType` / `FieldName` / `字段名称` / `StockId`（溯源类键强制） |
 | 1.5 | 2026-08-06 | 布局匹配放宽：`# Field` 以核心布局开头即可，多余列（如已过时 `pc`）允许并忽略（修复 13 列 GCmain 文件无法导入） |
+
+## 5. MVSV-2（多证券，qmio 导出/导入）
+
+> 用途：单文件搬运整张 `cdeu.finv_quote_secu_kline_min`（灌数据/联调）。
+> 与 MVSV-1 并列，`Format` 字段区分；MVSV-1 的解析与导出链路不变。
+
+### 5.1 与 MVSV-1 的差异
+
+| 项 | MVSV-1 | MVSV-2 |
+|---|---|---|
+| 证券范围 | 单证券（头 `Code/StockId`） | **多证券**（数据区含 `usc` 列） |
+| 列数 | 12/13 | **19**（含 `gmt_*`）或 **17**（`--no-gmt`） |
+| 列顺序 | 固定布局 A/B | 由 `# Field` 声明，导入按列名映射 |
+| 用途 | 行情交换/上传 | 整表灌数 |
+
+### 5.2 文件头示例（19 列）
+
+```
+# Title : "CdeuKline_20261028_120000"
+# Format : "MVSV-2"
+# Field : "usc|ts|date|time|open|high|low|close|last_close|volume|turnover|change_price|change_ratio|paocd|ext_field|remark|provider|gmt_create|gmt_update"
+# FieldType : "String|Int|Int|Int|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|String|String|String|Timestamp|Timestamp"
+# FieldName : "Usc|Ts|Date|Time|Open|High|Low|Close|LastClose|Volume|Turnover|ChangePrice|ChangeRatio|Paocd|ExtField|Remark|Provider|GmtCreate|GmtUpdate"
+# 字段名称 : "证券代码|时间戳(UTC)|交易日期|交易时间|开盘价|最高价|最低价|收盘价|上一收盘价|成交量|成交额|涨跌额|涨跌幅|累计均价|扩展字段|备注|数据来源|创建时间|更新时间"
+# Count : 2
+# DataScope : "all"
+# ExportTime : "2026-10-28T12:00:00+08:00"
+...
+```
+
+### 5.3 数据行示例
+
+```
+GCMain|1000|20261028|93000|3.500000|3.620000|3.400000|3.600000|3.500000|12.345678|3560.00000000||||||FT|2026-10-27 15:47:29+00|2026-10-27 15:47:29+00
+```
+
+### 5.4 兼容性
+
+- `Format=MVSV-2` 时按 `Field` 列名动态解析（`usc`/`ts` 必填）；
+- 旧 `MVSV-1` 文件继续走原固定布局解析，互不影响；
+- 工具实现见 [`Docs/FinvQuant/Qmio.md`](../FinvQuant/Qmio.md)。

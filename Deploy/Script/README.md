@@ -1,8 +1,9 @@
-# Script 目录说明（快照包构建脚本）
+# Script 目录说明（快照包构建 + 一键下载）
 
 > 所属：FinvQuant 部署 · 存放：`Deploy/Script/`
 > 上级目录总览：[`../README.md`](../README.md)
-> 用途：从源码构建**快照二进制包**（Ubuntu 26.04 / Windows 11），供 `feat/integration` 集成分支验证与本地联调使用。
+> 用途：① 从源码构建**快照二进制包**（Ubuntu 26.04 / Windows 11），供 `feat/integration` 集成分支验证与本地联调使用；
+> ② 不构建、直接从 GitHub Releases **一键下载**匹配本机 OS/架构的最新程序（含快照版）并解压（见 §13）。
 
 ## 1. 文件与职责
 
@@ -10,6 +11,13 @@
 |---|---|
 | `PackSnapshot.sh` | **打包逻辑的唯一实现**。CI 的 `snapshot-binaries` job 与本地出包都调用它 |
 | `PackSnapshot.cmd` | Windows 薄封装：只负责找到 Git Bash 的 `bash.exe` 并转调 `PackSnapshot.sh`，**不含任何打包逻辑** |
+| `Download.sh` | **一键下载逻辑的唯一实现**：检测 OS/架构 → 选版本（正式版/快照）→ 下载 + SHA256 校验 → 安全解压到指定目录（见 §13） |
+| `Download.cmd` | Windows 薄封装：定位 Git Bash 后转调 `Download.sh`，不含下载逻辑 |
+| `MigratePublicKlineToCdeu.sql` | **一次性**数据迁移：`public.finv_quote_secu_kline_min` → `cdeu.finv_quote_secu_kline_min`（只读源表、幂等、列名映射）；说明见 [`../../Docs/FinvQuant/MigratePublicKlineToCdeu.md`](../../Docs/FinvQuant/MigratePublicKlineToCdeu.md) |
+
+> `*.sql` 会随**快照包 / 构建包 / 正式包**一起分发（`PackSnapshot.sh`），
+> 并在 `Install.sh` 安装后留存到 `<PREFIX>/Deploy/Script/`。
+> 它们**不进入** `Deploy/Migrations/` 迁移链，不参与 `schema_version` 版本化。
 
 ```
 PackSnapshot.cmd ──(定位 bash)──▶ PackSnapshot.sh ──▶ Dist/ 三个包
@@ -18,6 +26,7 @@ GitHub Actions (snapshot-binaries) ─────┘
 ```
 
 **改打包规则（包内文件、命名、压缩方式）只改 `PackSnapshot.sh`**，`.cmd` 与 CI 自动跟随，避免两边漂移。
+**下载/校验/解压规则只改 `Download.sh`**，`Download.cmd` 仅转调。
 
 ## 2. 快速开始
 
@@ -90,7 +99,7 @@ bash Deploy/Script/PackSnapshot.sh --version v0.1.1.00123.2610241530
 FinvQuant-v0.1.1.00123.2610241530-ubuntu-arm64/
 ├── finvquant                 # 静态链接、stripped；amd64 或 aarch64（按包名）
 ├── Deploy/
-│   ├── Migrations/           # 62 个迁移脚本（V1～V37、V100000～V100024）
+│   ├── Migrations/           # 迁移脚本（与仓库结构一致，安装后即 FINV_MIGRATIONS_DIR）
 │   ├── Native/               # 宿主直装全套：Install/Upgrade/Uninstall.sh、
 │   │                         #   FinvQuant.service、FinvQuant.env.example、
 │   │                         #   Nginx.conf.example、README/Install/Upgrade.md
@@ -100,7 +109,7 @@ FinvQuant-v0.1.1.00123.2610241530-ubuntu-arm64/
 └── SHA256SUMS                # 包内每个文件的 sha256
 ```
 
-共 76 个文件。适用 Ubuntu 26.04（x86_64 / aarch64），部署方式见 `Deploy/Native/Install.md`。
+适用 Ubuntu 26.04（x86_64 / aarch64），部署方式见 `Deploy/Native/Install.md`。
 
 ### 5.2 Windows 包（`zip`）
 
@@ -108,7 +117,7 @@ FinvQuant-v0.1.1.00123.2610241530-ubuntu-arm64/
 FinvQuant-v0.1.1.00123.2610241530-windows-amd64/
 ├── finvquant.exe
 ├── Deploy/
-│   ├── Migrations/
+│   ├── Migrations/           # 迁移脚本（与仓库结构一致）
 │   ├── Docker/               # compose + .env.example + 三个 .cmd + 文档
 │   │                         #   注意：不含 Dockerfile（其 build.context 指向仓库根，
 │   │                         #   包内无源码；Windows 侧直接 docker compose 拉 GHCR 镜像）
@@ -118,7 +127,11 @@ FinvQuant-v0.1.1.00123.2610241530-windows-amd64/
 └── SHA256SUMS
 ```
 
-共 80 个文件。适用 Windows 11 x64。
+适用 Windows 11 x64。
+
+> **Migrations 位置**：两种包都保持 `Deploy/Migrations/`（与仓库结构一致），解压到
+> `/data/App/FinvQuant` 后即 `FINV_MIGRATIONS_DIR=/data/App/FinvQuant/Deploy/Migrations`，
+> `Install.sh` 无需再复制。包内文件数随迁移脚本增减变化，以 `SHA256SUMS` 为准。
 
 ### 5.3 `SHA256SUMS` 用法
 
@@ -237,3 +250,109 @@ bash Deploy/Script/PackSnapshot.sh \
 - 调整包内文件：只改 `PackSnapshot.sh` 的装配段，`.cmd` 与 CI 无需改动。
 - 新增参数：同步 `.cmd` 头部注释与本文件 §3。
 - 产物格式（`tar.gz` / `zip`）变化时，同步 CI 的 `upload-artifact` 与 `snapshot-release` 的附件路径。
+
+## 13. 一键下载与解压（Download.sh / Download.cmd）
+
+不构建、不装 Go：直接按**本机操作系统与 CPU 架构**从 GitHub Releases 拉取官方发行包，校验后解压到指定目录。
+默认取**最新版本（含快照/构建包）**，也可只取正式版。
+
+### 13.1 快速开始
+
+```bash
+# Linux（默认解压到 Native 安装根目录 /data/App/FinvQuant）
+sudo bash Deploy/Script/Download.sh
+
+# 指定目录 + 只取正式版
+bash Deploy/Script/Download.sh -c release -d /opt/FinvQuant
+
+# 指定某个版本（可省略前导 v）
+bash Deploy/Script/Download.sh -v v0.1.3.00357.2610281256 -d /tmp/FinvQuant
+
+# 只下载不安装（保留压缩包与 .sha256）
+bash Deploy/Script/Download.sh --no-extract -o ./Dist
+
+# 先看会下载什么
+bash Deploy/Script/Download.sh --dry-run
+bash Deploy/Script/Download.sh --list          # 最近 10 个版本及类型
+```
+
+```bat
+REM Windows（Git Bash 透传，默认解压到 .\FinvQuant）
+Deploy\Script\Download.cmd -d D:\FinvQuant
+```
+
+### 13.2 版本渠道（`-c/--channel`）
+
+| 渠道 | 选中条件 | 典型 tag | 稳定性 |
+|---|---|---|---|
+| `auto`（默认） | API/feed 中的最新一条（含 prerelease） | 任意 | 可能是快照，**不保证稳定** |
+| `release` | 正式版（semver 三段，非 prerelease） | `v0.1.3` | 稳定，仅 `main` 合并后存在 |
+| `snapshot` / `prerelease` | 最新 prerelease（快照包或 PR 构建包） | `v0.1.3.00357.2610281256` | 集成验证产物 |
+| `pr` | 最新 PR 构建包（四段） | `v0.1.3.00357` | 单个 PR 的构建产物 |
+
+> 当前仓库尚无正式版 release 时，`-c release` 会明确报错并提示先用 `--list` 查看。
+
+### 13.3 平台匹配
+
+| `uname -s` / `uname -m` | 选中资产 | 备注 |
+|---|---|---|
+| Linux + `x86_64` | `...-ubuntu-amd64.tar.gz` | Debian/Ubuntu 走 Native 安装；其它发行版静态二进制可直接运行 |
+| Linux + `aarch64` | `...-ubuntu-arm64.tar.gz` | 同上 |
+| Windows（MINGW/MSYS/CYGWIN）+ `x86_64` | `...-windows-amd64.zip` | 包内为 Docker 部署编排 |
+| macOS / 其它架构 | — | 明确报错（官方暂未发布），需从源码构建 |
+
+### 13.4 校验与解压行为
+
+1. **资产级校验**：下载 `<资产>.sha256` 后用 `sha256sum -c` 校验压缩包（`--no-verify` 可跳过）。
+2. **包内校验**：解压后校验 `SHA256SUMS`（包内每个文件的 sha256）。
+3. **安全解压**：解压前扫描包内路径，含绝对路径或 `..` 直接拒绝；先解到临时目录再落盘，失败不留半成品。
+4. **落盘方式**：默认**铺平**（包内顶层目录内容直接进目标目录，与仓库结构的 `finvquant` + `Deploy/` 一致）；`--keep-top` 保留 `FinvQuant-<版本>-<os>-<arch>/`。
+5. **不误覆盖**：目标目录非空时报错退出；`--force` 才继续（同名文件覆盖、同名目录合并，**不删除**目标里已有的多余文件）。
+
+### 13.5 常用参数
+
+| 参数 | 说明 |
+|---|---|
+| `-d, --dir <目录>` | 解压目标目录（Linux 默认 `/data/App/FinvQuant`；Windows 默认 `.\FinvQuant`） |
+| `-c, --channel <渠道>` | `auto` / `release` / `snapshot` / `pr` |
+| `-v, --version <版本>` | 指定 tag（不联网解析列表，便于下载历史版本/镜像） |
+| `-o, --out <目录>` | 下载缓存目录（默认临时目录，完成即清理） |
+| `--base-url <url>` | 下载源根地址，默认 `https://github.com`（可指向内网镜像/加速代理） |
+| `-r, --repo <o/r>` | 仓库，默认 `ACANX/FinvQuant` |
+| `-t, --token <token>` | 私有仓库或规避 API 限流；也可用 `GH_TOKEN` / `GITHUB_TOKEN` |
+| `--list` / `--dry-run` | 列版本 / 只打印下载地址与目标 |
+| `--keep-top` / `--no-extract` / `--force` / `--no-verify` | 见 §13.4 |
+
+> 无 token 时走公开 `releases.atom`（近 10 条，含 prerelease）；有 token 时走 Releases API（近 100 条，排除 draft）。
+
+### 13.6 下载后直接安装（Linux）
+
+```bash
+sudo bash Deploy/Script/Download.sh -d /data/App/FinvQuant
+# 安装根目录默认即 /data/App/FinvQuant，可省略 --prefix
+sudo bash /data/App/FinvQuant/Deploy/Native/Install.sh
+```
+
+包内已含 `finvquant`、`Deploy/Migrations`、`Deploy/Native` 全套脚本，`Install.sh` 会补齐用户/目录/数据库/Redis/systemd 并启动服务（见 [`../Native/Install.md`](../Native/Install.md)）。
+
+### 13.7 与 PackSnapshot 的关系
+
+| 维度 | `PackSnapshot.sh` | `Download.sh` |
+|---|---|---|
+| 方向 | 源码 → 发行包（构建/出包） | 发行包 → 本机（下载/解压） |
+| 依赖 | Go 1.25、Node、zip、git | curl、tar/unzip、sha256sum |
+| 产物 | `Dist/FinvQuant-*.{tar.gz,zip}` | 解压后的程序目录 |
+| 依赖关系 | 不依赖 Download | 依赖 PackSnapshot 定义的**命名规则**（`FinvQuant-<版本>-<os>-<arch>`） |
+
+> 命名规则变更时**两处都要同步**：`PackSnapshot.sh` 的装配段负责产出，`Download.sh` 的 `ASSET` / `TOP_DIR` 负责取用。
+
+### 13.8 常见问题
+
+| 现象 | 处理 |
+|---|---|
+| `获取版本列表失败` | 网络不通或仓库名错误；可加 `-v <版本> --base-url <镜像>` 绕过列表 |
+| `渠道 release 下没有可用版本` | 尚无正式版 release（`main` 未发布）；用默认 `auto` 或 `-c snapshot` |
+| 下载很慢/中断 | 用 `--base-url` 指向镜像；或 `-o` 缓存后重跑（已下好的同名文件会跳过） |
+| `目标目录非空` | 换 `-d` 目录，或确认后加 `--force` |
+| Windows 提示未找到 bash | 安装 Git for Windows（含 Git Bash），不要用 `C:\Windows\System32\bash.exe`（WSL 转发器） |
+| `SHA256 校验失败` | 文件损坏或镜像被篡改，删除缓存后重下；勿用 `--no-verify` 绕过 |

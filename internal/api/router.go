@@ -14,17 +14,23 @@ import (
 	"github.com/acanx/finvquant/internal/config"
 	"github.com/acanx/finvquant/internal/kline"
 	"github.com/acanx/finvquant/internal/meta"
+	"github.com/acanx/finvquant/internal/meta/finv/auth"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
 	"github.com/acanx/finvquant/internal/quote"
 )
 
 // Deps 路由依赖。
 type Deps struct {
-	Pool    *pgxpool.Pool
-	Redis   *redis.Client
-	Version string
-	Commit  string
-	Server  string
-	Config  *config.Config
+	Pool          *pgxpool.Pool
+	Redis         *redis.Client
+	Version       string
+	Commit        string
+	Server        string
+	Config        *config.Config
+	ExportArchive *dedup.Service
+	// Auth 登录认证服务；为 nil 时不启用登录校验（仅供单元测试构造）。
+	// 生产环境由 cmd/server 注入，任何业务请求都必须携带有效令牌。
+	Auth *auth.Service
 }
 
 // NewRouter 构建 Gin 路由（默认监听端口 16001）。
@@ -62,33 +68,107 @@ func NewRouter(deps *Deps) *gin.Engine {
 	)
 	klineOps := handler.NewKLineOps(deps.Pool, deps.Server, deps.Version, kline.APIPrefix)
 
-	apiGroup := router.Group("/API/V1")
+	// 公开端点：健康检查、版本、登录（不校验令牌）。
+	// 健康检查供容器探针使用，不能被登录拦截。
+	publicGroup := router.Group("/API/V1")
 	{
-		apiGroup.GET("/Health/Live", health.Live)
-		apiGroup.GET("/Health/Ready", health.Ready)
-		apiGroup.GET("/Version", version.Info)
-		// 分钟行情 K 线：新前缀 + 旧前缀过渡别名（同一组 handler，P7 后可移除旧前缀）
-		for _, prefix := range []string{
-			strings.TrimPrefix(kline.APIPrefix, "/API/V1/"),
-			strings.TrimPrefix(kline.LegacyAPIPrefix, "/API/V1/"),
-		} {
-			group := apiGroup.Group(prefix)
-			group.POST("/Add", klineHandler.Add)
-			group.POST("/Batch", klineHandler.BatchInsert)
-			group.POST("/Upsert", klineHandler.Upsert)
-			group.GET("/Page", klineHandler.Page)
-			group.GET("/PageUni", klineHandler.PageUni)
-			group.POST("/Query", klineHandler.Query)
-			group.PATCH("/Batch", klineHandler.BatchPatch)
-			group.DELETE("/Batch", klineHandler.BatchDelete)
-			group.GET("/Count", klineHandler.Count)
-			group.GET("/Stats", klineHandler.Stats)
-			group.GET("/Bounds", klineHandler.Bounds)
+		publicGroup.GET("/Health/Live", health.Live)
+		publicGroup.GET("/Health/Ready", health.Ready)
+		publicGroup.GET("/Version", version.Info)
+		if deps.Auth != nil {
+			// 认证接口统一挂在 /Meta/Finv/Auth 下，与 /Meta/Finv/Quote、
+			// /Meta/Finv/Quant 等业务域保持同一层级结构
+			publicGroup.POST("/Meta/Finv/Auth/Login", handler.NewAuth(deps.Auth).Login)
 		}
+	}
+
+	// 业务端点：统一要求登录（Authorization: Bearer <token>）。
+	apiGroup := router.Group("/API/V1")
+	if deps.Auth != nil {
+		apiGroup.Use(RequireAuth(deps.Auth))
+	}
+	{
+		if deps.Auth != nil {
+			authHandler := handler.NewAuth(deps.Auth)
+			authGroup := apiGroup.Group("/Meta/Finv/Auth")
+			authGroup.POST("/Logout", authHandler.Logout)
+			authGroup.POST("/ChangePassword", authHandler.ChangePassword)
+			authGroup.GET("/Profile", authHandler.Profile)
+		}
+		// 分钟行情 K 线：统一 /Meta/Finv/Quote/Cdeu/Min 前缀（需求 10782）。
+		// 旧 /DeDup/Secu/KLine/Min 与 legacy /Secu/KLine/Min 均不再注册。
+		group := apiGroup.Group(strings.TrimPrefix(kline.APIPrefix, "/API/V1/"))
+		group.POST("/Add", klineHandler.Add)
+		group.POST("/Batch", klineHandler.BatchInsert)
+		group.POST("/Upsert", klineHandler.Upsert)
+		group.GET("/Page", klineHandler.Page)
+		group.GET("/PageUni", klineHandler.PageUni)
+		group.POST("/Query", klineHandler.Query)
+		group.PATCH("/Batch", klineHandler.BatchPatch)
+		group.DELETE("/Batch", klineHandler.BatchDelete)
+		group.GET("/Count", klineHandler.Count)
+		group.GET("/Stats", klineHandler.Stats)
+		group.GET("/Bounds", klineHandler.Bounds)
+
+		// 外部 OpenAPI：独立前缀 /OpenAPI/V1，业务逻辑复用内部 handler。
+		// 需求 10790：当前**暂不鉴权**（公开访问），仅统一响应信封；
+		// API Key 体系（sys.sys_open_api_key）落地后恢复：
+		//   openGroup.Use(RequireOpenAPIKey(cfg.OpenAPIKey), WrapOpenAPIResponse())
+		openGroup := router.Group("/OpenAPI/V1")
+		openGroup.Use(WrapOpenAPIResponse())
+		openGroup.POST("/Meta/Finv/Quote/Cdeu/Min/Upsert", klineHandler.Upsert)
+		openGroup.GET("/Meta/Finv/Quote/Cdeu/Min/PageUni", klineHandler.PageUni)
 
 		// 历史行情：导入 / 查询（统一 /Meta/Finv/Quant/Quote/ 前缀，与前端路由对应）
 		apiGroup.POST("/Meta/Finv/Quant/Quote/Import/Upload", quoteImport.Upload)
 		apiGroup.GET("/Meta/Finv/Quant/Quote/History/QuoteQuery", quoteQuery.Query)
+
+		// 证券行情月归档导出与上传（运维：状态 / 任务 / 文件 / 重试 / 手动触发）
+		if deps.ExportArchive != nil {
+			archive := handler.NewExportArchive(deps.ExportArchive)
+			group := apiGroup.Group("/Meta/Finv/Quote/DeDup")
+			group.GET("/Status", archive.Status)
+			group.GET("/Settings", archive.Settings)
+			group.PUT("/Settings/Window", archive.SettingsWindow)
+			group.GET("/Job/Runtime", archive.JobRuntime)
+			group.GET("/CDEU/Overview", archive.CDEUOverview)
+			group.POST("/CDEU/Workflow/Run", archive.CDEUWorkflowRun)
+			group.POST("/CDEU/Workflow/Terminate", archive.CDEUWorkflowTerminate)
+			// 兼容旧路径；新前端统一使用 /CDEU/Workflow/Run。
+			group.POST("/CDEU/Process/Run", archive.CDEUWorkflowRun)
+			group.GET("/Job/List", archive.JobList)
+			group.GET("/File/List", archive.FileList)
+			group.POST("/Job/Retry", archive.JobRetry)
+			group.POST("/File/Retry", archive.FileRetry)
+			group.POST("/Job/Run", archive.JobRun)
+			group.POST("/Job/Dynamic/Run", archive.DynamicJobRun)
+
+			// 归档运维台：查询（10 张表 + 成熟度）
+			group.GET("/Usc/Page", archive.UscPage)
+			group.GET("/Priority/List", archive.PriorityList)
+			group.GET("/Calendar/Page", archive.CalendarPage)
+			group.GET("/Maturity/Page", archive.MaturityPage)
+			group.GET("/Stats/Page", archive.StatsPage)
+			group.GET("/Budget/Page", archive.BudgetPage)
+			group.GET("/Watermark/List", archive.WatermarkList)
+			group.GET("/RunLog/Page", archive.RunLogPage)
+			group.GET("/RunLog/Detail", archive.RunLogDetail)
+			group.GET("/UploadLog/Page", archive.UploadLogPage)
+			group.GET("/Patch/Page", archive.PatchPage)
+
+			// 归档运维台：管理员编辑（5 张可编辑表 + 补丁重试 / 任务暂停取消 / 成熟度重算）
+			group.PUT("/Usc", archive.UscUpsert)
+			group.PUT("/Priority", archive.PriorityUpsert)
+			group.DELETE("/Priority", archive.PriorityDelete)
+			group.PUT("/Calendar", archive.CalendarUpsert)
+			group.DELETE("/Calendar", archive.CalendarDelete)
+			group.PUT("/Budget/Override", archive.BudgetOverride)
+			group.PUT("/Watermark", archive.WatermarkReset)
+			group.POST("/Patch/Retry", archive.PatchRetry)
+			group.POST("/Job/Pause", archive.JobPause)
+			group.POST("/Job/Cancel", archive.JobCancel)
+			group.POST("/Maturity/Refresh", archive.MaturityRefresh)
+		}
 
 		// 元数据管理：交易所 / 市场 / 证券字典维护
 		apiGroup.GET("/Meta/Finv/Quant/Metadata/Exchange/List", metaHandler.ListExchanges)

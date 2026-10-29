@@ -1,6 +1,6 @@
 # POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload — 历史行情文件导入
 
-上传 MVSV-1 分钟级历史行情文件，服务端解析后**字段级覆盖**导入 PostgreSQL `dedup.finv_quote_secu_kline_min` 表（主键 `ts + usc`；V21 起不再冗余存储 `market_code`，市场信息由 `finv_security` 字典关联获取）。
+上传 MVSV-1 分钟级历史行情文件，服务端解析后**字段级覆盖**导入 PostgreSQL `quote.finv_quote_secu_kline_min` 表（**quote schema：历史行情导入 + 查询 + 回测专用**；去重/导出/上传链路的同名表在 `dedup` schema，两者隔离）（主键 `ts + usc`；V100021 起不再冗余存储 `market_code`，市场信息由 `finv_security` 字典关联获取）。
 
 > 📐 **MVSV-1 文件格式完整规范**（必填/可选头部键、两种列布局、数据行要求、一致性校验）见 [Docs/DataFormat/MvsvFileFormat.md](../../DataFormat/MvsvFileFormat.md)——**所有导出程序请按该规范生成文件**。
 
@@ -51,7 +51,8 @@
 | data 字段 | 说明 |
 |-----------|------|
 | `batch_id` | 导入批次 ID（对应 `quote.finv_quote_ingest_batches`） |
-| `usc` / `market_code` | 证券代码 / 市场数字代码（`usc` 来自文件头部 `Code`；`market_code` V21 起从 `finv_security` 字典关联获取，未登记返回 0） |
+| `usc` | 证券代码（来自文件头部 `Code`） |
+| `market_code` | 市场数字代码（V100021 起从 `finv_security` 字典关联获取，未登记返回 0） |
 | `record_count` | 本次导入记录数 |
 | `inserted` | 新增行数 |
 | `updated` | 覆盖行数（>0 时自动写入 `quote.finv_quote_revision_log` 修正审计） |

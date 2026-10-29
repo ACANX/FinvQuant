@@ -48,18 +48,18 @@ func NewService(pool *pgxpool.Pool) *Service {
 
 // Bar 查询返回的分钟级 K 线（涨跌额/涨跌幅由 close 与 last_close 计算）。
 type Bar struct {
-	TS        int64   `json:"ts"`         // UTC 时间戳（秒，主键列，如 1754398800）
-	Date      int     `json:"date"`       // 交易日期 yyyymmdd（多日查询时用于区分）
-	Time      int     `json:"time"`       // 交易时间 hhmmss
-	Open      *string `json:"open"`       // 开盘价
-	High      *string `json:"high"`       // 最高价
-	Low       *string `json:"low"`        // 最低价
-	Close     *string `json:"close"`      // 收盘价
-	Volume    *int64  `json:"volume"`     // 成交量（有值才展示）
-	Turnover  *string `json:"turnover"`   // 成交额（有值才展示）
-	Change    *string `json:"change"`     // 涨跌额（close - last_close）
-	ChangePct *string `json:"change_pct"` // 涨跌幅 %
-	Remark    *string `json:"remark"`     // 备注
+	TS        int64    `json:"ts"`         // UTC 时间戳（秒，主键列，如 1754398800）
+	Date      int      `json:"date"`       // 交易日期 yyyymmdd（多日查询时用于区分）
+	Time      int      `json:"time"`       // 交易时间 hhmmss
+	Open      *string  `json:"open"`       // 开盘价
+	High      *string  `json:"high"`       // 最高价
+	Low       *string  `json:"low"`        // 最低价
+	Close     *string  `json:"close"`      // 收盘价
+	Volume    *float64 `json:"volume"`     // 成交量（支持小数，有值才展示）
+	Turnover  *string  `json:"turnover"`   // 成交额（有值才展示）
+	Change    *string  `json:"change"`     // 涨跌额（close - last_close）
+	ChangePct *string  `json:"change_pct"` // 涨跌幅 %
+	Remark    *string  `json:"remark"`     // 备注
 }
 
 // QueryBars 按证券代码 + ts 时间范围查询分钟级 K 线（周期目前仅支持 Min=1 分钟）。
@@ -82,14 +82,14 @@ func (s *Service) QueryBars(ctx context.Context, usc, period string, startTS, en
 	var total int
 	if err := s.pool.QueryRow(ctx, `
 SELECT COUNT(*)
-FROM dedup.finv_quote_secu_kline_min
+FROM quote.finv_quote_secu_kline_min
 WHERE usc = $1 AND ts BETWEEN $2 AND $3`, usc, startTS, endTS).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
 	rows, err := s.pool.Query(ctx, `
 SELECT ts, date, "time", open, high, low, close, volume, turnover, last_close, remark
-FROM dedup.finv_quote_secu_kline_min
+FROM quote.finv_quote_secu_kline_min
 WHERE usc = $1 AND ts BETWEEN $2 AND $3
 ORDER BY ts ASC`, usc, startTS, endTS)
 	if err != nil {
@@ -145,7 +145,10 @@ func DateRangeToTS(date, days int) (int64, int64) {
 	return startDate, endDate + 86400 - 1
 }
 
-// ImportRows 将解析后的行情行批量 upsert 到 dedup.finv_quote_secu_kline_min。
+// ImportRows 将解析后的行情行批量 upsert 到 quote.finv_quote_secu_kline_min。
+//
+// 归属说明：本包（查询 + 文件导入）服务回测与历史行情查询，统一读写 quote schema；
+// 去重/导出/上传链路与 K 线 API 的写入走 dedup schema（见 internal/kline），两边隔离。
 // 字段级覆盖（FIELD）或整行覆盖（ROW）；发生覆盖时写入修正审计日志。
 // remark 为表单备注：非空时写入每行的 remark 列。
 func (s *Service) ImportRows(ctx context.Context, rows []mvsv.Row, mode UpsertMode, importedBy, source, remark string) (*UpsertResult, error) {
@@ -161,7 +164,7 @@ func (s *Service) ImportRows(ctx context.Context, rows []mvsv.Row, mode UpsertMo
 			rows[index].Remark = &value
 		}
 	}
-	// 增量兜底：开盘价缺失（NULL 或 0）时用前收盘价填充，与迁移 V31 同规则，
+	// 增量兜底：开盘价缺失（NULL 或 0）时用前收盘价填充，与迁移 V100031 同规则，
 	// 保证新导入数据不再产生缺 open 的行。
 	fillOpenFromLastClose(rows)
 	// 涨跌额/涨跌幅：文件 cp/cr 列当前忽略；缺失时按「last_close → open → 不写」
@@ -193,7 +196,7 @@ func (s *Service) ImportRows(ctx context.Context, rows []mvsv.Row, mode UpsertMo
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
-	// market_code 已从主表移除（V21）：从 finv_security 字典关联获取，保持响应字段兼容
+	// market_code 已从主表移除（V100021）：从 finv_security 字典关联获取，保持响应字段兼容
 	marketCode := 0
 	if err := s.pool.QueryRow(ctx,
 		`SELECT market_code FROM finv_security WHERE usc = $1 OR security_code = $1 LIMIT 1`,
@@ -221,7 +224,7 @@ func buildUpsertSQL(mode UpsertMode) string {
 		"paocd", "volume", "turnover", "ext_field", "remark",
 	}
 	base := `
-INSERT INTO dedup.finv_quote_secu_kline_min
+INSERT INTO quote.finv_quote_secu_kline_min
     (usc, ts, date, "time", last_close, open, high, low, close,
      change_price, change_ratio,
      paocd, volume, turnover, ext_field, remark)
@@ -234,7 +237,7 @@ ON CONFLICT (ts, usc) DO UPDATE SET
 			assignments = append(assignments, fmt.Sprintf("    %s = EXCLUDED.%s", column, column))
 		} else {
 			assignments = append(assignments,
-				fmt.Sprintf("    %s = COALESCE(EXCLUDED.%s, dedup.finv_quote_secu_kline_min.%s)", column, column, column))
+				fmt.Sprintf("    %s = COALESCE(EXCLUDED.%s, quote.finv_quote_secu_kline_min.%s)", column, column, column))
 		}
 	}
 	return base + strings.Join(assignments, ",\n") + "\nRETURNING (xmax = 0) AS is_insert"
@@ -302,7 +305,7 @@ func computeChangeFields(rows []mvsv.Row) {
 }
 
 // fillOpenFromLastClose 兜底：`open` 为 NULL 或 0 时用 `last_close` 填充。
-// 触发条件与迁移 V31 一致（要求 last_close 非 NULL 且非 0），返回填充行数。
+// 触发条件与迁移 V100031 一致（要求 last_close 非 NULL 且非 0），返回填充行数。
 func fillOpenFromLastClose(rows []mvsv.Row) int {
 	filled := 0
 	for index := range rows {

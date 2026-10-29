@@ -2,7 +2,7 @@
 
 > 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/HistoryQuote/DeDupKLineStats.md`
 > 对应视图：`Web/src/views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue`
-> 接口契约：见 [Docs/API/KLine/KLineStats.md](../../API/KLine/KLineStats.md)
+> 接口契约：见 [Docs/API/KLine/KLineStats.md](../../API/Quote/Cdeu/Min/KLineStats.md)
 
 ## 1. 菜单入口
 
@@ -34,7 +34,7 @@
 
 ## 4. 请求与响应
 
-- 请求：`GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats?usc=&dateFrom=&dateTo=`
+- 请求：`GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Stats?usc=&dateFrom=&dateTo=`
 - 响应：`data.summary`（汇总 + `null_counts`）、`data.daily`（按日期升序）、`data.top_usc`（Top 20）。
 - 三组结果在同一只读事务内查询，口径一致。
 

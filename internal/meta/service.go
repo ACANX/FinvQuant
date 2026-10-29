@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// FlagEnable 启用标志常量（与 V17/V18 迁移约定一致：'0'=禁用，'1'=启用）。
+// FlagEnable 启用标志常量（与 V100017/V100018 迁移约定一致：'0'=禁用，'1'=启用）。
 const (
 	FlagDisable = "0"
 	FlagEnable  = "1"
@@ -54,6 +54,7 @@ type Exchange struct {
 type Market struct {
 	MarketCode     int    `json:"market_code"`
 	MarketFlag     string `json:"market_flag"`
+	MarketSymbol   string `json:"market_symbol"` // 市场符号（如 US-NSDQ / FX-CFD / SZ，空串表示未维护）
 	MarketAbbr     string `json:"market_abbr"`
 	MarketName     string `json:"market_name"`
 	EnSecurityType string `json:"en_security_type"`
@@ -216,10 +217,11 @@ func (s *Service) ListMarkets(ctx context.Context, pager Pager, keyword, flagEna
 		where = append(where, fmt.Sprintf(`(
 			CAST(market_code AS TEXT) LIKE $%d
 			OR market_flag ILIKE $%d
+			OR market_symbol ILIKE $%d
 			OR market_abbr ILIKE $%d
 			OR market_name ILIKE $%d
 			OR en_security_type ILIKE $%d
-		)`, len(args), len(args), len(args), len(args), len(args)))
+		)`, len(args), len(args), len(args), len(args), len(args), len(args)))
 	}
 	if flagEnable == FlagEnable || flagEnable == FlagDisable {
 		args = append(args, flagEnable)
@@ -234,7 +236,7 @@ func (s *Service) ListMarkets(ctx context.Context, pager Pager, keyword, flagEna
 	}
 
 	rows, err := s.pool.Query(ctx, `
-SELECT market_code, market_flag, market_abbr, market_name, en_security_type, exchange_code, base_currency, flag_enable
+SELECT market_code, market_flag, market_symbol, market_abbr, market_name, en_security_type, exchange_code, base_currency, flag_enable
 FROM finv_market
 WHERE `+cond+`
 ORDER BY flag_enable DESC, market_code ASC
@@ -248,7 +250,7 @@ LIMIT $`+strconv.Itoa(len(args)+1)+` OFFSET $`+strconv.Itoa(len(args)+2),
 	list := []Market{}
 	for rows.Next() {
 		var m Market
-		if err := rows.Scan(&m.MarketCode, &m.MarketFlag, &m.MarketAbbr, &m.MarketName,
+		if err := rows.Scan(&m.MarketCode, &m.MarketFlag, &m.MarketSymbol, &m.MarketAbbr, &m.MarketName,
 			&m.EnSecurityType, &m.ExchangeCode, &m.BaseCurrency, &m.FlagEnable); err != nil {
 			return nil, 0, err
 		}
@@ -268,18 +270,18 @@ func (s *Service) SaveMarket(ctx context.Context, m Market) (int, error) {
 	if exists == 1 {
 		_, err := s.pool.Exec(ctx, `
 UPDATE finv_market SET
-    market_flag = $2, market_abbr = $3, market_name = $4,
-    en_security_type = $5, exchange_code = $6, base_currency = $7
+    market_flag = $2, market_symbol = $3, market_abbr = $4, market_name = $5,
+    en_security_type = $6, exchange_code = $7, base_currency = $8
 WHERE market_code = $1`,
-			m.MarketCode, m.MarketFlag, m.MarketAbbr, m.MarketName,
+			m.MarketCode, m.MarketFlag, strings.TrimSpace(m.MarketSymbol), m.MarketAbbr, m.MarketName,
 			m.EnSecurityType, m.ExchangeCode, m.BaseCurrency)
 		return m.MarketCode, err
 	}
 	_, err := s.pool.Exec(ctx, `
 INSERT INTO finv_market
-    (market_code, market_flag, market_abbr, market_name, en_security_type, exchange_code, base_currency, flag_enable)
-VALUES ($1, $2, $3, $4, $5, $6, $7, '1')`,
-		m.MarketCode, m.MarketFlag, m.MarketAbbr, m.MarketName,
+    (market_code, market_flag, market_symbol, market_abbr, market_name, en_security_type, exchange_code, base_currency, flag_enable)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '1')`,
+		m.MarketCode, m.MarketFlag, strings.TrimSpace(m.MarketSymbol), m.MarketAbbr, m.MarketName,
 		m.EnSecurityType, m.ExchangeCode, m.BaseCurrency)
 	return m.MarketCode, err
 }

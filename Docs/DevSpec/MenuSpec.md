@@ -20,8 +20,9 @@
 - 通用性视图（如 `DashboardView.vue`）可直接放在 `Web/src/views/` 根目录。
 - 视图组件文件名使用大驼峰（PascalCase）并以 `View.vue` 结尾；必要时以模块前缀开头（如 `HistoryQuoteQueryView.vue`）避免同名歧义。
 - 每个菜单对应一个视图组件（如 `HistoryQuoteQueryView.vue`）。
-- 新增菜单时须在 `Web/src/App.vue` 的 `menuItems` 中登记：菜单 `key`（英文驼峰）、`title`（简体中文标题）、`icon`（mdi 图标）。
-- 视图组件与 `menuItems` 中的菜单项一一对应，禁止出现未登记入口的孤立视图。
+- 新增菜单时须在 `Web/src/config/menuConfig.ts` 的 `menuSystems` 中登记：系统 `key`、`title`（简体中文标题，与 CMS 一级菜单同名）、`icon`（mdi 图标）、`path`（系统落地路由）、`match`（系统归属前缀）；菜单节点登记 `key`（英文小驼峰）、`title`、`icon`、`path`（叶子必填，分组不填）。
+- 视图组件与 `menuSystems` 中的叶子菜单项一一对应，禁止出现未登记入口的孤立视图。
+- 新增一级系统时只在 `menuSystems` 追加一项（含 `match` 前缀），导航组件与 `App.vue` 无需改动。
 
 ### 1.1 菜单路由路径命名规范（强制）
 
@@ -39,8 +40,31 @@
 - **元数据模块（MetaData）**：路由统一加 **`/Meta/Finv/MetaData/`** 前缀，其后每段采用大驼峰（如 `/Meta/Finv/MetaData/Exchange`）。元数据独立于行情/量化（平级关联，不从属），路由与目录均置于 `Meta/Finv/MetaData/`。
 - **其他非 Finv 模块**：路由路径同样遵循大驼峰命名（如 `/Meta/Exchange`、`/Quote/Query`），不在此路径层级中引入下划线或小写片段；存量小写路由（如 `/dashboard`、`/meta/exchange`）在维护时逐步迁移对齐。
 - **禁止**使用 `-`（连字符）、`_`（下划线）或全小写路径片段（如 `/meta/finvquant/backtest/analysis` 为违规写法）。
-- 路由在 `Web/src/router.ts` 的 `path` 与 `Web/src/App.vue` 的 `menuItems[].path` 中**两处必须一致**，且与 `Docs/Menu/Menus.md` 索引中的「路由」列保持一致。
+- 路由在 `Web/src/router.ts` 的 `path` 与 `Web/src/config/menuConfig.ts` 中叶子节点的 `path` **两处必须一致**，且与 `Docs/Menu/Menus.md` 索引中的「路由」列保持一致。
 - 后端 API 接口路径前缀保持 `/API/V1/Meta/Finv/Quant/...`（大驼峰），前端路由与其保持同一前缀体系（见 `Docs/DevSpec/ApiSpec.md`）。
+
+### 1.2 四级菜单与系统注册（强制）
+
+- **导航为四级菜单树**：一级 = **系统**（顶栏切换器），其二/三/四级为左侧抽屉菜单（`Web/src/components/menu/` 递归组件渲染）。
+- **一级系统**在 `menuSystems` 中登记，必须包含 `key`、`title`、`icon`、`path`、`match`、`children`；`title` 与 CMS 一级菜单同名（如 `金融投资`、`内容管理`），内部 `key` 保持稳定英文标识（`finvquant`、`cms`）。
+- **系统归属**按 `match` 前缀判定（最长前缀优先）；未命中时回落到首个系统并输出 `console.warn`。新增系统必须提供覆盖其全部路由的 `match` 前缀。
+- **分组节点不填 `path`**（点击仅展开/折叠）；叶子节点必须有 `path`。菜单深度上限 4 级，且**不得为凑满层级而人为增设空壳分组**。
+- **`subtitle` 为可选字段**：不填时单行渲染，填写时以副标题展示，不得为占位而编造文案。
+- **导航视觉**：固定使用 WebCMS 风格（当前菜单项左侧 3px 主色激活条 + 祖先标题主色 + 页面页脚 `© 2026 ACANX`），**不提供风格开关，也不得引入 `?nav=` 等 URL 参数**；调整视觉统一改 `NavMenuTreeNode.vue` / `App.vue` 的样式。
+- **展开状态**按系统分桶持久化在 `localStorage['finvquant.nav.openKeys.v1']`，键为「父链 key 拼接」（如 `finvquant.data-collection.quote-archive`）。
+
+### 1.3 自定义组件显式导入（强制）
+
+- 本项目**未启用自定义组件自动注册**（`vite-plugin-vuetify` 只自动导入 Vuetify 组件），模板中使用的自定义组件（**含递归组件的自引用**）必须显式 `import`。
+- 否则编译产物会退化为运行时 `resolveComponent('Xxx')`：`npm run build` 与 `vue-tsc` 均**不报错**，但该组件不会进入 bundle，运行时渲染为空（如左侧菜单树整块消失）。
+- 防回归自检（构建后应无输出）：
+
+```bash
+cd Web && npm run build
+grep -oE 'Wr\(`(NavMenuTree|NavMenuTreeNode|SystemSwitcher)`\)' dist/assets/index-*.js
+```
+
+- 同类改动还须检查产物中确实包含组件特征类名（如 `finv-nav-node`、`finv-nav-item`），不能只以「构建通过」作为验收依据。
 
 ## 2. 菜单文档
 

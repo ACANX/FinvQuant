@@ -62,7 +62,7 @@ func TestParseValid(t *testing.T) {
 	if first.Close == nil || *first.Close != "7.002" {
 		t.Fatalf("close=%v", first.Close)
 	}
-	if first.Volume == nil || *first.Volume != 100000 {
+	if first.Volume == nil || *first.Volume != "100000" {
 		t.Fatalf("volume=%v", first.Volume)
 	}
 }
@@ -302,5 +302,20 @@ func TestParseMissingFieldType(t *testing.T) {
 	_, err := Parse([]byte(content), "no_fieldtype.mvsv")
 	if err == nil || !strings.Contains(err.Error(), "FieldType") {
 		t.Fatalf("期望缺少 FieldType 错误，实际: %v", err)
+	}
+}
+
+// TestParseNumericVolume 校验成交量支持小数（需求 10792）：原样保留文本，不截断。
+func TestParseNumericVolume(t *testing.T) {
+	content := strings.Replace(sampleMvsv, "|100000|", "|12.345678|", 1)
+	result, err := Parse([]byte(content), "TEST.mvsv")
+	if err != nil {
+		t.Fatalf("解析失败: %v", err)
+	}
+	if len(result.Rows) == 0 || result.Rows[0].Volume == nil {
+		t.Fatal("volume 不应为空")
+	}
+	if got := *result.Rows[0].Volume; got != "12.345678" {
+		t.Fatalf("volume 期望 12.345678，实际 %q", got)
 	}
 }

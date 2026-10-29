@@ -981,7 +981,7 @@ func (e *Engine) fill(action string, price float64, b Bar, barIdx int, state *ac
 		PositionAfter: round6(state.position),
 		CashAfter:     round6(state.cash),
 		Signal:        signal,
-		Remark:        signal, // 备注列与触发原因一致（评审：V26 remark 列需有值）
+		Remark:        signal, // 备注列与触发原因一致（评审：V100026 remark 列需有值）
 		Seq:           int(seq),
 	}
 	*trades = append(*trades, trade)

@@ -14,15 +14,15 @@ func decodeItem(t *testing.T, raw string) ItemIn {
 	return item
 }
 
-func TestPrevCloseCompat(t *testing.T) {
+func TestLastCloseCompat(t *testing.T) {
 	cases := []struct {
 		name string
 		body string
 		want *string
 	}{
-		{"open 优先", `{"usc":"A","ts":1,"open":10.1,"prev_close":9.9}`, strPtr("10.1")},
-		{"open 为空时回填", `{"usc":"A","ts":1,"prev_close":9.9}`, strPtr("9.9")},
-		{"open=null 时回填", `{"usc":"A","ts":1,"open":null,"prev_close":9.9}`, strPtr("9.9")},
+		{"open 优先", `{"usc":"A","ts":1,"open":10.1,"last_close":9.9}`, strPtr("10.1")},
+		{"open 为空时回填", `{"usc":"A","ts":1,"last_close":9.9}`, strPtr("9.9")},
+		{"open=null 时回填", `{"usc":"A","ts":1,"open":null,"last_close":9.9}`, strPtr("9.9")},
 		{"两者都为空", `{"usc":"A","ts":1}`, nil},
 	}
 	for _, tc := range cases {
@@ -32,10 +32,13 @@ func TestPrevCloseCompat(t *testing.T) {
 				t.Fatalf("ToRow 失败: %v", err)
 			}
 			if tc.want == nil {
-				if row.Open != nil {
-					t.Fatalf("open 期望 nil，实际 %q", *row.Open)
+				if row.Open != nil || row.LastClose != nil {
+					t.Fatalf("open/last_close 期望 nil")
 				}
 				return
+			}
+			if row.LastClose == nil || *row.LastClose != "9.9" {
+				t.Fatalf("last_close 应落库 9.9，实际 %v", row.LastClose)
 			}
 			if row.Open == nil || *row.Open != *tc.want {
 				t.Fatalf("open 期望 %q，实际 %v", *tc.want, row.Open)
@@ -132,17 +135,19 @@ func TestPatchOnlyKeys(t *testing.T) {
 	}
 }
 
-func TestPatchPrevClose(t *testing.T) {
-	item := decodeItem(t, `{"usc":"A","ts":1,"prev_close":9.9}`)
+func TestPatchLastClose(t *testing.T) {
+	item := decodeItem(t, `{"usc":"A","ts":1,"last_close":9.9}`)
 	patch, err := item.ToPatchItem("s")
 	if err != nil {
 		t.Fatalf("ToPatchItem 失败: %v", err)
 	}
-	if len(patch.Columns) != 1 || patch.Columns[0] != ColOpen {
-		t.Fatalf("prev_close 应转为 open，实际 %v", patch.Columns)
+	if len(patch.Columns) != 2 || patch.Columns[0] != ColOpen || patch.Columns[1] != ColLastClose {
+		t.Fatalf("last_close 应同时回填 open 并落库，实际 %v", patch.Columns)
 	}
-	if patch.Values[0] == nil || *patch.Values[0] != "9.9" {
-		t.Fatalf("open 值错误: %v", patch.Values[0])
+	for i, value := range patch.Values {
+		if value == nil || *value != "9.9" {
+			t.Fatalf("第 %d 列值错误: %v", i, value)
+		}
 	}
 }
 

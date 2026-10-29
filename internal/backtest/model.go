@@ -388,7 +388,7 @@ type Trade struct {
 	PositionAfter float64 `json:"position_after"`
 	CashAfter     float64 `json:"cash_after"`
 	Signal        string  `json:"signal"`
-	Remark        string  `json:"remark"` // 备注（与触发原因一致，V26 remark 列落值）
+	Remark        string  `json:"remark"` // 备注（与触发原因一致，V100026 remark 列落值）
 }
 
 // Cashflow 资金流水明细（需求⑨-1）。

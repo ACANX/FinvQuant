@@ -1,0 +1,302 @@
+# FinvQuant — 外部 OpenAPI：分钟行情批量 Upsert（OpenAPI 3.1 契约）
+#
+# 与同目录 Upsert.md 成对维护：
+#   - .md 正文是人类可读说明；
+#   - 本文件是机器可读契约。
+# 本契约自包含：KLineItem schema 内联，不引用内部 API 契约。
+#
+openapi: 3.1.0
+info:
+  title: FinvQuant — 外部 OpenAPI：分钟行情批量 Upsert
+  version: 1.0.0
+  description: |
+    外部 HOOK / 采集端批量写入分钟行情 K 线（主键 usc + ts）。
+    业务逻辑复用内部 KLine.Upsert handler；认证使用静态密钥
+    （FINV_OPENAPI_KEY，过渡方案），成功响应统一为 {code, data, message}。
+servers:
+  - url: http://127.0.0.1:16001
+    description: 本机直连（生产经 Nginx 反代时替换为 https://<域名>）
+tags:
+  - name: OpenAPI/Cdeu/Min
+    description: 外部 OpenAPI（分钟行情）
+# 需求 10790：当前暂不鉴权；API Key 落地后改为:
+# security:
+#   - bearerAuth: []
+#   - apiKeyHeader: []
+security: []
+paths:
+  /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert:
+    post:
+      operationId: externalUpsertCdeuKLineMin
+      tags: [OpenAPI/Cdeu/Min]
+      summary: 外部批量写入分钟行情 K 线（upsert）
+      description: |
+        请求体/校验/错误码与内部 /API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert 完全一致。
+        onConflict=skip 已存在键跳过；onConflict=update（默认）整行覆盖。
+      parameters:
+        - name: onConflict
+          in: query
+          required: false
+          description: 冲突处理模式；兼容旧名 `on_conflict`。
+          schema:
+            type: string
+            enum: [skip, update]
+            default: update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              additionalProperties: false
+              properties:
+                items:
+                  type: array
+                  minItems: 1
+                  maxItems: 5000
+                  items:
+                    $ref: '#/components/schemas/KLineItem'
+            examples:
+              oneItem:
+                summary: 单条写入
+                value:
+                  items:
+                    - usc: GCMain
+                      ts: 1700000000
+                      date: 20231114
+                      time: 93000
+                      open: 3.51
+                      high: 3.62
+                      low: 3.50
+                      close: 3.60
+                      last_close: 3.50
+                      volume: 1000
+                      turnover: 3560.00
+                      change_price: 0.10
+                      change_ratio: 2.857143
+                      pacd: 3.56
+                      ext_field: null
+                      remark: null
+                      provider: FT
+      responses:
+        '200':
+          description: 写入成功（统一信封）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenAPIResponse'
+              examples:
+                update:
+                  value:
+                    code: 0
+                    data: { affected: 1, mode: update }
+                    message: OK
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        **预留（当前未启用，需求 10790）**：后续为 `Authorization: Bearer <FINV_OPENAPI_KEY>`。
+    apiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: "**预留（当前未启用）**：后续直接传 `<FINV_OPENAPI_KEY>`。"
+  schemas:
+    KLineItem:
+      type: object
+      required: [usc, ts]
+      additionalProperties: false
+      description: |
+        单条分钟行情。未列出的字段名会触发 422 / 211005（严格解码，未知字段报错）。
+      properties:
+        usc:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: 统一证券代码（全局唯一，如 `GCMain` / `518880`）。
+        ts:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 100000000000
+          description: |
+            UTC 时间戳（秒级）。上限 100000000000：超过且服务端配置
+            `FINV_KLINE_TS_UNIT=ms` 时按毫秒除以 1000 归一，否则返回 422 / 211004。
+        date:
+          type: [integer, 'null']
+          minimum: 19500101
+          maximum: 21001231
+          description: 交易日期 `yyyyMMdd`。
+        time:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 235959
+          description: 交易时间 `HHmmss`。
+        open:
+          type: [number, 'null']
+          description: 起始价。未传或 `null` 时由 `last_close` 回填。
+        high:
+          type: [number, 'null']
+          description: 区间最高价。
+        low:
+          type: [number, 'null']
+          description: 区间最低价。
+        close:
+          type: [number, 'null']
+          description: 最新价/收盘价。
+        last_close:
+          type: [number, 'null']
+          description: |
+            上一收盘价；落库，参与涨跌计算；`open` 未传或为 `null` 时回填 `open`。
+        volume:
+          type: [number, 'null']
+          minimum: 0
+          description: 成交量（支持小数；库内 `numeric(20,6)`，不得为负）。
+        turnover:
+          type: [number, 'null']
+          minimum: 0
+          description: 成交金额（不得为负）。
+        change_price:
+          type: [number, 'null']
+          description: |
+            涨跌额。与 `change_ratio` 均未提供时由服务端按 `close - open`（参考价回退
+            `open`）自动计算。
+        change_ratio:
+          type: [number, 'null']
+          description: 涨跌幅。与 `change_price` 均未提供时由服务端自动计算。
+        pacd:
+          type: [number, 'null']
+          description: 当日累计均价（库列名 `paocd`）。
+        ext_field:
+          type: [string, 'null']
+          description: 预留扩展字段。
+        remark:
+          type: [string, 'null']
+          description: 备注。
+        provider:
+          type: [string, 'null']
+          maxLength: 255
+          description: 数据来源（如 `FT`）。
+
+    OpenAPIResponse:
+      type: object
+      required: [code, data, message]
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+          enum: [0, 1, 200, 202]
+          default: 0
+          description: |
+            成功码，默认输出 0；1 / 200 / 202 同样视为正常响应（兼容）。
+        data:
+          $ref: '#/components/schemas/UpsertData'
+        message:
+          type: string
+          const: OK
+    UpsertData:
+      type: object
+      required: [affected, mode]
+      additionalProperties: false
+      properties:
+        affected:
+          type: integer
+          format: int64
+          minimum: 0
+          description: skip 为实际插入行数；update 为插入 + 覆盖影响行数。
+        mode:
+          type: string
+          enum: [skip, update]
+          description: 本次实际使用的冲突处理模式。
+    ErrorResponse:
+      type: object
+      required: [code, message, detail, request_id, error]
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+        detail:
+          type: string
+        request_id:
+          type: string
+        error:
+          $ref: '#/components/schemas/ErrorObject'
+        debug:
+          type: object
+          additionalProperties: { type: string }
+    ErrorObject:
+      type: object
+      required: [code, catalog_version, retryable]
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+        catalog_version:
+          type: string
+        retryable:
+          type: boolean
+  responses:
+    BadRequest:
+      description: 缺少必填参数 / 请求体格式错误 / 枚举非法（211001、211002、211006）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: 未携带 FINV_OPENAPI_KEY 或密钥错误
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              code: { type: integer, const: 401 }
+              message: { type: string }
+    Conflict:
+      description: 请求内重复主键（211102）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    PayloadTooLarge:
+      description: items 超过上限（211201）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnprocessableEntity:
+      description: 字段类型/范围/未知字段/数据库约束（211003、211004、211005、211303）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: 服务内部错误（211301，可重试）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServiceUnavailable:
+      description: 数据服务不可用（211302，可重试）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

@@ -217,7 +217,7 @@ vq-gui --api-url http://localhost:18000 --serve
 ```
 
 > 说明：具体实验参数以各 console script 的 `--help` 与
-> [Docs/VeritasQuantDevelopmentPlan.md](Docs/VeritasQuantDevelopmentPlan.md) 为准；
+> [Docs/VeritasQuantDevelopmentPlan.md](../Docs/VeritasQuantDevelopmentPlan.md) 为准；
 > 模拟盘/仿真配置中 `execution_mode` 使用 `PAPER` / `SIMULATION`。
 
 ### 步骤 8：停止服务端
@@ -341,7 +341,7 @@ PG18+ 官方镜像改变了数据目录结构，与 16/17 不兼容：
 
 ## 7. 版本升级与数据运维（SOP）
 
-> 总原则：**先备份、再升级；升级可回滚；变更留痕**（发布、备份、回滚操作建议登记 Change，见 [开发工作流](Docs/VeritasQuantDevelopmentWorkflow.md)）。
+> 总原则：**先备份、再升级；升级可回滚；变更留痕**（发布、备份、回滚操作建议登记 Change，见 [开发工作流](../Docs/VeritasQuantDevelopmentWorkflow.md)）。
 
 ### 7.1 数据备份（Backup）
 
@@ -476,4 +476,4 @@ main 推送生成 `0.1.2`（版本 tag）+ `latest`；Git tag `V0.1.2` 额外发
 - PostgreSQL 默认仅绑定宿主回环 `127.0.0.1:5432`（供本机 pg 客户端管理），不暴露到局域网；如需局域网访问，将映射改为 `0.0.0.0` 并评估风险；
 - `.env.deploy` 含明文密码，已被 `.gitignore` 忽略，不要提交；
 - 实盘（LIVE）默认禁用；任何实盘启用必须先走 Change 流程并满足
-  [TechSpec 13 阶段 5 gate](Docs/VeritasQuantTechSpec.md)。
+  [TechSpec 13 阶段 5 gate](../Docs/VeritasQuantTechSpec.md)。

@@ -6,6 +6,15 @@ import QuoteQueryView from './views/Meta/Finv/Quote/History/HistoryQuoteQueryVie
 import QuoteImportView from './views/Meta/Finv/Quote/History/HistoryQuoteImportView.vue'
 import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue'
 import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue'
+import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue'
+import DeDupArchiveChainView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue'
+import DeDupCDEUView from './views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue'
+import DeDupCDEUWorkflowView from './views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue'
+import DeDupExportJobView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportJobView.vue'
+import DeDupExportFileView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue'
+import DeDupArchiveStatsView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveStatsView.vue'
+import DeDupArchiveConfigView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveConfigView.vue'
+import DeDupArchiveLogView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveLogView.vue'
 import MetaExchangeView from './views/Meta/Finv/MetaData/MetaExchangeView.vue'
 import MetaMarketView from './views/Meta/Finv/MetaData/MetaMarketView.vue'
 import MetaSecurityView from './views/Meta/Finv/MetaData/MetaSecurityView.vue'
@@ -22,12 +31,19 @@ import ConfigManageView from './views/Meta/Finv/Quant/Backtest/ConfigManageView.
 import EnvironmentView from './views/Meta/Finv/Quant/Backtest/EnvironmentView.vue'
 import TemplateView from './views/Meta/Finv/Quant/Backtest/TemplateView.vue'
 import PlaceholderView from './views/Common/PlaceholderView.vue'
+import LoginView from './views/Common/LoginView.vue'
+
+import { UNAUTHORIZED_EVENT, isLoggedIn } from './auth'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', redirect: '/dashboard' },
-    { path: '/dashboard', name: 'dashboard', component: DashboardView, meta: { title: '仪表盘' } },
+    // 登录页：公开路由，不渲染主框架（见 App.vue 的 meta.public 判断）
+    { path: '/Login', name: 'login', component: LoginView, meta: { title: '登录', public: true } },
+    { path: '/', redirect: '/Dashboard' },
+    { path: '/Dashboard', name: 'dashboard', component: DashboardView, meta: { title: '仪表盘' } },
+    // 一级系统落地路由（顶栏切换到「金融投资」时使用）
+    { path: '/Meta/Finv', redirect: '/Dashboard' },
     // 历史行情 → 历史行情查询
     { path: '/Meta/Finv/Quote/History/HistoryQuoteQuery', name: 'quote-query', component: QuoteQueryView, meta: { title: '历史行情查询' } },
     // 去重行情 → 去重分钟行情查询 / 统计
@@ -42,6 +58,61 @@ const router = createRouter({
       name: 'dedup-kline-stats',
       component: DeDupKLineStatsView,
       meta: { title: '去重分钟行情统计' },
+    },
+    // 去重行情 → 月归档导出（监控总览 / 导出任务 / 文件与上传）
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Overview',
+      name: 'dedup-export-overview',
+      component: DeDupExportOverviewView,
+      meta: { title: '月归档导出总览' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Chain',
+      name: 'dedup-export-chain',
+      component: DeDupArchiveChainView,
+      meta: { title: '端到端链路' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/CDEU',
+      name: 'dedup-export-cdeu',
+      component: DeDupCDEUView,
+      meta: { title: '工作流控制与监控' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/CDEUWorkflow',
+      name: 'dedup-export-cdeu-workflow',
+      component: DeDupCDEUWorkflowView,
+      meta: { title: '全流程拓扑' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Job',
+      name: 'dedup-export-job',
+      component: DeDupExportJobView,
+      meta: { title: '月归档导出任务' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/File',
+      name: 'dedup-export-file',
+      component: DeDupExportFileView,
+      meta: { title: '月归档导出文件与上传' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Stats',
+      name: 'dedup-export-stats',
+      component: DeDupArchiveStatsView,
+      meta: { title: '归档统计与预算' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Config',
+      name: 'dedup-export-config',
+      component: DeDupArchiveConfigView,
+      meta: { title: '归档主数据与规则' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Log',
+      name: 'dedup-export-log',
+      component: DeDupArchiveLogView,
+      meta: { title: '归档日志与补丁' },
     },
     // 元数据管理 → 业务元数据维护 → 四个子菜单
     { path: '/meta/exchange', name: 'meta-exchange', component: MetaExchangeView, meta: { title: '交易所信息维护' } },
@@ -85,7 +156,46 @@ const router = createRouter({
     { path: '/Meta/Finv/Quant/Simulation/Paper', name: 'simulation-paper', component: PlaceholderView, meta: { title: '模拟盘验证' } },
     { path: '/Meta/Finv/Quant/Simulation/LiveSim', name: 'simulation-live-sim', component: PlaceholderView, meta: { title: '实盘仿真验证' } },
     { path: '/Meta/Finv/Quant/LiveTrading', name: 'live-trading', component: PlaceholderView, meta: { title: '实盘交易' } },
+    // 内容管理（CMS）系统：本轮仅占位，业务菜单后续整合
+    { path: '/Meta/CMS', name: 'cms-home', component: PlaceholderView, meta: { title: '内容管理控制台' } },
   ],
+})
+
+// 旧的小写路径归一化。
+//
+// 为什么不用路由级 redirect：vue-router 4 的路径匹配默认大小写不敏感
+// （sensitive: false），`/login` 会直接命中 `/Login` 路由，redirect 记录
+// 永远匹配不到；此时 to.path 仍是访问时的原始大小写，因此在守卫里归一化
+// 是唯一可靠的位置。
+const LEGACY_PATH_MAP: Record<string, string> = {
+  '/login': '/Login',
+  '/dashboard': '/Dashboard',
+}
+
+// 登录守卫：未登录一律重定向到登录页，并记录来源路径供登录后回跳
+router.beforeEach((to) => {
+  const normalized = LEGACY_PATH_MAP[to.path]
+  if (normalized) {
+    return { path: normalized, query: to.query, hash: to.hash, replace: true }
+  }
+  if (to.meta.public) {
+    // 已登录时访问登录页直接回首页，避免重复登录
+    if (to.name === 'login' && isLoggedIn()) {
+      return { path: '/Dashboard' }
+    }
+    return true
+  }
+  if (!isLoggedIn()) {
+    return { path: '/Login', query: { redirect: to.fullPath } }
+  }
+  return true
+})
+
+// 接口返回 401 时（令牌过期或被吊销）由 api 层广播，这里统一切回登录页
+window.addEventListener(UNAUTHORIZED_EVENT, () => {
+  const current = router.currentRoute.value
+  if (current.meta.public) return
+  void router.replace({ path: '/Login', query: { redirect: current.fullPath } })
 })
 
 router.afterEach((to) => {

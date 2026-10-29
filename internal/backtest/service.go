@@ -1018,12 +1018,14 @@ func (s *Service) executeRun(ctx context.Context, runID string) {
 }
 
 // loadBars 加载分钟行情（date 范围，时间升序）。
+//
+// 读 quote schema：回测属“消费者”侧，与去重/导出/上传链路（dedup）隔离。
 func (s *Service) loadBars(ctx context.Context, usc string, startDate, endDate int) ([]Bar, error) {
 	rows, err := s.pool.Query(ctx, `
 SELECT ts, COALESCE(date, 0), COALESCE("time", 0),
        COALESCE(open, close), COALESCE(high, close), COALESCE(low, close), COALESCE(close, open),
        COALESCE(volume, 0), COALESCE(turnover, 0)
-FROM dedup.finv_quote_secu_kline_min
+FROM quote.finv_quote_secu_kline_min
 WHERE usc = $1 AND date BETWEEN $2 AND $3
 ORDER BY ts ASC`, usc, startDate, endDate)
 	if err != nil {
@@ -1217,7 +1219,7 @@ func (s *Service) SaveEnvironment(ctx context.Context, env *Environment) (string
 	if err != nil {
 		return "", fmt.Errorf("环境配置序列化失败: %w", err)
 	}
-	// 设为默认环境时，同用户 + 同类型仅保留一个默认（配合 V28 部分唯一索引）
+	// 设为默认环境时，同用户 + 同类型仅保留一个默认（配合 V100028 部分唯一索引）
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return "", err
@@ -1581,7 +1583,7 @@ func (s *Service) resolveDateRange(ctx context.Context, usc string, startDate, e
 		var minDate, maxDate int
 		err := s.pool.QueryRow(ctx, `
 SELECT COALESCE(MIN(date), 0), COALESCE(MAX(date), 0)
-FROM dedup.finv_quote_secu_kline_min WHERE usc = $1`, usc).Scan(&minDate, &maxDate)
+FROM quote.finv_quote_secu_kline_min WHERE usc = $1`, usc).Scan(&minDate, &maxDate)
 		if err != nil {
 			return 0, 0, err
 		}

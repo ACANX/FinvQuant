@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // 去重分钟行情统计：汇总指标 + 空值完整性 + ECharts 可视化
 import * as echarts from 'echarts'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useTheme } from 'vuetify'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { apiGet } from '../../../../../api'
 import { fmtDate, shiftMonthISO, todayISO } from '../../../../../utils'
@@ -92,7 +93,12 @@ let topDom: HTMLDivElement | null = null
 let observer: ResizeObserver | null = null
 
 const AXIS_COLOR = '#9aa4b2'
-const SPLIT_COLOR = 'rgba(255,255,255,0.08)'
+
+// 坐标轴线/分割线颜色随主题变化：深色用浅色半透明，浅色用深色半透明
+const theme = useTheme()
+function splitColor(): string {
+  return theme.global.name.value === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.10)'
+}
 
 const summary = computed(() => data.value?.summary ?? null)
 const daily = computed(() => data.value?.daily ?? [])
@@ -180,7 +186,7 @@ async function load() {
   if (to) params.set('dateTo', to)
   try {
     data.value = await apiGet<StatsData>(
-      `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats?${params.toString()}`,
+      `/Meta/Finv/Quote/Cdeu/Min/Stats?${params.toString()}`,
     )
     await nextTick()
     renderCharts()
@@ -197,7 +203,7 @@ async function load() {
 async function resolveDefaultRange(): Promise<{ from: string; to: string }> {
   try {
     const bounds = await apiGet<{ date_to: number | null }>(
-      `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Bounds?usc=${DEFAULT_USC}`,
+      `/Meta/Finv/Quote/Cdeu/Min/Bounds?usc=${DEFAULT_USC}`,
     )
     const end = bounds.date_to ? fmtDate(bounds.date_to) : todayISO()
     return { from: shiftMonthISO(end, -1), to: end }
@@ -262,7 +268,7 @@ function dailyXAxis() {
     boundaryGap: true,
     data: daily.value.map((item) => shortDate(item.date)),
     axisLabel: { color: AXIS_COLOR, hideOverlap: true, interval: timeLabelInterval() },
-    axisLine: { lineStyle: { color: SPLIT_COLOR } },
+    axisLine: { lineStyle: { color: splitColor() } },
     axisTick: { alignWithLabel: true },
   }
 }
@@ -302,7 +308,7 @@ function renderCharts() {
           name: '记录数',
           nameTextStyle: { color: AXIS_COLOR },
           axisLabel: { color: AXIS_COLOR, formatter: (value: number) => String(value) },
-          splitLine: { lineStyle: { color: SPLIT_COLOR } },
+          splitLine: { lineStyle: { color: splitColor() } },
         },
         series: [
           {
@@ -336,7 +342,7 @@ function renderCharts() {
           name: '成交量',
           nameTextStyle: { color: AXIS_COLOR },
           axisLabel: { color: AXIS_COLOR, formatter: (value: number) => fmtCompact(value) },
-          splitLine: { lineStyle: { color: SPLIT_COLOR } },
+          splitLine: { lineStyle: { color: splitColor() } },
         },
         series: [
           {
@@ -370,7 +376,7 @@ function renderCharts() {
           name: '成交额',
           nameTextStyle: { color: AXIS_COLOR },
           axisLabel: { color: AXIS_COLOR, formatter: (value: number) => fmtCompact(value) },
-          splitLine: { lineStyle: { color: SPLIT_COLOR } },
+          splitLine: { lineStyle: { color: splitColor() } },
         },
         series: [
           {
@@ -405,7 +411,7 @@ function renderCharts() {
           name: '收盘价均值',
           nameTextStyle: { color: AXIS_COLOR },
           axisLabel: { color: AXIS_COLOR, formatter: (value: number) => String(value) },
-          splitLine: { lineStyle: { color: SPLIT_COLOR } },
+          splitLine: { lineStyle: { color: splitColor() } },
         },
         series: [
           {
@@ -448,13 +454,13 @@ function renderCharts() {
         xAxis: {
           type: 'value',
           axisLabel: { color: AXIS_COLOR, formatter: (value: number) => fmtCompact(value) },
-          splitLine: { lineStyle: { color: SPLIT_COLOR } },
+          splitLine: { lineStyle: { color: splitColor() } },
         },
         yAxis: {
           type: 'category',
           data: reversed.map((item) => item.usc),
           axisLabel: { color: AXIS_COLOR },
-          axisLine: { lineStyle: { color: SPLIT_COLOR } },
+          axisLine: { lineStyle: { color: splitColor() } },
         },
         series: [
           {
@@ -491,6 +497,15 @@ function resizeCharts() {
   }
   for (const chart of [countChart, volumeChart, turnoverChart, avgChart, topChart]) chart?.resize()
 }
+
+// 主题切换后重绘（分割线/轴线颜色随主题变化）
+watch(
+  () => theme.global.name.value,
+  () => {
+    renderCharts()
+    resizeCharts()
+  },
+)
 
 onMounted(async () => {
   try {
@@ -743,7 +758,7 @@ onBeforeUnmount(() => {
       <v-card variant="tonal" color="surface-variant" class="mt-4">
         <v-card-text class="text-caption text-medium-emphasis">
           <div class="text-body-2 text-high-emphasis mb-1">页面说明</div>
-          <div>dedup.finv_quote_secu_kline_min 汇总指标、字段完整性与分布可视化；支持按证券代码[USC]与交易日期范围过滤。</div>
+          <div>cdeu.finv_quote_secu_kline_min 汇总指标、字段完整性与分布可视化；支持按证券代码[USC]与交易日期范围过滤。</div>
           <div class="mt-1">统计口径：汇总、每日趋势与证券分布在同一只读事务内完成；空值占比 = 空值行数 / 记录总数。</div>
         </v-card-text>
       </v-card>

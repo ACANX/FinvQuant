@@ -1,0 +1,300 @@
+# FinvQuant — 外部 OpenAPI：分钟行情分页查询（column/row，OpenAPI 3.1 契约）
+#
+# 与同目录 PageUni.md 成对维护：
+#   - .md 正文是人类可读说明；
+#   - 本文件是机器可读契约。
+# 本契约自包含，不引用内部 API 契约；响应外层统一为 {code,data,message}。
+#
+openapi: 3.1.0
+info:
+  title: FinvQuant — 外部 OpenAPI：分钟行情分页查询（column/row）
+  version: 1.0.0
+  description: |
+    按证券/来源/交易日期/时间戳过滤并分页，输出固定 15 列的 column + row。
+    业务逻辑复用内部 KLine.PageUni handler；认证使用静态密钥
+    （FINV_OPENAPI_KEY），成功响应统一为 {code, data, message}。
+servers:
+  - url: http://127.0.0.1:16001
+    description: 本机直连（生产经 Nginx 反代时替换为 https://<域名>）
+tags:
+  - name: OpenAPI/Cdeu/Min
+    description: 外部 OpenAPI（分钟行情）
+# 需求 10790：当前暂不鉴权；API Key 落地后改为:
+# security:
+#   - bearerAuth: []
+#   - apiKeyHeader: []
+security: []
+paths:
+  /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni:
+    get:
+      operationId: externalPageUniCdeuKLineMin
+      tags: [OpenAPI/Cdeu/Min]
+      summary: 外部条件查询 + 分页（column/row 行数组）
+      description: |
+        查询参数与内部 /API/V1/Meta/Finv/Quote/Cdeu/Min/PageUni 完全一致。
+        过滤条件之间为 AND；排序固定 usc、date、ts 升序。
+      parameters:
+        - $ref: '#/components/parameters/Usc'
+        - $ref: '#/components/parameters/Provider'
+        - $ref: '#/components/parameters/DateFrom'
+        - $ref: '#/components/parameters/DateTo'
+        - $ref: '#/components/parameters/TsFrom'
+        - $ref: '#/components/parameters/TsTo'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: 查询成功（统一信封）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenAPIResponse'
+              examples:
+                onePage:
+                  summary: 单页结果（1 条）
+                  value:
+                    code: 0
+                    data:
+                      cnt: 43756
+                      ps: 50
+                      pn: 1
+                      column:
+                        - usc
+                        - ts
+                        - date
+                        - time
+                        - o
+                        - h
+                        - l
+                        - c
+                        - v
+                        - t
+                        - cr
+                        - cp
+                        - pa
+                        - pv
+                        - ext
+                      row:
+                        - - '000001'
+                          - '1792373400'
+                          - '20261019'
+                          - '93000'
+                          - null
+                          - null
+                          - null
+                          - '11.48'
+                          - '392600'
+                          - '4507048'
+                          - '-0.17'
+                          - '-0.02'
+                          - null
+                          - FTMM
+                          - null
+                      request_id: B7C63349-EB36-49AB-B16A-E8E1BE475D3B
+                      ts: 1792695045
+                    message: OK
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        **预留（当前未启用，需求 10790）**：后续为 `Authorization: Bearer <FINV_OPENAPI_KEY>`。
+    apiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: "**预留（当前未启用）**：后续直接传 `<FINV_OPENAPI_KEY>`。"
+  parameters:
+    Usc:
+      name: usc
+      in: query
+      required: false
+      description: 统一证券代码，精确匹配。
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
+    Provider:
+      name: provider
+      in: query
+      required: false
+      description: 数据来源，精确匹配。
+      schema:
+        type: string
+        maxLength: 255
+    DateFrom:
+      name: dateFrom
+      in: query
+      required: false
+      description: 交易日期下限（含），yyyyMMdd；兼容 date_from。
+      schema:
+        type: integer
+        minimum: 19500101
+        maximum: 21001231
+    DateTo:
+      name: dateTo
+      in: query
+      required: false
+      description: 交易日期上限（含），yyyyMMdd；兼容 date_to。
+      schema:
+        type: integer
+        minimum: 19500101
+        maximum: 21001231
+    TsFrom:
+      name: tsFrom
+      in: query
+      required: false
+      description: 时间戳下限（含，UTC 秒）；兼容 ts_from。
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
+    TsTo:
+      name: tsTo
+      in: query
+      required: false
+      description: 时间戳上限（含，UTC 秒）；兼容 ts_to。
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: 每页条数；兼容 pageSize / page_size。
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 50
+    Offset:
+      name: offset
+      in: query
+      required: false
+      description: 偏移量（从 0 开始）。
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+  schemas:
+    OpenAPIResponse:
+      type: object
+      required: [code, data, message]
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+          enum: [0, 1, 200, 202]
+          default: 0
+          description: |
+            成功码，默认输出 0；1 / 200 / 202 同样视为正常响应（兼容）。
+        data:
+          $ref: '#/components/schemas/PageUniData'
+        message:
+          type: string
+          const: OK
+    PageUniData:
+      type: object
+      required: [cnt, ps, pn, column, row, request_id, ts]
+      additionalProperties: false
+      properties:
+        cnt:
+          type: integer
+          format: int64
+          minimum: 0
+          description: 满足过滤条件的总记录数。
+        ps:
+          type: integer
+          description: 每页条数（回显 limit）。
+        pn:
+          type: integer
+          description: 页码（offset / limit + 1，从 1 开始）。
+        column:
+          type: array
+          description: 固定 15 列，顺序不可变。
+          minItems: 15
+          maxItems: 15
+          items:
+            type: string
+            enum: [usc, ts, date, time, o, h, l, c, v, t, cr, cp, pa, pv, ext]
+        row:
+          type: array
+          description: 行数组；每行与 column 等长（15 项）。
+          items:
+            type: array
+            minItems: 15
+            maxItems: 15
+            items:
+              type: [string, 'null']
+        request_id:
+          type: string
+        ts:
+          type: integer
+          format: int64
+    ErrorResponse:
+      type: object
+      required: [code, message, detail, request_id, error]
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+        detail:
+          type: string
+        request_id:
+          type: string
+        error:
+          $ref: '#/components/schemas/ErrorObject'
+        debug:
+          type: object
+          additionalProperties: { type: string }
+    ErrorObject:
+      type: object
+      required: [code, catalog_version, retryable]
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+        catalog_version:
+          type: string
+        retryable:
+          type: boolean
+  responses:
+    Unauthorized:
+      description: 未携带 FINV_OPENAPI_KEY 或密钥错误
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              code: { type: integer, const: 401 }
+              message: { type: string }
+    UnprocessableEntity:
+      description: 参数类型/范围问题（211003、211004）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: 服务内部错误（211301，可重试）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServiceUnavailable:
+      description: 数据服务不可用（211302，可重试）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

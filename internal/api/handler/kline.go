@@ -180,7 +180,7 @@ func (h *KLine) BatchInsert(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"inserted": inserted})
 }
 
-// Upsert 处理 POST .../Upsert?onConflict=skip|update。
+// Upsert 处理 POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert?onConflict=skip|update。
 func (h *KLine) Upsert(c *gin.Context) {
 	mode := "update"
 	if raw := queryString(c, "onConflict", "onConflict", "on_conflict"); raw != nil {
