@@ -74,6 +74,11 @@
   - 附可复制模板与 13 项写完后的自检建议、常见毛病对照表，以及统计基线附录。
   - **性质说明**：这是写作参考，不进入 `Docs/DevSpec/` 规范体系，也不占用需求编号；与既有规范冲突时以 `Docs/DevSpec/` 为准。
 
+- **BRS 表备份与对象存储上传设计文档**
+  - 新增 **`Docs/Design/BrsBackupDesign.md`**（体例同 `CdeuWorkflowDesign.md`）：登记驱动的每日 `pg_dump` 表级备份 + S3 兼容对象存储上传。
+  - 覆盖：`sys_config` 39001 六段 cron 调度（每秒 tick、60 s 表达式缓存、轮次互斥）、`pg_dump -Fc` 参数映射（`bak_scope` / `compression` / 30 分钟超时 / `PGPASSWORD`）、`oss.Store` 抽象与 `oss/s3`（`aws-sdk-go-v2`、强制 path-style、静态凭证回退默认链）+ `oss/local` 适配器、39002 JSON 配置与表级 `flag_upload` 双层开关、对象 key 规则、失败保留本地。
+  - 附登记表字段与 12 行预置、配置项、运维操作与常见问题（`pg_dump` 版本、S3 403、path-style）、实现现状（`where_clause` / `copy` / 备份结果落库 / 重试 / 保留期清理 / 手动触发入口 / 恢复自动化 均标为未实现）与源码索引。
+
 - **qmio 数据搬运工具设计文档**
   - 新增 **`Docs/Design/QmioDesign.md`**（体例同 `CdeuWorkflowDesign.md`）：export / import / verify 三个子命令的输入、处理、输出与失败语义。
   - 覆盖：快照只读导出（`REPEATABLE READ` + `READ ONLY`，`count` 与数据同一快照）、数值列 `::text` 保精度、MVSV-2 19/17 列与 `# Field` 列名映射、`upsert`/`append`/`replace` 三种冲突模式、单事务与 `--force` 三重保护、gzip 魔数识别、`.sha256` 校验、`finvquant.env` 四级自动发现。
