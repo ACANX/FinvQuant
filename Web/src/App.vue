@@ -134,6 +134,9 @@ watch(
         @select="onSelectSystem"
       />
 
+      <!-- 占位：把登录用户按钮推回顶栏最右侧（与改动前一致），不与一级菜单切换器撮堆 -->
+      <v-spacer />
+
       <!-- 当前登录用户与退出入口 -->
       <v-menu location="bottom end">
         <template #activator="{ props }">

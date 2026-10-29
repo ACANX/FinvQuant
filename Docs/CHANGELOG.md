@@ -598,6 +598,7 @@
   - 菜单展开状态按系统分桶持久化（`localStorage['finvquant.nav.openKeys.v1']`），深链接直开自动展开祖先链；切换系统回到该系统上次访问路由（`finvquant.nav.lastPathBySystem.v1`）。
   - 新增导航视觉开关 `classic` / `webcms`（默认 `webcms`：3px 主色激活条 + 抽屉系统标题 + 面包屑），访问 `?nav=classic` 可即时回退到改造前视觉（开关见 `Web/src/config/uiConfig.ts`）。
   - 抽屉宽度 260px → 300px；二/三/四级菜单均保留图标。
+  - 顶栏布局：平台标题与一级系统切换器居左，**登录用户菜单保持在顶栏最右侧**（不随切换器搬动）。
   - 文档：`Docs/Menu/Menus.md` 重写为四级索引（新增「所属系统」列）、`Docs/Menu/CMS/CMSHome.md` 新增、`Docs/DevSpec/MenuSpec.md` §1/§1.2 更新、`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` 增加实施记录。
   - 验证：`cd Web && npm run build`（vue-tsc + vite）通过；菜单 31 条路径全部命中 `router.ts`；深链接 `/Meta/Finv/Quote/DeDup/Export/Stats` 节点链为「金融投资 / 数据采集 / 行情数据归档 / 归档统计与预算」。
 
