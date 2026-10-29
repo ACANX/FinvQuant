@@ -21,6 +21,13 @@
 ### 变更
 
 - 版本号由 `0.1.3` 切换至 `0.1.4`（`VERSION`），开启下一轮开发；`v0.1.3` 已作为正式版本打 tag。
+- **计算与 MVSV 解析包归入 `meta/finv` 域，`internal/` 顶层收敛**
+  - `internal/calc`（`change.go`、`change_test.go`）→ **`internal/meta/finv/quant/calc`**；`internal/mvsv`（10 个文件：MVSV-1/2 解析与写出、流式读、样例验证）→ **`internal/meta/finv/quote/mvsv`**；包名 `calc` / `mvsv` 保持不变。
+  - import 同步：`internal/api/handler/import.go`、`internal/meta/finv/quote/{service.go,change_test.go}`、`internal/meta/finv/quote/cdeu/kline/request.go`、`cmd/qmio/{export.go,import.go,verify.go}`。
+  - `mvsv/sample_files_verify_test.go` 的示例文件相对路径按新目录深度修正为 `../../../../../Docs/DataFormat/...`，`TestSampleFilesParse` 仍通过（2 个样例各 20 条记录）。
+  - 文档同步：`Docs/DataFormat/MvsvFileFormat.md`（2 处）、`Docs/FinvQuant/Qmio.md`（1 处）、`Docs/RequirementList.md`（8 处）；历史 CHANGELOG/Refactor 记录保留。
+  - 至此 `internal/` 顶层只剩 `api`、`config`、`database`、`docs`、`logging`、`meta`、`redisclient`、`static`、`webui`（业务域全部收敛到 `internal/meta/{base,finv}`）。
+  - 验证：`go build ./...`、`go vet ./...`、`go test ./internal/meta/finv/quant/calc ./internal/meta/finv/quote/mvsv ./internal/meta/finv/quote ./cmd/qmio ./internal/api` 全部通过。
 - **行情导入/查询服务迁入 `internal/meta/finv/quote`**
   - `internal/quote`（`service.go`、`service_test.go`、`change_test.go`，包名 `quote`）迁移到 **`internal/meta/finv/quote/`**，与同目录的 `cdeu/`、`dedup/` 子包并列，形成完整的 quote 域（导入/查询 + 去重 + CDEU 加工）。
   - `internal/api/handler/{import.go,query.go}`、`internal/api/router.go` 的 import 路径同步更新；源码内容、导出符号、接口路径与 schema 归属（`quote.`）零改动。

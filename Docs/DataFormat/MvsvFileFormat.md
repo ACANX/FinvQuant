@@ -2,7 +2,7 @@
 
 > 所属：FinvQuant 数据格式 · 存放：`Docs/DataFormat/`
 > 适用范围：**所有向 FinvQuant 导入历史行情的导出程序**（脚本/服务/工具）必须按本规范生成 MVSV-1 文件。
-> 服务端解析实现：`internal/mvsv/parser.go`（本规范与该实现严格一致，如有差异以代码为准）。
+> 服务端解析实现：`internal/meta/finv/quote/mvsv/parser.go`（本规范与该实现严格一致，如有差异以代码为准）。
 > 导入接口：`POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload`（见 [ImportsUpload.md](../API/HistoryQuote/ImportsUpload.md)）。
 
 ---
@@ -332,7 +332,7 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| 1.0 | 2026-08-06 | 初版：双布局（11 列/13 列）规范，必填/可选要求明细（对应 `internal/mvsv/parser.go` 双布局支持） |
+| 1.0 | 2026-08-06 | 初版：双布局（11 列/13 列）规范，必填/可选要求明细（对应 `internal/meta/finv/quote/mvsv/parser.go` 双布局支持） |
 | 1.1 | 2026-08-06 | 更正：布局 B 实为 12 列（`ts\|d\|t\|o\|c\|l\|h\|v\|a\|cp\|cr\|p`，pc 已过时移除）；补充行尾空段容忍说明 |
 | 1.2 | 2026-08-06 | 时区规则更正：解析以头部 `TimeZone` 为准，`EffectiveTimeZone` 仅参考且非必填；两者都缺失时跳过 ts 一致性校验 |
 | 1.3 | 2026-08-06 | 必填键 9→11：新增 `Exchange` / `ExchangeCode`（与 `Market` / `MarketCode` 四键必填）；`MarketCode` 通常为四位；示例统一 NVDA→1315、GCMain→1320 |

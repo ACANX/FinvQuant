@@ -10,7 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/acanx/finvquant/internal/mvsv"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/mvsv"
 )
 
 func runExport(args []string) int {

@@ -11,8 +11,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/acanx/finvquant/internal/calc"
-	"github.com/acanx/finvquant/internal/mvsv"
+	"github.com/acanx/finvquant/internal/meta/finv/quant/calc"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/mvsv"
 )
 
 // UpsertMode 覆盖模式。

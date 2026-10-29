@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/acanx/finvquant/internal/mvsv"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/mvsv"
 )
 
 const targetTable = "cdeu.finv_quote_secu_kline_min"

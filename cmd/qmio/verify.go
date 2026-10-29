@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/acanx/finvquant/internal/mvsv"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/mvsv"
 )
 
 func runVerify(args []string) int {

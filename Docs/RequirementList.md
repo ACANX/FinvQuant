@@ -377,7 +377,7 @@
 | 10237 | 文档路径引用已更新。 | `grep -c 'Archive/VeritasQuant' README.md AGENTS.md Docs/FinvQuant/V1/Prompt.md Archive/README.md` 均不小于 `1`；根 README 目录树无裸 `VeritasQuant/` | |
 | 10238 | `Archive/README.md` 登记该归档项。 | 含 `\| \`VeritasQuant/\` \|` 行，说明归档日期与「不参与现行构建」 | |
 | 10239 | 构建上下文排除归档目录。 | `.dockerignore` 含 `Archive/`，且无独立 `VeritasQuant/` 行 | |
-| 10240 | 可执行示例与代码注释路径同步。 | `grep -rn 'Archive/VeritasQuant' Docs/API/HistoryQuote/ImportsUpload.md internal/mvsv/parser.go` 各不小于 `1` | |
+| 10240 | 可执行示例与代码注释路径同步。 | `grep -rn 'Archive/VeritasQuant' Docs/API/HistoryQuote/ImportsUpload.md internal/meta/finv/quote/mvsv/parser.go` 各不小于 `1` | |
 
 ## 二十五、分钟行情 K 线 API 融合（10241–10263）
 
@@ -413,16 +413,16 @@
 ## 二十六、涨跌字段补全规则（10264–10269）
 
 > 来源：导入/写入时 `change_price`、`change_ratio` 缺失的自动补全规则（ACANX 2026-10-24）。
-> 关联：`internal/calc/change.go`、`internal/mvsv/parser.go`、`internal/meta/finv/quote/service.go`、`internal/meta/finv/quote/cdeu/kline/request.go`。
+> 关联：`internal/meta/finv/quant/calc/change.go`、`internal/meta/finv/quote/mvsv/parser.go`、`internal/meta/finv/quote/service.go`、`internal/meta/finv/quote/cdeu/kline/request.go`。
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10264 | MVSV 文件的 `cp`/`cr` 列有值时按文件值落库，不做重算。 | `go test ./internal/mvsv/ -run TestParseChangeFields` 通过；导入含 `cp/cr` 的文件后直查两列等于文件值 | |
+| 10264 | MVSV 文件的 `cp`/`cr` 列有值时按文件值落库，不做重算。 | `go test ./internal/meta/finv/quote/mvsv/ -run TestParseChangeFields` 通过；导入含 `cp/cr` 的文件后直查两列等于文件值 | |
 | 10265 | `cp`/`cr` 均缺失且 `last_close` 非空非 0 时，用 `last_close` 作为参考价计算。 | `go test ./internal/meta/finv/quote/ -run TestComputeChangeFields` 通过（用例 2） | |
 | 10266 | `last_close` 缺失或为 0 且 `open` 非空非 0 时，用 `open` 作为参考价计算。 | 同上（用例 3、4）通过 | |
 | 10267 | `last_close` 与 `open` 都不可用时保持 NULL，不报错。 | 同上（用例 5）通过 | |
 | 10268 | KLine API 写入未提供 `change_price`/`change_ratio` 时按 `open` 补全；任一列有值时不修改。 | `grep -c "calc.Change" internal/meta/finv/quote/cdeu/kline/request.go` 输出不小于 `1`；`go test ./internal/meta/finv/quote/cdeu/kline/` 通过 | |
-| 10269 | 涨跌计算使用十进制精确运算（big.Rat）并保留 6 位小数。 | `go test ./internal/calc/ -run TestChangeRule` 通过（含 6 位小数用例） | |
+| 10269 | 涨跌计算使用十进制精确运算（big.Rat）并保留 6 位小数。 | `go test ./internal/meta/finv/quant/calc/ -run TestChangeRule` 通过（含 6 位小数用例） | |
 
 ## 二十七、去重行情前端菜单与统计（10270–10275）
 
@@ -2149,7 +2149,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10792 | 把 `quote` / `export` / `dedup` 三张同名表的 `volume` 与 `cdeu` 统一为 `numeric(20,6)`；`internal/mvsv` 解析保留小数文本；`internal/meta/finv/quote` 查询输出支持小数；保证导入/导出/补丁/回测链路不截断。 | 临时 PG 执行全部迁移后 `select table_schema, data_type from information_schema.columns where column_name='volume' and table_name='finv_quote_secu_kline_min' and table_schema in ('quote','dedup','export','cdeu')` 四行均为 `numeric`；`12.345678` 在四表写入/读回一致；重复执行 V200059 输出「已是 numeric，跳过」；`go test ./internal/mvsv` 含 `TestParseNumericVolume` 通过；`go build ./...`、`go test ./internal/meta/finv/quote ./internal/meta/finv/quote/cdeu/kline` 通过；`HistoryQuote.md` volume 标注支持小数 | |
+| 10792 | 把 `quote` / `export` / `dedup` 三张同名表的 `volume` 与 `cdeu` 统一为 `numeric(20,6)`；`internal/meta/finv/quote/mvsv` 解析保留小数文本；`internal/meta/finv/quote` 查询输出支持小数；保证导入/导出/补丁/回测链路不截断。 | 临时 PG 执行全部迁移后 `select table_schema, data_type from information_schema.columns where column_name='volume' and table_name='finv_quote_secu_kline_min' and table_schema in ('quote','dedup','export','cdeu')` 四行均为 `numeric`；`12.345678` 在四表写入/读回一致；重复执行 V200059 输出「已是 numeric，跳过」；`go test ./internal/meta/finv/quote/mvsv` 含 `TestParseNumericVolume` 通过；`go build ./...`、`go test ./internal/meta/finv/quote ./internal/meta/finv/quote/cdeu/kline` 通过；`HistoryQuote.md` volume 标注支持小数 | |
 
 ## 一百二十五、外部 OpenAPI 文档自包含（10793）
 
@@ -2191,7 +2191,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10799 | 新增 `qmio` 数据搬运工具（与 `finvquant` 同目录 `<PREFIX>/bin/qmio`）：导出 `cdeu.finv_quote_secu_kline_min` 为 MVSV-2（默认 gzip、含 gmt、可 `--no-gmt`），导入默认 `upsert`（可选 append/replace，replace 需 `--force`），支持 `verify`（sha256/行数）；打包/安装/升级/卸载同步。 | `ls cmd/qmio`；`go build ./cmd/qmio` 通过；`go test ./internal/mvsv -v` 含 `TestWriteV2RoundTripGmt/NoGmt` 通过；`grep -c 'qmio' Deploy/Script/PackSnapshot.sh Deploy/Native/Install.sh` 各 ≥ 1；临时 PG 导出→清空→导入→重复导入行数不变；`--no-gmt` 文件 `Field` 为 17 列且导入后 `gmt_create` 非空；`qmio verify` 通过；`go build ./...` 通过 | |
+| 10799 | 新增 `qmio` 数据搬运工具（与 `finvquant` 同目录 `<PREFIX>/bin/qmio`）：导出 `cdeu.finv_quote_secu_kline_min` 为 MVSV-2（默认 gzip、含 gmt、可 `--no-gmt`），导入默认 `upsert`（可选 append/replace，replace 需 `--force`），支持 `verify`（sha256/行数）；打包/安装/升级/卸载同步。 | `ls cmd/qmio`；`go build ./cmd/qmio` 通过；`go test ./internal/meta/finv/quote/mvsv -v` 含 `TestWriteV2RoundTripGmt/NoGmt` 通过；`grep -c 'qmio' Deploy/Script/PackSnapshot.sh Deploy/Native/Install.sh` 各 ≥ 1；临时 PG 导出→清空→导入→重复导入行数不变；`--no-gmt` 文件 `Field` 为 17 列且导入后 `gmt_create` 非空；`qmio verify` 通过；`go build ./...` 通过 | |
 
 ## 一百三十二、BRS 数据备份服务（10800）
 
