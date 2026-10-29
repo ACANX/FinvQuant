@@ -11,8 +11,9 @@ import SystemSwitcher from './components/menu/SystemSwitcher.vue'
 import { findMenuTrail, menuSystems, resolveSystem } from './config/menuConfig'
 import {
   NAV_LAST_PATH_STORAGE_KEY,
+  navVisualStyle,
   readStorage,
-  resolveNavVisualStyle,
+  toggleNavVisualStyle,
   uiDefaults,
   writeStorage,
 } from './config/uiConfig'
@@ -30,8 +31,7 @@ const drawer = ref(true)
 const currentSystem = computed(() => resolveSystem(route.path))
 // 面包屑节点链（系统 → 二/三/四级）
 const currentTrail = computed(() => findMenuTrail(route.path))
-// 视觉风格：classic 保持改造前样式；webcms 追加激活条、抽屉标题、面包屑
-const navVisualStyle = ref(resolveNavVisualStyle())
+// 视觉风格：classic 保持改造前样式；webcms 追加激活条与面包屑（右上角用户菜单内可切，即时生效）
 const showBreadcrumb = computed(() => navVisualStyle.value === 'webcms' && uiDefaults.navBreadcrumb)
 
 // 公开页（登录）不渲染导航框架，避免未登录时先闪一下侧边栏
@@ -136,8 +136,8 @@ watch(
       <!-- 占位：把登录用户按钮推回顶栏最右侧（与改动前一致），不与一级菜单切换器撮堆 -->
       <v-spacer />
 
-      <!-- 当前登录用户与退出入口 -->
-      <v-menu location="bottom end">
+      <!-- 当前登录用户与退出入口（菜单内提供视觉风格开关） -->
+      <v-menu location="bottom end" :close-on-content-click="false">
         <template #activator="{ props }">
           <v-btn
             v-bind="props"
@@ -146,12 +146,30 @@ watch(
             :text="authState.user?.nick_name || authState.user?.uid || '未登录'"
           />
         </template>
-        <v-list density="compact" min-width="180">
+        <v-list density="compact" min-width="260">
           <v-list-item
             :title="authState.user?.nick_name || '-'"
             :subtitle="authState.user?.uid || ''"
             prepend-icon="mdi-account"
           />
+          <v-divider />
+          <!-- 视觉风格开关：即时切换 classic / webcms，选择结果记住 -->
+          <v-list-item>
+            <template #prepend>
+              <v-icon icon="mdi-palette-outline" />
+            </template>
+            <v-list-item-title>WebCMS 视觉风格</v-list-item-title>
+            <v-list-item-subtitle>开启：主色激活条 + 面包屑</v-list-item-subtitle>
+            <template #append>
+              <v-switch
+                :model-value="navVisualStyle === 'webcms'"
+                :color="navVisualStyle === 'webcms' ? 'green' : 'grey'"
+                density="compact"
+                hide-details
+                @update:model-value="toggleNavVisualStyle"
+              />
+            </template>
+          </v-list-item>
           <v-divider />
           <v-list-item
             prepend-icon="mdi-lock-reset"

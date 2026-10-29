@@ -15,7 +15,7 @@
 | 项 | 实际实现 |
 |---|---|
 | 菜单配置 | 新增 `Web/src/config/menuConfig.ts`：2 个系统（`finvquant` / `cms`）、30 个叶子（29 业务 + 1 占位）、7 个分组；含 `resolveSystem` / `findMenuTrail` / `findFirstLeaf` / `trailToOpenKeys` |
-| UI 开关 | 新增 `Web/src/config/uiConfig.ts`：`classic` / `webcms`（默认 `webcms`），`?nav=` 可覆盖；localStorage 键集中定义 |
+| UI 开关 | 新增 `Web/src/config/uiConfig.ts`：`classic` / `webcms`（默认 `webcms`），**右上角用户菜单内「WebCMS 视觉风格」开关**即时切换；localStorage 键集中定义 |
 | 菜单组件 | 新增 `Web/src/components/menu/`：`SystemSwitcher.vue`、`NavMenuTree.vue`、`NavMenuTreeNode.vue`（递归）、`NavBreadcrumb.vue` |
 | `App.vue` | 移除内联 `menuItems` 与两层 `v-list-group` 模板，改为 `<NavMenuTree>`；顶栏加系统切换器（登录用户菜单保持在最右）；抽屉宽度 300px；`v-main` 顶部加面包屑（webcms） |
 | 路由 | 新增 `/Meta/Finv`（redirect `/Dashboard`）、`/Meta/CMS`（`name: 'cms-home'`，`PlaceholderView`）；其余路由零改动 |
@@ -324,8 +324,10 @@ export const uiDefaults = {
   navBreadcrumb: true,                        // 面包屑
 }
 
-/** 解析顺序：URL 参数 ?nav=classic|webcms（并写回 localStorage） > localStorage > uiDefaults */
-export function resolveNavVisualStyle(): NavVisualStyle
+/** 响应式状态 + 切换函数（右上角用户菜单内的开关调用 toggleNavVisualStyle） */
+export const navVisualStyle = ref<NavVisualStyle>(loadNavVisualStyle())
+export function setNavVisualStyle(style: NavVisualStyle): void
+export function toggleNavVisualStyle(): void
 ```
 
 | 视觉项 | `classic`（回退现状） | `webcms`（新风格，默认） |
@@ -337,7 +339,7 @@ export function resolveNavVisualStyle(): NavVisualStyle
 
 **切换与回退方式**
 
-1. 不改代码对比：访问 `?nav=classic` 或 `?nav=webcms`（参数写入 localStorage 后即刻生效，刷新保持）；
+1. 不改代码对比：右上角用户菜单 →「WebCMS 视觉风格」开关，开/关即时生效并记住选择（无需刷新）；
 2. 改默认值回退：把 `uiDefaults.navVisualStyle` 改为 `'classic'` 并清 localStorage 键 `finvquant.ui.navVisualStyle`；
 3. 彻底回退：`git revert` 对应提交（S4），其余提交不受影响。
 
@@ -384,7 +386,9 @@ export function resolveNavVisualStyle(): NavVisualStyle
 | V4 | 是否补页脚 `© 2026 ACANX` | 无 | 有 |
 | V5 | 是否补齐 29 条副标题 | 未填 | 每条都有 |
 
-对比方式：同一路由下访问 `?nav=webcms` 与 `?nav=classic`（开关写入 localStorage，随时可切回），或直接与 WebCMS 并排开两个浏览器窗口对照。
+对比方式：右上角用户菜单 →「WebCMS 视觉风格」开关反复切换（即时生效、选择被记住）；也可与 WebCMS 并排开两个浏览器窗口对照。
+
+**切换后看哪里**：开启时左侧当前菜单项有 3px 主色竖条、内容区顶部出现面包屑条；关闭时这两项同时消失（其余样式不变）。
 
 ### 3.8 缩进、图标与宽度（已裁决 Q3=B：图标全保留）
 
@@ -498,7 +502,7 @@ route 变化：并入新祖先链（不收起其它分支）
 视觉开关（`uiConfig.ts`）：
 
 ```
-?nav=classic|webcms → 写 localStorage['finvquant.ui.navVisualStyle'] → 返回
+用户菜单开关 → setNavVisualStyle(style) → ref 立即更新界面 + 写 localStorage
 否则 localStorage 有值 → 返回
 否则 uiDefaults.navVisualStyle（'webcms'）
 ```
@@ -539,7 +543,7 @@ route 变化：并入新祖先链（不收起其它分支）
 | S1 | 新增 `menuConfig.ts`，把现有 `menuItems` 原样搬入（暂不改层级、暂不加内容管理），`App.vue` 改为引用 | 界面与改造前**完全一致**（纯重构，`npm run build` 通过） |
 | S2 | 新增 `NavMenuTree.vue` + `NavMenuTreeNode.vue` 递归渲染，`App.vue` 删除硬编码模板；层级仍为三层 | 29 个叶子可达、激活正确、分组展开/收起正常 |
 | S3 | 插入一级系统（金融投资 + 内容管理占位）+ `SystemSwitcher`，层级下移到四级；新增 `/Meta/Finv`、`/Meta/CMS` 路由；抽屉宽度/缩进调整；深链接自动展开 + 按系统持久化 | 顶栏切换联动、四级树形、深链接直开、移动端关闭抽屉均正常 |
-| S4 | 新增 `uiConfig.ts` + `NavBreadcrumb.vue`，实现 `classic` / `webcms` 双视觉（激活条、抽屉标题、面包屑）与 `?nav=` 切换 | 两种风格可即时切换，`classic` 与改造前视觉一致 |
+| S4 | 新增 `uiConfig.ts` + `NavBreadcrumb.vue`，实现 `classic` / `webcms` 双视觉（激活条、面包屑）与用户菜单内开关 | 两种风格可即时切换，`classic` 与改造前视觉一致 |
 | S5 | 文档同步（§6） | `go test ./internal/docs` 通过、`Menus.md` 与 `menuConfig.ts` 一致 |
 
 预估工作量：**1～1.5 人日**（含自测与文档；比 v0.1 增加内容管理占位、系统切换器、双视觉与面包屑）。
@@ -576,7 +580,7 @@ go test ./internal/docs
 | A7 | 深链接直开 | 直接访问 `/Meta/Finv/Quote/DeDup/Export/Stats`：系统判定为「金融投资」、祖先链自动展开、叶子高亮 |
 | A8 | 展开持久化 | 展开「元数据管理」并切到「内容管理」再切回：金融投资的展开状态保留 |
 | A9 | 面包屑 | `webcms` 风格显示「金融投资 / 数据采集 / 行情数据归档 / 归档统计与预算」；末项不可点；分组项可点且跳到该分组首个叶子 |
-| A10 | 视觉开关 | 访问 `?nav=classic`：激活条/抽屉标题/面包屑全部消失，与改造前视觉一致；`?nav=webcms` 恢复 |
+| A10 | 视觉开关 | 右上角用户菜单 →「WebCMS 视觉风格」开关：关闭后 3px 激活条与面包屑同时消失（与改造前一致），开启后恢复；刷新后保持选择 |
 | A11 | 移动端 | 窄屏抽屉为浮层，点击叶子后自动关闭；切换器收起文字不挤压用户菜单 |
 | A12 | 键盘 | Tab 可遍历全部节点，回车/空格可展开与跳转 |
 | A13 | 无回归 | 登录/登出、修改密码、用户菜单、现有页面布局均不受影响 |
@@ -624,7 +628,7 @@ go test ./internal/docs
 |---|---|---|---|
 | R1 | 顶栏平台标题文案：现有「FinvQuant 量化策略交易平台」在切到「内容管理」时仍显示是否合适？ | **A：保持现有文案不变**（不改品牌文案，系统名由切换器体现） | B：`classic` 保持原文案、`webcms` 显示中性标题（如「Meta 管控平台」）；C：标题恒为中性文案（影响 FinvQuant 品牌展示） |
 | R2 | 切换系统时的路由策略 | **A：记住每个系统上次访问的路由**，首次进入落到系统落地路由（`金融投资` → `/Dashboard`，`内容管理` → `/Meta/CMS`） | B：每次切换都回系统落地路由（行为最简单、可预期）；C：只切换左侧菜单不改路由（主内容与菜单不一致） |
-| R3 | 视觉开关默认值 | **A：默认 `webcms`（新风格）**，方便直接对比效果 | B：默认 `classic`，需手动 `?nav=webcms` 才看新风格（更保守） |
+| R3 | 视觉开关默认值 | **A：默认 `webcms`（新风格）**，方便直接对比效果 | B：默认 `classic`，需手动打开开关才看新风格（更保守） |
 | R4 | 内容管理占位菜单的名称与占位文案 | **A：菜单名「内容管理控制台」+ 占位页说明「内容管理系统已接入，业务菜单待整合」** | B：菜单名「内容管理」；C：其他名称/文案 |
 | R5 | 抽屉宽度由 260px 增至 300px 是否可接受？ | **A：可接受**（四级带图标必要） | B：保持 260px（三/四级允许省略图标或标题两行）；C：更宽（320px，右侧内容区变窄） |
 | R6 | 金融投资的二级结构是否要对齐 CMS「金融投资」下的行情/数据/分析/量化四分组？ | **A：本轮不重组**，保持现有二级（数据采集、历史行情、元数据管理、配置管理…），等与 CMS 业务整合时统一对齐 | B：本轮按行情/数据/分析/量化重组（现有一二级需改挂，可能突破四级深度）；C：部分对齐 |

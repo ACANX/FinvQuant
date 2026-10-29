@@ -1,15 +1,15 @@
-// 前端 UI 开关：导航视觉风格与本地持久化键名。
+// 前端 UI 开关：导航视觉风格（界面右上角用户菜单内可直接切换）。
 //
 // 设计依据：Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md §3.7
-// - classic：保持改造前视觉（无激活条、无抽屉标题、无面包屑）
+// - classic：保持改造前视觉（无激活条、无面包屑）
 // - webcms ：参考 WebCMS 视觉（左侧 3px 主色激活条、面包屑）
 //
-// 切换方式（优先级从高到低）：
-// 1. URL 参数 ?nav=classic|webcms（命中后写入 localStorage，便于不重新构建即可对比）；
-// 2. localStorage['finvquant.ui.navVisualStyle']；
-// 3. 本文件 uiDefaults.navVisualStyle。
+// 切换入口：右上角用户菜单 →「WebCMS 视觉风格」开关（即时生效，无需刷新）；
+// 选择结果持久化到 localStorage，下次打开沿用。
 //
 // 回退到旧视觉：把 uiDefaults.navVisualStyle 改为 'classic' 并清除 localStorage 同名键。
+
+import { ref } from 'vue'
 
 export type NavVisualStyle = 'classic' | 'webcms'
 
@@ -49,14 +49,22 @@ export function writeStorage(key: string, value: string): void {
   }
 }
 
-/** 解析当前导航视觉风格：URL 参数 > localStorage > 默认值 */
-export function resolveNavVisualStyle(): NavVisualStyle {
-  const fromQuery = new URLSearchParams(window.location.search).get('nav')
-  if (isNavVisualStyle(fromQuery)) {
-    writeStorage(NAV_STYLE_STORAGE_KEY, fromQuery)
-    return fromQuery
-  }
+/** 从 localStorage 读取上次选择，无有效值时用默认值 */
+function loadNavVisualStyle(): NavVisualStyle {
   const stored = readStorage(NAV_STYLE_STORAGE_KEY)
-  if (isNavVisualStyle(stored)) return stored
-  return uiDefaults.navVisualStyle
+  return isNavVisualStyle(stored) ? stored : uiDefaults.navVisualStyle
+}
+
+/** 当前导航视觉风格（响应式：切换后界面立即更新） */
+export const navVisualStyle = ref<NavVisualStyle>(loadNavVisualStyle())
+
+/** 设置导航视觉风格并持久化 */
+export function setNavVisualStyle(style: NavVisualStyle): void {
+  navVisualStyle.value = style
+  writeStorage(NAV_STYLE_STORAGE_KEY, style)
+}
+
+/** 在 classic / webcms 之间切换 */
+export function toggleNavVisualStyle(): void {
+  setNavVisualStyle(navVisualStyle.value === 'webcms' ? 'classic' : 'webcms')
 }

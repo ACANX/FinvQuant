@@ -2219,7 +2219,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10804 | 顶栏提供一级系统切换器（金融投资 / 内容管理，内部 key `finvquant` / `cms`），切换后左侧菜单联动并回到该系统上次访问路由；「金融投资」即 CMS 一级菜单中的金融投资分系统。 | `grep -F "key: 'finvquant'" Web/src/config/menuConfig.ts` 命中；`grep -F "key: 'cms'" Web/src/config/menuConfig.ts` 命中；`grep -F "path: '/Meta/Finv', redirect: '/Dashboard'" Web/src/router.ts` 命中；人工切换后左侧菜单随之变化 | |
 | 10805 | 内容管理系统本轮仅提供缺省占位：一级入口「内容管理」+ 二级叶子「内容管理控制台」（`/Meta/CMS`），页面为占位页且不实现业务功能。 | `grep -F "path: '/Meta/CMS'" Web/src/router.ts` 命中；`grep -F "'cms-home'" Web/src/views/Common/PlaceholderView.vue` 命中；人工点击后显示「规划中」占位页 | |
 | 10806 | 菜单展开状态按系统分桶持久化到 localStorage（键 `finvquant.nav.openKeys.v1`），深链接直开时自动展开祖先链；脏数据回退到激活链且不报错。 | `grep -F 'finvquant.nav.openKeys.v1' Web/src/config/uiConfig.ts` 命中；人工：展开「元数据管理」→切到内容管理→切回，展开状态保留；直接访问 `/Meta/Finv/Quote/DeDup/Export/Stats` 时祖先链自动展开 | |
-| 10807 | 导航视觉提供 `classic` / `webcms` 开关（默认 `webcms`）：`webcms` 含 3px 主色激活条与面包屑；`?nav=classic` 可即时回退到改造前视觉。抽屉顶部不展示系统标题块（与顶栏切换器重复，2026-10-29 已移除）。 | `grep -F "navVisualStyle" Web/src/config/uiConfig.ts` 命中；`grep -c 'finv-drawer-header' Web/dist/assets/index-*.js` 为 0；人工：`?nav=classic` 后激活条与面包屑同时消失，`?nav=webcms` 恢复 | |
+| 10807 | 导航视觉提供 `classic` / `webcms` 开关（默认 `webcms`）：`webcms` 含 3px 主色激活条与面包屑；**开关位于右上角用户菜单（「WebCMS 视觉风格」）**，即时生效且无需 URL 参数。抽屉顶部不展示系统标题块（与顶栏切换器重复，2026-10-29 已移除）。 | `grep -F "toggleNavVisualStyle" Web/src/config/uiConfig.ts Web/src/App.vue` 各命中；`grep -c 'finv-drawer-header' Web/dist/assets/index-*.js` 为 0；人工：菜单内开关关闭后激活条与面包屑同时消失，开启恢复，刷新后保持 | |
 
 ## 一百三十六、V200057 迁移兼容 dedup 缺失（10808）
 
