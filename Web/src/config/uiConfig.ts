@@ -1,8 +1,8 @@
 // 前端 UI 开关：导航视觉风格（界面右上角用户菜单内可直接切换）。
 //
 // 设计依据：Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md §3.7
-// - classic：保持改造前视觉（无激活条、无面包屑）
-// - webcms ：参考 WebCMS 视觉（左侧 3px 主色激活条、面包屑）
+// - classic：保持改造前视觉（无激活条）
+// - webcms ：参考 WebCMS 视觉（左侧 3px 主色激活条）
 //
 // 切换入口：右上角用户菜单 →「WebCMS 视觉风格」开关（即时生效，无需刷新）；
 // 选择结果持久化到 localStorage，下次打开沿用。
@@ -23,8 +23,6 @@ export const NAV_LAST_PATH_STORAGE_KEY = 'finvquant.nav.lastPathBySystem.v1'
 /** 默认开关（R3 已裁决：默认使用 webcms 新视觉） */
 export const uiDefaults = {
   navVisualStyle: 'webcms' as NavVisualStyle,
-  /** 面包屑（仅 webcms 风格） */
-  navBreadcrumb: true,
 }
 
 function isNavVisualStyle(value: string | null): value is NavVisualStyle {

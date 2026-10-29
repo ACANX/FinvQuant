@@ -16,7 +16,7 @@
 |---|---|
 | 菜单配置 | 新增 `Web/src/config/menuConfig.ts`：2 个系统（`finvquant` / `cms`）、30 个叶子（29 业务 + 1 占位）、7 个分组；含 `resolveSystem` / `findMenuTrail` / `findFirstLeaf` / `trailToOpenKeys` |
 | UI 开关 | 新增 `Web/src/config/uiConfig.ts`：`classic` / `webcms`（默认 `webcms`），**右上角用户菜单内「WebCMS 视觉风格」开关**即时切换；localStorage 键集中定义 |
-| 菜单组件 | 新增 `Web/src/components/menu/`：`SystemSwitcher.vue`、`NavMenuTree.vue`、`NavMenuTreeNode.vue`（递归）、`NavBreadcrumb.vue` |
+| 菜单组件 | 新增 `Web/src/components/menu/`：`SystemSwitcher.vue`、`NavMenuTree.vue`、`NavMenuTreeNode.vue`（递归） |
 | `App.vue` | 移除内联 `menuItems` 与两层 `v-list-group` 模板，改为 `<NavMenuTree>`；顶栏加系统切换器（登录用户菜单保持在最右）；抽屉宽度 300px；`v-main` 顶部加面包屑（webcms） |
 | 路由 | 新增 `/Meta/Finv`（redirect `/Dashboard`）、`/Meta/CMS`（`name: 'cms-home'`，`PlaceholderView`）；其余路由零改动 |
 | 占位页 | `PlaceholderView.vue` 的 `plans` 新增 `cms-home` 文案（唯一视图改动） |
@@ -321,7 +321,6 @@ export type NavVisualStyle = 'classic' | 'webcms'
 
 export const uiDefaults = {
   navVisualStyle: 'webcms' as NavVisualStyle, // 默认新风格（R3）
-  navBreadcrumb: true,                        // 面包屑
 }
 
 /** 响应式状态 + 切换函数（右上角用户菜单内的开关调用 toggleNavVisualStyle） */
@@ -334,7 +333,8 @@ export function toggleNavVisualStyle(): void
 |---|---|---|
 | 叶子激活 | 背景高亮（现状） | 背景高亮 + 左侧 3px 主色条 |
 | 抽屉顶部标题 | 不渲染 | **不渲染**（2026-10-29 按反馈移除：与顶栏切换器重复展示系统名） |
-| 面包屑 | 不渲染 | 渲染（`v-main` 内、`v-container` 之上） |
+| 面包屑 | 不渲染 | **不渲染**（2026-10-29 按反馈移除，避免与顶栏系统名重复） |
+| 页脚 | 一致（`© 2026 ACANX`） | 一致（`© 2026 ACANX`） |
 | 其余（展开箭头、缩进、字体） | 一致 | 一致 |
 
 **切换与回退方式**
@@ -343,18 +343,16 @@ export function toggleNavVisualStyle(): void
 2. 改默认值回退：把 `uiDefaults.navVisualStyle` 改为 `'classic'` 并清 localStorage 键 `finvquant.ui.navVisualStyle`；
 3. 彻底回退：`git revert` 对应提交（S4），其余提交不受影响。
 
-**面包屑规格**
+**页脚规格**（2026-10-29 按反馈新增，替代面包屑）
 
 | 项 | 规则 |
 |---|---|
-| 数据来源 | `findMenuTrail(route.path)` → `[系统, 二级, 三级, 四级叶子]` 的标题链 |
-| 渲染 | `v-breadcrumbs`，分隔符 `mdi-chevron-right`；`density="compact"`；外层 `px-4 pt-3` |
-| 末项 | 叶子标题，`disabled`（不可点） |
-| 中间项 | 分组节点：点击 → `findFirstLeaf()` 跳转该系统/分组的第一个叶子；无可跳目标则不可点 |
-| 一级系统 | 显示系统 `title`（`金融投资` / `内容管理`），点击 → 系统落地路由 |
-| 未命中路由 | 不渲染面包屑（避免出现空壳或错误层级） |
-| 路由变更 | 面包屑随 `route.fullPath` 响应式更新 |
-| 顶栏间距 | 平台名与一级系统切换器之间 `margin-left: 16px`（窄屏 8px），避免贴在一起 |
+| 位置 | `v-main` 内、页面容器之后（`v-main` 改为 `d-flex flex-column`，容器 `flex-grow-1`，内容短时页脚贴底） |
+| 文案 | `© 2026 ACANX`（与仓库 LICENSE 版权方一致） |
+| 样式 | 居中、`text-body-2`、`padding: 16px`、`opacity: 0.7`，不抢视觉权重 |
+| 显示范围 | 仅登录后页面（`isPublicRoute` 为 false 的分支内），登录页不显示 |
+
+**顶栏相关**：平台名与一级系统切换器之间 `margin-left: 16px`（窄屏 8px），避免贴在一起。
 
 ### 3.7.1 与 WebCMS 视觉对比（待裁决 V1–V5）
 
@@ -371,24 +369,25 @@ export function toggleNavVisualStyle(): void
 | 展开箭头 | `mdi-chevron-down/right`（append） | 同 | 一致 |
 | 分组点击行为 | 仅展开/折叠 | 同 | 一致 |
 | 抽屉顶部系统标题 | 有（`drawer-header`，灰底 + 16px 标题） | **已移除**（2026-10-29 按反馈，与顶栏切换器重复） | 有意不同 |
-| 面包屑 | 无 | 有（`v-main` 顶部） | 本项目新增 |
-| 页脚 | 有（`© 2026 ACANX`） | 无 | 待裁决 V4 |
+| 面包屑 | 无 | **无**（2026-10-29 已移除） | 一致 |
+| 页脚 | 有（`© 2026 ACANX`） | **有**（2026-10-29 已补齐） | 一致 |
 | 顶栏平台名 | `max-width: 220px` 截断 | 完整显示（仅 <900px 限宽） | 有意不同 |
 | 一级切换 | 「最近叶子」跳转 | 记住各系统上次路由，无记录时落落地页 | 本项目更连续 |
 
-**待裁决项（需你在浏览器里切两种风格对比后拍板）**
+**V1–V5 裁决结果（2026-10-29 已确认）**
 
-| 编号 | 选项 | 当前值 | WebCMS 值 |
+| 编号 | 选项 | 裁决 | 当前实现 |
 |---|---|---|---|
-| V1 | 抽屉宽度 | 300px | 280px |
-| V2 | 三/四级字号 | 13px | 14px |
-| V3 | 激活/悬停背景是否显式对齐蓝色底 | 跟随主题色 | `rgba(25,118,210,.12)` / `.08` |
-| V4 | 是否补页脚 `© 2026 ACANX` | 无 | 有 |
-| V5 | 是否补齐 29 条副标题 | 未填 | 每条都有 |
+| V1 | 抽屉宽度 | **保持 300px**（不采用 WebCMS 的 280px） | 300px |
+| V2 | 三/四级字号 | **保持 13px** | 13px |
+| V3 | 激活/悬停背景 | **保持跟随主题色**（不对齐 WebCMS 蓝色） | 主题色 |
+| V4 | 页脚 `© 2026 ACANX` | **补齐** | 已添加 |
+| V5 | 29 条副标题 | **不补齐**（`subtitle` 保持可选字段） | 未填 |
+| V6 | 面包屑 | **移除** | 已移除 |
 
 对比方式：右上角用户菜单 →「WebCMS 视觉风格」开关反复切换（即时生效、选择被记住）；也可与 WebCMS 并排开两个浏览器窗口对照。
 
-**切换后看哪里**：开启时左侧当前菜单项有 3px 主色竖条、内容区顶部出现面包屑条；关闭时这两项同时消失（其余样式不变）。
+**切换后看哪里**：开启时左侧当前菜单项左侧有 3px 主色竖条、标题加粗；关闭时激活条消失（其余样式不变；页脚两种风格都显示）。
 
 ### 3.8 缩进、图标与宽度（已裁决 Q3=B：图标全保留）
 
@@ -436,13 +435,12 @@ export function toggleNavVisualStyle(): void
 | `Web/src/components/menu/SystemSwitcher.vue` | 顶栏一级系统切换器（`v-menu`） | 约 70 行 |
 | `Web/src/components/menu/NavMenuTree.vue` | 树容器：展开集合、持久化、系统切换联动、移动端事件上抛 | 约 110 行 |
 | `Web/src/components/menu/NavMenuTreeNode.vue` | 递归节点：分组折叠、叶子跳转、深度缩进、激活/祖先高亮、激活条 | 约 120 行 |
-| `Web/src/components/menu/NavBreadcrumb.vue` | 面包屑（webcms 风格下渲染） | 约 60 行 |
 
 ### 4.2 修改文件
 
 | 文件 | 改动内容 |
 |---|---|
-| `Web/src/App.vue` | ① 删除 `MenuLeaf` / `MenuGroup` 类型、`menuItems` 数组（第 10–111 行）、`isLeaf` / `isActive` / `isGroupOpen`（第 147–160 行）；② `<v-navigation-drawer>` 内整段 `<v-list>` 模板（第 216–271 行）替换为 `<NavMenuTree … />`；③ 顶栏加入 `<SystemSwitcher />`（标题之后）；④ `v-main` 内、`v-container` 之上按开关渲染 `<NavBreadcrumb />`；⑤ 抽屉顶部按开关渲染系统标题区；⑥ `:width="260"` → `:width="300"`；⑦ 第 288–298 行缩进样式移入 `NavMenuTreeNode.vue`；⑧ app-bar 标题文案是否随系统变化见 R1 |
+| `Web/src/App.vue` | ① 删除 `MenuLeaf` / `MenuGroup` 类型、`menuItems` 数组（第 10–111 行）、`isLeaf` / `isActive` / `isGroupOpen`（第 147–160 行）；② `<v-navigation-drawer>` 内整段 `<v-list>` 模板（第 216–271 行）替换为 `<NavMenuTree … />`；③ 顶栏加入 `<SystemSwitcher />`（标题之后）；④ `v-main` 内新增页脚 `© 2026 ACANX`；⑤ `:width="260"` → `:width="300"`；⑥ 第 288–298 行缩进样式移入 `NavMenuTreeNode.vue` |
 | `Web/src/router.ts` | ① 新增 `{ path: '/Meta/Finv', redirect: '/Dashboard' }`；② 新增 `/Meta/CMS`（`name: 'cms-home'`，`PlaceholderView`，`meta.title: '内容管理控制台'`）；③ 其余路由**零改动** |
 | `Web/src/views/Common/PlaceholderView.vue` | 在 `plans` 中新增 `cms-home` 文案（唯一的视图文件改动，不含业务逻辑） |
 | `Docs/DevSpec/MenuSpec.md` | §1 改为登记 `Web/src/config/menuConfig.ts`；新增「四级菜单与系统注册」条款（层级语义、一级系统、`match` 归属、key 规则、`subtitle` 可选、深度上限） |
@@ -543,7 +541,7 @@ route 变化：并入新祖先链（不收起其它分支）
 | S1 | 新增 `menuConfig.ts`，把现有 `menuItems` 原样搬入（暂不改层级、暂不加内容管理），`App.vue` 改为引用 | 界面与改造前**完全一致**（纯重构，`npm run build` 通过） |
 | S2 | 新增 `NavMenuTree.vue` + `NavMenuTreeNode.vue` 递归渲染，`App.vue` 删除硬编码模板；层级仍为三层 | 29 个叶子可达、激活正确、分组展开/收起正常 |
 | S3 | 插入一级系统（金融投资 + 内容管理占位）+ `SystemSwitcher`，层级下移到四级；新增 `/Meta/Finv`、`/Meta/CMS` 路由；抽屉宽度/缩进调整；深链接自动展开 + 按系统持久化 | 顶栏切换联动、四级树形、深链接直开、移动端关闭抽屉均正常 |
-| S4 | 新增 `uiConfig.ts` + `NavBreadcrumb.vue`，实现 `classic` / `webcms` 双视觉（激活条、面包屑）与用户菜单内开关 | 两种风格可即时切换，`classic` 与改造前视觉一致 |
+| S4 | 新增 `uiConfig.ts` + 页脚，实现 `classic` / `webcms` 双视觉（激活条）与用户菜单内开关 | 两种风格可即时切换，`classic` 与改造前视觉一致 |
 | S5 | 文档同步（§6） | `go test ./internal/docs` 通过、`Menus.md` 与 `menuConfig.ts` 一致 |
 
 预估工作量：**1～1.5 人日**（含自测与文档；比 v0.1 增加内容管理占位、系统切换器、双视觉与面包屑）。
@@ -579,8 +577,8 @@ go test ./internal/docs
 | A6 | 激活高亮 | 叶子点击后自身高亮、祖先标题变色、无多重高亮；`webcms` 风格下激活叶子有 3px 主色条 |
 | A7 | 深链接直开 | 直接访问 `/Meta/Finv/Quote/DeDup/Export/Stats`：系统判定为「金融投资」、祖先链自动展开、叶子高亮 |
 | A8 | 展开持久化 | 展开「元数据管理」并切到「内容管理」再切回：金融投资的展开状态保留 |
-| A9 | 面包屑 | `webcms` 风格显示「金融投资 / 数据采集 / 行情数据归档 / 归档统计与预算」；末项不可点；分组项可点且跳到该分组首个叶子 |
-| A10 | 视觉开关 | 右上角用户菜单 →「WebCMS 视觉风格」开关：关闭后 3px 激活条与面包屑同时消失（与改造前一致），开启后恢复；刷新后保持选择 |
+| A9 | 页脚 | 登录后每个页面底部显示居中的 `© 2026 ACANX`；内容较短时贴底；登录页不显示 |
+| A10 | 视觉开关 | 右上角用户菜单 →「WebCMS 视觉风格」开关：关闭后 3px 激活条消失（与改造前一致），开启后恢复；刷新后保持选择 |
 | A11 | 移动端 | 窄屏抽屉为浮层，点击叶子后自动关闭；切换器收起文字不挤压用户菜单 |
 | A12 | 键盘 | Tab 可遍历全部节点，回车/空格可展开与跳转 |
 | A13 | 无回归 | 登录/登出、修改密码、用户菜单、现有页面布局均不受影响 |

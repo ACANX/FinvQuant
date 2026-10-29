@@ -2219,13 +2219,19 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10804 | 顶栏提供一级系统切换器（金融投资 / 内容管理，内部 key `finvquant` / `cms`），切换后左侧菜单联动并回到该系统上次访问路由；「金融投资」即 CMS 一级菜单中的金融投资分系统。 | `grep -F "key: 'finvquant'" Web/src/config/menuConfig.ts` 命中；`grep -F "key: 'cms'" Web/src/config/menuConfig.ts` 命中；`grep -F "path: '/Meta/Finv', redirect: '/Dashboard'" Web/src/router.ts` 命中；人工切换后左侧菜单随之变化 | |
 | 10805 | 内容管理系统本轮仅提供缺省占位：一级入口「内容管理」+ 二级叶子「内容管理控制台」（`/Meta/CMS`），页面为占位页且不实现业务功能。 | `grep -F "path: '/Meta/CMS'" Web/src/router.ts` 命中；`grep -F "'cms-home'" Web/src/views/Common/PlaceholderView.vue` 命中；人工点击后显示「规划中」占位页 | |
 | 10806 | 菜单展开状态按系统分桶持久化到 localStorage（键 `finvquant.nav.openKeys.v1`），深链接直开时自动展开祖先链；脏数据回退到激活链且不报错。 | `grep -F 'finvquant.nav.openKeys.v1' Web/src/config/uiConfig.ts` 命中；人工：展开「元数据管理」→切到内容管理→切回，展开状态保留；直接访问 `/Meta/Finv/Quote/DeDup/Export/Stats` 时祖先链自动展开 | |
-| 10807 | 导航视觉提供 `classic` / `webcms` 开关（默认 `webcms`）：`webcms` 含 3px 主色激活条与面包屑；**开关位于右上角用户菜单（「WebCMS 视觉风格」）**，即时生效且无需 URL 参数。抽屉顶部不展示系统标题块（与顶栏切换器重复，2026-10-29 已移除）。 | `grep -F "toggleNavVisualStyle" Web/src/config/uiConfig.ts Web/src/App.vue` 各命中；`grep -c 'finv-drawer-header' Web/dist/assets/index-*.js` 为 0；人工：菜单内开关关闭后激活条与面包屑同时消失，开启恢复，刷新后保持 | |
+| 10807 | 导航视觉提供 `classic` / `webcms` 开关（默认 `webcms`）：`webcms` 含当前菜单项左侧 3px 主色激活条；**开关位于右上角用户菜单（「WebCMS 视觉风格」）**，即时生效且无需 URL 参数。抽屉顶部不展示系统标题块、内容区不展示面包屑（2026-10-29 已移除）。 | `grep -F "toggleNavVisualStyle" Web/src/config/uiConfig.ts Web/src/App.vue` 各命中；`grep -c 'finv-drawer-header\|finv-breadcrumb' Web/dist/assets/index-*.js` 为 0；人工：菜单内开关关闭后激活条消失，开启恢复，刷新后保持 | |
 
 ## 一百三十六、V200057 迁移兼容 dedup 缺失（10808）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
 | 10808 | `V200057__sync_cdeu_config_from_dedup.sql` 在 `dedup` schema 不存在时必须幂等跳过（输出 NOTICE），不得因 `dedup.cdeu_process` 不存在而中断迁移链。 | `grep -c "nspname = 'dedup'" Deploy/Migrations/V200057__sync_cdeu_config_from_dedup.sql` ≥ 1；在无 dedup schema 的库上重建容器后：`docker logs finvquant` 含 `dedup schema 不存在，跳过配置同步`，`select max(version) from schema_version` = `200061`，`/API/V1/Health/Ready` 返回 200 | |
+
+## 一百三十七、登录后页面页脚（10809）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10809 | 登录后每个页面底部显示居中页脚 `© 2026 ACANX`；内容较短时贴底；登录页不显示。 | `grep -F 'finv-page-footer' Web/src/App.vue` 命中；`grep -F '© 2026 ACANX' Web/dist/assets/index-*.js` 命中；人工：仪表盘页底部可见页脚，登录页无页脚 | |
 
 ## 汇总
 
@@ -2391,7 +2397,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | BRS 对象存储配置说明 | 10802 | 1 |
 | Web 左侧菜单四级化 | 10803–10807 | 5 |
 | V200057 迁移兼容 dedup 缺失 | 10808 | 1 |
-| **合计** | **10001–10808** | **808** |
+| 登录后页面页脚 | 10809 | 1 |
+| **合计** | **10001–10809** | **809** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

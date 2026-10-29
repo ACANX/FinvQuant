@@ -593,10 +593,11 @@
 
 - **Web 左侧菜单四级化 + 顶栏系统切换（需求 10803–10807）**
   - 导航改为四级树：一级为系统（顶栏切换器：`金融投资` / `内容管理`），其下二/三/四级菜单；现有 29 个业务菜单按「旧层级 +1」映射（三级叶子落到四级），**路由路径与视图组件全部不变**。
-  - 菜单数据从 `Web/src/App.vue` 抽离到 `Web/src/config/menuConfig.ts`（系统注册表 + 递归菜单）；新增 `Web/src/components/menu/` 下 `SystemSwitcher` / `NavMenuTree` / `NavMenuTreeNode` / `NavBreadcrumb`。
+  - 菜单数据从 `Web/src/App.vue` 抽离到 `Web/src/config/menuConfig.ts`（系统注册表 + 递归菜单）；新增 `Web/src/components/menu/` 下 `SystemSwitcher` / `NavMenuTree` / `NavMenuTreeNode`（递归）。
   - 新增一级系统「内容管理」（内部 key `cms`，路由 `/Meta/CMS`）：本轮仅占位（内容管理控制台），不实现业务；`/Meta/Finv` 新增 redirect 到 `/Dashboard`。
   - 菜单展开状态按系统分桶持久化（`localStorage['finvquant.nav.openKeys.v1']`），深链接直开自动展开祖先链；切换系统回到该系统上次访问路由（`finvquant.nav.lastPathBySystem.v1`）。
-  - 新增导航视觉开关 `classic` / `webcms`（默认 `webcms`：3px 主色激活条 + 面包屑），**入口为右上角用户菜单 →「WebCMS 视觉风格」开关**，即时生效并记住选择（无需 URL 参数/刷新）；抽屉顶部系统标题块已按 2026-10-29 反馈移除（与顶栏切换器重复）。
+  - 新增导航视觉开关 `classic` / `webcms`（默认 `webcms`：当前菜单项左侧 3px 主色激活条），**入口为右上角用户菜单 →「WebCMS 视觉风格」开关**，即时生效并记住选择（无需 URL 参数/刷新）。
+  - 按 2026-10-29 反馈调整视觉：移除抽屉顶部系统标题块（与顶栏切换器重复）、移除面包屑；新增页脚 `© 2026 ACANX`（内容较短时贴底，登录页不显示）；抽屉宽度 300px、三/四级字号 13px、激活色跟随主题色保持不变。
   - 抽屉宽度 260px → 300px；二/三/四级菜单均保留图标。
   - 顶栏布局：平台标题**完整展示不省略**（`flex: none`、不限宽；仅 900px 以下窄屏限宽）并与一级系统切换器居左，**登录用户菜单保持在顶栏最右侧**（不随切换器搬动）。
   - 文档：`Docs/Menu/Menus.md` 重写为四级索引（新增「所属系统」列）、`Docs/Menu/CMS/CMSHome.md` 新增、`Docs/DevSpec/MenuSpec.md` §1/§1.2 更新、`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` 增加实施记录。

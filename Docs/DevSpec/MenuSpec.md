@@ -61,7 +61,7 @@
 
 ```bash
 cd Web && npm run build
-grep -oE 'Wr\(`(NavMenuTree|NavMenuTreeNode|NavBreadcrumb|SystemSwitcher)`\)' dist/assets/index-*.js
+grep -oE 'Wr\(`(NavMenuTree|NavMenuTreeNode|SystemSwitcher)`\)' dist/assets/index-*.js
 ```
 
 - 同类改动还须检查产物中确实包含组件特征类名（如 `finv-nav-node`、`finv-nav-item`），不能只以「构建通过」作为验收依据。

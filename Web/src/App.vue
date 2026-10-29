@@ -5,16 +5,14 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { apiPost } from './api'
 import { authState, clearSession } from './auth'
-import NavBreadcrumb from './components/menu/NavBreadcrumb.vue'
 import NavMenuTree from './components/menu/NavMenuTree.vue'
 import SystemSwitcher from './components/menu/SystemSwitcher.vue'
-import { findMenuTrail, menuSystems, resolveSystem } from './config/menuConfig'
+import { menuSystems, resolveSystem } from './config/menuConfig'
 import {
   NAV_LAST_PATH_STORAGE_KEY,
   navVisualStyle,
   readStorage,
   toggleNavVisualStyle,
-  uiDefaults,
   writeStorage,
 } from './config/uiConfig'
 import ChangePasswordDialog from './views/Common/ChangePasswordDialog.vue'
@@ -29,10 +27,6 @@ const drawer = ref(true)
 
 // 当前系统（按路由前缀判定；未命中回落到金融投资）
 const currentSystem = computed(() => resolveSystem(route.path))
-// 面包屑节点链（系统 → 二/三/四级）
-const currentTrail = computed(() => findMenuTrail(route.path))
-// 视觉风格：classic 保持改造前样式；webcms 追加激活条与面包屑（右上角用户菜单内可切，即时生效）
-const showBreadcrumb = computed(() => navVisualStyle.value === 'webcms' && uiDefaults.navBreadcrumb)
 
 // 公开页（登录）不渲染导航框架，避免未登录时先闪一下侧边栏
 const isPublicRoute = computed(() => Boolean(route.meta.public))
@@ -196,12 +190,14 @@ watch(
       />
     </v-navigation-drawer>
 
-    <v-main>
-      <!-- 面包屑（仅 webcms 视觉） -->
-      <NavBreadcrumb v-if="showBreadcrumb" :trail="currentTrail" />
-      <v-container fluid class="mt-4">
+    <v-main class="d-flex flex-column">
+      <v-container fluid class="mt-4 flex-grow-1">
         <router-view />
       </v-container>
+      <!-- 页脚（登录后页面统一展示；内容较短时贴底） -->
+      <footer class="finv-page-footer text-body-2">
+        <span>&copy; 2026 ACANX</span>
+      </footer>
     </v-main>
 
     <ChangePasswordDialog v-model="changePasswordOpen" @changed="onChangePasswordDone" />
@@ -226,5 +222,14 @@ watch(
   .finv-app-title {
     max-width: 200px;
   }
+}
+
+/* 页脚：居中、不抢视觉权重（参考 WebCMS 的 page-footer） */
+.finv-page-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  opacity: 0.7;
 }
 </style>
