@@ -165,7 +165,7 @@
 - **分钟行情表的双 schema 隔离（ACANX 2026-10-27 纠偏）**：同名表 `finv_quote_secu_kline_min` 存在三份、职责不同，**不允许合并或跨表复用**：
   | schema | 使用者 | 说明 |
   |---|---|---|
-  | `quote.` | 历史行情导入、行情查询、回测 | `internal/quote`（`Import/Upload` 与 `History/QuoteQuery`）与 `internal/backtest`；回测 SQL 必须写 `quote.` 前缀 |
+  | `quote.` | 历史行情导入、行情查询、回测 | `internal/quote`（`Import/Upload` 与 `History/QuoteQuery`）与 `internal/meta/finv/quant/backtest`；回测 SQL 必须写 `quote.` 前缀 |
   | `dedup.` | K 线 API 写入、去重 / 导出 / 上传链路 | `internal/kline`（`Cdeu/Min/{Add,Batch,Upsert,Page,Query,Patch,BatchDelete}` 等）与 `internal/meta/finv/quote/dedup`；写入与重写（含导出前清洗） |
   | `export.` | 导出中转 | 快照暂存表，允许清空 |
   隔离靠 schema 前缀强制：漏写前缀会命中 `search_path` 里的另一张表，`internal/database/schema_qualify_test.go` 的 `exactTableSchema` 已把三者列为白名单。`V100076` 恢复了被 `V100038` 迁走的 `quote.` 副本（结构与 `dedup` 对齐、数据一次性回填，之后各自演进）。

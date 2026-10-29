@@ -21,6 +21,11 @@
 ### 变更
 
 - 版本号由 `0.1.3` 切换至 `0.1.4`（`VERSION`），开启下一轮开发；`v0.1.3` 已作为正式版本打 tag。
+- **回测引擎迁入 `internal/meta/finv/quant` 子域**
+  - `internal/backtest`（16 个 Go 文件，引擎/表达式/指标/服务/校验/模型 + 单测）整体迁移到 **`internal/meta/finv/quant/backtest`**，包名仍为 `backtest`，与 `auth/`、`brs/`、`quote/`、`sys/` 的组织方式统一。
+  - `internal/api/handler/backtest.go`、`internal/api/router.go` 的 import 路径同步更新；源码内容与导出符号零改动，接口与回测行为不变。
+  - 文档引用同步：`Docs/Asset/Backtest/README.md`、`Docs/DevSpec/BacktestStrategySpec.md`、`Docs/DevSpec/DbSchemaSpec.md`（schema 归属表）、`Docs/FinvQuant/V1/Prompt.md`、`Docs/RequirementList.md`（10633 描述与核对命令）；`Docs/CHANGELOG.md` 与 `Docs/Refactor/*` 中的历史记录按原样保留。
+  - 验证：`go build ./...`、`go vet ./...`、`go test ./internal/meta/finv/quant/backtest` 全部通过。
 - **BRS 包迁入 `internal/meta/finv` 子域**
   - `internal/brs`（`brs.go`、`brs_test.go`）整体迁移到 **`internal/meta/finv/brs`**（包名仍为 `brs`），与 `internal/meta/finv/{auth,quote,sys}` 的组织方式统一；`cmd/server/main.go` 的 import 路径同步更新。
   - 源码内容与导出符号零改动，服务行为不变；`go build ./...`、`go vet ./...`、`go test ./internal/meta/finv/brs` 全部通过。

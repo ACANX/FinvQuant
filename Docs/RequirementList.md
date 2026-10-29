@@ -944,7 +944,7 @@
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
 | 10632 | `internal/quote`（`Import/Upload` 文件导入、`History/QuoteQuery` 查询）一律读写 `quote.finv_quote_secu_kline_min`。 | `grep -c 'quote.finv_quote_secu_kline_min' internal/quote/service.go` ≥ 4；`grep 'dedup.finv_quote_secu_kline_min' internal/quote/*.go` 无输出 | |
-| 10633 | `internal/backtest` 行情加载与日期区间解析读取 `quote.`（回测只读 quote）。 | `grep -n 'quote.finv_quote_secu_kline_min' internal/backtest/service.go` 输出 2 行；包内无 `dedup.finv_quote_secu_kline_min` | |
+| 10633 | `internal/meta/finv/quant/backtest` 行情加载与日期区间解析读取 `quote.`（回测只读 quote）。 | `grep -n 'quote.finv_quote_secu_kline_min' internal/meta/finv/quant/backtest/service.go` 输出 2 行；包内无 `dedup.finv_quote_secu_kline_min` | |
 | 10634 | `internal/kline`（K 线 API 写入/查询）保持 `dedup.`，不得改回 `quote.`。 | `grep -n 'const Table' internal/kline/sql.go` 输出 `"dedup.finv_quote_secu_kline_min"`；`go test ./internal/kline` 通过 | |
 | 10635 | 端到端隔离：K 线 API `/Add` 写入后数据仅落 `dedup`，`History/QuoteQuery` 查同一 `usc` 查不到。 | 实测：`/Add` 返回 201 后 `dedup=1 / quote=0`；`QuoteQuery` 返回 `total: 0` | |
 | 10636 | `schema_qualify_test.go` 白名单含 `quote.`、`dedup.`、`export.` 三者，`go test ./...` 全绿。 | `grep -n 'finv_quote_secu_kline_min' internal/database/schema_qualify_test.go` 含三者；`go test ./...` 通过 | |
