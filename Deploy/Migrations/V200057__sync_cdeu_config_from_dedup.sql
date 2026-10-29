@@ -16,6 +16,10 @@
 --   - 复制后把序列 setval 到 max(id)，避免后续插入撞主键。
 -- 幂等：已同步（行数不落后）或无运行记录的判断均会跳过。
 -- 注：只同步配置表，不动 job_run / process_run / phase_run 等运行记录。
+--
+-- 增补（需求 10808）：部分存量库已把 dedup 冻结/迁移为其它 schema（如 dedup_frozen），
+-- 此时 dedup schema 不存在，本迁移无配置来源可同步，应直接跳过；否则会在读取
+-- dedup.cdeu_process 时报 42P01 导致后续迁移全部阻塞。
 -- =====================================================================
 
 BEGIN;
@@ -34,6 +38,12 @@ DECLARE
     i    INT;
     cols TEXT;
 BEGIN
+    -- dedup schema 不存在（已冻结/迁移）时无配置来源，直接跳过（需求 10808）
+    IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'dedup') THEN
+        RAISE NOTICE 'V200057: dedup schema 不存在，跳过配置同步';
+        RETURN;
+    END IF;
+
     SELECT count(*) INTO v_run   FROM cdeu.finv_quote_cdeu_job_run;
     SELECT count(*) INTO v_cdeu  FROM cdeu.finv_quote_cdeu_process;
     SELECT count(*) INTO v_dedup FROM dedup.cdeu_process;

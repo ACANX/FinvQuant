@@ -2221,6 +2221,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10806 | 菜单展开状态按系统分桶持久化到 localStorage（键 `finvquant.nav.openKeys.v1`），深链接直开时自动展开祖先链；脏数据回退到激活链且不报错。 | `grep -F 'finvquant.nav.openKeys.v1' Web/src/config/uiConfig.ts` 命中；人工：展开「元数据管理」→切到内容管理→切回，展开状态保留；直接访问 `/Meta/Finv/Quote/DeDup/Export/Stats` 时祖先链自动展开 | |
 | 10807 | 导航视觉提供 `classic` / `webcms` 开关（默认 `webcms`）：`webcms` 含 3px 主色激活条、抽屉系统标题、面包屑；`?nav=classic` 可即时回退到改造前视觉。 | `grep -F "navVisualStyle" Web/src/config/uiConfig.ts` 命中；人工：`?nav=classic` 后激活条、抽屉标题、面包屑同时消失，`?nav=webcms` 恢复 | |
 
+## 一百三十六、V200057 迁移兼容 dedup 缺失（10808）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10808 | `V200057__sync_cdeu_config_from_dedup.sql` 在 `dedup` schema 不存在时必须幂等跳过（输出 NOTICE），不得因 `dedup.cdeu_process` 不存在而中断迁移链。 | `grep -c "nspname = 'dedup'" Deploy/Migrations/V200057__sync_cdeu_config_from_dedup.sql` ≥ 1；在无 dedup schema 的库上重建容器后：`docker logs finvquant` 含 `dedup schema 不存在，跳过配置同步`，`select max(version) from schema_version` = `200061`，`/API/V1/Health/Ready` 返回 200 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2384,7 +2390,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | BRS 对象存储上传 | 10801 | 1 |
 | BRS 对象存储配置说明 | 10802 | 1 |
 | Web 左侧菜单四级化 | 10803–10807 | 5 |
-| **合计** | **10001–10807** | **807** |
+| V200057 迁移兼容 dedup 缺失 | 10808 | 1 |
+| **合计** | **10001–10808** | **808** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

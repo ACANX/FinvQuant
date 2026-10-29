@@ -840,6 +840,12 @@
 
 ### 修复
 
+- **V200057 迁移在 dedup schema 缺失时阻塞启动（需求 10808）**
+  - `Deploy/Migrations/V200057__sync_cdeu_config_from_dedup.sql` 在 `DO` 块开头增加 `pg_namespace` 存在性判断：`dedup` schema 不存在（已被冻结/迁移为 `dedup_frozen` 等）时直接 `RETURN` 并输出 NOTICE。
+  - 修复前该迁移会在 `SELECT count(*) FROM dedup.cdeu_process` 处报 `42P01`，导致后续 V200058–V200061 全部阻塞、容器重启循环。
+  - 注入 dedup 的存量库行为不变（仍按「有运行记录 / 行数不落后」判断跳过或同步）。
+  - 验证：本机 Docker（dedup 不存在、cdeu 26 表、cdeu 配置 17 行且 425 条运行记录）重建镜像后迁移一次跑通至 **200061**，容器 `healthy`，`/API/V1/Health/Ready` 返回 `postgres/redis ok`。
+
 - **全仓 Markdown 表格渲染修复与校验范围扩展（需求 10779）**
   - 扫描全仓 `.md`（根目录、`Docs/`、`Deploy/`、`Archive/`），修复 **23 处**表格问题：
     - 单元格内裸 `|` 未转义导致列错位：`ts|da|ti|...`、正则 `(quote|quant)`、shell `||`、`2>&1 | grep`、`3120|14` 等（`RequirementList.md`、`Prompt.md`、`MvsvFileFormat.md`）；
