@@ -3,7 +3,6 @@
 > 所属：FinvQuant 开发规范 · 存放：`Docs/DevSpec/`
 > 适用范围：文档、界面文案与代码注释。
 > Git 提交信息规范见 [`GitSpec.md`](GitSpec.md)。
-> 设计文档（`Docs/Design/`）的体例与写法见 [`DesignDocSpec.md`](DesignDocSpec.md)。
 
 ## 1. 语言
 

@@ -2252,12 +2252,6 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10813 | 在 `Docs/Design/` 下新增 CDEU（采集 → 去重 → 导出 → 上传）归档工作流设计文档，体例对齐 AHA `Docs/Design`（元信息 + 变更日志 + 编号章节 + 表格化结论）：覆盖五级层级模型、状态机与完成条件、六个阶段、17 个 Process、22 个 JOB、15 个静态 Step 的「输入 / 处理 / 输出 / 解决的问题」，以及数据契约、系统配置项、阈值清单、运维排障与 `CdeuOverview`、`CdeuWorkflow` 页面映射。 | `test -f Docs/Design/CdeuWorkflowDesign.md`；`grep -c '^## ' Docs/Design/CdeuWorkflowDesign.md` ≥ 10；`grep -o 'JOB_[A-Z_]*' Docs/Design/CdeuWorkflowDesign.md \| sort -u \| wc -l` ≥ 20；`go test ./internal/docs` 通过 | |
 
-## 一百四十一、设计文档撰写规范（10814）
-
-| 编号 | 需求描述 | 核对方式 | 结果 |
-|---|---|---|---|
-| 10814 | 新增 `Docs/DevSpec/DesignDocSpec.md`，把 AHA `Docs/Design` 22 篇的体例（命名、元信息 6 行、4 列变更日志、章节编号 8–12 章、结论先行与「为什么」叙述、表格/代码块/状态标记、交叉引用、篇幅与拆分、变更维护）固化为撰写规范，并附可复制模板与提交前自检清单；`AGENTS.md` 开发规范表与 `DocSpec.md` 增加入口。 | `test -f Docs/DevSpec/DesignDocSpec.md`；`grep -c '^## ' Docs/DevSpec/DesignDocSpec.md` ≥ 10；`grep -c 'DesignDocSpec' AGENTS.md Docs/DevSpec/DocSpec.md` ≥ 2；`go test ./internal/docs` 通过 | |
-
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2426,8 +2420,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 深色/浅色主题切换 | 10810–10811 | 2 |
 | CDEU 前端路由调整 | 10812 | 1 |
 | CDEU 归档工作流设计文档 | 10813 | 1 |
-| 设计文档撰写规范 | 10814 | 1 |
-| **合计** | **10001–10814** | **814** |
+| **合计** | **10001–10813** | **813** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

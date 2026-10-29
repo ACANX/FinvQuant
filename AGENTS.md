@@ -56,7 +56,6 @@ FinvQuant 是一个面向多资产的**严格事件驱动量化交易平台**，
 | [`Docs/DevSpec/ErrorCodeSpec.md`](Docs/DevSpec/ErrorCodeSpec.md) | 错误码规范（号段/目录） |
 | [`Docs/DevSpec/FileNamingSpec.md`](Docs/DevSpec/FileNamingSpec.md) | 文件命名规范 |
 | [`Docs/DevSpec/DocSpec.md`](Docs/DevSpec/DocSpec.md) | 文档规范（含变更日志 `Docs/CHANGELOG.md` 强制要求） |
-| [`Docs/DevSpec/DesignDocSpec.md`](Docs/DevSpec/DesignDocSpec.md) | 设计文档撰写规范（`Docs/Design/` 骨架/章节/风格/自检清单） |
 | [`Docs/DevSpec/GitSpec.md`](Docs/DevSpec/GitSpec.md) | Git 提交规范（含变更日志联动） |
 | [`Docs/DevSpec/FileEncodingSpec.md`](Docs/DevSpec/FileEncodingSpec.md) | 文件编码规范 |
 
