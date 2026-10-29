@@ -53,6 +53,19 @@
 - **视觉开关**：导航视觉风格由 `Web/src/config/uiConfig.ts` 的 `uiDefaults.navVisualStyle` 控制（`classic` / `webcms`），运行时可用 `?nav=classic|webcms` 覆盖；新增菜单样式必须同时兼容两种风格。
 - **展开状态**按系统分桶持久化在 `localStorage['finvquant.nav.openKeys.v1']`，键为「父链 key 拼接」（如 `finvquant.data-collection.quote-archive`）。
 
+### 1.3 自定义组件显式导入（强制）
+
+- 本项目**未启用自定义组件自动注册**（`vite-plugin-vuetify` 只自动导入 Vuetify 组件），模板中使用的自定义组件（**含递归组件的自引用**）必须显式 `import`。
+- 否则编译产物会退化为运行时 `resolveComponent('Xxx')`：`npm run build` 与 `vue-tsc` 均**不报错**，但该组件不会进入 bundle，运行时渲染为空（如左侧菜单树整块消失）。
+- 防回归自检（构建后应无输出）：
+
+```bash
+cd Web && npm run build
+grep -oE 'Wr\(`(NavMenuTree|NavMenuTreeNode|NavBreadcrumb|SystemSwitcher)`\)' dist/assets/index-*.js
+```
+
+- 同类改动还须检查产物中确实包含组件特征类名（如 `finv-nav-node`、`finv-nav-item`），不能只以「构建通过」作为验收依据。
+
 ## 2. 菜单文档
 
 ### 2.1 文档必备性

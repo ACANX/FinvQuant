@@ -5,6 +5,8 @@
 // 由 NavMenuTree 统一维护与持久化，本组件只负责渲染与事件上抛。
 import { computed } from 'vue'
 
+// 递归组件需显式自导入：本项目未启用自动组件注册，模板里的自定义标签必须可静态解析
+import NavMenuTreeNode from './NavMenuTreeNode.vue'
 import { isMenuLeaf } from '../../config/menuConfig'
 import type { MenuNode } from '../../config/menuConfig'
 

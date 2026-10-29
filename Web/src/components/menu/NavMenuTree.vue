@@ -2,6 +2,7 @@
 // 左侧菜单树容器：维护展开集合（按系统分桶持久化），并随路由自动展开祖先链。
 import { ref, watch } from 'vue'
 
+import NavMenuTreeNode from './NavMenuTreeNode.vue'
 import { findMenuTrail, trailToOpenKeys } from '../../config/menuConfig'
 import type { MenuSystem } from '../../config/menuConfig'
 import { NAV_OPEN_KEYS_STORAGE_KEY, readStorage, writeStorage } from '../../config/uiConfig'

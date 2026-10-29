@@ -840,6 +840,12 @@
 
 ### 修复
 
+- **左侧菜单树渲染为空（需求 10803 修复）**
+  - 根因：`NavMenuTree.vue` 模板使用 `<NavMenuTreeNode>` 但未 `import`（项目未启用自定义组件自动注册），编译为运行时 `resolveComponent('NavMenuTreeNode')`；组件未进入 bundle，左侧菜单整体渲染为空。
+  - 修复：`NavMenuTree.vue` 显式导入 `NavMenuTreeNode`；递归组件 `NavMenuTreeNode.vue` 显式自导入。
+  - 防回归：`Docs/DevSpec/MenuSpec.md` 新增 §1.3（自定义组件必须显式导入 + 构建产物自检命令）。
+  - 验证：重建后产物含 `finv-nav-node`、`finv-nav-item`、`finv-nav-indent`，`resolveComponent` 计数 0；容器 healthy，前端 16002 正常。
+
 - **V200057 迁移在 dedup schema 缺失时阻塞启动（需求 10808）**
   - `Deploy/Migrations/V200057__sync_cdeu_config_from_dedup.sql` 在 `DO` 块开头增加 `pg_namespace` 存在性判断：`dedup` schema 不存在（已被冻结/迁移为 `dedup_frozen` 等）时直接 `RETURN` 并输出 NOTICE。
   - 修复前该迁移会在 `SELECT count(*) FROM dedup.cdeu_process` 处报 `42P01`，导致后续 V200058–V200061 全部阻塞、容器重启循环。
