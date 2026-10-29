@@ -20,8 +20,9 @@
 - 通用性视图（如 `DashboardView.vue`）可直接放在 `Web/src/views/` 根目录。
 - 视图组件文件名使用大驼峰（PascalCase）并以 `View.vue` 结尾；必要时以模块前缀开头（如 `HistoryQuoteQueryView.vue`）避免同名歧义。
 - 每个菜单对应一个视图组件（如 `HistoryQuoteQueryView.vue`）。
-- 新增菜单时须在 `Web/src/App.vue` 的 `menuItems` 中登记：菜单 `key`（英文驼峰）、`title`（简体中文标题）、`icon`（mdi 图标）。
-- 视图组件与 `menuItems` 中的菜单项一一对应，禁止出现未登记入口的孤立视图。
+- 新增菜单时须在 `Web/src/config/menuConfig.ts` 的 `menuSystems` 中登记：系统 `key`、`title`（简体中文标题，与 CMS 一级菜单同名）、`icon`（mdi 图标）、`path`（系统落地路由）、`match`（系统归属前缀）；菜单节点登记 `key`（英文小驼峰）、`title`、`icon`、`path`（叶子必填，分组不填）。
+- 视图组件与 `menuSystems` 中的叶子菜单项一一对应，禁止出现未登记入口的孤立视图。
+- 新增一级系统时只在 `menuSystems` 追加一项（含 `match` 前缀），导航组件与 `App.vue` 无需改动。
 
 ### 1.1 菜单路由路径命名规范（强制）
 
@@ -39,8 +40,18 @@
 - **元数据模块（MetaData）**：路由统一加 **`/Meta/Finv/MetaData/`** 前缀，其后每段采用大驼峰（如 `/Meta/Finv/MetaData/Exchange`）。元数据独立于行情/量化（平级关联，不从属），路由与目录均置于 `Meta/Finv/MetaData/`。
 - **其他非 Finv 模块**：路由路径同样遵循大驼峰命名（如 `/Meta/Exchange`、`/Quote/Query`），不在此路径层级中引入下划线或小写片段；存量小写路由（如 `/dashboard`、`/meta/exchange`）在维护时逐步迁移对齐。
 - **禁止**使用 `-`（连字符）、`_`（下划线）或全小写路径片段（如 `/meta/finvquant/backtest/analysis` 为违规写法）。
-- 路由在 `Web/src/router.ts` 的 `path` 与 `Web/src/App.vue` 的 `menuItems[].path` 中**两处必须一致**，且与 `Docs/Menu/Menus.md` 索引中的「路由」列保持一致。
+- 路由在 `Web/src/router.ts` 的 `path` 与 `Web/src/config/menuConfig.ts` 中叶子节点的 `path` **两处必须一致**，且与 `Docs/Menu/Menus.md` 索引中的「路由」列保持一致。
 - 后端 API 接口路径前缀保持 `/API/V1/Meta/Finv/Quant/...`（大驼峰），前端路由与其保持同一前缀体系（见 `Docs/DevSpec/ApiSpec.md`）。
+
+### 1.2 四级菜单与系统注册（强制）
+
+- **导航为四级菜单树**：一级 = **系统**（顶栏切换器），其二/三/四级为左侧抽屉菜单（`Web/src/components/menu/` 递归组件渲染）。
+- **一级系统**在 `menuSystems` 中登记，必须包含 `key`、`title`、`icon`、`path`、`match`、`children`；`title` 与 CMS 一级菜单同名（如 `金融投资`、`内容管理`），内部 `key` 保持稳定英文标识（`finvquant`、`cms`）。
+- **系统归属**按 `match` 前缀判定（最长前缀优先）；未命中时回落到首个系统并输出 `console.warn`。新增系统必须提供覆盖其全部路由的 `match` 前缀。
+- **分组节点不填 `path`**（点击仅展开/折叠）；叶子节点必须有 `path`。菜单深度上限 4 级，且**不得为凑满层级而人为增设空壳分组**。
+- **`subtitle` 为可选字段**：不填时单行渲染，填写时以副标题展示，不得为占位而编造文案。
+- **视觉开关**：导航视觉风格由 `Web/src/config/uiConfig.ts` 的 `uiDefaults.navVisualStyle` 控制（`classic` / `webcms`），运行时可用 `?nav=classic|webcms` 覆盖；新增菜单样式必须同时兼容两种风格。
+- **展开状态**按系统分桶持久化在 `localStorage['finvquant.nav.openKeys.v1']`，键为「父链 key 拼接」（如 `finvquant.data-collection.quote-archive`）。
 
 ## 2. 菜单文档
 

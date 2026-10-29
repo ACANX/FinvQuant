@@ -26,6 +26,12 @@ const plans: Record<string, { icon: string; desc: string; features: string[] }> 
     desc: '实盘交易：接入真实经纪商/交易所，管理实盘账户、下单与风控。该模块涉及真实资金，将在仿真验证全部通过后开放。',
     features: ['经纪商/交易所接入与账户绑定', '实盘下单/撤单与订单管理', '实盘风控（限额/熔断/人工确认）'],
   },
+  // CMS 内容管理：系统已接入，业务菜单待整合（方案见 Docs/Refactor/2610-012）
+  'cms-home': {
+    icon: 'mdi-laptop',
+    desc: '内容管理（CMS）：系统已接入，业务菜单待整合。后续将按 CMS 侧的内容管理菜单（博客、待办、笔记、书签、媒体库等）逐步接入。',
+    features: ['内容管理业务菜单接入', '与金融投资系统的统一导航与权限', '跨系统数据与配置共享'],
+  },
 }
 
 const plan = computed(() => plans[route.name as string] ?? {

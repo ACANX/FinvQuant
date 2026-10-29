@@ -2211,6 +2211,16 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10802 | `sys.sys_config 39002` 的 `remark` 必须包含完整配置说明：字段含义、R2/AWS/MinIO 的 endpoint/region 差异、R2 API Token 获取步骤、示例 JSON、注意事项；不能只写一句话。`Brs.md` 同步配置步骤。 | `grep -c 'R2 示例' Deploy/Migrations/V200061__brs_upload.sql` ≥ 1；临时库执行后 `select length(remark) from sys.sys_config where config_no=39002` ≥ 500；`select remark from ...` 含 `enabled`、`endpoint`、`R2`、`flag_upload`；`go test ./internal/docs` 通过 | |
 
+## 一百三十五、Web 左侧菜单四级化（10803–10807）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10803 | 左侧菜单改为四级树：一级为系统，其下为二/三/四级菜单；既有 29 个业务菜单按「旧层级 +1」映射到新层级（不新增业务菜单、不改路由）。 | `grep -c "key: '" Web/src/config/menuConfig.ts` ≥ 37；人工核对「数据采集 → 行情数据归档 → 归档统计与预算」上下共 4 级；`grep -c 'v-list-group' Web/src/App.vue` 为 0 | |
+| 10804 | 顶栏提供一级系统切换器（金融投资 / 内容管理，内部 key `finvquant` / `cms`），切换后左侧菜单联动并回到该系统上次访问路由；「金融投资」即 CMS 一级菜单中的金融投资分系统。 | `grep -F "key: 'finvquant'" Web/src/config/menuConfig.ts` 命中；`grep -F "key: 'cms'" Web/src/config/menuConfig.ts` 命中；`grep -F "path: '/Meta/Finv', redirect: '/Dashboard'" Web/src/router.ts` 命中；人工切换后左侧菜单随之变化 | |
+| 10805 | 内容管理系统本轮仅提供缺省占位：一级入口「内容管理」+ 二级叶子「内容管理控制台」（`/Meta/CMS`），页面为占位页且不实现业务功能。 | `grep -F "path: '/Meta/CMS'" Web/src/router.ts` 命中；`grep -F "'cms-home'" Web/src/views/Common/PlaceholderView.vue` 命中；人工点击后显示「规划中」占位页 | |
+| 10806 | 菜单展开状态按系统分桶持久化到 localStorage（键 `finvquant.nav.openKeys.v1`），深链接直开时自动展开祖先链；脏数据回退到激活链且不报错。 | `grep -F 'finvquant.nav.openKeys.v1' Web/src/config/uiConfig.ts` 命中；人工：展开「元数据管理」→切到内容管理→切回，展开状态保留；直接访问 `/Meta/Finv/Quote/DeDup/Export/Stats` 时祖先链自动展开 | |
+| 10807 | 导航视觉提供 `classic` / `webcms` 开关（默认 `webcms`）：`webcms` 含 3px 主色激活条、抽屉系统标题、面包屑；`?nav=classic` 可即时回退到改造前视觉。 | `grep -F "navVisualStyle" Web/src/config/uiConfig.ts` 命中；人工：`?nav=classic` 后激活条、抽屉标题、面包屑同时消失，`?nav=webcms` 恢复 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2373,7 +2383,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | BRS 数据备份服务 | 10800 | 1 |
 | BRS 对象存储上传 | 10801 | 1 |
 | BRS 对象存储配置说明 | 10802 | 1 |
-| **合计** | **10001–10802** | **802** |
+| Web 左侧菜单四级化 | 10803–10807 | 5 |
+| **合计** | **10001–10807** | **807** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

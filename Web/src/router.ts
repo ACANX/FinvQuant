@@ -42,6 +42,8 @@ const router = createRouter({
     { path: '/Login', name: 'login', component: LoginView, meta: { title: '登录', public: true } },
     { path: '/', redirect: '/Dashboard' },
     { path: '/Dashboard', name: 'dashboard', component: DashboardView, meta: { title: '仪表盘' } },
+    // 一级系统落地路由（顶栏切换到「金融投资」时使用）
+    { path: '/Meta/Finv', redirect: '/Dashboard' },
     // 历史行情 → 历史行情查询
     { path: '/Meta/Finv/Quote/History/HistoryQuoteQuery', name: 'quote-query', component: QuoteQueryView, meta: { title: '历史行情查询' } },
     // 去重行情 → 去重分钟行情查询 / 统计
@@ -154,6 +156,8 @@ const router = createRouter({
     { path: '/Meta/Finv/Quant/Simulation/Paper', name: 'simulation-paper', component: PlaceholderView, meta: { title: '模拟盘验证' } },
     { path: '/Meta/Finv/Quant/Simulation/LiveSim', name: 'simulation-live-sim', component: PlaceholderView, meta: { title: '实盘仿真验证' } },
     { path: '/Meta/Finv/Quant/LiveTrading', name: 'live-trading', component: PlaceholderView, meta: { title: '实盘交易' } },
+    // 内容管理（CMS）系统：本轮仅占位，业务菜单后续整合
+    { path: '/Meta/CMS', name: 'cms-home', component: PlaceholderView, meta: { title: '内容管理控制台' } },
   ],
 })
 

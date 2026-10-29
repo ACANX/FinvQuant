@@ -1,12 +1,27 @@
-# Web 左侧菜单树四级化改造方案（v1.0 定稿，待实施指令）
+# Web 左侧菜单树四级化改造方案（v1.0，已实施）
 
 > 所属：FinvQuant · 存放：`Docs/Refactor/`
-> 状态：**方案 v1.0（已定稿，尚未实施；等你下达实施指令）**
+> 状态：**已实施（2026-10-29）**
 > 体系定位：**本项目 `FinvQuant` 就是 WebCMS 一级菜单中的「金融投资」分系统**（见 §2.5）
 > 日期：2026-10-29
-> 需求编号：实施时登记（预计 `10803` 起）
+> 需求编号：`10803`–`10807`（已登记于 `Docs/RequirementList.md`）
 > 参考实现：`D:\Code\JavaCode\Deamon\Web\WebCMS`（`src/config/menuConfig.js`、`src/components/TreeMenuItem.vue`、`src/App.vue`）
 > 关联规范：[`MenuSpec.md`](../DevSpec/MenuSpec.md)、[`DocSpec.md`](../DevSpec/DocSpec.md)、[`FileNamingSpec.md`](../DevSpec/FileNamingSpec.md)
+
+---
+
+## 实施记录（2026-10-29）
+
+| 项 | 实际实现 |
+|---|---|
+| 菜单配置 | 新增 `Web/src/config/menuConfig.ts`：2 个系统（`finvquant` / `cms`）、30 个叶子（29 业务 + 1 占位）、7 个分组；含 `resolveSystem` / `findMenuTrail` / `findFirstLeaf` / `trailToOpenKeys` |
+| UI 开关 | 新增 `Web/src/config/uiConfig.ts`：`classic` / `webcms`（默认 `webcms`），`?nav=` 可覆盖；localStorage 键集中定义 |
+| 菜单组件 | 新增 `Web/src/components/menu/`：`SystemSwitcher.vue`、`NavMenuTree.vue`、`NavMenuTreeNode.vue`（递归）、`NavBreadcrumb.vue` |
+| `App.vue` | 移除内联 `menuItems` 与两层 `v-list-group` 模板，改为 `<NavMenuTree>`；顶栏加系统切换器；抽屉加系统标题（webcms）与 300px 宽度；`v-main` 顶部加面包屑（webcms） |
+| 路由 | 新增 `/Meta/Finv`（redirect `/Dashboard`）、`/Meta/CMS`（`name: 'cms-home'`，`PlaceholderView`）；其余路由零改动 |
+| 占位页 | `PlaceholderView.vue` 的 `plans` 新增 `cms-home` 文案（唯一视图改动） |
+| 文档 | `Menus.md` 重写（四级树 + 清单加「所属系统」列 + 仪表盘路由笔误修正）、`MenuSpec.md` §1/§1.2、`Docs/Menu/CMS/CMSHome.md` 新增、`CHANGELOG`、`RequirementList` 10803–10807 |
+| 验证 | `cd Web && npm run build`（vue-tsc + vite）通过；菜单 31 条路径全部命中 `router.ts`；叶子 30 / 系统 2 / 最大层级 4；深链接链与 CMS 链正确 |
 
 ---
 
@@ -19,9 +34,9 @@
 - **实现方式**：菜单数据外置为系统注册表（`Web/src/config/menuConfig.ts`）+ 递归菜单组件（参考 WebCMS 的 `menuConfig.js` + 递归 `TreeMenuItem.vue`），**路由路径与既有视图组件全部保持不变**。
 - **视觉（已裁决 Q10）**：新增 WebCMS 风格视觉（主色激活条 / 抽屉系统标题 / 面包屑），**带风格开关**（`classic` / `webcms`），默认 `webcms`，可一键切回现有视觉以便对比与回退。
 - **范围**：前端 `Web/` + 菜单相关文档；**不涉及后端、数据库、接口**。
-- **审批状态（2026-10-29）**：Q1–Q11 与 R1–R7 **全部裁决完毕且均按推荐值采纳**（见 §10），方案 **v1.0 定稿**；等你明确下达「开始实施」后按第 7 节 S1–S5 执行。
+- **审批状态（2026-10-29）**：Q1–Q11 与 R1–R7 **全部裁决完毕且均按推荐值采纳**（见 §10），方案 **v1.0 定稿并已实施**（实施记录见上）。
 
-**本文件为方案定稿，自始至终未修改任何代码；获得实施指令后再动手。**
+**实施情况：代码与文档已于 2026-10-29 落地，验证命令与结果见文首「实施记录」。**
 
 ---
 
