@@ -14,7 +14,7 @@ import (
 // 运行方式（需要可建表的测试库）：
 //
 //	FINV_TEST_PG_DSN="postgres://finv:finvquant@127.0.0.1:5432/finv?sslmode=disable" \
-//	  go test ./internal/kline -run TestServiceIntegration -v
+//	  go test ./internal/meta/finv/quote/cdeu/kline -run TestServiceIntegration -v
 //
 // 测试使用独立的临时表 dedup.finv_quote_secu_kline_min_it，结束后删除，不影响业务表。
 func TestServiceIntegration(t *testing.T) {

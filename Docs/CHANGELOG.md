@@ -21,6 +21,12 @@
 ### 变更
 
 - 版本号由 `0.1.3` 切换至 `0.1.4`（`VERSION`），开启下一轮开发；`v0.1.3` 已作为正式版本打 tag。
+- **K 线领域服务迁入 `internal/meta/finv/quote/cdeu` 子域**
+  - `internal/kline`（13 个 Go 文件：领域服务、请求校验、格式化、SQL、统计、错误目录 + 单测）整体迁移到 **`internal/meta/finv/quote/cdeu/kline`**，包名仍为 `kline`；`internal/meta/finv/quote/cdeu/` 为新建的 CDEU（去重/导出/上传）业务域目录，与同级的 `quote/dedup` 并列。
+  - `internal/api/handler/{errresp.go,errresp_test.go,kline.go,kline_ops.go}`、`internal/api/{router.go,router_test.go}` 的 import 路径同步更新；`internal/quote/service.go` 与包内集成测试注释中的路径同步。
+  - 源码内容、导出符号、接口路径与数据库 schema（`cdeu.finv_quote_secu_kline_min`）零改动。
+  - 文档引用同步：`Docs/API/Quote/Cdeu/Min/{KLinePageUni,KLineUpsert}.md`、`Docs/DevSpec/DbSchemaSpec.md`、`Docs/DevSpec/ErrorCodeSpec.md`、`Docs/RequirementList.md`（25 处核对命令与描述）；`Docs/CHANGELOG.md` 历史条目按原样保留。
+  - 验证：`go build ./...`、`go vet ./...`、`go test ./internal/meta/finv/quote/cdeu/kline ./internal/api` 全部通过。
 - **回测引擎迁入 `internal/meta/finv/quant` 子域**
   - `internal/backtest`（16 个 Go 文件，引擎/表达式/指标/服务/校验/模型 + 单测）整体迁移到 **`internal/meta/finv/quant/backtest`**，包名仍为 `backtest`，与 `auth/`、`brs/`、`quote/`、`sys/` 的组织方式统一。
   - `internal/api/handler/backtest.go`、`internal/api/router.go` 的 import 路径同步更新；源码内容与导出符号零改动，接口与回测行为不变。

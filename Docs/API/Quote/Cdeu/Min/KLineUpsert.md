@@ -5,8 +5,8 @@
 > （约定见 [`Docs/DevSpec/ApiSpec.md`](../../../../DevSpec/ApiSpec.md) §7.7）。
 >
 > - 变更记录：需求 10777（迁移到 CDEU 前缀）、10782（全量统一 CDEU）、10783（本文按 OpenAPI 3.1 重写）
-> - 实现：`internal/api/handler/kline.go`（`Upsert`）、`internal/kline/service.go`（`Upsert`）
-> - 错误目录：`internal/kline/apierr.go`
+> - 实现：`internal/api/handler/kline.go`（`Upsert`）、`internal/meta/finv/quote/cdeu/kline/service.go`（`Upsert`）
+> - 错误目录：`internal/meta/finv/quote/cdeu/kline/apierr.go`
 
 ## 1. 概述
 

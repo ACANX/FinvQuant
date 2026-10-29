@@ -389,14 +389,14 @@
 | 10241 | 分钟行情 API 注册新前缀 `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min`。 | `grep -c "Meta/Finv/Quote/DeDup/Secu/KLine/Min" internal/api/router.go` 输出不小于 `1` | |
 | 10242 | 旧前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min` 作为过渡别名同时注册。 | `grep -c "LegacyAPIPrefix" internal/api/router.go` 输出不小于 `1` | |
 | 10243 | 提供 `GET /Health` 探活端点（含 `/healthz` 过渡别名）。 | `grep -c 'GET("/Health"' internal/api/router.go` 与 `grep -c 'GET("/healthz"' internal/api/router.go` 均为 `1` | |
-| 10244 | 分钟行情主表位于 `dedup.finv_quote_secu_kline_min`。 | `grep -c "const Table = \"dedup.finv_quote_secu_kline_min\"" internal/kline/sql.go` 输出 `1` | |
+| 10244 | 分钟行情主表位于 `dedup.finv_quote_secu_kline_min`。 | `grep -c "const Table = \"dedup.finv_quote_secu_kline_min\"" internal/meta/finv/quote/cdeu/kline/sql.go` 输出 `1` | |
 | 10245 | 迁移 V38 将主表从 `quote` 迁入 `dedup` 并可重复执行。 | `ls Deploy/Migrations/V100038__finv_quote_kline_move_to_dedup.sql` 不存在时退出码非 0；脚本含 `SET SCHEMA dedup` 与 `IF EXISTS` 幂等判断 | |
 | 10246 | 迁移 V38 补齐 `change_price`/`change_ratio`/`provider` 三列。 | `grep -c "ADD COLUMN IF NOT EXISTS change_price" Deploy/Migrations/V100038__finv_quote_kline_move_to_dedup.sql` 输出 `1` | |
 | 10247 | `export.finv_quote_secu_kline_min` 按 dedup 新结构重建。 | `grep -c "LIKE dedup.finv_quote_secu_kline_min" Deploy/Migrations/V100038__finv_quote_kline_move_to_dedup.sql` 输出 `1` | |
-| 10248 | `ts` 契约与库内均为秒级；13 位毫秒默认拒绝。 | `go test ./internal/kline/ -run TestTSUnit` 通过；用例覆盖秒级通过与 13 位拒绝 | |
-| 10249 | `FINV_KLINE_TS_UNIT=ms` 时毫秒入参换算为秒。 | `go test ./internal/kline/ -run TestTSUnit` 通过（含 ms 分支） | |
-| 10250 | 具体错误使用 `211xxx` 编号且全局唯一。 | `go test ./internal/kline/ -run TestCatalogIntegrity` 通过 | |
-| 10251 | 错误目录共 15 条具体码，覆盖校验/资源/容量/存储四类。 | 同上；`internal/kline/apierr.go` 中 `Code` 常量计数为 15 | |
+| 10248 | `ts` 契约与库内均为秒级；13 位毫秒默认拒绝。 | `go test ./internal/meta/finv/quote/cdeu/kline/ -run TestTSUnit` 通过；用例覆盖秒级通过与 13 位拒绝 | |
+| 10249 | `FINV_KLINE_TS_UNIT=ms` 时毫秒入参换算为秒。 | `go test ./internal/meta/finv/quote/cdeu/kline/ -run TestTSUnit` 通过（含 ms 分支） | |
+| 10250 | 具体错误使用 `211xxx` 编号且全局唯一。 | `go test ./internal/meta/finv/quote/cdeu/kline/ -run TestCatalogIntegrity` 通过 | |
+| 10251 | 错误目录共 15 条具体码，覆盖校验/资源/容量/存储四类。 | 同上；`internal/meta/finv/quote/cdeu/kline/apierr.go` 中 `Code` 常量计数为 15 | |
 | 10252 | 具体码的 HTTP 映射与接口文档一致。 | `grep -c "211101" Docs/API/KLine/KLineAdd.md` 与 `grep -c "409" Docs/API/KLine/KLineAdd.md` 均不小于 `1` | |
 | 10253 | 未归类的错误兜底复用 HTTP 错误码（500 用 `2006`）。 | `go test ./internal/api/handler/ -run TestErrorResponderUnknownErrorMasked` 通过 | |
 | 10254 | 存量接口旧号 `4001/4004/4009` 已停用。 | `grep -rn '"code": *\(4001\|4004\|4009\)' internal/ cmd/` 输出为空 | |
@@ -406,14 +406,14 @@
 | 10258 | 来源 IP 命中 `FINV_ERROR_DETAIL_ALLOWED_CIDRS` 视为高权限。 | `grep -c "AllowedCIDRs" internal/config/config.go` 不小于 `1`；`grep -c "Contains(ip)" internal/api/handler/errresp.go` 输出 `1` | |
 | 10259 | `request_id` 为大写 UUID4。 | `go test ./internal/api/handler/ -run TestErrorResponderSafeByDefault` 通过 | |
 | 10260 | `/Page` 返回 `{code:1,data:{cnt,ps,pn,list,request_id,ts},message:"OK"}`。 | `grep -c '"pn":         kline.PageNumber' internal/api/handler/kline.go` 输出 `1`；手工调用 `/Page` 校验字段 | |
-| 10261 | `/Page` 的 `cr` 为两位小数文本（HALF_UP），NULL 为 `null`。 | `go test ./internal/kline/ -run TestRatioText` 通过 | |
-| 10262 | `/PageUni` 的 `column` 固定 15 项且 `row` 值全部字符串化/去尾零。 | `go test ./internal/kline/ -run TestRowUniRow` 通过 | |
-| 10263 | `PATCH /Batch` 区分「未传」与「显式 null」。 | `go test ./internal/kline/ -run TestPatchExplicitNull` 通过 | |
+| 10261 | `/Page` 的 `cr` 为两位小数文本（HALF_UP），NULL 为 `null`。 | `go test ./internal/meta/finv/quote/cdeu/kline/ -run TestRatioText` 通过 | |
+| 10262 | `/PageUni` 的 `column` 固定 15 项且 `row` 值全部字符串化/去尾零。 | `go test ./internal/meta/finv/quote/cdeu/kline/ -run TestRowUniRow` 通过 | |
+| 10263 | `PATCH /Batch` 区分「未传」与「显式 null」。 | `go test ./internal/meta/finv/quote/cdeu/kline/ -run TestPatchExplicitNull` 通过 | |
 
 ## 二十六、涨跌字段补全规则（10264–10269）
 
 > 来源：导入/写入时 `change_price`、`change_ratio` 缺失的自动补全规则（ACANX 2026-10-24）。
-> 关联：`internal/calc/change.go`、`internal/mvsv/parser.go`、`internal/quote/service.go`、`internal/kline/request.go`。
+> 关联：`internal/calc/change.go`、`internal/mvsv/parser.go`、`internal/quote/service.go`、`internal/meta/finv/quote/cdeu/kline/request.go`。
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
@@ -421,13 +421,13 @@
 | 10265 | `cp`/`cr` 均缺失且 `last_close` 非空非 0 时，用 `last_close` 作为参考价计算。 | `go test ./internal/quote/ -run TestComputeChangeFields` 通过（用例 2） | |
 | 10266 | `last_close` 缺失或为 0 且 `open` 非空非 0 时，用 `open` 作为参考价计算。 | 同上（用例 3、4）通过 | |
 | 10267 | `last_close` 与 `open` 都不可用时保持 NULL，不报错。 | 同上（用例 5）通过 | |
-| 10268 | KLine API 写入未提供 `change_price`/`change_ratio` 时按 `open` 补全；任一列有值时不修改。 | `grep -c "calc.Change" internal/kline/request.go` 输出不小于 `1`；`go test ./internal/kline/` 通过 | |
+| 10268 | KLine API 写入未提供 `change_price`/`change_ratio` 时按 `open` 补全；任一列有值时不修改。 | `grep -c "calc.Change" internal/meta/finv/quote/cdeu/kline/request.go` 输出不小于 `1`；`go test ./internal/meta/finv/quote/cdeu/kline/` 通过 | |
 | 10269 | 涨跌计算使用十进制精确运算（big.Rat）并保留 6 位小数。 | `go test ./internal/calc/ -run TestChangeRule` 通过（含 6 位小数用例） | |
 
 ## 二十七、去重行情前端菜单与统计（10270–10275）
 
 > 来源：去重行情（`dedup` schema）前端查询与统计可视化需求（ACANX 2026-10-24）。
-> 关联：`Web/src/App.vue`、`Web/src/router.ts`、`Web/src/views/Meta/Finv/Quote/DeDup/*`、`internal/kline/stats.go`、`internal/api/handler/kline.go`。
+> 关联：`Web/src/App.vue`、`Web/src/router.ts`、`Web/src/views/Meta/Finv/Quote/DeDup/*`、`internal/meta/finv/quote/cdeu/kline/stats.go`、`internal/api/handler/kline.go`。
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
@@ -945,10 +945,10 @@
 |---|---|---|---|
 | 10632 | `internal/quote`（`Import/Upload` 文件导入、`History/QuoteQuery` 查询）一律读写 `quote.finv_quote_secu_kline_min`。 | `grep -c 'quote.finv_quote_secu_kline_min' internal/quote/service.go` ≥ 4；`grep 'dedup.finv_quote_secu_kline_min' internal/quote/*.go` 无输出 | |
 | 10633 | `internal/meta/finv/quant/backtest` 行情加载与日期区间解析读取 `quote.`（回测只读 quote）。 | `grep -n 'quote.finv_quote_secu_kline_min' internal/meta/finv/quant/backtest/service.go` 输出 2 行；包内无 `dedup.finv_quote_secu_kline_min` | |
-| 10634 | `internal/kline`（K 线 API 写入/查询）保持 `dedup.`，不得改回 `quote.`。 | `grep -n 'const Table' internal/kline/sql.go` 输出 `"dedup.finv_quote_secu_kline_min"`；`go test ./internal/kline` 通过 | |
+| 10634 | `internal/meta/finv/quote/cdeu/kline`（K 线 API 写入/查询）保持 `dedup.`，不得改回 `quote.`。 | `grep -n 'const Table' internal/meta/finv/quote/cdeu/kline/sql.go` 输出 `"dedup.finv_quote_secu_kline_min"`；`go test ./internal/meta/finv/quote/cdeu/kline` 通过 | |
 | 10635 | 端到端隔离：K 线 API `/Add` 写入后数据仅落 `dedup`，`History/QuoteQuery` 查同一 `usc` 查不到。 | 实测：`/Add` 返回 201 后 `dedup=1 / quote=0`；`QuoteQuery` 返回 `total: 0` | |
 | 10636 | `schema_qualify_test.go` 白名单含 `quote.`、`dedup.`、`export.` 三者，`go test ./...` 全绿。 | `grep -n 'finv_quote_secu_kline_min' internal/database/schema_qualify_test.go` 含三者；`go test ./...` 通过 | |
-| 10637 | 文档同步：导入/回测/查询 API 文档与 `DbSchemaSpec` 均按新归属描述。 | `Docs/API/HistoryQuote/ImportsUpload.md`、`Docs/API/Backtest/RunCreate.md` 含 `quote.finv_quote_secu_kline_min`；`DbSchemaSpec.md` 隔离表列出 `internal/quote` / `internal/kline` 归属 | |
+| 10637 | 文档同步：导入/回测/查询 API 文档与 `DbSchemaSpec` 均按新归属描述。 | `Docs/API/HistoryQuote/ImportsUpload.md`、`Docs/API/Backtest/RunCreate.md` 含 `quote.finv_quote_secu_kline_min`；`DbSchemaSpec.md` 隔离表列出 `internal/quote` / `internal/meta/finv/quote/cdeu/kline` 归属 | |
 
 ## 五十八、数据库表保护红线（10638–10645）
 
@@ -1745,7 +1745,7 @@ tableUsc  = "cdeu.finv_quote_cdeu_usc"
 tableJob  = "cdeu.finv_quote_cdeu_export_job"
 tableFile = "cdeu.finv_quote_cdeu_export_file"
 
-// internal/kline/sql.go（K 线 API 写入/查询目标）
+// internal/meta/finv/quote/cdeu/kline/sql.go（K 线 API 写入/查询目标）
 const Table = "cdeu.finv_quote_secu_kline_min"
 ```
 
@@ -1759,7 +1759,7 @@ const Table = "cdeu.finv_quote_secu_kline_min"
 | `unqualifiedDomainTables` 增加「最长前缀优先」 | 避免 `finv_quote_cdeu_*` 同时被 `finv_quote_` 报一次，产生「必须写成 quote.」的矛盾建议 |
 | `exactTableSchema["finv_quote_secu_kline_min"]` 注释重写 | 四份副本职责重新表述：`quote.` 回测 / `cdeu.` 业务（代码读写）/ `export.` 中转 / `dedup.` 历史待清理 |
 
-`internal/kline/sql_test.go`：`TestTableConstantQualified` 断言由 `dedup.` 改为 `cdeu.`。
+`internal/meta/finv/quote/cdeu/kline/sql_test.go`：`TestTableConstantQualified` 断言由 `dedup.` 改为 `cdeu.`。
 
 ### 10757 切换后的状态
 
@@ -2065,7 +2065,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10777 | 把分钟行情批量 Upsert 端点从 `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Upsert` 调整为 `/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`；旧路径（含 legacy 前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Upsert`）不再注册；其它 K 线端点保持不变。 | `grep -c 'CdeuUpsertPath' internal/kline/model.go internal/api/router.go` ≥ 2；`grep -c '/Cdeu/Min/Upsert' internal/api/router_test.go` ≥ 1；`grep -c 'POST ...DeDup/Secu/KLine/Min/Upsert'` 在 router.go 中为 0；运行 `go test ./internal/api -run TestKLineRoutesRegistered` 通过（新路径已注册、两条旧路径未注册）；`curl -X POST http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert` 不再返回 404，旧路径返回 404 | |
+| 10777 | 把分钟行情批量 Upsert 端点从 `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Upsert` 调整为 `/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`；旧路径（含 legacy 前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Upsert`）不再注册；其它 K 线端点保持不变。 | `grep -c 'CdeuUpsertPath' internal/meta/finv/quote/cdeu/kline/model.go internal/api/router.go` ≥ 2；`grep -c '/Cdeu/Min/Upsert' internal/api/router_test.go` ≥ 1；`grep -c 'POST ...DeDup/Secu/KLine/Min/Upsert'` 在 router.go 中为 0；运行 `go test ./internal/api -run TestKLineRoutesRegistered` 通过（新路径已注册、两条旧路径未注册）；`curl -X POST http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert` 不再返回 404，旧路径返回 404 | |
 
 ## 一百一十一、Markdown 表格必须带表头（10778）
 
@@ -2089,7 +2089,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10782 | 把分钟行情全部端点（`Add`、`Batch` POST/PATCH/DELETE、`Upsert`、`Page`、`PageUni`、`Query`、`Count`、`Stats`、`Bounds`）统一到 `/API/V1/Meta/Finv/Quote/Cdeu/Min/*`；旧 `DeDup/Secu/KLine/Min` 与 legacy `Secu/KLine/Min` 不再注册；`Docs/API/KLine/` 下全部文档迁入 `Docs/API/Quote/Cdeu/Min/`；前端 API 调用同步（页面路由不变）。 | `grep -c 'Cdeu/Min' internal/kline/model.go` ≥ 1；`grep -c 'Secu/KLine/Min' internal/api/router.go` = 0（仅注释例外）；`go test ./internal/api -run TestKLineRoutesRegistered` 通过（新路径已注册、22 条旧路径未注册）；`ls Docs/API/Quote/Cdeu/Min/*.md \| wc -l` = 12 且 `Docs/API/KLine` 不存在；全仓 Markdown 相对链接 0 失效；`go test ./internal/docs` 通过；`curl -X POST http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Min/Batch` 非 404，旧路径返回 404 | |
+| 10782 | 把分钟行情全部端点（`Add`、`Batch` POST/PATCH/DELETE、`Upsert`、`Page`、`PageUni`、`Query`、`Count`、`Stats`、`Bounds`）统一到 `/API/V1/Meta/Finv/Quote/Cdeu/Min/*`；旧 `DeDup/Secu/KLine/Min` 与 legacy `Secu/KLine/Min` 不再注册；`Docs/API/KLine/` 下全部文档迁入 `Docs/API/Quote/Cdeu/Min/`；前端 API 调用同步（页面路由不变）。 | `grep -c 'Cdeu/Min' internal/meta/finv/quote/cdeu/kline/model.go` ≥ 1；`grep -c 'Secu/KLine/Min' internal/api/router.go` = 0（仅注释例外）；`go test ./internal/api -run TestKLineRoutesRegistered` 通过（新路径已注册、22 条旧路径未注册）；`ls Docs/API/Quote/Cdeu/Min/*.md \| wc -l` = 12 且 `Docs/API/KLine` 不存在；全仓 Markdown 相对链接 0 失效；`go test ./internal/docs` 通过；`curl -X POST http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Min/Batch` 非 404，旧路径返回 404 | |
 
 ## 一百一十五、接口文档按 OpenAPI 3.1 编写（10783）
 
@@ -2143,13 +2143,13 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10791 | 将 `cdeu.finv_quote_secu_kline_min.volume` 由 `bigint` 改为浮点 `numeric(20,6)`，保留 `volume >= 0` 约束；幂等迁移，仅改 `cdeu` 表。 | `grep -c 'numeric(20,6)' Deploy/Migrations/V200058__cdeu_kline_min_volume_numeric.sql` ≥ 1；临时 PG 执行全部迁移后 `select data_type from information_schema.columns where table_schema='cdeu' and table_name='finv_quote_secu_kline_min' and column_name='volume'` = `numeric`；插入 `12.345678` 后读回一致；重复执行 V200058 输出「已是 numeric，跳过」；`go build ./...`、`go test ./internal/kline` 通过；`MVsvFileFormat.md` 中 `v` 类型为 `Decimal(20,6)` | |
+| 10791 | 将 `cdeu.finv_quote_secu_kline_min.volume` 由 `bigint` 改为浮点 `numeric(20,6)`，保留 `volume >= 0` 约束；幂等迁移，仅改 `cdeu` 表。 | `grep -c 'numeric(20,6)' Deploy/Migrations/V200058__cdeu_kline_min_volume_numeric.sql` ≥ 1；临时 PG 执行全部迁移后 `select data_type from information_schema.columns where table_schema='cdeu' and table_name='finv_quote_secu_kline_min' and column_name='volume'` = `numeric`；插入 `12.345678` 后读回一致；重复执行 V200058 输出「已是 numeric，跳过」；`go build ./...`、`go test ./internal/meta/finv/quote/cdeu/kline` 通过；`MVsvFileFormat.md` 中 `v` 类型为 `Decimal(20,6)` | |
 
 ## 一百二十四、volume 全链路浮点化（10792）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10792 | 把 `quote` / `export` / `dedup` 三张同名表的 `volume` 与 `cdeu` 统一为 `numeric(20,6)`；`internal/mvsv` 解析保留小数文本；`internal/quote` 查询输出支持小数；保证导入/导出/补丁/回测链路不截断。 | 临时 PG 执行全部迁移后 `select table_schema, data_type from information_schema.columns where column_name='volume' and table_name='finv_quote_secu_kline_min' and table_schema in ('quote','dedup','export','cdeu')` 四行均为 `numeric`；`12.345678` 在四表写入/读回一致；重复执行 V200059 输出「已是 numeric，跳过」；`go test ./internal/mvsv` 含 `TestParseNumericVolume` 通过；`go build ./...`、`go test ./internal/quote ./internal/kline` 通过；`HistoryQuote.md` volume 标注支持小数 | |
+| 10792 | 把 `quote` / `export` / `dedup` 三张同名表的 `volume` 与 `cdeu` 统一为 `numeric(20,6)`；`internal/mvsv` 解析保留小数文本；`internal/quote` 查询输出支持小数；保证导入/导出/补丁/回测链路不截断。 | 临时 PG 执行全部迁移后 `select table_schema, data_type from information_schema.columns where column_name='volume' and table_name='finv_quote_secu_kline_min' and table_schema in ('quote','dedup','export','cdeu')` 四行均为 `numeric`；`12.345678` 在四表写入/读回一致；重复执行 V200059 输出「已是 numeric，跳过」；`go test ./internal/mvsv` 含 `TestParseNumericVolume` 通过；`go build ./...`、`go test ./internal/quote ./internal/meta/finv/quote/cdeu/kline` 通过；`HistoryQuote.md` volume 标注支持小数 | |
 
 ## 一百二十五、外部 OpenAPI 文档自包含（10793）
 
@@ -2161,7 +2161,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10794 | 分钟行情写入接口的 `paocd` 参数改为 `pacd`（库列仍 `paocd`）；`prev_close` 改为 `last_close` 并**落库**（不再仅回填 open），upsert/PATCH/查询/JSON 输出与文档同步；请求示例必须包含完整 17 字段，成功响应 JSON 格式化。 | `grep -c '"pacd"' internal/kline/request.go` = 1；`grep -c 'ColLastClose' internal/kline/model.go` ≥ 2；`go test ./internal/kline -run 'TestLastCloseCompat\|TestPatchLastClose\|TestRowJSON' -v` 通过；`grep -rn 'paocd\|prev_close' Docs/API/Quote/Cdeu/Min Docs/OpenAPI/Quote/Cdeu/Min` 仅剩「库列」说明；两份 `KLineUpsert.yml` 的 `KLineItem` 均为 17 字段且含 `pacd`/`last_close`；`go test ./internal/docs` 通过 | |
+| 10794 | 分钟行情写入接口的 `paocd` 参数改为 `pacd`（库列仍 `paocd`）；`prev_close` 改为 `last_close` 并**落库**（不再仅回填 open），upsert/PATCH/查询/JSON 输出与文档同步；请求示例必须包含完整 17 字段，成功响应 JSON 格式化。 | `grep -c '"pacd"' internal/meta/finv/quote/cdeu/kline/request.go` = 1；`grep -c 'ColLastClose' internal/meta/finv/quote/cdeu/kline/model.go` ≥ 2；`go test ./internal/meta/finv/quote/cdeu/kline -run 'TestLastCloseCompat\|TestPatchLastClose\|TestRowJSON' -v` 通过；`grep -rn 'paocd\|prev_close' Docs/API/Quote/Cdeu/Min Docs/OpenAPI/Quote/Cdeu/Min` 仅剩「库列」说明；两份 `KLineUpsert.yml` 的 `KLineItem` 均为 17 字段且含 `pacd`/`last_close`；`go test ./internal/docs` 通过 | |
 
 ## 一百二十七、字段表类型/可空分列（10795）
 

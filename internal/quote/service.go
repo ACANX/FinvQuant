@@ -148,7 +148,7 @@ func DateRangeToTS(date, days int) (int64, int64) {
 // ImportRows 将解析后的行情行批量 upsert 到 quote.finv_quote_secu_kline_min。
 //
 // 归属说明：本包（查询 + 文件导入）服务回测与历史行情查询，统一读写 quote schema；
-// 去重/导出/上传链路与 K 线 API 的写入走 dedup schema（见 internal/kline），两边隔离。
+// 去重/导出/上传链路与 K 线 API 的写入走 dedup schema（见 internal/meta/finv/quote/cdeu/kline），两边隔离。
 // 字段级覆盖（FIELD）或整行覆盖（ROW）；发生覆盖时写入修正审计日志。
 // remark 为表单备注：非空时写入每行的 remark 列。
 func (s *Service) ImportRows(ctx context.Context, rows []mvsv.Row, mode UpsertMode, importedBy, source, remark string) (*UpsertResult, error) {

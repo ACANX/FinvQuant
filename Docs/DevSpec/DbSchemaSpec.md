@@ -27,7 +27,7 @@
 | 表 | 副本 | 职责 | 禁止事项 |
 |---|---|---|---|
 | `finv_quote_secu_kline_min` | `quote.` | 历史行情导入（`Import/Upload`）、行情查询（`History/QuoteQuery`）、**量化回测**（只读） | 不得迁走、不得改成视图、不得只保留 `dedup.` |
-| | `dedup.` | K 线 API 写入（`internal/kline`）、去重 / 导出 / 上传链路（含导出前清洗） | 不得迁走、不得与 `quote.` 合并 |
+| | `dedup.` | K 线 API 写入（`internal/meta/finv/quote/cdeu/kline`）、去重 / 导出 / 上传链路（含导出前清洗） | 不得迁走、不得与 `quote.` 合并 |
 | | `export.` | 导出中转快照 | 允许清空（仅此一份允许） |
 | | `archive.`（如建） | 冷数据归档 | 不得与业务表合并 |
 
@@ -166,7 +166,7 @@
   | schema | 使用者 | 说明 |
   |---|---|---|
   | `quote.` | 历史行情导入、行情查询、回测 | `internal/quote`（`Import/Upload` 与 `History/QuoteQuery`）与 `internal/meta/finv/quant/backtest`；回测 SQL 必须写 `quote.` 前缀 |
-  | `dedup.` | K 线 API 写入、去重 / 导出 / 上传链路 | `internal/kline`（`Cdeu/Min/{Add,Batch,Upsert,Page,Query,Patch,BatchDelete}` 等）与 `internal/meta/finv/quote/dedup`；写入与重写（含导出前清洗） |
+  | `dedup.` | K 线 API 写入、去重 / 导出 / 上传链路 | `internal/meta/finv/quote/cdeu/kline`（`Cdeu/Min/{Add,Batch,Upsert,Page,Query,Patch,BatchDelete}` 等）与 `internal/meta/finv/quote/dedup`；写入与重写（含导出前清洗） |
   | `export.` | 导出中转 | 快照暂存表，允许清空 |
   隔离靠 schema 前缀强制：漏写前缀会命中 `search_path` 里的另一张表，`internal/database/schema_qualify_test.go` 的 `exactTableSchema` 已把三者列为白名单。`V100076` 恢复了被 `V100038` 迁走的 `quote.` 副本（结构与 `dedup` 对齐、数据一次性回填，之后各自演进）。
 - **去重的层次选择**：`dedup.finv_quote_secu_kline_min` 已有主键 `(usc, ts)`，跨批次幂等直接用 `INSERT ... ON CONFLICT DO NOTHING` 即可；只有「批内去重暂存」「跨源内容指纹比对」「入库审计留痕」这三类才需要额外对象。`dedup` 域承载的是**去重 / 导出 / 上传链路**那份副本（`V100038` 迁入），它**不是唯一副本**——`quote.` 侧还有回测专用的同名副本（`V100076` 恢复），两者禁止合并，详见 §0.2。新增对象不得与其同名。

@@ -5,8 +5,8 @@
 > [`KLinePageUni.yml`](KLinePageUni.yml)。契约变更时两者须同时更新。
 >
 > - 变更记录：需求 10781（迁移到 CDEU 前缀）、10782（全量统一 CDEU）、10785（按样板重写并拆分 .yml）
-> - 实现：`internal/api/handler/kline.go`（`PageUni`）、`internal/kline/service.go`（`Page`）
-> - 错误目录：`internal/kline/apierr.go`
+> - 实现：`internal/api/handler/kline.go`（`PageUni`）、`internal/meta/finv/quote/cdeu/kline/service.go`（`Page`）
+> - 错误目录：`internal/meta/finv/quote/cdeu/kline/apierr.go`
 
 ## 1. 概述
 
