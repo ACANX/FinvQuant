@@ -2197,13 +2197,13 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10800 | 新增 `brs` schema 与 `brs.brs_bak_rdb_table` 备份登记表（`priority` 唯一）；`sys.sys_config 39001` 配置 6 段 cron；服务内每日按 `priority` 倒序对启用表执行 `pg_dump -Fc`（按 `compression` 压缩），备份到 `<PREFIX>/Backup/BRS/<yyyyMMdd>/`，只写日志；预置系统表与 CDEU 配置表种子（不含 `cdeu.finv_quote_secu_kline_min`）；对象存储通过 `internal/meta/base/oss` 抽象，首期不启用上传。 | `test -f Deploy/Migrations/V200060__brs_backup_table.sql`；临时 PG 执行全部 142 个迁移 0 错误，`select count(*) from brs.brs_bak_rdb_table` = 12，`select count(distinct priority)` = 12，`select str_value from sys.sys_config where config_no=39001` = `0 0 3 * * *`；`go test ./internal/brs ./internal/meta/base/cron ./internal/meta/base/oss/...` 通过；`go build ./...` 通过；`grep -c 'FINV_BRS_BACKUP_DIR' internal/config/config.go Deploy/Native/FinvQuant.env.example` 各 ≥ 1；`grep -rn 'minio-go' internal/` 无输出 | |
+| 10800 | 新增 `brs` schema 与 `brs.brs_bak_rdb_table` 备份登记表（`priority` 唯一）；`sys.sys_config 39001` 配置 6 段 cron；服务内每日按 `priority` 倒序对启用表执行 `pg_dump -Fc`（按 `compression` 压缩），备份到 `<PREFIX>/Backup/BRS/<yyyyMMdd>/`，只写日志；预置系统表与 CDEU 配置表种子（不含 `cdeu.finv_quote_secu_kline_min`）；对象存储通过 `internal/meta/base/oss` 抽象，首期不启用上传。 | `test -f Deploy/Migrations/V200060__brs_backup_table.sql`；临时 PG 执行全部 142 个迁移 0 错误，`select count(*) from brs.brs_bak_rdb_table` = 12，`select count(distinct priority)` = 12，`select str_value from sys.sys_config where config_no=39001` = `0 0 3 * * *`；`go test ./internal/meta/finv/brs ./internal/meta/base/cron ./internal/meta/base/oss/...` 通过；`go build ./...` 通过；`grep -c 'FINV_BRS_BACKUP_DIR' internal/config/config.go Deploy/Native/FinvQuant.env.example` 各 ≥ 1；`grep -rn 'minio-go' internal/` 无输出 | |
 
 ## 一百三十三、BRS 对象存储上传（10801）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10801 | BRS 二期：备份产物上传 S3 兼容对象存储（R2 等）。`brs_bak_rdb_table` 增加 `flag_upload`；`sys.sys_config 39002` 保存对象存储 JSON 配置（默认 `enabled=false`）；通过 `internal/meta/base/oss` 抽象 + `oss/s3` 适配器（`aws-sdk-go-v2`，**不使用 minio-go**），上传失败保留本地。 | `grep -c 'flag_upload' Deploy/Migrations/V200061__brs_upload.sql` ≥ 1；临时 PG 执行全部 143 个迁移 0 错误；`select json_value->>'enabled' from sys.sys_config where config_no=39002` = `false`；`go test ./internal/meta/base/oss/... ./internal/brs` 通过（含 s3 适配器 httptest 用例）；`grep -rn 'minio' internal/meta/base/oss internal/brs` 无官方库引用；`go build ./...` 通过 | |
+| 10801 | BRS 二期：备份产物上传 S3 兼容对象存储（R2 等）。`brs_bak_rdb_table` 增加 `flag_upload`；`sys.sys_config 39002` 保存对象存储 JSON 配置（默认 `enabled=false`）；通过 `internal/meta/base/oss` 抽象 + `oss/s3` 适配器（`aws-sdk-go-v2`，**不使用 minio-go**），上传失败保留本地。 | `grep -c 'flag_upload' Deploy/Migrations/V200061__brs_upload.sql` ≥ 1；临时 PG 执行全部 143 个迁移 0 错误；`select json_value->>'enabled' from sys.sys_config where config_no=39002` = `false`；`go test ./internal/meta/base/oss/... ./internal/meta/finv/brs` 通过（含 s3 适配器 httptest 用例）；`grep -rn 'minio' internal/meta/base/oss internal/meta/finv/brs` 无官方库引用；`go build ./...` 通过 | |
 
 ## 一百三十四、BRS 对象存储配置说明（10802）
 

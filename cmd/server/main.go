@@ -20,11 +20,11 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/acanx/finvquant/internal/api"
-	"github.com/acanx/finvquant/internal/brs"
 	"github.com/acanx/finvquant/internal/config"
 	"github.com/acanx/finvquant/internal/database"
 	"github.com/acanx/finvquant/internal/logging"
 	"github.com/acanx/finvquant/internal/meta/finv/auth"
+	"github.com/acanx/finvquant/internal/meta/finv/brs"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
 	_ "github.com/acanx/finvquant/internal/meta/finv/quote/dedup/job"
 	"github.com/acanx/finvquant/internal/meta/finv/sys"

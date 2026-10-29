@@ -1,6 +1,6 @@
 # BRS 数据备份服务（首期：PostgreSQL 表级备份）
 
-> 源码：`internal/brs`（调度/执行）、`internal/meta/base/cron`（6 段 cron）、`internal/meta/base/oss`（对象存储抽象，二期）
+> 源码：`internal/meta/finv/brs`（调度/执行）、`internal/meta/base/cron`（6 段 cron）、`internal/meta/base/oss`（对象存储抽象，二期）
 > 配置：`sys.sys_config` **39001**（每日备份 cron）
 > 登记表：`brs.brs_bak_rdb_table`
 > 备份实现：`pg_dump --table=<schema>.<table> -Fc --compress=<算法>`

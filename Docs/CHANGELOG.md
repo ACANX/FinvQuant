@@ -21,6 +21,10 @@
 ### 变更
 
 - 版本号由 `0.1.3` 切换至 `0.1.4`（`VERSION`），开启下一轮开发；`v0.1.3` 已作为正式版本打 tag。
+- **BRS 包迁入 `internal/meta/finv` 子域**
+  - `internal/brs`（`brs.go`、`brs_test.go`）整体迁移到 **`internal/meta/finv/brs`**（包名仍为 `brs`），与 `internal/meta/finv/{auth,quote,sys}` 的组织方式统一；`cmd/server/main.go` 的 import 路径同步更新。
+  - 源码内容与导出符号零改动，服务行为不变；`go build ./...`、`go vet ./...`、`go test ./internal/meta/finv/brs` 全部通过。
+  - 文档引用同步：`Docs/FinvQuant/Brs.md`（源码位置）、`Docs/Refactor/2610-011-BrsBackup.md`（路径表与验证命令）、`Docs/RequirementList.md`（10800、10801 核对命令）；历史 CHANGELOG 条目中的旧路径按历史记录保留。
 - **文档归档与处理器文件重命名**
   - `Prompt.md` 移至 **`Docs/FinvQuant/V1/Prompt.md`**（`git mv` 保留历史），根目录不再保留；`AGENTS.md`、`README.md` 的目录树/索引与 `Docs/RequirementList.md` 核对命令（10073、10099、10131、10237）中的路径同步更新；历史 CHANGELOG 条目与 `Docs/Refactor/*` 过程文档中的旧路径按历史记录保留。
   - `internal/api/handler/exportarchive.go` → **`cdeu.go`**，`internal/api/handler/exportarchive_admin.go` → **`cdeu_admin.go`**：Go 构建不依赖文件名，包名与导出符号不变，接口行为零变化；`Docs/API/QuoteDeDup/Usc.md` 与 `Docs/RequirementList.md`（10340、10350、10379、10470 核对命令）中的引用同步更新。
