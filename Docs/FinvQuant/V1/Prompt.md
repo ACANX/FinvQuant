@@ -21,12 +21,12 @@ FinvQuant 是一个**量化策略交易平台**，采用**前后端分离**架�
 │   └── redisclient/       #   Redis 8 连接（go-redis/v9）
 ├── Web/                   # 前端（Vue3 + Vite8 + Vuetify4，端口 16002）
 ├── Deploy/                # Docker Compose 部署编排
+├── Docs/                  # 文档（DevSpec/ 规范、FinvQuant/V1/Prompt.md 本文档、CHANGELOG.md）
 ├── .github/workflows/     # GitHub Actions：构建 + 推送 GHCR 镜像
 ├── Dockerfile             # 服务端镜像（多阶段构建）
 ├── Archive/              # 仓库级历史归档（含 VeritasQuant 历史子项目）
 ├── go.mod / go.sum        # Go 模块定义
-├── .gitignore             # Go 版本忽略规则
-└── Prompt.md              # 本需求文档
+└── .gitignore             # Go 版本忽略规则
 ```
 
 ## 3. 技术选型（当前基线）

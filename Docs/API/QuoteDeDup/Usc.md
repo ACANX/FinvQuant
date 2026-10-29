@@ -1,6 +1,6 @@
 # 证券主数据（Usc）
 
-> 前缀：`/API/V1/Meta/Finv/Quote/DeDup`；数据源：`dedup.finv_dedup_usc`；实现：`internal/api/handler/exportarchive_admin.go`
+> 前缀：`/API/V1/Meta/Finv/Quote/DeDup`；数据源：`dedup.finv_dedup_usc`；实现：`internal/api/handler/cdeu_admin.go`
 
 `day_expect_rows` 是成熟度判定的校准值：为空时该证券的日数据会长期停留在 `PARTIAL`，永不进入导出候选。
 

@@ -110,7 +110,7 @@
 | 10070 | Go 代码中不再出现旧字段名。 | `grep -rn "secu_code\|SecuCode\|secuCode" internal/ --include="*.go"` 输出为空 | |
 | 10071 | 前端源码中不再出现旧字段名。 | `grep -rn "secu_code\|SecuCode\|secuCode" Web/src/` 输出为空 | |
 | 10072 | 行情查询接口的查询参数与响应字段均为 `usc`。 | `grep -c "usc" internal/api/handler/query.go` 不小于 `5`，且该文件无旧名 | |
-| 10073 | 文档中除计划文档、变更日志与本清单外无旧字段名。 | `grep -rn "secu_code\|secuCode" Docs/ Prompt.md \| grep -v "Docs/Refactor/\|Docs/CHANGELOG.md\|Docs/RequirementList.md"` 输出为空 | |
+| 10073 | 文档中除计划文档、变更日志与本清单外无旧字段名。 | `grep -rn "secu_code\|secuCode" Docs/ \| grep -v "Docs/Refactor/\|Docs/CHANGELOG.md\|Docs/RequirementList.md"` 输出为空 | |
 | 10074 | `CHANGELOG` 已记录该破坏性变更与升级要求。 | `grep -c "破坏性变更" Docs/CHANGELOG.md` 不小于 `2` | |
 | 10075 | 版本号已递增至 `0.1.1`。 | `cat VERSION` 输出 `0.1.1` | |
 | 10076 | 升级文档声明新旧镜像不可共存。 | `grep -c "禁止新旧镜像共存" Deploy/Docker/Win11DockerUpgrade.md` 输出 `1` | |
@@ -150,7 +150,7 @@
 | 10096 | 存在 `V100024` 收尾迁移，处理种子段新建的 3 张 quant 表。 | `test -f Deploy/Migrations/V200024__finv_quant_seed_tables_move_to_quant_schema.sql` | |
 | 10097 | 应用连接串携带 `search_path`。 | `grep -c "search_path=public,quote,quant" internal/database/postgres.go` 输出 `1` | |
 | 10098 | Go 代码中表名均带 schema 前缀（无裸表名）。 | `grep -rn "FROM finv_quote_\|FROM finv_quant_\|INTO finv_quote_\|INTO finv_quant_\|UPDATE finv_quant_\|UPDATE finv_quote_" internal/ --include="*.go"` 输出为空 | |
-| 10099 | 文档中表名均带 schema 前缀。 | `grep -rn "FROM finv_quote_\|FROM finv_quant_" Docs/ Prompt.md \| grep -v "Docs/Refactor/\|Docs/CHANGELOG.md\|Docs/RequirementList.md"` 输出为空 | |
+| 10099 | 文档中表名均带 schema 前缀。 | `grep -rn "FROM finv_quote_\|FROM finv_quant_" Docs/ \| grep -v "Docs/Refactor/\|Docs/CHANGELOG.md\|Docs/RequirementList.md"` 输出为空 | |
 | 10100 | 生产库 `quote` schema 含 3 张行情表。 | `SELECT count(*) FROM pg_tables WHERE schemaname='quote'` 为 `3` | |
 | 10101 | 生产库 `quant` schema 含 13 张量化表。 | `SELECT count(*) FROM pg_tables WHERE schemaname='quant'` 为 `13` | |
 | 10102 | 生产库 `public` 不再有业务域表。 | `SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename ~ '^finv_(quote\|quant)_'` 为 `0` | |
@@ -203,7 +203,7 @@
 | 10128 | compose 的构建路径指向新位置。 | `grep -n "dockerfile: Deploy/Docker/Dockerfile" Deploy/Docker/docker-compose.yml` 输出 `1` | |
 | 10129 | CI 使用新的 Dockerfile 路径。 | `grep -c "file: Deploy/Docker/Dockerfile" .github/workflows/CI.yml` 输出 `2` | |
 | 10130 | Native 目录含说明文档，且写明适用与不适用场景。 | `grep -c "适用场景（以下场景才建议选 Native）" Deploy/Native/README.md` 与 `grep -c "不适用场景" Deploy/Native/README.md` 均不小于 `1` | |
-| 10131 | 面向使用者的文档不再出现旧的 Docker 部署路径。 | `grep -rn "Deploy/\.env\|Deploy/docker-compose.yml\|Deploy/Win11Docker" README.md Prompt.md` 输出为空 | |
+| 10131 | 面向使用者的文档不再出现旧的 Docker 部署路径。 | `grep -rn "Deploy/\.env\|Deploy/docker-compose.yml\|Deploy/Win11Docker" README.md Docs/FinvQuant/V1/Prompt.md` 输出为空 | |
 
 ## 十二、Native 部署配套与生成物命名（10132–10140）
 
@@ -374,7 +374,7 @@
 | 10234 | `VeritasQuant/` 已移入 `Archive/`，根目录不再有该目录。 | `test -d Archive/VeritasQuant` 且 `test ! -d VeritasQuant` | |
 | 10235 | 移动保留 Git 历史（识别为重命名而非删除+新增）。 | `git log --follow Archive/VeritasQuant/README.md` 能追溯到移动前提交；`git status` 中该批文件显示为 `R` | |
 | 10236 | 归档不影响 Go 构建与测试。 | `go build ./...` 与 `go test ./internal/database/ -run TestSQLSchemaQualified` 均通过 | |
-| 10237 | 文档路径引用已更新。 | `grep -c 'Archive/VeritasQuant' README.md AGENTS.md Prompt.md Archive/README.md` 均不小于 `1`；根 README 目录树无裸 `VeritasQuant/` | |
+| 10237 | 文档路径引用已更新。 | `grep -c 'Archive/VeritasQuant' README.md AGENTS.md Docs/FinvQuant/V1/Prompt.md Archive/README.md` 均不小于 `1`；根 README 目录树无裸 `VeritasQuant/` | |
 | 10238 | `Archive/README.md` 登记该归档项。 | 含 `\| \`VeritasQuant/\` \|` 行，说明归档日期与「不参与现行构建」 | |
 | 10239 | 构建上下文排除归档目录。 | `.dockerignore` 含 `Archive/`，且无独立 `VeritasQuant/` 行 | |
 | 10240 | 可执行示例与代码注释路径同步。 | `grep -rn 'Archive/VeritasQuant' Docs/API/HistoryQuote/ImportsUpload.md internal/mvsv/parser.go` 各不小于 `1` | |
@@ -521,7 +521,7 @@
 | 10337 | `PUT .../Calendar` 新增或更新交易日历标记。 | `grep -F 'func (s *Store) UpsertCalendar' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
 | 10338 | `DELETE .../Calendar` 删除交易日历记录。 | `grep -F 'func (s *Store) DeleteCalendar' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
 | 10339 | `GET .../Maturity/Page` 分页查询成熟度。 | `grep -F 'func (s *Store) ListMaturity' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
-| 10340 | `POST .../Maturity/Refresh` 异步触发成熟度重算。 | `grep -F 'MaturityRefresh' internal/api/handler/exportarchive_admin.go` 命中 | |
+| 10340 | `POST .../Maturity/Refresh` 异步触发成熟度重算。 | `grep -F 'MaturityRefresh' internal/api/handler/cdeu_admin.go` 命中 | |
 | 10341 | `GET .../Stats/Page` 分页查询入口日统计。 | `grep -F 'func (s *Store) ListIngestStats' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
 | 10342 | `GET .../Budget/Page` 分页查询每日预算。 | `grep -F 'func (s *Store) ListBudgets' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
 | 10343 | `PUT .../Budget/Override` 覆盖当日预算（校验因子区间与硬上限）。 | `grep -F 'func (s *Store) OverrideBudget' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
@@ -531,7 +531,7 @@
 | 10347 | `GET .../UploadLog/Page` 分页查询上传审计。 | `grep -F 'func (s *Store) ListUploadLogs' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
 | 10348 | `GET .../Patch/Page` 分页查询补丁任务。 | `grep -F 'func (s *Store) ListPatches' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
 | 10349 | `POST .../Patch/Retry` 重试补丁任务（重置为 PENDING）。 | `grep -F 'func (s *Store) ResetPatchForRetry' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
-| 10350 | `POST .../Job/Pause` 与 `POST .../Job/Cancel` 暂停 / 取消任务。 | `grep -F 'JobPause' internal/api/handler/exportarchive_admin.go` 与 `grep -F 'JobCancel'` 均命中 | |
+| 10350 | `POST .../Job/Pause` 与 `POST .../Job/Cancel` 暂停 / 取消任务。 | `grep -F 'JobPause' internal/api/handler/cdeu_admin.go` 与 `grep -F 'JobCancel'` 均命中 | |
 | 10351 | 所有写操作追加审计（`job_kind=MANUAL_ADMIN_EDIT`）。 | `grep -F "MANUAL_ADMIN_EDIT" internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
 | 10352 | 前端新增 3 个运维台页面（Stats / Config / Log）。 | `ls Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchive{Stats,Config,Log}View.vue` 列出 3 个文件 | |
 | 10353 | `api.ts` 新增 `apiPut` / `apiDelete`。 | `grep -F 'export async function apiPut' Web/src/api.ts` 与 `grep -F 'export async function apiDelete'` 均命中 | |
@@ -565,7 +565,7 @@
 | 10376 | 节点第三行展示关键指标，表名改为悬浮 / 详情面板展示。 | `grep -F 'chain-node-metric' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` 命中；`grep -F 'currentStep.dataFlow'` 命中（详情面板） | |
 | 10377 | ⑤–⑧ 包裹为「导出任务批次」大节点，展示成功 / 失败 / 总数与分段进度条，随 5 秒运行快照更新。 | `grep -F '导出任务批次' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` 命中；`grep -F 'exportGroup'` 命中 | |
 | 10378 | ⑤–⑧ 子步骤展示各自完成度（装载 / 导出 / 登记的进度条与关键指标）。 | `grep -F 'loadPercent' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` 与 `grep -F 'exportPercent'` 均命中 | |
-| 10379 | `GET /Status` 与 `GET /Job/Runtime` 返回当前月批次进度 `job_progress`。 | `grep -F 'job_progress' internal/api/handler/exportarchive.go` 命中；`grep -F 'JobStatusCountsByMonth' internal/meta/finv/quote/dedup/store_files.go` 命中 | |
+| 10379 | `GET /Status` 与 `GET /Job/Runtime` 返回当前月批次进度 `job_progress`。 | `grep -F 'job_progress' internal/api/handler/cdeu.go` 命中；`grep -F 'JobStatusCountsByMonth' internal/meta/finv/quote/dedup/store_files.go` 命中 | |
 | 10380 | 流程图连接线使用正交折线，并通过实线（主流程）/虚线（旁路）/紫色（定时循环）区分，减少线与线重叠。 | `grep -F 'stroke-linejoin="round"' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` 命中；`grep -c ' C ' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` 输出 `0` | |
 | 10381 | 旁路任务使用 ⑫ / ⑬ / ⑭ 独立序号；⑫ 作为本月导出批次的一部分，补丁数据先进入 ⑤ 中转表，再走 ⑥→⑦→⑧→⑨ 上传。 | `grep -F "no: '⑫'" Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue`、`no: '⑬'`、`no: '⑭'` 均命中；`grep -F "'补丁数据入中转表'"` 命中 | |
 | 10382 | 补丁（L1/L2/L3）先分页装入中转表，再从转存表写 BASE/PATCH 文件，完成后清理中转数据。 | `grep -F 'LoadPatchPage' internal/meta/finv/quote/dedup/store.go` 与 `grep -F 'stagePatchRows' internal/meta/finv/quote/dedup/job_patch.go` 均命中 | |
@@ -656,7 +656,7 @@
 | 10467 | 归档 JOB 定义按单个 JOB 拆分到 `internal/meta/finv/quote/dedup/job/`，每个静态 JOB 一个文件；BASE/INCR/上传等仅入参不同的动态 JOB 复用对应父 JOB 文件。 | `find internal/meta/finv/quote/dedup/job -maxdepth 1 -name '*.go'` 命中 `export.go`、`scan_post_seal_patches.go` 等；`grep -F 'jobdef.All()' internal/meta/finv/quote/dedup/service.go` 命中；`go test ./internal/meta/finv/quote/dedup` 通过 | |
 | 10468 | 归档 JOB 业务执行逻辑迁移到 `dedup/job` 子包：每个 JOB 一个执行文件，通过 `RegisterJobExecutor` 注入 `Service.dispatch`；BASE/INCR 动态导出复用 `export.go`，动态上传复用 `upload_pending_export_files.go`。 | `grep -F 'RegisterJobExecutor' internal/meta/finv/quote/dedup/job/*.go` 命中；`grep -F 'lookupJobExecutor' internal/meta/finv/quote/dedup/job_registry.go` 命中；`grep -F 'dedup/job' cmd/server/main.go` 命中；`go test ./...` 通过 | |
 | 10469 | CDEU 手动执行 JOB 前弹出确认框，默认只执行当前 JOB；勾选「自动续跑同流程下的后续 JOB」后，当前 JOB 完成时按工作流顺序继续执行后续 JOB（同一 `job_kind` 只执行一次）。 | `grep -F '自动续跑同流程下的后续 JOB' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'runSubsequentJobs' internal/meta/finv/quote/dedup/service.go` 命中；`go test ./internal/meta/finv/quote/dedup -run TestSubsequentJobDefinitions` 通过 | |
-| 10470 | 手动触发静态/动态 JOB 时接口立即返回 `run_log_id`，前端无需等待刷新即可打开执行日志弹窗；动态 JOB 改为异步执行。 | `grep -F 'run_log_id' internal/api/handler/exportarchive.go` 命中；`grep -F 'openJobLogByID' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`go test ./internal/api/...` 通过 | |
+| 10470 | 手动触发静态/动态 JOB 时接口立即返回 `run_log_id`，前端无需等待刷新即可打开执行日志弹窗；动态 JOB 改为异步执行。 | `grep -F 'run_log_id' internal/api/handler/cdeu.go` 命中；`grep -F 'openJobLogByID' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`go test ./internal/api/...` 通过 | |
 | 10471 | JOB 执行日志弹窗支持全屏/退出全屏切换，全屏时日志区域占满可用高度。 | `grep -F 'logFullscreen' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'job-log-body-fullscreen' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`npm run build` 通过 | |
 | 10472 | 修复动态导出 JOB 勾选自动续跑后只执行静态后续 JOB 的问题：先按 `dynamic_job_id` 顺序续跑同 Process 的后续动态导出 JOB，再执行静态后续 JOB；日志弹窗展示自动续跑状态，JOB 清单在续跑期间改为 1 秒刷新。 | `grep -F 'runSubsequentDynamicExportJobs' internal/meta/finv/quote/dedup/job_export.go` 命中；`grep -F '手动续跑动态 JOB' internal/meta/finv/quote/dedup/job_export.go` 命中；`docker logs finvquant 2>&1 \| grep '手动续跑动态 JOB'` 观察到连续动态 JOB；`go test ./...` 通过 | |
 | 10473 | 修复 CDEU JOB 清单「处理量」列为空：动态导出 JOB 关联运行日志读取 `processed_rows`/`processed_bytes`，动态上传 JOB 关联导出文件读取 `row_count`/`file_size`；静态 JOB 在 CDEU 运行记录为 0 时回退读取运行日志。 | `curl 'http://localhost:16001/API/V1/Meta/Finv/Quote/DeDup/CDEU/Overview'` 返回的 `JOB_EXPORT_BASE_*` 含非零 `processed_rows`/`processed_bytes`，`JOB_UPLOAD_*` 含非零行数/字节数；`go test ./...` 通过 | |
