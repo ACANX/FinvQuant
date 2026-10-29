@@ -48,3 +48,16 @@ const current = computed<MenuSystem>(
     </v-list>
   </v-menu>
 </template>
+
+<style scoped>
+/* 与平台标题拉开间距：避免标题与一级系统切换器贴在一起 */
+.finv-system-switcher {
+  margin-left: 16px;
+}
+
+@media (max-width: 900px) {
+  .finv-system-switcher {
+    margin-left: 8px;
+  }
+}
+</style>
