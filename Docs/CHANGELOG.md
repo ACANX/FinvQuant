@@ -74,6 +74,11 @@
   - 附可复制模板与 13 项写完后的自检建议、常见毛病对照表，以及统计基线附录。
   - **性质说明**：这是写作参考，不进入 `Docs/DevSpec/` 规范体系，也不占用需求编号；与既有规范冲突时以 `Docs/DevSpec/` 为准。
 
+- **qmio 数据搬运工具设计文档**
+  - 新增 **`Docs/Design/QmioDesign.md`**（体例同 `CdeuWorkflowDesign.md`）：export / import / verify 三个子命令的输入、处理、输出与失败语义。
+  - 覆盖：快照只读导出（`REPEATABLE READ` + `READ ONLY`，`count` 与数据同一快照）、数值列 `::text` 保精度、MVSV-2 19/17 列与 `# Field` 列名映射、`upsert`/`append`/`replace` 三种冲突模式、单事务与 `--force` 三重保护、gzip 魔数识别、`.sha256` 校验、`finvquant.env` 四级自动发现。
+  - 附数据契约、安全与运维约束（含 `--where` 直拼 SQL 与 gmt 文本解析失败写 NULL 两项风险）、常见问题速查、实现现状（断点续传/并行导入/直传对象存储标为未实现）与源码索引。
+
 - **CDEU 归档工作流设计文档（需求 10813）**
   - 新增 **`Docs/Design/CdeuWorkflowDesign.md`**，体例对齐 AHA `Docs/Design`：文档元信息 + 变更日志 + 编号章节 + 表格化结论。
   - 内容覆盖：五级层级（Workflow → Phase → Process → JOB → Step）、定义/运行/动态实例分离、9 种运行状态、完成条件、触发与执行模式、六个阶段（收集 / 去重 / 决策 / 导出 / 上传 / 复核）、17 个 Process、22 个 JOB（含 1 个已停用）、15 个静态 Step。
