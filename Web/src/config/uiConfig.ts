@@ -2,7 +2,7 @@
 //
 // 设计依据：Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md §3.7
 // - classic：保持改造前视觉（无激活条、无抽屉标题、无面包屑）
-// - webcms ：参考 WebCMS 视觉（左侧 3px 主色激活条、抽屉系统标题、面包屑）
+// - webcms ：参考 WebCMS 视觉（左侧 3px 主色激活条、面包屑）
 //
 // 切换方式（优先级从高到低）：
 // 1. URL 参数 ?nav=classic|webcms（命中后写入 localStorage，便于不重新构建即可对比）；
@@ -23,8 +23,6 @@ export const NAV_LAST_PATH_STORAGE_KEY = 'finvquant.nav.lastPathBySystem.v1'
 /** 默认开关（R3 已裁决：默认使用 webcms 新视觉） */
 export const uiDefaults = {
   navVisualStyle: 'webcms' as NavVisualStyle,
-  /** 抽屉顶部系统标题区（仅 webcms 风格） */
-  navDrawerHeader: true,
   /** 面包屑（仅 webcms 风格） */
   navBreadcrumb: true,
 }

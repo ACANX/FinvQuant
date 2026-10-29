@@ -32,7 +32,6 @@ const currentSystem = computed(() => resolveSystem(route.path))
 const currentTrail = computed(() => findMenuTrail(route.path))
 // 视觉风格：classic 保持改造前样式；webcms 追加激活条、抽屉标题、面包屑
 const navVisualStyle = ref(resolveNavVisualStyle())
-const showDrawerHeader = computed(() => navVisualStyle.value === 'webcms' && uiDefaults.navDrawerHeader)
 const showBreadcrumb = computed(() => navVisualStyle.value === 'webcms' && uiDefaults.navBreadcrumb)
 
 // 公开页（登录）不渲染导航框架，避免未登录时先闪一下侧边栏
@@ -170,17 +169,6 @@ watch(
       :permanent="!display.mobile.value"
       :width="300"
     >
-      <!-- 抽屉系统标题（仅 webcms 视觉） -->
-      <div v-if="showDrawerHeader" class="finv-drawer-header">
-        <v-icon :icon="currentSystem.icon" color="primary" size="large" />
-        <div class="finv-drawer-header__text">
-          <div class="finv-drawer-header__title">{{ currentSystem.title }}</div>
-          <div v-if="currentSystem.subtitle" class="finv-drawer-header__subtitle">
-            {{ currentSystem.subtitle }}
-          </div>
-        </div>
-      </div>
-
       <!-- 当前系统的二~四级菜单树 -->
       <NavMenuTree
         :system="currentSystem"
@@ -207,35 +195,18 @@ watch(
 </template>
 
 <style>
-/* 顶栏平台名限宽：为系统切换器与用户菜单留出空间，小屏进一步收缩 */
+/* 平台名完整展示：不参与 flex 拉伸、不限宽、不省略（宽度按内容自适应） */
 .finv-app-title {
-  max-width: 260px;
+  flex: 0 0 auto;
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
 }
 
-@media (max-width: 600px) {
+/* 窄屏（平板竖屏/手机）才限宽，避免顶栏溢出把切换器与用户菜单挤掉 */
+@media (max-width: 900px) {
   .finv-app-title {
-    max-width: 150px;
+    max-width: 200px;
   }
-}
-
-/* 抽屉顶部系统标题（webcms 视觉） */
-.finv-drawer-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-  background-color: rgba(var(--v-theme-surface-variant), 0.6);
-}
-
-.finv-drawer-header__title {
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.finv-drawer-header__subtitle {
-  font-size: 12px;
-  opacity: 0.7;
 }
 </style>

@@ -17,7 +17,7 @@
 | 菜单配置 | 新增 `Web/src/config/menuConfig.ts`：2 个系统（`finvquant` / `cms`）、30 个叶子（29 业务 + 1 占位）、7 个分组；含 `resolveSystem` / `findMenuTrail` / `findFirstLeaf` / `trailToOpenKeys` |
 | UI 开关 | 新增 `Web/src/config/uiConfig.ts`：`classic` / `webcms`（默认 `webcms`），`?nav=` 可覆盖；localStorage 键集中定义 |
 | 菜单组件 | 新增 `Web/src/components/menu/`：`SystemSwitcher.vue`、`NavMenuTree.vue`、`NavMenuTreeNode.vue`（递归）、`NavBreadcrumb.vue` |
-| `App.vue` | 移除内联 `menuItems` 与两层 `v-list-group` 模板，改为 `<NavMenuTree>`；顶栏加系统切换器；抽屉加系统标题（webcms）与 300px 宽度；`v-main` 顶部加面包屑（webcms） |
+| `App.vue` | 移除内联 `menuItems` 与两层 `v-list-group` 模板，改为 `<NavMenuTree>`；顶栏加系统切换器（登录用户菜单保持在最右）；抽屉宽度 300px；`v-main` 顶部加面包屑（webcms） |
 | 路由 | 新增 `/Meta/Finv`（redirect `/Dashboard`）、`/Meta/CMS`（`name: 'cms-home'`，`PlaceholderView`）；其余路由零改动 |
 | 占位页 | `PlaceholderView.vue` 的 `plans` 新增 `cms-home` 文案（唯一视图改动） |
 | 文档 | `Menus.md` 重写（四级树 + 清单加「所属系统」列 + 仪表盘路由笔误修正）、`MenuSpec.md` §1/§1.2、`Docs/Menu/CMS/CMSHome.md` 新增、`CHANGELOG`、`RequirementList` 10803–10807 |
@@ -32,7 +32,7 @@
 - **形态（已裁决 Q1=B）**：一级系统放在**顶栏下拉切换器**中，切换系统后**左侧抽屉联动渲染该系统的二~四级菜单**；左侧菜单分组均可展开/折叠。「内容管理」本轮仅作为**缺省占位系统**（一个占位页），不实现业务功能。
 - **体系定位（2026-10-29 补充）**：`FinvQuant` 即 WebCMS 一级菜单中的 **「金融投资」分系统**，因此顶栏显示名采用 CMS 口径——`金融投资`（内部 key 保持 `finvquant`）、`内容管理`（内部 key `cms`）；CMS 其余一级菜单（控制面板、元数据、系统管理、认证授权、研发运维、AGIS、任务调度）本轮不接入。
 - **实现方式**：菜单数据外置为系统注册表（`Web/src/config/menuConfig.ts`）+ 递归菜单组件（参考 WebCMS 的 `menuConfig.js` + 递归 `TreeMenuItem.vue`），**路由路径与既有视图组件全部保持不变**。
-- **视觉（已裁决 Q10）**：新增 WebCMS 风格视觉（主色激活条 / 抽屉系统标题 / 面包屑），**带风格开关**（`classic` / `webcms`），默认 `webcms`，可一键切回现有视觉以便对比与回退。
+- **视觉（已裁决 Q10）**：新增 WebCMS 风格视觉（主色激活条 / 面包屑），**带风格开关**（`classic` / `webcms`），默认 `webcms`，可一键切回现有视觉以便对比与回退；抽屉顶部系统标题块已按 2026-10-29 反馈移除（与顶栏切换器重复）。
 - **范围**：前端 `Web/` + 菜单相关文档；**不涉及后端、数据库、接口**。
 - **审批状态（2026-10-29）**：Q1–Q11 与 R1–R7 **全部裁决完毕且均按推荐值采纳**（见 §10），方案 **v1.0 定稿并已实施**（实施记录见上）。
 
@@ -321,7 +321,6 @@ export type NavVisualStyle = 'classic' | 'webcms'
 
 export const uiDefaults = {
   navVisualStyle: 'webcms' as NavVisualStyle, // 默认新风格（R3）
-  navDrawerHeader: true,                      // 抽屉顶部系统标题区
   navBreadcrumb: true,                        // 面包屑
 }
 
@@ -332,7 +331,7 @@ export function resolveNavVisualStyle(): NavVisualStyle
 | 视觉项 | `classic`（回退现状） | `webcms`（新风格，默认） |
 |---|---|---|
 | 叶子激活 | 背景高亮（现状） | 背景高亮 + 左侧 3px 主色条 |
-| 抽屉顶部标题 | 不渲染 | 渲染（图标 + 当前系统名，浅色分隔线） |
+| 抽屉顶部标题 | 不渲染 | **不渲染**（2026-10-29 按反馈移除：与顶栏切换器重复展示系统名） |
 | 面包屑 | 不渲染 | 渲染（`v-main` 内、`v-container` 之上） |
 | 其余（展开箭头、缩进、字体） | 一致 | 一致 |
 
