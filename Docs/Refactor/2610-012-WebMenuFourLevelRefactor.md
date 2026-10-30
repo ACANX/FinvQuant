@@ -98,11 +98,11 @@
 | 旧层级 | 新层级 | 举例 |
 |---|---|---|
 | —（新增） | 一级：系统 | `金融投资`、`内容管理` |
-| 一级分组 | 二级分组 | 数据采集、历史行情、元数据管理、量化策略验证 |
-| 一级叶子 | 二级叶子 | 仪表盘、配置管理、策略管理、回测分析、仿真/模拟/实盘 4 项 |
+| 一级分组 | 二级分组 | 数据采集、历史行情、元数据管理（「量化策略验证」已于需求 10847 撤除，其叶子移入「量化 → 回测」） |
+| 一级叶子 | 二级叶子 | 仪表盘、配置管理、策略管理、仿真/模拟/实盘 4 项（回测分析已于 10847 移入「量化 → 回测」） |
 | 四级叶子（需求 10846） | —（三级挂载） | 环境管理、模板管理、账户管理、资金管理、持仓管理（原二级叶子，现挂「量化 → MVP配置」下） |
 | 二级分组 | 三级分组 | 行情数据去重、行情数据归档、业务元数据维护 |
-| 二级叶子 | 三级叶子 | 历史行情查询、黄金期货合约回测验证 |
+| 二级叶子 | 三级叶子 | 历史行情查询（黄金期货合约回测验证已于 10847 移入「量化 → 回测」） |
 | 三级叶子 | **四级叶子** | 去重分钟行情查询/统计、归档 8 项、元数据 4 项 |
 
 **规则 R2**：树深度不强行拉平。允许某些分支只到二/三级（如「历史行情 → 历史行情查询」为二级分组 → 三级叶子），**不得**为了凑满四级而人为加分组层。
@@ -127,7 +127,7 @@ export interface MenuSystem extends MenuNode {
 │  【顺序约定，需求 10840/10841/10842】仪表盘 → 元数据 → 配置管理 → 行情 → 量化 → 数据采集 → 其余
 │  【量化（需求 10841/10843/10846）】二级分组，下列三级节点：
 │      MVP配置（原占位，10846 起挂「环境管理/模板管理/账户管理/资金管理/持仓管理」5 个四级叶子）、
-│      回测（占位）
+│      回测（10847 起挂「黄金期货合约回测验证」「回测分析」2 个四级叶子）
 ├─ 数据采集（二级分组）
 │  ├─ 行情数据去重（三级分组）
 │  │  ├─ 去重分钟行情查询（四级叶子，/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query）
@@ -154,10 +154,7 @@ export interface MenuSystem extends MenuNode {
 │     └─ 规范证券信息维护（四级叶子，/meta/security）
 │        （历史行情数据导入已于需求 10844 移入「行情 → 历史行情」）
 ├─ 配置管理（二级叶子，/Meta/Finv/Quant/Config）
-├─ 量化策略验证（二级分组）
-│  └─ 黄金期货合约回测验证（三级叶子，/Meta/Finv/Quant/Backtest/GoldFutures）
 ├─ 策略管理（二级叶子，/Meta/Finv/Quant/Strategy）
-├─ 回测分析（二级叶子，/Meta/Finv/Quant/Backtest/Analysis）
 ├─ 仿真数据验证（二级叶子，/Meta/Finv/Quant/Simulation/Data）
 ├─ 模拟盘验证（二级叶子，/Meta/Finv/Quant/Simulation/Paper）
 ├─ 实盘仿真验证（二级叶子，/Meta/Finv/Quant/Simulation/LiveSim）
@@ -667,10 +664,10 @@ go test ./internal/docs
 | 26 | 账户管理 | 二级叶子 | **四级叶子**（挂 `quant-mvp-config`） | `account` | `/Meta/Finv/Quant/Account` |
 | 27 | 资金管理 | 二级叶子 | **四级叶子**（挂 `quant-mvp-config`） | `fund` | `/Meta/Finv/Quant/Fund` |
 | 28 | 持仓管理 | 二级叶子 | **四级叶子**（挂 `quant-mvp-config`） | `position` | `/Meta/Finv/Quant/Position` |
-| 29 | 量化策略验证 | 一级分组 | 二级分组 | `quant-backtest` | — |
-| 30 | 黄金期货合约回测验证 | 二级叶子 | 三级叶子 | `backtest-gold-futures` | `/Meta/Finv/Quant/Backtest/GoldFutures` |
+| 29 | ~~量化策略验证~~ | 已撤除（需求 10847） | — | `quant-backtest` | — |
+| 30 | 黄金期货合约回测验证 | 二级叶子 | **四级叶子**（挂 `quant-backtest-menu`） | `backtest-gold-futures` | `/Meta/Finv/Quant/Backtest/GoldFutures` |
 | 31 | 策略管理 | 一级叶子 | 二级叶子 | `strategy` | `/Meta/Finv/Quant/Strategy` |
-| 32 | 回测分析 | 一级叶子 | 二级叶子 | `backtest-analysis` | `/Meta/Finv/Quant/Backtest/Analysis` |
+| 32 | 回测分析 | 一级叶子 | **四级叶子**（挂 `quant-backtest-menu`） | `backtest-analysis` | `/Meta/Finv/Quant/Backtest/Analysis` |
 | 33 | 仿真数据验证 | 一级叶子 | 二级叶子 | `simulation-data` | `/Meta/Finv/Quant/Simulation/Data` |
 | 34 | 模拟盘验证 | 一级叶子 | 二级叶子 | `simulation-paper` | `/Meta/Finv/Quant/Simulation/Paper` |
 | 35 | 实盘仿真验证 | 一级叶子 | 二级叶子 | `simulation-live-sim` | `/Meta/Finv/Quant/Simulation/LiveSim` |

@@ -107,6 +107,30 @@
 
 ### 变更
 
+- **「黄金期货合约回测验证」「回测分析」移入「量化 → 回测」（需求 10847）**
+  - 授权：用户明确要求「『黄金期货合约回测验证』菜单放到『回测』菜单下。『回测分析』放到『回测』菜单下」。
+  - 改动（`Web/src/config/menuConfig.ts`）：
+    · 「黄金期货合约回测验证」（`backtest-gold-futures`）从「量化策略验证」分组移入
+      「量化 → 回测」（`quant-backtest-menu`）；
+    · 「回测分析」（`backtest-analysis`）从顶层移入同一分组，排在黄金期货之后；
+    · 两个叶子的 key、标题、路由路径保持不变，展开状态与页面路由不受影响；
+    · 「量化策略验证」（`quant-backtest`）叶子移空，分组随之删除。
+  - 结果结构：顶层二级菜单剩 11 项（仪表盘 / 元数据 / 配置管理 / 行情 / 量化 / 数据采集 /
+    策略管理 / 仿真数据验证 / 模拟盘验证 / 实盘仿真验证 / 实盘交易）；
+    「量化 → 回测」由空占位变为挂 2 个叶子。
+  - 过程中纠正一处自造缺陷：脚本改动时误把「回测」节点的 `icon` 行覆盖成注释，
+    已恢复 `icon: 'mdi-history'`（否则该菜单会重新出现「无图标」）。
+  - 验证（脚本实测）：顶层顺序为 `dashboard, metadata, config-manage, quote, quant,
+    data-collection, strategy, simulation-data, simulation-paper, simulation-live-sim,
+    live-trading`；「回测」节点含 `icon: 'mdi-history'` 且 children 为
+    {黄金期货合约回测验证, 回测分析}；`quant-backtest` 已不存在；`backtest-analysis`
+    在配置中出现 1 次；40 个菜单图标全部有效；所有 `path` 均有对应路由；无重复 key；
+    `npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §1 深度统计表、§2.2 菜单树、
+    节点明细表同步（「量化策略验证」标记已撤除，两叶子层级改标四级）。
+
+### 变更
+
 - **5 个配置类叶子移入「量化 → MVP配置」（需求 10846）**
   - 授权：用户明确要求把「环境管理」「模板管理」「账户管理」「资金管理」「持仓管理」
     移动到「MVP配置」菜单下。

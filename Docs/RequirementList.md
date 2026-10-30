@@ -2444,6 +2444,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10846 | 「环境管理」「模板管理」「账户管理」「资金管理」「持仓管理」从二级（顶层）移动到「量化 → MVP配置」下作为四级叶子；key、标题、路径均不变。 | `grep -c "key: 'quant-mvp-config'" Web/src/config/menuConfig.ts` 为 1，且 `environment`/`template`/`account`/`fund`/`position` 各出现 1 次并位于该节点 `children` 内；顶层顺序为 `dashboard, metadata, config-manage, quote, quant, data-collection, quant-backtest, strategy, backtest-analysis, simulation-data, simulation-paper, simulation-live-sim, live-trading`；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
 
+## 一百七十三、回测类叶子移入「量化 → 回测」（10847）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10847 | 「黄金期货合约回测验证」与「回测分析」移入「量化 → 回测」下作为四级叶子；原「量化策略验证」分组因叶子移空而删除；两叶子 key、标题、路径不变。 | `grep -c "key: 'quant-backtest-menu'" Web/src/config/menuConfig.ts` 为 1 且其 `children` 为 {`backtest-gold-futures`, `backtest-analysis`}、`icon: 'mdi-history'` 存在；`grep -c "key: 'quant-backtest'" ` 为 0（已撤除）；`backtest-analysis` 在配置中出现 1 次；顶层顺序为 `dashboard, metadata, config-manage, quote, quant, data-collection, strategy, simulation-data, simulation-paper, simulation-live-sim, live-trading`；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2644,7 +2650,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 「历史行情数据导入」移入「历史行情」 | 10844 | 1 |
 | CDEU 工作流面板移入 ETL 并改名 | 10845 | 1 |
 | 5 个配置类叶子移入 MVP配置 | 10846 | 1 |
-| **合计** | **10001–10846** | **845** |
+| 回测类叶子移入「量化 → 回测」 | 10847 | 1 |
+| **合计** | **10001–10847** | **846** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

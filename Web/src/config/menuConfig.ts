@@ -99,8 +99,9 @@ const finvQuantMenu: MenuNode[] = [
     ],
   },
   {
-    // 「量化」二级分组（需求 10841 建立，10843 加两个三级子菜单）。
-    // 现有量化相关节点（量化策略验证 / 策略管理 / 回测分析 / 仿真与实盘验证）暂不移动。
+    // 「量化」二级分组（需求 10841 建立；10843 加两个三级子菜单；
+    // 10846/10847 分别把配置类叶子与回测类叶子迁入 MVP配置 / 回测）。
+    // 仍留在顶层的量化相关节点：策略管理、仿真数据验证、模拟盘验证、实盘仿真验证、实盘交易。
     key: 'quant',
     title: '量化',
     icon: 'mdi-sigma',
@@ -119,11 +120,14 @@ const finvQuantMenu: MenuNode[] = [
         ],
       },
       {
-        // 回测（需求 10843）：同上，先占位；现有回测页面仍在「量化策略验证 / 回测分析」下。
+        // 回测（需求 10843 建立占位，10847 迁入「黄金期货合约回测验证」与「回测分析」）。
         key: 'quant-backtest-menu',
         title: '回测',
         icon: 'mdi-history',
-        children: [],
+        children: [
+          { key: 'backtest-gold-futures', title: '黄金期货合约回测验证', icon: 'mdi-chart-bell-curve', path: '/Meta/Finv/Quant/Backtest/GoldFutures' },
+          { key: 'backtest-analysis', title: '回测分析', icon: 'mdi-chart-timeline-variant', path: '/Meta/Finv/Quant/Backtest/Analysis' },
+        ],
       },
     ],
   },
@@ -157,16 +161,7 @@ const finvQuantMenu: MenuNode[] = [
       },
     ],
   },
-  {
-    key: 'quant-backtest',
-    title: '量化策略验证',
-    icon: 'mdi-flask-outline',
-    children: [
-      { key: 'backtest-gold-futures', title: '黄金期货合约回测验证', icon: 'mdi-chart-bell-curve', path: '/Meta/Finv/Quant/Backtest/GoldFutures' },
-    ],
-  },
   { key: 'strategy', title: '策略管理', icon: 'mdi-sitemap-outline', path: '/Meta/Finv/Quant/Strategy' },
-  { key: 'backtest-analysis', title: '回测分析', icon: 'mdi-chart-timeline-variant', path: '/Meta/Finv/Quant/Backtest/Analysis' },
   { key: 'simulation-data', title: '仿真数据验证', icon: 'mdi-database-sync-outline', path: '/Meta/Finv/Quant/Simulation/Data' },
   { key: 'simulation-paper', title: '模拟盘验证', icon: 'mdi-account-cash-outline', path: '/Meta/Finv/Quant/Simulation/Paper' },
   { key: 'simulation-live-sim', title: '实盘仿真验证', icon: 'mdi-robot-outline', path: '/Meta/Finv/Quant/Simulation/LiveSim' },
