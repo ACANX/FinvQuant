@@ -88,6 +88,12 @@ const finvQuantMenu: MenuNode[] = [
           { key: 'dedup-kline-query', title: 'K线数据查询', icon: 'mdi-table-search', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query' },
           // 需求 10857：同源移入并改名为「K线数据统计」（原「去重分钟行情统计」）。
           { key: 'dedup-kline-stats', title: 'K线数据统计', icon: 'mdi-chart-box-outline', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats' },
+          // 需求 10858：从「数据采集 → 行情数据归档」整批移入 5 个归档运维页面。
+          { key: 'dedup-export-job', title: '导出任务', icon: 'mdi-clipboard-list-outline', path: '/Meta/Finv/Quote/DeDup/Export/Job' },
+          { key: 'dedup-export-file', title: '文件与上传', icon: 'mdi-file-cloud-outline', path: '/Meta/Finv/Quote/DeDup/Export/File' },
+          { key: 'dedup-export-stats', title: '归档统计与预算', icon: 'mdi-chart-box-multiple-outline', path: '/Meta/Finv/Quote/DeDup/Export/Stats' },
+          { key: 'dedup-export-config', title: '归档主数据与规则', icon: 'mdi-tune-variant', path: '/Meta/Finv/Quote/DeDup/Export/Config' },
+          { key: 'dedup-export-log', title: '归档日志与补丁', icon: 'mdi-text-box-search-outline', path: '/Meta/Finv/Quote/DeDup/Export/Log' },
         ],
       },
       {
@@ -176,11 +182,6 @@ const finvQuantMenu: MenuNode[] = [
         children: [
           { key: 'dedup-export-overview', title: '归档监控总览', icon: 'mdi-monitor-dashboard', path: '/Meta/Finv/Quote/DeDup/Export/Overview' },
           { key: 'dedup-export-chain', title: '端到端链路', icon: 'mdi-transit-connection-variant', path: '/Meta/Finv/Quote/DeDup/Export/Chain' },
-          { key: 'dedup-export-job', title: '导出任务', icon: 'mdi-clipboard-list-outline', path: '/Meta/Finv/Quote/DeDup/Export/Job' },
-          { key: 'dedup-export-file', title: '文件与上传', icon: 'mdi-file-cloud-outline', path: '/Meta/Finv/Quote/DeDup/Export/File' },
-          { key: 'dedup-export-stats', title: '归档统计与预算', icon: 'mdi-chart-box-multiple-outline', path: '/Meta/Finv/Quote/DeDup/Export/Stats' },
-          { key: 'dedup-export-config', title: '归档主数据与规则', icon: 'mdi-tune-variant', path: '/Meta/Finv/Quote/DeDup/Export/Config' },
-          { key: 'dedup-export-log', title: '归档日志与补丁', icon: 'mdi-text-box-search-outline', path: '/Meta/Finv/Quote/DeDup/Export/Log' },
         ],
       },
     ],
