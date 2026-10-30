@@ -20,6 +20,12 @@
 
 ### 新增
 
+- **业务月份改为自动生成的下拉列表（需求 10828）**
+  - 业务月份是确定的枚举值（`yyyymm`），原先三处都是手工输入 `v-text-field`（交易日历、成熟度查询、导出文件筛选），容易输错格式触发「业务月份格式应为 yyyymm」校验。
+  - 新增 `Web/src/utils.ts` 的 `bizMonthOptions(years = 10, now = new Date())`：按年月倒序生成最近 10 年（含当前月，共 120 项）的选项，`value` 为 `yyyymm` 字符串（与既有 `bizMonthParam` 解析口径一致）、`title` 为 `yyyy-MM`。
+  - `DeDupArchiveConfigView`（交易日历）、`DeDupArchiveStatsView`（成熟度查询）、`DeDupExportFileView`（导出文件筛选）、`DeDupExportJobView`（导出任务筛选）四处输入框改为 `v-select`，选项由 `computed` 生成；保持 `clearable`、不预选（空值 = 不按月筛选，与原行为一致）。
+  - 验证：`bizMonthOptions(10, new Date(2026, 9, 30))` 返回 120 项，首项 `2026-10`、末项 `2016-11`；`vue-tsc -b` 与 `npm run build` 通过。
+
 - **日增量行数模板表 + `day_expect_rows` 自动补全（需求 10820）**
   - 新增迁移 `Deploy/Migrations/V100084__create_cdeu_usc_day_incr_row_tpl.sql`：新建 `cdeu.finv_quote_cdeu_usc_day_incr_row_tpl`（8 列：`region` / `market` / `category` 均可为空串表示通配、`day_expect_rows` INTEGER CHECK > 0、`flag_enable` CHAR(1)、`remark`、`gmt_create` / `gmt_update`），主键 `(region, market, category)`，`gmt_update` 复用 `public.vq_set_gmt_update()` 触发器；`cdeu` 域表数 26 → 27（`DbSchemaSpec` §1 已同步）。
   - 新增种子迁移 `Deploy/Migrations/V200065__cdeu_usc_day_incr_row_tpl_seed.sql`：预置 10 行市场模板（`ON CONFLICT DO NOTHING`，不覆盖运维调整）——`CN/SH`、`CN/SZ`、`CN/BJ` = 241；`HK/HK`、`HK/HKR` = 331；`US/NSDQ`、`US/PINK` = 390；`US/COMEX`、`FX/CFD` = 1380；`GLOBAL/*/Crypto` = 1440（每行取值依据写在迁移头部）。

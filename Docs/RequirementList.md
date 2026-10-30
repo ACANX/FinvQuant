@@ -2336,6 +2336,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10827 | 重复执行证券补全流程时，`priority_rank` / `sla_days` / `max_wait_days` 只能对「从未配置过」（三列全空且 `priority_gmt_update IS NULL`）的证券补默认值 100/5/7；`priority_gmt_update` 非空的空值行表示人工清空，不得再补；同时补全方法在无缺口时应快速返回（一次 count 判定，不执行后续大表 JOIN/UPDATE）。 | `grep -c 'AND priority_gmt_update IS NULL' internal/meta/finv/quote/dedup/store.go` ≥ 2（阶段 SQL 与缺口判定各一处）；`grep -c '稳态快速返回' internal/meta/finv/quote/dedup/store.go` 为 1；库内验证：将某证券三列清空并置 `priority_gmt_update = now()`，跑一轮 `REFRESH_QUOTE_MATURITY` 后该行三列仍为 NULL；将另一证券三列清空且 `priority_gmt_update = NULL`，同一轮后补成 100/5/7；再跑一轮 JOB 日志出现「优先级 0」 | |
 
+## 一百五十五、业务月份改为自动生成的下拉列表（10828）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10828 | 「业务月份」不再手工输入，改为按年月自动生成的下拉列表（默认最近 10 年、含当前月、最新在前）；交易日历、成熟度查询、导出文件筛选、导出任务筛选四处统一使用；下拉可清空且不预选（空值 = 不按月筛选）。 | `grep -c 'export function bizMonthOptions' Web/src/utils.ts` 为 1；`grep -rc 'bizMonthOptions' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveConfigView.vue Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveStatsView.vue Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportJobView.vue` 各 ≥ 2（import + 引用）；四文件内不再出现 `v-text-field ... label="业务月份"`；`cd Web && npx vue-tsc -b` 与 `npm run build` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2518,7 +2524,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | GitHub 大文件上传与去重口径 | 10825 | 1 |
 | 补齐 day_expect_rows 后重算成熟度 | 10826 | 1 |
 | 补全流程不覆盖人工清空的优先级 | 10827 | 1 |
-| **合计** | **10001–10827** | **827** |
+| 业务月份自动下拉列表 | 10828 | 1 |
+| **合计** | **10001–10828** | **828** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

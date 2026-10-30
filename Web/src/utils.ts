@@ -82,6 +82,23 @@ export function fmtBytes(v: number | null | undefined): string {
   return `${value.toFixed(2)} ${units[index]}`
 }
 
+/**
+ * 业务月份下拉选项：默认最近 10 年（含当前月），倒序（最新在前）。
+ *
+ * value 用「yyyymm 字符串」，与页面既有的 bizMonthParam 解析口径一致；
+ * title 用 yyyy-MM 便于阅读。业务月份是确定的枚举值，不需要人工输入。
+ */
+export function bizMonthOptions(years = 10, now: Date = new Date()): { title: string; value: string }[] {
+  const options: { title: string; value: string }[] = []
+  const base = new Date(now.getFullYear(), now.getMonth(), 1)
+  for (let offset = 0; offset < years * 12; offset += 1) {
+    const month = new Date(base.getFullYear(), base.getMonth() - offset, 1)
+    const value = month.getFullYear() * 100 + (month.getMonth() + 1)
+    options.push({ title: fmtMonth(value), value: String(value) })
+  }
+  return options
+}
+
 /** yyyymm 数字 → yyyy-MM（0 / 空返回 '-'） */
 export function fmtMonth(v: number | null | undefined): string {
   if (!v) return '-'

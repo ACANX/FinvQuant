@@ -1,10 +1,10 @@
 <script setup lang="ts">
 // 归档统计与预算：入口日统计、每日预算（可覆盖）、扫描水位（可重置）、成熟度（可重算）
 // 接口：Stats/Page、Budget/Page、Budget/Override、Watermark/List、Watermark、Maturity/Page、Maturity/Refresh
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 import { apiGet, apiPost, apiPut } from '../../../../../../api'
-import { fmtBytes, fmtDate, fmtISO, fmtMonth, fmtNum, fmtPct, isoDate } from '../../../../../../utils'
+import { bizMonthOptions, fmtBytes, fmtDate, fmtISO, fmtMonth, fmtNum, fmtPct, isoDate } from '../../../../../../utils'
 
 interface PageData<T> {
   total: number
@@ -104,6 +104,8 @@ const maturityPageSize = ref(20)
 const maturityUsc = ref('')
 const maturityStatus = ref<string | null>(null)
 const maturityMonth = ref('')
+/** 业务月份是确定的枚举值：默认最近 10 年（yyyymm），最新在前 */
+const bizMonthItems = computed(() => bizMonthOptions())
 const maturityLoading = ref(false)
 const refreshing = ref(false)
 
@@ -427,7 +429,8 @@ onMounted(async () => {
               <v-select v-model="maturityStatus" :items="maturityStatusItems" label="成熟度" density="compact" hide-details clearable />
             </v-col>
             <v-col cols="12" sm="4" md="2">
-              <v-text-field v-model="maturityMonth" label="业务月份" placeholder="如 202608" density="compact" hide-details clearable />
+              <v-select v-model="maturityMonth" :items="bizMonthItems"
+                        label="业务月份" density="compact" hide-details clearable />
             </v-col>
             <v-col cols="auto">
               <v-btn color="primary" prepend-icon="mdi-magnify" :loading="maturityLoading" @click="loadMaturity">查询</v-btn>

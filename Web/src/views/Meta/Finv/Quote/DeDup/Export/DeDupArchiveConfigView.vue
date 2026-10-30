@@ -4,7 +4,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 
 import { apiDelete, apiGet, apiPut } from '../../../../../../api'
-import { fmtISO, fmtNum, isoDate } from '../../../../../../utils'
+import { bizMonthOptions, fmtISO, fmtNum, isoDate } from '../../../../../../utils'
 
 interface PageData<T> {
   total: number
@@ -80,6 +80,8 @@ const calendarPage = ref(1)
 const calendarPageSize = ref(20)
 const calendarUsc = ref('')
 const calendarMonth = ref('')
+/** 业务月份是确定的枚举值：默认最近 10 年（yyyymm），最新在前 */
+const bizMonthItems = computed(() => bizMonthOptions())
 const calendarLoading = ref(false)
 const calendarDialog = ref(false)
 const calendarSaving = ref(false)
@@ -427,7 +429,8 @@ onMounted(async () => {
               <v-text-field v-model="calendarUsc" label="证券[USC]" density="compact" hide-details clearable />
             </v-col>
             <v-col cols="12" sm="4" md="2">
-              <v-text-field v-model="calendarMonth" label="业务月份" placeholder="如 202608" density="compact" hide-details clearable />
+              <v-select v-model="calendarMonth" :items="bizMonthItems"
+                        label="业务月份" density="compact" hide-details clearable />
             </v-col>
             <v-col cols="auto">
               <v-btn color="primary" prepend-icon="mdi-magnify" :loading="calendarLoading" @click="loadCalendar">查询</v-btn>
