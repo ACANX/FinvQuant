@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/acanx/finvquant/internal/mvsv"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/mvsv"
 )
 
 func sp(v string) *string { return &v }

@@ -18,15 +18,873 @@
 
 > 0.1.4 开发中。变更按 `新增` / `变更` / `修复` / `移除` / `安全` 分类追加，发布时整体改为版本号并补日期。
 
+### 新增
+
+- **业务月份改为自动生成的下拉列表（需求 10828）**
+  - 业务月份是确定的枚举值（`yyyymm`），原先三处都是手工输入 `v-text-field`（交易日历、成熟度查询、导出文件筛选），容易输错格式触发「业务月份格式应为 yyyymm」校验。
+  - 新增 `Web/src/utils.ts` 的 `bizMonthOptions(years = 10, now = new Date())`：按年月倒序生成最近 10 年（含当前月，共 120 项）的选项，`value` 为 `yyyymm` 字符串（与既有 `bizMonthParam` 解析口径一致）、`title` 为 `yyyy-MM`。
+  - `DeDupArchiveConfigView`（交易日历）、`DeDupArchiveStatsView`（成熟度查询）、`DeDupExportFileView`（导出文件筛选）、`DeDupExportJobView`（导出任务筛选）四处输入框改为 `v-select`，选项由 `computed` 生成；保持 `clearable`、不预选（空值 = 不按月筛选，与原行为一致）。
+  - 验证：`bizMonthOptions(10, new Date(2026, 9, 30))` 返回 120 项，首项 `2026-10`、末项 `2016-11`；`vue-tsc -b` 与 `npm run build` 通过。
+
+- **日增量行数模板表 + `day_expect_rows` 自动补全（需求 10820）**
+  - 新增迁移 `Deploy/Migrations/V100084__create_cdeu_usc_day_incr_row_tpl.sql`：新建 `cdeu.finv_quote_cdeu_usc_day_incr_row_tpl`（8 列：`region` / `market` / `category` 均可为空串表示通配、`day_expect_rows` INTEGER CHECK > 0、`flag_enable` CHAR(1)、`remark`、`gmt_create` / `gmt_update`），主键 `(region, market, category)`，`gmt_update` 复用 `public.vq_set_gmt_update()` 触发器；`cdeu` 域表数 26 → 27（`DbSchemaSpec` §1 已同步）。
+  - 新增种子迁移 `Deploy/Migrations/V200065__cdeu_usc_day_incr_row_tpl_seed.sql`：预置 10 行市场模板（`ON CONFLICT DO NOTHING`，不覆盖运维调整）——`CN/SH`、`CN/SZ`、`CN/BJ` = 241；`HK/HK`、`HK/HKR` = 331；`US/NSDQ`、`US/PINK` = 390；`US/COMEX`、`FX/CFD` = 1380；`GLOBAL/*/Crypto` = 1440（每行取值依据写在迁移头部）。
+  - 新增 `Store.BackfillUscDefaults`（`internal/meta/finv/quote/dedup/store.go`）：对 `cdeu.finv_quote_cdeu_usc.day_expect_rows` 为空的证券按模板补全，匹配按 `region + market + category`（`upper()` 归一化、支持空串通配、特异性降序取第一条启用模板），**已配置的非空值一律不覆盖**；模板未命中保持 NULL（不凭空给默认值，避免成熟度误判）。
+  - 挂载点：成熟度刷新 JOB（`DiscoverUsc` 之后）与导出 JOB 的元数据阶段（`RefreshSecurityMetadata` 之后）；JOB `Details` 与进度日志输出补全行数。存量缺值证券在下一轮 JOB 自动收敛，不再需要逐个用 `PUT /Usc` 人工补。
+  - 说明：港股 331 是按「330 分钟 + 1，与 A 股 241 同口径」推导的值；若上游分钟源实际每日 332 根，在成熟度阈值 0.95 下两种取值都能判定 `COMPLETE`，直接改模板表对应行的值即可（不需改代码）。
+
+- **自动发现时补全优先级 / SLA / 最大等待默认值（需求 10821）**
+  - `priority_rank` / `sla_days` / `max_wait_days` 三列同时为 NULL（未配置）时，由 `BackfillUscDefaults` 统一补 100 / 5 / 7（沿用 `V100051` 以来的兜底口径），使 CDEU 流程无需人工预配置即可开始运行；人工设置过的值不被覆盖。
+  - 自动补全**不写** `priority_gmt_update`：该列为 NULL 即表示「默认值」、非 NULL 表示「人工设置过」，运维台据此区分两者（三列不进模板表，用户 2026-10-30 明确）。
+  - 新增集成用例 `TestBackfillUscDefaults`（`store_backfill_integration_test.go`）：验证模板命中性（`HK/HK` → 331）、已配置值不覆盖、未命中保持 NULL、优先级默认值 100/5/7、二次执行幂等（默认跳过，需 `FINV_TEST_PG_DSN`）。
+
+### 新增
+
+- **初始数据发放纳入迁移脚本（`V200062`–`V200064`，需求 10819）**
+  - `Deploy/Migrations/V200062__finv_security_seed_supabase.sql`（4.3 MB / 17,129 行 / 35 条批量 INSERT）：`finv_security` 初始数据，`ON CONFLICT DO NOTHING`。
+  - `Deploy/Migrations/V200063__finv_futu_quote_collect_seed_supabase.sql`（2.5 MB / 17,138 行）：`futu.finv_futu_quote_collect` 初始数据，`ON CONFLICT DO NOTHING`。
+  - `Deploy/Migrations/V200064__finv_security_fix_hk_rmb_counter_currency.sql`（72 行）：港币人民币柜台 `currency_type → CNY` 的幂等收敛，保证全新库与生产库一致（`V200009` 把 `81810` 写成 `HKD`，而 `V200062` 因 `ON CONFLICT DO NOTHING` 不覆盖已有行）。
+  - 生成方式：`FinvQuantDesign/Scripts/SecuSync/` 的 `ExportSecu.py` / `BuildFutuQuoteCollect.py` / `FixSecuCurrency.py` 新增 `--migration-out <path>`，可从上游快照直接再生成迁移文件（文件名版本号从 `V<数字>__` 解析）。
+  - 全新库验证：新建 `finv_verify` 库按版本号顺序执行全部 148 个迁移，均成功；`futu.finv_futu_quote_collect` 17,138 行与生产库逐字段完全一致；`finv_security` 17,199 行中有 44 行字段差异——42 行是生产库人工维护的 `market_code` / `flag_enable`（种子值为 `0`），2 行是历史 `usc` 治理口径不同（生产库曾把 `000680` / `000985` 的两个上证指数改为 `SH0680` / `SH0985` 以让出代码给深市股票，本次数据因此能插入山推股份与大庆华科；迁移脚本未包含该次治理）。
+  - 生产库已执行三个迁移（影响 0 行，幂等）并登记 `schema_version`，共 148 条。
+
+- **新建富途原始属性镜像表 `futu.finv_futu_quote_collect`（需求 10818）**
+  - 新增迁移 `Deploy/Migrations/V100083__create_futu_finv_futu_quote_collect.sql`：14 列（`usc` 主键、`stock_id` BIGINT、`futu_symbol`、`market_type` / `market_code` / `instrument_type` / `sub_instrument_type`（INTEGER）、`req_section` 可空、`quote_market`、`type_symbol`、`flag_enable` CHAR(1) DEFAULT '0'、`remark` TEXT NOT NULL DEFAULT ''、`gmt_create` / `gmt_update`），另建唯一索引 `(market_code, futu_symbol)`、索引 `stock_id` 与 `(type_symbol, flag_enable)`，`gmt_update` 复用 `public.vq_set_gmt_update()` 触发器；表属 `futu` 域（`DbSchemaSpec` §1 已登记）。
+  - 数据初始化与增量同步由仓库外工具 `FinvQuantDesign/Scripts/SecuSync/BuildFutuQuoteCollect.py` 完成：默认 `upsert`（`ON CONFLICT (usc) DO UPDATE`，`gmt_create` 不覆盖、`gmt_update` 由触发器刷新），`--conflict-mode append` 可只插不改，`--baseline <上一份快照> --only-changes` 只生成上游新增/变更的行。
+  - 首次初始化：17138 行（上游 `flag_enable='1'` 全量，0 拒绝），与 `finv_security` 的 `usc` 对位 17129 条（差 9 条为上游 `name_sc` / `type_secu` 为空而未入 `finv_security` 的记录）。
+
+- **`finv_security` 扩展三列并支持 Supabase 证券主数据批量导入（需求 10814–10816）**
+  - 新增迁移 `Deploy/Migrations/V100082__finv_security_add_type_secu_sub_provider_remark.sql`：给 `public.finv_security` 增加 `type_secu_sub`、`provider`、`remark` 三列（`TEXT NOT NULL DEFAULT ''`，空串=未维护/未标注/无备注），语义位置分别为 `security_type` 之后、`tz` 之后、`flag_enable` 之后，末尾做列定义收敛校验。
+  - 仓库外新增导入工具 `FinvQuantDesign/Scripts/SecuSync/`（Python 3 标准库，无第三方依赖）：`DownloadSecu.py` 以游标分页（`order=usc.asc` + `usc=gt.`）+ 上游 `count` 核对 + 指数退避重试，把 `finv_quote_collect_futu_view`（`flag_enable='1'`）落盘为 JSONL + manifest（上游总数/实拉行数/sha256）到 `Data/Secu/`；`ExportSecu.py` 按 `SecuMapping.json` 把富途 `market_code` 转换为 `finv_market.market_code`，产出目标行 JSONL、幂等插入 SQL（`BEGIN` / 每 500 行一条 `INSERT ... ON CONFLICT DO NOTHING` / 收敛校验 / `COMMIT`）与转换报告（统计、拒绝明细、待确认项）。
+  - 本批次导入约定：`flag_enable='0'`（新行默认禁用）、`provider='FTMM'`、`remark='20261030-SupabasePG-finv_quote_collect_futu_view批量导入'`；**表中已有记录不做更新**（主键 `usc` 与唯一约束 `(exchange_code, security_code)` 命中即整行跳过）。
+  - 首次实测（2026-10-30 快照，17,138 条源记录）：可插入 17,129 条，拒绝 9 条（`name_sc` 空 6 条、`type_secu` 空 3 条）；生成的 SQL 与目标行 JSONL 逐行逐值核对一致。
+  - 文档同步：`Docs/DataDictMapping/FinvSecurity.md` 字段表补三列并新增「扩展列」「Supabase 批量导入批次」两条说明。
+
 ### 变更
 
+- **`AGENTS.md` 新增「授权边界（强制）」条款**
+  - 明确以下动作先问后做、未获明确同意不得执行：新建 / 移动 / 重命名 / 删除文件；修改 `AGENTS.md`、`Docs/DevSpec/*`、`Docs/RequirementList.md`、`Docs/CHANGELOG.md`；新增或撤销需求编号；`git push`、`git reset`、改 tag。
+  - 要求执行前先输出「拟改动清单 + 待确认决策点」；需求含歧义（放哪个目录、文件叫什么、算不算规范、算不算需求）时默认不执行，只给选项并提问。
+  - 每个提交只包含用户点名的一件事，不做"顺手"修改；越界修改由用户决定回滚或保留。
 - 版本号由 `0.1.3` 切换至 `0.1.4`（`VERSION`），开启下一轮开发；`v0.1.3` 已作为正式版本打 tag。
+- **CDEU 前端路由迁移到 `Quote/Cdeu` 段**
+  - 页面路由：`/Meta/Finv/Quote/DeDup/CDEU` → **`/Meta/Finv/Quote/Cdeu/CdeuOverview`**；`/Meta/Finv/Quote/DeDup/CDEUWorkflow` → **`/Meta/Finv/Quote/Cdeu/CdeuWorkflow`**（`Web/src/router.ts`）。
+  - 菜单项 `dedup-export-cdeu` 的 `path` 与 CDEU 页面内「全流程拓扑」跳转 `href` 同步更新；菜单 `key` 不变，展开状态与上次访问记忆不受影响。
+  - 后端 API 路径保持 `/API/V1/Meta/Finv/Quote/DeDup/CDEU/{Overview,Workflow/Run,Workflow/Terminate}` 不变，页面内 `apiGet`/`apiPost` 调用零改动。
+  - 文档：`Docs/Menu/Menus.md` 路由列、`Docs/RequirementList.md`（10389、10432 核对命令）同步；历史 CHANGELOG 与 `Docs/Refactor/2610-012` 中的旧路径按原样保留。
+  - 注意：旧路径未保留 redirect，浏览器书签/历史链接需手动改为新路径。
+
+- **计算与 MVSV 解析包归入 `meta/finv` 域，`internal/` 顶层收敛**
+  - `internal/calc`（`change.go`、`change_test.go`）→ **`internal/meta/finv/quant/calc`**；`internal/mvsv`（10 个文件：MVSV-1/2 解析与写出、流式读、样例验证）→ **`internal/meta/finv/quote/mvsv`**；包名 `calc` / `mvsv` 保持不变。
+  - import 同步：`internal/api/handler/import.go`、`internal/meta/finv/quote/{service.go,change_test.go}`、`internal/meta/finv/quote/cdeu/kline/request.go`、`cmd/qmio/{export.go,import.go,verify.go}`。
+  - `mvsv/sample_files_verify_test.go` 的示例文件相对路径按新目录深度修正为 `../../../../../Docs/DataFormat/...`，`TestSampleFilesParse` 仍通过（2 个样例各 20 条记录）。
+  - 文档同步：`Docs/DataFormat/MvsvFileFormat.md`（2 处）、`Docs/FinvQuant/Qmio.md`（1 处）、`Docs/RequirementList.md`（8 处）；历史 CHANGELOG/Refactor 记录保留。
+  - 至此 `internal/` 顶层只剩 `api`、`config`、`database`、`docs`、`logging`、`meta`、`redisclient`、`static`、`webui`（业务域全部收敛到 `internal/meta/{base,finv}`）。
+  - 验证：`go build ./...`、`go vet ./...`、`go test ./internal/meta/finv/quant/calc ./internal/meta/finv/quote/mvsv ./internal/meta/finv/quote ./cmd/qmio ./internal/api` 全部通过。
+- **行情导入/查询服务迁入 `internal/meta/finv/quote`**
+  - `internal/quote`（`service.go`、`service_test.go`、`change_test.go`，包名 `quote`）迁移到 **`internal/meta/finv/quote/`**，与同目录的 `cdeu/`、`dedup/` 子包并列，形成完整的 quote 域（导入/查询 + 去重 + CDEU 加工）。
+  - `internal/api/handler/{import.go,query.go}`、`internal/api/router.go` 的 import 路径同步更新；源码内容、导出符号、接口路径与 schema 归属（`quote.`）零改动。
+  - 文档引用同步：`Docs/DevSpec/DbSchemaSpec.md`（2 处）、`Docs/RequirementList.md`（9 处核对命令与描述）；`Docs/CHANGELOG.md`、`Docs/Refactor/*` 中的历史记录按原样保留。
+  - 验证：`go build ./...`、`go vet ./...`、`go test ./internal/meta/finv/quote ./internal/api` 全部通过。
+- **K 线领域服务迁入 `internal/meta/finv/quote/cdeu` 子域**
+  - `internal/kline`（13 个 Go 文件：领域服务、请求校验、格式化、SQL、统计、错误目录 + 单测）整体迁移到 **`internal/meta/finv/quote/cdeu/kline`**，包名仍为 `kline`；`internal/meta/finv/quote/cdeu/` 为新建的 CDEU（去重/导出/上传）业务域目录，与同级的 `quote/dedup` 并列。
+  - `internal/api/handler/{errresp.go,errresp_test.go,kline.go,kline_ops.go}`、`internal/api/{router.go,router_test.go}` 的 import 路径同步更新；`internal/meta/finv/quote/service.go` 与包内集成测试注释中的路径同步。
+  - 源码内容、导出符号、接口路径与数据库 schema（`cdeu.finv_quote_secu_kline_min`）零改动。
+  - 文档引用同步：`Docs/API/Quote/Cdeu/Min/{KLinePageUni,KLineUpsert}.md`、`Docs/DevSpec/DbSchemaSpec.md`、`Docs/DevSpec/ErrorCodeSpec.md`、`Docs/RequirementList.md`（25 处核对命令与描述）；`Docs/CHANGELOG.md` 历史条目按原样保留。
+  - 验证：`go build ./...`、`go vet ./...`、`go test ./internal/meta/finv/quote/cdeu/kline ./internal/api` 全部通过。
+- **回测引擎迁入 `internal/meta/finv/quant` 子域**
+  - `internal/backtest`（16 个 Go 文件，引擎/表达式/指标/服务/校验/模型 + 单测）整体迁移到 **`internal/meta/finv/quant/backtest`**，包名仍为 `backtest`，与 `auth/`、`brs/`、`quote/`、`sys/` 的组织方式统一。
+  - `internal/api/handler/backtest.go`、`internal/api/router.go` 的 import 路径同步更新；源码内容与导出符号零改动，接口与回测行为不变。
+  - 文档引用同步：`Docs/Asset/Backtest/README.md`、`Docs/DevSpec/BacktestStrategySpec.md`、`Docs/DevSpec/DbSchemaSpec.md`（schema 归属表）、`Docs/FinvQuant/V1/Prompt.md`、`Docs/RequirementList.md`（10633 描述与核对命令）；`Docs/CHANGELOG.md` 与 `Docs/Refactor/*` 中的历史记录按原样保留。
+  - 验证：`go build ./...`、`go vet ./...`、`go test ./internal/meta/finv/quant/backtest` 全部通过。
+- **BRS 包迁入 `internal/meta/finv` 子域**
+  - `internal/brs`（`brs.go`、`brs_test.go`）整体迁移到 **`internal/meta/finv/brs`**（包名仍为 `brs`），与 `internal/meta/finv/{auth,quote,sys}` 的组织方式统一；`cmd/server/main.go` 的 import 路径同步更新。
+  - 源码内容与导出符号零改动，服务行为不变；`go build ./...`、`go vet ./...`、`go test ./internal/meta/finv/brs` 全部通过。
+  - 文档引用同步：`Docs/FinvQuant/Brs.md`（源码位置）、`Docs/Refactor/2610-011-BrsBackup.md`（路径表与验证命令）、`Docs/RequirementList.md`（10800、10801 核对命令）；历史 CHANGELOG 条目中的旧路径按历史记录保留。
+- **文档归档与处理器文件重命名**
+  - `Prompt.md` 移至 **`Docs/FinvQuant/V1/Prompt.md`**（`git mv` 保留历史），根目录不再保留；`AGENTS.md`、`README.md` 的目录树/索引与 `Docs/RequirementList.md` 核对命令（10073、10099、10131、10237）中的路径同步更新；历史 CHANGELOG 条目与 `Docs/Refactor/*` 过程文档中的旧路径按历史记录保留。
+  - `internal/api/handler/exportarchive.go` → **`cdeu.go`**，`internal/api/handler/exportarchive_admin.go` → **`cdeu_admin.go`**：Go 构建不依赖文件名，包名与导出符号不变，接口行为零变化；`Docs/API/QuoteDeDup/Usc.md` 与 `Docs/RequirementList.md`（10340、10350、10379、10470 核对命令）中的引用同步更新。
+
+### 变更
+
+- **「CDEU自动化」由占位分组改为叶子菜单并接入占位页（需求 10865）**
+  - 授权：用户明确要求「『归档日志与补丁』菜单后增加『CDEU自动化』**叶子**菜单」
+    ——10864 建的是无子节点的占位分组，本次按叶子形态重做。
+  - 改动：
+    · `Web/src/config/menuConfig.ts`：`cdeu-automation` 由 `children: []` 的分组改为叶子，
+      新增 `path: '/Meta/Finv/Quote/Cdeu/Automation'`；
+    · `Web/src/router.ts`：新增路由
+      `/Meta/Finv/Quote/Cdeu/Automation`（name `cdeu-automation`，component
+      `PlaceholderView`，`meta.title`「CDEU自动化」），与「仿真数据验证」等占位页同一机制；
+    · `PlaceholderView.vue`：在 `plans` 中登记该模块的规划说明（图标、目标描述、三条规划功能：
+      运行模式与低峰窗口集中配置、按拓扑顺序自动推进 JOB、异常自愈）。
+  - 效果：点击「CDEU自动化」会进入占位页并显示「规划中」标记与规划功能清单，
+    不再是无反应的空白分组。
+  - 验证（脚本实测）：`cdeu-automation` 在菜单配置中是叶子（有 `path`、无 `children`）；
+    菜单全部 `path` 均能在 `router.ts` 找到对应路由（含新增这条）；菜单图标全部有效；
+    无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+
+### 变更
+
+- **「收剔导传ETL」下新增「CDEU自动化」挂载点（需求 10864）**
+  - 授权：用户明确要求「『归档日志与补丁』菜单后增加『CDEU自动化』」。
+  - 改动（`Web/src/config/menuConfig.ts`）：在「行情 → 收剔导传ETL」的 `children` 末尾
+    （「归档日志与补丁」之后）新增三级分组 `cdeu-automation`「CDEU自动化」
+    （图标 `mdi-robot-happy-outline`）。
+  - 现状说明：该节点当前**没有任何子菜单、也没有对应页面与路由**，按占位分组处理
+    （点开为空白），与「量化」10841 占位的处理方式一致；后续指定具体自动化页面后再挂叶子。
+  - 验证（脚本实测）：ETL 下节点顺序为 K线数据查询 → K线数据统计 → 历史月份存量数据清点 →
+    CDEU 工作流控制面板 → 文件导出 → 文件上传 → 归档统计与预算 → 归档主数据与规则 →
+    归档日志与补丁 → CDEU自动化；该节点结构为 `children: []`；菜单图标全部有效；
+    所有 `path` 均有对应路由；无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §2.2 菜单树同步。
+
+### 变更
+
+- **系统显示名统一改为「FinvQuant策略回测量化交易」（需求 10863）**
+  - 授权：用户要求把页面顶部标题「FinvQuant 量化策略交易平台」改为
+    「FinvQuant策略回测量化交易」（先后给出「策略量化交易平台」→「策略量化交易系统」
+    两次中间版本，最终以「FinvQuant策略回测量化交易」为准）。
+  - 改动（6 处，保持全站同一写法）：
+    · `Web/src/App.vue`：顶栏标题（用户点名的那处）；
+    · `Web/index.html`：浏览器标签页 `<title>`；
+    · `Web/src/router.ts`：无页面标题时的 `document.title` 兜底值；
+    · `Web/src/views/Common/LoginView.vue`：登录页标题；
+    · `Web/src/config/menuConfig.ts`：一级系统「金融投资」的 `subtitle`
+      （顶栏下拉与抽屉标题展示，改为「策略回测量化交易」）；
+    · `Web/src/views/Common/PlaceholderView.vue`：占位页正文中的品牌名。
+  - 验证（脚本实测）：`FinvQuant策略回测量化交易` 在上述 5 个文件中各出现 1 次；
+    旧写法「量化策略交易平台」「策略量化交易平台」「策略量化交易系统」「交易平台」
+    在 `Web/src` 与 `Web/index.html` 中均为 0 次；`npx vue-tsc --noEmit` 与
+    `npx vite build` 通过，构建产物 `dist/index.html` 中含新标题 1 次。
+
+### 变更
+
+- **「导出任务」改名为「文件导出」、「文件与上传」改名为「文件上传」（需求 10862）**
+  - 授权：用户明确要求「『导出任务』更名为『文件导出』，『文件与上传』更名为『文件上传』」。
+  - 改动：
+    · `Web/src/config/menuConfig.ts`：`dedup-export-job` 标题改为「文件导出」，
+      `dedup-export-file` 标题改为「文件上传」；
+    · `Web/src/router.ts`：两条路由的 `meta.title` 同步（原为「月归档导出任务」/
+      「月归档导出文件与上传」，影响页签与面包屑），注释顺带更新；
+    · `DeDupExportJobView.vue` / `DeDupExportFileView.vue`：页面标题与文件头注释同步改名。
+  - 保持不变：两个叶子 key、图标、路由路径（`/DeDup/Export/Job`、`/DeDup/Export/File`）。
+  - 验证：菜单与路由中「文件导出」「文件上传」各 1 次；旧名「导出任务」「文件与上传」
+    在菜单配置、路由与两个页面文件中均为 0 次（页面正文「当前条件下没有导出任务」属业务文案，
+    保留）；菜单图标有效、`path` 有对应路由、无重复 key；`npx vue-tsc --noEmit`
+    与 `npx vite build` 通过。
+
+### 变更
+
+- **「K线数据查询」「K线数据统计」前置到「收剔导传ETL」叶子最前（需求 10861）**
+  - 授权：用户明确要求「『K线数据查询』『K线数据统计』放到同级别的菜单的最前面」。
+  - 改动（`Web/src/config/menuConfig.ts`）：在「行情 → 收剔导传ETL」的 `children` 中，
+    将这两个叶子移动到最前，顺序变为：
+    K线数据查询 → K线数据统计 → 历史月份存量数据清点 → CDEU 工作流控制面板 →
+    导出任务 → 文件与上传 → 归档统计与预算 → 归档主数据与规则 → 归档日志与补丁。
+    key、标题、图标、路径全部不变。
+  - 验证（脚本实测）：ETL 下叶子顺序与上述一致（9 项）；菜单图标全部有效；
+    所有 `path` 均有对应路由；无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §2.2 菜单树同步。
+
+### 变更
+
+- **「行情数据归档」移入「行情」并排在「历史行情」之后（需求 10860）**
+  - 授权：用户明确要求「『行情数据归档』菜单移动到『历史行情』后面」。
+  - 改动（`Web/src/config/menuConfig.ts`）：`quote-archive`「行情数据归档」从「数据采集」移入
+    「行情」，作为其第三个三级分组，排在「历史行情」之后；其 2 个叶子（归档监控总览 /
+    端到端链路）、key、图标、路径全部不变。
+  - 连带结果：「数据采集」二级分组在移走唯一子节点后变空，按既有约定删除
+    （与 10857 删除「行情数据去重」的处理一致）。顶层二级菜单变为 5 项：
+    仪表盘 / 元数据 / 系统配置 / 行情 / 量化。
+  - 验证（脚本实测）：顶层顺序为 `dashboard, metadata, config-manage, quote, quant`；
+    `key: 'data-collection'` 在配置中为 0 次；「行情」下三级分组依次为
+    收剔导传ETL → 历史行情 → 行情数据归档；菜单图标全部有效、所有 `path` 均有对应路由、
+    无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §2.2 菜单树同步
+    （删除旧「数据采集 → 行情数据归档」段、行情段补充该分组、顺序约定更新）。
+
+### 变更
+
+- **「配置管理」改名为「系统配置」（需求 10859）**
+  - 授权：用户明确要求「『配置管理』更名为『系统配置』」。
+  - 改动：
+    · `Web/src/config/menuConfig.ts`：顶层二级叶子 `config-manage` 的 `title` 改为「系统配置」；
+    · `Web/src/router.ts`：该路由 `meta.title` 同步（影响页签与面包屑），注释顺带更新
+      （原注释还在描述已迁入「量化 → MVP配置」的环境/模板管理，一并纠正）；
+    · `ConfigManageView.vue`：占位页标题与文件头注释同步为「系统配置」。
+  - 保持不变：节点 key（`config-manage`）、图标（`mdi-cog-outline`）、路由路径
+    `/Meta/Finv/Quant/Config`。
+  - 验证：`title: '系统配置'` 在菜单配置与路由中各 1 次；「配置管理」在 `menuConfig.ts`、
+    `router.ts` 与页面文件中均为 0 次；菜单图标有效、`path` 有对应路由、无重复 key；
+    `npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+
+### 变更
+
+- **5 个归档运维页面移入「行情 → 收剔导传ETL」（需求 10858）**
+  - 授权：用户明确要求把「导出任务」「文件与上传」「归档统计与预算」「归档主数据与规则」
+    「归档日志与补丁」移入「收剔导传ETL」菜单下。
+  - 改动（`Web/src/config/menuConfig.ts`）：这 5 个叶子从「数据采集 → 行情数据归档」移入
+    「行情 → 收剔导传ETL」（`quote-cdeu`），按用户列举顺序追加在「K线数据统计」之后；
+    key、标题、图标、路由路径全部不变（展开状态与页面路由不受影响）。
+  - 结果结构：
+    · 「数据采集 → 行情数据归档」只剩 2 个叶子（归档监控总览 / 端到端链路）；
+    · 「行情 → 收剔导传ETL」现有 9 个叶子：历史月份存量数据清点 / CDEU 工作流控制面板 /
+      K线数据查询 / K线数据统计 / 导出任务 / 文件与上传 / 归档统计与预算 /
+      归档主数据与规则 / 归档日志与补丁。
+  - 验证（脚本实测）：5 个 key 在菜单配置中各出现 1 次且均位于 `quote-cdeu` 段内、
+    `quote-archive` 段内只剩 2 项；菜单图标全部有效；所有 `path` 均有对应路由；无重复 key；
+    `npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §2.2 菜单树同步。
+
+### 变更
+
+- **「去重分钟行情统计」更名为「K线数据统计」并移入「收剔导传ETL」（需求 10857）**
+  - 授权：用户明确要求「『去重分钟行情统计』菜单更名为『K线数据统计』，移入『收剔导传ETL』菜单下」。
+  - 改动：
+    · `Web/src/config/menuConfig.ts`：该叶子从「数据采集 → 行情数据去重」移入
+      「行情 → 收剔导传ETL」（`quote-cdeu`），排在「K线数据查询」之后；标题改为「K线数据统计」；
+      「行情数据去重」分组两叶子均已移走，分组随之删除；
+    · `Web/src/router.ts`：该路由 `meta.title` 同步改名；
+    · `DeDupKLineQueryView.vue` / `DeDupKLineStatsView.vue`：页面内标题与文件头注释同步为
+      「K线数据查询」/「K线数据统计」（与菜单名一致，避免菜单与页内标题不符）。
+  - 结果结构：「数据采集」下只剩「行情数据归档」一个三级分组（7 个叶子）；
+    「行情 → 收剔导传ETL」现有 4 个叶子：历史月份存量数据清点 / CDEU 工作流控制面板 /
+    K线数据查询 / K线数据统计。
+  - 验证（脚本实测）：`dedup-kline-stats` 在配置中出现 1 次且位于 `quote-cdeu` 段内；
+    `quote-dedup` 分组已不存在；ETL 下叶子集合为上述 4 项；旧名「去重分钟行情查询」
+    「去重分钟行情统计」在 `Web/src` 中仅剩一条历史沿革注释；菜单与路由的失效图标/缺失路由/重复 key
+    均为 0；`npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §2.2 菜单树同步。
+
+### 变更
+
+- **「去重分钟行情查询」更名为「K线数据查询」并移入「收剔导传ETL」（需求 10856）**
+  - 授权：用户明确要求「『去重分钟行情查询』菜单重命名为『K线数据查询』，并放入
+    『收剔导传ETL』菜单下」。
+  - 改动：
+    · `Web/src/config/menuConfig.ts`：从「数据采集 → 行情数据去重」移除该叶子，
+      移入「行情 → 收剔导传ETL」（`quote-cdeu`），排在「CDEU 工作流控制面板」之后；
+      标题「去重分钟行情查询」→「K线数据查询」；叶子 key `dedup-kline-query` 与路径
+      `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query` 保持不变；
+    · `Web/src/router.ts`：该路由 `meta.title` 同步改名（影响页签与面包屑），注释同步。
+  - 现状：「行情数据去重」分组暂剩 1 个叶子（K线数据统计，需求 10857 处理）。
+  - 验证：`dedup-kline-query` 在菜单配置中出现 1 次且位于 `quote-cdeu` 段内；
+    菜单图标全部有效、所有 `path` 均有对应路由、无重复 key；`go test ./internal/docs` 通过。
+
+### 修复
+
+- **元数据域改名后残留一处旧名注释（需求 10852 附带修复）**
+  - 现象：`Web/src/config/menuConfig.ts` 中「历史行情数据导入」叶子的注释仍写着
+    「从『元数据 → 业务元数据维护』移入」，与 10852 改名后的实际菜单名不一致。
+  - 修复：注释同步为「元数据 → Finv业务元数据」。
+  - 验证：旧名「业务元数据维护」在 `menuConfig.ts` 与 `router.ts` 中出现次数均为 0。
+
+### 变更
+
+- **「规范证券信息维护」改名为「规范证券信息管理」（需求 10855）**
+  - 授权：用户明确要求「『规范证券信息维护』菜单更名为『规范证券信息管理』」。
+  - 改动：`Web/src/config/menuConfig.ts` 与 `Web/src/router.ts` 中该叶子标题同步改为
+    「规范证券信息管理」；叶子 key（`meta-security`）、图标、路由 `/meta/security` 均不变。
+  - 说明：至此「元数据 → Finv业务元数据」下 3 个叶子命名风格统一为「…管理」
+    （交易所信息管理 / 市场信息管理 / 规范证券信息管理）。
+  - 验证：`title: '规范证券信息管理'` 出现 1 次、「规范证券信息维护」在菜单配置与路由中均为 0 次；
+    菜单图标与 path 校验通过。
+
+### 变更
+
+- **「交易所信息维护」改名为「交易所信息管理」（需求 10854）**
+  - 授权：用户明确要求「『交易所信息维护』菜单更名为『交易所信息管理』」。
+  - 改动：`Web/src/config/menuConfig.ts` 与 `Web/src/router.ts` 中该叶子标题同步改为
+    「交易所信息管理」；叶子 key（`meta-exchange`）、图标、路由 `/meta/exchange` 均不变。
+  - 验证：`grep -c "title: '交易所信息管理'" ` 为 1、「交易所信息维护」在菜单配置与路由中均为 0 次；
+    菜单图标与 path 校验通过。
+
+### 变更
+
+- **「交易所下设市场信息维护」改名为「市场信息管理」（需求 10853）**
+  - 授权：用户明确要求「『交易所下设市场信息维护』菜单更名为『市场信息管理』」。
+  - 改动：`Web/src/config/menuConfig.ts` 与 `Web/src/router.ts` 中该叶子标题同步改为
+    「市场信息管理」；叶子 key（`meta-market`）、图标、路由路径 `/meta/market` 均不变
+    （路由 `meta.title` 同步，影响页签与面包屑）。
+  - 验证：`grep -c "title: '市场信息管理'" Web/src/config/menuConfig.ts` 为 1、
+    「交易所下设市场信息维护」在菜单配置与路由中均为 0 次；菜单图标与 path 校验通过。
+
+### 变更
+
+- **「业务元数据维护」改名为「Finv业务元数据」（需求 10852）**
+  - 授权：用户明确要求「『业务元数据维护』菜单更名为『Finv业务元数据』」。
+  - 改动：`Web/src/config/menuConfig.ts` 中 `meta-maintenance` 节点的 `title` 改为
+    「Finv业务元数据」；`Web/src/router.ts` 的注释同步。节点 key（`meta-maintenance`）、
+    图标、其下 3 个叶子与全部路由路径均不变。
+  - 层内现状：「元数据 → Finv业务元数据」下挂 3 个叶子（交易所信息维护 /
+    交易所下设市场信息维护 / 规范证券信息维护）。
+  - 验证：`grep -c "title: 'Finv业务元数据'" Web/src/config/menuConfig.ts` 为 1、
+    `title: '业务元数据维护'` 为 0；菜单图标与 path 校验通过（无失效图标、无缺失路由、无重复 key）。
+
+### 变更
+
+- **「量化 → 实盘」改名为「量化 → 交易」（需求 10851）**
+  - 授权：用户明确要求「『实盘』菜单名称改为『交易』」。
+  - 改动（`Web/src/config/menuConfig.ts`）：`quant-live` 节点的 `title` 由「实盘」改为「交易」；
+    节点 key（`quant-live`）、图标（`mdi-trending-up`）与其下唯一叶子「实盘交易」均不变
+    —— key 保持稳定，菜单展开状态持久化不受影响。
+  - 结果结构：「量化」下三级节点依次为 MVP配置 → 策略 → 回测 → 验证 → **交易**（各挂 5/1/2/3/1 个叶子）。
+  - 验证（脚本实测）：菜单配置中 `title: '实盘'` 出现 0 次（顶层「实盘交易」叶子的标题不含该词，
+    未受影响）；量化下三级节点顺序为 {MVP配置, 策略, 回测, 验证, 交易}；`quant-live` 保留 1 次；
+    42 个菜单图标全部有效；所有 `path` 均有对应路由；无重复 key；
+    `npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §2.2 菜单树同步改名与沿革。
+
+### 变更
+
+- **新增「量化 → 策略」三级分组，「策略管理」移入（需求 10850）**
+  - 授权：用户明确要求「『回测』菜单前增加『策略』菜单，将『策略管理』放入该菜单下」。
+  - 改动（`Web/src/config/menuConfig.ts`）：
+    · 在「量化 → MVP配置」之后、「量化 → 回测」之前新增三级分组 `quant-strategy`「策略」
+      （图标 `mdi-chess-knight`）；
+    · 「策略管理」（`strategy`）从顶层移入该分组，成为四级叶子；
+    · 该叶子的 key、标题、路由路径、图标（`mdi-sitemap-outline`）保持不变。
+  - 结果结构：顶层二级菜单只剩 6 项（仪表盘 / 元数据 / 配置管理 / 行情 / 量化 / 数据采集）；
+    「量化」下三级节点顺序为 MVP配置（5 叶子）→ 策略（1）→ 回测（2）→ 验证（3）→ 实盘（1）。
+  - 验证（脚本实测）：顶层顺序为 `dashboard, metadata, config-manage, quote, quant,
+    data-collection`；「策略」节点 children 标题为 {策略管理}；`strategy` 在配置中出现 1 次；
+    量化下三级顺序为 {MVP配置, 策略, 回测, 验证, 实盘}；「策略」在「回测」之前；
+    42 个菜单图标全部有效；所有 `path` 均有对应路由；无重复 key；
+    `npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §1 深度统计表、§2.2 菜单树、
+    节点明细表同步（该叶子层级改标四级、顶层叶子清单更新）。
+
+### 变更
+
+- **新增「量化 → 实盘」三级分组，「实盘交易」移入（需求 10849）**
+  - 授权：用户明确要求「『验证』后增加同级别的『实盘』菜单，『实盘交易』添加到该菜单下」。
+  - 改动（`Web/src/config/menuConfig.ts`）：
+    · 在「量化 → 验证」（`quant-verify`）之后新增三级分组 `quant-live`「实盘」
+      （图标 `mdi-trending-up`）；
+    · 「实盘交易」（`live-trading`）从顶层移入该分组，成为四级叶子；
+    · 该叶子的 key、标题、路由路径、图标（`mdi-cash-register`）保持不变。
+  - 结果结构：顶层二级菜单只剩 7 项（仪表盘 / 元数据 / 配置管理 / 行情 / 量化 / 数据采集 /
+    策略管理）；「量化」下三级节点为 MVP配置（5 叶子）、回测（2）、验证（3）、实盘（1）。
+  - 验证（脚本实测）：顶层顺序为 `dashboard, metadata, config-manage, quote, quant,
+    data-collection, strategy`；「实盘」节点 children 标题为 {实盘交易}；`live-trading`
+    在配置中出现 1 次；量化下三级节点顺序为 {MVP配置, 回测, 验证, 实盘}；
+    41 个菜单图标全部有效；所有 `path` 均有对应路由；无重复 key；
+    `npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §1 深度统计表、§2.2 菜单树、
+    节点明细表同步（该叶子层级改标四级、顶层叶子清单更新）。
+
+### 变更
+
+- **新增「量化 → 验证」三级分组，迁入 3 个验证类叶子（需求 10848）**
+  - 授权：用户明确要求「『回测』菜单后增加同级别的『验证』菜单；将『仿真数据验证』、
+    『模拟盘验证』、『实盘仿真验证』放到『验证』菜单下」。
+  - 改动（`Web/src/config/menuConfig.ts`）：
+    · 在「量化 → 回测」（`quant-backtest-menu`）之后新增三级分组 `quant-verify`「验证」
+      （图标 `mdi-shield-check-outline`）；
+    · 「仿真数据验证」（`simulation-data`）、「模拟盘验证」（`simulation-paper`）、
+      「实盘仿真验证」（`simulation-live-sim`）从顶层移入该分组，成为四级叶子；
+    · 三个叶子的 key、标题、路由路径、图标全部保持不变（展开状态与页面路由不受影响）。
+  - 结果结构：顶层二级菜单只剩 8 项（仪表盘 / 元数据 / 配置管理 / 行情 / 量化 / 数据采集 /
+    策略管理 / 实盘交易）；「量化」下三级节点为 MVP配置（5 叶子）、回测（2 叶子）、
+    验证（3 叶子）。
+  - 验证（脚本实测）：顶层顺序为 `dashboard, metadata, config-manage, quote, quant,
+    data-collection, strategy, live-trading`；「验证」节点 children 标题为
+    {仿真数据验证, 模拟盘验证, 实盘仿真验证}；三个 key 各出现 1 次；量化下三级节点顺序为
+    {MVP配置, 回测, 验证}；40 个菜单图标全部有效；所有 `path` 均有对应路由；无重复 key；
+    `npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §1 深度统计表、§2.2 菜单树、
+    节点明细表同步（3 个叶子层级改标四级、顶层叶子清单更新）。
+
+### 变更
+
+- **「黄金期货合约回测验证」「回测分析」移入「量化 → 回测」（需求 10847）**
+  - 授权：用户明确要求「『黄金期货合约回测验证』菜单放到『回测』菜单下。『回测分析』放到『回测』菜单下」。
+  - 改动（`Web/src/config/menuConfig.ts`）：
+    · 「黄金期货合约回测验证」（`backtest-gold-futures`）从「量化策略验证」分组移入
+      「量化 → 回测」（`quant-backtest-menu`）；
+    · 「回测分析」（`backtest-analysis`）从顶层移入同一分组，排在黄金期货之后；
+    · 两个叶子的 key、标题、路由路径保持不变，展开状态与页面路由不受影响；
+    · 「量化策略验证」（`quant-backtest`）叶子移空，分组随之删除。
+  - 结果结构：顶层二级菜单剩 11 项（仪表盘 / 元数据 / 配置管理 / 行情 / 量化 / 数据采集 /
+    策略管理 / 仿真数据验证 / 模拟盘验证 / 实盘仿真验证 / 实盘交易）；
+    「量化 → 回测」由空占位变为挂 2 个叶子。
+  - 过程中纠正一处自造缺陷：脚本改动时误把「回测」节点的 `icon` 行覆盖成注释，
+    已恢复 `icon: 'mdi-history'`（否则该菜单会重新出现「无图标」）。
+  - 验证（脚本实测）：顶层顺序为 `dashboard, metadata, config-manage, quote, quant,
+    data-collection, strategy, simulation-data, simulation-paper, simulation-live-sim,
+    live-trading`；「回测」节点含 `icon: 'mdi-history'` 且 children 为
+    {黄金期货合约回测验证, 回测分析}；`quant-backtest` 已不存在；`backtest-analysis`
+    在配置中出现 1 次；40 个菜单图标全部有效；所有 `path` 均有对应路由；无重复 key；
+    `npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §1 深度统计表、§2.2 菜单树、
+    节点明细表同步（「量化策略验证」标记已撤除，两叶子层级改标四级）。
+
+### 变更
+
+- **5 个配置类叶子移入「量化 → MVP配置」（需求 10846）**
+  - 授权：用户明确要求把「环境管理」「模板管理」「账户管理」「资金管理」「持仓管理」
+    移动到「MVP配置」菜单下。
+  - 改动（`Web/src/config/menuConfig.ts`）：这 5 个叶子从二级（顶层）移入
+    「量化 → MVP配置」（`quant-mvp-config`）的 `children`，成为四级叶子；
+    key（`environment` / `template` / `account` / `fund` / `position`）、标题、
+    路由路径全部保持不变，展开状态与页面路由不受影响。
+  - 结果结构：
+    · 顶层二级菜单剩 13 项：仪表盘 / 元数据 / 配置管理 / 行情 / 量化 / 数据采集 /
+      量化策略验证 / 策略管理 / 回测分析 / 仿真数据验证 / 模拟盘验证 / 实盘仿真验证 / 实盘交易；
+    · 「量化 → MVP配置」由空占位变为挂 5 个叶子的三级分组；
+    · 「量化 → 回测」仍为空占位。
+  - 验证（脚本实测）：5 个 key 在菜单配置中各出现 1 次且均位于 `quant-mvp-config` 的
+    `children` 内（标题集合 = {环境管理, 模板管理, 账户管理, 资金管理, 持仓管理}）；
+    顶层顺序为 `dashboard, metadata, config-manage, quote, quant, data-collection,
+    quant-backtest, strategy, backtest-analysis, simulation-data, simulation-paper,
+    simulation-live-sim, live-trading`；42 个菜单图标全部有效；所有 `path` 均有对应路由；
+    无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §1 深度统计表与 §2.2 菜单树、
+    节点明细表同步（这 5 项由「二级叶子」改标为「四级叶子」）。
+
+### 变更
+
+- **「工作流控制与监控」移入「收剔导传ETL」并改名为「CDEU 工作流控制面板」（需求 10845）**
+  - 授权：用户明确要求「『CDEU 工作流控制与监控』菜单移动到『收剔导传ETL』菜单下，
+    并改名为『CDEU 工作流控制面板』」。
+  - 改动：
+    · `Web/src/config/menuConfig.ts`：从「数据采集 → 行情数据归档」移除该叶子，
+      移入「行情 → 收剔导传ETL」（`quote-cdeu`），排在「历史月份存量数据清点」之后；
+      标题「工作流控制与监控」→「CDEU 工作流控制面板」；叶子 key `dedup-export-cdeu`
+      与路径 `/Meta/Finv/Quote/Cdeu/CdeuOverview` 保持不变（展开状态与路由不受影响）；
+    · `Web/src/router.ts`：该路由的 `meta.title` 同步改为「CDEU 工作流控制面板」（影响浏览器页签/面包屑）；
+    · `DeDupCDEUView.vue`：页面内二级标题与文件头注释同步改名。
+  - 「行情数据归档」现状：剩 7 个叶子（归档监控总览 / 端到端链路 / 导出任务 / 文件与上传 /
+    归档统计与预算 / 归档主数据与规则 / 归档日志与补丁）；「收剔导传ETL」现有 2 个叶子。
+  - 验证（脚本实测）：`dedup-export-cdeu` 在菜单配置中出现 1 次，位于 `quote-cdeu` 段内、
+    已不在 `quote-archive` 段内；42 个菜单图标全部有效；所有 `path` 均有对应路由；无重复 key；
+    `npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §2.2 菜单树同步
+    （归档域移除该行、ETL 域新增该行）。
+
+### 变更
+
+- **「历史行情数据导入」移入「行情 → 历史行情」作为叶子（需求 10844）**
+  - 授权：用户明确要求「『历史行情导入』菜单移动到『历史行情』菜单下，作为叶子菜单」。
+  - 改动（`Web/src/config/menuConfig.ts`）：
+    · 从「元数据 → 业务元数据维护」下移除该叶子；
+    · 移入「行情 → 历史行情」（`quote-history`），排在「历史行情查询」之后；
+    · 叶子 key `meta-import`、标题「历史行情数据导入」、路径 `/meta/import` 均保持不变
+      （key 稳定，展开状态与路由不受影响）。
+  - 「业务元数据维护」现状：仅剩 3 个叶子（交易所信息维护 / 交易所下设市场信息维护 /
+    规范证券信息维护）。
+  - 验证（脚本实测）：`meta-import` 在菜单配置中出现 1 次，位置位于 `quote-history` 之后、
+    `quant` 之前，且已不在「业务元数据维护」段内；42 个菜单图标全部有效；
+    所有 `path` 均有对应路由；无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §2.2 菜单树同步
+    （元数据域改为 3 个叶子并注明去向，历史行情下增加该叶子）。
+
+### 变更
+
+- **「量化」下新增「MVP配置」「回测」两个三级子菜单（需求 10843）**
+  - 授权：用户明确要求「『量化』下新增『MVP配置』、『回测』三级子菜单」。
+  - 改动（`Web/src/config/menuConfig.ts`）：`quant`「量化」的 `children` 由空数组改为两个三级分组：
+    · `quant-mvp-config`「MVP配置」（图标 `mdi-playlist-edit`）；
+    · `quant-backtest-menu`「回测」（图标 `mdi-history`）；
+    两者 `children` 均为空数组。key 加 `quant-` 前缀，避免与顶层 `quant-backtest`
+    「量化策略验证」混淆。
+  - 现状说明：**两级都还没有对应页面与路由**，因此按占位分组处理（点开为空白），
+    与需求 10841「量化」占位一致。现有回测相关页面仍在原位未动：
+    「量化策略验证 → 黄金期货合约回测验证」（`/Meta/Finv/Quant/Backtest/GoldFutures`）、
+    「回测分析」（`/Meta/Finv/Quant/Backtest/Analysis`）。
+  - 渲染安全性：空 `children` 走分组分支、`v-for` 空数组渲染为空，不报错（与 10841 同一机制）。
+  - 验证（脚本实测）：`量化` 的 children 为 `['MVP配置', '回测']`；菜单图标 42 个全部有效；
+    所有 `path` 均有对应路由；无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+
+### 变更
+
+- **「配置管理」移到「行情」之前（需求 10842）**
+  - 授权：用户明确要求「『配置管理』移动到『行情』之前」。
+  - 改动（`Web/src/config/menuConfig.ts`）：交换 `config-manage` 与 `quote` 两个二级节点的先后，
+    顺序变为：仪表盘 → 元数据 → 配置管理 → 行情 → 量化（占位）→ 数据采集 → 环境管理 → …；
+    节点 key 与子菜单内容均未改动。
+  - 验证（脚本实测）：解析 `finvQuantMenu` 顶层顺序为
+    `dashboard, metadata, config-manage, quote, quant, data-collection, environment, template,
+    account, fund, position, quant-backtest, strategy, backtest-analysis, simulation-data,
+    simulation-paper, simulation-live-sim, live-trading`，与目标一致；40 个菜单图标全部有效；
+    所有 `path` 均有对应路由；无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §2.2 顺序约定同步。
+
+### 变更
+
+- **新增二级菜单「量化」（占位）（需求 10841）**
+  - 授权：用户明确要求「『配置管理』后增加同级别的『量化』二级菜单」，并在给出「空节点占位 /
+    把现有量化节点收进去」两个选项后选择 **A（只加空节点）**。
+  - 改动（`Web/src/config/menuConfig.ts`）：在 `config-manage`「配置管理」之后、
+    `data-collection`「数据采集」之前插入二级分组 `quant`「量化」
+    （图标 `mdi-sigma`，`children: []` 暂无子节点）。
+  - 现状说明：该分组当前**没有任何子菜单**，点击展开为空白 —— 这是用户明确选择的占位状态；
+    现有量化相关节点（量化策略验证 / 策略管理 / 回测分析 / 仿真数据验证 / 模拟盘验证 /
+    实盘仿真验证 / 实盘交易）**均未移动**，仍在原位。
+  - 渲染安全性：`isMenuLeaf` 对空 `children` 返回 false，走分组分支；分组模板用
+    `v-for="child in node.children"`，空数组渲染为空、不报错。
+  - 验证（脚本实测）：解析 `finvQuantMenu` 顶层顺序为
+    `dashboard, metadata, quote, config-manage, quant, data-collection, environment, ...`，
+    与目标一致；40 个菜单图标全部有效；所有 `path` 均有对应路由；无重复 key；
+    `npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+
+### 变更
+
+- **「元数据管理」改名为「元数据」并调整二级菜单顺序（需求 10840）**
+  - 授权：用户明确要求「『元数据惯例』改名为『元数据』，位置调整到『仪表盘』之后，
+    『数据采集』放到『配置管理』之后」。
+  - 改动（`Web/src/config/menuConfig.ts`，仅调整顺序与标题，节点 key 全部保持不变）：
+    · 标题「元数据管理」→「元数据」（用户所述「元数据惯例」即指此节点，按其意图改为「元数据」）；
+    · 顺序调整为：仪表盘 → 元数据 → 行情 → 配置管理 → 数据采集 → 环境管理 → 模板管理 →
+      账户管理 → 资金管理 → 持仓管理 → 量化策略验证 → 策略管理 → 回测分析 →
+      仿真数据验证 → 模拟盘验证 → 实盘仿真验证 → 实盘交易；
+    · `metadata`、`data-collection` 等 key 未变，因此菜单展开状态的持久化 key 不受影响。
+  - 验证（脚本实测）：解析菜单数组得到实际顺序与目标完全一致；40 个菜单图标全部能在
+    `@mdi/font` 中检索到（无效 0）；所有菜单 `path` 均能在 `router.ts` 找到对应路由；
+    无重复 key。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §2.2 菜单树同步改名并补充顺序约定。
+
+### 修复
+
+- **二级菜单「行情」左侧图标不显示（需求 10839 附带修复）**
+  - 现象：实测新增的二级菜单「行情」左侧空白，没有图标。
+  - 根因：菜单注册表里写的是 `mdi-chart-finance`，而 `@mdi/font` 7.4.47 **没有这个图标名**
+    （相关但存在的是 `mdi-finance`、`mdi-chart-line`、`mdi-chart-box` 等）。
+    Vuetify 对未知图标名不报错，只渲染空 class —— 所以构建、类型检查全部通过，界面却没有图标。
+  - 修复：改为 `mdi-chart-multiline`（多条走势线，语义贴合「行情」，且未被其它菜单占用）。
+  - 批量自查（脚本比对 `menuConfig.ts` 全部 `mdi-*` 与 `materialdesignicons.css` 的
+    `.mdi-xxx::before` 定义）：
+    · 修前 40 个图标里 **1 个无效**（`mdi-chart-finance`）；
+    · 修后 40 个全部有效，无效 0；
+    · 顺带列出被多处复用的图标（`mdi-transit-connection-variant`：端到端链路 / 收剔导传ETL；
+      `mdi-sitemap-outline`：工作流控制与监控 / 策略管理）——属可接受的语义相近复用，未改。
+  - 防呆：`menuConfig.ts` 顶部约定新增第 5 条，写明「icon 必须能在 `@mdi/font` 里检索到，
+    写错不报错只静默不显示」，并给出 `grep -c '\.mdi-xxx::before' .../materialdesignicons.css` 的自查命令。
+  - 验证：`npx vue-tsc --noEmit`、`npx vite build` 通过，构建产物含 `mdi-chart-multiline`。
+
+### 变更
+
+- **菜单结构新增二级「行情」，下挂「收剔导传ETL」与「历史行情」（需求 10839）**
+  - 授权：用户明确要求新增与「数据采集」同级的二级菜单「行情」（`/Meta/Finv/Quote/`），
+    其下两个三级子菜单「收剔导传ETL」（`/Meta/Finv/Quote/Cdeu/`）与「历史行情」
+    （`/Meta/Finv/Quote/His/`），并把两个已有叶子移动过去。
+  - 改动（`Web/src/config/menuConfig.ts`）：
+    · 新增二级分组 `quote`「行情」（图标 `mdi-chart-finance`），位置在「数据采集」之后；
+    · 「行情 → 收剔导传ETL」（`quote-cdeu`）下挂「历史月份存量数据清点」
+      （`/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat`，叶子 key 不变，从
+      「数据采集 → 行情数据归档」移出）；
+    · 「行情 → 历史行情」（`quote-history`）下挂「历史行情查询」
+      （`/Meta/Finv/Quote/History/HistoryQuoteQuery`，叶子 key `quote-query` 不变，
+      从原二级「历史行情」分组移出）；
+    · 原二级分组 `history-quote` 已移空，随叶子移出而删除；
+    · 分组节点不填 `path`（沿用「分组只展开不跳转」的约定），分组前缀写在注释里。
+  - 未改动：「数据采集」下的「行情数据去重」「行情数据归档」及其余 8 个叶子保持原位
+    —— 用户本次只点名移动上述两个叶子。
+  - 验证：脚本核对菜单内 33 个 `path` 全部能在 `router.ts` 找到对应路由、菜单内无重复
+    `key`；`npx vue-tsc --noEmit` 与 `npx vite build` 均通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §2.2 目标菜单树同步
+    （并顺带修正该树里「工作流控制与监控」的旧路径 `/DeDup/CDEU` →
+    `/Cdeu/CdeuOverview`）。
+
+### 变更
+
+- **「月份存量清单」改名为「历史月份存量数据清点」并调整端点（需求 10838）**
+  - 菜单：「行情数据归档 → 月份存量清单」→「行情数据归档 → 历史月份存量数据清点」；
+  - 前端路由：`/Meta/Finv/Quote/DeDup/Export/Stock` → `/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat`
+    （路由名同步改为 `cdeu-his-month-exist-secu-stat`，与 `Cdeu/` 下的其它页面保持一致）；
+  - 页面标题、错误提示文案同步更新。
+  - **后端 API 路径未改**，仍为 `GET /API/V1/Meta/Finv/Quote/DeDup/Export/Stock/Page`
+    —— 本次需求只点名「菜单端点」；是否把接口一并迁到
+    `/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat/Page` 待确认（迁移需同步改前端调用与
+    `RequirementList` 10835 的核对语句）。
+  - 验证：`npx vue-tsc --noEmit` 通过；前端已无 `/Meta/Finv/Quote/DeDup/Export/Stock` 页面路由引用。
+
+### 修复
+
+- **JOB 清单表格出现两条水平滚动条（需求 10837 附带修复）**
+  - 现象：「工作流控制与监控」页选中某个 Process 后，下方「JOB 清单 · <流程名>」表格底部出现
+    **两条水平滚动条**，一条在另一条之上，展示不协调。
+  - 根因：外层 `.job-table-scroll` 设了 `overflow-x: scroll`，而 Vuetify 的 `v-table` 内部还会包一层
+    `.v-table__wrapper`（默认 `overflow-x: auto`）；表格本身设了 `min-width`（列多时的最小宽度），
+    于是内层 wrapper 也溢出滚动 —— 两层各出一根。
+  - 修复：外层改为 `overflow-x: auto`（没溢出就不显示），并新增
+    `.job-table-scroll :deep(.v-table__wrapper) { overflow-x: visible; }`
+    让内层不再产生滚动条，横向溢出统一交给外层那一根（保留原有美化样式）。
+  - 验证：`npx vue-tsc --noEmit` 通过；`npx vite build` 通过（构建产物含该样式）；
+    镜像重建部署，容器 healthy。
+
+### 变更
+
+- **证券元数据 JOB 归入导出批次流程（需求 10837）**
+  - 授权：用户明确要求「`JOB_FETCH_SECURITY_METADATA` 要改到 `PROCESS_EXPORT_BATCH` 中执行」。
+  - 问题：该 JOB 原先挂在 `PROCESS_EXPORT_FILE_MON_BASE`（每证券月一个动态实例的流程）下，
+    但它的语义是「导出前把证券字典里缺失的 region / market / provider / name / timezone /
+    currency（以及 `day_expect_rows`、优先级/SLA 默认值）补齐」——这是**批次级准备**，
+    由 `RUN_DUE_EXPORT_JOBS` 在批次生成之后执行一次，**不随动态实例重复**。
+    挂在 BASE 流程下会让「每证券月」的流程图里出现一个全局步骤，容易误读成每实例都跑。
+  - 迁移 `V100087`：
+    · `JOB_FETCH_SECURITY_METADATA` 的 `process_id` → `PROCESS_EXPORT_BATCH`，`seq_no = 2`
+      （1 = `JOB_FETCH_EXPORT_BATCH` 批次清单，2 = 元数据，符合「先算批次、再补元数据、再装载」）；
+    · `PROCESS_EXPORT_FILE_MON_BASE` 剩余 JOB 的 `seq_no` 由 2..5 重排为连续 1..4
+      （该表有 `UNIQUE (process_id, seq_no)`，重排分两步：先整体 +100 腾出区间，再按原相对顺序写回）；
+    · `execution_stage` 保持 `META` 不变（前端按阶段显示进度）；
+    · 前置校验「Job 当前必须属于 BASE、且未移动过」（幂等）；后置校验「已挂到 BATCH 且 seq=2」
+      「BATCH 启用 JOB 数 = 2」「BASE 的 seq_no 连续无空洞」。
+  - 影响：`RUN_DUE_EXPORT_JOBS` 一个 kind 仍覆盖 6 个 JOB 定义（BATCH 2 + BASE 4），
+    三级顺序门禁里的「多定义编排型 kind 只做阶段级门禁」豁免逻辑不变。
+  - 验证（实测）：
+    · 迁移执行后 `PROCESS_EXPORT_BATCH` = 1. `JOB_FETCH_EXPORT_BATCH`(BATCH) /
+      2. `JOB_FETCH_SECURITY_METADATA`(META)；`PROCESS_EXPORT_FILE_MON_BASE` =
+      1..4 依次 `JOB_EXPORT_LOAD`(LOAD) / `JOB_EXPORT_EXPORT`(EXPORT) /
+      `JOB_EXPORT_REGISTER`(REGISTER) / `JOB_EXPORT_CLEANUP`(CLEANUP)；
+    · 重复执行迁移只打印「已在 PROCESS_EXPORT_BATCH，跳过（幂等）」并保持结果一致；
+    · `TestCDEUJobGate`（7 场景）与 `TestExportStockPage` 均通过。
+  - 文档：`CdeuWorkflowDesign.md` 三处同步（阶段 4 流程表、JOB 说明表、Step 映射表）。
+
+### 新增
+
+- **Download.sh 回显包内 commit（需求 10836）**
+  - 痛点：版本 tag 只含「基础版本 + PR 号 + 时间戳」（如 `v0.1.3.00360.2610301200`），
+    **不含 commit**；下载完想知道「这个包是哪个提交构建的」只能解压后翻 `BUILD-INFO.txt`，
+    或者去 CI 页面找。
+  - 新增 `read_package_commit()`：直接从压缩包内读 `FinvQuant-<版本>-<os>-<arch>/BUILD-INFO.txt`
+    的「提交」行并回显，**不需要解压**；`tar.gz` 用 `tar -xzOf`、`zip` 优先 `unzip -p`，
+    Windows 无 unzip 时回退 PowerShell 的 .NET 压缩 API。
+  - 输出位置：下载校验完成后的 `[OK] 包内提交：<commit>`、`--no-extract` 分支的摘要、
+    以及最终「下载完成」摘要新增的 `提交 ：` 行。
+  - 容错：包内无 `BUILD-INFO.txt`（旧包/非标准包）时只打 `[WARN]` 不中断；
+    读取失败按返回码 1 处理，不影响下载与解压主流程。
+  - `Download.cmd` 无需改动（它只是定位 Git Bash 后转调 `Download.sh`）。
+  - 验证（造包实测，非推断）：
+    · 用 `PackSnapshot.sh` 同结构的假包（含 `BUILD-INFO.txt`）分别打成 `.tar.gz` 与 `.zip`；
+    · 提取 `read_package_commit` 单独跑：`tar.gz` → `eaa58b6`、`zip` → `eaa58b6`，两条断言均通过；
+    · 负向：不存在的包、缺 `BUILD-INFO.txt` 的包均按预期返回非 0（调用方打 warn 继续）。
+  - 文档：`Deploy/Script/README.md` 新增 §13.2「包内提交号（commit）」，后续小节编号顺延。
+
+### 新增
+
+- **行情数据归档新增「月份存量清单」页面（需求 10835）**
+  - 痛点：跑导出流程之前，无法确认「该业务月份到底有哪些证券、各多少行、会生成多少文件、文件大概多大」，
+    只能等流程跑完看结果，或者手工查表。
+  - 新增菜单「行情数据归档 → 月份存量清单」（`/Meta/Finv/Quote/DeDup/Export/Stock`），
+    顶部按业务月份（下拉，复用 `bizMonthOptions`）+ 证券代码模糊过滤，四张汇总卡：
+    证券数、主表存量行数、预计导出总大小、主表已清理（已导出）证券数。
+  - 明细表按存量行数降序，每证券给出：主表存量行数、覆盖交易日数与日期范围、成熟度表应有的/实际行数、
+    成熟度状态（含未达标天数）、导出任务状态与 `job_id`、**文件名（已生成或按命名规则预计）**、预计大小。
+  - 数据源（全部 `cdeu.*`，`dedup` / `dedup_frozen` 已于 `V100086` 删除）：
+    `cdeu.finv_quote_secu_kline_min`（存量）+ `cdeu.finv_quote_cdeu_quote_maturity_mon`（规模补充）
+    + `cdeu.finv_quote_cdeu_export_job` / `_export_file`（导出状态与已登记文件名）。
+  - 关键口径说明：主表会被 `PURGE_EXPORTED_MONTH` 清理，因此「主表 0 行但成熟度有记录」专门标注为
+    **已导出并被清理**，页面上给出提示并计入「主表已清理」计数，避免被误读为数据缺失。
+  - 预计大小用主表该月最多 10000 行样本的平均行字节 × 行数折算，页脚明确标注「仅作范围参考」。
+  - 布局：表格**不设固定高度、不启用 `fixed-header`**，按行数自然展开，滚动只发生在页面外层
+    ——避免「页面滚动条 + 表格内部滚动条」双层嵌套；同时把每页默认条数提到 500
+    （可选 100/200/500/1000，后端上限同步放宽到 1000），常见月份一次出完不需翻页。
+  - 接口：`GET /API/V1/Meta/Finv/Quote/DeDup/Export/Stock/Page?bizMonth=202609&page=1&pageSize=50&usc=`。
+  - 验证：集成用例 `TestExportStockPage` 造三类证券月（主表有存量 / 已清理已导出 / 成熟度部分未达标）
+    并断言全部字段，实测输出 `证券=3 存量行=7 预计大小=665 已清理=1`；
+    分页与按证券过滤各验一次。
+
+### 变更
+
+- **删除 `dedup` / `dedup_frozen` schema，旧域彻底淘汰（需求 10834）**
+  - 授权：用户在会话中明确要求「把 dedup / dedup_frozen 的 schema 清理掉，以后彻底不用了」，
+    对应 `DbSchemaSpec` §0.3 授权情形 1（明确点名删除）。
+  - 背景：`V100080` 已把该域 133,260 行数据迁入 `cdeu`，需求 10757 完成代码切换，
+    10759 将旧 `dedup` 重命名冻结为 `dedup_frozen`。此后代码只读写 `cdeu.*`，
+    冻结副本仅作观察期保留。
+  - 备份（删除前完成）：`Deploy/Backup/dedup_schemas_20261030_234253.sql.gz`，
+    `pg_dump -n dedup -n dedup_frozen` 导出 32 张表 / 32 段 COPY / 约 13.4 万行（2.2 MB），
+    恢复方式 `zcat <备份> | psql -U finv -d finv`。`Deploy/Backup/` 已在 `.gitignore` 中。
+  - 迁移 `V100086`：前置校验「`cdeu` 侧行数不得少于冻结副本」（成熟度 / 导出任务 / 导出文件 /
+    证券主数据四张关键表），`DROP SCHEMA IF EXISTS dedup CASCADE` + `dedup_frozen CASCADE`，
+    后置校验「两个 schema 必须不存在」且「`quote` / `export` / `cdeu` 三份 `finv_quote_secu_kline_min`
+    各存一份」（§0.2 保护名单不受影响）。
+  - 代码闸门：`internal/database/schema_qualify_test.go` 新增 `forbiddenSchemaPrefixes`
+    （`dedup.` / `dedup_frozen.`），任何 SQL 行出现即测试失败；`exactTableSchema` 中
+    `finv_quote_secu_kline_min` 的白名单从 `{dedup., quote., export., cdeu.}` 收紧为
+    `{quote., export., cdeu.}`。
+  - 顺带修正一处真实隐患：`internal/meta/finv/quote/cdeu/kline/service_integration_test.go`
+    原用 `dedup.finv_quote_secu_kline_min_it` 并在测试里 `CREATE SCHEMA IF NOT EXISTS dedup`
+    ——会把已冻结的 schema 在库里复活（实测确认发生过），现改为建在 `cdeu.`。
+  - 验证：迁移执行后库里 schema 只剩 `archive / brs / cdeu / export / futu / public / quant / quote / sche / sys`；
+    `finv_quote_secu_kline_min` 剩 `cdeu.` / `export.` / `quote.` 三份；闸门负向验证
+    （`SELECT * FROM dedup_frozen.finv_dedup_export_job` 被判违规）通过。
+  - 文档同步：`DbSchemaSpec` §0.2 保护名单、§0.5 事故记录、§0.7 备份落点、§1 schema 划分表
+    （`dedup_frozen` 行标记已删除）、§1.1 域归属、§3 双 schema 隔离表与去重层次说明共 20 处。
+
+### 修复
+
+- **导出链路「不生成动态 JOB」无法归因，且存在 provider 恒空的致命缺口（需求 10832）**
+  - 现象（用户实测）：流程跑了多次都没有生成预期的动态导出 JOB；表里明明有上个月的数据，
+    日志里也没有任何原因说明，只能手工逐表比对，排查成本极高。
+  - 根因（实测定位）：
+    1. **`cdeu.finv_quote_cdeu_usc.provider` 全部为空**（39 个证券全空；`finv_security.provider`
+       对这 39 个证券同样为空）。导出条件要求 `provider IS NOT NULL`，于是所有
+       `(usc, biz_month)` 都被判为「元数据不全」（实测 2492/2492 行），候选恒为 0，
+       动态 JOB 永远不生成。
+    2. 日志不可归因：决策阶段只输出「各原因的数量」，导出 JOB 最多一行「候选 0 个」，
+       无法区分「批次为空 / 元数据不全 / 未成熟 / 已导出 / 成熟度表压根没有该月」。
+  - 修复一（可解释性）：新增 JOB `EXPLAIN_EXPORT_DECISION`「导出决策明细」
+    （`PHASE_DECISION` / `PROCESS_EXPORT_DECISION`，`seq_no=2`，每日 00:16），
+    对成熟度表里**每一个** `(usc, biz_month)` 输出结论与具体原因：
+    - `METADATA_INCOMPLETE`：列出为空的字段中文名（如 `provider（数据商）`）；
+    - `DELISTED`：给出 `date_delist` 与业务月首日；
+    - `CURRENT_MONTH`：给出 `biz_month` 与当月；
+    - `IMMATURE`：给出「共 N 个交易日、仅 M 天成熟」并列出未成熟交易日；
+    - `ALREADY_EXPORTED`：给出 `job_id`、状态与已登记文件名；
+    - `EXPORTABLE`：给出应有行数/实际行数、**目标文件名**、**本地路径**、**远端路径**。
+    另扫描「行情表有数据但成熟度表无记录」的月份（`MATURITY_MISSING`）——这类月份在判定侧
+    完全隐形，是「静默无候选」最隐蔽的原因。
+  - 修复二（导出 JOB 归因）：新增 `Service.DiagnoseEmptyExportBatch`，在批次/候选/动态数量
+    异常时按链路顺序打印「批次清单为空 / 批次有 N 条但候选 0 / 候选 N 条但动态 0」三段结论，
+    并附上判定分布与前 5 条排除明细。
+  - 修复三（provider 缺口）：`BackfillUscDefaults` 新增第 5.6 步——**有富途采集记录的证券**
+    补 `provider='FTMM'`（依据：数据源即 `futu.finv_futu_quote_collect`，历史 202 个已导出
+    文件名的 provider 段全部为 FTMM）；迁移 `V200067` 同步补全存量数据。只补空值、只补
+    有富途采集记录的证券，不覆盖人工值。
+  - 修复四（可见性）：原先 `result.Details` 只随同步 HTTP 响应返回，调度触发跑完即丢弃，
+    前端「执行日志」弹窗里看不到逐条结论。新增 `Service.AppendJobLog`，JOB 内统一 `emit()`
+    双写：容器日志（`docker logs`）与运行日志（`cdeu.finv_quote_cdeu_job_run_log_line`）。
+  - 验证（本轮实测，非推断）：
+    - 迁移后 `provider` 空值 39 → 0，新 JOB 已在调度器注册（`调度 EXPLAIN_EXPORT_DECISION：每日 00:16`）。
+    - 端到端集成用例 `TestExplainExportDecisionEndToEnd`（`job` 包，走 `RunWithTrigger` 真实调度入口）
+      通过：`status=SUCCESS`，运行日志落库 13 行「导出决策」明细，`result.Details`
+      含 `total/exportable/excluded/by_reason/items`。
+    - 该用例会造一条必然可导出的探针证券月（元数据齐全 + 已成熟 + 未导出），实测输出：
+      `导出决策 可导出 ITEXP_PROBE 202501 优先级=10 交易日=1 应有行=1440 实际行=1440
+      文件=US_NSDQ_ITEXP_PROBE_Min_FTMM_Mon_202501_Base.mvsv
+      本地=…\ITEXP_PROBE\202501\US_NSDQ_ITEXP_PROBE_Min_FTMM_Mon_202501_Base.mvsv
+      远端=Data/Finv/SecuQuoteMon/FTMM/US_NSDQ/ITEXP_PROBE/US_NSDQ_ITEXP_PROBE_Min_FTMM_Mon_202501_Base.mvsv`，
+      `by_reason=map[ALREADY_EXPORTED:101 CURRENT_MONTH:1 OK:1]`；用例结束后探针数据已清理（残留 0）。
+    - 真实库执行决策明细：`总数=102 可导出=0 排除=102 原因分布={ALREADY_EXPORTED:101, CURRENT_MONTH:1}`，
+      逐条输出形如「NVDA 202604 原因=ALREADY_EXPORTED 说明=已导出/导出中：job_id=101 status=EXPORTED
+      已登记文件=US_NSDQ_NVDA_Min_FTMM_Mon_202604_Base.mvsv」。
+    - 单测 `TestClassifyExportDecision` 覆盖 9 个场景（可导出路径/文件名、元数据缺失指名到字段、
+      退市日期、当月、未成熟交易日列表与超限计数、已导出 job_id 与文件、文件未登记、
+      判定顺序优先级）。
+
+- **动态 JOB 领取顺序未体现 CDEU 定义的拓扑次序（需求 10831）**
+  - 问题：同流程下的同类型动态 JOB（每证券月的 `EXPORT`、每文件的 `UPLOAD`）创建时已经写了 `cdeu.finv_quote_cdeu_job_dynamic.seq_no`（导出按 `usc, biz_month`、上传按 `file_id` 生成），但领取时的排序完全不看它——导出用 `ClaimJob` 的「`FROZEN` 紧急度 → `priority_rank` → `oldest_pending_date` → `job_id`」，上传用文件表的 `gmt_create, file_id`。于是「定义了拓扑顺序」却没有生效，同优先级时只能靠自增主键兜底。
+  - 修复（不加新配置，顺序规则按业务口径固化）：**优先级仍然是主序**
+    - 导出：`FROZEN` 紧急度 → `priority_rank` → `oldest_pending_date` → **动态 `seq_no`** → `job_id`；
+    - 上传：**动态 `seq_no`** → `gmt_create` → `file_id`（上传的 `seq_no` 即按文件顺序生成，等价但改为声明式）；
+    - `seq_no` 缺失（非动态任务）用 `2147483647` 兜底，等同不参与排序。
+  - 语义：同一流程下同类型动态 JOB 之间「没定义独立拓扑 → 按运维定义的优先级执行；优先级并列（或该类型只定义拓扑）→ 按 CDEU 的 `seq_no` 拓扑顺序执行」。
+  - 验证（真实库事务内造数、验完回滚）：两条同 `priority_rank`/`oldest_pending_date` 的任务，`seq_no` 分别为 2 与 1 → 选中 `seq_no=1` 的那条；把 `seq_no=2` 那条的 `priority_rank` 改成 1（更高优先级）→ 仍然选中高优先级那条，证明优先级优先于拓扑顺序。
+
+- **CDEU 阶段内流程与流程内 JOB 也会抢跑（需求 10830）**
+  - 问题（承接 10829 的跨阶段排查）：三级串行门禁原先同样只在**完成判定**里生效——
+    `cdeuProcessHasEarlierUnfinished` 由 `EvaluateCDEUProcess` 调用，`cdeu_job.seq_no` 从未参与任何运行期判断。于是：
+    - `PHASE_DECISION` 的「采集统计 → 成熟度扫描 → 预算计算 → 导出条件评估」四个 Process 各自按 00:05/00:05/00:10/00:15 独立触发，预算可能在成熟度刷新完成前就算完；
+    - `PHASE_REVIEW` 的 `PROCESS_PURGE`（`PURGE_EXPORTED_MONTH` → `PURGE_LOCAL_FILES`）与 `PROCESS_RETENTION`（`PURGE_STALE_DYNAMIC` → `PURGE_HISTORY_RUNS`）两个 JOB 之间没有顺序保证；
+    - 另有一个隐藏缺陷：`Store.CDEUPhaseGateForJob` 用 `j.job_code = kind` 匹配，而调度器传的是 `job_kind`（如 `RUN_DUE_EXPORT_JOBS`），导致导出主 JOB 完全绕过门禁。
+  - 修复：把门禁扩展为 **三级**（`Store.CDEUJobGate`，按 `Phase → Process → JOB` 优先级返回第一条阻塞项）：
+    1. Phase 级：同工作流内 `seq_no` 更小、`enabled`、`affects_completion` 的前序阶段；
+    2. Process 级：同阶段内 `seq_no` 更小的前序流程；
+    3. JOB 级：同流程内 `seq_no` 更小的前序 JOB。
+    阻塞口径与完成判定一致：前序**从未开始**或**已失败**（`FAILED`/`PARTIAL`/`CANCELLED`）→ 不触发；前序**已在跑** → 放行（否则持续型阶段/流程会把后序饿死）。
+  - 匹配口径修正：改为按 `job_kind` 查定义（与 `CDEUJobDefinitions` 一致），导出主 JOB 重新纳入门禁。
+  - 跨流程编排型 kind 豁免：`RUN_DUE_EXPORT_JOBS` 一个 kind 覆盖 6 个 JOB 定义（`PROCESS_EXPORT_BATCH` + `PROCESS_EXPORT_FILE_MON_BASE` 的 5 个），它本身就是要推进这些流程的编排器，只施加 Phase 级门禁，否则会被自己推进的流程挡住而死锁。
+  - 验证：集成用例 `TestCDEUJobGate` 覆盖 7 个场景并全部通过——跨阶段拦截、阶段内前序流程拦截、前序流程完成后放行、流程内前序 JOB 拦截与放行、前序失败拦截（原因写明「已失败」）、多定义 kind 不被自身流程阻塞、首个阶段永不被拦。
+
+- **CDEU 各阶段抢跑：导出决策 / 导出 / 上传 / 复核并行执行（需求 10829）**
+  - 问题：CDEU 的阶段串行门禁（`cdeuPhasePredecessorState`）只作用在**完成判定**（`EvaluateCDEUPhase`），不阻止 JOB 开始；而各阶段 JOB 由调度器按各自 cron / 间隔独立触发（导出 60 秒一轮、上传 300 秒、决策 00:05–00:15、定稿 00:20），于是 `PHASE_DECISION` / `PHASE_EXPORT` / `PHASE_UPLOAD` / `PHASE_REVIEW` 并行跑，与设计拓扑 `COLLECT → DEDUP → DECISION → EXPORT → UPLOAD → REVIEW` 不符；且调度时间本身倒挂（`PHASE_DEDUP` 的 `JOB_MARK_SEALED` 在 00:20，晚于 `PHASE_DECISION` 的 00:05–00:15）。
+  - 修复：新增 `Store.CDEUJobGate` + `Service.CDEUJobGate`，调度器在更新「本轮已跑」标记**之前**判断门禁：
+    - 前序阶段从未开始（`started_at IS NULL` 且非 `SUCCESS`/`SKIPPED`）→ 本轮不触发；
+    - 前序阶段已失败（`FAILED`/`PARTIAL`/`CANCELLED`）→ 本轮不触发，日志写明「前序阶段 X 已失败，等待人工处理」；
+    - 前序是持续型阶段（已在跑、当前可能又变 `RUNNING`）→ 放行，避免上传阶段被导出阶段饿死；
+    - 旁路阶段（`affects_completion=false`）与 **手动触发**不受门禁限制。
+  - 关键实现细节：被门禁拦下时**不写** `lastRun` / `lastDay`，保持「到期」状态，前序完成后下一个 tick（30 秒）自动继续——否则「00:05 到期的决策 JOB」会被标成今天已跑，DEDUP 00:20 完成后当天再也不会执行。门禁日志按 JOB 5 分钟节流，避免每 30 秒刷屏。
+  - 效果：时间表仅作参考，真实执行顺序由拓扑门禁保证——例如服务在 00:04 启动时，`PHASE_DECISION` 的 JOB 到点后被 DEDUP 拦住，等 00:20 定稿完成再自动执行。
+  - 验证：新增集成用例 `TestCDEUPhaseGate`（`FINV_TEST_PG_DSN` 时执行）覆盖四个场景——前序未开始被拦、前序成功后放行、前序失败被拦且原因写明失败、首个阶段永不被拦，全部通过。
+
+- **重复跑补全流程会把人工清空的优先级/SLA 恢复成默认值（需求 10827）**
+  - 问题：运维在「优先级」里清空某证券的覆盖值（`DELETE /Priority` → 三列置 NULL 且 `priority_gmt_update = now()`），下一轮补全又会按「三列全空」补成 100 / 5 / 7 —— 人工清空的意图被覆盖，看起来像「字段被重置」。
+  - 修复：补全的优先级阶段增加 `priority_gmt_update IS NULL` 条件，只有「**从未配置过**」的证券才补默认值：
+    - `priority_gmt_update IS NULL` + 三列全空 → 系统从未配过 → 补 100 / 5 / 7（初始化语义保留）；
+    - `priority_gmt_update` 非 NULL + 三列全空 → **人工清空**（PUT/Priority 删除会写该列）→ 不再补；
+    - 三列有值 → 人工设置过 → 不动。
+  - 同时新增稳态短路：补全方法挂在「每 60 秒一轮的导出 JOB」与「每日成熟度 JOB」上，先用一次 `count(*)` 判断是否还有缺口（判缺口口径与各阶段 WHERE 一致，人工清空的证券不计为缺口），无缺口直接返回，避免每轮跑 6 条大表 JOIN/UPDATE。
+  - 实测（本机容器）：把 `600519` 的三列清空并保持 `priority_gmt_update = now()`（模拟人工清空）、把 `000001` 三列清空且 `priority_gmt_update = NULL`（模拟从未配置）→ 跑一轮 `REFRESH_QUOTE_MATURITY`：`000001` 补成 100 / 5 / 7（日志「优先级 1」），`600519` 仍为 NULL（未被恢复默认）；再跑一轮日志显示「优先级 0」。
+
+- **补齐 day_expect_rows 后，成熟度表期望行数仍为 0（需求 10826）**
+  - 问题：`cdeu.finv_quote_cdeu_usc.day_expect_rows` 已经补成 241/331/390…，但 `cdeu.finv_quote_cdeu_quote_maturity_mon.expected_rows` 仍停在 0（页面「期望行数」为 0，实际行数正常）。根因是 `expected_rows` 只在成熟度刷新**扫到该证券该日**时才写，而 `RefreshMaturityIncremental` 的扫描范围是主表 `gmt_update` 水位（只覆盖新到数据），历史成熟度行不会重扫；全量校准 `RecalibrateMaturity` 也只在「水位首次建立」或「每月 1 日」触发。
+  - 修复：`BackfillUscDefaults` 在补齐 `day_expect_rows` 后用 `RETURNING usc` 收集受影响的证券，并对**这些证券**的历史成熟度行重算 `expected_rows` 与 `maturity_status`（新增 `Store.recomputeMaturityExpected`：非交易日=0/COMPLETE、无期望值=PARTIAL、`actual_rows >= day_expect_rows × threshold` = COMPLETE，`FROZEN` 行状态不改写），只更新有差异的行、不扫全表；方法签名增加 `threshold`（取 `options.MaturityThreshold`），`UscBackfillStat` 增加 `MaturityRows`，JOB 日志与 `details` 输出「重算成熟度 N 行」。
+  - 实测（本机容器）：把 `600519` 的 `day_expect_rows` 清空并插入一条 `expected_rows=0 / actual_rows=30` 的成熟度行 → 触发 `REFRESH_QUOTE_MATURITY` → `usc.day_expect_rows` 补回 241、`maturity.expected_rows` 变为 241、状态 `PARTIAL`（30 < 241×0.95），日志 `证券补全：元数据 39 行、…、day_expect_rows 1 行、重算成熟度 1 行、…`。
+  - 集成用例 `TestBackfillUscDefaults` 增加历史成熟度行断言（补全后 `expected_rows` 从 0 重算为 241），并把 `MaturityRows` 纳入幂等断言。
+
+- **GitHub 上传对大文件必失败、远端去重误报、上传实例缺执行日志入口（需求 10825）**
+  - 问题一（必现失败）：查询远端文件走 Contents API，该接口会把文件内容以 base64 一并返回（800,787 字节的 mvsv ≈ 1.1MB 响应），而实现按 `1<<20` 截断读取 → JSON 不完整 → 误报「解析远端响应失败: unexpected end of JSON input」。README 里的「解析远端响应失败」错误就是它。
+  - 问题二（日志误导）：Job 层「上传前 HEAD 去重」用本地 SHA256 与 `Stat` 返回的远端校验值比较，但 GitHub 返回的是 **git blob sha1**（不提供 SHA256），两者永不相同 → 每次都记「远端已存在但内容不同，将覆盖」，实际 `Put` 内部按 blob sha 判等后并未产生提交。
+  - 问题三（入口消失）：上传动态 JOB 创建时只写 `workflow_run_id`、不写 `run_log_id`，页面「执行日志」按钮按 `run_log_id` 渲染，失败后点不开日志。
+  - 修复一：查询远端文件改为 Git Trees API（`/repos/{owner}/{repo}/git/trees/{branch}:{dir}`），只返回目录条目元数据（实测同一文件 519 字节 vs 1.1MB），仍能拿到 blob sha 与 size；Trees API 不可用（企业版、分支名含 `/`、树被截断）时回退 Contents API，回退路径读取上限从 1MB 提到 32MB，超限时明确报「响应超过读取上限」而不是 JSON 解析错误。
+  - 修复二：新增 `UploadChecksumVerifier` 可选接口声明远端校验口径（`sha256` / `git-blob-sha1`），`dynamicUploader` 转发；Job 层仅在口径为 `sha256` 时做等值判定并跳过，口径不可比时日志改为「远端已存在（口径=git-blob-sha1，与本地 SHA256 不可比），交由上传实现按自身口径判定是否覆盖」。
+  - 修复三：`GenerateUploadDynamicJobs` 写入 `run_log_id`（当前运行日志 ID），并对已存在但 `run_log_id` 为空的上传实例补齐；`MarkDynamicUploadJobStatus` 与 CDEU 动态 JOB 列表查询都增加「回退到最近一次上传运行」的兜底，历史实例也能点开日志。
+  - 实测（真实 800,787 字节 mvsv + 真实 GitHub 仓库）：日志显示 `远端已存在 远端大小=800787 远端校验值=9ec56ad1…（口径=git-blob-sha1…）`，3 秒内完成（不再下载 base64 内容）；远端仓库最新提交仍为上一次清理提交（幂等跳过，未重复写入）；上传动态 JOB `run_log_id=8946` 已写入，失败/成功都能从列表打开日志。
+  - 测试：新增 `TestGitHubStatUsesTreeAPI`（走 Trees API 且不回退、404 时回退 Contents）、`TestSplitRepoPath`；测试数据（`file_id=1878`、上传动态 JOB 7420、`usc=USDIndex`、容器临时目录、下载的远端文件）均已清理。
+
+- **上传 JOB 日志不可定位、异常与执行日志不一致（需求 10824）**
+  - 问题：`UPLOAD_PENDING_EXPORT_FILES` 的日志只有「上传 file_id=… 文件名 …」与末条笼统的「JOB 完成 · SUCCESS」；失败的单个文件只把原因写进动态 JOB 的异常字段，而运行汇总（`error` 字段与「执行日志」）仍是 SUCCESS —— 两处不一致，看不出是本地文件、远端仓库配置还是网络环节出问题。另外 GitHub 上传在收到 `200` + 空响应体时只报「解析远端响应失败: unexpected end of JSON input」，缺少 HTTP 状态、URL 与响应体片段。
+  - 逐文件分阶段日志（`stage=UPLOAD`）：上传开始（file_id/usc/业务月/类型/attempt/开始时间）→ 本地文件绝对路径与登记大小/sha256 → 本地校验实际值 → **上传目标（网站 API Base + 组织/用户 + 仓库 + 分支 + 目标路径 + 完整 URL，PAT 不入日志）** → 远端 HEAD 三类结论（不存在 / 同内容幂等跳过 / 内容不同覆盖）→ PUT 字节数与耗时（含起止时间）→ 远端校验 → 上传成功（字节/总耗时/结束时间/目标）。
+  - 失败项以 `level=ERROR` 写入同一次运行的详细日志行，带文件名、本地路径、目标路径与目标描述、`attempt`、失败环节（本地校验 / HEAD / PUT / 远端校验）与下次重试时间（重试耗尽时标注）；此前只写 `log.Printf` 与上传审计，前端「执行日志」里看不到。
+  - 运行汇总一致化：有失败时 `result.Message` 写入「本轮 N 个文件上传失败（首个 file_id=…：原因），失败项已按退避策略排入重试」，它会同时落在运行汇总的 `error` 字段与末条日志，页面「异常」列与「执行日志」不再冲突；`details` 增加 `uploaded_bytes`、`elapsed_seconds`、`first_failed_id`、`first_failed_err`。
+  - 新增 `UploadTargetDescriber` 可选接口（none/dir/http/github/dynamic 五种实现），`dynamicUploader` 负责转发给当前生效的实现，避免日志退化成一个 `mode=github path=…`。
+  - GitHub 响应解析错误补全诊断：`查询远端文件响应解析失败: HTTP 200，GET <完整 URL>，Content-Type，Content-Length，响应体片段，X-GitHub-Request-Id`，响应体为空时额外提示核对 `FINV_QUOTE_DEDUB_UPLOAD_GITHUB_API_BASE`、代理/网关与 `sys_config 20004` 的仓库定位。
+  - 实测（本机容器，GitHub 上传模式）：成功链路 12 条分阶段日志，目标行显示 `网站=https://api.github.com 组织/用户=acdnx 仓库=Distribution 分支=quote 目标路径=…`；失败链路（本地文件缺失）写一条 `[ERROR]` 日志并附完整目标与「下次重试」时间，「JOB 完成 · SUCCESS · 本轮 1 个文件上传失败（首个 file_id=1877：…）」与运行汇总 `error` 字段一致。
+  - 测试：新增 `TestDescribeUploadTarget`（dir/none/非法路径回退）；文档 `Docs/API/QuoteDeDup/RunLog.md` 补充上传类 JOB 的日志口径与 `level` 语义。
+
+- **证券自动发现后的元数据补全失效（需求 10823）**
+  - 问题：服务器表 `cdeu.finv_quote_cdeu_usc` 497 行里有 **431 行**只有 `usc` + `provider`，`category/region/market/name/timezone/currency/day_expect_rows` 全为空。根因两个：① 回填只取 `finv_security.flag_enable='1'` 的行，而 `V200062` 导入的证券默认全是 `'0'`（372 行被这一条条件全部过滤掉）；② 五十余个自动发现的品种（富途板块 / 主连 / 外汇对 / 部分美股）根本不在 `finv_security`，没有数据源兜底。
+  - `Store.BackfillUscDefaults` 重写为六步（只补空、幂等）：
+    ① `finv_security` 回填，**不限 `flag_enable`**（启用开关是字典维护语义，不代表行情不存在）；
+    ② `futu.finv_futu_quote_collect` 兜底：`quote_market`（SH/SZ/BJ/HK/US/FX/CC）→ `region`/`market`，`type_symbol` → `category`；
+    ③ 按 `region` 推导 `timezone`/`currency`（CN→Asia/Shanghai+CNY、HK→Asia/Hong_Kong+HKD、US→America/New_York+USD、FX/GLOBAL→UTC；外汇对与加密货币不猜计价币）；
+    ④ `SH######` / `SZ######` 前缀兜底为 A 股指数（`region=CN`、`market=SH/SZ`、`category=StockIndex`）；
+    ⑤ 按模板补 `day_expect_rows`；⑥ 优先级 / SLA / 最大等待补 100/5/7。
+  - 新增 `Deploy/Migrations/V200066__cdeu_usc_day_incr_row_tpl_region_fallback.sql`：模板表补 7 条**区域级兜底**行（`CN/''/''`=241、`HK/''/''`=331、`US/''/''`=390、`US/''/Futures`=1380、`FX/''/''`=1380、`GLOBAL/''/''`=1440、`GLOBAL/''/Forex`=1380）。原模板只有 `region+market` 精确行，`market` 未维护时一条都命中不了。
+  - 新增可观测性：`UscBackfillStat` 增加 `MetadataRows` / `DerivedRows` / `Missing`（各字段仍缺行数），新增 `Store.UscMissingSample` 返回余下缺口证券样本，JOB 日志输出「补了多少 / 还缺什么 / 剩余样本」。
+  - 实测（全新库全链迁移 151 个脚本 + 导入服务器导出的 497 行 usc）：修复前 431 行元数据全空、431 行 `day_expect_rows` 为空；修复后仅剩 **7 行**无源证券（`AMAT`/`GDRnext`/`MRVL`/`NOW`/`PLTR`/`SMCI`/`XRP`，既不在 `finv_security` 也不在富途镜像表）+ `VXMain` 的 `market`（`finv_market.market_symbol` 未维护），其余全部补齐（补全率 424/431 ≈ 98.4%）；`SH000002`/`SH000903`/`SH0980` 等由前缀兜底为 `CN/SH/StockIndex/241`。
+  - 集成用例 `TestBackfillUscDefaults` 增加两个场景：`flag_enable='0'` 的证券仍能回填元数据（并按区域兜底模板得 241）、`finv_security` 未收录但富途镜像表有记录的证券走兜底（`HK/HK` → 331）；幂等断言覆盖 `MetadataRows` / `DerivedRows`。
+
+- **Native 安装脚本 qmio 定位修正（需求 10822）**
+  - 问题：`Deploy/Native/Install.sh` 第 6 步找 qmio 只看了 `${SCRIPT_DIR}/../qmio`（`<PREFIX>/Deploy/qmio`）与 `${SCRIPT_DIR}/qmio`（`<PREFIX>/Deploy/Native/qmio`），而发行包（`Deploy/Script/PackSnapshot.sh`）是把 `qmio` 与 `finvquant` **并列放在包根**，宿主直装时总报 `[WARN] 未找到 qmio（期望 …/Deploy/Native/../qmio）`，`<PREFIX>/bin/qmio` 与 `/usr/local/bin/qmio` 永远不会创建。
+  - 修正：候选路径改为 `① ${REPO_ROOT}/qmio`（发行包根，与 `finvquant` 同目录；第 1 步定位二进制的策略一致）→ `② ${SCRIPT_DIR}/../qmio`（历史自定义布局）→ `③ ${SCRIPT_DIR}/qmio`（手工放文件），命中顺序与 `Docs/Native/Install.md` 「安装包根目录内的 qmio」说明一致；警告文案同步列出三个已尝试路径。
+  - 验证：`bash -n` 语法通过；在模拟发行包结构（`FinvQuant-vX-ubuntu-arm64/{finvquant,qmio,Deploy/Native/Install.sh}`）下候选第 1 项命中包根 `qmio`（修复前该布局断言失败）。`Upgrade.sh` 用 `$(dirname "${BINARY_SRC}")/qmio` 已是包根口径，无需改动。
+
+- **港股人民币柜台 `currency_type` 口径修正（需求 10817）**
+  - 问题：Supabase 证券主数据按市场统一取币种，港交所记录一律落 `HKD`，导致 **8 开头的 5 位代码人民币柜台**（如 `80700` 腾讯控股-R、`81810` 小米集团-WR、`82840` SPDR金-R）被写成 `HKD`，与实际结算货币不符。
+  - 口径：港交所 **8 开头 5 位代码**且 `security_type` 不属于 `StockIndex`/`VolatilityIndex`/`BondIndex`/`CommodityIndex` → `currency_type='CNY'`；**6 位** `800100` 一类港元计价指数（国企指数、恒指波幅指数等）保持 `HKD`。
+  - 工具侧：`FinvQuantDesign/Scripts/SecuSync/` 的 `ExportSecu.py` 增加 `hkRmbCounter` 规则（优先于交易所默认币种），使后续增量拉取直接产出 `CNY`；新增 `FixSecuCurrency.py` 按 `currencyFixRules` 生成可重复执行的更正 SQL（幂等 + 收敛校验）。
+  - 数据侧：已对库内 23 条误写为 `HKD` 的人民币柜台执行 `UPDATE`（另有 3 条历史数据本就是 `CNY`，未被重复更新）；校验后 26 条人民币柜台全为 `CNY`、261 条 8 开头港元指数全为 `HKD`；重跑同 SQL `UPDATE 0`。
+  - 文档同步：`Docs/DataDictMapping/FinvSecurity.md` §3 补充「`currency_type` 口径（港股人民币柜台）」说明。
 
 ## [0.1.3] - 2026-10-29
 
 > 本版本内容：四级菜单导航改造、登录与文案修复、BRS 上传与配置、去重/导出链路修复、深色/浅色主题切换等。
 
 ### 新增
+
+- **设计文档撰写指南（参考性）**
+  - 新增 **`Docs/Guide/DesignDocGuide.md`**：基于 AHA `Docs/Design` 22 篇的体例统计（命名、6 行元信息、4 列变更日志、章节数 8–12、篇幅中位 271 行、表格化表达、ASCII 图、`✅`/`⛔`/`⚠` 状态标记、12 篇「为什么」小节），归纳为撰写参考：文件命名与放置、文档骨架、章节顺序、叙述习惯、表格/代码块/状态标记用法、链接、篇幅拆分、维护更新。
+  - 附可复制模板与 13 项写完后的自检建议、常见毛病对照表，以及统计基线附录。
+  - **性质说明**：这是写作参考，不进入 `Docs/DevSpec/` 规范体系，也不占用需求编号；与既有规范冲突时以 `Docs/DevSpec/` 为准。
+
+- **BRS 表备份与对象存储上传设计文档**
+  - 新增 **`Docs/Design/BrsBackupDesign.md`**（体例同 `CdeuWorkflowDesign.md`）：登记驱动的每日 `pg_dump` 表级备份 + S3 兼容对象存储上传。
+  - 覆盖：`sys_config` 39001 六段 cron 调度（每秒 tick、60 s 表达式缓存、轮次互斥）、`pg_dump -Fc` 参数映射（`bak_scope` / `compression` / 30 分钟超时 / `PGPASSWORD`）、`oss.Store` 抽象与 `oss/s3`（`aws-sdk-go-v2`、强制 path-style、静态凭证回退默认链）+ `oss/local` 适配器、39002 JSON 配置与表级 `flag_upload` 双层开关、对象 key 规则、失败保留本地。
+  - 附登记表字段与 12 行预置、配置项、运维操作与常见问题（`pg_dump` 版本、S3 403、path-style）、实现现状（`where_clause` / `copy` / 备份结果落库 / 重试 / 保留期清理 / 手动触发入口 / 恢复自动化 均标为未实现）与源码索引。
+
+- **qmio 数据搬运工具设计文档**
+  - 新增 **`Docs/Design/QmioDesign.md`**（体例同 `CdeuWorkflowDesign.md`）：export / import / verify 三个子命令的输入、处理、输出与失败语义。
+  - 覆盖：快照只读导出（`REPEATABLE READ` + `READ ONLY`，`count` 与数据同一快照）、数值列 `::text` 保精度、MVSV-2 19/17 列与 `# Field` 列名映射、`upsert`/`append`/`replace` 三种冲突模式、单事务与 `--force` 三重保护、gzip 魔数识别、`.sha256` 校验、`finvquant.env` 四级自动发现。
+  - 附数据契约、安全与运维约束（含 `--where` 直拼 SQL 与 gmt 文本解析失败写 NULL 两项风险）、常见问题速查、实现现状（断点续传/并行导入/直传对象存储标为未实现）与源码索引。
+
+- **CDEU 归档工作流设计文档（需求 10813）**
+  - 新增 **`Docs/Design/CdeuWorkflowDesign.md`**，体例对齐 AHA `Docs/Design`：文档元信息 + 变更日志 + 编号章节 + 表格化结论。
+  - 内容覆盖：五级层级（Workflow → Phase → Process → JOB → Step）、定义/运行/动态实例分离、9 种运行状态、完成条件、触发与执行模式、六个阶段（收集 / 去重 / 决策 / 导出 / 上传 / 复核）、17 个 Process、22 个 JOB（含 1 个已停用）、15 个静态 Step。
+  - 每个阶段给出「目标—输入—输出—流程—关键规则—失败边界」，每个 JOB 给出「输入—处理—输出—解决的问题」，另含数据契约（关键表、文件命名与 16 行文件头、校验规则）、系统配置 20001–20012、阈值清单、运维排障表与两个页面（`CdeuOverview`、`CdeuWorkflow`）的监控映射。
 
 - **深色 / 浅色主题切换（需求 10810）**
   - 右上角用户菜单新增「深色主题」开关，即时切换 Vuetify `light` / `dark` 主题；选择保存在 `localStorage['finvquant.ui.theme']`，**不做服务端持久化**（待办 10811）。

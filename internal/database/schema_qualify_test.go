@@ -23,9 +23,9 @@ var domainTablePrefixes = map[string]string{
 	"finv_futu_":       "futu.",
 }
 
-// cdeuTables CDEU 工作流域的表清单（V100078 建表、V100079 统一前缀，共 26 张）。
+// cdeuTables CDEU 工作流域的表清单（V100078 建表、V100079 统一前缀，共 27 张）。
 //
-// 全部 25 张业务表统一为 finv_quote_cdeu_ 前缀：
+// 全部 26 张业务表统一为 finv_quote_cdeu_ 前缀：
 //
 //	· 原 cdeu_*（12 张）：V100079 把 cdeu_ 替换为 finv_quote_cdeu_
 //	· 原 finv_dedup_*（13 张）：V100078 建表时即替换
@@ -64,6 +64,7 @@ var cdeuTables = map[string]bool{
 	"finv_quote_cdeu_scan_watermark":          true,
 	"finv_quote_cdeu_trade_calendar":          true,
 	"finv_quote_cdeu_usc":                     true,
+	"finv_quote_cdeu_usc_day_incr_row_tpl":    true, // V100084 新增：日增量行数模板
 
 	// 表名不变
 	"finv_quote_secu_kline_min": true,
@@ -76,13 +77,24 @@ var cdeuTables = map[string]bool{
 //   - cdeu.finv_quote_secu_kline_min：去重 / 导出 / 上传链路专用（V100080 起代码读写此处，
 //     数据自 dedup 一次性迁入）；
 //   - export.finv_quote_secu_kline_min：导出中转暂存（快照表，允许清空）；
-//   - dedup.finv_quote_secu_kline_min：历史副本，代码已不读写，待运维清理淘汰。
+//   - dedup_frozen.finv_quote_secu_kline_min：历史副本（`V100080` 后 schema 已改名为
+//     dedup_frozen 并冻结），**代码一律不得引用**——因此下方白名单刻意不含 `dedup.`，
+//     任何写回 `dedup.finv_quote_secu_kline_min` 的代码都会让本测试直接失败。
 //
 // 各副本同名同构但职责不同，靠 schema 前缀强制隔离；漏写前缀会命中 search_path
 // 里的另一张表，所以这里要求必须显式限定为其中之一。
 var exactTableSchema = map[string][]string{
-	"finv_quote_secu_kline_min": {"dedup.", "quote.", "export.", "cdeu."},
+	"finv_quote_secu_kline_min": {"quote.", "export.", "cdeu."},
 }
+
+// forbiddenSchemaPrefixes 已清理淘汰的 schema：代码里出现即视为违规（需求 10834）。
+//
+//   - dedup        ：V100080 迁入 cdeu、需求 10757 切代码，V100086 已 DROP；
+//   - dedup_frozen ：需求 10759 冻结的旧域，V100086 已 DROP。
+//
+// 保留这条检查是为了防止「集成测试里 CREATE SCHEMA IF NOT EXISTS dedup」这类
+// 误复活（历史上确实发生过）：即使 schema 能被重建，代码也不该再引用它。
+var forbiddenSchemaPrefixes = []string{"dedup.", "dedup_frozen."}
 
 // sqlCRUDKeywords 用于识别「该行是 SQL 语句」的上下文，避免把注释误判。
 var sqlCRUDKeywords = []string{
@@ -124,6 +136,14 @@ func TestSQLSchemaQualified(t *testing.T) {
 			for lineNo, line := range strings.Split(string(content), "\n") {
 				if !isSQLCRUDLine(line) {
 					continue
+				}
+				// 已淘汰 schema 的硬拦截：不区分表名，出现即失败。
+				for _, forbidden := range forbiddenSchemaPrefixes {
+					if strings.Contains(line, forbidden) {
+						violations = append(violations,
+							fmt.Sprintf("%s:%d: 引用了已淘汰的 schema %q（已由 V100086 删除）：%s",
+								path, lineNo+1, forbidden, strings.TrimSpace(line)))
+					}
 				}
 				for _, table := range unqualifiedDomainTables(withoutExactTables(line)) {
 					violations = append(violations,

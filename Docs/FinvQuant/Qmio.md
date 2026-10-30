@@ -1,7 +1,7 @@
 # qmio — FinvQuant 数据搬运工具
 
 > 安装位置：`<PREFIX>/bin/qmio`（与 `finvquant` 二进制**同目录**）
-> 源码：`cmd/qmio` · 依赖：`internal/mvsv`（MVSV-2）
+> 源码：`cmd/qmio` · 依赖：`internal/meta/finv/quote/mvsv`（MVSV-2）
 > 用途：快速导出/导入 `cdeu.finv_quote_secu_kline_min`，用于灌数据、联调、压测。
 
 ## 1. 简介

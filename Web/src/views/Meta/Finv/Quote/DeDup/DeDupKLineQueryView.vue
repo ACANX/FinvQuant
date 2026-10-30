@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 去重分钟行情查询：按 usc + 交易日期范围分页查询 cdeu.finv_quote_secu_kline_min
+// K线数据查询：按 usc + 交易日期范围分页查询 cdeu.finv_quote_secu_kline_min
 import { onMounted, ref, watch } from 'vue'
 
 import { apiGet } from '../../../../../api'
@@ -191,7 +191,7 @@ onMounted(async () => {
   <v-card>
     <v-card-title>
       <v-icon icon="mdi-table-search" class="mr-2" />
-      去重分钟行情查询
+      K线数据查询
     </v-card-title>
 
     <v-card-text>

@@ -226,8 +226,12 @@ ln -sfn "${BINARY}" "${BINARY_LINK}"
 ok "二进制：${BINARY}（软链 ${BINARY_LINK}）"
 
 # qmio：数据搬运工具，必须与 finvquant 同目录（<PREFIX>/bin/qmio）
+# 来源优先级（PackSnapshot.sh 的包布局是「qmio 与 finvquant 并列放在包根」）：
+#   ① <PREFIX>/qmio（发行包根目录 / 安装后根目录，与 finvquant 同级）
+#   ② <PREFIX>/Deploy/qmio（历史自定义布局，保留兼容）
+#   ③ <PREFIX>/Deploy/Native/qmio（脚本同级，手工放文件时可用）
 QMIO_SRC=""
-for candidate in "${SCRIPT_DIR}/../qmio" "${SCRIPT_DIR}/qmio"; do
+for candidate in "${REPO_ROOT}/qmio" "${SCRIPT_DIR}/../qmio" "${SCRIPT_DIR}/qmio"; do
   if [[ -f "${candidate}" ]]; then QMIO_SRC="${candidate}"; break; fi
 done
 if [[ -n "${QMIO_SRC}" ]]; then
@@ -235,7 +239,7 @@ if [[ -n "${QMIO_SRC}" ]]; then
   ln -sfn "${QMIO_BINARY}" "${QMIO_LINK}"
   ok "qmio：${QMIO_BINARY}（软链 ${QMIO_LINK}）"
 else
-  warn "未找到 qmio（期望 ${SCRIPT_DIR}/../qmio），跳过（不影响主服务）"
+  warn "未找到 qmio（已尝试 ${REPO_ROOT}/qmio、${SCRIPT_DIR}/../qmio、${SCRIPT_DIR}/qmio），跳过（不影响主服务）"
 fi
 if [[ "$(readlink -f "${MIGRATIONS_SRC}")" == "$(readlink -f "${MIGRATIONS_DIR}" 2>/dev/null || echo -)" ]]; then
   ok "迁移目录即安装目录，无需复制：${MIGRATIONS_DIR}"

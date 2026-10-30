@@ -26,6 +26,8 @@ const (
 	tableRunLog      = "cdeu.finv_quote_cdeu_job_run_log_export_file"
 	tableRunLogLine  = "cdeu.finv_quote_cdeu_job_run_log_line"
 	tableUsc         = "cdeu.finv_quote_cdeu_usc"
+	tableUscRowTpl   = "cdeu.finv_quote_cdeu_usc_day_incr_row_tpl"
+	tableFutuQuote   = "futu.finv_futu_quote_collect"
 	tableJob         = "cdeu.finv_quote_cdeu_export_job"
 	tableFile        = "cdeu.finv_quote_cdeu_export_file"
 	tableUploadLog   = "cdeu.finv_quote_cdeu_export_file_upload_log"
@@ -439,6 +441,408 @@ UPDATE `+tableUsc+` u
 	return inserted, nil
 }
 
+// 归档默认值口径：模板未命中 / 未配置覆盖时的兜底值（沿用 V100051 以来的 100 / 5 / 7）。
+const (
+	defaultPriorityRank = 100
+	defaultSlaDays      = 5
+	defaultMaxWaitDays  = 7
+)
+
+// UscBackfillMissing 补全后仍然缺失的字段行数（用于日志与运维定位）。
+type UscBackfillMissing struct {
+	Provider      int64 `json:"provider"`
+	Category      int64 `json:"category"`
+	Region        int64 `json:"region"`
+	Market        int64 `json:"market"`
+	Name          int64 `json:"name"`
+	Timezone      int64 `json:"timezone"`
+	Currency      int64 `json:"currency"`
+	DayExpectRows int64 `json:"day_expect_rows"`
+}
+
+// UscBackfillStat 一次补全的影响行数与补全后仍缺的字段统计。
+type UscBackfillStat struct {
+	MetadataRows  int64              // 元数据（finv_security / futu 镜像）被补上的行数
+	DerivedRows   int64              // 按 region / usc 前缀推导 timezone、currency、market 的行数
+	DayExpectRows int64              // 按模板补齐 day_expect_rows 的证券数
+	MaturityRows  int64              // 按新期望条数重算的历史成熟度行数
+	Priority      int64              // 补齐 priority_rank / sla_days / max_wait_days 的证券数
+	Missing       UscBackfillMissing // 补全后仍为 NULL 的字段行数
+}
+
+// BackfillUscDefaults 为证券主数据补齐归档必需的元数据与默认值（只补空，绝不覆盖已有值）。
+//
+// 为什么需要它：自动发现（DiscoverUsc）只写 usc 与 flag_auto_discover，其余列全空；
+// 而 RefreshSecurityMetadata 的 INSERT 只取 finv_security.flag_enable='1' 的行，
+// 证券默认为禁用（V200062 种子全是 '0'）或根本不在 finv_security 时，
+// region/market/currency/name/timezone/category 永远补不上，证券就永远进不了导出候选。
+//
+// 补全分六步（逐次 Exec，每步只补空、幂等）：
+//  1. 从 public.finv_security 回填 —— **不限 flag_enable**（禁用只是字典维护开关，
+//     不代表行情不存在）：category/name/timezone/currency/provider 取自证券主数据，
+//     region 取 finv_region 字典（失配时回退 exchange.region），market 取
+//     finv_market.market_symbol（为空则留给第 2 步，不用历史 market_flag 充数，
+//     否则会污染 {region}_{market} 目录与模板匹配）。
+//  2. 从 futu.finv_futu_quote_collect（富途原始属性镜像）兜底：
+//     quote_market（SH/SZ/BJ/HK/US/FX/CC）→ region / market，
+//     type_symbol（stock/etfs/index/futures/sectors/crypto/currency）→ category。
+//     这一步覆盖「上游有证但 finv_security 未收录」的证券（如富途板块、主连、外汇对）。
+//  3. 按 region 推导 timezone / currency（富途镜像表不带这两列）：
+//     CN→Asia/Shanghai + CNY，HK→Asia/Hong_Kong + HKD，US→America/New_York + USD，
+//     FX / GLOBAL→UTC（币种不推，外汇对与加密货币没有单一计价币种）。
+//  4. usc 前缀兜底：SH###### / SZ###### 是 finv 体系的 A 股指数编码，
+//     推出 region=CN、market=SH/SZ、category=StockIndex（个股代码不带前缀）。
+//  5. 按模板表 cdeu.finv_quote_cdeu_usc_day_incr_row_tpl 补 day_expect_rows：
+//     模板三列均可为空串通配，非空维度必须与 usc 值相等；NULL 维度不凭空匹配，
+//     所以区域级兜底靠 V200066 的 `CN/”/”`、`HK/”/”`、`US/”/”` 等模板行，
+//     排序按「模板特异性 → region/market/category 字典序」取第一条。
+//  6. priority_rank / sla_days / max_wait_days 三列同时为 NULL 时补 100 / 5 / 7，
+//     且**不写** priority_gmt_update（NULL = 默认值，非 NULL = 人工设置）。
+//
+// 最后统计各字段仍缺的行数（Missing），由 JOB 打进日志，方便运维知道还有哪些
+// 证券需要人工维护（典型是历史 usc 治理遗留、上游未收录的品种）。
+//
+// 幂等：重复执行后第 1–4 步影响 0 行。挂在两个 JOB 上——成熟度刷新（DiscoverUsc 之后）
+// 与导出前置（RefreshSecurityMetadata 之后）。
+func (s *Store) BackfillUscDefaults(ctx context.Context, threshold float64) (UscBackfillStat, error) {
+	var stat UscBackfillStat
+
+	// 稳态快速返回（需求 10827）：本方法挂在「每 60 秒一轮的导出 JOB」与「每日成熟度 JOB」上，
+	// 补全完成后不应再每轮跑 6 条大表 JOIN/UPDATE（usc × finv_security × 富途镜像）。
+	// 这里先用一次 count 判断是否真有缺口，没有就直接结束；判缺口的口径与各阶段 WHERE 一致
+	// （优先级只算「三列全空且 priority_gmt_update 为空」的从未配置行，人工清空的除外）。
+	var pending int64
+	if err := s.pool.QueryRow(ctx, `
+SELECT count(*)
+  FROM `+tableUsc+`
+ WHERE category IS NULL OR region IS NULL OR market IS NULL OR name IS NULL
+    OR timezone IS NULL OR currency IS NULL OR provider IS NULL OR day_expect_rows IS NULL
+    OR (priority_rank IS NULL AND sla_days IS NULL AND max_wait_days IS NULL
+        AND priority_gmt_update IS NULL)`).Scan(&pending); err != nil {
+		return stat, fmt.Errorf("检查证券元数据缺口失败: %w", err)
+	}
+	if pending == 0 {
+		return stat, nil
+	}
+
+	// ---- 1. finv_security 回填（不限 flag_enable）----
+	tag, err := s.pool.Exec(ctx, `
+WITH src AS (
+    SELECT s.usc,
+           NULLIF(s.security_type, '')                                            AS category,
+           COALESCE(NULLIF(s.security_name_cn, ''), NULLIF(s.security_name, ''))   AS name,
+           NULLIF(s.currency_type, '')                                            AS currency,
+           COALESCE(NULLIF(s.tz, ''), NULLIF(s.timezone, ''))                     AS timezone,
+           NULLIF(s.provider, '')                                                 AS provider,
+           COALESCE(NULLIF(r.region, ''), NULLIF(e.region, ''))                   AS region,
+           NULLIF(m.market_symbol, '')                                            AS market
+      FROM public.finv_security s
+      LEFT JOIN public.finv_exchange e ON e.exchange_code = s.exchange_code
+      LEFT JOIN public.finv_market m   ON m.market_code = s.market_code
+      LEFT JOIN public.finv_region r   ON r.region = e.region
+)
+UPDATE `+tableUsc+` u
+   SET category   = COALESCE(u.category, src.category),
+       name       = COALESCE(u.name, src.name),
+       currency   = COALESCE(u.currency, src.currency),
+       timezone   = COALESCE(u.timezone, src.timezone),
+       provider   = COALESCE(u.provider, src.provider),
+       region     = COALESCE(u.region, src.region),
+       market     = COALESCE(u.market, src.market),
+       gmt_update = now()
+  FROM src
+ WHERE u.usc = src.usc
+   AND (u.category IS NULL OR u.name IS NULL OR u.currency IS NULL OR u.timezone IS NULL
+     OR u.region IS NULL OR u.market IS NULL OR u.provider IS NULL)`)
+	if err != nil {
+		return stat, fmt.Errorf("从 finv_security 回填证券元数据失败: %w", err)
+	}
+	stat.MetadataRows = tag.RowsAffected()
+
+	// ---- 2. futu 镜像表兜底 ----
+	tag, err = s.pool.Exec(ctx, `
+WITH src AS (
+    SELECT f.usc,
+           CASE upper(f.quote_market)
+                WHEN 'SH' THEN 'CN' WHEN 'SZ' THEN 'CN' WHEN 'BJ' THEN 'CN'
+                WHEN 'HK' THEN 'HK' WHEN 'US' THEN 'US'
+                WHEN 'FX' THEN 'FX' WHEN 'CC' THEN 'GLOBAL'
+           END AS region,
+           CASE upper(f.quote_market)
+                WHEN 'FX' THEN 'CFD'
+                WHEN 'CC' THEN 'CRYPTO'
+                ELSE NULLIF(upper(f.quote_market), '')
+           END AS market,
+           CASE lower(f.type_symbol)
+                WHEN 'stock'   THEN 'Stock'
+                WHEN 'etfs'    THEN 'ETF'
+                WHEN 'index'   THEN 'StockIndex'
+                WHEN 'futures' THEN 'Futures'
+                WHEN 'sectors' THEN 'Sector'
+                WHEN 'crypto'  THEN 'Crypto'
+                WHEN 'currency' THEN 'Forex'
+           END AS category
+      FROM `+tableFutuQuote+` f
+     WHERE f.flag_enable = '1'
+)
+UPDATE `+tableUsc+` u
+   SET region     = COALESCE(u.region, src.region),
+       market     = COALESCE(u.market, src.market),
+       category   = COALESCE(u.category, src.category),
+       gmt_update = now()
+  FROM src
+ WHERE u.usc = src.usc
+   AND (u.region IS NULL OR u.market IS NULL OR u.category IS NULL)`)
+	if err != nil {
+		return stat, fmt.Errorf("从富途镜像表兜底证券元数据失败: %w", err)
+	}
+	stat.MetadataRows += tag.RowsAffected()
+
+	// ---- 3. 按 region 推导 timezone / currency（只补空；富途侧不带时区与币种）----
+	tag, err = s.pool.Exec(ctx, `
+UPDATE `+tableUsc+`
+   SET timezone = COALESCE(timezone,
+           CASE upper(COALESCE(region, ''))
+                WHEN 'CN' THEN 'Asia/Shanghai'
+                WHEN 'HK' THEN 'Asia/Hong_Kong'
+                WHEN 'US' THEN 'America/New_York'
+                WHEN 'FX' THEN 'UTC'
+                WHEN 'GLOBAL' THEN 'UTC'
+           END),
+       currency = COALESCE(currency,
+           CASE upper(COALESCE(region, ''))
+                WHEN 'CN' THEN 'CNY'
+                WHEN 'HK' THEN 'HKD'
+                WHEN 'US' THEN 'USD'
+           END),
+       gmt_update = now()
+ WHERE timezone IS NULL OR currency IS NULL`)
+	if err != nil {
+		return stat, fmt.Errorf("按区域推导 timezone/currency 失败: %w", err)
+	}
+	stat.DerivedRows = tag.RowsAffected()
+
+	// ---- 4. usc 前缀兜底：SH###### / SZ###### 为 A 股指数编码（finv 体系惯例）----
+	//
+	// 背景：历史 usc 治理把部分上证/深证指数写成 SH0680 / SZ399986 这类前缀形式，
+	// 这些 usc 既不在 finv_security 也不在富途镜像表，元数据无从谈起。按前缀只能推出
+	// 「A 股 + 指数」这类高置信信息（个股代码不带 SH/SZ 前缀），其余列不猜。
+	tag, err = s.pool.Exec(ctx, `
+UPDATE `+tableUsc+`
+   SET region     = COALESCE(region, 'CN'),
+       market     = COALESCE(market, upper(substring(usc from 1 for 2))),
+       category   = COALESCE(category, 'StockIndex'),
+       timezone   = COALESCE(timezone, 'Asia/Shanghai'),
+       currency   = COALESCE(currency, 'CNY'),
+       gmt_update = now()
+ WHERE market IS NULL
+   AND usc ~ '^(SH|SZ)[0-9]{4,6}$'`)
+	if err != nil {
+		return stat, fmt.Errorf("按 usc 前缀兜底 A 股指数元数据失败: %w", err)
+	}
+	stat.DerivedRows += tag.RowsAffected()
+
+	// ---- 5. 按模板补 day_expect_rows ----
+	//
+	// 匹配规则：模板维度为空串 = 通配，否则必须与 usc 的值（upper 归一）相等；
+	// **用户侧为 NULL 的维度不会凭空匹配**（NULL ≠ 任何具体值），全空的证券只能
+	// 命中全通配模板（当前刻意不提供，避免把残缺月的成熟度误判为 COMPLETE）。
+	// region/market 缺失时的可导性由第 2/3/4 步和 V200066 的区域级兜底模板保证。
+	rows, qerr := s.pool.Query(ctx, `
+WITH tpl AS (
+    SELECT upper(t.region) AS region,
+           upper(t.market) AS market,
+           upper(t.category) AS category,
+           t.day_expect_rows,
+           (CASE WHEN t.region <> '' THEN 1 ELSE 0 END
+          + CASE WHEN t.market <> '' THEN 1 ELSE 0 END
+          + CASE WHEN t.category <> '' THEN 1 ELSE 0 END) AS specificity
+      FROM `+tableUscRowTpl+` t
+     WHERE t.flag_enable = '1'
+), matched AS (
+    SELECT DISTINCT ON (u.usc) u.usc, tpl.day_expect_rows
+      FROM `+tableUsc+` u
+      JOIN tpl ON (tpl.region = '' OR tpl.region = upper(COALESCE(u.region, '')))
+              AND (tpl.market = '' OR tpl.market = upper(COALESCE(u.market, '')))
+              AND (tpl.category = '' OR tpl.category = upper(COALESCE(u.category, '')))
+     WHERE u.day_expect_rows IS NULL
+     ORDER BY u.usc, tpl.specificity DESC, tpl.region, tpl.market, tpl.category
+)
+UPDATE `+tableUsc+` u
+   SET day_expect_rows = m.day_expect_rows,
+       gmt_update = now()
+  FROM matched m
+ WHERE u.usc = m.usc
+ RETURNING u.usc`)
+	if qerr != nil {
+		return stat, fmt.Errorf("按模板补全 day_expect_rows 失败: %w", qerr)
+	}
+	affectedUSC := make([]string, 0, 64)
+	for rows.Next() {
+		var usc string
+		if err := rows.Scan(&usc); err != nil {
+			rows.Close()
+			return stat, fmt.Errorf("读取补全 day_expect_rows 的证券失败: %w", err)
+		}
+		affectedUSC = append(affectedUSC, usc)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return stat, fmt.Errorf("读取补全 day_expect_rows 的证券失败: %w", err)
+	}
+	rows.Close()
+	stat.DayExpectRows = int64(len(affectedUSC))
+
+	// ---- 5.5. 用新的期望条数重算这些证券的历史成熟度行 ----
+	//
+	// 为什么必须有这一步：成熟度表 expected_rows 只在「成熟度刷新扫到该证券该日」时
+	// 才算，而增量刷新基于主表 gmt_update 水位、只覆盖新到数据；补全 day_expect_rows
+	// 之后再跑增量刷新，历史行不会重扫，页面上期望行数会一直停在 0（实际条数却正常）。
+	if len(affectedUSC) > 0 {
+		recomputed, err := s.recomputeMaturityExpected(ctx, affectedUSC, threshold)
+		if err != nil {
+			return stat, fmt.Errorf("按新期望条数重算成熟度失败: %w", err)
+		}
+		stat.MaturityRows = recomputed
+	}
+
+	// ---- 5.6. provider 兜底：有富途采集记录的证券一律为 FTMM ----
+	//
+	// 背景（需求 10832 排查）：finv_security.provider 对部分证券为空（全表 17199 行里
+	// 510 行为空，本次涉及的 39 个证券**全部**为空），而导出条件要求 provider 非空，
+	// 结果这些证券月被判为「元数据不全」，候选恒为 0，流程跑完没有任何动态 JOB，
+	// 日志也只说「候选 0 个」——这是「上个月有数据却导不出来」的直接原因。
+	//
+	// 取值依据：数据源就是富途（futu.finv_futu_quote_collect），历史上全部 202 个
+	// 已导出文件名里的 provider 段均为 FTMM。因此只对**有富途采集记录**的证券兜底，
+	// 不覆盖人工值、也不给非富途来源的证券乱填。
+	tag, err = s.pool.Exec(ctx, `
+UPDATE `+tableUsc+` u
+   SET provider   = 'FTMM',
+       gmt_update = now()
+ WHERE u.provider IS NULL
+   AND EXISTS (SELECT 1 FROM `+tableFutuQuote+` f WHERE f.usc = u.usc)`)
+	if err != nil {
+		return stat, fmt.Errorf("按富途采集记录补全 provider 失败: %w", err)
+	}
+	stat.DerivedRows += tag.RowsAffected()
+
+	// ---- 6. 优先级 / SLA / 最大等待默认值（只补「从未配置过」的证券）----
+	//
+	// 关键条件 `priority_gmt_update IS NULL`：该列是「人工改过」的标记——
+	//   · priority_gmt_update 为 NULL 且三列全空 → 系统从未配过，补 100/5/7；
+	//   · priority_gmt_update 非 NULL 且三列全空 → 运维**主动清空**（PUT/Priority 删除），
+	//     表示「就用默认口径 / 不想被自动填」，不得再补，否则重复跑流程会把人工清空
+	//     又恢复成 100/5/7（需求 10827）；
+	//   · 三列有值 → 人工设置过，不动。
+	tag, err = s.pool.Exec(ctx, `
+UPDATE `+tableUsc+`
+   SET priority_rank = $1,
+       sla_days = $2,
+       max_wait_days = $3,
+       gmt_update = now()
+ WHERE priority_rank IS NULL AND sla_days IS NULL AND max_wait_days IS NULL
+   AND priority_gmt_update IS NULL`,
+		defaultPriorityRank, defaultSlaDays, defaultMaxWaitDays)
+	if err != nil {
+		return stat, fmt.Errorf("补全归档优先级/SLA 默认值失败: %w", err)
+	}
+	stat.Priority = tag.RowsAffected()
+
+	// ---- 7. 仍缺字段统计（可观测性）----
+	if err := s.pool.QueryRow(ctx, `
+SELECT count(*) FILTER (WHERE provider IS NULL),
+       count(*) FILTER (WHERE category IS NULL),
+       count(*) FILTER (WHERE region IS NULL),
+       count(*) FILTER (WHERE market IS NULL),
+       count(*) FILTER (WHERE name IS NULL),
+       count(*) FILTER (WHERE timezone IS NULL),
+       count(*) FILTER (WHERE currency IS NULL),
+       count(*) FILTER (WHERE day_expect_rows IS NULL)
+  FROM `+tableUsc).Scan(
+		&stat.Missing.Provider, &stat.Missing.Category, &stat.Missing.Region,
+		&stat.Missing.Market, &stat.Missing.Name, &stat.Missing.Timezone,
+		&stat.Missing.Currency, &stat.Missing.DayExpectRows); err != nil {
+		return stat, fmt.Errorf("统计补全后仍缺字段失败: %w", err)
+	}
+
+	return stat, nil
+}
+
+// recomputeMaturityExpected 用证券当前 day_expect_rows 重算指定证券的历史成熟度行。
+//
+// 背景：expected_rows 只在成熟度刷新扫到「该证券该日」时才写，而 RefreshMaturityIncremental
+// 的扫描范围是主表 gmt_update 水位（只覆盖新到数据）；补全 day_expect_rows 之后历史行不会
+// 重扫，页面上的「期望行数」会一直停在 0（实际行数却正常）。本方法只针对刚补全的证券
+// 重算，不扫全表。
+//
+// 语义与 maturityUpsertHead 保持一致：
+//   - 非交易日 → expected_rows=0、status=COMPLETE；
+//   - day_expect_rows 缺失（0）→ PARTIAL；
+//   - actual_rows >= day_expect_rows * threshold → COMPLETE，否则 PARTIAL；
+//   - FROZEN 行的状态不被改写（已收口月份的状态已定稿）。
+func (s *Store) recomputeMaturityExpected(ctx context.Context, usc []string, threshold float64) (int64, error) {
+	if len(usc) == 0 {
+		return 0, nil
+	}
+	tag, err := s.pool.Exec(ctx, `
+WITH recomputed AS (
+    SELECT m.usc, m.trade_date,
+           CASE WHEN COALESCE(tc.flag_trade_day, true)
+                THEN COALESCE(u.day_expect_rows, 0) ELSE 0 END AS expected_rows,
+           CASE
+             WHEN NOT COALESCE(tc.flag_trade_day, true) THEN 'COMPLETE'
+             WHEN COALESCE(u.day_expect_rows, 0) <= 0 THEN 'PARTIAL'
+             WHEN m.actual_rows::numeric >= COALESCE(u.day_expect_rows, 0)::numeric * $2::numeric THEN 'COMPLETE'
+             ELSE 'PARTIAL'
+           END AS maturity_status
+      FROM `+tableMaturity+` m
+      JOIN `+tableUsc+` u ON u.usc = m.usc
+      LEFT JOIN `+tableCalendar+` tc ON tc.usc = m.usc AND tc.trade_date = m.trade_date
+     WHERE m.usc = ANY($1)
+)
+UPDATE `+tableMaturity+` m
+   SET expected_rows = r.expected_rows,
+       maturity_status = CASE WHEN m.maturity_status = 'FROZEN'
+                              THEN 'FROZEN' ELSE r.maturity_status END,
+       gmt_update = now()
+  FROM recomputed r
+ WHERE m.usc = r.usc AND m.trade_date = r.trade_date
+   AND (m.expected_rows IS DISTINCT FROM r.expected_rows
+     OR (m.maturity_status <> 'FROZEN' AND m.maturity_status IS DISTINCT FROM r.maturity_status))`,
+		usc, thresholdString(threshold))
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
+// UscMissingSample 取补全后仍缺关键字段的证券样本（供 JOB 日志定位）。
+func (s *Store) UscMissingSample(ctx context.Context, limit int) ([]string, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	rows, err := s.pool.Query(ctx, `
+SELECT usc
+  FROM `+tableUsc+`
+ WHERE region IS NULL OR market IS NULL OR name IS NULL OR currency IS NULL
+ ORDER BY usc
+ LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	samples := make([]string, 0, limit)
+	for rows.Next() {
+		var usc string
+		if err := rows.Scan(&usc); err != nil {
+			return nil, err
+		}
+		samples = append(samples, usc)
+	}
+	return samples, rows.Err()
+}
+
 // RefreshSecurityMetadata 从 finv_security / finv_exchange / finv_market / finv_region 刷新证券主数据。
 //
 // 取值口径（ACANX 2026-10-26 调整，见迁移 V100036）：
@@ -740,10 +1144,13 @@ UPDATE `+tableDynamicStep+` ds
 // 自 V200045 起唯一键为 (workflow_run_id, file_id)，每次运行各自持有独立实例。
 func (s *Store) GenerateUploadDynamicJobs(ctx context.Context) (int64, error) {
 	uploadRunID := cdeuRunIDFromContext(ctx)
+	// runLogID 与 workflow_run_id 不同：前者是本次「运行日志」主键（前端「执行日志」按它查），
+	// 不写入的话上传动态 JOB 完成后无法从列表点开日志。
+	runLogID := runIDFromContext(ctx)
 	tag, err := s.pool.Exec(ctx, `
 INSERT INTO `+tableDynamicJob+`
     (process_id, job_code, name, usc, biz_month, export_type, export_job_id,
-     job_category, file_id, file_type, file_version, seq_no, status, workflow_run_id)
+     job_category, file_id, file_type, file_version, seq_no, status, workflow_run_id, run_log_id)
 SELECT p.process_id,
        'JOB_UPLOAD_' || f.file_type || '_V' || f.version || '_' || upper(f.usc) || '_' || f.biz_month,
        'UPLOAD_' || f.file_type || '_V' || f.version || '_' || f.usc || '_' || f.biz_month,
@@ -757,15 +1164,27 @@ SELECT p.process_id,
            WHEN 'UPLOAD_FAILED' THEN 'FAILED'
            ELSE 'PENDING'
        END,
-       NULLIF($1::bigint, 0)
+       NULLIF($1::bigint, 0),
+       NULLIF($2::bigint, 0)
   FROM `+tableFile+` f
   JOIN cdeu.finv_quote_cdeu_process p ON p.process_code = 'PROCESS_UPLOAD'
  WHERE f.export_status = 'EXPORTED'
    AND f.upload_status NOT IN ('UPLOADED', 'SKIPPED')
 ON CONFLICT (workflow_run_id, file_id) WHERE job_category = 'UPLOAD' DO NOTHING`,
-		uploadRunID)
+		uploadRunID, runLogID)
 	if err != nil {
 		return 0, err
+	}
+	// 已存在的上传实例也要补上 run_log_id（历史实例创建时未写入，前端因此没有「执行日志」入口）。
+	if runLogID > 0 {
+		if _, err := s.pool.Exec(ctx, `
+UPDATE `+tableDynamicJob+`
+   SET run_log_id = $2, gmt_update = now()
+ WHERE job_category = 'UPLOAD'
+   AND run_log_id IS NULL
+   AND workflow_run_id IS NOT DISTINCT FROM NULLIF($1::bigint, 0)`, uploadRunID, runLogID); err != nil {
+			return tag.RowsAffected(), err
+		}
 	}
 	if _, err := s.pool.Exec(ctx, `
 INSERT INTO `+tableDynamicStep+`
@@ -808,7 +1227,9 @@ UPDATE `+tableDynamicJob+` dj
        gmt_start = CASE WHEN $2 = 'RUNNING' THEN COALESCE(gmt_start, now()) ELSE gmt_start END,
        gmt_finish = CASE WHEN $2 IN ('SUCCESS','PARTIAL','FAILED','PAUSED','CANCELLED','SKIPPED') THEN now() ELSE gmt_finish END,
        error = $3,
-       run_log_id = COALESCE(NULLIF($4::bigint, 0), run_log_id),
+       run_log_id = COALESCE(NULLIF($4::bigint, 0), run_log_id,
+                             (SELECT max(rl.run_id) FROM `+tableRunLog+` rl
+                               WHERE rl.job_kind = 'UPLOAD_PENDING_EXPORT_FILES')),
        workflow_run_id = COALESCE(workflow_run_id, NULLIF($5::bigint, 0)),
        gmt_update = now()
  WHERE dj.dynamic_job_id = (
@@ -1030,12 +1451,19 @@ ON CONFLICT (usc, biz_month) DO NOTHING`,
 
 // ClaimJob 领取一个到期任务：行锁 + 租约 + SKIP LOCKED（多 worker 安全）。
 //
-// 排序（I-02）：FROZEN > 临近 freeze_date（≤3 天）> priority_rank > oldest_pending_date。
+// 排序（I-02）：FROZEN > 临近 freeze_date（≤3 天）> priority_rank > oldest_pending_date
+// > 动态 JOB 的 seq_no > job_id。
+//
+// 关于 seq_no（需求 10831）：同一流程下的同类型动态 JOB（导出/上传）之间**以优先级为准**
+// （priority_rank 与 oldest_pending_date 是运维/业务定义的口径）；当上述优先级完全并列时，
+// 再按 CDEU 定义的 `cdeu.finv_quote_cdeu_job_dynamic.seq_no`（创建时按 usc/biz_month 生成）
+// 决定先后，做到「没定义独立拓扑就用优先级，定义了拓扑顺序就按拓扑顺序」。
+// seq_no 缺失（非动态任务）用最大值兜底，等同于不参与排序。
 func (s *Store) ClaimJob(ctx context.Context, worker string, lease time.Duration) (*Job, error) {
 	rows, err := s.pool.Query(ctx, `
 WITH picked AS (
   SELECT job_id
-    FROM `+tableJob+`
+    FROM `+tableJob+` t
    WHERE (status IN ('WAITING', 'PAUSED', 'FROZEN')
           AND (gmt_next_run IS NULL OR gmt_next_run <= now()))
       OR (status IN ('LOADING', 'LOADED', 'EXPORTING')
@@ -1045,6 +1473,12 @@ WITH picked AS (
                  ELSE 2 END,
             priority_rank,
             COALESCE(oldest_pending_date, 99999999),
+            COALESCE((SELECT dj.seq_no
+                        FROM `+tableDynamicJob+` dj
+                       WHERE dj.export_job_id = t.job_id
+                         AND dj.job_category = 'EXPORT'
+                       ORDER BY dj.dynamic_job_id DESC
+                       LIMIT 1), 2147483647),
             job_id
    LIMIT 1
    FOR UPDATE SKIP LOCKED

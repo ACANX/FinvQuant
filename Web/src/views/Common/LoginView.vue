@@ -77,7 +77,7 @@ async function onSubmit(): Promise<void> {
     <v-card class="login-card" elevation="16" theme="dark">
       <v-card-title class="login-title">
         <v-icon icon="mdi-finance" size="28" class="mr-2 login-logo" />
-        FinvQuant 量化策略交易平台
+        FinvQuant策略回测量化交易
       </v-card-title>
       <v-card-subtitle class="login-subtitle">请登录后使用</v-card-subtitle>
 

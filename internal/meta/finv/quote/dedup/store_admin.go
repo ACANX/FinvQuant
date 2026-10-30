@@ -388,7 +388,9 @@ UPDATE `+tableWatermark+` SET last_value = $2, gmt_update = now() WHERE watermar
 
 // SetUscPriority 设置或清除证券的归档优先级覆盖（V200051 起写入 finv_dedup_usc）。
 //
-// in 为 nil 表示清空覆盖（三列同时置 NULL），退回默认 100 / 5 / 7。
+// in 为 nil 表示清空覆盖（三列同时置 NULL），退回默认 100 / 5 / 7；
+// 注意：清空后下一轮自动补全（BackfillUscDefaults）会把三列写回 100 / 5 / 7，
+// 即「清空 = 恢复默认值」而非永久停用。
 // 与旧 UpsertPriority 的差异：不再可以给不存在的证券单独建优先级行——
 // 优先级是证券的属性，证券不存在时返回错误。
 func (s *Store) SetUscPriority(ctx context.Context, usc string, in *PriorityUpsertInput) error {

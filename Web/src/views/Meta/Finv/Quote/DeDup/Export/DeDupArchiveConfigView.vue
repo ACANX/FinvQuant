@@ -4,7 +4,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 
 import { apiDelete, apiGet, apiPut } from '../../../../../../api'
-import { fmtISO, fmtNum, isoDate } from '../../../../../../utils'
+import { bizMonthOptions, fmtISO, fmtNum, isoDate } from '../../../../../../utils'
 
 interface PageData<T> {
   total: number
@@ -80,6 +80,8 @@ const calendarPage = ref(1)
 const calendarPageSize = ref(20)
 const calendarUsc = ref('')
 const calendarMonth = ref('')
+/** 业务月份是确定的枚举值：默认最近 10 年（yyyymm），最新在前 */
+const bizMonthItems = computed(() => bizMonthOptions())
 const calendarLoading = ref(false)
 const calendarDialog = ref(false)
 const calendarSaving = ref(false)
@@ -266,9 +268,11 @@ async function clearPriority(usc: string) {
   }
 }
 
-// priorityConfigured 当前编辑项是否已有覆盖（决定「清除覆盖」按钮是否可用）。
+// priorityConfigured 当前编辑项是否已有「人工设置」的覆盖值（决定「清除覆盖」按钮是否可用）。
+// 自动补全写入的默认值（priority_gmt_update 为 NULL）不算人工配置。
 const priorityConfigured = computed(() => currentUscRow.value?.priority_rank !== null
-  && currentUscRow.value?.priority_rank !== undefined)
+  && currentUscRow.value?.priority_rank !== undefined
+  && currentUscRow.value?.priority_gmt_update !== null)
 
 function openCalendar(row?: CalendarRow) {
   calendarForm.value = row
@@ -389,21 +393,24 @@ onMounted(async () => {
             <template #item.provider="{ item }">{{ item.provider ?? '—' }}</template>
             <template #item.timezone="{ item }">{{ item.timezone ?? '—' }}</template>
             <template #item.currency="{ item }">{{ item.currency ?? '—' }}</template>
-            <!-- 优先级覆盖：未配置时显示默认值并置灰，提示走 100 / 5 / 7 兜底 -->
+            <!-- 优先级覆盖：自动补全写入的默认值（priority_gmt_update 为 NULL）置灰并标注「默认」，人工设置过的高亮 -->
             <template #item.priority_rank="{ item }">
-              <v-chip v-if="item.priority_rank !== null" size="small" variant="tonal" color="primary">
-                {{ item.priority_rank }}
+              <v-chip v-if="item.priority_rank !== null"
+                      size="small"
+                      variant="tonal"
+                      :color="item.priority_gmt_update === null ? 'grey' : 'primary'">
+                {{ item.priority_rank }}<span v-if="item.priority_gmt_update === null">&nbsp;默认</span>
               </v-chip>
               <span v-else class="text-medium-emphasis text-caption">默认 100</span>
             </template>
             <template #item.sla_days="{ item }">
-              <span :class="item.sla_days === null ? 'text-medium-emphasis' : ''">
-                {{ item.sla_days ?? '未配置(5)' }}
+              <span :class="item.priority_gmt_update === null ? 'text-medium-emphasis' : ''">
+                {{ item.sla_days ?? '未配置(5)' }}<span v-if="item.sla_days !== null && item.priority_gmt_update === null">（默认）</span>
               </span>
             </template>
             <template #item.max_wait_days="{ item }">
-              <span :class="item.max_wait_days === null ? 'text-medium-emphasis' : ''">
-                {{ item.max_wait_days ?? '未配置(7)' }}
+              <span :class="item.priority_gmt_update === null ? 'text-medium-emphasis' : ''">
+                {{ item.max_wait_days ?? '未配置(7)' }}<span v-if="item.max_wait_days !== null && item.priority_gmt_update === null">（默认）</span>
               </span>
             </template>
             <template #item.gmt_update="{ item }">{{ fmtISO(item.gmt_update) }}</template>
@@ -422,7 +429,8 @@ onMounted(async () => {
               <v-text-field v-model="calendarUsc" label="证券[USC]" density="compact" hide-details clearable />
             </v-col>
             <v-col cols="12" sm="4" md="2">
-              <v-text-field v-model="calendarMonth" label="业务月份" placeholder="如 202608" density="compact" hide-details clearable />
+              <v-select v-model="calendarMonth" :items="bizMonthItems"
+                        label="业务月份" density="compact" hide-details clearable />
             </v-col>
             <v-col cols="auto">
               <v-btn color="primary" prepend-icon="mdi-magnify" :loading="calendarLoading" @click="loadCalendar">查询</v-btn>

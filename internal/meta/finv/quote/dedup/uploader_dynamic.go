@@ -100,6 +100,27 @@ func (u *dynamicUploader) Verify(ctx context.Context, targetPath string, size in
 	return uploader.Verify(ctx, targetPath, size, checksum)
 }
 
+// DescribeTarget 转发给当前生效的上传实现，供 Job 过程日志展示「传到哪」。
+//
+// 不转发的话，外层 dynamicUploader 不实现 UploadTargetDescriber，日志只能
+// 退化成「mode=github path=…」，看不清具体是哪个组织/仓库/分支。
+func (u *dynamicUploader) DescribeTarget(ctx context.Context, targetPath string) (string, error) {
+	uploader, err := u.active(ctx)
+	if err != nil {
+		return "", err
+	}
+	return describeUploadTarget(ctx, uploader, targetPath), nil
+}
+
+// RemoteChecksumAlgorithm 转发当前生效实现的远端校验口径（github 为 git blob sha1）。
+func (u *dynamicUploader) RemoteChecksumAlgorithm() string {
+	uploader, err := u.active(context.Background())
+	if err != nil {
+		return checksumAlgorithmSHA256
+	}
+	return remoteChecksumAlgorithm(uploader)
+}
+
 // noteMode 在模式发生切换时打一条日志，便于运维确认配置是否生效。
 func (u *dynamicUploader) noteMode(mode string) {
 	u.mu.Lock()

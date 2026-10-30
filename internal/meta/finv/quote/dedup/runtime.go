@@ -51,6 +51,20 @@ func (s *Service) reportRunProgress(ctx context.Context, runID int64, stage stri
 	}
 }
 
+// reportRunLog 只追加一条指定级别的详细日志行（不改变阶段与进度）。
+//
+// 失败项用 level=ERROR 写入，前端「执行日志」可直接标红/过滤；之所以不合并进
+// reportProgress，是因为后者会覆盖「最近明细」（上传失败后下一项开始时就会被刷掉）。
+func (s *Service) reportRunLog(ctx context.Context, level, stage, detail string) {
+	runID := runIDFromContext(ctx)
+	if runID <= 0 || detail == "" {
+		return
+	}
+	if err := s.store.AppendRunLog(ctx, runID, level, stage, detail, nil); err != nil {
+		log.Printf("[cdeu] 追加运行日志失败 run_id=%d level=%s err=%v", runID, level, err)
+	}
+}
+
 // staleAfter 返回运行记录心跳超时阈值：取租约的 2 倍，且不低于 2 分钟。
 func (s *Service) staleAfter() time.Duration {
 	threshold := 2 * s.options.Lease

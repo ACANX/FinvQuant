@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -201,6 +202,34 @@ func TestNoneUploader(t *testing.T) {
 	}
 	if _, err := uploader.Put(context.Background(), "x", "y"); err == nil {
 		t.Fatalf("none 模式下 Put 应返回错误")
+	}
+}
+
+// TestDescribeUploadTarget 校验上传目标描述（Job 过程日志里「传到哪」那段文本）。
+func TestDescribeUploadTarget(t *testing.T) {
+	root := t.TempDir()
+	dirUp, err := newDirUploader(root)
+	if err != nil {
+		t.Fatalf("创建 dir uploader 失败: %v", err)
+	}
+	target := "CN_SZ_159934/CN_SZ_159934_Min_FTMM_Mon_202610_Base.mvsv"
+	description := describeUploadTarget(context.Background(), dirUp, target)
+	if !strings.Contains(description, "mode=dir") || !strings.Contains(description, root) ||
+		!strings.Contains(description, "Min_FTMM_Mon_202610_Base.mvsv") {
+		t.Fatalf("dir 目标描述不合格：%s", description)
+	}
+
+	noneUp, err := NewUploader(Options{UploadMode: UploadModeNone})
+	if err != nil {
+		t.Fatalf("创建 none uploader 失败: %v", err)
+	}
+	if got := describeUploadTarget(context.Background(), noneUp, target); !strings.Contains(got, "mode=none") {
+		t.Fatalf("none 目标描述不合格：%s", got)
+	}
+
+	// 越界路径不阻断日志：退回「模式 + 路径」字样。
+	if got := describeUploadTarget(context.Background(), dirUp, "../escape.mvsv"); !strings.Contains(got, "mode=dir") {
+		t.Fatalf("非法路径应退回模式描述：%s", got)
 	}
 }
 

@@ -10,6 +10,7 @@ func All() []Runtime {
 		CheckIngestReadiness,
 		RunDueExportJobs,
 		EvaluateExportCondition,
+		ExplainExportDecision,
 		UploadPendingExportFiles,
 		ScanPostSealPatches,
 		// 需求 10717：CleanExpiredExportArtifacts 已停用，职责拆为下列三个 JOB；

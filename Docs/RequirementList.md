@@ -110,7 +110,7 @@
 | 10070 | Go 代码中不再出现旧字段名。 | `grep -rn "secu_code\|SecuCode\|secuCode" internal/ --include="*.go"` 输出为空 | |
 | 10071 | 前端源码中不再出现旧字段名。 | `grep -rn "secu_code\|SecuCode\|secuCode" Web/src/` 输出为空 | |
 | 10072 | 行情查询接口的查询参数与响应字段均为 `usc`。 | `grep -c "usc" internal/api/handler/query.go` 不小于 `5`，且该文件无旧名 | |
-| 10073 | 文档中除计划文档、变更日志与本清单外无旧字段名。 | `grep -rn "secu_code\|secuCode" Docs/ Prompt.md \| grep -v "Docs/Refactor/\|Docs/CHANGELOG.md\|Docs/RequirementList.md"` 输出为空 | |
+| 10073 | 文档中除计划文档、变更日志与本清单外无旧字段名。 | `grep -rn "secu_code\|secuCode" Docs/ \| grep -v "Docs/Refactor/\|Docs/CHANGELOG.md\|Docs/RequirementList.md"` 输出为空 | |
 | 10074 | `CHANGELOG` 已记录该破坏性变更与升级要求。 | `grep -c "破坏性变更" Docs/CHANGELOG.md` 不小于 `2` | |
 | 10075 | 版本号已递增至 `0.1.1`。 | `cat VERSION` 输出 `0.1.1` | |
 | 10076 | 升级文档声明新旧镜像不可共存。 | `grep -c "禁止新旧镜像共存" Deploy/Docker/Win11DockerUpgrade.md` 输出 `1` | |
@@ -132,7 +132,7 @@
 | 10085 | `V31` 向 `finv_quote_revision_log` 写入留痕记录。 | 脚本内含 `MIGRATION_V31` 与 `INSERT INTO finv_quote_revision_log` | |
 | 10086 | `V31` 明确声明回填不可逆。 | `grep -c "不可逆" Deploy/Migrations/V100031__finv_quote_kline_backfill_open_from_last_close.sql` 不小于 `1` | |
 | 10087 | Go 代码中不再用旧列名（MVSV 文件头文本与 ATR 局部变量除外）。 | `grep -rn "prev_close" internal/ --include="*.go"` 输出为空 | |
-| 10088 | 导入链路按同一规则增量兜底 `open`。 | `grep -c "fillOpenFromLastClose" internal/quote/service.go` 不小于 `2` | |
+| 10088 | 导入链路按同一规则增量兜底 `open`。 | `grep -c "fillOpenFromLastClose" internal/meta/finv/quote/service.go` 不小于 `2` | |
 | 10089 | 数据格式与接口文档已改用 `last_close`。 | `grep -c "last_close" Docs/DataFormat/MvsvFileFormat.md Docs/API/HistoryQuote/HistoryQuote.md` 各不小于 `1` | |
 | 10090 | 前端源码不含该字段引用。 | `grep -rn "prev_close\|prevClose" Web/src/` 输出为空 | |
 | 10091 | `CHANGELOG` 记录改名、回填与不可逆提示。 | `grep -c "last_close" Docs/CHANGELOG.md` 不小于 `2` | |
@@ -150,7 +150,7 @@
 | 10096 | 存在 `V100024` 收尾迁移，处理种子段新建的 3 张 quant 表。 | `test -f Deploy/Migrations/V200024__finv_quant_seed_tables_move_to_quant_schema.sql` | |
 | 10097 | 应用连接串携带 `search_path`。 | `grep -c "search_path=public,quote,quant" internal/database/postgres.go` 输出 `1` | |
 | 10098 | Go 代码中表名均带 schema 前缀（无裸表名）。 | `grep -rn "FROM finv_quote_\|FROM finv_quant_\|INTO finv_quote_\|INTO finv_quant_\|UPDATE finv_quant_\|UPDATE finv_quote_" internal/ --include="*.go"` 输出为空 | |
-| 10099 | 文档中表名均带 schema 前缀。 | `grep -rn "FROM finv_quote_\|FROM finv_quant_" Docs/ Prompt.md \| grep -v "Docs/Refactor/\|Docs/CHANGELOG.md\|Docs/RequirementList.md"` 输出为空 | |
+| 10099 | 文档中表名均带 schema 前缀。 | `grep -rn "FROM finv_quote_\|FROM finv_quant_" Docs/ \| grep -v "Docs/Refactor/\|Docs/CHANGELOG.md\|Docs/RequirementList.md"` 输出为空 | |
 | 10100 | 生产库 `quote` schema 含 3 张行情表。 | `SELECT count(*) FROM pg_tables WHERE schemaname='quote'` 为 `3` | |
 | 10101 | 生产库 `quant` schema 含 13 张量化表。 | `SELECT count(*) FROM pg_tables WHERE schemaname='quant'` 为 `13` | |
 | 10102 | 生产库 `public` 不再有业务域表。 | `SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tablename ~ '^finv_(quote\|quant)_'` 为 `0` | |
@@ -203,7 +203,7 @@
 | 10128 | compose 的构建路径指向新位置。 | `grep -n "dockerfile: Deploy/Docker/Dockerfile" Deploy/Docker/docker-compose.yml` 输出 `1` | |
 | 10129 | CI 使用新的 Dockerfile 路径。 | `grep -c "file: Deploy/Docker/Dockerfile" .github/workflows/CI.yml` 输出 `2` | |
 | 10130 | Native 目录含说明文档，且写明适用与不适用场景。 | `grep -c "适用场景（以下场景才建议选 Native）" Deploy/Native/README.md` 与 `grep -c "不适用场景" Deploy/Native/README.md` 均不小于 `1` | |
-| 10131 | 面向使用者的文档不再出现旧的 Docker 部署路径。 | `grep -rn "Deploy/\.env\|Deploy/docker-compose.yml\|Deploy/Win11Docker" README.md Prompt.md` 输出为空 | |
+| 10131 | 面向使用者的文档不再出现旧的 Docker 部署路径。 | `grep -rn "Deploy/\.env\|Deploy/docker-compose.yml\|Deploy/Win11Docker" README.md Docs/FinvQuant/V1/Prompt.md` 输出为空 | |
 
 ## 十二、Native 部署配套与生成物命名（10132–10140）
 
@@ -374,10 +374,10 @@
 | 10234 | `VeritasQuant/` 已移入 `Archive/`，根目录不再有该目录。 | `test -d Archive/VeritasQuant` 且 `test ! -d VeritasQuant` | |
 | 10235 | 移动保留 Git 历史（识别为重命名而非删除+新增）。 | `git log --follow Archive/VeritasQuant/README.md` 能追溯到移动前提交；`git status` 中该批文件显示为 `R` | |
 | 10236 | 归档不影响 Go 构建与测试。 | `go build ./...` 与 `go test ./internal/database/ -run TestSQLSchemaQualified` 均通过 | |
-| 10237 | 文档路径引用已更新。 | `grep -c 'Archive/VeritasQuant' README.md AGENTS.md Prompt.md Archive/README.md` 均不小于 `1`；根 README 目录树无裸 `VeritasQuant/` | |
+| 10237 | 文档路径引用已更新。 | `grep -c 'Archive/VeritasQuant' README.md AGENTS.md Docs/FinvQuant/V1/Prompt.md Archive/README.md` 均不小于 `1`；根 README 目录树无裸 `VeritasQuant/` | |
 | 10238 | `Archive/README.md` 登记该归档项。 | 含 `\| \`VeritasQuant/\` \|` 行，说明归档日期与「不参与现行构建」 | |
 | 10239 | 构建上下文排除归档目录。 | `.dockerignore` 含 `Archive/`，且无独立 `VeritasQuant/` 行 | |
-| 10240 | 可执行示例与代码注释路径同步。 | `grep -rn 'Archive/VeritasQuant' Docs/API/HistoryQuote/ImportsUpload.md internal/mvsv/parser.go` 各不小于 `1` | |
+| 10240 | 可执行示例与代码注释路径同步。 | `grep -rn 'Archive/VeritasQuant' Docs/API/HistoryQuote/ImportsUpload.md internal/meta/finv/quote/mvsv/parser.go` 各不小于 `1` | |
 
 ## 二十五、分钟行情 K 线 API 融合（10241–10263）
 
@@ -389,14 +389,14 @@
 | 10241 | 分钟行情 API 注册新前缀 `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min`。 | `grep -c "Meta/Finv/Quote/DeDup/Secu/KLine/Min" internal/api/router.go` 输出不小于 `1` | |
 | 10242 | 旧前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min` 作为过渡别名同时注册。 | `grep -c "LegacyAPIPrefix" internal/api/router.go` 输出不小于 `1` | |
 | 10243 | 提供 `GET /Health` 探活端点（含 `/healthz` 过渡别名）。 | `grep -c 'GET("/Health"' internal/api/router.go` 与 `grep -c 'GET("/healthz"' internal/api/router.go` 均为 `1` | |
-| 10244 | 分钟行情主表位于 `dedup.finv_quote_secu_kline_min`。 | `grep -c "const Table = \"dedup.finv_quote_secu_kline_min\"" internal/kline/sql.go` 输出 `1` | |
+| 10244 | 分钟行情主表位于 `dedup.finv_quote_secu_kline_min`。 | `grep -c "const Table = \"dedup.finv_quote_secu_kline_min\"" internal/meta/finv/quote/cdeu/kline/sql.go` 输出 `1` | |
 | 10245 | 迁移 V38 将主表从 `quote` 迁入 `dedup` 并可重复执行。 | `ls Deploy/Migrations/V100038__finv_quote_kline_move_to_dedup.sql` 不存在时退出码非 0；脚本含 `SET SCHEMA dedup` 与 `IF EXISTS` 幂等判断 | |
 | 10246 | 迁移 V38 补齐 `change_price`/`change_ratio`/`provider` 三列。 | `grep -c "ADD COLUMN IF NOT EXISTS change_price" Deploy/Migrations/V100038__finv_quote_kline_move_to_dedup.sql` 输出 `1` | |
 | 10247 | `export.finv_quote_secu_kline_min` 按 dedup 新结构重建。 | `grep -c "LIKE dedup.finv_quote_secu_kline_min" Deploy/Migrations/V100038__finv_quote_kline_move_to_dedup.sql` 输出 `1` | |
-| 10248 | `ts` 契约与库内均为秒级；13 位毫秒默认拒绝。 | `go test ./internal/kline/ -run TestTSUnit` 通过；用例覆盖秒级通过与 13 位拒绝 | |
-| 10249 | `FINV_KLINE_TS_UNIT=ms` 时毫秒入参换算为秒。 | `go test ./internal/kline/ -run TestTSUnit` 通过（含 ms 分支） | |
-| 10250 | 具体错误使用 `211xxx` 编号且全局唯一。 | `go test ./internal/kline/ -run TestCatalogIntegrity` 通过 | |
-| 10251 | 错误目录共 15 条具体码，覆盖校验/资源/容量/存储四类。 | 同上；`internal/kline/apierr.go` 中 `Code` 常量计数为 15 | |
+| 10248 | `ts` 契约与库内均为秒级；13 位毫秒默认拒绝。 | `go test ./internal/meta/finv/quote/cdeu/kline/ -run TestTSUnit` 通过；用例覆盖秒级通过与 13 位拒绝 | |
+| 10249 | `FINV_KLINE_TS_UNIT=ms` 时毫秒入参换算为秒。 | `go test ./internal/meta/finv/quote/cdeu/kline/ -run TestTSUnit` 通过（含 ms 分支） | |
+| 10250 | 具体错误使用 `211xxx` 编号且全局唯一。 | `go test ./internal/meta/finv/quote/cdeu/kline/ -run TestCatalogIntegrity` 通过 | |
+| 10251 | 错误目录共 15 条具体码，覆盖校验/资源/容量/存储四类。 | 同上；`internal/meta/finv/quote/cdeu/kline/apierr.go` 中 `Code` 常量计数为 15 | |
 | 10252 | 具体码的 HTTP 映射与接口文档一致。 | `grep -c "211101" Docs/API/KLine/KLineAdd.md` 与 `grep -c "409" Docs/API/KLine/KLineAdd.md` 均不小于 `1` | |
 | 10253 | 未归类的错误兜底复用 HTTP 错误码（500 用 `2006`）。 | `go test ./internal/api/handler/ -run TestErrorResponderUnknownErrorMasked` 通过 | |
 | 10254 | 存量接口旧号 `4001/4004/4009` 已停用。 | `grep -rn '"code": *\(4001\|4004\|4009\)' internal/ cmd/` 输出为空 | |
@@ -406,28 +406,28 @@
 | 10258 | 来源 IP 命中 `FINV_ERROR_DETAIL_ALLOWED_CIDRS` 视为高权限。 | `grep -c "AllowedCIDRs" internal/config/config.go` 不小于 `1`；`grep -c "Contains(ip)" internal/api/handler/errresp.go` 输出 `1` | |
 | 10259 | `request_id` 为大写 UUID4。 | `go test ./internal/api/handler/ -run TestErrorResponderSafeByDefault` 通过 | |
 | 10260 | `/Page` 返回 `{code:1,data:{cnt,ps,pn,list,request_id,ts},message:"OK"}`。 | `grep -c '"pn":         kline.PageNumber' internal/api/handler/kline.go` 输出 `1`；手工调用 `/Page` 校验字段 | |
-| 10261 | `/Page` 的 `cr` 为两位小数文本（HALF_UP），NULL 为 `null`。 | `go test ./internal/kline/ -run TestRatioText` 通过 | |
-| 10262 | `/PageUni` 的 `column` 固定 15 项且 `row` 值全部字符串化/去尾零。 | `go test ./internal/kline/ -run TestRowUniRow` 通过 | |
-| 10263 | `PATCH /Batch` 区分「未传」与「显式 null」。 | `go test ./internal/kline/ -run TestPatchExplicitNull` 通过 | |
+| 10261 | `/Page` 的 `cr` 为两位小数文本（HALF_UP），NULL 为 `null`。 | `go test ./internal/meta/finv/quote/cdeu/kline/ -run TestRatioText` 通过 | |
+| 10262 | `/PageUni` 的 `column` 固定 15 项且 `row` 值全部字符串化/去尾零。 | `go test ./internal/meta/finv/quote/cdeu/kline/ -run TestRowUniRow` 通过 | |
+| 10263 | `PATCH /Batch` 区分「未传」与「显式 null」。 | `go test ./internal/meta/finv/quote/cdeu/kline/ -run TestPatchExplicitNull` 通过 | |
 
 ## 二十六、涨跌字段补全规则（10264–10269）
 
 > 来源：导入/写入时 `change_price`、`change_ratio` 缺失的自动补全规则（ACANX 2026-10-24）。
-> 关联：`internal/calc/change.go`、`internal/mvsv/parser.go`、`internal/quote/service.go`、`internal/kline/request.go`。
+> 关联：`internal/meta/finv/quant/calc/change.go`、`internal/meta/finv/quote/mvsv/parser.go`、`internal/meta/finv/quote/service.go`、`internal/meta/finv/quote/cdeu/kline/request.go`。
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10264 | MVSV 文件的 `cp`/`cr` 列有值时按文件值落库，不做重算。 | `go test ./internal/mvsv/ -run TestParseChangeFields` 通过；导入含 `cp/cr` 的文件后直查两列等于文件值 | |
-| 10265 | `cp`/`cr` 均缺失且 `last_close` 非空非 0 时，用 `last_close` 作为参考价计算。 | `go test ./internal/quote/ -run TestComputeChangeFields` 通过（用例 2） | |
+| 10264 | MVSV 文件的 `cp`/`cr` 列有值时按文件值落库，不做重算。 | `go test ./internal/meta/finv/quote/mvsv/ -run TestParseChangeFields` 通过；导入含 `cp/cr` 的文件后直查两列等于文件值 | |
+| 10265 | `cp`/`cr` 均缺失且 `last_close` 非空非 0 时，用 `last_close` 作为参考价计算。 | `go test ./internal/meta/finv/quote/ -run TestComputeChangeFields` 通过（用例 2） | |
 | 10266 | `last_close` 缺失或为 0 且 `open` 非空非 0 时，用 `open` 作为参考价计算。 | 同上（用例 3、4）通过 | |
 | 10267 | `last_close` 与 `open` 都不可用时保持 NULL，不报错。 | 同上（用例 5）通过 | |
-| 10268 | KLine API 写入未提供 `change_price`/`change_ratio` 时按 `open` 补全；任一列有值时不修改。 | `grep -c "calc.Change" internal/kline/request.go` 输出不小于 `1`；`go test ./internal/kline/` 通过 | |
-| 10269 | 涨跌计算使用十进制精确运算（big.Rat）并保留 6 位小数。 | `go test ./internal/calc/ -run TestChangeRule` 通过（含 6 位小数用例） | |
+| 10268 | KLine API 写入未提供 `change_price`/`change_ratio` 时按 `open` 补全；任一列有值时不修改。 | `grep -c "calc.Change" internal/meta/finv/quote/cdeu/kline/request.go` 输出不小于 `1`；`go test ./internal/meta/finv/quote/cdeu/kline/` 通过 | |
+| 10269 | 涨跌计算使用十进制精确运算（big.Rat）并保留 6 位小数。 | `go test ./internal/meta/finv/quant/calc/ -run TestChangeRule` 通过（含 6 位小数用例） | |
 
 ## 二十七、去重行情前端菜单与统计（10270–10275）
 
 > 来源：去重行情（`dedup` schema）前端查询与统计可视化需求（ACANX 2026-10-24）。
-> 关联：`Web/src/App.vue`、`Web/src/router.ts`、`Web/src/views/Meta/Finv/Quote/DeDup/*`、`internal/kline/stats.go`、`internal/api/handler/kline.go`。
+> 关联：`Web/src/App.vue`、`Web/src/router.ts`、`Web/src/views/Meta/Finv/Quote/DeDup/*`、`internal/meta/finv/quote/cdeu/kline/stats.go`、`internal/api/handler/kline.go`。
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
@@ -521,7 +521,7 @@
 | 10337 | `PUT .../Calendar` 新增或更新交易日历标记。 | `grep -F 'func (s *Store) UpsertCalendar' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
 | 10338 | `DELETE .../Calendar` 删除交易日历记录。 | `grep -F 'func (s *Store) DeleteCalendar' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
 | 10339 | `GET .../Maturity/Page` 分页查询成熟度。 | `grep -F 'func (s *Store) ListMaturity' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
-| 10340 | `POST .../Maturity/Refresh` 异步触发成熟度重算。 | `grep -F 'MaturityRefresh' internal/api/handler/exportarchive_admin.go` 命中 | |
+| 10340 | `POST .../Maturity/Refresh` 异步触发成熟度重算。 | `grep -F 'MaturityRefresh' internal/api/handler/cdeu_admin.go` 命中 | |
 | 10341 | `GET .../Stats/Page` 分页查询入口日统计。 | `grep -F 'func (s *Store) ListIngestStats' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
 | 10342 | `GET .../Budget/Page` 分页查询每日预算。 | `grep -F 'func (s *Store) ListBudgets' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
 | 10343 | `PUT .../Budget/Override` 覆盖当日预算（校验因子区间与硬上限）。 | `grep -F 'func (s *Store) OverrideBudget' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
@@ -531,7 +531,7 @@
 | 10347 | `GET .../UploadLog/Page` 分页查询上传审计。 | `grep -F 'func (s *Store) ListUploadLogs' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
 | 10348 | `GET .../Patch/Page` 分页查询补丁任务。 | `grep -F 'func (s *Store) ListPatches' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
 | 10349 | `POST .../Patch/Retry` 重试补丁任务（重置为 PENDING）。 | `grep -F 'func (s *Store) ResetPatchForRetry' internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
-| 10350 | `POST .../Job/Pause` 与 `POST .../Job/Cancel` 暂停 / 取消任务。 | `grep -F 'JobPause' internal/api/handler/exportarchive_admin.go` 与 `grep -F 'JobCancel'` 均命中 | |
+| 10350 | `POST .../Job/Pause` 与 `POST .../Job/Cancel` 暂停 / 取消任务。 | `grep -F 'JobPause' internal/api/handler/cdeu_admin.go` 与 `grep -F 'JobCancel'` 均命中 | |
 | 10351 | 所有写操作追加审计（`job_kind=MANUAL_ADMIN_EDIT`）。 | `grep -F "MANUAL_ADMIN_EDIT" internal/meta/finv/quote/dedup/store_admin.go` 命中 | |
 | 10352 | 前端新增 3 个运维台页面（Stats / Config / Log）。 | `ls Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchive{Stats,Config,Log}View.vue` 列出 3 个文件 | |
 | 10353 | `api.ts` 新增 `apiPut` / `apiDelete`。 | `grep -F 'export async function apiPut' Web/src/api.ts` 与 `grep -F 'export async function apiDelete'` 均命中 | |
@@ -565,7 +565,7 @@
 | 10376 | 节点第三行展示关键指标，表名改为悬浮 / 详情面板展示。 | `grep -F 'chain-node-metric' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` 命中；`grep -F 'currentStep.dataFlow'` 命中（详情面板） | |
 | 10377 | ⑤–⑧ 包裹为「导出任务批次」大节点，展示成功 / 失败 / 总数与分段进度条，随 5 秒运行快照更新。 | `grep -F '导出任务批次' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` 命中；`grep -F 'exportGroup'` 命中 | |
 | 10378 | ⑤–⑧ 子步骤展示各自完成度（装载 / 导出 / 登记的进度条与关键指标）。 | `grep -F 'loadPercent' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` 与 `grep -F 'exportPercent'` 均命中 | |
-| 10379 | `GET /Status` 与 `GET /Job/Runtime` 返回当前月批次进度 `job_progress`。 | `grep -F 'job_progress' internal/api/handler/exportarchive.go` 命中；`grep -F 'JobStatusCountsByMonth' internal/meta/finv/quote/dedup/store_files.go` 命中 | |
+| 10379 | `GET /Status` 与 `GET /Job/Runtime` 返回当前月批次进度 `job_progress`。 | `grep -F 'job_progress' internal/api/handler/cdeu.go` 命中；`grep -F 'JobStatusCountsByMonth' internal/meta/finv/quote/dedup/store_files.go` 命中 | |
 | 10380 | 流程图连接线使用正交折线，并通过实线（主流程）/虚线（旁路）/紫色（定时循环）区分，减少线与线重叠。 | `grep -F 'stroke-linejoin="round"' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` 命中；`grep -c ' C ' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` 输出 `0` | |
 | 10381 | 旁路任务使用 ⑫ / ⑬ / ⑭ 独立序号；⑫ 作为本月导出批次的一部分，补丁数据先进入 ⑤ 中转表，再走 ⑥→⑦→⑧→⑨ 上传。 | `grep -F "no: '⑫'" Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue`、`no: '⑬'`、`no: '⑭'` 均命中；`grep -F "'补丁数据入中转表'"` 命中 | |
 | 10382 | 补丁（L1/L2/L3）先分页装入中转表，再从转存表写 BASE/PATCH 文件，完成后清理中转数据。 | `grep -F 'LoadPatchPage' internal/meta/finv/quote/dedup/store.go` 与 `grep -F 'stagePatchRows' internal/meta/finv/quote/dedup/job_patch.go` 均命中 | |
@@ -575,7 +575,7 @@
 | 10386 | 新增 CDEU 抽象概念模型设计文档：Process / Phase / Step / Job 四层、运行模式、批处理、完成条件、表结构与 13 个 Job 登记映射。 | `test -f Docs/Refactor/2610-007-CDEUProcessModelDesign.md` 退出码为 0；`grep -c 'cdeu_process' Docs/Refactor/2610-007-CDEUProcessModelDesign.md` 输出大于 `0` | |
 | 10387 | 规范要求过程文档 `yyMM-NNN-` 编号在 `Docs/` 下全局唯一，不得重号或复用，并提供自动校验。 | `grep -F '全局唯一' Docs/DevSpec/FileNamingSpec.md` 命中；`go test ./internal/docs` 通过（重号时失败） | |
 | 10388 | 按 CDEU 模型新增 8 张 `dedup.cdeu_*` 表并 seed 1 个流程 / 4 个阶段 / 10 个步骤 / 13 个作业（V45 将旁路步骤并入导出/上传阶段）；现有 Job 执行时双写 CDEU 运行树并按完成条件逐级评估。 | `test -f Deploy/Migrations/V100044__finv_dedup_cdeu_process_model.sql` 退出码为 0；`grep -F 'CDEU_DAILY' Deploy/Migrations/V100044__finv_dedup_cdeu_process_model.sql` 命中；`go test ./internal/meta/finv/quote/dedup` 通过 | |
-| 10389 | 前端新增「流程控制与监控」菜单，按 Process / Phase / Step / Job 展示 CDEU 运行状态、历史运行与手动触发；后端新增 `GET /CDEU/Overview`。 | `grep -F '/Meta/Finv/Quote/DeDup/CDEU' Web/src/App.vue Web/src/router.ts` 命中；`grep -F 'CDEU/Overview' internal/api/router.go` 命中；`cd Web && npm run build` 通过 | |
+| 10389 | 前端新增「流程控制与监控」菜单，按 Process / Phase / Step / Job 展示 CDEU 运行状态、历史运行与手动触发；后端新增 `GET /CDEU/Overview`。 | `grep -F '/Meta/Finv/Quote/Cdeu/CdeuOverview' Web/src/router.ts Web/src/config/menuConfig.ts` 命中；`grep -F 'CDEU/Overview' internal/api/router.go` 命中；`cd Web && npm run build` 通过 | |
 | 10390 | 流程控制页默认「总体视图」，阶段悬浮展示概要；支持启动完整 CDEU 流程（`POST /CDEU/Process/Run`）。 | `grep -F 'viewMode' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'v-tooltip' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'CDEU/Process/Run' internal/api/router.go` 命中；`cd Web && npm run build` 通过 | |
 | 10391 | 总体视图点击阶段后，在「阶段概览」位置展示该阶段的步骤清单表格（步骤状态、作业/批次进度、开始时间、耗时、异常），不再重复展示阶段汇总表。 | `grep -F 'selectedPhase' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'selectedPhase.steps' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10392 | 「阶段流转」改为画布式工作流：悬浮节点 + 点阵画布 + 阶段间有向箭头，箭头由前序阶段指向后续阶段，点击节点切换步骤清单。 | `grep -F 'workflow-canvas' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'marker-end' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
@@ -618,7 +618,7 @@
 | 10429 | 阶段内 Process 拓扑支持「流程拓扑」开关显示/隐藏，默认显示；导出阶段将 `PROCESS_RECOVER` 作为与 `PROCESS_EXPORT_FILE_MON_BASE` 并行的支路展示。 | `grep -F 'processTopologyVisible' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'processTopologyHasParallel' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10430 | 导出决策阶段按依赖调整：入口流量统计与行情成熟度扫描并行，每日导出预算计算在其后；调度改为 00:05 启动统计/成熟度、00:10 启动预算，拓扑图展示并行汇合关系。 | `test -f Deploy/Migrations/V100064__finv_dedup_cdeu_decision_parallel_schedule.sql` 退出码为 0；`grep -F "JOB_CALC_BUDGET" Deploy/Migrations/V100064__finv_dedup_cdeu_decision_parallel_schedule.sql` 命中；`grep -F "processTopologyMode" Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
 | 10431 | 画布上阶段与 Process 视觉样式区分：阶段为实线大卡片，Process 为虚线紧凑卡片；开始/结束节点由圆形改为矩形。 | `grep -F 'border-radius: 8px' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'border: 1px dashed' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
-| 10432 | 新增 `/Meta/Finv/Quote/DeDup/CDEUWorkflow` 菜单与「全流程拓扑」页面：每个阶段以虚线框圈定范围，框内展开该阶段全部 Process，并绘制阶段内及跨阶段的完整依赖连接。 | `grep -F "path: '/Meta/Finv/Quote/DeDup/CDEUWorkflow'" Web/src/router.ts` 命中；`grep -F "全流程拓扑" Web/src/App.vue` 命中；`test -f Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 退出码为 0；`cd Web && npm run build` 通过 | |
+| 10432 | 新增 `/Meta/Finv/Quote/DeDup/CDEUWorkflow` 菜单与「全流程拓扑」页面：每个阶段以虚线框圈定范围，框内展开该阶段全部 Process，并绘制阶段内及跨阶段的完整依赖连接。 | `grep -F "path: '/Meta/Finv/Quote/Cdeu/CdeuWorkflow'" Web/src/router.ts` 命中；`grep -F "全流程拓扑" Web/src/App.vue` 命中；`test -f Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 退出码为 0；`cd Web && npm run build` 通过 | |
 | 10433 | 「全流程拓扑」图例绘制在拓扑画布内部，随画布一起滚动，不再放在画布外部的页面区域。 | `grep -F 'fulltopo-legend-in-canvas' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`grep -F 'legendTop' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10434 | 「全流程拓扑」中阶段内部并行流程的分叉点绘制在阶段虚线框内部；所有阶段虚线框高度统一，宽度按该阶段流程列数自适应。 | `grep -F 'FORK_SPACE' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`grep -F 'phaseHeight' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`grep -F 'fulltopo-fork' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10435 | 「全流程拓扑」去掉阶段虚线框左侧的绿色实边，阶段框仅保留虚线边界；增大阶段内分叉点到 Process 入口的间距，分叉后的折线、箭头与节点入口保持清晰距离。 | `grep -F '.fulltopo-phase::before' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 无命中；`grep -F 'const FORK_SPACE = 72' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`grep -F 'to.x - 16' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`cd Web && npm run build` 通过 | |
@@ -656,7 +656,7 @@
 | 10467 | 归档 JOB 定义按单个 JOB 拆分到 `internal/meta/finv/quote/dedup/job/`，每个静态 JOB 一个文件；BASE/INCR/上传等仅入参不同的动态 JOB 复用对应父 JOB 文件。 | `find internal/meta/finv/quote/dedup/job -maxdepth 1 -name '*.go'` 命中 `export.go`、`scan_post_seal_patches.go` 等；`grep -F 'jobdef.All()' internal/meta/finv/quote/dedup/service.go` 命中；`go test ./internal/meta/finv/quote/dedup` 通过 | |
 | 10468 | 归档 JOB 业务执行逻辑迁移到 `dedup/job` 子包：每个 JOB 一个执行文件，通过 `RegisterJobExecutor` 注入 `Service.dispatch`；BASE/INCR 动态导出复用 `export.go`，动态上传复用 `upload_pending_export_files.go`。 | `grep -F 'RegisterJobExecutor' internal/meta/finv/quote/dedup/job/*.go` 命中；`grep -F 'lookupJobExecutor' internal/meta/finv/quote/dedup/job_registry.go` 命中；`grep -F 'dedup/job' cmd/server/main.go` 命中；`go test ./...` 通过 | |
 | 10469 | CDEU 手动执行 JOB 前弹出确认框，默认只执行当前 JOB；勾选「自动续跑同流程下的后续 JOB」后，当前 JOB 完成时按工作流顺序继续执行后续 JOB（同一 `job_kind` 只执行一次）。 | `grep -F '自动续跑同流程下的后续 JOB' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'runSubsequentJobs' internal/meta/finv/quote/dedup/service.go` 命中；`go test ./internal/meta/finv/quote/dedup -run TestSubsequentJobDefinitions` 通过 | |
-| 10470 | 手动触发静态/动态 JOB 时接口立即返回 `run_log_id`，前端无需等待刷新即可打开执行日志弹窗；动态 JOB 改为异步执行。 | `grep -F 'run_log_id' internal/api/handler/exportarchive.go` 命中；`grep -F 'openJobLogByID' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`go test ./internal/api/...` 通过 | |
+| 10470 | 手动触发静态/动态 JOB 时接口立即返回 `run_log_id`，前端无需等待刷新即可打开执行日志弹窗；动态 JOB 改为异步执行。 | `grep -F 'run_log_id' internal/api/handler/cdeu.go` 命中；`grep -F 'openJobLogByID' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`go test ./internal/api/...` 通过 | |
 | 10471 | JOB 执行日志弹窗支持全屏/退出全屏切换，全屏时日志区域占满可用高度。 | `grep -F 'logFullscreen' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'job-log-body-fullscreen' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`npm run build` 通过 | |
 | 10472 | 修复动态导出 JOB 勾选自动续跑后只执行静态后续 JOB 的问题：先按 `dynamic_job_id` 顺序续跑同 Process 的后续动态导出 JOB，再执行静态后续 JOB；日志弹窗展示自动续跑状态，JOB 清单在续跑期间改为 1 秒刷新。 | `grep -F 'runSubsequentDynamicExportJobs' internal/meta/finv/quote/dedup/job_export.go` 命中；`grep -F '手动续跑动态 JOB' internal/meta/finv/quote/dedup/job_export.go` 命中；`docker logs finvquant 2>&1 \| grep '手动续跑动态 JOB'` 观察到连续动态 JOB；`go test ./...` 通过 | |
 | 10473 | 修复 CDEU JOB 清单「处理量」列为空：动态导出 JOB 关联运行日志读取 `processed_rows`/`processed_bytes`，动态上传 JOB 关联导出文件读取 `row_count`/`file_size`；静态 JOB 在 CDEU 运行记录为 0 时回退读取运行日志。 | `curl 'http://localhost:16001/API/V1/Meta/Finv/Quote/DeDup/CDEU/Overview'` 返回的 `JOB_EXPORT_BASE_*` 含非零 `processed_rows`/`processed_bytes`，`JOB_UPLOAD_*` 含非零行数/字节数；`go test ./...` 通过 | |
@@ -943,12 +943,12 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10632 | `internal/quote`（`Import/Upload` 文件导入、`History/QuoteQuery` 查询）一律读写 `quote.finv_quote_secu_kline_min`。 | `grep -c 'quote.finv_quote_secu_kline_min' internal/quote/service.go` ≥ 4；`grep 'dedup.finv_quote_secu_kline_min' internal/quote/*.go` 无输出 | |
-| 10633 | `internal/backtest` 行情加载与日期区间解析读取 `quote.`（回测只读 quote）。 | `grep -n 'quote.finv_quote_secu_kline_min' internal/backtest/service.go` 输出 2 行；包内无 `dedup.finv_quote_secu_kline_min` | |
-| 10634 | `internal/kline`（K 线 API 写入/查询）保持 `dedup.`，不得改回 `quote.`。 | `grep -n 'const Table' internal/kline/sql.go` 输出 `"dedup.finv_quote_secu_kline_min"`；`go test ./internal/kline` 通过 | |
+| 10632 | `internal/meta/finv/quote`（`Import/Upload` 文件导入、`History/QuoteQuery` 查询）一律读写 `quote.finv_quote_secu_kline_min`。 | `grep -c 'quote.finv_quote_secu_kline_min' internal/meta/finv/quote/service.go` ≥ 4；`grep 'dedup.finv_quote_secu_kline_min' internal/meta/finv/quote/*.go` 无输出 | |
+| 10633 | `internal/meta/finv/quant/backtest` 行情加载与日期区间解析读取 `quote.`（回测只读 quote）。 | `grep -n 'quote.finv_quote_secu_kline_min' internal/meta/finv/quant/backtest/service.go` 输出 2 行；包内无 `dedup.finv_quote_secu_kline_min` | |
+| 10634 | `internal/meta/finv/quote/cdeu/kline`（K 线 API 写入/查询）保持 `dedup.`，不得改回 `quote.`。 | `grep -n 'const Table' internal/meta/finv/quote/cdeu/kline/sql.go` 输出 `"dedup.finv_quote_secu_kline_min"`；`go test ./internal/meta/finv/quote/cdeu/kline` 通过 | |
 | 10635 | 端到端隔离：K 线 API `/Add` 写入后数据仅落 `dedup`，`History/QuoteQuery` 查同一 `usc` 查不到。 | 实测：`/Add` 返回 201 后 `dedup=1 / quote=0`；`QuoteQuery` 返回 `total: 0` | |
 | 10636 | `schema_qualify_test.go` 白名单含 `quote.`、`dedup.`、`export.` 三者，`go test ./...` 全绿。 | `grep -n 'finv_quote_secu_kline_min' internal/database/schema_qualify_test.go` 含三者；`go test ./...` 通过 | |
-| 10637 | 文档同步：导入/回测/查询 API 文档与 `DbSchemaSpec` 均按新归属描述。 | `Docs/API/HistoryQuote/ImportsUpload.md`、`Docs/API/Backtest/RunCreate.md` 含 `quote.finv_quote_secu_kline_min`；`DbSchemaSpec.md` 隔离表列出 `internal/quote` / `internal/kline` 归属 | |
+| 10637 | 文档同步：导入/回测/查询 API 文档与 `DbSchemaSpec` 均按新归属描述。 | `Docs/API/HistoryQuote/ImportsUpload.md`、`Docs/API/Backtest/RunCreate.md` 含 `quote.finv_quote_secu_kline_min`；`DbSchemaSpec.md` 隔离表列出 `internal/meta/finv/quote` / `internal/meta/finv/quote/cdeu/kline` 归属 | |
 
 ## 五十八、数据库表保护红线（10638–10645）
 
@@ -1745,7 +1745,7 @@ tableUsc  = "cdeu.finv_quote_cdeu_usc"
 tableJob  = "cdeu.finv_quote_cdeu_export_job"
 tableFile = "cdeu.finv_quote_cdeu_export_file"
 
-// internal/kline/sql.go（K 线 API 写入/查询目标）
+// internal/meta/finv/quote/cdeu/kline/sql.go（K 线 API 写入/查询目标）
 const Table = "cdeu.finv_quote_secu_kline_min"
 ```
 
@@ -1759,7 +1759,7 @@ const Table = "cdeu.finv_quote_secu_kline_min"
 | `unqualifiedDomainTables` 增加「最长前缀优先」 | 避免 `finv_quote_cdeu_*` 同时被 `finv_quote_` 报一次，产生「必须写成 quote.」的矛盾建议 |
 | `exactTableSchema["finv_quote_secu_kline_min"]` 注释重写 | 四份副本职责重新表述：`quote.` 回测 / `cdeu.` 业务（代码读写）/ `export.` 中转 / `dedup.` 历史待清理 |
 
-`internal/kline/sql_test.go`：`TestTableConstantQualified` 断言由 `dedup.` 改为 `cdeu.`。
+`internal/meta/finv/quote/cdeu/kline/sql_test.go`：`TestTableConstantQualified` 断言由 `dedup.` 改为 `cdeu.`。
 
 ### 10757 切换后的状态
 
@@ -2065,7 +2065,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10777 | 把分钟行情批量 Upsert 端点从 `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Upsert` 调整为 `/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`；旧路径（含 legacy 前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Upsert`）不再注册；其它 K 线端点保持不变。 | `grep -c 'CdeuUpsertPath' internal/kline/model.go internal/api/router.go` ≥ 2；`grep -c '/Cdeu/Min/Upsert' internal/api/router_test.go` ≥ 1；`grep -c 'POST ...DeDup/Secu/KLine/Min/Upsert'` 在 router.go 中为 0；运行 `go test ./internal/api -run TestKLineRoutesRegistered` 通过（新路径已注册、两条旧路径未注册）；`curl -X POST http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert` 不再返回 404，旧路径返回 404 | |
+| 10777 | 把分钟行情批量 Upsert 端点从 `/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Upsert` 调整为 `/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`；旧路径（含 legacy 前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/Upsert`）不再注册；其它 K 线端点保持不变。 | `grep -c 'CdeuUpsertPath' internal/meta/finv/quote/cdeu/kline/model.go internal/api/router.go` ≥ 2；`grep -c '/Cdeu/Min/Upsert' internal/api/router_test.go` ≥ 1；`grep -c 'POST ...DeDup/Secu/KLine/Min/Upsert'` 在 router.go 中为 0；运行 `go test ./internal/api -run TestKLineRoutesRegistered` 通过（新路径已注册、两条旧路径未注册）；`curl -X POST http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert` 不再返回 404，旧路径返回 404 | |
 
 ## 一百一十一、Markdown 表格必须带表头（10778）
 
@@ -2089,7 +2089,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10782 | 把分钟行情全部端点（`Add`、`Batch` POST/PATCH/DELETE、`Upsert`、`Page`、`PageUni`、`Query`、`Count`、`Stats`、`Bounds`）统一到 `/API/V1/Meta/Finv/Quote/Cdeu/Min/*`；旧 `DeDup/Secu/KLine/Min` 与 legacy `Secu/KLine/Min` 不再注册；`Docs/API/KLine/` 下全部文档迁入 `Docs/API/Quote/Cdeu/Min/`；前端 API 调用同步（页面路由不变）。 | `grep -c 'Cdeu/Min' internal/kline/model.go` ≥ 1；`grep -c 'Secu/KLine/Min' internal/api/router.go` = 0（仅注释例外）；`go test ./internal/api -run TestKLineRoutesRegistered` 通过（新路径已注册、22 条旧路径未注册）；`ls Docs/API/Quote/Cdeu/Min/*.md \| wc -l` = 12 且 `Docs/API/KLine` 不存在；全仓 Markdown 相对链接 0 失效；`go test ./internal/docs` 通过；`curl -X POST http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Min/Batch` 非 404，旧路径返回 404 | |
+| 10782 | 把分钟行情全部端点（`Add`、`Batch` POST/PATCH/DELETE、`Upsert`、`Page`、`PageUni`、`Query`、`Count`、`Stats`、`Bounds`）统一到 `/API/V1/Meta/Finv/Quote/Cdeu/Min/*`；旧 `DeDup/Secu/KLine/Min` 与 legacy `Secu/KLine/Min` 不再注册；`Docs/API/KLine/` 下全部文档迁入 `Docs/API/Quote/Cdeu/Min/`；前端 API 调用同步（页面路由不变）。 | `grep -c 'Cdeu/Min' internal/meta/finv/quote/cdeu/kline/model.go` ≥ 1；`grep -c 'Secu/KLine/Min' internal/api/router.go` = 0（仅注释例外）；`go test ./internal/api -run TestKLineRoutesRegistered` 通过（新路径已注册、22 条旧路径未注册）；`ls Docs/API/Quote/Cdeu/Min/*.md \| wc -l` = 12 且 `Docs/API/KLine` 不存在；全仓 Markdown 相对链接 0 失效；`go test ./internal/docs` 通过；`curl -X POST http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Min/Batch` 非 404，旧路径返回 404 | |
 
 ## 一百一十五、接口文档按 OpenAPI 3.1 编写（10783）
 
@@ -2143,13 +2143,13 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10791 | 将 `cdeu.finv_quote_secu_kline_min.volume` 由 `bigint` 改为浮点 `numeric(20,6)`，保留 `volume >= 0` 约束；幂等迁移，仅改 `cdeu` 表。 | `grep -c 'numeric(20,6)' Deploy/Migrations/V200058__cdeu_kline_min_volume_numeric.sql` ≥ 1；临时 PG 执行全部迁移后 `select data_type from information_schema.columns where table_schema='cdeu' and table_name='finv_quote_secu_kline_min' and column_name='volume'` = `numeric`；插入 `12.345678` 后读回一致；重复执行 V200058 输出「已是 numeric，跳过」；`go build ./...`、`go test ./internal/kline` 通过；`MVsvFileFormat.md` 中 `v` 类型为 `Decimal(20,6)` | |
+| 10791 | 将 `cdeu.finv_quote_secu_kline_min.volume` 由 `bigint` 改为浮点 `numeric(20,6)`，保留 `volume >= 0` 约束；幂等迁移，仅改 `cdeu` 表。 | `grep -c 'numeric(20,6)' Deploy/Migrations/V200058__cdeu_kline_min_volume_numeric.sql` ≥ 1；临时 PG 执行全部迁移后 `select data_type from information_schema.columns where table_schema='cdeu' and table_name='finv_quote_secu_kline_min' and column_name='volume'` = `numeric`；插入 `12.345678` 后读回一致；重复执行 V200058 输出「已是 numeric，跳过」；`go build ./...`、`go test ./internal/meta/finv/quote/cdeu/kline` 通过；`MVsvFileFormat.md` 中 `v` 类型为 `Decimal(20,6)` | |
 
 ## 一百二十四、volume 全链路浮点化（10792）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10792 | 把 `quote` / `export` / `dedup` 三张同名表的 `volume` 与 `cdeu` 统一为 `numeric(20,6)`；`internal/mvsv` 解析保留小数文本；`internal/quote` 查询输出支持小数；保证导入/导出/补丁/回测链路不截断。 | 临时 PG 执行全部迁移后 `select table_schema, data_type from information_schema.columns where column_name='volume' and table_name='finv_quote_secu_kline_min' and table_schema in ('quote','dedup','export','cdeu')` 四行均为 `numeric`；`12.345678` 在四表写入/读回一致；重复执行 V200059 输出「已是 numeric，跳过」；`go test ./internal/mvsv` 含 `TestParseNumericVolume` 通过；`go build ./...`、`go test ./internal/quote ./internal/kline` 通过；`HistoryQuote.md` volume 标注支持小数 | |
+| 10792 | 把 `quote` / `export` / `dedup` 三张同名表的 `volume` 与 `cdeu` 统一为 `numeric(20,6)`；`internal/meta/finv/quote/mvsv` 解析保留小数文本；`internal/meta/finv/quote` 查询输出支持小数；保证导入/导出/补丁/回测链路不截断。 | 临时 PG 执行全部迁移后 `select table_schema, data_type from information_schema.columns where column_name='volume' and table_name='finv_quote_secu_kline_min' and table_schema in ('quote','dedup','export','cdeu')` 四行均为 `numeric`；`12.345678` 在四表写入/读回一致；重复执行 V200059 输出「已是 numeric，跳过」；`go test ./internal/meta/finv/quote/mvsv` 含 `TestParseNumericVolume` 通过；`go build ./...`、`go test ./internal/meta/finv/quote ./internal/meta/finv/quote/cdeu/kline` 通过；`HistoryQuote.md` volume 标注支持小数 | |
 
 ## 一百二十五、外部 OpenAPI 文档自包含（10793）
 
@@ -2161,7 +2161,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10794 | 分钟行情写入接口的 `paocd` 参数改为 `pacd`（库列仍 `paocd`）；`prev_close` 改为 `last_close` 并**落库**（不再仅回填 open），upsert/PATCH/查询/JSON 输出与文档同步；请求示例必须包含完整 17 字段，成功响应 JSON 格式化。 | `grep -c '"pacd"' internal/kline/request.go` = 1；`grep -c 'ColLastClose' internal/kline/model.go` ≥ 2；`go test ./internal/kline -run 'TestLastCloseCompat\|TestPatchLastClose\|TestRowJSON' -v` 通过；`grep -rn 'paocd\|prev_close' Docs/API/Quote/Cdeu/Min Docs/OpenAPI/Quote/Cdeu/Min` 仅剩「库列」说明；两份 `KLineUpsert.yml` 的 `KLineItem` 均为 17 字段且含 `pacd`/`last_close`；`go test ./internal/docs` 通过 | |
+| 10794 | 分钟行情写入接口的 `paocd` 参数改为 `pacd`（库列仍 `paocd`）；`prev_close` 改为 `last_close` 并**落库**（不再仅回填 open），upsert/PATCH/查询/JSON 输出与文档同步；请求示例必须包含完整 17 字段，成功响应 JSON 格式化。 | `grep -c '"pacd"' internal/meta/finv/quote/cdeu/kline/request.go` = 1；`grep -c 'ColLastClose' internal/meta/finv/quote/cdeu/kline/model.go` ≥ 2；`go test ./internal/meta/finv/quote/cdeu/kline -run 'TestLastCloseCompat\|TestPatchLastClose\|TestRowJSON' -v` 通过；`grep -rn 'paocd\|prev_close' Docs/API/Quote/Cdeu/Min Docs/OpenAPI/Quote/Cdeu/Min` 仅剩「库列」说明；两份 `KLineUpsert.yml` 的 `KLineItem` 均为 17 字段且含 `pacd`/`last_close`；`go test ./internal/docs` 通过 | |
 
 ## 一百二十七、字段表类型/可空分列（10795）
 
@@ -2191,19 +2191,19 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10799 | 新增 `qmio` 数据搬运工具（与 `finvquant` 同目录 `<PREFIX>/bin/qmio`）：导出 `cdeu.finv_quote_secu_kline_min` 为 MVSV-2（默认 gzip、含 gmt、可 `--no-gmt`），导入默认 `upsert`（可选 append/replace，replace 需 `--force`），支持 `verify`（sha256/行数）；打包/安装/升级/卸载同步。 | `ls cmd/qmio`；`go build ./cmd/qmio` 通过；`go test ./internal/mvsv -v` 含 `TestWriteV2RoundTripGmt/NoGmt` 通过；`grep -c 'qmio' Deploy/Script/PackSnapshot.sh Deploy/Native/Install.sh` 各 ≥ 1；临时 PG 导出→清空→导入→重复导入行数不变；`--no-gmt` 文件 `Field` 为 17 列且导入后 `gmt_create` 非空；`qmio verify` 通过；`go build ./...` 通过 | |
+| 10799 | 新增 `qmio` 数据搬运工具（与 `finvquant` 同目录 `<PREFIX>/bin/qmio`）：导出 `cdeu.finv_quote_secu_kline_min` 为 MVSV-2（默认 gzip、含 gmt、可 `--no-gmt`），导入默认 `upsert`（可选 append/replace，replace 需 `--force`），支持 `verify`（sha256/行数）；打包/安装/升级/卸载同步。 | `ls cmd/qmio`；`go build ./cmd/qmio` 通过；`go test ./internal/meta/finv/quote/mvsv -v` 含 `TestWriteV2RoundTripGmt/NoGmt` 通过；`grep -c 'qmio' Deploy/Script/PackSnapshot.sh Deploy/Native/Install.sh` 各 ≥ 1；临时 PG 导出→清空→导入→重复导入行数不变；`--no-gmt` 文件 `Field` 为 17 列且导入后 `gmt_create` 非空；`qmio verify` 通过；`go build ./...` 通过 | |
 
 ## 一百三十二、BRS 数据备份服务（10800）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10800 | 新增 `brs` schema 与 `brs.brs_bak_rdb_table` 备份登记表（`priority` 唯一）；`sys.sys_config 39001` 配置 6 段 cron；服务内每日按 `priority` 倒序对启用表执行 `pg_dump -Fc`（按 `compression` 压缩），备份到 `<PREFIX>/Backup/BRS/<yyyyMMdd>/`，只写日志；预置系统表与 CDEU 配置表种子（不含 `cdeu.finv_quote_secu_kline_min`）；对象存储通过 `internal/meta/base/oss` 抽象，首期不启用上传。 | `test -f Deploy/Migrations/V200060__brs_backup_table.sql`；临时 PG 执行全部 142 个迁移 0 错误，`select count(*) from brs.brs_bak_rdb_table` = 12，`select count(distinct priority)` = 12，`select str_value from sys.sys_config where config_no=39001` = `0 0 3 * * *`；`go test ./internal/brs ./internal/meta/base/cron ./internal/meta/base/oss/...` 通过；`go build ./...` 通过；`grep -c 'FINV_BRS_BACKUP_DIR' internal/config/config.go Deploy/Native/FinvQuant.env.example` 各 ≥ 1；`grep -rn 'minio-go' internal/` 无输出 | |
+| 10800 | 新增 `brs` schema 与 `brs.brs_bak_rdb_table` 备份登记表（`priority` 唯一）；`sys.sys_config 39001` 配置 6 段 cron；服务内每日按 `priority` 倒序对启用表执行 `pg_dump -Fc`（按 `compression` 压缩），备份到 `<PREFIX>/Backup/BRS/<yyyyMMdd>/`，只写日志；预置系统表与 CDEU 配置表种子（不含 `cdeu.finv_quote_secu_kline_min`）；对象存储通过 `internal/meta/base/oss` 抽象，首期不启用上传。 | `test -f Deploy/Migrations/V200060__brs_backup_table.sql`；临时 PG 执行全部 142 个迁移 0 错误，`select count(*) from brs.brs_bak_rdb_table` = 12，`select count(distinct priority)` = 12，`select str_value from sys.sys_config where config_no=39001` = `0 0 3 * * *`；`go test ./internal/meta/finv/brs ./internal/meta/base/cron ./internal/meta/base/oss/...` 通过；`go build ./...` 通过；`grep -c 'FINV_BRS_BACKUP_DIR' internal/config/config.go Deploy/Native/FinvQuant.env.example` 各 ≥ 1；`grep -rn 'minio-go' internal/` 无输出 | |
 
 ## 一百三十三、BRS 对象存储上传（10801）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10801 | BRS 二期：备份产物上传 S3 兼容对象存储（R2 等）。`brs_bak_rdb_table` 增加 `flag_upload`；`sys.sys_config 39002` 保存对象存储 JSON 配置（默认 `enabled=false`）；通过 `internal/meta/base/oss` 抽象 + `oss/s3` 适配器（`aws-sdk-go-v2`，**不使用 minio-go**），上传失败保留本地。 | `grep -c 'flag_upload' Deploy/Migrations/V200061__brs_upload.sql` ≥ 1；临时 PG 执行全部 143 个迁移 0 错误；`select json_value->>'enabled' from sys.sys_config where config_no=39002` = `false`；`go test ./internal/meta/base/oss/... ./internal/brs` 通过（含 s3 适配器 httptest 用例）；`grep -rn 'minio' internal/meta/base/oss internal/brs` 无官方库引用；`go build ./...` 通过 | |
+| 10801 | BRS 二期：备份产物上传 S3 兼容对象存储（R2 等）。`brs_bak_rdb_table` 增加 `flag_upload`；`sys.sys_config 39002` 保存对象存储 JSON 配置（默认 `enabled=false`）；通过 `internal/meta/base/oss` 抽象 + `oss/s3` 适配器（`aws-sdk-go-v2`，**不使用 minio-go**），上传失败保留本地。 | `grep -c 'flag_upload' Deploy/Migrations/V200061__brs_upload.sql` ≥ 1；临时 PG 执行全部 143 个迁移 0 错误；`select json_value->>'enabled' from sys.sys_config where config_no=39002` = `false`；`go test ./internal/meta/base/oss/... ./internal/meta/finv/brs` 通过（含 s3 适配器 httptest 用例）；`grep -rn 'minio' internal/meta/base/oss internal/meta/finv/brs` 无官方库引用；`go build ./...` 通过 | |
 
 ## 一百三十四、BRS 对象存储配置说明（10802）
 
@@ -2239,6 +2239,324 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10810 | 用户可在右上角用户菜单内切换深色/浅色主题，选择保存在浏览器 `localStorage['finvquant.ui.theme']`；初始主题按「本地选择 > 系统偏好 > 深色」取。 | `grep -F "finvquant.ui.theme" Web/src/config/uiConfig.ts` 命中；`grep -F "resolveInitialTheme" Web/src/main.ts Web/src/config/uiConfig.ts` 各命中；人工：切换后全站配色立即变化、刷新后保持 | |
 | 10811 | **待办（未实施）**：主题偏好做服务端持久化（存 `sys.sys_user` 或 `sys_config`，登录后跨设备同步）。 | 未实施；落地时须补迁移、接口与文档 | |
+
+## 一百三十九、CDEU 前端路由调整（10812）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10812 | CDEU 页面路由由 `/Meta/Finv/Quote/DeDup/CDEU`、`/Meta/Finv/Quote/DeDup/CDEUWorkflow` 调整为 `/Meta/Finv/Quote/Cdeu/CdeuOverview`、`/Meta/Finv/Quote/Cdeu/CdeuWorkflow`；菜单项与页面内「全流程拓扑」跳转同步；后端 API 路径（`/API/V1/Meta/Finv/Quote/DeDup/CDEU/*`）保持不变。 | `grep -c '/Meta/Finv/Quote/Cdeu/CdeuOverview' Web/src/router.ts Web/src/config/menuConfig.ts` 各 ≥ 1；`grep -c '/Meta/Finv/Quote/Cdeu/CdeuWorkflow' Web/src/router.ts Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 各 ≥ 1；`grep -c "Quote/DeDup/CDEU'" Web/src/router.ts` 为 0；`cd Web && npm run build` 通过 | |
+
+## 一百四十、CDEU 归档工作流设计文档（10813）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10813 | 在 `Docs/Design/` 下新增 CDEU（采集 → 去重 → 导出 → 上传）归档工作流设计文档，体例对齐 AHA `Docs/Design`（元信息 + 变更日志 + 编号章节 + 表格化结论）：覆盖五级层级模型、状态机与完成条件、六个阶段、17 个 Process、22 个 JOB、15 个静态 Step 的「输入 / 处理 / 输出 / 解决的问题」，以及数据契约、系统配置项、阈值清单、运维排障与 `CdeuOverview`、`CdeuWorkflow` 页面映射。 | `test -f Docs/Design/CdeuWorkflowDesign.md`；`grep -c '^## ' Docs/Design/CdeuWorkflowDesign.md` ≥ 10；`grep -o 'JOB_[A-Z_]*' Docs/Design/CdeuWorkflowDesign.md \| sort -u \| wc -l` ≥ 20；`go test ./internal/docs` 通过 | |
+
+## 一百四十一、finv_security 扩展 type_secu_sub / provider / remark 三列（10814）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10814 | `public.finv_security` 增加 `type_secu_sub`、`provider`、`remark` 三列，均为 `TEXT NOT NULL DEFAULT ''`，并带列注释与末尾收敛校验（列存在性/类型/可空/默认值）。 | `test -f Deploy/Migrations/V100082__finv_security_add_type_secu_sub_provider_remark.sql`；文件内 `ADD COLUMN IF NOT EXISTS type_secu_sub`、`provider`、`remark` 三处均在；`grep -c 'RAISE EXCEPTION' Deploy/Migrations/V100082__finv_security_add_type_secu_sub_provider_remark.sql` ≥ 4 | |
+
+## 一百四十二、Supabase 证券视图下载到本地中转目录（10815）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10815 | 提供 Python 下载脚本，把 Supabase `finv_quote_collect_futu_view` 中 `flag_enable='1'` 的记录以 JSONL（一行一条）落盘到 `FinvQuantDesign/Data/Secu/`，并写 manifest（上游总数、实拉行数、usc 唯一数、sha256）；分页采用游标方式并经上游 count 核对。 | `test -f ../FinvQuantDesign/Scripts/SecuSync/DownloadSecu.py`；`ls ../FinvQuantDesign/Data/Secu/finv_quote_collect_futu_view_*.jsonl` 命中；`ls ../FinvQuantDesign/Data/Secu/finv_quote_collect_futu_view_*.manifest.json` 命中；`grep -c 'gt\.' ../FinvQuantDesign/Scripts/SecuSync/DownloadSecu.py` ≥ 1 | |
+
+## 一百四十三、富途 market_code 转换与幂等插入脚本生成（10816）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10816 | 提供 Python 转换脚本，把上游记录的富途 `market_code` 转换为 `finv_market.market_code`（非一一对应，由映射配置完成）后生成 `finv_security` 插入脚本；脚本对已有记录不更新（`ON CONFLICT DO NOTHING`），新行 `flag_enable='0'`、`provider='FTMM'`、`remark='20261030-SupabasePG-finv_quote_collect_futu_view批量导入'`。 | `test -f ../FinvQuantDesign/Scripts/SecuSync/ExportSecu.py`；`test -f ../FinvQuantDesign/Scripts/SecuSync/SecuMapping.json`；`grep -c 'ON CONFLICT DO NOTHING' ../FinvQuantDesign/Data/Secu/Out/finv_security_insert_*.sql` ≥ 1；`grep -c "'20261030-SupabasePG-finv_quote_collect_futu_view批量导入'" ../FinvQuantDesign/Data/Secu/Out/finv_security_insert_*.sql` ≥ 1；`grep -c "'FTMM'" ../FinvQuantDesign/Data/Secu/Out/finv_security_insert_*.sql` ≥ 1 | |
+
+## 一百四十四、港股人民币柜台货币口径修正（10817）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10817 | 港股人民币柜台（港交所 8 开头 5 位代码，`security_type` 非指数/波动率/债券/商品指数类）的 `currency_type` 一律为 `CNY`；6 位 8 开头港元指数保持 `HKD`；导入脚本与已入库数据同步修正。 | `grep -c 'hkRmbCounter' ../FinvQuantDesign/Scripts/SecuSync/SecuMapping.json` ≥ 1；`test -f ../FinvQuantDesign/Scripts/SecuSync/FixSecuCurrency.py`；库内校验：`select count(*) from public.finv_security where exchange_code=21 and security_code ~ '^8[0-9]{4}$' and security_type not in ('StockIndex','VolatilityIndex','BondIndex','CommodityIndex') and currency_type <> 'CNY'` 为 0；且 `select count(*) from public.finv_security where exchange_code=21 and security_code ~ '^8[0-9]{5}$' and currency_type <> 'HKD'` 为 0 | |
+
+## 一百四十五、富途原始属性镜像表 finv_futu_quote_collect（10818）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10818 | 在 `futu` schema 新建 `finv_futu_quote_collect` 表（`usc` 主键，含 `stock_id`/`futu_symbol`/`market_type`/`market_code`/`instrument_type`/`sub_instrument_type`/`req_section`/`quote_market`/`type_symbol`/`flag_enable`/`remark`/`gmt_create`/`gmt_update`），并支持从上游快照初始化与增量同步（幂等 upsert，可仅同步新增/变更行）。 | `test -f Deploy/Migrations/V100083__create_futu_finv_futu_quote_collect.sql`；`test -f ../FinvQuantDesign/Scripts/SecuSync/BuildFutuQuoteCollect.py`；`select count(*) from public.schema_version where version='100083'` 为 1；`select count(*) from information_schema.columns where table_schema='futu' and table_name='finv_futu_quote_collect'` 为 14；`select count(*) from futu.finv_futu_quote_collect` 为 17138 | |
+
+## 一百四十六、初始数据发放以迁移脚本形式入库（10819）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10819 | `finv_security` 与 `futu.finv_futu_quote_collect` 的初始数据以种子/数据迁移形式纳入 `Deploy/Migrations`（`V200062` / `V200063`，均 `ON CONFLICT DO NOTHING`），并将港股人民币柜台币种修正固化为 `V200064`；全新库按版本顺序执行后两表行数分别为 17,199 / 17,138。 | `ls Deploy/Migrations/V20006[234]__*.sql` 命中3 个；`grep -c 'ON CONFLICT DO NOTHING' Deploy/Migrations/V200062__finv_security_seed_supabase.sql` ≥ 35；`grep -c 'ON CONFLICT DO NOTHING' Deploy/Migrations/V200063__finv_futu_quote_collect_seed_supabase.sql` ≥ 35；`select count(*) from public.schema_version where version in ('200062','200063','200064')` 为 3；`select count(*) from futu.finv_futu_quote_collect` 为 17138 | |
+
+## 一百四十七、日增量行数模板与 day_expect_rows 自动补全（10820）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10820 | 新建日增量行数模板表 `cdeu.finv_quote_cdeu_usc_day_incr_row_tpl`（主键 `(region, market, category)`，三列均可为空串表示通配，含 `day_expect_rows` > 0 约束与 `gmt_update` 触发器）并预置市场模板；自动流程发现/刷新证券元数据时，若 `cdeu.finv_quote_cdeu_usc.day_expect_rows` 为空则按模板（特异性降序、模板未命中则不补）补全，已配置的非空值一律不覆盖。 | `test -f Deploy/Migrations/V100084__create_cdeu_usc_day_incr_row_tpl.sql`；`test -f Deploy/Migrations/V200065__cdeu_usc_day_incr_row_tpl_seed.sql`；`select count(*) from information_schema.columns where table_schema='cdeu' and table_name='finv_quote_cdeu_usc_day_incr_row_tpl'` 为 8；`select count(*) from cdeu.finv_quote_cdeu_usc_day_incr_row_tpl where flag_enable='1'` ≥ 10；`grep -c 'func (s *Store) BackfillUscDefaults' internal/meta/finv/quote/dedup/store.go` 为 1；`grep -c 'BackfillUscDefaults' internal/meta/finv/quote/dedup/job/refresh_quote_maturity.go internal/meta/finv/quote/dedup/job/export.go` 各 ≥ 1；库内验证：两轮 JOB 后 `select count(*) from cdeu.finv_quote_cdeu_usc u where u.day_expect_rows is null and exists (select 1 from cdeu.finv_quote_cdeu_usc_day_incr_row_tpl t where t.flag_enable = '1' and (t.region = '' or upper(t.region) = upper(coalesce(u.region, ''))) and (t.market = '' or upper(t.market) = upper(coalesce(u.market, ''))) and (t.category = '' or upper(t.category) = upper(coalesce(u.category, ''))))` 为 0 | |
+
+## 一百四十八、自动发现时补全优先级 / SLA / 最大等待默认值（10821）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10821 | 自动发现新证券、刷新证券元数据时，`priority_rank` / `sla_days` / `max_wait_days` 三列若同时为 NULL（未配置）则统一补默认值 100 / 5 / 7，使 CDEU 流程无需人工预配置即可运行；人工设置过的值不被覆盖，且自动补全不写 `priority_gmt_update`（该列为 NULL 即表示默认值）。 | `grep -c 'defaultPriorityRank = 100' internal/meta/finv/quote/dedup/store.go` 为 1；`grep -c 'priority_rank IS NULL AND sla_days IS NULL AND max_wait_days IS NULL' internal/meta/finv/quote/dedup/store.go` 为 1；库内验证：`select count(*) from cdeu.finv_quote_cdeu_usc where priority_rank is null and sla_days is null and max_wait_days is null` 在两轮 JOB 后为 0；`go test ./internal/meta/finv/quote/dedup/` 通过（`TestBackfillUscDefaults` 在配备测试库时额外验证默认值/不覆盖/幂等） | |
+
+## 一百四十九、Native 安装脚本 qmio 定位修正（10822）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10822 | `Deploy/Native/Install.sh` 能从发行包根目录（`qmio` 与 `finvquant` 并列）找到 qmio 并安装到 `<PREFIX>/bin/qmio` 与 `/usr/local/bin/qmio`，不再在标准包布局下报「未找到 qmio」警告；保留对历史布局（`Deploy/qmio`、`Deploy/Native/qmio`）的兼容。 | `bash -n Deploy/Native/Install.sh` 通过；`grep -c 'REPO_ROOT}/qmio' Deploy/Native/Install.sh` ≥ 1；构造 `FinvQuant-vX-ubuntu-arm64/{finvquant,qmio,Deploy/Native/Install.sh}` 后以 `SCRIPT_DIR=<pkg>/Deploy/Native`、`REPO_ROOT=<pkg>` 执行候选定位循环，`QMIO_SRC` 命中 `<pkg>/qmio` | |
+
+## 一百五十、证券自动发现后的元数据与默认值补全优化（10823）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10823 | 自动发现的 `cdeu.finv_quote_cdeu_usc` 行必须能自动补齐 `category` / `region` / `market` / `name` / `timezone` / `currency` / `day_expect_rows`：① 回填 `finv_security` 时**不限 `flag_enable`**（禁用不等于无行情）；② `finv_security` 未收录时从 `futu.finv_futu_quote_collect` 兜底（`quote_market` → region/market、`type_symbol` → category）；③ 按 region 推导 timezone/currency；④ `SH######` / `SZ######` 前缀兜底为 A 股指数；⑤ 模板表补区域级兜底行，`market` 未维护时仍能给出 `day_expect_rows`；⑥ 补全后剩余缺口写日志（字段行数 + 证券样本），不静默失败。 | `grep -c 'FROM public.finv_security s' internal/meta/finv/quote/dedup/store.go` ≥ 1 且该 SQL 中**无** `flag_enable` 过滤；`grep -c 'finv_futu_quote_collect' internal/meta/finv/quote/dedup/store.go` ≥ 1；`grep -c 'func (s \*Store) UscMissingSample' internal/meta/finv/quote/dedup/store.go` 为 1；`test -f Deploy/Migrations/V200066__cdeu_usc_day_incr_row_tpl_region_fallback.sql`；`select count(*) from cdeu.finv_quote_cdeu_usc_day_incr_row_tpl` ≥ 17；库内验证：导入 497 行 usc 后跑一轮 `REFRESH_QUOTE_MATURITY`，`select count(*) from cdeu.finv_quote_cdeu_usc where day_expect_rows is null` ≤ 7（仅 `finv_security` 与富途镜像表都未收录的证券） | |
+
+## 一百五十一、上传 JOB 日志可观测性与异常一致性（10824）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10824 | `UPLOAD_PENDING_EXPORT_FILES` 的执行日志必须能定位到具体环节：每个文件记录本地文件路径、登记/实际校验值、上传目标（网站 + 组织/用户 + 仓库 + 分支 + 目标路径 + 完整 URL）、远端 HEAD 结论、PUT 字节与耗时、远端校验结果；失败项以 `ERROR` 级别写入运行日志并附失败环节与下次重试时间；有失败时运行汇总的 `error` 字段与末条日志必须给出「首个失败 file_id 与原因」，与页面「异常」列一致；GitHub 响应解析失败必须带 HTTP 状态、URL、Content-Type/Content-Length、响应体片段与请求 ID。 | `grep -c 'describeUploadTarget' internal/meta/finv/quote/dedup/job_upload.go` ≥ 2；`grep -c 'reportRunLog(finishCtx, "ERROR"' internal/meta/finv/quote/dedup/job_upload.go` 为 1；`grep -c 'first_failed_err' internal/meta/finv/quote/dedup/job/upload_pending_export_files.go` ≥ 2；`grep -c 'responseDecodeError' internal/meta/finv/quote/dedup/uploader_github.go` ≥ 2；`go test ./internal/meta/finv/quote/dedup/ -run TestDescribeUploadTarget` 通过；库内验证：一轮上传（含一个失败文件）后 `select count(*) from cdeu.finv_quote_cdeu_job_run_log_line where run_id=<id> and level='ERROR'` ≥ 1，且 `select error from cdeu.finv_quote_cdeu_job_run_log_export_file where run_id=<id>` 含「本轮 N 个文件上传失败」 | |
+
+## 一百五十二、GitHub 大文件上传与远端去重口径修正（10825）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10825 | GitHub 上传必须能处理大于 1MB 的归档文件：查询远端文件改走 Git Trees API（只取 blob sha 与 size，不下载 base64 内容），失败时回退 Contents API 且读取上限 ≥ 32MB、超限报明确错误；Job 层「上传前去重」必须按远端校验口径判断（github 为 git blob sha1，不可与本地 SHA256 混比）；上传动态 JOB 必须写入 `run_log_id`（含历史实例补齐与查询兜底），保证页面「执行日志」入口不消失。 | `grep -c 'git/trees/' internal/meta/finv/quote/dedup/uploader_github.go` ≥ 1；`grep -c 'githubContentsReadLimit' internal/meta/finv/quote/dedup/uploader_github.go` ≥ 2；`grep -c 'RemoteChecksumAlgorithm' internal/meta/finv/quote/dedup/uploader.go internal/meta/finv/quote/dedup/uploader_github.go` 各 ≥ 1；`grep -c 'run_log_id' internal/meta/finv/quote/dedup/store.go` ≥ 4；`go test ./internal/meta/finv/quote/dedup/ -run 'TestGitHubStatUsesTreeAPI\|TestSplitRepoPath'` 通过；库内验证：一轮上传后 `select count(*) from cdeu.finv_quote_cdeu_job_dynamic where job_category='UPLOAD' and run_log_id is null` 为 0 | |
+
+## 一百五十三、补齐 day_expect_rows 后重算历史成熟度（10826）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10826 | 自动补全 `cdeu.finv_quote_cdeu_usc.day_expect_rows` 后，必须同步重算这些证券的历史成熟度行 `expected_rows` 与 `maturity_status`（非交易日=0/COMPLETE、无期望值=PARTIAL、`actual_rows >= day_expect_rows × 阈值` = COMPLETE，`FROZEN` 不改写），使页面「期望行数」不再停在 0；只处理刚补全的证券，不整表重扫。 | `grep -c 'func (s \*Store) recomputeMaturityExpected' internal/meta/finv/quote/dedup/store.go` 为 1；`grep -c 'recomputeMaturityExpected' internal/meta/finv/quote/dedup/store.go` ≥ 2；`grep -c 'RETURNING u.usc' internal/meta/finv/quote/dedup/store.go` 为 1；`go test ./internal/meta/finv/quote/dedup/ -run TestBackfillUscDefaults`（需 `FINV_TEST_PG_DSN`）通过；库内验证：将某证券 `day_expect_rows` 置空并使其成熟度行 `expected_rows=0`，跑一轮 `REFRESH_QUOTE_MATURITY` 后 `select expected_rows from cdeu.finv_quote_cdeu_quote_maturity_mon where usc=<该证券>` 等于模板值（不再是 0） | |
+
+## 一百五十四、补全流程不得覆盖人工清空的优先级（10827）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10827 | 重复执行证券补全流程时，`priority_rank` / `sla_days` / `max_wait_days` 只能对「从未配置过」（三列全空且 `priority_gmt_update IS NULL`）的证券补默认值 100/5/7；`priority_gmt_update` 非空的空值行表示人工清空，不得再补；同时补全方法在无缺口时应快速返回（一次 count 判定，不执行后续大表 JOIN/UPDATE）。 | `grep -c 'AND priority_gmt_update IS NULL' internal/meta/finv/quote/dedup/store.go` ≥ 2（阶段 SQL 与缺口判定各一处）；`grep -c '稳态快速返回' internal/meta/finv/quote/dedup/store.go` 为 1；库内验证：将某证券三列清空并置 `priority_gmt_update = now()`，跑一轮 `REFRESH_QUOTE_MATURITY` 后该行三列仍为 NULL；将另一证券三列清空且 `priority_gmt_update = NULL`，同一轮后补成 100/5/7；再跑一轮 JOB 日志出现「优先级 0」 | |
+
+## 一百五十五、业务月份改为自动生成的下拉列表（10828）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10828 | 「业务月份」不再手工输入，改为按年月自动生成的下拉列表（默认最近 10 年、含当前月、最新在前）；交易日历、成熟度查询、导出文件筛选、导出任务筛选四处统一使用；下拉可清空且不预选（空值 = 不按月筛选）。 | `grep -c 'export function bizMonthOptions' Web/src/utils.ts` 为 1；`grep -rc 'bizMonthOptions' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveConfigView.vue Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveStatsView.vue Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportJobView.vue` 各 ≥ 2（import + 引用）；四文件内不再出现 `v-text-field ... label="业务月份"`；`cd Web && npx vue-tsc -b` 与 `npm run build` 通过 | |
+
+## 一百五十六、CDEU 阶段按拓扑顺序执行（10829）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10829 | CDEU 的 6 个阶段（`COLLECT → DEDUP → DECISION → EXPORT → UPLOAD → REVIEW`）必须按拓扑顺序执行：调度器触发某阶段 JOB 前，若同一天活动运行中 `seq_no` 更小、`enabled` 且 `affects_completion=true` 的前序阶段「从未开始」或「已失败」，本轮不得触发；被拦时不得写「今天已跑」标记（前序完成后自动继续）；持续型前序阶段（已在跑）与旁路阶段、手动触发不受限制。 | `grep -c 'func (s \*Store) CDEUPhaseGateForJob' internal/meta/finv/quote/dedup/cdeu_store.go` 为 1；`grep -c 'CDEUJobGate' internal/meta/finv/quote/dedup/scheduler.go` ≥ 1 且门禁判断在 `s.lastRun[runtime.Kind] = now` 之前；`grep -c 'noteGateBlocked' internal/meta/finv/quote/dedup/scheduler.go` ≥ 2；`go test ./internal/meta/finv/quote/dedup/ -run TestCDEUPhaseGate`（需 `FINV_TEST_PG_DSN`）通过；库内验证：造活动运行并把 `PHASE_COLLECT` 置 PENDING（`started_at` 为空）后，`PHASE_DECISION` 的 JOB 调度日志出现「暂不执行：前序阶段 PHASE_COLLECT 尚未完成」 | |
+
+## 一百五十七、CDEU 阶段内流程与流程内 JOB 按顺序执行（10830）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10830 | 除跨阶段门禁外，调度触发还需约束另外两层顺序：同一阶段内 `seq_no` 更小的流程未完成/已失败时，后序流程的 JOB 不得触发；同一流程内 `seq_no` 更小的 JOB 未完成/已失败时，后序 JOB 不得触发。门禁按 `job_kind` 匹配定义（与 `CDEUJobDefinitions` 一致）；一个 kind 覆盖多个 JOB 定义的编排型 Job（如 `RUN_DUE_EXPORT_JOBS` 覆盖 6 个）只受阶段级门禁约束，避免死锁。 | `grep -c "'PHASE' AS level" internal/meta/finv/quote/dedup/cdeu_store.go` 为 1；`grep -c "'PROCESS'" internal/meta/finv/quote/dedup/cdeu_store.go` ≥ 1；`grep -c "'JOB', j2.job_code" internal/meta/finv/quote/dedup/cdeu_store.go` 为 1；`grep -c 'kind_jobs' internal/meta/finv/quote/dedup/cdeu_store.go` ≥ 3；`grep -c 'j.job_kind = \$1' internal/meta/finv/quote/dedup/cdeu_store.go` 为 1；`go test ./internal/meta/finv/quote/dedup/ -run TestCDEUJobGate`（需 `FINV_TEST_PG_DSN`）通过 7 个场景 | |
+
+## 一百五十八、动态 JOB 领取顺序：优先级为主、seq_no 为次序（10831）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10831 | 同一流程下同类型动态 JOB（导出 / 上传）的领取顺序：**优先级为主序**（导出 `FROZEN` 紧急度 → `priority_rank` → `oldest_pending_date`；上传无优先级维度则直接看拓扑），**同优先级时按 CDEU 定义的 `cdeu.finv_quote_cdeu_job_dynamic.seq_no` 决定先后**；不引入新的配置开关。 | `grep -c 'dj.seq_no' internal/meta/finv/quote/dedup/store.go` ≥ 1；`grep -c 'dj.seq_no' internal/meta/finv/quote/dedup/store_files.go` ≥ 1；`grep -c '2147483647' internal/meta/finv/quote/dedup/store.go internal/meta/finv/quote/dedup/store_files.go` 各 ≥ 1；库内验证（事务内造数后回滚）：同 `priority_rank`/`oldest_pending_date` 的两条任务 `seq_no=2/1` → 领取到 `seq_no=1`；把 `seq_no=2` 那条的 `priority_rank` 改成 1 → 领取到高优先级那条 | |
+
+## 一百五十九、导出决策明细 JOB 与 provider 缺口修复（10832）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10832 | 导出决策阶段必须有一个 JOB 逐条说明「哪些证券月能导出、哪些不能、为什么不能」，不得只给汇总数量：不能导出时给出具体原因（缺失的元数据字段名、退市日期、当月、未成熟的交易日列表、已导出的 job_id 与文件名）；能导出时给出应有行数、实际行数、目标文件名、本地路径、远端路径；另需列出「行情表有数据但成熟度表无记录」的盲区月份。同时修复 `cdeu.finv_quote_cdeu_usc.provider` 恒空导致全部证券月被判「元数据不全」的缺口（有富途采集记录的证券补 `FTMM`）。 | `grep -c 'JobExplainExportDecision = "EXPLAIN_EXPORT_DECISION"' internal/meta/finv/quote/dedup/model.go` 为 1；`grep -c 'func (s \*Service) ExplainExportDecision' internal/meta/finv/quote/dedup/service_decision.go` 为 1；`grep -c 'func (s \*Service) DiagnoseEmptyExportBatch' internal/meta/finv/quote/dedup/service_decision.go` 为 1；`grep -c 'provider   = .FTMM.' internal/meta/finv/quote/dedup/store.go` ≥ 1；`go test ./internal/meta/finv/quote/dedup/ -run TestClassifyExportDecision` 通过 9 个场景；`go test ./internal/meta/finv/quote/dedup/job/ -run TestExplainExportDecisionEndToEnd`（需 `FINV_TEST_PG_DSN`）通过并且运行日志表 `cdeu.finv_quote_cdeu_job_run_log_line` 里该 run_id 存在 `message LIKE '%导出决策%'` 的明细行；`grep -c 'func (s \*Service) AppendJobLog' internal/meta/finv/quote/dedup/job_port.go` 为 1；库内 `SELECT count(*) FROM cdeu.finv_quote_cdeu_usc WHERE provider IS NULL AND EXISTS (SELECT 1 FROM futu.finv_futu_quote_collect f WHERE f.usc = cdeu.finv_quote_cdeu_usc.usc)` 为 0；服务启动日志含 `调度 EXPLAIN_EXPORT_DECISION` | |
+
+## 一百六十、删除 dedup / dedup_frozen schema（10834）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10834 | 删除已淘汰的 `dedup` 与 `dedup_frozen` 两个 schema（`cdeu` 已完整接管），删除前必须做逻辑备份；同时建立代码闸门，禁止任何代码再引用这两个 schema 前缀（含集成测试里的 `CREATE SCHEMA` 误复活）。 | `psql -c "select nspname from pg_namespace where nspname in ('dedup','dedup_frozen')"` 返回 0 行；`ls Deploy/Backup/dedup_schemas_*.sql.gz` 存在且 `zcat` 后 `grep -c '^CREATE TABLE'` 为 32；`grep -c 'forbiddenSchemaPrefixes' internal/database/schema_qualify_test.go` ≥ 2；`grep -rn 'dedup\\.finv_quote_secu_kline_min' --include=*.go .` 无业务代码命中；`go test ./internal/database/ -run TestSQLSchemaQualified` 通过；`select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where c.relname='finv_quote_secu_kline_min' and n.nspname in ('quote','export','cdeu')` 为 3 | |
+
+## 一百六十一、行情数据归档·月份存量清单（10835）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10835 | 「行情数据归档」菜单下新增「月份存量清单」：按业务月份 + 证券维度统计主表该月的存量，给出每个证券的存量行数、交易日数、成熟度应有/实际行数、导出状态、文件名（已生成或预计）与预计大小，并汇总证券数/总行数/预计总大小；主表已清理（已导出）的证券必须明确标注而不是显示为数据缺失。 | `grep -c '历史月份存量数据清点' Web/src/config/menuConfig.ts` 为 1（菜单名见需求 10838）；`grep -c 'Export/Stock/Page' internal/api/router.go` 为 1；`grep -c 'func (s \*Service) StockPage' internal/meta/finv/quote/dedup/service_decision.go` 为 1；`grep -c 'func (s \*Store) ExportStockPage' internal/meta/finv/quote/dedup/store_decision.go` 为 1；`go test ./internal/meta/finv/quote/dedup/ -run TestExportStockPage`（需 `FINV_TEST_PG_DSN`）通过并输出「已清理」计数；`grep -rn 'dedup\.' internal/meta/finv/quote/dedup/store_decision.go` 无命中（数据源只用 `cdeu.*`） | |
+
+## 一百六十二、Download.sh 回显包内 commit（10836）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10836 | `Download.sh` 下载完成后必须回显该包对应的 commit：从包内 `BUILD-INFO.txt` 读取「提交」行（无需解压），`--no-extract` 与最终摘要都要打印；包内无该文件时只告警不中断。 | `grep -c 'read_package_commit' Deploy/Script/Download.sh` ≥ 3；`bash -n Deploy/Script/Download.sh` 通过；造含 `BUILD-INFO.txt` 的 `tar.gz` 与 `zip` 各一个，提取该函数执行后输出 commit 且与 `BUILD-INFO.txt` 中一致；对不存在的包与缺 `BUILD-INFO.txt` 的包，函数返回非 0 且不报错退出；`grep -c '包内提交号' Deploy/Script/README.md` 为 1 | |
+
+## 一百六十三、证券元数据 JOB 归入导出批次流程（10837）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10837 | `JOB_FETCH_SECURITY_METADATA` 必须挂在 `PROCESS_EXPORT_BATCH`（导出批次清单获取流程）下执行，且排在 `JOB_FETCH_EXPORT_BATCH` 之后（`seq_no=2`）；原所在的 `PROCESS_EXPORT_FILE_MON_BASE` 剩余 JOB 的 `seq_no` 重排为连续且无空洞。 | `psql -c "select p.process_code, j.seq_no, j.job_code from cdeu.finv_quote_cdeu_job j join cdeu.finv_quote_cdeu_process p on p.process_id=j.process_id where p.process_code in ('PROCESS_EXPORT_BATCH','PROCESS_EXPORT_FILE_MON_BASE') order by 1,2"` 输出中 `PROCESS_EXPORT_BATCH` 为 1=JOB_FETCH_EXPORT_BATCH、2=JOB_FETCH_SECURITY_METADATA，`PROCESS_EXPORT_FILE_MON_BASE` 为连续 1..4；重复执行 `V100087` 打印「已在 PROCESS_EXPORT_BATCH，跳过（幂等）」且结果不变；`go test ./internal/meta/finv/quote/dedup/ -run TestCDEUJobGate`（需 `FINV_TEST_PG_DSN`）7 场景通过；「工作流控制与监控」页的 JOB 清单表格只出现一条水平滚动条：`grep -c 'job-table-scroll :deep(.v-table__wrapper)' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 为 1 且该规则为 `overflow-x: visible` | |
+
+## 一百六十四、菜单改名与端点调整（10838）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10838 | 「行情数据归档」下的「月份存量清单」改名为「历史月份存量数据清点」，菜单端点由 `/Meta/Finv/Quote/DeDup/Export/Stock` 调整为 `/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat`。 | `grep -c "title: '历史月份存量数据清点'" Web/src/config/menuConfig.ts` 为 1；`grep -c '/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat' Web/src/router.ts Web/src/config/menuConfig.ts` 各 ≥ 1；`grep -rn '/Meta/Finv/Quote/DeDup/Export/Stock' Web/src` 无页面路由命中（仅后端 API 调用路径保留，见说明）；`npx vue-tsc --noEmit` 通过 | |
+
+## 一百六十五、菜单新增二级「行情」并移动两个叶子（10839）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10839 | 一级系统「金融投资」下新增与「数据采集」同级的二级菜单「行情」（前缀 `/Meta/Finv/Quote/`），其下两个三级子菜单：「收剔导传ETL」（前缀 `/Meta/Finv/Quote/Cdeu/`）与「历史行情」（前缀 `/Meta/Finv/Quote/His/`）；「历史月份存量数据清点」（`/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat`）移入「收剔导传ETL」，「历史行情查询」（`/Meta/Finv/Quote/History/HistoryQuoteQuery`）移入「历史行情」，原二级「历史行情」分组删除。 | `grep -c "title: '行情'" Web/src/config/menuConfig.ts` 为 1；`grep -c "title: '收剔导传ETL'" Web/src/config/menuConfig.ts` 为 1；`grep -c "key: 'history-quote'" Web/src/config/menuConfig.ts` 为 0；`grep -c "key: 'cdeu-his-month-exist-secu-stat'" Web/src/config/menuConfig.ts` 为 1 且出现在 `quote-cdeu` 分组内；菜单内 path 与 `Web/src/router.ts` 的路由集合比对无缺失、无重复 key；菜单全部 `mdi-*` 图标名都能在 `Web/node_modules/@mdi/font/css/materialdesignicons.css` 的 `.mdi-xxx::before` 中找到（`mdi-chart-finance` 曾写错导致「行情」无图标，已改为 `mdi-chart-multiline`）；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百六十六、菜单改名与顺序调整（10840）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10840 | 二级菜单「元数据管理」改名为「元数据」，位置移到「仪表盘」之后；「数据采集」移到「配置管理」之后。节点 key 不变。 | 解析 `Web/src/config/menuConfig.ts` 的 `finvQuantMenu` 顶层顺序应为 `dashboard, metadata, quote, config-manage, data-collection, environment, template, account, fund, position, quant-backtest, strategy, backtest-analysis, simulation-data, simulation-paper, simulation-live-sim, live-trading`；`grep -c "title: '元数据'" ` 为 1 且 `grep -c "title: '元数据管理'"` 为 0；菜单图标全部可在 `@mdi/font` 检索到、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百六十七、新增二级菜单「量化」（占位）（10841）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10841 | 在「配置管理」之后新增同级别的二级菜单「量化」（用户选定方案 A：仅空节点占位，不移动现有量化节点）。 | 解析 `Web/src/config/menuConfig.ts` 的 `finvQuantMenu` 顶层顺序，`config-manage` 之后、`data-collection` 之前应为 `quant`；`grep -c "title: '量化'" ` 为 1 且该节点 `children` 为空数组；现有 `quant-backtest`/`strategy`/`backtest-analysis`/`simulation-*`/`live-trading` 仍在顶层（未被移入）；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百六十八、「配置管理」移到「行情」之前（10842）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10842 | 二级菜单「配置管理」移动到「行情」之前（即顺序变为 仪表盘 → 元数据 → 配置管理 → 行情 → 量化 → 数据采集 → 其余），节点 key 与子菜单不变。 | 解析 `Web/src/config/menuConfig.ts` 的 `finvQuantMenu` 顶层顺序，`config-manage` 的索引应小于 `quote`；完整顺序为 `dashboard, metadata, config-manage, quote, quant, data-collection, environment, template, account, fund, position, quant-backtest, strategy, backtest-analysis, simulation-data, simulation-paper, simulation-live-sim, live-trading`；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百六十九、「量化」下新增「MVP配置」「回测」三级子菜单（10843）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10843 | 二级菜单「量化」下新增两个三级子菜单「MVP配置」「回测」（当前无对应页面与路由，按占位分组处理，`children` 为空数组）；不移动现有回测相关节点。 | `grep -c "key: 'quant-mvp-config'" Web/src/config/menuConfig.ts` 为 1；`grep -c "key: 'quant-backtest-menu'" Web/src/config/menuConfig.ts` 为 1；两者均在 `key: 'quant'` 节点的 `children` 内且 `children: []`；顶层仍保留 `quant-backtest`「量化策略验证」与 `backtest-analysis`「回测分析」；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百七十、「历史行情数据导入」移入「历史行情」（10844）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10844 | 「历史行情数据导入」（`/meta/import`）从「元数据 → 业务元数据维护」移到「行情 → 历史行情」下作为叶子，key 保持 `meta-import`、标题与路径不变。 | `grep -c "key: 'meta-import'" Web/src/config/menuConfig.ts` 为 1；该行位于 `key: 'quote-history'` 之后且不在 `key: 'meta-maintenance'` 的 children 内；「业务元数据维护」下剩 3 个叶子（`meta-exchange`/`meta-market`/`meta-security`）；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百七十一、「工作流控制与监控」移入「收剔导传ETL」并改名（10845）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10845 | 「工作流控制与监控」从「数据采集 → 行情数据归档」移到「行情 → 收剔导传ETL」下，并改名为「CDEU 工作流控制面板」；key `dedup-export-cdeu` 与路径 `/Meta/Finv/Quote/Cdeu/CdeuOverview` 不变；路由 `meta.title` 与页面内标题同步。 | `grep -c "key: 'dedup-export-cdeu'" Web/src/config/menuConfig.ts` 为 1 且该行含 `title: 'CDEU 工作流控制面板'`，位置在 `key: 'quote-cdeu'` 之后、不在 `key: 'quote-archive'` 段内；`grep -c "title: 'CDEU 工作流控制面板'" Web/src/router.ts` 为 1；`grep -c "CDEU 工作流控制面板" Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` ≥ 2；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百七十二、5 个配置类叶子移入「量化 → MVP配置」（10846）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10846 | 「环境管理」「模板管理」「账户管理」「资金管理」「持仓管理」从二级（顶层）移动到「量化 → MVP配置」下作为四级叶子；key、标题、路径均不变。 | `grep -c "key: 'quant-mvp-config'" Web/src/config/menuConfig.ts` 为 1，且 `environment`/`template`/`account`/`fund`/`position` 各出现 1 次并位于该节点 `children` 内；顶层顺序为 `dashboard, metadata, config-manage, quote, quant, data-collection, quant-backtest, strategy, backtest-analysis, simulation-data, simulation-paper, simulation-live-sim, live-trading`；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百七十三、回测类叶子移入「量化 → 回测」（10847）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10847 | 「黄金期货合约回测验证」与「回测分析」移入「量化 → 回测」下作为四级叶子；原「量化策略验证」分组因叶子移空而删除；两叶子 key、标题、路径不变。 | `grep -c "key: 'quant-backtest-menu'" Web/src/config/menuConfig.ts` 为 1 且其 `children` 为 {`backtest-gold-futures`, `backtest-analysis`}、`icon: 'mdi-history'` 存在；`grep -c "key: 'quant-backtest'" ` 为 0（已撤除）；`backtest-analysis` 在配置中出现 1 次；顶层顺序为 `dashboard, metadata, config-manage, quote, quant, data-collection, strategy, simulation-data, simulation-paper, simulation-live-sim, live-trading`；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百七十四、新增「量化 → 验证」并迁入 3 个验证类叶子（10848）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10848 | 在「量化 → 回测」之后新增同级别的「验证」三级分组，并把「仿真数据验证」「模拟盘验证」「实盘仿真验证」从顶层移入该分组（key/标题/路径不变）。 | `grep -c "key: 'quant-verify'" Web/src/config/menuConfig.ts` 为 1，其 `children` 为 {`simulation-data`, `simulation-paper`, `simulation-live-sim`}；三个 key 在配置中各出现 1 次；顶层顺序为 `dashboard, metadata, config-manage, quote, quant, data-collection, strategy, live-trading`；量化下三级节点顺序为 {MVP配置, 回测, 验证}；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百七十五、新增「量化 → 实盘」并迁入「实盘交易」（10849）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10849 | 在「量化 → 验证」之后新增同级别的「实盘」三级分组，并把「实盘交易」从顶层移入该分组（key/标题/路径不变）。 | `grep -c "key: 'quant-live'" Web/src/config/menuConfig.ts` 为 1，其 `children` 为 {`live-trading`}；`live-trading` 在配置中出现 1 次；顶层顺序为 `dashboard, metadata, config-manage, quote, quant, data-collection, strategy`；量化下三级节点顺序为 {MVP配置, 回测, 验证, 实盘}；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百七十六、新增「量化 → 策略」并迁入「策略管理」（10850）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10850 | 在「量化 → 回测」之前新增「策略」三级分组，并把「策略管理」从顶层移入该分组（key/标题/路径不变）。 | `grep -c "key: 'quant-strategy'" Web/src/config/menuConfig.ts` 为 1，其 `children` 为 {`strategy`}，且该节点索引小于 `quant-backtest-menu`；`strategy` 在配置中出现 1 次；顶层顺序为 `dashboard, metadata, config-manage, quote, quant, data-collection`；量化下三级节点顺序为 {MVP配置, 策略, 回测, 验证, 实盘}；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百七十七、「量化 → 实盘」改名为「交易」（10851）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10851 | 「量化」下的三级菜单「实盘」改名为「交易」；节点 key（`quant-live`）、图标与其下叶子「实盘交易」保持不变。 | `grep -c "title: '交易'" Web/src/config/menuConfig.ts` ≥ 1 且 `grep -c "title: '实盘'" ` 为 0；`grep -c "key: 'quant-live'"` 为 1；量化下三级节点顺序为 {MVP配置, 策略, 回测, 验证, 交易}；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百七十八、「业务元数据维护」改名为「Finv业务元数据」（10852）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10852 | 「元数据」下的三级菜单「业务元数据维护」更名为「Finv业务元数据」；节点 key（`meta-maintenance`）与子菜单不变。 | `grep -c "title: 'Finv业务元数据'" Web/src/config/menuConfig.ts` 为 1；`grep -c "title: '业务元数据维护'" ` 为 0；`grep -c "key: 'meta-maintenance'" ` 为 1；菜单图标全部有效、`path` 全部有路由、无重复 key | |
+
+## 一百七十九、「交易所下设市场信息维护」改名为「市场信息管理」（10853）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10853 | 「交易所下设市场信息维护」更名为「市场信息管理」；叶子 key（`meta-market`）、路由 `/meta/market` 不变，路由 `meta.title` 同步。 | `grep -c "title: '市场信息管理'" Web/src/config/menuConfig.ts` 为 1；`grep -rc "交易所下设市场信息维护" Web/src/config/menuConfig.ts Web/src/router.ts` 均为 0；`grep -c "key: 'meta-market'"` 为 1；菜单图标全部有效、`path` 全部有路由、无重复 key | |
+
+## 一百八十、「交易所信息维护」改名为「交易所信息管理」（10854）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10854 | 「交易所信息维护」更名为「交易所信息管理」；叶子 key（`meta-exchange`）、路由 `/meta/exchange` 不变，路由 `meta.title` 同步。 | `grep -c "title: '交易所信息管理'" Web/src/config/menuConfig.ts` 为 1；`grep -rc "交易所信息维护" Web/src/config/menuConfig.ts Web/src/router.ts` 均为 0；`grep -c "key: 'meta-exchange'"` 为 1；菜单图标全部有效、`path` 全部有路由、无重复 key | |
+
+## 一百八十一、「规范证券信息维护」改名为「规范证券信息管理」（10855）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10855 | 「规范证券信息维护」更名为「规范证券信息管理」；叶子 key（`meta-security`）、路由 `/meta/security` 不变，路由 `meta.title` 同步。 | `grep -c "title: '规范证券信息管理'" Web/src/config/menuConfig.ts` 为 1；`grep -rc "规范证券信息维护" Web/src/config/menuConfig.ts Web/src/router.ts` 均为 0；`grep -c "key: 'meta-security'"` 为 1；菜单图标全部有效、`path` 全部有路由、无重复 key | |
+
+## 一百八十二、「去重分钟行情查询」改名并移入「收剔导传ETL」（10856）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10856 | 「去重分钟行情查询」更名为「K线数据查询」，并从「数据采集 → 行情数据去重」移入「行情 → 收剔导传ETL」；key `dedup-kline-query` 与路由不变，路由 `meta.title` 同步。 | `grep -c "title: 'K线数据查询'" Web/src/config/menuConfig.ts` 为 1 且该行在 `key: 'quote-cdeu'` 段内、不在 `key: 'quote-dedup'` 段内；`grep -rc "去重分钟行情查询" Web/src/config/menuConfig.ts` 为 0；`grep -c "title: 'K线数据查询'" Web/src/router.ts` 为 1；菜单图标全部有效、`path` 全部有路由、无重复 key | |
+
+## 一百八十三、「去重分钟行情统计」改名并移入「收剔导传ETL」（10857）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10857 | 「去重分钟行情统计」更名为「K线数据统计」，并从「数据采集 → 行情数据去重」移入「行情 → 收剔导传ETL」；移空后的「行情数据去重」分组删除；key 与路由不变，路由 `meta.title` 与页面内标题同步。 | `grep -c "title: 'K线数据统计'" Web/src/config/menuConfig.ts` 为 1 且在 `quote-cdeu` 段内；`grep -c "key: 'quote-dedup'"` 为 0；ETL 下叶子为 {历史月份存量数据清点, CDEU 工作流控制面板, K线数据查询, K线数据统计}；`grep -rc "去重分钟行情统计" Web/src/views` 为 0；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百八十四、5 个归档运维页面移入「收剔导传ETL」（10858）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10858 | 「导出任务」「文件与上传」「归档统计与预算」「归档主数据与规则」「归档日志与补丁」从「数据采集 → 行情数据归档」移入「行情 → 收剔导传ETL」；key/标题/路径不变。 | 5 个 key（`dedup-export-job`/`dedup-export-file`/`dedup-export-stats`/`dedup-export-config`/`dedup-export-log`）在菜单配置中各出现 1 次且均位于 `key: 'quote-cdeu'` 段内；`key: 'quote-archive'` 段内只剩 {归档监控总览, 端到端链路}；ETL 下叶子共 9 项；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百八十五、「配置管理」改名为「系统配置」（10859）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10859 | 顶层二级菜单「配置管理」更名为「系统配置」；节点 key（`config-manage`）、图标、路由 `/Meta/Finv/Quant/Config` 不变，路由 `meta.title` 与页面内标题同步。 | `grep -c "title: '系统配置'" Web/src/config/menuConfig.ts` 为 1 且 `Web/src/router.ts` 中也为 1；`grep -rc "配置管理" Web/src/config/menuConfig.ts Web/src/router.ts Web/src/views/Meta/Finv/Quant/Backtest/ConfigManageView.vue` 均为 0；`grep -c "key: 'config-manage'"` 为 1；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百八十六、「行情数据归档」移入「行情」并在「历史行情」之后（10860）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10860 | 「行情数据归档」从「数据采集」移入「行情」下，排在「历史行情」之后作为第三个三级分组；移空后的「数据采集」二级分组删除；key/标题/路径不变。 | 解析 `menuConfig.ts` 顶层顺序为 `dashboard, metadata, config-manage, quote, quant`；`key: 'data-collection'` 为 0 次；「行情」下三级分组依次为 {收剔导传ETL, 历史行情, 行情数据归档}；`key: 'quote-archive'` 出现 1 次且位于 `key: 'quote'` 段内；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百八十七、K线数据查询/统计前置到 ETL 最前（10861）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10861 | 「K线数据查询」「K线数据统计」移动到「行情 → 收剔导传ETL」下叶子的最前面（key/标题/路径不变）。 | 解析 `menuConfig.ts` 中 `key: 'quote-cdeu'` 节点的 `children`，前两项 `title` 依次为 `K线数据查询`、`K线数据统计`，其后为 `历史月份存量数据清点`…；叶子总数 9；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百八十八、「导出任务」→「文件导出」、「文件与上传」→「文件上传」（10862）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10862 | 「导出任务」更名为「文件导出」、「文件与上传」更名为「文件上传」；两个叶子 key、图标、路由路径不变，路由 `meta.title` 与页面内标题同步。 | `grep -c "title: '文件导出'" Web/src/config/menuConfig.ts` 为 1、`title: '文件上传'` 为 1；`grep -rc "title: '导出任务'\|title: '文件与上传'" Web/src/config/menuConfig.ts` 为 0；`grep -c "meta: { title: '文件导出' }" Web/src/router.ts` 为 1、`meta: { title: '文件上传' }` 为 1；`grep -rc "月归档导出任务\|月归档导出文件与上传" Web/src` 为 0；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百八十九、系统显示名改为「FinvQuant策略回测量化交易」（10863）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10863 | 页面顶部标题「FinvQuant 量化策略交易平台」改为「FinvQuant策略回测量化交易」，并同步浏览器页签标题、`document.title` 兜底、登录页标题、一级系统副标题与占位页文案。 | `grep -rc "FinvQuant策略回测量化交易" Web/src/App.vue Web/index.html Web/src/router.ts Web/src/views/Common/LoginView.vue Web/src/views/Common/PlaceholderView.vue` 各 ≥ 1；`grep -rc "量化策略交易平台\|交易平台" Web/src Web/index.html` 为 0；`grep -c "subtitle: '策略回测量化交易'" Web/src/config/menuConfig.ts` 为 1；`npx vue-tsc --noEmit` 与 `npx vite build` 通过，且 `dist/index.html` 含新标题 | |
+
+## 一百九十、「收剔导传ETL」新增「CDEU自动化」（10864）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10864 | 在「行情 → 收剔导传ETL」的「归档日志与补丁」之后新增「CDEU自动化」节点（当前无对应页面与路由，按占位分组处理，`children` 为空数组）。 | `grep -c "key: 'cdeu-automation'" Web/src/config/menuConfig.ts` 为 1 且位于 `key: 'quote-cdeu'` 段内、「归档日志与补丁」之后；该节点 `children: []`；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百九十一、「CDEU自动化」改为叶子菜单（10865）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10865 | 「CDEU自动化」由占位分组改为**叶子**菜单（`path=/Meta/Finv/Quote/Cdeu/Automation`），并新增对应路由（复用 `PlaceholderView` 占位页，`meta.title=CDEU自动化`），占位页内登记该模块规划说明。 | `grep -c "key: 'cdeu-automation'" Web/src/config/menuConfig.ts` 为 1 且该行为单行叶子（含 `path: '/Meta/Finv/Quote/Cdeu/Automation'`、无 `children`）；`grep -c "'/Meta/Finv/Quote/Cdeu/Automation'" Web/src/router.ts` 为 1；`grep -c "'cdeu-automation': {" Web/src/views/Common/PlaceholderView.vue` 为 1；菜单全部 `path` 有对应路由、图标有效、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
 
 ## 汇总
 
@@ -2406,7 +2724,60 @@ if (LEGACY_PATH_MAP[to.path]) {
 | V200057 迁移兼容 dedup 缺失 | 10808 | 1 |
 | 登录后页面页脚 | 10809 | 1 |
 | 深色/浅色主题切换 | 10810–10811 | 2 |
-| **合计** | **10001–10811** | **811** |
+| CDEU 前端路由调整 | 10812 | 1 |
+| CDEU 归档工作流设计文档 | 10813 | 1 |
+| finv_security 扩展三列 | 10814 | 1 |
+| Supabase 证券视图下载到中转目录 | 10815 | 1 |
+| 富途 market_code 转换与插入脚本 | 10816 | 1 |
+| 港股人民币柜台货币口径修正 | 10817 | 1 |
+| 富途原始属性镜像表 | 10818 | 1 |
+| 初始数据发放迁移入库 | 10819 | 1 |
+| 日增量行数模板与自动补全 | 10820 | 1 |
+| 自动发现补全优先级/SLA 默认值 | 10821 | 1 |
+| Native 安装脚本 qmio 定位修正 | 10822 | 1 |
+| 证券元数据与默认值补全优化 | 10823 | 1 |
+| 上传 JOB 日志可观测性 | 10824 | 1 |
+| GitHub 大文件上传与去重口径 | 10825 | 1 |
+| 补齐 day_expect_rows 后重算成熟度 | 10826 | 1 |
+| 补全流程不覆盖人工清空的优先级 | 10827 | 1 |
+| 业务月份自动下拉列表 | 10828 | 1 |
+| CDEU 阶段按拓扑顺序执行 | 10829 | 1 |
+| CDEU 流程与 JOB 按顺序执行 | 10830 | 1 |
+| 动态 JOB 领取顺序（优先级 + seq_no） | 10831 | 1 |
+| 导出决策明细 JOB 与 provider 修复 | 10832 | 1 |
+| 删除 dedup / dedup_frozen schema | 10834 | 1 |
+| 行情数据归档·月份存量清单 | 10835 | 1 |
+| Download.sh 回显包内 commit | 10836 | 1 |
+| 证券元数据 JOB 归入批次流程 | 10837 | 1 |
+| 菜单改名与端点调整 | 10838 | 1 |
+| 菜单新增二级「行情」并移动叶子 | 10839 | 1 |
+| 菜单改名「元数据」与顺序调整 | 10840 | 1 |
+| 新增二级菜单「量化」（占位） | 10841 | 1 |
+| 「配置管理」移到「行情」之前 | 10842 | 1 |
+| 「量化」下新增两个三级子菜单 | 10843 | 1 |
+| 「历史行情数据导入」移入「历史行情」 | 10844 | 1 |
+| CDEU 工作流面板移入 ETL 并改名 | 10845 | 1 |
+| 5 个配置类叶子移入 MVP配置 | 10846 | 1 |
+| 回测类叶子移入「量化 → 回测」 | 10847 | 1 |
+| 新增「量化 → 验证」并迁入 3 叶子 | 10848 | 1 |
+| 新增「量化 → 实盘」并迁入实盘交易 | 10849 | 1 |
+| 新增「量化 → 策略」并迁入策略管理 | 10850 | 1 |
+| 「量化 → 实盘」改名「交易」 | 10851 | 1 |
+| 「业务元数据维护」改名 Finv业务元数据 | 10852 | 1 |
+| 「交易所下设市场信息维护」改名市场信息管理 | 10853 | 1 |
+| 「交易所信息维护」改名交易所信息管理 | 10854 | 1 |
+| 「规范证券信息维护」改名规范证券信息管理 | 10855 | 1 |
+| K线数据查询改名并移入 ETL | 10856 | 1 |
+| K线数据统计改名并移入 ETL | 10857 | 1 |
+| 5 个归档运维页面移入 ETL | 10858 | 1 |
+| 「配置管理」改名系统配置 | 10859 | 1 |
+| 「行情数据归档」移入「行情」 | 10860 | 1 |
+| K线数据查询/统计前置到 ETL 最前 | 10861 | 1 |
+| 导出任务→文件导出、文件与上传→文件上传 | 10862 | 1 |
+| 系统显示名改为 FinvQuant策略回测量化交易 | 10863 | 1 |
+| 收剔导传ETL 新增「CDEU自动化」 | 10864 | 1 |
+| 「CDEU自动化」改为叶子菜单 | 10865 | 1 |
+| **合计** | **10001–10865** | **864** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

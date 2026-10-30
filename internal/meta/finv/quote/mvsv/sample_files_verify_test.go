@@ -8,8 +8,8 @@ import (
 // 验证 Docs/DataFormat/ 下的示例文件能被解析器正确解析（合规性回归）
 func TestSampleFilesParse(t *testing.T) {
 	files := []string{
-		"../../Docs/DataFormat/Example_US_NVDA_Min_V4_2026.mvsv",
-		"../../Docs/DataFormat/Example_GCmain_Min_V3_2026.mvsv",
+		"../../../../../Docs/DataFormat/Example_US_NVDA_Min_V4_2026.mvsv",
+		"../../../../../Docs/DataFormat/Example_GCmain_Min_V3_2026.mvsv",
 	}
 	for _, path := range files {
 		content, err := os.ReadFile(path)

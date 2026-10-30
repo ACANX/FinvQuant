@@ -492,3 +492,74 @@ func TestGitBlobSHA1(t *testing.T) {
 		t.Fatalf("空文件 git blob sha 不符: %q != %q", got, want)
 	}
 }
+
+// TestGitHubStatUsesTreeAPI 校验查询远端文件优先走 Git Trees API（只取元数据、不下载
+// base64 内容）；Trees API 不可用时回退 Contents API。
+//
+// 背景（需求 10825）：Contents API 查询已有文件会把内容一并返回（800KB 的 mvsv ≈ 1.1MB
+// 响应），旧实现按 1MB 截断读取，被误报成「解析远端响应失败: unexpected end of JSON input」。
+func TestGitHubStatUsesTreeAPI(t *testing.T) {
+	store := &fakeConfigStore{values: githubEnabledValues(t, "ghp_token", "o:r:main:Archive/Monthly")}
+
+	var treeHits, contentsHits int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/repos/o/r/git/trees/"):
+			treeHits++
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"sha":"tree1","truncated":false,"tree":[`+
+				`{"path":"big.mvsv","type":"blob","sha":"ABCDEF0123","size":800787}]}`)
+		case strings.HasPrefix(r.URL.Path, "/repos/o/r/contents/"):
+			contentsHits++
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = io.WriteString(w, `{"message":"should not be called"}`)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	uploader := newGitHubUploader(store, server.URL)
+
+	exists, size, sha, err := uploader.Stat(context.Background(), "Dir/Sub/big.mvsv")
+	if err != nil {
+		t.Fatalf("Stat 失败: %v", err)
+	}
+	if !exists || size != 800787 || sha != "abcdef0123" {
+		t.Fatalf("Stat 结果不符：exists=%v size=%d sha=%s", exists, size, sha)
+	}
+	if treeHits != 1 || contentsHits != 0 {
+		t.Fatalf("应只走 Trees API：tree=%d contents=%d", treeHits, contentsHits)
+	}
+
+	// Trees API 返回 404（目录不存在）时回退 Contents API 判断文件是否存在。
+	tree404 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/repos/o/r/git/trees/") {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = io.WriteString(w, `{"message":"Not Found"}`)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"type":"file","size":12,"sha":"x","path":"Dir/Sub/big.mvsv"}`)
+	}))
+	defer tree404.Close()
+	fallback := newGitHubUploader(store, tree404.URL)
+	exists, size, _, err = fallback.Stat(context.Background(), "Dir/Sub/big.mvsv")
+	if err != nil || !exists || size != 12 {
+		t.Fatalf("回退 Contents API 失败：exists=%v size=%d err=%v", exists, size, err)
+	}
+}
+
+// TestSplitRepoPath 校验仓库内路径拆分（目录下文件与根目录文件）。
+func TestSplitRepoPath(t *testing.T) {
+	cases := []struct{ path, dir, name string }{
+		{"Archive/Monthly/a.mvsv", "Archive/Monthly", "a.mvsv"},
+		{"a.mvsv", "", "a.mvsv"},
+		{"/leading/a.mvsv", "leading", "a.mvsv"},
+	}
+	for _, c := range cases {
+		dir, name := splitRepoPath(c.path)
+		if dir != c.dir || name != c.name {
+			t.Fatalf("splitRepoPath(%q)=(%q,%q)，期望 (%q,%q)", c.path, dir, name, c.dir, c.name)
+		}
+	}
+}

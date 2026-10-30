@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/acanx/finvquant/internal/calc"
+	"github.com/acanx/finvquant/internal/meta/finv/quant/calc"
 )
 
 // MaxSecondsTS 秒级时间戳上限（超过视为非秒级，默认拒绝）。

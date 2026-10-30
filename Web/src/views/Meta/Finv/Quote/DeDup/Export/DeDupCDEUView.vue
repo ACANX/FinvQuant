@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// CDEU 工作流控制与监控：Workflow → Phase → Process → JOB → Step 结构化视图
+// CDEU 工作流控制面板：Workflow → Phase → Process → JOB → Step 结构化视图
 // 数据来源：GET /Meta/Finv/Quote/DeDup/CDEU/Overview
 // 手动执行复用既有 POST /Meta/Finv/Quote/DeDup/Job/Run（异步）
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
@@ -1221,7 +1221,7 @@ onBeforeUnmount(() => {
       <div>
         <div class="d-flex align-center ga-2">
           <v-icon icon="mdi-sitemap-outline" color="primary" size="30" />
-          <h2 class="text-h5 font-weight-bold mb-0">CDEU 工作流控制与监控</h2>
+          <h2 class="text-h5 font-weight-bold mb-0">CDEU 工作流控制面板</h2>
           <v-chip v-if="workflow" size="small" color="primary" variant="tonal">
             {{ workflow.workflow_code }} v{{ workflow.version }}
           </v-chip>
@@ -1285,7 +1285,7 @@ onBeforeUnmount(() => {
           variant="tonal"
           color="primary"
           prepend-icon="mdi-graph-outline"
-          href="/Meta/Finv/Quote/DeDup/CDEUWorkflow"
+          href="/Meta/Finv/Quote/Cdeu/CdeuWorkflow"
           target="_blank"
           rel="noopener noreferrer"
           title="在新窗口打开全流程拓扑"
@@ -2742,11 +2742,20 @@ onBeforeUnmount(() => {
 }
 .job-table-scroll {
   width: 100%;
-  overflow-x: scroll;
+  /* 只保留这一根横向滚动条：auto 表示「没溢出就不显示」，
+     配合下面 .v-table__wrapper 的 overflow-x: visible，
+     避免「外层滚动条 + v-table 内层滚动条」叠成两条。 */
+  overflow-x: auto;
   overflow-y: hidden;
   padding-bottom: 4px;
   scrollbar-width: thin;
   scrollbar-color: rgba(128, 128, 128, 0.55) rgba(128, 128, 128, 0.12);
+}
+/* Vuetify 的 v-table 内部会包一层 .v-table__wrapper，默认 overflow-x: auto；
+   表格设了 min-width 之后它自己也会滚动，与外层形成双层滚动条。
+   这里让内层不滚动，溢出交给外层 .job-table-scroll 处理。 */
+.job-table-scroll :deep(.v-table__wrapper) {
+  overflow-x: visible;
 }
 .job-table-scroll::-webkit-scrollbar {
   height: 14px;

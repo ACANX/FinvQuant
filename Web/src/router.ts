@@ -7,6 +7,7 @@ import QuoteImportView from './views/Meta/Finv/Quote/History/HistoryQuoteImportV
 import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue'
 import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue'
 import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue'
+import DeDupArchiveStockView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveStockView.vue'
 import DeDupArchiveChainView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue'
 import DeDupCDEUView from './views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue'
 import DeDupCDEUWorkflowView from './views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue'
@@ -46,20 +47,20 @@ const router = createRouter({
     { path: '/Meta/Finv', redirect: '/Dashboard' },
     // 历史行情 → 历史行情查询
     { path: '/Meta/Finv/Quote/History/HistoryQuoteQuery', name: 'quote-query', component: QuoteQueryView, meta: { title: '历史行情查询' } },
-    // 去重行情 → 去重分钟行情查询 / 统计
+    // 行情数据归档 → K线数据查询 / 统计（需求 10856/10857 改名并移入「收剔导传ETL」）
     {
       path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query',
       name: 'dedup-kline-query',
       component: DeDupKLineQueryView,
-      meta: { title: '去重分钟行情查询' },
+      meta: { title: 'K线数据查询' },
     },
     {
       path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats',
       name: 'dedup-kline-stats',
       component: DeDupKLineStatsView,
-      meta: { title: '去重分钟行情统计' },
+      meta: { title: 'K线数据统计' },
     },
-    // 去重行情 → 月归档导出（监控总览 / 导出任务 / 文件与上传）
+    // 行情 → 收剔导传ETL（文件导出 / 文件上传等，需求 10862 改名）
     {
       path: '/Meta/Finv/Quote/DeDup/Export/Overview',
       name: 'dedup-export-overview',
@@ -73,13 +74,19 @@ const router = createRouter({
       meta: { title: '端到端链路' },
     },
     {
-      path: '/Meta/Finv/Quote/DeDup/CDEU',
-      name: 'dedup-export-cdeu',
-      component: DeDupCDEUView,
-      meta: { title: '工作流控制与监控' },
+      path: '/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat',
+      name: 'cdeu-his-month-exist-secu-stat',
+      component: DeDupArchiveStockView,
+      meta: { title: '历史月份存量数据清点' },
     },
     {
-      path: '/Meta/Finv/Quote/DeDup/CDEUWorkflow',
+      path: '/Meta/Finv/Quote/Cdeu/CdeuOverview',
+      name: 'dedup-export-cdeu',
+      component: DeDupCDEUView,
+      meta: { title: 'CDEU 工作流控制面板' },
+    },
+    {
+      path: '/Meta/Finv/Quote/Cdeu/CdeuWorkflow',
       name: 'dedup-export-cdeu-workflow',
       component: DeDupCDEUWorkflowView,
       meta: { title: '全流程拓扑' },
@@ -88,13 +95,13 @@ const router = createRouter({
       path: '/Meta/Finv/Quote/DeDup/Export/Job',
       name: 'dedup-export-job',
       component: DeDupExportJobView,
-      meta: { title: '月归档导出任务' },
+      meta: { title: '文件导出' },
     },
     {
       path: '/Meta/Finv/Quote/DeDup/Export/File',
       name: 'dedup-export-file',
       component: DeDupExportFileView,
-      meta: { title: '月归档导出文件与上传' },
+      meta: { title: '文件上传' },
     },
     {
       path: '/Meta/Finv/Quote/DeDup/Export/Stats',
@@ -114,13 +121,13 @@ const router = createRouter({
       component: DeDupArchiveLogView,
       meta: { title: '归档日志与补丁' },
     },
-    // 元数据管理 → 业务元数据维护 → 四个子菜单
-    { path: '/meta/exchange', name: 'meta-exchange', component: MetaExchangeView, meta: { title: '交易所信息维护' } },
-    { path: '/meta/market', name: 'meta-market', component: MetaMarketView, meta: { title: '交易所下设市场信息维护' } },
-    { path: '/meta/security', name: 'meta-security', component: MetaSecurityView, meta: { title: '规范证券信息维护' } },
+    // 元数据 → Finv业务元数据 → 子菜单
+    { path: '/meta/exchange', name: 'meta-exchange', component: MetaExchangeView, meta: { title: '交易所信息管理' } },
+    { path: '/meta/market', name: 'meta-market', component: MetaMarketView, meta: { title: '市场信息管理' } },
+    { path: '/meta/security', name: 'meta-security', component: MetaSecurityView, meta: { title: '规范证券信息管理' } },
     { path: '/meta/import', name: 'meta-import', component: QuoteImportView, meta: { title: '历史行情数据导入' } },
-    // 配置管理 / 环境管理 / 模板管理（元数据管理之后、量化策略验证之前）
-    { path: '/Meta/Finv/Quant/Config', name: 'config-manage', component: ConfigManageView, meta: { title: '配置管理' } },
+    // 系统配置（需求 10859 改名；环境/模板管理等已迁入「量化 → MVP配置」）
+    { path: '/Meta/Finv/Quant/Config', name: 'config-manage', component: ConfigManageView, meta: { title: '系统配置' } },
     { path: '/Meta/Finv/Quant/Environment', name: 'environment', component: EnvironmentView, meta: { title: '环境管理' } },
     { path: '/Meta/Finv/Quant/Template', name: 'template', component: TemplateView, meta: { title: '模板管理' } },
     // 账户管理 / 资金管理 / 持仓管理（配置/环境/模板之后、量化策略验证之前）
@@ -152,6 +159,8 @@ const router = createRouter({
       meta: { title: '投资策略回测收益分析报告' },
     },
     // 仿真数据验证 / 模拟盘验证 / 实盘仿真验证 / 实盘交易（规划占位）
+    // CDEU 域占位页（需求 10865）：CDEU自动化
+    { path: '/Meta/Finv/Quote/Cdeu/Automation', name: 'cdeu-automation', component: PlaceholderView, meta: { title: 'CDEU自动化' } },
     { path: '/Meta/Finv/Quant/Simulation/Data', name: 'simulation-data', component: PlaceholderView, meta: { title: '仿真数据验证' } },
     { path: '/Meta/Finv/Quant/Simulation/Paper', name: 'simulation-paper', component: PlaceholderView, meta: { title: '模拟盘验证' } },
     { path: '/Meta/Finv/Quant/Simulation/LiveSim', name: 'simulation-live-sim', component: PlaceholderView, meta: { title: '实盘仿真验证' } },
@@ -200,7 +209,7 @@ window.addEventListener(UNAUTHORIZED_EVENT, () => {
 
 router.afterEach((to) => {
   const title = (to.meta.title as string) ?? ''
-  document.title = title ? `${title} · FinvQuant` : 'FinvQuant 量化策略交易平台'
+  document.title = title ? `${title} · FinvQuant` : 'FinvQuant策略回测量化交易'
 })
 
 export default router

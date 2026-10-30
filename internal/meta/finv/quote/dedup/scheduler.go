@@ -18,17 +18,20 @@ type Scheduler struct {
 	lastRun  map[string]time.Time
 	lastDay  map[string]string
 	tick     time.Duration
+	// gateLogged 记录「被拓扑门禁拦下」的最近日志时间，避免每 30 秒刷屏（需求 10829）。
+	gateLogged map[string]time.Time
 }
 
 // NewScheduler 创建调度器；间隔类 Job 从启动时刻开始计时，避免启动瞬间集中触发。
 func NewScheduler(service *Service) *Scheduler {
 	runtimes := JobRuntimes()
 	scheduler := &Scheduler{
-		service:  service,
-		runtimes: runtimes,
-		lastRun:  map[string]time.Time{},
-		lastDay:  map[string]string{},
-		tick:     30 * time.Second,
+		service:    service,
+		runtimes:   runtimes,
+		lastRun:    map[string]time.Time{},
+		lastDay:    map[string]string{},
+		tick:       30 * time.Second,
+		gateLogged: map[string]time.Time{},
 	}
 	now := time.Now()
 	for _, runtime := range runtimes {
@@ -96,6 +99,15 @@ func (s *Scheduler) fire(ctx context.Context, now time.Time) {
 		if runtime.Windowed && !s.service.InWindow(ctx, local) {
 			continue
 		}
+		// 拓扑顺序门禁（需求 10829）：前序阶段尚未开始 / 已失败时本轮不触发。
+		// 注意：**不能**在这里写 lastRun/lastDay —— 写了就会把 JOB 标记为「今天已跑」，
+		// 前序阶段完成后当天再也不会重试。保持到期状态，由后续 tick 继续判定。
+		if blocked, reason, gateErr := s.service.CDEUJobGate(ctx, runtime.Kind); gateErr != nil {
+			log.Printf("[cdeu] 读取阶段门禁失败 job=%s err=%v（本轮按放行处理）", runtime.Kind, gateErr)
+		} else if blocked {
+			s.noteGateBlocked(runtime.Kind, reason, local)
+			continue
+		}
 		s.lastRun[runtime.Kind] = now
 		if runtime.DailyAt != "" {
 			s.lastDay[runtime.Kind] = day
@@ -106,6 +118,18 @@ func (s *Scheduler) fire(ctx context.Context, now time.Time) {
 			}
 		}(runtime.Kind)
 	}
+}
+
+// gateLogInterval 同一 Job 被门禁拦下的日志最小间隔（避免 30 秒 tick 反复打印）。
+const gateLogInterval = 5 * time.Minute
+
+// noteGateBlocked 记录「被前序阶段拦下」的日志（同一 Job 5 分钟内只打一次）。
+func (s *Scheduler) noteGateBlocked(kind, reason string, now time.Time) {
+	if last, ok := s.gateLogged[kind]; ok && now.Sub(last) < gateLogInterval {
+		return
+	}
+	s.gateLogged[kind] = now
+	log.Printf("[cdeu] 调度 %s 暂不执行：%s（保持到期状态，前序完成后自动继续）", kind, reason)
 }
 
 // due 判断 Job 是否到期。

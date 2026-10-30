@@ -201,6 +201,15 @@ func (s *Service) HistoryPurgePolicy(ctx context.Context) (policy string, keep i
 		syscfg.NormalizeHistoryPurgeKeep(values.HistoryPurgeKeep)
 }
 
+// CDEUJobGate 判断调度器本轮能否触发该 Job（三级拓扑顺序门禁，需求 10829 / 10830）。
+//
+// 覆盖「跨阶段」「阶段内跨流程」「流程内跨 JOB」三层顺序。只在「调度触发」路径上使用：
+// 手动触发（Job/Run）与手动续跑不受门禁限制，与「手动触发不受低峰窗口与日预算限制」
+// 保持同一套约定。
+func (s *Service) CDEUJobGate(ctx context.Context, kind string) (bool, string, error) {
+	return s.store.CDEUJobGate(ctx, kind, s.options.Today())
+}
+
 // CDEUScheduleEnabled 是否允许进程内调度器自动触发 CDEU Job。
 // 只有 20005 明确为 Auto 时才返回 true。
 func (s *Service) CDEUScheduleEnabled(ctx context.Context) bool {

@@ -26,6 +26,11 @@ const plans: Record<string, { icon: string; desc: string; features: string[] }> 
     desc: '实盘交易：接入真实经纪商/交易所，管理实盘账户、下单与风控。该模块涉及真实资金，将在仿真验证全部通过后开放。',
     features: ['经纪商/交易所接入与账户绑定', '实盘下单/撤单与订单管理', '实盘风控（限额/熔断/人工确认）'],
   },
+  'cdeu-automation': {
+    icon: 'mdi-robot-happy-outline',
+    desc: 'CDEU自动化：把「采集 → 去重 → 导出决策 → 导出 → 上传 → 复核」这条链路的调度与运维动作自动化，减少人工触发与值守。',
+    features: ['工作流运行模式（Manual/Auto）与低峰窗口的集中配置入口', '按拓扑顺序自动推进各级 JOB 的可视化编排', '异常自愈（失败重试、超时回收、人工复核提醒）'],
+  },
   // CMS 内容管理：系统已接入，业务菜单待整合（方案见 Docs/Refactor/2610-012）
   'cms-home': {
     icon: 'mdi-laptop',
@@ -61,7 +66,7 @@ const plan = computed(() => plans[route.name as string] ?? {
         </v-list>
         <v-divider class="my-4" />
         <p class="text-body-2 text-medium-emphasis">
-          该模块与「量化策略验证 → 黄金期货合约回测验证」同属 FinvQuant 量化策略交易平台能力矩阵。
+          该模块与「量化策略验证 → 黄金期货合约回测验证」同属 FinvQuant策略回测量化交易能力矩阵。
           当前已落地：策略管理（结构化定义）、账户管理（回测账户）、回测分析（任务与报告）、
           黄金期货合约回测验证（GCMain 等标的通用回测）。本模块将在后续迭代中实现。
         </p>

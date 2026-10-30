@@ -121,7 +121,7 @@ watch(
       <v-app-bar-nav-icon @click="drawer = !drawer" />
       <v-app-bar-title class="finv-app-title">
         <v-icon icon="mdi-finance" class="mr-2" />
-        FinvQuant 量化策略交易平台
+        FinvQuant策略回测量化交易
       </v-app-bar-title>
 
       <!-- 一级系统切换（金融投资 / 内容管理） -->

@@ -1,7 +1,7 @@
 # FinvQuant 通用量化回测 — 策略定义规范（BacktestStrategySpec）
 
 > 版本：v1（2026-08-06）
-> 适用范围：FinvQuant 通用量化回测引擎（`internal/backtest`），服务端 `POST /API/V100001/Meta/Finv/Quant/Backtest/Strategy/Save` 保存策略时校验。
+> 适用范围：FinvQuant 通用量化回测引擎（`internal/meta/finv/quant/backtest`），服务端 `POST /API/V100001/Meta/Finv/Quant/Backtest/Strategy/Save` 保存策略时校验。
 
 ## 1. 设计目标
 

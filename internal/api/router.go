@@ -10,13 +10,13 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/acanx/finvquant/internal/api/handler"
-	"github.com/acanx/finvquant/internal/backtest"
 	"github.com/acanx/finvquant/internal/config"
-	"github.com/acanx/finvquant/internal/kline"
 	"github.com/acanx/finvquant/internal/meta"
 	"github.com/acanx/finvquant/internal/meta/finv/auth"
+	"github.com/acanx/finvquant/internal/meta/finv/quant/backtest"
+	"github.com/acanx/finvquant/internal/meta/finv/quote"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
-	"github.com/acanx/finvquant/internal/quote"
 )
 
 // Deps 路由依赖。
@@ -149,6 +149,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 			group.GET("/Calendar/Page", archive.CalendarPage)
 			group.GET("/Maturity/Page", archive.MaturityPage)
 			group.GET("/Stats/Page", archive.StatsPage)
+			group.GET("/Export/Stock/Page", archive.StockPage)
 			group.GET("/Budget/Page", archive.BudgetPage)
 			group.GET("/Watermark/List", archive.WatermarkList)
 			group.GET("/RunLog/Page", archive.RunLogPage)

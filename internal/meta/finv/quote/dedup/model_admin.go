@@ -100,7 +100,9 @@ type UscRow struct {
 	Timezone         *string    `db:"timezone" json:"timezone"`
 	Currency         *string    `db:"currency" json:"currency"`
 	// 归档优先级覆盖配置（V100051 由 finv_dedup_usc_priority 合并而来）：
-	// 三列同时为 NULL 表示未配置，分别按 100 / 5 / 7 兜底。
+	// 三列同时为 NULL 表示未配置，分别按 100 / 5 / 7 兜底；自动补全（需求 10821）
+	// 发现三列全 NULL 时会直接写成 100 / 5 / 7，且不写 priority_gmt_update——
+	// 因此 priority_gmt_update 为 NULL 表示「默认值」，非 NULL 表示「人工设置过」。
 	PriorityRank      *int       `db:"priority_rank" json:"priority_rank"`
 	SlaDays           *int       `db:"sla_days" json:"sla_days"`
 	MaxWaitDays       *int       `db:"max_wait_days" json:"max_wait_days"`

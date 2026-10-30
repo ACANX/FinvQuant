@@ -11,6 +11,14 @@ func (s *Service) ReportJobProgress(ctx context.Context, stage string, percent f
 	s.reportProgress(ctx, stage, percent, detail)
 }
 
+// AppendJobLog 向当前运行记录的「执行日志」追加一行（不改变阶段与进度）。
+//
+// 需求 10832：决策明细的逐条结论既要进容器日志（docker logs），也要进运行日志，
+// 否则前端「执行日志」弹窗里只剩一行汇总，运维仍需去翻容器日志。
+func (s *Service) AppendJobLog(ctx context.Context, level, detail string) {
+	s.reportRunLog(ctx, level, "RUNNING", detail)
+}
+
 func (s *Service) AdvanceJobCDEUStage(ctx context.Context, stage string) {
 	s.advanceCDEUStage(ctx, stage)
 }

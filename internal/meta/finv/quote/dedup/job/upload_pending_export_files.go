@@ -46,7 +46,14 @@ func init() {
 			return fmt.Errorf("生成上传动态 JOB 失败: %w", err)
 		}
 
+		batchStarted := time.Now()
+		svc.ReportJobProgress(ctx, "UPLOAD", 0, fmt.Sprintf(
+			"开始扫描待上传文件 上传模式=%s 单轮上限=%d 个 开始时间=%s",
+			svc.Uploader().Mode(), uploadBatchLimit, batchStarted.Format(time.RFC3339)))
+
 		var uploaded, failed int
+		var firstFailedID int64
+		firstFailedErr := ""
 		for index := 0; index < uploadBatchLimit; index++ {
 			if err := ctx.Err(); err != nil {
 				break
@@ -66,6 +73,10 @@ func init() {
 			if err := svc.UploadOneFile(ctx, file, result); err != nil {
 				_ = svc.Store().MarkDynamicUploadJobStatus(ctx, file.FileID, dedup.CDEUStatusFailed, err.Error(), runLogID)
 				_ = svc.Store().MarkDynamicUploadJobStepStatus(ctx, file.FileID, dedup.CDEUStatusFailed, err.Error())
+				if failed == 0 {
+					firstFailedID = file.FileID
+					firstFailedErr = err.Error()
+				}
 				failed++
 				continue
 			}
@@ -76,15 +87,30 @@ func init() {
 
 		// 主表数据释放已迁至 PHASE_REVIEW 的 PURGE_EXPORTED_MONTH（需求 10716/10717），
 		// 上传 JOB 只负责把文件送到远端，不再碰数据生命周期。
+		elapsed := time.Since(batchStarted).Round(time.Second)
 		result.Details = map[string]any{
 			"mode":              svc.Uploader().Mode(),
 			"uploaded":          uploaded,
 			"failed":            failed,
 			"manifests_skipped": len(skippedManifests),
+			"uploaded_bytes":    result.ProcessedBytes,
+			"elapsed_seconds":   elapsed.Seconds(),
+			"first_failed_id":   firstFailedID,
+			"first_failed_err":  firstFailedErr,
 		}
-		log.Printf("[cdeu] %s 完成 mode=%s uploaded=%d failed=%d manifests_skipped=%d",
+		// 有失败项时把摘要写进 result.Message：它会被 FinishRun 写入 run 的 error 字段
+		// 与末条日志，使页面的「异常」列与「执行日志」一致，不再出现只有 SUCCESS 的情况。
+		if failed > 0 {
+			result.Message = fmt.Sprintf("本轮 %d 个文件上传失败（首个 file_id=%d：%s），失败项已按退避策略排入重试；详细原因见 ERROR 级日志行",
+				failed, firstFailedID, firstFailedErr)
+		}
+		svc.ReportJobProgress(ctx, "UPLOAD", 100, fmt.Sprintf(
+			"本轮上传完成 成功 %d 个 / 失败 %d 个 / 跳过 MANIFEST %d 个 共 %d 字节 结束时间=%s 耗时=%s",
+			uploaded, failed, len(skippedManifests), result.ProcessedBytes,
+			time.Now().Format(time.RFC3339), elapsed))
+		log.Printf("[cdeu] %s 完成 mode=%s uploaded=%d failed=%d manifests_skipped=%d bytes=%d elapsed=%s first_failed=%d %s",
 			dedup.JobUploadPendingExportFiles, svc.Uploader().Mode(), uploaded, failed,
-			len(skippedManifests))
+			len(skippedManifests), result.ProcessedBytes, elapsed, firstFailedID, firstFailedErr)
 		return nil
 	})
 }

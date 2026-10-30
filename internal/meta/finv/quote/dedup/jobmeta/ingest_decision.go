@@ -19,3 +19,14 @@ var EvaluateExportCondition = Runtime{
 	Details:  "只读判定，不写批次表；实际清单由 PHASE_EXPORT 的 JOB_FETCH_EXPORT_BATCH 生成。",
 	Cautions: "候选数与后续批次数不一致时，通常是判定与批次生成之间数据发生了变化（如成熟度刷新）。",
 }
+
+// ExplainExportDecision 决策阶段：逐条解释导出判定结果（需求 10832）。
+var ExplainExportDecision = Runtime{
+	Kind: "EXPLAIN_EXPORT_DECISION", DailyAt: "00:16", Schedule: "每日 00:16",
+	Name:    "导出决策明细",
+	Summary: "对成熟度表里的每个证券月逐条给出「能导出 / 不能导出」以及具体原因、预计行数、文件名、本地与远端路径。",
+	Flow: "读取成熟度表与证券主数据 → 依次判定元数据完整性 / 退市 / 当月 / 成熟度 / 已导出 → " +
+		"可导出项算出目标文件名与落盘路径；另扫描「行情有数据但成熟度无记录」的盲区月份。",
+	Details:  "只读判定，不写批次表、不生成动态 JOB；结果写入运行日志明细，逐条日志可直接定位到证券月。",
+	Cautions: "若某个月份在列表里完全没出现，多半是成熟度表没有该月记录（见明细里的「成熟度缺失」清单）。",
+}
