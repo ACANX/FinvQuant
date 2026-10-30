@@ -2456,6 +2456,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10848 | 在「量化 → 回测」之后新增同级别的「验证」三级分组，并把「仿真数据验证」「模拟盘验证」「实盘仿真验证」从顶层移入该分组（key/标题/路径不变）。 | `grep -c "key: 'quant-verify'" Web/src/config/menuConfig.ts` 为 1，其 `children` 为 {`simulation-data`, `simulation-paper`, `simulation-live-sim`}；三个 key 在配置中各出现 1 次；顶层顺序为 `dashboard, metadata, config-manage, quote, quant, data-collection, strategy, live-trading`；量化下三级节点顺序为 {MVP配置, 回测, 验证}；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
 
+## 一百七十五、新增「量化 → 实盘」并迁入「实盘交易」（10849）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10849 | 在「量化 → 验证」之后新增同级别的「实盘」三级分组，并把「实盘交易」从顶层移入该分组（key/标题/路径不变）。 | `grep -c "key: 'quant-live'" Web/src/config/menuConfig.ts` 为 1，其 `children` 为 {`live-trading`}；`live-trading` 在配置中出现 1 次；顶层顺序为 `dashboard, metadata, config-manage, quote, quant, data-collection, strategy`；量化下三级节点顺序为 {MVP配置, 回测, 验证, 实盘}；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2658,7 +2664,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 5 个配置类叶子移入 MVP配置 | 10846 | 1 |
 | 回测类叶子移入「量化 → 回测」 | 10847 | 1 |
 | 新增「量化 → 验证」并迁入 3 叶子 | 10848 | 1 |
-| **合计** | **10001–10848** | **847** |
+| 新增「量化 → 实盘」并迁入实盘交易 | 10849 | 1 |
+| **合计** | **10001–10849** | **848** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

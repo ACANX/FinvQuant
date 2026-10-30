@@ -140,6 +140,15 @@ const finvQuantMenu: MenuNode[] = [
           { key: 'simulation-live-sim', title: '实盘仿真验证', icon: 'mdi-robot-outline', path: '/Meta/Finv/Quant/Simulation/LiveSim' },
         ],
       },
+      {
+        // 实盘（需求 10849）：迁入原二级叶子「实盘交易」。
+        key: 'quant-live',
+        title: '实盘',
+        icon: 'mdi-trending-up',
+        children: [
+          { key: 'live-trading', title: '实盘交易', icon: 'mdi-cash-register', path: '/Meta/Finv/Quant/LiveTrading' },
+        ],
+      },
     ],
   },
   {
@@ -173,7 +182,6 @@ const finvQuantMenu: MenuNode[] = [
     ],
   },
   { key: 'strategy', title: '策略管理', icon: 'mdi-sitemap-outline', path: '/Meta/Finv/Quant/Strategy' },
-  { key: 'live-trading', title: '实盘交易', icon: 'mdi-cash-register', path: '/Meta/Finv/Quant/LiveTrading' },
 ]
 
 /** 内容管理（CMS，本轮仅占位，业务菜单后续整合） */
