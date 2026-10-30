@@ -2402,6 +2402,18 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10839 | 一级系统「金融投资」下新增与「数据采集」同级的二级菜单「行情」（前缀 `/Meta/Finv/Quote/`），其下两个三级子菜单：「收剔导传ETL」（前缀 `/Meta/Finv/Quote/Cdeu/`）与「历史行情」（前缀 `/Meta/Finv/Quote/His/`）；「历史月份存量数据清点」（`/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat`）移入「收剔导传ETL」，「历史行情查询」（`/Meta/Finv/Quote/History/HistoryQuoteQuery`）移入「历史行情」，原二级「历史行情」分组删除。 | `grep -c "title: '行情'" Web/src/config/menuConfig.ts` 为 1；`grep -c "title: '收剔导传ETL'" Web/src/config/menuConfig.ts` 为 1；`grep -c "key: 'history-quote'" Web/src/config/menuConfig.ts` 为 0；`grep -c "key: 'cdeu-his-month-exist-secu-stat'" Web/src/config/menuConfig.ts` 为 1 且出现在 `quote-cdeu` 分组内；菜单内 path 与 `Web/src/router.ts` 的路由集合比对无缺失、无重复 key；菜单全部 `mdi-*` 图标名都能在 `Web/node_modules/@mdi/font/css/materialdesignicons.css` 的 `.mdi-xxx::before` 中找到（`mdi-chart-finance` 曾写错导致「行情」无图标，已改为 `mdi-chart-multiline`）；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
 
+## 一百六十六、菜单改名与顺序调整（10840）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10840 | 二级菜单「元数据管理」改名为「元数据」，位置移到「仪表盘」之后；「数据采集」移到「配置管理」之后。节点 key 不变。 | 解析 `Web/src/config/menuConfig.ts` 的 `finvQuantMenu` 顶层顺序应为 `dashboard, metadata, quote, config-manage, data-collection, environment, template, account, fund, position, quant-backtest, strategy, backtest-analysis, simulation-data, simulation-paper, simulation-live-sim, live-trading`；`grep -c "title: '元数据'" ` 为 1 且 `grep -c "title: '元数据管理'"` 为 0；菜单图标全部可在 `@mdi/font` 检索到、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
+## 一百六十七、新增二级菜单「量化」（占位）（10841）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10841 | 在「配置管理」之后新增同级别的二级菜单「量化」（用户选定方案 A：仅空节点占位，不移动现有量化节点）。 | 解析 `Web/src/config/menuConfig.ts` 的 `finvQuantMenu` 顶层顺序，`config-manage` 之后、`data-collection` 之前应为 `quant`；`grep -c "title: '量化'" ` 为 1 且该节点 `children` 为空数组；现有 `quant-backtest`/`strategy`/`backtest-analysis`/`simulation-*`/`live-trading` 仍在顶层（未被移入）；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2595,7 +2607,9 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 证券元数据 JOB 归入批次流程 | 10837 | 1 |
 | 菜单改名与端点调整 | 10838 | 1 |
 | 菜单新增二级「行情」并移动叶子 | 10839 | 1 |
-| **合计** | **10001–10839** | **838** |
+| 菜单改名「元数据」与顺序调整 | 10840 | 1 |
+| 新增二级菜单「量化」（占位） | 10841 | 1 |
+| **合计** | **10001–10841** | **840** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

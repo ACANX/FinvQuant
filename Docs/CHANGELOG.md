@@ -105,6 +105,40 @@
   - `Prompt.md` 移至 **`Docs/FinvQuant/V1/Prompt.md`**（`git mv` 保留历史），根目录不再保留；`AGENTS.md`、`README.md` 的目录树/索引与 `Docs/RequirementList.md` 核对命令（10073、10099、10131、10237）中的路径同步更新；历史 CHANGELOG 条目与 `Docs/Refactor/*` 过程文档中的旧路径按历史记录保留。
   - `internal/api/handler/exportarchive.go` → **`cdeu.go`**，`internal/api/handler/exportarchive_admin.go` → **`cdeu_admin.go`**：Go 构建不依赖文件名，包名与导出符号不变，接口行为零变化；`Docs/API/QuoteDeDup/Usc.md` 与 `Docs/RequirementList.md`（10340、10350、10379、10470 核对命令）中的引用同步更新。
 
+### 变更
+
+- **新增二级菜单「量化」（占位）（需求 10841）**
+  - 授权：用户明确要求「『配置管理』后增加同级别的『量化』二级菜单」，并在给出「空节点占位 /
+    把现有量化节点收进去」两个选项后选择 **A（只加空节点）**。
+  - 改动（`Web/src/config/menuConfig.ts`）：在 `config-manage`「配置管理」之后、
+    `data-collection`「数据采集」之前插入二级分组 `quant`「量化」
+    （图标 `mdi-sigma`，`children: []` 暂无子节点）。
+  - 现状说明：该分组当前**没有任何子菜单**，点击展开为空白 —— 这是用户明确选择的占位状态；
+    现有量化相关节点（量化策略验证 / 策略管理 / 回测分析 / 仿真数据验证 / 模拟盘验证 /
+    实盘仿真验证 / 实盘交易）**均未移动**，仍在原位。
+  - 渲染安全性：`isMenuLeaf` 对空 `children` 返回 false，走分组分支；分组模板用
+    `v-for="child in node.children"`，空数组渲染为空、不报错。
+  - 验证（脚本实测）：解析 `finvQuantMenu` 顶层顺序为
+    `dashboard, metadata, quote, config-manage, quant, data-collection, environment, ...`，
+    与目标一致；40 个菜单图标全部有效；所有 `path` 均有对应路由；无重复 key；
+    `npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+
+### 变更
+
+- **「元数据管理」改名为「元数据」并调整二级菜单顺序（需求 10840）**
+  - 授权：用户明确要求「『元数据惯例』改名为『元数据』，位置调整到『仪表盘』之后，
+    『数据采集』放到『配置管理』之后」。
+  - 改动（`Web/src/config/menuConfig.ts`，仅调整顺序与标题，节点 key 全部保持不变）：
+    · 标题「元数据管理」→「元数据」（用户所述「元数据惯例」即指此节点，按其意图改为「元数据」）；
+    · 顺序调整为：仪表盘 → 元数据 → 行情 → 配置管理 → 数据采集 → 环境管理 → 模板管理 →
+      账户管理 → 资金管理 → 持仓管理 → 量化策略验证 → 策略管理 → 回测分析 →
+      仿真数据验证 → 模拟盘验证 → 实盘仿真验证 → 实盘交易；
+    · `metadata`、`data-collection` 等 key 未变，因此菜单展开状态的持久化 key 不受影响。
+  - 验证（脚本实测）：解析菜单数组得到实际顺序与目标完全一致；40 个菜单图标全部能在
+    `@mdi/font` 中检索到（无效 0）；所有菜单 `path` 均能在 `router.ts` 找到对应路由；
+    无重复 key。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §2.2 菜单树同步改名并补充顺序约定。
+
 ### 修复
 
 - **二级菜单「行情」左侧图标不显示（需求 10839 附带修复）**

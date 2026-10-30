@@ -123,6 +123,7 @@ export interface MenuSystem extends MenuNode {
 ```
 【一级系统：金融投资（内部 key=finvquant）】（顶栏切换，path=/Meta/Finv → 重定向 /Dashboard）
 ├─ 仪表盘（二级叶子，/Dashboard）
+│  【顺序约定，需求 10840/10841】仪表盘 → 元数据 → 行情 → 配置管理 → 量化（占位）→ 数据采集 → 其余
 ├─ 数据采集（二级分组）
 │  ├─ 行情数据去重（三级分组）
 │  │  ├─ 去重分钟行情查询（四级叶子，/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query）
@@ -141,7 +142,7 @@ export interface MenuSystem extends MenuNode {
 │  │  └─ 历史月份存量数据清点（四级叶子，/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat）
 │  └─ 历史行情（三级分组，前缀 /Meta/Finv/Quote/His/）
 │     └─ 历史行情查询（四级叶子，/Meta/Finv/Quote/History/HistoryQuoteQuery）
-├─ 元数据管理（二级分组）
+├─ 元数据（二级分组，原名「元数据管理」，需求 10840 改名并移到「仪表盘」之后）
 │  └─ 业务元数据维护（三级分组）
 │     ├─ 交易所信息维护（四级叶子，/meta/exchange）
 │     ├─ 交易所下设市场信息维护（四级叶子，/meta/market）
