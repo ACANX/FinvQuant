@@ -16,7 +16,7 @@ import (
 //	FINV_TEST_PG_DSN="postgres://finv:finvquant@127.0.0.1:5432/finv?sslmode=disable" \
 //	  go test ./internal/meta/finv/quote/cdeu/kline -run TestServiceIntegration -v
 //
-// 测试使用独立的临时表 dedup.finv_quote_secu_kline_min_it，结束后删除，不影响业务表。
+// 测试使用独立的临时表 cdeu.finv_quote_secu_kline_min_it，结束后删除，不影响业务表。
 func TestServiceIntegration(t *testing.T) {
 	dsn := os.Getenv("FINV_TEST_PG_DSN")
 	if dsn == "" {
@@ -34,9 +34,12 @@ func TestServiceIntegration(t *testing.T) {
 		t.Fatalf("测试库不可达: %v", err)
 	}
 
-	const testTable = "dedup.finv_quote_secu_kline_min_it"
-	if _, err := pool.Exec(ctx, `CREATE SCHEMA IF NOT EXISTS dedup`); err != nil {
-		t.Fatalf("创建 dedup schema 失败: %v", err)
+	// 临时表必须建在 cdeu（业务域）：`dedup` schema 已按需求 10759 冻结为
+	// `dedup_frozen` 并移出 search_path，此处若再 `CREATE SCHEMA dedup` 会让
+	// 冻结域在库里复活（V100080 之后的代码统一读写 cdeu.*）。
+	const testTable = "cdeu.finv_quote_secu_kline_min_it"
+	if _, err := pool.Exec(ctx, `CREATE SCHEMA IF NOT EXISTS cdeu`); err != nil {
+		t.Fatalf("创建 cdeu schema 失败: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `DROP TABLE IF EXISTS `+testTable); err != nil {
 		t.Fatalf("清理旧测试表失败: %v", err)

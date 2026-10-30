@@ -105,6 +105,34 @@
   - `Prompt.md` 移至 **`Docs/FinvQuant/V1/Prompt.md`**（`git mv` 保留历史），根目录不再保留；`AGENTS.md`、`README.md` 的目录树/索引与 `Docs/RequirementList.md` 核对命令（10073、10099、10131、10237）中的路径同步更新；历史 CHANGELOG 条目与 `Docs/Refactor/*` 过程文档中的旧路径按历史记录保留。
   - `internal/api/handler/exportarchive.go` → **`cdeu.go`**，`internal/api/handler/exportarchive_admin.go` → **`cdeu_admin.go`**：Go 构建不依赖文件名，包名与导出符号不变，接口行为零变化；`Docs/API/QuoteDeDup/Usc.md` 与 `Docs/RequirementList.md`（10340、10350、10379、10470 核对命令）中的引用同步更新。
 
+### 变更
+
+- **删除 `dedup` / `dedup_frozen` schema，旧域彻底淘汰（需求 10834）**
+  - 授权：用户在会话中明确要求「把 dedup / dedup_frozen 的 schema 清理掉，以后彻底不用了」，
+    对应 `DbSchemaSpec` §0.3 授权情形 1（明确点名删除）。
+  - 背景：`V100080` 已把该域 133,260 行数据迁入 `cdeu`，需求 10757 完成代码切换，
+    10759 将旧 `dedup` 重命名冻结为 `dedup_frozen`。此后代码只读写 `cdeu.*`，
+    冻结副本仅作观察期保留。
+  - 备份（删除前完成）：`Deploy/Backup/dedup_schemas_20261030_234253.sql.gz`，
+    `pg_dump -n dedup -n dedup_frozen` 导出 32 张表 / 32 段 COPY / 约 13.4 万行（2.2 MB），
+    恢复方式 `zcat <备份> | psql -U finv -d finv`。`Deploy/Backup/` 已在 `.gitignore` 中。
+  - 迁移 `V100086`：前置校验「`cdeu` 侧行数不得少于冻结副本」（成熟度 / 导出任务 / 导出文件 /
+    证券主数据四张关键表），`DROP SCHEMA IF EXISTS dedup CASCADE` + `dedup_frozen CASCADE`，
+    后置校验「两个 schema 必须不存在」且「`quote` / `export` / `cdeu` 三份 `finv_quote_secu_kline_min`
+    各存一份」（§0.2 保护名单不受影响）。
+  - 代码闸门：`internal/database/schema_qualify_test.go` 新增 `forbiddenSchemaPrefixes`
+    （`dedup.` / `dedup_frozen.`），任何 SQL 行出现即测试失败；`exactTableSchema` 中
+    `finv_quote_secu_kline_min` 的白名单从 `{dedup., quote., export., cdeu.}` 收紧为
+    `{quote., export., cdeu.}`。
+  - 顺带修正一处真实隐患：`internal/meta/finv/quote/cdeu/kline/service_integration_test.go`
+    原用 `dedup.finv_quote_secu_kline_min_it` 并在测试里 `CREATE SCHEMA IF NOT EXISTS dedup`
+    ——会把已冻结的 schema 在库里复活（实测确认发生过），现改为建在 `cdeu.`。
+  - 验证：迁移执行后库里 schema 只剩 `archive / brs / cdeu / export / futu / public / quant / quote / sche / sys`；
+    `finv_quote_secu_kline_min` 剩 `cdeu.` / `export.` / `quote.` 三份；闸门负向验证
+    （`SELECT * FROM dedup_frozen.finv_dedup_export_job` 被判违规）通过。
+  - 文档同步：`DbSchemaSpec` §0.2 保护名单、§0.5 事故记录、§0.7 备份落点、§1 schema 划分表
+    （`dedup_frozen` 行标记已删除）、§1.1 域归属、§3 双 schema 隔离表与去重层次说明共 20 处。
+
 ### 修复
 
 - **导出链路「不生成动态 JOB」无法归因，且存在 provider 恒空的致命缺口（需求 10832）**

@@ -2366,6 +2366,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10832 | 导出决策阶段必须有一个 JOB 逐条说明「哪些证券月能导出、哪些不能、为什么不能」，不得只给汇总数量：不能导出时给出具体原因（缺失的元数据字段名、退市日期、当月、未成熟的交易日列表、已导出的 job_id 与文件名）；能导出时给出应有行数、实际行数、目标文件名、本地路径、远端路径；另需列出「行情表有数据但成熟度表无记录」的盲区月份。同时修复 `cdeu.finv_quote_cdeu_usc.provider` 恒空导致全部证券月被判「元数据不全」的缺口（有富途采集记录的证券补 `FTMM`）。 | `grep -c 'JobExplainExportDecision = "EXPLAIN_EXPORT_DECISION"' internal/meta/finv/quote/dedup/model.go` 为 1；`grep -c 'func (s \*Service) ExplainExportDecision' internal/meta/finv/quote/dedup/service_decision.go` 为 1；`grep -c 'func (s \*Service) DiagnoseEmptyExportBatch' internal/meta/finv/quote/dedup/service_decision.go` 为 1；`grep -c 'provider   = .FTMM.' internal/meta/finv/quote/dedup/store.go` ≥ 1；`go test ./internal/meta/finv/quote/dedup/ -run TestClassifyExportDecision` 通过 9 个场景；`go test ./internal/meta/finv/quote/dedup/job/ -run TestExplainExportDecisionEndToEnd`（需 `FINV_TEST_PG_DSN`）通过并且运行日志表 `cdeu.finv_quote_cdeu_job_run_log_line` 里该 run_id 存在 `message LIKE '%导出决策%'` 的明细行；`grep -c 'func (s \*Service) AppendJobLog' internal/meta/finv/quote/dedup/job_port.go` 为 1；库内 `SELECT count(*) FROM cdeu.finv_quote_cdeu_usc WHERE provider IS NULL AND EXISTS (SELECT 1 FROM futu.finv_futu_quote_collect f WHERE f.usc = cdeu.finv_quote_cdeu_usc.usc)` 为 0；服务启动日志含 `调度 EXPLAIN_EXPORT_DECISION` | |
 
+## 一百六十、删除 dedup / dedup_frozen schema（10834）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10834 | 删除已淘汰的 `dedup` 与 `dedup_frozen` 两个 schema（`cdeu` 已完整接管），删除前必须做逻辑备份；同时建立代码闸门，禁止任何代码再引用这两个 schema 前缀（含集成测试里的 `CREATE SCHEMA` 误复活）。 | `psql -c "select nspname from pg_namespace where nspname in ('dedup','dedup_frozen')"` 返回 0 行；`ls Deploy/Backup/dedup_schemas_*.sql.gz` 存在且 `zcat` 后 `grep -c '^CREATE TABLE'` 为 32；`grep -c 'forbiddenSchemaPrefixes' internal/database/schema_qualify_test.go` ≥ 2；`grep -rn 'dedup\\.finv_quote_secu_kline_min' --include=*.go .` 无业务代码命中；`go test ./internal/database/ -run TestSQLSchemaQualified` 通过；`select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where c.relname='finv_quote_secu_kline_min' and n.nspname in ('quote','export','cdeu')` 为 3 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2553,7 +2559,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | CDEU 流程与 JOB 按顺序执行 | 10830 | 1 |
 | 动态 JOB 领取顺序（优先级 + seq_no） | 10831 | 1 |
 | 导出决策明细 JOB 与 provider 修复 | 10832 | 1 |
-| **合计** | **10001–10832** | **832** |
+| 删除 dedup / dedup_frozen schema | 10834 | 1 |
+| **合计** | **10001–10834** | **833** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
