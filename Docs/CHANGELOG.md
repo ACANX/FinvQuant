@@ -107,6 +107,18 @@
 
 ### 变更
 
+- **「业务元数据维护」改名为「Finv业务元数据」（需求 10852）**
+  - 授权：用户明确要求「『业务元数据维护』菜单更名为『Finv业务元数据』」。
+  - 改动：`Web/src/config/menuConfig.ts` 中 `meta-maintenance` 节点的 `title` 改为
+    「Finv业务元数据」；`Web/src/router.ts` 的注释同步。节点 key（`meta-maintenance`）、
+    图标、其下 3 个叶子与全部路由路径均不变。
+  - 层内现状：「元数据 → Finv业务元数据」下挂 3 个叶子（交易所信息维护 /
+    交易所下设市场信息维护 / 规范证券信息维护）。
+  - 验证：`grep -c "title: 'Finv业务元数据'" Web/src/config/menuConfig.ts` 为 1、
+    `title: '业务元数据维护'` 为 0；菜单图标与 path 校验通过（无失效图标、无缺失路由、无重复 key）。
+
+### 变更
+
 - **「量化 → 实盘」改名为「量化 → 交易」（需求 10851）**
   - 授权：用户明确要求「『实盘』菜单名称改为『交易』」。
   - 改动（`Web/src/config/menuConfig.ts`）：`quant-live` 节点的 `title` 由「实盘」改为「交易」；

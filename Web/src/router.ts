@@ -121,7 +121,7 @@ const router = createRouter({
       component: DeDupArchiveLogView,
       meta: { title: '归档日志与补丁' },
     },
-    // 元数据管理 → 业务元数据维护 → 四个子菜单
+    // 元数据 → Finv业务元数据 → 子菜单
     { path: '/meta/exchange', name: 'meta-exchange', component: MetaExchangeView, meta: { title: '交易所信息维护' } },
     { path: '/meta/market', name: 'meta-market', component: MetaMarketView, meta: { title: '交易所下设市场信息维护' } },
     { path: '/meta/security', name: 'meta-security', component: MetaSecurityView, meta: { title: '规范证券信息维护' } },

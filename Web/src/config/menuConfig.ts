@@ -56,7 +56,7 @@ const finvQuantMenu: MenuNode[] = [
     children: [
       {
         key: 'meta-maintenance',
-        title: '业务元数据维护',
+        title: 'Finv业务元数据',
         icon: 'mdi-database-search',
         children: [
           { key: 'meta-exchange', title: '交易所信息维护', icon: 'mdi-office-building', path: '/meta/exchange' },

@@ -151,7 +151,7 @@ export interface MenuSystem extends MenuNode {
 │     ├─ 历史行情查询（四级叶子，/Meta/Finv/Quote/History/HistoryQuoteQuery）
 │     └─ 历史行情数据导入（四级叶子，/meta/import，需求 10844 从元数据域移入）
 ├─ 元数据（二级分组，原名「元数据管理」，需求 10840 改名并移到「仪表盘」之后）
-│  └─ 业务元数据维护（三级分组）
+│  └─ Finv业务元数据（三级分组，原名「业务元数据维护」，需求 10852 改名）
 │     ├─ 交易所信息维护（四级叶子，/meta/exchange）
 │     ├─ 交易所下设市场信息维护（四级叶子，/meta/market）
 │     └─ 规范证券信息维护（四级叶子，/meta/security）
