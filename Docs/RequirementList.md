@@ -2486,6 +2486,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10853 | 「交易所下设市场信息维护」更名为「市场信息管理」；叶子 key（`meta-market`）、路由 `/meta/market` 不变，路由 `meta.title` 同步。 | `grep -c "title: '市场信息管理'" Web/src/config/menuConfig.ts` 为 1；`grep -rc "交易所下设市场信息维护" Web/src/config/menuConfig.ts Web/src/router.ts` 均为 0；`grep -c "key: 'meta-market'"` 为 1；菜单图标全部有效、`path` 全部有路由、无重复 key | |
 
+## 一百八十、「交易所信息维护」改名为「交易所信息管理」（10854）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10854 | 「交易所信息维护」更名为「交易所信息管理」；叶子 key（`meta-exchange`）、路由 `/meta/exchange` 不变，路由 `meta.title` 同步。 | `grep -c "title: '交易所信息管理'" Web/src/config/menuConfig.ts` 为 1；`grep -rc "交易所信息维护" Web/src/config/menuConfig.ts Web/src/router.ts` 均为 0；`grep -c "key: 'meta-exchange'"` 为 1；菜单图标全部有效、`path` 全部有路由、无重复 key | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2693,7 +2699,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 「量化 → 实盘」改名「交易」 | 10851 | 1 |
 | 「业务元数据维护」改名 Finv业务元数据 | 10852 | 1 |
 | 「交易所下设市场信息维护」改名市场信息管理 | 10853 | 1 |
-| **合计** | **10001–10853** | **852** |
+| 「交易所信息维护」改名交易所信息管理 | 10854 | 1 |
+| **合计** | **10001–10854** | **853** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

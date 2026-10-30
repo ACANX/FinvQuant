@@ -59,7 +59,7 @@ const finvQuantMenu: MenuNode[] = [
         title: 'Finv业务元数据',
         icon: 'mdi-database-search',
         children: [
-          { key: 'meta-exchange', title: '交易所信息维护', icon: 'mdi-office-building', path: '/meta/exchange' },
+          { key: 'meta-exchange', title: '交易所信息管理', icon: 'mdi-office-building', path: '/meta/exchange' },
           { key: 'meta-market', title: '市场信息管理', icon: 'mdi-chart-areaspline', path: '/meta/market' },
           { key: 'meta-security', title: '规范证券信息维护', icon: 'mdi-tag-multiple', path: '/meta/security' },
         ],
