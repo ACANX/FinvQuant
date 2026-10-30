@@ -101,6 +101,11 @@
 
 ### 修复
 
+- **Native 安装脚本 qmio 定位修正（需求 10822）**
+  - 问题：`Deploy/Native/Install.sh` 第 6 步找 qmio 只看了 `${SCRIPT_DIR}/../qmio`（`<PREFIX>/Deploy/qmio`）与 `${SCRIPT_DIR}/qmio`（`<PREFIX>/Deploy/Native/qmio`），而发行包（`Deploy/Script/PackSnapshot.sh`）是把 `qmio` 与 `finvquant` **并列放在包根**，宿主直装时总报 `[WARN] 未找到 qmio（期望 …/Deploy/Native/../qmio）`，`<PREFIX>/bin/qmio` 与 `/usr/local/bin/qmio` 永远不会创建。
+  - 修正：候选路径改为 `① ${REPO_ROOT}/qmio`（发行包根，与 `finvquant` 同目录；第 1 步定位二进制的策略一致）→ `② ${SCRIPT_DIR}/../qmio`（历史自定义布局）→ `③ ${SCRIPT_DIR}/qmio`（手工放文件），命中顺序与 `Docs/Native/Install.md` 「安装包根目录内的 qmio」说明一致；警告文案同步列出三个已尝试路径。
+  - 验证：`bash -n` 语法通过；在模拟发行包结构（`FinvQuant-vX-ubuntu-arm64/{finvquant,qmio,Deploy/Native/Install.sh}`）下候选第 1 项命中包根 `qmio`（修复前该布局断言失败）。`Upgrade.sh` 用 `$(dirname "${BINARY_SRC}")/qmio` 已是包根口径，无需改动。
+
 - **港股人民币柜台 `currency_type` 口径修正（需求 10817）**
   - 问题：Supabase 证券主数据按市场统一取币种，港交所记录一律落 `HKD`，导致 **8 开头的 5 位代码人民币柜台**（如 `80700` 腾讯控股-R、`81810` 小米集团-WR、`82840` SPDR金-R）被写成 `HKD`，与实际结算货币不符。
   - 口径：港交所 **8 开头 5 位代码**且 `security_type` 不属于 `StockIndex`/`VolatilityIndex`/`BondIndex`/`CommodityIndex` → `currency_type='CNY'`；**6 位** `800100` 一类港元计价指数（国企指数、恒指波幅指数等）保持 `HKD`。

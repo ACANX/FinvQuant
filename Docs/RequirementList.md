@@ -2300,6 +2300,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10821 | 自动发现新证券、刷新证券元数据时，`priority_rank` / `sla_days` / `max_wait_days` 三列若同时为 NULL（未配置）则统一补默认值 100 / 5 / 7，使 CDEU 流程无需人工预配置即可运行；人工设置过的值不被覆盖，且自动补全不写 `priority_gmt_update`（该列为 NULL 即表示默认值）。 | `grep -c 'defaultPriorityRank = 100' internal/meta/finv/quote/dedup/store.go` 为 1；`grep -c 'priority_rank IS NULL AND sla_days IS NULL AND max_wait_days IS NULL' internal/meta/finv/quote/dedup/store.go` 为 1；库内验证：`select count(*) from cdeu.finv_quote_cdeu_usc where priority_rank is null and sla_days is null and max_wait_days is null` 在两轮 JOB 后为 0；`go test ./internal/meta/finv/quote/dedup/` 通过（`TestBackfillUscDefaults` 在配备测试库时额外验证默认值/不覆盖/幂等） | |
 
+## 一百四十九、Native 安装脚本 qmio 定位修正（10822）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10822 | `Deploy/Native/Install.sh` 能从发行包根目录（`qmio` 与 `finvquant` 并列）找到 qmio 并安装到 `<PREFIX>/bin/qmio` 与 `/usr/local/bin/qmio`，不再在标准包布局下报「未找到 qmio」警告；保留对历史布局（`Deploy/qmio`、`Deploy/Native/qmio`）的兼容。 | `bash -n Deploy/Native/Install.sh` 通过；`grep -c 'REPO_ROOT}/qmio' Deploy/Native/Install.sh` ≥ 1；构造 `FinvQuant-vX-ubuntu-arm64/{finvquant,qmio,Deploy/Native/Install.sh}` 后以 `SCRIPT_DIR=<pkg>/Deploy/Native`、`REPO_ROOT=<pkg>` 执行候选定位循环，`QMIO_SRC` 命中 `<pkg>/qmio` | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2476,7 +2482,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 初始数据发放迁移入库 | 10819 | 1 |
 | 日增量行数模板与自动补全 | 10820 | 1 |
 | 自动发现补全优先级/SLA 默认值 | 10821 | 1 |
-| **合计** | **10001–10821** | **821** |
+| Native 安装脚本 qmio 定位修正 | 10822 | 1 |
+| **合计** | **10001–10822** | **822** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
