@@ -130,14 +130,17 @@ export interface MenuSystem extends MenuNode {
 │  └─ 行情数据归档（三级分组）
 │     ├─ 归档监控总览（四级叶子，/Meta/Finv/Quote/DeDup/Export/Overview）
 │     ├─ 端到端链路（四级叶子，/Meta/Finv/Quote/DeDup/Export/Chain）
-│     ├─ 工作流控制与监控（四级叶子，/Meta/Finv/Quote/DeDup/CDEU）
+│     ├─ 工作流控制与监控（四级叶子，/Meta/Finv/Quote/Cdeu/CdeuOverview）
 │     ├─ 导出任务（四级叶子，/Meta/Finv/Quote/DeDup/Export/Job）
 │     ├─ 文件与上传（四级叶子，/Meta/Finv/Quote/DeDup/Export/File）
 │     ├─ 归档统计与预算（四级叶子，/Meta/Finv/Quote/DeDup/Export/Stats）
 │     ├─ 归档主数据与规则（四级叶子，/Meta/Finv/Quote/DeDup/Export/Config）
 │     └─ 归档日志与补丁（四级叶子，/Meta/Finv/Quote/DeDup/Export/Log）
-├─ 历史行情（二级分组）
-│  └─ 历史行情查询（三级叶子，/Meta/Finv/Quote/History/HistoryQuoteQuery）
+├─ 行情（二级分组，前缀 /Meta/Finv/Quote/，需求 10839）
+│  ├─ 收剔导传ETL（三级分组，前缀 /Meta/Finv/Quote/Cdeu/）
+│  │  └─ 历史月份存量数据清点（四级叶子，/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat）
+│  └─ 历史行情（三级分组，前缀 /Meta/Finv/Quote/His/）
+│     └─ 历史行情查询（四级叶子，/Meta/Finv/Quote/History/HistoryQuoteQuery）
 ├─ 元数据管理（二级分组）
 │  └─ 业务元数据维护（三级分组）
 │     ├─ 交易所信息维护（四级叶子，/meta/exchange）

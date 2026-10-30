@@ -65,7 +65,6 @@ const finvQuantMenu: MenuNode[] = [
         children: [
           { key: 'dedup-export-overview', title: '归档监控总览', icon: 'mdi-monitor-dashboard', path: '/Meta/Finv/Quote/DeDup/Export/Overview' },
           { key: 'dedup-export-chain', title: '端到端链路', icon: 'mdi-transit-connection-variant', path: '/Meta/Finv/Quote/DeDup/Export/Chain' },
-          { key: 'cdeu-his-month-exist-secu-stat', title: '历史月份存量数据清点', icon: 'mdi-database-eye-outline', path: '/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat' },
           { key: 'dedup-export-cdeu', title: '工作流控制与监控', icon: 'mdi-sitemap-outline', path: '/Meta/Finv/Quote/Cdeu/CdeuOverview' },
           { key: 'dedup-export-job', title: '导出任务', icon: 'mdi-clipboard-list-outline', path: '/Meta/Finv/Quote/DeDup/Export/Job' },
           { key: 'dedup-export-file', title: '文件与上传', icon: 'mdi-file-cloud-outline', path: '/Meta/Finv/Quote/DeDup/Export/File' },
@@ -77,11 +76,30 @@ const finvQuantMenu: MenuNode[] = [
     ],
   },
   {
-    key: 'history-quote',
-    title: '历史行情',
-    icon: 'mdi-chart-box',
+    // 「行情」二级菜单（分组前缀 /Meta/Finv/Quote/），与「数据采集」同级；
+    // 其下两个三级分组按加工阶段划分：
+    //   收剔导传ETL（/Meta/Finv/Quote/Cdeu/）—— 采集→去重→导出→上传→复核的 ETL 链路页面
+    //   历史行情（/Meta/Finv/Quote/His/）   —— 面向使用者的历史行情查询
+    key: 'quote',
+    title: '行情',
+    icon: 'mdi-chart-finance',
     children: [
-      { key: 'quote-query', title: '历史行情查询', icon: 'mdi-chart-line', path: '/Meta/Finv/Quote/History/HistoryQuoteQuery' },
+      {
+        key: 'quote-cdeu',
+        title: '收剔导传ETL',
+        icon: 'mdi-transit-connection-variant',
+        children: [
+          { key: 'cdeu-his-month-exist-secu-stat', title: '历史月份存量数据清点', icon: 'mdi-database-eye-outline', path: '/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat' },
+        ],
+      },
+      {
+        key: 'quote-history',
+        title: '历史行情',
+        icon: 'mdi-chart-box',
+        children: [
+          { key: 'quote-query', title: '历史行情查询', icon: 'mdi-chart-line', path: '/Meta/Finv/Quote/History/HistoryQuoteQuery' },
+        ],
+      },
     ],
   },
   {

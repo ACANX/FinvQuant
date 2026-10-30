@@ -107,6 +107,30 @@
 
 ### 变更
 
+- **菜单结构新增二级「行情」，下挂「收剔导传ETL」与「历史行情」（需求 10839）**
+  - 授权：用户明确要求新增与「数据采集」同级的二级菜单「行情」（`/Meta/Finv/Quote/`），
+    其下两个三级子菜单「收剔导传ETL」（`/Meta/Finv/Quote/Cdeu/`）与「历史行情」
+    （`/Meta/Finv/Quote/His/`），并把两个已有叶子移动过去。
+  - 改动（`Web/src/config/menuConfig.ts`）：
+    · 新增二级分组 `quote`「行情」（图标 `mdi-chart-finance`），位置在「数据采集」之后；
+    · 「行情 → 收剔导传ETL」（`quote-cdeu`）下挂「历史月份存量数据清点」
+      （`/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat`，叶子 key 不变，从
+      「数据采集 → 行情数据归档」移出）；
+    · 「行情 → 历史行情」（`quote-history`）下挂「历史行情查询」
+      （`/Meta/Finv/Quote/History/HistoryQuoteQuery`，叶子 key `quote-query` 不变，
+      从原二级「历史行情」分组移出）；
+    · 原二级分组 `history-quote` 已移空，随叶子移出而删除；
+    · 分组节点不填 `path`（沿用「分组只展开不跳转」的约定），分组前缀写在注释里。
+  - 未改动：「数据采集」下的「行情数据去重」「行情数据归档」及其余 8 个叶子保持原位
+    —— 用户本次只点名移动上述两个叶子。
+  - 验证：脚本核对菜单内 33 个 `path` 全部能在 `router.ts` 找到对应路由、菜单内无重复
+    `key`；`npx vue-tsc --noEmit` 与 `npx vite build` 均通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §2.2 目标菜单树同步
+    （并顺带修正该树里「工作流控制与监控」的旧路径 `/DeDup/CDEU` →
+    `/Cdeu/CdeuOverview`）。
+
+### 变更
+
 - **「月份存量清单」改名为「历史月份存量数据清点」并调整端点（需求 10838）**
   - 菜单：「行情数据归档 → 月份存量清单」→「行情数据归档 → 历史月份存量数据清点」；
   - 前端路由：`/Meta/Finv/Quote/DeDup/Export/Stock` → `/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat`
