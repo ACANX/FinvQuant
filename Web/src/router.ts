@@ -47,12 +47,12 @@ const router = createRouter({
     { path: '/Meta/Finv', redirect: '/Dashboard' },
     // 历史行情 → 历史行情查询
     { path: '/Meta/Finv/Quote/History/HistoryQuoteQuery', name: 'quote-query', component: QuoteQueryView, meta: { title: '历史行情查询' } },
-    // 去重行情 → 去重分钟行情查询 / 统计
+    // 行情数据归档 → K线数据查询 / 统计（需求 10856/10857 改名并移入「收剔导传ETL」）
     {
       path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query',
       name: 'dedup-kline-query',
       component: DeDupKLineQueryView,
-      meta: { title: '去重分钟行情查询' },
+      meta: { title: 'K线数据查询' },
     },
     {
       path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats',

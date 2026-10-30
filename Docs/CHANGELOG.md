@@ -105,6 +105,21 @@
   - `Prompt.md` 移至 **`Docs/FinvQuant/V1/Prompt.md`**（`git mv` 保留历史），根目录不再保留；`AGENTS.md`、`README.md` 的目录树/索引与 `Docs/RequirementList.md` 核对命令（10073、10099、10131、10237）中的路径同步更新；历史 CHANGELOG 条目与 `Docs/Refactor/*` 过程文档中的旧路径按历史记录保留。
   - `internal/api/handler/exportarchive.go` → **`cdeu.go`**，`internal/api/handler/exportarchive_admin.go` → **`cdeu_admin.go`**：Go 构建不依赖文件名，包名与导出符号不变，接口行为零变化；`Docs/API/QuoteDeDup/Usc.md` 与 `Docs/RequirementList.md`（10340、10350、10379、10470 核对命令）中的引用同步更新。
 
+### 变更
+
+- **「去重分钟行情查询」更名为「K线数据查询」并移入「收剔导传ETL」（需求 10856）**
+  - 授权：用户明确要求「『去重分钟行情查询』菜单重命名为『K线数据查询』，并放入
+    『收剔导传ETL』菜单下」。
+  - 改动：
+    · `Web/src/config/menuConfig.ts`：从「数据采集 → 行情数据去重」移除该叶子，
+      移入「行情 → 收剔导传ETL」（`quote-cdeu`），排在「CDEU 工作流控制面板」之后；
+      标题「去重分钟行情查询」→「K线数据查询」；叶子 key `dedup-kline-query` 与路径
+      `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query` 保持不变；
+    · `Web/src/router.ts`：该路由 `meta.title` 同步改名（影响页签与面包屑），注释同步。
+  - 现状：「行情数据去重」分组暂剩 1 个叶子（K线数据统计，需求 10857 处理）。
+  - 验证：`dedup-kline-query` 在菜单配置中出现 1 次且位于 `quote-cdeu` 段内；
+    菜单图标全部有效、所有 `path` 均有对应路由、无重复 key；`go test ./internal/docs` 通过。
+
 ### 修复
 
 - **元数据域改名后残留一处旧名注释（需求 10852 附带修复）**
