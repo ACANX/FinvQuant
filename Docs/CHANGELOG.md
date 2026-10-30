@@ -107,6 +107,26 @@
 
 ### 新增
 
+- **Download.sh 回显包内 commit（需求 10836）**
+  - 痛点：版本 tag 只含「基础版本 + PR 号 + 时间戳」（如 `v0.1.3.00360.2610301200`），
+    **不含 commit**；下载完想知道「这个包是哪个提交构建的」只能解压后翻 `BUILD-INFO.txt`，
+    或者去 CI 页面找。
+  - 新增 `read_package_commit()`：直接从压缩包内读 `FinvQuant-<版本>-<os>-<arch>/BUILD-INFO.txt`
+    的「提交」行并回显，**不需要解压**；`tar.gz` 用 `tar -xzOf`、`zip` 优先 `unzip -p`，
+    Windows 无 unzip 时回退 PowerShell 的 .NET 压缩 API。
+  - 输出位置：下载校验完成后的 `[OK] 包内提交：<commit>`、`--no-extract` 分支的摘要、
+    以及最终「下载完成」摘要新增的 `提交 ：` 行。
+  - 容错：包内无 `BUILD-INFO.txt`（旧包/非标准包）时只打 `[WARN]` 不中断；
+    读取失败按返回码 1 处理，不影响下载与解压主流程。
+  - `Download.cmd` 无需改动（它只是定位 Git Bash 后转调 `Download.sh`）。
+  - 验证（造包实测，非推断）：
+    · 用 `PackSnapshot.sh` 同结构的假包（含 `BUILD-INFO.txt`）分别打成 `.tar.gz` 与 `.zip`；
+    · 提取 `read_package_commit` 单独跑：`tar.gz` → `eaa58b6`、`zip` → `eaa58b6`，两条断言均通过；
+    · 负向：不存在的包、缺 `BUILD-INFO.txt` 的包均按预期返回非 0（调用方打 warn 继续）。
+  - 文档：`Deploy/Script/README.md` 新增 §13.2「包内提交号（commit）」，后续小节编号顺延。
+
+### 新增
+
 - **行情数据归档新增「月份存量清单」页面（需求 10835）**
   - 痛点：跑导出流程之前，无法确认「该业务月份到底有哪些证券、各多少行、会生成多少文件、文件大概多大」，
     只能等流程跑完看结果，或者手工查表。

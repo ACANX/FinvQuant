@@ -2378,6 +2378,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10835 | 「行情数据归档」菜单下新增「月份存量清单」：按业务月份 + 证券维度统计主表该月的存量，给出每个证券的存量行数、交易日数、成熟度应有/实际行数、导出状态、文件名（已生成或预计）与预计大小，并汇总证券数/总行数/预计总大小；主表已清理（已导出）的证券必须明确标注而不是显示为数据缺失。 | `grep -c '月份存量清单' Web/src/config/menuConfig.ts` 为 1；`grep -c 'Export/Stock/Page' internal/api/router.go` 为 1；`grep -c 'func (s \*Service) StockPage' internal/meta/finv/quote/dedup/service_decision.go` 为 1；`grep -c 'func (s \*Store) ExportStockPage' internal/meta/finv/quote/dedup/store_decision.go` 为 1；`go test ./internal/meta/finv/quote/dedup/ -run TestExportStockPage`（需 `FINV_TEST_PG_DSN`）通过并输出「已清理」计数；`grep -rn 'dedup\.' internal/meta/finv/quote/dedup/store_decision.go` 无命中（数据源只用 `cdeu.*`） | |
 
+## 一百六十二、Download.sh 回显包内 commit（10836）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10836 | `Download.sh` 下载完成后必须回显该包对应的 commit：从包内 `BUILD-INFO.txt` 读取「提交」行（无需解压），`--no-extract` 与最终摘要都要打印；包内无该文件时只告警不中断。 | `grep -c 'read_package_commit' Deploy/Script/Download.sh` ≥ 3；`bash -n Deploy/Script/Download.sh` 通过；造含 `BUILD-INFO.txt` 的 `tar.gz` 与 `zip` 各一个，提取该函数执行后输出 commit 且与 `BUILD-INFO.txt` 中一致；对不存在的包与缺 `BUILD-INFO.txt` 的包，函数返回非 0 且不报错退出；`grep -c '包内提交号' Deploy/Script/README.md` 为 1 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2567,7 +2573,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 导出决策明细 JOB 与 provider 修复 | 10832 | 1 |
 | 删除 dedup / dedup_frozen schema | 10834 | 1 |
 | 行情数据归档·月份存量清单 | 10835 | 1 |
-| **合计** | **10001–10835** | **834** |
+| Download.sh 回显包内 commit | 10836 | 1 |
+| **合计** | **10001–10836** | **835** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

@@ -222,6 +222,43 @@ tag_kind() {
   fi
 }
 
+# read_package_commit <pkg> <ext> <top_dir>
+#
+# 从包内 <top_dir>/BUILD-INFO.txt 读取「提交」行（PackSnapshot.sh 打包时写入，
+# 形如 `提交        : a1b2c3d`）。设计用途：版本号 tag 只含基础版本/PR 号/时间戳，
+# **不含 commit**，所以要核对「这个包是哪个提交构建的」只能读包内文件。
+#
+# 成功时 stdout 输出 commit 短号并返回 0；找不到文件/行时返回 1（旧包可能没有，
+# 不视为错误，调用方给 warn 即可）。
+read_package_commit() {
+  local pkg="$1" ext="$2" top_dir="$3" info="" inner="" win_pkg=""
+  case "${ext}" in
+    tar.gz)
+      command -v tar >/dev/null 2>&1 || return 1
+      info="$(tar -xzOf "${pkg}" "${top_dir}/BUILD-INFO.txt" 2>/dev/null || true)"
+      ;;
+    zip)
+      if command -v unzip >/dev/null 2>&1; then
+        info="$(unzip -p "${pkg}" "${top_dir}/BUILD-INFO.txt" 2>/dev/null || true)"
+      elif command -v powershell.exe >/dev/null 2>&1; then
+        # Windows 未安装 unzip 时用 .NET 压缩 API 直接读条目内容
+        win_pkg="$(cygpath -w "${pkg}" 2>/dev/null || printf '%s' "${pkg}")"
+        info="$(powershell.exe -NoProfile -Command "
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          \$z = [System.IO.Compression.ZipFile]::OpenRead('${win_pkg}')
+          \$e = \$z.Entries | Where-Object { \$_.FullName -eq '${top_dir}/BUILD-INFO.txt' } | Select-Object -First 1
+          if (\$e) { \$r = New-Object System.IO.StreamReader(\$e.Open()); \$r.ReadToEnd(); \$r.Close() }
+          \$z.Dispose()" 2>/dev/null || true)"
+      fi
+      ;;
+  esac
+  [[ -z "${info}" ]] && return 1
+  # 只取「提交」那一行；兼容中文冒号与多余空格，取最后一个空白分隔项（即 commit）
+  inner="$(printf '%s\n' "${info}" | sed -n 's/^[[:space:]]*提交[[:space:]]*[:：][[:space:]]*//p' | head -1)"
+  [[ -z "${inner}" ]] && return 1
+  printf '%s\n' "${inner}"
+}
+
 ENTRIES=""
 # 指定了 --version 且只是下载时不联网拉列表（离线/镜像场景友好）；--list 与渠道选择才需要
 if [[ "${LIST_ONLY}" -eq 1 || -z "${TARGET_VERSION}" ]]; then
@@ -366,9 +403,20 @@ else
   warn "缺少 .sha256，未校验（可用 --no-verify 明确跳过）"
 fi
 
+# 包内提交号：tag 不含 commit，只能从 BUILD-INFO.txt 读（--no-extract 也照样打印）
+PKG_COMMIT=""
+if PKG_COMMIT="$(read_package_commit "${PKG}" "${EXT}" "${TOP_DIR}")" && [[ -n "${PKG_COMMIT}" ]]; then
+  ok "包内提交：${PKG_COMMIT}"
+else
+  PKG_COMMIT=""
+  warn "包内未找到 ${TOP_DIR}/BUILD-INFO.txt 的提交信息（旧包或非标准包，可忽略）"
+fi
+
 if [[ "${DO_EXTRACT}" -eq 0 ]]; then
   step "5/6 跳过解压"
   ok "仅下载模式；产物：${PKG}"
+  printf '  版本  ：%s（%s）\n' "${TARGET_VERSION}" "$(tag_kind "${TARGET_VERSION}")"
+  [[ -n "${PKG_COMMIT}" ]] && printf '  提交  ：%s\n' "${PKG_COMMIT}"
   exit 0
 fi
 
@@ -457,6 +505,7 @@ VERIFY_TEXT="未完整校验"
 if [[ "${VERIFY}" -eq 1 && "${SHA_OK}" -eq 1 ]]; then VERIFY_TEXT="SHA256 通过（资产 + 包内）"; fi
 printf '\n\033[1;32m下载完成\033[0m\n'
 printf '  版本  ：%s（%s）\n' "${TARGET_VERSION}" "$(tag_kind "${TARGET_VERSION}")"
+[[ -n "${PKG_COMMIT}" ]] && printf '  提交  ：%s\n' "${PKG_COMMIT}"
 printf '  平台  ：%s/%s\n' "${OS_LABEL}" "${ARCH}"
 printf '  目录  ：%s\n' "${DIR}"
 printf '  校验  ：%s\n' "${VERIFY_TEXT}"
