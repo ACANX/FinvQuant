@@ -105,6 +105,34 @@
   - `Prompt.md` 移至 **`Docs/FinvQuant/V1/Prompt.md`**（`git mv` 保留历史），根目录不再保留；`AGENTS.md`、`README.md` 的目录树/索引与 `Docs/RequirementList.md` 核对命令（10073、10099、10131、10237）中的路径同步更新；历史 CHANGELOG 条目与 `Docs/Refactor/*` 过程文档中的旧路径按历史记录保留。
   - `internal/api/handler/exportarchive.go` → **`cdeu.go`**，`internal/api/handler/exportarchive_admin.go` → **`cdeu_admin.go`**：Go 构建不依赖文件名，包名与导出符号不变，接口行为零变化；`Docs/API/QuoteDeDup/Usc.md` 与 `Docs/RequirementList.md`（10340、10350、10379、10470 核对命令）中的引用同步更新。
 
+### 变更
+
+- **证券元数据 JOB 归入导出批次流程（需求 10837）**
+  - 授权：用户明确要求「`JOB_FETCH_SECURITY_METADATA` 要改到 `PROCESS_EXPORT_BATCH` 中执行」。
+  - 问题：该 JOB 原先挂在 `PROCESS_EXPORT_FILE_MON_BASE`（每证券月一个动态实例的流程）下，
+    但它的语义是「导出前把证券字典里缺失的 region / market / provider / name / timezone /
+    currency（以及 `day_expect_rows`、优先级/SLA 默认值）补齐」——这是**批次级准备**，
+    由 `RUN_DUE_EXPORT_JOBS` 在批次生成之后执行一次，**不随动态实例重复**。
+    挂在 BASE 流程下会让「每证券月」的流程图里出现一个全局步骤，容易误读成每实例都跑。
+  - 迁移 `V100087`：
+    · `JOB_FETCH_SECURITY_METADATA` 的 `process_id` → `PROCESS_EXPORT_BATCH`，`seq_no = 2`
+      （1 = `JOB_FETCH_EXPORT_BATCH` 批次清单，2 = 元数据，符合「先算批次、再补元数据、再装载」）；
+    · `PROCESS_EXPORT_FILE_MON_BASE` 剩余 JOB 的 `seq_no` 由 2..5 重排为连续 1..4
+      （该表有 `UNIQUE (process_id, seq_no)`，重排分两步：先整体 +100 腾出区间，再按原相对顺序写回）；
+    · `execution_stage` 保持 `META` 不变（前端按阶段显示进度）；
+    · 前置校验「Job 当前必须属于 BASE、且未移动过」（幂等）；后置校验「已挂到 BATCH 且 seq=2」
+      「BATCH 启用 JOB 数 = 2」「BASE 的 seq_no 连续无空洞」。
+  - 影响：`RUN_DUE_EXPORT_JOBS` 一个 kind 仍覆盖 6 个 JOB 定义（BATCH 2 + BASE 4），
+    三级顺序门禁里的「多定义编排型 kind 只做阶段级门禁」豁免逻辑不变。
+  - 验证（实测）：
+    · 迁移执行后 `PROCESS_EXPORT_BATCH` = 1. `JOB_FETCH_EXPORT_BATCH`(BATCH) /
+      2. `JOB_FETCH_SECURITY_METADATA`(META)；`PROCESS_EXPORT_FILE_MON_BASE` =
+      1..4 依次 `JOB_EXPORT_LOAD`(LOAD) / `JOB_EXPORT_EXPORT`(EXPORT) /
+      `JOB_EXPORT_REGISTER`(REGISTER) / `JOB_EXPORT_CLEANUP`(CLEANUP)；
+    · 重复执行迁移只打印「已在 PROCESS_EXPORT_BATCH，跳过（幂等）」并保持结果一致；
+    · `TestCDEUJobGate`（7 场景）与 `TestExportStockPage` 均通过。
+  - 文档：`CdeuWorkflowDesign.md` 三处同步（阶段 4 流程表、JOB 说明表、Step 映射表）。
+
 ### 新增
 
 - **Download.sh 回显包内 commit（需求 10836）**

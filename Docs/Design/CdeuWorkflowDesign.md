@@ -312,8 +312,8 @@ COLLECT ──► DEDUP ──► DECISION ──► EXPORT ──► UPLOAD ─
 
 | Process | JOB | 触发 / 基数 | 一句话 |
 |---|---|---|---|
-| `PROCESS_EXPORT_BATCH` 证券导出批次清单获取 | `JOB_FETCH_EXPORT_BATCH` | `EMBEDDED`（RUN_DUE_EXPORT_JOBS 第一段） | 生成当日 BASE/INCR 批次与候选任务 |
-| `PROCESS_EXPORT_FILE_MON_BASE` 证券历史月度行情文件导出 | `JOB_FETCH_SECURITY_METADATA`、`JOB_EXPORT_LOAD`、`JOB_EXPORT_EXPORT`、`JOB_EXPORT_REGISTER`、`JOB_EXPORT_CLEANUP` | 动态实例：每证券月一个 | 元数据 → 装载 → 写文件 → 登记 → 清中转 |
+| `PROCESS_EXPORT_BATCH` 证券导出批次清单获取 | `JOB_FETCH_EXPORT_BATCH`、`JOB_FETCH_SECURITY_METADATA` | `EMBEDDED`（RUN_DUE_EXPORT_JOBS 第一段） | 生成当日 BASE/INCR 批次与候选任务 → 补齐证券元数据（需求 10837 起元数据 JOB 归入本流程） |
+| `PROCESS_EXPORT_FILE_MON_BASE` 证券历史月度行情文件导出 | `JOB_EXPORT_LOAD`、`JOB_EXPORT_EXPORT`、`JOB_EXPORT_REGISTER`、`JOB_EXPORT_CLEANUP` | 动态实例：每证券月一个 | 元数据 → 装载 → 写文件 → 登记 → 清中转 |
 | `PROCESS_EXPORT_FILE_MON_INCR` 证券历史月度行情增量文件导出 | `JOB_SCAN_PATCH` | `SCHEDULED` / `DAILY` 03:00 | 收口后迟到数据 → 重写 BASE 或生成 INCR |
 
 #### 5.4.1 批次与主循环（`JOB_FETCH_EXPORT_BATCH`）
@@ -437,7 +437,7 @@ COLLECT ──► DEDUP ──► DECISION ──► EXPORT ──► UPLOAD ─
 | JOB | 输入 | 处理 | 输出 | 解决的问题 |
 |---|---|---|---|---|
 | `JOB_FETCH_EXPORT_BATCH` | 批次候选、预算、元数据 | 生成批次与候选任务、展开动态实例、领取并驱动 LOAD/EXPORT/CLEANUP | `export_batch` / `export_job` / 动态实例 / 预算消耗 | 把「决策」落成「实际的文件产出」，并做全局限流 |
-| `JOB_FETCH_SECURITY_METADATA`（动态 Step） | 证券字典 | 补齐 region/market/provider/name/timezone/currency | 元数据完整的证券 | 文件名与文件头都依赖元数据，缺一项就无法生成合规文件 |
+| `JOB_FETCH_SECURITY_METADATA` | 证券字典、富途镜像、`finv_security` | 补齐 region/market/provider/name/timezone/currency、`day_expect_rows` 与优先级/SLA 默认值 | 元数据完整的证券 | 文件名与文件头都依赖元数据，缺一项就无法生成合规文件；批次级准备，每轮只跑一次（需求 10837 从 BASE 流程移入 `PROCESS_EXPORT_BATCH`） |
 | `JOB_EXPORT_LOAD`（动态 Step） | 主表该证券月 | 按日游标分页装载到中转表，行数基线校验，支持暂停续跑 | 中转表数据 + 游标 | 把大月份拆成可中断的小段 |
 | `JOB_EXPORT_EXPORT`（动态 Step） | 中转表 | 流式写 MVSV + Manifest | `.mvsv`、`_Manifest.json` | 产出标准交付物 |
 | `JOB_EXPORT_REGISTER`（动态 Step） | 本地文件 | 计算 size/sha256/row_count 并登记 | `export_file` 记录 | 交付状态有唯一权威来源 |
@@ -477,7 +477,7 @@ COLLECT ──► DEDUP ──► DECISION ──► EXPORT ──► UPLOAD ─
 | `JOB_EVALUATE_EXPORT_CONDITION` | — | 单步只读评估（汇总口径） |
 | `JOB_EXPLAIN_EXPORT_DECISION` | — | 单步只读评估（逐条明细 + 文件命名与路径） |
 | `JOB_FETCH_EXPORT_BATCH` | `STEP_FETCH_EXPORT_BATCH` | 批次清单获取 + 驱动导出主循环 |
-| `JOB_FETCH_SECURITY_METADATA` | `STEP_FETCH_SECURITY_METADATA` | 证券元数据补齐 |
+| `JOB_FETCH_SECURITY_METADATA` | `STEP_FETCH_SECURITY_METADATA` | 证券元数据补齐（挂 `PROCESS_EXPORT_BATCH`，紧跟批次清单） |
 | `JOB_EXPORT_LOAD` | `STEP_LOAD` | 主表 → 中转表 |
 | `JOB_EXPORT_EXPORT` | `STEP_EXPORT` | 中转表 → MVSV 文件 |
 | `JOB_EXPORT_REGISTER` | `STEP_REGISTER` | 文件登记 |
