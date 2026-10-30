@@ -105,6 +105,20 @@
   - `Prompt.md` 移至 **`Docs/FinvQuant/V1/Prompt.md`**（`git mv` 保留历史），根目录不再保留；`AGENTS.md`、`README.md` 的目录树/索引与 `Docs/RequirementList.md` 核对命令（10073、10099、10131、10237）中的路径同步更新；历史 CHANGELOG 条目与 `Docs/Refactor/*` 过程文档中的旧路径按历史记录保留。
   - `internal/api/handler/exportarchive.go` → **`cdeu.go`**，`internal/api/handler/exportarchive_admin.go` → **`cdeu_admin.go`**：Go 构建不依赖文件名，包名与导出符号不变，接口行为零变化；`Docs/API/QuoteDeDup/Usc.md` 与 `Docs/RequirementList.md`（10340、10350、10379、10470 核对命令）中的引用同步更新。
 
+### 修复
+
+- **JOB 清单表格出现两条水平滚动条（需求 10837 附带修复）**
+  - 现象：「工作流控制与监控」页选中某个 Process 后，下方「JOB 清单 · <流程名>」表格底部出现
+    **两条水平滚动条**，一条在另一条之上，展示不协调。
+  - 根因：外层 `.job-table-scroll` 设了 `overflow-x: scroll`，而 Vuetify 的 `v-table` 内部还会包一层
+    `.v-table__wrapper`（默认 `overflow-x: auto`）；表格本身设了 `min-width`（列多时的最小宽度），
+    于是内层 wrapper 也溢出滚动 —— 两层各出一根。
+  - 修复：外层改为 `overflow-x: auto`（没溢出就不显示），并新增
+    `.job-table-scroll :deep(.v-table__wrapper) { overflow-x: visible; }`
+    让内层不再产生滚动条，横向溢出统一交给外层那一根（保留原有美化样式）。
+  - 验证：`npx vue-tsc --noEmit` 通过；`npx vite build` 通过（构建产物含该样式）；
+    镜像重建部署，容器 healthy。
+
 ### 变更
 
 - **证券元数据 JOB 归入导出批次流程（需求 10837）**

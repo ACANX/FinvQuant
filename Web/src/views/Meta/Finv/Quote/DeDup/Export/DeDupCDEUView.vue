@@ -2742,11 +2742,20 @@ onBeforeUnmount(() => {
 }
 .job-table-scroll {
   width: 100%;
-  overflow-x: scroll;
+  /* 只保留这一根横向滚动条：auto 表示「没溢出就不显示」，
+     配合下面 .v-table__wrapper 的 overflow-x: visible，
+     避免「外层滚动条 + v-table 内层滚动条」叠成两条。 */
+  overflow-x: auto;
   overflow-y: hidden;
   padding-bottom: 4px;
   scrollbar-width: thin;
   scrollbar-color: rgba(128, 128, 128, 0.55) rgba(128, 128, 128, 0.12);
+}
+/* Vuetify 的 v-table 内部会包一层 .v-table__wrapper，默认 overflow-x: auto；
+   表格设了 min-width 之后它自己也会滚动，与外层形成双层滚动条。
+   这里让内层不滚动，溢出交给外层 .job-table-scroll 处理。 */
+.job-table-scroll :deep(.v-table__wrapper) {
+  overflow-x: visible;
 }
 .job-table-scroll::-webkit-scrollbar {
   height: 14px;

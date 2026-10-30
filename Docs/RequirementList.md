@@ -2388,7 +2388,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10837 | `JOB_FETCH_SECURITY_METADATA` 必须挂在 `PROCESS_EXPORT_BATCH`（导出批次清单获取流程）下执行，且排在 `JOB_FETCH_EXPORT_BATCH` 之后（`seq_no=2`）；原所在的 `PROCESS_EXPORT_FILE_MON_BASE` 剩余 JOB 的 `seq_no` 重排为连续且无空洞。 | `psql -c "select p.process_code, j.seq_no, j.job_code from cdeu.finv_quote_cdeu_job j join cdeu.finv_quote_cdeu_process p on p.process_id=j.process_id where p.process_code in ('PROCESS_EXPORT_BATCH','PROCESS_EXPORT_FILE_MON_BASE') order by 1,2"` 输出中 `PROCESS_EXPORT_BATCH` 为 1=JOB_FETCH_EXPORT_BATCH、2=JOB_FETCH_SECURITY_METADATA，`PROCESS_EXPORT_FILE_MON_BASE` 为连续 1..4；重复执行 `V100087` 打印「已在 PROCESS_EXPORT_BATCH，跳过（幂等）」且结果不变；`go test ./internal/meta/finv/quote/dedup/ -run TestCDEUJobGate`（需 `FINV_TEST_PG_DSN`）7 场景通过 | |
+| 10837 | `JOB_FETCH_SECURITY_METADATA` 必须挂在 `PROCESS_EXPORT_BATCH`（导出批次清单获取流程）下执行，且排在 `JOB_FETCH_EXPORT_BATCH` 之后（`seq_no=2`）；原所在的 `PROCESS_EXPORT_FILE_MON_BASE` 剩余 JOB 的 `seq_no` 重排为连续且无空洞。 | `psql -c "select p.process_code, j.seq_no, j.job_code from cdeu.finv_quote_cdeu_job j join cdeu.finv_quote_cdeu_process p on p.process_id=j.process_id where p.process_code in ('PROCESS_EXPORT_BATCH','PROCESS_EXPORT_FILE_MON_BASE') order by 1,2"` 输出中 `PROCESS_EXPORT_BATCH` 为 1=JOB_FETCH_EXPORT_BATCH、2=JOB_FETCH_SECURITY_METADATA，`PROCESS_EXPORT_FILE_MON_BASE` 为连续 1..4；重复执行 `V100087` 打印「已在 PROCESS_EXPORT_BATCH，跳过（幂等）」且结果不变；`go test ./internal/meta/finv/quote/dedup/ -run TestCDEUJobGate`（需 `FINV_TEST_PG_DSN`）7 场景通过；「工作流控制与监控」页的 JOB 清单表格只出现一条水平滚动条：`grep -c 'job-table-scroll :deep(.v-table__wrapper)' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 为 1 且该规则为 `overflow-x: visible` | |
 
 ## 汇总
 
