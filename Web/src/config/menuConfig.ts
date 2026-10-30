@@ -93,13 +93,8 @@ const finvQuantMenu: MenuNode[] = [
           { key: 'dedup-export-stats', title: '归档统计与预算', icon: 'mdi-chart-box-multiple-outline', path: '/Meta/Finv/Quote/DeDup/Export/Stats' },
           { key: 'dedup-export-config', title: '归档主数据与规则', icon: 'mdi-tune-variant', path: '/Meta/Finv/Quote/DeDup/Export/Config' },
           { key: 'dedup-export-log', title: '归档日志与补丁', icon: 'mdi-text-box-search-outline', path: '/Meta/Finv/Quote/DeDup/Export/Log' },
-          {
-            // CDEU自动化（需求 10864）：自动化/调度相关的挂载点，暂无对应页面与路由，先占位。
-            key: 'cdeu-automation',
-            title: 'CDEU自动化',
-            icon: 'mdi-robot-happy-outline',
-            children: [],
-          },
+          // CDEU自动化（需求 10864 新增，10865 由占位分组改为叶子，指向占位页路由）。
+          { key: 'cdeu-automation', title: 'CDEU自动化', icon: 'mdi-robot-happy-outline', path: '/Meta/Finv/Quote/Cdeu/Automation' },
         ],
       },
       {

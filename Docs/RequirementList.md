@@ -2552,6 +2552,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10864 | 在「行情 → 收剔导传ETL」的「归档日志与补丁」之后新增「CDEU自动化」节点（当前无对应页面与路由，按占位分组处理，`children` 为空数组）。 | `grep -c "key: 'cdeu-automation'" Web/src/config/menuConfig.ts` 为 1 且位于 `key: 'quote-cdeu'` 段内、「归档日志与补丁」之后；该节点 `children: []`；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
 
+## 一百九十一、「CDEU自动化」改为叶子菜单（10865）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10865 | 「CDEU自动化」由占位分组改为**叶子**菜单（`path=/Meta/Finv/Quote/Cdeu/Automation`），并新增对应路由（复用 `PlaceholderView` 占位页，`meta.title=CDEU自动化`），占位页内登记该模块规划说明。 | `grep -c "key: 'cdeu-automation'" Web/src/config/menuConfig.ts` 为 1 且该行为单行叶子（含 `path: '/Meta/Finv/Quote/Cdeu/Automation'`、无 `children`）；`grep -c "'/Meta/Finv/Quote/Cdeu/Automation'" Web/src/router.ts` 为 1；`grep -c "'cdeu-automation': {" Web/src/views/Common/PlaceholderView.vue` 为 1；菜单全部 `path` 有对应路由、图标有效、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2770,7 +2776,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 导出任务→文件导出、文件与上传→文件上传 | 10862 | 1 |
 | 系统显示名改为 FinvQuant策略回测量化交易 | 10863 | 1 |
 | 收剔导传ETL 新增「CDEU自动化」 | 10864 | 1 |
-| **合计** | **10001–10864** | **863** |
+| 「CDEU自动化」改为叶子菜单 | 10865 | 1 |
+| **合计** | **10001–10865** | **864** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

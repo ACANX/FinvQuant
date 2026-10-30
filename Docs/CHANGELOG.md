@@ -107,6 +107,25 @@
 
 ### 变更
 
+- **「CDEU自动化」由占位分组改为叶子菜单并接入占位页（需求 10865）**
+  - 授权：用户明确要求「『归档日志与补丁』菜单后增加『CDEU自动化』**叶子**菜单」
+    ——10864 建的是无子节点的占位分组，本次按叶子形态重做。
+  - 改动：
+    · `Web/src/config/menuConfig.ts`：`cdeu-automation` 由 `children: []` 的分组改为叶子，
+      新增 `path: '/Meta/Finv/Quote/Cdeu/Automation'`；
+    · `Web/src/router.ts`：新增路由
+      `/Meta/Finv/Quote/Cdeu/Automation`（name `cdeu-automation`，component
+      `PlaceholderView`，`meta.title`「CDEU自动化」），与「仿真数据验证」等占位页同一机制；
+    · `PlaceholderView.vue`：在 `plans` 中登记该模块的规划说明（图标、目标描述、三条规划功能：
+      运行模式与低峰窗口集中配置、按拓扑顺序自动推进 JOB、异常自愈）。
+  - 效果：点击「CDEU自动化」会进入占位页并显示「规划中」标记与规划功能清单，
+    不再是无反应的空白分组。
+  - 验证（脚本实测）：`cdeu-automation` 在菜单配置中是叶子（有 `path`、无 `children`）；
+    菜单全部 `path` 均能在 `router.ts` 找到对应路由（含新增这条）；菜单图标全部有效；
+    无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+
+### 变更
+
 - **「收剔导传ETL」下新增「CDEU自动化」挂载点（需求 10864）**
   - 授权：用户明确要求「『归档日志与补丁』菜单后增加『CDEU自动化』」。
   - 改动（`Web/src/config/menuConfig.ts`）：在「行情 → 收剔导传ETL」的 `children` 末尾

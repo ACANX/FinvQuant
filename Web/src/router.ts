@@ -159,6 +159,8 @@ const router = createRouter({
       meta: { title: '投资策略回测收益分析报告' },
     },
     // 仿真数据验证 / 模拟盘验证 / 实盘仿真验证 / 实盘交易（规划占位）
+    // CDEU 域占位页（需求 10865）：CDEU自动化
+    { path: '/Meta/Finv/Quote/Cdeu/Automation', name: 'cdeu-automation', component: PlaceholderView, meta: { title: 'CDEU自动化' } },
     { path: '/Meta/Finv/Quant/Simulation/Data', name: 'simulation-data', component: PlaceholderView, meta: { title: '仿真数据验证' } },
     { path: '/Meta/Finv/Quant/Simulation/Paper', name: 'simulation-paper', component: PlaceholderView, meta: { title: '模拟盘验证' } },
     { path: '/Meta/Finv/Quant/Simulation/LiveSim', name: 'simulation-live-sim', component: PlaceholderView, meta: { title: '实盘仿真验证' } },
