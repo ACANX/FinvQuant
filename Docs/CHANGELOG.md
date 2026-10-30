@@ -135,8 +135,20 @@
     补 `provider='FTMM'`（依据：数据源即 `futu.finv_futu_quote_collect`，历史 202 个已导出
     文件名的 provider 段全部为 FTMM）；迁移 `V200067` 同步补全存量数据。只补空值、只补
     有富途采集记录的证券，不覆盖人工值。
-  - 验证：
+  - 修复四（可见性）：原先 `result.Details` 只随同步 HTTP 响应返回，调度触发跑完即丢弃，
+    前端「执行日志」弹窗里看不到逐条结论。新增 `Service.AppendJobLog`，JOB 内统一 `emit()`
+    双写：容器日志（`docker logs`）与运行日志（`cdeu.finv_quote_cdeu_job_run_log_line`）。
+  - 验证（本轮实测，非推断）：
     - 迁移后 `provider` 空值 39 → 0，新 JOB 已在调度器注册（`调度 EXPLAIN_EXPORT_DECISION：每日 00:16`）。
+    - 端到端集成用例 `TestExplainExportDecisionEndToEnd`（`job` 包，走 `RunWithTrigger` 真实调度入口）
+      通过：`status=SUCCESS`，运行日志落库 13 行「导出决策」明细，`result.Details`
+      含 `total/exportable/excluded/by_reason/items`。
+    - 该用例会造一条必然可导出的探针证券月（元数据齐全 + 已成熟 + 未导出），实测输出：
+      `导出决策 可导出 ITEXP_PROBE 202501 优先级=10 交易日=1 应有行=1440 实际行=1440
+      文件=US_NSDQ_ITEXP_PROBE_Min_FTMM_Mon_202501_Base.mvsv
+      本地=…\ITEXP_PROBE\202501\US_NSDQ_ITEXP_PROBE_Min_FTMM_Mon_202501_Base.mvsv
+      远端=Data/Finv/SecuQuoteMon/FTMM/US_NSDQ/ITEXP_PROBE/US_NSDQ_ITEXP_PROBE_Min_FTMM_Mon_202501_Base.mvsv`，
+      `by_reason=map[ALREADY_EXPORTED:101 CURRENT_MONTH:1 OK:1]`；用例结束后探针数据已清理（残留 0）。
     - 真实库执行决策明细：`总数=102 可导出=0 排除=102 原因分布={ALREADY_EXPORTED:101, CURRENT_MONTH:1}`，
       逐条输出形如「NVDA 202604 原因=ALREADY_EXPORTED 说明=已导出/导出中：job_id=101 status=EXPORTED
       已登记文件=US_NSDQ_NVDA_Min_FTMM_Mon_202604_Base.mvsv」。
