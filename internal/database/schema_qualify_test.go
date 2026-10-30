@@ -23,9 +23,9 @@ var domainTablePrefixes = map[string]string{
 	"finv_futu_":       "futu.",
 }
 
-// cdeuTables CDEU 工作流域的表清单（V100078 建表、V100079 统一前缀，共 26 张）。
+// cdeuTables CDEU 工作流域的表清单（V100078 建表、V100079 统一前缀，共 27 张）。
 //
-// 全部 25 张业务表统一为 finv_quote_cdeu_ 前缀：
+// 全部 26 张业务表统一为 finv_quote_cdeu_ 前缀：
 //
 //	· 原 cdeu_*（12 张）：V100079 把 cdeu_ 替换为 finv_quote_cdeu_
 //	· 原 finv_dedup_*（13 张）：V100078 建表时即替换
@@ -64,6 +64,7 @@ var cdeuTables = map[string]bool{
 	"finv_quote_cdeu_scan_watermark":          true,
 	"finv_quote_cdeu_trade_calendar":          true,
 	"finv_quote_cdeu_usc":                     true,
+	"finv_quote_cdeu_usc_day_incr_row_tpl":    true, // V100084 新增：日增量行数模板
 
 	// 表名不变
 	"finv_quote_secu_kline_min": true,

@@ -2,6 +2,7 @@ package job
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -30,6 +31,12 @@ func init() {
 		if err != nil {
 			return err
 		}
+		// 自动发现只建「证券存在」这个事实，归档必需的默认值（模板 day_expect_rows /
+		// 优先级 100 / 5 / 7）在这里统一补齐，避免新证券因缺期望条数永远停在 PARTIAL。
+		backfill, err := svc.Store().BackfillUscDefaults(ctx)
+		if err != nil {
+			return fmt.Errorf("证券默认值补全失败: %w", err)
+		}
 		var calibrated int64
 		if !found || now.Day() == 1 {
 			svc.ReportJobProgress(ctx, "MATURITY", 60, "全量校准最近 3 个月")
@@ -44,15 +51,17 @@ func init() {
 		}
 		result.ProcessedRows = rows + calibrated
 		result.Details = map[string]any{
-			"incremental_rows": rows,
-			"calibrated_rows":  calibrated,
-			"discovered_usc":   discovered,
-			"watermark_from":   since.Format(time.RFC3339),
-			"watermark_to":     now.Format(time.RFC3339),
-			"threshold":        options.MaturityThreshold,
+			"incremental_rows":  rows,
+			"calibrated_rows":   calibrated,
+			"discovered_usc":    discovered,
+			"backfill_expect":   backfill.DayExpectRows,
+			"backfill_priority": backfill.Priority,
+			"watermark_from":    since.Format(time.RFC3339),
+			"watermark_to":      now.Format(time.RFC3339),
+			"threshold":         options.MaturityThreshold,
 		}
-		log.Printf("[cdeu] %s 完成 incremental_rows=%d calibrated_rows=%d discovered_usc=%d",
-			dedup.JobRefreshQuoteMaturity, rows, calibrated, discovered)
+		log.Printf("[cdeu] %s 完成 incremental_rows=%d calibrated_rows=%d discovered_usc=%d backfill_expect=%d backfill_priority=%d",
+			dedup.JobRefreshQuoteMaturity, rows, calibrated, discovered, backfill.DayExpectRows, backfill.Priority)
 		return nil
 	})
 }

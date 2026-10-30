@@ -14,6 +14,8 @@
 
 约束 `finv_dedup_usc_priority_group_check` 保证三列**同时为 NULL 或同时有值**，不会出现半配置态。
 
+自动补全（需求 10821）：自动发现新证券 / 刷新证券元数据时，三列若同时为 NULL 会直接被写成默认值 100 / 5 / 7（只补空，不覆盖人工设置），使流程无需人工预配置即可运行；自动补全**不写** `priority_gmt_update`，因此 `priority_gmt_update IS NULL` + 三列=默认值表示「默认值」，非 NULL 表示「人工设置过」。
+
 `priority_gmt_update` 独立记录优先级最后修改时间，与主数据的 `gmt_update` 分离，便于审计。
 
 ## 1. GET /Priority/List（查询已配置覆盖的证券，不分页）

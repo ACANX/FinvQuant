@@ -2288,6 +2288,18 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10819 | `finv_security` 与 `futu.finv_futu_quote_collect` 的初始数据以种子/数据迁移形式纳入 `Deploy/Migrations`（`V200062` / `V200063`，均 `ON CONFLICT DO NOTHING`），并将港股人民币柜台币种修正固化为 `V200064`；全新库按版本顺序执行后两表行数分别为 17,199 / 17,138。 | `ls Deploy/Migrations/V20006[234]__*.sql` 命中3 个；`grep -c 'ON CONFLICT DO NOTHING' Deploy/Migrations/V200062__finv_security_seed_supabase.sql` ≥ 35；`grep -c 'ON CONFLICT DO NOTHING' Deploy/Migrations/V200063__finv_futu_quote_collect_seed_supabase.sql` ≥ 35；`select count(*) from public.schema_version where version in ('200062','200063','200064')` 为 3；`select count(*) from futu.finv_futu_quote_collect` 为 17138 | |
 
+## 一百四十七、日增量行数模板与 day_expect_rows 自动补全（10820）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10820 | 新建日增量行数模板表 `cdeu.finv_quote_cdeu_usc_day_incr_row_tpl`（主键 `(region, market, category)`，三列均可为空串表示通配，含 `day_expect_rows` > 0 约束与 `gmt_update` 触发器）并预置市场模板；自动流程发现/刷新证券元数据时，若 `cdeu.finv_quote_cdeu_usc.day_expect_rows` 为空则按模板（特异性降序、模板未命中则不补）补全，已配置的非空值一律不覆盖。 | `test -f Deploy/Migrations/V100084__create_cdeu_usc_day_incr_row_tpl.sql`；`test -f Deploy/Migrations/V200065__cdeu_usc_day_incr_row_tpl_seed.sql`；`select count(*) from information_schema.columns where table_schema='cdeu' and table_name='finv_quote_cdeu_usc_day_incr_row_tpl'` 为 8；`select count(*) from cdeu.finv_quote_cdeu_usc_day_incr_row_tpl where flag_enable='1'` ≥ 10；`grep -c 'func (s *Store) BackfillUscDefaults' internal/meta/finv/quote/dedup/store.go` 为 1；`grep -c 'BackfillUscDefaults' internal/meta/finv/quote/dedup/job/refresh_quote_maturity.go internal/meta/finv/quote/dedup/job/export.go` 各 ≥ 1；库内验证：两轮 JOB 后 `select count(*) from cdeu.finv_quote_cdeu_usc u where u.day_expect_rows is null and exists (select 1 from cdeu.finv_quote_cdeu_usc_day_incr_row_tpl t where t.flag_enable = '1' and (t.region = '' or upper(t.region) = upper(coalesce(u.region, ''))) and (t.market = '' or upper(t.market) = upper(coalesce(u.market, ''))) and (t.category = '' or upper(t.category) = upper(coalesce(u.category, ''))))` 为 0 | |
+
+## 一百四十八、自动发现时补全优先级 / SLA / 最大等待默认值（10821）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10821 | 自动发现新证券、刷新证券元数据时，`priority_rank` / `sla_days` / `max_wait_days` 三列若同时为 NULL（未配置）则统一补默认值 100 / 5 / 7，使 CDEU 流程无需人工预配置即可运行；人工设置过的值不被覆盖，且自动补全不写 `priority_gmt_update`（该列为 NULL 即表示默认值）。 | `grep -c 'defaultPriorityRank = 100' internal/meta/finv/quote/dedup/store.go` 为 1；`grep -c 'priority_rank IS NULL AND sla_days IS NULL AND max_wait_days IS NULL' internal/meta/finv/quote/dedup/store.go` 为 1；库内验证：`select count(*) from cdeu.finv_quote_cdeu_usc where priority_rank is null and sla_days is null and max_wait_days is null` 在两轮 JOB 后为 0；`go test ./internal/meta/finv/quote/dedup/` 通过（`TestBackfillUscDefaults` 在配备测试库时额外验证默认值/不覆盖/幂等） | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2462,7 +2474,9 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 港股人民币柜台货币口径修正 | 10817 | 1 |
 | 富途原始属性镜像表 | 10818 | 1 |
 | 初始数据发放迁移入库 | 10819 | 1 |
-| **合计** | **10001–10819** | **819** |
+| 日增量行数模板与自动补全 | 10820 | 1 |
+| 自动发现补全优先级/SLA 默认值 | 10821 | 1 |
+| **合计** | **10001–10821** | **821** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

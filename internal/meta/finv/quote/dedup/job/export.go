@@ -39,6 +39,17 @@ func RunDueExportJobs(ctx context.Context, svc *dedup.Service, result *dedup.Res
 		return fmt.Errorf("证券元数据获取失败: %w", err)
 	}
 	svc.ReportJobProgress(ctx, "META", 0, fmt.Sprintf("证券元数据获取完成，补齐 %d 条", metadataRows))
+	// 元数据刷新只补 region/market 等派生列；day_expect_rows 与优先级/SLA 默认值
+	// 在这里统一补全（只补空，不覆盖人工维护的值），否则缺期望条数的证券会永远 PARTIAL。
+	backfill, err := svc.Store().BackfillUscDefaults(ctx)
+	if err != nil {
+		return fmt.Errorf("证券默认值补全失败: %w", err)
+	}
+	if backfill.DayExpectRows > 0 || backfill.Priority > 0 {
+		svc.ReportJobProgress(ctx, "META", 0, fmt.Sprintf(
+			"证券默认值补全：day_expect_rows %d 条、优先级/SLA %d 条",
+			backfill.DayExpectRows, backfill.Priority))
+	}
 	svc.AdvanceJobCDEUStage(ctx, "LOAD")
 
 	budget, err := svc.EnsureDailyBudget(ctx, options.Today())

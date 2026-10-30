@@ -26,6 +26,7 @@ const (
 	tableRunLog      = "cdeu.finv_quote_cdeu_job_run_log_export_file"
 	tableRunLogLine  = "cdeu.finv_quote_cdeu_job_run_log_line"
 	tableUsc         = "cdeu.finv_quote_cdeu_usc"
+	tableUscRowTpl   = "cdeu.finv_quote_cdeu_usc_day_incr_row_tpl"
 	tableJob         = "cdeu.finv_quote_cdeu_export_job"
 	tableFile        = "cdeu.finv_quote_cdeu_export_file"
 	tableUploadLog   = "cdeu.finv_quote_cdeu_export_file_upload_log"
@@ -437,6 +438,89 @@ UPDATE `+tableUsc+` u
 		return inserted, err
 	}
 	return inserted, nil
+}
+
+// 归档默认值口径：模板未命中 / 未配置覆盖时的兜底值（沿用 V100051 以来的 100 / 5 / 7）。
+const (
+	defaultPriorityRank = 100
+	defaultSlaDays      = 5
+	defaultMaxWaitDays  = 7
+)
+
+// UscBackfillStat 一次默认值补全的影响行数。
+type UscBackfillStat struct {
+	DayExpectRows int64 // 按模板补齐 day_expect_rows 的证券数
+	Priority      int64 // 补齐 priority_rank / sla_days / max_wait_days 的证券数
+}
+
+// BackfillUscDefaults 为证券主数据补齐归档必需的默认值（只补空，绝不覆盖已有值）。
+//
+// 补全口径（需求 10820 / 10821）：
+//   - day_expect_rows：按模板表 `cdeu.finv_quote_cdeu_usc_day_incr_row_tpl` 匹配
+//     region + market + category（三列均可为空串表示通配，按特异性降序取第一条
+//     启用的模板；特异性相同时按 region / market / category 字典序）。
+//     已有非空值不动——运维改过的值不会被自动流程冲掉。
+//   - priority_rank / sla_days / max_wait_days：三列同时为 NULL（表上的
+//     finv_quote_cdeu_usc_priority_group_check 保证只有这一种组合）时统一补
+//     100 / 5 / 7，保证流程一开始就能自己跑起来；人工设置过的值不动。
+//     自动补全**不写** priority_gmt_update，据此可区分「默认值」与「人工设置」
+//     （priority_gmt_update 为 NULL = 默认值）。
+//
+// 幂等：重复执行影响 0 行。挂在两个 JOB 上——成熟度刷新（DiscoverUsc 之后）
+// 与导出前置（RefreshSecurityMetadata 之后），保证自动发现的新证券与存量
+// 缺值证券在下一轮就能拿到可判定的期望条数。
+func (s *Store) BackfillUscDefaults(ctx context.Context) (UscBackfillStat, error) {
+	var stat UscBackfillStat
+
+	tag, err := s.pool.Exec(ctx, `
+WITH tpl AS (
+    SELECT upper(t.region) AS region,
+           upper(t.market) AS market,
+           upper(t.category) AS category,
+           t.day_expect_rows,
+           (CASE WHEN t.region <> '' THEN 1 ELSE 0 END
+          + CASE WHEN t.market <> '' THEN 1 ELSE 0 END
+          + CASE WHEN t.category <> '' THEN 1 ELSE 0 END) AS specificity
+      FROM `+tableUscRowTpl+` t
+     WHERE t.flag_enable = '1'
+), matched AS (
+    SELECT DISTINCT ON (u.usc) u.usc, tpl.day_expect_rows
+      FROM `+tableUsc+` u
+      JOIN tpl ON (tpl.region = '' OR tpl.region = upper(COALESCE(u.region, '')))
+              AND (tpl.market = '' OR tpl.market = upper(COALESCE(u.market, '')))
+              AND (tpl.category = '' OR tpl.category = upper(COALESCE(u.category, '')))
+     WHERE u.day_expect_rows IS NULL
+     ORDER BY u.usc,
+              tpl.specificity DESC,
+              (tpl.region <> '') DESC,
+              (tpl.market <> '') DESC,
+              (tpl.category <> '') DESC,
+              tpl.region, tpl.market, tpl.category
+)
+UPDATE `+tableUsc+` u
+   SET day_expect_rows = m.day_expect_rows,
+       gmt_update = now()
+  FROM matched m
+ WHERE u.usc = m.usc`)
+	if err != nil {
+		return stat, fmt.Errorf("按模板补全 day_expect_rows 失败: %w", err)
+	}
+	stat.DayExpectRows = tag.RowsAffected()
+
+	tag, err = s.pool.Exec(ctx, `
+UPDATE `+tableUsc+`
+   SET priority_rank = $1,
+       sla_days = $2,
+       max_wait_days = $3,
+       gmt_update = now()
+ WHERE priority_rank IS NULL AND sla_days IS NULL AND max_wait_days IS NULL`,
+		defaultPriorityRank, defaultSlaDays, defaultMaxWaitDays)
+	if err != nil {
+		return stat, fmt.Errorf("补全归档优先级/SLA 默认值失败: %w", err)
+	}
+	stat.Priority = tag.RowsAffected()
+
+	return stat, nil
 }
 
 // RefreshSecurityMetadata 从 finv_security / finv_exchange / finv_market / finv_region 刷新证券主数据。

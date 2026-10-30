@@ -20,6 +20,20 @@
 
 ### 新增
 
+- **日增量行数模板表 + `day_expect_rows` 自动补全（需求 10820）**
+  - 新增迁移 `Deploy/Migrations/V100084__create_cdeu_usc_day_incr_row_tpl.sql`：新建 `cdeu.finv_quote_cdeu_usc_day_incr_row_tpl`（8 列：`region` / `market` / `category` 均可为空串表示通配、`day_expect_rows` INTEGER CHECK > 0、`flag_enable` CHAR(1)、`remark`、`gmt_create` / `gmt_update`），主键 `(region, market, category)`，`gmt_update` 复用 `public.vq_set_gmt_update()` 触发器；`cdeu` 域表数 26 → 27（`DbSchemaSpec` §1 已同步）。
+  - 新增种子迁移 `Deploy/Migrations/V200065__cdeu_usc_day_incr_row_tpl_seed.sql`：预置 10 行市场模板（`ON CONFLICT DO NOTHING`，不覆盖运维调整）——`CN/SH`、`CN/SZ`、`CN/BJ` = 241；`HK/HK`、`HK/HKR` = 331；`US/NSDQ`、`US/PINK` = 390；`US/COMEX`、`FX/CFD` = 1380；`GLOBAL/*/Crypto` = 1440（每行取值依据写在迁移头部）。
+  - 新增 `Store.BackfillUscDefaults`（`internal/meta/finv/quote/dedup/store.go`）：对 `cdeu.finv_quote_cdeu_usc.day_expect_rows` 为空的证券按模板补全，匹配按 `region + market + category`（`upper()` 归一化、支持空串通配、特异性降序取第一条启用模板），**已配置的非空值一律不覆盖**；模板未命中保持 NULL（不凭空给默认值，避免成熟度误判）。
+  - 挂载点：成熟度刷新 JOB（`DiscoverUsc` 之后）与导出 JOB 的元数据阶段（`RefreshSecurityMetadata` 之后）；JOB `Details` 与进度日志输出补全行数。存量缺值证券在下一轮 JOB 自动收敛，不再需要逐个用 `PUT /Usc` 人工补。
+  - 说明：港股 331 是按「330 分钟 + 1，与 A 股 241 同口径」推导的值；若上游分钟源实际每日 332 根，在成熟度阈值 0.95 下两种取值都能判定 `COMPLETE`，直接改模板表对应行的值即可（不需改代码）。
+
+- **自动发现时补全优先级 / SLA / 最大等待默认值（需求 10821）**
+  - `priority_rank` / `sla_days` / `max_wait_days` 三列同时为 NULL（未配置）时，由 `BackfillUscDefaults` 统一补 100 / 5 / 7（沿用 `V100051` 以来的兜底口径），使 CDEU 流程无需人工预配置即可开始运行；人工设置过的值不被覆盖。
+  - 自动补全**不写** `priority_gmt_update`：该列为 NULL 即表示「默认值」、非 NULL 表示「人工设置过」，运维台据此区分两者（三列不进模板表，用户 2026-10-30 明确）。
+  - 新增集成用例 `TestBackfillUscDefaults`（`store_backfill_integration_test.go`）：验证模板命中性（`HK/HK` → 331）、已配置值不覆盖、未命中保持 NULL、优先级默认值 100/5/7、二次执行幂等（默认跳过，需 `FINV_TEST_PG_DSN`）。
+
+### 新增
+
 - **初始数据发放纳入迁移脚本（`V200062`–`V200064`，需求 10819）**
   - `Deploy/Migrations/V200062__finv_security_seed_supabase.sql`（4.3 MB / 17,129 行 / 35 条批量 INSERT）：`finv_security` 初始数据，`ON CONFLICT DO NOTHING`。
   - `Deploy/Migrations/V200063__finv_futu_quote_collect_seed_supabase.sql`（2.5 MB / 17,138 行）：`futu.finv_futu_quote_collect` 初始数据，`ON CONFLICT DO NOTHING`。

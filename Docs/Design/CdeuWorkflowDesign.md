@@ -306,7 +306,7 @@ COLLECT ──► DEDUP ──► DECISION ──► EXPORT ──► UPLOAD ─
 
 1. 低峰窗口检查（`HH:MM:SS|HH:MM:SS`，支持跨零点；手动触发跳过）；
 2. `GenerateExportBatch` 生成当日批次，写入 `cdeu_export_batch` / `cdeu_export_job`（BASE 与 INCR 候选）；
-3. `RefreshSecurityMetadata` 补齐证券元数据（region / market / provider / name / timezone / currency）；
+3. `RefreshSecurityMetadata` 补齐证券元数据（region / market / provider / name / timezone / currency），随后 `BackfillUscDefaults` 按日增量行数模板补 `day_expect_rows`、并把未配置的优先级 / SLA / 最大等待补为 100 / 5 / 7（两者只补空，不覆盖人工值）；
 4. `EnsureDailyBudget` 取当日预算，`InsertCandidateJobs` 把候选变成可领取任务，`GenerateDynamicJobs` 展开为动态实例；
 5. 循环 `ClaimJob`（租约领取）→ `ProcessExportJob`（LOAD → EXPORT → CLEANUP）→ 预算扣减（`AddBudgetConsumed`）→ 状态回写，直到预算耗尽、窗口关闭、无任务或达到单轮上限（`MaxJobsPerRun`）。
 
@@ -411,7 +411,7 @@ COLLECT ──► DEDUP ──► DECISION ──► EXPORT ──► UPLOAD ─
 | JOB | 输入 | 处理 | 输出 | 解决的问题 |
 |---|---|---|---|---|
 | `JOB_CALC_INGEST_STATS` | 主表近 30 天 | 按天聚合行数/证券数/字节 | `finv_quote_cdeu_ingest_stats` | 给预算提供「平常一天进来多少」的基线 |
-| `JOB_REFRESH_MATURITY` | 主表（水位之后）、证券字典 | 增量刷新成熟度；发现新证券；每月 1 日全量校准近 3 个月 | `quote_maturity_mon`、`scan_watermark`、`usc` | 决定「这个月能不能导」（熟度不足导出的就是残缺月） |
+| `JOB_REFRESH_MATURITY` | 主表（水位之后）、证券字典、日增量行数模板 | 增量刷新成熟度；发现新证券；按模板补全 `day_expect_rows` 与优先级/SLA 默认值；每月 1 日全量校准近 3 个月 | `quote_maturity_mon`、`scan_watermark`、`usc`、`usc_day_incr_row_tpl` | 决定「这个月能不能导」（熟度不足导出的就是残缺月） |
 | `JOB_CALC_BUDGET` | 流量基线、待导行数、SLA 压力 | `ComputeBudget` 计算 factor / target / hard_cap | `finv_quote_cdeu_daily_budget` | 给导出装上「油门」，防止归档抢占在线资源 |
 | `JOB_EVALUATE_EXPORT_CONDITION` | 主表、元数据、导出任务 | 只读评估 BASE 条件与排除原因、INCR 候选 | 运行明细（候选数、排除分解、样本） | 让「今天为什么只导了 3 个月」有明确答案 |
 
@@ -488,6 +488,7 @@ COLLECT ──► DEDUP ──► DECISION ──► EXPORT ──► UPLOAD ─
 | `finv_quote_cdeu_ingest_stats` | `stat_date`、`rows`、`usc_count`、`bytes` | 入口流量基线 |
 | `finv_quote_cdeu_quote_maturity_mon` | `usc`、`biz_month`、`maturity_ratio`、`sealed` | 成熟度与定稿状态 |
 | `finv_quote_cdeu_scan_watermark` | `name`、`watermark` | 增量扫描水位（成熟度、补丁） |
+| `finv_quote_cdeu_usc_day_incr_row_tpl` | `region`、`market`、`category`、`day_expect_rows`、`flag_enable` | 日增量行数模板（三列均可为空串通配）：`usc.day_expect_rows` 为空时按此补全 |
 
 ### 7.2 文件产物
 
