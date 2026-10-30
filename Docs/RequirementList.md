@@ -2252,6 +2252,42 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10813 | 在 `Docs/Design/` 下新增 CDEU（采集 → 去重 → 导出 → 上传）归档工作流设计文档，体例对齐 AHA `Docs/Design`（元信息 + 变更日志 + 编号章节 + 表格化结论）：覆盖五级层级模型、状态机与完成条件、六个阶段、17 个 Process、22 个 JOB、15 个静态 Step 的「输入 / 处理 / 输出 / 解决的问题」，以及数据契约、系统配置项、阈值清单、运维排障与 `CdeuOverview`、`CdeuWorkflow` 页面映射。 | `test -f Docs/Design/CdeuWorkflowDesign.md`；`grep -c '^## ' Docs/Design/CdeuWorkflowDesign.md` ≥ 10；`grep -o 'JOB_[A-Z_]*' Docs/Design/CdeuWorkflowDesign.md \| sort -u \| wc -l` ≥ 20；`go test ./internal/docs` 通过 | |
 
+## 一百四十一、finv_security 扩展 type_secu_sub / provider / remark 三列（10814）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10814 | `public.finv_security` 增加 `type_secu_sub`、`provider`、`remark` 三列，均为 `TEXT NOT NULL DEFAULT ''`，并带列注释与末尾收敛校验（列存在性/类型/可空/默认值）。 | `test -f Deploy/Migrations/V100082__finv_security_add_type_secu_sub_provider_remark.sql`；文件内 `ADD COLUMN IF NOT EXISTS type_secu_sub`、`provider`、`remark` 三处均在；`grep -c 'RAISE EXCEPTION' Deploy/Migrations/V100082__finv_security_add_type_secu_sub_provider_remark.sql` ≥ 4 | |
+
+## 一百四十二、Supabase 证券视图下载到本地中转目录（10815）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10815 | 提供 Python 下载脚本，把 Supabase `finv_quote_collect_futu_view` 中 `flag_enable='1'` 的记录以 JSONL（一行一条）落盘到 `FinvQuantDesign/Data/Secu/`，并写 manifest（上游总数、实拉行数、usc 唯一数、sha256）；分页采用游标方式并经上游 count 核对。 | `test -f ../FinvQuantDesign/Scripts/SecuSync/DownloadSecu.py`；`ls ../FinvQuantDesign/Data/Secu/finv_quote_collect_futu_view_*.jsonl` 命中；`ls ../FinvQuantDesign/Data/Secu/finv_quote_collect_futu_view_*.manifest.json` 命中；`grep -c 'gt\.' ../FinvQuantDesign/Scripts/SecuSync/DownloadSecu.py` ≥ 1 | |
+
+## 一百四十三、富途 market_code 转换与幂等插入脚本生成（10816）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10816 | 提供 Python 转换脚本，把上游记录的富途 `market_code` 转换为 `finv_market.market_code`（非一一对应，由映射配置完成）后生成 `finv_security` 插入脚本；脚本对已有记录不更新（`ON CONFLICT DO NOTHING`），新行 `flag_enable='0'`、`provider='FTMM'`、`remark='20261030-SupabasePG-finv_quote_collect_futu_view批量导入'`。 | `test -f ../FinvQuantDesign/Scripts/SecuSync/ExportSecu.py`；`test -f ../FinvQuantDesign/Scripts/SecuSync/SecuMapping.json`；`grep -c 'ON CONFLICT DO NOTHING' ../FinvQuantDesign/Data/Secu/Out/finv_security_insert_*.sql` ≥ 1；`grep -c "'20261030-SupabasePG-finv_quote_collect_futu_view批量导入'" ../FinvQuantDesign/Data/Secu/Out/finv_security_insert_*.sql` ≥ 1；`grep -c "'FTMM'" ../FinvQuantDesign/Data/Secu/Out/finv_security_insert_*.sql` ≥ 1 | |
+
+## 一百四十四、港股人民币柜台货币口径修正（10817）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10817 | 港股人民币柜台（港交所 8 开头 5 位代码，`security_type` 非指数/波动率/债券/商品指数类）的 `currency_type` 一律为 `CNY`；6 位 8 开头港元指数保持 `HKD`；导入脚本与已入库数据同步修正。 | `grep -c 'hkRmbCounter' ../FinvQuantDesign/Scripts/SecuSync/SecuMapping.json` ≥ 1；`test -f ../FinvQuantDesign/Scripts/SecuSync/FixSecuCurrency.py`；库内校验：`select count(*) from public.finv_security where exchange_code=21 and security_code ~ '^8[0-9]{4}$' and security_type not in ('StockIndex','VolatilityIndex','BondIndex','CommodityIndex') and currency_type <> 'CNY'` 为 0；且 `select count(*) from public.finv_security where exchange_code=21 and security_code ~ '^8[0-9]{5}$' and currency_type <> 'HKD'` 为 0 | |
+
+## 一百四十五、富途原始属性镜像表 finv_futu_quote_collect（10818）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10818 | 在 `futu` schema 新建 `finv_futu_quote_collect` 表（`usc` 主键，含 `stock_id`/`futu_symbol`/`market_type`/`market_code`/`instrument_type`/`sub_instrument_type`/`req_section`/`quote_market`/`type_symbol`/`flag_enable`/`remark`/`gmt_create`/`gmt_update`），并支持从上游快照初始化与增量同步（幂等 upsert，可仅同步新增/变更行）。 | `test -f Deploy/Migrations/V100083__create_futu_finv_futu_quote_collect.sql`；`test -f ../FinvQuantDesign/Scripts/SecuSync/BuildFutuQuoteCollect.py`；`select count(*) from public.schema_version where version='100083'` 为 1；`select count(*) from information_schema.columns where table_schema='futu' and table_name='finv_futu_quote_collect'` 为 14；`select count(*) from futu.finv_futu_quote_collect` 为 17138 | |
+
+## 一百四十六、初始数据发放以迁移脚本形式入库（10819）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10819 | `finv_security` 与 `futu.finv_futu_quote_collect` 的初始数据以种子/数据迁移形式纳入 `Deploy/Migrations`（`V200062` / `V200063`，均 `ON CONFLICT DO NOTHING`），并将港股人民币柜台币种修正固化为 `V200064`；全新库按版本顺序执行后两表行数分别为 17,199 / 17,138。 | `ls Deploy/Migrations/V20006[234]__*.sql` 命中3 个；`grep -c 'ON CONFLICT DO NOTHING' Deploy/Migrations/V200062__finv_security_seed_supabase.sql` ≥ 35；`grep -c 'ON CONFLICT DO NOTHING' Deploy/Migrations/V200063__finv_futu_quote_collect_seed_supabase.sql` ≥ 35；`select count(*) from public.schema_version where version in ('200062','200063','200064')` 为 3；`select count(*) from futu.finv_futu_quote_collect` 为 17138 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2420,7 +2456,13 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 深色/浅色主题切换 | 10810–10811 | 2 |
 | CDEU 前端路由调整 | 10812 | 1 |
 | CDEU 归档工作流设计文档 | 10813 | 1 |
-| **合计** | **10001–10813** | **813** |
+| finv_security 扩展三列 | 10814 | 1 |
+| Supabase 证券视图下载到中转目录 | 10815 | 1 |
+| 富途 market_code 转换与插入脚本 | 10816 | 1 |
+| 港股人民币柜台货币口径修正 | 10817 | 1 |
+| 富途原始属性镜像表 | 10818 | 1 |
+| 初始数据发放迁移入库 | 10819 | 1 |
+| **合计** | **10001–10819** | **819** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

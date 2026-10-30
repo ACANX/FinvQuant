@@ -18,6 +18,28 @@
 
 > 0.1.4 开发中。变更按 `新增` / `变更` / `修复` / `移除` / `安全` 分类追加，发布时整体改为版本号并补日期。
 
+### 新增
+
+- **初始数据发放纳入迁移脚本（`V200062`–`V200064`，需求 10819）**
+  - `Deploy/Migrations/V200062__finv_security_seed_supabase.sql`（4.3 MB / 17,129 行 / 35 条批量 INSERT）：`finv_security` 初始数据，`ON CONFLICT DO NOTHING`。
+  - `Deploy/Migrations/V200063__finv_futu_quote_collect_seed_supabase.sql`（2.5 MB / 17,138 行）：`futu.finv_futu_quote_collect` 初始数据，`ON CONFLICT DO NOTHING`。
+  - `Deploy/Migrations/V200064__finv_security_fix_hk_rmb_counter_currency.sql`（72 行）：港币人民币柜台 `currency_type → CNY` 的幂等收敛，保证全新库与生产库一致（`V200009` 把 `81810` 写成 `HKD`，而 `V200062` 因 `ON CONFLICT DO NOTHING` 不覆盖已有行）。
+  - 生成方式：`FinvQuantDesign/Scripts/SecuSync/` 的 `ExportSecu.py` / `BuildFutuQuoteCollect.py` / `FixSecuCurrency.py` 新增 `--migration-out <path>`，可从上游快照直接再生成迁移文件（文件名版本号从 `V<数字>__` 解析）。
+  - 全新库验证：新建 `finv_verify` 库按版本号顺序执行全部 148 个迁移，均成功；`futu.finv_futu_quote_collect` 17,138 行与生产库逐字段完全一致；`finv_security` 17,199 行中有 44 行字段差异——42 行是生产库人工维护的 `market_code` / `flag_enable`（种子值为 `0`），2 行是历史 `usc` 治理口径不同（生产库曾把 `000680` / `000985` 的两个上证指数改为 `SH0680` / `SH0985` 以让出代码给深市股票，本次数据因此能插入山推股份与大庆华科；迁移脚本未包含该次治理）。
+  - 生产库已执行三个迁移（影响 0 行，幂等）并登记 `schema_version`，共 148 条。
+
+- **新建富途原始属性镜像表 `futu.finv_futu_quote_collect`（需求 10818）**
+  - 新增迁移 `Deploy/Migrations/V100083__create_futu_finv_futu_quote_collect.sql`：14 列（`usc` 主键、`stock_id` BIGINT、`futu_symbol`、`market_type` / `market_code` / `instrument_type` / `sub_instrument_type`（INTEGER）、`req_section` 可空、`quote_market`、`type_symbol`、`flag_enable` CHAR(1) DEFAULT '0'、`remark` TEXT NOT NULL DEFAULT ''、`gmt_create` / `gmt_update`），另建唯一索引 `(market_code, futu_symbol)`、索引 `stock_id` 与 `(type_symbol, flag_enable)`，`gmt_update` 复用 `public.vq_set_gmt_update()` 触发器；表属 `futu` 域（`DbSchemaSpec` §1 已登记）。
+  - 数据初始化与增量同步由仓库外工具 `FinvQuantDesign/Scripts/SecuSync/BuildFutuQuoteCollect.py` 完成：默认 `upsert`（`ON CONFLICT (usc) DO UPDATE`，`gmt_create` 不覆盖、`gmt_update` 由触发器刷新），`--conflict-mode append` 可只插不改，`--baseline <上一份快照> --only-changes` 只生成上游新增/变更的行。
+  - 首次初始化：17138 行（上游 `flag_enable='1'` 全量，0 拒绝），与 `finv_security` 的 `usc` 对位 17129 条（差 9 条为上游 `name_sc` / `type_secu` 为空而未入 `finv_security` 的记录）。
+
+- **`finv_security` 扩展三列并支持 Supabase 证券主数据批量导入（需求 10814–10816）**
+  - 新增迁移 `Deploy/Migrations/V100082__finv_security_add_type_secu_sub_provider_remark.sql`：给 `public.finv_security` 增加 `type_secu_sub`、`provider`、`remark` 三列（`TEXT NOT NULL DEFAULT ''`，空串=未维护/未标注/无备注），语义位置分别为 `security_type` 之后、`tz` 之后、`flag_enable` 之后，末尾做列定义收敛校验。
+  - 仓库外新增导入工具 `FinvQuantDesign/Scripts/SecuSync/`（Python 3 标准库，无第三方依赖）：`DownloadSecu.py` 以游标分页（`order=usc.asc` + `usc=gt.`）+ 上游 `count` 核对 + 指数退避重试，把 `finv_quote_collect_futu_view`（`flag_enable='1'`）落盘为 JSONL + manifest（上游总数/实拉行数/sha256）到 `Data/Secu/`；`ExportSecu.py` 按 `SecuMapping.json` 把富途 `market_code` 转换为 `finv_market.market_code`，产出目标行 JSONL、幂等插入 SQL（`BEGIN` / 每 500 行一条 `INSERT ... ON CONFLICT DO NOTHING` / 收敛校验 / `COMMIT`）与转换报告（统计、拒绝明细、待确认项）。
+  - 本批次导入约定：`flag_enable='0'`（新行默认禁用）、`provider='FTMM'`、`remark='20261030-SupabasePG-finv_quote_collect_futu_view批量导入'`；**表中已有记录不做更新**（主键 `usc` 与唯一约束 `(exchange_code, security_code)` 命中即整行跳过）。
+  - 首次实测（2026-10-30 快照，17,138 条源记录）：可插入 17,129 条，拒绝 9 条（`name_sc` 空 6 条、`type_secu` 空 3 条）；生成的 SQL 与目标行 JSONL 逐行逐值核对一致。
+  - 文档同步：`Docs/DataDictMapping/FinvSecurity.md` 字段表补三列并新增「扩展列」「Supabase 批量导入批次」两条说明。
+
 ### 变更
 
 - **`AGENTS.md` 新增「授权边界（强制）」条款**
@@ -62,6 +84,15 @@
 - **文档归档与处理器文件重命名**
   - `Prompt.md` 移至 **`Docs/FinvQuant/V1/Prompt.md`**（`git mv` 保留历史），根目录不再保留；`AGENTS.md`、`README.md` 的目录树/索引与 `Docs/RequirementList.md` 核对命令（10073、10099、10131、10237）中的路径同步更新；历史 CHANGELOG 条目与 `Docs/Refactor/*` 过程文档中的旧路径按历史记录保留。
   - `internal/api/handler/exportarchive.go` → **`cdeu.go`**，`internal/api/handler/exportarchive_admin.go` → **`cdeu_admin.go`**：Go 构建不依赖文件名，包名与导出符号不变，接口行为零变化；`Docs/API/QuoteDeDup/Usc.md` 与 `Docs/RequirementList.md`（10340、10350、10379、10470 核对命令）中的引用同步更新。
+
+### 修复
+
+- **港股人民币柜台 `currency_type` 口径修正（需求 10817）**
+  - 问题：Supabase 证券主数据按市场统一取币种，港交所记录一律落 `HKD`，导致 **8 开头的 5 位代码人民币柜台**（如 `80700` 腾讯控股-R、`81810` 小米集团-WR、`82840` SPDR金-R）被写成 `HKD`，与实际结算货币不符。
+  - 口径：港交所 **8 开头 5 位代码**且 `security_type` 不属于 `StockIndex`/`VolatilityIndex`/`BondIndex`/`CommodityIndex` → `currency_type='CNY'`；**6 位** `800100` 一类港元计价指数（国企指数、恒指波幅指数等）保持 `HKD`。
+  - 工具侧：`FinvQuantDesign/Scripts/SecuSync/` 的 `ExportSecu.py` 增加 `hkRmbCounter` 规则（优先于交易所默认币种），使后续增量拉取直接产出 `CNY`；新增 `FixSecuCurrency.py` 按 `currencyFixRules` 生成可重复执行的更正 SQL（幂等 + 收敛校验）。
+  - 数据侧：已对库内 23 条误写为 `HKD` 的人民币柜台执行 `UPDATE`（另有 3 条历史数据本就是 `CNY`，未被重复更新）；校验后 26 条人民币柜台全为 `CNY`、261 条 8 开头港元指数全为 `HKD`；重跑同 SQL `UPDATE 0`。
+  - 文档同步：`Docs/DataDictMapping/FinvSecurity.md` §3 补充「`currency_type` 口径（港股人民币柜台）」说明。
 
 ## [0.1.3] - 2026-10-29
 

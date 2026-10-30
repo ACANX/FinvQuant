@@ -12,6 +12,7 @@
 | `exchange_code` | INTEGER | NOT NULL，1~999999 | 交易所代码（关联 [FinvExchange](FinvExchange.md) `exchange_code`） |
 | `market_code` | INTEGER | NOT NULL DEFAULT 0 | 交易市场代码（关联 [FinvMarket](FinvMarket.md) `market_code`；缺省 0=未维护；V100019 新增，供历史行情导入自动带出/匹配） |
 | `security_type` | TEXT | NOT NULL | 证券类型（如 `Futures` / `StockIndex` / `Stock` / `ETF`） |
+| `type_secu_sub` | TEXT | NOT NULL DEFAULT '' | 证券属性子类（沿用上游 `type_secu_sub`，如 `Stock.SZ` / `ETF.US`；空串=未维护；V100082 新增） |
 | `security_code` | TEXT | NOT NULL | 源证券代码（交易所原始代码） |
 | `security_name` | TEXT | NOT NULL | 源证券名称 |
 | `security_name_cn` | TEXT | NOT NULL | 证券名称（中文） |
@@ -20,6 +21,8 @@
 | `init_date` | INTEGER | NOT NULL DEFAULT 20000000 | 首次上市交易日期（yyyyMMdd） |
 | `timezone` | TEXT | 可空 | 时区（如 `-04:00` / `+08:00`） |
 | `tz` | TEXT | 可空 | 时区标识（如 `America/New_York` / `Asia/Shanghai`） |
+| `provider` | TEXT | NOT NULL DEFAULT '' | 数据提供方（如 `FTMM`；空串=未标注；V100082 新增） |
+| `remark` | TEXT | NOT NULL DEFAULT '' | 备注（批次标记，如 `20261030-SupabasePG-finv_quote_collect_futu_view批量导入`；空串=无备注；V100082 新增） |
 | `flag_enable` | CHAR(1) | NOT NULL DEFAULT '0' | 启用标志（'0'=禁用，'1'=启用；V100018 新增，供元数据维护菜单切换；禁用后不出现在证券下拉字典） |
 | `gmt_create` | TIMESTAMPTZ | NOT NULL DEFAULT now() | 首次插入时间 |
 | `gmt_update` | TIMESTAMPTZ | NOT NULL DEFAULT now() | 最后更新时间（触发器维护） |
@@ -60,5 +63,8 @@
 - **统一证券代码（usc）**：全局唯一标识，跨交易所/市场稳定不变；源证券代码（`security_code`）可能因交易所规则变化，usc 不随其变化。
 - **增量数据（V100009）**：`usc` / `security_code` 取自 `futu.finv_futu_mapping_security.finv_usc`（富途 code 经转换规则）；`exchange_code` 按 [FinvExchange.md](FinvExchange.md) 映射（SEHK→21、US→30、SSE→11、SZSE→12、BSE→13、COMEX/NYMEX/CME/CBOT→33、CBOE→34、OSE→51、JP→52、SGX→53、FX→100）；无对应交易所（加密货币/债券/基金/板块等）暂以 `100` 兜底，待 finv_exchange 扩展后修正；`security_type` 扩展至 Stock/ETF/Fund/Futures/StockIndex/Forex/Crypto/Bond/Sector/Structured/Indicator；`init_date` 未知统一 `20000000` 占位；与既有数据冲突的行由 `ON CONFLICT DO NOTHING` 幂等跳过（usc 冲突：GCMain/HXC/NDX；(exchange_code, security_code) 冲突：000688↔KC50、899050↔BSE50I、000510↔A500、800000↔HSI、800700↔HSTI——同一证券在 finv 体系与富途 code 体系下的双记录，待 usc 归一化统一）。
 - **关联字典**：`exchange_code` → [FinvExchange.md](FinvExchange.md)（交易所/市场）；`currency_type` → [FinvCurrency.md](FinvCurrency.md)（货币/汇率）。关联不建物理外键，由程序层控制（项目惯例）。
+- **扩展列（V100082）**：`type_secu_sub` / `provider` / `remark` 三列均为 `TEXT NOT NULL DEFAULT ''`，空串表示「未维护 / 未标注 / 无备注」，避免存量行出现 NULL 语义分裂（与 `finv_market.market_symbol` 口径一致）。语义位置：`type_secu_sub` 紧跟 `security_type`，`provider` 在 `tz` 之后，`remark` 在 `flag_enable` 之后；物理位置按 PostgreSQL `ADD COLUMN` 限制追加在表尾。
+- **Supabase 批量导入批次**：上游视图 `finv_quote_collect_futu_view`（`provider=FTMM`）按 `flag_enable='1'` 下载、转换后插入本表，约定 `flag_enable='0'`（待人工启用）、`provider='FTMM'`、`remark='20261030-SupabasePG-finv_quote_collect_futu_view批量导入'`；**表中已有记录一律不更新**（`ON CONFLICT DO NOTHING`）。上游 `market_code`（富途原码）与本表 `market_code`（`finv_market` 新编码）不是一一对应，转换在导入工具中完成，工具与映射表位于仓库外设计目录 `FinvQuantDesign/Scripts/SecuSync/`。
+- **`currency_type` 口径（港股人民币柜台）**：港交所**8 开头的 5 位代码**是人民币柜台（名称带 `-R` / `-WR`，如 `80700` 腾讯控股-R、`81810` 小米集团-WR），`currency_type` 必须为 `CNY`，不能随市场默认写 `HKD`；**6 位** `800100` 一类是港元计价指数（国企指数、恒指波幅指数等），仍为 `HKD`。区分依据是代码位数 + `security_type`（指数类不适用人民币柜台规则）。
 - **init_date 占位**：`20000000` 表示未上市或未知（MySQL 默认值，PG 侧保留）。
 - **审计字段**：`gmt_create` / `gmt_update` 与既有表规范一致，`gmt_update` 由 `vq_set_gmt_update()` 触发器自动维护。
