@@ -191,7 +191,7 @@ export const menuSystems: MenuSystem[] = [
   {
     key: 'finvquant',
     title: '金融投资',
-    subtitle: '量化策略交易平台',
+    subtitle: '策略回测量化交易',
     icon: 'mdi-finance',
     path: '/Meta/Finv',
     // /Dashboard 与存量小写 /meta/* 路由同样归属金融投资

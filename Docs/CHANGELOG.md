@@ -107,6 +107,25 @@
 
 ### 变更
 
+- **系统显示名统一改为「FinvQuant策略回测量化交易」（需求 10863）**
+  - 授权：用户要求把页面顶部标题「FinvQuant 量化策略交易平台」改为
+    「FinvQuant策略回测量化交易」（先后给出「策略量化交易平台」→「策略量化交易系统」
+    两次中间版本，最终以「FinvQuant策略回测量化交易」为准）。
+  - 改动（6 处，保持全站同一写法）：
+    · `Web/src/App.vue`：顶栏标题（用户点名的那处）；
+    · `Web/index.html`：浏览器标签页 `<title>`；
+    · `Web/src/router.ts`：无页面标题时的 `document.title` 兜底值；
+    · `Web/src/views/Common/LoginView.vue`：登录页标题；
+    · `Web/src/config/menuConfig.ts`：一级系统「金融投资」的 `subtitle`
+      （顶栏下拉与抽屉标题展示，改为「策略回测量化交易」）；
+    · `Web/src/views/Common/PlaceholderView.vue`：占位页正文中的品牌名。
+  - 验证（脚本实测）：`FinvQuant策略回测量化交易` 在上述 5 个文件中各出现 1 次；
+    旧写法「量化策略交易平台」「策略量化交易平台」「策略量化交易系统」「交易平台」
+    在 `Web/src` 与 `Web/index.html` 中均为 0 次；`npx vue-tsc --noEmit` 与
+    `npx vite build` 通过，构建产物 `dist/index.html` 中含新标题 1 次。
+
+### 变更
+
 - **「导出任务」改名为「文件导出」、「文件与上传」改名为「文件上传」（需求 10862）**
   - 授权：用户明确要求「『导出任务』更名为『文件导出』，『文件与上传』更名为『文件上传』」。
   - 改动：

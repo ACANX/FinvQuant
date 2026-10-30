@@ -2540,6 +2540,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10862 | 「导出任务」更名为「文件导出」、「文件与上传」更名为「文件上传」；两个叶子 key、图标、路由路径不变，路由 `meta.title` 与页面内标题同步。 | `grep -c "title: '文件导出'" Web/src/config/menuConfig.ts` 为 1、`title: '文件上传'` 为 1；`grep -rc "title: '导出任务'\|title: '文件与上传'" Web/src/config/menuConfig.ts` 为 0；`grep -c "meta: { title: '文件导出' }" Web/src/router.ts` 为 1、`meta: { title: '文件上传' }` 为 1；`grep -rc "月归档导出任务\|月归档导出文件与上传" Web/src` 为 0；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
 
+## 一百八十九、系统显示名改为「FinvQuant策略回测量化交易」（10863）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10863 | 页面顶部标题「FinvQuant 量化策略交易平台」改为「FinvQuant策略回测量化交易」，并同步浏览器页签标题、`document.title` 兜底、登录页标题、一级系统副标题与占位页文案。 | `grep -rc "FinvQuant策略回测量化交易" Web/src/App.vue Web/index.html Web/src/router.ts Web/src/views/Common/LoginView.vue Web/src/views/Common/PlaceholderView.vue` 各 ≥ 1；`grep -rc "量化策略交易平台\|交易平台" Web/src Web/index.html` 为 0；`grep -c "subtitle: '策略回测量化交易'" Web/src/config/menuConfig.ts` 为 1；`npx vue-tsc --noEmit` 与 `npx vite build` 通过，且 `dist/index.html` 含新标题 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2756,7 +2762,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 「行情数据归档」移入「行情」 | 10860 | 1 |
 | K线数据查询/统计前置到 ETL 最前 | 10861 | 1 |
 | 导出任务→文件导出、文件与上传→文件上传 | 10862 | 1 |
-| **合计** | **10001–10862** | **861** |
+| 系统显示名改为 FinvQuant策略回测量化交易 | 10863 | 1 |
+| **合计** | **10001–10863** | **862** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

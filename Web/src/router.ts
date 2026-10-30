@@ -207,7 +207,7 @@ window.addEventListener(UNAUTHORIZED_EVENT, () => {
 
 router.afterEach((to) => {
   const title = (to.meta.title as string) ?? ''
-  document.title = title ? `${title} · FinvQuant` : 'FinvQuant 量化策略交易平台'
+  document.title = title ? `${title} · FinvQuant` : 'FinvQuant策略回测量化交易'
 })
 
 export default router

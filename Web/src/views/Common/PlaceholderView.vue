@@ -61,7 +61,7 @@ const plan = computed(() => plans[route.name as string] ?? {
         </v-list>
         <v-divider class="my-4" />
         <p class="text-body-2 text-medium-emphasis">
-          该模块与「量化策略验证 → 黄金期货合约回测验证」同属 FinvQuant 量化策略交易平台能力矩阵。
+          该模块与「量化策略验证 → 黄金期货合约回测验证」同属 FinvQuant策略回测量化交易能力矩阵。
           当前已落地：策略管理（结构化定义）、账户管理（回测账户）、回测分析（任务与报告）、
           黄金期货合约回测验证（GCMain 等标的通用回测）。本模块将在后续迭代中实现。
         </p>
