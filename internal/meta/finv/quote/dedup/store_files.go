@@ -286,7 +286,15 @@ WITH picked AS (
      AND (f.gmt_next_retry IS NULL OR f.gmt_next_retry <= now())
      AND f.export_status = 'EXPORTED'
      AND f.file_type <> 'MANIFEST'
-   ORDER BY f.gmt_create, f.file_id
+   -- 同流程内的动态上传 JOB 以 CDEU 定义的 seq_no（按 file_id 生成）为先，
+   -- 缺失时退回创建时间与 file_id（需求 10831）。
+   ORDER BY COALESCE((SELECT dj.seq_no
+                        FROM `+tableDynamicJob+` dj
+                       WHERE dj.file_id = f.file_id
+                         AND dj.job_category = 'UPLOAD'
+                       ORDER BY dj.dynamic_job_id DESC
+                       LIMIT 1), 2147483647),
+            f.gmt_create, f.file_id
    LIMIT 1
    FOR UPDATE SKIP LOCKED
 )

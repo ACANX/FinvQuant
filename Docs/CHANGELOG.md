@@ -107,6 +107,41 @@
 
 ### 修复
 
+- **动态 JOB 领取顺序未体现 CDEU 定义的拓扑次序（需求 10831）**
+  - 问题：同流程下的同类型动态 JOB（每证券月的 `EXPORT`、每文件的 `UPLOAD`）创建时已经写了 `cdeu.finv_quote_cdeu_job_dynamic.seq_no`（导出按 `usc, biz_month`、上传按 `file_id` 生成），但领取时的排序完全不看它——导出用 `ClaimJob` 的「`FROZEN` 紧急度 → `priority_rank` → `oldest_pending_date` → `job_id`」，上传用文件表的 `gmt_create, file_id`。于是「定义了拓扑顺序」却没有生效，同优先级时只能靠自增主键兜底。
+  - 修复（不加新配置，顺序规则按业务口径固化）：**优先级仍然是主序**
+    - 导出：`FROZEN` 紧急度 → `priority_rank` → `oldest_pending_date` → **动态 `seq_no`** → `job_id`；
+    - 上传：**动态 `seq_no`** → `gmt_create` → `file_id`（上传的 `seq_no` 即按文件顺序生成，等价但改为声明式）；
+    - `seq_no` 缺失（非动态任务）用 `2147483647` 兜底，等同不参与排序。
+  - 语义：同一流程下同类型动态 JOB 之间「没定义独立拓扑 → 按运维定义的优先级执行；优先级并列（或该类型只定义拓扑）→ 按 CDEU 的 `seq_no` 拓扑顺序执行」。
+  - 验证（真实库事务内造数、验完回滚）：两条同 `priority_rank`/`oldest_pending_date` 的任务，`seq_no` 分别为 2 与 1 → 选中 `seq_no=1` 的那条；把 `seq_no=2` 那条的 `priority_rank` 改成 1（更高优先级）→ 仍然选中高优先级那条，证明优先级优先于拓扑顺序。
+
+- **CDEU 阶段内流程与流程内 JOB 也会抢跑（需求 10830）**
+  - 问题（承接 10829 的跨阶段排查）：三级串行门禁原先同样只在**完成判定**里生效——
+    `cdeuProcessHasEarlierUnfinished` 由 `EvaluateCDEUProcess` 调用，`cdeu_job.seq_no` 从未参与任何运行期判断。于是：
+    - `PHASE_DECISION` 的「采集统计 → 成熟度扫描 → 预算计算 → 导出条件评估」四个 Process 各自按 00:05/00:05/00:10/00:15 独立触发，预算可能在成熟度刷新完成前就算完；
+    - `PHASE_REVIEW` 的 `PROCESS_PURGE`（`PURGE_EXPORTED_MONTH` → `PURGE_LOCAL_FILES`）与 `PROCESS_RETENTION`（`PURGE_STALE_DYNAMIC` → `PURGE_HISTORY_RUNS`）两个 JOB 之间没有顺序保证；
+    - 另有一个隐藏缺陷：`Store.CDEUPhaseGateForJob` 用 `j.job_code = kind` 匹配，而调度器传的是 `job_kind`（如 `RUN_DUE_EXPORT_JOBS`），导致导出主 JOB 完全绕过门禁。
+  - 修复：把门禁扩展为 **三级**（`Store.CDEUJobGate`，按 `Phase → Process → JOB` 优先级返回第一条阻塞项）：
+    1. Phase 级：同工作流内 `seq_no` 更小、`enabled`、`affects_completion` 的前序阶段；
+    2. Process 级：同阶段内 `seq_no` 更小的前序流程；
+    3. JOB 级：同流程内 `seq_no` 更小的前序 JOB。
+    阻塞口径与完成判定一致：前序**从未开始**或**已失败**（`FAILED`/`PARTIAL`/`CANCELLED`）→ 不触发；前序**已在跑** → 放行（否则持续型阶段/流程会把后序饿死）。
+  - 匹配口径修正：改为按 `job_kind` 查定义（与 `CDEUJobDefinitions` 一致），导出主 JOB 重新纳入门禁。
+  - 跨流程编排型 kind 豁免：`RUN_DUE_EXPORT_JOBS` 一个 kind 覆盖 6 个 JOB 定义（`PROCESS_EXPORT_BATCH` + `PROCESS_EXPORT_FILE_MON_BASE` 的 5 个），它本身就是要推进这些流程的编排器，只施加 Phase 级门禁，否则会被自己推进的流程挡住而死锁。
+  - 验证：集成用例 `TestCDEUJobGate` 覆盖 7 个场景并全部通过——跨阶段拦截、阶段内前序流程拦截、前序流程完成后放行、流程内前序 JOB 拦截与放行、前序失败拦截（原因写明「已失败」）、多定义 kind 不被自身流程阻塞、首个阶段永不被拦。
+
+- **CDEU 各阶段抢跑：导出决策 / 导出 / 上传 / 复核并行执行（需求 10829）**
+  - 问题：CDEU 的阶段串行门禁（`cdeuPhasePredecessorState`）只作用在**完成判定**（`EvaluateCDEUPhase`），不阻止 JOB 开始；而各阶段 JOB 由调度器按各自 cron / 间隔独立触发（导出 60 秒一轮、上传 300 秒、决策 00:05–00:15、定稿 00:20），于是 `PHASE_DECISION` / `PHASE_EXPORT` / `PHASE_UPLOAD` / `PHASE_REVIEW` 并行跑，与设计拓扑 `COLLECT → DEDUP → DECISION → EXPORT → UPLOAD → REVIEW` 不符；且调度时间本身倒挂（`PHASE_DEDUP` 的 `JOB_MARK_SEALED` 在 00:20，晚于 `PHASE_DECISION` 的 00:05–00:15）。
+  - 修复：新增 `Store.CDEUJobGate` + `Service.CDEUJobGate`，调度器在更新「本轮已跑」标记**之前**判断门禁：
+    - 前序阶段从未开始（`started_at IS NULL` 且非 `SUCCESS`/`SKIPPED`）→ 本轮不触发；
+    - 前序阶段已失败（`FAILED`/`PARTIAL`/`CANCELLED`）→ 本轮不触发，日志写明「前序阶段 X 已失败，等待人工处理」；
+    - 前序是持续型阶段（已在跑、当前可能又变 `RUNNING`）→ 放行，避免上传阶段被导出阶段饿死；
+    - 旁路阶段（`affects_completion=false`）与 **手动触发**不受门禁限制。
+  - 关键实现细节：被门禁拦下时**不写** `lastRun` / `lastDay`，保持「到期」状态，前序完成后下一个 tick（30 秒）自动继续——否则「00:05 到期的决策 JOB」会被标成今天已跑，DEDUP 00:20 完成后当天再也不会执行。门禁日志按 JOB 5 分钟节流，避免每 30 秒刷屏。
+  - 效果：时间表仅作参考，真实执行顺序由拓扑门禁保证——例如服务在 00:04 启动时，`PHASE_DECISION` 的 JOB 到点后被 DEDUP 拦住，等 00:20 定稿完成再自动执行。
+  - 验证：新增集成用例 `TestCDEUPhaseGate`（`FINV_TEST_PG_DSN` 时执行）覆盖四个场景——前序未开始被拦、前序成功后放行、前序失败被拦且原因写明失败、首个阶段永不被拦，全部通过。
+
 - **重复跑补全流程会把人工清空的优先级/SLA 恢复成默认值（需求 10827）**
   - 问题：运维在「优先级」里清空某证券的覆盖值（`DELETE /Priority` → 三列置 NULL 且 `priority_gmt_update = now()`），下一轮补全又会按「三列全空」补成 100 / 5 / 7 —— 人工清空的意图被覆盖，看起来像「字段被重置」。
   - 修复：补全的优先级阶段增加 `priority_gmt_update IS NULL` 条件，只有「**从未配置过**」的证券才补默认值：

@@ -1430,12 +1430,19 @@ ON CONFLICT (usc, biz_month) DO NOTHING`,
 
 // ClaimJob 领取一个到期任务：行锁 + 租约 + SKIP LOCKED（多 worker 安全）。
 //
-// 排序（I-02）：FROZEN > 临近 freeze_date（≤3 天）> priority_rank > oldest_pending_date。
+// 排序（I-02）：FROZEN > 临近 freeze_date（≤3 天）> priority_rank > oldest_pending_date
+// > 动态 JOB 的 seq_no > job_id。
+//
+// 关于 seq_no（需求 10831）：同一流程下的同类型动态 JOB（导出/上传）之间**以优先级为准**
+// （priority_rank 与 oldest_pending_date 是运维/业务定义的口径）；当上述优先级完全并列时，
+// 再按 CDEU 定义的 `cdeu.finv_quote_cdeu_job_dynamic.seq_no`（创建时按 usc/biz_month 生成）
+// 决定先后，做到「没定义独立拓扑就用优先级，定义了拓扑顺序就按拓扑顺序」。
+// seq_no 缺失（非动态任务）用最大值兜底，等同于不参与排序。
 func (s *Store) ClaimJob(ctx context.Context, worker string, lease time.Duration) (*Job, error) {
 	rows, err := s.pool.Query(ctx, `
 WITH picked AS (
   SELECT job_id
-    FROM `+tableJob+`
+    FROM `+tableJob+` t
    WHERE (status IN ('WAITING', 'PAUSED', 'FROZEN')
           AND (gmt_next_run IS NULL OR gmt_next_run <= now()))
       OR (status IN ('LOADING', 'LOADED', 'EXPORTING')
@@ -1445,6 +1452,12 @@ WITH picked AS (
                  ELSE 2 END,
             priority_rank,
             COALESCE(oldest_pending_date, 99999999),
+            COALESCE((SELECT dj.seq_no
+                        FROM `+tableDynamicJob+` dj
+                       WHERE dj.export_job_id = t.job_id
+                         AND dj.job_category = 'EXPORT'
+                       ORDER BY dj.dynamic_job_id DESC
+                       LIMIT 1), 2147483647),
             job_id
    LIMIT 1
    FOR UPDATE SKIP LOCKED

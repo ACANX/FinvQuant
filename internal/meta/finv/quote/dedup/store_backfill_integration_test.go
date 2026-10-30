@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -241,5 +242,197 @@ SELECT expected_rows, maturity_status FROM cdeu.finv_quote_cdeu_quote_maturity_m
 	if stat.DayExpectRows != 0 || stat.Priority != 0 || stat.MetadataRows != 0 || stat.DerivedRows != 0 || stat.MaturityRows != 0 {
 		t.Fatalf("重复补全应幂等（影响 0 行），实际 metadata=%d derived=%d day_expect_rows=%d priority=%d maturity=%d",
 			stat.MetadataRows, stat.DerivedRows, stat.DayExpectRows, stat.Priority, stat.MaturityRows)
+	}
+}
+
+// TestCDEUJobGate 校验调度侧的三级拓扑顺序门禁（需求 10829 / 10830）：
+// 跨阶段、阶段内跨流程、流程内跨 JOB 都必须按 seq_no 依次执行。
+//
+// 需要一个**可清空的测试库**（会执行全量迁移），DSN 见 TestStoreIntegration。
+func TestCDEUJobGate(t *testing.T) {
+	dsn := os.Getenv("FINV_TEST_PG_DSN")
+	if dsn == "" {
+		t.Skip("未设置 FINV_TEST_PG_DSN，跳过数据库集成测试")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	config, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		t.Fatalf("解析测试 DSN 失败: %v", err)
+	}
+	config.ConnConfig.RuntimeParams["search_path"] = "public,quote,quant,futu,export,sche,cdeu,archive,sys"
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatalf("连接测试库失败: %v", err)
+	}
+	defer pool.Close()
+	if err := database.Migrate(ctx, pool, filepath.Join("..", "..", "..", "..", "..", "Deploy", "Migrations")); err != nil {
+		t.Fatalf("执行迁移失败: %v", err)
+	}
+
+	store := NewStore(pool)
+	// 用远期日期隔离，避免影响其它集成用例当天的活动运行。
+	bizDate := time.Date(2099, 12, 30, 0, 0, 0, 0, time.UTC)
+	cleanup := func(cleanupCtx context.Context) {
+		_, _ = pool.Exec(cleanupCtx, `
+DELETE FROM cdeu.finv_quote_cdeu_job_run
+ WHERE workflow_run_id IN (SELECT run_id FROM cdeu.finv_quote_cdeu_workflow_run WHERE biz_date = $1)`, bizDate)
+		_, _ = pool.Exec(cleanupCtx, `
+DELETE FROM cdeu.finv_quote_cdeu_process_run
+ WHERE workflow_run_id IN (SELECT run_id FROM cdeu.finv_quote_cdeu_workflow_run WHERE biz_date = $1)`, bizDate)
+		_, _ = pool.Exec(cleanupCtx, `
+DELETE FROM cdeu.finv_quote_cdeu_phase_run
+ WHERE workflow_run_id IN (SELECT run_id FROM cdeu.finv_quote_cdeu_workflow_run WHERE biz_date = $1)`, bizDate)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM cdeu.finv_quote_cdeu_workflow_run WHERE biz_date = $1`, bizDate)
+	}
+	cleanup(ctx)
+	defer cleanup(context.Background())
+
+	var workflowID int64
+	var workflowCode string
+	var version int
+	if err := pool.QueryRow(ctx, `
+SELECT workflow_id, workflow_code, version FROM cdeu.finv_quote_cdeu_workflow
+ WHERE enabled ORDER BY workflow_id LIMIT 1`).Scan(&workflowID, &workflowCode, &version); err != nil {
+		t.Fatalf("读取工作流定义失败: %v", err)
+	}
+	var runID int64
+	if err := pool.QueryRow(ctx, `
+INSERT INTO cdeu.finv_quote_cdeu_workflow_run
+  (workflow_id, workflow_code, workflow_version, run_key, biz_date, trigger_type, status, started_at)
+VALUES ($1, $2, $3, $4, $5, 'SCHEDULE', 'RUNNING', now()) RETURNING run_id`,
+		workflowID, workflowCode, version, "it-gate-"+bizDate.Format("20060102"), bizDate).Scan(&runID); err != nil {
+		t.Fatalf("插入工作流运行失败: %v", err)
+	}
+
+	at := func(started bool) *time.Time {
+		if !started {
+			return nil
+		}
+		now := time.Now()
+		return &now
+	}
+	setPhase := func(phaseCode, status string, started bool) {
+		_, _ = pool.Exec(ctx, `
+DELETE FROM cdeu.finv_quote_cdeu_phase_run
+ WHERE workflow_run_id = $1
+   AND phase_id = (SELECT phase_id FROM cdeu.finv_quote_cdeu_phase WHERE phase_code = $2)`, runID, phaseCode)
+		if _, err := pool.Exec(ctx, `
+INSERT INTO cdeu.finv_quote_cdeu_phase_run
+  (workflow_run_id, phase_id, phase_code, seq_no, status, started_at)
+SELECT $1, ph.phase_id, ph.phase_code, ph.seq_no, $3, $4
+  FROM cdeu.finv_quote_cdeu_phase ph WHERE ph.phase_code = $2`,
+			runID, phaseCode, status, at(started)); err != nil {
+			t.Fatalf("设置阶段 %s 失败: %v", phaseCode, err)
+		}
+	}
+	setProcess := func(processCode, status string, started bool) {
+		_, _ = pool.Exec(ctx, `
+DELETE FROM cdeu.finv_quote_cdeu_process_run
+ WHERE workflow_run_id = $1
+   AND process_id = (SELECT process_id FROM cdeu.finv_quote_cdeu_process WHERE process_code = $2 AND enabled LIMIT 1)`,
+			runID, processCode)
+		// process_run.phase_run_id 非空：先确保所属阶段的 phase_run 存在。
+		if _, err := pool.Exec(ctx, `
+INSERT INTO cdeu.finv_quote_cdeu_phase_run (workflow_run_id, phase_id, phase_code, seq_no, status)
+SELECT $1, ph.phase_id, ph.phase_code, ph.seq_no, 'RUNNING'
+  FROM cdeu.finv_quote_cdeu_phase ph
+  JOIN cdeu.finv_quote_cdeu_process p ON p.phase_id = ph.phase_id
+ WHERE p.process_code = $2 AND p.enabled
+   AND NOT EXISTS (SELECT 1 FROM cdeu.finv_quote_cdeu_phase_run pr
+                    WHERE pr.workflow_run_id = $1 AND pr.phase_id = ph.phase_id)
+ LIMIT 1`, runID, processCode); err != nil {
+			t.Fatalf("准备流程 %s 的阶段运行失败: %v", processCode, err)
+		}
+		if _, err := pool.Exec(ctx, `
+INSERT INTO cdeu.finv_quote_cdeu_process_run
+  (workflow_run_id, process_id, process_code, phase_run_id, seq_no, status, started_at, batch_total)
+SELECT $1, p.process_id, p.process_code, pr.phase_run_id, p.seq_no, $3, $4, 0
+  FROM cdeu.finv_quote_cdeu_process p
+  JOIN cdeu.finv_quote_cdeu_phase_run pr
+    ON pr.phase_id = p.phase_id AND pr.workflow_run_id = $1
+ WHERE p.process_code = $2 AND p.enabled LIMIT 1`,
+			runID, processCode, status, at(started)); err != nil {
+			t.Fatalf("设置流程 %s 失败: %v", processCode, err)
+		}
+	}
+	setJobRun := func(jobCode, status string, started bool) {
+		_, _ = pool.Exec(ctx, `
+DELETE FROM cdeu.finv_quote_cdeu_job_run
+ WHERE workflow_run_id = $1
+   AND job_id = (SELECT job_id FROM cdeu.finv_quote_cdeu_job WHERE job_code = $2 LIMIT 1)`, runID, jobCode)
+		if _, err := pool.Exec(ctx, `
+INSERT INTO cdeu.finv_quote_cdeu_job_run
+  (workflow_run_id, process_id, job_id, job_code, job_kind, attempt, status, started_at)
+SELECT $1, j.process_id, j.job_id, j.job_code, j.job_kind, 1, $3, $4
+  FROM cdeu.finv_quote_cdeu_job j WHERE j.job_code = $2 LIMIT 1`,
+			runID, jobCode, status, at(started)); err != nil {
+			t.Fatalf("设置 JOB %s 失败: %v", jobCode, err)
+		}
+	}
+	gate := func(kind string) (bool, string) {
+		blocked, reason, err := store.CDEUJobGate(ctx, kind, bizDate)
+		if err != nil {
+			t.Fatalf("读取门禁失败 kind=%s: %v", kind, err)
+		}
+		return blocked, reason
+	}
+
+	// ① 跨阶段：PHASE_COLLECT 未开始 → PHASE_DECISION 的 JOB 被拦。
+	setPhase("PHASE_COLLECT", CDEUStatusPending, false)
+	if blocked, reason := gate("CALC_DAILY_INGEST_STATS"); !blocked || !strings.Contains(reason, "PHASE_COLLECT") {
+		t.Fatalf("前序阶段未开始时应拦住 PHASE_DECISION 的 JOB，实际 blocked=%v reason=%s", blocked, reason)
+	}
+
+	// ② 阶段内跨流程：前序阶段全部 SUCCESS，但 PHASE_DECISION 内前序流程未开始 → 拦住。
+	setPhase("PHASE_COLLECT", CDEUStatusSuccess, true)
+	setPhase("PHASE_DEDUP", CDEUStatusSuccess, true)
+	setProcess("PROCESS_INGEST_STATS", CDEUStatusPending, false)
+	if blocked, reason := gate("REFRESH_QUOTE_MATURITY"); !blocked || !strings.Contains(reason, "PROCESS_INGEST_STATS") {
+		t.Fatalf("同阶段内前序流程未完成时应拦住后序流程的 JOB，实际 blocked=%v reason=%s", blocked, reason)
+	}
+
+	// ③ 前序流程完成 → 放行。
+	setProcess("PROCESS_INGEST_STATS", CDEUStatusSuccess, true)
+	if blocked, reason := gate("REFRESH_QUOTE_MATURITY"); blocked {
+		t.Fatalf("前序流程完成后不应被拦，实际 reason=%s", reason)
+	}
+
+	// ④ 流程内跨 JOB：PHASE_REVIEW 的 PURGE 流程里，前一个 JOB 未开始 → 后一个被拦。
+	for _, code := range []string{"PHASE_DECISION", "PHASE_EXPORT", "PHASE_UPLOAD"} {
+		setPhase(code, CDEUStatusSuccess, true)
+	}
+	setPhase("PHASE_REVIEW", CDEUStatusRunning, true)
+	setProcess("PROCESS_RECOVER", CDEUStatusSuccess, true)
+	setProcess("PROCESS_REVIEW", CDEUStatusSuccess, true)
+	setProcess("PROCESS_PURGE", CDEUStatusRunning, true)
+	setJobRun("JOB_PURGE_EXPORTED_MONTH", CDEUStatusPending, false)
+	if blocked, reason := gate("PURGE_LOCAL_EXPORT_FILES"); !blocked || !strings.Contains(reason, "JOB_PURGE_EXPORTED_MONTH") {
+		t.Fatalf("同流程内前序 JOB 未完成时应拦住后序 JOB，实际 blocked=%v reason=%s", blocked, reason)
+	}
+	setJobRun("JOB_PURGE_EXPORTED_MONTH", CDEUStatusSuccess, true)
+	if blocked, reason := gate("PURGE_LOCAL_EXPORT_FILES"); blocked {
+		t.Fatalf("前序 JOB 完成后不应被拦，实际 reason=%s", reason)
+	}
+
+	// ⑤ 前序已失败 → 拦住且原因写明失败。
+	setPhase("PHASE_DEDUP", CDEUStatusFailed, true)
+	if blocked, reason := gate("CALC_DAILY_INGEST_STATS"); !blocked || !strings.Contains(reason, "已失败") {
+		t.Fatalf("前序阶段失败时应拦住后序，实际 blocked=%v reason=%s", blocked, reason)
+	}
+	setPhase("PHASE_DEDUP", CDEUStatusSuccess, true)
+
+	// ⑥ 跨流程编排型 kind（RUN_DUE_EXPORT_JOBS 覆盖 6 个 JOB 定义）：只受阶段门禁约束，
+	//    不被自己要推进的流程挡住（否则死锁）。
+	setProcess("PROCESS_EXPORT_BATCH", CDEUStatusPending, false)
+	if blocked, reason := gate("RUN_DUE_EXPORT_JOBS"); blocked {
+		t.Fatalf("多定义 kind 不应被自身推进的流程阻塞，实际 reason=%s", reason)
+	}
+
+	// ⑦ 首个阶段（无前序）永不被拦。
+	setPhase("PHASE_COLLECT", CDEUStatusPending, false)
+	if blocked, reason := gate("CHECK_INGEST_READINESS"); blocked {
+		t.Fatalf("首个阶段不应被拦，实际 reason=%s", reason)
 	}
 }

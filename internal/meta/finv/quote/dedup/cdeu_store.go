@@ -664,6 +664,121 @@ SELECT EXISTS (
 	return exists, err
 }
 
+// CDEUJobGate 判断「按拓扑顺序，该 JOB 现在能否被调度触发」（需求 10829 / 10830）。
+//
+// 背景：CDEU 的三级串行门禁原先都只作用在**完成判定**（EvaluateCDEUPhase /
+// EvaluateCDEUProcess 里的 cdeuPhasePredecessorState、cdeuProcessHasEarlierUnfinished），
+// 不阻止 JOB 开始；而各 JOB 由调度器按各自 cron / 间隔独立触发（导出 60s、上传 300s、
+// 决策 00:05–00:15、定稿 00:20 …），于是出现三类抢跑：
+//
+//	① 跨阶段：DECISION / EXPORT / UPLOAD / REVIEW 并行；
+//	② 阶段内跨流程：PHASE_DECISION 的「统计 → 成熟度 → 预算 → 决策」四个 Process 并行；
+//	③ 流程内跨 JOB：PHASE_REVIEW 的 PURGE / RETENTION 各自两个 JOB 不等前一个完成。
+//
+// 判定顺序（返回第一条阻塞项）：
+//  1. Phase 级：同工作流内 seq_no 更小、enabled、affects_completion 的前序阶段；
+//  2. Process 级：同阶段内 seq_no 更小、enabled、affects_completion 的前序流程；
+//  3. Job 级：同流程内 seq_no 更小的前序 JOB。
+//
+// 「阻塞」的口径（与完成判定保持一致）：
+//   - 前序从未开始（started_at IS NULL 且状态非 SUCCESS/SKIPPED）→ 还没轮到；
+//   - 前序已失败（FAILED / PARTIAL / CANCELLED）→ 主链路断了，等人工处理；
+//   - 前序已在跑（started_at 非空且状态 RUNNING）→ **放行**，否则持续型阶段（导出每 60 秒
+//     一轮、上传每 300 秒一轮）会把后序永远饿死；重复执行的前序会把自己的状态刷回 RUNNING，
+//     若按「必须 SUCCESS」判，后序就再也进不来。
+//
+// 两种豁免：
+//   - 该 kind 对应**多个** JOB 定义（如 RUN_DUE_EXPORT_JOBS 覆盖 FETCH_EXPORT_BATCH 与
+//     MON_BASE 的 5 个 JOB）时，JOB 自身就是跨流程的编排器，只做 Phase 级门禁，否则它会被
+//     自己要推进的流程挡住而形成死锁；
+//   - 旁路阶段（affects_completion=false）与其下 JOB 不受门禁约束。
+func (s *Store) CDEUJobGate(ctx context.Context, kind string, bizDate time.Time) (bool, string, error) {
+	var level, code, status string
+	err := s.pool.QueryRow(ctx, `
+WITH jobdef AS (
+    SELECT j.job_id, j.process_id, j.seq_no AS job_seq, j.job_code,
+           p.phase_id, p.seq_no AS proc_seq, p.process_code,
+           ph.workflow_id, ph.seq_no AS phase_seq,
+           count(*) OVER (PARTITION BY j.job_kind) AS kind_jobs
+      FROM cdeu.finv_quote_cdeu_job j
+      JOIN cdeu.finv_quote_cdeu_process p ON p.process_id = j.process_id
+      JOIN cdeu.finv_quote_cdeu_phase ph ON ph.phase_id = p.phase_id
+      JOIN cdeu.finv_quote_cdeu_workflow w ON w.workflow_id = ph.workflow_id
+     WHERE j.job_kind = $1
+       AND j.enabled AND p.enabled AND ph.enabled AND w.enabled
+       AND ph.affects_completion
+     ORDER BY ph.seq_no, p.seq_no, j.seq_no
+     LIMIT 1
+), run AS (
+    SELECT wr.run_id
+      FROM cdeu.finv_quote_cdeu_workflow_run wr, jobdef
+     WHERE wr.workflow_id = jobdef.workflow_id
+       AND wr.biz_date = $2::date
+       AND wr.status IN ('PENDING','READY','RUNNING')
+     ORDER BY wr.run_id DESC
+     LIMIT 1
+), blocked AS (
+    -- 1) 前序阶段
+    SELECT 'PHASE' AS level, ph.phase_code AS code, COALESCE(pr.status, 'PENDING') AS status,
+           0 AS lvl, ph.seq_no AS ord
+      FROM jobdef
+      CROSS JOIN run
+      JOIN cdeu.finv_quote_cdeu_phase ph ON ph.workflow_id = jobdef.workflow_id
+      LEFT JOIN cdeu.finv_quote_cdeu_phase_run pr
+             ON pr.phase_id = ph.phase_id AND pr.workflow_run_id = run.run_id
+     WHERE ph.enabled AND ph.affects_completion
+       AND ph.seq_no < jobdef.phase_seq
+       AND COALESCE(pr.status, 'PENDING') NOT IN ('SUCCESS','SKIPPED')
+       AND (pr.started_at IS NULL
+            OR COALESCE(pr.status, 'PENDING') IN ('FAILED','PARTIAL','CANCELLED'))
+    UNION ALL
+    -- 2) 同阶段内的前序流程（仅普通 JOB；跨流程编排型 kind 不断言）
+    SELECT 'PROCESS', p.process_code, COALESCE(pr2.status, 'PENDING'), 1, p.seq_no
+      FROM jobdef
+      CROSS JOIN run
+      JOIN cdeu.finv_quote_cdeu_process p ON p.phase_id = jobdef.phase_id
+      LEFT JOIN cdeu.finv_quote_cdeu_process_run pr2
+             ON pr2.process_id = p.process_id AND pr2.workflow_run_id = run.run_id
+     WHERE jobdef.kind_jobs = 1
+       AND p.enabled AND p.affects_completion
+       AND p.seq_no < jobdef.proc_seq
+       AND COALESCE(pr2.status, 'PENDING') NOT IN ('SUCCESS','SKIPPED')
+       AND (pr2.started_at IS NULL
+            OR COALESCE(pr2.status, 'PENDING') IN ('FAILED','PARTIAL','CANCELLED'))
+    UNION ALL
+    -- 3) 同流程内的前序 JOB
+    SELECT 'JOB', j2.job_code, COALESCE(jr.status, 'PENDING'), 2, j2.seq_no
+      FROM jobdef
+      CROSS JOIN run
+      JOIN cdeu.finv_quote_cdeu_job j2 ON j2.process_id = jobdef.process_id
+      LEFT JOIN cdeu.finv_quote_cdeu_job_run jr
+             ON jr.workflow_run_id = run.run_id
+            AND jr.process_id = j2.process_id
+            AND jr.job_id = j2.job_id
+     WHERE jobdef.kind_jobs = 1
+       AND j2.enabled
+       AND j2.seq_no < jobdef.job_seq
+       AND COALESCE(jr.status, 'PENDING') NOT IN ('SUCCESS','SKIPPED')
+       AND (jr.started_at IS NULL
+            OR COALESCE(jr.status, 'PENDING') IN ('FAILED','PARTIAL','CANCELLED'))
+)
+SELECT level, code, status FROM blocked ORDER BY lvl, ord LIMIT 1`,
+		kind, bizDate.Format("2006-01-02")).Scan(&level, &code, &status)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, "", nil
+		}
+		return false, "", err
+	}
+	label := map[string]string{"PHASE": "前序阶段", "PROCESS": "同阶段内的前序流程", "JOB": "同流程内的前序 JOB"}[level]
+	reason := fmt.Sprintf("%s %s 尚未完成（状态 %s）", label, code, status)
+	switch status {
+	case CDEUStatusFailed, CDEUStatusPartial, CDEUStatusCancelled:
+		reason = fmt.Sprintf("%s %s 已失败（状态 %s），等待人工处理后才会继续", label, code, status)
+	}
+	return true, reason, nil
+}
+
 // LatestActiveCDEURunID 返回最近一次未终态的 CDEU 运行 ID；没有则返回 0。
 func (s *Store) LatestActiveCDEURunID(ctx context.Context) (int64, error) {
 	var runID int64

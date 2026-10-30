@@ -2342,6 +2342,24 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10828 | 「业务月份」不再手工输入，改为按年月自动生成的下拉列表（默认最近 10 年、含当前月、最新在前）；交易日历、成熟度查询、导出文件筛选、导出任务筛选四处统一使用；下拉可清空且不预选（空值 = 不按月筛选）。 | `grep -c 'export function bizMonthOptions' Web/src/utils.ts` 为 1；`grep -rc 'bizMonthOptions' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveConfigView.vue Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveStatsView.vue Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportJobView.vue` 各 ≥ 2（import + 引用）；四文件内不再出现 `v-text-field ... label="业务月份"`；`cd Web && npx vue-tsc -b` 与 `npm run build` 通过 | |
 
+## 一百五十六、CDEU 阶段按拓扑顺序执行（10829）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10829 | CDEU 的 6 个阶段（`COLLECT → DEDUP → DECISION → EXPORT → UPLOAD → REVIEW`）必须按拓扑顺序执行：调度器触发某阶段 JOB 前，若同一天活动运行中 `seq_no` 更小、`enabled` 且 `affects_completion=true` 的前序阶段「从未开始」或「已失败」，本轮不得触发；被拦时不得写「今天已跑」标记（前序完成后自动继续）；持续型前序阶段（已在跑）与旁路阶段、手动触发不受限制。 | `grep -c 'func (s \*Store) CDEUPhaseGateForJob' internal/meta/finv/quote/dedup/cdeu_store.go` 为 1；`grep -c 'CDEUJobGate' internal/meta/finv/quote/dedup/scheduler.go` ≥ 1 且门禁判断在 `s.lastRun[runtime.Kind] = now` 之前；`grep -c 'noteGateBlocked' internal/meta/finv/quote/dedup/scheduler.go` ≥ 2；`go test ./internal/meta/finv/quote/dedup/ -run TestCDEUPhaseGate`（需 `FINV_TEST_PG_DSN`）通过；库内验证：造活动运行并把 `PHASE_COLLECT` 置 PENDING（`started_at` 为空）后，`PHASE_DECISION` 的 JOB 调度日志出现「暂不执行：前序阶段 PHASE_COLLECT 尚未完成」 | |
+
+## 一百五十七、CDEU 阶段内流程与流程内 JOB 按顺序执行（10830）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10830 | 除跨阶段门禁外，调度触发还需约束另外两层顺序：同一阶段内 `seq_no` 更小的流程未完成/已失败时，后序流程的 JOB 不得触发；同一流程内 `seq_no` 更小的 JOB 未完成/已失败时，后序 JOB 不得触发。门禁按 `job_kind` 匹配定义（与 `CDEUJobDefinitions` 一致）；一个 kind 覆盖多个 JOB 定义的编排型 Job（如 `RUN_DUE_EXPORT_JOBS` 覆盖 6 个）只受阶段级门禁约束，避免死锁。 | `grep -c "'PHASE' AS level" internal/meta/finv/quote/dedup/cdeu_store.go` 为 1；`grep -c "'PROCESS'" internal/meta/finv/quote/dedup/cdeu_store.go` ≥ 1；`grep -c "'JOB', j2.job_code" internal/meta/finv/quote/dedup/cdeu_store.go` 为 1；`grep -c 'kind_jobs' internal/meta/finv/quote/dedup/cdeu_store.go` ≥ 3；`grep -c 'j.job_kind = \$1' internal/meta/finv/quote/dedup/cdeu_store.go` 为 1；`go test ./internal/meta/finv/quote/dedup/ -run TestCDEUJobGate`（需 `FINV_TEST_PG_DSN`）通过 7 个场景 | |
+
+## 一百五十八、动态 JOB 领取顺序：优先级为主、seq_no 为次序（10831）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10831 | 同一流程下同类型动态 JOB（导出 / 上传）的领取顺序：**优先级为主序**（导出 `FROZEN` 紧急度 → `priority_rank` → `oldest_pending_date`；上传无优先级维度则直接看拓扑），**同优先级时按 CDEU 定义的 `cdeu.finv_quote_cdeu_job_dynamic.seq_no` 决定先后**；不引入新的配置开关。 | `grep -c 'dj.seq_no' internal/meta/finv/quote/dedup/store.go` ≥ 1；`grep -c 'dj.seq_no' internal/meta/finv/quote/dedup/store_files.go` ≥ 1；`grep -c '2147483647' internal/meta/finv/quote/dedup/store.go internal/meta/finv/quote/dedup/store_files.go` 各 ≥ 1；库内验证（事务内造数后回滚）：同 `priority_rank`/`oldest_pending_date` 的两条任务 `seq_no=2/1` → 领取到 `seq_no=1`；把 `seq_no=2` 那条的 `priority_rank` 改成 1 → 领取到高优先级那条 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2525,7 +2543,10 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 补齐 day_expect_rows 后重算成熟度 | 10826 | 1 |
 | 补全流程不覆盖人工清空的优先级 | 10827 | 1 |
 | 业务月份自动下拉列表 | 10828 | 1 |
-| **合计** | **10001–10828** | **828** |
+| CDEU 阶段按拓扑顺序执行 | 10829 | 1 |
+| CDEU 流程与 JOB 按顺序执行 | 10830 | 1 |
+| 动态 JOB 领取顺序（优先级 + seq_no） | 10831 | 1 |
+| **合计** | **10001–10831** | **831** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

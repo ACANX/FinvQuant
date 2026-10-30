@@ -219,6 +219,21 @@ COLLECT ──► DEDUP ──► DECISION ──► EXPORT ──► UPLOAD ─
 体检        收口定稿     预算与判定      生成文件      送达远端      清理与看护
 ```
 
+**三级顺序门禁（需求 10829 / 10830）**：上表的「时间锚点」只是调度参考，**真实执行顺序由运行期门禁保证**——
+调度器在触发每个 JOB 前，按 `Store.CDEUJobGate` 依次检查三层，返回第一条阻塞项：
+
+| 层级 | 检查对象（`seq_no` 更小、`enabled`） | 阻塞条件 |
+|---|---|---|
+| 阶段 | 同工作流的前序 Phase（`affects_completion=true`） | 从未开始（`started_at IS NULL` 且非 `SUCCESS`/`SKIPPED`）或 `FAILED` / `PARTIAL` / `CANCELLED` |
+| 流程 | 同阶段内的前序 Process（`affects_completion=true`） | 同上 |
+| JOB | 同流程内的前序 JOB | 同上 |
+
+- 前序**已在跑**（`started_at` 非空且状态 `RUNNING`）时放行后序：持续型阶段/流程（导出每 60 秒一轮、上传每 300 秒一轮）不会长期停在 `SUCCESS`，按「必须成功」判会把后序饿死。
+- 前序**已失败**时不触发，日志写明「前序阶段/流程/JOB X 已失败，等待人工处理」，避免后序白跑。
+- 被拦时**不写**「本轮已跑」标记（`lastRun`/`lastDay`），保持到期状态，前序完成后下一个调度 tick（30 秒）自动继续。
+- **动态 JOB（每证券月导出 / 每文件上传）的领取顺序**：优先级为主序（导出 `FROZEN` 紧急度 → `priority_rank` → `oldest_pending_date`），同级并列时按 `cdeu_job_dynamic.seq_no`（创建时按 `usc, biz_month` / `file_id` 生成的拓扑顺序）；上传侧无优先级维度，直接按 `seq_no`（需求 10831）。
+- 豁免：旁路阶段（`affects_completion=false`）与其下 JOB；一个 kind 覆盖多个 JOB 定义的**编排型 Job**（如 `RUN_DUE_EXPORT_JOBS` 覆盖 `PROCESS_EXPORT_BATCH` 与 `PROCESS_EXPORT_FILE_MON_BASE` 的 6 个 JOB）只做阶段级门禁，否则会被自己要推进的流程挡住而死锁；**手动触发**（`Job/Run`、手动续跑）不受门禁限制（与「手动触发不受低峰窗口与日预算限制」同一约定）。
+
 ---
 
 ## 5. 阶段与流程详解
