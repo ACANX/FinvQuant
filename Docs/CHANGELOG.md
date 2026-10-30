@@ -107,6 +107,28 @@
 
 ### 变更
 
+- **新增「量化 → 验证」三级分组，迁入 3 个验证类叶子（需求 10848）**
+  - 授权：用户明确要求「『回测』菜单后增加同级别的『验证』菜单；将『仿真数据验证』、
+    『模拟盘验证』、『实盘仿真验证』放到『验证』菜单下」。
+  - 改动（`Web/src/config/menuConfig.ts`）：
+    · 在「量化 → 回测」（`quant-backtest-menu`）之后新增三级分组 `quant-verify`「验证」
+      （图标 `mdi-shield-check-outline`）；
+    · 「仿真数据验证」（`simulation-data`）、「模拟盘验证」（`simulation-paper`）、
+      「实盘仿真验证」（`simulation-live-sim`）从顶层移入该分组，成为四级叶子；
+    · 三个叶子的 key、标题、路由路径、图标全部保持不变（展开状态与页面路由不受影响）。
+  - 结果结构：顶层二级菜单只剩 8 项（仪表盘 / 元数据 / 配置管理 / 行情 / 量化 / 数据采集 /
+    策略管理 / 实盘交易）；「量化」下三级节点为 MVP配置（5 叶子）、回测（2 叶子）、
+    验证（3 叶子）。
+  - 验证（脚本实测）：顶层顺序为 `dashboard, metadata, config-manage, quote, quant,
+    data-collection, strategy, live-trading`；「验证」节点 children 标题为
+    {仿真数据验证, 模拟盘验证, 实盘仿真验证}；三个 key 各出现 1 次；量化下三级节点顺序为
+    {MVP配置, 回测, 验证}；40 个菜单图标全部有效；所有 `path` 均有对应路由；无重复 key；
+    `npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §1 深度统计表、§2.2 菜单树、
+    节点明细表同步（3 个叶子层级改标四级、顶层叶子清单更新）。
+
+### 变更
+
 - **「黄金期货合约回测验证」「回测分析」移入「量化 → 回测」（需求 10847）**
   - 授权：用户明确要求「『黄金期货合约回测验证』菜单放到『回测』菜单下。『回测分析』放到『回测』菜单下」。
   - 改动（`Web/src/config/menuConfig.ts`）：
