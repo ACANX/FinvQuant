@@ -345,8 +345,9 @@ func (s *Store) ExportStockPage(ctx context.Context, filter StockFilter) (StockP
 	if filter.BizMonth <= 0 {
 		return page, nil
 	}
-	if filter.Limit <= 0 || filter.Limit > 500 {
-		filter.Limit = 100
+	// 上限 1000：常见月份证券数（几十到几百）一次出完，避免在页面上反复翻页。
+	if filter.Limit <= 0 || filter.Limit > 1000 {
+		filter.Limit = 500
 	}
 	if filter.Offset < 0 {
 		filter.Offset = 0

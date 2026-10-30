@@ -69,7 +69,7 @@ const bizMonthItems = computed(() => bizMonthOptions())
 const bizMonth = ref(String((new Date().getFullYear()) * 100 + new Date().getMonth() + 1))
 const uscKeyword = ref('')
 const page = ref(1)
-const pageSize = ref(50)
+const pageSize = ref(500)
 const loading = ref(false)
 const error = ref('')
 const data = ref<StockPageData | null>(null)
@@ -147,7 +147,7 @@ onMounted(() => void load())
         <v-col cols="auto">
           <v-select
             v-model="pageSize"
-            :items="[20, 50, 100, 200]"
+            :items="[100, 200, 500, 1000]"
             label="每页"
             density="compact"
             hide-details
@@ -193,7 +193,9 @@ onMounted(() => void load())
 
       <v-alert v-if="cleanedHint" type="info" density="compact" class="mb-3">{{ cleanedHint }}</v-alert>
 
-      <v-table density="compact" fixed-header height="520">
+      <!-- 不设 height / fixed-header：表格按行数自然展开，只由页面外层滚动，
+           避免「页面滚动条 + 表格滚动条」双层嵌套。 -->
+      <v-table density="compact">
         <thead>
           <tr>
             <th>证券</th>

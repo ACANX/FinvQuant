@@ -321,8 +321,8 @@ func (s *Service) StockPage(ctx context.Context, filter StockFilter) (StockPage,
 	if filter.Limit <= 0 {
 		filter.Limit = 100
 	}
-	if filter.Limit > 500 {
-		filter.Limit = 500
+	if filter.Limit > 1000 {
+		filter.Limit = 1000
 	}
 	if filter.Offset < 0 {
 		filter.Offset = 0
