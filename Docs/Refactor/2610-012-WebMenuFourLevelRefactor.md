@@ -143,7 +143,8 @@ export interface MenuSystem extends MenuNode {
 │  │  ├─ 文件上传（四级叶子，/Meta/Finv/Quote/DeDup/Export/File，需求 10858 移入；10862 改名）
 │  │  ├─ 归档统计与预算（四级叶子，/Meta/Finv/Quote/DeDup/Export/Stats，需求 10858 移入）
 │  │  ├─ 归档主数据与规则（四级叶子，/Meta/Finv/Quote/DeDup/Export/Config，需求 10858 移入）
-│  │  └─ 归档日志与补丁（四级叶子，/Meta/Finv/Quote/DeDup/Export/Log，需求 10858 移入）
+│  │  ├─ 归档日志与补丁（四级叶子，/Meta/Finv/Quote/DeDup/Export/Log，需求 10858 移入）
+│  │  └─ CDEU自动化（四级占位分组，需求 10864 新增，暂无子节点与路由）
 │  ├─ 历史行情（三级分组，前缀 /Meta/Finv/Quote/His/）
 │  │  ├─ 历史行情查询（四级叶子，/Meta/Finv/Quote/History/HistoryQuoteQuery）
 │  │  └─ 历史行情数据导入（四级叶子，/meta/import，需求 10844 从元数据域移入）
