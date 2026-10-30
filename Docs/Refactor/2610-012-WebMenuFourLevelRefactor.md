@@ -156,7 +156,7 @@ export interface MenuSystem extends MenuNode {
 │     ├─ 市场信息管理（四级叶子，/meta/market，原名「交易所下设市场信息维护」，需求 10853 改名）
 │     └─ 规范证券信息管理（四级叶子，/meta/security，原名「规范证券信息维护」，需求 10855 改名）
 │        （历史行情数据导入已于需求 10844 移入「行情 → 历史行情」）
-├─ 配置管理（二级叶子，/Meta/Finv/Quant/Config）
+├─ 系统配置（二级叶子，/Meta/Finv/Quant/Config，原名「配置管理」，需求 10859 改名）
 
 【一级系统：内容管理（内部 key=cms）】（顶栏切换，path=/Meta/CMS）
 └─ 内容管理控制台（二级叶子，/Meta/CMS，占位页 PlaceholderView，标记「规划中」）

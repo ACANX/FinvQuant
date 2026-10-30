@@ -66,7 +66,7 @@ const finvQuantMenu: MenuNode[] = [
       },
     ],
   },
-  { key: 'config-manage', title: '配置管理', icon: 'mdi-cog-outline', path: '/Meta/Finv/Quant/Config' },
+  { key: 'config-manage', title: '系统配置', icon: 'mdi-cog-outline', path: '/Meta/Finv/Quant/Config' },
   {
     // 「行情」二级菜单（分组前缀 /Meta/Finv/Quote/），与「数据采集」同级；
     // 其下两个三级分组按加工阶段划分：

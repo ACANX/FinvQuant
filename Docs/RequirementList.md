@@ -2516,6 +2516,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10858 | 「导出任务」「文件与上传」「归档统计与预算」「归档主数据与规则」「归档日志与补丁」从「数据采集 → 行情数据归档」移入「行情 → 收剔导传ETL」；key/标题/路径不变。 | 5 个 key（`dedup-export-job`/`dedup-export-file`/`dedup-export-stats`/`dedup-export-config`/`dedup-export-log`）在菜单配置中各出现 1 次且均位于 `key: 'quote-cdeu'` 段内；`key: 'quote-archive'` 段内只剩 {归档监控总览, 端到端链路}；ETL 下叶子共 9 项；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
 
+## 一百八十五、「配置管理」改名为「系统配置」（10859）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10859 | 顶层二级菜单「配置管理」更名为「系统配置」；节点 key（`config-manage`）、图标、路由 `/Meta/Finv/Quant/Config` 不变，路由 `meta.title` 与页面内标题同步。 | `grep -c "title: '系统配置'" Web/src/config/menuConfig.ts` 为 1 且 `Web/src/router.ts` 中也为 1；`grep -rc "配置管理" Web/src/config/menuConfig.ts Web/src/router.ts Web/src/views/Meta/Finv/Quant/Backtest/ConfigManageView.vue` 均为 0；`grep -c "key: 'config-manage'"` 为 1；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2728,7 +2734,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | K线数据查询改名并移入 ETL | 10856 | 1 |
 | K线数据统计改名并移入 ETL | 10857 | 1 |
 | 5 个归档运维页面移入 ETL | 10858 | 1 |
-| **合计** | **10001–10858** | **857** |
+| 「配置管理」改名系统配置 | 10859 | 1 |
+| **合计** | **10001–10859** | **858** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

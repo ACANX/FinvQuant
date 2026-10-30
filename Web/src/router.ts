@@ -126,8 +126,8 @@ const router = createRouter({
     { path: '/meta/market', name: 'meta-market', component: MetaMarketView, meta: { title: '市场信息管理' } },
     { path: '/meta/security', name: 'meta-security', component: MetaSecurityView, meta: { title: '规范证券信息管理' } },
     { path: '/meta/import', name: 'meta-import', component: QuoteImportView, meta: { title: '历史行情数据导入' } },
-    // 配置管理 / 环境管理 / 模板管理（元数据管理之后、量化策略验证之前）
-    { path: '/Meta/Finv/Quant/Config', name: 'config-manage', component: ConfigManageView, meta: { title: '配置管理' } },
+    // 系统配置（需求 10859 改名；环境/模板管理等已迁入「量化 → MVP配置」）
+    { path: '/Meta/Finv/Quant/Config', name: 'config-manage', component: ConfigManageView, meta: { title: '系统配置' } },
     { path: '/Meta/Finv/Quant/Environment', name: 'environment', component: EnvironmentView, meta: { title: '环境管理' } },
     { path: '/Meta/Finv/Quant/Template', name: 'template', component: TemplateView, meta: { title: '模板管理' } },
     // 账户管理 / 资金管理 / 持仓管理（配置/环境/模板之后、量化策略验证之前）

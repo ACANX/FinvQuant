@@ -107,6 +107,21 @@
 
 ### 变更
 
+- **「配置管理」改名为「系统配置」（需求 10859）**
+  - 授权：用户明确要求「『配置管理』更名为『系统配置』」。
+  - 改动：
+    · `Web/src/config/menuConfig.ts`：顶层二级叶子 `config-manage` 的 `title` 改为「系统配置」；
+    · `Web/src/router.ts`：该路由 `meta.title` 同步（影响页签与面包屑），注释顺带更新
+      （原注释还在描述已迁入「量化 → MVP配置」的环境/模板管理，一并纠正）；
+    · `ConfigManageView.vue`：占位页标题与文件头注释同步为「系统配置」。
+  - 保持不变：节点 key（`config-manage`）、图标（`mdi-cog-outline`）、路由路径
+    `/Meta/Finv/Quant/Config`。
+  - 验证：`title: '系统配置'` 在菜单配置与路由中各 1 次；「配置管理」在 `menuConfig.ts`、
+    `router.ts` 与页面文件中均为 0 次；菜单图标有效、`path` 有对应路由、无重复 key；
+    `npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+
+### 变更
+
 - **5 个归档运维页面移入「行情 → 收剔导传ETL」（需求 10858）**
   - 授权：用户明确要求把「导出任务」「文件与上传」「归档统计与预算」「归档主数据与规则」
     「归档日志与补丁」移入「收剔导传ETL」菜单下。
