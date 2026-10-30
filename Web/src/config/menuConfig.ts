@@ -106,11 +106,17 @@ const finvQuantMenu: MenuNode[] = [
     icon: 'mdi-sigma',
     children: [
       {
-        // MVP配置（需求 10843）：暂无对应页面与路由，先占位，待指定页面后再挂叶子。
+        // MVP配置（需求 10843 建立占位，10846 迁入 5 个原二级叶子：环境/模板/账户/资金/持仓管理）。
         key: 'quant-mvp-config',
         title: 'MVP配置',
         icon: 'mdi-playlist-edit',
-        children: [],
+        children: [
+          { key: 'environment', title: '环境管理', icon: 'mdi-application-cog-outline', path: '/Meta/Finv/Quant/Environment' },
+          { key: 'template', title: '模板管理', icon: 'mdi-content-copy', path: '/Meta/Finv/Quant/Template' },
+          { key: 'account', title: '账户管理', icon: 'mdi-account-cog-outline', path: '/Meta/Finv/Quant/Account' },
+          { key: 'fund', title: '资金管理', icon: 'mdi-cash-multiple', path: '/Meta/Finv/Quant/Fund' },
+          { key: 'position', title: '持仓管理', icon: 'mdi-briefcase-variant-outline', path: '/Meta/Finv/Quant/Position' },
+        ],
       },
       {
         // 回测（需求 10843）：同上，先占位；现有回测页面仍在「量化策略验证 / 回测分析」下。
@@ -151,11 +157,6 @@ const finvQuantMenu: MenuNode[] = [
       },
     ],
   },
-  { key: 'environment', title: '环境管理', icon: 'mdi-application-cog-outline', path: '/Meta/Finv/Quant/Environment' },
-  { key: 'template', title: '模板管理', icon: 'mdi-content-copy', path: '/Meta/Finv/Quant/Template' },
-  { key: 'account', title: '账户管理', icon: 'mdi-account-cog-outline', path: '/Meta/Finv/Quant/Account' },
-  { key: 'fund', title: '资金管理', icon: 'mdi-cash-multiple', path: '/Meta/Finv/Quant/Fund' },
-  { key: 'position', title: '持仓管理', icon: 'mdi-briefcase-variant-outline', path: '/Meta/Finv/Quant/Position' },
   {
     key: 'quant-backtest',
     title: '量化策略验证',

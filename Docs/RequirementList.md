@@ -2438,6 +2438,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10845 | 「工作流控制与监控」从「数据采集 → 行情数据归档」移到「行情 → 收剔导传ETL」下，并改名为「CDEU 工作流控制面板」；key `dedup-export-cdeu` 与路径 `/Meta/Finv/Quote/Cdeu/CdeuOverview` 不变；路由 `meta.title` 与页面内标题同步。 | `grep -c "key: 'dedup-export-cdeu'" Web/src/config/menuConfig.ts` 为 1 且该行含 `title: 'CDEU 工作流控制面板'`，位置在 `key: 'quote-cdeu'` 之后、不在 `key: 'quote-archive'` 段内；`grep -c "title: 'CDEU 工作流控制面板'" Web/src/router.ts` 为 1；`grep -c "CDEU 工作流控制面板" Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` ≥ 2；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
 
+## 一百七十二、5 个配置类叶子移入「量化 → MVP配置」（10846）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10846 | 「环境管理」「模板管理」「账户管理」「资金管理」「持仓管理」从二级（顶层）移动到「量化 → MVP配置」下作为四级叶子；key、标题、路径均不变。 | `grep -c "key: 'quant-mvp-config'" Web/src/config/menuConfig.ts` 为 1，且 `environment`/`template`/`account`/`fund`/`position` 各出现 1 次并位于该节点 `children` 内；顶层顺序为 `dashboard, metadata, config-manage, quote, quant, data-collection, quant-backtest, strategy, backtest-analysis, simulation-data, simulation-paper, simulation-live-sim, live-trading`；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2637,7 +2643,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 「量化」下新增两个三级子菜单 | 10843 | 1 |
 | 「历史行情数据导入」移入「历史行情」 | 10844 | 1 |
 | CDEU 工作流面板移入 ETL 并改名 | 10845 | 1 |
-| **合计** | **10001–10845** | **844** |
+| 5 个配置类叶子移入 MVP配置 | 10846 | 1 |
+| **合计** | **10001–10846** | **845** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

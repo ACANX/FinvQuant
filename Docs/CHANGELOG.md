@@ -107,6 +107,29 @@
 
 ### 变更
 
+- **5 个配置类叶子移入「量化 → MVP配置」（需求 10846）**
+  - 授权：用户明确要求把「环境管理」「模板管理」「账户管理」「资金管理」「持仓管理」
+    移动到「MVP配置」菜单下。
+  - 改动（`Web/src/config/menuConfig.ts`）：这 5 个叶子从二级（顶层）移入
+    「量化 → MVP配置」（`quant-mvp-config`）的 `children`，成为四级叶子；
+    key（`environment` / `template` / `account` / `fund` / `position`）、标题、
+    路由路径全部保持不变，展开状态与页面路由不受影响。
+  - 结果结构：
+    · 顶层二级菜单剩 13 项：仪表盘 / 元数据 / 配置管理 / 行情 / 量化 / 数据采集 /
+      量化策略验证 / 策略管理 / 回测分析 / 仿真数据验证 / 模拟盘验证 / 实盘仿真验证 / 实盘交易；
+    · 「量化 → MVP配置」由空占位变为挂 5 个叶子的三级分组；
+    · 「量化 → 回测」仍为空占位。
+  - 验证（脚本实测）：5 个 key 在菜单配置中各出现 1 次且均位于 `quant-mvp-config` 的
+    `children` 内（标题集合 = {环境管理, 模板管理, 账户管理, 资金管理, 持仓管理}）；
+    顶层顺序为 `dashboard, metadata, config-manage, quote, quant, data-collection,
+    quant-backtest, strategy, backtest-analysis, simulation-data, simulation-paper,
+    simulation-live-sim, live-trading`；42 个菜单图标全部有效；所有 `path` 均有对应路由；
+    无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §1 深度统计表与 §2.2 菜单树、
+    节点明细表同步（这 5 项由「二级叶子」改标为「四级叶子」）。
+
+### 变更
+
 - **「工作流控制与监控」移入「收剔导传ETL」并改名为「CDEU 工作流控制面板」（需求 10845）**
   - 授权：用户明确要求「『CDEU 工作流控制与监控』菜单移动到『收剔导传ETL』菜单下，
     并改名为『CDEU 工作流控制面板』」。
