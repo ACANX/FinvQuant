@@ -2504,6 +2504,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10856 | 「去重分钟行情查询」更名为「K线数据查询」，并从「数据采集 → 行情数据去重」移入「行情 → 收剔导传ETL」；key `dedup-kline-query` 与路由不变，路由 `meta.title` 同步。 | `grep -c "title: 'K线数据查询'" Web/src/config/menuConfig.ts` 为 1 且该行在 `key: 'quote-cdeu'` 段内、不在 `key: 'quote-dedup'` 段内；`grep -rc "去重分钟行情查询" Web/src/config/menuConfig.ts` 为 0；`grep -c "title: 'K线数据查询'" Web/src/router.ts` 为 1；菜单图标全部有效、`path` 全部有路由、无重复 key | |
 
+## 一百八十三、「去重分钟行情统计」改名并移入「收剔导传ETL」（10857）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10857 | 「去重分钟行情统计」更名为「K线数据统计」，并从「数据采集 → 行情数据去重」移入「行情 → 收剔导传ETL」；移空后的「行情数据去重」分组删除；key 与路由不变，路由 `meta.title` 与页面内标题同步。 | `grep -c "title: 'K线数据统计'" Web/src/config/menuConfig.ts` 为 1 且在 `quote-cdeu` 段内；`grep -c "key: 'quote-dedup'"` 为 0；ETL 下叶子为 {历史月份存量数据清点, CDEU 工作流控制面板, K线数据查询, K线数据统计}；`grep -rc "去重分钟行情统计" Web/src/views` 为 0；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2714,7 +2720,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 「交易所信息维护」改名交易所信息管理 | 10854 | 1 |
 | 「规范证券信息维护」改名规范证券信息管理 | 10855 | 1 |
 | K线数据查询改名并移入 ETL | 10856 | 1 |
-| **合计** | **10001–10856** | **855** |
+| K线数据统计改名并移入 ETL | 10857 | 1 |
+| **合计** | **10001–10857** | **856** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

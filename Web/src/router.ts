@@ -58,7 +58,7 @@ const router = createRouter({
       path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats',
       name: 'dedup-kline-stats',
       component: DeDupKLineStatsView,
-      meta: { title: '去重分钟行情统计' },
+      meta: { title: 'K线数据统计' },
     },
     // 去重行情 → 月归档导出（监控总览 / 导出任务 / 文件与上传）
     {

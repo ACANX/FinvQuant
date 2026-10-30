@@ -86,6 +86,8 @@ const finvQuantMenu: MenuNode[] = [
           { key: 'dedup-export-cdeu', title: 'CDEU 工作流控制面板', icon: 'mdi-sitemap-outline', path: '/Meta/Finv/Quote/Cdeu/CdeuOverview' },
           // 需求 10856：从「数据采集 → 行情数据去重」移入并改名为「K线数据查询」。
           { key: 'dedup-kline-query', title: 'K线数据查询', icon: 'mdi-table-search', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query' },
+          // 需求 10857：同源移入并改名为「K线数据统计」（原「去重分钟行情统计」）。
+          { key: 'dedup-kline-stats', title: 'K线数据统计', icon: 'mdi-chart-box-outline', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats' },
         ],
       },
       {
@@ -167,14 +169,6 @@ const finvQuantMenu: MenuNode[] = [
     title: '数据采集',
     icon: 'mdi-database-arrow-down',
     children: [
-      {
-        key: 'quote-dedup',
-        title: '行情数据去重',
-        icon: 'mdi-content-duplicate',
-        children: [
-          { key: 'dedup-kline-stats', title: '去重分钟行情统计', icon: 'mdi-chart-box-outline', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats' },
-        ],
-      },
       {
         key: 'quote-archive',
         title: '行情数据归档',
