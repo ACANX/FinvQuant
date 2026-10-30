@@ -107,6 +107,23 @@
 
 ### 变更
 
+- **「量化」下新增「MVP配置」「回测」两个三级子菜单（需求 10843）**
+  - 授权：用户明确要求「『量化』下新增『MVP配置』、『回测』三级子菜单」。
+  - 改动（`Web/src/config/menuConfig.ts`）：`quant`「量化」的 `children` 由空数组改为两个三级分组：
+    · `quant-mvp-config`「MVP配置」（图标 `mdi-playlist-edit`）；
+    · `quant-backtest-menu`「回测」（图标 `mdi-history`）；
+    两者 `children` 均为空数组。key 加 `quant-` 前缀，避免与顶层 `quant-backtest`
+    「量化策略验证」混淆。
+  - 现状说明：**两级都还没有对应页面与路由**，因此按占位分组处理（点开为空白），
+    与需求 10841「量化」占位一致。现有回测相关页面仍在原位未动：
+    「量化策略验证 → 黄金期货合约回测验证」（`/Meta/Finv/Quant/Backtest/GoldFutures`）、
+    「回测分析」（`/Meta/Finv/Quant/Backtest/Analysis`）。
+  - 渲染安全性：空 `children` 走分组分支、`v-for` 空数组渲染为空，不报错（与 10841 同一机制）。
+  - 验证（脚本实测）：`量化` 的 children 为 `['MVP配置', '回测']`；菜单图标 42 个全部有效；
+    所有 `path` 均有对应路由；无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+
+### 变更
+
 - **「配置管理」移到「行情」之前（需求 10842）**
   - 授权：用户明确要求「『配置管理』移动到『行情』之前」。
   - 改动（`Web/src/config/menuConfig.ts`）：交换 `config-manage` 与 `quote` 两个二级节点的先后，

@@ -96,12 +96,27 @@ const finvQuantMenu: MenuNode[] = [
     ],
   },
   {
-    // 「量化」二级分组（需求 10841）：先占位，子菜单后续按需迁入
-    // （现有量化相关节点暂不移动：量化策略验证 / 策略管理 / 回测分析 / 仿真与实盘验证）。
+    // 「量化」二级分组（需求 10841 建立，10843 加两个三级子菜单）。
+    // 现有量化相关节点（量化策略验证 / 策略管理 / 回测分析 / 仿真与实盘验证）暂不移动。
     key: 'quant',
     title: '量化',
     icon: 'mdi-sigma',
-    children: [],
+    children: [
+      {
+        // MVP配置（需求 10843）：暂无对应页面与路由，先占位，待指定页面后再挂叶子。
+        key: 'quant-mvp-config',
+        title: 'MVP配置',
+        icon: 'mdi-playlist-edit',
+        children: [],
+      },
+      {
+        // 回测（需求 10843）：同上，先占位；现有回测页面仍在「量化策略验证 / 回测分析」下。
+        key: 'quant-backtest-menu',
+        title: '回测',
+        icon: 'mdi-history',
+        children: [],
+      },
+    ],
   },
   {
     key: 'data-collection',
