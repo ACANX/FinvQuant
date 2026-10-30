@@ -69,6 +69,11 @@ const (
 	// 判定口径与 GenerateExportBatch 的 BASE 分支一致，只是不落批次表——
 	// 让「导出条件判定」从内嵌逻辑变成可观测的独立步骤。
 	JobEvaluateExportCondition = "EVALUATE_EXPORT_CONDITION"
+	// JobExplainExportDecision 决策阶段：逐条解释「哪些证券月能导出、哪些不能、为什么不能」，
+	// 并给出可导出项的文件名、本地路径、远端路径（需求 10832）。
+	// 与 EVALUATE_EXPORT_CONDITION 的分工：后者只给各原因的数量汇总，
+	// 前者给到「哪个证券月、什么原因、缺哪个字段、差哪几天、会生成什么文件」。
+	JobExplainExportDecision = "EXPLAIN_EXPORT_DECISION"
 )
 
 // AllJobKinds 返回全部 Job 标识（顺序与方案稿 2.2 节编排一致）。
@@ -86,6 +91,7 @@ func AllJobKinds() []string {
 		JobScanPostSealPatches,
 		JobCheckIngestReadiness,
 		JobEvaluateExportCondition,
+		JobExplainExportDecision,
 		JobPurgeExportedMonth,
 		JobPurgeLocalExportFiles,
 		JobCleanExportStorage,

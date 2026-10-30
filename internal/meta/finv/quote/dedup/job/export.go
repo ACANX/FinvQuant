@@ -70,6 +70,9 @@ func RunDueExportJobs(ctx context.Context, svc *dedup.Service, result *dedup.Res
 	svc.ReportJobProgress(ctx, "RUNNING", 0,
 		fmt.Sprintf("候选 %d 个，动态 JOB %d 个，本轮最多处理 %d 个，%s",
 			created, dynamicCreated, options.MaxJobsPerRun, budgetNote))
+	// 需求 10832：批次/候选/动态任一为空时，把「卡在哪一步、为什么」打进日志。
+	// 原先只有上面这一行，候选 0 时运维无从判断是元数据不全、未成熟、还是已导出过。
+	svc.DiagnoseEmptyExportBatch(ctx, batchBase, batchIncr, created, dynamicCreated, options.CurrentMonth())
 
 	var processed, paused, failed int
 	for processed < options.MaxJobsPerRun {

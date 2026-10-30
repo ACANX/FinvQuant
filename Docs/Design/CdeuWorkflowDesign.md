@@ -285,7 +285,8 @@ COLLECT ──► DEDUP ──► DECISION ──► EXPORT ──► UPLOAD ─
 | `PROCESS_INGEST_STATS` 每日入口流量统计 | `JOB_CALC_INGEST_STATS` | `DAILY` 00:05 | 近 30 天每日入口行数/证券数/字节数入库 |
 | `PROCESS_MATURITY` 行情成熟度扫描 | `JOB_REFRESH_MATURITY` | `DAILY` 00:05 | 增量刷新每个证券月的成熟度，发现新证券 |
 | `PROCESS_BUDGET` 每日导出预算计算 | `JOB_CALC_BUDGET` | `DAILY` 00:10 | 算出今天的行/字节预算与硬顶 |
-| `PROCESS_EXPORT_DECISION` 导出条件判定 | `JOB_EVALUATE_EXPORT_CONDITION` | `DAILY` 00:15 | 只读评估候选与排除原因 |
+| `PROCESS_EXPORT_DECISION` 导出条件判定 | `JOB_EVALUATE_EXPORT_CONDITION` | `DAILY` 00:15 | 只读评估候选数与各排除原因的**数量** |
+| 同上（明细） | `JOB_EXPLAIN_EXPORT_DECISION` | `DAILY` 00:16 | 逐条给出每个证券月能否导出、**具体原因**、行数、文件名与两端路径 |
 
 - **关键规则**：
   - **预算公式**（`ComputeBudget`）：
@@ -429,6 +430,7 @@ COLLECT ──► DEDUP ──► DECISION ──► EXPORT ──► UPLOAD ─
 | `JOB_REFRESH_MATURITY` | 主表（水位之后）、证券字典、日增量行数模板 | 增量刷新成熟度；发现新证券；按模板补全 `day_expect_rows` 与优先级/SLA 默认值；每月 1 日全量校准近 3 个月 | `quote_maturity_mon`、`scan_watermark`、`usc`、`usc_day_incr_row_tpl` | 决定「这个月能不能导」（熟度不足导出的就是残缺月） |
 | `JOB_CALC_BUDGET` | 流量基线、待导行数、SLA 压力 | `ComputeBudget` 计算 factor / target / hard_cap | `finv_quote_cdeu_daily_budget` | 给导出装上「油门」，防止归档抢占在线资源 |
 | `JOB_EVALUATE_EXPORT_CONDITION` | 主表、元数据、导出任务 | 只读评估 BASE 条件与排除原因、INCR 候选 | 运行明细（候选数、排除分解、样本） | 让「今天为什么只导了 3 个月」有明确答案 |
+| `JOB_EXPLAIN_EXPORT_DECISION` | 成熟度表全量、证券主数据、导出任务与文件、近 6 个月行情表 | 逐条判定并组装原因（缺哪个字段 / 差哪几天交易日 / 已导出到哪个文件）、可导出项算出文件名与本地/远端路径；另扫成熟度缺失月份 | 运行明细（完整逐条清单）、逐条日志 | 让「某个证券月为什么没导出」可指名道姓，`候选 0 个` 不再是无解日志 |
 
 ### 6.3 导出
 
@@ -472,7 +474,8 @@ COLLECT ──► DEDUP ──► DECISION ──► EXPORT ──► UPLOAD ─
 | `JOB_CALC_INGEST_STATS` | `STEP_CALC_INGEST_STATS` | 近 30 天流量聚合 |
 | `JOB_REFRESH_MATURITY` | `STEP_REFRESH_MATURITY` | 增量成熟度 + 全量校准 |
 | `JOB_CALC_BUDGET` | `STEP_CALC_BUDGET` | 预算计算 |
-| `JOB_EVALUATE_EXPORT_CONDITION` | — | 单步只读评估 |
+| `JOB_EVALUATE_EXPORT_CONDITION` | — | 单步只读评估（汇总口径） |
+| `JOB_EXPLAIN_EXPORT_DECISION` | — | 单步只读评估（逐条明细 + 文件命名与路径） |
 | `JOB_FETCH_EXPORT_BATCH` | `STEP_FETCH_EXPORT_BATCH` | 批次清单获取 + 驱动导出主循环 |
 | `JOB_FETCH_SECURITY_METADATA` | `STEP_FETCH_SECURITY_METADATA` | 证券元数据补齐 |
 | `JOB_EXPORT_LOAD` | `STEP_LOAD` | 主表 → 中转表 |

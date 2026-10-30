@@ -158,3 +158,129 @@ HAVING bool_and(m.maturity_status IN ('COMPLETE','FROZEN'))
 	}
 	return report, rows.Err()
 }
+
+// ExportDecisionMaterial 判定「某证券月能否导出」所需的原始素材（需求 10832）。
+//
+// 只做取数，不做判定：判定与原因描述放在 Service.ExplainExportDecision，
+// 那里能同时拿到 Options（本地目录、上传布局）用于生成文件名与落地路径。
+type ExportDecisionMaterial struct {
+	Usc          string
+	BizMonth     int
+	Region       *string
+	Market       *string
+	Provider     *string
+	Name         *string
+	Timezone     *string
+	Currency     *string
+	DateDelist   *time.Time
+	PriorityRank int
+	// Days 该月成熟度记录覆盖的交易日数；MatureDays 其中已达 COMPLETE/FROZEN 的天数。
+	Days       int
+	MatureDays int
+	// ExpectedRows 按日模板累计的应有行数；ActualRows 实际采集行数。
+	ExpectedRows int64
+	ActualRows   int64
+	// UnmatureDays 未成熟的交易日（YYYYMMDD），用于在原因里指名道姓。
+	UnmatureDays []int
+	// JobID / JobStatus / BaseFileName 已存在的导出任务与已登记文件（可为空）。
+	JobID        *int64
+	JobStatus    *string
+	BaseFileName *string
+}
+
+// MaturityGap 「行情已有数据但成熟度表没有记录」的月份（需求 10832）。
+//
+// 这是「流程跑完却没生成动态 JOB」最容易被忽略的一类原因：导出判定全程基于
+// 成熟度表，一旦成熟度行没生成（去重未产出 / 刷新 JOB 未跑到），判定侧完全看不到
+// 该月的数据，表现为「静默无候选」。
+type MaturityGap struct {
+	Usc      string
+	BizMonth int
+}
+
+// ExportDecisionMaterials 读取全部 (usc, biz_month) 的判定素材。
+//
+// 与 GenerateExportBatch 的 BASE 分支同源（同一张成熟度表、同一张证券主数据），
+// 区别是不套 WHERE 过滤——每一条都要带出排除原因给运维看。
+func (s *Store) ExportDecisionMaterials(ctx context.Context) ([]ExportDecisionMaterial, error) {
+	rows, err := s.pool.Query(ctx, `
+SELECT m.usc,
+       m.biz_month,
+       u.region, u.market, u.provider, u.name, u.timezone, u.currency,
+       u.date_delist,
+       COALESCE(u.priority_rank, 100),
+       count(*)::int,
+       count(*) FILTER (WHERE m.maturity_status IN ('COMPLETE','FROZEN'))::int,
+       COALESCE(sum(m.expected_rows), 0)::bigint,
+       COALESCE(sum(m.actual_rows), 0)::bigint,
+       COALESCE(array_agg(m.trade_date ORDER BY m.trade_date)
+                FILTER (WHERE m.maturity_status NOT IN ('COMPLETE','FROZEN')), '{}')::int[],
+       j.job_id, j.status, j.file_name
+  FROM `+tableMaturity+` m
+  JOIN `+tableUsc+` u ON u.usc = m.usc
+  LEFT JOIN LATERAL (
+        SELECT jj.job_id,
+               jj.status,
+               (SELECT ff.file_name
+                  FROM `+tableFile+` ff
+                 WHERE ff.job_id = jj.job_id AND ff.file_type = 'BASE'
+                 ORDER BY ff.version DESC
+                 LIMIT 1) AS file_name
+          FROM `+tableJob+` jj
+         WHERE jj.usc = m.usc AND jj.biz_month = m.biz_month
+         ORDER BY jj.job_id DESC
+         LIMIT 1) j ON true
+ GROUP BY m.usc, m.biz_month, u.region, u.market, u.provider, u.name, u.timezone,
+          u.currency, u.date_delist, u.priority_rank, j.job_id, j.status, j.file_name
+ ORDER BY COALESCE(u.priority_rank, 100), m.biz_month, m.usc`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	materials := make([]ExportDecisionMaterial, 0, 256)
+	for rows.Next() {
+		var item ExportDecisionMaterial
+		if err := rows.Scan(&item.Usc, &item.BizMonth,
+			&item.Region, &item.Market, &item.Provider, &item.Name, &item.Timezone, &item.Currency,
+			&item.DateDelist, &item.PriorityRank,
+			&item.Days, &item.MatureDays, &item.ExpectedRows, &item.ActualRows, &item.UnmatureDays,
+			&item.JobID, &item.JobStatus, &item.BaseFileName); err != nil {
+			return nil, err
+		}
+		materials = append(materials, item)
+	}
+	return materials, rows.Err()
+}
+
+// ExportMaturityGaps 找出「行情表已有某月数据、但成熟度表没有该月记录」的证券月。
+//
+// fromMonth 用于限制扫描范围（YYYYMM），避免对全量行情表做去重扫描。
+func (s *Store) ExportMaturityGaps(ctx context.Context, fromMonth int, limit int) ([]MaturityGap, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	rows, err := s.pool.Query(ctx, `
+SELECT DISTINCT q.usc, q.date / 100 AS biz_month
+  FROM quote.finv_quote_secu_kline_min q
+ WHERE q.date >= $1
+   AND NOT EXISTS (
+       SELECT 1 FROM `+tableMaturity+` m
+        WHERE m.usc = q.usc AND m.biz_month = q.date / 100)
+ ORDER BY 2 DESC, 1
+ LIMIT $2`, fromMonth*100+1, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	gaps := make([]MaturityGap, 0, 32)
+	for rows.Next() {
+		var gap MaturityGap
+		if err := rows.Scan(&gap.Usc, &gap.BizMonth); err != nil {
+			return nil, err
+		}
+		gaps = append(gaps, gap)
+	}
+	return gaps, rows.Err()
+}

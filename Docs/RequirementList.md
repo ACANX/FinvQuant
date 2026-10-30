@@ -2360,6 +2360,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10831 | 同一流程下同类型动态 JOB（导出 / 上传）的领取顺序：**优先级为主序**（导出 `FROZEN` 紧急度 → `priority_rank` → `oldest_pending_date`；上传无优先级维度则直接看拓扑），**同优先级时按 CDEU 定义的 `cdeu.finv_quote_cdeu_job_dynamic.seq_no` 决定先后**；不引入新的配置开关。 | `grep -c 'dj.seq_no' internal/meta/finv/quote/dedup/store.go` ≥ 1；`grep -c 'dj.seq_no' internal/meta/finv/quote/dedup/store_files.go` ≥ 1；`grep -c '2147483647' internal/meta/finv/quote/dedup/store.go internal/meta/finv/quote/dedup/store_files.go` 各 ≥ 1；库内验证（事务内造数后回滚）：同 `priority_rank`/`oldest_pending_date` 的两条任务 `seq_no=2/1` → 领取到 `seq_no=1`；把 `seq_no=2` 那条的 `priority_rank` 改成 1 → 领取到高优先级那条 | |
 
+## 一百五十九、导出决策明细 JOB 与 provider 缺口修复（10832）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10832 | 导出决策阶段必须有一个 JOB 逐条说明「哪些证券月能导出、哪些不能、为什么不能」，不得只给汇总数量：不能导出时给出具体原因（缺失的元数据字段名、退市日期、当月、未成熟的交易日列表、已导出的 job_id 与文件名）；能导出时给出应有行数、实际行数、目标文件名、本地路径、远端路径；另需列出「行情表有数据但成熟度表无记录」的盲区月份。同时修复 `cdeu.finv_quote_cdeu_usc.provider` 恒空导致全部证券月被判「元数据不全」的缺口（有富途采集记录的证券补 `FTMM`）。 | `grep -c 'JobExplainExportDecision = "EXPLAIN_EXPORT_DECISION"' internal/meta/finv/quote/dedup/model.go` 为 1；`grep -c 'func (s \*Service) ExplainExportDecision' internal/meta/finv/quote/dedup/service_decision.go` 为 1；`grep -c 'func (s \*Service) DiagnoseEmptyExportBatch' internal/meta/finv/quote/dedup/service_decision.go` 为 1；`grep -c 'provider   = .FTMM.' internal/meta/finv/quote/dedup/store.go` ≥ 1；`go test ./internal/meta/finv/quote/dedup/ -run TestClassifyExportDecision` 通过 9 个场景；库内 `SELECT count(*) FROM cdeu.finv_quote_cdeu_usc WHERE provider IS NULL AND EXISTS (SELECT 1 FROM futu.finv_futu_quote_collect f WHERE f.usc = cdeu.finv_quote_cdeu_usc.usc)` 为 0；服务启动日志含 `调度 EXPLAIN_EXPORT_DECISION` | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2546,7 +2552,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | CDEU 阶段按拓扑顺序执行 | 10829 | 1 |
 | CDEU 流程与 JOB 按顺序执行 | 10830 | 1 |
 | 动态 JOB 领取顺序（优先级 + seq_no） | 10831 | 1 |
-| **合计** | **10001–10831** | **831** |
+| 导出决策明细 JOB 与 provider 修复 | 10832 | 1 |
+| **合计** | **10001–10832** | **832** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

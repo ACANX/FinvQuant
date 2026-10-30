@@ -706,6 +706,27 @@ UPDATE `+tableUsc+` u
 		stat.MaturityRows = recomputed
 	}
 
+	// ---- 5.6. provider 兜底：有富途采集记录的证券一律为 FTMM ----
+	//
+	// 背景（需求 10832 排查）：finv_security.provider 对部分证券为空（全表 17199 行里
+	// 510 行为空，本次涉及的 39 个证券**全部**为空），而导出条件要求 provider 非空，
+	// 结果这些证券月被判为「元数据不全」，候选恒为 0，流程跑完没有任何动态 JOB，
+	// 日志也只说「候选 0 个」——这是「上个月有数据却导不出来」的直接原因。
+	//
+	// 取值依据：数据源就是富途（futu.finv_futu_quote_collect），历史上全部 202 个
+	// 已导出文件名里的 provider 段均为 FTMM。因此只对**有富途采集记录**的证券兜底，
+	// 不覆盖人工值、也不给非富途来源的证券乱填。
+	tag, err = s.pool.Exec(ctx, `
+UPDATE `+tableUsc+` u
+   SET provider   = 'FTMM',
+       gmt_update = now()
+ WHERE u.provider IS NULL
+   AND EXISTS (SELECT 1 FROM `+tableFutuQuote+` f WHERE f.usc = u.usc)`)
+	if err != nil {
+		return stat, fmt.Errorf("按富途采集记录补全 provider 失败: %w", err)
+	}
+	stat.DerivedRows += tag.RowsAffected()
+
 	// ---- 6. 优先级 / SLA / 最大等待默认值（只补「从未配置过」的证券）----
 	//
 	// 关键条件 `priority_gmt_update IS NULL`：该列是「人工改过」的标记——

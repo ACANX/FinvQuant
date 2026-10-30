@@ -107,6 +107,43 @@
 
 ### 修复
 
+- **导出链路「不生成动态 JOB」无法归因，且存在 provider 恒空的致命缺口（需求 10832）**
+  - 现象（用户实测）：流程跑了多次都没有生成预期的动态导出 JOB；表里明明有上个月的数据，
+    日志里也没有任何原因说明，只能手工逐表比对，排查成本极高。
+  - 根因（实测定位）：
+    1. **`cdeu.finv_quote_cdeu_usc.provider` 全部为空**（39 个证券全空；`finv_security.provider`
+       对这 39 个证券同样为空）。导出条件要求 `provider IS NOT NULL`，于是所有
+       `(usc, biz_month)` 都被判为「元数据不全」（实测 2492/2492 行），候选恒为 0，
+       动态 JOB 永远不生成。
+    2. 日志不可归因：决策阶段只输出「各原因的数量」，导出 JOB 最多一行「候选 0 个」，
+       无法区分「批次为空 / 元数据不全 / 未成熟 / 已导出 / 成熟度表压根没有该月」。
+  - 修复一（可解释性）：新增 JOB `EXPLAIN_EXPORT_DECISION`「导出决策明细」
+    （`PHASE_DECISION` / `PROCESS_EXPORT_DECISION`，`seq_no=2`，每日 00:16），
+    对成熟度表里**每一个** `(usc, biz_month)` 输出结论与具体原因：
+    - `METADATA_INCOMPLETE`：列出为空的字段中文名（如 `provider（数据商）`）；
+    - `DELISTED`：给出 `date_delist` 与业务月首日；
+    - `CURRENT_MONTH`：给出 `biz_month` 与当月；
+    - `IMMATURE`：给出「共 N 个交易日、仅 M 天成熟」并列出未成熟交易日；
+    - `ALREADY_EXPORTED`：给出 `job_id`、状态与已登记文件名；
+    - `EXPORTABLE`：给出应有行数/实际行数、**目标文件名**、**本地路径**、**远端路径**。
+    另扫描「行情表有数据但成熟度表无记录」的月份（`MATURITY_MISSING`）——这类月份在判定侧
+    完全隐形，是「静默无候选」最隐蔽的原因。
+  - 修复二（导出 JOB 归因）：新增 `Service.DiagnoseEmptyExportBatch`，在批次/候选/动态数量
+    异常时按链路顺序打印「批次清单为空 / 批次有 N 条但候选 0 / 候选 N 条但动态 0」三段结论，
+    并附上判定分布与前 5 条排除明细。
+  - 修复三（provider 缺口）：`BackfillUscDefaults` 新增第 5.6 步——**有富途采集记录的证券**
+    补 `provider='FTMM'`（依据：数据源即 `futu.finv_futu_quote_collect`，历史 202 个已导出
+    文件名的 provider 段全部为 FTMM）；迁移 `V200067` 同步补全存量数据。只补空值、只补
+    有富途采集记录的证券，不覆盖人工值。
+  - 验证：
+    - 迁移后 `provider` 空值 39 → 0，新 JOB 已在调度器注册（`调度 EXPLAIN_EXPORT_DECISION：每日 00:16`）。
+    - 真实库执行决策明细：`总数=102 可导出=0 排除=102 原因分布={ALREADY_EXPORTED:101, CURRENT_MONTH:1}`，
+      逐条输出形如「NVDA 202604 原因=ALREADY_EXPORTED 说明=已导出/导出中：job_id=101 status=EXPORTED
+      已登记文件=US_NSDQ_NVDA_Min_FTMM_Mon_202604_Base.mvsv」。
+    - 单测 `TestClassifyExportDecision` 覆盖 9 个场景（可导出路径/文件名、元数据缺失指名到字段、
+      退市日期、当月、未成熟交易日列表与超限计数、已导出 job_id 与文件、文件未登记、
+      判定顺序优先级）。
+
 - **动态 JOB 领取顺序未体现 CDEU 定义的拓扑次序（需求 10831）**
   - 问题：同流程下的同类型动态 JOB（每证券月的 `EXPORT`、每文件的 `UPLOAD`）创建时已经写了 `cdeu.finv_quote_cdeu_job_dynamic.seq_no`（导出按 `usc, biz_month`、上传按 `file_id` 生成），但领取时的排序完全不看它——导出用 `ClaimJob` 的「`FROZEN` 紧急度 → `priority_rank` → `oldest_pending_date` → `job_id`」，上传用文件表的 `gmt_create, file_id`。于是「定义了拓扑顺序」却没有生效，同优先级时只能靠自增主键兜底。
   - 修复（不加新配置，顺序规则按业务口径固化）：**优先级仍然是主序**
