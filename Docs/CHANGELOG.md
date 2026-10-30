@@ -101,6 +101,15 @@
 
 ### 修复
 
+- **重复跑补全流程会把人工清空的优先级/SLA 恢复成默认值（需求 10827）**
+  - 问题：运维在「优先级」里清空某证券的覆盖值（`DELETE /Priority` → 三列置 NULL 且 `priority_gmt_update = now()`），下一轮补全又会按「三列全空」补成 100 / 5 / 7 —— 人工清空的意图被覆盖，看起来像「字段被重置」。
+  - 修复：补全的优先级阶段增加 `priority_gmt_update IS NULL` 条件，只有「**从未配置过**」的证券才补默认值：
+    - `priority_gmt_update IS NULL` + 三列全空 → 系统从未配过 → 补 100 / 5 / 7（初始化语义保留）；
+    - `priority_gmt_update` 非 NULL + 三列全空 → **人工清空**（PUT/Priority 删除会写该列）→ 不再补；
+    - 三列有值 → 人工设置过 → 不动。
+  - 同时新增稳态短路：补全方法挂在「每 60 秒一轮的导出 JOB」与「每日成熟度 JOB」上，先用一次 `count(*)` 判断是否还有缺口（判缺口口径与各阶段 WHERE 一致，人工清空的证券不计为缺口），无缺口直接返回，避免每轮跑 6 条大表 JOIN/UPDATE。
+  - 实测（本机容器）：把 `600519` 的三列清空并保持 `priority_gmt_update = now()`（模拟人工清空）、把 `000001` 三列清空且 `priority_gmt_update = NULL`（模拟从未配置）→ 跑一轮 `REFRESH_QUOTE_MATURITY`：`000001` 补成 100 / 5 / 7（日志「优先级 1」），`600519` 仍为 NULL（未被恢复默认）；再跑一轮日志显示「优先级 0」。
+
 - **补齐 day_expect_rows 后，成熟度表期望行数仍为 0（需求 10826）**
   - 问题：`cdeu.finv_quote_cdeu_usc.day_expect_rows` 已经补成 241/331/390…，但 `cdeu.finv_quote_cdeu_quote_maturity_mon.expected_rows` 仍停在 0（页面「期望行数」为 0，实际行数正常）。根因是 `expected_rows` 只在成熟度刷新**扫到该证券该日**时才写，而 `RefreshMaturityIncremental` 的扫描范围是主表 `gmt_update` 水位（只覆盖新到数据），历史成熟度行不会重扫；全量校准 `RecalibrateMaturity` 也只在「水位首次建立」或「每月 1 日」触发。
   - 修复：`BackfillUscDefaults` 在补齐 `day_expect_rows` 后用 `RETURNING usc` 收集受影响的证券，并对**这些证券**的历史成熟度行重算 `expected_rows` 与 `maturity_status`（新增 `Store.recomputeMaturityExpected`：非交易日=0/COMPLETE、无期望值=PARTIAL、`actual_rows >= day_expect_rows × threshold` = COMPLETE，`FROZEN` 行状态不改写），只更新有差异的行、不扫全表；方法签名增加 `threshold`（取 `options.MaturityThreshold`），`UscBackfillStat` 增加 `MaturityRows`，JOB 日志与 `details` 输出「重算成熟度 N 行」。

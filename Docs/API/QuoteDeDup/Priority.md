@@ -14,7 +14,17 @@
 
 约束 `finv_dedup_usc_priority_group_check` 保证三列**同时为 NULL 或同时有值**，不会出现半配置态。
 
-自动补全（需求 10821）：自动发现新证券 / 刷新证券元数据时，三列若同时为 NULL 会直接被写成默认值 100 / 5 / 7（只补空，不覆盖人工设置），使流程无需人工预配置即可运行；自动补全**不写** `priority_gmt_update`，因此 `priority_gmt_update IS NULL` + 三列=默认值表示「默认值」，非 NULL 表示「人工设置过」。
+自动补全（需求 10821 / 10827）：自动发现新证券 / 刷新证券元数据时，**只对「从未配置过」的证券**（三列同时为 NULL **且** `priority_gmt_update IS NULL`）写入默认值 100 / 5 / 7，使流程无需人工预配置即可运行；自动补全**不写** `priority_gmt_update`。
+
+`priority_gmt_update` 的语义（也是「是否已被人工处理过」的标记）：
+
+| 状态 | 含义 | 自动补全行为 |
+|---|---|---|
+| 三列有值 | 人工设置过 | 不覆盖 |
+| 三列 NULL + `priority_gmt_update` 非 NULL | 人工**清空**（`DELETE /Priority` 会写该列） | 不再补默认值（需求 10827） |
+| 三列 NULL + `priority_gmt_update` NULL | 系统从未配置 | 补 100 / 5 / 7 |
+
+因此想让某证券「就用默认口径、且不被自动流程反复写入」，执行一次 `DELETE /Priority` 即可。
 
 `priority_gmt_update` 独立记录优先级最后修改时间，与主数据的 `gmt_update` 分离，便于审计。
 

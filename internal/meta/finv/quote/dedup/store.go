@@ -507,6 +507,24 @@ type UscBackfillStat struct {
 func (s *Store) BackfillUscDefaults(ctx context.Context, threshold float64) (UscBackfillStat, error) {
 	var stat UscBackfillStat
 
+	// 稳态快速返回（需求 10827）：本方法挂在「每 60 秒一轮的导出 JOB」与「每日成熟度 JOB」上，
+	// 补全完成后不应再每轮跑 6 条大表 JOIN/UPDATE（usc × finv_security × 富途镜像）。
+	// 这里先用一次 count 判断是否真有缺口，没有就直接结束；判缺口的口径与各阶段 WHERE 一致
+	// （优先级只算「三列全空且 priority_gmt_update 为空」的从未配置行，人工清空的除外）。
+	var pending int64
+	if err := s.pool.QueryRow(ctx, `
+SELECT count(*)
+  FROM `+tableUsc+`
+ WHERE category IS NULL OR region IS NULL OR market IS NULL OR name IS NULL
+    OR timezone IS NULL OR currency IS NULL OR provider IS NULL OR day_expect_rows IS NULL
+    OR (priority_rank IS NULL AND sla_days IS NULL AND max_wait_days IS NULL
+        AND priority_gmt_update IS NULL)`).Scan(&pending); err != nil {
+		return stat, fmt.Errorf("检查证券元数据缺口失败: %w", err)
+	}
+	if pending == 0 {
+		return stat, nil
+	}
+
 	// ---- 1. finv_security 回填（不限 flag_enable）----
 	tag, err := s.pool.Exec(ctx, `
 WITH src AS (
@@ -688,14 +706,22 @@ UPDATE `+tableUsc+` u
 		stat.MaturityRows = recomputed
 	}
 
-	// ---- 6. 优先级 / SLA / 最大等待默认值 ----
+	// ---- 6. 优先级 / SLA / 最大等待默认值（只补「从未配置过」的证券）----
+	//
+	// 关键条件 `priority_gmt_update IS NULL`：该列是「人工改过」的标记——
+	//   · priority_gmt_update 为 NULL 且三列全空 → 系统从未配过，补 100/5/7；
+	//   · priority_gmt_update 非 NULL 且三列全空 → 运维**主动清空**（PUT/Priority 删除），
+	//     表示「就用默认口径 / 不想被自动填」，不得再补，否则重复跑流程会把人工清空
+	//     又恢复成 100/5/7（需求 10827）；
+	//   · 三列有值 → 人工设置过，不动。
 	tag, err = s.pool.Exec(ctx, `
 UPDATE `+tableUsc+`
    SET priority_rank = $1,
        sla_days = $2,
        max_wait_days = $3,
        gmt_update = now()
- WHERE priority_rank IS NULL AND sla_days IS NULL AND max_wait_days IS NULL`,
+ WHERE priority_rank IS NULL AND sla_days IS NULL AND max_wait_days IS NULL
+   AND priority_gmt_update IS NULL`,
 		defaultPriorityRank, defaultSlaDays, defaultMaxWaitDays)
 	if err != nil {
 		return stat, fmt.Errorf("补全归档优先级/SLA 默认值失败: %w", err)

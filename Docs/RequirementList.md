@@ -2330,6 +2330,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10826 | 自动补全 `cdeu.finv_quote_cdeu_usc.day_expect_rows` 后，必须同步重算这些证券的历史成熟度行 `expected_rows` 与 `maturity_status`（非交易日=0/COMPLETE、无期望值=PARTIAL、`actual_rows >= day_expect_rows × 阈值` = COMPLETE，`FROZEN` 不改写），使页面「期望行数」不再停在 0；只处理刚补全的证券，不整表重扫。 | `grep -c 'func (s \*Store) recomputeMaturityExpected' internal/meta/finv/quote/dedup/store.go` 为 1；`grep -c 'recomputeMaturityExpected' internal/meta/finv/quote/dedup/store.go` ≥ 2；`grep -c 'RETURNING u.usc' internal/meta/finv/quote/dedup/store.go` 为 1；`go test ./internal/meta/finv/quote/dedup/ -run TestBackfillUscDefaults`（需 `FINV_TEST_PG_DSN`）通过；库内验证：将某证券 `day_expect_rows` 置空并使其成熟度行 `expected_rows=0`，跑一轮 `REFRESH_QUOTE_MATURITY` 后 `select expected_rows from cdeu.finv_quote_cdeu_quote_maturity_mon where usc=<该证券>` 等于模板值（不再是 0） | |
 
+## 一百五十四、补全流程不得覆盖人工清空的优先级（10827）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10827 | 重复执行证券补全流程时，`priority_rank` / `sla_days` / `max_wait_days` 只能对「从未配置过」（三列全空且 `priority_gmt_update IS NULL`）的证券补默认值 100/5/7；`priority_gmt_update` 非空的空值行表示人工清空，不得再补；同时补全方法在无缺口时应快速返回（一次 count 判定，不执行后续大表 JOIN/UPDATE）。 | `grep -c 'AND priority_gmt_update IS NULL' internal/meta/finv/quote/dedup/store.go` ≥ 2（阶段 SQL 与缺口判定各一处）；`grep -c '稳态快速返回' internal/meta/finv/quote/dedup/store.go` 为 1；库内验证：将某证券三列清空并置 `priority_gmt_update = now()`，跑一轮 `REFRESH_QUOTE_MATURITY` 后该行三列仍为 NULL；将另一证券三列清空且 `priority_gmt_update = NULL`，同一轮后补成 100/5/7；再跑一轮 JOB 日志出现「优先级 0」 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2511,7 +2517,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 上传 JOB 日志可观测性 | 10824 | 1 |
 | GitHub 大文件上传与去重口径 | 10825 | 1 |
 | 补齐 day_expect_rows 后重算成熟度 | 10826 | 1 |
-| **合计** | **10001–10826** | **826** |
+| 补全流程不覆盖人工清空的优先级 | 10827 | 1 |
+| **合计** | **10001–10827** | **827** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
