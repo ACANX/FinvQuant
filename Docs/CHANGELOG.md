@@ -101,6 +101,12 @@
 
 ### 修复
 
+- **补齐 day_expect_rows 后，成熟度表期望行数仍为 0（需求 10826）**
+  - 问题：`cdeu.finv_quote_cdeu_usc.day_expect_rows` 已经补成 241/331/390…，但 `cdeu.finv_quote_cdeu_quote_maturity_mon.expected_rows` 仍停在 0（页面「期望行数」为 0，实际行数正常）。根因是 `expected_rows` 只在成熟度刷新**扫到该证券该日**时才写，而 `RefreshMaturityIncremental` 的扫描范围是主表 `gmt_update` 水位（只覆盖新到数据），历史成熟度行不会重扫；全量校准 `RecalibrateMaturity` 也只在「水位首次建立」或「每月 1 日」触发。
+  - 修复：`BackfillUscDefaults` 在补齐 `day_expect_rows` 后用 `RETURNING usc` 收集受影响的证券，并对**这些证券**的历史成熟度行重算 `expected_rows` 与 `maturity_status`（新增 `Store.recomputeMaturityExpected`：非交易日=0/COMPLETE、无期望值=PARTIAL、`actual_rows >= day_expect_rows × threshold` = COMPLETE，`FROZEN` 行状态不改写），只更新有差异的行、不扫全表；方法签名增加 `threshold`（取 `options.MaturityThreshold`），`UscBackfillStat` 增加 `MaturityRows`，JOB 日志与 `details` 输出「重算成熟度 N 行」。
+  - 实测（本机容器）：把 `600519` 的 `day_expect_rows` 清空并插入一条 `expected_rows=0 / actual_rows=30` 的成熟度行 → 触发 `REFRESH_QUOTE_MATURITY` → `usc.day_expect_rows` 补回 241、`maturity.expected_rows` 变为 241、状态 `PARTIAL`（30 < 241×0.95），日志 `证券补全：元数据 39 行、…、day_expect_rows 1 行、重算成熟度 1 行、…`。
+  - 集成用例 `TestBackfillUscDefaults` 增加历史成熟度行断言（补全后 `expected_rows` 从 0 重算为 241），并把 `MaturityRows` 纳入幂等断言。
+
 - **GitHub 上传对大文件必失败、远端去重误报、上传实例缺执行日志入口（需求 10825）**
   - 问题一（必现失败）：查询远端文件走 Contents API，该接口会把文件内容以 base64 一并返回（800,787 字节的 mvsv ≈ 1.1MB 响应），而实现按 `1<<20` 截断读取 → JSON 不完整 → 误报「解析远端响应失败: unexpected end of JSON input」。README 里的「解析远端响应失败」错误就是它。
   - 问题二（日志误导）：Job 层「上传前 HEAD 去重」用本地 SHA256 与 `Stat` 返回的远端校验值比较，但 GitHub 返回的是 **git blob sha1**（不提供 SHA256），两者永不相同 → 每次都记「远端已存在但内容不同，将覆盖」，实际 `Put` 内部按 blob sha 判等后并未产生提交。

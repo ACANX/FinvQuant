@@ -465,6 +465,7 @@ type UscBackfillStat struct {
 	MetadataRows  int64              // 元数据（finv_security / futu 镜像）被补上的行数
 	DerivedRows   int64              // 按 region / usc 前缀推导 timezone、currency、market 的行数
 	DayExpectRows int64              // 按模板补齐 day_expect_rows 的证券数
+	MaturityRows  int64              // 按新期望条数重算的历史成熟度行数
 	Priority      int64              // 补齐 priority_rank / sla_days / max_wait_days 的证券数
 	Missing       UscBackfillMissing // 补全后仍为 NULL 的字段行数
 }
@@ -503,7 +504,7 @@ type UscBackfillStat struct {
 //
 // 幂等：重复执行后第 1–4 步影响 0 行。挂在两个 JOB 上——成熟度刷新（DiscoverUsc 之后）
 // 与导出前置（RefreshSecurityMetadata 之后）。
-func (s *Store) BackfillUscDefaults(ctx context.Context) (UscBackfillStat, error) {
+func (s *Store) BackfillUscDefaults(ctx context.Context, threshold float64) (UscBackfillStat, error) {
 	var stat UscBackfillStat
 
 	// ---- 1. finv_security 回填（不限 flag_enable）----
@@ -629,7 +630,7 @@ UPDATE `+tableUsc+`
 	// **用户侧为 NULL 的维度不会凭空匹配**（NULL ≠ 任何具体值），全空的证券只能
 	// 命中全通配模板（当前刻意不提供，避免把残缺月的成熟度误判为 COMPLETE）。
 	// region/market 缺失时的可导性由第 2/3/4 步和 V200066 的区域级兜底模板保证。
-	tag, err = s.pool.Exec(ctx, `
+	rows, qerr := s.pool.Query(ctx, `
 WITH tpl AS (
     SELECT upper(t.region) AS region,
            upper(t.market) AS market,
@@ -653,11 +654,39 @@ UPDATE `+tableUsc+` u
    SET day_expect_rows = m.day_expect_rows,
        gmt_update = now()
   FROM matched m
- WHERE u.usc = m.usc`)
-	if err != nil {
-		return stat, fmt.Errorf("按模板补全 day_expect_rows 失败: %w", err)
+ WHERE u.usc = m.usc
+ RETURNING u.usc`)
+	if qerr != nil {
+		return stat, fmt.Errorf("按模板补全 day_expect_rows 失败: %w", qerr)
 	}
-	stat.DayExpectRows = tag.RowsAffected()
+	affectedUSC := make([]string, 0, 64)
+	for rows.Next() {
+		var usc string
+		if err := rows.Scan(&usc); err != nil {
+			rows.Close()
+			return stat, fmt.Errorf("读取补全 day_expect_rows 的证券失败: %w", err)
+		}
+		affectedUSC = append(affectedUSC, usc)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return stat, fmt.Errorf("读取补全 day_expect_rows 的证券失败: %w", err)
+	}
+	rows.Close()
+	stat.DayExpectRows = int64(len(affectedUSC))
+
+	// ---- 5.5. 用新的期望条数重算这些证券的历史成熟度行 ----
+	//
+	// 为什么必须有这一步：成熟度表 expected_rows 只在「成熟度刷新扫到该证券该日」时
+	// 才算，而增量刷新基于主表 gmt_update 水位、只覆盖新到数据；补全 day_expect_rows
+	// 之后再跑增量刷新，历史行不会重扫，页面上期望行数会一直停在 0（实际条数却正常）。
+	if len(affectedUSC) > 0 {
+		recomputed, err := s.recomputeMaturityExpected(ctx, affectedUSC, threshold)
+		if err != nil {
+			return stat, fmt.Errorf("按新期望条数重算成熟度失败: %w", err)
+		}
+		stat.MaturityRows = recomputed
+	}
 
 	// ---- 6. 优先级 / SLA / 最大等待默认值 ----
 	tag, err = s.pool.Exec(ctx, `
@@ -691,6 +720,54 @@ SELECT count(*) FILTER (WHERE provider IS NULL),
 	}
 
 	return stat, nil
+}
+
+// recomputeMaturityExpected 用证券当前 day_expect_rows 重算指定证券的历史成熟度行。
+//
+// 背景：expected_rows 只在成熟度刷新扫到「该证券该日」时才写，而 RefreshMaturityIncremental
+// 的扫描范围是主表 gmt_update 水位（只覆盖新到数据）；补全 day_expect_rows 之后历史行不会
+// 重扫，页面上的「期望行数」会一直停在 0（实际行数却正常）。本方法只针对刚补全的证券
+// 重算，不扫全表。
+//
+// 语义与 maturityUpsertHead 保持一致：
+//   - 非交易日 → expected_rows=0、status=COMPLETE；
+//   - day_expect_rows 缺失（0）→ PARTIAL；
+//   - actual_rows >= day_expect_rows * threshold → COMPLETE，否则 PARTIAL；
+//   - FROZEN 行的状态不被改写（已收口月份的状态已定稿）。
+func (s *Store) recomputeMaturityExpected(ctx context.Context, usc []string, threshold float64) (int64, error) {
+	if len(usc) == 0 {
+		return 0, nil
+	}
+	tag, err := s.pool.Exec(ctx, `
+WITH recomputed AS (
+    SELECT m.usc, m.trade_date,
+           CASE WHEN COALESCE(tc.flag_trade_day, true)
+                THEN COALESCE(u.day_expect_rows, 0) ELSE 0 END AS expected_rows,
+           CASE
+             WHEN NOT COALESCE(tc.flag_trade_day, true) THEN 'COMPLETE'
+             WHEN COALESCE(u.day_expect_rows, 0) <= 0 THEN 'PARTIAL'
+             WHEN m.actual_rows::numeric >= COALESCE(u.day_expect_rows, 0)::numeric * $2::numeric THEN 'COMPLETE'
+             ELSE 'PARTIAL'
+           END AS maturity_status
+      FROM `+tableMaturity+` m
+      JOIN `+tableUsc+` u ON u.usc = m.usc
+      LEFT JOIN `+tableCalendar+` tc ON tc.usc = m.usc AND tc.trade_date = m.trade_date
+     WHERE m.usc = ANY($1)
+)
+UPDATE `+tableMaturity+` m
+   SET expected_rows = r.expected_rows,
+       maturity_status = CASE WHEN m.maturity_status = 'FROZEN'
+                              THEN 'FROZEN' ELSE r.maturity_status END,
+       gmt_update = now()
+  FROM recomputed r
+ WHERE m.usc = r.usc AND m.trade_date = r.trade_date
+   AND (m.expected_rows IS DISTINCT FROM r.expected_rows
+     OR (m.maturity_status <> 'FROZEN' AND m.maturity_status IS DISTINCT FROM r.maturity_status))`,
+		usc, thresholdString(threshold))
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }
 
 // UscMissingSample 取补全后仍缺关键字段的证券样本（供 JOB 日志定位）。

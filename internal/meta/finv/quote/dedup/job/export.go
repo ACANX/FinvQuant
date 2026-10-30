@@ -42,7 +42,7 @@ func RunDueExportJobs(ctx context.Context, svc *dedup.Service, result *dedup.Res
 	// RefreshSecurityMetadata 只管 finv_security.flag_enable='1' 的派生列；禁用的证券、
 	// finv_security 未收录的品种（富途板块/主连/外汇对）以及 day_expect_rows 与
 	// 优先级/SLA 默认值，统一由 BackfillUscDefaults 补全（只补空，不覆盖人工值）。
-	backfill, err := svc.Store().BackfillUscDefaults(ctx)
+	backfill, err := svc.Store().BackfillUscDefaults(ctx, options.MaturityThreshold)
 	if err != nil {
 		return fmt.Errorf("证券元数据与默认值补全失败: %w", err)
 	}

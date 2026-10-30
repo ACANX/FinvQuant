@@ -2324,6 +2324,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10825 | GitHub 上传必须能处理大于 1MB 的归档文件：查询远端文件改走 Git Trees API（只取 blob sha 与 size，不下载 base64 内容），失败时回退 Contents API 且读取上限 ≥ 32MB、超限报明确错误；Job 层「上传前去重」必须按远端校验口径判断（github 为 git blob sha1，不可与本地 SHA256 混比）；上传动态 JOB 必须写入 `run_log_id`（含历史实例补齐与查询兜底），保证页面「执行日志」入口不消失。 | `grep -c 'git/trees/' internal/meta/finv/quote/dedup/uploader_github.go` ≥ 1；`grep -c 'githubContentsReadLimit' internal/meta/finv/quote/dedup/uploader_github.go` ≥ 2；`grep -c 'RemoteChecksumAlgorithm' internal/meta/finv/quote/dedup/uploader.go internal/meta/finv/quote/dedup/uploader_github.go` 各 ≥ 1；`grep -c 'run_log_id' internal/meta/finv/quote/dedup/store.go` ≥ 4；`go test ./internal/meta/finv/quote/dedup/ -run 'TestGitHubStatUsesTreeAPI\|TestSplitRepoPath'` 通过；库内验证：一轮上传后 `select count(*) from cdeu.finv_quote_cdeu_job_dynamic where job_category='UPLOAD' and run_log_id is null` 为 0 | |
 
+## 一百五十三、补齐 day_expect_rows 后重算历史成熟度（10826）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10826 | 自动补全 `cdeu.finv_quote_cdeu_usc.day_expect_rows` 后，必须同步重算这些证券的历史成熟度行 `expected_rows` 与 `maturity_status`（非交易日=0/COMPLETE、无期望值=PARTIAL、`actual_rows >= day_expect_rows × 阈值` = COMPLETE，`FROZEN` 不改写），使页面「期望行数」不再停在 0；只处理刚补全的证券，不整表重扫。 | `grep -c 'func (s \*Store) recomputeMaturityExpected' internal/meta/finv/quote/dedup/store.go` 为 1；`grep -c 'recomputeMaturityExpected' internal/meta/finv/quote/dedup/store.go` ≥ 2；`grep -c 'RETURNING u.usc' internal/meta/finv/quote/dedup/store.go` 为 1；`go test ./internal/meta/finv/quote/dedup/ -run TestBackfillUscDefaults`（需 `FINV_TEST_PG_DSN`）通过；库内验证：将某证券 `day_expect_rows` 置空并使其成熟度行 `expected_rows=0`，跑一轮 `REFRESH_QUOTE_MATURITY` 后 `select expected_rows from cdeu.finv_quote_cdeu_quote_maturity_mon where usc=<该证券>` 等于模板值（不再是 0） | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2504,7 +2510,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 证券元数据与默认值补全优化 | 10823 | 1 |
 | 上传 JOB 日志可观测性 | 10824 | 1 |
 | GitHub 大文件上传与去重口径 | 10825 | 1 |
-| **合计** | **10001–10825** | **825** |
+| 补齐 day_expect_rows 后重算成熟度 | 10826 | 1 |
+| **合计** | **10001–10826** | **826** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

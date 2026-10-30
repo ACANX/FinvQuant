@@ -51,6 +51,7 @@ func TestBackfillUscDefaults(t *testing.T) {
 	store := NewStore(pool)
 	cleanup := func(cleanupCtx context.Context) {
 		for _, usc := range []string{backfillUscTpl, backfillUscKeep, backfillUscNoMatch, backfillUscDisabled, backfillUscFutu} {
+			_, _ = pool.Exec(cleanupCtx, `DELETE FROM cdeu.finv_quote_cdeu_quote_maturity_mon WHERE usc = $1`, usc)
 			_, _ = pool.Exec(cleanupCtx, `DELETE FROM cdeu.finv_quote_cdeu_usc WHERE usc = $1`, usc)
 			_, _ = pool.Exec(cleanupCtx, `DELETE FROM public.finv_security WHERE usc = $1`, usc)
 			_, _ = pool.Exec(cleanupCtx, `DELETE FROM futu.finv_futu_quote_collect WHERE usc = $1`, usc)
@@ -111,7 +112,18 @@ INSERT INTO cdeu.finv_quote_cdeu_usc (usc, flag_auto_discover) VALUES ($1, true)
 		t.Fatalf("插入富途兜底 usc 行失败: %v", err)
 	}
 
-	stat, err := store.BackfillUscDefaults(ctx)
+	// 6. 历史成熟度行：expected_rows 为 0（当初 day_expect_rows 未配置），
+	//    补全 day_expect_rows 后必须被重算成模板值（需求 10826）。
+	if _, err := pool.Exec(ctx, `
+INSERT INTO cdeu.finv_quote_cdeu_quote_maturity_mon
+  (usc, trade_date, biz_month, expected_rows, actual_rows, maturity_status, gmt_first_seen, gmt_last_arrival)
+VALUES ($1, 20260901, 202609, 0, 0, 'PARTIAL', now(), now())
+ON CONFLICT (usc, trade_date) DO UPDATE SET expected_rows = 0, maturity_status = 'PARTIAL'`,
+		backfillUscDisabled); err != nil {
+		t.Fatalf("插入历史成熟度行失败: %v", err)
+	}
+
+	stat, err := store.BackfillUscDefaults(ctx, 0.95)
 	if err != nil {
 		t.Fatalf("补全默认值失败: %v", err)
 	}
@@ -193,6 +205,21 @@ SELECT day_expect_rows, priority_rank, sla_days, max_wait_days, priority_gmt_upd
 			backfillUscDisabled, disabled.dayExpect)
 	}
 
+	// 历史成熟度行的 expected_rows 必须跟着重算成 241（而不是继续停在 0）。
+	var maturityExpected int
+	var maturityStatus string
+	if err := pool.QueryRow(ctx, `
+SELECT expected_rows, maturity_status FROM cdeu.finv_quote_cdeu_quote_maturity_mon
+ WHERE usc = $1 AND trade_date = 20260901`, backfillUscDisabled).Scan(&maturityExpected, &maturityStatus); err != nil {
+		t.Fatalf("读取成熟度行失败: %v", err)
+	}
+	if maturityExpected != 241 {
+		t.Fatalf("%s 的历史成熟度 expected_rows 应重算为 241，实际 %d", backfillUscDisabled, maturityExpected)
+	}
+	if maturityStatus != MaturityPartial {
+		t.Fatalf("%s 的成熟度状态应为 PARTIAL（actual=0），实际 %s", backfillUscDisabled, maturityStatus)
+	}
+
 	// finv_security 未收录：从 futu 镜像表兜底 region/market/category，再按 HK/HK 模板补 331。
 	futuRow := read(backfillUscFutu)
 	if futuRow.region == nil || *futuRow.region != "HK" || futuRow.market == nil || *futuRow.market != "HK" {
@@ -207,12 +234,12 @@ SELECT day_expect_rows, priority_rank, sla_days, max_wait_days, priority_gmt_upd
 	}
 
 	// 6. 幂等：再次执行影响 0 行。
-	stat, err = store.BackfillUscDefaults(ctx)
+	stat, err = store.BackfillUscDefaults(ctx, 0.95)
 	if err != nil {
 		t.Fatalf("重复补全失败: %v", err)
 	}
-	if stat.DayExpectRows != 0 || stat.Priority != 0 || stat.MetadataRows != 0 || stat.DerivedRows != 0 {
-		t.Fatalf("重复补全应幂等（影响 0 行），实际 metadata=%d derived=%d day_expect_rows=%d priority=%d",
-			stat.MetadataRows, stat.DerivedRows, stat.DayExpectRows, stat.Priority)
+	if stat.DayExpectRows != 0 || stat.Priority != 0 || stat.MetadataRows != 0 || stat.DerivedRows != 0 || stat.MaturityRows != 0 {
+		t.Fatalf("重复补全应幂等（影响 0 行），实际 metadata=%d derived=%d day_expect_rows=%d priority=%d maturity=%d",
+			stat.MetadataRows, stat.DerivedRows, stat.DayExpectRows, stat.Priority, stat.MaturityRows)
 	}
 }
