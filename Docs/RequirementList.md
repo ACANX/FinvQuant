@@ -2468,6 +2468,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10850 | 在「量化 → 回测」之前新增「策略」三级分组，并把「策略管理」从顶层移入该分组（key/标题/路径不变）。 | `grep -c "key: 'quant-strategy'" Web/src/config/menuConfig.ts` 为 1，其 `children` 为 {`strategy`}，且该节点索引小于 `quant-backtest-menu`；`strategy` 在配置中出现 1 次；顶层顺序为 `dashboard, metadata, config-manage, quote, quant, data-collection`；量化下三级节点顺序为 {MVP配置, 策略, 回测, 验证, 实盘}；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
 
+## 一百七十七、「量化 → 实盘」改名为「交易」（10851）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10851 | 「量化」下的三级菜单「实盘」改名为「交易」；节点 key（`quant-live`）、图标与其下叶子「实盘交易」保持不变。 | `grep -c "title: '交易'" Web/src/config/menuConfig.ts` ≥ 1 且 `grep -c "title: '实盘'" ` 为 0；`grep -c "key: 'quant-live'"` 为 1；量化下三级节点顺序为 {MVP配置, 策略, 回测, 验证, 交易}；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2672,7 +2678,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 新增「量化 → 验证」并迁入 3 叶子 | 10848 | 1 |
 | 新增「量化 → 实盘」并迁入实盘交易 | 10849 | 1 |
 | 新增「量化 → 策略」并迁入策略管理 | 10850 | 1 |
-| **合计** | **10001–10850** | **849** |
+| 「量化 → 实盘」改名「交易」 | 10851 | 1 |
+| **合计** | **10001–10851** | **850** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

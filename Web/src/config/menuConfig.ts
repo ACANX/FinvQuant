@@ -150,9 +150,9 @@ const finvQuantMenu: MenuNode[] = [
         ],
       },
       {
-        // 实盘（需求 10849）：迁入原二级叶子「实盘交易」。
+        // 交易（需求 10849 建立，10851 把标题由「实盘」改为「交易」；key 保持稳定不改）。
         key: 'quant-live',
-        title: '实盘',
+        title: '交易',
         icon: 'mdi-trending-up',
         children: [
           { key: 'live-trading', title: '实盘交易', icon: 'mdi-cash-register', path: '/Meta/Finv/Quant/LiveTrading' },
