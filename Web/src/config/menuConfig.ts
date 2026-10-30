@@ -8,6 +8,11 @@
 // 2. 分组节点不填 path（点击只展开/折叠），叶子节点必须有 path；
 // 3. 叶子 key 与改造前 App.vue 中 menuItems 的 key 保持一致，避免文档索引二次改动；
 // 4. 新增菜单只改本文件，无需改动 App.vue 与菜单组件。
+// 5. icon 必须是 @mdi/font 里**真实存在**的名字：写错不会报错，只会静默不显示图标。
+//    新增图标前先自查（示例）：
+//      grep -c '\.mdi-chart-multiline::before' Web/node_modules/@mdi/font/css/materialdesignicons.css
+//    返回 1 才说明可用；整份菜单图标可用 `node -e` 或脚本批量比对，详见
+//    Docs/CHANGELOG「修复 二级菜单行情缺少图标」。
 
 /** 菜单节点（分组或叶子） */
 export interface MenuNode {
@@ -82,7 +87,7 @@ const finvQuantMenu: MenuNode[] = [
     //   历史行情（/Meta/Finv/Quote/His/）   —— 面向使用者的历史行情查询
     key: 'quote',
     title: '行情',
-    icon: 'mdi-chart-finance',
+    icon: 'mdi-chart-multiline',
     children: [
       {
         key: 'quote-cdeu',

@@ -105,6 +105,24 @@
   - `Prompt.md` 移至 **`Docs/FinvQuant/V1/Prompt.md`**（`git mv` 保留历史），根目录不再保留；`AGENTS.md`、`README.md` 的目录树/索引与 `Docs/RequirementList.md` 核对命令（10073、10099、10131、10237）中的路径同步更新；历史 CHANGELOG 条目与 `Docs/Refactor/*` 过程文档中的旧路径按历史记录保留。
   - `internal/api/handler/exportarchive.go` → **`cdeu.go`**，`internal/api/handler/exportarchive_admin.go` → **`cdeu_admin.go`**：Go 构建不依赖文件名，包名与导出符号不变，接口行为零变化；`Docs/API/QuoteDeDup/Usc.md` 与 `Docs/RequirementList.md`（10340、10350、10379、10470 核对命令）中的引用同步更新。
 
+### 修复
+
+- **二级菜单「行情」左侧图标不显示（需求 10839 附带修复）**
+  - 现象：实测新增的二级菜单「行情」左侧空白，没有图标。
+  - 根因：菜单注册表里写的是 `mdi-chart-finance`，而 `@mdi/font` 7.4.47 **没有这个图标名**
+    （相关但存在的是 `mdi-finance`、`mdi-chart-line`、`mdi-chart-box` 等）。
+    Vuetify 对未知图标名不报错，只渲染空 class —— 所以构建、类型检查全部通过，界面却没有图标。
+  - 修复：改为 `mdi-chart-multiline`（多条走势线，语义贴合「行情」，且未被其它菜单占用）。
+  - 批量自查（脚本比对 `menuConfig.ts` 全部 `mdi-*` 与 `materialdesignicons.css` 的
+    `.mdi-xxx::before` 定义）：
+    · 修前 40 个图标里 **1 个无效**（`mdi-chart-finance`）；
+    · 修后 40 个全部有效，无效 0；
+    · 顺带列出被多处复用的图标（`mdi-transit-connection-variant`：端到端链路 / 收剔导传ETL；
+      `mdi-sitemap-outline`：工作流控制与监控 / 策略管理）——属可接受的语义相近复用，未改。
+  - 防呆：`menuConfig.ts` 顶部约定新增第 5 条，写明「icon 必须能在 `@mdi/font` 里检索到，
+    写错不报错只静默不显示」，并给出 `grep -c '\.mdi-xxx::before' .../materialdesignicons.css` 的自查命令。
+  - 验证：`npx vue-tsc --noEmit`、`npx vite build` 通过，构建产物含 `mdi-chart-multiline`。
+
 ### 变更
 
 - **菜单结构新增二级「行情」，下挂「收剔导传ETL」与「历史行情」（需求 10839）**

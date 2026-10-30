@@ -2400,7 +2400,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10839 | 一级系统「金融投资」下新增与「数据采集」同级的二级菜单「行情」（前缀 `/Meta/Finv/Quote/`），其下两个三级子菜单：「收剔导传ETL」（前缀 `/Meta/Finv/Quote/Cdeu/`）与「历史行情」（前缀 `/Meta/Finv/Quote/His/`）；「历史月份存量数据清点」（`/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat`）移入「收剔导传ETL」，「历史行情查询」（`/Meta/Finv/Quote/History/HistoryQuoteQuery`）移入「历史行情」，原二级「历史行情」分组删除。 | `grep -c "title: '行情'" Web/src/config/menuConfig.ts` 为 1；`grep -c "title: '收剔导传ETL'" Web/src/config/menuConfig.ts` 为 1；`grep -c "key: 'history-quote'" Web/src/config/menuConfig.ts` 为 0；`grep -c "key: 'cdeu-his-month-exist-secu-stat'" Web/src/config/menuConfig.ts` 为 1 且出现在 `quote-cdeu` 分组内；菜单内 path 与 `Web/src/router.ts` 的路由集合比对无缺失、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+| 10839 | 一级系统「金融投资」下新增与「数据采集」同级的二级菜单「行情」（前缀 `/Meta/Finv/Quote/`），其下两个三级子菜单：「收剔导传ETL」（前缀 `/Meta/Finv/Quote/Cdeu/`）与「历史行情」（前缀 `/Meta/Finv/Quote/His/`）；「历史月份存量数据清点」（`/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat`）移入「收剔导传ETL」，「历史行情查询」（`/Meta/Finv/Quote/History/HistoryQuoteQuery`）移入「历史行情」，原二级「历史行情」分组删除。 | `grep -c "title: '行情'" Web/src/config/menuConfig.ts` 为 1；`grep -c "title: '收剔导传ETL'" Web/src/config/menuConfig.ts` 为 1；`grep -c "key: 'history-quote'" Web/src/config/menuConfig.ts` 为 0；`grep -c "key: 'cdeu-his-month-exist-secu-stat'" Web/src/config/menuConfig.ts` 为 1 且出现在 `quote-cdeu` 分组内；菜单内 path 与 `Web/src/router.ts` 的路由集合比对无缺失、无重复 key；菜单全部 `mdi-*` 图标名都能在 `Web/node_modules/@mdi/font/css/materialdesignicons.css` 的 `.mdi-xxx::before` 中找到（`mdi-chart-finance` 曾写错导致「行情」无图标，已改为 `mdi-chart-multiline`）；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
 
 ## 汇总
 
