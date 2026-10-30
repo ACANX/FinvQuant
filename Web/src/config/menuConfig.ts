@@ -81,13 +81,12 @@ const finvQuantMenu: MenuNode[] = [
         title: '收剔导传ETL',
         icon: 'mdi-transit-connection-variant',
         children: [
+          // 需求 10861：K线数据查询/统计前置到本分组的叶子最前（原位于清点与面板之后）。
+          { key: 'dedup-kline-query', title: 'K线数据查询', icon: 'mdi-table-search', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query' },
+          { key: 'dedup-kline-stats', title: 'K线数据统计', icon: 'mdi-chart-box-outline', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats' },
           { key: 'cdeu-his-month-exist-secu-stat', title: '历史月份存量数据清点', icon: 'mdi-database-eye-outline', path: '/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat' },
           // 需求 10845：从「数据采集 → 行情数据归档」移入并改名为「CDEU 工作流控制面板」。
           { key: 'dedup-export-cdeu', title: 'CDEU 工作流控制面板', icon: 'mdi-sitemap-outline', path: '/Meta/Finv/Quote/Cdeu/CdeuOverview' },
-          // 需求 10856：从「数据采集 → 行情数据去重」移入并改名为「K线数据查询」。
-          { key: 'dedup-kline-query', title: 'K线数据查询', icon: 'mdi-table-search', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query' },
-          // 需求 10857：同源移入并改名为「K线数据统计」（原「去重分钟行情统计」）。
-          { key: 'dedup-kline-stats', title: 'K线数据统计', icon: 'mdi-chart-box-outline', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats' },
           // 需求 10858：从「数据采集 → 行情数据归档」整批移入 5 个归档运维页面。
           { key: 'dedup-export-job', title: '导出任务', icon: 'mdi-clipboard-list-outline', path: '/Meta/Finv/Quote/DeDup/Export/Job' },
           { key: 'dedup-export-file', title: '文件与上传', icon: 'mdi-file-cloud-outline', path: '/Meta/Finv/Quote/DeDup/Export/File' },

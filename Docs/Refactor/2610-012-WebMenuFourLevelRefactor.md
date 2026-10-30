@@ -135,10 +135,10 @@ export interface MenuSystem extends MenuNode {
 │    其叶子均已迁入「行情」下）
 ├─ 行情（二级分组，前缀 /Meta/Finv/Quote/，需求 10839）
 │  ├─ 收剔导传ETL（三级分组，前缀 /Meta/Finv/Quote/Cdeu/）
+│  │  ├─ K线数据查询（四级叶子，/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query，需求 10856 改名并移入；10861 前置到最前）
+│  │  ├─ K线数据统计（四级叶子，/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats，需求 10857 改名并移入；10861 前置）
 │  │  ├─ 历史月份存量数据清点（四级叶子，/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat）
 │  │  ├─ CDEU 工作流控制面板（四级叶子，/Meta/Finv/Quote/Cdeu/CdeuOverview，需求 10845 改名并移入）
-│  │  ├─ K线数据查询（四级叶子，/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query，需求 10856 改名并移入）
-│  │  ├─ K线数据统计（四级叶子，/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats，需求 10857 改名并移入）
 │  │  ├─ 导出任务（四级叶子，/Meta/Finv/Quote/DeDup/Export/Job，需求 10858 移入）
 │  │  ├─ 文件与上传（四级叶子，/Meta/Finv/Quote/DeDup/Export/File，需求 10858 移入）
 │  │  ├─ 归档统计与预算（四级叶子，/Meta/Finv/Quote/DeDup/Export/Stats，需求 10858 移入）
