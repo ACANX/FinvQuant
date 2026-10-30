@@ -65,7 +65,7 @@ const finvQuantMenu: MenuNode[] = [
         children: [
           { key: 'dedup-export-overview', title: '归档监控总览', icon: 'mdi-monitor-dashboard', path: '/Meta/Finv/Quote/DeDup/Export/Overview' },
           { key: 'dedup-export-chain', title: '端到端链路', icon: 'mdi-transit-connection-variant', path: '/Meta/Finv/Quote/DeDup/Export/Chain' },
-          { key: 'dedup-export-stock', title: '月份存量清单', icon: 'mdi-database-eye-outline', path: '/Meta/Finv/Quote/DeDup/Export/Stock' },
+          { key: 'cdeu-his-month-exist-secu-stat', title: '历史月份存量数据清点', icon: 'mdi-database-eye-outline', path: '/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat' },
           { key: 'dedup-export-cdeu', title: '工作流控制与监控', icon: 'mdi-sitemap-outline', path: '/Meta/Finv/Quote/Cdeu/CdeuOverview' },
           { key: 'dedup-export-job', title: '导出任务', icon: 'mdi-clipboard-list-outline', path: '/Meta/Finv/Quote/DeDup/Export/Job' },
           { key: 'dedup-export-file', title: '文件与上传', icon: 'mdi-file-cloud-outline', path: '/Meta/Finv/Quote/DeDup/Export/File' },

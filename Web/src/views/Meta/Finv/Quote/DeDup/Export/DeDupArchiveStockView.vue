@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 月份存量清单（需求 10835）：按「业务月份 + 证券」统计主表里该月的存量数据，
+// 历史月份存量数据清点（需求 10835，页面路由 /Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat）：按「业务月份 + 证券」统计主表里该月的存量数据，
 // 让运维在跑导出流程之前就能确认「这次会导出哪些证券、各多少行、文件大致多大」。
 //
 // 数据源：
@@ -99,7 +99,7 @@ async function load() {
     data.value = await apiGet<StockPageData>(`/Meta/Finv/Quote/DeDup/Export/Stock/Page?${params.toString()}`)
   } catch (e) {
     data.value = null
-    error.value = e instanceof Error ? e.message : '查询月份存量清单失败'
+    error.value = e instanceof Error ? e.message : '查询历史月份存量数据清点失败'
   } finally {
     loading.value = false
   }
@@ -117,7 +117,7 @@ onMounted(() => void load())
   <v-card>
     <v-card-title class="d-flex align-center">
       <v-icon icon="mdi-database-eye-outline" class="mr-2" />
-      月份存量清单
+      历史月份存量数据清点
       <v-spacer />
       <v-chip size="small" variant="tonal" color="info">跑流程前核对导出范围与数量</v-chip>
     </v-card-title>

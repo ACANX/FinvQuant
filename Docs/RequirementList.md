@@ -2376,7 +2376,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10835 | 「行情数据归档」菜单下新增「月份存量清单」：按业务月份 + 证券维度统计主表该月的存量，给出每个证券的存量行数、交易日数、成熟度应有/实际行数、导出状态、文件名（已生成或预计）与预计大小，并汇总证券数/总行数/预计总大小；主表已清理（已导出）的证券必须明确标注而不是显示为数据缺失。 | `grep -c '月份存量清单' Web/src/config/menuConfig.ts` 为 1；`grep -c 'Export/Stock/Page' internal/api/router.go` 为 1；`grep -c 'func (s \*Service) StockPage' internal/meta/finv/quote/dedup/service_decision.go` 为 1；`grep -c 'func (s \*Store) ExportStockPage' internal/meta/finv/quote/dedup/store_decision.go` 为 1；`go test ./internal/meta/finv/quote/dedup/ -run TestExportStockPage`（需 `FINV_TEST_PG_DSN`）通过并输出「已清理」计数；`grep -rn 'dedup\.' internal/meta/finv/quote/dedup/store_decision.go` 无命中（数据源只用 `cdeu.*`） | |
+| 10835 | 「行情数据归档」菜单下新增「月份存量清单」：按业务月份 + 证券维度统计主表该月的存量，给出每个证券的存量行数、交易日数、成熟度应有/实际行数、导出状态、文件名（已生成或预计）与预计大小，并汇总证券数/总行数/预计总大小；主表已清理（已导出）的证券必须明确标注而不是显示为数据缺失。 | `grep -c '历史月份存量数据清点' Web/src/config/menuConfig.ts` 为 1（菜单名见需求 10838）；`grep -c 'Export/Stock/Page' internal/api/router.go` 为 1；`grep -c 'func (s \*Service) StockPage' internal/meta/finv/quote/dedup/service_decision.go` 为 1；`grep -c 'func (s \*Store) ExportStockPage' internal/meta/finv/quote/dedup/store_decision.go` 为 1；`go test ./internal/meta/finv/quote/dedup/ -run TestExportStockPage`（需 `FINV_TEST_PG_DSN`）通过并输出「已清理」计数；`grep -rn 'dedup\.' internal/meta/finv/quote/dedup/store_decision.go` 无命中（数据源只用 `cdeu.*`） | |
 
 ## 一百六十二、Download.sh 回显包内 commit（10836）
 
@@ -2389,6 +2389,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
 | 10837 | `JOB_FETCH_SECURITY_METADATA` 必须挂在 `PROCESS_EXPORT_BATCH`（导出批次清单获取流程）下执行，且排在 `JOB_FETCH_EXPORT_BATCH` 之后（`seq_no=2`）；原所在的 `PROCESS_EXPORT_FILE_MON_BASE` 剩余 JOB 的 `seq_no` 重排为连续且无空洞。 | `psql -c "select p.process_code, j.seq_no, j.job_code from cdeu.finv_quote_cdeu_job j join cdeu.finv_quote_cdeu_process p on p.process_id=j.process_id where p.process_code in ('PROCESS_EXPORT_BATCH','PROCESS_EXPORT_FILE_MON_BASE') order by 1,2"` 输出中 `PROCESS_EXPORT_BATCH` 为 1=JOB_FETCH_EXPORT_BATCH、2=JOB_FETCH_SECURITY_METADATA，`PROCESS_EXPORT_FILE_MON_BASE` 为连续 1..4；重复执行 `V100087` 打印「已在 PROCESS_EXPORT_BATCH，跳过（幂等）」且结果不变；`go test ./internal/meta/finv/quote/dedup/ -run TestCDEUJobGate`（需 `FINV_TEST_PG_DSN`）7 场景通过；「工作流控制与监控」页的 JOB 清单表格只出现一条水平滚动条：`grep -c 'job-table-scroll :deep(.v-table__wrapper)' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 为 1 且该规则为 `overflow-x: visible` | |
+
+## 一百六十四、菜单改名与端点调整（10838）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10838 | 「行情数据归档」下的「月份存量清单」改名为「历史月份存量数据清点」，菜单端点由 `/Meta/Finv/Quote/DeDup/Export/Stock` 调整为 `/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat`。 | `grep -c "title: '历史月份存量数据清点'" Web/src/config/menuConfig.ts` 为 1；`grep -c '/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat' Web/src/router.ts Web/src/config/menuConfig.ts` 各 ≥ 1；`grep -rn '/Meta/Finv/Quote/DeDup/Export/Stock' Web/src` 无页面路由命中（仅后端 API 调用路径保留，见说明）；`npx vue-tsc --noEmit` 通过 | |
 
 ## 汇总
 
@@ -2581,7 +2587,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 行情数据归档·月份存量清单 | 10835 | 1 |
 | Download.sh 回显包内 commit | 10836 | 1 |
 | 证券元数据 JOB 归入批次流程 | 10837 | 1 |
-| **合计** | **10001–10837** | **836** |
+| 菜单改名与端点调整 | 10838 | 1 |
+| **合计** | **10001–10838** | **837** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

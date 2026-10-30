@@ -74,10 +74,10 @@ const router = createRouter({
       meta: { title: '端到端链路' },
     },
     {
-      path: '/Meta/Finv/Quote/DeDup/Export/Stock',
-      name: 'dedup-export-stock',
+      path: '/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat',
+      name: 'cdeu-his-month-exist-secu-stat',
       component: DeDupArchiveStockView,
-      meta: { title: '月份存量清单' },
+      meta: { title: '历史月份存量数据清点' },
     },
     {
       path: '/Meta/Finv/Quote/Cdeu/CdeuOverview',

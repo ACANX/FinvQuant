@@ -105,6 +105,19 @@
   - `Prompt.md` 移至 **`Docs/FinvQuant/V1/Prompt.md`**（`git mv` 保留历史），根目录不再保留；`AGENTS.md`、`README.md` 的目录树/索引与 `Docs/RequirementList.md` 核对命令（10073、10099、10131、10237）中的路径同步更新；历史 CHANGELOG 条目与 `Docs/Refactor/*` 过程文档中的旧路径按历史记录保留。
   - `internal/api/handler/exportarchive.go` → **`cdeu.go`**，`internal/api/handler/exportarchive_admin.go` → **`cdeu_admin.go`**：Go 构建不依赖文件名，包名与导出符号不变，接口行为零变化；`Docs/API/QuoteDeDup/Usc.md` 与 `Docs/RequirementList.md`（10340、10350、10379、10470 核对命令）中的引用同步更新。
 
+### 变更
+
+- **「月份存量清单」改名为「历史月份存量数据清点」并调整端点（需求 10838）**
+  - 菜单：「行情数据归档 → 月份存量清单」→「行情数据归档 → 历史月份存量数据清点」；
+  - 前端路由：`/Meta/Finv/Quote/DeDup/Export/Stock` → `/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat`
+    （路由名同步改为 `cdeu-his-month-exist-secu-stat`，与 `Cdeu/` 下的其它页面保持一致）；
+  - 页面标题、错误提示文案同步更新。
+  - **后端 API 路径未改**，仍为 `GET /API/V1/Meta/Finv/Quote/DeDup/Export/Stock/Page`
+    —— 本次需求只点名「菜单端点」；是否把接口一并迁到
+    `/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat/Page` 待确认（迁移需同步改前端调用与
+    `RequirementList` 10835 的核对语句）。
+  - 验证：`npx vue-tsc --noEmit` 通过；前端已无 `/Meta/Finv/Quote/DeDup/Export/Stock` 页面路由引用。
+
 ### 修复
 
 - **JOB 清单表格出现两条水平滚动条（需求 10837 附带修复）**
