@@ -78,17 +78,25 @@ func (s *Service) uploadFile(ctx context.Context, file *File, result *Result) er
 	// 上传目标：网站 / 组织（用户）/ 仓库 / 分支 / 目标路径（敏感信息不入日志）。
 	logStep("上传目标=%s", describeUploadTarget(ctx, s.uploader, targetPath))
 
-	// 4.5：上传前 HEAD 目标路径，已存在且 checksum 一致则直接标成功（幂等重传）。
+	// 4.5：上传前 HEAD 目标路径。	//
+	// 注意「远端校验值」的口径：dir/http 返回 SHA256，可与本地 checksum 直接比较；
+	// github 返回 git blob sha1（GitHub 不提供 SHA256），与本地 SHA256 不可比，
+	// 此时不在此处判定「内容是否相同」，而是交给 uploader.Put 按自身口径幂等处理。
+	checksumAlgorithm := remoteChecksumAlgorithm(s.uploader)
+	comparable := checksumAlgorithm == checksumAlgorithmSHA256
 	exists, remoteSize, remoteChecksum, statErr := s.uploader.Stat(ctx, targetPath)
 	if statErr != nil {
 		// 部分网关不支持 HEAD，失败不阻断上传，交由 PUT + Verify 兜底。
 		log.Printf("[cdeu] 远端 HEAD 失败 file_id=%d err=%v", file.FileID, statErr)
 		logStep("远端 HEAD 失败（不阻断，交由 PUT+Verify 兜底）target=%s 错误=%v", targetPath, statErr)
-	} else if exists && remoteSize == size && strings.EqualFold(remoteChecksum, checksum) {
+	} else if exists && remoteSize == size && comparable && strings.EqualFold(remoteChecksum, checksum) {
 		logStep("远端已存在同内容文件，跳过上传（幂等）远端大小=%d 远端校验值=%s", remoteSize, remoteChecksum)
 		return s.finishUploadSuccess(ctx, file, targetPath, 0, started, result)
+	} else if exists && !comparable {
+		logStep("远端已存在 远端大小=%d 远端校验值=%s（口径=%s，与本地 SHA256 不可比），交由上传实现按自身口径判定是否覆盖",
+			remoteSize, remoteChecksum, checksumAlgorithm)
 	} else if exists {
-		logStep("远端已存在但内容不同，将覆盖 远端大小=%d 远端校验值=%s 本地大小=%d 本地 sha256=%s",
+		logStep("远端已存在但大小或内容不一致，将覆盖 远端大小=%d 远端校验值=%s 本地大小=%d 本地 sha256=%s",
 			remoteSize, remoteChecksum, size, checksum)
 	} else {
 		logStep("远端不存在该文件，开始上传 目标路径=%s", targetPath)

@@ -2318,6 +2318,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10824 | `UPLOAD_PENDING_EXPORT_FILES` 的执行日志必须能定位到具体环节：每个文件记录本地文件路径、登记/实际校验值、上传目标（网站 + 组织/用户 + 仓库 + 分支 + 目标路径 + 完整 URL）、远端 HEAD 结论、PUT 字节与耗时、远端校验结果；失败项以 `ERROR` 级别写入运行日志并附失败环节与下次重试时间；有失败时运行汇总的 `error` 字段与末条日志必须给出「首个失败 file_id 与原因」，与页面「异常」列一致；GitHub 响应解析失败必须带 HTTP 状态、URL、Content-Type/Content-Length、响应体片段与请求 ID。 | `grep -c 'describeUploadTarget' internal/meta/finv/quote/dedup/job_upload.go` ≥ 2；`grep -c 'reportRunLog(finishCtx, "ERROR"' internal/meta/finv/quote/dedup/job_upload.go` 为 1；`grep -c 'first_failed_err' internal/meta/finv/quote/dedup/job/upload_pending_export_files.go` ≥ 2；`grep -c 'responseDecodeError' internal/meta/finv/quote/dedup/uploader_github.go` ≥ 2；`go test ./internal/meta/finv/quote/dedup/ -run TestDescribeUploadTarget` 通过；库内验证：一轮上传（含一个失败文件）后 `select count(*) from cdeu.finv_quote_cdeu_job_run_log_line where run_id=<id> and level='ERROR'` ≥ 1，且 `select error from cdeu.finv_quote_cdeu_job_run_log_export_file where run_id=<id>` 含「本轮 N 个文件上传失败」 | |
 
+## 一百五十二、GitHub 大文件上传与远端去重口径修正（10825）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10825 | GitHub 上传必须能处理大于 1MB 的归档文件：查询远端文件改走 Git Trees API（只取 blob sha 与 size，不下载 base64 内容），失败时回退 Contents API 且读取上限 ≥ 32MB、超限报明确错误；Job 层「上传前去重」必须按远端校验口径判断（github 为 git blob sha1，不可与本地 SHA256 混比）；上传动态 JOB 必须写入 `run_log_id`（含历史实例补齐与查询兜底），保证页面「执行日志」入口不消失。 | `grep -c 'git/trees/' internal/meta/finv/quote/dedup/uploader_github.go` ≥ 1；`grep -c 'githubContentsReadLimit' internal/meta/finv/quote/dedup/uploader_github.go` ≥ 2；`grep -c 'RemoteChecksumAlgorithm' internal/meta/finv/quote/dedup/uploader.go internal/meta/finv/quote/dedup/uploader_github.go` 各 ≥ 1；`grep -c 'run_log_id' internal/meta/finv/quote/dedup/store.go` ≥ 4；`go test ./internal/meta/finv/quote/dedup/ -run 'TestGitHubStatUsesTreeAPI\|TestSplitRepoPath'` 通过；库内验证：一轮上传后 `select count(*) from cdeu.finv_quote_cdeu_job_dynamic where job_category='UPLOAD' and run_log_id is null` 为 0 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2497,7 +2503,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | Native 安装脚本 qmio 定位修正 | 10822 | 1 |
 | 证券元数据与默认值补全优化 | 10823 | 1 |
 | 上传 JOB 日志可观测性 | 10824 | 1 |
-| **合计** | **10001–10824** | **824** |
+| GitHub 大文件上传与去重口径 | 10825 | 1 |
+| **合计** | **10001–10825** | **825** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

@@ -371,12 +371,23 @@ SELECT step_id, job_id, step_code, name, seq_no, critical, affects_completion
 	dynamicRows, err := s.pool.Query(ctx, `
 SELECT dj.dynamic_job_id, dj.process_id, dj.job_code, dj.name, dj.usc, dj.biz_month, dj.export_type,
        dj.job_category, dj.file_id, dj.file_type, dj.file_version,
-       dj.export_job_id, dj.run_log_id, dj.workflow_run_id, dj.seq_no, dj.status, dj.error,
+       dj.export_job_id,
+       -- 上传动态 JOB 的 run_log_id 可能为空（历史实例创建时未写入）：回退到最近一次
+       -- 上传运行的日志，保证页面「执行日志」入口不消失（需求 10824）。
+       COALESCE(dj.run_log_id,
+                CASE WHEN dj.job_category = 'UPLOAD'
+                     THEN (SELECT max(rl2.run_id) FROM cdeu.finv_quote_cdeu_job_run_log_export_file rl2
+                            WHERE rl2.job_kind = 'UPLOAD_PENDING_EXPORT_FILES') END) AS run_log_id,
+       dj.workflow_run_id, dj.seq_no, dj.status, dj.error,
        dj.gmt_start, dj.gmt_finish,
        COALESCE(f.row_count, rl.processed_rows, 0),
        COALESCE(f.file_size, rl.processed_bytes, 0)
   FROM cdeu.finv_quote_cdeu_job_dynamic dj
-  LEFT JOIN cdeu.finv_quote_cdeu_job_run_log_export_file rl ON rl.run_id = dj.run_log_id
+  LEFT JOIN cdeu.finv_quote_cdeu_job_run_log_export_file rl
+         ON rl.run_id = COALESCE(dj.run_log_id,
+              CASE WHEN dj.job_category = 'UPLOAD'
+                   THEN (SELECT max(rl3.run_id) FROM cdeu.finv_quote_cdeu_job_run_log_export_file rl3
+                          WHERE rl3.job_kind = 'UPLOAD_PENDING_EXPORT_FILES') END)
   LEFT JOIN cdeu.finv_quote_cdeu_export_file f ON f.file_id = dj.file_id
  WHERE dj.process_id = ANY($1)
  ORDER BY dj.process_id, dj.seq_no, dj.dynamic_job_id`, processIDs(phases))

@@ -101,6 +101,16 @@
 
 ### 修复
 
+- **GitHub 上传对大文件必失败、远端去重误报、上传实例缺执行日志入口（需求 10825）**
+  - 问题一（必现失败）：查询远端文件走 Contents API，该接口会把文件内容以 base64 一并返回（800,787 字节的 mvsv ≈ 1.1MB 响应），而实现按 `1<<20` 截断读取 → JSON 不完整 → 误报「解析远端响应失败: unexpected end of JSON input」。README 里的「解析远端响应失败」错误就是它。
+  - 问题二（日志误导）：Job 层「上传前 HEAD 去重」用本地 SHA256 与 `Stat` 返回的远端校验值比较，但 GitHub 返回的是 **git blob sha1**（不提供 SHA256），两者永不相同 → 每次都记「远端已存在但内容不同，将覆盖」，实际 `Put` 内部按 blob sha 判等后并未产生提交。
+  - 问题三（入口消失）：上传动态 JOB 创建时只写 `workflow_run_id`、不写 `run_log_id`，页面「执行日志」按钮按 `run_log_id` 渲染，失败后点不开日志。
+  - 修复一：查询远端文件改为 Git Trees API（`/repos/{owner}/{repo}/git/trees/{branch}:{dir}`），只返回目录条目元数据（实测同一文件 519 字节 vs 1.1MB），仍能拿到 blob sha 与 size；Trees API 不可用（企业版、分支名含 `/`、树被截断）时回退 Contents API，回退路径读取上限从 1MB 提到 32MB，超限时明确报「响应超过读取上限」而不是 JSON 解析错误。
+  - 修复二：新增 `UploadChecksumVerifier` 可选接口声明远端校验口径（`sha256` / `git-blob-sha1`），`dynamicUploader` 转发；Job 层仅在口径为 `sha256` 时做等值判定并跳过，口径不可比时日志改为「远端已存在（口径=git-blob-sha1，与本地 SHA256 不可比），交由上传实现按自身口径判定是否覆盖」。
+  - 修复三：`GenerateUploadDynamicJobs` 写入 `run_log_id`（当前运行日志 ID），并对已存在但 `run_log_id` 为空的上传实例补齐；`MarkDynamicUploadJobStatus` 与 CDEU 动态 JOB 列表查询都增加「回退到最近一次上传运行」的兜底，历史实例也能点开日志。
+  - 实测（真实 800,787 字节 mvsv + 真实 GitHub 仓库）：日志显示 `远端已存在 远端大小=800787 远端校验值=9ec56ad1…（口径=git-blob-sha1…）`，3 秒内完成（不再下载 base64 内容）；远端仓库最新提交仍为上一次清理提交（幂等跳过，未重复写入）；上传动态 JOB `run_log_id=8946` 已写入，失败/成功都能从列表打开日志。
+  - 测试：新增 `TestGitHubStatUsesTreeAPI`（走 Trees API 且不回退、404 时回退 Contents）、`TestSplitRepoPath`；测试数据（`file_id=1878`、上传动态 JOB 7420、`usc=USDIndex`、容器临时目录、下载的远端文件）均已清理。
+
 - **上传 JOB 日志不可定位、异常与执行日志不一致（需求 10824）**
   - 问题：`UPLOAD_PENDING_EXPORT_FILES` 的日志只有「上传 file_id=… 文件名 …」与末条笼统的「JOB 完成 · SUCCESS」；失败的单个文件只把原因写进动态 JOB 的异常字段，而运行汇总（`error` 字段与「执行日志」）仍是 SUCCESS —— 两处不一致，看不出是本地文件、远端仓库配置还是网络环节出问题。另外 GitHub 上传在收到 `200` + 空响应体时只报「解析远端响应失败: unexpected end of JSON input」，缺少 HTTP 状态、URL 与响应体片段。
   - 逐文件分阶段日志（`stage=UPLOAD`）：上传开始（file_id/usc/业务月/类型/attempt/开始时间）→ 本地文件绝对路径与登记大小/sha256 → 本地校验实际值 → **上传目标（网站 API Base + 组织/用户 + 仓库 + 分支 + 目标路径 + 完整 URL，PAT 不入日志）** → 远端 HEAD 三类结论（不存在 / 同内容幂等跳过 / 内容不同覆盖）→ PUT 字节数与耗时（含起止时间）→ 远端校验 → 上传成功（字节/总耗时/结束时间/目标）。

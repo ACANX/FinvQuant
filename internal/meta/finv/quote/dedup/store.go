@@ -1020,10 +1020,13 @@ UPDATE `+tableDynamicStep+` ds
 // 自 V200045 起唯一键为 (workflow_run_id, file_id)，每次运行各自持有独立实例。
 func (s *Store) GenerateUploadDynamicJobs(ctx context.Context) (int64, error) {
 	uploadRunID := cdeuRunIDFromContext(ctx)
+	// runLogID 与 workflow_run_id 不同：前者是本次「运行日志」主键（前端「执行日志」按它查），
+	// 不写入的话上传动态 JOB 完成后无法从列表点开日志。
+	runLogID := runIDFromContext(ctx)
 	tag, err := s.pool.Exec(ctx, `
 INSERT INTO `+tableDynamicJob+`
     (process_id, job_code, name, usc, biz_month, export_type, export_job_id,
-     job_category, file_id, file_type, file_version, seq_no, status, workflow_run_id)
+     job_category, file_id, file_type, file_version, seq_no, status, workflow_run_id, run_log_id)
 SELECT p.process_id,
        'JOB_UPLOAD_' || f.file_type || '_V' || f.version || '_' || upper(f.usc) || '_' || f.biz_month,
        'UPLOAD_' || f.file_type || '_V' || f.version || '_' || f.usc || '_' || f.biz_month,
@@ -1037,15 +1040,27 @@ SELECT p.process_id,
            WHEN 'UPLOAD_FAILED' THEN 'FAILED'
            ELSE 'PENDING'
        END,
-       NULLIF($1::bigint, 0)
+       NULLIF($1::bigint, 0),
+       NULLIF($2::bigint, 0)
   FROM `+tableFile+` f
   JOIN cdeu.finv_quote_cdeu_process p ON p.process_code = 'PROCESS_UPLOAD'
  WHERE f.export_status = 'EXPORTED'
    AND f.upload_status NOT IN ('UPLOADED', 'SKIPPED')
 ON CONFLICT (workflow_run_id, file_id) WHERE job_category = 'UPLOAD' DO NOTHING`,
-		uploadRunID)
+		uploadRunID, runLogID)
 	if err != nil {
 		return 0, err
+	}
+	// 已存在的上传实例也要补上 run_log_id（历史实例创建时未写入，前端因此没有「执行日志」入口）。
+	if runLogID > 0 {
+		if _, err := s.pool.Exec(ctx, `
+UPDATE `+tableDynamicJob+`
+   SET run_log_id = $2, gmt_update = now()
+ WHERE job_category = 'UPLOAD'
+   AND run_log_id IS NULL
+   AND workflow_run_id IS NOT DISTINCT FROM NULLIF($1::bigint, 0)`, uploadRunID, runLogID); err != nil {
+			return tag.RowsAffected(), err
+		}
 	}
 	if _, err := s.pool.Exec(ctx, `
 INSERT INTO `+tableDynamicStep+`
@@ -1088,7 +1103,9 @@ UPDATE `+tableDynamicJob+` dj
        gmt_start = CASE WHEN $2 = 'RUNNING' THEN COALESCE(gmt_start, now()) ELSE gmt_start END,
        gmt_finish = CASE WHEN $2 IN ('SUCCESS','PARTIAL','FAILED','PAUSED','CANCELLED','SKIPPED') THEN now() ELSE gmt_finish END,
        error = $3,
-       run_log_id = COALESCE(NULLIF($4::bigint, 0), run_log_id),
+       run_log_id = COALESCE(NULLIF($4::bigint, 0), run_log_id,
+                             (SELECT max(rl.run_id) FROM `+tableRunLog+` rl
+                               WHERE rl.job_kind = 'UPLOAD_PENDING_EXPORT_FILES')),
        workflow_run_id = COALESCE(workflow_run_id, NULLIF($5::bigint, 0)),
        gmt_update = now()
  WHERE dj.dynamic_job_id = (

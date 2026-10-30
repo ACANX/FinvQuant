@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -30,6 +31,14 @@ const (
 	githubMaxAttempts = 3
 	// githubErrorSnippetLimit 错误响应片段上限（便于定位，避免刷日志）。
 	githubErrorSnippetLimit = 4096
+	// githubContentsReadLimit Contents API 响应体读取上限。
+	//
+	// Contents API 查询已有文件时会把内容以 base64 一并返回（800KB 的 mvsv ≈ 1.1MB
+	// 响应），旧实现按 1MB 截断读取 → JSON 不完整 → 误报 "unexpected end of JSON
+	// input"。这里提到 32MB 覆盖常见月文件，并保留超限时的明确报错。
+	githubContentsReadLimit = 32 << 20
+	// githubTreeReadLimit Git Trees API 响应上限（只含目录条目元数据，远小于此）。
+	githubTreeReadLimit = 8 << 20
 )
 
 // githubTargetSource 提供实时上传目标配置（生产实现为 *syscfg.Store）。
@@ -43,6 +52,19 @@ type githubContent struct {
 	Size int64  `json:"size"`
 	SHA  string `json:"sha"`
 	Path string `json:"path"`
+}
+
+// gitTree / gitTreeEntry 对应 Git Trees API 的响应（只含条目元数据，不含文件内容）。
+type gitTree struct {
+	Tree      []gitTreeEntry `json:"tree"`
+	Truncated bool           `json:"truncated"`
+}
+
+type gitTreeEntry struct {
+	Path string `json:"path"`
+	Type string `json:"type"`
+	SHA  string `json:"sha"`
+	Size *int64 `json:"size"`
 }
 
 // githubUploader 通过 GitHub Contents API 上传归档文件。
@@ -79,6 +101,9 @@ func newGitHubUploader(source githubTargetSource, apiBase string) *githubUploade
 }
 
 func (u *githubUploader) Mode() string { return UploadModeGitHub }
+
+// RemoteChecksumAlgorithm GitHub 返回的是 git blob sha1（Contents/Trees API 不提供 SHA256）。
+func (u *githubUploader) RemoteChecksumAlgorithm() string { return checksumAlgorithmGitBlob }
 
 // DescribeTarget github 模式：给出「网站 / 组织 / 仓库 / 分支 / 文件路径」五元组，
 // 便于运维直接从日志判断传到哪了。PAT（sys_config 20003）敏感，不入日志。
@@ -237,8 +262,96 @@ func (u *githubUploader) contentsURL(repo syscfg.RepoSpec, path string) string {
 	return builder.String()
 }
 
-// getContent 查询远端文件；exists=false 表示 404（文件不存在）。
+// treesURL 拼接 /repos/{owner}/{repo}/git/trees/{ref}；ref 可带 ":路径" 下钻子目录。
+// 只对 owner/repo 做路径转义，ref 保留 "：" 与 "/"（Git Trees API 的 ref:path 语法）。
+func (u *githubUploader) treesURL(repo syscfg.RepoSpec, ref string) string {
+	var builder strings.Builder
+	builder.WriteString(u.apiBase)
+	builder.WriteString("/repos/")
+	builder.WriteString(url.PathEscape(repo.Owner))
+	builder.WriteString("/")
+	builder.WriteString(url.PathEscape(repo.Repo))
+	builder.WriteString("/git/trees/")
+	builder.WriteString(ref)
+	return builder.String()
+}
+
+// getContent 查询远端文件元数据；exists=false 表示不存在。
+//
+// 优先走 Git Trees API（`/git/trees/{branch}:{dir}` 只返回目录条目元数据，不带文件
+// 内容）；失败（企业版不支持、分支名含 '/'、树被截断等）时回退 Contents API。
+//
+// 为什么要换：Contents API 查询已有文件会把内容以 base64 一并返回（800KB 的 mvsv
+// ≈ 1.1MB 响应），上传前查重时既要多下载一遍内容、又容易因读取上限被截断。
 func (u *githubUploader) getContent(ctx context.Context, target syscfg.Target, path string) (githubContent, bool, error) {
+	content, exists, err := u.getTreeEntry(ctx, target, path)
+	if err == nil {
+		return content, exists, nil
+	}
+	// Trees API 不可用时不能让上传直接失败，回退到兼容性更好的 Contents API。
+	return u.getContentsAPI(ctx, target, path)
+}
+
+// getTreeEntry 用 Git Trees API 查目录条目，返回目标文件的 blob sha 与大小。
+func (u *githubUploader) getTreeEntry(ctx context.Context, target syscfg.Target, path string) (githubContent, bool, error) {
+	if strings.Contains(target.Repo.Branch, "/") {
+		return githubContent{}, false, fmt.Errorf("分支名含 '/'，无法使用 ref:path 语法")
+	}
+	dir, name := splitRepoPath(path)
+	ref := target.Repo.Branch
+	if dir != "" {
+		ref += ":" + dir
+	}
+	response, err := u.do(ctx, http.MethodGet, u.treesURL(target.Repo, ref), nil, target.Token)
+	if err != nil {
+		return githubContent{}, false, err
+	}
+	defer func() { _ = response.Body.Close() }()
+
+	switch response.StatusCode {
+	case http.StatusNotFound:
+		// 目录或分支不存在：交由 Contents API 区分「文件不存在」与「配置错误」。
+		return githubContent{}, false, fmt.Errorf("目录树不存在: %s", ref)
+	case http.StatusOK:
+	default:
+		return githubContent{}, false, u.statusError("查询远端目录树", response)
+	}
+
+	var tree gitTree
+	if err := json.NewDecoder(io.LimitReader(response.Body, githubTreeReadLimit)).Decode(&tree); err != nil {
+		return githubContent{}, false, fmt.Errorf("解析远端目录树失败: %w", err)
+	}
+	if tree.Truncated {
+		return githubContent{}, false, errors.New("远端目录树被截断，无法可靠判断条目")
+	}
+	for _, entry := range tree.Tree {
+		if entry.Path != name {
+			continue
+		}
+		switch entry.Type {
+		case "blob":
+			if entry.Size == nil {
+				return githubContent{}, false, errors.New("远端目录树未返回文件大小")
+			}
+			return githubContent{Type: "file", Size: *entry.Size, SHA: entry.SHA, Path: path}, true, nil
+		case "tree":
+			return githubContent{Type: "dir", SHA: entry.SHA, Path: path}, true, nil
+		}
+	}
+	return githubContent{}, false, nil
+}
+
+// splitRepoPath 把仓库内路径拆成（目录, 文件名）；根目录下文件返回空目录。
+func splitRepoPath(path string) (dir, name string) {
+	trimmed := strings.Trim(path, "/")
+	if index := strings.LastIndex(trimmed, "/"); index >= 0 {
+		return trimmed[:index], trimmed[index+1:]
+	}
+	return "", trimmed
+}
+
+// getContentsAPI 查询远端文件（回退路径；会连文件内容一起返回 base64）。
+func (u *githubUploader) getContentsAPI(ctx context.Context, target syscfg.Target, path string) (githubContent, bool, error) {
 	endpoint := u.contentsURL(target.Repo, path) + "?ref=" + url.QueryEscape(target.Repo.Branch)
 	response, err := u.do(ctx, http.MethodGet, endpoint, nil, target.Token)
 	if err != nil {
@@ -254,9 +367,14 @@ func (u *githubUploader) getContent(ctx context.Context, target syscfg.Target, p
 		return githubContent{}, false, u.statusError("查询远端文件", response)
 	}
 
-	payload, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	payload, err := io.ReadAll(io.LimitReader(response.Body, githubContentsReadLimit+1))
 	if err != nil {
 		return githubContent{}, false, fmt.Errorf("读取远端响应失败: %w（HTTP %d，GET %s）", err, response.StatusCode, endpoint)
+	}
+	if int64(len(payload)) > githubContentsReadLimit {
+		return githubContent{}, false, fmt.Errorf(
+			"查询远端文件响应超过读取上限 %d 字节（HTTP %d，GET %s，Content-Length=%d）：Contents API 会连 base64 内容一起返回，文件较大时请依赖 Git Trees API 或调大上限",
+			githubContentsReadLimit, response.StatusCode, endpoint, response.ContentLength)
 	}
 	trimmed := bytes.TrimSpace(payload)
 	if len(trimmed) > 0 && trimmed[0] == '[' {

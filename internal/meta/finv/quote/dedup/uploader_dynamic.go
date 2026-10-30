@@ -112,6 +112,15 @@ func (u *dynamicUploader) DescribeTarget(ctx context.Context, targetPath string)
 	return describeUploadTarget(ctx, uploader, targetPath), nil
 }
 
+// RemoteChecksumAlgorithm 转发当前生效实现的远端校验口径（github 为 git blob sha1）。
+func (u *dynamicUploader) RemoteChecksumAlgorithm() string {
+	uploader, err := u.active(context.Background())
+	if err != nil {
+		return checksumAlgorithmSHA256
+	}
+	return remoteChecksumAlgorithm(uploader)
+}
+
 // noteMode 在模式发生切换时打一条日志，便于运维确认配置是否生效。
 func (u *dynamicUploader) noteMode(mode string) {
 	u.mu.Lock()
