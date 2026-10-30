@@ -107,6 +107,26 @@
 
 ### 变更
 
+- **「工作流控制与监控」移入「收剔导传ETL」并改名为「CDEU 工作流控制面板」（需求 10845）**
+  - 授权：用户明确要求「『CDEU 工作流控制与监控』菜单移动到『收剔导传ETL』菜单下，
+    并改名为『CDEU 工作流控制面板』」。
+  - 改动：
+    · `Web/src/config/menuConfig.ts`：从「数据采集 → 行情数据归档」移除该叶子，
+      移入「行情 → 收剔导传ETL」（`quote-cdeu`），排在「历史月份存量数据清点」之后；
+      标题「工作流控制与监控」→「CDEU 工作流控制面板」；叶子 key `dedup-export-cdeu`
+      与路径 `/Meta/Finv/Quote/Cdeu/CdeuOverview` 保持不变（展开状态与路由不受影响）；
+    · `Web/src/router.ts`：该路由的 `meta.title` 同步改为「CDEU 工作流控制面板」（影响浏览器页签/面包屑）；
+    · `DeDupCDEUView.vue`：页面内二级标题与文件头注释同步改名。
+  - 「行情数据归档」现状：剩 7 个叶子（归档监控总览 / 端到端链路 / 导出任务 / 文件与上传 /
+    归档统计与预算 / 归档主数据与规则 / 归档日志与补丁）；「收剔导传ETL」现有 2 个叶子。
+  - 验证（脚本实测）：`dedup-export-cdeu` 在菜单配置中出现 1 次，位于 `quote-cdeu` 段内、
+    已不在 `quote-archive` 段内；42 个菜单图标全部有效；所有 `path` 均有对应路由；无重复 key；
+    `npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §2.2 菜单树同步
+    （归档域移除该行、ETL 域新增该行）。
+
+### 变更
+
 - **「历史行情数据导入」移入「行情 → 历史行情」作为叶子（需求 10844）**
   - 授权：用户明确要求「『历史行情导入』菜单移动到『历史行情』菜单下，作为叶子菜单」。
   - 改动（`Web/src/config/menuConfig.ts`）：

@@ -83,7 +83,7 @@ const router = createRouter({
       path: '/Meta/Finv/Quote/Cdeu/CdeuOverview',
       name: 'dedup-export-cdeu',
       component: DeDupCDEUView,
-      meta: { title: '工作流控制与监控' },
+      meta: { title: 'CDEU 工作流控制面板' },
     },
     {
       path: '/Meta/Finv/Quote/Cdeu/CdeuWorkflow',

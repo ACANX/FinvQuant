@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// CDEU 工作流控制与监控：Workflow → Phase → Process → JOB → Step 结构化视图
+// CDEU 工作流控制面板：Workflow → Phase → Process → JOB → Step 结构化视图
 // 数据来源：GET /Meta/Finv/Quote/DeDup/CDEU/Overview
 // 手动执行复用既有 POST /Meta/Finv/Quote/DeDup/Job/Run（异步）
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
@@ -1221,7 +1221,7 @@ onBeforeUnmount(() => {
       <div>
         <div class="d-flex align-center ga-2">
           <v-icon icon="mdi-sitemap-outline" color="primary" size="30" />
-          <h2 class="text-h5 font-weight-bold mb-0">CDEU 工作流控制与监控</h2>
+          <h2 class="text-h5 font-weight-bold mb-0">CDEU 工作流控制面板</h2>
           <v-chip v-if="workflow" size="small" color="primary" variant="tonal">
             {{ workflow.workflow_code }} v{{ workflow.version }}
           </v-chip>
