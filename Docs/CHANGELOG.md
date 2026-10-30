@@ -105,6 +105,14 @@
   - `Prompt.md` 移至 **`Docs/FinvQuant/V1/Prompt.md`**（`git mv` 保留历史），根目录不再保留；`AGENTS.md`、`README.md` 的目录树/索引与 `Docs/RequirementList.md` 核对命令（10073、10099、10131、10237）中的路径同步更新；历史 CHANGELOG 条目与 `Docs/Refactor/*` 过程文档中的旧路径按历史记录保留。
   - `internal/api/handler/exportarchive.go` → **`cdeu.go`**，`internal/api/handler/exportarchive_admin.go` → **`cdeu_admin.go`**：Go 构建不依赖文件名，包名与导出符号不变，接口行为零变化；`Docs/API/QuoteDeDup/Usc.md` 与 `Docs/RequirementList.md`（10340、10350、10379、10470 核对命令）中的引用同步更新。
 
+### 修复
+
+- **元数据域改名后残留一处旧名注释（需求 10852 附带修复）**
+  - 现象：`Web/src/config/menuConfig.ts` 中「历史行情数据导入」叶子的注释仍写着
+    「从『元数据 → 业务元数据维护』移入」，与 10852 改名后的实际菜单名不一致。
+  - 修复：注释同步为「元数据 → Finv业务元数据」。
+  - 验证：旧名「业务元数据维护」在 `menuConfig.ts` 与 `router.ts` 中出现次数均为 0。
+
 ### 变更
 
 - **「规范证券信息维护」改名为「规范证券信息管理」（需求 10855）**

@@ -92,7 +92,7 @@ const finvQuantMenu: MenuNode[] = [
         icon: 'mdi-chart-box',
         children: [
           { key: 'quote-query', title: '历史行情查询', icon: 'mdi-chart-line', path: '/Meta/Finv/Quote/History/HistoryQuoteQuery' },
-          // 需求 10844：从「元数据 → 业务元数据维护」移入，作为本分组叶子（key 保持稳定）。
+          // 需求 10844：从「元数据 → Finv业务元数据」移入，作为本分组叶子（key 保持稳定）。
           { key: 'meta-import', title: '历史行情数据导入', icon: 'mdi-database-import', path: '/meta/import' },
         ],
       },
