@@ -124,7 +124,7 @@ const router = createRouter({
     // 元数据 → Finv业务元数据 → 子菜单
     { path: '/meta/exchange', name: 'meta-exchange', component: MetaExchangeView, meta: { title: '交易所信息管理' } },
     { path: '/meta/market', name: 'meta-market', component: MetaMarketView, meta: { title: '市场信息管理' } },
-    { path: '/meta/security', name: 'meta-security', component: MetaSecurityView, meta: { title: '规范证券信息维护' } },
+    { path: '/meta/security', name: 'meta-security', component: MetaSecurityView, meta: { title: '规范证券信息管理' } },
     { path: '/meta/import', name: 'meta-import', component: QuoteImportView, meta: { title: '历史行情数据导入' } },
     // 配置管理 / 环境管理 / 模板管理（元数据管理之后、量化策略验证之前）
     { path: '/Meta/Finv/Quant/Config', name: 'config-manage', component: ConfigManageView, meta: { title: '配置管理' } },

@@ -154,7 +154,7 @@ export interface MenuSystem extends MenuNode {
 │  └─ Finv业务元数据（三级分组，原名「业务元数据维护」，需求 10852 改名）
 │     ├─ 交易所信息管理（四级叶子，/meta/exchange，原名「交易所信息维护」，需求 10854 改名）
 │     ├─ 市场信息管理（四级叶子，/meta/market，原名「交易所下设市场信息维护」，需求 10853 改名）
-│     └─ 规范证券信息维护（四级叶子，/meta/security）
+│     └─ 规范证券信息管理（四级叶子，/meta/security，原名「规范证券信息维护」，需求 10855 改名）
 │        （历史行情数据导入已于需求 10844 移入「行情 → 历史行情」）
 ├─ 配置管理（二级叶子，/Meta/Finv/Quant/Config）
 
