@@ -2312,6 +2312,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10823 | 自动发现的 `cdeu.finv_quote_cdeu_usc` 行必须能自动补齐 `category` / `region` / `market` / `name` / `timezone` / `currency` / `day_expect_rows`：① 回填 `finv_security` 时**不限 `flag_enable`**（禁用不等于无行情）；② `finv_security` 未收录时从 `futu.finv_futu_quote_collect` 兜底（`quote_market` → region/market、`type_symbol` → category）；③ 按 region 推导 timezone/currency；④ `SH######` / `SZ######` 前缀兜底为 A 股指数；⑤ 模板表补区域级兜底行，`market` 未维护时仍能给出 `day_expect_rows`；⑥ 补全后剩余缺口写日志（字段行数 + 证券样本），不静默失败。 | `grep -c 'FROM public.finv_security s' internal/meta/finv/quote/dedup/store.go` ≥ 1 且该 SQL 中**无** `flag_enable` 过滤；`grep -c 'finv_futu_quote_collect' internal/meta/finv/quote/dedup/store.go` ≥ 1；`grep -c 'func (s \*Store) UscMissingSample' internal/meta/finv/quote/dedup/store.go` 为 1；`test -f Deploy/Migrations/V200066__cdeu_usc_day_incr_row_tpl_region_fallback.sql`；`select count(*) from cdeu.finv_quote_cdeu_usc_day_incr_row_tpl` ≥ 17；库内验证：导入 497 行 usc 后跑一轮 `REFRESH_QUOTE_MATURITY`，`select count(*) from cdeu.finv_quote_cdeu_usc where day_expect_rows is null` ≤ 7（仅 `finv_security` 与富途镜像表都未收录的证券） | |
 
+## 一百五十一、上传 JOB 日志可观测性与异常一致性（10824）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10824 | `UPLOAD_PENDING_EXPORT_FILES` 的执行日志必须能定位到具体环节：每个文件记录本地文件路径、登记/实际校验值、上传目标（网站 + 组织/用户 + 仓库 + 分支 + 目标路径 + 完整 URL）、远端 HEAD 结论、PUT 字节与耗时、远端校验结果；失败项以 `ERROR` 级别写入运行日志并附失败环节与下次重试时间；有失败时运行汇总的 `error` 字段与末条日志必须给出「首个失败 file_id 与原因」，与页面「异常」列一致；GitHub 响应解析失败必须带 HTTP 状态、URL、Content-Type/Content-Length、响应体片段与请求 ID。 | `grep -c 'describeUploadTarget' internal/meta/finv/quote/dedup/job_upload.go` ≥ 2；`grep -c 'reportRunLog(finishCtx, "ERROR"' internal/meta/finv/quote/dedup/job_upload.go` 为 1；`grep -c 'first_failed_err' internal/meta/finv/quote/dedup/job/upload_pending_export_files.go` ≥ 2；`grep -c 'responseDecodeError' internal/meta/finv/quote/dedup/uploader_github.go` ≥ 2；`go test ./internal/meta/finv/quote/dedup/ -run TestDescribeUploadTarget` 通过；库内验证：一轮上传（含一个失败文件）后 `select count(*) from cdeu.finv_quote_cdeu_job_run_log_line where run_id=<id> and level='ERROR'` ≥ 1，且 `select error from cdeu.finv_quote_cdeu_job_run_log_export_file where run_id=<id>` 含「本轮 N 个文件上传失败」 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2490,7 +2496,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 自动发现补全优先级/SLA 默认值 | 10821 | 1 |
 | Native 安装脚本 qmio 定位修正 | 10822 | 1 |
 | 证券元数据与默认值补全优化 | 10823 | 1 |
-| **合计** | **10001–10823** | **823** |
+| 上传 JOB 日志可观测性 | 10824 | 1 |
+| **合计** | **10001–10824** | **824** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

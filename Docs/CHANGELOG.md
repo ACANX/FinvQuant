@@ -101,6 +101,16 @@
 
 ### 修复
 
+- **上传 JOB 日志不可定位、异常与执行日志不一致（需求 10824）**
+  - 问题：`UPLOAD_PENDING_EXPORT_FILES` 的日志只有「上传 file_id=… 文件名 …」与末条笼统的「JOB 完成 · SUCCESS」；失败的单个文件只把原因写进动态 JOB 的异常字段，而运行汇总（`error` 字段与「执行日志」）仍是 SUCCESS —— 两处不一致，看不出是本地文件、远端仓库配置还是网络环节出问题。另外 GitHub 上传在收到 `200` + 空响应体时只报「解析远端响应失败: unexpected end of JSON input」，缺少 HTTP 状态、URL 与响应体片段。
+  - 逐文件分阶段日志（`stage=UPLOAD`）：上传开始（file_id/usc/业务月/类型/attempt/开始时间）→ 本地文件绝对路径与登记大小/sha256 → 本地校验实际值 → **上传目标（网站 API Base + 组织/用户 + 仓库 + 分支 + 目标路径 + 完整 URL，PAT 不入日志）** → 远端 HEAD 三类结论（不存在 / 同内容幂等跳过 / 内容不同覆盖）→ PUT 字节数与耗时（含起止时间）→ 远端校验 → 上传成功（字节/总耗时/结束时间/目标）。
+  - 失败项以 `level=ERROR` 写入同一次运行的详细日志行，带文件名、本地路径、目标路径与目标描述、`attempt`、失败环节（本地校验 / HEAD / PUT / 远端校验）与下次重试时间（重试耗尽时标注）；此前只写 `log.Printf` 与上传审计，前端「执行日志」里看不到。
+  - 运行汇总一致化：有失败时 `result.Message` 写入「本轮 N 个文件上传失败（首个 file_id=…：原因），失败项已按退避策略排入重试」，它会同时落在运行汇总的 `error` 字段与末条日志，页面「异常」列与「执行日志」不再冲突；`details` 增加 `uploaded_bytes`、`elapsed_seconds`、`first_failed_id`、`first_failed_err`。
+  - 新增 `UploadTargetDescriber` 可选接口（none/dir/http/github/dynamic 五种实现），`dynamicUploader` 负责转发给当前生效的实现，避免日志退化成一个 `mode=github path=…`。
+  - GitHub 响应解析错误补全诊断：`查询远端文件响应解析失败: HTTP 200，GET <完整 URL>，Content-Type，Content-Length，响应体片段，X-GitHub-Request-Id`，响应体为空时额外提示核对 `FINV_QUOTE_DEDUB_UPLOAD_GITHUB_API_BASE`、代理/网关与 `sys_config 20004` 的仓库定位。
+  - 实测（本机容器，GitHub 上传模式）：成功链路 12 条分阶段日志，目标行显示 `网站=https://api.github.com 组织/用户=acdnx 仓库=Distribution 分支=quote 目标路径=…`；失败链路（本地文件缺失）写一条 `[ERROR]` 日志并附完整目标与「下次重试」时间，「JOB 完成 · SUCCESS · 本轮 1 个文件上传失败（首个 file_id=1877：…）」与运行汇总 `error` 字段一致。
+  - 测试：新增 `TestDescribeUploadTarget`（dir/none/非法路径回退）；文档 `Docs/API/QuoteDeDup/RunLog.md` 补充上传类 JOB 的日志口径与 `level` 语义。
+
 - **证券自动发现后的元数据补全失效（需求 10823）**
   - 问题：服务器表 `cdeu.finv_quote_cdeu_usc` 497 行里有 **431 行**只有 `usc` + `provider`，`category/region/market/name/timezone/currency/day_expect_rows` 全为空。根因两个：① 回填只取 `finv_security.flag_enable='1'` 的行，而 `V200062` 导入的证券默认全是 `'0'`（372 行被这一条条件全部过滤掉）；② 五十余个自动发现的品种（富途板块 / 主连 / 外汇对 / 部分美股）根本不在 `finv_security`，没有数据源兜底。
   - `Store.BackfillUscDefaults` 重写为六步（只补空、幂等）：

@@ -80,6 +80,18 @@ func newGitHubUploader(source githubTargetSource, apiBase string) *githubUploade
 
 func (u *githubUploader) Mode() string { return UploadModeGitHub }
 
+// DescribeTarget github 模式：给出「网站 / 组织 / 仓库 / 分支 / 文件路径」五元组，
+// 便于运维直接从日志判断传到哪了。PAT（sys_config 20003）敏感，不入日志。
+func (u *githubUploader) DescribeTarget(ctx context.Context, targetPath string) (string, error) {
+	target, err := u.resolve(ctx)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("mode=github 网站=%s 组织/用户=%s 仓库=%s 分支=%s 目标路径=%s（完整 URL=%s）",
+		u.apiBase, target.Repo.Owner, target.Repo.Repo, target.Repo.Branch,
+		target.Repo.Join(targetPath), u.contentsURL(target.Repo, target.Repo.Join(targetPath))), nil
+}
+
 // resolve 读取系统配置并校验上传目标（开关 / PAT / 仓库定位）。
 func (u *githubUploader) resolve(ctx context.Context) (syscfg.Target, error) {
 	values, err := u.source.Load(ctx)
@@ -244,7 +256,7 @@ func (u *githubUploader) getContent(ctx context.Context, target syscfg.Target, p
 
 	payload, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
 	if err != nil {
-		return githubContent{}, false, fmt.Errorf("读取远端响应失败: %w", err)
+		return githubContent{}, false, fmt.Errorf("读取远端响应失败: %w（HTTP %d，GET %s）", err, response.StatusCode, endpoint)
 	}
 	trimmed := bytes.TrimSpace(payload)
 	if len(trimmed) > 0 && trimmed[0] == '[' {
@@ -252,9 +264,31 @@ func (u *githubUploader) getContent(ctx context.Context, target syscfg.Target, p
 	}
 	var content githubContent
 	if err := json.Unmarshal(trimmed, &content); err != nil {
-		return githubContent{}, false, fmt.Errorf("解析远端响应失败: %w", err)
+		return githubContent{}, false, responseDecodeError("查询远端文件", response, endpoint, trimmed, err)
 	}
 	return content, true, nil
+}
+
+// responseDecodeError 把「响应体无法解析为预期 JSON」补成可直接定位的诊断串：
+// HTTP 状态、请求方法/URL、Content-Type/Content-Length、响应体片段与 GitHub 请求 ID。
+//
+// 典型场景：中间代理/网关返回 200 但响应体为空，旧实现只报
+// “解析远端响应失败: unexpected end of JSON input”，既看不出是目标仓库配置
+// 问题还是被网关拦截，也看不出请求的是哪个 URL。
+func responseDecodeError(action string, response *http.Response, endpoint string, payload []byte, cause error) error {
+	snippet := strings.TrimSpace(string(payload))
+	if runes := []rune(snippet); len(runes) > 200 {
+		snippet = string(runes[:200]) + "…"
+	}
+	detail := fmt.Sprintf("%s响应解析失败: HTTP %d，GET %s，Content-Type=%q，Content-Length=%d，响应体片段=%q，请求ID=%q",
+		action, response.StatusCode, endpoint,
+		response.Header.Get("Content-Type"), response.ContentLength, snippet,
+		response.Header.Get("X-GitHub-Request-Id"))
+	if len(payload) == 0 {
+		detail += "；响应体为空：Contents API 正常会返回 JSON，请核对「网站」（FINV_QUOTE_DEDUB_UPLOAD_GITHUB_API_BASE 是否指向 GitHub API）、" +
+			"代理/网关是否吞掉响应体，以及仓库定位配置（sys_config 20004 的 organization:repo:branch:pre_path_key）"
+	}
+	return fmt.Errorf("%s: %w", detail, cause)
 }
 
 // do 发送请求并对 429 / 5xx / 网络错误做有限重试；bodyFactory 用于重放请求体。

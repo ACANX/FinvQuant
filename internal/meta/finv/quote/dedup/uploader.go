@@ -32,6 +32,28 @@ type Uploader interface {
 	Verify(ctx context.Context, targetPath string, size int64, checksum string) error
 }
 
+// UploadTargetDescriber 可选接口：把「传到哪个存储 / 哪个仓库分支 / 哪个路径」
+// 写成一行可读描述，供 Job 过程日志直接展示（禁止包含 PAT / token 等敏感信息）。
+//
+// 用可选接口而不是向 Uploader 加方法：dir/http/github/none 四种实现的
+// 描述口径不同，且外部实现不必强制提供。
+type UploadTargetDescriber interface {
+	DescribeTarget(ctx context.Context, targetPath string) (string, error)
+}
+
+// describeUploadTarget 取上传目标的描述；实现未提供或解析失败时退回模式名。
+func describeUploadTarget(ctx context.Context, up Uploader, targetPath string) string {
+	describer, ok := up.(UploadTargetDescriber)
+	if !ok {
+		return "mode=" + up.Mode() + " path=" + targetPath
+	}
+	description, err := describer.DescribeTarget(ctx, targetPath)
+	if err != nil || strings.TrimSpace(description) == "" {
+		return "mode=" + up.Mode() + " path=" + targetPath
+	}
+	return description
+}
+
 // NewUploader 按配置创建上传适配器。
 func NewUploader(options Options) (Uploader, error) {
 	switch options.UploadMode {
@@ -62,6 +84,11 @@ func (noneUploader) Put(context.Context, string, string) (int64, error) {
 
 func (noneUploader) Verify(context.Context, string, int64, string) error { return nil }
 
+// DescribeTarget none 模式的上传目标描述（上传 Job 会空转，日志需要说清原因）。
+func (noneUploader) DescribeTarget(context.Context, string) (string, error) {
+	return "mode=none（未配置上传目标，FINV_QUOTE_DEDUB_UPLOAD_MODE=none）", nil
+}
+
 // ---------------------------------------------------------------------
 // dir：独享存储以目录 / NAS 挂载方式暴露（默认实现）
 // ---------------------------------------------------------------------
@@ -86,6 +113,15 @@ func newDirUploader(root string) (Uploader, error) {
 }
 
 func (u *dirUploader) Mode() string { return UploadModeDir }
+
+// DescribeTarget dir 模式：目标为本地/NAS 绝对路径，直接给出可核对的落地位置。
+func (u *dirUploader) DescribeTarget(_ context.Context, targetPath string) (string, error) {
+	full, err := u.resolve(targetPath)
+	if err != nil {
+		return "", err
+	}
+	return "mode=dir 目标文件=" + full, nil
+}
 
 // resolve 把相对 targetPath 解析为 root 内的绝对路径，越出 root 时拒绝（防目录穿越）。
 func (u *dirUploader) resolve(targetPath string) (string, error) {
@@ -211,6 +247,11 @@ func newHTTPUploader(base, token string) (Uploader, error) {
 }
 
 func (u *httpUploader) Mode() string { return UploadModeHTTP }
+
+// DescribeTarget http 模式：给出完整 URL（token 只在 Authorization 头中，不进日志）。
+func (u *httpUploader) DescribeTarget(_ context.Context, targetPath string) (string, error) {
+	return "mode=http 目标 URL=" + u.urlFor(targetPath), nil
+}
 
 func (u *httpUploader) urlFor(targetPath string) string {
 	escaped := (&url.URL{Path: targetPath}).EscapedPath()
