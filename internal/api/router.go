@@ -149,6 +149,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 			group.GET("/Calendar/Page", archive.CalendarPage)
 			group.GET("/Maturity/Page", archive.MaturityPage)
 			group.GET("/Stats/Page", archive.StatsPage)
+			group.GET("/Export/Stock/Page", archive.StockPage)
 			group.GET("/Budget/Page", archive.BudgetPage)
 			group.GET("/Watermark/List", archive.WatermarkList)
 			group.GET("/RunLog/Page", archive.RunLogPage)

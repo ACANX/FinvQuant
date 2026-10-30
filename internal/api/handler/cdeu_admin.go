@@ -452,3 +452,31 @@ func formatIntPtr(v *int) string {
 	}
 	return fmt.Sprintf("%d", *v)
 }
+
+// StockPage 查询指定业务月份的存量清单（GET .../Export/Stock/Page，需求 10835）。
+//
+// 数据源为 cdeu.finv_quote_secu_kline_min（主表）+ cdeu.finv_quote_cdeu_quote_maturity_mon，
+// 用于在跑导出流程前确认「该月会导出哪些证券、各多少行、文件大致多大」。
+func (h *ExportArchive) StockPage(c *gin.Context) {
+	bizMonth, _ := queryIntParam(c, "bizMonth")
+	pageNo, ok := queryIntParam(c, "page")
+	if !ok || pageNo <= 0 {
+		pageNo = 1
+	}
+	pageSize, ok := queryIntParam(c, "pageSize")
+	if !ok || pageSize <= 0 {
+		pageSize = 100
+	}
+	filter := dedup.StockFilter{
+		BizMonth: bizMonth,
+		Usc:      strings.TrimSpace(c.Query("usc")),
+		Limit:    pageSize,
+		Offset:   (pageNo - 1) * pageSize,
+	}
+	page, err := h.service.StockPage(c.Request.Context(), filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "查询月份存量清单失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "查询完成", "data": page})
+}

@@ -7,6 +7,7 @@ import QuoteImportView from './views/Meta/Finv/Quote/History/HistoryQuoteImportV
 import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue'
 import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue'
 import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue'
+import DeDupArchiveStockView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveStockView.vue'
 import DeDupArchiveChainView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue'
 import DeDupCDEUView from './views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue'
 import DeDupCDEUWorkflowView from './views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue'
@@ -71,6 +72,12 @@ const router = createRouter({
       name: 'dedup-export-chain',
       component: DeDupArchiveChainView,
       meta: { title: '端到端链路' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Stock',
+      name: 'dedup-export-stock',
+      component: DeDupArchiveStockView,
+      meta: { title: '月份存量清单' },
     },
     {
       path: '/Meta/Finv/Quote/Cdeu/CdeuOverview',

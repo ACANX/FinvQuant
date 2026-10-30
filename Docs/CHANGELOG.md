@@ -105,6 +105,27 @@
   - `Prompt.md` 移至 **`Docs/FinvQuant/V1/Prompt.md`**（`git mv` 保留历史），根目录不再保留；`AGENTS.md`、`README.md` 的目录树/索引与 `Docs/RequirementList.md` 核对命令（10073、10099、10131、10237）中的路径同步更新；历史 CHANGELOG 条目与 `Docs/Refactor/*` 过程文档中的旧路径按历史记录保留。
   - `internal/api/handler/exportarchive.go` → **`cdeu.go`**，`internal/api/handler/exportarchive_admin.go` → **`cdeu_admin.go`**：Go 构建不依赖文件名，包名与导出符号不变，接口行为零变化；`Docs/API/QuoteDeDup/Usc.md` 与 `Docs/RequirementList.md`（10340、10350、10379、10470 核对命令）中的引用同步更新。
 
+### 新增
+
+- **行情数据归档新增「月份存量清单」页面（需求 10835）**
+  - 痛点：跑导出流程之前，无法确认「该业务月份到底有哪些证券、各多少行、会生成多少文件、文件大概多大」，
+    只能等流程跑完看结果，或者手工查表。
+  - 新增菜单「行情数据归档 → 月份存量清单」（`/Meta/Finv/Quote/DeDup/Export/Stock`），
+    顶部按业务月份（下拉，复用 `bizMonthOptions`）+ 证券代码模糊过滤，四张汇总卡：
+    证券数、主表存量行数、预计导出总大小、主表已清理（已导出）证券数。
+  - 明细表按存量行数降序，每证券给出：主表存量行数、覆盖交易日数与日期范围、成熟度表应有的/实际行数、
+    成熟度状态（含未达标天数）、导出任务状态与 `job_id`、**文件名（已生成或按命名规则预计）**、预计大小。
+  - 数据源（全部 `cdeu.*`，`dedup` / `dedup_frozen` 已于 `V100086` 删除）：
+    `cdeu.finv_quote_secu_kline_min`（存量）+ `cdeu.finv_quote_cdeu_quote_maturity_mon`（规模补充）
+    + `cdeu.finv_quote_cdeu_export_job` / `_export_file`（导出状态与已登记文件名）。
+  - 关键口径说明：主表会被 `PURGE_EXPORTED_MONTH` 清理，因此「主表 0 行但成熟度有记录」专门标注为
+    **已导出并被清理**，页面上给出提示并计入「主表已清理」计数，避免被误读为数据缺失。
+  - 预计大小用主表该月最多 10000 行样本的平均行字节 × 行数折算，页脚明确标注「仅作范围参考」。
+  - 接口：`GET /API/V1/Meta/Finv/Quote/DeDup/Export/Stock/Page?bizMonth=202609&page=1&pageSize=50&usc=`。
+  - 验证：集成用例 `TestExportStockPage` 造三类证券月（主表有存量 / 已清理已导出 / 成熟度部分未达标）
+    并断言全部字段，实测输出 `证券=3 存量行=7 预计大小=665 已清理=1`；
+    分页与按证券过滤各验一次。
+
 ### 变更
 
 - **删除 `dedup` / `dedup_frozen` schema，旧域彻底淘汰（需求 10834）**

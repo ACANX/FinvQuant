@@ -308,3 +308,24 @@ func (s *Service) DiagnoseEmptyExportBatch(ctx context.Context, batchBase, batch
 			item.Usc, item.BizMonth, item.ReasonCode, item.ReasonDetail)
 	}
 }
+
+// StockPage 查询指定业务月份的存量清单（需求 10835）。
+//
+// 与 Store.ExportStockPage 的分工：Store 负责取数，这里补 Service 侧的默认值收敛
+// （月份缺省取当月、分页边界），保证 HTTP 层不需要重复校验。
+func (s *Service) StockPage(ctx context.Context, filter StockFilter) (StockPage, error) {
+	if filter.BizMonth <= 0 {
+		now := s.options.Now()
+		filter.BizMonth = now.Year()*100 + int(now.Month())
+	}
+	if filter.Limit <= 0 {
+		filter.Limit = 100
+	}
+	if filter.Limit > 500 {
+		filter.Limit = 500
+	}
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
+	return s.store.ExportStockPage(ctx, filter)
+}

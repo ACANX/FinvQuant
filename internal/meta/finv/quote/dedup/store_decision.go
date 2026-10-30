@@ -3,6 +3,7 @@ package dedup
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -283,4 +284,214 @@ SELECT DISTINCT q.usc, q.date / 100 AS biz_month
 		gaps = append(gaps, gap)
 	}
 	return gaps, rows.Err()
+}
+
+// StockRow 指定业务月份下单个证券的存量清单行（需求 10835）。
+type StockRow struct {
+	Usc      string `json:"usc"`
+	BizMonth int    `json:"biz_month"`
+	// Name / Region / Market 来自证券主数据（cdeu.finv_quote_cdeu_usc）。
+	Name   string `json:"name"`
+	Region string `json:"region"`
+	Market string `json:"market"`
+	// StockRows 主表（cdeu.finv_quote_secu_kline_min）当前存量行数：真正会被导出的数据量。
+	StockRows int64 `json:"stock_rows"`
+	// StockDays 主表覆盖的交易日数；DateFrom / DateTo 为对应的首末交易日（YYYYMMDD）。
+	StockDays int `json:"stock_days"`
+	DateFrom  int `json:"date_from"`
+	DateTo    int `json:"date_to"`
+	// ExpectedRows / ActualRows 来自成熟度表，主表被清理后仍能看到该月规模。
+	ExpectedRows int64 `json:"expected_rows"`
+	ActualRows   int64 `json:"actual_rows"`
+	// MaturityStatus 成熟度汇总：COMPLETE / FROZEN / PARTIAL / IMMATURE；无记录为空串。
+	MaturityStatus string `json:"maturity_status"`
+	UnmatureDays   int    `json:"unmature_days"`
+	// ExportStatus 导出任务状态（无任务为空串），FileName 为已登记或预计的文件名。
+	ExportStatus string `json:"export_status"`
+	JobID        *int64 `json:"job_id,omitempty"`
+	FileName     string `json:"file_name"`
+	// EstBytes 主表存量的字节估算（样本均值 × 行数），FileEstimate 为是否来自估算。
+	EstBytes int64 `json:"est_bytes"`
+}
+
+// StockPage 指定业务月份的存量清单分页结果。
+type StockPage struct {
+	BizMonth int        `json:"biz_month"`
+	Total    int        `json:"total"`
+	Items    []StockRow `json:"items"`
+	// 汇总（全量，不受分页影响）。
+	TotalStockRows int64 `json:"total_stock_rows"`
+	TotalSecu      int   `json:"total_secu"`
+	TotalEstBytes  int64 `json:"total_est_bytes"`
+	// CleanedSecu 主表已无数据但成熟度表有记录的证券数（已导出并被清理）。
+	CleanedSecu int `json:"cleaned_secu"`
+}
+
+// StockFilter 存量清单查询条件。
+type StockFilter struct {
+	BizMonth int
+	Usc      string
+	Limit    int
+	Offset   int
+}
+
+// ExportStockPage 统计指定业务月份在**主表**（cdeu.finv_quote_secu_kline_min）里的存量清单，
+// 用成熟度表补充「已被清理月份」的规模，用导出任务表标注「是否已导出」。
+//
+// 需求 10835：让运维在跑流程前就能看到该月会被导出的证券清单、每证券行数与大致文件大小。
+// 数据源一律 `cdeu.*`（`dedup` / `dedup_frozen` 已于 V100086 删除）。
+func (s *Store) ExportStockPage(ctx context.Context, filter StockFilter) (StockPage, error) {
+	page := StockPage{BizMonth: filter.BizMonth, Items: []StockRow{}}
+	if filter.BizMonth <= 0 {
+		return page, nil
+	}
+	if filter.Limit <= 0 || filter.Limit > 500 {
+		filter.Limit = 100
+	}
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
+	dateFrom := filter.BizMonth*100 + 1
+	dateTo := filter.BizMonth*100 + 31
+	uscPattern := ""
+	if strings.TrimSpace(filter.Usc) != "" {
+		uscPattern = "%" + strings.TrimSpace(filter.Usc) + "%"
+	}
+
+	// 汇总：以「主表有数据」或「成熟度有记录」的证券月为全集。
+	if err := s.pool.QueryRow(ctx, `
+WITH main AS (
+    SELECT usc, count(*) AS rows, count(DISTINCT date) AS days
+      FROM `+tableMain+`
+     WHERE date BETWEEN $1 AND $2
+     GROUP BY usc
+), mat AS (
+    SELECT usc, sum(actual_rows) AS actual
+      FROM `+tableMaturity+`
+     WHERE biz_month = $3
+     GROUP BY usc
+), all_usc AS (
+    SELECT usc FROM main UNION SELECT usc FROM mat
+)
+SELECT count(*),
+       COALESCE(sum(main.rows), 0)::bigint,
+       count(*) FILTER (WHERE COALESCE(main.rows, 0) = 0 AND mat.actual IS NOT NULL)
+  FROM all_usc
+  LEFT JOIN main ON main.usc = all_usc.usc
+  LEFT JOIN mat  ON mat.usc  = all_usc.usc
+ WHERE ($4 = '' OR all_usc.usc ILIKE $4)`,
+		dateFrom, dateTo, filter.BizMonth, uscPattern).
+		Scan(&page.TotalSecu, &page.TotalStockRows, &page.CleanedSecu); err != nil {
+		return page, err
+	}
+
+	// 字节估算：取主表该月最多 10000 行样本算平均行字节，再按总行数折算。
+	var sampleRows int64
+	var sampleBytes int64
+	if err := s.pool.QueryRow(ctx, `
+WITH sample AS (
+    SELECT * FROM `+tableMain+`
+     WHERE date BETWEEN $1 AND $2
+     LIMIT 10000
+)
+SELECT count(*), COALESCE(sum(pg_column_size(sample.*)), 0)::bigint FROM sample`,
+		dateFrom, dateTo).Scan(&sampleRows, &sampleBytes); err != nil {
+		return page, err
+	}
+	var avgRowBytes int64
+	if sampleRows > 0 {
+		avgRowBytes = sampleBytes / sampleRows
+	}
+	page.TotalEstBytes = page.TotalStockRows * avgRowBytes
+
+	rows, err := s.pool.Query(ctx, `
+WITH main AS (
+    SELECT usc,
+           count(*) AS rows,
+           count(DISTINCT date) AS days,
+           min(date) AS date_from,
+           max(date) AS date_to
+      FROM `+tableMain+`
+     WHERE date BETWEEN $1 AND $2
+     GROUP BY usc
+), mat AS (
+    SELECT usc,
+           COALESCE(sum(expected_rows), 0)::bigint AS expected_rows,
+           COALESCE(sum(actual_rows), 0)::bigint   AS actual_rows,
+           count(*) FILTER (WHERE maturity_status NOT IN ('COMPLETE', 'FROZEN')) AS unmature_days,
+           bool_and(maturity_status IN ('COMPLETE', 'FROZEN')) AS all_mature,
+           bool_or(maturity_status = 'FROZEN') AS any_frozen
+      FROM `+tableMaturity+`
+     WHERE biz_month = $3
+     GROUP BY usc
+), job AS (
+    SELECT DISTINCT ON (usc) usc, job_id, status
+      FROM `+tableJob+`
+     WHERE biz_month = $3
+     ORDER BY usc, job_id DESC
+), base_file AS (
+    SELECT DISTINCT ON (job_id) job_id, file_name, file_size
+      FROM `+tableFile+`
+     WHERE file_type = 'BASE'
+     ORDER BY job_id, version DESC
+), all_usc AS (
+    SELECT usc FROM main UNION SELECT usc FROM mat
+)
+SELECT all_usc.usc,
+       COALESCE(u.name, ''), COALESCE(u.region, ''), COALESCE(u.market, ''),
+       COALESCE(main.rows, 0),
+       COALESCE(main.days, 0),
+       COALESCE(main.date_from, 0),
+       COALESCE(main.date_to, 0),
+       COALESCE(mat.expected_rows, 0),
+       COALESCE(mat.actual_rows, 0),
+       CASE WHEN mat.usc IS NULL THEN ''
+            WHEN mat.all_mature AND mat.any_frozen THEN 'FROZEN'
+            WHEN mat.all_mature THEN 'COMPLETE'
+            WHEN mat.unmature_days > 0 THEN 'PARTIAL'
+            ELSE 'IMMATURE' END,
+       COALESCE(mat.unmature_days, 0),
+       COALESCE(job.status, ''),
+       job.job_id,
+       COALESCE(base_file.file_name, '')
+  FROM all_usc
+  LEFT JOIN main      ON main.usc = all_usc.usc
+  LEFT JOIN mat       ON mat.usc  = all_usc.usc
+  LEFT JOIN `+tableUsc+` u ON u.usc = all_usc.usc
+  LEFT JOIN job       ON job.usc  = all_usc.usc
+  LEFT JOIN base_file ON base_file.job_id = job.job_id
+ WHERE ($4 = '' OR all_usc.usc ILIKE $4)
+ ORDER BY COALESCE(main.rows, 0) DESC, all_usc.usc
+ LIMIT $5 OFFSET $6`,
+		dateFrom, dateTo, filter.BizMonth, uscPattern, filter.Limit, filter.Offset)
+	if err != nil {
+		return page, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var item StockRow
+		item.BizMonth = filter.BizMonth
+		if err := rows.Scan(&item.Usc, &item.Name, &item.Region, &item.Market,
+			&item.StockRows, &item.StockDays, &item.DateFrom, &item.DateTo,
+			&item.ExpectedRows, &item.ActualRows, &item.MaturityStatus, &item.UnmatureDays,
+			&item.ExportStatus, &item.JobID, &item.FileName); err != nil {
+			return page, err
+		}
+		item.EstBytes = item.StockRows * avgRowBytes
+		// 未导出时给出「如果现在导出会叫什么文件」，与真实导出的命名规则完全一致。
+		if item.FileName == "" {
+			item.FileName = FileMeta{
+				Usc: item.Usc, BizMonth: filter.BizMonth,
+				Region: item.Region, Market: item.Market,
+				Provider: "FTMM",
+			}.BaseFileName()
+		}
+		page.Items = append(page.Items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return page, err
+	}
+	page.Total = page.TotalSecu
+	return page, nil
 }

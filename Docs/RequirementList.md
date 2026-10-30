@@ -2372,6 +2372,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10834 | 删除已淘汰的 `dedup` 与 `dedup_frozen` 两个 schema（`cdeu` 已完整接管），删除前必须做逻辑备份；同时建立代码闸门，禁止任何代码再引用这两个 schema 前缀（含集成测试里的 `CREATE SCHEMA` 误复活）。 | `psql -c "select nspname from pg_namespace where nspname in ('dedup','dedup_frozen')"` 返回 0 行；`ls Deploy/Backup/dedup_schemas_*.sql.gz` 存在且 `zcat` 后 `grep -c '^CREATE TABLE'` 为 32；`grep -c 'forbiddenSchemaPrefixes' internal/database/schema_qualify_test.go` ≥ 2；`grep -rn 'dedup\\.finv_quote_secu_kline_min' --include=*.go .` 无业务代码命中；`go test ./internal/database/ -run TestSQLSchemaQualified` 通过；`select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where c.relname='finv_quote_secu_kline_min' and n.nspname in ('quote','export','cdeu')` 为 3 | |
 
+## 一百六十一、行情数据归档·月份存量清单（10835）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10835 | 「行情数据归档」菜单下新增「月份存量清单」：按业务月份 + 证券维度统计主表该月的存量，给出每个证券的存量行数、交易日数、成熟度应有/实际行数、导出状态、文件名（已生成或预计）与预计大小，并汇总证券数/总行数/预计总大小；主表已清理（已导出）的证券必须明确标注而不是显示为数据缺失。 | `grep -c '月份存量清单' Web/src/config/menuConfig.ts` 为 1；`grep -c 'Export/Stock/Page' internal/api/router.go` 为 1；`grep -c 'func (s \*Service) StockPage' internal/meta/finv/quote/dedup/service_decision.go` 为 1；`grep -c 'func (s \*Store) ExportStockPage' internal/meta/finv/quote/dedup/store_decision.go` 为 1；`go test ./internal/meta/finv/quote/dedup/ -run TestExportStockPage`（需 `FINV_TEST_PG_DSN`）通过并输出「已清理」计数；`grep -rn 'dedup\.' internal/meta/finv/quote/dedup/store_decision.go` 无命中（数据源只用 `cdeu.*`） | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2560,7 +2566,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 动态 JOB 领取顺序（优先级 + seq_no） | 10831 | 1 |
 | 导出决策明细 JOB 与 provider 修复 | 10832 | 1 |
 | 删除 dedup / dedup_frozen schema | 10834 | 1 |
-| **合计** | **10001–10834** | **833** |
+| 行情数据归档·月份存量清单 | 10835 | 1 |
+| **合计** | **10001–10835** | **834** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
