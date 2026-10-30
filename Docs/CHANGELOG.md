@@ -107,6 +107,16 @@
 
 ### 变更
 
+- **「交易所下设市场信息维护」改名为「市场信息管理」（需求 10853）**
+  - 授权：用户明确要求「『交易所下设市场信息维护』菜单更名为『市场信息管理』」。
+  - 改动：`Web/src/config/menuConfig.ts` 与 `Web/src/router.ts` 中该叶子标题同步改为
+    「市场信息管理」；叶子 key（`meta-market`）、图标、路由路径 `/meta/market` 均不变
+    （路由 `meta.title` 同步，影响页签与面包屑）。
+  - 验证：`grep -c "title: '市场信息管理'" Web/src/config/menuConfig.ts` 为 1、
+    「交易所下设市场信息维护」在菜单配置与路由中均为 0 次；菜单图标与 path 校验通过。
+
+### 变更
+
 - **「业务元数据维护」改名为「Finv业务元数据」（需求 10852）**
   - 授权：用户明确要求「『业务元数据维护』菜单更名为『Finv业务元数据』」。
   - 改动：`Web/src/config/menuConfig.ts` 中 `meta-maintenance` 节点的 `title` 改为
