@@ -2414,6 +2414,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10841 | 在「配置管理」之后新增同级别的二级菜单「量化」（用户选定方案 A：仅空节点占位，不移动现有量化节点）。 | 解析 `Web/src/config/menuConfig.ts` 的 `finvQuantMenu` 顶层顺序，`config-manage` 之后、`data-collection` 之前应为 `quant`；`grep -c "title: '量化'" ` 为 1 且该节点 `children` 为空数组；现有 `quant-backtest`/`strategy`/`backtest-analysis`/`simulation-*`/`live-trading` 仍在顶层（未被移入）；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
 
+## 一百六十八、「配置管理」移到「行情」之前（10842）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10842 | 二级菜单「配置管理」移动到「行情」之前（即顺序变为 仪表盘 → 元数据 → 配置管理 → 行情 → 量化 → 数据采集 → 其余），节点 key 与子菜单不变。 | 解析 `Web/src/config/menuConfig.ts` 的 `finvQuantMenu` 顶层顺序，`config-manage` 的索引应小于 `quote`；完整顺序为 `dashboard, metadata, config-manage, quote, quant, data-collection, environment, template, account, fund, position, quant-backtest, strategy, backtest-analysis, simulation-data, simulation-paper, simulation-live-sim, live-trading`；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2609,7 +2615,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 菜单新增二级「行情」并移动叶子 | 10839 | 1 |
 | 菜单改名「元数据」与顺序调整 | 10840 | 1 |
 | 新增二级菜单「量化」（占位） | 10841 | 1 |
-| **合计** | **10001–10841** | **840** |
+| 「配置管理」移到「行情」之前 | 10842 | 1 |
+| **合计** | **10001–10842** | **841** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

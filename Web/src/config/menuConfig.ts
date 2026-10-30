@@ -67,6 +67,7 @@ const finvQuantMenu: MenuNode[] = [
       },
     ],
   },
+  { key: 'config-manage', title: '配置管理', icon: 'mdi-cog-outline', path: '/Meta/Finv/Quant/Config' },
   {
     // 「行情」二级菜单（分组前缀 /Meta/Finv/Quote/），与「数据采集」同级；
     // 其下两个三级分组按加工阶段划分：
@@ -94,7 +95,6 @@ const finvQuantMenu: MenuNode[] = [
       },
     ],
   },
-  { key: 'config-manage', title: '配置管理', icon: 'mdi-cog-outline', path: '/Meta/Finv/Quant/Config' },
   {
     // 「量化」二级分组（需求 10841）：先占位，子菜单后续按需迁入
     // （现有量化相关节点暂不移动：量化策略验证 / 策略管理 / 回测分析 / 仿真与实盘验证）。

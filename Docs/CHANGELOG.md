@@ -107,6 +107,20 @@
 
 ### 变更
 
+- **「配置管理」移到「行情」之前（需求 10842）**
+  - 授权：用户明确要求「『配置管理』移动到『行情』之前」。
+  - 改动（`Web/src/config/menuConfig.ts`）：交换 `config-manage` 与 `quote` 两个二级节点的先后，
+    顺序变为：仪表盘 → 元数据 → 配置管理 → 行情 → 量化（占位）→ 数据采集 → 环境管理 → …；
+    节点 key 与子菜单内容均未改动。
+  - 验证（脚本实测）：解析 `finvQuantMenu` 顶层顺序为
+    `dashboard, metadata, config-manage, quote, quant, data-collection, environment, template,
+    account, fund, position, quant-backtest, strategy, backtest-analysis, simulation-data,
+    simulation-paper, simulation-live-sim, live-trading`，与目标一致；40 个菜单图标全部有效；
+    所有 `path` 均有对应路由；无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过。
+  - 文档：`Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md` §2.2 顺序约定同步。
+
+### 变更
+
 - **新增二级菜单「量化」（占位）（需求 10841）**
   - 授权：用户明确要求「『配置管理』后增加同级别的『量化』二级菜单」，并在给出「空节点占位 /
     把现有量化节点收进去」两个选项后选择 **A（只加空节点）**。

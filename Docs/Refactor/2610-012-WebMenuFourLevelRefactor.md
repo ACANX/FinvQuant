@@ -123,7 +123,7 @@ export interface MenuSystem extends MenuNode {
 ```
 【一级系统：金融投资（内部 key=finvquant）】（顶栏切换，path=/Meta/Finv → 重定向 /Dashboard）
 ├─ 仪表盘（二级叶子，/Dashboard）
-│  【顺序约定，需求 10840/10841】仪表盘 → 元数据 → 行情 → 配置管理 → 量化（占位）→ 数据采集 → 其余
+│  【顺序约定，需求 10840/10841/10842】仪表盘 → 元数据 → 配置管理 → 行情 → 量化（占位）→ 数据采集 → 其余
 ├─ 数据采集（二级分组）
 │  ├─ 行情数据去重（三级分组）
 │  │  ├─ 去重分钟行情查询（四级叶子，/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query）
