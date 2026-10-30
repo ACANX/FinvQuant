@@ -4,7 +4,15 @@
 
 `day_expect_rows` 是成熟度判定的校准值：为空时该证券的日数据会长期停留在 `PARTIAL`，永不进入导出候选。
 
-自动补全（需求 10820）：成熟度刷新 JOB 与导出 JOB 会按模板表 `cdeu.finv_quote_cdeu_usc_day_incr_row_tpl`（按 `region` + `market` + `category` 匹配，三列均可为空串通配）为该列为空的证券自动补值；**已配置的非空值不会被自动流程覆盖**（人工用 `PUT /Usc` 改过的值一直有效）。想在模板之外指定特殊值，直接改该证券的 `day_expect_rows` 即可。
+自动补全（需求 10820 / 10823）：成熟度刷新 JOB 与导出 JOB 会按以下顺序为该列为空/元数据不全的证券自动补值，全部**只补空、不覆盖人工值**：
+
+1. 从 `public.finv_security` 回填 `category`/`region`/`market`/`name`/`timezone`/`currency`/`provider`（**不限 `flag_enable`**，禁用只是字典维护开关）；
+2. `finv_security` 未收录时，从 `futu.finv_futu_quote_collect`（富途原始属性镜像）按 `quote_market`（SH/SZ/BJ/HK/US/FX/CC）与 `type_symbol` 兜底；
+3. 按 `region` 推导 `timezone` / `currency`（富途镜像表不带这两列）；
+4. `SH######` / `SZ######` 前缀的 usc 按 A 股指数兜底（`region=CN`、`market=SH/SZ`、`category=StockIndex`）；
+5. `day_expect_rows` 按模板表 `cdeu.finv_quote_cdeu_usc_day_incr_row_tpl`（`region` + `market` + `category`，三列可空串通配）匹配。
+
+补全后仍缺字段的证券（通常是 `finv_security` 与富途镜像表都未收录的品种）会出现在 JOB 日志的「仍缺 …；样本=…」行里，需人工补元数据（`PUT /Usc`）或补主数据字典（如 `finv_market.market_symbol`）。
 
 ## 1. GET /Usc/Page（查询）
 

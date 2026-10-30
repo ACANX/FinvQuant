@@ -27,6 +27,7 @@ const (
 	tableRunLogLine  = "cdeu.finv_quote_cdeu_job_run_log_line"
 	tableUsc         = "cdeu.finv_quote_cdeu_usc"
 	tableUscRowTpl   = "cdeu.finv_quote_cdeu_usc_day_incr_row_tpl"
+	tableFutuQuote   = "futu.finv_futu_quote_collect"
 	tableJob         = "cdeu.finv_quote_cdeu_export_job"
 	tableFile        = "cdeu.finv_quote_cdeu_export_file"
 	tableUploadLog   = "cdeu.finv_quote_cdeu_export_file_upload_log"
@@ -447,32 +448,188 @@ const (
 	defaultMaxWaitDays  = 7
 )
 
-// UscBackfillStat 一次默认值补全的影响行数。
-type UscBackfillStat struct {
-	DayExpectRows int64 // 按模板补齐 day_expect_rows 的证券数
-	Priority      int64 // 补齐 priority_rank / sla_days / max_wait_days 的证券数
+// UscBackfillMissing 补全后仍然缺失的字段行数（用于日志与运维定位）。
+type UscBackfillMissing struct {
+	Provider      int64 `json:"provider"`
+	Category      int64 `json:"category"`
+	Region        int64 `json:"region"`
+	Market        int64 `json:"market"`
+	Name          int64 `json:"name"`
+	Timezone      int64 `json:"timezone"`
+	Currency      int64 `json:"currency"`
+	DayExpectRows int64 `json:"day_expect_rows"`
 }
 
-// BackfillUscDefaults 为证券主数据补齐归档必需的默认值（只补空，绝不覆盖已有值）。
+// UscBackfillStat 一次补全的影响行数与补全后仍缺的字段统计。
+type UscBackfillStat struct {
+	MetadataRows  int64              // 元数据（finv_security / futu 镜像）被补上的行数
+	DerivedRows   int64              // 按 region / usc 前缀推导 timezone、currency、market 的行数
+	DayExpectRows int64              // 按模板补齐 day_expect_rows 的证券数
+	Priority      int64              // 补齐 priority_rank / sla_days / max_wait_days 的证券数
+	Missing       UscBackfillMissing // 补全后仍为 NULL 的字段行数
+}
+
+// BackfillUscDefaults 为证券主数据补齐归档必需的元数据与默认值（只补空，绝不覆盖已有值）。
 //
-// 补全口径（需求 10820 / 10821）：
-//   - day_expect_rows：按模板表 `cdeu.finv_quote_cdeu_usc_day_incr_row_tpl` 匹配
-//     region + market + category（三列均可为空串表示通配，按特异性降序取第一条
-//     启用的模板；特异性相同时按 region / market / category 字典序）。
-//     已有非空值不动——运维改过的值不会被自动流程冲掉。
-//   - priority_rank / sla_days / max_wait_days：三列同时为 NULL（表上的
-//     finv_quote_cdeu_usc_priority_group_check 保证只有这一种组合）时统一补
-//     100 / 5 / 7，保证流程一开始就能自己跑起来；人工设置过的值不动。
-//     自动补全**不写** priority_gmt_update，据此可区分「默认值」与「人工设置」
-//     （priority_gmt_update 为 NULL = 默认值）。
+// 为什么需要它：自动发现（DiscoverUsc）只写 usc 与 flag_auto_discover，其余列全空；
+// 而 RefreshSecurityMetadata 的 INSERT 只取 finv_security.flag_enable='1' 的行，
+// 证券默认为禁用（V200062 种子全是 '0'）或根本不在 finv_security 时，
+// region/market/currency/name/timezone/category 永远补不上，证券就永远进不了导出候选。
 //
-// 幂等：重复执行影响 0 行。挂在两个 JOB 上——成熟度刷新（DiscoverUsc 之后）
-// 与导出前置（RefreshSecurityMetadata 之后），保证自动发现的新证券与存量
-// 缺值证券在下一轮就能拿到可判定的期望条数。
+// 补全分六步（逐次 Exec，每步只补空、幂等）：
+//  1. 从 public.finv_security 回填 —— **不限 flag_enable**（禁用只是字典维护开关，
+//     不代表行情不存在）：category/name/timezone/currency/provider 取自证券主数据，
+//     region 取 finv_region 字典（失配时回退 exchange.region），market 取
+//     finv_market.market_symbol（为空则留给第 2 步，不用历史 market_flag 充数，
+//     否则会污染 {region}_{market} 目录与模板匹配）。
+//  2. 从 futu.finv_futu_quote_collect（富途原始属性镜像）兜底：
+//     quote_market（SH/SZ/BJ/HK/US/FX/CC）→ region / market，
+//     type_symbol（stock/etfs/index/futures/sectors/crypto/currency）→ category。
+//     这一步覆盖「上游有证但 finv_security 未收录」的证券（如富途板块、主连、外汇对）。
+//  3. 按 region 推导 timezone / currency（富途镜像表不带这两列）：
+//     CN→Asia/Shanghai + CNY，HK→Asia/Hong_Kong + HKD，US→America/New_York + USD，
+//     FX / GLOBAL→UTC（币种不推，外汇对与加密货币没有单一计价币种）。
+//  4. usc 前缀兜底：SH###### / SZ###### 是 finv 体系的 A 股指数编码，
+//     推出 region=CN、market=SH/SZ、category=StockIndex（个股代码不带前缀）。
+//  5. 按模板表 cdeu.finv_quote_cdeu_usc_day_incr_row_tpl 补 day_expect_rows：
+//     模板三列均可为空串通配，非空维度必须与 usc 值相等；NULL 维度不凭空匹配，
+//     所以区域级兜底靠 V200066 的 `CN/”/”`、`HK/”/”`、`US/”/”` 等模板行，
+//     排序按「模板特异性 → region/market/category 字典序」取第一条。
+//  6. priority_rank / sla_days / max_wait_days 三列同时为 NULL 时补 100 / 5 / 7，
+//     且**不写** priority_gmt_update（NULL = 默认值，非 NULL = 人工设置）。
+//
+// 最后统计各字段仍缺的行数（Missing），由 JOB 打进日志，方便运维知道还有哪些
+// 证券需要人工维护（典型是历史 usc 治理遗留、上游未收录的品种）。
+//
+// 幂等：重复执行后第 1–4 步影响 0 行。挂在两个 JOB 上——成熟度刷新（DiscoverUsc 之后）
+// 与导出前置（RefreshSecurityMetadata 之后）。
 func (s *Store) BackfillUscDefaults(ctx context.Context) (UscBackfillStat, error) {
 	var stat UscBackfillStat
 
+	// ---- 1. finv_security 回填（不限 flag_enable）----
 	tag, err := s.pool.Exec(ctx, `
+WITH src AS (
+    SELECT s.usc,
+           NULLIF(s.security_type, '')                                            AS category,
+           COALESCE(NULLIF(s.security_name_cn, ''), NULLIF(s.security_name, ''))   AS name,
+           NULLIF(s.currency_type, '')                                            AS currency,
+           COALESCE(NULLIF(s.tz, ''), NULLIF(s.timezone, ''))                     AS timezone,
+           NULLIF(s.provider, '')                                                 AS provider,
+           COALESCE(NULLIF(r.region, ''), NULLIF(e.region, ''))                   AS region,
+           NULLIF(m.market_symbol, '')                                            AS market
+      FROM public.finv_security s
+      LEFT JOIN public.finv_exchange e ON e.exchange_code = s.exchange_code
+      LEFT JOIN public.finv_market m   ON m.market_code = s.market_code
+      LEFT JOIN public.finv_region r   ON r.region = e.region
+)
+UPDATE `+tableUsc+` u
+   SET category   = COALESCE(u.category, src.category),
+       name       = COALESCE(u.name, src.name),
+       currency   = COALESCE(u.currency, src.currency),
+       timezone   = COALESCE(u.timezone, src.timezone),
+       provider   = COALESCE(u.provider, src.provider),
+       region     = COALESCE(u.region, src.region),
+       market     = COALESCE(u.market, src.market),
+       gmt_update = now()
+  FROM src
+ WHERE u.usc = src.usc
+   AND (u.category IS NULL OR u.name IS NULL OR u.currency IS NULL OR u.timezone IS NULL
+     OR u.region IS NULL OR u.market IS NULL OR u.provider IS NULL)`)
+	if err != nil {
+		return stat, fmt.Errorf("从 finv_security 回填证券元数据失败: %w", err)
+	}
+	stat.MetadataRows = tag.RowsAffected()
+
+	// ---- 2. futu 镜像表兜底 ----
+	tag, err = s.pool.Exec(ctx, `
+WITH src AS (
+    SELECT f.usc,
+           CASE upper(f.quote_market)
+                WHEN 'SH' THEN 'CN' WHEN 'SZ' THEN 'CN' WHEN 'BJ' THEN 'CN'
+                WHEN 'HK' THEN 'HK' WHEN 'US' THEN 'US'
+                WHEN 'FX' THEN 'FX' WHEN 'CC' THEN 'GLOBAL'
+           END AS region,
+           CASE upper(f.quote_market)
+                WHEN 'FX' THEN 'CFD'
+                WHEN 'CC' THEN 'CRYPTO'
+                ELSE NULLIF(upper(f.quote_market), '')
+           END AS market,
+           CASE lower(f.type_symbol)
+                WHEN 'stock'   THEN 'Stock'
+                WHEN 'etfs'    THEN 'ETF'
+                WHEN 'index'   THEN 'StockIndex'
+                WHEN 'futures' THEN 'Futures'
+                WHEN 'sectors' THEN 'Sector'
+                WHEN 'crypto'  THEN 'Crypto'
+                WHEN 'currency' THEN 'Forex'
+           END AS category
+      FROM `+tableFutuQuote+` f
+     WHERE f.flag_enable = '1'
+)
+UPDATE `+tableUsc+` u
+   SET region     = COALESCE(u.region, src.region),
+       market     = COALESCE(u.market, src.market),
+       category   = COALESCE(u.category, src.category),
+       gmt_update = now()
+  FROM src
+ WHERE u.usc = src.usc
+   AND (u.region IS NULL OR u.market IS NULL OR u.category IS NULL)`)
+	if err != nil {
+		return stat, fmt.Errorf("从富途镜像表兜底证券元数据失败: %w", err)
+	}
+	stat.MetadataRows += tag.RowsAffected()
+
+	// ---- 3. 按 region 推导 timezone / currency（只补空；富途侧不带时区与币种）----
+	tag, err = s.pool.Exec(ctx, `
+UPDATE `+tableUsc+`
+   SET timezone = COALESCE(timezone,
+           CASE upper(COALESCE(region, ''))
+                WHEN 'CN' THEN 'Asia/Shanghai'
+                WHEN 'HK' THEN 'Asia/Hong_Kong'
+                WHEN 'US' THEN 'America/New_York'
+                WHEN 'FX' THEN 'UTC'
+                WHEN 'GLOBAL' THEN 'UTC'
+           END),
+       currency = COALESCE(currency,
+           CASE upper(COALESCE(region, ''))
+                WHEN 'CN' THEN 'CNY'
+                WHEN 'HK' THEN 'HKD'
+                WHEN 'US' THEN 'USD'
+           END),
+       gmt_update = now()
+ WHERE timezone IS NULL OR currency IS NULL`)
+	if err != nil {
+		return stat, fmt.Errorf("按区域推导 timezone/currency 失败: %w", err)
+	}
+	stat.DerivedRows = tag.RowsAffected()
+
+	// ---- 4. usc 前缀兜底：SH###### / SZ###### 为 A 股指数编码（finv 体系惯例）----
+	//
+	// 背景：历史 usc 治理把部分上证/深证指数写成 SH0680 / SZ399986 这类前缀形式，
+	// 这些 usc 既不在 finv_security 也不在富途镜像表，元数据无从谈起。按前缀只能推出
+	// 「A 股 + 指数」这类高置信信息（个股代码不带 SH/SZ 前缀），其余列不猜。
+	tag, err = s.pool.Exec(ctx, `
+UPDATE `+tableUsc+`
+   SET region     = COALESCE(region, 'CN'),
+       market     = COALESCE(market, upper(substring(usc from 1 for 2))),
+       category   = COALESCE(category, 'StockIndex'),
+       timezone   = COALESCE(timezone, 'Asia/Shanghai'),
+       currency   = COALESCE(currency, 'CNY'),
+       gmt_update = now()
+ WHERE market IS NULL
+   AND usc ~ '^(SH|SZ)[0-9]{4,6}$'`)
+	if err != nil {
+		return stat, fmt.Errorf("按 usc 前缀兜底 A 股指数元数据失败: %w", err)
+	}
+	stat.DerivedRows += tag.RowsAffected()
+
+	// ---- 5. 按模板补 day_expect_rows ----
+	//
+	// 匹配规则：模板维度为空串 = 通配，否则必须与 usc 的值（upper 归一）相等；
+	// **用户侧为 NULL 的维度不会凭空匹配**（NULL ≠ 任何具体值），全空的证券只能
+	// 命中全通配模板（当前刻意不提供，避免把残缺月的成熟度误判为 COMPLETE）。
+	// region/market 缺失时的可导性由第 2/3/4 步和 V200066 的区域级兜底模板保证。
+	tag, err = s.pool.Exec(ctx, `
 WITH tpl AS (
     SELECT upper(t.region) AS region,
            upper(t.market) AS market,
@@ -490,12 +647,7 @@ WITH tpl AS (
               AND (tpl.market = '' OR tpl.market = upper(COALESCE(u.market, '')))
               AND (tpl.category = '' OR tpl.category = upper(COALESCE(u.category, '')))
      WHERE u.day_expect_rows IS NULL
-     ORDER BY u.usc,
-              tpl.specificity DESC,
-              (tpl.region <> '') DESC,
-              (tpl.market <> '') DESC,
-              (tpl.category <> '') DESC,
-              tpl.region, tpl.market, tpl.category
+     ORDER BY u.usc, tpl.specificity DESC, tpl.region, tpl.market, tpl.category
 )
 UPDATE `+tableUsc+` u
    SET day_expect_rows = m.day_expect_rows,
@@ -507,6 +659,7 @@ UPDATE `+tableUsc+` u
 	}
 	stat.DayExpectRows = tag.RowsAffected()
 
+	// ---- 6. 优先级 / SLA / 最大等待默认值 ----
 	tag, err = s.pool.Exec(ctx, `
 UPDATE `+tableUsc+`
    SET priority_rank = $1,
@@ -520,7 +673,50 @@ UPDATE `+tableUsc+`
 	}
 	stat.Priority = tag.RowsAffected()
 
+	// ---- 7. 仍缺字段统计（可观测性）----
+	if err := s.pool.QueryRow(ctx, `
+SELECT count(*) FILTER (WHERE provider IS NULL),
+       count(*) FILTER (WHERE category IS NULL),
+       count(*) FILTER (WHERE region IS NULL),
+       count(*) FILTER (WHERE market IS NULL),
+       count(*) FILTER (WHERE name IS NULL),
+       count(*) FILTER (WHERE timezone IS NULL),
+       count(*) FILTER (WHERE currency IS NULL),
+       count(*) FILTER (WHERE day_expect_rows IS NULL)
+  FROM `+tableUsc).Scan(
+		&stat.Missing.Provider, &stat.Missing.Category, &stat.Missing.Region,
+		&stat.Missing.Market, &stat.Missing.Name, &stat.Missing.Timezone,
+		&stat.Missing.Currency, &stat.Missing.DayExpectRows); err != nil {
+		return stat, fmt.Errorf("统计补全后仍缺字段失败: %w", err)
+	}
+
 	return stat, nil
+}
+
+// UscMissingSample 取补全后仍缺关键字段的证券样本（供 JOB 日志定位）。
+func (s *Store) UscMissingSample(ctx context.Context, limit int) ([]string, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	rows, err := s.pool.Query(ctx, `
+SELECT usc
+  FROM `+tableUsc+`
+ WHERE region IS NULL OR market IS NULL OR name IS NULL OR currency IS NULL
+ ORDER BY usc
+ LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	samples := make([]string, 0, limit)
+	for rows.Next() {
+		var usc string
+		if err := rows.Scan(&usc); err != nil {
+			return nil, err
+		}
+		samples = append(samples, usc)
+	}
+	return samples, rows.Err()
 }
 
 // RefreshSecurityMetadata 从 finv_security / finv_exchange / finv_market / finv_region 刷新证券主数据。

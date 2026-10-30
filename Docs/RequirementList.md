@@ -2306,6 +2306,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10822 | `Deploy/Native/Install.sh` 能从发行包根目录（`qmio` 与 `finvquant` 并列）找到 qmio 并安装到 `<PREFIX>/bin/qmio` 与 `/usr/local/bin/qmio`，不再在标准包布局下报「未找到 qmio」警告；保留对历史布局（`Deploy/qmio`、`Deploy/Native/qmio`）的兼容。 | `bash -n Deploy/Native/Install.sh` 通过；`grep -c 'REPO_ROOT}/qmio' Deploy/Native/Install.sh` ≥ 1；构造 `FinvQuant-vX-ubuntu-arm64/{finvquant,qmio,Deploy/Native/Install.sh}` 后以 `SCRIPT_DIR=<pkg>/Deploy/Native`、`REPO_ROOT=<pkg>` 执行候选定位循环，`QMIO_SRC` 命中 `<pkg>/qmio` | |
 
+## 一百五十、证券自动发现后的元数据与默认值补全优化（10823）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10823 | 自动发现的 `cdeu.finv_quote_cdeu_usc` 行必须能自动补齐 `category` / `region` / `market` / `name` / `timezone` / `currency` / `day_expect_rows`：① 回填 `finv_security` 时**不限 `flag_enable`**（禁用不等于无行情）；② `finv_security` 未收录时从 `futu.finv_futu_quote_collect` 兜底（`quote_market` → region/market、`type_symbol` → category）；③ 按 region 推导 timezone/currency；④ `SH######` / `SZ######` 前缀兜底为 A 股指数；⑤ 模板表补区域级兜底行，`market` 未维护时仍能给出 `day_expect_rows`；⑥ 补全后剩余缺口写日志（字段行数 + 证券样本），不静默失败。 | `grep -c 'FROM public.finv_security s' internal/meta/finv/quote/dedup/store.go` ≥ 1 且该 SQL 中**无** `flag_enable` 过滤；`grep -c 'finv_futu_quote_collect' internal/meta/finv/quote/dedup/store.go` ≥ 1；`grep -c 'func (s \*Store) UscMissingSample' internal/meta/finv/quote/dedup/store.go` 为 1；`test -f Deploy/Migrations/V200066__cdeu_usc_day_incr_row_tpl_region_fallback.sql`；`select count(*) from cdeu.finv_quote_cdeu_usc_day_incr_row_tpl` ≥ 17；库内验证：导入 497 行 usc 后跑一轮 `REFRESH_QUOTE_MATURITY`，`select count(*) from cdeu.finv_quote_cdeu_usc where day_expect_rows is null` ≤ 7（仅 `finv_security` 与富途镜像表都未收录的证券） | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2483,7 +2489,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 日增量行数模板与自动补全 | 10820 | 1 |
 | 自动发现补全优先级/SLA 默认值 | 10821 | 1 |
 | Native 安装脚本 qmio 定位修正 | 10822 | 1 |
-| **合计** | **10001–10822** | **822** |
+| 证券元数据与默认值补全优化 | 10823 | 1 |
+| **合计** | **10001–10823** | **823** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

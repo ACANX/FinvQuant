@@ -39,17 +39,14 @@ func RunDueExportJobs(ctx context.Context, svc *dedup.Service, result *dedup.Res
 		return fmt.Errorf("证券元数据获取失败: %w", err)
 	}
 	svc.ReportJobProgress(ctx, "META", 0, fmt.Sprintf("证券元数据获取完成，补齐 %d 条", metadataRows))
-	// 元数据刷新只补 region/market 等派生列；day_expect_rows 与优先级/SLA 默认值
-	// 在这里统一补全（只补空，不覆盖人工维护的值），否则缺期望条数的证券会永远 PARTIAL。
+	// RefreshSecurityMetadata 只管 finv_security.flag_enable='1' 的派生列；禁用的证券、
+	// finv_security 未收录的品种（富途板块/主连/外汇对）以及 day_expect_rows 与
+	// 优先级/SLA 默认值，统一由 BackfillUscDefaults 补全（只补空，不覆盖人工值）。
 	backfill, err := svc.Store().BackfillUscDefaults(ctx)
 	if err != nil {
-		return fmt.Errorf("证券默认值补全失败: %w", err)
+		return fmt.Errorf("证券元数据与默认值补全失败: %w", err)
 	}
-	if backfill.DayExpectRows > 0 || backfill.Priority > 0 {
-		svc.ReportJobProgress(ctx, "META", 0, fmt.Sprintf(
-			"证券默认值补全：day_expect_rows %d 条、优先级/SLA %d 条",
-			backfill.DayExpectRows, backfill.Priority))
-	}
+	reportUscBackfill(ctx, svc, "META", backfill)
 	svc.AdvanceJobCDEUStage(ctx, "LOAD")
 
 	budget, err := svc.EnsureDailyBudget(ctx, options.Today())

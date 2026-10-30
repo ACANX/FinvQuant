@@ -101,6 +101,19 @@
 
 ### 修复
 
+- **证券自动发现后的元数据补全失效（需求 10823）**
+  - 问题：服务器表 `cdeu.finv_quote_cdeu_usc` 497 行里有 **431 行**只有 `usc` + `provider`，`category/region/market/name/timezone/currency/day_expect_rows` 全为空。根因两个：① 回填只取 `finv_security.flag_enable='1'` 的行，而 `V200062` 导入的证券默认全是 `'0'`（372 行被这一条条件全部过滤掉）；② 五十余个自动发现的品种（富途板块 / 主连 / 外汇对 / 部分美股）根本不在 `finv_security`，没有数据源兜底。
+  - `Store.BackfillUscDefaults` 重写为六步（只补空、幂等）：
+    ① `finv_security` 回填，**不限 `flag_enable`**（启用开关是字典维护语义，不代表行情不存在）；
+    ② `futu.finv_futu_quote_collect` 兜底：`quote_market`（SH/SZ/BJ/HK/US/FX/CC）→ `region`/`market`，`type_symbol` → `category`；
+    ③ 按 `region` 推导 `timezone`/`currency`（CN→Asia/Shanghai+CNY、HK→Asia/Hong_Kong+HKD、US→America/New_York+USD、FX/GLOBAL→UTC；外汇对与加密货币不猜计价币）；
+    ④ `SH######` / `SZ######` 前缀兜底为 A 股指数（`region=CN`、`market=SH/SZ`、`category=StockIndex`）；
+    ⑤ 按模板补 `day_expect_rows`；⑥ 优先级 / SLA / 最大等待补 100/5/7。
+  - 新增 `Deploy/Migrations/V200066__cdeu_usc_day_incr_row_tpl_region_fallback.sql`：模板表补 7 条**区域级兜底**行（`CN/''/''`=241、`HK/''/''`=331、`US/''/''`=390、`US/''/Futures`=1380、`FX/''/''`=1380、`GLOBAL/''/''`=1440、`GLOBAL/''/Forex`=1380）。原模板只有 `region+market` 精确行，`market` 未维护时一条都命中不了。
+  - 新增可观测性：`UscBackfillStat` 增加 `MetadataRows` / `DerivedRows` / `Missing`（各字段仍缺行数），新增 `Store.UscMissingSample` 返回余下缺口证券样本，JOB 日志输出「补了多少 / 还缺什么 / 剩余样本」。
+  - 实测（全新库全链迁移 151 个脚本 + 导入服务器导出的 497 行 usc）：修复前 431 行元数据全空、431 行 `day_expect_rows` 为空；修复后仅剩 **7 行**无源证券（`AMAT`/`GDRnext`/`MRVL`/`NOW`/`PLTR`/`SMCI`/`XRP`，既不在 `finv_security` 也不在富途镜像表）+ `VXMain` 的 `market`（`finv_market.market_symbol` 未维护），其余全部补齐（补全率 424/431 ≈ 98.4%）；`SH000002`/`SH000903`/`SH0980` 等由前缀兜底为 `CN/SH/StockIndex/241`。
+  - 集成用例 `TestBackfillUscDefaults` 增加两个场景：`flag_enable='0'` 的证券仍能回填元数据（并按区域兜底模板得 241）、`finv_security` 未收录但富途镜像表有记录的证券走兜底（`HK/HK` → 331）；幂等断言覆盖 `MetadataRows` / `DerivedRows`。
+
 - **Native 安装脚本 qmio 定位修正（需求 10822）**
   - 问题：`Deploy/Native/Install.sh` 第 6 步找 qmio 只看了 `${SCRIPT_DIR}/../qmio`（`<PREFIX>/Deploy/qmio`）与 `${SCRIPT_DIR}/qmio`（`<PREFIX>/Deploy/Native/qmio`），而发行包（`Deploy/Script/PackSnapshot.sh`）是把 `qmio` 与 `finvquant` **并列放在包根**，宿主直装时总报 `[WARN] 未找到 qmio（期望 …/Deploy/Native/../qmio）`，`<PREFIX>/bin/qmio` 与 `/usr/local/bin/qmio` 永远不会创建。
   - 修正：候选路径改为 `① ${REPO_ROOT}/qmio`（发行包根，与 `finvquant` 同目录；第 1 步定位二进制的策略一致）→ `② ${SCRIPT_DIR}/../qmio`（历史自定义布局）→ `③ ${SCRIPT_DIR}/qmio`（手工放文件），命中顺序与 `Docs/Native/Install.md` 「安装包根目录内的 qmio」说明一致；警告文案同步列出三个已尝试路径。
