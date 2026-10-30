@@ -99,7 +99,7 @@
 |---|---|---|
 | —（新增） | 一级：系统 | `金融投资`、`内容管理` |
 | 一级分组 | 二级分组 | 数据采集、历史行情、元数据管理（「量化策略验证」已于需求 10847 撤除，其叶子移入「量化 → 回测」） |
-| 一级叶子 | 二级叶子 | 仪表盘、配置管理、策略管理（回测分析 10847、仿真/模拟/实盘仿真验证 10848、实盘交易 10849 已移入「量化」下） |
+| 一级叶子 | 二级叶子 | 仪表盘、配置管理（回测分析 10847、仿真/模拟/实盘仿真验证 10848、实盘交易 10849、策略管理 10850 已移入「量化」下） |
 | 四级叶子（需求 10846） | —（三级挂载） | 环境管理、模板管理、账户管理、资金管理、持仓管理（原二级叶子，现挂「量化 → MVP配置」下） |
 | 二级分组 | 三级分组 | 行情数据去重、行情数据归档、业务元数据维护 |
 | 二级叶子 | 三级叶子 | 历史行情查询（黄金期货合约回测验证已于 10847 移入「量化 → 回测」） |
@@ -127,6 +127,7 @@ export interface MenuSystem extends MenuNode {
 │  【顺序约定，需求 10840/10841/10842】仪表盘 → 元数据 → 配置管理 → 行情 → 量化 → 数据采集 → 其余
 │  【量化（需求 10841/10843/10846）】二级分组，下列三级节点：
 │      MVP配置（原占位，10846 起挂「环境管理/模板管理/账户管理/资金管理/持仓管理」5 个四级叶子）、
+│      策略（10850 起挂「策略管理」1 个四级叶子）、
 │      回测（10847 起挂「黄金期货合约回测验证」「回测分析」2 个四级叶子）、
 │      验证（10848 起挂「仿真数据验证」「模拟盘验证」「实盘仿真验证」3 个四级叶子）、
 │      实盘（10849 起挂「实盘交易」1 个四级叶子）
@@ -156,7 +157,6 @@ export interface MenuSystem extends MenuNode {
 │     └─ 规范证券信息维护（四级叶子，/meta/security）
 │        （历史行情数据导入已于需求 10844 移入「行情 → 历史行情」）
 ├─ 配置管理（二级叶子，/Meta/Finv/Quant/Config）
-├─ 策略管理（二级叶子，/Meta/Finv/Quant/Strategy）
 
 【一级系统：内容管理（内部 key=cms）】（顶栏切换，path=/Meta/CMS）
 └─ 内容管理控制台（二级叶子，/Meta/CMS，占位页 PlaceholderView，标记「规划中」）
@@ -664,7 +664,7 @@ go test ./internal/docs
 | 28 | 持仓管理 | 二级叶子 | **四级叶子**（挂 `quant-mvp-config`） | `position` | `/Meta/Finv/Quant/Position` |
 | 29 | ~~量化策略验证~~ | 已撤除（需求 10847） | — | `quant-backtest` | — |
 | 30 | 黄金期货合约回测验证 | 二级叶子 | **四级叶子**（挂 `quant-backtest-menu`） | `backtest-gold-futures` | `/Meta/Finv/Quant/Backtest/GoldFutures` |
-| 31 | 策略管理 | 一级叶子 | 二级叶子 | `strategy` | `/Meta/Finv/Quant/Strategy` |
+| 31 | 策略管理 | 一级叶子 | **四级叶子**（挂 `quant-strategy`） | `strategy` | `/Meta/Finv/Quant/Strategy` |
 | 32 | 回测分析 | 一级叶子 | **四级叶子**（挂 `quant-backtest-menu`） | `backtest-analysis` | `/Meta/Finv/Quant/Backtest/Analysis` |
 | 33 | 仿真数据验证 | 一级叶子 | **四级叶子**（挂 `quant-verify`） | `simulation-data` | `/Meta/Finv/Quant/Simulation/Data` |
 | 34 | 模拟盘验证 | 一级叶子 | **四级叶子**（挂 `quant-verify`） | `simulation-paper` | `/Meta/Finv/Quant/Simulation/Paper` |

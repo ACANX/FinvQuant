@@ -120,6 +120,15 @@ const finvQuantMenu: MenuNode[] = [
         ],
       },
       {
+        // 策略（需求 10850）：迁入原二级叶子「策略管理」，位置在「回测」之前。
+        key: 'quant-strategy',
+        title: '策略',
+        icon: 'mdi-chess-knight',
+        children: [
+          { key: 'strategy', title: '策略管理', icon: 'mdi-sitemap-outline', path: '/Meta/Finv/Quant/Strategy' },
+        ],
+      },
+      {
         // 回测（需求 10843 建立占位，10847 迁入「黄金期货合约回测验证」与「回测分析」）。
         key: 'quant-backtest-menu',
         title: '回测',
@@ -181,7 +190,6 @@ const finvQuantMenu: MenuNode[] = [
       },
     ],
   },
-  { key: 'strategy', title: '策略管理', icon: 'mdi-sitemap-outline', path: '/Meta/Finv/Quant/Strategy' },
 ]
 
 /** 内容管理（CMS，本轮仅占位，业务菜单后续整合） */
