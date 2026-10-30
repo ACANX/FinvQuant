@@ -2426,6 +2426,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10843 | 二级菜单「量化」下新增两个三级子菜单「MVP配置」「回测」（当前无对应页面与路由，按占位分组处理，`children` 为空数组）；不移动现有回测相关节点。 | `grep -c "key: 'quant-mvp-config'" Web/src/config/menuConfig.ts` 为 1；`grep -c "key: 'quant-backtest-menu'" Web/src/config/menuConfig.ts` 为 1；两者均在 `key: 'quant'` 节点的 `children` 内且 `children: []`；顶层仍保留 `quant-backtest`「量化策略验证」与 `backtest-analysis`「回测分析」；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
 
+## 一百七十、「历史行情数据导入」移入「历史行情」（10844）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10844 | 「历史行情数据导入」（`/meta/import`）从「元数据 → 业务元数据维护」移到「行情 → 历史行情」下作为叶子，key 保持 `meta-import`、标题与路径不变。 | `grep -c "key: 'meta-import'" Web/src/config/menuConfig.ts` 为 1；该行位于 `key: 'quote-history'` 之后且不在 `key: 'meta-maintenance'` 的 children 内；「业务元数据维护」下剩 3 个叶子（`meta-exchange`/`meta-market`/`meta-security`）；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2623,7 +2629,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 新增二级菜单「量化」（占位） | 10841 | 1 |
 | 「配置管理」移到「行情」之前 | 10842 | 1 |
 | 「量化」下新增两个三级子菜单 | 10843 | 1 |
-| **合计** | **10001–10843** | **842** |
+| 「历史行情数据导入」移入「历史行情」 | 10844 | 1 |
+| **合计** | **10001–10844** | **843** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

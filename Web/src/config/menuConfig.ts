@@ -62,7 +62,6 @@ const finvQuantMenu: MenuNode[] = [
           { key: 'meta-exchange', title: '交易所信息维护', icon: 'mdi-office-building', path: '/meta/exchange' },
           { key: 'meta-market', title: '交易所下设市场信息维护', icon: 'mdi-chart-areaspline', path: '/meta/market' },
           { key: 'meta-security', title: '规范证券信息维护', icon: 'mdi-tag-multiple', path: '/meta/security' },
-          { key: 'meta-import', title: '历史行情数据导入', icon: 'mdi-database-import', path: '/meta/import' },
         ],
       },
     ],
@@ -91,6 +90,8 @@ const finvQuantMenu: MenuNode[] = [
         icon: 'mdi-chart-box',
         children: [
           { key: 'quote-query', title: '历史行情查询', icon: 'mdi-chart-line', path: '/Meta/Finv/Quote/History/HistoryQuoteQuery' },
+          // 需求 10844：从「元数据 → 业务元数据维护」移入，作为本分组叶子（key 保持稳定）。
+          { key: 'meta-import', title: '历史行情数据导入', icon: 'mdi-database-import', path: '/meta/import' },
         ],
       },
     ],

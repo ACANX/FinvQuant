@@ -142,13 +142,14 @@ export interface MenuSystem extends MenuNode {
 │  ├─ 收剔导传ETL（三级分组，前缀 /Meta/Finv/Quote/Cdeu/）
 │  │  └─ 历史月份存量数据清点（四级叶子，/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat）
 │  └─ 历史行情（三级分组，前缀 /Meta/Finv/Quote/His/）
-│     └─ 历史行情查询（四级叶子，/Meta/Finv/Quote/History/HistoryQuoteQuery）
+│     ├─ 历史行情查询（四级叶子，/Meta/Finv/Quote/History/HistoryQuoteQuery）
+│     └─ 历史行情数据导入（四级叶子，/meta/import，需求 10844 从元数据域移入）
 ├─ 元数据（二级分组，原名「元数据管理」，需求 10840 改名并移到「仪表盘」之后）
 │  └─ 业务元数据维护（三级分组）
 │     ├─ 交易所信息维护（四级叶子，/meta/exchange）
 │     ├─ 交易所下设市场信息维护（四级叶子，/meta/market）
-│     ├─ 规范证券信息维护（四级叶子，/meta/security）
-│     └─ 历史行情数据导入（四级叶子，/meta/import）
+│     └─ 规范证券信息维护（四级叶子，/meta/security）
+│        （历史行情数据导入已于需求 10844 移入「行情 → 历史行情」）
 ├─ 配置管理（二级叶子，/Meta/Finv/Quant/Config）
 ├─ 环境管理（二级叶子，/Meta/Finv/Quant/Environment）
 ├─ 模板管理（二级叶子，/Meta/Finv/Quant/Template）
