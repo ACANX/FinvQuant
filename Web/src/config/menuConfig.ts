@@ -106,6 +106,16 @@ const finvQuantMenu: MenuNode[] = [
           { key: 'meta-import', title: '历史行情数据导入', icon: 'mdi-database-import', path: '/meta/import' },
         ],
       },
+      // 需求 10860：从「数据采集」移入，作为「行情」下第三个三级分组（原「数据采集」随之删除）。
+      {
+        key: 'quote-archive',
+        title: '行情数据归档',
+        icon: 'mdi-database-export-outline',
+        children: [
+          { key: 'dedup-export-overview', title: '归档监控总览', icon: 'mdi-monitor-dashboard', path: '/Meta/Finv/Quote/DeDup/Export/Overview' },
+          { key: 'dedup-export-chain', title: '端到端链路', icon: 'mdi-transit-connection-variant', path: '/Meta/Finv/Quote/DeDup/Export/Chain' },
+        ],
+      },
     ],
   },
   {
@@ -166,22 +176,6 @@ const finvQuantMenu: MenuNode[] = [
         icon: 'mdi-trending-up',
         children: [
           { key: 'live-trading', title: '实盘交易', icon: 'mdi-cash-register', path: '/Meta/Finv/Quant/LiveTrading' },
-        ],
-      },
-    ],
-  },
-  {
-    key: 'data-collection',
-    title: '数据采集',
-    icon: 'mdi-database-arrow-down',
-    children: [
-      {
-        key: 'quote-archive',
-        title: '行情数据归档',
-        icon: 'mdi-database-export-outline',
-        children: [
-          { key: 'dedup-export-overview', title: '归档监控总览', icon: 'mdi-monitor-dashboard', path: '/Meta/Finv/Quote/DeDup/Export/Overview' },
-          { key: 'dedup-export-chain', title: '端到端链路', icon: 'mdi-transit-connection-variant', path: '/Meta/Finv/Quote/DeDup/Export/Chain' },
         ],
       },
     ],

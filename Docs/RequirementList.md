@@ -2522,6 +2522,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10859 | 顶层二级菜单「配置管理」更名为「系统配置」；节点 key（`config-manage`）、图标、路由 `/Meta/Finv/Quant/Config` 不变，路由 `meta.title` 与页面内标题同步。 | `grep -c "title: '系统配置'" Web/src/config/menuConfig.ts` 为 1 且 `Web/src/router.ts` 中也为 1；`grep -rc "配置管理" Web/src/config/menuConfig.ts Web/src/router.ts Web/src/views/Meta/Finv/Quant/Backtest/ConfigManageView.vue` 均为 0；`grep -c "key: 'config-manage'"` 为 1；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
 
+## 一百八十六、「行情数据归档」移入「行情」并在「历史行情」之后（10860）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10860 | 「行情数据归档」从「数据采集」移入「行情」下，排在「历史行情」之后作为第三个三级分组；移空后的「数据采集」二级分组删除；key/标题/路径不变。 | 解析 `menuConfig.ts` 顶层顺序为 `dashboard, metadata, config-manage, quote, quant`；`key: 'data-collection'` 为 0 次；「行情」下三级分组依次为 {收剔导传ETL, 历史行情, 行情数据归档}；`key: 'quote-archive'` 出现 1 次且位于 `key: 'quote'` 段内；菜单图标全部有效、`path` 全部有路由、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2735,7 +2741,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | K线数据统计改名并移入 ETL | 10857 | 1 |
 | 5 个归档运维页面移入 ETL | 10858 | 1 |
 | 「配置管理」改名系统配置 | 10859 | 1 |
-| **合计** | **10001–10859** | **858** |
+| 「行情数据归档」移入「行情」 | 10860 | 1 |
+| **合计** | **10001–10860** | **859** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

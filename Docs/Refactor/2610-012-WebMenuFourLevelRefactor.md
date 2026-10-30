@@ -124,18 +124,15 @@ export interface MenuSystem extends MenuNode {
 ```
 【一级系统：金融投资（内部 key=finvquant）】（顶栏切换，path=/Meta/Finv → 重定向 /Dashboard）
 ├─ 仪表盘（二级叶子，/Dashboard）
-│  【顺序约定，需求 10840/10841/10842】仪表盘 → 元数据 → 配置管理 → 行情 → 量化 → 数据采集 → 其余
+│  【顺序约定，需求 10840–10860】仪表盘 → 元数据 → 系统配置 → 行情 → 量化（原「数据采集」已于 10860 删除）
 │  【量化（需求 10841/10843/10846）】二级分组，下列三级节点：
 │      MVP配置（原占位，10846 起挂「环境管理/模板管理/账户管理/资金管理/持仓管理」5 个四级叶子）、
 │      策略（10850 起挂「策略管理」1 个四级叶子）、
 │      回测（10847 起挂「黄金期货合约回测验证」「回测分析」2 个四级叶子）、
 │      验证（10848 起挂「仿真数据验证」「模拟盘验证」「实盘仿真验证」3 个四级叶子）、
 │      交易（10849 建立时称「实盘」，10851 改名为「交易」；挂「实盘交易」1 个四级叶子）
-├─ 数据采集（二级分组）
-│  （原「行情数据去重」分组已于需求 10857 删除：两叶子均移入「行情 → 收剔导传ETL」并改名）
-│  └─ 行情数据归档（三级分组）
-│     ├─ 归档监控总览（四级叶子，/Meta/Finv/Quote/DeDup/Export/Overview）
-│     ├─ 端到端链路（四级叶子，/Meta/Finv/Quote/DeDup/Export/Chain）
+│  （原「行情数据去重」分组已于需求 10857 删除、原「数据采集」二级分组已于需求 10860 删除：
+│    其叶子均已迁入「行情」下）
 ├─ 行情（二级分组，前缀 /Meta/Finv/Quote/，需求 10839）
 │  ├─ 收剔导传ETL（三级分组，前缀 /Meta/Finv/Quote/Cdeu/）
 │  │  ├─ 历史月份存量数据清点（四级叶子，/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat）
@@ -147,9 +144,12 @@ export interface MenuSystem extends MenuNode {
 │  │  ├─ 归档统计与预算（四级叶子，/Meta/Finv/Quote/DeDup/Export/Stats，需求 10858 移入）
 │  │  ├─ 归档主数据与规则（四级叶子，/Meta/Finv/Quote/DeDup/Export/Config，需求 10858 移入）
 │  │  └─ 归档日志与补丁（四级叶子，/Meta/Finv/Quote/DeDup/Export/Log，需求 10858 移入）
-│  └─ 历史行情（三级分组，前缀 /Meta/Finv/Quote/His/）
-│     ├─ 历史行情查询（四级叶子，/Meta/Finv/Quote/History/HistoryQuoteQuery）
-│     └─ 历史行情数据导入（四级叶子，/meta/import，需求 10844 从元数据域移入）
+│  ├─ 历史行情（三级分组，前缀 /Meta/Finv/Quote/His/）
+│  │  ├─ 历史行情查询（四级叶子，/Meta/Finv/Quote/History/HistoryQuoteQuery）
+│  │  └─ 历史行情数据导入（四级叶子，/meta/import，需求 10844 从元数据域移入）
+│  └─ 行情数据归档（三级分组，需求 10860 从「数据采集」移入；原「数据采集」二级分组随之删除）
+│     ├─ 归档监控总览（四级叶子，/Meta/Finv/Quote/DeDup/Export/Overview）
+│     └─ 端到端链路（四级叶子，/Meta/Finv/Quote/DeDup/Export/Chain）
 ├─ 元数据（二级分组，原名「元数据管理」，需求 10840 改名并移到「仪表盘」之后）
 │  └─ Finv业务元数据（三级分组，原名「业务元数据维护」，需求 10852 改名）
 │     ├─ 交易所信息管理（四级叶子，/meta/exchange，原名「交易所信息维护」，需求 10854 改名）
