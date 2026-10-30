@@ -107,6 +107,22 @@
 
 ### 变更
 
+- **「导出任务」改名为「文件导出」、「文件与上传」改名为「文件上传」（需求 10862）**
+  - 授权：用户明确要求「『导出任务』更名为『文件导出』，『文件与上传』更名为『文件上传』」。
+  - 改动：
+    · `Web/src/config/menuConfig.ts`：`dedup-export-job` 标题改为「文件导出」，
+      `dedup-export-file` 标题改为「文件上传」；
+    · `Web/src/router.ts`：两条路由的 `meta.title` 同步（原为「月归档导出任务」/
+      「月归档导出文件与上传」，影响页签与面包屑），注释顺带更新；
+    · `DeDupExportJobView.vue` / `DeDupExportFileView.vue`：页面标题与文件头注释同步改名。
+  - 保持不变：两个叶子 key、图标、路由路径（`/DeDup/Export/Job`、`/DeDup/Export/File`）。
+  - 验证：菜单与路由中「文件导出」「文件上传」各 1 次；旧名「导出任务」「文件与上传」
+    在菜单配置、路由与两个页面文件中均为 0 次（页面正文「当前条件下没有导出任务」属业务文案，
+    保留）；菜单图标有效、`path` 有对应路由、无重复 key；`npx vue-tsc --noEmit`
+    与 `npx vite build` 通过。
+
+### 变更
+
 - **「K线数据查询」「K线数据统计」前置到「收剔导传ETL」叶子最前（需求 10861）**
   - 授权：用户明确要求「『K线数据查询』『K线数据统计』放到同级别的菜单的最前面」。
   - 改动（`Web/src/config/menuConfig.ts`）：在「行情 → 收剔导传ETL」的 `children` 中，

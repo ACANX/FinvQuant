@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 月归档导出任务：分页查询 cdeu.finv_quote_cdeu_export_job，支持状态/证券/业务月过滤与人工重试
+// 文件导出：分页查询 cdeu.finv_quote_cdeu_export_job，支持状态/证券/业务月过滤与人工重试
 // 后端接口：GET /Meta/Finv/Quote/DeDup/Job/List、POST /Meta/Finv/Quote/DeDup/Job/Retry
 import { computed, onMounted, ref, watch } from 'vue'
 
@@ -168,7 +168,7 @@ onMounted(load)
   <v-card>
     <v-card-title>
       <v-icon icon="mdi-clipboard-list-outline" class="mr-2" />
-      月归档导出任务
+      文件导出
     </v-card-title>
 
     <v-card-text>

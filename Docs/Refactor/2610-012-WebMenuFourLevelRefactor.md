@@ -139,8 +139,8 @@ export interface MenuSystem extends MenuNode {
 │  │  ├─ K线数据统计（四级叶子，/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats，需求 10857 改名并移入；10861 前置）
 │  │  ├─ 历史月份存量数据清点（四级叶子，/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat）
 │  │  ├─ CDEU 工作流控制面板（四级叶子，/Meta/Finv/Quote/Cdeu/CdeuOverview，需求 10845 改名并移入）
-│  │  ├─ 导出任务（四级叶子，/Meta/Finv/Quote/DeDup/Export/Job，需求 10858 移入）
-│  │  ├─ 文件与上传（四级叶子，/Meta/Finv/Quote/DeDup/Export/File，需求 10858 移入）
+│  │  ├─ 文件导出（四级叶子，/Meta/Finv/Quote/DeDup/Export/Job，需求 10858 移入；10862 改名）
+│  │  ├─ 文件上传（四级叶子，/Meta/Finv/Quote/DeDup/Export/File，需求 10858 移入；10862 改名）
 │  │  ├─ 归档统计与预算（四级叶子，/Meta/Finv/Quote/DeDup/Export/Stats，需求 10858 移入）
 │  │  ├─ 归档主数据与规则（四级叶子，/Meta/Finv/Quote/DeDup/Export/Config，需求 10858 移入）
 │  │  └─ 归档日志与补丁（四级叶子，/Meta/Finv/Quote/DeDup/Export/Log，需求 10858 移入）

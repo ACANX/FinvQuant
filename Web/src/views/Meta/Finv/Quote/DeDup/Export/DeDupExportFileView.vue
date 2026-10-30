@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 月归档导出文件与上传：分页查询 cdeu.finv_quote_cdeu_export_file，按上传状态 / 文件类型 / 证券 / 业务月过滤
+// 文件上传：分页查询 cdeu.finv_quote_cdeu_export_file，按上传状态 / 文件类型 / 证券 / 业务月过滤
 // 后端接口：GET /Meta/Finv/Quote/DeDup/File/List、POST /Meta/Finv/Quote/DeDup/File/Retry
 import { computed, onMounted, ref, watch } from 'vue'
 
@@ -205,7 +205,7 @@ onMounted(load)
   <v-card>
     <v-card-title>
       <v-icon icon="mdi-file-cloud-outline" class="mr-2" />
-      月归档导出文件与上传
+      文件上传
     </v-card-title>
 
     <v-card-text>

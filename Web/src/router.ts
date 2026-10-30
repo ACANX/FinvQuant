@@ -60,7 +60,7 @@ const router = createRouter({
       component: DeDupKLineStatsView,
       meta: { title: 'K线数据统计' },
     },
-    // 去重行情 → 月归档导出（监控总览 / 导出任务 / 文件与上传）
+    // 行情 → 收剔导传ETL（文件导出 / 文件上传等，需求 10862 改名）
     {
       path: '/Meta/Finv/Quote/DeDup/Export/Overview',
       name: 'dedup-export-overview',
@@ -95,13 +95,13 @@ const router = createRouter({
       path: '/Meta/Finv/Quote/DeDup/Export/Job',
       name: 'dedup-export-job',
       component: DeDupExportJobView,
-      meta: { title: '月归档导出任务' },
+      meta: { title: '文件导出' },
     },
     {
       path: '/Meta/Finv/Quote/DeDup/Export/File',
       name: 'dedup-export-file',
       component: DeDupExportFileView,
-      meta: { title: '月归档导出文件与上传' },
+      meta: { title: '文件上传' },
     },
     {
       path: '/Meta/Finv/Quote/DeDup/Export/Stats',
