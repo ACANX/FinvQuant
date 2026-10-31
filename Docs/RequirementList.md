@@ -2589,6 +2589,13 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10880 | `public.finv_security` 中 20 只加密货币证券（`BCHUSDC`/`BTC`/`BTCHKD`/`BTCUSDC`/`BTCUSDT`/`DOGE`/`ETH`/`ETHBTC`/`ETHUSDC`/`PAXG`/`PAXGUSD`/`SOL`/`SOLBTC`/`UNI`/`USDC`/`USDCUSD`/`USDCUSDT`/`USDT`/`USDTUSD`/`BTCUSD`）的 `exchange_code` 由 `100`（`FX` 外汇市场）修正为 **`10001`**（`CRYPTO` Cryptocurrency Exchange）。成因：`V300009` 增量种子（2026-08-05）即写 100，`V300062` 权威导入为 10001 但 `ON CONFLICT (usc) DO NOTHING` 未覆盖，`V300068` 只修了 `market_code`。`market_code` 不变（19 只 10001、`BTCUSD` 保持 10011）；因 `V300079` 已把加密交易所 region 切到 `CC`，这 20 只回填 `region` 由 `FX` 变 `CC`，导出文件名 `region` 段相应由 `FX_*` 变 `CC_*`（该批证券历史导出 0 条，无回溯包袱）。迁移 `V300080`，用明确 usc 清单限定，写入前做 `uq_finv_security_exchange_code` 冲突预检。 | `select count(*) from public.finv_security where usc in ('BCHUSDC','BTC','BTCHKD','BTCUSDC','BTCUSDT','DOGE','ETH','ETHBTC','ETHUSDC','PAXG','PAXGUSD','SOL','SOLBTC','UNI','USDC','USDCUSD','USDCUSDT','USDT','USDTUSD','BTCUSD') and exchange_code=10001` = 20；`select count(*) from public.finv_security where exchange_code=100 and market_code in (10001,10011)` = 0；`select count(*) from public.finv_security where market_code in (10001,10011,10013,10014) and exchange_code not between 10000 and 10007` = 0；`select count(*) from public.finv_security s join public.finv_exchange e using (exchange_code) where s.market_code in (10001,10011,10013,10014) and e.region='CC'` = 192；`select success from public.schema_version where version='200080'` 为 `t`；`V300080` 重跑影响 0 行；两库（`finv` / 全新库）该 20 行均为 10001；`go test -p 1 ./internal/database -run TestMigrateIntegration` 通过 | √ |
 | 10881 | 迁移号段重排（为生产库重做基线做准备）：三段号段 —— `V100000`～`V199999` **基础准备**（创建角色 / 校验数据库 / 创建 schema）、`V200000`～`V299999` **表结构 DDL**、`V300000`～`V399999` **数据**（字典种子 / 回填 / 修正）。落地内容：① 原 `V1xxxxx` 段 89 个文件整体 +100000 → `V200001`～`V200089`，原 `V2xxxxx` 段 81 个文件整体 +100000 → `V300000`～`V300080`（执行顺序不变）；② 新增 `V100001`（角色 `finv`，幂等、不落密码）、`V100002`（8 个 schema：`public` 自带 + `quote`/`quant`/`futu`/`sys`/`sche`/`cdeu`/`archive`，`AUTHORIZATION CURRENT_USER`）、`V100003`（数据库名与 schema 权限校验；`CREATE DATABASE` 不能进迁移事务，建库由部署侧负责）；③ 全仓版本引用同步替换（SQL/Go/文档 1678 处，含 `CHANGELOG`/`RequirementList`/`Refactor` 历史条目，另手工修 `Deploy/README.md`、`Deploy/Script`、`DbSchemaSpec` §4 号段约定）；④ 存量库 `public.schema_version` 一次性 +100000（`Deploy/Upgrade/2611-001-MigrationSegmentsShift.sql`，`public.schema_version_plan_shift` marker 保证只执行一次，分批 UPDATE 避免「旧 100077→200077 撞尚未处理的旧 200077」主键冲突，并同步 `description`）。 | 全新库全链 `select count(*) from public.schema_version` = 173（3 基础 + 89 DDL + 81 数据），`min(version::bigint)`=100001、`max`=300080；存量库执行平移脚本后 `select count(*), min(version::bigint), max(version::bigint) from public.schema_version` = `170 / 200001 / 300080`，再启动服务后 = 173；平移脚本重跑输出「此前已执行，跳过」且行数不变；`select count(*) from public.schema_version where version::bigint between 100004 and 199999` = 0；`select string_agg(nspname, ',') from pg_namespace where nspname in ('quote','quant','futu','sys','sche','cdeu','archive')` 含全部 7 个；`go test ./internal/docs ./internal/database` 通过、`TestMigrateIntegration` 通过；`go build ./...` 通过 | √ |
 
+## 一百九十五、生产库基线重做（待办）（10882）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10882 | 【**待办**】生产库基线重做：等 2026 年 10 月数据导出完成后，按需求 10881 确立的三段号段（`V100000`～`V199999` 基础准备、`V200000`～`V299999` 表结构 DDL、`V300000`～`V399999` 数据），把当前 **173 个历史迁移**重做为一份干净基线后重建生产库。**待明确的三件事**（需在动工前与用户逐项确认）：① 基线形态——是「保留 173 个文件、仅按新号段一次跑通」还是「压缩/合并为少量基线脚本（全新库只跑基线，不再回放历史演进）」；② 历史遗留归位——把混在 DDL 段的数据脚本（`V200018` 交易所种子、`V200025`～`V200042` 系统字典与配置、`V300060` BRS 建表）重新归入 `V3xxxxx`，并合并 `V3xxxxx` 中大量一次性数据修正（`V300068` 起的 market_code / usc / region 修正）；③ 废弃对象清理——已删除的 `dedup` / `dedup_frozen` / `export` schema 相关脚本是否直接剔除，`brs` schema 是否纳入 `V100002` 的 schema 清单。**执行前置**：10 月数据已完整导出并归档到 GitHub（`Data/Finv/SecuQuoteMon/FTMM/`），`finv_security` 等业务数据可重建（或按需从归档回灌）。 | 基线方案确定后细化；初步验收口径：① 全新库从零跑基线 **0 失败**，`select count(*) from public.schema_version` 等于基线脚本数且 `min(version::bigint) >= 100001`；② 基线重建后的库与当前生产库逐表结构一致（`information_schema.columns` 差集为空）、关键字典数据一致（`finv_region` 27 行、`finv_market` 63 行、`finv_exchange` 行数一致）；③ `go test ./internal/database -run TestMigrateIntegration` 与 `go test ./internal/docs` 通过；④ 旧库已 `pg_dump` 备份到 `Deploy/Backup/` 且保留期明确 | |
+
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2824,7 +2831,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 加密货币交易所 region 切到 CC | 10879 | 1 |
 | 20 只加密货币证券 exchange_code 修正为 10001 | 10880 | 1 |
 | 迁移号段重排（1/2/3 三段，为基线重做准备） | 10881 | 1 |
-| **合计** | **10001–10881** | **880** |
+| 生产库基线重做（待办） | 10882 | 1 |
+| **合计** | **10001–10882** | **881** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
