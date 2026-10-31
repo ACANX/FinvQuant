@@ -315,6 +315,15 @@
 
 ### 新增
 
+- **8 个加密货币交易所的 `region` 由 `GLOBAL` 切到 `CC`（需求 10879，迁移 `V200079`）**
+  - `finv_region` 已有 `(3, CC, 加密货币)`，但 `finv_exchange` 的 `10000 CC` ~ `10007 CCPT` 仍挂 `GLOBAL`，导致 `CC` 行没有任何引用；本次把 8 行 `region` 改为 `CC`。
+  - 影响：`cdeu/store.go` 元数据回填对加密证券的 `region` 变为 `CC`（`cdeu.finv_quote_cdeu_usc` 当前无加密证券行，无需回刷）；加密证券导出文件名 `region` 段由 `GLOBAL_*` 变为 `CC_*`，而 `cdeu.finv_quote_cdeu_export_file` 中此类证券历史导出 **0 条**、远端无归档文件，改名无历史包袱。
+  - 校验：8 行全部 `CC`；`region='GLOBAL'` 的交易所 0 行；8 行全部匹配 `finv_region(3, CC)`；`V200079` 重跑 0 行；全新库全链（169 个迁移）0 失败、`TestMigrateIntegration` 通过；生产库 `V200079` 登记 `t`、Live/Web 200。
+  - 未处理（另行评估）：`finv_security` 中 20 只挂 `exchange_code=100`（FX）却 `market_code` 为 10001/10011 的加密证券，其 `region` 仍随 exchange 取 `FX`。
+  - 文档：`RequirementList` 新增 10879（汇总 10001–10879 / 878 条）；`DbSchemaSpec` §1.3 同步。
+
+### 新增
+
 - **加密货币 `region` 取值修正为 `CC`（需求 10878，迁移 `V200078`）**
   - `V200077` 新增 `idx=3` 时按 `exchange_abbr`/`market_flag` 习惯推测把 `region` 写成了 `CRYPTO`；用户 2026-11-01 确认正确取值为两字母短码 **`CC`**（与 `finv_exchange.exchange_abbr='CC'`、`CN`/`HK`/`US` 等短码风格一致），`name` 保持 `加密货币`。
   - 迁移含 idx=3 缺失时的幂等补插；**不改** `finv_exchange.region`（8 个加密货币交易所 10000~10007 仍为 `GLOBAL`，是否切换到 `CC` 属另一件事）、不改 `futu.finv_futu_mapping_region`。
