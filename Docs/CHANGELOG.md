@@ -315,6 +315,14 @@
 
 ### 新增
 
+- **加密货币 `region` 取值修正为 `CC`（需求 10878，迁移 `V200078`）**
+  - `V200077` 新增 `idx=3` 时按 `exchange_abbr`/`market_flag` 习惯推测把 `region` 写成了 `CRYPTO`；用户 2026-11-01 确认正确取值为两字母短码 **`CC`**（与 `finv_exchange.exchange_abbr='CC'`、`CN`/`HK`/`US` 等短码风格一致），`name` 保持 `加密货币`。
+  - 迁移含 idx=3 缺失时的幂等补插；**不改** `finv_exchange.region`（8 个加密货币交易所 10000~10007 仍为 `GLOBAL`，是否切换到 `CC` 属另一件事）、不改 `futu.finv_futu_mapping_region`。
+  - 校验：`idx=3` = `CC/加密货币`；`region='CRYPTO'` 残留 0 行；`idx=3` 行数 1；`V200078` 重跑 0 行；全新库全链（168 个迁移）0 失败、`TestMigrateIntegration` 通过；生产库 `V200078` 登记 `t`、Live/Web 200。
+  - 文档：`RequirementList` 新增 10878（汇总 10001–10878 / 877 条）；`DbSchemaSpec` §1.3 同步为 `CC`。
+
+### 新增
+
 - **`finv_region` 补 `FX` / `CRYPTO` 两行并统一 `US`（需求 10877，迁移 `V200077`）**
   - `FX`（idx=2，name=`外汇`）：`finv_exchange` 的 100 `FX` / 101 `FX-CFD` 使用的 `region='FX'` 此前不在字典中，`cdeu/store.go` 元数据回填的 `LEFT JOIN finv_region r ON r.region = e.region` 永远落空，只能靠 `COALESCE` 退化取交易所文本；补齐后 `region` 段取值链路闭环（`finv_exchange.region='FX'` → `finv_region.region='FX'` → `cdeu.usc.region='FX'`）。
   - `CRYPTO`（idx=3，name=`加密货币`）：用户要求顺带加入；本期**未改** `finv_exchange.region`（8 个加密货币交易所 10000~10007 仍为 `GLOBAL`），属「字典先行、交易所归属后续单独决策」。
