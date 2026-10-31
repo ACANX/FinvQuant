@@ -20,6 +20,13 @@
 
 ### 新增
 
+- **导出中转表从 `export` 域迁入 `cdeu` 域（`V100088`）**
+  - 新增迁移 `Deploy/Migrations/V100088__move_export_kline_staging_to_cdeu.sql`：建 `cdeu.finv_quote_secu_kline_min_export`（与 `cdeu.finv_quote_secu_kline_min` 同构，`LIKE ... INCLUDING DEFAULTS/CONSTRAINTS/INDEXES/STORAGE/COMMENTS`，触发器 `trg_finv_quote_secu_kline_min_export_gmt_update` 单独补齐），搬迁 `export.finv_quote_secu_kline_min` 存量行（`ON CONFLICT DO NOTHING`，本地库实测 0 行）后 `DROP` 源表；`export` schema 保留为空（删除 schema 需单独授权）。迁移幂等，重跑影响 0 行，末尾收敛校验（列数/主键/触发器/源表已删）不符即回滚。
+  - 代码：`internal/meta/finv/quote/dedup/store.go` 的中转表常量 `tableStaging` 改为 `cdeu.finv_quote_secu_kline_min_export`（`LOAD`/`EXPORT`/`CLEANUP`/补丁链路全部随之生效，无需逐处改 SQL）；`model.go`、`job_patch.go` 注释同步；两个集成测试的清理语句改为新表。
+  - 防回归闸门：`internal/database/schema_qualify_test.go` 的 `exactTableSchema` 把 `finv_quote_secu_kline_min` 白名单收敛为 `quote.` / `cdeu.`（不再允许 `export.`），并为 `finv_quote_secu_kline_min_export` 固定 schema 为 `cdeu.`（否则会被 `finv_quote_` 前缀规则误判为需写 `quote.`）。
+  - 文档：`Docs/DevSpec/DbSchemaSpec.md` 同步 §0.2 保护名单、§1 schema 划分表（`export` 域暂无表、`cdeu` 域 27 → 28 张）、§3.1 同名转存表规则与实例清单。
+  - 验证：`go build ./...` 通过、`go test ./internal/database -run TestSQLSchemaQualified` 通过、`cdeu/kline` 单测通过；`dedup` 包的 `TestDirUploader` 在 Windows 上失败（`/abs/escape.mvsv` 路径语义），已用 `git stash` 对比确认与本次改动无关。
+
 - **历史种子证券回填 `market_code` 并启用、`finv_market` 补市场符号与基础货币（`V200068` / `V200069`）**
   - 背景：`V200002` / `V200009` 两批共 470 条证券种子在 `market_code` 列存在之前入库（该列由 `V100019` 以 `DEFAULT 0` 补加），长期停留在「待维护」状态且 `flag_enable='0'`，无法参与按市场的行情导入、归档导出与去重取数。
   - 新增迁移 `Deploy/Migrations/V200068__finv_security_marketcode_backfill.sql`：按显式 `usc → market_code` 清单回填 470 条——其中 400 条按 `futu.finv_futu_quote_collect` 关联并套用 `V200062` 生成时的同一份口径（`SecuSync/SecuMapping.json` 的 `marketCodeByFutu`），余 70 条（`SHI` / `HS300I` / `N225` / `LIST*` 等无富途记录的历史 usc）按「交易所 + 证券类型 + 代码形态」推导并经人工确认；同时把这 470 条的 `flag_enable` 由 `0` 置为 `1`。另按语义细分原 `market_code=1314`（配置侧存在、`finv_market` 未登记的重复码）的 180 条美股指数：道琼斯美国行业指数 155 条 → `1311`、道琼斯宽基/风格 16 条 → `1312`、标普/纳指/Wilshire/Cboe/波动率 9 条 → `1310`。

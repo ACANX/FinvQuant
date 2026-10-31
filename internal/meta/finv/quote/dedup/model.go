@@ -7,7 +7,7 @@
 // （方案稿 v5.0：Docs 目录内为落地版说明，本包与之逐条对应）。
 //
 // 关键约束（不可违反）：
-//   - 不修改 cdeu.finv_quote_secu_kline_min 与 export.finv_quote_secu_kline_min 的结构；
+//   - 不修改 cdeu.finv_quote_secu_kline_min 与 cdeu.finv_quote_secu_kline_min_export 的结构；
 //   - 新增表全部在 dedup schema（finv_dedup_* 前缀），全库无外键；
 //   - 导出与上传文件格式均为 .mvsv（16 行文件头 + 1 行空行 + 管道分隔数据行），不生成 .csv；
 //   - 所有 SQL 必须写 schema 全限定名（见 Docs/DevSpec/DbSchemaSpec.md §3）；

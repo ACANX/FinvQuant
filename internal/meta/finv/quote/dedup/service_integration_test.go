@@ -90,7 +90,7 @@ func TestServiceIntegration(t *testing.T) {
 			`DELETE FROM cdeu.finv_quote_cdeu_quote_maturity_mon WHERE usc = $1`,
 			`DELETE FROM cdeu.finv_quote_cdeu_usc WHERE usc = $1`,
 			`DELETE FROM cdeu.finv_quote_secu_kline_min WHERE usc = $1`,
-			`DELETE FROM export.finv_quote_secu_kline_min WHERE usc = $1`,
+			`DELETE FROM cdeu.finv_quote_secu_kline_min_export WHERE usc = $1`,
 			`DELETE FROM cdeu.finv_quote_cdeu_job_run_log_export_file WHERE usc = $1`,
 		} {
 			if _, execErr := pool.Exec(cleanupCtx, statement, integrationUsc); execErr != nil {

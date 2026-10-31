@@ -139,7 +139,7 @@ func (s *Service) processPatchCandidate(ctx context.Context, candidate PatchCand
 	return outcome, nil
 }
 
-// stagePatchRows 将补丁数据分页装入中转表（与正常导出共用 export.finv_quote_secu_kline_min）。
+// stagePatchRows 将补丁数据分页装入中转表（与正常导出共用 cdeu.finv_quote_secu_kline_min_export）。
 //
 // since 为 nil 表示整月（L1 重写 base），否则只装载 gmt_create/gmt_update 晚于水位的增量。
 // 装载前会清理该证券月残留，避免上次失败数据混入；写文件后由 cleanupPatchStaging 统一清理。

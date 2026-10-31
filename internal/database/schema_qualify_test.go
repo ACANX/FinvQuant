@@ -76,7 +76,9 @@ var cdeuTables = map[string]bool{
 //   - quote.finv_quote_secu_kline_min：量化回测专用（回测 SQL 必须写 quote. 前缀）；
 //   - cdeu.finv_quote_secu_kline_min：去重 / 导出 / 上传链路专用（V100080 起代码读写此处，
 //     数据自 dedup 一次性迁入）；
-//   - export.finv_quote_secu_kline_min：导出中转暂存（快照表，允许清空）；
+//   - cdeu.finv_quote_secu_kline_min_export：导出中转暂存（快照表，允许清空）；`V100088`
+//     把原 export.finv_quote_secu_kline_min 迁入 cdeu 域并删除源表，因此下方白名单
+//     不再包含 `export.`（代码再写 export. 副本会直接失败）；
 //   - dedup_frozen.finv_quote_secu_kline_min：历史副本（`V100080` 后 schema 已改名为
 //     dedup_frozen 并冻结），**代码一律不得引用**——因此下方白名单刻意不含 `dedup.`，
 //     任何写回 `dedup.finv_quote_secu_kline_min` 的代码都会让本测试直接失败。
@@ -84,7 +86,11 @@ var cdeuTables = map[string]bool{
 // 各副本同名同构但职责不同，靠 schema 前缀强制隔离；漏写前缀会命中 search_path
 // 里的另一张表，所以这里要求必须显式限定为其中之一。
 var exactTableSchema = map[string][]string{
-	"finv_quote_secu_kline_min": {"quote.", "export.", "cdeu."},
+	"finv_quote_secu_kline_min": {"quote.", "cdeu."},
+	// `V100088` 起导出中转表在 cdeu 域；名字沿用 "finv_quote_" 前缀、不走
+	// finv_quote_cdeu_* 约定，因此必须单独固定 schema，否则会被
+	// domainTablePrefixes 误判成 quote.。
+	"finv_quote_secu_kline_min_export": {"cdeu."},
 }
 
 // forbiddenSchemaPrefixes 已清理淘汰的 schema：代码里出现即视为违规（需求 10834）。
@@ -231,7 +237,7 @@ func isSQLCRUDLine(line string) bool {
 //
 // 注意：本函数只判断「有没有前缀」，不判断「前缀是否正确」。当同一表名存在
 // 于多个 schema（如 cdeu.finv_quote_secu_kline_min 与
-// export.finv_quote_secu_kline_min 同名）时，写错前缀不会被拦下，需靠
+// quote.finv_quote_secu_kline_min 同名）时，写错前缀不会被拦下，需靠
 // Docs/DevSpec/DbSchemaSpec.md §2/§3.1 的约定保证。
 func unqualifiedDomainTables(line string) []string {
 	var found []string

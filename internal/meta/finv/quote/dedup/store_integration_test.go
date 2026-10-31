@@ -57,7 +57,7 @@ func TestStoreIntegration(t *testing.T) {
 			`DELETE FROM cdeu.finv_quote_cdeu_quote_maturity_mon WHERE usc = $1`,
 			`DELETE FROM cdeu.finv_quote_cdeu_usc WHERE usc = $1`,
 			`DELETE FROM cdeu.finv_quote_secu_kline_min WHERE usc = $1`,
-			`DELETE FROM export.finv_quote_secu_kline_min WHERE usc = $1`,
+			`DELETE FROM cdeu.finv_quote_secu_kline_min_export WHERE usc = $1`,
 		}
 		for _, statement := range statements {
 			_, _ = pool.Exec(cleanupCtx, statement, integrationUsc)

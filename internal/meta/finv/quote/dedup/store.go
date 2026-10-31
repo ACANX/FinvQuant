@@ -17,7 +17,7 @@ import (
 // 表名常量（全部 schema 全限定，见 Docs/DevSpec/DbSchemaSpec.md §3）。
 const (
 	tableMain        = "cdeu.finv_quote_secu_kline_min"
-	tableStaging     = "export.finv_quote_secu_kline_min"
+	tableStaging     = "cdeu.finv_quote_secu_kline_min_export"
 	tableIngestStats = "cdeu.finv_quote_cdeu_ingest_stats"
 	tableBudget      = "cdeu.finv_quote_cdeu_daily_budget"
 	tableWatermark   = "cdeu.finv_quote_cdeu_scan_watermark"
