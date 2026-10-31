@@ -27,6 +27,12 @@
 
 ### 修复
 
+- **收敛「工作流已终态、子级仍非终态」的历史残留运行记录（需求 10884，`V300081`）**
+  - 现象：run 59（`FAILED`，2026-10-27）残留 2 个 `RUNNING` 的 `job_run`（`JOB_UPLOAD_FILES` / `JOB_EXPORT_LOAD`）、61 条 `GCMAIN` 上传动态实例、4 个未终态 `process_run`；run 55（`SUCCESS`）残留 1 个 `RUNNING` 的 `process_run`（`PROCESS_EXPORT_FILE_MON_BASE`）。残留导致「运行中」永不收敛，干扰 Job 门禁与界面状态。
+  - 处置：新增迁移 `V300081__cdeu_close_stale_run_children.sql`，把「所属 `workflow_run` 已终态而自身仍为 `PENDING`/`READY`/`RUNNING`」的 `job_step_run` / `job_run` / `job_dynamic` / `process_run` / `phase_run` 改为 `CANCELLED` 并补齐结束时间；**不删除记录、不改动已终态行、不改写 run/phase 的既定结论**；幂等（重复执行 0 行）、单事务、末尾收敛校验不符即回滚。
+  - 验证：本地库执行 `UPDATE 5 / 5 / 61 / 5 / 1` + `NOTICE: V300081 收敛完成`；重跑全部 `UPDATE 0`；五类「终态 run 下的非终态子级」计数均为 0；run 55/59 结论保持 `SUCCESS`/`FAILED`；`export_job` 无残留锁；`schema_version` 出现 `300081`（174 个迁移）。
+
+
 - **CDEU 运行树把「未开始」显示成「在运行」（需求 10883）**
   - 现象：第 81 次 CDEU 运行（`CDEU_DAILY` / 2026-11-01 / MANUAL）里，前置阶段全部 `PENDING`，但「导出决策」阶段的「每日入口流量统计」显示 `RUNNING`；实际该流程无任何 `job_run` 记录、`started_at` 为 `NULL`，`JOB_CALC_INGEST_STATS` 最后一次真实执行是 10-30 的 run 79。
   - 根因：`decideCDEUStatus` 把子级的 `PENDING`/`READY` 与 `RUNNING` 一并算作 `hasRunning`，于是「子 JOB 还没建立运行记录」的流程被评估一次就写成 `RUNNING`（开始时间由子级推导，推不出来就是 `NULL`）。

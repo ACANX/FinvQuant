@@ -2602,6 +2602,13 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10883 | CDEU 运行树状态误判修复：`decideCDEUStatus` 原把子级的 `PENDING`/`READY` 与 `RUNNING` 一起归入 `hasRunning`，导致「子 JOB 尚未建立运行记录」的流程被评估一次就写成 `RUNNING`（`started_at` 仍为 `NULL`，因为时间由子级推导）。界面表现：前序阶段还是 `PENDING`，后序阶段里的流程（如「每日入口流量统计」）却显示在跑，实际没有任何 `job_run` 在执行。修复口径：① `RUNNING` 单独判 `hasRunning`；② `PENDING`/`READY` 单独记 `hasPending`；③ 判定顺序 `RUNNING` → 关键失败 `FAILED` → `PAUSED` → **未满足完成条件且存在未开始子级时回写 `PENDING`** → `FAILED`/`PARTIAL`/`SUCCESS`；④ `ANY_OF`/`AT_LEAST` 已满足条件时不受未开始子级影响（仍按原逻辑判 `PARTIAL`/`SUCCESS`）。 | `go test ./internal/meta/finv/quote/cdeu -run TestDecideCDEUStatus -v` 全绿（含新增「全部未开始」「部分未开始」「READY 视为未开始」「关键失败优先于未开始」「运行中优先于未开始」「ANY_OF 满足后不被未开始拖住」6 个用例）；`go build ./...` 通过；生产库对 run 81 重新评估后 `select process_id,status,started_at from cdeu.finv_quote_cdeu_process_run where workflow_run_id=81` 中「每日入口流量统计」由 `RUNNING`（`started_at` 为空）变为 `PENDING`，且无 `RUNNING` 记录 | √ |
 
+## 一百九十七、CDEU 历史残留运行记录收敛（10884）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10884 | 收敛「工作流已终态、子级仍非终态」的历史残留运行记录（`V300081`）：旧版本在运行被终止/失败/完成后不彻底收尾，留下孤儿子级 —— run 59（`FAILED`，2026-10-27）残留 2 个 `RUNNING` 的 `job_run`（`JOB_UPLOAD_FILES` / `JOB_EXPORT_LOAD`）、61 条 `GCMAIN` 上传动态实例、4 个未终态 `process_run`；run 55（`SUCCESS`）残留 1 个 `RUNNING` 的 `process_run`（`PROCESS_EXPORT_FILE_MON_BASE`）。处置口径：只把「所属 `workflow_run` 已终态而自身仍为 `PENDING`/`READY`/`RUNNING`」的 `job_step_run` / `job_run` / `job_dynamic` / `process_run` / `phase_run` 改为 `CANCELLED` 并补齐结束时间（`finished_at` / `gmt_finish`），**不删除任何记录**，不改动已终态行与 run/phase 的既定结论。 | ① 迁移执行输出 `UPDATE 5 / 5 / 61 / 5 / 1` + `NOTICE: V300081 收敛完成`，重复执行全部为 `UPDATE 0`（幂等）；② 收敛后 `select count(*) from cdeu.finv_quote_cdeu_job_run s join cdeu.finv_quote_cdeu_workflow_run r on r.run_id=s.workflow_run_id where r.status in ('SUCCESS','FAILED','PARTIAL','CANCELLED','PAUSED') and s.status in ('PENDING','READY','RUNNING')` = 0，`job_step_run` / `job_dynamic` / `process_run` / `phase_run` 同类查询同为 0；③ `select run_id,status from cdeu.finv_quote_cdeu_workflow_run where run_id in (55,59)` 仍为 `55=SUCCESS`、`59=FAILED`（查询结论未被改写）；④ `select count(*) from cdeu.finv_quote_cdeu_export_job where locked_by is not null` = 0（无残留锁）；⑤ `public.schema_version` 出现 `300081`，服务 Live/Web 200 | √ |
+
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2839,7 +2846,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 迁移号段重排（1/2/3 三段，为基线重做准备） | 10881 | 1 |
 | 生产库基线重做（待办） | 10882 | 1 |
 | CDEU 运行树状态误判修复（PENDING 不再显示 RUNNING） | 10883 | 1 |
-| **合计** | **10001–10883** | **882** |
+| CDEU 历史残留运行记录收敛（已终态 run 的孤儿子级） | 10884 | 1 |
+| **合计** | **10001–10884** | **883** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
