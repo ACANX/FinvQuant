@@ -93,7 +93,7 @@
 | 10060 | `README.md` 文档列表包含指向两个改造清单的链接。 | `grep -c 'Docs/Refactor/' README.md` 输出不小于 2 | |
 | 10061 | 改造项 B 清单已声明示例数据仅供参考、权威判定以生产库 SQL 为准。 | `grep -c "示例文件不是生产数据，不能作为删除依据" Docs/Refactor/2610-002-PrevCloseToLastClose.md` 输出 `1` | |
 | 10062 | 改造项 B 的 `DB-01` 记录了「本次只改名、不删列」的结论。 | `grep -c "本次只改名，不删列" Docs/Refactor/2610-002-PrevCloseToLastClose.md` 输出 `1` | |
-| 10063 | 改造项 B 的重命名迁移与回填迁移各有一条清单条目。 | 命中 `V100030__finv_quote_kline_rename_prev_close_to_last_close` 与 `V100031__finv_quote_kline_backfill_open_from_last_close` 各 1 处 | |
+| 10063 | 改造项 B 的重命名迁移与回填迁移各有一条清单条目。 | 命中 `V200030__finv_quote_kline_rename_prev_close_to_last_close` 与 `V200031__finv_quote_kline_backfill_open_from_last_close` 各 1 处 | |
 | 10064 | `Docs/Refactor/` 下的过程文档文件名均带 `yyMM-` 四位前缀。 | `ls Docs/Refactor/*.md` 结果全部匹配 `^[0-9]{4}-` | |
 | 10065 | `FileNamingSpec.md` 记录了 `yyMM-` 前缀规则及其例外清单。 | `grep -c "yyMM-" Docs/DevSpec/FileNamingSpec.md` 输出不小于 2 | |
 
@@ -103,9 +103,9 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10066 | 存在 `V29` 改名迁移且为单事务脚本。 | `grep -c "^BEGIN;" Deploy/Migrations/V100029__rename_secu_code_to_usc.sql` 与 `grep -c "^COMMIT;"` 均为 `1` | |
+| 10066 | 存在 `V29` 改名迁移且为单事务脚本。 | `grep -c "^BEGIN;" Deploy/Migrations/V200029__rename_secu_code_to_usc.sql` 与 `grep -c "^COMMIT;"` 均为 `1` | |
 | 10067 | `V29` 覆盖 6 张表的 `secu_code` → `usc` 改名。 | 脚本内表名数组包含 `finv_quote_secu_kline_min`、`finv_quote_ingest_batches`、`finv_quote_revision_log`、`finv_quant_backtest_strategy`、`finv_quant_backtest_run`、`finv_quant_backtest_run_archive` 共 6 项 | |
-| 10068 | `V29` 对 5 个依赖索引执行改名。 | `grep -c "idx_finv_quote_usc_ts\|idx_finv_quote_ingest_batches_usc\|idx_finv_quote_revision_log_usc\|idx_finv_quant_backtest_strategy_usc\|idx_finv_quant_backtest_run_usc" Deploy/Migrations/V100029__rename_secu_code_to_usc.sql` 输出不小于 `5` | |
+| 10068 | `V29` 对 5 个依赖索引执行改名。 | `grep -c "idx_finv_quote_usc_ts\|idx_finv_quote_ingest_batches_usc\|idx_finv_quote_revision_log_usc\|idx_finv_quant_backtest_strategy_usc\|idx_finv_quant_backtest_run_usc" Deploy/Migrations/V200029__rename_secu_code_to_usc.sql` 输出不小于 `5` | |
 | 10069 | `V29` 不重建主键。 | 脚本内无 `DROP CONSTRAINT` 与 `ADD CONSTRAINT ... PRIMARY KEY` | |
 | 10070 | Go 代码中不再出现旧字段名。 | `grep -rn "secu_code\|SecuCode\|secuCode" internal/ --include="*.go"` 输出为空 | |
 | 10071 | 前端源码中不再出现旧字段名。 | `grep -rn "secu_code\|SecuCode\|secuCode" Web/src/` 输出为空 | |
@@ -124,13 +124,13 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10080 | 存在 `V30` 改名迁移且为单事务脚本。 | `grep -c "^BEGIN;" Deploy/Migrations/V100030__finv_quote_kline_rename_prev_close_to_last_close.sql` 与 `grep -c "^COMMIT;"` 均为 `1` | |
+| 10080 | 存在 `V30` 改名迁移且为单事务脚本。 | `grep -c "^BEGIN;" Deploy/Migrations/V200030__finv_quote_kline_rename_prev_close_to_last_close.sql` 与 `grep -c "^COMMIT;"` 均为 `1` | |
 | 10081 | `V30` 以幂等方式把 `prev_close` 改名为 `last_close`。 | 脚本内同时含 `information_schema.columns`、`column_name = 'prev_close'` 与 `RENAME COLUMN prev_close TO last_close` | |
-| 10082 | `V30` 为 `last_close` 写入口径注释。 | `grep -c "与 open 独立" Deploy/Migrations/V100030__finv_quote_kline_rename_prev_close_to_last_close.sql` 输出 `1` | |
+| 10082 | `V30` 为 `last_close` 写入口径注释。 | `grep -c "与 open 独立" Deploy/Migrations/V200030__finv_quote_kline_rename_prev_close_to_last_close.sql` 输出 `1` | |
 | 10083 | `V31` 回填条件完整（缺失/0 值 + `last_close` 非空非 0）。 | 脚本内出现 `open IS NULL OR open = 0`、`last_close IS NOT NULL`、`last_close <> 0` 三处条件 | |
-| 10084 | `V31` 输出回填行数。 | `grep -c "RAISE NOTICE" Deploy/Migrations/V100031__finv_quote_kline_backfill_open_from_last_close.sql` 不小于 `2` | |
+| 10084 | `V31` 输出回填行数。 | `grep -c "RAISE NOTICE" Deploy/Migrations/V200031__finv_quote_kline_backfill_open_from_last_close.sql` 不小于 `2` | |
 | 10085 | `V31` 向 `finv_quote_revision_log` 写入留痕记录。 | 脚本内含 `MIGRATION_V31` 与 `INSERT INTO finv_quote_revision_log` | |
-| 10086 | `V31` 明确声明回填不可逆。 | `grep -c "不可逆" Deploy/Migrations/V100031__finv_quote_kline_backfill_open_from_last_close.sql` 不小于 `1` | |
+| 10086 | `V31` 明确声明回填不可逆。 | `grep -c "不可逆" Deploy/Migrations/V200031__finv_quote_kline_backfill_open_from_last_close.sql` 不小于 `1` | |
 | 10087 | Go 代码中不再用旧列名（MVSV 文件头文本与 ATR 局部变量除外）。 | `grep -rn "prev_close" internal/ --include="*.go"` 输出为空 | |
 | 10088 | 导入链路按同一规则增量兜底 `open`。 | `grep -c "fillOpenFromLastClose" internal/meta/finv/quote/service.go` 不小于 `2` | |
 | 10089 | 数据格式与接口文档已改用 `last_close`。 | `grep -c "last_close" Docs/DataFormat/MvsvFileFormat.md Docs/API/HistoryQuote/HistoryQuote.md` 各不小于 `1` | |
@@ -143,11 +143,11 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10092 | 存在 `V32` 迁移且创建两个业务 schema。 | `grep -c "CREATE SCHEMA IF NOT EXISTS" Deploy/Migrations/V100032__move_finv_tables_to_quote_quant_schemas.sql` 输出 `2` | |
-| 10093 | `V32` 覆盖 16 张表的迁移（3 张 quote + 13 张 quant，通过数组循环执行 `SET SCHEMA`）。 | `grep -oE "'finv_(quote\|quant)_[a-z_]+" Deploy/Migrations/V100032__move_finv_tables_to_quote_quant_schemas.sql \| sort -u \| wc -l` 输出 `16` | |
+| 10092 | 存在 `V32` 迁移且创建两个业务 schema。 | `grep -c "CREATE SCHEMA IF NOT EXISTS" Deploy/Migrations/V200032__move_finv_tables_to_quote_quant_schemas.sql` 输出 `2` | |
+| 10093 | `V32` 覆盖 16 张表的迁移（3 张 quote + 13 张 quant，通过数组循环执行 `SET SCHEMA`）。 | `grep -oE "'finv_(quote\|quant)_[a-z_]+" Deploy/Migrations/V200032__move_finv_tables_to_quote_quant_schemas.sql \| sort -u \| wc -l` 输出 `16` | |
 | 10094 | `V32` 设置数据库默认 `search_path`。 | 脚本内含 `ALTER DATABASE` 与 `current_database()` | |
-| 10095 | `V32` 具备收敛校验，失败整体回滚。 | `grep -c "RAISE EXCEPTION" Deploy/Migrations/V100032__move_finv_tables_to_quote_quant_schemas.sql` 不小于 `2` | |
-| 10096 | 存在 `V100024` 收尾迁移，处理种子段新建的 3 张 quant 表。 | `test -f Deploy/Migrations/V200024__finv_quant_seed_tables_move_to_quant_schema.sql` | |
+| 10095 | `V32` 具备收敛校验，失败整体回滚。 | `grep -c "RAISE EXCEPTION" Deploy/Migrations/V200032__move_finv_tables_to_quote_quant_schemas.sql` 不小于 `2` | |
+| 10096 | 存在 `V200024` 收尾迁移，处理种子段新建的 3 张 quant 表。 | `test -f Deploy/Migrations/V300024__finv_quant_seed_tables_move_to_quant_schema.sql` | |
 | 10097 | 应用连接串携带 `search_path`。 | `grep -c "search_path=public,quote,quant" internal/database/postgres.go` 输出 `1` | |
 | 10098 | Go 代码中表名均带 schema 前缀（无裸表名）。 | `grep -rn "FROM finv_quote_\|FROM finv_quant_\|INTO finv_quote_\|INTO finv_quant_\|UPDATE finv_quant_\|UPDATE finv_quote_" internal/ --include="*.go"` 输出为空 | |
 | 10099 | 文档中表名均带 schema 前缀。 | `grep -rn "FROM finv_quote_\|FROM finv_quant_" Docs/ \| grep -v "Docs/Refactor/\|Docs/CHANGELOG.md\|Docs/RequirementList.md"` 输出为空 | |
@@ -158,7 +158,7 @@
 | 10104 | 表迁移后 `gmt_update` 触发器仍生效。 | 更新一行后 `gmt_update` 大于 `gmt_create` | |
 | 10105 | 存在数据库 schema 规范文档。 | `test -f Docs/DevSpec/DbSchemaSpec.md` | |
 | 10106 | `CHANGELOG` 记录本次 schema 迁移与连接要求。 | `grep -c "quote" Docs/CHANGELOG.md` 不小于 `2` | |
-| 10107 | 历史种子迁移的列名例外已登记。 | `grep -c "V100019" Docs/DevSpec/DbSchemaSpec.md Docs/CHANGELOG.md` 各不小于 `1` | |
+| 10107 | 历史种子迁移的列名例外已登记。 | `grep -c "V200019" Docs/DevSpec/DbSchemaSpec.md Docs/CHANGELOG.md` 各不小于 `1` | |
 
 ## 九、改造项 D 验收（10108–10120）
 
@@ -166,10 +166,10 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10108 | 存在 `V33` 迁移且创建 `futu` schema。 | `grep -c "CREATE SCHEMA IF NOT EXISTS futu" Deploy/Migrations/V100033__move_finv_futu_tables_to_futu_schema.sql` 输出 `1` | |
-| 10109 | `V33` 覆盖 5 张富途映射表。 | `grep -oE "'finv_futu_[a-z_]+" Deploy/Migrations/V100033__move_finv_futu_tables_to_futu_schema.sql \| sort -u \| wc -l` 输出 `5` | |
+| 10108 | 存在 `V33` 迁移且创建 `futu` schema。 | `grep -c "CREATE SCHEMA IF NOT EXISTS futu" Deploy/Migrations/V200033__move_finv_futu_tables_to_futu_schema.sql` 输出 `1` | |
+| 10109 | `V33` 覆盖 5 张富途映射表。 | `grep -oE "'finv_futu_[a-z_]+" Deploy/Migrations/V200033__move_finv_futu_tables_to_futu_schema.sql \| sort -u \| wc -l` 输出 `5` | |
 | 10110 | `V33` 更新数据库默认 `search_path` 含 `futu`。 | 脚本含 `public, quote, quant, futu` | |
-| 10111 | `V33` 具备收敛校验与回滚。 | `grep -c "RAISE EXCEPTION" Deploy/Migrations/V100033__move_finv_futu_tables_to_futu_schema.sql` 不小于 `2` | |
+| 10111 | `V33` 具备收敛校验与回滚。 | `grep -c "RAISE EXCEPTION" Deploy/Migrations/V200033__move_finv_futu_tables_to_futu_schema.sql` 不小于 `2` | |
 | 10112 | 应用连接串 `search_path` 含 `futu`。 | `grep -c "search_path=public,quote,quant,futu" internal/database/postgres.go` 输出 `1` | |
 | 10113 | Go 代码不引用富途映射表（零改动，注释除外）。 | `grep -rn "finv_futu" internal/ --include="*.go" \| grep -v "// "` 输出为空 | |
 | 10114 | 生产库 `futu` schema 含 5 张表。 | `SELECT count(*) FROM pg_tables WHERE schemaname='futu'` 为 `5` | |
@@ -256,7 +256,7 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10159 | 存在创建两个 schema 的迁移且可重复执行。 | `test -f Deploy/Migrations/V100034__create_export_and_sche_schemas.sql`；文件内含 `CREATE SCHEMA IF NOT EXISTS export` 与 `... sche` | |
+| 10159 | 存在创建两个 schema 的迁移且可重复执行。 | `test -f Deploy/Migrations/V200034__create_export_and_sche_schemas.sql`；文件内含 `CREATE SCHEMA IF NOT EXISTS export` 与 `... sche` | |
 | 10160 | 生产库存在 `export`、`sche` 两个 schema。 | `select count(*) from pg_namespace where nspname in ('export','sche')` 输出 `2` | |
 | 10161 | 两个 schema 的属主为应用角色（`finv`）。 | `select count(*) from pg_namespace where nspname in ('export','sche') and pg_get_userbyid(nspowner)='finv'` 输出 `2` | |
 | 10162 | 应用角色对两个 schema 具备 `USAGE` 与 `CREATE`。 | `select has_schema_privilege('finv','export','USAGE') and has_schema_privilege('finv','export','CREATE')` 为 `t`，`sche` 同理 | |
@@ -269,7 +269,7 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10167 | 存在创建转存表的迁移。 | `test -f Deploy/Migrations/V100035__create_export_staging_kline_table.sql` | |
+| 10167 | 存在创建转存表的迁移。 | `test -f Deploy/Migrations/V200035__create_export_staging_kline_table.sql` | |
 | 10168 | 转存表与业务表同名。 | `select count(*) from pg_tables where schemaname='export' and tablename='finv_quote_secu_kline_min'` 输出 `1` | |
 | 10169 | 转存表列定义与业务表完全一致。 | 对 `information_schema.columns` 的 `(column_name,data_type,is_nullable,column_default)` 做双向 `EXCEPT` 后计数为 `0` | |
 | 10170 | 转存表具备主键与 `(usc,ts)` 普通索引。 | `select count(*) from pg_index ... where indisprimary` 输出 `1`；存在 `pg_get_indexdef` 含 `(usc, ts)` 的非主键索引 | |
@@ -283,7 +283,7 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10176 | 存在创建 dedup schema 的迁移且幂等。 | `test -f Deploy/Migrations/V100036__create_dedup_schema.sql`；含 `CREATE SCHEMA IF NOT EXISTS dedup` | |
+| 10176 | 存在创建 dedup schema 的迁移且幂等。 | `test -f Deploy/Migrations/V200036__create_dedup_schema.sql`；含 `CREATE SCHEMA IF NOT EXISTS dedup` | |
 | 10177 | 生产库存在 `dedup` schema。 | `select count(*) from pg_namespace where nspname='dedup'` 输出 `1` | |
 | 10178 | 属主为应用角色（`finv`）。 | `select pg_get_userbyid(nspowner) from pg_namespace where nspname='dedup'` 输出 `finv` | |
 | 10179 | 应用角色具备 `USAGE` 与 `CREATE`。 | `select has_schema_privilege('finv','dedup','USAGE') and has_schema_privilege('finv','dedup','CREATE')` 为 `t` | |
@@ -296,7 +296,7 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10184 | 存在创建 archive schema 的迁移且幂等。 | `test -f Deploy/Migrations/V100037__create_archive_schema.sql`；含 `CREATE SCHEMA IF NOT EXISTS archive` | |
+| 10184 | 存在创建 archive schema 的迁移且幂等。 | `test -f Deploy/Migrations/V200037__create_archive_schema.sql`；含 `CREATE SCHEMA IF NOT EXISTS archive` | |
 | 10185 | 生产库存在 `archive` schema。 | `select count(*) from pg_namespace where nspname='archive'` 输出 `1` | |
 | 10186 | 属主为应用角色（`finv`）。 | `select pg_get_userbyid(nspowner) from pg_namespace where nspname='archive'` 输出 `finv` | |
 | 10187 | 应用角色具备 `USAGE` 与 `CREATE`。 | `select has_schema_privilege('finv','archive','USAGE') and has_schema_privilege('finv','archive','CREATE')` 为 `t` | |
@@ -390,9 +390,9 @@
 | 10242 | 旧前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min` 作为过渡别名同时注册。 | `grep -c "LegacyAPIPrefix" internal/api/router.go` 输出不小于 `1` | |
 | 10243 | 提供 `GET /Health` 探活端点（含 `/healthz` 过渡别名）。 | `grep -c 'GET("/Health"' internal/api/router.go` 与 `grep -c 'GET("/healthz"' internal/api/router.go` 均为 `1` | |
 | 10244 | 分钟行情主表位于 `dedup.finv_quote_secu_kline_min`。 | `grep -c "const Table = \"dedup.finv_quote_secu_kline_min\"" internal/meta/finv/quote/cdeu/kline/sql.go` 输出 `1` | |
-| 10245 | 迁移 V38 将主表从 `quote` 迁入 `dedup` 并可重复执行。 | `ls Deploy/Migrations/V100038__finv_quote_kline_move_to_dedup.sql` 不存在时退出码非 0；脚本含 `SET SCHEMA dedup` 与 `IF EXISTS` 幂等判断 | |
-| 10246 | 迁移 V38 补齐 `change_price`/`change_ratio`/`provider` 三列。 | `grep -c "ADD COLUMN IF NOT EXISTS change_price" Deploy/Migrations/V100038__finv_quote_kline_move_to_dedup.sql` 输出 `1` | |
-| 10247 | `export.finv_quote_secu_kline_min` 按 dedup 新结构重建。 | `grep -c "LIKE dedup.finv_quote_secu_kline_min" Deploy/Migrations/V100038__finv_quote_kline_move_to_dedup.sql` 输出 `1` | |
+| 10245 | 迁移 V38 将主表从 `quote` 迁入 `dedup` 并可重复执行。 | `ls Deploy/Migrations/V200038__finv_quote_kline_move_to_dedup.sql` 不存在时退出码非 0；脚本含 `SET SCHEMA dedup` 与 `IF EXISTS` 幂等判断 | |
+| 10246 | 迁移 V38 补齐 `change_price`/`change_ratio`/`provider` 三列。 | `grep -c "ADD COLUMN IF NOT EXISTS change_price" Deploy/Migrations/V200038__finv_quote_kline_move_to_dedup.sql` 输出 `1` | |
+| 10247 | `export.finv_quote_secu_kline_min` 按 dedup 新结构重建。 | `grep -c "LIKE dedup.finv_quote_secu_kline_min" Deploy/Migrations/V200038__finv_quote_kline_move_to_dedup.sql` 输出 `1` | |
 | 10248 | `ts` 契约与库内均为秒级；13 位毫秒默认拒绝。 | `go test ./internal/meta/finv/quote/cdeu/kline/ -run TestTSUnit` 通过；用例覆盖秒级通过与 13 位拒绝 | |
 | 10249 | `FINV_KLINE_TS_UNIT=ms` 时毫秒入参换算为秒。 | `go test ./internal/meta/finv/quote/cdeu/kline/ -run TestTSUnit` 通过（含 ms 分支） | |
 | 10250 | 具体错误使用 `211xxx` 编号且全局唯一。 | `go test ./internal/meta/finv/quote/cdeu/kline/ -run TestCatalogIntegrity` 通过 | |
@@ -457,21 +457,21 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10291 | 迁移 `V41` 在 `dedup` schema 新增 12 张归档链路表。 | `grep -c 'CREATE TABLE IF NOT EXISTS dedup.finv_dedup_' Deploy/Migrations/V100041__finv_dedup_export_archive_tables.sql` 输出 `12` | |
-| 10292 | 新增表全部位于 `dedup` schema 且全库无外键，不修改既有两张业务表。 | `grep -c 'REFERENCES' Deploy/Migrations/V100041__finv_dedup_export_archive_tables.sql` 输出 `0`；`grep -c 'ALTER TABLE dedup.finv_quote_secu_kline_min' Deploy/Migrations/V100041__finv_dedup_export_archive_tables.sql` 输出 `0` | |
-| 10293 | 12 个普通索引按 `idx_<表名去 finv_ 前缀并去下划线>_<用途>` 命名。 | `grep -c 'CREATE INDEX IF NOT EXISTS idx_dedup' Deploy/Migrations/V100041__finv_dedup_export_archive_tables.sql` 输出 `12` | |
+| 10291 | 迁移 `V41` 在 `dedup` schema 新增 12 张归档链路表。 | `grep -c 'CREATE TABLE IF NOT EXISTS dedup.finv_dedup_' Deploy/Migrations/V200041__finv_dedup_export_archive_tables.sql` 输出 `12` | |
+| 10292 | 新增表全部位于 `dedup` schema 且全库无外键，不修改既有两张业务表。 | `grep -c 'REFERENCES' Deploy/Migrations/V200041__finv_dedup_export_archive_tables.sql` 输出 `0`；`grep -c 'ALTER TABLE dedup.finv_quote_secu_kline_min' Deploy/Migrations/V200041__finv_dedup_export_archive_tables.sql` 输出 `0` | |
+| 10293 | 12 个普通索引按 `idx_<表名去 finv_ 前缀并去下划线>_<用途>` 命名。 | `grep -c 'CREATE INDEX IF NOT EXISTS idx_dedup' Deploy/Migrations/V200041__finv_dedup_export_archive_tables.sql` 输出 `12` | |
 | 10294 | 导出文件为 MVsv：16 行 `# ` 文件头 + 1 行空行 + 数据行。 | `go test ./internal/meta/finv/quote/dedup -run TestWriteMVsvStructure` 通过 | |
 | 10295 | `# Field` 行固定为 `ts\|da\|ti\|o\|h\|l\|c\|v\|t\|cp\|cr\|lc`。 | `go test ./internal/meta/finv/quote/dedup -run TestWriteMVsvStructure` 通过（断言 Field 行） | |
 | 10296 | `# Count` 等于实际数据行数，不一致时写出失败且不留半成品。 | `go test ./internal/meta/finv/quote/dedup -run 'TestWriteMVsvRowCountMismatch\|TestVerifyMVsvRejectsBrokenFiles'` 通过 | |
 | 10297 | BASE / PATCH / MANIFEST 文件名符合方案稿约定。 | `go test ./internal/meta/finv/quote/dedup -run TestFileNames` 通过 | |
 | 10298 | 上传与本地同名（`.mvsv` / `.json`），不生成、不支持 `.csv`。 | `grep -rn '\.csv' internal/meta/finv/quote/dedup` 无输出；`go test ./internal/meta/finv/quote/dedup -run TestFileNames` 通过 | |
-| 10299 | 导出任务以 `(usc, biz_month)` 唯一，保证幂等。 | `grep -F 'UNIQUE (usc, biz_month)' Deploy/Migrations/V100041__finv_dedup_export_archive_tables.sql` 命中 | |
+| 10299 | 导出任务以 `(usc, biz_month)` 唯一，保证幂等。 | `grep -F 'UNIQUE (usc, biz_month)' Deploy/Migrations/V200041__finv_dedup_export_archive_tables.sql` 命中 | |
 | 10300 | LOAD 按日 keyset 分页、`ON CONFLICT (ts, usc) DO NOTHING` 幂等、按 `usc` + 日期范围清理。 | `grep -F 'ON CONFLICT (ts, usc) DO NOTHING' internal/meta/finv/quote/dedup/store.go` 命中；`grep -F 'DELETE FROM ' internal/meta/finv/quote/dedup/store.go` 命中 | |
 | 10301 | 窗口耗尽时保存游标转 `PAUSED`（预算只限制启动新任务，不中断已启动任务），续跑前校验 `loaded_rows` 与实际行数不一致则重置游标。 | `grep -F 'ResetLoadCursor' internal/meta/finv/quote/dedup/job_export.go` 命中；`grep -F 'JobStatusPaused' internal/meta/finv/quote/dedup/job_export.go` 命中 | |
 | 10302 | 多 worker 用行锁 + 租约 + 心跳安全领取（`FOR UPDATE SKIP LOCKED`）。 | `grep -F 'FOR UPDATE SKIP LOCKED' internal/meta/finv/quote/dedup/store.go` 命中；`grep -F 'make_interval(secs' internal/meta/finv/quote/dedup/store.go` 命中 | |
 | 10303 | 日预算按公式计算并落库（`factor = clamp(1.20 + 0.20*sla + 0.05*min(backlog,5), 1.20, 2.00)`）。 | `go test ./internal/meta/finv/quote/dedup -run TestComputeBudget` 通过 | |
 | 10304 | 导出候选要求该月所有已观测日均为 `COMPLETE`/`FROZEN` 且月份已结束。 | `grep -F "HAVING bool_and(m.maturity_status IN ('COMPLETE', 'FROZEN'))" internal/meta/finv/quote/dedup/store.go` 命中；`grep -F 'm.biz_month < $1' internal/meta/finv/quote/dedup/store.go` 命中 | |
-| 10305 | 每个物理文件登记到 `finv_dedup_export_file`，唯一键 `(usc, biz_month, file_type, version)`。 | `grep -F 'UNIQUE (usc, biz_month, file_type, version)' Deploy/Migrations/V100041__finv_dedup_export_archive_tables.sql` 命中 | |
+| 10305 | 每个物理文件登记到 `finv_dedup_export_file`，唯一键 `(usc, biz_month, file_type, version)`。 | `grep -F 'UNIQUE (usc, biz_month, file_type, version)' Deploy/Migrations/V200041__finv_dedup_export_archive_tables.sql` 命中 | |
 | 10306 | MANIFEST 在同一证券月 BASE / PATCH 全部上传完成后才领取。 | `grep -F "f.file_type <> 'MANIFEST' OR NOT EXISTS" internal/meta/finv/quote/dedup/store_files.go` 命中 | |
 | 10307 | 上传前后校验大小与 SHA256，每次尝试写上传审计日志。 | `grep -F 's.uploader.Verify' internal/meta/finv/quote/dedup/job_upload.go` 命中；`grep -F 'InsertUploadLog' internal/meta/finv/quote/dedup/job_upload.go` 命中 | |
 | 10308 | 收口后数据按 L1_HOT / L2_WARM / L3_COLD 分级补丁，并登记 `finv_dedup_export_file_patch`。 | `grep -F 'PatchLevelL1Hot' internal/meta/finv/quote/dedup/job_patch.go` 命中；`grep -F 'InsertPatchTask' internal/meta/finv/quote/dedup/job_patch.go` 命中 | |
@@ -544,14 +544,14 @@
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
 | 10357 | 后端新增 `GET /API/V1/Meta/Finv/Quote/DeDup/Job/Runtime`，返回 10 个 Job 的运行快照（阶段 / 进度 / 心跳 / 最近结果 / 24 小时统计）。 | `grep -F 'Job/Runtime' internal/api/router.go` 命中；`test -f Docs/API/QuoteDeDup/JobRuntime.md` 退出码为 0 | |
-| 10358 | 运行日志表新增 `stage` / `progress_percent` / `progress_detail` / `gmt_heartbeat` 四列并建未结束记录部分索引。 | `grep -F 'progress_percent' Deploy/Migrations/V100042__finv_dedup_job_run_log_progress.sql` 命中；`grep -F 'idx_dedupjobrunlogexportfile_running' Deploy/Migrations/V100042__finv_dedup_job_run_log_progress.sql` 命中 | |
+| 10358 | 运行日志表新增 `stage` / `progress_percent` / `progress_detail` / `gmt_heartbeat` 四列并建未结束记录部分索引。 | `grep -F 'progress_percent' Deploy/Migrations/V200042__finv_dedup_job_run_log_progress.sql` 命中；`grep -F 'idx_dedupjobrunlogexportfile_running' Deploy/Migrations/V200042__finv_dedup_job_run_log_progress.sql` 命中 | |
 | 10359 | 导出 Job 在 LOAD / EXPORT / CLEANUP 阶段上报进度与心跳（写文件时按行数周期性刷新）。 | `grep -F '"LOAD"' internal/meta/finv/quote/dedup/job_export.go` 与 `grep -F 'written%20000' internal/meta/finv/quote/dedup/job_export.go` 均命中 | |
 | 10360 | 上传 / 补丁 / 维护 / 统计类 Job 上报阶段进度（UPLOAD / PATCH / CLEANUP / RECOVER / HEALTH / STATS / BUDGET / MATURITY / SEAL）。 | `grep -rlF 'reportProgress(ctx' internal/meta/finv/quote/dedup/job_*.go \| wc -l` 输出 `7` | |
 | 10361 | 侧边菜单新增「端到端链路」独立入口与路由。 | `grep -F 'dedup-export-chain' Web/src/App.vue Web/src/router.ts` 命中 2 处；`test -f Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` 退出码为 0 | |
 | 10362 | 流程页以流程图展示去重 → 成熟度/预算 → 收口 → 装载 → 导出 → 清理 → 上传 → 归档 → 补丁 → 保障的全链路节点状态与进度。 | `grep -F '总体视角 · 数据流向' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` 命中；`grep -c "kind: 'main'," Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` 输出 `11` | |
 | 10363 | 流程页自动刷新运行快照（5 秒）与业务指标（20 秒），并汇总当前执行环节与告警。 | `grep -F 'setInterval(loadRuntime, 5000)' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` 与 `grep -F 'statusTimer = setInterval(() =>'` 均命中 | |
 | 10364 | 归档监控总览页的 Job 调度表保持「调度 + 手动触发」，不内联运行状态与历史记录。 | `grep -c 'Job/Runtime' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue` 输出 `0` | |
-| 10365 | 低峰窗口支持运行时修改并立即生效（新增运行时设置表 + 服务端热更新）。 | `test -f Deploy/Migrations/V100043__finv_dedup_runtime_setting.sql` 退出码为 0；`grep -F 'SetWindow' internal/meta/finv/quote/dedup/service.go` 命中 | |
+| 10365 | 低峰窗口支持运行时修改并立即生效（新增运行时设置表 + 服务端热更新）。 | `test -f Deploy/Migrations/V200043__finv_dedup_runtime_setting.sql` 退出码为 0；`grep -F 'SetWindow' internal/meta/finv/quote/dedup/service.go` 命中 | |
 | 10366 | 新增 `GET /Settings` 与 `PUT /Settings/Window`（窗口来源 / 更新时间 / 校验 / 审计）。 | `grep -F 'Settings/Window' internal/api/router.go` 命中；`test -f Docs/API/QuoteDeDup/Settings.md` 退出码为 0 | |
 | 10367 | 服务启动加载数据库运行时设置，未配置时回退环境变量。 | `grep -F 'LoadRuntimeSettings' cmd/server/main.go` 与 `grep -F 'LoadRuntimeSettings' internal/meta/finv/quote/dedup/service.go` 均命中 | |
 | 10368 | 每个 Job 提供中文名称与功能 / 流程 / 工作细节 / 注意事项，前端在 Job 标识处悬浮展示（不新增列）。 | `grep -F 'Cautions' internal/meta/finv/quote/dedup/service.go` 命中；`grep -F 'jobDoc(' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` 命中 | |
@@ -574,12 +574,12 @@
 | 10385 | 批次进度统计包含 ⑫ 补丁任务（成功 / 失败 / 运行中 / 待处理），与导出任务合并展示。 | `grep -F 'patch_total' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` 命中；`grep -F 'PatchStatusCountsByMonth' internal/meta/finv/quote/dedup/store_files.go` 命中 | |
 | 10386 | 新增 CDEU 抽象概念模型设计文档：Process / Phase / Step / Job 四层、运行模式、批处理、完成条件、表结构与 13 个 Job 登记映射。 | `test -f Docs/Refactor/2610-007-CDEUProcessModelDesign.md` 退出码为 0；`grep -c 'cdeu_process' Docs/Refactor/2610-007-CDEUProcessModelDesign.md` 输出大于 `0` | |
 | 10387 | 规范要求过程文档 `yyMM-NNN-` 编号在 `Docs/` 下全局唯一，不得重号或复用，并提供自动校验。 | `grep -F '全局唯一' Docs/DevSpec/FileNamingSpec.md` 命中；`go test ./internal/docs` 通过（重号时失败） | |
-| 10388 | 按 CDEU 模型新增 8 张 `dedup.cdeu_*` 表并 seed 1 个流程 / 4 个阶段 / 10 个步骤 / 13 个作业（V45 将旁路步骤并入导出/上传阶段）；现有 Job 执行时双写 CDEU 运行树并按完成条件逐级评估。 | `test -f Deploy/Migrations/V100044__finv_dedup_cdeu_process_model.sql` 退出码为 0；`grep -F 'CDEU_DAILY' Deploy/Migrations/V100044__finv_dedup_cdeu_process_model.sql` 命中；`go test ./internal/meta/finv/quote/dedup` 通过 | |
+| 10388 | 按 CDEU 模型新增 8 张 `dedup.cdeu_*` 表并 seed 1 个流程 / 4 个阶段 / 10 个步骤 / 13 个作业（V45 将旁路步骤并入导出/上传阶段）；现有 Job 执行时双写 CDEU 运行树并按完成条件逐级评估。 | `test -f Deploy/Migrations/V200044__finv_dedup_cdeu_process_model.sql` 退出码为 0；`grep -F 'CDEU_DAILY' Deploy/Migrations/V200044__finv_dedup_cdeu_process_model.sql` 命中；`go test ./internal/meta/finv/quote/dedup` 通过 | |
 | 10389 | 前端新增「流程控制与监控」菜单，按 Process / Phase / Step / Job 展示 CDEU 运行状态、历史运行与手动触发；后端新增 `GET /CDEU/Overview`。 | `grep -F '/Meta/Finv/Quote/Cdeu/CdeuOverview' Web/src/router.ts Web/src/config/menuConfig.ts` 命中；`grep -F 'CDEU/Overview' internal/api/router.go` 命中；`cd Web && npm run build` 通过 | |
 | 10390 | 流程控制页默认「总体视图」，阶段悬浮展示概要；支持启动完整 CDEU 流程（`POST /CDEU/Process/Run`）。 | `grep -F 'viewMode' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'v-tooltip' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'CDEU/Process/Run' internal/api/router.go` 命中；`cd Web && npm run build` 通过 | |
 | 10391 | 总体视图点击阶段后，在「阶段概览」位置展示该阶段的步骤清单表格（步骤状态、作业/批次进度、开始时间、耗时、异常），不再重复展示阶段汇总表。 | `grep -F 'selectedPhase' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'selectedPhase.steps' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10392 | 「阶段流转」改为画布式工作流：悬浮节点 + 点阵画布 + 阶段间有向箭头，箭头由前序阶段指向后续阶段，点击节点切换步骤清单。 | `grep -F 'workflow-canvas' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'marker-end' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
-| 10393 | 删除尾部「保障（旁路）」阶段，将超时回收步骤并入导出阶段、健康检查步骤并入上传阶段，与正常步骤并行展示且不参与完成判定。 | `test -f Deploy/Migrations/V100045__finv_dedup_cdeu_split_ops_steps.sql` 退出码为 0；`grep -F 'PHASE_OPS' Deploy/Migrations/V100045__finv_dedup_cdeu_split_ops_steps.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10393 | 删除尾部「保障（旁路）」阶段，将超时回收步骤并入导出阶段、健康检查步骤并入上传阶段，与正常步骤并行展示且不参与完成判定。 | `test -f Deploy/Migrations/V200045__finv_dedup_cdeu_split_ops_steps.sql` 退出码为 0；`grep -F 'PHASE_OPS' Deploy/Migrations/V200045__finv_dedup_cdeu_split_ops_steps.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
 | 10394 | 在「阶段概览」步骤表格中点击某一步骤，下方展示该步骤定义的 JOB 清单（作业、调度标识、执行阶段、状态、开始时间、耗时、处理量、操作）。 | `grep -F 'selectedStep' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'selectedStep.jobs' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10395 | 运行中的阶段在画布节点上显示脉冲高亮/流光连线，运行中的步骤在步骤行与详情头部显示高亮与呼吸动效，便于一眼定位当前执行位置。 | `grep -F 'workflow-node-running' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'step-row-running' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10396 | 将「运行历史」改为「最新运行」位置的下拉列表，支持选择历史运行切换；默认展示最近一次运行，启动流程后展示当前运行。 | `grep -F 'run-select-btn' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'previousRuns' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
@@ -587,36 +587,36 @@
 | 10398 | 状态图例移入「阶段流转」画布卡片，支持显示/隐藏，并移除右侧独立图例卡片。 | `grep -F 'legendVisible' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'workflow-legend' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10399 | 移除独立「流程规则」卡片，将完成条件/失败策略并入页面头部摘要，时区/查询时间与内嵌阶段说明收进信息悬浮提示；步骤/ JOB 区域改为全宽展示。 | `grep -F '流程规则' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 应无输出；`grep -F '完成条件' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10400 | 阶段流转画布增加「开始」「结束」首尾节点，并用有向箭头与首个/最后一个阶段连接；开始节点随运行存在显示已开始，结束节点随流程终态显示完成/失败/等待。 | `grep -F 'workflowStart' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'workflowEnd' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
-| 10401 | 数据采集阶段增加非关键「历史行情数据采集」占位步骤，步骤下无 JOB，流程初始化时自动成功，并保留后续接入历史采集 Job 的位置。 | `test -f Deploy/Migrations/V100046__finv_dedup_cdeu_history_ingest_step.sql` 退出码为 0；`grep -F 'STEP_HISTORY_INGEST' Deploy/Migrations/V100046__finv_dedup_cdeu_history_ingest_step.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10401 | 数据采集阶段增加非关键「历史行情数据采集」占位步骤，步骤下无 JOB，流程初始化时自动成功，并保留后续接入历史采集 Job 的位置。 | `test -f Deploy/Migrations/V200046__finv_dedup_cdeu_history_ingest_step.sql` 退出码为 0；`grep -F 'STEP_HISTORY_INGEST' Deploy/Migrations/V200046__finv_dedup_cdeu_history_ingest_step.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
 | 10402 | 阶段步骤表将「步骤名称」「步骤 KEY」拆为两列，JOB 表将「作业名称」「调度标识」拆为两列；四列均支持拖拽调整列宽。 | `grep -F 'stepNameWidth' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'col-resizer' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
-| 10403 | 在去重收口与导出之间增加 `PHASE_DECISION`「导出判定」阶段及 `STEP_EXPORT_DECISION` 占位步骤，完成导出前检查判定；当前无 JOB，初始化自动成功。 | `test -f Deploy/Migrations/V100047__finv_dedup_cdeu_decision_phase.sql` 退出码为 0；`grep -F 'PHASE_DECISION' Deploy/Migrations/V100047__finv_dedup_cdeu_decision_phase.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10403 | 在去重收口与导出之间增加 `PHASE_DECISION`「导出判定」阶段及 `STEP_EXPORT_DECISION` 占位步骤，完成导出前检查判定；当前无 JOB，初始化自动成功。 | `test -f Deploy/Migrations/V200047__finv_dedup_cdeu_decision_phase.sql` 退出码为 0；`grep -F 'PHASE_DECISION' Deploy/Migrations/V200047__finv_dedup_cdeu_decision_phase.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
 | 10404 | JOB 清单不再把名称/触发方式/执行次数/异常堆叠在「作业名称」单元格：拆为作业名称、作业编码、调度标识、触发方式、执行次数、异常等独立列；作业名称/编码/调度标识支持列宽拖拽。 | `grep -F 'jobCodeWidth' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F '执行次数' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10405 | JOB 清单「执行阶段」列文字颜色统一为暖色 `rgb(251, 140, 0)`，阶段详情中的执行阶段标签同步。 | `grep -F 'rgb(251, 140, 0)' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
-| 10406 | 将数据采集阶段的 `STEP_INGEST_STATS`、`STEP_BUDGET` 调整到 `PHASE_DECISION` 导出判定阶段执行，JOB 随步骤迁移。 | `test -f Deploy/Migrations/V100048__finv_dedup_cdeu_move_stats_to_decision.sql` 退出码为 0；`grep -F 'STEP_INGEST_STATS' Deploy/Migrations/V100048__finv_dedup_cdeu_move_stats_to_decision.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
-| 10407 | 将 `STEP_MATURITY` 从去重收口阶段调整到 `PHASE_DECISION` 导出判定阶段执行，JOB 随步骤迁移；去重收口保留收口冻结。 | `test -f Deploy/Migrations/V100049__finv_dedup_cdeu_move_maturity_to_decision.sql` 退出码为 0；`grep -F 'STEP_MATURITY' Deploy/Migrations/V100049__finv_dedup_cdeu_move_maturity_to_decision.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
-| 10408 | CDEU 工作流模型重构为 `Workflow → Phase → Process → JOB → Step`：旧 Process 改为 Workflow、旧 Step 改为 Process、JOB 改为 JOB，并在 JOB 下新增串行 Step；数据库表/字段、API JSON、前端表述与启动路径同步调整。 | `test -f Deploy/Migrations/V100050__finv_dedup_cdeu_workflow_process_jobstep.sql` 退出码为 0；`grep -F 'cdeu_job_step' Deploy/Migrations/V100050__finv_dedup_cdeu_workflow_process_jobstep.sql` 命中；`grep -F 'workflow' internal/meta/finv/quote/dedup/cdeu_admin.go` 命中；`grep -F 'Process KEY' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup ./internal/api` 通过 | |
-| 10409 | 将「收口冻结与差异报告」统一改名为「收口冻结与差异报告生成」，覆盖 Process、JOB、JOB Step 与运行快照展示名称。 | `test -f Deploy/Migrations/V100051__finv_dedup_cdeu_rename_seal_process.sql` 退出码为 0；`grep -F '收口冻结与差异报告生成' Deploy/Migrations/V100051__finv_dedup_cdeu_rename_seal_process.sql` 命中；`grep -F '收口冻结与差异报告生成' internal/meta/finv/quote/dedup/service.go` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
-| 10410 | 将 `PHASE_DECISION` 阶段名称由「导出判定」调整为「导出决策」。 | `test -f Deploy/Migrations/V100052__finv_dedup_cdeu_rename_decision_phase.sql` 退出码为 0；`grep -F "name = '导出决策'" Deploy/Migrations/V100052__finv_dedup_cdeu_rename_decision_phase.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
-| 10411 | 将 `PHASE_COLLECT` 命名为「历史行情采集」、`PHASE_DEDUP` 命名为「历史行情去重」，并在上传后新增 `PHASE_REVIEW`「归档复核」阶段（占位 Process，初始化自动成功）。 | `test -f Deploy/Migrations/V100053__finv_dedup_cdeu_phase_rename_review.sql` 退出码为 0；`grep -F "PHASE_REVIEW" Deploy/Migrations/V100053__finv_dedup_cdeu_phase_rename_review.sql` 命中；`grep -F "历史行情采集" Deploy/Migrations/V100053__finv_dedup_cdeu_phase_rename_review.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10406 | 将数据采集阶段的 `STEP_INGEST_STATS`、`STEP_BUDGET` 调整到 `PHASE_DECISION` 导出判定阶段执行，JOB 随步骤迁移。 | `test -f Deploy/Migrations/V200048__finv_dedup_cdeu_move_stats_to_decision.sql` 退出码为 0；`grep -F 'STEP_INGEST_STATS' Deploy/Migrations/V200048__finv_dedup_cdeu_move_stats_to_decision.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10407 | 将 `STEP_MATURITY` 从去重收口阶段调整到 `PHASE_DECISION` 导出判定阶段执行，JOB 随步骤迁移；去重收口保留收口冻结。 | `test -f Deploy/Migrations/V200049__finv_dedup_cdeu_move_maturity_to_decision.sql` 退出码为 0；`grep -F 'STEP_MATURITY' Deploy/Migrations/V200049__finv_dedup_cdeu_move_maturity_to_decision.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10408 | CDEU 工作流模型重构为 `Workflow → Phase → Process → JOB → Step`：旧 Process 改为 Workflow、旧 Step 改为 Process、JOB 改为 JOB，并在 JOB 下新增串行 Step；数据库表/字段、API JSON、前端表述与启动路径同步调整。 | `test -f Deploy/Migrations/V200050__finv_dedup_cdeu_workflow_process_jobstep.sql` 退出码为 0；`grep -F 'cdeu_job_step' Deploy/Migrations/V200050__finv_dedup_cdeu_workflow_process_jobstep.sql` 命中；`grep -F 'workflow' internal/meta/finv/quote/dedup/cdeu_admin.go` 命中；`grep -F 'Process KEY' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup ./internal/api` 通过 | |
+| 10409 | 将「收口冻结与差异报告」统一改名为「收口冻结与差异报告生成」，覆盖 Process、JOB、JOB Step 与运行快照展示名称。 | `test -f Deploy/Migrations/V200051__finv_dedup_cdeu_rename_seal_process.sql` 退出码为 0；`grep -F '收口冻结与差异报告生成' Deploy/Migrations/V200051__finv_dedup_cdeu_rename_seal_process.sql` 命中；`grep -F '收口冻结与差异报告生成' internal/meta/finv/quote/dedup/service.go` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10410 | 将 `PHASE_DECISION` 阶段名称由「导出判定」调整为「导出决策」。 | `test -f Deploy/Migrations/V200052__finv_dedup_cdeu_rename_decision_phase.sql` 退出码为 0；`grep -F "name = '导出决策'" Deploy/Migrations/V200052__finv_dedup_cdeu_rename_decision_phase.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10411 | 将 `PHASE_COLLECT` 命名为「历史行情采集」、`PHASE_DEDUP` 命名为「历史行情去重」，并在上传后新增 `PHASE_REVIEW`「归档复核」阶段（占位 Process，初始化自动成功）。 | `test -f Deploy/Migrations/V200053__finv_dedup_cdeu_phase_rename_review.sql` 退出码为 0；`grep -F "PHASE_REVIEW" Deploy/Migrations/V200053__finv_dedup_cdeu_phase_rename_review.sql` 命中；`grep -F "历史行情采集" Deploy/Migrations/V200053__finv_dedup_cdeu_phase_rename_review.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
 | 10412 | 「阶段流转」标题改为「CDEU工作流」；阶段间距扩大一倍，同时缩小阶段间箭头，使箭头之间的线段有足够展示宽度。 | `grep -F 'CDEU工作流' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'const WORKFLOW_GAP = 48' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'markerWidth="5"' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10413 | 画布「开始」「结束」节点的 icon 放在文字左侧，文字改为上下两行（标题 / 状态）；终端节点宽度同步扩大以容纳横向布局。 | `grep -F 'workflow-terminal-text' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'const WORKFLOW_TERMINAL_WIDTH = 96' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
-| 10414 | 将 `PHASE_EXPORT` 名称改为「月度行情导出」、`PHASE_UPLOAD` 名称改为「月度行情上传」。 | `test -f Deploy/Migrations/V100054__finv_dedup_cdeu_rename_export_upload_phases.sql` 退出码为 0；`grep -F "PHASE_EXPORT" Deploy/Migrations/V100054__finv_dedup_cdeu_rename_export_upload_phases.sql` 命中；`grep -F "月度行情导出" Deploy/Migrations/V100054__finv_dedup_cdeu_rename_export_upload_phases.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10414 | 将 `PHASE_EXPORT` 名称改为「月度行情导出」、`PHASE_UPLOAD` 名称改为「月度行情上传」。 | `test -f Deploy/Migrations/V200054__finv_dedup_cdeu_rename_export_upload_phases.sql` 退出码为 0；`grep -F "PHASE_EXPORT" Deploy/Migrations/V200054__finv_dedup_cdeu_rename_export_upload_phases.sql` 命中；`grep -F "月度行情导出" Deploy/Migrations/V200054__finv_dedup_cdeu_rename_export_upload_phases.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
 | 10415 | 前端「阶段概览」改为「流程概览」；Process 下的 JOB 标题改为「JOB 清单 · `<Process 名称>`」顺序。 | `grep -F '流程概览' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'JOB 清单 · {{ selectedProcess.name }}' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10416 | Process 表格将「关键」/「旁路」标识从 Process 名称单元格拆出，单独增加「标识」列展示。 | `grep -F '>标识<' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F '>关键<' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10417 | 移除流程概览标题右侧的「点击上方阶段切换 Process · 点击 Process 查看 JOB 清单 · 悬浮查看阶段概要」描述文字。 | `grep -F '点击上方阶段切换 Process' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 无输出；`cd Web && npm run build` 通过 | |
 | 10418 | 工作流页头元信息由单行文字改为带图标的彩色 chip 可视化：工作流名称、运行模式、每日调度、完成条件、失败策略。 | `grep -F 'workflow-meta-row' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F '完成条件' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
-| 10419 | 将 `PROCESS_EXPORT_JOB` 名称由「单证券月导出」改为「证券历史月度行情文件导出」。 | `test -f Deploy/Migrations/V100055__finv_dedup_cdeu_rename_export_process.sql` 退出码为 0；`grep -F "证券历史月度行情文件导出" Deploy/Migrations/V100055__finv_dedup_cdeu_rename_export_process.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
-| 10420 | 将 `PROCESS_PATCH` 编码改为 `PROCESS_EXPORT_FILE_MON_INCR`、名称改为「证券历史月度行情增量文件导出」；将 `PROCESS_EXPORT_JOB` 编码改为 `PROCESS_EXPORT_FILE_MON`。 | `test -f Deploy/Migrations/V100056__finv_dedup_cdeu_rename_export_file_processes.sql` 退出码为 0；`grep -F "PROCESS_EXPORT_FILE_MON_INCR" Deploy/Migrations/V100056__finv_dedup_cdeu_rename_export_file_processes.sql` 命中；`grep -F "PROCESS_EXPORT_FILE_MON" Deploy/Migrations/V100056__finv_dedup_cdeu_rename_export_file_processes.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
-| 10421 | 在 `PROCESS_EXPORT_FILE_MON` 下新增 JOB `JOB_FETCH_SECURITY_METADATA`「证券元数据获取」，作为导出 JOB 的 META 阶段，在 LOAD 前刷新证券元数据。 | `test -f Deploy/Migrations/V100057__finv_dedup_cdeu_add_security_metadata_job.sql` 退出码为 0；`grep -F "JOB_FETCH_SECURITY_METADATA" Deploy/Migrations/V100057__finv_dedup_cdeu_add_security_metadata_job.sql` 命中；`grep -F "RefreshSecurityMetadata" internal/meta/finv/quote/dedup/store.go` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
-| 10422 | 在导出阶段新增 `PROCESS_EXPORT_BATCH`「证券导出批次清单获取」Process 及 `JOB_FETCH_EXPORT_BATCH` JOB，生成当批次 `usc + biz_month + BASE/INCR` 清单并写入 `dedup.finv_dedup_export_batch`；BASE/INCR 导出流程分别读取对应条目。 | `test -f Deploy/Migrations/V100058__finv_dedup_cdeu_export_batch_process.sql` 退出码为 0；`grep -F "finv_dedup_export_batch" Deploy/Migrations/V100058__finv_dedup_cdeu_export_batch_process.sql` 命中；`grep -F "GenerateExportBatch" internal/meta/finv/quote/dedup/store.go` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
-| 10423 | 将 BASE 导出 Process 编码由 `PROCESS_EXPORT_FILE_MON` 改为 `PROCESS_EXPORT_FILE_MON_BASE`；同时修复历史已完成运行新增 Process 后 CDEU 只读登记找不到运行树的问题。 | `test -f Deploy/Migrations/V100059__finv_dedup_cdeu_rename_base_export_process.sql` 退出码为 0；`grep -F "PROCESS_EXPORT_FILE_MON_BASE" Deploy/Migrations/V100059__finv_dedup_cdeu_rename_base_export_process.sql` 命中；`grep -F "SeedCDEUProcessRuns" internal/meta/finv/quote/dedup/cdeu.go` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
-| 10424 | 将 `PHASE_COLLECT` 名称由「历史行情采集」改为「历史行情收集」。 | `test -f Deploy/Migrations/V100060__finv_dedup_cdeu_rename_collect_phase.sql` 退出码为 0；`grep -F "历史行情收集" Deploy/Migrations/V100060__finv_dedup_cdeu_rename_collect_phase.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
-| 10425 | BASE/INCR 导出 Process 按批次清单动态生成单证券 JOB：以 `(usc, biz_month)` 全局唯一，写入 `dedup.cdeu_dynamic_job`；前端隐藏固定 LOAD/EXPORT/REGISTER/CLEANUP 执行壳 JOB，并展示证券、年月、BASE/INCR 类型及动态状态。 | `test -f Deploy/Migrations/V100061__finv_dedup_cdeu_dynamic_export_jobs.sql` 退出码为 0；`grep -F "cdeu_dynamic_job" Deploy/Migrations/V100061__finv_dedup_cdeu_dynamic_export_jobs.sql` 命中；`grep -F "GenerateDynamicJobs" internal/meta/finv/quote/dedup/store.go` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
-| 10426 | 每个动态单证券导出 JOB 内部拆为 `STEP_LOAD → STEP_EXPORT → STEP_REGISTER → STEP_CLEANUP` 四个串行 Step，运行时更新 Step 状态，前端展示对应 Step 信息。 | `test -f Deploy/Migrations/V100062__finv_dedup_cdeu_dynamic_job_steps.sql` 退出码为 0；`grep -F "cdeu_dynamic_job_step" Deploy/Migrations/V100062__finv_dedup_cdeu_dynamic_job_steps.sql` 命中；`grep -F "MarkDynamicJobStepStatus" internal/meta/finv/quote/dedup/store.go` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
-| 10427 | `cdeu_dynamic_job` 表改名为 `cdeu_job_dynamic`（Step 表同步为 `cdeu_job_dynamic_step`）；`PROCESS_UPLOAD` 基于已导出且未完成上传的月归档文件动态生成上传 JOB，每个文件一条并按 `file_id` 唯一，运行时同步 `STEP_UPLOAD` 状态。 | `test -f Deploy/Migrations/V100063__finv_dedup_cdeu_rename_job_dynamic_and_upload.sql` 退出码为 0；`grep -F "cdeu_job_dynamic" Deploy/Migrations/V100063__finv_dedup_cdeu_rename_job_dynamic_and_upload.sql` 命中；`grep -F "GenerateUploadDynamicJobs" internal/meta/finv/quote/dedup/store.go` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10419 | 将 `PROCESS_EXPORT_JOB` 名称由「单证券月导出」改为「证券历史月度行情文件导出」。 | `test -f Deploy/Migrations/V200055__finv_dedup_cdeu_rename_export_process.sql` 退出码为 0；`grep -F "证券历史月度行情文件导出" Deploy/Migrations/V200055__finv_dedup_cdeu_rename_export_process.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10420 | 将 `PROCESS_PATCH` 编码改为 `PROCESS_EXPORT_FILE_MON_INCR`、名称改为「证券历史月度行情增量文件导出」；将 `PROCESS_EXPORT_JOB` 编码改为 `PROCESS_EXPORT_FILE_MON`。 | `test -f Deploy/Migrations/V200056__finv_dedup_cdeu_rename_export_file_processes.sql` 退出码为 0；`grep -F "PROCESS_EXPORT_FILE_MON_INCR" Deploy/Migrations/V200056__finv_dedup_cdeu_rename_export_file_processes.sql` 命中；`grep -F "PROCESS_EXPORT_FILE_MON" Deploy/Migrations/V200056__finv_dedup_cdeu_rename_export_file_processes.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10421 | 在 `PROCESS_EXPORT_FILE_MON` 下新增 JOB `JOB_FETCH_SECURITY_METADATA`「证券元数据获取」，作为导出 JOB 的 META 阶段，在 LOAD 前刷新证券元数据。 | `test -f Deploy/Migrations/V200057__finv_dedup_cdeu_add_security_metadata_job.sql` 退出码为 0；`grep -F "JOB_FETCH_SECURITY_METADATA" Deploy/Migrations/V200057__finv_dedup_cdeu_add_security_metadata_job.sql` 命中；`grep -F "RefreshSecurityMetadata" internal/meta/finv/quote/dedup/store.go` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10422 | 在导出阶段新增 `PROCESS_EXPORT_BATCH`「证券导出批次清单获取」Process 及 `JOB_FETCH_EXPORT_BATCH` JOB，生成当批次 `usc + biz_month + BASE/INCR` 清单并写入 `dedup.finv_dedup_export_batch`；BASE/INCR 导出流程分别读取对应条目。 | `test -f Deploy/Migrations/V200058__finv_dedup_cdeu_export_batch_process.sql` 退出码为 0；`grep -F "finv_dedup_export_batch" Deploy/Migrations/V200058__finv_dedup_cdeu_export_batch_process.sql` 命中；`grep -F "GenerateExportBatch" internal/meta/finv/quote/dedup/store.go` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10423 | 将 BASE 导出 Process 编码由 `PROCESS_EXPORT_FILE_MON` 改为 `PROCESS_EXPORT_FILE_MON_BASE`；同时修复历史已完成运行新增 Process 后 CDEU 只读登记找不到运行树的问题。 | `test -f Deploy/Migrations/V200059__finv_dedup_cdeu_rename_base_export_process.sql` 退出码为 0；`grep -F "PROCESS_EXPORT_FILE_MON_BASE" Deploy/Migrations/V200059__finv_dedup_cdeu_rename_base_export_process.sql` 命中；`grep -F "SeedCDEUProcessRuns" internal/meta/finv/quote/dedup/cdeu.go` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10424 | 将 `PHASE_COLLECT` 名称由「历史行情采集」改为「历史行情收集」。 | `test -f Deploy/Migrations/V200060__finv_dedup_cdeu_rename_collect_phase.sql` 退出码为 0；`grep -F "历史行情收集" Deploy/Migrations/V200060__finv_dedup_cdeu_rename_collect_phase.sql` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10425 | BASE/INCR 导出 Process 按批次清单动态生成单证券 JOB：以 `(usc, biz_month)` 全局唯一，写入 `dedup.cdeu_dynamic_job`；前端隐藏固定 LOAD/EXPORT/REGISTER/CLEANUP 执行壳 JOB，并展示证券、年月、BASE/INCR 类型及动态状态。 | `test -f Deploy/Migrations/V200061__finv_dedup_cdeu_dynamic_export_jobs.sql` 退出码为 0；`grep -F "cdeu_dynamic_job" Deploy/Migrations/V200061__finv_dedup_cdeu_dynamic_export_jobs.sql` 命中；`grep -F "GenerateDynamicJobs" internal/meta/finv/quote/dedup/store.go` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10426 | 每个动态单证券导出 JOB 内部拆为 `STEP_LOAD → STEP_EXPORT → STEP_REGISTER → STEP_CLEANUP` 四个串行 Step，运行时更新 Step 状态，前端展示对应 Step 信息。 | `test -f Deploy/Migrations/V200062__finv_dedup_cdeu_dynamic_job_steps.sql` 退出码为 0；`grep -F "cdeu_dynamic_job_step" Deploy/Migrations/V200062__finv_dedup_cdeu_dynamic_job_steps.sql` 命中；`grep -F "MarkDynamicJobStepStatus" internal/meta/finv/quote/dedup/store.go` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10427 | `cdeu_dynamic_job` 表改名为 `cdeu_job_dynamic`（Step 表同步为 `cdeu_job_dynamic_step`）；`PROCESS_UPLOAD` 基于已导出且未完成上传的月归档文件动态生成上传 JOB，每个文件一条并按 `file_id` 唯一，运行时同步 `STEP_UPLOAD` 状态。 | `test -f Deploy/Migrations/V200063__finv_dedup_cdeu_rename_job_dynamic_and_upload.sql` 退出码为 0；`grep -F "cdeu_job_dynamic" Deploy/Migrations/V200063__finv_dedup_cdeu_rename_job_dynamic_and_upload.sql` 命中；`grep -F "GenerateUploadDynamicJobs" internal/meta/finv/quote/dedup/store.go` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
 | 10428 | 点击阶段后，在工作流画布下方展示该阶段内 Process 的拓扑顺序图；顺序按 `seq_no` 生成，起点连接上一阶段输出、终点连接下一阶段输入，Process 节点可点击选中。 | `grep -F 'process-topology' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F '上一阶段输出' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10429 | 阶段内 Process 拓扑支持「流程拓扑」开关显示/隐藏，默认显示；导出阶段将 `PROCESS_RECOVER` 作为与 `PROCESS_EXPORT_FILE_MON_BASE` 并行的支路展示。 | `grep -F 'processTopologyVisible' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'processTopologyHasParallel' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
-| 10430 | 导出决策阶段按依赖调整：入口流量统计与行情成熟度扫描并行，每日导出预算计算在其后；调度改为 00:05 启动统计/成熟度、00:10 启动预算，拓扑图展示并行汇合关系。 | `test -f Deploy/Migrations/V100064__finv_dedup_cdeu_decision_parallel_schedule.sql` 退出码为 0；`grep -F "JOB_CALC_BUDGET" Deploy/Migrations/V100064__finv_dedup_cdeu_decision_parallel_schedule.sql` 命中；`grep -F "processTopologyMode" Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
+| 10430 | 导出决策阶段按依赖调整：入口流量统计与行情成熟度扫描并行，每日导出预算计算在其后；调度改为 00:05 启动统计/成熟度、00:10 启动预算，拓扑图展示并行汇合关系。 | `test -f Deploy/Migrations/V200064__finv_dedup_cdeu_decision_parallel_schedule.sql` 退出码为 0；`grep -F "JOB_CALC_BUDGET" Deploy/Migrations/V200064__finv_dedup_cdeu_decision_parallel_schedule.sql` 命中；`grep -F "processTopologyMode" Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`go test ./internal/database ./internal/meta/finv/quote/dedup` 通过 | |
 | 10431 | 画布上阶段与 Process 视觉样式区分：阶段为实线大卡片，Process 为虚线紧凑卡片；开始/结束节点由圆形改为矩形。 | `grep -F 'border-radius: 8px' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'border: 1px dashed' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10432 | 新增 `/Meta/Finv/Quote/DeDup/CDEUWorkflow` 菜单与「全流程拓扑」页面：每个阶段以虚线框圈定范围，框内展开该阶段全部 Process，并绘制阶段内及跨阶段的完整依赖连接。 | `grep -F "path: '/Meta/Finv/Quote/Cdeu/CdeuWorkflow'" Web/src/router.ts` 命中；`grep -F "全流程拓扑" Web/src/App.vue` 命中；`test -f Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 退出码为 0；`cd Web && npm run build` 通过 | |
 | 10433 | 「全流程拓扑」图例绘制在拓扑画布内部，随画布一起滚动，不再放在画布外部的页面区域。 | `grep -F 'fulltopo-legend-in-canvas' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`grep -F 'legendTop' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`cd Web && npm run build` 通过 | |
@@ -633,14 +633,14 @@
 | 10444 | 竖版全流程拓扑阶段 3「导出决策」入口分叉后的两条水平折线段在现有位置基础上再上移 10px。 | `grep -F 'verticalForkPath' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`grep -F 'midY - 10' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10445 | 全流程拓扑 Process 矩形节点宽度按标题、Process 编码和 JOB 文案自适应，不再使用固定宽度，也不再用省略号截断标题；横版和竖版同步。 | `grep -F 'processNodeWidth' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`grep -F 'text-overflow: clip' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10446 | 竖版全流程拓扑中，阶段进度由左侧标题区下方的水平线改为标题区与流程区之间的竖直进度线，按阶段进度纵向填充。 | `grep -F 'fulltopo-vphase-divider' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`grep -F 'V_PHASE_TITLE_WIDTH - 3' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue` 命中；`cd Web && npm run build` 通过 | |
-| 10447 | 导出动态 JOB 的 `name` 字段统一为 `EXPORT_MON_{BASE/INCR}_{usc}_{biz_month}` 格式（如 `EXPORT_MON_BASE_GCMain_201912`），并回填已有 `cdeu_job_dynamic` 记录。 | `grep -F "EXPORT_MON_" internal/meta/finv/quote/dedup/store.go` 命中；`test -f Deploy/Migrations/V100065__finv_dedup_cdeu_dynamic_job_name.sql` 退出码为 0；`grep -F "EXPORT_MON_" Deploy/Migrations/V100065__finv_dedup_cdeu_dynamic_job_name.sql` 命中；`go test ./internal/meta/finv/quote/dedup ./internal/database` 通过 | |
-| 10448 | 每个 JOB 运行提供详细执行日志：新增运行日志行表、`GET .../RunLog/Detail?runId=` 接口，CDEU JOB 行提供「执行日志」入口，弹窗展示阶段/进度/错误等逐行日志；运行中自动刷新。 | `test -f Deploy/Migrations/V100066__finv_dedup_job_run_log_line.sql` 退出码为 0；`grep -F 'RunLog/Detail' internal/api/router.go` 命中；`grep -F '执行日志' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`go test ./...` 通过；`cd Web && npm run build` 通过 | |
+| 10447 | 导出动态 JOB 的 `name` 字段统一为 `EXPORT_MON_{BASE/INCR}_{usc}_{biz_month}` 格式（如 `EXPORT_MON_BASE_GCMain_201912`），并回填已有 `cdeu_job_dynamic` 记录。 | `grep -F "EXPORT_MON_" internal/meta/finv/quote/dedup/store.go` 命中；`test -f Deploy/Migrations/V200065__finv_dedup_cdeu_dynamic_job_name.sql` 退出码为 0；`grep -F "EXPORT_MON_" Deploy/Migrations/V200065__finv_dedup_cdeu_dynamic_job_name.sql` 命中；`go test ./internal/meta/finv/quote/dedup ./internal/database` 通过 | |
+| 10448 | 每个 JOB 运行提供详细执行日志：新增运行日志行表、`GET .../RunLog/Detail?runId=` 接口，CDEU JOB 行提供「执行日志」入口，弹窗展示阶段/进度/错误等逐行日志；运行中自动刷新。 | `test -f Deploy/Migrations/V200066__finv_dedup_job_run_log_line.sql` 退出码为 0；`grep -F 'RunLog/Detail' internal/api/router.go` 命中；`grep -F '执行日志' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`go test ./...` 通过；`cd Web && npm run build` 通过 | |
 | 10449 | 低峰窗口支持 `00:00:00` ~ `23:59:59` 全天候测试；窗口按分钟粒度判定，`23:59` 分钟包含在窗口内，`HH:MM:SS` 输入兼容并归一为分钟保存。 | `grep -F '00:00:00 ~ 23:59:59' internal/meta/finv/quote/dedup/options.go` 命中；`grep -F 'fullDay' internal/meta/finv/quote/dedup/options_test.go` 命中；`go test ./internal/meta/finv/quote/dedup` 通过 | |
 | 10450 | CDEU 控制台的 JOB 清单支持水平滚动：列总宽超出容器时出现横向滚动条，可查看右侧的执行阶段、状态、异常、操作等列。 | `grep -F 'job-table-scroll' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F 'overflow-x: auto' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
-| 10451 | 修复人工清理 CDEU 定义数据后 `StartCDEUWorkflow` 报「未登记 CDEU_DAILY 工作流定义」：新增幂等迁移重建缺失的 15 个 JOB 与 Job Step 定义。 | `test -f Deploy/Migrations/V100067__finv_dedup_cdeu_reseed_jobs.sql` 退出码为 0；`grep -F 'JOB_FETCH_EXPORT_BATCH' Deploy/Migrations/V100067__finv_dedup_cdeu_reseed_jobs.sql` 命中；`go test ./internal/database` 通过 | |
-| 10452 | 上传动态 JOB 的编码/名称统一为 `JOB_UPLOAD_{FILE_TYPE}_V{VERSION}_{USC大写}_{YYYYMM}`（如 `JOB_UPLOAD_BASE_V1_GCMAIN_201910`）；调度标识由 `DYNAMIC_EXPORT` 改为 `DYNAMIC_UPLOAD`，并回填已有上传动态 JOB。 | `grep -F "JOB_UPLOAD_' \|\| f.file_type" internal/meta/finv/quote/dedup/store.go` 命中；`grep -F 'DYNAMIC_UPLOAD' internal/meta/finv/quote/dedup/cdeu_admin.go` 命中；`test -f Deploy/Migrations/V100068__finv_dedup_cdeu_upload_dynamic_name.sql` 退出码为 0；`go test ./internal/meta/finv/quote/dedup ./internal/database` 通过 | |
-| 10453 | 上传动态 JOB 的 `name` 与 `job_code` 分离：`job_code` 为 `JOB_UPLOAD_BASE_V1_GCMAIN_201910`，`name` 为 `UPLOAD_BASE_V1_GCMain_201910`；回填已有上传动态 JOB。 | `grep -F "'UPLOAD_' \|\| f.file_type" internal/meta/finv/quote/dedup/store.go` 命中；`test -f Deploy/Migrations/V100069__finv_dedup_cdeu_upload_dynamic_display_name.sql` 退出码为 0；`grep -F "UPLOAD_' \|\| file_type" Deploy/Migrations/V100069__finv_dedup_cdeu_upload_dynamic_display_name.sql` 命中；`go test ./internal/meta/finv/quote/dedup ./internal/database` 通过 | |
-| 10454 | 动态 JOB 关联执行日志与工作流运行：新增 `run_log_id` / `workflow_run_id` 字段；动态 JOB 完成后可在 JOB 清单查看执行日志；当前工作流 JOB 清单只展示本轮生成的动态 JOB，避免历史任务混入。 | `grep -F 'run_log_id = COALESCE' internal/meta/finv/quote/dedup/store.go` 命中；`grep -F 'workflow_run_id' internal/meta/finv/quote/dedup/cdeu_admin.go` 命中；`test -f Deploy/Migrations/V100070__finv_dedup_cdeu_dynamic_job_run_link.sql` 退出码为 0；`go test ./internal/meta/finv/quote/dedup ./internal/database` 通过 | |
+| 10451 | 修复人工清理 CDEU 定义数据后 `StartCDEUWorkflow` 报「未登记 CDEU_DAILY 工作流定义」：新增幂等迁移重建缺失的 15 个 JOB 与 Job Step 定义。 | `test -f Deploy/Migrations/V200067__finv_dedup_cdeu_reseed_jobs.sql` 退出码为 0；`grep -F 'JOB_FETCH_EXPORT_BATCH' Deploy/Migrations/V200067__finv_dedup_cdeu_reseed_jobs.sql` 命中；`go test ./internal/database` 通过 | |
+| 10452 | 上传动态 JOB 的编码/名称统一为 `JOB_UPLOAD_{FILE_TYPE}_V{VERSION}_{USC大写}_{YYYYMM}`（如 `JOB_UPLOAD_BASE_V1_GCMAIN_201910`）；调度标识由 `DYNAMIC_EXPORT` 改为 `DYNAMIC_UPLOAD`，并回填已有上传动态 JOB。 | `grep -F "JOB_UPLOAD_' \|\| f.file_type" internal/meta/finv/quote/dedup/store.go` 命中；`grep -F 'DYNAMIC_UPLOAD' internal/meta/finv/quote/dedup/cdeu_admin.go` 命中；`test -f Deploy/Migrations/V200068__finv_dedup_cdeu_upload_dynamic_name.sql` 退出码为 0；`go test ./internal/meta/finv/quote/dedup ./internal/database` 通过 | |
+| 10453 | 上传动态 JOB 的 `name` 与 `job_code` 分离：`job_code` 为 `JOB_UPLOAD_BASE_V1_GCMAIN_201910`，`name` 为 `UPLOAD_BASE_V1_GCMain_201910`；回填已有上传动态 JOB。 | `grep -F "'UPLOAD_' \|\| f.file_type" internal/meta/finv/quote/dedup/store.go` 命中；`test -f Deploy/Migrations/V200069__finv_dedup_cdeu_upload_dynamic_display_name.sql` 退出码为 0；`grep -F "UPLOAD_' \|\| file_type" Deploy/Migrations/V200069__finv_dedup_cdeu_upload_dynamic_display_name.sql` 命中；`go test ./internal/meta/finv/quote/dedup ./internal/database` 通过 | |
+| 10454 | 动态 JOB 关联执行日志与工作流运行：新增 `run_log_id` / `workflow_run_id` 字段；动态 JOB 完成后可在 JOB 清单查看执行日志；当前工作流 JOB 清单只展示本轮生成的动态 JOB，避免历史任务混入。 | `grep -F 'run_log_id = COALESCE' internal/meta/finv/quote/dedup/store.go` 命中；`grep -F 'workflow_run_id' internal/meta/finv/quote/dedup/cdeu_admin.go` 命中；`test -f Deploy/Migrations/V200070__finv_dedup_cdeu_dynamic_job_run_link.sql` 退出码为 0；`go test ./internal/meta/finv/quote/dedup ./internal/database` 通过 | |
 | 10455 | 补丁扫描中的每个证券月单独登记 Job 运行日志，动态补丁 JOB 的执行日志只展示该证券月的处理过程，不再全部共用父级补丁任务日志。 | `grep -F 'candidateRunID' internal/meta/finv/quote/dedup/job_patch.go` 命中；`grep -F 'MarkDynamicJobStatus(ctx, candidate.Usc' internal/meta/finv/quote/dedup/job_patch.go` 命中；`go test ./internal/meta/finv/quote/dedup` 通过 | |
 | 10456 | CDEU JOB 清单的 Step 列只展示当前执行到的 Step（优先 RUNNING，否则最后一个已完成 Step），并显示 `当前序号/总 Step 数`，不再把所有 Step 挤在单元格里。 | `grep -F 'currentJobStep' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`grep -F '当前执行到的 Step' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 命中；`cd Web && npm run build` 通过 | |
 | 10457 | 修复导出/上传目录与持久化挂载不一致：默认导出目录统一为 `Data/ExportArchive`、上传目录为 `Data/ExportArchive/Upload`，与 Docker `/app/Data/ExportArchive` 挂载对齐，容器重建后文件不丢失。 | `grep -F 'Data/ExportArchive' internal/config/config.go` 命中；`grep -F 'FINV_QUOTE_DEDUB_OUTPUT_DIR' Deploy/Docker/docker-compose.yml` 命中；`go test ./internal/config ./internal/meta/finv/quote/dedup` 通过 | |
@@ -666,7 +666,7 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10475 | 存在创建 `sys` schema 的迁移且幂等。 | `test -f Deploy/Migrations/V100071__create_sys_schema.sql`；含 `CREATE SCHEMA IF NOT EXISTS sys` | |
+| 10475 | 存在创建 `sys` schema 的迁移且幂等。 | `test -f Deploy/Migrations/V200071__create_sys_schema.sql`；含 `CREATE SCHEMA IF NOT EXISTS sys` | |
 | 10476 | 数据库存在 `sys` schema。 | `select count(*) from pg_namespace where nspname='sys'` 输出 `1` | |
 | 10477 | `sys` schema 属主为应用角色（`finv`）。 | `select pg_get_userbyid(nspowner) from pg_namespace where nspname='sys'` 输出 `finv` | |
 | 10478 | 应用角色对 `sys` 具备 `USAGE` 与 `CREATE`。 | `select has_schema_privilege('finv','sys','USAGE') and has_schema_privilege('finv','sys','CREATE')` 为 `t` | |
@@ -679,7 +679,7 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10483 | 存在创建 `sys.sys_config` 的迁移且幂等。 | `test -f Deploy/Migrations/V100072__sys_config.sql`；含 `CREATE TABLE IF NOT EXISTS sys.sys_config` 与 `CREATE OR REPLACE FUNCTION` | |
+| 10483 | 存在创建 `sys.sys_config` 的迁移且幂等。 | `test -f Deploy/Migrations/V200072__sys_config.sql`；含 `CREATE TABLE IF NOT EXISTS sys.sys_config` 与 `CREATE OR REPLACE FUNCTION` | |
 | 10484 | 数据库存在 `sys.sys_config` 表。 | `select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='sys' and c.relname='sys_config' and c.relkind='r'` 输出 `1` | |
 | 10485 | 表包含 13 列且类型与定义一致（`config_no integer`、`data_type char(1)`、`str_value varchar(6000)`、`json_value json`、`gmt_create`/`gmt_modify timestamp(6)`）。 | `select count(*) from information_schema.columns where table_schema='sys' and table_name='sys_config'` 输出 `13`；`select data_type from information_schema.columns where table_schema='sys' and table_name='sys_config' and column_name='json_value'` 输出 `json` | |
 | 10486 | 主键为 `pk_sys_config (config_no)`。 | `select conname, pg_get_constraintdef(oid) from pg_constraint where conname='pk_sys_config'` 输出含 `PRIMARY KEY (config_no)` | |
@@ -692,7 +692,7 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10491 | 存在创建 `sys.sys_dict` / `sys.sys_dict_sub` 的迁移且幂等。 | `test -f Deploy/Migrations/V100073__sys_dict.sql`；含两个 `CREATE TABLE IF NOT EXISTS sys.sys_` 与两个 `CREATE OR REPLACE FUNCTION` | |
+| 10491 | 存在创建 `sys.sys_dict` / `sys.sys_dict_sub` 的迁移且幂等。 | `test -f Deploy/Migrations/V200073__sys_dict.sql`；含两个 `CREATE TABLE IF NOT EXISTS sys.sys_` 与两个 `CREATE OR REPLACE FUNCTION` | |
 | 10492 | 数据库存在 `sys.sys_dict` 表。 | `select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='sys' and c.relname='sys_dict' and c.relkind='r'` 输出 `1` | |
 | 10493 | `sys_dict` 包含 16 列且关键列类型符合定义（`dict_no integer`、`key_type char(1)`、`ref_spec varchar(2000)`、`gmt_create timestamp(6)`）。 | `select count(*) from information_schema.columns where table_schema='sys' and table_name='sys_dict'` 输出 `16`；`select character_maximum_length from information_schema.columns where table_schema='sys' and table_name='sys_dict' and column_name='ref_spec'` 输出 `2000` | |
 | 10494 | `sys_dict` 主键为 `pk_sys_dict (dict_no)`。 | `select pg_get_constraintdef(oid) from pg_constraint where conname='pk_sys_dict'` 输出含 `PRIMARY KEY (dict_no)` | |
@@ -708,7 +708,7 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10502 | 存在创建 `sys.sys_user` 的迁移且幂等（建表、序列初值、触发器均不因重跑而失效）。 | `test -f Deploy/Migrations/V100074__sys_user.sql`；含 `CREATE TABLE IF NOT EXISTS sys.sys_user`、`pg_get_serial_sequence` 与 `CREATE OR REPLACE FUNCTION` | |
+| 10502 | 存在创建 `sys.sys_user` 的迁移且幂等（建表、序列初值、触发器均不因重跑而失效）。 | `test -f Deploy/Migrations/V200074__sys_user.sql`；含 `CREATE TABLE IF NOT EXISTS sys.sys_user`、`pg_get_serial_sequence` 与 `CREATE OR REPLACE FUNCTION` | |
 | 10503 | 数据库存在 `sys.sys_user` 表。 | `select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='sys' and c.relname='sys_user' and c.relkind='r'` 输出 `1` | |
 | 10504 | `sys_user` 包含 24 列且关键列类型符合定义（`idn bigint`、`authority_str varchar(6000)`、`description text`、`gmt_create timestamp(6)`）。 | `select count(*) from information_schema.columns where table_schema='sys' and table_name='sys_user'` 输出 `24`；`select data_type from information_schema.columns where table_schema='sys' and table_name='sys_user' and column_name='description'` 输出 `text` | |
 | 10505 | 主键为 `pk_sys_user (idn)`。 | `select pg_get_constraintdef(oid) from pg_constraint where conname='pk_sys_user'` 输出含 `PRIMARY KEY (idn)` | |
@@ -724,120 +724,120 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10513 | 初始配置数据以种子段迁移形式提供（编号 `V200000+`）且幂等。 | `test -f Deploy/Migrations/V200025__sys_config_seed.sql`；含 `INSERT INTO sys.sys_config` 与 `ON CONFLICT (config_no) DO NOTHING` | |
+| 10513 | 初始配置数据以种子段迁移形式提供（编号 `V300000+`）且幂等。 | `test -f Deploy/Migrations/V300025__sys_config_seed.sql`；含 `INSERT INTO sys.sys_config` 与 `ON CONFLICT (config_no) DO NOTHING` | |
 | 10514 | 数据库存在 `1010` / `1020` / `1031` / `5001` / `5002` 五个配置项。 | `select count(*) from sys.sys_config where config_no in (1010,1020,1031,5001,5002)` 输出 `5` | |
 | 10515 | `1020`（默认最大单页展示记录数）为整型配置：`data_type='1'`、`int_value=2000`。 | `select data_type, int_value from sys.sys_config where config_no=1020` 输出 `1`、`2000` | |
 | 10516 | `1010` / `1031` / `5001` / `5002` 为字符配置：`data_type='2'`、`char_value='1'`。 | `select count(*) from sys.sys_config where config_no in (1010,1031,5001,5002) and data_type='2' and char_value='1'` 输出 `4` | |
-| 10517 | 重跑不影响生产已调整的配置值（不覆盖）。 | 先 `update sys.sys_config set str_value='x' where config_no=1031`，再重新执行 `Deploy/Migrations/V200025__sys_config_seed.sql`，`select str_value from sys.sys_config where config_no=1031` 仍输出 `x` | |
-| 10518 | 迁移末尾收敛校验通过并登记 `V100025`。 | `select success from schema_version where version='100025'` 输出 `t` | |
+| 10517 | 重跑不影响生产已调整的配置值（不覆盖）。 | 先 `update sys.sys_config set str_value='x' where config_no=1031`，再重新执行 `Deploy/Migrations/V300025__sys_config_seed.sql`，`select str_value from sys.sys_config where config_no=1031` 仍输出 `x` | |
+| 10518 | 迁移末尾收敛校验通过并登记 `V200025`。 | `select success from schema_version where version='100025'` 输出 `t` | |
 
 ## 三十八、sys_dict 初始字典定义（10519–10524）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10519 | 字典定义数据以种子段迁移形式提供（`V200000+`）且幂等。 | `test -f Deploy/Migrations/V200026__sys_dict_seed.sql`；含 `INSERT INTO sys.sys_dict` 与 `ON CONFLICT (dict_no) DO NOTHING` | |
+| 10519 | 字典定义数据以种子段迁移形式提供（`V300000+`）且幂等。 | `test -f Deploy/Migrations/V300026__sys_dict_seed.sql`；含 `INSERT INTO sys.sys_dict` 与 `ON CONFLICT (dict_no) DO NOTHING` | |
 | 10520 | 数据库存在 `1001`–`1009`、`1301`、`3004`、`3101`、`3103`、`3104`、`3105`、`3107`、`3110`、`3121`、`3122` 共 19 个字典定义。 | `select count(*) from sys.sys_dict where dict_no in (1001,1002,1003,1004,1005,1006,1007,1008,1009,1301,3004,3101,3103,3104,3105,3107,3110,3121,3122)` 输出 `19` | |
 | 10521 | 19 条字典的 `key_type` 全为 `'1'` 且 `gmt_create` / `gmt_modify` 均非空。 | `select count(*) from sys.sys_dict where key_type='1' and gmt_create is not null and gmt_modify is not null` 不小于 `19` | |
 | 10522 | 关键字段抽查正确：`1005`（`val_type='2'`、`dict_category='5'`）、`3004`（`enum_class='mnp'`、`dict_category='F'`）、`3104`（`en_sub_sys='foc'`、`dict_category='T'`）、`3105`（`manage_level IS NULL`、`enum_class='ses'`）、`3121`（`en_sub_sys='act'`）。 | `select dict_no from sys.sys_dict where (dict_no=1005 and not (val_type='2' and dict_category='5')) or (dict_no=3004 and not (enum_class='mnp' and dict_category='F')) or (dict_no=3104 and not (en_sub_sys='foc' and dict_category='T')) or (dict_no=3105 and not (manage_level is null and enum_class='ses')) or (dict_no=3121 and en_sub_sys<>'act')` 输出 `0 行` | |
-| 10523 | 重跑不影响生产已调整的字典定义（不覆盖）。 | 先 `update sys.sys_dict set remark='x' where dict_no=1001`，再重新执行 `Deploy/Migrations/V200026__sys_dict_seed.sql`，`select remark from sys.sys_dict where dict_no=1001` 仍输出 `x` | |
-| 10524 | 迁移末尾收敛校验通过并登记 `V100026`。 | `select success from schema_version where version='100026'` 输出 `t` | |
+| 10523 | 重跑不影响生产已调整的字典定义（不覆盖）。 | 先 `update sys.sys_dict set remark='x' where dict_no=1001`，再重新执行 `Deploy/Migrations/V300026__sys_dict_seed.sql`，`select remark from sys.sys_dict where dict_no=1001` 仍输出 `x` | |
+| 10524 | 迁移末尾收敛校验通过并登记 `V200026`。 | `select success from schema_version where version='100026'` 输出 `t` | |
 
 ## 三十九、sys_dict_sub 初始字典子项（10525–10531）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10525 | 字典子项数据以种子段迁移形式提供（`V200000+`）且幂等。 | `test -f Deploy/Migrations/V200027__sys_dict_sub_seed.sql`；含 `INSERT INTO sys.sys_dict_sub` 与 `ON CONFLICT (dict_no, sub_key) DO NOTHING` | |
+| 10525 | 字典子项数据以种子段迁移形式提供（`V300000+`）且幂等。 | `test -f Deploy/Migrations/V300027__sys_dict_sub_seed.sql`；含 `INSERT INTO sys.sys_dict_sub` 与 `ON CONFLICT (dict_no, sub_key) DO NOTHING` | |
 | 10526 | 三组字典子项条数正确：`3120` = 14、`3121` = 11、`3122` = 64，共 89 条。 | `select dict_no, count(*) from sys.sys_dict_sub where dict_no in (3120,3121,3122) group by dict_no order by dict_no` 输出 `3120\|14`、`3121\|11`、`3122\|64` | |
 | 10527 | `3120` 子键完整（`0`–`9`、`A`–`D`）且 `en_sys_str` 两种顺序正确：`0/1/2/8/9/A/B/C/D` 为 `gat,gax,gcq,gaa,tms,pbs`，`3/4/5/6/7` 为 `gat,gcq,gax,gaa,tms,pbs`。 | `select count(*) from sys.sys_dict_sub where dict_no=3120 and sub_key in ('0','1','2','8','9','A','B','C','D') and en_sys_str='gat,gax,gcq,gaa,tms,pbs'` 输出 `9`；`select count(*) from sys.sys_dict_sub where dict_no=3120 and sub_key in ('3','4','5','6','7') and en_sys_str='gat,gcq,gax,gaa,tms,pbs'` 输出 `5` | |
 | 10528 | `3121` 共 11 条，`en_sys_str` 均为 `act`，`name_en` 均为 `NULL`，且包含 `HKD`→`香港元`。 | `select count(*) from sys.sys_dict_sub where dict_no=3121 and en_sys_str='act' and name_en is null` 输出 `11`；`select sub_val from sys.sys_dict_sub where dict_no=3121 and sub_key='HKD'` 输出 `香港元` | |
 | 10529 | `3122` 共 64 条，含 `OTH`→`其它` 且其 `en_sys_str` 为 `NULL`，其余 `en_sys_str` 均为 `cic`。 | `select count(*) from sys.sys_dict_sub where dict_no=3122` 输出 `64`；`select en_sys_str from sys.sys_dict_sub where dict_no=3122 and sub_key='OTH'` 输出空值；`select count(*) from sys.sys_dict_sub where dict_no=3122 and sub_key<>'OTH' and en_sys_str='cic'` 输出 `63` | |
 | 10530 | 89 条均满足 `flag_enable='0'`、`access_level=2`、`gmt_create` / `gmt_modify` 非空。 | `select count(*) from sys.sys_dict_sub where dict_no in (3120,3121,3122) and flag_enable='0' and access_level=2 and gmt_create is not null and gmt_modify is not null` 输出 `89` | |
-| 10531 | 迁移末尾收敛校验通过并登记 `V100027`。 | `select success from schema_version where version='100027'` 输出 `t` | |
+| 10531 | 迁移末尾收敛校验通过并登记 `V200027`。 | `select success from schema_version where version='100027'` 输出 `t` | |
 
 ## 四十、sys_dict_sub 地区/国籍子项（10532–10538）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10532 | 地区/国籍子项数据以种子段迁移形式提供（`V200000+`）且幂等。 | `test -f Deploy/Migrations/V200028__sys_dict_sub_seed_area.sql`；含 `ON CONFLICT (dict_no, sub_key) DO NOTHING` | |
+| 10532 | 地区/国籍子项数据以种子段迁移形式提供（`V300000+`）且幂等。 | `test -f Deploy/Migrations/V300028__sys_dict_sub_seed_area.sql`；含 `ON CONFLICT (dict_no, sub_key) DO NOTHING` | |
 | 10533 | 三组条数不少于预期：`3103` = 249、`3104` = 5、`3105` = 133（共 387）。 | `select dict_no, count(*) from sys.sys_dict_sub where dict_no in (3103,3104,3105) group by dict_no order by dict_no` 输出 `3103\|249`、`3104\|5`、`3105\|133` | |
 | 10534 | `3103` 首尾为 `ABW` 阿鲁巴 / `ZWE` 津巴布韦，且 `en_sys_str` 只出现 `trade`、`cic,gft,gaa,act`、`act,cic` 或 `NULL`。 | `select count(*) from sys.sys_dict_sub where dict_no=3103 and en_sys_str is not null and en_sys_str not in ('trade','cic,gft,gaa,act','act,cic')` 输出 `0` | |
 | 10535 | `3103` 例外行正确：`ANT/ATF/BVT/COD/COK/DMA/ERI/EST/FLK/FSM/GEO/GLP/HMD/IOT/KGZ/LVA/MDA/MKD/MNP/MTQ/MYT/PLW/REU/SGS/SHN/SJM/SPM/TCA/TJK/UMI/UZB/VAT/VCT/WLF/WSM` 为 `access_level=2` 且 `en_sys_str IS NULL`；`CCK` 为 `1/NULL`；`CSR/PST/TMP` 为 `2/cic,gft,gaa,act`；`GGY` 为 `2/act,cic`。 | `select count(*) from sys.sys_dict_sub where dict_no=3103 and sub_key in ('ANT','ATF','BVT','COD','COK','DMA','ERI','EST','FLK','FSM','GEO','GLP','HMD','IOT','KGZ','LVA','MDA','MKD','MNP','MTQ','MYT','PLW','REU','SGS','SHN','SJM','SPM','TCA','TJK','UMI','UZB','VAT','VCT','WLF','WSM') and not (access_level=2 and en_sys_str is null)` 输出 `0` | |
 | 10536 | `3104` 五条电话区号正确（`CHN`=86、`CTN`=886、`HKG`=852、`MAC`=853、`USA`=001），且 `en_sys_str` 为 `NULL`、`access_level=1`。 | `select sub_key, sub_val from sys.sys_dict_sub where dict_no=3104 order by sub_key` 输出五行；`select count(*) from sys.sys_dict_sub where dict_no=3104 and en_sys_str is null and access_level=1` 输出 `5` | |
 | 10537 | `3105` 为 `004` 阿富汗 至 `470` 马耳他，且全部 `en_sys_str='trade'`、`access_level=2`。 | `select count(*) from sys.sys_dict_sub where dict_no=3105 and not (en_sys_str='trade' and access_level=2)` 输出 `0`；`select sub_val from sys.sys_dict_sub where dict_no=3105 and sub_key='470'` 输出 `马耳他` | |
-| 10538 | 迁移末尾收敛校验通过并登记 `V100028`。 | `select success from schema_version where version='100028'` 输出 `t` | |
+| 10538 | 迁移末尾收敛校验通过并登记 `V200028`。 | `select success from schema_version where version='100028'` 输出 `t` | |
 
 ## 四十一、sys_dict_sub 通用标志/分页/数据类型子项（10539–10544）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10539 | 数据以种子段迁移形式提供（`V200000+`）且幂等。 | `test -f Deploy/Migrations/V200029__sys_dict_sub_seed_common.sql`；含 `ON CONFLICT (dict_no, sub_key) DO NOTHING` | |
+| 10539 | 数据以种子段迁移形式提供（`V300000+`）且幂等。 | `test -f Deploy/Migrations/V300029__sys_dict_sub_seed_common.sql`；含 `ON CONFLICT (dict_no, sub_key) DO NOTHING` | |
 | 10540 | 六组条数正确：`1001`=2、`1002`=2、`1003`=3、`1004`=2、`1005`=14、`1006`=5（共 28）。 | `select dict_no, count(*) from sys.sys_dict_sub where dict_no between 1001 and 1006 group by dict_no order by dict_no` 输出六行对应条数 | |
 | 10541 | `1001` 为 `0`→否 / `1`→是；`1002` 的 `0` 与 `1` 均为「否」（原库如此）。 | `select count(*) from sys.sys_dict_sub where dict_no=1001 and ((sub_key='0' and sub_val='否') or (sub_key='1' and sub_val='是'))` 输出 `2`；`select count(*) from sys.sys_dict_sub where dict_no=1002 and sub_val='否'` 输出 `2` | |
 | 10542 | `1003` 为可修改/只读/隐藏；`1004` 两条带 `sub_sort`（1/2）与非空 `description`，且 `en_sys_str` 为空串（非 `NULL`）。 | `select count(*) from sys.sys_dict_sub where dict_no=1003` 输出 `3`；`select count(*) from sys.sys_dict_sub where dict_no=1004 and sub_sort in ('1','2') and coalesce(description,'')<>'' and en_sys_str=''` 输出 `2` | |
 | 10543 | `1005` 共 14 条，`sub_val = sub_key`、`sub_sort` 为 1–14（按数值比较）、`en_sys_str='ftc'`。 | `select count(*) from sys.sys_dict_sub where dict_no=1005 and sub_val=sub_key and sub_sort::int between 1 and 14 and en_sys_str='ftc'` 输出 `14` | |
-| 10544 | `1006` 共 5 条（字符/整数/浮点数/布尔/字符串），`flag_enable='0'`；迁移登记 `V100029` 成功。 | `select count(*) from sys.sys_dict_sub where dict_no=1006 and flag_enable='0' and en_sys_str='trade,pbs'` 输出 `5`；`select success from schema_version where version='100029'` 输出 `t` | |
+| 10544 | `1006` 共 5 条（字符/整数/浮点数/布尔/字符串），`flag_enable='0'`；迁移登记 `V200029` 成功。 | `select count(*) from sys.sys_dict_sub where dict_no=1006 and flag_enable='0' and en_sys_str='trade,pbs'` 输出 `5`；`select success from schema_version where version='100029'` 输出 `t` | |
 
 ## 四十二、sys_dict_sub 国籍（3105）增量补齐（10545–10550）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10545 | 3105 增量以种子段迁移形式提供（`V200000+`）且幂等。 | `test -f Deploy/Migrations/V200030__sys_dict_sub_seed_nationality_increment.sql`；含 `ON CONFLICT (dict_no, sub_key) DO NOTHING` | |
+| 10545 | 3105 增量以种子段迁移形式提供（`V300000+`）且幂等。 | `test -f Deploy/Migrations/V300030__sys_dict_sub_seed_nationality_increment.sql`；含 `ON CONFLICT (dict_no, sub_key) DO NOTHING` | |
 | 10546 | `3105` 国籍已补齐至 235 条，区间为 `004`–`894`。 | `select min(sub_key), max(sub_key), count(*) from sys.sys_dict_sub where dict_no=3105` 输出 `004` / `894` / `235` | |
 | 10547 | 本批新增的 102 个 `sub_key`（`474`–`894`）全部存在。 | `select count(*) from sys.sys_dict_sub where dict_no=3105 and sub_key >= '474'` 输出 `102` | |
 | 10548 | 新增首尾正确：`474`→马提尼克、`894`→赞比亚。 | `select sub_val from sys.sys_dict_sub where dict_no=3105 and sub_key='474'` 输出 `马提尼克`；`... sub_key='894'` 输出 `赞比亚` | |
 | 10549 | `3105` 全量 235 条均为 `flag_enable='0'`、`access_level=2`、`en_sys_str='trade'`。 | `select count(*) from sys.sys_dict_sub where dict_no=3105 and not (flag_enable='0' and access_level=2 and en_sys_str='trade')` 输出 `0` | |
-| 10550 | `3103`（249）与 `3104`（5）不受本次增量影响；迁移登记 `V100030` 成功。 | `select dict_no, count(*) from sys.sys_dict_sub where dict_no in (3103,3104) group by dict_no order by dict_no` 输出 `3103\|249`、`3104\|5`；`select success from schema_version where version='100030'` 输出 `t` | |
+| 10550 | `3103`（249）与 `3104`（5）不受本次增量影响；迁移登记 `V200030` 成功。 | `select dict_no, count(*) from sys.sys_dict_sub where dict_no in (3103,3104) group by dict_no order by dict_no` 输出 `3103\|249`、`3104\|5`；`select success from schema_version where version='100030'` 输出 `t` | |
 
 ## 四十三、sys_config 新增运行/收集模式配置（10551–10556）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10551 | 配置项以种子段迁移形式提供（`V200000+`）且幂等。 | `test -f Deploy/Migrations/V200031__sys_config_seed_quote_mode.sql`；含 `ON CONFLICT (config_no) DO NOTHING` | |
+| 10551 | 配置项以种子段迁移形式提供（`V300000+`）且幂等。 | `test -f Deploy/Migrations/V300031__sys_config_seed_quote_mode.sql`；含 `ON CONFLICT (config_no) DO NOTHING` | |
 | 10552 | 存在 `config_no=20000`，`config_name='FinvQuote服务运行模式'`、`data_type='2'`、`char_value='0'`。 | `select config_name, data_type, char_value from sys.sys_config where config_no=20000` 输出对应三值 | |
 | 10553 | `20000` 的 `remark` 为 `0-云端模式（默认） 1-本地模式`。 | `select remark from sys.sys_config where config_no=20000` 输出与预期一致 | |
 | 10554 | 存在 `config_no=20001`，`config_name='历史行情收集模式'`、`data_type='2'`、`char_value='0'`。 | `select config_name, data_type, char_value from sys.sys_config where config_no=20001` 输出对应三值 | |
 | 10555 | `20001` 的 `remark` 说明被动/主动两种收集模式。 | `select remark from sys.sys_config where config_no=20001` 包含 `被动收集` 与 `主动采集模式` | |
-| 10556 | 两条配置时间戳非空；迁移登记 `V100031` 成功。 | `select success from schema_version where version='100031'` 输出 `t`；`select count(*) from sys.sys_config where config_no in (20000,20001) and gmt_create is not null and gmt_modify is not null` 输出 `2` | |
+| 10556 | 两条配置时间戳非空；迁移登记 `V200031` 成功。 | `select success from schema_version where version='100031'` 输出 `t`；`select count(*) from sys.sys_config where config_no in (20000,20001) and gmt_create is not null and gmt_modify is not null` 输出 `2` | |
 
 ## 四十四、sys_config 创建人修正为 fqe（10557–10560）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10557 | 修正以独立种子段迁移形式提供（`V200000+`）且幂等（不回改已应用的 `V100031`）。 | `test -f Deploy/Migrations/V200032__sys_config_set_create_by_fqe.sql`；含 `SET create_by = 'fqe'` 与 `AND (create_by IS NULL OR create_by <> 'fqe')` | |
+| 10557 | 修正以独立种子段迁移形式提供（`V300000+`）且幂等（不回改已应用的 `V200031`）。 | `test -f Deploy/Migrations/V300032__sys_config_set_create_by_fqe.sql`；含 `SET create_by = 'fqe'` 与 `AND (create_by IS NULL OR create_by <> 'fqe')` | |
 | 10558 | `20000` 与 `20001` 的 `create_by` 均为 `fqe`。 | `select count(*) from sys.sys_config where config_no in (20000,20001) and create_by='fqe'` 输出 `2` | |
 | 10559 | 修正不改写 `gmt_create`（仍为插入时间），`gmt_modify` 由触发器刷新。 | `select config_no, gmt_create, gmt_modify from sys.sys_config where config_no in (20000,20001)` 中 `gmt_modify >= gmt_create` 且 `gmt_create` 仍为初次插入时间 | |
-| 10560 | 其余配置的 `create_by` 不受影响；迁移登记 `V100032` 成功。 | `select count(*) from sys.sys_config where config_no in (1010,1020,1031,5001,5002) and create_by is null` 输出 `5`；`select success from schema_version where version='100032'` 输出 `t` | |
+| 10560 | 其余配置的 `create_by` 不受影响；迁移登记 `V200032` 成功。 | `select count(*) from sys.sys_config where config_no in (1010,1020,1031,5001,5002) and create_by is null` 输出 `5`；`select success from schema_version where version='100032'` 输出 `t` | |
 
 ## 四十五、sys_config 20001 备注文案修订（10561–10564）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10561 | 文案修订以独立种子段迁移形式提供（`V200000+`）且幂等（`IS DISTINCT FROM`）。 | `test -f Deploy/Migrations/V200033__sys_config_update_20001_remark.sql`；含 `remark IS DISTINCT FROM` | |
+| 10561 | 文案修订以独立种子段迁移形式提供（`V300000+`）且幂等（`IS DISTINCT FROM`）。 | `test -f Deploy/Migrations/V300033__sys_config_update_20001_remark.sql`；含 `remark IS DISTINCT FROM` | |
 | 10562 | `20001` 的 `remark` 为 `0-被动收集（默认），外部程序通过暴露的API接口添加；1-主动采集模式，服务主动从外部源采集入库保存`。 | `select remark from sys.sys_config where config_no=20001` 输出与预期一致 | |
 | 10563 | `20001` 的 `config_name` / `data_type` / `char_value` / `create_by` 未被改动，`gmt_create` 不变。 | `select config_name, data_type, char_value, create_by from sys.sys_config where config_no=20001` 输出 `历史行情收集模式` / `2` / `0` / `fqe` | |
-| 10564 | `20000` 的备注不受影响；迁移登记 `V100033` 成功。 | `select remark from sys.sys_config where config_no=20000` 输出 `0-云端模式（默认） 1-本地模式`；`select success from schema_version where version='100033'` 输出 `t` | |
+| 10564 | `20000` 的备注不受影响；迁移登记 `V200033` 成功。 | `select remark from sys.sys_config where config_no=20000` 输出 `0-云端模式（默认） 1-本地模式`；`select success from schema_version where version='100033'` 输出 `t` | |
 
 ## 四十六、sys_config 归档自动上传 Git 开关与 PAT（10565–10570）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10565 | 两项配置以种子段迁移形式提供（`V200000+`），仅 `ON CONFLICT DO NOTHING`，无针对 20002/20003 的 `UPDATE` 语句。 | `test -f Deploy/Migrations/V200034__sys_config_seed_archive_upload.sql`；`grep -cE '^[[:space:]]*UPDATE[[:space:]]+sys\.sys_config' 文件` 输出 `0`；`grep -cE '^ON CONFLICT \(config_no\) DO NOTHING;' 文件` 输出 `1`（排除注释中的提及） | |
+| 10565 | 两项配置以种子段迁移形式提供（`V300000+`），仅 `ON CONFLICT DO NOTHING`，无针对 20002/20003 的 `UPDATE` 语句。 | `test -f Deploy/Migrations/V300034__sys_config_seed_archive_upload.sql`；`grep -cE '^[[:space:]]*UPDATE[[:space:]]+sys\.sys_config' 文件` 输出 `0`；`grep -cE '^ON CONFLICT \(config_no\) DO NOTHING;' 文件` 输出 `1`（排除注释中的提及） | |
 | 10566 | `20002`「启用月归档数据自动上传Git仓库标志」存在，`data_type='2'`、`char_value='0'`、`remark='0-关闭(默认) 1-启用'`。 | `select config_name, data_type, char_value, remark from sys.sys_config where config_no=20002` 输出对应四值 | |
 | 10567 | `20003`「归档数据上传GitHub仓库的PAT值」存在，`data_type='3'`、`char_value=''`、**`str_value IS NULL`（无默认值）**。 | `select config_name, data_type, char_value, str_value from sys.sys_config where config_no=20003` 输出 `... / 3 / (空) / (NULL)` | |
 | 10568 | PAT 存储容量足够（`str_value` 为 `varchar(6000)`），未误用 `char(1)` 的 `char_value`。 | `select character_maximum_length from information_schema.columns where table_schema='sys' and table_name='sys_config' and column_name='str_value'` 输出 `6000` | |
-| 10569 | 交付的初始种子**不覆盖**用户后配值：已存在的行在重跑时值保持不变。 | 实测：先用 `update ... set char_value='1' where config_no=20002` 与模拟 PAT 写入 `20003.str_value`，重跑 `V100034` 输出 `INSERT 0 0`，两值仍为 `1` / 模拟 PAT（验证后已回置为 `0` / `NULL`） | |
-| 10570 | 两条配置 `create_by='finv'`；迁移登记 `V100034` 成功。 | `select count(*) from sys.sys_config where config_no in (20002,20003) and create_by='finv'` 输出 `2`；`select success from schema_version where version='100034'` 输出 `t` | |
+| 10569 | 交付的初始种子**不覆盖**用户后配值：已存在的行在重跑时值保持不变。 | 实测：先用 `update ... set char_value='1' where config_no=20002` 与模拟 PAT 写入 `20003.str_value`，重跑 `V200034` 输出 `INSERT 0 0`，两值仍为 `1` / 模拟 PAT（验证后已回置为 `0` / `NULL`） | |
+| 10570 | 两条配置 `create_by='finv'`；迁移登记 `V200034` 成功。 | `select count(*) from sys.sys_config where config_no in (20002,20003) and create_by='finv'` 输出 `2`；`select success from schema_version where version='100034'` 输出 `t` | |
 
 ## 四十七、sys_config 文件上传仓库配置 20004（10571–10576）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10571 | 配置以种子段迁移形式提供（`V200000+`），仅 `ON CONFLICT DO NOTHING`，无针对 20004 的 `UPDATE` 语句。 | `test -f Deploy/Migrations/V200035__sys_config_seed_archive_repo.sql`；`grep -cE '^[[:space:]]*UPDATE[[:space:]]+sys\.sys_config' 文件` 输出 `0` | |
+| 10571 | 配置以种子段迁移形式提供（`V300000+`），仅 `ON CONFLICT DO NOTHING`，无针对 20004 的 `UPDATE` 语句。 | `test -f Deploy/Migrations/V300035__sys_config_seed_archive_repo.sql`；`grep -cE '^[[:space:]]*UPDATE[[:space:]]+sys\.sys_config' 文件` 输出 `0` | |
 | 10572 | `20004`「文件上传仓库配置」存在，`data_type='3'`、`char_value=''`、`create_by='finv'`。 | `select config_name, data_type, char_value, create_by from sys.sys_config where config_no=20004` 输出对应四值 | |
 | 10573 | **不发放默认值**：`str_value IS NULL`（待用户自行配置）。 | `select str_value is null from sys.sys_config where config_no=20004` 输出 `t` | |
 | 10574 | `remark` 明确给出 `{owner}:{repo}:{branch}:{pre_path_key}` 格式及各段含义。 | `select remark from sys.sys_config where config_no=20004` 包含 `{owner}:{repo}:{branch}:{pre_path_key}` 与 `pre_path_key=文件保存的目录前缀` | |
-| 10575 | 交付的初始种子**不覆盖**用户已配置值。 | 实测：写入 `ACANX:FinvQuant-Archive:main:Archive/FinvQuant/Monthly` 后重跑 `V100035` 输出 `INSERT 0 0`，值原样保留（验证后已回置为 `NULL`） | |
-| 10576 | 用户配置格式不合约定时只告警、不阻断迁移；迁移登记 `V100035` 成功。 | 实测：置为 3 段非法值 `ACANX:x:main` 后重跑，输出 `WARNING ... 当前 3 段` 且 `COMMIT` 成功；`select success from schema_version where version='100035'` 输出 `t` | |
+| 10575 | 交付的初始种子**不覆盖**用户已配置值。 | 实测：写入 `ACANX:FinvQuant-Archive:main:Archive/FinvQuant/Monthly` 后重跑 `V200035` 输出 `INSERT 0 0`，值原样保留（验证后已回置为 `NULL`） | |
+| 10576 | 用户配置格式不合约定时只告警、不阻断迁移；迁移登记 `V200035` 成功。 | 实测：置为 3 段非法值 `ACANX:x:main` 后重跑，输出 `WARNING ... 当前 3 段` 且 `COMMIT` 成功；`select success from schema_version where version='100035'` 输出 `t` | |
 
 ## 四十八、月归档上传 GitHub 仓库（Contents API，10577–10586）
 
@@ -896,7 +896,7 @@
 | 10607 | `region` 以 `finv_region` 字典规范化，字典无项时回退 `exchange.region` 原值。 | `grep -n 'LEFT JOIN public.finv_region r' internal/meta/finv/quote/dedup/store.go` 有输出；`select distinct region from dedup.finv_dedup_usc` 输出 `CN/FX/HK/US`（无 `USA`） | |
 | 10608 | `RefreshSecurityMetadata` 对 region/market 改为以字典为准覆写（新值为 NULL 时保留旧值），其余列仍只补缺。 | `grep -n 'COALESCE(EXCLUDED.region' internal/meta/finv/quote/dedup/store.go` 有输出；`go test ./...` 通过 | |
 | 10609 | 存量数据已重绑（`CN→SH/SZ/BJ`、`HK→HK/HKR`、`FX→CFD`、`US→BMS/COMEX/NSDQ`），迁移幂等。 | 实测：首跑 `UPDATE 9` + `UPDATE 39`；重跑均为 `UPDATE 0` | |
-| 10610 | 校验：无 `USA` 残留、`market` 与 `market_symbol` 对齐、`region/market` 均非空；迁移 `V100036` 登记成功。 | 迁移内置 `DO` 块四条断言均通过；`select success from schema_version where version='100036'` 输出 `t` | |
+| 10610 | 校验：无 `USA` 残留、`market` 与 `market_symbol` 对齐、`region/market` 均非空；迁移 `V200036` 登记成功。 | 迁移内置 `DO` 块四条断言均通过；`select success from schema_version where version='100036'` 输出 `t` | |
 
 ## 五十三、归档导出状态重置（10611–10615）
 
@@ -906,7 +906,7 @@
 | 10612 | 101 个导出任务回退为 `FROZEN` 并清空游标/版本/补丁计数/锁/错误。 | `select status, count(*) from dedup.finv_dedup_export_job group by status` 仅输出 `FROZEN \| 101` | |
 | 10613 | 当日预算清零消耗并抬高上限（一轮覆盖全量重导）。 | `select budget_rows, hard_cap_rows, consumed_rows from dedup.finv_dedup_daily_budget where biz_date=current_date` 输出 `5000000 / 6000000 / 0` | |
 | 10614 | 重跑保护：已重置后再次执行迁移不会二次清空（避免导出进行中被破坏）。 | 重跑输出 `无 EXPORTED 任务（已重置过或尚未导出），跳过` 且 `COMMIT` | |
-| 10615 | 前置输入保留：成熟度 `FROZEN`（2491）、扫描水位、`usc` 主数据、CDEU 历史与上传审计日志均不改；迁移 `V100037` 登记成功。 | `select count(*) from dedup.finv_dedup_quote_maturity_mon where maturity_status='FROZEN'` 输出 `2491`；`select count(*) from dedup.finv_dedup_usc` 输出 `39`；`select success from schema_version where version='100037'` 输出 `t` | |
+| 10615 | 前置输入保留：成熟度 `FROZEN`（2491）、扫描水位、`usc` 主数据、CDEU 历史与上传审计日志均不改；迁移 `V200037` 登记成功。 | `select count(*) from dedup.finv_dedup_quote_maturity_mon where maturity_status='FROZEN'` 输出 `2491`；`select count(*) from dedup.finv_dedup_usc` 输出 `39`；`select success from schema_version where version='100037'` 输出 `t` | |
 
 ## 五十四、证券主数据 currency 刷新修正（10616–10620）
 
@@ -916,7 +916,7 @@
 | 10617 | 存量数据已重刷：`81810`（小米集团-WR 人民币柜台）`HKD → CNY`。 | `select currency from dedup.finv_dedup_usc where usc='81810'` 输出 `CNY`；迁移首次执行 `UPDATE 1` | |
 | 10618 | 全库 `currency` 与 `finv_security.currency_type` 零偏差且无空值。 | `select count(*) from dedup.finv_dedup_usc u join public.finv_security s on s.usc=u.usc where nullif(s.currency_type,'') is not null and coalesce(u.currency,'')<>s.currency_type` 输出 `0`；空值数 `0` | |
 | 10619 | 幂等：重跑迁移影响 0 行。 | 重跑输出 `UPDATE 0` 且 `COMMIT` | |
-| 10620 | 迁移 `V100038` 登记成功，服务重启后数据完好（经历一次 PG 崩溃恢复）。 | `select success from schema_version where version='100038'` 输出 `t`；`select currency from dedup.finv_dedup_usc where usc='81810'` 仍为 `CNY` | |
+| 10620 | 迁移 `V200038` 登记成功，服务重启后数据完好（经历一次 PG 崩溃恢复）。 | `select success from schema_version where version='100038'` 输出 `t`；`select currency from dedup.finv_dedup_usc where usc='81810'` 仍为 `CNY` | |
 
 ## 五十五、清理 GCMain 误插入月K线（10621–10625）
 
@@ -926,7 +926,7 @@
 | 10622 | 删除前整行备份到 `dedup.finv_quote_secu_kline_min_kline_purge`（含 `reason` / `backup_at`，主键 `(usc,ts)`），可回滚。 | `select count(*) from dedup.finv_quote_secu_kline_min_kline_purge` 输出 `73`；`select distinct reason from ...` 含 `MONTH_KLINE` | |
 | 10623 | 仅删误插行，同位置正常分钟数据不得误伤。 | `select count(*) from dedup.finv_quote_secu_kline_min where usc='GCMain' and time=0 and date%100=1` 输出 `4`（`20260401/20260501/20260601/20260701`，volume 14~45） | |
 | 10624 | GCMain 行数按预期减少 73。 | 执行前 `2729329` → 执行后 `2729256` | |
-| 10625 | 幂等：重跑影响 0 行；迁移 `V100039` 登记成功。 | 重跑输出 `INSERT 0 0` / `DELETE 0`；`select success from schema_version where version='100039'` 输出 `t` | |
+| 10625 | 幂等：重跑影响 0 行；迁移 `V200039` 登记成功。 | 重跑输出 `INSERT 0 0` / `DELETE 0`；`select success from schema_version where version='100039'` 输出 `t` | |
 
 ## 五十六、恢复 quote 回测隔离副本（10626–10631）
 
@@ -968,7 +968,7 @@
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
 | 10646 | `sys.sys_config` 新增 `20005`「CDEU工作流运行模式」，字符串类型（`data_type='3'`），默认值 `Manual`。 | `select config_no, data_type, str_value from sys.sys_config where config_no=20005` 输出 `20005 \| 3 \| Manual` | |
-| 10647 | 迁移 `V100040` 幂等且**不覆盖用户已配值**（`ON CONFLICT DO NOTHING` + 快照硬校验）；重跑影响 0 行。 | 重跑后 `schema_version` 仍 `success=t`；已有值被改写时抛 `RAISE EXCEPTION` | |
+| 10647 | 迁移 `V200040` 幂等且**不覆盖用户已配值**（`ON CONFLICT DO NOTHING` + 快照硬校验）；重跑影响 0 行。 | 重跑后 `schema_version` 仍 `success=t`；已有值被改写时抛 `RAISE EXCEPTION` | |
 | 10648 | `Manual`（默认）时进程内调度器**不自动触发任何 CDEU Job**；手动 `POST .../Job/Run` 不受限。 | 部署后日志含「CDEU 运行模式 = Manual（默认）：调度器不自动触发任何 Job」；间隔类 Job 到期后 6 分钟零新增 `finv_dedup_job_run_log_export_file` 记录 | |
 | 10649 | `Auto` 时按定时任务时间自动跑（行为同改造前）。 | 将 20005 改为 `Auto` 并重启后，日志含「CDEU 运行模式 = Auto」，间隔类 Job 到期后出现新运行日志 | |
 | 10650 | 取值大小写不敏感；空值/未知值/未配置一律按 `Manual` 兜底（安全侧不自动跑）。 | `go test ./internal/meta/finv/sys -run 'TestNormalizeCDEUMode\|TestValuesCDEUScheduleEnabled'` 通过 | |
@@ -979,7 +979,7 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10653 | **【删除表授权记录】** 用户于 2026-10-27 明确授权删除 `dedup.finv_dedup_runtime_setting`（原话：“表删除，留着过年？”）。删除前硬校验表内仅含 `EXPORT_WINDOW_START`/`EXPORT_WINDOW_END` 两个键，发现其他键即中止。 | `select count(*) from pg_tables where schemaname='dedup' and tablename='finv_dedup_runtime_setting'` 输出 `0`；迁移 `V100041` 日志含“已删除” | |
+| 10653 | **【删除表授权记录】** 用户于 2026-10-27 明确授权删除 `dedup.finv_dedup_runtime_setting`（原话：“表删除，留着过年？”）。删除前硬校验表内仅含 `EXPORT_WINDOW_START`/`EXPORT_WINDOW_END` 两个键，发现其他键即中止。 | `select count(*) from pg_tables where schemaname='dedup' and tablename='finv_dedup_runtime_setting'` 输出 `0`；迁移 `V200041` 日志含“已删除” | |
 | 10654 | `sys.sys_config` 新增 `20006`「导出低峰窗口」，字符串类型，**精确到秒**，格式 `HH:MM:SS\|HH:MM:SS`（半角竖线分隔）。 | `select str_value from sys.sys_config where config_no=20006` 匹配 `^\d{2}:\d{2}:\d{2}\|\d{2}:\d{2}:\d{2}$` | |
 | 10655 | 配置初始发放值固定为 `00:30:00\|06:30:00`（**不从旧表搬运现值**，初始值与实际运行值不一致属正常，实际值由运维配置）；`ON CONFLICT DO NOTHING` 不覆盖用户已配值。 | `select str_value from sys.sys_config where config_no=20006` 为 `00:30:00\|06:30:00`；迁移重跑影响 0 行 | |
 | 10656 | 环境变量 `FINV_QUOTE_DEDUB_WINDOW_START`/`_END` 废弃，窗口一律取 20006；缺失/非法时按内置默认 `00:30:00\|06:30:00` 降级。 | `grep -c 'FINV_QUOTE_DEDUB_WINDOW' Deploy/Docker/docker-compose.yml` 输出 `0`；`grep -n 'WINDOW' Deploy/Docker/.env.example` 仅剩废弃说明注释 | |
@@ -1017,7 +1017,7 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10671 | `sys.sys_config` 新增 `20007`，`data_type='2'`，`char_value` 默认 `1`；迁移 `V100042` 幂等且不覆盖用户已配值。 | `select data_type, char_value from sys.sys_config where config_no=20007` 输出 `2 \| 1`；重跑影响 0 行 | |
+| 10671 | `sys.sys_config` 新增 `20007`，`data_type='2'`，`char_value` 默认 `1`；迁移 `V200042` 幂等且不覆盖用户已配值。 | `select data_type, char_value from sys.sys_config where config_no=20007` 输出 `2 \| 1`；重跑影响 0 行 | |
 | 10672 | **`20007=1`**：文件**远端上传成功后**删除 `dedup.finv_quote_secu_kline_min` 中该 `(usc, biz_month)` 的数据；上传失败不删。 | 触发 `UPLOAD_PENDING_EXPORT_FILES` 后查该月主表行数归零；upload job 的 `details.main_rows_purged` > 0 | |
 | 10673 | **`20007=0`**：不删主表；重复导出重写同名 BASE 覆盖，**不生成 INCR 文件**。 | 置 20007=0 后制造增量并触发 `SCAN_POST_SEAL_PATCHES`，`finv_dedup_export_file` 中不新增 `file_type='PATCH'` 记录，BASE 记录 `version` 递增且文件名不变 | |
 | 10674 | 删除范围仅 `dedup` schema；`quote.finv_quote_secu_kline_min` 行数不受影响。 | 20007=1 清理前后对比 `quote` 主表行数不变 | |
@@ -1055,7 +1055,7 @@
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10694 | `sys.sys_config` 新增 `20008`「历史运行动态JOB保留天数」，`data_type='1'`，`int_value` 默认 `30`；迁移 `V100046` 幂等且不覆盖用户值。 | `select data_type, int_value from sys.sys_config where config_no=20008` 输出 `1 \| 30`；重跑影响 0 行 | |
+| 10694 | `sys.sys_config` 新增 `20008`「历史运行动态JOB保留天数」，`data_type='1'`，`int_value` 默认 `30`；迁移 `V200046` 幂等且不覆盖用户值。 | `select data_type, int_value from sys.sys_config where config_no=20008` 输出 `1 \| 30`；重跑影响 0 行 | |
 | 10695 | 合法区间 `1~3650`，越界或读取失败时回退默认 `30`。 | 置 `20008=0` 后 `GET .../Settings` 的 `dynamic_job_retention_days` 返回 `30` | |
 | 10696 | `CLEAN_EXPIRED_EXPORT_ARTIFACTS` 按 20008 的天数清理历史动态实例。 | 运行日志 `progress_detail` 含「保留 N 天」；完成日志含 `retention_days=N` | |
 | 10697 | 清理只针对「所属运行已终态 且 实例自身已终态」的记录，当前运行不受影响。 | `PurgeStaleDynamicJobRuns` 的 SQL 含 `wr.status IN (...)`、`dj.status IN (...)`、`wr.gmt_create < now() - make_interval(days => $1)` 三重条件 | |
@@ -1154,7 +1154,7 @@
 
 ## 七十四、收尾阶段 JOB 重分配与解耦（10717–10722）
 
-> 本节为 10716 的详细设计，**已随 `V200048__cdeu_review_phase_job_reorg.sql` 全部落地**（2026-10-27）。
+> 本节为 10716 的详细设计，**已随 `V300048__cdeu_review_phase_job_reorg.sql` 全部落地**（2026-10-27）。
 > 后续演进：`10744` 起本地文件清理由 `PROCESS_PURGE` 的 `JOB_PURGE_LOCAL_FILES` 承担（20011 控制），`JOB_CLEAN_STORAGE` 只保留中转表残留清理。
 > 用户已批准：① 拆分四个新流程；② `JOB_RECOVER_TIMEOUT` 移入；③ 执行顺序认可；④ 收尾 5 个 JOB 全部为关键 JOB（`affects_completion = true`）。
 
@@ -1446,7 +1446,7 @@ PHASE_UPLOAD 月度行情上传
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10749 | 补齐 `sys.sys_dict` 中 `dict_no=3120` 的主表记录。`V100027` 早已写入 3120 的 14 条子项（`0`–`9`、`A`–`D` → CNY/USD/HKD/EUR/GBP/AUD/CAD/SGD/JPY/MOP/DKK/GBX/MYR/TWD），但 `V100026` 的 19 条主表记录中没有 3120，形成「有子项、无主表」的孤儿字典。本迁移只补定义行、不动子项，并新增**全库孤儿字典为 0** 的收敛校验（后续再出现同类问题迁移会直接失败）。 | `select count(*) from sys.sys_dict where dict_no=3120` = 1；`select count(*) from sys.sys_dict_sub where dict_no=3120` = 14（不变）；`select count(distinct s.dict_no) from sys.sys_dict_sub s where not exists (select 1 from sys.sys_dict d where d.dict_no=s.dict_no)` = 0；`select version, success from public.schema_version where version='100053'` 为 `t` | √ |
+| 10749 | 补齐 `sys.sys_dict` 中 `dict_no=3120` 的主表记录。`V200027` 早已写入 3120 的 14 条子项（`0`–`9`、`A`–`D` → CNY/USD/HKD/EUR/GBP/AUD/CAD/SGD/JPY/MOP/DKK/GBX/MYR/TWD），但 `V200026` 的 19 条主表记录中没有 3120，形成「有子项、无主表」的孤儿字典。本迁移只补定义行、不动子项，并新增**全库孤儿字典为 0** 的收敛校验（后续再出现同类问题迁移会直接失败）。 | `select count(*) from sys.sys_dict where dict_no=3120` = 1；`select count(*) from sys.sys_dict_sub where dict_no=3120` = 14（不变）；`select count(distinct s.dict_no) from sys.sys_dict_sub s where not exists (select 1 from sys.sys_dict d where d.dict_no=s.dict_no)` = 0；`select version, success from public.schema_version where version='100053'` 为 `t` | √ |
 | 10750 | 在 `public.finv_market` 新增美股 OTC Pink 市场：`market_code=1332` / `market_flag='PINK'`。PINK 指 OTC Markets Group 的 Pink 层级，与泛化的 `1331 US-OTC` 不同口径，需独立登记以便 metadata 刷新与导出目录按市场区分。 | `select market_code, market_flag, market_symbol, flag_enable from public.finv_market where market_code=1332` 返回 `1332 / PINK / PINK / 1`；`select count(*) from public.finv_market where market_flag='PINK'` = 1；`select version, success from public.schema_version where version='100054'` 为 `t` | √ |
 
 ### 10749 取值说明
@@ -1479,7 +1479,7 @@ PHASE_UPLOAD 月度行情上传
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10751 | 把 `Deploy/Migrations/` 下全部 131 个迁移脚本的 `V` 后编号统一加 100000（如 `V100029__sys_dict_sub_seed_common.sql` → `V200029__sys_dict_sub_seed_common.sql`），并保证**执行顺序与修改前完全一致**。编号分段随之调整为：结构/变更迁移 `V100001`～`V199999`（原 `V1`～`V76`，共 76 个），种子/数据迁移 `V200000+`（原 `V100000`～`V100054`，共 55 个）。同时同步 `public.schema_version` 已应用记录、代码注释与文档中全部迁移编号引用。 | `ls Deploy/Migrations/ \| grep -cE '^V[0-9]+__'` = 131；编号区间 `100001`～`200054` 严格递增且无重号；`select count(*), min(version::int), max(version::int), count(*) filter (where version::int < 100001) from public.schema_version` 返回 `131 / 100001 / 200054 / 0`；容器重启后启动日志**无任何迁移执行记录**（框架正确识别全部已应用） | √ |
+| 10751 | 把 `Deploy/Migrations/` 下全部 131 个迁移脚本的 `V` 后编号统一加 100000（如 `V200029__sys_dict_sub_seed_common.sql` → `V300029__sys_dict_sub_seed_common.sql`），并保证**执行顺序与修改前完全一致**。编号分段随之调整为：结构/变更迁移 `V200001`～`V299999`（原 `V1`～`V76`，共 76 个），种子/数据迁移 `V300000+`（原 `V200000`～`V200054`，共 55 个）。同时同步 `public.schema_version` 已应用记录、代码注释与文档中全部迁移编号引用。 | `ls Deploy/Migrations/ \| grep -cE '^V[0-9]+__'` = 131；编号区间 `100001`～`200054` 严格递增且无重号；`select count(*), min(version::int), max(version::int), count(*) filter (where version::int < 100001) from public.schema_version` 返回 `131 / 100001 / 200054 / 0`；容器重启后启动日志**无任何迁移执行记录**（框架正确识别全部已应用） | √ |
 
 ### 10751 执行步骤与风险控制
 
@@ -1487,7 +1487,7 @@ PHASE_UPLOAD 月度行情上传
 |---|---|---|
 | 1 | 停 `finvquant` 容器 | **必须**：旧二进制内嵌旧文件名，若先改名再重启，框架会把 131 个迁移全判为「未执行」并整体重跑 |
 | 2 | 建立旧号→新号映射并校验单调性 | 断言 `新编号 - 100000 == 原始编号序列`，确保顺序不变 |
-| 3 | 两阶段重命名（旧名 → `TMP__` 前缀 → 最终名） | 避开 `V42→V100042` 与尚未改名的 `V100042` 撞名 |
+| 3 | 两阶段重命名（旧名 → `TMP__` 前缀 → 最终名） | 避开 `V42→V200042` 与尚未改名的 `V200042` 撞名 |
 | 4 | 重建 `schema_version` 版本号 | 单条 `UPDATE +100000` 会撞主键（`1→100001` 与 `100001→200001` 冲突），改用「临时表备份 → `DELETE` → `INSERT (old+100000)`」，全程单事务 |
 | 5 | 更新引用 | 文件名引用 `V<n>__` 250 处、裸版本引用 57 处、编号分段约定 6 处 |
 | 6 | 构建部署并验证 | 启动日志无迁移执行；`schema_version` 131 条无遗留 |
@@ -1496,8 +1496,8 @@ PHASE_UPLOAD 月度行情上传
 
 | 段位 | 原编号 | 新编号 | 数量 |
 |---|---|---|---|
-| 结构/变更 | `V1` – `V76` | `V100001` – `V100076` | 76 |
-| 种子/数据 | `V100000` – `V100054` | `V200000` – `V200054` | 55 |
+| 结构/变更 | `V1` – `V76` | `V200001` – `V200076` | 76 |
+| 种子/数据 | `V200000` – `V200054` | `V300000` – `V300054` | 55 |
 
 ### 10751 事故记录（执行中发生并已恢复）
 
@@ -1548,13 +1548,13 @@ PHASE_UPLOAD 月度行情上传
 
 **域边界**：`cdeu` = CDEU 工作流的定义与运行实例；`dedup` = 行情批内去重、跨源指纹、入库审计、导出/上传元数据、证券主数据。
 
-约束已写入三处落地位置：`V100077` 迁移头注释、`COMMENT ON SCHEMA cdeu`、`Docs/DevSpec/DbSchemaSpec.md §1.1`、`schema_qualify_test.go` 的 `cdeuTables` 注释。
+约束已写入三处落地位置：`V200077` 迁移头注释、`COMMENT ON SCHEMA cdeu`、`Docs/DevSpec/DbSchemaSpec.md §1.1`、`schema_qualify_test.go` 的 `cdeuTables` 注释。
 
 ### 10753 实施记录
 
 | 项 | 内容 |
 |---|---|
-| 迁移 | `V100077__create_cdeu_schema.sql`：幂等建 schema（属主 `finv`）→ 数据库级 `search_path` 纳入 `cdeu` → 三道收敛校验（属主、USAGE/CREATE、`search_path` 含 `cdeu`） |
+| 迁移 | `V200077__create_cdeu_schema.sql`：幂等建 schema（属主 `finv`）→ 数据库级 `search_path` 纳入 `cdeu` → 三道收敛校验（属主、USAGE/CREATE、`search_path` 含 `cdeu`） |
 | 代码 | `postgres.go` DSN `search_path` 加 `cdeu` + 域名归属注释；3 个集成测试的 `RuntimeParams["search_path"]` 同步 |
 | 测试 | `schema_qualify_test.go` 新增 `cdeuTables` 清单（12 表名）与过渡期说明，不强制 `cdeu.` 前缀 |
 | 文档 | `DbSchemaSpec.md` schema 表 9 → 10 行 + 新增 §1.1 搬迁约束 |
@@ -1581,7 +1581,7 @@ PHASE_UPLOAD 月度行情上传
 | 原命名 | 新命名 | 说明 |
 |---|---|---|
 | `finv_dedup_*`（约束/主键/唯一键/序列） | `finv_quote_cdeu_*` | 与表名保持一致 |
-| `idx_dedup*` | `idx_quotecdeu*` | 按 `V100041` 的 `idx_<表名去finv_与下划线>_<用途>` 规范 |
+| `idx_dedup*` | `idx_quotecdeu*` | 按 `V200041` 的 `idx_<表名去finv_与下划线>_<用途>` 规范 |
 | `uq_dedup*` | `uq_quotecdeu*` | 同上 |
 | `cdeu_*` 系列 | 不变 | 表名未变 |
 
@@ -1646,8 +1646,8 @@ nextval('cdeu.cdeu_step_step_id_seq'::regclass)
 
 | 项 | 内容 |
 |---|---|
-| 迁移 | `V100079__rename_cdeu_tables_with_prefix.sql`：5 个 DO 块按系统表动态生成 RENAME（表 → 序列 → 约束 → 索引），逐类计数并输出 NOTICE |
-| 为何不 DROP 重建 | 遵循「不修改已应用迁移」规范：`V100078` 已 `success=t`，保留其历史（记录了初版命名），由 `V100079` 矫正；且 RENAME 不动结构与数据，比 DROP+CREATE 更安全 |
+| 迁移 | `V200079__rename_cdeu_tables_with_prefix.sql`：5 个 DO 块按系统表动态生成 RENAME（表 → 序列 → 约束 → 索引），逐类计数并输出 NOTICE |
+| 为何不 DROP 重建 | 遵循「不修改已应用迁移」规范：`V200078` 已 `success=t`，保留其历史（记录了初版命名），由 `V200079` 矫正；且 RENAME 不动结构与数据，比 DROP+CREATE 更安全 |
 | 不变项核验 | 表 26 / 序列 17 / 索引 80 / 约束（CHECK 26 + NOT NULL 249 + PK 26 + UNIQUE 18）全部与矫正前一致；数据行合计仍为 0；`dedup` 侧 31 张表未受影响 |
 | 残留核验 | `cdeu_` 前缀的表/序列/索引/约束、`idx_cdeu_` 前缀的索引，全部为 0 |
 | 测试同步 | `schema_qualify_test.go` 的 `cdeuTables` 清单改为 25 张 `finv_quote_cdeu_*` + 1 张 `finv_quote_secu_kline_min`，并标注两组来源 |
@@ -1689,7 +1689,7 @@ nextval('cdeu.cdeu_step_step_id_seq'::regclass)
 
 | 项 | 内容 |
 |---|---|
-| 迁移 | `V100080__copy_dedup_data_to_cdeu.sql`：前置校验（源 26 / 目标 26）→ 逐表 `INSERT ... ON CONFLICT DO NOTHING` → 17 个序列 `setval` → 逐表行数收敛校验 |
+| 迁移 | `V200080__copy_dedup_data_to_cdeu.sql`：前置校验（源 26 / 目标 26）→ 逐表 `INSERT ... ON CONFLICT DO NOTHING` → 17 个序列 `setval` → 逐表行数收敛校验 |
 | 列映射 | 列清单从 `information_schema.columns` 按 `ordinal_position` 动态获取，不依赖 `SELECT *` 的列顺序假设 |
 | 幂等 | 全部 `ON CONFLICT DO NOTHING`，重复执行不产生重复行 |
 | 序列衔接 | 按 `pg_depend` 反查「序列 → 表.列」的真实依赖关系后 `setval`；空表回初始态（`is_called=false`） |
@@ -1697,7 +1697,7 @@ nextval('cdeu.cdeu_step_step_id_seq'::regclass)
 
 ### 10756 已知遗留（继承自 dedup，非本次引入）
 
-三个序列名与其实际服务的列错位，是 `V100050` 重构 CDEU 模型时的遗留，本次按实际依赖 `setval` 故值正确：
+三个序列名与其实际服务的列错位，是 `V200050` 重构 CDEU 模型时的遗留，本次按实际依赖 `setval` 故值正确：
 
 | 序列 | 实际服务 |
 |---|---|
@@ -1767,7 +1767,7 @@ const Table = "cdeu.finv_quote_secu_kline_min"
 |---|---|
 | 代码读写 | **全部指向 `cdeu.*`** |
 | `dedup.*` 表 | 数据保留但**不再被读写**（只读历史） |
-| 数据一致性 | 切换时点两边一致（`V100080` 迁入 133,260 行）；之后 `cdeu` 增长、`dedup` 停滞 |
+| 数据一致性 | 切换时点两边一致（`V200080` 迁入 133,260 行）；之后 `cdeu` 增长、`dedup` 停滞 |
 | 删表前置条件 | 观察一个完整流程周期、确认无回滚需求、`dedup` 无外部只读依赖 |
 | 回滚方式 | 重新部署切换前的镜像即可（`dedup` 数据仍在，只丢切换后新增到 `cdeu` 的行） |
 
@@ -1904,9 +1904,9 @@ COMMIT;
 
 | 迁移 | 内容 |
 |---|---|
-| `V100081__sys_user_uid_unique.sql` | 新增 `uk_sys_user_uid` 唯一索引（V74 建表时 uid 未加唯一约束，登录以 uid 为标识必须唯一） |
-| `V200055__sys_user_seed_finv.sql` | 插入 `uid='finv'`，含盐与 PHC 哈希；`WHERE NOT EXISTS` 保证幂等且不覆盖已改口令 |
-| `V200056__sys_config_seed_auth_session_ttl.sql` | 新增配置 20012（会话有效期，默认 480 分钟，合法区间 5~43200） |
+| `V200081__sys_user_uid_unique.sql` | 新增 `uk_sys_user_uid` 唯一索引（V74 建表时 uid 未加唯一约束，登录以 uid 为标识必须唯一） |
+| `V300055__sys_user_seed_finv.sql` | 插入 `uid='finv'`，含盐与 PHC 哈希；`WHERE NOT EXISTS` 保证幂等且不覆盖已改口令 |
+| `V300056__sys_config_seed_auth_session_ttl.sql` | 新增配置 20012（会话有效期，默认 480 分钟，合法区间 5~43200） |
 
 ### 10761 新增文件
 
@@ -2039,13 +2039,13 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10771 | 让全新数据库在 `public` 已存在**其它服务**同名表（如 `public.finv_quote_secu_kline_min`）时也能完成首次部署：① 历史迁移中本程序自有表的建表/ALTER/DML 全部显式限定 `quote.`；② `V100032` 不得从 `public` 搬移非本程序创建的表（目标 schema 已有则跳过）；③ 修复全新库下 `V100080`（表数/列漂移）、`V200039`（空库断言）、`V200048`/`V200050`（硬编码 phase_id）导致的迁移中断；④ 新增 `V200057` 将 dedup 侧 CDEU 配置同步到 cdeu。 | 在临时 PG18 上先建 `public.finv_quote_secu_kline_min`（含注释、索引与 3 行数据），再执行全部迁移：`grep -cE 'ERROR\|FATAL'` = 0；该校验前后 `select md5(string_agg(t::text,'\|' order by id)) from public.finv_quote_secu_kline_min t` 结果一致且 `pg_dump --schema-only -t public.finv_quote_secu_kline_min` 除 `\restrict` 随机 token 外无差异；`select count(*) from pg_tables where schemaname='quote' and tablename in ('finv_quote_secu_kline_min','finv_quote_ingest_batches','finv_quote_revision_log')` = 3；`select count(*) from cdeu.finv_quote_cdeu_process` 与 `select count(*) from dedup.cdeu_process` 相等；`grep -c 'AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = '\''quote'\''' Deploy/Migrations/V100032__*.sql` ≥ 1；`grep -c 'phase_id = 12' Deploy/Migrations/V200048__*.sql Deploy/Migrations/V200050__*.sql` = 0 | |
+| 10771 | 让全新数据库在 `public` 已存在**其它服务**同名表（如 `public.finv_quote_secu_kline_min`）时也能完成首次部署：① 历史迁移中本程序自有表的建表/ALTER/DML 全部显式限定 `quote.`；② `V200032` 不得从 `public` 搬移非本程序创建的表（目标 schema 已有则跳过）；③ 修复全新库下 `V200080`（表数/列漂移）、`V300039`（空库断言）、`V300048`/`V300050`（硬编码 phase_id）导致的迁移中断；④ 新增 `V300057` 将 dedup 侧 CDEU 配置同步到 cdeu。 | 在临时 PG18 上先建 `public.finv_quote_secu_kline_min`（含注释、索引与 3 行数据），再执行全部迁移：`grep -cE 'ERROR\|FATAL'` = 0；该校验前后 `select md5(string_agg(t::text,'\|' order by id)) from public.finv_quote_secu_kline_min t` 结果一致且 `pg_dump --schema-only -t public.finv_quote_secu_kline_min` 除 `\restrict` 随机 token 外无差异；`select count(*) from pg_tables where schemaname='quote' and tablename in ('finv_quote_secu_kline_min','finv_quote_ingest_batches','finv_quote_revision_log')` = 3；`select count(*) from cdeu.finv_quote_cdeu_process` 与 `select count(*) from dedup.cdeu_process` 相等；`grep -c 'AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = '\''quote'\''' Deploy/Migrations/V200032__*.sql` ≥ 1；`grep -c 'phase_id = 12' Deploy/Migrations/V300048__*.sql Deploy/Migrations/V300050__*.sql` = 0 | |
 
 ## 一百零七、历史迁移不得删除 public 中非本程序表（10772）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10772 | 历史迁移中不得存在针对 `public` 中非本程序表的 `DROP TABLE` / `TRUNCATE` / `ALTER TABLE`：涉及 `finv_quote_secu_kline_min` 的删除操作一律带 `export.`/`dedup.` 前缀；`V100015` 重建 `finv_futu_mapping_market_code` 的 `CREATE/INSERT/DROP/ALTER/INDEX/TRIGGER` 全部显式加 `public.`；运行期 `TRUNCATE` 使用带 `export.` 前缀的常量。 | `grep -rnE 'DROP TABLE\|TRUNCATE' Deploy/Migrations/*.sql \| grep -i kline_min` 命中的语句均带 `export.` 或 `dedup.` 前缀；`grep -cE 'DROP TABLE( IF EXISTS)? +[a-z_]+ *;' Deploy/Migrations/*.sql` = 0；`grep -c 'public.finv_futu_mapping_market_code' Deploy/Migrations/V100015__*.sql` ≥ 6；`grep -n 'tableStaging' internal/meta/finv/quote/dedup/store.go` 显示值为 `export.finv_quote_secu_kline_min`；在 `public` 预置同名表后执行全部 139 个迁移，`public` 表数据与结构前后一致 | |
+| 10772 | 历史迁移中不得存在针对 `public` 中非本程序表的 `DROP TABLE` / `TRUNCATE` / `ALTER TABLE`：涉及 `finv_quote_secu_kline_min` 的删除操作一律带 `export.`/`dedup.` 前缀；`V200015` 重建 `finv_futu_mapping_market_code` 的 `CREATE/INSERT/DROP/ALTER/INDEX/TRIGGER` 全部显式加 `public.`；运行期 `TRUNCATE` 使用带 `export.` 前缀的常量。 | `grep -rnE 'DROP TABLE\|TRUNCATE' Deploy/Migrations/*.sql \| grep -i kline_min` 命中的语句均带 `export.` 或 `dedup.` 前缀；`grep -cE 'DROP TABLE( IF EXISTS)? +[a-z_]+ *;' Deploy/Migrations/*.sql` = 0；`grep -c 'public.finv_futu_mapping_market_code' Deploy/Migrations/V200015__*.sql` ≥ 6；`grep -n 'tableStaging' internal/meta/finv/quote/dedup/store.go` 显示值为 `export.finv_quote_secu_kline_min`；在 `public` 预置同名表后执行全部 139 个迁移，`public` 表数据与结构前后一致 | |
 
 ## 一百零八、Native 暴露与历史数据迁移（10773–10775）
 
@@ -2143,13 +2143,13 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10791 | 将 `cdeu.finv_quote_secu_kline_min.volume` 由 `bigint` 改为浮点 `numeric(20,6)`，保留 `volume >= 0` 约束；幂等迁移，仅改 `cdeu` 表。 | `grep -c 'numeric(20,6)' Deploy/Migrations/V200058__cdeu_kline_min_volume_numeric.sql` ≥ 1；临时 PG 执行全部迁移后 `select data_type from information_schema.columns where table_schema='cdeu' and table_name='finv_quote_secu_kline_min' and column_name='volume'` = `numeric`；插入 `12.345678` 后读回一致；重复执行 V200058 输出「已是 numeric，跳过」；`go build ./...`、`go test ./internal/meta/finv/quote/cdeu/kline` 通过；`MVsvFileFormat.md` 中 `v` 类型为 `Decimal(20,6)` | |
+| 10791 | 将 `cdeu.finv_quote_secu_kline_min.volume` 由 `bigint` 改为浮点 `numeric(20,6)`，保留 `volume >= 0` 约束；幂等迁移，仅改 `cdeu` 表。 | `grep -c 'numeric(20,6)' Deploy/Migrations/V300058__cdeu_kline_min_volume_numeric.sql` ≥ 1；临时 PG 执行全部迁移后 `select data_type from information_schema.columns where table_schema='cdeu' and table_name='finv_quote_secu_kline_min' and column_name='volume'` = `numeric`；插入 `12.345678` 后读回一致；重复执行 V300058 输出「已是 numeric，跳过」；`go build ./...`、`go test ./internal/meta/finv/quote/cdeu/kline` 通过；`MVsvFileFormat.md` 中 `v` 类型为 `Decimal(20,6)` | |
 
 ## 一百二十四、volume 全链路浮点化（10792）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10792 | 把 `quote` / `export` / `dedup` 三张同名表的 `volume` 与 `cdeu` 统一为 `numeric(20,6)`；`internal/meta/finv/quote/mvsv` 解析保留小数文本；`internal/meta/finv/quote` 查询输出支持小数；保证导入/导出/补丁/回测链路不截断。 | 临时 PG 执行全部迁移后 `select table_schema, data_type from information_schema.columns where column_name='volume' and table_name='finv_quote_secu_kline_min' and table_schema in ('quote','dedup','export','cdeu')` 四行均为 `numeric`；`12.345678` 在四表写入/读回一致；重复执行 V200059 输出「已是 numeric，跳过」；`go test ./internal/meta/finv/quote/mvsv` 含 `TestParseNumericVolume` 通过；`go build ./...`、`go test ./internal/meta/finv/quote ./internal/meta/finv/quote/cdeu/kline` 通过；`HistoryQuote.md` volume 标注支持小数 | |
+| 10792 | 把 `quote` / `export` / `dedup` 三张同名表的 `volume` 与 `cdeu` 统一为 `numeric(20,6)`；`internal/meta/finv/quote/mvsv` 解析保留小数文本；`internal/meta/finv/quote` 查询输出支持小数；保证导入/导出/补丁/回测链路不截断。 | 临时 PG 执行全部迁移后 `select table_schema, data_type from information_schema.columns where column_name='volume' and table_name='finv_quote_secu_kline_min' and table_schema in ('quote','dedup','export','cdeu')` 四行均为 `numeric`；`12.345678` 在四表写入/读回一致；重复执行 V300059 输出「已是 numeric，跳过」；`go test ./internal/meta/finv/quote/mvsv` 含 `TestParseNumericVolume` 通过；`go build ./...`、`go test ./internal/meta/finv/quote ./internal/meta/finv/quote/cdeu/kline` 通过；`HistoryQuote.md` volume 标注支持小数 | |
 
 ## 一百二十五、外部 OpenAPI 文档自包含（10793）
 
@@ -2197,19 +2197,19 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10800 | 新增 `brs` schema 与 `brs.brs_bak_rdb_table` 备份登记表（`priority` 唯一）；`sys.sys_config 39001` 配置 6 段 cron；服务内每日按 `priority` 倒序对启用表执行 `pg_dump -Fc`（按 `compression` 压缩），备份到 `<PREFIX>/Backup/BRS/<yyyyMMdd>/`，只写日志；预置系统表与 CDEU 配置表种子（不含 `cdeu.finv_quote_secu_kline_min`）；对象存储通过 `internal/meta/base/oss` 抽象，首期不启用上传。 | `test -f Deploy/Migrations/V200060__brs_backup_table.sql`；临时 PG 执行全部 142 个迁移 0 错误，`select count(*) from brs.brs_bak_rdb_table` = 12，`select count(distinct priority)` = 12，`select str_value from sys.sys_config where config_no=39001` = `0 0 3 * * *`；`go test ./internal/meta/finv/brs ./internal/meta/base/cron ./internal/meta/base/oss/...` 通过；`go build ./...` 通过；`grep -c 'FINV_BRS_BACKUP_DIR' internal/config/config.go Deploy/Native/FinvQuant.env.example` 各 ≥ 1；`grep -rn 'minio-go' internal/` 无输出 | |
+| 10800 | 新增 `brs` schema 与 `brs.brs_bak_rdb_table` 备份登记表（`priority` 唯一）；`sys.sys_config 39001` 配置 6 段 cron；服务内每日按 `priority` 倒序对启用表执行 `pg_dump -Fc`（按 `compression` 压缩），备份到 `<PREFIX>/Backup/BRS/<yyyyMMdd>/`，只写日志；预置系统表与 CDEU 配置表种子（不含 `cdeu.finv_quote_secu_kline_min`）；对象存储通过 `internal/meta/base/oss` 抽象，首期不启用上传。 | `test -f Deploy/Migrations/V300060__brs_backup_table.sql`；临时 PG 执行全部 142 个迁移 0 错误，`select count(*) from brs.brs_bak_rdb_table` = 12，`select count(distinct priority)` = 12，`select str_value from sys.sys_config where config_no=39001` = `0 0 3 * * *`；`go test ./internal/meta/finv/brs ./internal/meta/base/cron ./internal/meta/base/oss/...` 通过；`go build ./...` 通过；`grep -c 'FINV_BRS_BACKUP_DIR' internal/config/config.go Deploy/Native/FinvQuant.env.example` 各 ≥ 1；`grep -rn 'minio-go' internal/` 无输出 | |
 
 ## 一百三十三、BRS 对象存储上传（10801）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10801 | BRS 二期：备份产物上传 S3 兼容对象存储（R2 等）。`brs_bak_rdb_table` 增加 `flag_upload`；`sys.sys_config 39002` 保存对象存储 JSON 配置（默认 `enabled=false`）；通过 `internal/meta/base/oss` 抽象 + `oss/s3` 适配器（`aws-sdk-go-v2`，**不使用 minio-go**），上传失败保留本地。 | `grep -c 'flag_upload' Deploy/Migrations/V200061__brs_upload.sql` ≥ 1；临时 PG 执行全部 143 个迁移 0 错误；`select json_value->>'enabled' from sys.sys_config where config_no=39002` = `false`；`go test ./internal/meta/base/oss/... ./internal/meta/finv/brs` 通过（含 s3 适配器 httptest 用例）；`grep -rn 'minio' internal/meta/base/oss internal/meta/finv/brs` 无官方库引用；`go build ./...` 通过 | |
+| 10801 | BRS 二期：备份产物上传 S3 兼容对象存储（R2 等）。`brs_bak_rdb_table` 增加 `flag_upload`；`sys.sys_config 39002` 保存对象存储 JSON 配置（默认 `enabled=false`）；通过 `internal/meta/base/oss` 抽象 + `oss/s3` 适配器（`aws-sdk-go-v2`，**不使用 minio-go**），上传失败保留本地。 | `grep -c 'flag_upload' Deploy/Migrations/V300061__brs_upload.sql` ≥ 1；临时 PG 执行全部 143 个迁移 0 错误；`select json_value->>'enabled' from sys.sys_config where config_no=39002` = `false`；`go test ./internal/meta/base/oss/... ./internal/meta/finv/brs` 通过（含 s3 适配器 httptest 用例）；`grep -rn 'minio' internal/meta/base/oss internal/meta/finv/brs` 无官方库引用；`go build ./...` 通过 | |
 
 ## 一百三十四、BRS 对象存储配置说明（10802）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10802 | `sys.sys_config 39002` 的 `remark` 必须包含完整配置说明：字段含义、R2/AWS/MinIO 的 endpoint/region 差异、R2 API Token 获取步骤、示例 JSON、注意事项；不能只写一句话。`Brs.md` 同步配置步骤。 | `grep -c 'R2 示例' Deploy/Migrations/V200061__brs_upload.sql` ≥ 1；临时库执行后 `select length(remark) from sys.sys_config where config_no=39002` ≥ 500；`select remark from ...` 含 `enabled`、`endpoint`、`R2`、`flag_upload`；`go test ./internal/docs` 通过 | |
+| 10802 | `sys.sys_config 39002` 的 `remark` 必须包含完整配置说明：字段含义、R2/AWS/MinIO 的 endpoint/region 差异、R2 API Token 获取步骤、示例 JSON、注意事项；不能只写一句话。`Brs.md` 同步配置步骤。 | `grep -c 'R2 示例' Deploy/Migrations/V300061__brs_upload.sql` ≥ 1；临时库执行后 `select length(remark) from sys.sys_config where config_no=39002` ≥ 500；`select remark from ...` 含 `enabled`、`endpoint`、`R2`、`flag_upload`；`go test ./internal/docs` 通过 | |
 
 ## 一百三十五、Web 左侧菜单四级化（10803–10807）
 
@@ -2221,11 +2221,11 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10806 | 菜单展开状态按系统分桶持久化到 localStorage（键 `finvquant.nav.openKeys.v1`），深链接直开时自动展开祖先链；脏数据回退到激活链且不报错。 | `grep -F 'finvquant.nav.openKeys.v1' Web/src/config/uiConfig.ts` 命中；人工：展开「元数据管理」→切到内容管理→切回，展开状态保留；直接访问 `/Meta/Finv/Quote/DeDup/Export/Stats` 时祖先链自动展开 | |
 | 10807 | 导航视觉固定为 WebCMS 风格：当前菜单项左侧 3px 主色激活条 + 祖先分组标题主色；**不提供风格开关，也不使用 `?nav=` 参数**。抽屉顶部不展示系统标题块、内容区不展示面包屑（2026-10-29 已移除）。 | `grep -c 'navVisualStyle\|toggleNavVisualStyle\|WebCMS 视觉风格' Web/src Web/dist/assets/index-*.js` 为 0；`grep -c 'WebCMS 视觉风格' Web/dist/assets/index-*.js` 为 0；人工：用户菜单只有修改密码/退出登录，菜单激活项有 3px 主色条 | |
 
-## 一百三十六、V200057 迁移兼容 dedup 缺失（10808）
+## 一百三十六、V300057 迁移兼容 dedup 缺失（10808）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10808 | `V200057__sync_cdeu_config_from_dedup.sql` 在 `dedup` schema 不存在时必须幂等跳过（输出 NOTICE），不得因 `dedup.cdeu_process` 不存在而中断迁移链。 | `grep -c "nspname = 'dedup'" Deploy/Migrations/V200057__sync_cdeu_config_from_dedup.sql` ≥ 1；在无 dedup schema 的库上重建容器后：`docker logs finvquant` 含 `dedup schema 不存在，跳过配置同步`，`select max(version) from schema_version` = `200061`，`/API/V1/Health/Ready` 返回 200 | |
+| 10808 | `V300057__sync_cdeu_config_from_dedup.sql` 在 `dedup` schema 不存在时必须幂等跳过（输出 NOTICE），不得因 `dedup.cdeu_process` 不存在而中断迁移链。 | `grep -c "nspname = 'dedup'" Deploy/Migrations/V300057__sync_cdeu_config_from_dedup.sql` ≥ 1；在无 dedup schema 的库上重建容器后：`docker logs finvquant` 含 `dedup schema 不存在，跳过配置同步`，`select max(version) from schema_version` = `200061`，`/API/V1/Health/Ready` 返回 200 | |
 
 ## 一百三十七、登录后页面页脚（10809）
 
@@ -2256,7 +2256,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10814 | `public.finv_security` 增加 `type_secu_sub`、`provider`、`remark` 三列，均为 `TEXT NOT NULL DEFAULT ''`，并带列注释与末尾收敛校验（列存在性/类型/可空/默认值）。 | `test -f Deploy/Migrations/V100082__finv_security_add_type_secu_sub_provider_remark.sql`；文件内 `ADD COLUMN IF NOT EXISTS type_secu_sub`、`provider`、`remark` 三处均在；`grep -c 'RAISE EXCEPTION' Deploy/Migrations/V100082__finv_security_add_type_secu_sub_provider_remark.sql` ≥ 4 | |
+| 10814 | `public.finv_security` 增加 `type_secu_sub`、`provider`、`remark` 三列，均为 `TEXT NOT NULL DEFAULT ''`，并带列注释与末尾收敛校验（列存在性/类型/可空/默认值）。 | `test -f Deploy/Migrations/V200082__finv_security_add_type_secu_sub_provider_remark.sql`；文件内 `ADD COLUMN IF NOT EXISTS type_secu_sub`、`provider`、`remark` 三处均在；`grep -c 'RAISE EXCEPTION' Deploy/Migrations/V200082__finv_security_add_type_secu_sub_provider_remark.sql` ≥ 4 | |
 
 ## 一百四十二、Supabase 证券视图下载到本地中转目录（10815）
 
@@ -2280,19 +2280,19 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10818 | 在 `futu` schema 新建 `finv_futu_quote_collect` 表（`usc` 主键，含 `stock_id`/`futu_symbol`/`market_type`/`market_code`/`instrument_type`/`sub_instrument_type`/`req_section`/`quote_market`/`type_symbol`/`flag_enable`/`remark`/`gmt_create`/`gmt_update`），并支持从上游快照初始化与增量同步（幂等 upsert，可仅同步新增/变更行）。 | `test -f Deploy/Migrations/V100083__create_futu_finv_futu_quote_collect.sql`；`test -f ../FinvQuantDesign/Scripts/SecuSync/BuildFutuQuoteCollect.py`；`select count(*) from public.schema_version where version='100083'` 为 1；`select count(*) from information_schema.columns where table_schema='futu' and table_name='finv_futu_quote_collect'` 为 14；`select count(*) from futu.finv_futu_quote_collect` 为 17138 | |
+| 10818 | 在 `futu` schema 新建 `finv_futu_quote_collect` 表（`usc` 主键，含 `stock_id`/`futu_symbol`/`market_type`/`market_code`/`instrument_type`/`sub_instrument_type`/`req_section`/`quote_market`/`type_symbol`/`flag_enable`/`remark`/`gmt_create`/`gmt_update`），并支持从上游快照初始化与增量同步（幂等 upsert，可仅同步新增/变更行）。 | `test -f Deploy/Migrations/V200083__create_futu_finv_futu_quote_collect.sql`；`test -f ../FinvQuantDesign/Scripts/SecuSync/BuildFutuQuoteCollect.py`；`select count(*) from public.schema_version where version='100083'` 为 1；`select count(*) from information_schema.columns where table_schema='futu' and table_name='finv_futu_quote_collect'` 为 14；`select count(*) from futu.finv_futu_quote_collect` 为 17138 | |
 
 ## 一百四十六、初始数据发放以迁移脚本形式入库（10819）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10819 | `finv_security` 与 `futu.finv_futu_quote_collect` 的初始数据以种子/数据迁移形式纳入 `Deploy/Migrations`（`V200062` / `V200063`，均 `ON CONFLICT DO NOTHING`），并将港股人民币柜台币种修正固化为 `V200064`；全新库按版本顺序执行后两表行数分别为 17,199 / 17,138。 | `ls Deploy/Migrations/V20006[234]__*.sql` 命中3 个；`grep -c 'ON CONFLICT DO NOTHING' Deploy/Migrations/V200062__finv_security_seed_supabase.sql` ≥ 35；`grep -c 'ON CONFLICT DO NOTHING' Deploy/Migrations/V200063__finv_futu_quote_collect_seed_supabase.sql` ≥ 35；`select count(*) from public.schema_version where version in ('200062','200063','200064')` 为 3；`select count(*) from futu.finv_futu_quote_collect` 为 17138 | |
+| 10819 | `finv_security` 与 `futu.finv_futu_quote_collect` 的初始数据以种子/数据迁移形式纳入 `Deploy/Migrations`（`V300062` / `V300063`，均 `ON CONFLICT DO NOTHING`），并将港股人民币柜台币种修正固化为 `V300064`；全新库按版本顺序执行后两表行数分别为 17,199 / 17,138。 | `ls Deploy/Migrations/V20006[234]__*.sql` 命中3 个；`grep -c 'ON CONFLICT DO NOTHING' Deploy/Migrations/V300062__finv_security_seed_supabase.sql` ≥ 35；`grep -c 'ON CONFLICT DO NOTHING' Deploy/Migrations/V300063__finv_futu_quote_collect_seed_supabase.sql` ≥ 35；`select count(*) from public.schema_version where version in ('200062','200063','200064')` 为 3；`select count(*) from futu.finv_futu_quote_collect` 为 17138 | |
 
 ## 一百四十七、日增量行数模板与 day_expect_rows 自动补全（10820）
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10820 | 新建日增量行数模板表 `cdeu.finv_quote_cdeu_usc_day_incr_row_tpl`（主键 `(region, market, category)`，三列均可为空串表示通配，含 `day_expect_rows` > 0 约束与 `gmt_update` 触发器）并预置市场模板；自动流程发现/刷新证券元数据时，若 `cdeu.finv_quote_cdeu_usc.day_expect_rows` 为空则按模板（特异性降序、模板未命中则不补）补全，已配置的非空值一律不覆盖。 | `test -f Deploy/Migrations/V100084__create_cdeu_usc_day_incr_row_tpl.sql`；`test -f Deploy/Migrations/V200065__cdeu_usc_day_incr_row_tpl_seed.sql`；`select count(*) from information_schema.columns where table_schema='cdeu' and table_name='finv_quote_cdeu_usc_day_incr_row_tpl'` 为 8；`select count(*) from cdeu.finv_quote_cdeu_usc_day_incr_row_tpl where flag_enable='1'` ≥ 10；`grep -c 'func (s *Store) BackfillUscDefaults' internal/meta/finv/quote/dedup/store.go` 为 1；`grep -c 'BackfillUscDefaults' internal/meta/finv/quote/dedup/job/refresh_quote_maturity.go internal/meta/finv/quote/dedup/job/export.go` 各 ≥ 1；库内验证：两轮 JOB 后 `select count(*) from cdeu.finv_quote_cdeu_usc u where u.day_expect_rows is null and exists (select 1 from cdeu.finv_quote_cdeu_usc_day_incr_row_tpl t where t.flag_enable = '1' and (t.region = '' or upper(t.region) = upper(coalesce(u.region, ''))) and (t.market = '' or upper(t.market) = upper(coalesce(u.market, ''))) and (t.category = '' or upper(t.category) = upper(coalesce(u.category, ''))))` 为 0 | |
+| 10820 | 新建日增量行数模板表 `cdeu.finv_quote_cdeu_usc_day_incr_row_tpl`（主键 `(region, market, category)`，三列均可为空串表示通配，含 `day_expect_rows` > 0 约束与 `gmt_update` 触发器）并预置市场模板；自动流程发现/刷新证券元数据时，若 `cdeu.finv_quote_cdeu_usc.day_expect_rows` 为空则按模板（特异性降序、模板未命中则不补）补全，已配置的非空值一律不覆盖。 | `test -f Deploy/Migrations/V200084__create_cdeu_usc_day_incr_row_tpl.sql`；`test -f Deploy/Migrations/V300065__cdeu_usc_day_incr_row_tpl_seed.sql`；`select count(*) from information_schema.columns where table_schema='cdeu' and table_name='finv_quote_cdeu_usc_day_incr_row_tpl'` 为 8；`select count(*) from cdeu.finv_quote_cdeu_usc_day_incr_row_tpl where flag_enable='1'` ≥ 10；`grep -c 'func (s *Store) BackfillUscDefaults' internal/meta/finv/quote/dedup/store.go` 为 1；`grep -c 'BackfillUscDefaults' internal/meta/finv/quote/dedup/job/refresh_quote_maturity.go internal/meta/finv/quote/dedup/job/export.go` 各 ≥ 1；库内验证：两轮 JOB 后 `select count(*) from cdeu.finv_quote_cdeu_usc u where u.day_expect_rows is null and exists (select 1 from cdeu.finv_quote_cdeu_usc_day_incr_row_tpl t where t.flag_enable = '1' and (t.region = '' or upper(t.region) = upper(coalesce(u.region, ''))) and (t.market = '' or upper(t.market) = upper(coalesce(u.market, ''))) and (t.category = '' or upper(t.category) = upper(coalesce(u.category, ''))))` 为 0 | |
 
 ## 一百四十八、自动发现时补全优先级 / SLA / 最大等待默认值（10821）
 
@@ -2310,7 +2310,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10823 | 自动发现的 `cdeu.finv_quote_cdeu_usc` 行必须能自动补齐 `category` / `region` / `market` / `name` / `timezone` / `currency` / `day_expect_rows`：① 回填 `finv_security` 时**不限 `flag_enable`**（禁用不等于无行情）；② `finv_security` 未收录时从 `futu.finv_futu_quote_collect` 兜底（`quote_market` → region/market、`type_symbol` → category）；③ 按 region 推导 timezone/currency；④ `SH######` / `SZ######` 前缀兜底为 A 股指数；⑤ 模板表补区域级兜底行，`market` 未维护时仍能给出 `day_expect_rows`；⑥ 补全后剩余缺口写日志（字段行数 + 证券样本），不静默失败。 | `grep -c 'FROM public.finv_security s' internal/meta/finv/quote/dedup/store.go` ≥ 1 且该 SQL 中**无** `flag_enable` 过滤；`grep -c 'finv_futu_quote_collect' internal/meta/finv/quote/dedup/store.go` ≥ 1；`grep -c 'func (s \*Store) UscMissingSample' internal/meta/finv/quote/dedup/store.go` 为 1；`test -f Deploy/Migrations/V200066__cdeu_usc_day_incr_row_tpl_region_fallback.sql`；`select count(*) from cdeu.finv_quote_cdeu_usc_day_incr_row_tpl` ≥ 17；库内验证：导入 497 行 usc 后跑一轮 `REFRESH_QUOTE_MATURITY`，`select count(*) from cdeu.finv_quote_cdeu_usc where day_expect_rows is null` ≤ 7（仅 `finv_security` 与富途镜像表都未收录的证券） | |
+| 10823 | 自动发现的 `cdeu.finv_quote_cdeu_usc` 行必须能自动补齐 `category` / `region` / `market` / `name` / `timezone` / `currency` / `day_expect_rows`：① 回填 `finv_security` 时**不限 `flag_enable`**（禁用不等于无行情）；② `finv_security` 未收录时从 `futu.finv_futu_quote_collect` 兜底（`quote_market` → region/market、`type_symbol` → category）；③ 按 region 推导 timezone/currency；④ `SH######` / `SZ######` 前缀兜底为 A 股指数；⑤ 模板表补区域级兜底行，`market` 未维护时仍能给出 `day_expect_rows`；⑥ 补全后剩余缺口写日志（字段行数 + 证券样本），不静默失败。 | `grep -c 'FROM public.finv_security s' internal/meta/finv/quote/dedup/store.go` ≥ 1 且该 SQL 中**无** `flag_enable` 过滤；`grep -c 'finv_futu_quote_collect' internal/meta/finv/quote/dedup/store.go` ≥ 1；`grep -c 'func (s \*Store) UscMissingSample' internal/meta/finv/quote/dedup/store.go` 为 1；`test -f Deploy/Migrations/V300066__cdeu_usc_day_incr_row_tpl_region_fallback.sql`；`select count(*) from cdeu.finv_quote_cdeu_usc_day_incr_row_tpl` ≥ 17；库内验证：导入 497 行 usc 后跑一轮 `REFRESH_QUOTE_MATURITY`，`select count(*) from cdeu.finv_quote_cdeu_usc where day_expect_rows is null` ≤ 7（仅 `finv_security` 与富途镜像表都未收录的证券） | |
 
 ## 一百五十一、上传 JOB 日志可观测性与异常一致性（10824）
 
@@ -2388,7 +2388,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10837 | `JOB_FETCH_SECURITY_METADATA` 必须挂在 `PROCESS_EXPORT_BATCH`（导出批次清单获取流程）下执行，且排在 `JOB_FETCH_EXPORT_BATCH` 之后（`seq_no=2`）；原所在的 `PROCESS_EXPORT_FILE_MON_BASE` 剩余 JOB 的 `seq_no` 重排为连续且无空洞。 | `psql -c "select p.process_code, j.seq_no, j.job_code from cdeu.finv_quote_cdeu_job j join cdeu.finv_quote_cdeu_process p on p.process_id=j.process_id where p.process_code in ('PROCESS_EXPORT_BATCH','PROCESS_EXPORT_FILE_MON_BASE') order by 1,2"` 输出中 `PROCESS_EXPORT_BATCH` 为 1=JOB_FETCH_EXPORT_BATCH、2=JOB_FETCH_SECURITY_METADATA，`PROCESS_EXPORT_FILE_MON_BASE` 为连续 1..4；重复执行 `V100087` 打印「已在 PROCESS_EXPORT_BATCH，跳过（幂等）」且结果不变；`go test ./internal/meta/finv/quote/dedup/ -run TestCDEUJobGate`（需 `FINV_TEST_PG_DSN`）7 场景通过；「工作流控制与监控」页的 JOB 清单表格只出现一条水平滚动条：`grep -c 'job-table-scroll :deep(.v-table__wrapper)' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 为 1 且该规则为 `overflow-x: visible` | |
+| 10837 | `JOB_FETCH_SECURITY_METADATA` 必须挂在 `PROCESS_EXPORT_BATCH`（导出批次清单获取流程）下执行，且排在 `JOB_FETCH_EXPORT_BATCH` 之后（`seq_no=2`）；原所在的 `PROCESS_EXPORT_FILE_MON_BASE` 剩余 JOB 的 `seq_no` 重排为连续且无空洞。 | `psql -c "select p.process_code, j.seq_no, j.job_code from cdeu.finv_quote_cdeu_job j join cdeu.finv_quote_cdeu_process p on p.process_id=j.process_id where p.process_code in ('PROCESS_EXPORT_BATCH','PROCESS_EXPORT_FILE_MON_BASE') order by 1,2"` 输出中 `PROCESS_EXPORT_BATCH` 为 1=JOB_FETCH_EXPORT_BATCH、2=JOB_FETCH_SECURITY_METADATA，`PROCESS_EXPORT_FILE_MON_BASE` 为连续 1..4；重复执行 `V200087` 打印「已在 PROCESS_EXPORT_BATCH，跳过（幂等）」且结果不变；`go test ./internal/meta/finv/quote/dedup/ -run TestCDEUJobGate`（需 `FINV_TEST_PG_DSN`）7 场景通过；「工作流控制与监控」页的 JOB 清单表格只出现一条水平滚动条：`grep -c 'job-table-scroll :deep(.v-table__wrapper)' Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 为 1 且该规则为 `overflow-x: visible` | |
 
 ## 一百六十四、菜单改名与端点调整（10838）
 
@@ -2562,12 +2562,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10866 | `finv_security` 的 470 条历史种子（`V200002` / `V200009`，因 `market_code` 列后补而长期为 `0` 且 `flag_enable='0'`）回填 `market_code` 并启用；`finv_market` 的一批市场补 `market_symbol` 与 `base_currency`。取值依据：400 条按 `futu.finv_futu_quote_collect` + `SecuSync/SecuMapping.json` 的 `marketCodeByFutu` 口径，70 条按「交易所 + 证券类型 + 代码形态」推导；跨币种市场（`1251` / `2003` / `8000`）`base_currency` 保持空串。 | `select count(*) from public.finv_security where flag_enable='0'` = 0；`select count(*) from public.finv_security where market_code=0` = 0；`select count(*) from public.finv_market m join public.finv_security s on s.market_code=m.market_code where m.market_symbol=''` = 0；`select version, success from public.schema_version where version in ('200068','200069')` 两行 `success` 均为 `t` | √ |
+| 10866 | `finv_security` 的 470 条历史种子（`V300002` / `V300009`，因 `market_code` 列后补而长期为 `0` 且 `flag_enable='0'`）回填 `market_code` 并启用；`finv_market` 的一批市场补 `market_symbol` 与 `base_currency`。取值依据：400 条按 `futu.finv_futu_quote_collect` + `SecuSync/SecuMapping.json` 的 `marketCodeByFutu` 口径，70 条按「交易所 + 证券类型 + 代码形态」推导；跨币种市场（`1251` / `2003` / `8000`）`base_currency` 保持空串。 | `select count(*) from public.finv_security where flag_enable='0'` = 0；`select count(*) from public.finv_security where market_code=0` = 0；`select count(*) from public.finv_market m join public.finv_security s on s.market_code=m.market_code where m.market_symbol=''` = 0；`select version, success from public.schema_version where version in ('200068','200069')` 两行 `success` 均为 `t` | √ |
 | 10867 | 导出中转表从 `export` 域迁入 `cdeu.finv_quote_secu_kline_min_export`（与 `cdeu.finv_quote_secu_kline_min` 同构、允许清空），并删除源表 `export.finv_quote_secu_kline_min`；代码中转表常量与集成测试同步，`TestSQLSchemaQualified` 的 `exactTableSchema` 收敛为 `quote.` / `cdeu.`。 | `select to_regclass('export.finv_quote_secu_kline_min')` 为 NULL；`select count(*) from information_schema.tables where table_schema='cdeu' and table_name='finv_quote_secu_kline_min_export'` = 1；`grep -c 'cdeu.finv_quote_secu_kline_min_export' internal/meta/finv/quote/cdeu/store.go` ≥ 1；`go test ./internal/database -run TestSQLSchemaQualified` 通过；`select success from public.schema_version where version='100088'` 为 `t` | √ |
 | 10868 | 原 `internal/meta/finv/quote/dedup` 包整体迁入 `internal/meta/finv/quote/cdeu`（包名 `dedup` → `cdeu`，子包 `job` / `jobmeta` 不变），外部引用（`cmd/server`、`internal/api`、`cdeu/job`）同步更新，不得残留旧路径引用。 | `test ! -d internal/meta/finv/quote/dedup`；`grep -rn 'quote/dedup' --include=*.go internal cmd` 无输出；`go build ./...` 与 `go vet ./...` 通过 | √ |
 | 10869 | 市场码与货币口径收口：字典外重复码并入已登记等价码（`1313`→`1331`、`1314`→`1312`、`1150`→`1250`），港股人民币柜台（8 开头 5 位代码）由 `1201` 归入 `1205`，韩国 KOSPI / 印度 SENSEX 的 `base_currency` 与证券 `currency_type` 由 `USD` 改为 `KRW` / `INR`；删除已空的 `export` schema；仓库外 `SecuSync/SecuMapping.json` 与 `ExportSecu.py` 同步落 1331/1312/1250/1205，确保下次增量导入不回退。 | `select count(*) from public.finv_security s left join public.finv_market m on m.market_code=s.market_code where m.market_code is null` = 0；`select count(*) from public.finv_security where market_code=1205` = 26；`select base_currency from public.finv_market where market_code in (1508,1521)` 为 `KRW` / `INR`；`select count(*) from pg_namespace where nspname='export'` = 0；`select version, success from public.schema_version where version in ('100089','200070')` 均为 `t`；`grep -c '"13": 1331' ../FinvQuantDesign/Scripts/SecuSync/SecuMapping.json` = 1 且 `grep -c '"marketCode": 1205'` = 1 | √ |
-| 10870 | 上生产前必须在**独立测试库**上完整跑一次「全链迁移 + 数据库集成测试」，确认 `V100086`/`V100088`/`V100089` 与 `V200068`–`V200070` 在全新库上按版本顺序执行无错、幂等重跑 0 变更。 | 在空库执行 `FINV_TEST_PG_DSN=... go test -p 1 ./internal/database -run TestMigrateIntegration -v` 通过；`grep -rn "schemaname = 'dedup'\|table_schema = 'dedup'" internal/database/migrate_integration_test.go` 无输出；全链跑完后 `select count(*) from pg_namespace where nspname in ('dedup','dedup_frozen','export')` = 0 | √（2026-10-31 在独立库 `finv_migtest` 验证通过，161 个迁移 0 失败；修复了 `V100086` 提前删 dedup、`V200057` 冲掉 `JOB_EXPLAIN_EXPORT_DECISION`、`V200070` 缺字典等 3 处阻塞） |
-| 10871 | 让 `finv_market` 字典编号体系在「全新库」与「生产库」一致：仓库种子（`V200017`/`V200018`）用的是 `1150 HKFE-F` / `1313 US-OTC` / `1314 US-I2` / `1312 US-ARCA` / `1315 BMS` … 旧编号，生产库现行体系是 `1250 HKFE-F` / `1331 US-OTC` / `1312 US-I2` / `1317 US-ARCA` / `1315 US-NSDQ` / `1330 US-ADR` / `1340 BMS` …；全新库因此有 77 行证券的 `market_code` 落在字典外。需按生产库口径重编号字典并同步证券 `market_code`（或反向统一到种子口径并重生成 `V200062`）。 | 在独立库 `finv_migtest` 全链跑完后 `select count(*) from public.finv_security s left join public.finv_market m on m.market_code=s.market_code where m.market_code is null` = 0；`select count(*) from public.finv_market` 与生产库相同（当前生产库 63 行）；`select market_code,market_flag from public.finv_market where market_flag in ('HKFE-F','US-OTC','US-I2','US-ARCA','US-NSDQ')` 与生产库逐一相同 | √（2026-10-31 由 `V200073` 完成：全新库与生产库 `finv_market` 均 63 行且逐字段一致，两库证券字典外均 0 行） |
+| 10870 | 上生产前必须在**独立测试库**上完整跑一次「全链迁移 + 数据库集成测试」，确认 `V200086`/`V200088`/`V200089` 与 `V300068`–`V300070` 在全新库上按版本顺序执行无错、幂等重跑 0 变更。 | 在空库执行 `FINV_TEST_PG_DSN=... go test -p 1 ./internal/database -run TestMigrateIntegration -v` 通过；`grep -rn "schemaname = 'dedup'\|table_schema = 'dedup'" internal/database/migrate_integration_test.go` 无输出；全链跑完后 `select count(*) from pg_namespace where nspname in ('dedup','dedup_frozen','export')` = 0 | √（2026-10-31 在独立库 `finv_migtest` 验证通过，161 个迁移 0 失败；修复了 `V200086` 提前删 dedup、`V300057` 冲掉 `JOB_EXPLAIN_EXPORT_DECISION`、`V300070` 缺字典等 3 处阻塞） |
+| 10871 | 让 `finv_market` 字典编号体系在「全新库」与「生产库」一致：仓库种子（`V300017`/`V300018`）用的是 `1150 HKFE-F` / `1313 US-OTC` / `1314 US-I2` / `1312 US-ARCA` / `1315 BMS` … 旧编号，生产库现行体系是 `1250 HKFE-F` / `1331 US-OTC` / `1312 US-I2` / `1317 US-ARCA` / `1315 US-NSDQ` / `1330 US-ADR` / `1340 BMS` …；全新库因此有 77 行证券的 `market_code` 落在字典外。需按生产库口径重编号字典并同步证券 `market_code`（或反向统一到种子口径并重生成 `V300062`）。 | 在独立库 `finv_migtest` 全链跑完后 `select count(*) from public.finv_security s left join public.finv_market m on m.market_code=s.market_code where m.market_code is null` = 0；`select count(*) from public.finv_market` 与生产库相同（当前生产库 63 行）；`select market_code,market_flag from public.finv_market where market_flag in ('HKFE-F','US-OTC','US-I2','US-ARCA','US-NSDQ')` 与生产库逐一相同 | √（2026-10-31 由 `V300073` 完成：全新库与生产库 `finv_market` 均 63 行且逐字段一致，两库证券字典外均 0 行） |
 
 ## 一百九十三、「备份与恢复」前端二级菜单（10872）
 
@@ -2579,14 +2579,15 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10873 | 上游证券代码口径调整后（`SH000001`~`SH000999` → `SH0001`~`SH0999`，去掉数字部分前两个 `0`），生产库历史数据需对齐且不得因主键/唯一约束冲突导致脚本失败：`V200074` 对 8 位 usc 只在**没有对应 6 位行**时就地改号（`usc` + `security_code` 同步，双 `NOT EXISTS` 避 `finv_security_pkey` 与 `uq_finv_security_exchange_code`），已存在 6 位行时以 6 位为准回填英文名（D1）、`flag_enable='1'` 优先（D2）、`gmt_create` 取较早值（D3）；`SH0985` 对齐为 `exchange_code=11` / `security_code='SH0985'`（D4）、`security_type` 保留 6 位现网值（D5）；`SH0001` 的 `security_code` 归一为 `'SH0001'`（D8）；`futu.finv_futu_mapping_security.finv_usc` 同步 6 位；其余 17 张含 `usc` 的表本期只巡检不处理（D6）、8 位重复行暂不删除（D7）。 | 独立库与生产库执行后 `select count(*) from public.finv_security where usc ~ '^SH[0-9]{4}$'` = 317、`select count(*) from public.finv_security where usc ~ '^SH[0-9]{6}$'` = 22（D7 保留）、`select count(*) from public.finv_security where usc ~ '^SH[0-9]{4}$' and security_code ~ '^SH[0-9]{6}$'` = 0、`select count(*) from futu.finv_futu_mapping_security where finv_usc ~ '^SH[0-9]{6}$'` = 0、`select concat(exchange_code, '/', security_code) from public.finv_security where usc='SH0985'` = `11/SH0985`、`select security_code from public.finv_security where usc='SH0001'` = `SH0001`；`select success from public.schema_version where version='200074'` 为 `t`；`V200074` 重跑全部 0 行影响；`go test -p 1 ./internal/database -run TestMigrateIntegration` 通过 | √ |
-| 10874 | 【**待办**】`public.finv_security` 中 22 行 8 位 usc（`SH000002`…`SH000985`）是**为兼容保留**的重复记录（迁移 `V200074` 按决策 D7 未删除，6 位行为准、代码与采集均走 6 位）。暂不处理；待**下月初（2026-12 月初）上游数据更新完成后**再评估并清理：删除条件必须是「同 usc 的 6 位行已存在且字段完整」（`DELETE ... WHERE usc ~ '^SH[0-9]{6}$' AND EXISTS (同 usc 的 6 位行)`），脚本需幂等可重跑，执行前 `pg_dump` 备份到 `Deploy/Backup/`。 | 保留期：`select count(*) from public.finv_security where usc ~ '^SH[0-9]{6}$'` = 22 且 `select count(*) from public.finv_security where usc ~ '^SH[0-9]{4}$'` = 317；清理后：8 位行 = 0、6 位行 = 317，且两个库（`finv` / 全新库）一致；清理脚本重跑影响 0 行；`select success from public.schema_version where version='<清理迁移编号>'` 为 `t` | |
-| 10875 | `public.finv_security` 中 `usc='USDIndex'`（美元指数）的 `type_secu_sub` 由 `CER` 修正为 `CIX`，与所属市场 1253（`market_abbr='FX-IDX'`、`market_symbol='CIX'`）的符号口径一致；不改 `market_code` / `currency_type` / `flag_enable`，不动小写的 `USDindex`（`V200003` 老种子、`type_secu_sub` 为空串）。迁移 `V200075`。 | `select type_secu_sub from public.finv_security where usc='USDIndex'` = `CIX`；`select count(*) from public.finv_security where market_code=1253 and type_secu_sub<>'' and type_secu_sub<>'CIX'` = 0；`select type_secu_sub from public.finv_security where usc='USDindex'` = 空串；`select success from public.schema_version where version='200075'` 为 `t`；`V200075` 重跑影响 0 行；`go test -p 1 ./internal/database -run TestMigrateIntegration` 通过 | √ |
-| 10876 | `usc='USDIndex'`（美元指数）**固定归属市场 1253**（`market_abbr='FX-IDX'`、`market_symbol='CIX'`、`en_security_type='1100'`），后续新增/修改一律按 1253 定义。迁移 `V200076`：`V200062` 种子写的是 1251（生产库的 1253 来自早前手工回填、未落迁移），本迁移收口使「全新库」与「生产库」口径一致，避免出现「1251 市场 + `type_secu_sub=CIX`」的矛盾行；不动 `type_secu_sub`（`V200075` 已为 `CIX`）/`currency_type`/`flag_enable`，不动小写 `USDindex`。 | `select concat(market_code, '/', type_secu_sub) from public.finv_security where usc='USDIndex'` = `1253/CIX`；`select count(*) from public.finv_security where market_code=1253 and type_secu_sub<>'' and type_secu_sub<>'CIX'` = 0；`select count(*) from public.finv_security where market_code=1251 and type_secu_sub='CIX'` = 0；`select success from public.schema_version where version='200076'` 为 `t`；`V200076` 重跑影响 0 行；两库（`finv` / 全新库）`USDIndex` 均为 `1253/CIX`；`go test -p 1 ./internal/database -run TestMigrateIntegration` 通过 | √ |
-| 10877 | `public.finv_region` 补两行并统一 US 口径：① 新增 `(idx=2, region='FX', name='外汇')` —— `finv_exchange` 中 100/101（FX、FX-CFD）的 `region='FX'` 此前在字典中不存在，`cdeu/store.go` 的 `LEFT JOIN finv_region r ON r.region = e.region` 永远落空、只能退化取 `finv_exchange.region` 文本；② 新增 `(idx=3, region='CRYPTO', name='加密货币')`（用户要求「顺便把加密货币的 3 也加上」）；③ `idx=103` 的 `region` 由 `USA` 改为 `US`，与生产库及 `finv_exchange.region`（9 个美股交易所）一致，否则全新库美股导出文件名 `region` 段为 `USA`、生产库为 `US`，两边对不上。`idx` 编码依据 `V200004`（0=UNK、1=GLOBAL、2~100 预留扩展段）。本期不改 `finv_exchange.region`（8 个加密货币交易所仍为 `GLOBAL`，`CRYPTO` 行属字典先行）、不处理 `N/A`（120/121/122/9003）。迁移 `V200077`。 | `select count(*) from public.finv_region` = 27；`select concat(idx, '/', region, '/', name) from public.finv_region where idx in (2,3,103) order by idx` 依次为 `2/FX/外汇`、`3/CRYPTO/加密货币`、`103/US/美国`；`select count(*) from public.finv_exchange e left join public.finv_region r on r.region=e.region where e.region in ('FX','US') and r.region is null` = 0；`select success from public.schema_version where version='200077'` 为 `t`；`V200077` 重跑影响 0 行；两库（`finv` / 全新库）`finv_region` 均 27 行且 2/3/103 一致；`go test -p 1 ./internal/database -run TestMigrateIntegration` 通过 | √ |
-| 10878 | `public.finv_region` 中加密货币的 `region` 取值由 `CRYPTO` 修正为 **`CC`**：`V200077` 新增 `idx=3` 时按 `exchange_abbr`/`market_flag` 习惯推测写成了 `CRYPTO`，用户确认正确取值为两字母短码 `CC`（与 `finv_exchange.exchange_abbr='CC'`、`CN`/`HK`/`US` 等短码风格一致），`name` 保持 `加密货币`。迁移 `V200078`，含 idx=3 缺失时的幂等补插；不改 `finv_exchange.region`（8 个加密货币交易所 10000~10007 仍为 `GLOBAL`）、不改 `futu.finv_futu_mapping_region`。 | `select concat(idx, '/', region, '/', name) from public.finv_region where idx=3` = `3/CC/加密货币`；`select count(*) from public.finv_region where region='CRYPTO'` = 0；`select count(*) from public.finv_region where idx=3` = 1；`select success from public.schema_version where version='200078'` 为 `t`；`V200078` 重跑影响 0 行；两库（`finv` / 全新库）`idx=3` 均为 `CC/加密货币`；`go test -p 1 ./internal/database -run TestMigrateIntegration` 通过 | √ |
-| 10879 | `public.finv_exchange` 中 8 个加密货币交易所（`10000 CC` ~ `10007 CCPT`）的 `region` 由 `GLOBAL` 改为 **`CC`**，使 `V200077`/`V200078` 新增的 `finv_region(3,'CC','加密货币')` 真正被引用。影响：`cdeu/store.go` 元数据回填对加密证券的 `region` 变为 `CC`（`cdeu.finv_quote_cdeu_usc` 当前无加密证券行，无需回刷）；加密证券导出文件名 `region` 段由 `GLOBAL_*` 变为 `CC_*`（`cdeu.finv_quote_cdeu_export_file` 中此类证券历史导出 0 条，远端无归档文件，无回溯包袱）。不改 `finv_security`/`cdeu.*`/`futu.*`，不改 `base_currency`/`flag_enable`/`exchange_abbr`。迁移 `V200079`。 | `select count(*) from public.finv_exchange where exchange_code between 10000 and 10007 and region='CC'` = 8；`select count(*) from public.finv_exchange where region='GLOBAL'` = 0；`select count(*) from public.finv_exchange e join public.finv_region r on r.region=e.region where e.exchange_code between 10000 and 10007 and r.idx=3` = 8；`select success from public.schema_version where version='200079'` 为 `t`；`V200079` 重跑影响 0 行；两库（`finv` / 全新库）该 8 行 region 均为 `CC`；`go test -p 1 ./internal/database -run TestMigrateIntegration` 通过 | √ |
-| 10880 | `public.finv_security` 中 20 只加密货币证券（`BCHUSDC`/`BTC`/`BTCHKD`/`BTCUSDC`/`BTCUSDT`/`DOGE`/`ETH`/`ETHBTC`/`ETHUSDC`/`PAXG`/`PAXGUSD`/`SOL`/`SOLBTC`/`UNI`/`USDC`/`USDCUSD`/`USDCUSDT`/`USDT`/`USDTUSD`/`BTCUSD`）的 `exchange_code` 由 `100`（`FX` 外汇市场）修正为 **`10001`**（`CRYPTO` Cryptocurrency Exchange）。成因：`V200009` 增量种子（2026-08-05）即写 100，`V200062` 权威导入为 10001 但 `ON CONFLICT (usc) DO NOTHING` 未覆盖，`V200068` 只修了 `market_code`。`market_code` 不变（19 只 10001、`BTCUSD` 保持 10011）；因 `V200079` 已把加密交易所 region 切到 `CC`，这 20 只回填 `region` 由 `FX` 变 `CC`，导出文件名 `region` 段相应由 `FX_*` 变 `CC_*`（该批证券历史导出 0 条，无回溯包袱）。迁移 `V200080`，用明确 usc 清单限定，写入前做 `uq_finv_security_exchange_code` 冲突预检。 | `select count(*) from public.finv_security where usc in ('BCHUSDC','BTC','BTCHKD','BTCUSDC','BTCUSDT','DOGE','ETH','ETHBTC','ETHUSDC','PAXG','PAXGUSD','SOL','SOLBTC','UNI','USDC','USDCUSD','USDCUSDT','USDT','USDTUSD','BTCUSD') and exchange_code=10001` = 20；`select count(*) from public.finv_security where exchange_code=100 and market_code in (10001,10011)` = 0；`select count(*) from public.finv_security where market_code in (10001,10011,10013,10014) and exchange_code not between 10000 and 10007` = 0；`select count(*) from public.finv_security s join public.finv_exchange e using (exchange_code) where s.market_code in (10001,10011,10013,10014) and e.region='CC'` = 192；`select success from public.schema_version where version='200080'` 为 `t`；`V200080` 重跑影响 0 行；两库（`finv` / 全新库）该 20 行均为 10001；`go test -p 1 ./internal/database -run TestMigrateIntegration` 通过 | √ |
+| 10873 | 上游证券代码口径调整后（`SH000001`~`SH000999` → `SH0001`~`SH0999`，去掉数字部分前两个 `0`），生产库历史数据需对齐且不得因主键/唯一约束冲突导致脚本失败：`V300074` 对 8 位 usc 只在**没有对应 6 位行**时就地改号（`usc` + `security_code` 同步，双 `NOT EXISTS` 避 `finv_security_pkey` 与 `uq_finv_security_exchange_code`），已存在 6 位行时以 6 位为准回填英文名（D1）、`flag_enable='1'` 优先（D2）、`gmt_create` 取较早值（D3）；`SH0985` 对齐为 `exchange_code=11` / `security_code='SH0985'`（D4）、`security_type` 保留 6 位现网值（D5）；`SH0001` 的 `security_code` 归一为 `'SH0001'`（D8）；`futu.finv_futu_mapping_security.finv_usc` 同步 6 位；其余 17 张含 `usc` 的表本期只巡检不处理（D6）、8 位重复行暂不删除（D7）。 | 独立库与生产库执行后 `select count(*) from public.finv_security where usc ~ '^SH[0-9]{4}$'` = 317、`select count(*) from public.finv_security where usc ~ '^SH[0-9]{6}$'` = 22（D7 保留）、`select count(*) from public.finv_security where usc ~ '^SH[0-9]{4}$' and security_code ~ '^SH[0-9]{6}$'` = 0、`select count(*) from futu.finv_futu_mapping_security where finv_usc ~ '^SH[0-9]{6}$'` = 0、`select concat(exchange_code, '/', security_code) from public.finv_security where usc='SH0985'` = `11/SH0985`、`select security_code from public.finv_security where usc='SH0001'` = `SH0001`；`select success from public.schema_version where version='200074'` 为 `t`；`V300074` 重跑全部 0 行影响；`go test -p 1 ./internal/database -run TestMigrateIntegration` 通过 | √ |
+| 10874 | 【**待办**】`public.finv_security` 中 22 行 8 位 usc（`SH000002`…`SH000985`）是**为兼容保留**的重复记录（迁移 `V300074` 按决策 D7 未删除，6 位行为准、代码与采集均走 6 位）。暂不处理；待**下月初（2026-12 月初）上游数据更新完成后**再评估并清理：删除条件必须是「同 usc 的 6 位行已存在且字段完整」（`DELETE ... WHERE usc ~ '^SH[0-9]{6}$' AND EXISTS (同 usc 的 6 位行)`），脚本需幂等可重跑，执行前 `pg_dump` 备份到 `Deploy/Backup/`。 | 保留期：`select count(*) from public.finv_security where usc ~ '^SH[0-9]{6}$'` = 22 且 `select count(*) from public.finv_security where usc ~ '^SH[0-9]{4}$'` = 317；清理后：8 位行 = 0、6 位行 = 317，且两个库（`finv` / 全新库）一致；清理脚本重跑影响 0 行；`select success from public.schema_version where version='<清理迁移编号>'` 为 `t` | |
+| 10875 | `public.finv_security` 中 `usc='USDIndex'`（美元指数）的 `type_secu_sub` 由 `CER` 修正为 `CIX`，与所属市场 1253（`market_abbr='FX-IDX'`、`market_symbol='CIX'`）的符号口径一致；不改 `market_code` / `currency_type` / `flag_enable`，不动小写的 `USDindex`（`V300003` 老种子、`type_secu_sub` 为空串）。迁移 `V300075`。 | `select type_secu_sub from public.finv_security where usc='USDIndex'` = `CIX`；`select count(*) from public.finv_security where market_code=1253 and type_secu_sub<>'' and type_secu_sub<>'CIX'` = 0；`select type_secu_sub from public.finv_security where usc='USDindex'` = 空串；`select success from public.schema_version where version='200075'` 为 `t`；`V300075` 重跑影响 0 行；`go test -p 1 ./internal/database -run TestMigrateIntegration` 通过 | √ |
+| 10876 | `usc='USDIndex'`（美元指数）**固定归属市场 1253**（`market_abbr='FX-IDX'`、`market_symbol='CIX'`、`en_security_type='1100'`），后续新增/修改一律按 1253 定义。迁移 `V300076`：`V300062` 种子写的是 1251（生产库的 1253 来自早前手工回填、未落迁移），本迁移收口使「全新库」与「生产库」口径一致，避免出现「1251 市场 + `type_secu_sub=CIX`」的矛盾行；不动 `type_secu_sub`（`V300075` 已为 `CIX`）/`currency_type`/`flag_enable`，不动小写 `USDindex`。 | `select concat(market_code, '/', type_secu_sub) from public.finv_security where usc='USDIndex'` = `1253/CIX`；`select count(*) from public.finv_security where market_code=1253 and type_secu_sub<>'' and type_secu_sub<>'CIX'` = 0；`select count(*) from public.finv_security where market_code=1251 and type_secu_sub='CIX'` = 0；`select success from public.schema_version where version='200076'` 为 `t`；`V300076` 重跑影响 0 行；两库（`finv` / 全新库）`USDIndex` 均为 `1253/CIX`；`go test -p 1 ./internal/database -run TestMigrateIntegration` 通过 | √ |
+| 10877 | `public.finv_region` 补两行并统一 US 口径：① 新增 `(idx=2, region='FX', name='外汇')` —— `finv_exchange` 中 100/101（FX、FX-CFD）的 `region='FX'` 此前在字典中不存在，`cdeu/store.go` 的 `LEFT JOIN finv_region r ON r.region = e.region` 永远落空、只能退化取 `finv_exchange.region` 文本；② 新增 `(idx=3, region='CRYPTO', name='加密货币')`（用户要求「顺便把加密货币的 3 也加上」）；③ `idx=103` 的 `region` 由 `USA` 改为 `US`，与生产库及 `finv_exchange.region`（9 个美股交易所）一致，否则全新库美股导出文件名 `region` 段为 `USA`、生产库为 `US`，两边对不上。`idx` 编码依据 `V300004`（0=UNK、1=GLOBAL、2~100 预留扩展段）。本期不改 `finv_exchange.region`（8 个加密货币交易所仍为 `GLOBAL`，`CRYPTO` 行属字典先行）、不处理 `N/A`（120/121/122/9003）。迁移 `V300077`。 | `select count(*) from public.finv_region` = 27；`select concat(idx, '/', region, '/', name) from public.finv_region where idx in (2,3,103) order by idx` 依次为 `2/FX/外汇`、`3/CRYPTO/加密货币`、`103/US/美国`；`select count(*) from public.finv_exchange e left join public.finv_region r on r.region=e.region where e.region in ('FX','US') and r.region is null` = 0；`select success from public.schema_version where version='200077'` 为 `t`；`V300077` 重跑影响 0 行；两库（`finv` / 全新库）`finv_region` 均 27 行且 2/3/103 一致；`go test -p 1 ./internal/database -run TestMigrateIntegration` 通过 | √ |
+| 10878 | `public.finv_region` 中加密货币的 `region` 取值由 `CRYPTO` 修正为 **`CC`**：`V300077` 新增 `idx=3` 时按 `exchange_abbr`/`market_flag` 习惯推测写成了 `CRYPTO`，用户确认正确取值为两字母短码 `CC`（与 `finv_exchange.exchange_abbr='CC'`、`CN`/`HK`/`US` 等短码风格一致），`name` 保持 `加密货币`。迁移 `V300078`，含 idx=3 缺失时的幂等补插；不改 `finv_exchange.region`（8 个加密货币交易所 10000~10007 仍为 `GLOBAL`）、不改 `futu.finv_futu_mapping_region`。 | `select concat(idx, '/', region, '/', name) from public.finv_region where idx=3` = `3/CC/加密货币`；`select count(*) from public.finv_region where region='CRYPTO'` = 0；`select count(*) from public.finv_region where idx=3` = 1；`select success from public.schema_version where version='200078'` 为 `t`；`V300078` 重跑影响 0 行；两库（`finv` / 全新库）`idx=3` 均为 `CC/加密货币`；`go test -p 1 ./internal/database -run TestMigrateIntegration` 通过 | √ |
+| 10879 | `public.finv_exchange` 中 8 个加密货币交易所（`10000 CC` ~ `10007 CCPT`）的 `region` 由 `GLOBAL` 改为 **`CC`**，使 `V300077`/`V300078` 新增的 `finv_region(3,'CC','加密货币')` 真正被引用。影响：`cdeu/store.go` 元数据回填对加密证券的 `region` 变为 `CC`（`cdeu.finv_quote_cdeu_usc` 当前无加密证券行，无需回刷）；加密证券导出文件名 `region` 段由 `GLOBAL_*` 变为 `CC_*`（`cdeu.finv_quote_cdeu_export_file` 中此类证券历史导出 0 条，远端无归档文件，无回溯包袱）。不改 `finv_security`/`cdeu.*`/`futu.*`，不改 `base_currency`/`flag_enable`/`exchange_abbr`。迁移 `V300079`。 | `select count(*) from public.finv_exchange where exchange_code between 10000 and 10007 and region='CC'` = 8；`select count(*) from public.finv_exchange where region='GLOBAL'` = 0；`select count(*) from public.finv_exchange e join public.finv_region r on r.region=e.region where e.exchange_code between 10000 and 10007 and r.idx=3` = 8；`select success from public.schema_version where version='200079'` 为 `t`；`V300079` 重跑影响 0 行；两库（`finv` / 全新库）该 8 行 region 均为 `CC`；`go test -p 1 ./internal/database -run TestMigrateIntegration` 通过 | √ |
+| 10880 | `public.finv_security` 中 20 只加密货币证券（`BCHUSDC`/`BTC`/`BTCHKD`/`BTCUSDC`/`BTCUSDT`/`DOGE`/`ETH`/`ETHBTC`/`ETHUSDC`/`PAXG`/`PAXGUSD`/`SOL`/`SOLBTC`/`UNI`/`USDC`/`USDCUSD`/`USDCUSDT`/`USDT`/`USDTUSD`/`BTCUSD`）的 `exchange_code` 由 `100`（`FX` 外汇市场）修正为 **`10001`**（`CRYPTO` Cryptocurrency Exchange）。成因：`V300009` 增量种子（2026-08-05）即写 100，`V300062` 权威导入为 10001 但 `ON CONFLICT (usc) DO NOTHING` 未覆盖，`V300068` 只修了 `market_code`。`market_code` 不变（19 只 10001、`BTCUSD` 保持 10011）；因 `V300079` 已把加密交易所 region 切到 `CC`，这 20 只回填 `region` 由 `FX` 变 `CC`，导出文件名 `region` 段相应由 `FX_*` 变 `CC_*`（该批证券历史导出 0 条，无回溯包袱）。迁移 `V300080`，用明确 usc 清单限定，写入前做 `uq_finv_security_exchange_code` 冲突预检。 | `select count(*) from public.finv_security where usc in ('BCHUSDC','BTC','BTCHKD','BTCUSDC','BTCUSDT','DOGE','ETH','ETHBTC','ETHUSDC','PAXG','PAXGUSD','SOL','SOLBTC','UNI','USDC','USDCUSD','USDCUSDT','USDT','USDTUSD','BTCUSD') and exchange_code=10001` = 20；`select count(*) from public.finv_security where exchange_code=100 and market_code in (10001,10011)` = 0；`select count(*) from public.finv_security where market_code in (10001,10011,10013,10014) and exchange_code not between 10000 and 10007` = 0；`select count(*) from public.finv_security s join public.finv_exchange e using (exchange_code) where s.market_code in (10001,10011,10013,10014) and e.region='CC'` = 192；`select success from public.schema_version where version='200080'` 为 `t`；`V300080` 重跑影响 0 行；两库（`finv` / 全新库）该 20 行均为 10001；`go test -p 1 ./internal/database -run TestMigrateIntegration` 通过 | √ |
+| 10881 | 迁移号段重排（为生产库重做基线做准备）：三段号段 —— `V100000`～`V199999` **基础准备**（创建角色 / 校验数据库 / 创建 schema）、`V200000`～`V299999` **表结构 DDL**、`V300000`～`V399999` **数据**（字典种子 / 回填 / 修正）。落地内容：① 原 `V1xxxxx` 段 89 个文件整体 +100000 → `V200001`～`V200089`，原 `V2xxxxx` 段 81 个文件整体 +100000 → `V300000`～`V300080`（执行顺序不变）；② 新增 `V100001`（角色 `finv`，幂等、不落密码）、`V100002`（8 个 schema：`public` 自带 + `quote`/`quant`/`futu`/`sys`/`sche`/`cdeu`/`archive`，`AUTHORIZATION CURRENT_USER`）、`V100003`（数据库名与 schema 权限校验；`CREATE DATABASE` 不能进迁移事务，建库由部署侧负责）；③ 全仓版本引用同步替换（SQL/Go/文档 1678 处，含 `CHANGELOG`/`RequirementList`/`Refactor` 历史条目，另手工修 `Deploy/README.md`、`Deploy/Script`、`DbSchemaSpec` §4 号段约定）；④ 存量库 `public.schema_version` 一次性 +100000（`Deploy/Upgrade/2611-001-MigrationSegmentsShift.sql`，`public.schema_version_plan_shift` marker 保证只执行一次，分批 UPDATE 避免「旧 100077→200077 撞尚未处理的旧 200077」主键冲突，并同步 `description`）。 | 全新库全链 `select count(*) from public.schema_version` = 173（3 基础 + 89 DDL + 81 数据），`min(version::bigint)`=100001、`max`=300080；存量库执行平移脚本后 `select count(*), min(version::bigint), max(version::bigint) from public.schema_version` = `170 / 200001 / 300080`，再启动服务后 = 173；平移脚本重跑输出「此前已执行，跳过」且行数不变；`select count(*) from public.schema_version where version::bigint between 100004 and 199999` = 0；`select string_agg(nspname, ',') from pg_namespace where nspname in ('quote','quant','futu','sys','sche','cdeu','archive')` 含全部 7 个；`go test ./internal/docs ./internal/database` 通过、`TestMigrateIntegration` 通过；`go build ./...` 通过 | √ |
 
 ## 汇总
 
@@ -2751,7 +2752,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | BRS 对象存储上传 | 10801 | 1 |
 | BRS 对象存储配置说明 | 10802 | 1 |
 | Web 左侧菜单四级化 | 10803–10807 | 5 |
-| V200057 迁移兼容 dedup 缺失 | 10808 | 1 |
+| V300057 迁移兼容 dedup 缺失 | 10808 | 1 |
 | 登录后页面页脚 | 10809 | 1 |
 | 深色/浅色主题切换 | 10810–10811 | 2 |
 | CDEU 前端路由调整 | 10812 | 1 |
@@ -2822,7 +2823,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 加密货币 region 取值修正为 CC | 10878 | 1 |
 | 加密货币交易所 region 切到 CC | 10879 | 1 |
 | 20 只加密货币证券 exchange_code 修正为 10001 | 10880 | 1 |
-| **合计** | **10001–10880** | **879** |
+| 迁移号段重排（1/2/3 三段，为基线重做准备） | 10881 | 1 |
+| **合计** | **10001–10881** | **880** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

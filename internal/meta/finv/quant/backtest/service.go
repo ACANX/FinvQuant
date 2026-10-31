@@ -1219,7 +1219,7 @@ func (s *Service) SaveEnvironment(ctx context.Context, env *Environment) (string
 	if err != nil {
 		return "", fmt.Errorf("环境配置序列化失败: %w", err)
 	}
-	// 设为默认环境时，同用户 + 同类型仅保留一个默认（配合 V100028 部分唯一索引）
+	// 设为默认环境时，同用户 + 同类型仅保留一个默认（配合 V200028 部分唯一索引）
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return "", err

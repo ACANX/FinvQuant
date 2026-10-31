@@ -207,7 +207,7 @@ type Store interface {
 | `bak_method` | varchar(16) | 默认 `pg_dump`，`IN ('pg_dump','copy')` | 首期只实现 `pg_dump` |
 | `compression` | varchar(16) | 默认 `zstd`，`IN ('none','gzip','zstd')` | 压缩方式 |
 | `where_clause` | text | 可空 | **预留**，当前未生效（见 §9） |
-| `flag_upload` | char(1) | 默认 `1`，`IN ('0','1')` | 表级上传开关（V200061 新增） |
+| `flag_upload` | char(1) | 默认 `1`，`IN ('0','1')` | 表级上传开关（V300061 新增） |
 | `remark` / `creator` / `gmt_create` / `gmt_update` | — | — | 备注、创建人、时间戳 |
 
 ### 7.2 预置登记（12 行）
@@ -292,5 +292,5 @@ type Store interface {
 | `internal/meta/base/oss/local/local.go` | 本地目录适配器（单测/离线） |
 | `internal/meta/finv/sys/syscfg.go` | `sys_config` 读取（39001/39002 等） |
 | `cmd/server/main.go` | 启动时 `go brs.Start(...)`，注入连接参数与备份目录 |
-| `Deploy/Migrations/V200060__brs_backup_table.sql` | `brs` schema、登记表、39001 与 12 行种子 |
-| `Deploy/Migrations/V200061__brs_upload.sql` | `flag_upload` 列、39002 默认 JSON |
+| `Deploy/Migrations/V300060__brs_backup_table.sql` | `brs` schema、登记表、39001 与 12 行种子 |
+| `Deploy/Migrations/V300061__brs_upload.sql` | `flag_upload` 列、39002 默认 JSON |

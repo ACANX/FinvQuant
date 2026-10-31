@@ -1,7 +1,7 @@
 # FinvQuant 通用量化回测 — 策略定义规范（BacktestStrategySpec）
 
 > 版本：v1（2026-08-06）
-> 适用范围：FinvQuant 通用量化回测引擎（`internal/meta/finv/quant/backtest`），服务端 `POST /API/V100001/Meta/Finv/Quant/Backtest/Strategy/Save` 保存策略时校验。
+> 适用范围：FinvQuant 通用量化回测引擎（`internal/meta/finv/quant/backtest`），服务端 `POST /API/V200001/Meta/Finv/Quant/Backtest/Strategy/Save` 保存策略时校验。
 
 ## 1. 设计目标
 
@@ -181,13 +181,13 @@ primary   := NUMBER | IDENT | FUNC(args) | ( expr )
 
 ## 8. 持久化与回看
 
-- 策略/账户/任务/曲线/成交/链路追踪全部落 PostgreSQL（`quant.finv_quant_` 前缀表，见迁移 V100022~V100027）；
+- 策略/账户/任务/曲线/成交/链路追踪全部落 PostgreSQL（`quant.finv_quant_` 前缀表，见迁移 V200022~V200027）；
 - 任务保存**策略与账户快照**：策略/账户后续修改不影响历史任务结果（可复现）；
 - 前端「回测分析」按 runId 拉取报告与曲线，支持持久化保存与随时回看。
 
 ## 8.5 链路追踪（需求⑨）
 
-持仓变动详细情况链路追踪分析，三个维度（对应迁移 V100027 三张表）：
+持仓变动详细情况链路追踪分析，三个维度（对应迁移 V200027 三张表）：
 
 **① 资金流水明细**（`quant.finv_quant_backtest_cashflow`）：
 - 类型：`INITIAL_DEPOSIT`（初始资金注入）/ `BUY_PAY`（买入付款）/ `SELL_RECEIVE`（卖出收款）/ `FEE`（手续费）/ `MARGIN_HOLD`（保证金占用）/ `MARGIN_RELEASE`（保证金释放）；
@@ -237,7 +237,7 @@ primary   := NUMBER | IDENT | FUNC(args) | ( expr )
 
 策略模板 / 账户模板 / 环境模板三类（`template_type`），相同部分（环境、约束、规则、限制、策略）复用，差异部分自定义：
 
-- 内置模板（`is_builtin=1`，`user_id='system'` 全局可见，**禁止修改/删除**）：双均线/RSI/布林带/MACD 四个策略模板 + COMEX 黄金/沪深 ETF 两个环境模板（种子 V100020）；
+- 内置模板（`is_builtin=1`，`user_id='system'` 全局可见，**禁止修改/删除**）：双均线/RSI/布林带/MACD 四个策略模板 + COMEX 黄金/沪深 ETF 两个环境模板（种子 V200020）；
 - 自定义模板：用户按需保存（服务端强制 `is_builtin='0'`，防伪造内置标识），策略创建时可选关联 `template_id`；
 - 环境模板内容可直接复制为环境（env_code/env_name/config）。
 
@@ -255,10 +255,10 @@ primary   := NUMBER | IDENT | FUNC(args) | ( expr )
 
 ## 12. API 路径规范
 
-- 后端：`/API/V100001/Meta/Finv/Quant/Backtest/**`（策略/账户/任务/报告/曲线/成交/链路追踪/环境/模板）；
+- 后端：`/API/V200001/Meta/Finv/Quant/Backtest/**`（策略/账户/任务/报告/曲线/成交/链路追踪/环境/模板）；
 - 前端：菜单与路由统一加 `Meta/Finv/Quant/` 前缀（如 `/meta/finvquant/backtest/gold-futures`）。
 
 ## 13. 部署注记
 
-- **迁移 V100022~V100028 + 种子 V100019/V100020 需在全新库一次性应用**（本 PR 未发布过中间态：V100022~V100026 在 PR 内完成改名与加列、V100027/V100028 为新增表，自研迁移 runner 无 checksum 校验，若部署过中间态需重建或人工核对）；
+- **迁移 V200022~V200028 + 种子 V200019/V200020 需在全新库一次性应用**（本 PR 未发布过中间态：V200022~V200026 在 PR 内完成改名与加列、V200027/V200028 为新增表，自研迁移 runner 无 checksum 校验，若部署过中间态需重建或人工核对）；
 - 服务启动时自动把历史遗留的 RUNNING/PENDING 任务标记为 FAILED（重启恢复机制，避免悬挂）。

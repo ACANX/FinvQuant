@@ -346,7 +346,7 @@ if [[ "${SKIP_DB}" -eq 0 ]]; then
       "SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema')" 2>/dev/null || echo 0)"
     if [[ -z "${HAS_SV}" && "${TBL_CNT:-0}" -gt 0 ]]; then
       warn "数据库 ${DB_NAME} 内有 ${TBL_CNT} 张表，但缺少 public.schema_version（非本程序初始化或旧库）"
-      warn "迁移将从 V100001 起执行，遇到已有同名表会失败（relation ... already exists）"
+      warn "迁移将从 V200001 起执行，遇到已有同名表会失败（relation ... already exists）"
       warn "本脚本不会删除、重命名或迁移该库中的任何表；迁移将以未限定名在同一库内继续执行"
       warn "如需规避同名表冲突，请在 env 中改用独立数据库（FINV_PG_DATABASE），或改用独立 PG 实例"
     fi

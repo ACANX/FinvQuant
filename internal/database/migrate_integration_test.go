@@ -54,9 +54,9 @@ func TestMigrateIntegration(t *testing.T) {
 		t.Fatalf("重复执行迁移失败（幂等性）: %v", err)
 	}
 
-	// V100041：归档表 + 索引全部就绪（V200051 起归档优先级已合并进 finv_quote_cdeu_usc；V100080 起全部表在 cdeu 域，共 11 张）。
+	// V200041：归档表 + 索引全部就绪（V300051 起归档优先级已合并进 finv_quote_cdeu_usc；V200080 起全部表在 cdeu 域，共 11 张）。
 	//
-	// 注意：原 dedup 域的 finv_dedup_runtime_setting 不在清单内——该表于 V200041 删除
+	// 注意：原 dedup 域的 finv_dedup_runtime_setting 不在清单内——该表于 V300041 删除
 	// （导出低峰窗口改由 sys.sys_config 20006 承载），见 RequirementList 10653。
 	tables := []string{
 		"finv_quote_cdeu_ingest_stats",
@@ -137,7 +137,7 @@ SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'cdeu' AND indexname 
 		}
 	}
 
-	// V100042：运行日志增加阶段 / 进度 / 心跳列（供总览页展示执行进度）。
+	// V200042：运行日志增加阶段 / 进度 / 心跳列（供总览页展示执行进度）。
 	columns := []string{"stage", "progress_percent", "progress_detail", "gmt_heartbeat"}
 	for _, column := range columns {
 		var exists bool
@@ -152,7 +152,7 @@ SELECT EXISTS (SELECT 1 FROM information_schema.columns
 		}
 	}
 
-	// V100044–V100050：Workflow → Phase → Process → JOB → Step 定义与运行表。
+	// V200044–V200050：Workflow → Phase → Process → JOB → Step 定义与运行表。
 	var workflowCount, phaseCount, processCount, jobCount, jobStepCount int
 	if err := pool.QueryRow(ctx, `
 SELECT (SELECT count(*) FROM cdeu.finv_quote_cdeu_workflow),
@@ -172,7 +172,7 @@ SELECT (SELECT count(*) FROM cdeu.finv_quote_cdeu_workflow),
 		t.Fatalf("查询 PHASE_OPS 失败: %v", err)
 	}
 	if opsPhase != 0 {
-		t.Fatalf("PHASE_OPS 应已被 V100045 拆分删除，实际仍有 %d 行", opsPhase)
+		t.Fatalf("PHASE_OPS 应已被 V200045 拆分删除，实际仍有 %d 行", opsPhase)
 	}
 	var collectName, dedupName string
 	if err := pool.QueryRow(ctx, `
@@ -384,7 +384,7 @@ SELECT count(*) FROM pg_constraint c
 		t.Fatalf("全库不应存在外键，实际 %d 个", foreignKeys)
 	}
 
-	// 既有两张业务表结构未被 V100041 改动：主表主键仍为 (ts, usc)。
+	// 既有两张业务表结构未被 V200041 改动：主表主键仍为 (ts, usc)。
 	var primaryKey string
 	if err := pool.QueryRow(ctx, `
 SELECT pg_get_constraintdef(c.oid) FROM pg_constraint c

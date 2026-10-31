@@ -16,7 +16,7 @@ var ErrRunLogNotFound = errors.New("Job 运行记录不存在")
 
 // ErrUscNotFound 指定的证券在 finv_quote_cdeu_usc 中不存在（需求 10745）。
 //
-// V200051 起优先级不再是独立行，必须依附于已存在的证券，因此设置优先级
+// V300051 起优先级不再是独立行，必须依附于已存在的证券，因此设置优先级
 // 前需先登记证券；handler 据此返回 404。
 var ErrUscNotFound = errors.New("证券不存在")
 
@@ -138,7 +138,7 @@ func (s *Store) ListWatermarks(ctx context.Context, f AdminFilter) (Page[Waterma
 		"watermark_name, last_value, gmt_update", nil, nil, "watermark_name", f)
 }
 
-// ListPriorities 查询已配置归档优先级的证券（V200051 起数据源为 finv_quote_cdeu_usc）。
+// ListPriorities 查询已配置归档优先级的证券（V300051 起数据源为 finv_quote_cdeu_usc）。
 //
 // 只返回 priority_rank IS NOT NULL 的行；未配置的证券在 ListUscs 中三列为 NULL。
 func (s *Store) ListPriorities(ctx context.Context, f AdminFilter) (Page[PriorityRow], error) {
@@ -386,7 +386,7 @@ UPDATE `+tableWatermark+` SET last_value = $2, gmt_update = now() WHERE watermar
 	return nil
 }
 
-// SetUscPriority 设置或清除证券的归档优先级覆盖（V200051 起写入 finv_quote_cdeu_usc）。
+// SetUscPriority 设置或清除证券的归档优先级覆盖（V300051 起写入 finv_quote_cdeu_usc）。
 //
 // in 为 nil 表示清空覆盖（三列同时置 NULL），退回默认 100 / 5 / 7；
 // 注意：清空后下一轮自动补全（BackfillUscDefaults）会把三列写回 100 / 5 / 7，

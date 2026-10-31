@@ -18,6 +18,23 @@
 
 > 0.1.4 开发中。变更按 `新增` / `变更` / `修复` / `移除` / `安全` 分类追加，发布时整体改为版本号并补日期。
 
+### 变更
+
+- **迁移号段重排为三段（需求 10881，为生产库重做基线做准备）**
+  - **号段规划**：
+    | 号段 | 用途 | 现状 |
+    |---|---|---|
+    | `V100000`～`V199999` | 基础准备（创建角色 / 校验数据库 / 创建 schema） | 新增 `V100001`（角色 `finv`）、`V100002`（8 个 schema）、`V100003`（库与权限校验） |
+    | `V200000`～`V299999` | 表结构 DDL（建表 / 加列 / 改约束 / 移表） | 原 `V1xxxxx` 段 89 个文件整体 `+100000` |
+    | `V300000`～`V399999` | 数据（字典种子 / 回填 / 修正） | 原 `V2xxxxx` 段 81 个文件整体 `+100000` |
+  - **文件重命名**：`V100001`~`V100089` → `V200001`~`V200089`；`V200000`~`V200080` → `V300000`~`V300080`（编号一一对应，执行顺序不变）。新增 3 个基础准备脚本后迁移总数 **170 → 173**。
+  - **基础准备脚本**：`V100001` 幂等确保角色 `finv` 存在（不落密码，无 CREATEROLE 权限时明确报错）；`V100002` 按 `public`→`quote`→`quant`→`futu`→`sys`→`sche`→`cdeu`→`archive` 创建 7 个 schema（`AUTHORIZATION CURRENT_USER`，`public` 由 PG 自带）；`V100003` 校验库名（`finv` 或 `finv*` 测试库）与 schema 权限（`CREATE DATABASE` 不允许在事务内，建库仍由部署侧 `POSTGRES_DB` / `createdb` 负责）。
+  - **全仓引用同步**：`Deploy/`、`internal/`、`cmd/`、`Docs/`、`AGENTS.md`、`README.md` 共 **1678 处**版本号一次扫描替换（规则：`V1xxxxx`→`V2xxxxx`、`V2xxxxx`→`V3xxxxx`，单次遍历避免串号）；另手工修正 `Deploy/README.md`（2 处号段约定）、`Deploy/Script/MigratePublicKlineToCdeu.sql`（迁移范围 `V200001`–`V200080`）、`DbSchemaSpec` §4 号段约定与 `V201000xx` 收尾段示例。
+  - **存量库过渡**：新增 `Deploy/Upgrade/2611-001-MigrationSegmentsShift.sql`，把 `public.schema_version.version` 一次性 `+100000`。要点：`public.schema_version_plan_shift` marker 表保证只执行一次；**分批 UPDATE**（先 `>=200000` 的旧数据段→`3xxxxx`，再 `<200000` 的旧 DDL 段→`2xxxxx`），避免「旧 `100077` → `200077`」与尚未处理的旧 `200077` 撞主键；同时按 `version` 重算 `description`（`V<n> migration`）。
+  - **验证**：全新库 `finv_migtest` 全链 **173 个迁移 0 失败**（`100001`~`300080`），`TestMigrateIntegration` 通过；生产库执行平移脚本后 `schema_version` 由 170 行（`100001`~`200080`）变为 170 行（`200001`~`300080`），重启服务再补跑 3 个基础准备脚本 → 173 行，Live/Web 200；平移脚本重跑输出「此前已执行，跳过」；`go build ./...` 通过，`go test ./...` 仅已知的 `TestDirUploader`（Windows 路径语义）失败。
+  - **文档**：`DbSchemaSpec` §4 号段约定重写（三段表 + 平移规则 + 历史遗留说明）；`Deploy/README.md` 同步；`RequirementList` 新增 10881（汇总 10001–10881 / 880 条）。
+  - **注意**：本次只改编号与引用，**不改任何 SQL 逻辑**；`CHANGELOG`/`RequirementList`/`Docs/Refactor/*` 中的历史版本号为可追溯性已一并改为新号（对应文件已重命名）。
+
 ### 新增
 
 - **`dedup` 包整体迁入 `cdeu` 域（`internal/meta/finv/quote/cdeu`）**
@@ -28,17 +45,17 @@
   - 文档：`Docs/Design/CdeuWorkflowDesign.md` 代码分层表、`Docs/DevSpec/DbSchemaSpec.md` §3.1 的运行包路径同步；`Docs/RequirementList.md` / `Docs/Refactor/*` / CHANGELOG 历史条目属历史记录，按「只增不改」保留原文。
   - 验证：`go build ./...`、`go vet ./...` 无输出；`go test ./internal/...` 除 `internal/meta/finv/quote/cdeu` 的 `TestDirUploader`（Windows 下 `/abs/escape.mvsv` 路径语义，已用 `git stash` 复核确认与本次无关）外全部通过。
 
-- **导出中转表从 `export` 域迁入 `cdeu` 域（`V100088`）**
-  - 新增迁移 `Deploy/Migrations/V100088__move_export_kline_staging_to_cdeu.sql`：建 `cdeu.finv_quote_secu_kline_min_export`（与 `cdeu.finv_quote_secu_kline_min` 同构，`LIKE ... INCLUDING DEFAULTS/CONSTRAINTS/INDEXES/STORAGE/COMMENTS`，触发器 `trg_finv_quote_secu_kline_min_export_gmt_update` 单独补齐），搬迁 `export.finv_quote_secu_kline_min` 存量行（`ON CONFLICT DO NOTHING`，本地库实测 0 行）后 `DROP` 源表；`export` schema 保留为空（删除 schema 需单独授权）。迁移幂等，重跑影响 0 行，末尾收敛校验（列数/主键/触发器/源表已删）不符即回滚。
+- **导出中转表从 `export` 域迁入 `cdeu` 域（`V200088`）**
+  - 新增迁移 `Deploy/Migrations/V200088__move_export_kline_staging_to_cdeu.sql`：建 `cdeu.finv_quote_secu_kline_min_export`（与 `cdeu.finv_quote_secu_kline_min` 同构，`LIKE ... INCLUDING DEFAULTS/CONSTRAINTS/INDEXES/STORAGE/COMMENTS`，触发器 `trg_finv_quote_secu_kline_min_export_gmt_update` 单独补齐），搬迁 `export.finv_quote_secu_kline_min` 存量行（`ON CONFLICT DO NOTHING`，本地库实测 0 行）后 `DROP` 源表；`export` schema 保留为空（删除 schema 需单独授权）。迁移幂等，重跑影响 0 行，末尾收敛校验（列数/主键/触发器/源表已删）不符即回滚。
   - 代码：`internal/meta/finv/quote/cdeu/store.go` 的中转表常量 `tableStaging` 改为 `cdeu.finv_quote_secu_kline_min_export`（`LOAD`/`EXPORT`/`CLEANUP`/补丁链路全部随之生效，无需逐处改 SQL）；`model.go`、`job_patch.go` 注释同步；两个集成测试的清理语句改为新表。
   - 防回归闸门：`internal/database/schema_qualify_test.go` 的 `exactTableSchema` 把 `finv_quote_secu_kline_min` 白名单收敛为 `quote.` / `cdeu.`（不再允许 `export.`），并为 `finv_quote_secu_kline_min_export` 固定 schema 为 `cdeu.`（否则会被 `finv_quote_` 前缀规则误判为需写 `quote.`）。
   - 文档：`Docs/DevSpec/DbSchemaSpec.md` 同步 §0.2 保护名单、§1 schema 划分表（`export` 域暂无表、`cdeu` 域 27 → 28 张）、§3.1 同名转存表规则与实例清单。
   - 验证：`go build ./...` 通过、`go test ./internal/database -run TestSQLSchemaQualified` 通过、`cdeu/kline` 单测通过；`dedup` 包的 `TestDirUploader` 在 Windows 上失败（`/abs/escape.mvsv` 路径语义），已用 `git stash` 对比确认与本次改动无关。
 
-- **历史种子证券回填 `market_code` 并启用、`finv_market` 补市场符号与基础货币（`V200068` / `V200069`）**
-  - 背景：`V200002` / `V200009` 两批共 470 条证券种子在 `market_code` 列存在之前入库（该列由 `V100019` 以 `DEFAULT 0` 补加），长期停留在「待维护」状态且 `flag_enable='0'`，无法参与按市场的行情导入、归档导出与去重取数。
-  - 新增迁移 `Deploy/Migrations/V200068__finv_security_marketcode_backfill.sql`：按显式 `usc → market_code` 清单回填 470 条——其中 400 条按 `futu.finv_futu_quote_collect` 关联并套用 `V200062` 生成时的同一份口径（`SecuSync/SecuMapping.json` 的 `marketCodeByFutu`），余 70 条（`SHI` / `HS300I` / `N225` / `LIST*` 等无富途记录的历史 usc）按「交易所 + 证券类型 + 代码形态」推导并经人工确认；同时把这 470 条的 `flag_enable` 由 `0` 置为 `1`。另按语义细分原 `market_code=1314`（配置侧存在、`finv_market` 未登记的重复码）的 180 条美股指数：道琼斯美国行业指数 155 条 → `1311`、道琼斯宽基/风格 16 条 → `1312`、标普/纳指/Wilshire/Cboe/波动率 9 条 → `1310`。
-  - 新增迁移 `Deploy/Migrations/V200069__finv_market_symbol_and_base_currency.sql`：为 8 个有证券数据但符号未维护的市场补 `market_symbol`（`10011`/`10013`/`10014` → `FTC`、`8000` → `SECTOR`、`2001` → `BD`、`2003` → `BDY`、`3001` → `FD`、`1521` → `IN`），为 10 个所辖证券计价货币唯一的市场补 `base_currency`（`1501`→JPY、`1508`→USD、`1511`→SGD、`1521`→USD、`2001`→HKD、`3001`→USD、`10001`/`10011`/`10013`/`10014`→USD）；跨币种市场（`1251 FX`、`2003`、`8000`）保持空串——一个市场只有一列基础计价货币，跨币种由证券层 `currency_type` 区分，不拆市场、不在 `market_symbol` 上叠加货币后缀。
+- **历史种子证券回填 `market_code` 并启用、`finv_market` 补市场符号与基础货币（`V300068` / `V300069`）**
+  - 背景：`V300002` / `V300009` 两批共 470 条证券种子在 `market_code` 列存在之前入库（该列由 `V200019` 以 `DEFAULT 0` 补加），长期停留在「待维护」状态且 `flag_enable='0'`，无法参与按市场的行情导入、归档导出与去重取数。
+  - 新增迁移 `Deploy/Migrations/V300068__finv_security_marketcode_backfill.sql`：按显式 `usc → market_code` 清单回填 470 条——其中 400 条按 `futu.finv_futu_quote_collect` 关联并套用 `V300062` 生成时的同一份口径（`SecuSync/SecuMapping.json` 的 `marketCodeByFutu`），余 70 条（`SHI` / `HS300I` / `N225` / `LIST*` 等无富途记录的历史 usc）按「交易所 + 证券类型 + 代码形态」推导并经人工确认；同时把这 470 条的 `flag_enable` 由 `0` 置为 `1`。另按语义细分原 `market_code=1314`（配置侧存在、`finv_market` 未登记的重复码）的 180 条美股指数：道琼斯美国行业指数 155 条 → `1311`、道琼斯宽基/风格 16 条 → `1312`、标普/纳指/Wilshire/Cboe/波动率 9 条 → `1310`。
+  - 新增迁移 `Deploy/Migrations/V300069__finv_market_symbol_and_base_currency.sql`：为 8 个有证券数据但符号未维护的市场补 `market_symbol`（`10011`/`10013`/`10014` → `FTC`、`8000` → `SECTOR`、`2001` → `BD`、`2003` → `BDY`、`3001` → `FD`、`1521` → `IN`），为 10 个所辖证券计价货币唯一的市场补 `base_currency`（`1501`→JPY、`1508`→USD、`1511`→SGD、`1521`→USD、`2001`→HKD、`3001`→USD、`10001`/`10011`/`10013`/`10014`→USD）；跨币种市场（`1251 FX`、`2003`、`8000`）保持空串——一个市场只有一列基础计价货币，跨币种由证券层 `currency_type` 区分，不拆市场、不在 `market_symbol` 上叠加货币后缀。
   - 影响范围：`finv_security` 由「16,729 条启用 / 470 条禁用且市场未维护」变为「17,199 条全部启用且 `market_code` 无 `0`」；`finv_market` 36 个有数据的市场 `market_symbol` 全部非空。
   - 幂等与验证：两迁移用临时表 + `IS DISTINCT FROM` 条件，在已按同口径改过的库上重放影响 0 行；收敛校验不符则整事务回滚。已用事务反向模拟全新库初始状态（470 条复位 `market_code=0`/`flag_enable='0'`、180 条复位 `1314`、市场符号与货币复位空串）执行两迁移，结果与生产库一致后回滚，本地库未受影响。
 
@@ -49,34 +66,34 @@
   - 验证：`bizMonthOptions(10, new Date(2026, 9, 30))` 返回 120 项，首项 `2026-10`、末项 `2016-11`；`vue-tsc -b` 与 `npm run build` 通过。
 
 - **日增量行数模板表 + `day_expect_rows` 自动补全（需求 10820）**
-  - 新增迁移 `Deploy/Migrations/V100084__create_cdeu_usc_day_incr_row_tpl.sql`：新建 `cdeu.finv_quote_cdeu_usc_day_incr_row_tpl`（8 列：`region` / `market` / `category` 均可为空串表示通配、`day_expect_rows` INTEGER CHECK > 0、`flag_enable` CHAR(1)、`remark`、`gmt_create` / `gmt_update`），主键 `(region, market, category)`，`gmt_update` 复用 `public.vq_set_gmt_update()` 触发器；`cdeu` 域表数 26 → 27（`DbSchemaSpec` §1 已同步）。
-  - 新增种子迁移 `Deploy/Migrations/V200065__cdeu_usc_day_incr_row_tpl_seed.sql`：预置 10 行市场模板（`ON CONFLICT DO NOTHING`，不覆盖运维调整）——`CN/SH`、`CN/SZ`、`CN/BJ` = 241；`HK/HK`、`HK/HKR` = 331；`US/NSDQ`、`US/PINK` = 390；`US/COMEX`、`FX/CFD` = 1380；`GLOBAL/*/Crypto` = 1440（每行取值依据写在迁移头部）。
+  - 新增迁移 `Deploy/Migrations/V200084__create_cdeu_usc_day_incr_row_tpl.sql`：新建 `cdeu.finv_quote_cdeu_usc_day_incr_row_tpl`（8 列：`region` / `market` / `category` 均可为空串表示通配、`day_expect_rows` INTEGER CHECK > 0、`flag_enable` CHAR(1)、`remark`、`gmt_create` / `gmt_update`），主键 `(region, market, category)`，`gmt_update` 复用 `public.vq_set_gmt_update()` 触发器；`cdeu` 域表数 26 → 27（`DbSchemaSpec` §1 已同步）。
+  - 新增种子迁移 `Deploy/Migrations/V300065__cdeu_usc_day_incr_row_tpl_seed.sql`：预置 10 行市场模板（`ON CONFLICT DO NOTHING`，不覆盖运维调整）——`CN/SH`、`CN/SZ`、`CN/BJ` = 241；`HK/HK`、`HK/HKR` = 331；`US/NSDQ`、`US/PINK` = 390；`US/COMEX`、`FX/CFD` = 1380；`GLOBAL/*/Crypto` = 1440（每行取值依据写在迁移头部）。
   - 新增 `Store.BackfillUscDefaults`（`internal/meta/finv/quote/dedup/store.go`）：对 `cdeu.finv_quote_cdeu_usc.day_expect_rows` 为空的证券按模板补全，匹配按 `region + market + category`（`upper()` 归一化、支持空串通配、特异性降序取第一条启用模板），**已配置的非空值一律不覆盖**；模板未命中保持 NULL（不凭空给默认值，避免成熟度误判）。
   - 挂载点：成熟度刷新 JOB（`DiscoverUsc` 之后）与导出 JOB 的元数据阶段（`RefreshSecurityMetadata` 之后）；JOB `Details` 与进度日志输出补全行数。存量缺值证券在下一轮 JOB 自动收敛，不再需要逐个用 `PUT /Usc` 人工补。
   - 说明：港股 331 是按「330 分钟 + 1，与 A 股 241 同口径」推导的值；若上游分钟源实际每日 332 根，在成熟度阈值 0.95 下两种取值都能判定 `COMPLETE`，直接改模板表对应行的值即可（不需改代码）。
 
 - **自动发现时补全优先级 / SLA / 最大等待默认值（需求 10821）**
-  - `priority_rank` / `sla_days` / `max_wait_days` 三列同时为 NULL（未配置）时，由 `BackfillUscDefaults` 统一补 100 / 5 / 7（沿用 `V100051` 以来的兜底口径），使 CDEU 流程无需人工预配置即可开始运行；人工设置过的值不被覆盖。
+  - `priority_rank` / `sla_days` / `max_wait_days` 三列同时为 NULL（未配置）时，由 `BackfillUscDefaults` 统一补 100 / 5 / 7（沿用 `V200051` 以来的兜底口径），使 CDEU 流程无需人工预配置即可开始运行；人工设置过的值不被覆盖。
   - 自动补全**不写** `priority_gmt_update`：该列为 NULL 即表示「默认值」、非 NULL 表示「人工设置过」，运维台据此区分两者（三列不进模板表，用户 2026-10-30 明确）。
   - 新增集成用例 `TestBackfillUscDefaults`（`store_backfill_integration_test.go`）：验证模板命中性（`HK/HK` → 331）、已配置值不覆盖、未命中保持 NULL、优先级默认值 100/5/7、二次执行幂等（默认跳过，需 `FINV_TEST_PG_DSN`）。
 
 ### 新增
 
-- **初始数据发放纳入迁移脚本（`V200062`–`V200064`，需求 10819）**
-  - `Deploy/Migrations/V200062__finv_security_seed_supabase.sql`（4.3 MB / 17,129 行 / 35 条批量 INSERT）：`finv_security` 初始数据，`ON CONFLICT DO NOTHING`。
-  - `Deploy/Migrations/V200063__finv_futu_quote_collect_seed_supabase.sql`（2.5 MB / 17,138 行）：`futu.finv_futu_quote_collect` 初始数据，`ON CONFLICT DO NOTHING`。
-  - `Deploy/Migrations/V200064__finv_security_fix_hk_rmb_counter_currency.sql`（72 行）：港币人民币柜台 `currency_type → CNY` 的幂等收敛，保证全新库与生产库一致（`V200009` 把 `81810` 写成 `HKD`，而 `V200062` 因 `ON CONFLICT DO NOTHING` 不覆盖已有行）。
+- **初始数据发放纳入迁移脚本（`V300062`–`V300064`，需求 10819）**
+  - `Deploy/Migrations/V300062__finv_security_seed_supabase.sql`（4.3 MB / 17,129 行 / 35 条批量 INSERT）：`finv_security` 初始数据，`ON CONFLICT DO NOTHING`。
+  - `Deploy/Migrations/V300063__finv_futu_quote_collect_seed_supabase.sql`（2.5 MB / 17,138 行）：`futu.finv_futu_quote_collect` 初始数据，`ON CONFLICT DO NOTHING`。
+  - `Deploy/Migrations/V300064__finv_security_fix_hk_rmb_counter_currency.sql`（72 行）：港币人民币柜台 `currency_type → CNY` 的幂等收敛，保证全新库与生产库一致（`V300009` 把 `81810` 写成 `HKD`，而 `V300062` 因 `ON CONFLICT DO NOTHING` 不覆盖已有行）。
   - 生成方式：`FinvQuantDesign/Scripts/SecuSync/` 的 `ExportSecu.py` / `BuildFutuQuoteCollect.py` / `FixSecuCurrency.py` 新增 `--migration-out <path>`，可从上游快照直接再生成迁移文件（文件名版本号从 `V<数字>__` 解析）。
   - 全新库验证：新建 `finv_verify` 库按版本号顺序执行全部 148 个迁移，均成功；`futu.finv_futu_quote_collect` 17,138 行与生产库逐字段完全一致；`finv_security` 17,199 行中有 44 行字段差异——42 行是生产库人工维护的 `market_code` / `flag_enable`（种子值为 `0`），2 行是历史 `usc` 治理口径不同（生产库曾把 `000680` / `000985` 的两个上证指数改为 `SH0680` / `SH0985` 以让出代码给深市股票，本次数据因此能插入山推股份与大庆华科；迁移脚本未包含该次治理）。
   - 生产库已执行三个迁移（影响 0 行，幂等）并登记 `schema_version`，共 148 条。
 
 - **新建富途原始属性镜像表 `futu.finv_futu_quote_collect`（需求 10818）**
-  - 新增迁移 `Deploy/Migrations/V100083__create_futu_finv_futu_quote_collect.sql`：14 列（`usc` 主键、`stock_id` BIGINT、`futu_symbol`、`market_type` / `market_code` / `instrument_type` / `sub_instrument_type`（INTEGER）、`req_section` 可空、`quote_market`、`type_symbol`、`flag_enable` CHAR(1) DEFAULT '0'、`remark` TEXT NOT NULL DEFAULT ''、`gmt_create` / `gmt_update`），另建唯一索引 `(market_code, futu_symbol)`、索引 `stock_id` 与 `(type_symbol, flag_enable)`，`gmt_update` 复用 `public.vq_set_gmt_update()` 触发器；表属 `futu` 域（`DbSchemaSpec` §1 已登记）。
+  - 新增迁移 `Deploy/Migrations/V200083__create_futu_finv_futu_quote_collect.sql`：14 列（`usc` 主键、`stock_id` BIGINT、`futu_symbol`、`market_type` / `market_code` / `instrument_type` / `sub_instrument_type`（INTEGER）、`req_section` 可空、`quote_market`、`type_symbol`、`flag_enable` CHAR(1) DEFAULT '0'、`remark` TEXT NOT NULL DEFAULT ''、`gmt_create` / `gmt_update`），另建唯一索引 `(market_code, futu_symbol)`、索引 `stock_id` 与 `(type_symbol, flag_enable)`，`gmt_update` 复用 `public.vq_set_gmt_update()` 触发器；表属 `futu` 域（`DbSchemaSpec` §1 已登记）。
   - 数据初始化与增量同步由仓库外工具 `FinvQuantDesign/Scripts/SecuSync/BuildFutuQuoteCollect.py` 完成：默认 `upsert`（`ON CONFLICT (usc) DO UPDATE`，`gmt_create` 不覆盖、`gmt_update` 由触发器刷新），`--conflict-mode append` 可只插不改，`--baseline <上一份快照> --only-changes` 只生成上游新增/变更的行。
   - 首次初始化：17138 行（上游 `flag_enable='1'` 全量，0 拒绝），与 `finv_security` 的 `usc` 对位 17129 条（差 9 条为上游 `name_sc` / `type_secu` 为空而未入 `finv_security` 的记录）。
 
 - **`finv_security` 扩展三列并支持 Supabase 证券主数据批量导入（需求 10814–10816）**
-  - 新增迁移 `Deploy/Migrations/V100082__finv_security_add_type_secu_sub_provider_remark.sql`：给 `public.finv_security` 增加 `type_secu_sub`、`provider`、`remark` 三列（`TEXT NOT NULL DEFAULT ''`，空串=未维护/未标注/无备注），语义位置分别为 `security_type` 之后、`tz` 之后、`flag_enable` 之后，末尾做列定义收敛校验。
+  - 新增迁移 `Deploy/Migrations/V200082__finv_security_add_type_secu_sub_provider_remark.sql`：给 `public.finv_security` 增加 `type_secu_sub`、`provider`、`remark` 三列（`TEXT NOT NULL DEFAULT ''`，空串=未维护/未标注/无备注），语义位置分别为 `security_type` 之后、`tz` 之后、`flag_enable` 之后，末尾做列定义收敛校验。
   - 仓库外新增导入工具 `FinvQuantDesign/Scripts/SecuSync/`（Python 3 标准库，无第三方依赖）：`DownloadSecu.py` 以游标分页（`order=usc.asc` + `usc=gt.`）+ 上游 `count` 核对 + 指数退避重试，把 `finv_quote_collect_futu_view`（`flag_enable='1'`）落盘为 JSONL + manifest（上游总数/实拉行数/sha256）到 `Data/Secu/`；`ExportSecu.py` 按 `SecuMapping.json` 把富途 `market_code` 转换为 `finv_market.market_code`，产出目标行 JSONL、幂等插入 SQL（`BEGIN` / 每 500 行一条 `INSERT ... ON CONFLICT DO NOTHING` / 收敛校验 / `COMMIT`）与转换报告（统计、拒绝明细、待确认项）。
   - 本批次导入约定：`flag_enable='0'`（新行默认禁用）、`provider='FTMM'`、`remark='20261030-SupabasePG-finv_quote_collect_futu_view批量导入'`；**表中已有记录不做更新**（主键 `usc` 与唯一约束 `(exchange_code, security_code)` 命中即整行跳过）。
   - 首次实测（2026-10-30 快照，17,138 条源记录）：可插入 17,129 条，拒绝 9 条（`name_sc` 空 6 条、`type_secu` 空 3 条）；生成的 SQL 与目标行 JSONL 逐行逐值核对一致。
@@ -84,9 +101,9 @@
 
 ### 变更
 
-- **市场码与计价货币口径收口，删除空壳 `export` schema（`V100089` / `V200070`，需求 10869）**
-  - `V200070__finv_market_currency_and_secu_market_fix.sql`：字典外重复码并入已登记等价码 —— `1313`（美股 OTC 场外，未登记）→ `1331 US-OTC` 共 15 行，使全文再无「`market_code` 不在 `finv_market` 字典内」的证券；港股人民币柜台（8 开头 5 位代码，如 `80700` 腾讯控股-R）由 `1201` 归入 `1205 HKEX-HR` 共 25 行（该市场 `base_currency` 已是 CNY）；韩国 KOSPI 指数（`1508`）、印度 SENSEX 指数（`1521`）的 `base_currency` 与证券 `currency_type` 由 `USD` 改为 `KRW` / `INR`（原先由 `V200009` 以 `exchange_code=100` 兜底推导为 USD）。
-  - `V100089__drop_export_schema.sql`：`export` 域唯一表已由 `V100088` 迁入 `cdeu`，该 schema 现无任何对象，先校验「空壳」再 `DROP SCHEMA`；同步从 `internal/database/postgres.go` 的 `search_path` 与集成测试中移除 `export` / `dedup`（后者已由 `V100086` 删除）。
+- **市场码与计价货币口径收口，删除空壳 `export` schema（`V200089` / `V300070`，需求 10869）**
+  - `V300070__finv_market_currency_and_secu_market_fix.sql`：字典外重复码并入已登记等价码 —— `1313`（美股 OTC 场外，未登记）→ `1331 US-OTC` 共 15 行，使全文再无「`market_code` 不在 `finv_market` 字典内」的证券；港股人民币柜台（8 开头 5 位代码，如 `80700` 腾讯控股-R）由 `1201` 归入 `1205 HKEX-HR` 共 25 行（该市场 `base_currency` 已是 CNY）；韩国 KOSPI 指数（`1508`）、印度 SENSEX 指数（`1521`）的 `base_currency` 与证券 `currency_type` 由 `USD` 改为 `KRW` / `INR`（原先由 `V300009` 以 `exchange_code=100` 兜底推导为 USD）。
+  - `V200089__drop_export_schema.sql`：`export` 域唯一表已由 `V200088` 迁入 `cdeu`，该 schema 现无任何对象，先校验「空壳」再 `DROP SCHEMA`；同步从 `internal/database/postgres.go` 的 `search_path` 与集成测试中移除 `export` / `dedup`（后者已由 `V200086` 删除）。
   - 配置侧同步（仓库外 `FinvQuantDesign/Scripts/SecuSync/`）：`SecuMapping.json` 的 `marketCodeByFutu` 改为 `13→1331`、`24→1312`、`111/113/114→1250`，`knownFinvMarketCodes` 移除 `1150`/`1313`/`1314` 并补 `1250`/`1331`，`hkRmbCounter` 新增 `marketCode=1205`；`ExportSecu.py` 在 `market_code` 解析后应用人民币柜台规则 —— 避免下次增量导入把已迁移的市场码/货币冲回旧值。已用构造记录实测：futu 13→1331、futu 111→1250、`80700`→1205（CNY）、`00700`→1201。
   - 注释与测试清理：`cdeu` 包、`internal/api/handler` 中约 50 处历史表名（`finv_dedup_*`）与「dedup 主表/主包/schema」描述改为现行 `finv_quote_cdeu_*` / `cdeu` 口径；`internal/database/migrate_integration_test.go` 的迁移断言从已删除的 `dedup` schema 改为 `cdeu`（表清单与索引名按 `cdeu` 现行命名，否则独立库全链测试必定失败）。
   - 遗留未动（需业务确认）：`0828EA`（名 GOLDETF 却 `security_type='Bond'`）的类型归属。
@@ -315,86 +332,86 @@
 
 ### 新增
 
-- **20 只加密货币证券的 `exchange_code` 由 `100` 修正为 `10001`（需求 10880，迁移 `V200080`）**
-  - 成因：`V200009` 增量种子（2026-08-05）就把这 20 只的 `exchange_code` 写成 `100`（`FX` 外汇市场）；`V200062` 权威导入给的是 `10001`（`CRYPTO`），但 `INSERT ... ON CONFLICT (usc) DO NOTHING` 使其从未覆盖旧行；`V200068` 只修了 `market_code`。
-  - 依据：`futu.finv_futu_quote_collect` 中这批 `quote_market='CC'`、`market_type=17`、富途市场码 360/400，与 `FX` 明显不同品种；`V200062` 中 19 只明确为 10001，`PAXG` 不在 `V200062` 但富途镜像同属 `CC`。
+- **20 只加密货币证券的 `exchange_code` 由 `100` 修正为 `10001`（需求 10880，迁移 `V300080`）**
+  - 成因：`V300009` 增量种子（2026-08-05）就把这 20 只的 `exchange_code` 写成 `100`（`FX` 外汇市场）；`V300062` 权威导入给的是 `10001`（`CRYPTO`），但 `INSERT ... ON CONFLICT (usc) DO NOTHING` 使其从未覆盖旧行；`V300068` 只修了 `market_code`。
+  - 依据：`futu.finv_futu_quote_collect` 中这批 `quote_market='CC'`、`market_type=17`、富途市场码 360/400，与 `FX` 明显不同品种；`V300062` 中 19 只明确为 10001，`PAXG` 不在 `V300062` 但富途镜像同属 `CC`。
   - 改动：仅这 20 行 `exchange_code` → `10001`（明确 usc 清单限定）；`market_code` 不变（19 只 10001、`BTCUSD` 保持 10011）；写入前做 `uq_finv_security_exchange_code` 冲突预检（0 冲突）。
-  - 影响：这批证券回填 `region` 由 `FX` 变 `CC`（`V200079` 已把加密交易所切到 `CC`），导出文件名 `region` 段由 `FX_*` 变 `CC_*`；`cdeu.finv_quote_cdeu_export_file` 中这批证券历史导出 **0 条**，无回溯包袱。
-  - 校验：20 行全部 10001；`exchange_code=100` 挂加密市场 0 行；加密市场（10001/10011/10013/10014）全部 `exchange_code` ∈ 10000~10007；192 只加密证券 `region='CC'`；`V200080` 重跑 0 行；全新库全链（170 个迁移）0 失败、`TestMigrateIntegration` 通过；生产库 `V200080` 登记 `t`、Live/Web 200。
+  - 影响：这批证券回填 `region` 由 `FX` 变 `CC`（`V300079` 已把加密交易所切到 `CC`），导出文件名 `region` 段由 `FX_*` 变 `CC_*`；`cdeu.finv_quote_cdeu_export_file` 中这批证券历史导出 **0 条**，无回溯包袱。
+  - 校验：20 行全部 10001；`exchange_code=100` 挂加密市场 0 行；加密市场（10001/10011/10013/10014）全部 `exchange_code` ∈ 10000~10007；192 只加密证券 `region='CC'`；`V300080` 重跑 0 行；全新库全链（170 个迁移）0 失败、`TestMigrateIntegration` 通过；生产库 `V300080` 登记 `t`、Live/Web 200。
   - 文档：`RequirementList` 新增 10880（汇总 10001–10880 / 879 条）。
 
 ### 新增
 
-- **8 个加密货币交易所的 `region` 由 `GLOBAL` 切到 `CC`（需求 10879，迁移 `V200079`）**
+- **8 个加密货币交易所的 `region` 由 `GLOBAL` 切到 `CC`（需求 10879，迁移 `V300079`）**
   - `finv_region` 已有 `(3, CC, 加密货币)`，但 `finv_exchange` 的 `10000 CC` ~ `10007 CCPT` 仍挂 `GLOBAL`，导致 `CC` 行没有任何引用；本次把 8 行 `region` 改为 `CC`。
   - 影响：`cdeu/store.go` 元数据回填对加密证券的 `region` 变为 `CC`（`cdeu.finv_quote_cdeu_usc` 当前无加密证券行，无需回刷）；加密证券导出文件名 `region` 段由 `GLOBAL_*` 变为 `CC_*`，而 `cdeu.finv_quote_cdeu_export_file` 中此类证券历史导出 **0 条**、远端无归档文件，改名无历史包袱。
-  - 校验：8 行全部 `CC`；`region='GLOBAL'` 的交易所 0 行；8 行全部匹配 `finv_region(3, CC)`；`V200079` 重跑 0 行；全新库全链（169 个迁移）0 失败、`TestMigrateIntegration` 通过；生产库 `V200079` 登记 `t`、Live/Web 200。
+  - 校验：8 行全部 `CC`；`region='GLOBAL'` 的交易所 0 行；8 行全部匹配 `finv_region(3, CC)`；`V300079` 重跑 0 行；全新库全链（169 个迁移）0 失败、`TestMigrateIntegration` 通过；生产库 `V300079` 登记 `t`、Live/Web 200。
   - 未处理（另行评估）：`finv_security` 中 20 只挂 `exchange_code=100`（FX）却 `market_code` 为 10001/10011 的加密证券，其 `region` 仍随 exchange 取 `FX`。
   - 文档：`RequirementList` 新增 10879（汇总 10001–10879 / 878 条）；`DbSchemaSpec` §1.3 同步。
 
 ### 新增
 
-- **加密货币 `region` 取值修正为 `CC`（需求 10878，迁移 `V200078`）**
-  - `V200077` 新增 `idx=3` 时按 `exchange_abbr`/`market_flag` 习惯推测把 `region` 写成了 `CRYPTO`；用户 2026-11-01 确认正确取值为两字母短码 **`CC`**（与 `finv_exchange.exchange_abbr='CC'`、`CN`/`HK`/`US` 等短码风格一致），`name` 保持 `加密货币`。
+- **加密货币 `region` 取值修正为 `CC`（需求 10878，迁移 `V300078`）**
+  - `V300077` 新增 `idx=3` 时按 `exchange_abbr`/`market_flag` 习惯推测把 `region` 写成了 `CRYPTO`；用户 2026-11-01 确认正确取值为两字母短码 **`CC`**（与 `finv_exchange.exchange_abbr='CC'`、`CN`/`HK`/`US` 等短码风格一致），`name` 保持 `加密货币`。
   - 迁移含 idx=3 缺失时的幂等补插；**不改** `finv_exchange.region`（8 个加密货币交易所 10000~10007 仍为 `GLOBAL`，是否切换到 `CC` 属另一件事）、不改 `futu.finv_futu_mapping_region`。
-  - 校验：`idx=3` = `CC/加密货币`；`region='CRYPTO'` 残留 0 行；`idx=3` 行数 1；`V200078` 重跑 0 行；全新库全链（168 个迁移）0 失败、`TestMigrateIntegration` 通过；生产库 `V200078` 登记 `t`、Live/Web 200。
+  - 校验：`idx=3` = `CC/加密货币`；`region='CRYPTO'` 残留 0 行；`idx=3` 行数 1；`V300078` 重跑 0 行；全新库全链（168 个迁移）0 失败、`TestMigrateIntegration` 通过；生产库 `V300078` 登记 `t`、Live/Web 200。
   - 文档：`RequirementList` 新增 10878（汇总 10001–10878 / 877 条）；`DbSchemaSpec` §1.3 同步为 `CC`。
 
 ### 新增
 
-- **`finv_region` 补 `FX` / `CRYPTO` 两行并统一 `US`（需求 10877，迁移 `V200077`）**
+- **`finv_region` 补 `FX` / `CRYPTO` 两行并统一 `US`（需求 10877，迁移 `V300077`）**
   - `FX`（idx=2，name=`外汇`）：`finv_exchange` 的 100 `FX` / 101 `FX-CFD` 使用的 `region='FX'` 此前不在字典中，`cdeu/store.go` 元数据回填的 `LEFT JOIN finv_region r ON r.region = e.region` 永远落空，只能靠 `COALESCE` 退化取交易所文本；补齐后 `region` 段取值链路闭环（`finv_exchange.region='FX'` → `finv_region.region='FX'` → `cdeu.usc.region='FX'`）。
   - `CRYPTO`（idx=3，name=`加密货币`）：用户要求顺带加入；本期**未改** `finv_exchange.region`（8 个加密货币交易所 10000~10007 仍为 `GLOBAL`），属「字典先行、交易所归属后续单独决策」。
   - `idx=103` 的 `region` 由 `USA` 改为 `US`：与生产库及 `finv_exchange.region`（9 个美股交易所）一致，避免全新库美股导出文件名 `region` 段为 `USA`、生产库为 `US` 而互相对不上。
   - 未处理：`finv_exchange.region='N/A'`（120/121/122/9003）仍未入字典；`futu.finv_futu_mapping_region` 未动。
-  - 校验：`finv_region` 27 行；`(2,FX,外汇)`、`(3,CRYPTO,加密货币)`、`(103,US,美国)` 就位；`finv_exchange` 中 `region in ('FX','US')` 的 11 行 100% 匹配字典（`unmatched=0`）；`V200077` 重跑 0 行；全新库全链（167 个迁移）0 失败、`TestMigrateIntegration` 通过；生产库 `V200077` 登记 `t`、Live/Web 200。
+  - 校验：`finv_region` 27 行；`(2,FX,外汇)`、`(3,CRYPTO,加密货币)`、`(103,US,美国)` 就位；`finv_exchange` 中 `region in ('FX','US')` 的 11 行 100% 匹配字典（`unmatched=0`）；`V300077` 重跑 0 行；全新库全链（167 个迁移）0 失败、`TestMigrateIntegration` 通过；生产库 `V300077` 登记 `t`、Live/Web 200。
   - 文档：`RequirementList` 新增 10877（汇总 10001–10877 / 876 条）；`DbSchemaSpec` §1.3 记录 `region` 字典 idx 编码约定。
 
 ### 新增
 
-- **`USDIndex` 固定归属市场 1253（需求 10876，迁移 `V200076`）**
+- **`USDIndex` 固定归属市场 1253（需求 10876，迁移 `V300076`）**
   - 决策：用户 2026-11-01 明确「1253 是手工加上的，按 1253 来定义，后续 `USDIndex` 就是 1253」。
-  - 问题：`V200062` 种子把 `USDIndex` 写成 `market_code=1251`（`FX`/`CER`），生产库的 `1253` 来自早前手工回填（未落迁移）→ 全新库复现不出生产口径，且 `V200075` 之后会出现「1251 市场 + `type_secu_sub=CIX`」的矛盾行。
+  - 问题：`V300062` 种子把 `USDIndex` 写成 `market_code=1251`（`FX`/`CER`），生产库的 `1253` 来自早前手工回填（未落迁移）→ 全新库复现不出生产口径，且 `V300075` 之后会出现「1251 市场 + `type_secu_sub=CIX`」的矛盾行。
   - 改动：仅 `usc='USDIndex'` 一行 `market_code` → `1253`；不动 `type_secu_sub`/`currency_type`/`flag_enable`，不动小写 `USDindex`。
-  - 校验：`USDIndex` = `1253/CIX`；1253 下无非 `CIX` 的非空 `type_secu_sub`；1251 下无 `CIX`；两库（`finv` / 全新库）一致；`V200076` 重跑影响 0 行；全新库全链（166 个迁移）0 失败、`TestMigrateIntegration` 通过；生产库 `V200076` 登记 `t`、Live/Web 200。
+  - 校验：`USDIndex` = `1253/CIX`；1253 下无非 `CIX` 的非空 `type_secu_sub`；1251 下无 `CIX`；两库（`finv` / 全新库）一致；`V300076` 重跑影响 0 行；全新库全链（166 个迁移）0 失败、`TestMigrateIntegration` 通过；生产库 `V300076` 登记 `t`、Live/Web 200。
   - 文档：`RequirementList` 新增 10876（汇总 10001–10876 / 875 条）。
 
 ### 新增
 
-- **修正 `USDIndex` 的 `type_secu_sub` 为 `CIX`（需求 10875，迁移 `V200075`）**
-  - 背景：`finv_security.type_secu_sub` 应与所属市场的 `market_symbol` 一致（1251→`CER`、1252→`CFD`、1253→`CIX`）。`USDIndex`（美元指数）由 `V200062` 从 Supabase 导入时，上游 `sub_instrument_type=10001` 被统一映射成 `CER`，导致它挂 1253（`FX-IDX`/`CIX`）却带 `CER`。
-  - 改动：仅 `usc='USDIndex'` 一行 `CER` → `CIX`；不动 `market_code`/`currency_type`/`flag_enable`，也不动小写 `USDindex`（`V200003` 老种子、`type_secu_sub` 本为空串）。
-  - 校验：`USDIndex.type_secu_sub='CIX'`；1253 市场下非空 `type_secu_sub` 全部为 `CIX`；小写 `USDindex` 仍为空串；`V200075` 重跑影响 0 行；全新库全链（165 个迁移）0 失败、`TestMigrateIntegration` 通过；生产库 `V200075` 登记 `t`、Live/Web 200。
+- **修正 `USDIndex` 的 `type_secu_sub` 为 `CIX`（需求 10875，迁移 `V300075`）**
+  - 背景：`finv_security.type_secu_sub` 应与所属市场的 `market_symbol` 一致（1251→`CER`、1252→`CFD`、1253→`CIX`）。`USDIndex`（美元指数）由 `V300062` 从 Supabase 导入时，上游 `sub_instrument_type=10001` 被统一映射成 `CER`，导致它挂 1253（`FX-IDX`/`CIX`）却带 `CER`。
+  - 改动：仅 `usc='USDIndex'` 一行 `CER` → `CIX`；不动 `market_code`/`currency_type`/`flag_enable`，也不动小写 `USDindex`（`V300003` 老种子、`type_secu_sub` 本为空串）。
+  - 校验：`USDIndex.type_secu_sub='CIX'`；1253 市场下非空 `type_secu_sub` 全部为 `CIX`；小写 `USDindex` 仍为空串；`V300075` 重跑影响 0 行；全新库全链（165 个迁移）0 失败、`TestMigrateIntegration` 通过；生产库 `V300075` 登记 `t`、Live/Web 200。
   - 文档：`RequirementList` 新增 10875（汇总 10001–10875 / 874 条）。
 
 ### 新增
 
 - **登记待办：兼容期 8 位 usc 重复行延后清理（需求 10874）**
-  - `public.finv_security` 中 22 行 8 位 usc（`SH000002`…`SH000985`）**为兼容保留**，`V200074` 按决策 D7 暂不删除；代码、采集与 CDEU 链路均已走 6 位，不影响功能。
+  - `public.finv_security` 中 22 行 8 位 usc（`SH000002`…`SH000985`）**为兼容保留**，`V300074` 按决策 D7 暂不删除；代码、采集与 CDEU 链路均已走 6 位，不影响功能。
   - 计划：待**下月初（2026-12 月初）上游数据更新完成后**再统一清理；删除条件固定为「同 usc 的 6 位行已存在且字段完整」（`DELETE ... WHERE usc ~ '^SH[0-9]{6}$' AND EXISTS (同 usc 的 6 位行)`），脚本须幂等可重跑，执行前 `pg_dump` 备份到 `Deploy/Backup/`。
   - 文档：`RequirementList` 新增 10874（未勾选验收，汇总 10001–10874 / 873 条）。
 
 ### 新增
 
-- **SH 指数类 usc 由 8 位规范为 6 位（需求 10873，迁移 `V200074`）**
-  - 背景：上游证券代码口径调整（`SH000001`~`SH000999` → `SH0001`~`SH0999`，去掉数字部分前两个 `0`）。库中同时存在两套 usc：8 位来自 `V200009` 增量种子（`provider=''`、英文名），6 位来自 `V200062` Supabase 批量导入（`provider='FTMM'`、中文名）与历史手工改名，生产库 22 组并存、全新库 23 组（多一条 `SH000001`）。
+- **SH 指数类 usc 由 8 位规范为 6 位（需求 10873，迁移 `V300074`）**
+  - 背景：上游证券代码口径调整（`SH000001`~`SH000999` → `SH0001`~`SH0999`，去掉数字部分前两个 `0`）。库中同时存在两套 usc：8 位来自 `V300009` 增量种子（`provider=''`、英文名），6 位来自 `V300062` Supabase 批量导入（`provider='FTMM'`、中文名）与历史手工改名，生产库 22 组并存、全新库 23 组（多一条 `SH000001`）。
   - 冲突规避（脚本不会因冲突失败）：8 位 usc **只在没有对应 6 位行时就地改号**（`usc` + `security_code` 同步，并用双 `NOT EXISTS` 同时避开主键 `finv_security_pkey` 与唯一约束 `uq_finv_security_exchange_code`）；已存在 6 位行时以 6 位为准，不 rename、不插入，只回填字段。
   - 合并规则（用户逐条批准 D1–D10）：英文名回填 6 位行（D1）、`flag_enable` 取 `'1'` 优先（D2）、`gmt_create` 保留较早值（D3）、`SH0985` 对齐为 `exchange_code=11` / `security_code='SH0985'`（D4）、`security_type` 保留 6 位现网值（D5）、其余 17 张含 `usc` 的表本期只巡检不迁移（D6）、8 位重复行**暂不删除**（D7）、`SH0001` 的 `security_code` 归一为 `'SH0001'`（D8）。
-  - 同步范围：`futu.finv_futu_mapping_security.finv_usc`（8 位 usc 的源头，`V200003` 种子 23 行）一并改 6 位；`Deploy/Migrations/V200009`/`V200003` 历史迁移不改，由 `V200074` 在其后收口（与 `V200071` 同一套路），全新库同样收敛。
-  - 验证：独立库 `finv_migtest` 全链 164 个迁移 0 失败、`TestMigrateIntegration` 通过；两库 `select ... where usc ~ '^SH[0-9]{4}$'` = **317**、8 位残留 **22**、6 位 usc 行中 `security_code` 仍为 8 位的 **0** 行、futu 映射表 8 位 **0** 行；`V200074` 重跑影响 **0 行**（幂等）；生产库 `V200074` 登记 `t`、服务 Live/Web 200。
+  - 同步范围：`futu.finv_futu_mapping_security.finv_usc`（8 位 usc 的源头，`V300003` 种子 23 行）一并改 6 位；`Deploy/Migrations/V300009`/`V300003` 历史迁移不改，由 `V300074` 在其后收口（与 `V300071` 同一套路），全新库同样收敛。
+  - 验证：独立库 `finv_migtest` 全链 164 个迁移 0 失败、`TestMigrateIntegration` 通过；两库 `select ... where usc ~ '^SH[0-9]{4}$'` = **317**、8 位残留 **22**、6 位 usc 行中 `security_code` 仍为 8 位的 **0** 行、futu 映射表 8 位 **0** 行；`V300074` 重跑影响 **0 行**（幂等）；生产库 `V300074` 登记 `t`、服务 Live/Web 200。
   - 备份：执行前 `pg_dump`（`finv_security` + `futu.finv_futu_mapping_security`）至 `Deploy/Backup/usc_sh6_pre_20261101_020848.dump`。
   - 文档：`DbSchemaSpec` 新增 §1.2「`usc` 编码口径」；`RequirementList` 新增 10873（汇总 10001–10873 / 872 条）。
 
 ### 修复
 
 - **全新库全链迁移跑不通（独立库 `finv_migtest` 验证发现，4 处修复）**
-  - 现象：在空库上按版本顺序执行全部 161 个迁移时，`V200036` 报 `relation "dedup.finv_dedup_usc" does not exist`，后续 12 个依赖 `dedup.*` 的历史数据迁移（`V200036`–`V200052`）连带失败。根因：`V100086`（需求 10834）在 `V200036` 之前就把 `dedup` / `dedup_frozen` 删了；生产库是增量演进库（那批迁移早已执行），所以从未暴露。
-  - 修复一：`V100086` 不再直接 `DROP SCHEMA`，改为只跑前置数据校验并把删除动作推迟；新增 `V200071__drop_dedup_schemas_after_data_migrations.sql`，在最后一个 dedup 数据迁移之后删 schema（含同等前置校验与收敛校验）。终态不变（`dedup`/`dedup_frozen` 均不存在），已执行过 `V100086` 的库不受影响（不重跑）。
-  - 修复二：`V200070` 增加「`finv_market` 字典补齐」段（`1205`/`1250`/`1252`/`1253`/`1320`/`1321`/`1322`/`1330`/`1331`/`1340`，按 code 与 flag 双条件幂等插入，避开 `uq_finv_market_flag`）；并把「字典外行数」校验从 `RAISE EXCEPTION` 降为 `RAISE NOTICE`（字典编号体系差异属独立问题，见下方「待解决」）。
-  - 修复三：新增 `V200072__cdeu_restore_explain_export_decision_job.sql` —— `V100085` 插入的 `JOB_EXPLAIN_EXPORT_DECISION` 在全新库上会被 `V200057`（“cdeu 配置落后时清空重灌”）删掉，导致全新库 22 个 JOB、生产库 23 个；幂等补回后两边收敛到 23。
+  - 现象：在空库上按版本顺序执行全部 161 个迁移时，`V300036` 报 `relation "dedup.finv_dedup_usc" does not exist`，后续 12 个依赖 `dedup.*` 的历史数据迁移（`V300036`–`V300052`）连带失败。根因：`V200086`（需求 10834）在 `V300036` 之前就把 `dedup` / `dedup_frozen` 删了；生产库是增量演进库（那批迁移早已执行），所以从未暴露。
+  - 修复一：`V200086` 不再直接 `DROP SCHEMA`，改为只跑前置数据校验并把删除动作推迟；新增 `V300071__drop_dedup_schemas_after_data_migrations.sql`，在最后一个 dedup 数据迁移之后删 schema（含同等前置校验与收敛校验）。终态不变（`dedup`/`dedup_frozen` 均不存在），已执行过 `V200086` 的库不受影响（不重跑）。
+  - 修复二：`V300070` 增加「`finv_market` 字典补齐」段（`1205`/`1250`/`1252`/`1253`/`1320`/`1321`/`1322`/`1330`/`1331`/`1340`，按 code 与 flag 双条件幂等插入，避开 `uq_finv_market_flag`）；并把「字典外行数」校验从 `RAISE EXCEPTION` 降为 `RAISE NOTICE`（字典编号体系差异属独立问题，见下方「待解决」）。
+  - 修复三：新增 `V300072__cdeu_restore_explain_export_decision_job.sql` —— `V200085` 插入的 `JOB_EXPLAIN_EXPORT_DECISION` 在全新库上会被 `V300057`（“cdeu 配置落后时清空重灌”）删掉，导致全新库 22 个 JOB、生产库 23 个；幂等补回后两边收敛到 23。
   - 修复四：`internal/database/migrate_integration_test.go` 的过期断言对齐生产库现状（CDEU 初始数据 1/6/17/23/15、`PHASE_REVIEW` 下 5 个 Process、`PROCESS_RECOVER` 归 `PHASE_REVIEW`、`PROCESS_HISTORY_INGEST` 挂 1 个 JOB、`PROCESS_EXPORT_DECISION` 挂 2 个 JOB、`jobs_without_step=8`）。
-  - 验证：在独立库 `finv_migtest` 上 `TestMigrateIntegration` **通过**（161 个迁移全链执行 + 幂等重跑 + 表/索引/列/种子断言）；生产库重建镜像后 `V200071`/`V200072` 登记为 `t`，`dedup`/`dedup_frozen` 不存在、JOB 数 23、字典外证券 0 行。
-  - 修复四：**`V200073__finv_market_align_with_production.sql`（需求 10871）** —— 仓库种子（`V200017`/`V200018`）的 `finv_market` 编号体系（`1150 HKFE-F` / `1313 US-OTC` / `1314 US-I2` / `1312 US-ARCA` / `1315 BMS` …）与生产库现行体系（`1250 HKFE-F` / `1331 US-OTC` / `1312 US-I2` / `1317 US-ARCA` / `1315 US-NSDQ` / `1340 BMS` …）不一致，全新库因此有 77 行证券落在字典外。按「以生产库为准」（用户明确）重编号 9 行、补齐 3 行（`US-NSDQ`/`US-NYSE`/`US-BATS`）、并以生产库现值全量对齐 63 行属性；同时把另一批仍为 `market_code=0` 的 41 行历史种子按生产库同 `usc` 现值回填（`SH000001` 生产库已治理改名为 `SH0001`，按「上交所指数 → 1110」定值）。顺带修正生产库 `market_code=1110` 的乱码名称 `'??? A ?'` → `'上交所 A 股'`。
+  - 验证：在独立库 `finv_migtest` 上 `TestMigrateIntegration` **通过**（161 个迁移全链执行 + 幂等重跑 + 表/索引/列/种子断言）；生产库重建镜像后 `V300071`/`V300072` 登记为 `t`，`dedup`/`dedup_frozen` 不存在、JOB 数 23、字典外证券 0 行。
+  - 修复四：**`V300073__finv_market_align_with_production.sql`（需求 10871）** —— 仓库种子（`V300017`/`V300018`）的 `finv_market` 编号体系（`1150 HKFE-F` / `1313 US-OTC` / `1314 US-I2` / `1312 US-ARCA` / `1315 BMS` …）与生产库现行体系（`1250 HKFE-F` / `1331 US-OTC` / `1312 US-I2` / `1317 US-ARCA` / `1315 US-NSDQ` / `1340 BMS` …）不一致，全新库因此有 77 行证券落在字典外。按「以生产库为准」（用户明确）重编号 9 行、补齐 3 行（`US-NSDQ`/`US-NYSE`/`US-BATS`）、并以生产库现值全量对齐 63 行属性；同时把另一批仍为 `market_code=0` 的 41 行历史种子按生产库同 `usc` 现值回填（`SH000001` 生产库已治理改名为 `SH0001`，按「上交所指数 → 1110」定值）。顺带修正生产库 `market_code=1110` 的乱码名称 `'??? A ?'` → `'上交所 A 股'`。
   - 收口结果：全新库与生产库 `finv_market` 均 63 行且逐字段一致（仅上述 1110 名称已修）；两库 `finv_security` 字典外均为 **0** 行、`market_code=0` 均为 0 行；剩余 4 行归属差异来自历史 `usc` 治理（`000680`/`000985` 在生产库已改名为 `SH0680`/`SH0985`），属既定差异。
 
 - **元数据域改名后残留一处旧名注释（需求 10852 附带修复）**
@@ -746,7 +763,7 @@
     currency（以及 `day_expect_rows`、优先级/SLA 默认值）补齐」——这是**批次级准备**，
     由 `RUN_DUE_EXPORT_JOBS` 在批次生成之后执行一次，**不随动态实例重复**。
     挂在 BASE 流程下会让「每证券月」的流程图里出现一个全局步骤，容易误读成每实例都跑。
-  - 迁移 `V100087`：
+  - 迁移 `V200087`：
     · `JOB_FETCH_SECURITY_METADATA` 的 `process_id` → `PROCESS_EXPORT_BATCH`，`seq_no = 2`
       （1 = `JOB_FETCH_EXPORT_BATCH` 批次清单，2 = 元数据，符合「先算批次、再补元数据、再装载」）；
     · `PROCESS_EXPORT_FILE_MON_BASE` 剩余 JOB 的 `seq_no` 由 2..5 重排为连续 1..4
@@ -795,7 +812,7 @@
     证券数、主表存量行数、预计导出总大小、主表已清理（已导出）证券数。
   - 明细表按存量行数降序，每证券给出：主表存量行数、覆盖交易日数与日期范围、成熟度表应有的/实际行数、
     成熟度状态（含未达标天数）、导出任务状态与 `job_id`、**文件名（已生成或按命名规则预计）**、预计大小。
-  - 数据源（全部 `cdeu.*`，`dedup` / `dedup_frozen` 已于 `V100086` 删除）：
+  - 数据源（全部 `cdeu.*`，`dedup` / `dedup_frozen` 已于 `V200086` 删除）：
     `cdeu.finv_quote_secu_kline_min`（存量）+ `cdeu.finv_quote_cdeu_quote_maturity_mon`（规模补充）
     + `cdeu.finv_quote_cdeu_export_job` / `_export_file`（导出状态与已登记文件名）。
   - 关键口径说明：主表会被 `PURGE_EXPORTED_MONTH` 清理，因此「主表 0 行但成熟度有记录」专门标注为
@@ -814,13 +831,13 @@
 - **删除 `dedup` / `dedup_frozen` schema，旧域彻底淘汰（需求 10834）**
   - 授权：用户在会话中明确要求「把 dedup / dedup_frozen 的 schema 清理掉，以后彻底不用了」，
     对应 `DbSchemaSpec` §0.3 授权情形 1（明确点名删除）。
-  - 背景：`V100080` 已把该域 133,260 行数据迁入 `cdeu`，需求 10757 完成代码切换，
+  - 背景：`V200080` 已把该域 133,260 行数据迁入 `cdeu`，需求 10757 完成代码切换，
     10759 将旧 `dedup` 重命名冻结为 `dedup_frozen`。此后代码只读写 `cdeu.*`，
     冻结副本仅作观察期保留。
   - 备份（删除前完成）：`Deploy/Backup/dedup_schemas_20261030_234253.sql.gz`，
     `pg_dump -n dedup -n dedup_frozen` 导出 32 张表 / 32 段 COPY / 约 13.4 万行（2.2 MB），
     恢复方式 `zcat <备份> | psql -U finv -d finv`。`Deploy/Backup/` 已在 `.gitignore` 中。
-  - 迁移 `V100086`：前置校验「`cdeu` 侧行数不得少于冻结副本」（成熟度 / 导出任务 / 导出文件 /
+  - 迁移 `V200086`：前置校验「`cdeu` 侧行数不得少于冻结副本」（成熟度 / 导出任务 / 导出文件 /
     证券主数据四张关键表），`DROP SCHEMA IF EXISTS dedup CASCADE` + `dedup_frozen CASCADE`，
     后置校验「两个 schema 必须不存在」且「`quote` / `export` / `cdeu` 三份 `finv_quote_secu_kline_min`
     各存一份」（§0.2 保护名单不受影响）。
@@ -865,7 +882,7 @@
     并附上判定分布与前 5 条排除明细。
   - 修复三（provider 缺口）：`BackfillUscDefaults` 新增第 5.6 步——**有富途采集记录的证券**
     补 `provider='FTMM'`（依据：数据源即 `futu.finv_futu_quote_collect`，历史 202 个已导出
-    文件名的 provider 段全部为 FTMM）；迁移 `V200067` 同步补全存量数据。只补空值、只补
+    文件名的 provider 段全部为 FTMM）；迁移 `V300067` 同步补全存量数据。只补空值、只补
     有富途采集记录的证券，不覆盖人工值。
   - 修复四（可见性）：原先 `result.Details` 只随同步 HTTP 响应返回，调度触发跑完即丢弃，
     前端「执行日志」弹窗里看不到逐条结论。新增 `Service.AppendJobLog`，JOB 内统一 `emit()`
@@ -959,14 +976,14 @@
   - 测试：新增 `TestDescribeUploadTarget`（dir/none/非法路径回退）；文档 `Docs/API/QuoteDeDup/RunLog.md` 补充上传类 JOB 的日志口径与 `level` 语义。
 
 - **证券自动发现后的元数据补全失效（需求 10823）**
-  - 问题：服务器表 `cdeu.finv_quote_cdeu_usc` 497 行里有 **431 行**只有 `usc` + `provider`，`category/region/market/name/timezone/currency/day_expect_rows` 全为空。根因两个：① 回填只取 `finv_security.flag_enable='1'` 的行，而 `V200062` 导入的证券默认全是 `'0'`（372 行被这一条条件全部过滤掉）；② 五十余个自动发现的品种（富途板块 / 主连 / 外汇对 / 部分美股）根本不在 `finv_security`，没有数据源兜底。
+  - 问题：服务器表 `cdeu.finv_quote_cdeu_usc` 497 行里有 **431 行**只有 `usc` + `provider`，`category/region/market/name/timezone/currency/day_expect_rows` 全为空。根因两个：① 回填只取 `finv_security.flag_enable='1'` 的行，而 `V300062` 导入的证券默认全是 `'0'`（372 行被这一条条件全部过滤掉）；② 五十余个自动发现的品种（富途板块 / 主连 / 外汇对 / 部分美股）根本不在 `finv_security`，没有数据源兜底。
   - `Store.BackfillUscDefaults` 重写为六步（只补空、幂等）：
     ① `finv_security` 回填，**不限 `flag_enable`**（启用开关是字典维护语义，不代表行情不存在）；
     ② `futu.finv_futu_quote_collect` 兜底：`quote_market`（SH/SZ/BJ/HK/US/FX/CC）→ `region`/`market`，`type_symbol` → `category`；
     ③ 按 `region` 推导 `timezone`/`currency`（CN→Asia/Shanghai+CNY、HK→Asia/Hong_Kong+HKD、US→America/New_York+USD、FX/GLOBAL→UTC；外汇对与加密货币不猜计价币）；
     ④ `SH######` / `SZ######` 前缀兜底为 A 股指数（`region=CN`、`market=SH/SZ`、`category=StockIndex`）；
     ⑤ 按模板补 `day_expect_rows`；⑥ 优先级 / SLA / 最大等待补 100/5/7。
-  - 新增 `Deploy/Migrations/V200066__cdeu_usc_day_incr_row_tpl_region_fallback.sql`：模板表补 7 条**区域级兜底**行（`CN/''/''`=241、`HK/''/''`=331、`US/''/''`=390、`US/''/Futures`=1380、`FX/''/''`=1380、`GLOBAL/''/''`=1440、`GLOBAL/''/Forex`=1380）。原模板只有 `region+market` 精确行，`market` 未维护时一条都命中不了。
+  - 新增 `Deploy/Migrations/V300066__cdeu_usc_day_incr_row_tpl_region_fallback.sql`：模板表补 7 条**区域级兜底**行（`CN/''/''`=241、`HK/''/''`=331、`US/''/''`=390、`US/''/Futures`=1380、`FX/''/''`=1380、`GLOBAL/''/''`=1440、`GLOBAL/''/Forex`=1380）。原模板只有 `region+market` 精确行，`market` 未维护时一条都命中不了。
   - 新增可观测性：`UscBackfillStat` 增加 `MetadataRows` / `DerivedRows` / `Missing`（各字段仍缺行数），新增 `Store.UscMissingSample` 返回余下缺口证券样本，JOB 日志输出「补了多少 / 还缺什么 / 剩余样本」。
   - 实测（全新库全链迁移 151 个脚本 + 导入服务器导出的 497 行 usc）：修复前 431 行元数据全空、431 行 `day_expect_rows` 为空；修复后仅剩 **7 行**无源证券（`AMAT`/`GDRnext`/`MRVL`/`NOW`/`PLTR`/`SMCI`/`XRP`，既不在 `finv_security` 也不在富途镜像表）+ `VXMain` 的 `market`（`finv_market.market_symbol` 未维护），其余全部补齐（补全率 424/431 ≈ 98.4%）；`SH000002`/`SH000903`/`SH0980` 等由前缀兜底为 `CN/SH/StockIndex/241`。
   - 集成用例 `TestBackfillUscDefaults` 增加两个场景：`flag_enable='0'` 的证券仍能回填元数据（并按区域兜底模板得 241）、`finv_security` 未收录但富途镜像表有记录的证券走兜底（`HK/HK` → 331）；幂等断言覆盖 `MetadataRows` / `DerivedRows`。
@@ -1016,7 +1033,7 @@
   - 文档：`Docs/DevSpec/UiSpec.md` 新增 §3「主题（深色/浅色）切换」。
 
 - **BRS 对象存储配置说明（39002 remark，需求 10802）**
-  - `V200061` 中 `sys.sys_config 39002` 的 `remark` 补全为完整配置说明（`enabled/provider/endpoint/bucket/region/access_key/secret_key/prefix` 字段含义、R2/AWS/MinIO 差异、R2 API Token 获取步骤、注意事项、示例 JSON），约 1KB。
+  - `V300061` 中 `sys.sys_config 39002` 的 `remark` 补全为完整配置说明（`enabled/provider/endpoint/bucket/region/access_key/secret_key/prefix` 字段含义、R2/AWS/MinIO 差异、R2 API Token 获取步骤、注意事项、示例 JSON），约 1KB。
   - `Docs/FinvQuant/Brs.md` §6.1 增加 R2 配置步骤与验证命令。
 
 - **BRS 对象存储上传（二期，需求 10801）**
@@ -1095,17 +1112,17 @@
   - **Windows 封装**：新增 `Deploy/Script/Download.cmd`（定位 Git Bash 后转调 `.sh`，不含下载逻辑，排除 System32 的 WSL 转发器）。
   - **文档**：`Deploy/Script/README.md` 新增 §13（渠道/平台映射/校验解压/参数/与 PackSnapshot 的关系/常见问题），`Deploy/README.md` 与 `Deploy/Native/Install.md` 同步新增入口。
 
-- **把 `dedup` 表数据迁入 `cdeu` 对应表（需求 10756，已部署 V100080）**
+- **把 `dedup` 表数据迁入 `cdeu` 对应表（需求 10756，已部署 V200080）**
   - **范围**：26 张表、合计 **133,260 行**。映射 `dedup.cdeu_*` / `dedup.finv_dedup_*` → `cdeu.finv_quote_cdeu_*`，`dedup.finv_quote_secu_kline_min` → `cdeu.finv_quote_secu_kline_min`；`prep_bak_*` 5 张不迁。
   - **只复制不删源**：`dedup` 侧 31 张表数据一行未删，供后续逐步清理淘汰。
-  - **迁移 `V100080`**：前置校验（源 26 / 目标 26）→ 逐表 `INSERT ... ON CONFLICT DO NOTHING`（列清单从 `information_schema.columns` 按 `ordinal_position` 动态获取，不依赖 `SELECT *` 顺序）→ 17 个序列按 `pg_depend` 反查真实依赖后 `setval`（空表回初始态）→ 逐表行数收敛校验。
+  - **迁移 `V200080`**：前置校验（源 26 / 目标 26）→ 逐表 `INSERT ... ON CONFLICT DO NOTHING`（列清单从 `information_schema.columns` 按 `ordinal_position` 动态获取，不依赖 `SELECT *` 顺序）→ 17 个序列按 `pg_depend` 反查真实依赖后 `setval`（空表回初始态）→ 逐表行数收敛校验。
   - **幂等**：全部 `ON CONFLICT DO NOTHING`，重复执行不产生重复行。
   - **序列衔接**：抽查 `job` 50/50、`job_step_dynamic` 132270/132270、`export_file` 1673/1673、`job_run_log_line` 115832/115832（`max(主键)` == `last_value`）。
-  - **已知遗留**：三个序列名与实际服务列错位（`finv_quote_cdeu_process_process_id_seq` → `workflow.workflow_id` 等），是 `V100050` 重构 CDEU 模型时的遗留，本次按实际依赖 `setval` 故值正确。
+  - **已知遗留**：三个序列名与实际服务列错位（`finv_quote_cdeu_process_process_id_seq` → `workflow.workflow_id` 等），是 `V200050` 重构 CDEU 模型时的遗留，本次按实际依赖 `setval` 故值正确。
   - **⚠️ 关键状态**：应用代码仍读写 `dedup.*`，`cdeu` 数据是**快照**，会随 `dedup` 变化而逐渐过期。真正切换需改造 200 处 `dedup.cdeu_*` 引用并处理双写/补差；切换完成前**不得删除 `dedup` 表**。
-  - **验证**：`V100080 success=t`；26 张表逐表行数与 dedup 完全一致；`dedup` 仍 31 张表；容器 healthy。
+  - **验证**：`V200080 success=t`；26 张表逐表行数与 dedup 完全一致；`dedup` 仍 31 张表；容器 healthy。
 
-- **在 `cdeu` schema 建立与 `dedup` 对应的 26 张表结构（需求 10754，已部署 V100078）**
+- **在 `cdeu` schema 建立与 `dedup` 对应的 26 张表结构（需求 10754，已部署 V200078）**
   - **命名规则**：`dedup_` / `finv_dedup_` 开头 → `finv_quote_cdeu_`；其他表名不变；`prep_bak` 开头**不创建**（本库 5 张全部排除）。
   - **结果**：26 张表 = 12 张 `cdeu_*`（表名不变）+ 13 张 `finv_quote_cdeu_*`（前缀替换）+ 1 张 `finv_quote_secu_kline_min`（表名不变）。**本次不发放任何初始数据**，全部为空表。
   - **派生标识符**：`finv_dedup_*`→`finv_quote_cdeu_*`、`idx_dedup*`→`idx_quotecdeu*`、`uq_dedup*`→`uq_quotecdeu*`，`cdeu_*` 系列不变。
@@ -1114,12 +1131,12 @@
   - **一致性核验**：逐列比对（列名/类型/长度/可空性/默认值/精度）后，表数量与列集合完全对应；17 张表存在唯一一类差异——`column_default` 中序列的 schema 限定方式（dedup 为 `nextval('seq')` 依赖 search_path，cdeu 为 `nextval('cdeu.seq')` 显式限定），解析结果相同且更安全，属有意改进。
   - **测试同步**：`schema_qualify_test.go` 的 `exactTableSchema["finv_quote_secu_kline_min"]` 白名单加入 `cdeu.`（该表现有 4 份副本：`quote`/`dedup`/`export`/`cdeu`）；`cdeuTables` 清单扩到 26 个表名。
   - **状态**：应用仍读写 `dedup.*`，cdeu 侧仅为结构副本，等后续工作流改造接管；切换仍受 10753 约束（不得 `SET SCHEMA` 机械搬移）。
-  - **验证**：`V100078 success=t`；cdeu 下 26 表 / 17 序列 / 80 索引 / 265 约束；`n_live_tup` 合计 0；`prep_bak` 泄漏 0；`go build` / `go vet` / `go test ./...` 全绿。
+  - **验证**：`V200078 success=t`；cdeu 下 26 表 / 17 序列 / 80 索引 / 265 约束；`n_live_tup` 合计 0；`prep_bak` 泄漏 0；`go build` / `go vet` / `go test ./...` 全绿。
 
-- **新增 `cdeu` schema 作为 CDEU 工作流域域占位（需求 10753，已部署 V100077）**
+- **新增 `cdeu` schema 作为 CDEU 工作流域域占位（需求 10753，已部署 V200077）**
   - **范围**：只建空 schema，**表不搬迁**。12 张 `cdeu_*` 表仍在 `dedup`。
   - **`search_path`**：9 段 → 10 段，`cdeu` 紧随 `dedup` 之后、`archive` 之前（`public, quote, quant, futu, export, sche, dedup, cdeu, archive, sys`），数据库级与应用连接串同步。
-  - **迁移 `V100077`**：幂等建 schema（属主 `finv`）→ `ALTER DATABASE ... SET search_path` → 三道收敛校验（属主、`USAGE`/`CREATE`、`search_path` 含 `cdeu`）。
+  - **迁移 `V200077`**：幂等建 schema（属主 `finv`）→ `ALTER DATABASE ... SET search_path` → 三道收敛校验（属主、`USAGE`/`CREATE`、`search_path` 含 `cdeu`）。
   - **代码**：`postgres.go` DSN 加 `cdeu` 并补域名归属注释；3 个集成测试的 `RuntimeParams["search_path"]` 同步；`schema_qualify_test.go` 新增 `cdeuTables` 清单（12 表名）与过渡期说明。
   - **约束（用户明确要求，写入 4 处）**：后续把 `cdeu_*` 表迁入 `cdeu` 时**不是简单的同名迁移**——禁止 `ALTER TABLE ... SET SCHEMA` 式机械搬移，须重新审视表名（去掉重复 `cdeu_` 前缀）、约束/索引命名、主键与外键策略、运行表与定义表拆分粒度、历史数据兼容。落地位置：迁移头注释、`COMMENT ON SCHEMA cdeu`、`DbSchemaSpec §1.1`、`schema_qualify_test.go`。
   - **域边界**：`cdeu` = CDEU 工作流定义与运行实例；`dedup` = 行情批内去重、跨源指纹、入库审计、导出/上传元数据、证券主数据。`finv_dedup_export_*` **不迁**。
@@ -1127,14 +1144,14 @@
   - **顺带修正**：`Docs/DevSpec/DbSchemaSpec.md`（47 处）、`BacktestStrategySpec.md`（9 处）里的裸迁移编号引用一并 +100000，与新文件名对齐。
   - **验证**：`cdeu` 属主 `finv`、`USAGE`/`CREATE` 均为 `t`、库内对象 0、`dedup` 下 `cdeu_*` 表仍 12 张、`show search_path` 10 段；`go build` / `go vet` / `go test ./...` 全绿；容器 healthy。
 
-- **补齐字典 3120「币种」主表记录（需求 10749，已部署 V100053）**
-  - **问题**：`V100027` 早已写入 `sys.sys_dict_sub` 中 `dict_no=3120` 的 14 条子项（`0`–`9`、`A`–`D` → CNY/USD/HKD/EUR/GBP/AUD/CAD/SGD/JPY/MOP/DKK/GBX/MYR/TWD），但 `V100026` 的 19 条 `sys.sys_dict` 主表记录中没有 3120，形成「有子项、无主表」的孤儿字典。
-  - **修复**：`V100053` 只补定义行，不动子项。`dict_name='币种'`、`key_type='1'`、`val_type='2'`、`access_level=1`、`manage_level='0'`、`data_level='2'`、`dict_category='2'`、`gmt_create`/`gmt_modify='2024-12-19 15:28:10.900191'`（与子项同批）；`en_sub_sys` 留空——3121=`act`、3122=`cic` 均为单一子系统归属，而 3120 子项的 `en_sys_str` 是 `gat,gax,gcq,gaa,tms,pbs` 六子系统共用，无单一归属。
+- **补齐字典 3120「币种」主表记录（需求 10749，已部署 V200053）**
+  - **问题**：`V200027` 早已写入 `sys.sys_dict_sub` 中 `dict_no=3120` 的 14 条子项（`0`–`9`、`A`–`D` → CNY/USD/HKD/EUR/GBP/AUD/CAD/SGD/JPY/MOP/DKK/GBX/MYR/TWD），但 `V200026` 的 19 条 `sys.sys_dict` 主表记录中没有 3120，形成「有子项、无主表」的孤儿字典。
+  - **修复**：`V200053` 只补定义行，不动子项。`dict_name='币种'`、`key_type='1'`、`val_type='2'`、`access_level=1`、`manage_level='0'`、`data_level='2'`、`dict_category='2'`、`gmt_create`/`gmt_modify='2024-12-19 15:28:10.900191'`（与子项同批）；`en_sub_sys` 留空——3121=`act`、3122=`cic` 均为单一子系统归属，而 3120 子项的 `en_sys_str` 是 `gat,gax,gcq,gaa,tms,pbs` 六子系统共用，无单一归属。
   - **新增护栏**：收敛校验断言**全库孤儿字典为 0**（`sys_dict_sub` 中存在但 `sys_dict` 无对应 `dict_no`），后续再出现同类问题迁移会直接失败并列出 `dict_no`。
   - **结果**：字典主表 19 → 20，子项 606 不变，孤儿字典 1 → 0。
   - **可调**：`dict_name` 与 `en_sub_sys` 属推断值（依据已写入迁移注释），迁移用 `ON CONFLICT (dict_no) DO NOTHING`，运维可直接 `UPDATE` 修正且重跑不覆盖。
 
-- **新增美股 OTC Pink 市场 1332（需求 10750，已部署 V100054）**
+- **新增美股 OTC Pink 市场 1332（需求 10750，已部署 V200054）**
   - **背景**：原有美股场外市场只有 `1330 US-ADR`（`market_symbol=ADR`）与 `1331 US-OTC`（`market_symbol=USOTC`）；PINK 指 OTC Markets Group 的 Pink 层级，与泛化的 US-OTC 不同口径，需独立登记以便 metadata 刷新与导出目录按市场区分。
   - **取值**：`market_code=1332`、`market_flag='PINK'`、`market_abbr='US'`、`market_name='美股 OTC Pink 场外交易'`、`en_security_type='1313'`、`base_currency='USD'`、`flag_enable='1'`、`exchange_code=0`、`market_symbol='PINK'`。
   - **影响面**：`market_symbol` 会进入 metadata 刷新链路与导出命名（`{region}_{market}_{usc}_Min_{provider}_Mon_{yyyyMM}_Base.mvsv` → `US_PINK_XXXX_...`）；若某证券的 Pink 归属要落到该市场，还需在 `dedup.finv_dedup_usc` 中把 `market` 绑到 `PINK`。
@@ -1149,20 +1166,20 @@
   - **样式**：`fmtPct()` 统一渲染，`font-variant-numeric: tabular-nums` 保证 `0%` → `100%` 位数变化时不抖动。
   - **验证**：`vue-tsc --noEmit` 无错；前端构建通过；`grep -c "fmtPct("` 在两个视图各命中 5 处（1 定义 + 4 渲染）。
 
-- **手动模式隐藏每日调度 + 流程开始时间改为真实值（需求 10746–10747，已部署 V100052）**
+- **手动模式隐藏每日调度 + 流程开始时间改为真实值（需求 10746–10747，已部署 V200052）**
   - **10746**：`DeDupCDEUView.vue` 的「每日调度 HH:MM 时区」chip 加 `v-if="overview?.cdeu_mode === 'Auto'"`。手动模式下调度器不读该时间，展示即误导。工作流详情 tooltip 增加「定时触发」一行，Manual 时明确写「未启用（20005=Manual，仅手动触发）」。
   - **10747 根因**：`EvaluateCDEUProcess` 原写 `started_at = COALESCE(pr.started_at, LEAST(min(job_run.started_at), min(dyn.gmt_start), now()))`。首次评估时子级尚未开始，`LEAST` 忽略 NULL 后落到 `now()`，把「评估时刻」写成流程开始时间；随后 `pr.started_at` 非空，`COALESCE` 永久锁定，子级真实时间再也进不来。`finished_at` 同病：暂停后恢复的 run 里 16:00 判终态、23:44 子 JOB 才跑，导致 `started_at > finished_at`（物理上不可能）。
   - **10747 修复**：Process 层 `started_at = LEAST(min(job_run.started_at), min(job_dynamic.gmt_start))`、`finished_at = GREATEST(max(job_run.finished_at), max(job_dynamic.gmt_finish), started_at, 原值)`；Phase 层取子流程的最早开始 / 最晚结束。子级全无痕迹时 `started_at = NULL`——没有执行痕迹就不写时间。
   - **10747 只读重放路径**：`UpsertReadOnlyCDEUJobRun` 不再写 `started_at = now()`（该 JOB 实际未执行），新行保持 NULL，已有行保留真实开始时间。
-  - **V100052**：按新口径重算全部历史 `cdeu_process_run` / `cdeu_phase_run` 的起止时间，含三道收敛校验（process 自洽、phase 自洽、phase 开始不得晚于其子流程）。
+  - **V200052**：按新口径重算全部历史 `cdeu_process_run` / `cdeu_phase_run` 的起止时间，含三道收敛校验（process 自洽、phase 自洽、phase 开始不得晚于其子流程）。
   - **前端**：Process 表「开始时间」改用 `processStartedText()`，无开始时间且非 PENDING 时显示「未执行（无子级执行记录）」，避免与「刚创建还没到点」混淆。
-  - **验证**：`go build`/`go vet`/`go test ./...` 全绿；`vue-tsc --noEmit` 无错；`V100052` `success=t`；`started_at > finished_at` 残留 process 0 / phase 0；run 62 各流程开始时间严格递增且等于子级最早 `started_at`。
+  - **验证**：`go build`/`go vet`/`go test ./...` 全绿；`vue-tsc --noEmit` 无错；`V200052` `success=t`；`started_at > finished_at` 残留 process 0 / phase 0；run 62 各流程开始时间严格递增且等于子级最早 `started_at`。
 
-- **合并 `finv_dedup_usc_priority` 到 `finv_dedup_usc`（需求 10745，已部署 V100051）**
+- **合并 `finv_dedup_usc_priority` 到 `finv_dedup_usc`（需求 10745，已部署 V200051）**
   - **动机**：原表是稀疏覆盖表（39 个证券仅 3 行配置），维护需两个界面、两个 API，用户决定合并统一维护。
   - **结构**：`finv_dedup_usc` 新增 `priority_rank` / `sla_days` / `max_wait_days` / `priority_gmt_update` 四列；三列同时为 NULL = 未配置，分别按 **100 / 5 / 7** 兜底，语义与原 `COALESCE` 逻辑完全一致。
   - **约束**：`finv_dedup_usc_priority_group_check` 保证三列同 NULL 或同有值，杜绝半配置态。
-  - **迁移 V100051**：前置校验孤儿行 → 加列 → 搬数据 → 加约束 → 收敛校验（搬入数 = 源表数）→ `DROP TABLE`（用户授权）→ 最终确认表已消失。
+  - **迁移 V200051**：前置校验孤儿行 → 加列 → 搬数据 → 加约束 → 收敛校验（搬入数 = 源表数）→ `DROP TABLE`（用户授权）→ 最终确认表已消失。
   - **后端**：`store.go` 删除 `tablePriority` 常量与 2 处 `LEFT JOIN`，`GROUP BY` / `ORDER BY` 改用 `u.priority_rank` / `u.sla_days`；`UpsertPriority` / `DeletePriority` 合并为 `SetUscPriority(ctx, usc, *PriorityUpsertInput)`（`nil` = 清空覆盖）；`UscRow` 与 `ListUscs` 增加 4 列；新增 `ErrUscNotFound`，handler 据此返回 404。
   - **前端**：`DeDupArchiveConfigView.vue` 取消「优先级 / SLA」标签页，证券列表新增「优先级 / SLA 天数 / 最大等待」三列（未配置显示默认值并置灰），行尾「优先级」按钮打开对话框，含「清除覆盖」。
   - **行为收紧（3 处）**：① 不能再给未登记证券单独建优先级行（404）；② `DELETE /Priority` 改为清空覆盖而非删行；③ `GET /Priority/List` 的 `gmt_update` 改名 `priority_gmt_update`。
@@ -1170,7 +1187,7 @@
   - **文档**：`Docs/API/QuoteDeDup/Priority.md` 重写、`Docs/DevSpec/DbSchemaSpec.md` 归档表 12 → 11、`Docs/Refactor/2610-005` 表清单同步。
   - **验证**：`go build`/`go vet`/`go test ./...` 全绿；`vue-tsc --noEmit` 无错。
 
-- **新增系统配置 20011 + 本地导出文件清理 JOB（需求 10744，已部署 V100050）**
+- **新增系统配置 20011 + 本地导出文件清理 JOB（需求 10744，已部署 V200050）**
   - **配置**：`20011 归档复核是否清理本地导出文件`，`data_type='2'`（char），`char_value='1'`（清理）/`'0'`（不清理），缺行兜底 `'1'`。
   - **JOB 归属**：`PHASE_REVIEW` / `PROCESS_PURGE`，`seq_no=2`，排在 `JOB_PURGE_EXPORTED_MONTH`（seq 1，删主表）之后——先释放库里数据，再释放本地文件。
   - **删除判据（4 条全满足）**：该月 BASE+全部 PATCH 均 `UPLOADED`；`remote_checksum_verified` 全为 true；最后一个文件 `gmt_upload_finish` 早于 `now() - 24h`；该月无 `PENDING`/`RUNNING` 补丁。
@@ -1178,7 +1195,7 @@
   - **职责收缩**：`JOB_CLEAN_STORAGE` 移除本地文件段，只保留 export schema 中转表残留清理；`LocalRetention` 降级为「孤儿文件兜底」（只处理登记已不存在的磁盘残留）。
   - **记录保留**：`finv_dedup_export_file` 记录**永久保留**（只改 `cleanup_status`），理由是幂等判据、审计留痕、补丁链引用（`file_patch.patch_file_id`）与 checksum 去重。已知成本：每轮约 404 条记录、单条约 300 字节，随运行轮次线性增长。
   - **新增代码**：`syscfg.KeyPurgeLocalExportFiles=20011` + `PurgeLocalExportFilesDelay=24h` + `Values.PurgeLocalExportFiles`；`Service.PurgeLocalExportFilesEnabled`；`JobPurgeLocalExportFiles="PURGE_LOCAL_EXPORT_FILES"`；`Store.LocalFilesForSettledMonths` + `LocalFileToPurge`；`job/purge_local_export_files.go`；`jobmeta.PurgeLocalExportFiles`。
-  - **验证**：`gofmt` 干净、`go build`/`go vet`/`go test ./...` 全绿；`V100050` `success=t`；`20011` = `'1'`；`PROCESS_PURGE` 下 `JOB_PURGE_EXPORTED_MONTH:1` → `JOB_PURGE_LOCAL_FILES:2`，均 `affects_completion=true`。
+  - **验证**：`gofmt` 干净、`go build`/`go vet`/`go test ./...` 全绿；`V200050` `success=t`；`20011` = `'1'`；`PROCESS_PURGE` 下 `JOB_PURGE_EXPORTED_MONTH:1` → `JOB_PURGE_LOCAL_FILES:2`，均 `affects_completion=true`。
 
 - **BASE 文件名增加 `_Base` 后缀（需求 10743，已实现）**
   - **变更**：`{region}_{market}_{usc}_Min_{provider}_Mon_{yyyyMM}.mvsv` → `..._Mon_{yyyyMM}_Base.mvsv`，与 PATCH（`_Incr_N`）、MANIFEST（`_Manifest`）的类型后缀统一。
@@ -1292,7 +1309,7 @@
   - **目标**：拆为独立 JOB `JOB_PURGE_EXPORTED_MONTH`，定义在 `PHASE_REVIEW` → `PROCESS_REVIEW`（该阶段当前已有流程定义但 0 个 JOB，正好承载）。
   - **待定 5 点**：复核门禁口径、20007 语义是否改写、切换方式、失败重试策略、历史补删方案。
 
-- **表名对齐：`cdeu_job_dynamic_step` → `cdeu_job_step_dynamic`（迁移 `V100047`，已部署 `success=t`）**
+- **表名对齐：`cdeu_job_dynamic_step` → `cdeu_job_step_dynamic`（迁移 `V200047`，已部署 `success=t`）**
   - **决策依据**：用户明确要求「`cdeu_job_dynamic_step` 表需要重命名为 `cdeu_job_step_dynamic`」。
   - **命名理由**：CDEU 的 Step 相关表有 `cdeu_job_step`（定义）与 `cdeu_job_step_run`（运行），动态 JOB 的 Step 表原名把 `dynamic` 放在 `step` 之前，与两者都不对齐；改名后统一为 `cdeu_job_step_*` 前缀。
   - **改名范围（表 + 7 类附属对象全部对齐）**：
@@ -1310,7 +1327,7 @@
   - **收敛校验（8 项）**：旧表不存在 / 新表存在 / 新序列存在 / 无 `cdeu_dynamic_job_step_%` 残留约束 / 新索引存在 / 主键为新名 / 唯一约束数=2（`seq_no` 与 `step_code` 双唯一，`ON CONFLICT DO NOTHING` 依赖）/ 序列归属列仍为 `dynamic_step_id`。
   - **代码同步（6 处）**：`store.go` 的 `tableDynamicStep` 常量、`cdeu_admin.go` 的 Overview Step 查询、`service_integration_test.go`（3 处 SQL）、`migrate_integration_test.go`（表清单 + 索引清单）。
   - **验证**：`dedup.cdeu_job_step_dynamic` 存在且旧名 `to_regclass` 为 NULL，行数 **1,345 不变**，`\d` 显示序列/PK/2 个 UNIQUE/CHECK/索引全部新名，8 个非空约束全部新名；`go build ./...`、`go vet ./...`、`go test ./...` 全绿。
-  - **未改**：`V63` / `V100045` 为历史已应用迁移，按规范不得修改，其内部旧表名保持原样。
+  - **未改**：`V63` / `V200045` 为历史已应用迁移，按规范不得修改，其内部旧表名保持原样。
 
 - **清理全部历史备份/快照表（用户明确授权，17 张）**
   - **授权依据**：用户明确指示「A B C D 都删」（A=测试过程产物、B=迁移 DDL 快照、C=CDEU 脏数据清理备份、D=行情数据清理备份）。
@@ -1321,7 +1338,7 @@
     - 导出测试准备快照（8）：`finv_dedup_export_job_bak_full`(101)、`finv_dedup_export_file_bak_full`(206)、`finv_dedup_export_file_upload_log_bak_full`(700)、`finv_dedup_export_file_patch_bak_full`、`finv_dedup_export_file_bak_r2`、`finv_dedup_export_file_patch_bak_r2`、`finv_dedup_export_file_bak_201811`、`finv_dedup_export_file_upload_log_bak_201811`
     - 行情数据清理备份（2）：`finv_quote_secu_kline_min_purge_day`(2,690)、`finv_quote_secu_kline_min_kline_purge`(73)
   - **结果**：`pg_class` 中已无 `%_bak%` / `%_purge%` 残留表；主表行数不变（`dedup` 1,000 / `quote` 2,802,911 / `export` 0）。
-  - **影响**：`V100039`（月 K 清理）与日 K 清理的操作文档中引用的 purge 备份表已不存在，后续如需回滚只能依赖 `quote` 副本；后续同类清理若需回滚证据，应在删除前先导出 CSV 留档。
+  - **影响**：`V200039`（月 K 清理）与日 K 清理的操作文档中引用的 purge 备份表已不存在，后续如需回滚只能依赖 `quote` 副本；后续同类清理若需回滚证据，应在删除前先导出 CSV 留档。
 
 - **修复 CDEU 父级状态「提前完成」缺陷 + 运行中节点跑马灯动效**
   - **缺陷现象**：父级 Process / Phase 在子级 JOB 还在运行时已显示 `SUCCESS`，后续阶段未按预期显示「待执行」。
@@ -1374,8 +1391,8 @@
     - 闭环验证（事务内）：主表清空后 `delta = 0`；写入 1 行新数据（`gmt_create=now()`）后 `delta = 1 > 0`（证明 SCAN 会重新生成 INCR）；同一场景下该月**不会**被判定为「已沉淀」（不误删）；验证后 `ROLLBACK`，数据未污染。
   - **文档**：`Docs/Refactor/2610-005-FinvQuoteDeDubExportUpload.md` 新增 **§4.6 主表数据释放（系统配置 20007）**，明确两条触发路径、路径②的三重判定条件、删除方式与观测字段、以及与增量链路的关系；`Docs/API/QuoteDeDup/JobRun.md` 补 `CLEAN_EXPIRED_EXPORT_ARTIFACTS` 的 `details` 字段表；`DbSchemaSpec` 同步 20007 语义。
 
-- **新增系统配置 20008「历史运行动态 JOB 保留天数」（`V100046`）**
-  - `20008`（`data_type='1'`，取值存 `int_value`，默认 `30` 天）：配合 `V100045` 的动态实例按运行隔离（每次流程运行各持有一条实例），把原先固化为代码常量的推进保留期改为可在线配置。
+- **新增系统配置 20008「历史运行动态 JOB 保留天数」（`V200046`）**
+  - `20008`（`data_type='1'`，取值存 `int_value`，默认 `30` 天）：配合 `V200045` 的动态实例按运行隔离（每次流程运行各持有一条实例），把原先固化为代码常量的推进保留期改为可在线配置。
   - **合法区间 `1~3650`**（约 10 年）；越界（含 `0`、负数）或读取失败时，运行期统一回退默认 `30` 天，保证清理逻辑始终有界。
   - **不覆盖用户已配置值**：`INSERT ... ON CONFLICT (config_no) DO NOTHING`；迁移内对越界值只 `RAISE WARNING`，不阻断。
   - **生效位置**：`CLEAN_EXPIRED_EXPORT_ARTIFACTS` 调用 `PurgeStaleDynamicJobRuns(retentionDays, 5000)`，`details` 新增 `stale_dynamic_deleted` 与 `dynamic_retention_days`，日志打印 `retention_days=`。
@@ -1383,9 +1400,9 @@
   - **代码**：`syscfg.KeyDynamicJobRetentionDays`、`DynamicJobRetentionDefault`、`DynamicJobRetentionMax`、`NormalizeDynamicJobRetentionDays`；`selectConfigSQL` 增加读取 `int_value`（参数扩到 `$7`）；`Values.DynamicJobRetentionDays/Raw`；`Service.DynamicJobRetentionDays(ctx)`（读配置失败回退 30）。
   - **验证**：迁移 `100046` `success=t`，20008 = `30`（`create_by=finv`）；改 `7` 后 `Settings` 返回 `7`，改 `0`（越界）后返回 `30`，改回 `30` 后返回 `30`；清理 Job 运行日志 `progress_detail` 显示「清理历史动态 JOB 实例（保留 30 天）」，完成日志含 `retention_days=30 stale_dynamic_deleted=0`（当前无超过 30 天的运行数据）。
 
-- **动态 JOB 改为「每次运行一条实例」（`V100045`）**
+- **动态 JOB 改为「每次运行一条实例」（`V200045`）**
   - **问题**：`cdeu_job_dynamic` 原唯一键为 `(usc, biz_month)`（EXPORT）/ `(file_id)`（UPLOAD），与运行次数无关。`EnsureDynamicExportJob` 在第二次运行时会 `UPDATE` 上一轮的记录：覆盖 `workflow_run_id`、重置状态为 `PENDING`——即「上一次跑的 JOB，下一次跑流程还关联上」，上一轮运行的历史被直接抹掉。这也是「按 run 筛选动态实例」一直无法正确实现（早前只能靠“不过滤 + `from_current_run` 标记”绕过）的根因。
-  - **迁移 `V100045`**：
+  - **迁移 `V200045`**：
     - 删除 `uq_cdeu_job_dynamic_export` / `uq_cdeu_job_dynamic_upload`；
     - 新建 `uq_cdeu_job_dynamic_export_run (workflow_run_id, usc, biz_month)`、`uq_cdeu_job_dynamic_upload_run (workflow_run_id, file_id)`，均带 `NULLS NOT DISTINCT`（PostgreSQL 15+），保证手动单实例执行（`workflow_run_id = NULL`）时同样按唯一处理；
     - DDL 前快照 `dedup.cdeu_job_dynamic_bak_v100045` / `cdeu_job_dynamic_step_bak_v100045`；
@@ -1405,24 +1422,24 @@
     - 迁移后存量 507 条动态实例未变（`run 49` 101 EXPORT + 202 UPLOAD，`run 51/52/53` 共 204 UPLOAD）；
     - `CDEU/Overview?runId=54` 只显示本运行的 15 个静态 JOB、无动态实例；`?runId=49` 显示 90（BASE，含 89 动态）+ 12（INCR）+ 202（UPLOAD），证明「每次运行只看自己的实例」已成立。
 
-- **CDEU 运行实例表去除自增代理键（`V100043` / `V100044`）**
+- **CDEU 运行实例表去除自增代理键（`V200043` / `V200044`）**
   - **背景**：`cdeu_process_run` / `cdeu_job_run` 原先各用 `bigserial` 主键（`process_run_id` / `job_run_id`），导致「按一次运行筛 JOB」必须 JOIN 三层（`job_run → process_run → phase_run → workflow_run_id`）、且 `cdeu_job_run.batch_key` 从未写入，752 行历史数据中有 589 行是孤儿或无法归属的批次重复。
-  - **`V100043`（加列 + 回填）**：`cdeu_process_run` / `cdeu_job_run` 新增 `workflow_run_id`，从父链回填（`210/210`、`641/797`），并建索引 `idx_cdeu_process_run_workflow`、`idx_cdeu_job_run_workflow`。此后按运行筛选只需 `WHERE workflow_run_id = ?`。
+  - **`V200043`（加列 + 回填）**：`cdeu_process_run` / `cdeu_job_run` 新增 `workflow_run_id`，从父链回填（`210/210`、`641/797`），并建索引 `idx_cdeu_process_run_workflow`、`idx_cdeu_job_run_workflow`。此后按运行筛选只需 `WHERE workflow_run_id = ?`。
   - **历史脏数据处理（已授权删除，备份保留）**：156 行孤儿（父 `cdeu_process_run` 已不存在）+ 433 行批次重复（`run_log_id` 关联的日志 `usc`/`biz_month` 全为空，无法还原证券月）→ 备份至 `dedup.cdeu_job_run_purge`(589) / `dedup.cdeu_job_step_run_purge`(433) 后删除；`cdeu_job_run` 797→208，`cdeu_job_step_run` 641→208。
-  - **`V100044`（删代理键）**：
+  - **`V200044`（删代理键）**：
     - `cdeu_process_run` 主键改为 `(workflow_run_id, process_id)`，删除 `process_run_id`；
     - `cdeu_job_run` 主键改为 `(workflow_run_id, process_id, job_id)`，删除 `job_run_id`、`process_run_id`；
     - `cdeu_job_step_run` 保留自增 `step_run_id`，`job_run_id` 改为 `(workflow_run_id, process_id, job_id)` 三元组引用（唯一键同步改为 `(workflow_run_id, process_id, job_id, step_code)`）；
     - `cdeu_job_run` 新增 `dynamic_job_id`（可空，指向 `cdeu_job_dynamic`，非批次 JOB 为 NULL）；
     - `cdeu_workflow_run.run_id` 保持自增（唯一运行入口流水号）；
-    - 清理 V100050 改名遗留的序列 `cdeu_step_run_step_run_id_seq` / `cdeu_job_run_job_run_id_seq`，并把 `cdeu_workflow_run` 上误占的 `cdeu_process_run_pkey` 改名为 `cdeu_workflow_run_pkey`；
+    - 清理 V200050 改名遗留的序列 `cdeu_step_run_step_run_id_seq` / `cdeu_job_run_job_run_id_seq`，并把 `cdeu_workflow_run` 上误占的 `cdeu_process_run_pkey` 改名为 `cdeu_workflow_run_pkey`；
     - DDL 前整表快照 `dedup.cdeu_{process,job,job_step}_run_bak_v100044`（不参与运行时）。
   - **代码重构**：新增 `cdeuRunKey{WorkflowRunID, ProcessID, JobID}` 取代所有 `int64` 运行 ID 传参；`CDEUPhaseProcessRunIDs` → `CDEUPhaseRunID`；`InsertCDEUJobRun` / `StartCDEUJobRun` / `FinishCDEUJobRun` / `InsertCDEUJobStepRuns` / `ResetCDEUJobStepRuns` / `UpsertReadOnlyCDEUJobRun` 全部改用运行键；`EvaluateCDEUProcess` 入参改为 `(runID, processID)`；`cdeu_store.go` / `cdeu.go` / `cdeu_admin.go` 共 55 处引用同步调整。
   - **API 变更**：`CDEU/Overview` 不再返回 `job_run_id` / `process_run_id`（`CDEUJobView.JobRunID`、`CDEUProcessView.ProcessRunID` 删除），新增 `dynamic_job_id`；前端 `DeDupCDEUView.vue` 的「运行编号」改为显示 `第 N 次`（依据 `attempt`）。
   - **验证**：迁移 `100043`/`100044` 均 `success=t`；三表行数不变（`210`/`208`/`208`）；手动 `CHECK_EXPORT_JOB_HEALTH` 后新 `cdeu_job_run` 15 行按新主键写入、`cdeu_process_run` 14 行、`cdeu_job_step_run` 正常；`CDEU/Overview?runId=54` 返回 200 且 11 个 Process 的 JOB 状态正常（`PROCESS_EXPORT_FILE_MON_BASE` 90 项含 89 个动态实例）。
   - **未解决（遗留议题）**：`cdeu_job_dynamic` 仍以 `UNIQUE (usc, biz_month)` 跨运行复用同一条记录并覆盖 `workflow_run_id`，即「上一次跑的动态 JOB 被下一次运行接管」，需单独决策是否改为每次运行一条。
 
-- **新增系统配置 20007「导出成功后立即删除主表行情数据标志」，并取代原延迟清理机制**（迁移 `V100042`）：
+- **新增系统配置 20007「导出成功后立即删除主表行情数据标志」，并取代原延迟清理机制**（迁移 `V200042`）：
   - `20007`（`data_type='2'`，`char_value`，默认 `1`）：
     - **`1` 立即删除（默认）**：文件**远端上传成功后**删除 `dedup.finv_quote_secu_kline_min` 中该 `(usc, biz_month)` 的行情数据；此后同一证券月表内再次插入历史数据时按增量导出，INCR 文件名中的序号 `_Incr_N` 的 N 递增（沿用现有 `patch_count` 机制）。
     - **`0` 保留数据**：不删主表；重复导出直接**重写同名 BASE 文件覆盖**，**不生成 INCR**。
@@ -1433,7 +1450,7 @@
   - **影响范围仅 dedup schema**：`quote.finv_quote_secu_kline_min` 是回测/查询用的独立副本，不参与该开关的删除动作。
   - 删除不做行级备份（需求方明确），但记录删除行数到运行进度与 upload job 的 `details.main_rows_purged`。
 
-- **导出低峰窗口改由系统配置 `20006` 承载，删除为两个时间单独建的键值表**（迁移 `V100041`）：
+- **导出低峰窗口改由系统配置 `20006` 承载，删除为两个时间单独建的键值表**（迁移 `V200041`）：
   - 新增 `sys.sys_config` `20006`「导出低峰窗口」，`data_type='3'`，格式 **`HH:MM:SS|HH:MM:SS`**（精确到秒、半角竖线分隔、支持跨零点、`start==end` 视为全天），初始值 `00:30:00|06:30:00`。
   - **删除 `dedup.finv_dedup_runtime_setting`**（`V43` 建的 3 列键值表）：它仅为承载 `EXPORT_WINDOW_START`/`EXPORT_WINDOW_END` 两个时间而存在，与已有的 `sys.sys_config` 配置体系重复。删除前硬校验「表内仅含这两个键」——发现其他键即 `RAISE EXCEPTION` 中止；20006 以**规范初始值 `00:30:00|06:30:00`** 发放，不从旧表搬运现值——初始发放值与部署后实际运行值不一致属正常，实际窗口由运维通过接口自行配置。
   - **废弃环境变量** `FINV_QUOTE_DEDUB_WINDOW_START` / `_END`：窗口一律取 20006，缺失或非法时按内置默认 `00:30:00|06:30:00` 降级（不再回读环境变量）；`docker-compose.yml`、`.env.example` 已移除这两项。
@@ -1441,7 +1458,7 @@
   - 前端：窗口对话框时间控件加 `step="1"`（精确到秒），来源文案改为「系统配置 20006 / 内置默认值」。
   - 验证：写入 `01:15:30|02:45:15` 落库与回读一致、`in_window` 立即变 false；`HH:MM` 请求被 400 拒绝；启动日志 `导出窗口 00:00:00-23:59:00，来源 sysconfig`。
 
-- **新增系统配置 20005「CDEU工作流运行模式」，把「是否自动跑」从低峰窗口里独立出来**（迁移 `V100040`）：`sys.sys_config` 新增 `20005`（`data_type='3'` 字符串，`str_value` 默认 `Manual`）——`Manual`=手动模式（默认），进程内调度器不自动触发任何 CDEU Job，只有 `POST .../Job/Run` 手动触发才执行；`Auto`=自动模式，每天按定时任务设定的时间（`cdeu_job.schedule_value`）自动跑。
+- **新增系统配置 20005「CDEU工作流运行模式」，把「是否自动跑」从低峰窗口里独立出来**（迁移 `V200040`）：`sys.sys_config` 新增 `20005`（`data_type='3'` 字符串，`str_value` 默认 `Manual`）——`Manual`=手动模式（默认），进程内调度器不自动触发任何 CDEU Job，只有 `POST .../Job/Run` 手动触发才执行；`Auto`=自动模式，每天按定时任务设定的时间（`cdeu_job.schedule_value`）自动跑。
   - **背景**：原有实现中「调度触发」与「手动触发」共用同一条 Job 领取路径（`Store.ClaimJob` 只按 `status` + 到期时间领取，`CDEUTrigger*` 仅写入运行日志），所以只要处于低峰窗口且 Job 到期，调度器就一定会自动执行，运维无法只跑手动流程。现在窗口（`EXPORT_WINDOW_*`）控制「什么时段可以跑」，`20005` 控制「是否允许自动跑」，两者独立。
   - **实现**：`internal/meta/finv/sys`（需求 10762 归位前为 `internal/syscfg`）新增 `KeyCDEUMode`/`CDEUModeManual`/`CDEUModeAuto`/`NormalizeCDEUMode`/`Values.CDEUScheduleEnabled()`；`dedup.Service` 新增 `CDEUMode(ctx)` 与 `CDEUScheduleEnabled(ctx)`；`Scheduler.fire` 入口在窗口判断**之前**先判 `20005`，非 `Auto` 直接返回（手动 `Job/Run` 不经过该函数，不受限）；`GET .../DeDup/Status` 的 `options` 新增 `cdeu_mode`、`cdeu_schedule_enabled`、`cdeu_mode_error`。读配置失败/空值/未知取值一律按 `Manual` 兜底（安全侧）。
   - **验证**：部署后日志输出 `CDEU 运行模式 = Manual（默认）：调度器不自动触发任何 Job`；间隔类 Job（`UPLOAD_PENDING_EXPORT_FILES` 每 300 秒，部署前 02:32:49 刚跑过）在应到期的 02:37:56 未触发，部署后 6 分钟零新增运行日志，101 个导出 job 全部保持 `FROZEN`，本地导出目录 0 文件。
@@ -1450,7 +1467,7 @@
 - CDEU 流程控制页默认展示「总体视图」，支持切换「阶段详情」；阶段节点悬浮展示状态、步骤/作业/批次计数、开始时间与耗时；新增「启动流程」按钮与确认对话框。
 - 总体视图的「阶段概览」改为**所选阶段的步骤清单表格**：点击阶段流转节点切换阶段，表格展示步骤状态、作业完成数、批次进度、开始时间、耗时与异常；阶段汇总信息保留在悬浮提示中。
 - 「阶段流转」改为**画布式工作流**：点阵画布上悬浮阶段节点，节点之间用带箭头的有向连线从前序阶段指向后续阶段；点击节点切换下方步骤清单。
-- 新增迁移 **`V100045__finv_dedup_cdeu_split_ops_steps.sql`**：删除尾部 `PHASE_OPS`，将 `STEP_RECOVER` 并入导出阶段、`STEP_HEALTH` 并入上传阶段，作为并行旁路步骤（`affects_completion=false`）；流程画布由 5 个阶段调整为 4 个阶段。
+- 新增迁移 **`V200045__finv_dedup_cdeu_split_ops_steps.sql`**：删除尾部 `PHASE_OPS`，将 `STEP_RECOVER` 并入导出阶段、`STEP_HEALTH` 并入上传阶段，作为并行旁路步骤（`affects_completion=false`）；流程画布由 5 个阶段调整为 4 个阶段。
 - 「阶段概览」步骤表格支持点击选中步骤，选中行高亮并在表格下方展示该步骤定义的 JOB 清单；作业行支持直接触发（历史运行只读）。
 - 运行中的阶段在画布节点上增加脉冲高亮、运行小圆点与指向该阶段的流光箭头；运行中的步骤在步骤表格行与详情头部增加背景呼吸动画与左侧高亮条。
 - 「运行历史」由右侧卡片改为「最新运行」位置的下拉列表：默认展示最近一次运行，支持选择历史运行切换；启动流程后自动回到最新运行并展示当前执行数据。
@@ -1458,32 +1475,32 @@
 - 状态图例移入「阶段流转」画布卡片底部，通过卡片右上角「图例」开关显示/隐藏；移除右侧独立状态图例卡片。
 - 移除独立「流程规则」卡片：完成条件与失败策略并入页头摘要，业务时区、查询时间及内嵌阶段说明收进信息悬浮提示；阶段概览与 JOB 清单改为全宽布局。
 - 阶段流转画布增加「开始」「结束」首尾节点，并用有向箭头与首个/最后一个阶段连接；开始节点显示已开始/未开始，结束节点显示已完成/未完成/等待结束。
-- 新增迁移 **`V100046__finv_dedup_cdeu_history_ingest_step.sql`**：数据采集阶段增加非关键「历史行情数据采集」占位步骤 `STEP_HISTORY_INGEST`，无 JOB；CDEU 运行初始化时自动将无 JOB 的步骤置为 SUCCESS。
+- 新增迁移 **`V200046__finv_dedup_cdeu_history_ingest_step.sql`**：数据采集阶段增加非关键「历史行情数据采集」占位步骤 `STEP_HISTORY_INGEST`，无 JOB；CDEU 运行初始化时自动将无 JOB 的步骤置为 SUCCESS。
 - 阶段步骤表拆分「步骤名称 / 步骤 KEY」两列，JOB 表拆分「作业名称 / 调度标识」两列；四列增加拖拽列宽手柄，表格按最小宽度自动横向滚动。
-- 新增迁移 **`V100047__finv_dedup_cdeu_decision_phase.sql`**：去重收口与导出之间增加 `PHASE_DECISION`「导出判定」阶段及 `STEP_EXPORT_DECISION` 占位步骤，当前无 JOB；空步骤/空阶段初始化自动成功。
+- 新增迁移 **`V200047__finv_dedup_cdeu_decision_phase.sql`**：去重收口与导出之间增加 `PHASE_DECISION`「导出判定」阶段及 `STEP_EXPORT_DECISION` 占位步骤，当前无 JOB；空步骤/空阶段初始化自动成功。
 - 重构 JOB 清单列：作业名称、作业编码、调度标识、触发方式、执行次数、异常分别独立成列；作业名称/编码/调度标识支持拖拽列宽。
 - JOB 清单「执行阶段」列文字颜色调整为暖色 `rgb(251, 140, 0)`，阶段详情中的执行阶段标签同步。
-- 新增迁移 **`V100048__finv_dedup_cdeu_move_stats_to_decision.sql`**：将 `STEP_INGEST_STATS`、`STEP_BUDGET` 从数据采集阶段移入 `PHASE_DECISION` 导出判定阶段（seq 1/2），JOB 随步骤迁移。
-- 新增迁移 **`V100049__finv_dedup_cdeu_move_maturity_to_decision.sql`**：将 `STEP_MATURITY` 从去重收口阶段移入 `PHASE_DECISION` 导出判定阶段（seq 3），JOB 随步骤迁移；去重收口仅保留收口冻结。
+- 新增迁移 **`V200048__finv_dedup_cdeu_move_stats_to_decision.sql`**：将 `STEP_INGEST_STATS`、`STEP_BUDGET` 从数据采集阶段移入 `PHASE_DECISION` 导出判定阶段（seq 1/2），JOB 随步骤迁移。
+- 新增迁移 **`V200049__finv_dedup_cdeu_move_maturity_to_decision.sql`**：将 `STEP_MATURITY` 从去重收口阶段移入 `PHASE_DECISION` 导出判定阶段（seq 3），JOB 随步骤迁移；去重收口仅保留收口冻结。
 - **CDEU 工作流模型重构（V50）**：层级由 `Process → Phase → Step → JOB` 调整为 `Workflow → Phase → Process → JOB → Step`；表名/字段、`GET /CDEU/Overview` 响应、启动接口与前端表述同步调整，新增 `cdeu_job_step` / `cdeu_job_step_run` 并为现有 JOB seed 默认 Step；启动主路径改为 `POST /CDEU/Workflow/Run`，旧 `/CDEU/Process/Run` 保留兼容。
-- 新增迁移 **`V100051__finv_dedup_cdeu_rename_seal_process.sql`**：将 `PROCESS_SEAL` / `JOB_MARK_SEALED` / `STEP_MARK_SEALED` 展示名称统一为「收口冻结与差异报告生成」，并同步运行快照名称。
-- 新增迁移 **`V100052__finv_dedup_cdeu_rename_decision_phase.sql`**：将 `PHASE_DECISION` 阶段名称由「导出判定」调整为「导出决策」。
-- 新增迁移 **`V100053__finv_dedup_cdeu_phase_rename_review.sql`**：将 `PHASE_COLLECT` / `PHASE_DEDUP` 命名为「历史行情采集」/「历史行情去重」，并在上传后新增 `PHASE_REVIEW`「归档复核」阶段（占位 Process，初始化自动成功）。
+- 新增迁移 **`V200051__finv_dedup_cdeu_rename_seal_process.sql`**：将 `PROCESS_SEAL` / `JOB_MARK_SEALED` / `STEP_MARK_SEALED` 展示名称统一为「收口冻结与差异报告生成」，并同步运行快照名称。
+- 新增迁移 **`V200052__finv_dedup_cdeu_rename_decision_phase.sql`**：将 `PHASE_DECISION` 阶段名称由「导出判定」调整为「导出决策」。
+- 新增迁移 **`V200053__finv_dedup_cdeu_phase_rename_review.sql`**：将 `PHASE_COLLECT` / `PHASE_DEDUP` 命名为「历史行情采集」/「历史行情去重」，并在上传后新增 `PHASE_REVIEW`「归档复核」阶段（占位 Process，初始化自动成功）。
 - 「阶段流转」标题改为「CDEU工作流」；阶段间距由 24px 扩大为 48px，并缩小阶段间箭头，避免箭头过大、线段过短。
 - 画布「开始」「结束」节点改为 icon 在左、文字在右；标题与状态上下两行展示，终端节点宽度由 72px 调整为 96px。
-- 新增迁移 **`V100054__finv_dedup_cdeu_rename_export_upload_phases.sql`**：将 `PHASE_EXPORT` / `PHASE_UPLOAD` 名称调整为「月度行情导出」/「月度行情上传」。
+- 新增迁移 **`V200054__finv_dedup_cdeu_rename_export_upload_phases.sql`**：将 `PHASE_EXPORT` / `PHASE_UPLOAD` 名称调整为「月度行情导出」/「月度行情上传」。
 - 前端「阶段概览」标题改为「流程概览」；JOB 清单标题改为「JOB 清单 · `<Process 名称>`」。
 - Process 表格新增独立「标识」列展示「关键」/「旁路」，不再挤在 Process 名称单元格；移除流程概览右侧的操作提示文字。
 - 工作流页头元信息改为带图标的彩色 chip 可视化展示：工作流名称、运行模式、每日调度、完成条件、失败策略。
-- 新增迁移 **`V100055__finv_dedup_cdeu_rename_export_process.sql`**：将 `PROCESS_EXPORT_JOB` 名称由「单证券月导出」调整为「证券历史月度行情文件导出」。
-- 新增迁移 **`V100056__finv_dedup_cdeu_rename_export_file_processes.sql`**：`PROCESS_EXPORT_JOB` 编码改为 `PROCESS_EXPORT_FILE_MON`；`PROCESS_PATCH` 编码改为 `PROCESS_EXPORT_FILE_MON_INCR`，名称改为「证券历史月度行情增量文件导出」。
-- 新增迁移 **`V100057__finv_dedup_cdeu_add_security_metadata_job.sql`**：在 `PROCESS_EXPORT_FILE_MON` 下新增 `JOB_FETCH_SECURITY_METADATA`「证券元数据获取」JOB（META 阶段），导出前从证券字典刷新 `finv_dedup_usc` 缺失元数据。
-- 新增迁移 **`V100058__finv_dedup_cdeu_export_batch_process.sql`**：新增 `PROCESS_EXPORT_BATCH`「证券导出批次清单获取」及 `JOB_FETCH_EXPORT_BATCH`，生成 `usc + biz_month + BASE/INCR` 批次清单表 `dedup.finv_dedup_export_batch`；BASE/INCR 导出流程分别消费对应条目。
-- 新增迁移 **`V100059__finv_dedup_cdeu_rename_base_export_process.sql`**：将 BASE 导出 Process 编码改为 `PROCESS_EXPORT_FILE_MON_BASE`；同时修复历史已完成运行新增 Process 后 CDEU 只读登记找不到运行树的问题。
-- 新增迁移 **`V100060__finv_dedup_cdeu_rename_collect_phase.sql`**：将 `PHASE_COLLECT` 名称由「历史行情采集」调整为「历史行情收集」。
-- 新增迁移 **`V100061__finv_dedup_cdeu_dynamic_export_jobs.sql`**：按批次清单动态生成单证券导出 JOB（`(usc, biz_month)` 全局唯一）；固定 LOAD/EXPORT/REGISTER/CLEANUP 与补丁扫描 JOB 转为内部执行壳并在前端隐藏，页面展示动态 JOB 的证券、年月、BASE/INCR 类型及状态。
-- 新增迁移 **`V100062__finv_dedup_cdeu_dynamic_job_steps.sql`**：为每个动态单证券导出 JOB 生成 `LOAD → EXPORT → REGISTER → CLEANUP` 四个串行 Step，运行时同步 Step 状态并展示在前端。
-- 新增迁移 **`V100063__finv_dedup_cdeu_rename_job_dynamic_and_upload.sql`**：`cdeu_dynamic_job` / `cdeu_dynamic_job_step` 改名为 `cdeu_job_dynamic` / `cdeu_job_dynamic_step`；`PROCESS_UPLOAD` 按已导出未完成上传的文件动态生成上传 JOB（按 `file_id` 唯一），并同步 `STEP_UPLOAD`。
+- 新增迁移 **`V200055__finv_dedup_cdeu_rename_export_process.sql`**：将 `PROCESS_EXPORT_JOB` 名称由「单证券月导出」调整为「证券历史月度行情文件导出」。
+- 新增迁移 **`V200056__finv_dedup_cdeu_rename_export_file_processes.sql`**：`PROCESS_EXPORT_JOB` 编码改为 `PROCESS_EXPORT_FILE_MON`；`PROCESS_PATCH` 编码改为 `PROCESS_EXPORT_FILE_MON_INCR`，名称改为「证券历史月度行情增量文件导出」。
+- 新增迁移 **`V200057__finv_dedup_cdeu_add_security_metadata_job.sql`**：在 `PROCESS_EXPORT_FILE_MON` 下新增 `JOB_FETCH_SECURITY_METADATA`「证券元数据获取」JOB（META 阶段），导出前从证券字典刷新 `finv_dedup_usc` 缺失元数据。
+- 新增迁移 **`V200058__finv_dedup_cdeu_export_batch_process.sql`**：新增 `PROCESS_EXPORT_BATCH`「证券导出批次清单获取」及 `JOB_FETCH_EXPORT_BATCH`，生成 `usc + biz_month + BASE/INCR` 批次清单表 `dedup.finv_dedup_export_batch`；BASE/INCR 导出流程分别消费对应条目。
+- 新增迁移 **`V200059__finv_dedup_cdeu_rename_base_export_process.sql`**：将 BASE 导出 Process 编码改为 `PROCESS_EXPORT_FILE_MON_BASE`；同时修复历史已完成运行新增 Process 后 CDEU 只读登记找不到运行树的问题。
+- 新增迁移 **`V200060__finv_dedup_cdeu_rename_collect_phase.sql`**：将 `PHASE_COLLECT` 名称由「历史行情采集」调整为「历史行情收集」。
+- 新增迁移 **`V200061__finv_dedup_cdeu_dynamic_export_jobs.sql`**：按批次清单动态生成单证券导出 JOB（`(usc, biz_month)` 全局唯一）；固定 LOAD/EXPORT/REGISTER/CLEANUP 与补丁扫描 JOB 转为内部执行壳并在前端隐藏，页面展示动态 JOB 的证券、年月、BASE/INCR 类型及状态。
+- 新增迁移 **`V200062__finv_dedup_cdeu_dynamic_job_steps.sql`**：为每个动态单证券导出 JOB 生成 `LOAD → EXPORT → REGISTER → CLEANUP` 四个串行 Step，运行时同步 Step 状态并展示在前端。
+- 新增迁移 **`V200063__finv_dedup_cdeu_rename_job_dynamic_and_upload.sql`**：`cdeu_dynamic_job` / `cdeu_dynamic_job_step` 改名为 `cdeu_job_dynamic` / `cdeu_job_dynamic_step`；`PROCESS_UPLOAD` 按已导出未完成上传的文件动态生成上传 JOB（按 `file_id` 唯一），并同步 `STEP_UPLOAD`。
 - 点击阶段后，在工作流图下方新增该阶段 Process 拓扑顺序图：按 `seq_no` 串联，起点连接上一阶段输出箭头，终点连接下一阶段输入箭头；Process 节点可点击选中。
 - 导出决策阶段依赖调整为：入口流量统计与行情成熟度扫描并行，每日导出预算计算在其后；调度调整为 00:05 启动统计/成熟度、00:10 启动预算，拓扑图同步展示并行汇合关系。
 - 画布阶段节点与 Process 拓扑节点采用不同视觉样式（阶段实线大卡片、Process 虚线紧凑卡片）；「开始 / 结束」节点由圆形改为矩形。
@@ -1502,14 +1519,14 @@
 - 竖版全流程拓扑阶段 3 入口分叉的两条水平折线段上移 10px。
 - 全流程拓扑 Process 节点宽度按标题/编码/JOB 文案自适应，标题不再省略。
 - 竖版全流程拓扑将阶段进度改为左侧标题区与流程区之间的竖直进度线。
-- 新增迁移 **`V100065__finv_dedup_cdeu_dynamic_job_name.sql`**：导出动态 JOB 名称统一为 `EXPORT_MON_{TYPE}_{USC}_{YYYYMM}` 并回填已有记录。
-- 新增迁移 **`V100066__finv_dedup_job_run_log_line.sql`** 与 `GET .../RunLog/Detail`；CDEU JOB 行新增「执行日志」弹窗，展示逐行阶段、进度与错误日志，运行中自动刷新。
+- 新增迁移 **`V200065__finv_dedup_cdeu_dynamic_job_name.sql`**：导出动态 JOB 名称统一为 `EXPORT_MON_{TYPE}_{USC}_{YYYYMM}` 并回填已有记录。
+- 新增迁移 **`V200066__finv_dedup_job_run_log_line.sql`** 与 `GET .../RunLog/Detail`；CDEU JOB 行新增「执行日志」弹窗，展示逐行阶段、进度与错误日志，运行中自动刷新。
 - 低峰窗口支持 `00:00:00` ~ `23:59:59` 全天候测试：兼容秒输入、按分钟判定并包含 `23:59` 分钟。
 - CDEU JOB 清单增加横向滚动容器，列宽超出时可查看右侧列。
-- 新增迁移 **`V100067__finv_dedup_cdeu_reseed_jobs.sql`**：人工清理 CDEU JOB 定义后幂等重建 JOB / Job Step，修复无法启动工作流。
-- 新增迁移 **`V100068__finv_dedup_cdeu_upload_dynamic_name.sql`**：上传动态 JOB 编码/名称统一为 `JOB_UPLOAD_{TYPE}_V{VERSION}_{USC}_{YYYYMM}`，调度标识改为 `DYNAMIC_UPLOAD`。
-- 新增迁移 **`V100069__finv_dedup_cdeu_upload_dynamic_display_name.sql`**：上传动态 JOB 名称改为 `UPLOAD_{TYPE}_V{VERSION}_{USC}_{YYYYMM}`，与 `JOB_UPLOAD_*` 编码分离。
-- 新增迁移 **`V100070__finv_dedup_cdeu_dynamic_job_run_link.sql`**：动态 JOB 关联 `run_log_id` / `workflow_run_id`，支持查看执行日志且只展示当前工作流本轮生成的动态 JOB。
+- 新增迁移 **`V200067__finv_dedup_cdeu_reseed_jobs.sql`**：人工清理 CDEU JOB 定义后幂等重建 JOB / Job Step，修复无法启动工作流。
+- 新增迁移 **`V200068__finv_dedup_cdeu_upload_dynamic_name.sql`**：上传动态 JOB 编码/名称统一为 `JOB_UPLOAD_{TYPE}_V{VERSION}_{USC}_{YYYYMM}`，调度标识改为 `DYNAMIC_UPLOAD`。
+- 新增迁移 **`V200069__finv_dedup_cdeu_upload_dynamic_display_name.sql`**：上传动态 JOB 名称改为 `UPLOAD_{TYPE}_V{VERSION}_{USC}_{YYYYMM}`，与 `JOB_UPLOAD_*` 编码分离。
+- 新增迁移 **`V200070__finv_dedup_cdeu_dynamic_job_run_link.sql`**：动态 JOB 关联 `run_log_id` / `workflow_run_id`，支持查看执行日志且只展示当前工作流本轮生成的动态 JOB。
 - 补丁扫描每个证券月动态 JOB 单独登记运行日志，避免多个补丁 JOB 共用父任务日志。
 - CDEU JOB 清单的 Step 列改为只展示当前执行到的 Step，并显示当前序号/总 Step 数。
 - 修复导出/上传目录与 Docker 持久化挂载不一致：默认统一到 `Data/ExportArchive` 与 `Data/ExportArchive/Upload`。
@@ -1529,10 +1546,10 @@
 - 阶段内 Process 拓扑增加「流程拓扑」显示/隐藏开关（默认显示）；导出阶段把 `PROCESS_RECOVER` 与 `PROCESS_EXPORT_FILE_MON_BASE` 并行展示，分别汇入下一阶段。
 - 新增 `POST /API/V1/Meta/Finv/Quote/DeDup/CDEU/Process/Run`：无活动流程时创建 `MANUAL` 运行并在后台按阶段顺序执行全部直接作业；已有运行中的流程返回 409。
 - 新增 CDEU 流程控制与监控页面（菜单「数据采集 → 行情数据归档 → 流程控制与监控」，路由 `/Meta/Finv/Quote/DeDup/CDEU`）：按 Process → Phase → Step → Job 展示当前/历史运行状态、阶段与作业进度、作业耗时与处理量、运行历史；作业行支持复用 `POST .../Job/Run` 手动触发。后端新增 `GET /API/V1/Meta/Finv/Quote/DeDup/CDEU/Overview` 聚合定义树、运行树与历史运行。
-- 新增迁移 **`V100044__finv_dedup_cdeu_process_model.sql`**：在 `dedup` schema 新增 8 张 `cdeu_*` 表（流程/阶段/步骤/作业定义 + 流程/阶段/步骤/作业运行），全部字段带中文注释、无外键；seed `CDEU_DAILY` 流程、5 个阶段、10 个步骤、13 个作业（含 `RUN_DUE_EXPORT_JOBS` 的 LOAD / EXPORT / REGISTER / CLEANUP 四个可手动重跑内嵌阶段）。
+- 新增迁移 **`V200044__finv_dedup_cdeu_process_model.sql`**：在 `dedup` schema 新增 8 张 `cdeu_*` 表（流程/阶段/步骤/作业定义 + 流程/阶段/步骤/作业运行），全部字段带中文注释、无外键；seed `CDEU_DAILY` 流程、5 个阶段、10 个步骤、13 个作业（含 `RUN_DUE_EXPORT_JOBS` 的 LOAD / EXPORT / REGISTER / CLEANUP 四个可手动重跑内嵌阶段）。
 - **CDEU 结构化运行层**：`Service.RunWithTrigger` 执行 Job 时双写 `cdeu_job_run`，按 `ALL` 完成条件逐级评估 Step / Phase / Process；同一天多个 Job 复用同一 `cdeu_process_run`，流程终态后的手动补跑只登记只读作业运行，不重开已完成流程；调度器启动时读取 `cdeu_job.schedule_kind/value` 覆盖默认调度时刻（导出 Job 仍使用窗口内固定间隔）。
 - 新增 CDEU 完成条件单元测试（ALL / CRITICAL_ALL / AT_LEAST / ANY_OF / PARTIAL / 非参与项）；集成测试 `TestServiceIntegration` 已验证 13 个作业全部登记到 CDEU 运行树。
-- 新增迁移 **`V100041__finv_dedup_export_archive_tables.sql`**：在 `dedup` schema 新建 12 张 `finv_dedup_*` 表（入口统计、日预算、扫描水位、优先级、成熟度、交易日历、运行日志、证券主数据、导出任务、导出文件、上传审计、补丁任务）与 12 个规范命名索引，全库无外键，末尾做收敛校验；**不修改** `dedup.finv_quote_secu_kline_min` 与 `export.finv_quote_secu_kline_min`。
+- 新增迁移 **`V200041__finv_dedup_export_archive_tables.sql`**：在 `dedup` schema 新建 12 张 `finv_dedup_*` 表（入口统计、日预算、扫描水位、优先级、成熟度、交易日历、运行日志、证券主数据、导出任务、导出文件、上传审计、补丁任务）与 12 个规范命名索引，全库无外键，末尾做收敛校验；**不修改** `dedup.finv_quote_secu_kline_min` 与 `export.finv_quote_secu_kline_min`。
 - 新增导出格式实现：MVsv「16 行文件头 + 1 行空行 + `ts|da|ti|o|h|l|c|v|t|cp|cr|lc` 数据行」、临时文件 + SHA256 + 原子 `rename`、结构与 `Count` 校验、可选 gzip；BASE / PATCH / MANIFEST 命名与 Manifest 字段按方案稿落地。
 - 新增可插拔上传适配器（`Uploader`：`Stat` / `Put` / `Verify`）：内置 `none`（不启用）、`dir`（目录 / NAS 挂载）、`http`（HTTP PUT 网关）三种实现；上传前本地校验、远端查重、上传后远端 checksum 校验，每次尝试写 `finv_dedup_export_file_upload_log`。
 - 新增 6 个运维接口（`/API/V1/Meta/Finv/Quote/DeDup/*`）：`Status`、`Job/List`、`File/List`、`Job/Retry`、`File/Retry`、`Job/Run`，均为一接口一文档（`Docs/API/QuoteDeDup/*.md`），并在 `Docs/API/README.md` 与 `Docs/API/APIs.md` 登记。
@@ -1553,12 +1570,12 @@
   - `Docs/API/QuoteDeDup/` 新增 11 篇文档（Usc / Priority / Calendar / Maturity / Stats / Budget / Watermark / RunLog / UploadLog / Patch / JobControl），`Docs/API/APIs.md` 登记 58–84 号接口并回填前端页面。
 - **归档 Job 执行可视化与全链路流程图**：
   - 新增接口 `GET /API/V1/Meta/Finv/Quote/DeDup/Job/Runtime`（85 号）：合并进程内运行状态与运行日志，返回 10 个 Job 是否在跑、当前阶段 / 进度 / 心跳、最近一次结果、最近成功 / 失败时间与 24 小时成功 / 失败 / 暂停统计，文档见 `Docs/API/QuoteDeDup/JobRuntime.md`；
-  - 新增迁移 **`V100042__finv_dedup_job_run_log_progress.sql`**：为 `dedup.finv_dedup_job_run_log_export_file` 增加 `stage` / `progress_percent` / `progress_detail` / `gmt_heartbeat` 四列，并建「未结束运行记录」部分索引；
+  - 新增迁移 **`V200042__finv_dedup_job_run_log_progress.sql`**：为 `dedup.finv_dedup_job_run_log_export_file` 增加 `stage` / `progress_percent` / `progress_detail` / `gmt_heartbeat` 四列，并建「未结束运行记录」部分索引；
   - 10 个 Job 上报阶段与心跳：导出任务按 `LOAD → EXPORT → CLEANUP` 上报（写 MVsv 文件时每 2 万行刷新心跳），上传 / 补丁类按文件 / 证券月上报，维护与统计类上报 `CLEANUP` / `RECOVER` / `HEALTH` / `STATS` / `BUDGET` / `MATURITY` / `SEAL`；心跳超过「租约 2 倍且不少于 2 分钟」未更新即标记为「疑似卡住」；
   - 10 个 Job 均提供中文名称与任务说明（功能 / 流程 / 工作细节 / 注意事项），由 `/Status` 与 `/Job/Runtime` 的 `jobs[]` 返回，前端在 Job 标识处悬浮展示，不新增表格列；
   - 前端新增独立菜单 **「端到端链路」**（`/Meta/Finv/Quote/DeDup/Export/Chain`，`Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue`）：以流程图展示「去重主表 → 成熟度/预算 → 收口冻结 → 装载 LOAD → 导出 EXPORT → 中转清理 CLEANUP → 文件上传 → 网盘归档与清理 → 补丁收口 → 保障任务」全链路节点状态与进度（执行中 / 心跳超时 / 需要关注 / 正常 / 未运行，含当前阶段、已运行时长、心跳与业务数字）；运行快照 5 秒、业务指标 20 秒自动刷新；支持**总体视角**（SVG 数据流向图：①–⑪ 节点、箭头连线与节点内数据流文案，支持点击联动详情，步骤状态与卡点定位）与**任务视角**（10 个 Job 的说明、状态、最近运行与所在链路位置，可跳转总体视角），节点内的 Job 中文名称支持悬浮查看功能 / 流程 / 工作细节 / 注意事项；旁路任务均连接到下游步骤（补丁 → 上传、超时回收 → 重新排队、健康检查 → 调度反馈）；导出调度 / 上传 / 超时回收 / 健康检查等定时循环任务以节点自环箭头 + 调度周期标识；连接线统一改为正交折线（实线主流程 / 虚线旁路 / 紫色定时循环）以减少重叠；紫色自环统一从节点底部中点（出口）绕外侧回到顶部中点（入口）；旁路任务使用 ⑫ / ⑬ / ⑭ 独立序号；⑫ 纳入「导出任务批次（本月）」范围，补丁数据先进入 ⑤ 中转表，再走 ⑥→⑦→⑧→⑨（与正常导出同一套 LOAD→EXPORT→CLEANUP），大数据量补丁不再按补丁小预算截断；批次进度合并 ⑫ 补丁任务计数（成功 / 失败 / 运行中 / 待处理）；⑤–⑧ 包裹为「导出任务批次（本月）」大节点，展示成功 / 失败 / 总数与分段进度条（成功绿 / 失败红 / 进行中蓝），子步骤各自展示装载 / 导出 / 登记完成度；节点第三行改为关键指标，表名与完整数据流仅在悬浮或右侧详情展示；某一步骤存在失败 / 心跳超时 / 业务阈值告警时，在总体视角以红黄边框与「链路卡点」列表直接定位到具体环节。
 - **低峰窗口支持在线修改（保存后立即生效）**：
-  - 新增迁移 **`V100043__finv_dedup_runtime_setting.sql`**：创建 `dedup.finv_dedup_runtime_setting` 键值表，保存 `EXPORT_WINDOW_START` / `EXPORT_WINDOW_END`；
+  - 新增迁移 **`V200043__finv_dedup_runtime_setting.sql`**：创建 `dedup.finv_dedup_runtime_setting` 键值表，保存 `EXPORT_WINDOW_START` / `EXPORT_WINDOW_END`；
   - 服务启动时加载数据库设置，未配置时回退环境变量 `FINV_QUOTE_DEDUB_WINDOW_START` / `_END`；调度器与导出 Job 使用内存中的当前生效值，在线保存后原子更新，无需重启；
   - 新增接口 `GET /Settings`（当前窗口、来源、更新时间、是否在窗口内）与 `PUT /Settings/Window`（校验 HH:MM、支持跨零点、写审计），文档见 `Docs/API/QuoteDeDup/Settings.md`；
   - 「端到端链路」页新增低峰窗口编辑对话框（开始 / 结束时间、来源与更新时间展示），保存后立即生效。
@@ -1568,20 +1585,20 @@
 - **新增 `sys.sys_config`（系统配置表）**（`V72`）：`integer` 主键 `config_no`，`data_type` 区分整型/字符/字符串/JSON 四类值列（`int_value` / `char_value` / `str_value` / `json_value`），带 `access_level`、`create_by`/`modify_by` 与 `gmt_create`/`gmt_modify`（`timestamp(6)`）；仿 MySQL `ON UPDATE CURRENT_TIMESTAMP(6)` 用 BEFORE UPDATE 触发器 `trg_sys_config_set_gmt_modify` 维护 `gmt_modify`；表 + 13 列中文注释齐备，迁移幂等并在末尾校验表/列数/主键/触发器/函数/注释。
 - **新增 `sys.sys_dict` / `sys.sys_dict_sub`（数据字典主表与子表）**（`V73`）：`sys_dict`（主键 `dict_no`，16 列，含 `key_type`/`val_type`、`access_level`/`manage_level`/`data_level`、`ref_spec`、`enum_class`、`dict_category`）；`sys_dict_sub`（主键 `(dict_no, sub_key)`，16 列，含 `flag_enable` 启用标志与 `create_by`/`modify_by`、`gmt_create`/`gmt_modify`）；两表均 `timestamp(6)` 时间列、表 + 16 列中文注释齐备、无物理外键，各带一个 `BEFORE UPDATE` 触发器（`trg_sys_dict_touch` / `trg_sys_dict_sub_touch`），更新时**只刷新 `gmt_modify`**，`gmt_create` 仅插入时生成、之后保持不变（与 `V72` 口径一致）；迁移幂等，末尾校验表/列数/主键/触发器/函数/注释，并断言触发器函数体不含 `gmt_create` 赋值。
 - **新增 `sys.sys_user`（系统用户表）**（`V74`）：24 列，主键 `idn`（`bigint GENERATED BY DEFAULT AS IDENTITY`，初值对齐原库 `AUTO_INCREMENT=1028`，空表时 `RESTART WITH 1028`、已有数据时接续 `max(idn)+1`）、`email` / `mobile_phone_no` 各自唯一、`flag_delete` 逻辑删除、`authority_str varchar(6000)`、`language` / `time_zone` 默认 `zh-CN` / `UTC+08:00`；表 + 24 列中文注释齐备；`BEFORE UPDATE` 触发器 `trg_sys_user_set_gmt_modify` 只刷新 `gmt_modify`（`gmt_create` 仅插入时生成）；无物理外键，迁移幂等并在末尾校验表/列数/主键/唯一约束/identity/触发器/函数/注释。
-- **新增 `sys.sys_config` 初始配置数据（5 条）**（`V100025`，种子段）：`1010`「系统前后端分离标志」、`1020`「默认最大单页展示记录数」（`data_type='1'`、`int_value=2000`）、`1031`「1001配置」、`5001`「后端自定义分页插件启用标志」、`5002`「后端MyBatis分页缓存启用标志」（后四条 `data_type='2'`、`char_value='1'`）；`gmt_create` / `gmt_modify` 保留原库时间；`INSERT ... ON CONFLICT (config_no) DO NOTHING` 幂等——重跑不报错也不覆盖生产已调整的配置值；末尾校验 5 条齐备且 `data_type` 与取值列匹配。
-- **新增 `sys.sys_dict` 初始字典定义（19 条）**（`V100026`，种子段）：`1001` 普通标志、`1002` Meta业务字段类型、`1003` 存取级别、`1004` 分页模式、`1005` 字段释义键序列、`1006` 数据类型（字典？）、`1007` 字典分类、`1008` 管理级别、`1009` 数据类型、`1301` 系统类型、`3004` 邮件类型、`3101` 民族、`3103` 国籍/地区字典、`3104` 国籍/地区字母代码对应电话区号字典、`3105` 国籍、`3107` 证件类别、`3110` 国标性别代码、`3121` 外汇交易币种、`3122` 注册资本币种；`gmt_create` / `gmt_modify` 保留原库时间；`ON CONFLICT (dict_no) DO NOTHING` 幂等（不覆盖生产已调整定义），末尾校验 19 条齐备且关键字段（`key_type`、`val_type`、`enum_class`、`dict_category`、`3105.manage_level` 为 `NULL`）匹配；字典子项数据待后续种子迁移。
-- **新增 `sys.sys_dict_sub` 初始字典子项（89 条）**（`V100027`，种子段）：`3120` 币种（数字/字母键）14 条（`0`-`9`、`A`-`D`）、`3121` 外汇交易币种 11 条、`3122` 注册资本币种 64 条（含 `OTH` 其它，其 `en_sys_str` 为 `NULL`）；`sub_val` / `name_en` / `en_sys_str` 与时间戳原样保留（`3120` 的 `en_sys_str` 存在 `gat,gax,…` 与 `gat,gcq,…` 两种顺序）；`ON CONFLICT (dict_no, sub_key) DO NOTHING` 幂等，末尾校验三组条数与关键字段；`3120` 主表记录尚未提供，需补齐后与 `sys_dict` 建立对应。
-- **新增 `sys.sys_dict_sub` 地区/国籍子项（387 条）**（`V100028`，种子段）：`3103` 国籍/地区字典 249 条（`ABW` 阿鲁巴 … `ZWE` 津巴布韦，ISO 三字母键；多数 `en_sys_str='trade'`，特例为 `NULL` 或 `cic,gft,gaa,act` / `act,cic`，`access_level` 为 1/2）、`3104` 国籍/地区字母代码对应电话区号 5 条（`CHN`=86 / `CTN`=886 / `HKG`=852 / `MAC`=853 / `USA`=001）、`3105` 国籍 133 条（ISO 数字码 `004` 阿富汗 … `470` 马耳他）；`ON CONFLICT (dict_no, sub_key) DO NOTHING` 幂等，末尾按「不少于」校验条数并抽查例外行；⚠ `3105` 在 `470` 处数据截断，后续编号（484 起）待补增量种子。
-- **新增 `sys.sys_dict_sub` 通用标志/分页/数据类型子项（28 条）**（`V100029`，种子段，原 MySQL `cms_sys_dict_sub` 转写）：`1001` 普通标志 2 条（`0` 否 / `1` 是）、`1002` Meta业务字段类型 2 条（原库两值均为「否」）、`1003` 存取级别 3 条（可修改/只读/隐藏）、`1004` 分页模式 2 条（带 `sub_sort` 与 `description`，`en_sys_str` 为空串）、`1005` 字段释义键序列 14 条（`0`-`9`/`A`-`D`，`sub_sort` 1-14）、`1006` 数据类型 5 条（字符/整数/浮点数/布尔/字符串，`flag_enable='0'`）；`ON CONFLICT (dict_no, sub_key) DO NOTHING` 幂等，末尾校验六组条数与关键值（`1005` 的 `sub_sort` 比较改为数值比较，避免文本序误判）。
-- **`sys.sys_dict_sub` 国籍（`3105`）补齐至完整 235 条**（`V100030`，种子段增量）：新增 `474` 马提尼克 … `894` 赞比亚共 102 条，与 `V100028` 的 `004`–`470` 衔接，使 `3105` 覆盖完整 ISO 3166-1 numeric 列表；同批提供的 `3103`（`MAC`–`ZWE`）与 `3104`（5 条）与 `V100028` 重复，不重复插入；`ON CONFLICT (dict_no, sub_key) DO NOTHING` 幂等，末尾校验总数不少于 235、本批 102 条齐全与首尾值；原库笔误（`624` 几内亚比招、`795` 土库存曼斯坦）原样保留。
-- **新增两条 FinvQuote 运行/收集模式配置**（`V100031`，种子段）：`20000`「FinvQuote服务运行模式」（字符型，默认 `'0'`，备注 `0-云端模式（默认） 1-本地模式`）与 `20001`「历史行情收集模式」（字符型，默认 `'0'`，备注 `0 被动收集（默认，外部程序通过暴露的API接口添加），1-主动采集模式，服务主动从外部源采集入库保存`）；`ON CONFLICT (config_no) DO NOTHING` 幂等，末尾校验两项类型/默认值与备注。
-- **`sys_config` 20000/20001 创建人修正为 `fqe`**（`V100032`）：`V100031` 首次落库时 `create_by` 为 `NULL`，本迁移仅修正 `create_by='fqe'`（不动类型/值/备注）；`gmt_create` 保持原插入时间、`gmt_modify` 由触发器刷新；只更新尚非 `fqe` 的行，重跑影响 0 行。
-- **`sys_config` 20001 备注文案修订**（`V100033`）：`0 被动收集（默认，外部程序通过暴露的API接口添加），1-主动采集模式…` 改为 `0-被动收集（默认），外部程序通过暴露的API接口添加；1-主动采集模式，服务主动从外部源采集入库保存`（结构更清晰：`0-`/`1-` 两档用「；」分隔）；只改 `remark`，`create_by='fqe'`、类型与默认值不变，`IS DISTINCT FROM` 保证重跑影响 0 行。
-- **新增月归档自动上传 Git 的两条配置**（`V100034`，种子段）：`20002`「启用月归档数据自动上传Git仓库标志」（`data_type='2'`，`char_value='0'`，备注 `0-关闭(默认) 1-启用`）与 `20003`「归档数据上传GitHub仓库的PAT值」（`data_type='3'`，`str_value` **无默认值（NULL）**，由用户自行配置）；因 `char_value` 为 `char(1)` 装不下 PAT，令牌走 `varchar(6000)` 的 `str_value`；**只 DO NOTHING、不 DO UPDATE**，并用迁移前临时快照硬校验「已有值未被覆盖」（已实测：用户改 `20002='1'` + 写入模拟 PAT 后重跑，`INSERT 0 0` 且两值原样保留）。
-- **新增文件上传仓库配置**（`V100035`，种子段）：`20004`「文件上传仓库配置」，`data_type='3'`、`str_value` **无默认值（NULL）**，取值格式 `{owner}:{repo}:{branch}:{pre_path_key}`（owner 仓库所有者、repo 仓库名、branch 分支名、pre_path_key 目录前缀）；与 `20002`（是否上传）/`20003`（PAT）三件套配合；沿用 `DO NOTHING` + 快照守值，另对**用户已配置**的值做只读格式检查——不合约定只 `RAISE WARNING`不阻断部署（避免用户配错导致升级失败），由运行时应用层校验报错。
+- **新增 `sys.sys_config` 初始配置数据（5 条）**（`V200025`，种子段）：`1010`「系统前后端分离标志」、`1020`「默认最大单页展示记录数」（`data_type='1'`、`int_value=2000`）、`1031`「1001配置」、`5001`「后端自定义分页插件启用标志」、`5002`「后端MyBatis分页缓存启用标志」（后四条 `data_type='2'`、`char_value='1'`）；`gmt_create` / `gmt_modify` 保留原库时间；`INSERT ... ON CONFLICT (config_no) DO NOTHING` 幂等——重跑不报错也不覆盖生产已调整的配置值；末尾校验 5 条齐备且 `data_type` 与取值列匹配。
+- **新增 `sys.sys_dict` 初始字典定义（19 条）**（`V200026`，种子段）：`1001` 普通标志、`1002` Meta业务字段类型、`1003` 存取级别、`1004` 分页模式、`1005` 字段释义键序列、`1006` 数据类型（字典？）、`1007` 字典分类、`1008` 管理级别、`1009` 数据类型、`1301` 系统类型、`3004` 邮件类型、`3101` 民族、`3103` 国籍/地区字典、`3104` 国籍/地区字母代码对应电话区号字典、`3105` 国籍、`3107` 证件类别、`3110` 国标性别代码、`3121` 外汇交易币种、`3122` 注册资本币种；`gmt_create` / `gmt_modify` 保留原库时间；`ON CONFLICT (dict_no) DO NOTHING` 幂等（不覆盖生产已调整定义），末尾校验 19 条齐备且关键字段（`key_type`、`val_type`、`enum_class`、`dict_category`、`3105.manage_level` 为 `NULL`）匹配；字典子项数据待后续种子迁移。
+- **新增 `sys.sys_dict_sub` 初始字典子项（89 条）**（`V200027`，种子段）：`3120` 币种（数字/字母键）14 条（`0`-`9`、`A`-`D`）、`3121` 外汇交易币种 11 条、`3122` 注册资本币种 64 条（含 `OTH` 其它，其 `en_sys_str` 为 `NULL`）；`sub_val` / `name_en` / `en_sys_str` 与时间戳原样保留（`3120` 的 `en_sys_str` 存在 `gat,gax,…` 与 `gat,gcq,…` 两种顺序）；`ON CONFLICT (dict_no, sub_key) DO NOTHING` 幂等，末尾校验三组条数与关键字段；`3120` 主表记录尚未提供，需补齐后与 `sys_dict` 建立对应。
+- **新增 `sys.sys_dict_sub` 地区/国籍子项（387 条）**（`V200028`，种子段）：`3103` 国籍/地区字典 249 条（`ABW` 阿鲁巴 … `ZWE` 津巴布韦，ISO 三字母键；多数 `en_sys_str='trade'`，特例为 `NULL` 或 `cic,gft,gaa,act` / `act,cic`，`access_level` 为 1/2）、`3104` 国籍/地区字母代码对应电话区号 5 条（`CHN`=86 / `CTN`=886 / `HKG`=852 / `MAC`=853 / `USA`=001）、`3105` 国籍 133 条（ISO 数字码 `004` 阿富汗 … `470` 马耳他）；`ON CONFLICT (dict_no, sub_key) DO NOTHING` 幂等，末尾按「不少于」校验条数并抽查例外行；⚠ `3105` 在 `470` 处数据截断，后续编号（484 起）待补增量种子。
+- **新增 `sys.sys_dict_sub` 通用标志/分页/数据类型子项（28 条）**（`V200029`，种子段，原 MySQL `cms_sys_dict_sub` 转写）：`1001` 普通标志 2 条（`0` 否 / `1` 是）、`1002` Meta业务字段类型 2 条（原库两值均为「否」）、`1003` 存取级别 3 条（可修改/只读/隐藏）、`1004` 分页模式 2 条（带 `sub_sort` 与 `description`，`en_sys_str` 为空串）、`1005` 字段释义键序列 14 条（`0`-`9`/`A`-`D`，`sub_sort` 1-14）、`1006` 数据类型 5 条（字符/整数/浮点数/布尔/字符串，`flag_enable='0'`）；`ON CONFLICT (dict_no, sub_key) DO NOTHING` 幂等，末尾校验六组条数与关键值（`1005` 的 `sub_sort` 比较改为数值比较，避免文本序误判）。
+- **`sys.sys_dict_sub` 国籍（`3105`）补齐至完整 235 条**（`V200030`，种子段增量）：新增 `474` 马提尼克 … `894` 赞比亚共 102 条，与 `V200028` 的 `004`–`470` 衔接，使 `3105` 覆盖完整 ISO 3166-1 numeric 列表；同批提供的 `3103`（`MAC`–`ZWE`）与 `3104`（5 条）与 `V200028` 重复，不重复插入；`ON CONFLICT (dict_no, sub_key) DO NOTHING` 幂等，末尾校验总数不少于 235、本批 102 条齐全与首尾值；原库笔误（`624` 几内亚比招、`795` 土库存曼斯坦）原样保留。
+- **新增两条 FinvQuote 运行/收集模式配置**（`V200031`，种子段）：`20000`「FinvQuote服务运行模式」（字符型，默认 `'0'`，备注 `0-云端模式（默认） 1-本地模式`）与 `20001`「历史行情收集模式」（字符型，默认 `'0'`，备注 `0 被动收集（默认，外部程序通过暴露的API接口添加），1-主动采集模式，服务主动从外部源采集入库保存`）；`ON CONFLICT (config_no) DO NOTHING` 幂等，末尾校验两项类型/默认值与备注。
+- **`sys_config` 20000/20001 创建人修正为 `fqe`**（`V200032`）：`V200031` 首次落库时 `create_by` 为 `NULL`，本迁移仅修正 `create_by='fqe'`（不动类型/值/备注）；`gmt_create` 保持原插入时间、`gmt_modify` 由触发器刷新；只更新尚非 `fqe` 的行，重跑影响 0 行。
+- **`sys_config` 20001 备注文案修订**（`V200033`）：`0 被动收集（默认，外部程序通过暴露的API接口添加），1-主动采集模式…` 改为 `0-被动收集（默认），外部程序通过暴露的API接口添加；1-主动采集模式，服务主动从外部源采集入库保存`（结构更清晰：`0-`/`1-` 两档用「；」分隔）；只改 `remark`，`create_by='fqe'`、类型与默认值不变，`IS DISTINCT FROM` 保证重跑影响 0 行。
+- **新增月归档自动上传 Git 的两条配置**（`V200034`，种子段）：`20002`「启用月归档数据自动上传Git仓库标志」（`data_type='2'`，`char_value='0'`，备注 `0-关闭(默认) 1-启用`）与 `20003`「归档数据上传GitHub仓库的PAT值」（`data_type='3'`，`str_value` **无默认值（NULL）**，由用户自行配置）；因 `char_value` 为 `char(1)` 装不下 PAT，令牌走 `varchar(6000)` 的 `str_value`；**只 DO NOTHING、不 DO UPDATE**，并用迁移前临时快照硬校验「已有值未被覆盖」（已实测：用户改 `20002='1'` + 写入模拟 PAT 后重跑，`INSERT 0 0` 且两值原样保留）。
+- **新增文件上传仓库配置**（`V200035`，种子段）：`20004`「文件上传仓库配置」，`data_type='3'`、`str_value` **无默认值（NULL）**，取值格式 `{owner}:{repo}:{branch}:{pre_path_key}`（owner 仓库所有者、repo 仓库名、branch 分支名、pre_path_key 目录前缀）；与 `20002`（是否上传）/`20003`（PAT）三件套配合；沿用 `DO NOTHING` + 快照守值，另对**用户已配置**的值做只读格式检查——不合约定只 `RAISE WARNING`不阻断部署（避免用户配错导致升级失败），由运行时应用层校验报错。
 - **月归档上传 GitHub 仓库（Contents API）**：新增 `internal/meta/finv/sys`（需求 10762 归位前为 `internal/syscfg`）读取 `sys.sys_config` 的 `20002` 开关 / `20003` PAT / `20004` 仓库定位（`{owner}:{repo}:{branch}:{pre_path_key}`），带 30 秒 TTL 缓存，**在线改配置无需重启**；新增 `internal/meta/finv/quote/dedup/uploader_github.go`，用 GitHub Contents API（纯 `net/http`，**未引入任何第三方 SDK**）实现 `Uploader`：流式 base64 构造 PUT 请求体（不把大文件读进内存）、远端内容一致时**不重复提交**（幂等）、内容变更时携带远端 sha 覆盖、上传后按大小与 git blob sha 做内容级校验；新增 `uploader_dynamic.go` 按 `20002` 实时路由到 GitHub 或原 `none/dir/http`；配置缺失/非法时返回可读错误并写入上传审计日志（不静默回退到其它目标）。`GET /API/V1/Meta/Finv/Quote/DeDup/Status` 的 `upload_mode` 实时反映生效模式（`github` / `dir` / `http` / `none`）。
 - **新增配置项 `FINV_QUOTE_DEDUB_UPLOAD_GITHUB_API_BASE`**（可选，默认 `https://api.github.com`）：供 GitHub Enterprise 覆盖 API 端点；已同步 `Deploy/Docker/docker-compose.yml` 与 `.env.example`。
-- **证券主数据 region/market 口径修正**（迁移 `V100036` + `RefreshSecurityMetadata`）：`dedup.finv_dedup_usc.market` 改为关联 `finv_market.market_symbol` 取值（`SH`/`SZ`/`BJ`/`HK`/`NSDQ`/`CFD` 等市场级符号），不再直接抄板块级 `market_flag`（`SSE-A`/`US-NSDQ`）；`region` 改为以 `finv_region` 字典规范化（`finv_exchange.region='USA'` 统一为 `US`），字典无对应项时回退原值。`RefreshSecurityMetadata` 对这两列改为「以字典为准覆盖」（新值为空时保留旧值），其余列仍只补缺。已重绑 39 行：`CN→SH/SZ/BJ`、`HK→HK/HKR`、`FX→CFD`、`US→BMS/COMEX/NSDQ`；**影响**：新导出文件的 MVsv 文件名与归档目录随之变化（如 `CN_SH_600519_…mvsv`，目录 `CN_SH/600519/`）。
+- **证券主数据 region/market 口径修正**（迁移 `V200036` + `RefreshSecurityMetadata`）：`dedup.finv_dedup_usc.market` 改为关联 `finv_market.market_symbol` 取值（`SH`/`SZ`/`BJ`/`HK`/`NSDQ`/`CFD` 等市场级符号），不再直接抄板块级 `market_flag`（`SSE-A`/`US-NSDQ`）；`region` 改为以 `finv_region` 字典规范化（`finv_exchange.region='USA'` 统一为 `US`），字典无对应项时回退原值。`RefreshSecurityMetadata` 对这两列改为「以字典为准覆盖」（新值为空时保留旧值），其余列仍只补缺。已重绑 39 行：`CN→SH/SZ/BJ`、`HK→HK/HKR`、`FX→CFD`、`US→BMS/COMEX/NSDQ`；**影响**：新导出文件的 MVsv 文件名与归档目录随之变化（如 `CN_SH_600519_…mvsv`，目录 `CN_SH/600519/`）。
 - **`finv_market` 新增 `market_symbol` 市场符号列**（迁移 `V75`）：类型 `TEXT NOT NULL DEFAULT ''`，用于表达市场的对外标识（如 `US-NSDQ` / `FX-CFD` / `SZ`）并与行情链路的 market 取值对齐；空串表示未维护。`GET/POST .../Metadata/Market/List|Save` 同步返回与写入该字段，列表 `keyword` 检索覆盖该列；前端「元数据 → 交易市场」列表新增「市场符号」列与编辑项。`ADD COLUMN IF NOT EXISTS` 幂等，末尾校验类型/可空性/默认值与列注释。
 
 ### 变更
@@ -1623,17 +1640,17 @@
   - `Docs/DevSpec/ApiSpec.md` §7.7：新增「内部/外部分离且自包含」规则——`Docs/API/` 为内部文档、`Docs/OpenAPI/` 为对外契约，对外文档不得引用内部文档或内部 `.yml`。
 
 - **分钟行情 volume 全链路统一为浮点 `numeric(20,6)`（需求 10792）**
-  - 新增迁移 `V200059__kline_min_volume_numeric_all_schemas.sql`：把 `quote` / `export` / `dedup` 三张同名表的 `volume` 从 `bigint` 改为 `numeric(20,6)`（与 `V200058` 的 `cdeu` 一致），重建 `CHECK (volume >= 0)`，幂等、无损。
+  - 新增迁移 `V300059__kline_min_volume_numeric_all_schemas.sql`：把 `quote` / `export` / `dedup` 三张同名表的 `volume` 从 `bigint` 改为 `numeric(20,6)`（与 `V300058` 的 `cdeu` 一致），重建 `CHECK (volume >= 0)`，幂等、无损。
   - `internal/mvsv/parser.go`：`Row.Volume` 由 `*int64` 改为 `*string`（`numericTextOrNil` 原样保留小数文本），修复含小数 MVsv 导入时 volume 被静默丢弃的问题。
   - `internal/quote/service.go`：查询结果 `Bar.Volume` 由 `*int64` 改为 `*float64`，JSON 输出保持数字并支持小数。
   - 文档：`HistoryQuote.md` 标注 volume 支持小数；`MvsvFileFormat.md` 已为 `Decimal(20,6)`。
-  - 验证：临时 PG18 上 141 个迁移 0 错误；四表 volume 均为 `numeric(20,6)`；`12.345678` 在四表写入/读回一致；重复执行 V200059 全部跳过；`go build`、`mvsv/quote/kline` 测试通过（新增小数解析用例）。
+  - 验证：临时 PG18 上 141 个迁移 0 错误；四表 volume 均为 `numeric(20,6)`；`12.345678` 在四表写入/读回一致；重复执行 V300059 全部跳过；`go build`、`mvsv/quote/kline` 测试通过（新增小数解析用例）。
 
 - **cdeu 分钟行情成交量改为浮点（`numeric(20,6)`，需求 10791）**
-  - 新增迁移 `V200058__cdeu_kline_min_volume_numeric.sql`：`cdeu.finv_quote_secu_kline_min.volume` 由 `bigint` 改为 `numeric(20,6)`，重建 `CHECK (volume >= 0)`；幂等（已是 numeric 直接跳过），`bigint → numeric` 无损。
+  - 新增迁移 `V300058__cdeu_kline_min_volume_numeric.sql`：`cdeu.finv_quote_secu_kline_min.volume` 由 `bigint` 改为 `numeric(20,6)`，重建 `CHECK (volume >= 0)`；幂等（已是 numeric 直接跳过），`bigint → numeric` 无损。
   - 仅调整 `cdeu` 表；`public` / `quote` / `dedup` / `export` 的同名表不动。
   - 代码无需改动：`internal/kline` 已按 numeric 文本读写（`volume::text`、`CellText` 去尾零），集成测试表本为 `numeric(20,6)`；`MVsvFileFormat.md` 中 `v` 的类型由 `Long` 更新为 `Decimal(20,6)`。
-  - 验证：临时 PG18 上 140 个迁移 0 错误；`12.345678` 写入/读回正常；重复执行 V200058 输出「已是 numeric，跳过」。
+  - 验证：临时 PG18 上 140 个迁移 0 错误；`12.345678` 写入/读回正常；重复执行 V300058 输出「已是 numeric，跳过」。
 
 - **外部 OpenAPI 暂不鉴权（需求 10790）**
   - `/OpenAPI/V1` 路由组移除 `RequireOpenAPIKey`，公开访问；仅保留 `WrapOpenAPIResponse` 统一信封。
@@ -1729,7 +1746,7 @@
   - **会话**：令牌 32 字节随机 → hex 64 字符，存 Redis `finv:auth:session:<token>`；有效期读 `sys_config` 20012（默认 480 分钟），命中且剩余不足一半时滑动续期；登出即删键，服务端可即时吊销。
   - **接口拦截**：新增 `RequireAuth` 中间件，除 `/Health/Live`、`/Health/Ready`、`/Version`、`/Meta/Finv/Auth/Login` 外全部要求 `Authorization: Bearer <token>`；新增 `POST /Meta/Finv/Auth/Login`、`POST /Meta/Finv/Auth/Logout`、`GET /Meta/Finv/Auth/Profile`。
   - **前端**：新增登录页 `LoginView.vue` 与 `auth.ts`（localStorage 持久化）；`router.ts` 加 `beforeEach` 守卫，未登录重定向 `/login?redirect=<来源>`；`api.ts` 自动附加令牌并在 401 时清空会话、广播 `finvquant:unauthorized`；`App.vue` 登录页不渲染导航框架，顶栏新增用户菜单与「退出登录」。
-  - **迁移**：`V100081` 补 `uk_sys_user_uid` 唯一索引（V74 建表时 uid 无唯一约束，登录以 uid 为标识必须唯一）；`V200055` 幂等插入 `finv`（`WHERE NOT EXISTS`，不覆盖已改口令）；`V200056` 新增配置 20012（会话有效期，合法区间 5~43200）。
+  - **迁移**：`V200081` 补 `uk_sys_user_uid` 唯一索引（V74 建表时 uid 无唯一约束，登录以 uid 为标识必须唯一）；`V300055` 幂等插入 `finv`（`WHERE NOT EXISTS`，不覆盖已改口令）；`V300056` 新增配置 20012（会话有效期，合法区间 5~43200）。
   - **验证**：明文命中 0；无令牌访问业务接口 401、健康检查 200；错误口令与不存在账号同为 401 且文案一致；正确口令返回 64 字符 token 且可访问业务接口；伪造令牌 401；登出后原 token 401；前端 `/login` 深链可直达。
 
 - **认证与配置模块目录归位（需求 10762）**
@@ -1766,19 +1783,19 @@
   - **关键常量**：`store.go` 的 `tableUsc`/`tableJob`/`tableFile`；`kline/sql.go` 的 `const Table`（K 线 API 写入目标）全部改为 `cdeu.*`。
   - **防回归闸门**：`schema_qualify_test.go` 的 `domainTablePrefixes` 新增 `"finv_quote_cdeu_": "cdeu."`；`unqualifiedDomainTables` 增加「最长前缀优先」避免 `finv_quote_cdeu_*` 被 `finv_quote_` 重复报错并给出矛盾建议；`exactTableSchema` 注释重写四份 `finv_quote_secu_kline_min` 副本职责。
   - **测试**：`kline/sql_test.go` 的 `TestTableConstantQualified` 断言由 `dedup.` 改为 `cdeu.`。
-  - **切换后状态**：代码全部读写 `cdeu.*`；`dedup.*` 数据保留但不再被读写（只读历史）；两边在切换时点一致（`V100080` 迁入的 133,260 行），之后 `cdeu` 增长、`dedup` 停滞。
+  - **切换后状态**：代码全部读写 `cdeu.*`；`dedup.*` 数据保留但不再被读写（只读历史）；两边在切换时点一致（`V200080` 迁入的 133,260 行），之后 `cdeu` 增长、`dedup` 停滞。
   - **回滚**：重新部署切换前镜像即可（`dedup` 数据仍在，仅丢切换后写入 `cdeu` 的新行）。
   - **验证**：`go build` / `go vet` / `go test ./...` 全绿；部署后 8 个只读接口（`CDEU/Overview`、`Status`、`Usc/Page`、`Job/List` 101 条、`File/List` 202 条、`RunLog/Page` 8059 条、`Maturity/Page` 2492 条、`Priority/List` 3 条）全部正常返回，启动日志无 SQL 错误。
 
-- **修正 cdeu schema 的命名规则：`cdeu_` 前缀同样替换为 `finv_quote_cdeu_`（需求 10755，已部署 V100079）**
-  - **问题**：10754（`V100078`）把命名规则理解成「只有 `finv_dedup_` 前缀需要替换」，12 张 `cdeu_*` 表沿用了原名。正确规则是三者统一：`cdeu_` / `finv_dedup_` → `finv_quote_cdeu_`，其他不变，`prep_bak_` 不建。
-  - **矫正方式**：`V100079` 用 RENAME 而非 DROP+CREATE —— `V100078` 已 `success=t`，遵循「不修改已应用迁移」规范，保留其历史并由新迁移矫正；RENAME 不动结构与数据，比重建更安全。
+- **修正 cdeu schema 的命名规则：`cdeu_` 前缀同样替换为 `finv_quote_cdeu_`（需求 10755，已部署 V200079）**
+  - **问题**：10754（`V200078`）把命名规则理解成「只有 `finv_dedup_` 前缀需要替换」，12 张 `cdeu_*` 表沿用了原名。正确规则是三者统一：`cdeu_` / `finv_dedup_` → `finv_quote_cdeu_`，其他不变，`prep_bak_` 不建。
+  - **矫正方式**：`V200079` 用 RENAME 而非 DROP+CREATE —— `V200078` 已 `success=t`，遵循「不修改已应用迁移」规范，保留其历史并由新迁移矫正；RENAME 不动结构与数据，比重建更安全。
   - **实施**：5 个 DO 块按系统表动态生成 RENAME 语句，顺序为 表 → 序列 → 约束（PK/UNIQUE/CHECK/NOT NULL，`RENAME CONSTRAINT` 连带重命名底层索引）→ 独立索引（`idx_cdeu_*` → `idx_finv_quote_cdeu_*`），逐类计数并输出 NOTICE。
   - **标识符长度**：统一 +11 字符（`finv_quote_`），改名后最长 61 字符（`cdeu_job_step_dynamic_dynamic_job_id_step_code_key` 50 → 61），未超 PostgreSQL 的 63 上限。
   - **不变项**：表 26 / 序列 17 / 索引 80 / 约束（CHECK 26 + NOT NULL 249 + PK 26 + UNIQUE 18）与矫正前完全一致；数据行合计仍 0；`dedup` 侧 31 张表未受影响。
   - **残留核验**：`cdeu_` 前缀的表/序列/索引/约束、`idx_cdeu_` 前缀的索引全部为 0。
   - **测试同步**：`schema_qualify_test.go` 的 `cdeuTables` 改为 25 张 `finv_quote_cdeu_*` + 1 张 `finv_quote_secu_kline_min`，按「原 cdeu_*」「原 finv_dedup_*」「表名不变」三组注释。
-  - **验证**：`V100079 success=t`；`go build` / `go vet` / `go test ./...` 全绿；容器 healthy。
+  - **验证**：`V200079 success=t`；`go build` / `go vet` / `go test ./...` 全绿；容器 healthy。
 
 - **日志前缀 `[exportarchive]` 统一改为 `[cdeu]`（需求 10752）**
   - **范围**：25 个文件共 97 处 `log.Printf` 前缀字面量，仅换前缀，不改变量名/结构体字段/接口路径。
@@ -1788,8 +1805,8 @@
 
 - **迁移脚本编号统一 +100000，编号分段重新划分（需求 10751）**
   - **范围**：`Deploy/Migrations/` 下全部 **131** 个脚本的 `V` 后编号统一加 100000，执行顺序与修改前完全一致。
-  - **新分段**：结构/变更迁移 `V100001`～`V199999`（原 `V1`～`V76`，76 个）；种子/数据迁移 `V200000+`（原 `V100000`～`V100054`，55 个）。
-  - **示例**：`V100029__sys_dict_sub_seed_common.sql` → `V200029__sys_dict_sub_seed_common.sql`；`V71__create_sys_schema.sql` → `V100071__create_sys_schema.sql`。
+  - **新分段**：结构/变更迁移 `V200001`～`V299999`（原 `V1`～`V76`，76 个）；种子/数据迁移 `V300000+`（原 `V200000`～`V200054`，55 个）。
+  - **示例**：`V200029__sys_dict_sub_seed_common.sql` → `V300029__sys_dict_sub_seed_common.sql`；`V71__create_sys_schema.sql` → `V200071__create_sys_schema.sql`。
   - **`schema_version` 同步**：已应用的 131 条记录版本号一并 +100000。单条 `UPDATE` 会撞主键（`1→100001` 与 `100001→200001` 冲突），改用「临时表备份 → `DELETE` → `INSERT (old+100000)`」单事务重建。
   - **引用同步**：文件名引用 `V<n>__` 250 处、裸版本引用 57 处、编号分段约定 6 处（`Prompt.md`、`Deploy/README.md`、`Deploy/Docker/Win11DockerUpgrade.md`、`Docs/DevSpec/DbSchemaSpec.md`、`Docs/DataDictMapping/FinvExchange.md`、`AGENTS.md`）。
   - **执行纪律**：改名前**必须先停容器**——旧二进制内嵌旧文件名，若先改名再重启，框架会把 131 个迁移全判为「未执行」并整体重跑。
@@ -1797,7 +1814,7 @@
   - **过程事故（已恢复）**：首次重命名用 `git mv` 在第 26 个文件失败（目标名被尚未改名的旧文件占用），前 25 个已变成 `TMP__` 前缀；随后脚本的「清理残留临时文件」逻辑对这些文件执行了 `os.remove`，误删 25 个已跟踪文件。用 `git restore --source=HEAD --staged --worktree` 从 `RD` 状态精确恢复后重新完成改名。教训：批量重命名脚本不得包含无差别删除临时前缀文件的逻辑。
 
 - **修正 `RequirementList` 中与实际不符的状态标记（需求 10707–10732）**
-  - **过期标记清除**：`10716`、`10723` 原写「（暂不实现，下一次开发）」，实际已随 `V200048__cdeu_review_phase_job_reorg.sql` 全部落地，改为正常状态并标 `√`；`10717–10722` 节首的「本节……统一暂不实现，下一次开发落地」改为「已随 V100048 全部落地」，并补注 `10744` 起本地文件清理由 `JOB_PURGE_LOCAL_FILES` 承担。
+  - **过期标记清除**：`10716`、`10723` 原写「（暂不实现，下一次开发）」，实际已随 `V300048__cdeu_review_phase_job_reorg.sql` 全部落地，改为正常状态并标 `√`；`10717–10722` 节首的「本节……统一暂不实现，下一次开发落地」改为「已随 V200048 全部落地」，并补注 `10744` 起本地文件清理由 `JOB_PURGE_LOCAL_FILES` 承担。
   - **结果列补勾（6 条）**：`10707`–`10712`（定义表 LEFT JOIN 取子级、已终态父级可回退、跑马灯动效、`prefers-reduced-motion`、只作用于 Phase/Process 两级）代码早已实现，结果列却为空，补 `√`。
   - **结果列补勾（2 条）**：`10714`（删除 17 张历史备份表）、`10715`（`cdeu_job_dynamic_step` → `cdeu_job_step_dynamic` 改名）。
   - **`10742` 加口径修正备注**：它的 `LEAST(..., now())` 兜底正是 `10747` 破绽的来源，标注「现口径见 10747」，并把核对方式换成 `started_at > finished_at` 残留为 0（原核对方式在 10747 之后已不适用）。
@@ -1806,7 +1823,7 @@
   - **顺带整理**：`purgeMainSecurityMonth` 从 `job/upload_pending_export_files.go` 迁到 `job/purge_exported_month.go`（唯一调用方），使 `10722` 的核对条件「上传 JOB 文件不含主表清理代码」成立。
   - **验证**：`10707`–`10747` 共 41 条中，除 `10713` 外全部 `√` / 规范已定；`gofmt` 干净、`go build` / `go vet` / `go test ./...` 全绿。
 
-- **归档导出状态重置（迁移 `V100037`，配套 `V100036` 的 region/market 口径变更）**：清除旧口径的 226 条文件登记（`finv_dedup_export_file` / `_patch`）与 202 条批次（`finv_dedup_export_batch`），101 个 `EXPORTED` 任务回退为 `FROZEN` 并清空装载游标/版本/补丁计数/锁与错误，当日预算清零消耗并抬到 500 万行（硬顶 600 万），使完整工作流可重新导出为 `CN_SH` / `US_NSDQ` 等新命名与新目录。成熟度 `FROZEN`、扫描水位、`finv_dedup_usc`、CDEU 历史记录均保留；上传审计日志 `finv_dedup_export_file_upload_log` 保留作历史凭据。**迁移只改数据表**：本地导出文件与远端仓库旧路径对象需运维另行清理。重跑保护：仅当仍存在 `EXPORTED` 任务时才执行，避免导出进行中被二次清空。
+- **归档导出状态重置（迁移 `V200037`，配套 `V200036` 的 region/market 口径变更）**：清除旧口径的 226 条文件登记（`finv_dedup_export_file` / `_patch`）与 202 条批次（`finv_dedup_export_batch`），101 个 `EXPORTED` 任务回退为 `FROZEN` 并清空装载游标/版本/补丁计数/锁与错误，当日预算清零消耗并抬到 500 万行（硬顶 600 万），使完整工作流可重新导出为 `CN_SH` / `US_NSDQ` 等新命名与新目录。成熟度 `FROZEN`、扫描水位、`finv_dedup_usc`、CDEU 历史记录均保留；上传审计日志 `finv_dedup_export_file_upload_log` 保留作历史凭据。**迁移只改数据表**：本地导出文件与远端仓库旧路径对象需运维另行清理。重跑保护：仅当仍存在 `EXPORTED` 任务时才执行，避免导出进行中被二次清空。
 - **归档上传范围收窄为仅 `.mvsv` 数据文件**：`xx_..._Manifest.json` 不再推送远端（GitHub 或其他目标）——`PickUploadFile` 只领取 `BASE`/`PATCH`；待上传的 MANIFEST 由上传 Job 统一标记为 `SKIPPED` 并写审计日志（`MANIFEST 按业务约定不上传（仅上传 .mvsv 数据文件）`），避免其滞留待上传队列阻塞本地清理判定与监控指标；`RegisterFile` 的 upsert 分支在「内容未变 + 已是 SKIPPED + 类型为 MANIFEST」时保持 `SKIPPED`，不反复入队；本地清理条件放宽为「`UPLOADED` 且远端已校验」或「MANIFEST 的 `UPLOADED`/`SKIPPED`」，保证 MANIFEST 本地文件仍能按「网盘归档 + 保留期」正常释放；上传 Job 结果新增 `manifests_skipped` 计数。
 - **远端归档目录改为按证券分层**：上传相对路径由 `{文件名}` 改为 `{region}_{market}/{usc}/{文件名}`（最终位置 = `sys_config` 20004 的 `pre_path_key` + 分层路径），例：`Data/Finv/SecuQuoteMon/FTMM/USA_US-NSDQ/NVDA/USA_US-NSDQ_NVDA_Min_FTMM_Mon_202607.mvsv`。**分层规则写在代码而非塞进 20004**：`pre_path_key` 是静态仓库前缀，而 `{region}_{market}/{usc}` 逐文件变化且与文件名 `{region}_{market}_{usc}_...` 同属命名契约（`naming.go`），两者必须同源维护；20004 保持「仓库定位」语义不被结构逻辑污染。新增环境变量 `FINV_QUOTE_DEDUB_UPLOAD_LAYOUT`（`by_security` 默认 / `flat` 回退旧行为）；`region/market` 从证券主数据 `dedup.finv_dedup_usc` 读取，缺失时退回扁平并告警；`upload_target` 登记与实际上传复用同一个 `Options.ArchiveTargetPath` 计算，保证两处一致。
 - **过程文档编号规范**：`Docs/DevSpec/FileNamingSpec.md` 第 4 节明确 `yyMM-NNN-` 三位序号在 `Docs/` 下**全局唯一、只增不减、不得重号或复用**，新增/改名需同步更新所有引用；`Docs/DevSpec/DocSpec.md` 第 3 节同步增加强制条款。
@@ -1843,16 +1860,16 @@
   - 防回归：`Docs/DevSpec/MenuSpec.md` 新增 §1.3（自定义组件必须显式导入 + 构建产物自检命令）。
   - 验证：重建后产物含 `finv-nav-node`、`finv-nav-item`、`finv-nav-indent`，`resolveComponent` 计数 0；容器 healthy，前端 16002 正常。
 
-- **V200057 迁移在 dedup schema 缺失时阻塞启动（需求 10808）**
-  - `Deploy/Migrations/V200057__sync_cdeu_config_from_dedup.sql` 在 `DO` 块开头增加 `pg_namespace` 存在性判断：`dedup` schema 不存在（已被冻结/迁移为 `dedup_frozen` 等）时直接 `RETURN` 并输出 NOTICE。
-  - 修复前该迁移会在 `SELECT count(*) FROM dedup.cdeu_process` 处报 `42P01`，导致后续 V200058–V200061 全部阻塞、容器重启循环。
+- **V300057 迁移在 dedup schema 缺失时阻塞启动（需求 10808）**
+  - `Deploy/Migrations/V300057__sync_cdeu_config_from_dedup.sql` 在 `DO` 块开头增加 `pg_namespace` 存在性判断：`dedup` schema 不存在（已被冻结/迁移为 `dedup_frozen` 等）时直接 `RETURN` 并输出 NOTICE。
+  - 修复前该迁移会在 `SELECT count(*) FROM dedup.cdeu_process` 处报 `42P01`，导致后续 V300058–V300061 全部阻塞、容器重启循环。
   - 注入 dedup 的存量库行为不变（仍按「有运行记录 / 行数不落后」判断跳过或同步）。
   - 验证：本机 Docker（dedup 不存在、cdeu 26 表、cdeu 配置 17 行且 425 条运行记录）重建镜像后迁移一次跑通至 **200061**，容器 `healthy`，`/API/V1/Health/Ready` 返回 `postgres/redis ok`。
 
 - **全仓 Markdown 表格渲染修复与校验范围扩展（需求 10779）**
   - 扫描全仓 `.md`（根目录、`Docs/`、`Deploy/`、`Archive/`），修复 **23 处**表格问题：
     - 单元格内裸 `|` 未转义导致列错位：`ts|da|ti|...`、正则 `(quote|quant)`、shell `||`、`2>&1 | grep`、`3120|14` 等（`RequirementList.md`、`Prompt.md`、`MvsvFileFormat.md`）；
-    - `Docs/DataDictMapping/FinvSecurity.md` 表头多出 `finv_security` 表并不存在的 `market_code` 列（与 `V100005` 表结构不符），表头 12 → 11 列；
+    - `Docs/DataDictMapping/FinvSecurity.md` 表头多出 `finv_security` 表并不存在的 `market_code` 列（与 `V200005` 表结构不符），表头 12 → 11 列；
     - `Archive/.../DevelopmentDocumentIndex.md` 1 处表格缺表头。
   - `internal/docs/table_test.go`：扫描根目录从 `Docs/` 扩展到仓库根（跳过 `.git`/`node_modules`/`Dist`/`pkg`），并新增「分隔行/数据行列数必须等于表头列数」校验。
 
@@ -1870,14 +1887,14 @@
 
 - **历史迁移中未限定的 `DROP TABLE` 加固（需求 10772）**
   - 核查全部 139 个迁移与运行期代码：**不存在** `DROP TABLE` / `TRUNCATE` / `ALTER TABLE` 作用到 `public.finv_quote_secu_kline_min` 的语句（涉及该表的 `DROP` 均带 `export.` / `dedup.` 前缀；运行期 `tableStaging = "export.finv_quote_secu_kline_min"` 亦带前缀）。
-  - 唯一同类隐患：`V100015` 重建 `finv_futu_mapping_market_code` 时 `CREATE/INSERT/DROP/ALTER/INDEX/TRIGGER` 全部未限定 schema，`search_path` 首位为 `public` 时 `DROP` 会作用到 public 中的同名表。已全部显式加 `public.` 前缀（该表按设计常驻 public，语义不变）。
+  - 唯一同类隐患：`V200015` 重建 `finv_futu_mapping_market_code` 时 `CREATE/INSERT/DROP/ALTER/INDEX/TRIGGER` 全部未限定 schema，`search_path` 首位为 `public` 时 `DROP` 会作用到 public 中的同名表。已全部显式加 `public.` 前缀（该表按设计常驻 public，语义不变）。
 
 - **全新库首次部署：与共享 `public` 同名表冲突、以及 V200xxx 迁移链断裂（需求 10771）**
-  - **public 冲突（核心）**：`V100001` 的 3 张表 / 2 个索引 / 触发器改为显式 `quote.`；`V100021`、`V100029`、`V100030`、`V100031` 同步限定；`V100032` 搬表增加「目标 schema 已有则跳过」，收敛断言改为白名单 + 目标 schema 存在性（`public` 中其它服务的同名表只 `NOTICE`）。**全程不对 `public` 中他人表执行任何 DDL/DML**。
-  - **`V100080`**：前置校验由「dedup 必须 26 张」改为「≥26 且 cdeu=26」；无对应目标表的源表跳过；复制列清单改为「源 ∩ 目标」交集（修复 `workflow_run_id` 不存在）。
-  - **`V200039`**：库内无 GCMain 行情（全新库）时跳过清理校验，避免误报「备份表没有 GCMain 月K记录」。
-  - **`V200048` / `V200050`**：去掉硬编码 `phase_id = 12/4/3`，改为按 `phase_code` 解析（全新库中 PHASE_REVIEW 的 id 由序列分配，不等于 12）。
-  - **`V200057`（新增）**：把 dedup 侧 CDEU 配置（phase/process/job/job_step）同步到 cdeu，修复「迁移按版本号执行 → cdeu 配置落后于 dedup」的结构/数据漂移；只在 cdeu 无运行记录且配置落后时执行，升级库自动跳过。
+  - **public 冲突（核心）**：`V200001` 的 3 张表 / 2 个索引 / 触发器改为显式 `quote.`；`V200021`、`V200029`、`V200030`、`V200031` 同步限定；`V200032` 搬表增加「目标 schema 已有则跳过」，收敛断言改为白名单 + 目标 schema 存在性（`public` 中其它服务的同名表只 `NOTICE`）。**全程不对 `public` 中他人表执行任何 DDL/DML**。
+  - **`V200080`**：前置校验由「dedup 必须 26 张」改为「≥26 且 cdeu=26」；无对应目标表的源表跳过；复制列清单改为「源 ∩ 目标」交集（修复 `workflow_run_id` 不存在）。
+  - **`V300039`**：库内无 GCMain 行情（全新库）时跳过清理校验，避免误报「备份表没有 GCMain 月K记录」。
+  - **`V300048` / `V300050`**：去掉硬编码 `phase_id = 12/4/3`，改为按 `phase_code` 解析（全新库中 PHASE_REVIEW 的 id 由序列分配，不等于 12）。
+  - **`V300057`（新增）**：把 dedup 侧 CDEU 配置（phase/process/job/job_step）同步到 cdeu，修复「迁移按版本号执行 → cdeu 配置落后于 dedup」的结构/数据漂移；只在 cdeu 无运行记录且配置落后时执行，升级库自动跳过。
   - **验证**：临时 PG18 中预置他人 `public.finv_quote_secu_kline_min`（含注释/索引/3 行数据）后执行全部 139 个迁移——0 错误；`public` 表数据 md5 与 schema dump 前后**完全一致**；`quote` 三表就位；`dedup` 与 `cdeu` 四张配置表内容逐表 md5 一致；空库场景同样 0 错误。
   - **安装脚本**：移除此前误加的 `--recreate-db`（会 `dropdb`），非空旧库只告警并给出「换库名/换实例」指引，**不删除、不改名、不迁移任何已有表**。
 
@@ -1885,7 +1902,7 @@
   - 摘要块原用 `cat <<EOF` 输出，未解释 ANSI 转义；改为 `printf` 逐行输出，终端颜色正常渲染。
 
 - **已存在但未被本程序初始化的数据库缺少启动告警（需求 10766 修复）**
-  - `Install.sh` 第 8 步：当目标库已存在、库内有表却缺 `public.schema_version` 时，明确提示“迁移将从 V100001 起执行并可能撞已有表（`relation ... already exists`）”，并给出重建库命令与“先备份、勿手工插 `schema_version`”的指引。
+  - `Install.sh` 第 8 步：当目标库已存在、库内有表却缺 `public.schema_version` 时，明确提示“迁移将从 V200001 起执行并可能撞已有表（`relation ... already exists`）”，并给出重建库命令与“先备份、勿手工插 `schema_version`”的指引。
 
 - **Native 安装脚本无法创建用户、Redis 误报未启动（需求 10766 修复）**
   - **`useradd` 失败**：脚本先 `groupadd --system finvquant`，随后 `useradd --system ...` 未指定主组；Debian/Ubuntu 的 `useradd` 默认会再建同名组，遇到已存在的组直接报错退出（`group 'finvquant' exists - ... use -g`），导致用户/目录/建库/systemd 全未执行。改为 `useradd --system --gid finvquant ...`；已存在用户时用 `usermod -g` 补正主组（手工调建组场景）。
@@ -1912,9 +1929,9 @@
 
 - **恢复 `quote.finv_quote_secu_kline_min`（回测隔离副本）**（迁移 `V76`）：同名表采用**双 schema 隔离设计**——`quote.` 供量化回测只读（SQL 必须写 `quote.` 前缀，避免漏写前缀命中 `search_path` 中另一张表）、`dedup.` 供去重/导出/上传链路、`export.` 为导出中转快照。`V38`（2026-10-24）曾把 `quote.` 副本 `SET SCHEMA dedup` 迁走，使回测侧隔离手段失效；本迁移按原设计恢复：结构/主键 `(ts, usc)`/5 个 CHECK/3 个业务索引/`gmt_update` 触发器/表注释全部与 `dedup` 对齐，并一次性从 `dedup` 回填 **2,804,256 行**（实测耗时约 4 分钟）。同时把启动迁移超时从 30 秒放宽到 10 分钟（`cmd/server/main.go`），避免大表回填类迁移超时导致启动失败；`schema_qualify_test.go` 的 `exactTableSchema` 已把 `quote.` 加入白名单。**两表此后各自演进，不再自动同步**。
 
-- **清理 GCMain 误插入的月K线数据**（迁移 `V100039`）：GCMain 分钟表里混入了历史月K线（时间戳落在每月 1 号 `00:00:00`，字段值是整月 OHLC 与成交量），与正常分钟数据相差 4~5 个数量级，会污染 MVsv 导出。判定口径：`time=0` + `date%100=1` + `volume >= 100000` + `high-low >= 20`（三者同时满足）；共清理 **73 行**（`GCMain` 2,729,329 → 2,729,256），同位置 4 条正常分钟数据（`20260401/20260501/20260601/20260701`，volume 14~45）已保留。删除前整行备份到 `dedup.finv_quote_secu_kline_min_kline_purge`（含 `reason` 与 `backup_at`，主键 `(usc, ts)`），可回滚、可审计。**同表的日K线（`time=0` 且非 1 号，约 1326 行）与 `XAUUSD` 的 44 行 `time=0` 记录本次未处理**，待业务确认后另行清理。
+- **清理 GCMain 误插入的月K线数据**（迁移 `V200039`）：GCMain 分钟表里混入了历史月K线（时间戳落在每月 1 号 `00:00:00`，字段值是整月 OHLC 与成交量），与正常分钟数据相差 4~5 个数量级，会污染 MVsv 导出。判定口径：`time=0` + `date%100=1` + `volume >= 100000` + `high-low >= 20`（三者同时满足）；共清理 **73 行**（`GCMain` 2,729,329 → 2,729,256），同位置 4 条正常分钟数据（`20260401/20260501/20260601/20260701`，volume 14~45）已保留。删除前整行备份到 `dedup.finv_quote_secu_kline_min_kline_purge`（含 `reason` 与 `backup_at`，主键 `(usc, ts)`），可回滚、可审计。**同表的日K线（`time=0` 且非 1 号，约 1326 行）与 `XAUUSD` 的 44 行 `time=0` 记录本次未处理**，待业务确认后另行清理。
 
-- **证券主数据 `currency` 刷新缺陷修复**（迁移 `V100038`）：`RefreshSecurityMetadata` 原先对 `dedup.finv_dedup_usc.currency` 采用「只补 NULL」策略，主数据（`finv_security.currency_type`）修正后 usc 长期停留在旧币种，会把错值写进 MVsv 文件头 `# Currency` 行。现改为「以主数据为准覆盖」（新值为 NULL 时保留旧值），与 region / market 同策略；`name` / `timezone` 仍只补缺，避免覆盖人工维护的名称与时区别名。已重刷数据：`81810`（小米集团-WR 人民币柜台）`HKD → CNY`，全库 `CNY 25 / HKD 9 / USD 5`，无空值、与主数据零偏差。
+- **证券主数据 `currency` 刷新缺陷修复**（迁移 `V200038`）：`RefreshSecurityMetadata` 原先对 `dedup.finv_dedup_usc.currency` 采用「只补 NULL」策略，主数据（`finv_security.currency_type`）修正后 usc 长期停留在旧币种，会把错值写进 MVsv 文件头 `# Currency` 行。现改为「以主数据为准覆盖」（新值为 NULL 时保留旧值），与 region / market 同策略；`name` / `timezone` 仍只补缺，避免覆盖人工维护的名称与时区别名。已重刷数据：`81810`（小米集团-WR 人民币柜台）`HKD → CNY`，全库 `CNY 25 / HKD 9 / USD 5`，无空值、与主数据零偏差。
 
 - 修复动态导出 JOB 勾选「自动续跑」后只执行静态后续 JOB、未继续同 Process 后续动态 JOB 的问题：现在先按 `dynamic_job_id` 顺序续跑后续动态导出 JOB，再执行补丁、上传、清理、健康检查等静态后续 JOB；日志弹窗增加自动续跑状态提示，JOB 清单在续跑期间使用 1 秒刷新。
 - 修复 CDEU JOB 清单「处理量」列为空：动态导出 JOB 从运行日志读取行数/字节数，动态上传 JOB 从 `finv_dedup_export_file` 读取文件行数/大小；静态 JOB 在 CDEU 运行记录为 0 时回退运行日志。
@@ -1928,11 +1945,11 @@
 
 - **分钟行情 K 线 API 融合（FinvQuoteDataDeDup → FinvQuant）**：新增 `internal/kline`（领域服务/校验/格式化/错误目录）与 `internal/api/handler/kline*.go`，在 16001 进程内实现原 Python 服务的 8 类业务接口（`Add`、`Batch`、`Upsert`、`Page`、`PageUni`、`Query`、`PATCH Batch`、`DELETE Batch`、`Count`），统一前缀 **`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min`**；旧前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min` 作为切流期过渡别名同时注册。
 - 新增运维端点 **`GET /Health`**（探数据库，替代旧 `/healthz`，`/healthz` 保留为过渡别名）与 `GET /` 服务标识（返回 `service/prefix/docs/version`）。
-- 新增迁移 **`V100038__finv_quote_kline_move_to_dedup.sql`**：分钟行情主表 `quote.finv_quote_secu_kline_min` 迁入 `dedup` schema（`SET SCHEMA`，不重写数据），补齐 `change_price`/`change_ratio`/`provider` 三列，并按 `dedup` 新结构重建 `export.finv_quote_secu_kline_min` 转存表（含触发器与收敛校验）。
+- 新增迁移 **`V200038__finv_quote_kline_move_to_dedup.sql`**：分钟行情主表 `quote.finv_quote_secu_kline_min` 迁入 `dedup` schema（`SET SCHEMA`，不重写数据），补齐 `change_price`/`change_ratio`/`provider` 三列，并按 `dedup` 新结构重建 `export.finv_quote_secu_kline_min` 转存表（含触发器与收敛校验）。
 - 新增配置项：`FINV_KLINE_MAX_BATCH_ROWS`（默认 5000）、`FINV_KLINE_MAX_LIST_SIZE`（默认 5000）、`FINV_KLINE_TS_UNIT`（`s`/`ms`）、`FINV_ERROR_DETAIL_MODE`（`safe`/`admin`）、`FINV_ERROR_DEBUG_TOKEN`、`FINV_ERROR_DETAIL_ALLOWED_CIDRS`。
 - 新增 10 篇接口文档（`Docs/API/KLine/*.md`）并在 `Docs/API/README.md`、`Docs/API/APIs.md` 登记；`Docs/DevSpec/ErrorCodeSpec.md` 增补 `21xxxx` 号段与复用规则；`Docs/DevSpec/ApiSpec.md` 登记兼容例外。
 - **数据采集前端菜单**：新增一级菜单「数据采集」→ 二级菜单「行情数据去重」→ 两个三级子菜单：「去重分钟行情查询」（按 `usc` + 交易日期范围分页查询 `dedup.finv_quote_secu_kline_min`）与「去重分钟行情统计」（汇总指标、字段完整性、每日趋势与证券分布可视化）。
-- 新增迁移 **`V100040__finv_quote_kline_date_indexes.sql`**：为 `dedup.finv_quote_secu_kline_min` 增加 `(usc, date, ts)` 与 `(date, usc, ts)` 复合索引，支撑「证券 + 交易日期范围」分页查询与按日聚合（此前仅 `(usc, ts)`，日期过滤需顺扫历史 2.8M 行，单次分页可达 8~17 秒）。
+- 新增迁移 **`V200040__finv_quote_kline_date_indexes.sql`**：为 `dedup.finv_quote_secu_kline_min` 增加 `(usc, date, ts)` 与 `(date, usc, ts)` 复合索引，支撑「证券 + 交易日期范围」分页查询与按日聚合（此前仅 `(usc, ts)`，日期过滤需顺扫历史 2.8M 行，单次分页可达 8~17 秒）。
 - 新增接口 **`GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats`**：返回汇总统计（行数/证券数/日期范围/成交量与成交额合计/收盘价区间与均值/各列空值行数）、按日期聚合趋势、证券记录数 Top 20；文档见 `Docs/API/KLine/KLineStats.md`。
 
 ### 变更
@@ -1989,7 +2006,7 @@
 - **升级提示**：该回填**不可逆**（覆盖了原始缺失状态），升级前务必完成 `pg_dump` 备份；如需还原只能从备份恢复。
 - **破坏性变更（数据库）**：表按业务域迁入独立 schema —— `finv_quote_*`（3 张）→ `quote`，`finv_quant_*`（13 张）→ `quant`；字典表与 `schema_version` 保留 `public`。由迁移 `V32` 幂等执行，只改对象归属、不改表名/列/数据，索引与触发器自动跟随。
 - **连接要求**：应用连接串固定携带 `search_path=public,quote,quant`（`internal/database/postgres.go`）；手工 `psql` 未设置 `search_path` 时须使用全限定名（如 `quote.finv_quote_secu_kline_min`）。
-- **全新库兼容修复**：历史种子迁移 `V100019`（INSERT 列名）与 `V100023`（建表列定义）已把 `secu_code` 改为 `usc`——这两支在 `V29` 之后执行，不改会导致全新库首次部署失败；已应用库不受影响（`schema_version` 跳过）。新增 `V100024` 把 `V100023` 在 `public` 新建的 3 张表移入 `quant`。
+- **全新库兼容修复**：历史种子迁移 `V200019`（INSERT 列名）与 `V200023`（建表列定义）已把 `secu_code` 改为 `usc`——这两支在 `V29` 之后执行，不改会导致全新库首次部署失败；已应用库不受影响（`schema_version` 跳过）。新增 `V200024` 把 `V200023` 在 `public` 新建的 3 张表移入 `quant`。
 - 新增规范 [`DevSpec/DbSchemaSpec.md`](DevSpec/DbSchemaSpec.md)：schema 划分、表命名、`search_path` 约定、迁移例外规则。
 - **破坏性变更（数据库）**：富途映射表 `finv_futu_mapping_*`（5 张：`cs_market`、`exchange`、`market_code`、`region`、`security`，共 641 行）迁入 `futu` schema，由迁移 `V33` 幂等执行；索引与触发器自动跟随，无表名/列/数据变化。
 - **连接要求更新**：`search_path` 扩展为 `public,quote,quant,futu`（应用连接串与数据库默认值同步）；Go 代码对本组表无引用，无需改后端 SQL。
@@ -2065,7 +2082,7 @@ FinvQuant 首个正式版本：Go 服务端 + Vue3 前端前后端分离骨架�
 ### 变更
 
 - API 路径统一为大写 PascalCase `/API/V1/`，Meta 类接口前缀迁移为 `/API/V1/Meta/Finv/Quant/`。
-- 数据库迁移与表名统一 `finv_` 前缀，种子数据段位调整为 `V100000`（十万级）。
+- 数据库迁移与表名统一 `finv_` 前缀，种子数据段位调整为 `V200000`（十万级）。
 - 仓库结构重组：原项目代码整体移入 `VeritasQuant/` 子目录，根目录重建为「外壳 + 子项目」结构，`deploy/` 重命名为 `Deploy/`。
 - Docker Compose 顶层项目名统一为 `finvquant`，卷名不再带 `deploy` 前缀，容器名支持自定义（默认 `finvquant`）。
 - PostgreSQL 默认暴露宿主机 5432 端口，数据目录支持宿主机文件系统映射。

@@ -1,7 +1,7 @@
 # FinvFutuMappingExchange — 富途交易所映射
 
 > 所属：FinvQuant 数据字典映射 · 存放：`Docs/DataDictMapping/FinvFutuMappingExchange.md`
-> 数据表：`futu.finv_futu_mapping_exchange`（表结构：[`Deploy/Migrations/V100014__finv_futu_mapping_exchange.sql`](../../Deploy/Migrations/V100014__finv_futu_mapping_exchange.sql)；增量列：[`Deploy/Migrations/V100017__finv_futu_mapping_add_flag_enable.sql`](../../Deploy/Migrations/V100017__finv_futu_mapping_add_flag_enable.sql)；初始数据：[`Deploy/Migrations/V200006__finv_futu_mapping_exchange_seed.sql`](../../Deploy/Migrations/V200006__finv_futu_mapping_exchange_seed.sql)；全量替换：[`Deploy/Migrations/V200013__finv_futu_mapping_exchange_seed_full.sql`](../../Deploy/Migrations/V200013__finv_futu_mapping_exchange_seed_full.sql)）
+> 数据表：`futu.finv_futu_mapping_exchange`（表结构：[`Deploy/Migrations/V200014__finv_futu_mapping_exchange.sql`](../../Deploy/Migrations/V200014__finv_futu_mapping_exchange.sql)；增量列：[`Deploy/Migrations/V200017__finv_futu_mapping_add_flag_enable.sql`](../../Deploy/Migrations/V200017__finv_futu_mapping_add_flag_enable.sql)；初始数据：[`Deploy/Migrations/V300006__finv_futu_mapping_exchange_seed.sql`](../../Deploy/Migrations/V300006__finv_futu_mapping_exchange_seed.sql)；全量替换：[`Deploy/Migrations/V300013__finv_futu_mapping_exchange_seed_full.sql`](../../Deploy/Migrations/V300013__finv_futu_mapping_exchange_seed_full.sql)）
 > 用途：富途行情源 exchange 字典（30 类）的字段映射表，记录富途交易所代码、对应地区与 finv 侧交易所标识。
 
 ## 1. 表结构
@@ -13,7 +13,7 @@
 | `abbr` | TEXT | NOT NULL | 地区简写（对齐 [FinvRegion](FinvRegion.md)，如 `HK` / `CN` / `USA`；`—` 用 `N/A`） |
 | `exchange_name` | TEXT | NOT NULL | 交易所/市场名称（如 `香港交易所`） |
 | `finv_exchange` | TEXT | NOT NULL | finv 侧交易所标识（对齐 [FinvExchange](FinvExchange.md) `exchange_abbr`，如 `HKEX` / `SSE` / `TSE`） |
-| `flag_enable` | CHAR(1) | NOT NULL DEFAULT '0' | 启用标志（`0`=禁用 / `1`=启用，V100017 新增） |
+| `flag_enable` | CHAR(1) | NOT NULL DEFAULT '0' | 启用标志（`0`=禁用 / `1`=启用，V200017 新增） |
 | `gmt_create` | TIMESTAMPTZ | NOT NULL DEFAULT now() | 首次插入时间 |
 | `gmt_update` | TIMESTAMPTZ | NOT NULL DEFAULT now() | 最后更新时间（触发器维护） |
 
@@ -59,7 +59,7 @@
 ## 3. 说明
 
 - **映射方向**：`futu_exchange`（富途 exchange 代码）→ `finv_exchange`（finv 侧交易所标识）。
-- **finv_exchange 当前取值**：V100013 全量替换后，`finv_exchange` 对齐 [FinvExchange.md](FinvExchange.md) 的 `exchange_abbr`（如 `SEHK → HKEX`、`JP → TSE`、`KR → KRX`、`SSE → SSE`、`COMEX → COMEX`）；全部 30 个映射值均能在 finv_exchange 字典中找到对应（ACANX 2026-08-05 定版）。
+- **finv_exchange 当前取值**：V200013 全量替换后，`finv_exchange` 对齐 [FinvExchange.md](FinvExchange.md) 的 `exchange_abbr`（如 `SEHK → HKEX`、`JP → TSE`、`KR → KRX`、`SSE → SSE`、`COMEX → COMEX`）；全部 30 个映射值均能在 finv_exchange 字典中找到对应（ACANX 2026-08-05 定版）。
 - **abbr 取值**：与 [FinvRegion.md](FinvRegion.md) 简写体系一致（`CN` / `HK` / `USA` / `JP` / `SG` / `GLOBAL` 等）；无地区（`—`）用 `N/A`；`FTSN` 双地区（香港/新加坡）用 `HK/SG`。
 - **关联字典**：`abbr` / `region` → [FinvRegion.md](FinvRegion.md)（区域字典）；`finv_exchange` → [FinvExchange.md](FinvExchange.md)（交易所字典，待对齐）；关联不建物理外键，由程序层控制（项目惯例）。
 - **审计字段**：`gmt_create` / `gmt_update` 与既有表规范一致，`gmt_update` 由 `vq_set_gmt_update()` 触发器自动维护。

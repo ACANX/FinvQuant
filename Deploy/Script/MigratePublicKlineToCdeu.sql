@@ -80,7 +80,7 @@ BEGIN
         RAISE EXCEPTION '源表 % 不存在，无需迁移（请确认 -d 指定的数据库）', c_src;
     END IF;
     IF to_regclass(c_dst) IS NULL THEN
-        RAISE EXCEPTION '目标表 % 不存在：请先完成数据库迁移（V100001–V100080）',
+        RAISE EXCEPTION '目标表 % 不存在：请先完成数据库迁移（V200001–V200080）',
                         c_dst;
     END IF;
 

@@ -381,7 +381,7 @@ UPDATE cdeu.finv_quote_cdeu_phase_run phr
 
 // CDEUPhaseRunID 查询一次运行中指定阶段的运行 ID。
 //
-// 自 V200044 起 Process 层不再有自增 process_run_id，Process 运行实例改由
+// 自 V300044 起 Process 层不再有自增 process_run_id，Process 运行实例改由
 // (workflow_run_id, process_id) 定位，因此本方法只返回阶段运行 ID。
 func (s *Store) CDEUPhaseRunID(ctx context.Context, runID, phaseID int64) (int64, error) {
 	var phaseRunID int64
@@ -925,7 +925,7 @@ UPDATE cdeu.finv_quote_cdeu_workflow_run
 
 // EvaluateCDEUProcess 评估 Process 完成条件，并向上级联评估阶段/工作流。
 //
-// 自 V200044 起 Process 运行实例由 (workflow_run_id, process_id) 定位。
+// 自 V300044 起 Process 运行实例由 (workflow_run_id, process_id) 定位。
 func (s *Store) EvaluateCDEUProcess(ctx context.Context, runID, processID int64) error {
 	var status string
 	var ruleJSON *string
@@ -1433,7 +1433,7 @@ func decideCDEUStatus(rule CDEUCompletionRule, rawChildren []cdeuChild) (status 
 // cdeuChildCompleted 判断子级是否算「已完成」。
 //
 // 需求 10740：SKIPPED 必须算完成。它表示「主动跳过」而非失败——典型场景是
-// 占位流程（如 PROCESS_EXPORT_DECISION，V100047 起就没配过 JOB）：初始化时被标
+// 占位流程（如 PROCESS_EXPORT_DECISION，V200047 起就没配过 JOB）：初始化时被标
 // SKIPPED，若不计入 completed，父阶段会因 3/4 而被误判 FAILED。
 func cdeuChildCompleted(rule CDEUCompletionRule, status string) bool {
 	switch status {

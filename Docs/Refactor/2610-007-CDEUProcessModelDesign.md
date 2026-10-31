@@ -1,6 +1,6 @@
 # CDEU 端到端流程抽象概念模型设计
 
-> **V100050 起旧模型已被重构**：本文的 `Process → Phase → Step → JOB` 为旧命名；新模型为 `Workflow → Phase → Process → JOB → Step`，以 [`2610-008-CDEUWorkflowProcessModelRefactor.md`](2610-008-CDEUWorkflowProcessModelRefactor.md) 为准。以下内容仅保留历史设计追溯价值。
+> **V200050 起旧模型已被重构**：本文的 `Process → Phase → Step → JOB` 为旧命名；新模型为 `Workflow → Phase → Process → JOB → Step`，以 [`2610-008-CDEUWorkflowProcessModelRefactor.md`](2610-008-CDEUWorkflowProcessModelRefactor.md) 为准。以下内容仅保留历史设计追溯价值。
 
 > 所属：FinvQuant · 存放：`Docs/Refactor/`
 > 状态：设计稿（v0.1，2026-10）
@@ -790,7 +790,7 @@ VALUES
 
 ## 13. 落地状态（2026-10-25）
 
-- `Deploy/Migrations/V100044__finv_dedup_cdeu_process_model.sql` 已创建 8 张 `dedup.cdeu_*` 表并 seed；`V100045__finv_dedup_cdeu_split_ops_steps.sql` 将原 `PHASE_OPS` 的旁路步骤拆分到对应阶段：
+- `Deploy/Migrations/V200044__finv_dedup_cdeu_process_model.sql` 已创建 8 张 `dedup.cdeu_*` 表并 seed；`V200045__finv_dedup_cdeu_split_ops_steps.sql` 将原 `PHASE_OPS` 的旁路步骤拆分到对应阶段：
   - 1 个流程 `CDEU_DAILY`；
   - 5 个阶段：`PHASE_COLLECT` / `PHASE_DEDUP` / `PHASE_DECISION` / `PHASE_EXPORT` / `PHASE_UPLOAD`（`V47` 新增 `PHASE_DECISION`，`V48` 将入口统计/预算移入该阶段，`V49` 将成熟度扫描移入该阶段）；
   - 12 个步骤、13 个作业（`STEP_HISTORY_INGEST` 为数据采集阶段的非关键占位步骤，`STEP_EXPORT_DECISION` 为导出决策阶段的占位步骤，均无 JOB、初始化自动成功；5–8 为 `RUN_DUE_EXPORT_JOBS` 的 LOAD / EXPORT / REGISTER / CLEANUP；`STEP_RECOVER` 在导出阶段、`STEP_HEALTH` 在上传阶段，均为旁路步骤）。

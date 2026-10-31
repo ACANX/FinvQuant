@@ -85,7 +85,7 @@ VALUES ($1, 'Stock', 'ZZ', 'ZZ', 'FTMM', '未命中证券', 'UTC', 'USD')`, back
 		t.Fatalf("插入未命中证券失败: %v", err)
 	}
 
-	// 4. finv_security 里存在但 flag_enable='0'（V200062 导入的证券默认禁用）：
+	// 4. finv_security 里存在但 flag_enable='0'（V300062 导入的证券默认禁用）：
 	//    usc 行的元数据仍应被回填（需求 10823：启用开关不限制元数据补全）。
 	if _, err := pool.Exec(ctx, `
 INSERT INTO public.finv_security

@@ -586,7 +586,7 @@ SELECT run_id, workflow_code, workflow_version, to_char(biz_date, 'YYYY-MM-DD'),
 // attachCDEURun 把指定运行的 Phase/Process/JOB/Step 运行状态叠加到定义树。
 func (s *Store) attachCDEURun(ctx context.Context, overview *CDEUOverview) error {
 	runID := overview.Run.RunID
-	// 自 V200045 起 cdeu_job_dynamic 按运行隔离（唯一键含 workflow_run_id），
+	// 自 V300045 起 cdeu_job_dynamic 按运行隔离（唯一键含 workflow_run_id），
 	// 本次运行持有自己的动态实例，因此只看属于当前运行的实例；
 	// 旧实现因表结构是「(usc,biz_month) 全局唯一」而无法过滤，
 	// 现在数据模型支持后恢复为严格按 runID 过滤。
@@ -790,7 +790,7 @@ SELECT jsr.step_id, jsr.status, jsr.attempt, jsr.started_at, jsr.finished_at,
 						step.Error = run.Error
 						continue
 					}
-					// 兼容 V100050 之前的历史运行：没有 Job Step 运行记录时，按 JOB 状态回填。
+					// 兼容 V200050 之前的历史运行：没有 Job Step 运行记录时，按 JOB 状态回填。
 					switch job.Status {
 					case CDEUStatusSuccess:
 						step.Status = CDEUStatusSuccess

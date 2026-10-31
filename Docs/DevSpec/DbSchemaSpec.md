@@ -28,7 +28,7 @@
 |---|---|---|---|
 | `finv_quote_secu_kline_min` | `quote.` | 历史行情导入（`Import/Upload`）、行情查询（`History/QuoteQuery`）、**量化回测**（只读） | 不得迁走、不得改成视图、不得只保留加工侧那一份 |
 | | `cdeu.` | K 线 API 写入（`internal/meta/finv/quote/cdeu/kline`）、去重 / 导出 / 上传链路（含导出前清洗） | 不得迁走、不得与 `quote.` 合并 |
-| | ~~`export.`~~ | **已删除**：`V100088`（2026-10-31，用户明确要求）把导出中转表迁入 `cdeu.finv_quote_secu_kline_min_export` 并 `DROP` 源表；`export` schema 保留但不再承载 kline 表 | 不得重建该副本 |
+| | ~~`export.`~~ | **已删除**：`V200088`（2026-10-31，用户明确要求）把导出中转表迁入 `cdeu.finv_quote_secu_kline_min_export` 并 `DROP` 源表；`export` schema 保留但不再承载 kline 表 | 不得重建该副本 |
 | | `archive.`（如建） | 冷数据归档 | 不得与业务表合并 |
 
 **设计依据**：回测是「消费者」，要求输入可复现；去重/导出是「加工者」，会写入、清洗、删数据。两者共用一张表时，加工侧任何数据清洗都会直接改变历史回测的输入。这正是保留双副本的原因，**不是历史遗留**。
@@ -60,16 +60,16 @@
 3. `Docs/CHANGELOG.md` 的变更记录（看时间戳）；
 4. `Docs/Refactor/*` 的改造清单（**仅代表该改造完成时的状态**，可能已被后续迁移推翻）。
 
-**特别注意**：`Docs/Refactor/2610-003-MoveTablesToSchemas.md` 的 `C-10`～`C-20` 验收记录写的是 `quote.finv_quote_secu_kline_min`，后于 `V100038` 被推翻、再由 `V100076` 恢复。**看到这类"☑ 已完成"的清单，不能直接当作当前事实**，必须与 §1 的 schema 划分表核对。
+**特别注意**：`Docs/Refactor/2610-003-MoveTablesToSchemas.md` 的 `C-10`～`C-20` 验收记录写的是 `quote.finv_quote_secu_kline_min`，后于 `V200038` 被推翻、再由 `V200076` 恢复。**看到这类"☑ 已完成"的清单，不能直接当作当前事实**，必须与 §1 的 schema 划分表核对。
 
 ### 0.5 事故记录（反例，勿重犯）
 
 | 时间 | 事件 | 后果 |
 |---|---|---|
-| 2026-10-24 01:15 | `V100032` 按改造项 C 把 3 张 `finv_quote_*` 迁入 `quote`，清单 `C-10`/`C-11`/`C-16` 验收通过（☑） | 回测与导入正常使用 `quote.` |
-| 2026-10-24 14:06 | `V100038` 以"融合 FinvQuoteDataDeDup、API 路径属 DeDup 域"为由，`ALTER TABLE quote.finv_quote_secu_kline_min SET SCHEMA dedup`；同提交把 `internal/meta/finv/quote`/`internal/backtest` 的 SQL 从 `quote.` 改成 `dedup.` | `quote` 副本消失，回测与去重/导出链路共用一张表，隔离设计失效；`2610-003` 的验收清单未作废，两份文档互相矛盾 |
-| 2026-10-27 | `V100076` 按原设计恢复 `quote.` 副本（结构对齐 + 一次性回填 280 万行），代码回退为"`quote` 包/回测读 `quote.`，`kline`/导出写 `dedup.`" | 隔离恢复 |
-| 2026-10-30 | 需求 10834：`V100086` 删除 `dedup` / `dedup_frozen`（先 `pg_dump` 备份 32 张表 / 约 13.4 万行到 `Deploy/Backup/dedup_schemas_20261030_234253.sql.gz`） | 旧域彻底淘汰；`TestSQLSchemaQualified` 新增 `forbiddenSchemaPrefixes`，代码再引用 `dedup.` / `dedup_frozen.` 直接失败 |
+| 2026-10-24 01:15 | `V200032` 按改造项 C 把 3 张 `finv_quote_*` 迁入 `quote`，清单 `C-10`/`C-11`/`C-16` 验收通过（☑） | 回测与导入正常使用 `quote.` |
+| 2026-10-24 14:06 | `V200038` 以"融合 FinvQuoteDataDeDup、API 路径属 DeDup 域"为由，`ALTER TABLE quote.finv_quote_secu_kline_min SET SCHEMA dedup`；同提交把 `internal/meta/finv/quote`/`internal/backtest` 的 SQL 从 `quote.` 改成 `dedup.` | `quote` 副本消失，回测与去重/导出链路共用一张表，隔离设计失效；`2610-003` 的验收清单未作废，两份文档互相矛盾 |
+| 2026-10-27 | `V200076` 按原设计恢复 `quote.` 副本（结构对齐 + 一次性回填 280 万行），代码回退为"`quote` 包/回测读 `quote.`，`kline`/导出写 `dedup.`" | 隔离恢复 |
+| 2026-10-30 | 需求 10834：`V200086` 删除 `dedup` / `dedup_frozen`（先 `pg_dump` 备份 32 张表 / 约 13.4 万行到 `Deploy/Backup/dedup_schemas_20261030_234253.sql.gz`） | 旧域彻底淘汰；`TestSQLSchemaQualified` 新增 `forbiddenSchemaPrefixes`，代码再引用 `dedup.` / `dedup_frozen.` 直接失败 |
 
 **教训**：
 1. `SET SCHEMA` 不是"无害的整理"，它会让依赖该 schema 的代码直接失效；
@@ -91,7 +91,7 @@
 
 删除表内数据（`DELETE`）虽不属 §0.1，但同样必须有据可查：
 
-- 删除前把受影响行**整行备份**到 `archive.<表>_purge*` 类表（`dedup` 已于 `V100086` 删除，备份不再写回该域），含 `reason`（判据说明）与 `backup_at`；
+- 删除前把受影响行**整行备份**到 `archive.<表>_purge*` 类表（`dedup` 已于 `V200086` 删除，备份不再写回该域），含 `reason`（判据说明）与 `backup_at`；
 - 备份表主键必须含来源标识（如 `src_schema`），避免多表同名 `(usc, ts)` 互相覆盖；
 - 单事务内完成「备份 → 删除 → 校验」，校验用 `RAISE EXCEPTION` 而非 `RAISE WARNING`；
 - 在 `CHANGELOG` 与 `RequirementList` 登记；清理指南类文档放 `Deploy/Backup/`（gitignored）。
@@ -100,43 +100,43 @@
 
 | Schema | 归属 | 表 |
 |---|---|---|
-| `quote` | 行情域 | `finv_quote_ingest_batches`、`finv_quote_revision_log`、**`finv_quote_secu_kline_min`（回测/查询/历史行情导入专用副本，`V100076` 恢复，见 §0.2 保护名单，禁止合并）** |
+| `quote` | 行情域 | `finv_quote_ingest_batches`、`finv_quote_revision_log`、**`finv_quote_secu_kline_min`（回测/查询/历史行情导入专用副本，`V200076` 恢复，见 §0.2 保护名单，禁止合并）** |
 | `quant` | 量化域 | `finv_quant_backtest_*`（11 张）、`finv_quant_environment`、`finv_quant_template` |
-| `futu` | 外部源映射域（富途 OpenAPI 编码 ↔ Finv 内部编码） | `finv_futu_mapping_cs_market`、`finv_futu_mapping_exchange`、`finv_futu_mapping_market_code`、`finv_futu_mapping_region`、`finv_futu_mapping_security`、`finv_futu_quote_collect`（富途原始属性镜像，`V100083` 新增：主键 `usc`，唯一 `(market_code, futu_symbol)`，承载 `stock_id` / `futu_symbol` / `market_type` / `market_code` / `instrument_type` / `sub_instrument_type` / `req_section` / `quote_market` / `type_symbol` / `flag_enable` / `remark`，数据由仓库外工具 `FinvQuantDesign/Scripts/SecuSync/BuildFutuQuoteCollect.py` 从上游视图初始化与增量同步） |
-| `export` | 数据导出域（`V100034` 建 schema） | **暂无**：唯一的 `finv_quote_secu_kline_min` 已由 `V100088` 迁入 `cdeu.finv_quote_secu_kline_min_export` 并删除源表（schema 保留，删除 schema 需单独授权） |
-| `sche` | 定时任务调度域（调度定义、执行记录等，`V100034` 建 schema，表待业务迁移创建） | 暂无 |
-| ~~`dedup_frozen`~~ | **[已删除] 原 `dedup` 域的冻结副本** | `V100080` 迁数据入 `cdeu`、需求 10757 切代码、10759 重命名冻结；**`V100086`（需求 10834）已 `DROP SCHEMA dedup_frozen CASCADE`**，删除前 `pg_dump` 备份至 `Deploy/Backup/dedup_schemas_20261030_234253.sql.gz`（32 张表 / 约 13.4 万行）。此后代码不得引用 `dedup.` / `dedup_frozen.`，由 `forbiddenSchemaPrefixes` 硬拦截 |
-| `cdeu` | **CDEU 工作流域**（Workflow、Phase、Process、JOB、Step 的定义表与运行实例）；`V100077` 建 schema，`V100078` 依 `dedup` 结构建表，`V100079` 统一前缀 | **28 张**（`V100080` 已从 `dedup` 迁入 133,260 行数据；`V100084` 新增 1 张模板表；`V100088` 自 `export` 域迁入 1 张导出中转表），**全部统一为 `finv_quote_cdeu_` 前缀**：原 `cdeu_*` 12 张（`_workflow` / `_phase` / `_process` / `_job` / `_job_step` / `_job_dynamic` / `_job_step_dynamic` / `_workflow_run` / `_phase_run` / `_process_run` / `_job_run` / `_job_step_run`）+ 原 `finv_dedup_*` 13 张（`_daily_budget` / `_export_batch` / `_export_file` / `_export_file_patch` / `_export_file_upload_log` / `_export_job` / `_ingest_stats` / `_job_run_log_export_file` / `_job_run_log_line` / `_quote_maturity_mon` / `_scan_watermark` / `_trade_calendar` / `_usc`）+ `finv_quote_secu_kline_min`（表名不变）+ `finv_quote_cdeu_usc_day_incr_row_tpl`（`V100084` 新增，日增量行数模板：主键 `(region, market, category)`，三列均可为空串表通配；`day_expect_rows` 供自动补全 `_usc.day_expect_rows`，初始数据见 `V200065`）+ `finv_quote_secu_kline_min_export`（行情导出中转快照表，`V100088` 自 `export` 域迁入并删除源表，与 `cdeu.finv_quote_secu_kline_min` 同构、允许清空，名字沿用 `finv_quote_` 前缀属刻意例外）；`prep_bak_*` 5 张**不创建**。**`V100080` 迁入数据后，需求 10757 已把代码全部切换到 `cdeu.*`**；`V100086`（需求 10834）已删除 `dedup` / `dedup_frozen` 两个 schema，旧域彻底淘汰（删除前备份见 `Deploy/Backup/`） |
-| `archive` | 冷数据归档域（历史行情按时间/证券下沉，`V100037` 建 schema，表待业务迁移创建） | 暂无 |
-| `sys` | 系统域（用户/角色/权限、系统参数、审计留痕等平台级对象，`V100071` 建 schema） | `sys_config`（系统配置表，`V100072` 创建，按 `config_no` 的键值配置，含 `int_value`、`char_value`、`str_value`/`json_value` 四类值与 `gmt_modify` 触发器）；`sys_dict`（数据字典主表，`V100073` 创建，字典定义与分级字段）、`sys_dict_sub`（数据字典子表，`V100073` 创建，主键 `(dict_no, sub_key)`，字典项与 `flag_enable` 启用标志，无物理外键）；`sys_user`（系统用户表，`V100074` 创建，主键 `idn` 为 `bigint identity`（初值对齐 1028），`uid` / `email` / `mobile_phone_no` 各自唯一（`uid` 唯一索引 `uk_sys_user_uid` 由 `V100081` 补齐，登录以 `uid` 为账号标识），口令以 `argon2id` 哈希存 `password`、随机盐存 `password_salt`，**不存明文**，`flag_delete` 逻辑删除，无物理外键） |
+| `futu` | 外部源映射域（富途 OpenAPI 编码 ↔ Finv 内部编码） | `finv_futu_mapping_cs_market`、`finv_futu_mapping_exchange`、`finv_futu_mapping_market_code`、`finv_futu_mapping_region`、`finv_futu_mapping_security`、`finv_futu_quote_collect`（富途原始属性镜像，`V200083` 新增：主键 `usc`，唯一 `(market_code, futu_symbol)`，承载 `stock_id` / `futu_symbol` / `market_type` / `market_code` / `instrument_type` / `sub_instrument_type` / `req_section` / `quote_market` / `type_symbol` / `flag_enable` / `remark`，数据由仓库外工具 `FinvQuantDesign/Scripts/SecuSync/BuildFutuQuoteCollect.py` 从上游视图初始化与增量同步） |
+| `export` | 数据导出域（`V200034` 建 schema） | **暂无**：唯一的 `finv_quote_secu_kline_min` 已由 `V200088` 迁入 `cdeu.finv_quote_secu_kline_min_export` 并删除源表（schema 保留，删除 schema 需单独授权） |
+| `sche` | 定时任务调度域（调度定义、执行记录等，`V200034` 建 schema，表待业务迁移创建） | 暂无 |
+| ~~`dedup_frozen`~~ | **[已删除] 原 `dedup` 域的冻结副本** | `V200080` 迁数据入 `cdeu`、需求 10757 切代码、10759 重命名冻结；**`V200086`（需求 10834）已 `DROP SCHEMA dedup_frozen CASCADE`**，删除前 `pg_dump` 备份至 `Deploy/Backup/dedup_schemas_20261030_234253.sql.gz`（32 张表 / 约 13.4 万行）。此后代码不得引用 `dedup.` / `dedup_frozen.`，由 `forbiddenSchemaPrefixes` 硬拦截 |
+| `cdeu` | **CDEU 工作流域**（Workflow、Phase、Process、JOB、Step 的定义表与运行实例）；`V200077` 建 schema，`V200078` 依 `dedup` 结构建表，`V200079` 统一前缀 | **28 张**（`V200080` 已从 `dedup` 迁入 133,260 行数据；`V200084` 新增 1 张模板表；`V200088` 自 `export` 域迁入 1 张导出中转表），**全部统一为 `finv_quote_cdeu_` 前缀**：原 `cdeu_*` 12 张（`_workflow` / `_phase` / `_process` / `_job` / `_job_step` / `_job_dynamic` / `_job_step_dynamic` / `_workflow_run` / `_phase_run` / `_process_run` / `_job_run` / `_job_step_run`）+ 原 `finv_dedup_*` 13 张（`_daily_budget` / `_export_batch` / `_export_file` / `_export_file_patch` / `_export_file_upload_log` / `_export_job` / `_ingest_stats` / `_job_run_log_export_file` / `_job_run_log_line` / `_quote_maturity_mon` / `_scan_watermark` / `_trade_calendar` / `_usc`）+ `finv_quote_secu_kline_min`（表名不变）+ `finv_quote_cdeu_usc_day_incr_row_tpl`（`V200084` 新增，日增量行数模板：主键 `(region, market, category)`，三列均可为空串表通配；`day_expect_rows` 供自动补全 `_usc.day_expect_rows`，初始数据见 `V300065`）+ `finv_quote_secu_kline_min_export`（行情导出中转快照表，`V200088` 自 `export` 域迁入并删除源表，与 `cdeu.finv_quote_secu_kline_min` 同构、允许清空，名字沿用 `finv_quote_` 前缀属刻意例外）；`prep_bak_*` 5 张**不创建**。**`V200080` 迁入数据后，需求 10757 已把代码全部切换到 `cdeu.*`**；`V200086`（需求 10834）已删除 `dedup` / `dedup_frozen` 两个 schema，旧域彻底淘汰（删除前备份见 `Deploy/Backup/`） |
+| `archive` | 冷数据归档域（历史行情按时间/证券下沉，`V200037` 建 schema，表待业务迁移创建） | 暂无 |
+| `sys` | 系统域（用户/角色/权限、系统参数、审计留痕等平台级对象，`V200071` 建 schema） | `sys_config`（系统配置表，`V200072` 创建，按 `config_no` 的键值配置，含 `int_value`、`char_value`、`str_value`/`json_value` 四类值与 `gmt_modify` 触发器）；`sys_dict`（数据字典主表，`V200073` 创建，字典定义与分级字段）、`sys_dict_sub`（数据字典子表，`V200073` 创建，主键 `(dict_no, sub_key)`，字典项与 `flag_enable` 启用标志，无物理外键）；`sys_user`（系统用户表，`V200074` 创建，主键 `idn` 为 `bigint identity`（初值对齐 1028），`uid` / `email` / `mobile_phone_no` 各自唯一（`uid` 唯一索引 `uk_sys_user_uid` 由 `V200081` 补齐，登录以 `uid` 为账号标识），口令以 `argon2id` 哈希存 `password`、随机盐存 `password_salt`，**不存明文**，`flag_delete` 逻辑删除，无物理外键） |
 | `public` | 基础主数据与系统表 | `finv_security`、`finv_market`、`finv_exchange`、`finv_region`、`finv_currency`、`schema_version` |
 
 - **一个业务域一个 schema**，不把域对象堆在 `public`。
 
 ### 1.1 `cdeu` 域搬迁约束（需求 10753）
 
-`V100077` 只建空 schema 并把 `cdeu` 纳入 `search_path`；`V100078`–`V100080` 完成 26 张表建立（前缀统一 `finv_quote_cdeu_`）与 133,260 行数据迁移，需求 10757 完成代码切换、10759 把旧 `dedup` 重命名为 `dedup_frozen` 冻结。当时（`V100077` 阶段）确定的原则仍然适用：
+`V200077` 只建空 schema 并把 `cdeu` 纳入 `search_path`；`V200078`–`V200080` 完成 26 张表建立（前缀统一 `finv_quote_cdeu_`）与 133,260 行数据迁移，需求 10757 完成代码切换、10759 把旧 `dedup` 重命名为 `dedup_frozen` 冻结。当时（`V200077` 阶段）确定的原则仍然适用：
 
 | 禁止 | 要求 |
 |---|---|
 | `ALTER TABLE <旧域>.cdeu_xxx SET SCHEMA cdeu` 式的**同名机械搬移** | 必须重新审视并可能重构：表名去掉重复的 `cdeu_` 前缀、约束/索引命名、主键与外键策略、运行表与定义表的拆分粒度、历史数据兼容 |
-| 把 `finv_dedup_export_*` 一并搬入 | 那批表属**去重/导出域**（导出产物元数据），不属于工作流域；`V100080` 已随域整体迁入 `cdeu` 并统一改名为 `finv_quote_cdeu_export_*` |
+| 把 `finv_dedup_export_*` 一并搬入 | 那批表属**去重/导出域**（导出产物元数据），不属于工作流域；`V200080` 已随域整体迁入 `cdeu` 并统一改名为 `finv_quote_cdeu_export_*` |
 | 无授权直接搬 | 属 §0 红线范围，须 `RequirementList` 有条目或用户明确点名 |
 
 **域边界定义**：
 
 - `cdeu` = CDEU 工作流的**定义与运行实例**（Workflow / Phase / Process / JOB / Step 的定义表与运行表）
-- `dedup` = 行情批内去重、跨源指纹、入库审计、导出/上传元数据、证券主数据（**该域已于 `V100086` 并入 `cdeu` 并删除，历史说明仅作追溯**）
+- `dedup` = 行情批内去重、跨源指纹、入库审计、导出/上传元数据、证券主数据（**该域已于 `V200086` 并入 `cdeu` 并删除，历史说明仅作追溯**）
 
 **过渡期已结束**：全部域表已归位 `cdeu.`；`schema_qualify_test.go` 的 `forbiddenSchemaPrefixes` 会硬拦截任何 `dedup.` / `dedup_frozen.` 引用（需求 10834）。
 - 新增域时同步在本文档登记其 schema 名与归属表，并在迁移脚本中 `CREATE SCHEMA IF NOT EXISTS <域名>`。
-- schema 名统一**小写短名**（`quote`/`quant`/`futu`/`export`/`sche`/`cdeu`/`archive`/`sys`；`dedup` 与 `dedup_frozen` 已于 `V100086` 删除，不得再创建），不加业务前缀；`sche` 为「调度」的短名沿用（如需改为 `sched`，须 `ALTER SCHEMA sche RENAME TO sched` 并同步 `search_path`、本文件与代码）。
+- schema 名统一**小写短名**（`quote`/`quant`/`futu`/`export`/`sche`/`cdeu`/`archive`/`sys`；`dedup` 与 `dedup_frozen` 已于 `V200086` 删除，不得再创建），不加业务前缀；`sche` 为「调度」的短名沿用（如需改为 `sched`，须 `ALTER SCHEMA sche RENAME TO sched` 并同步 `search_path`、本文件与代码）。
 - **同名同结构转存表**：允许在暂存域建与业务域**同名同结构**的表，用于导出前转存；此类表必须：
   1. 建表用 `CREATE TABLE ... (LIKE <源表> INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES INCLUDING STORAGE INCLUDING COMMENTS)`，**触发器另行补齐**（`LIKE` 不复制触发器）；
   2. 索引名由 PostgreSQL 按新表名自动生成，与源表索引名不同（属正常现象）；
   3. 迁移末尾做双向列差集校验，确保与源表列名/类型/可空/默认值一致；
   4. **任何读写必须写全限定名**。`TestSQLSchemaQualified` 对 `finv_quote_secu_kline_min` 有**固定 schema 校验**（允许 `quote.` / `cdeu.`，写成已删除的 `dedup.` 或漏写前缀都会失败），对转存表 `finv_quote_secu_kline_min_export` 固定为 `cdeu.`；其余域表按前缀规则校验。
-  5. **现状（`V100088` 起）**：唯一的导出中转表是 `cdeu.finv_quote_secu_kline_min_export`（用户要求从 `export` 域迁入 `cdeu` 域并加 `_export` 后缀，源表已 `DROP`）；后续若再建暂存副本，同样需在本文档 §1 与 §0.2 登记职责与使用人。
+  5. **现状（`V200088` 起）**：唯一的导出中转表是 `cdeu.finv_quote_secu_kline_min_export`（用户要求从 `export` 域迁入 `cdeu` 域并加 `_export` 后缀，源表已 `DROP`）；后续若再建暂存副本，同样需在本文档 §1 与 §0.2 登记职责与使用人。
 
 ### 1.2 `usc` 编码口径（需求 10873）
 
@@ -145,7 +145,7 @@
 - 形式：**交易所前缀 + 代码**，前缀 2 位（`SH` / `SZ` / `BJ` / `HK` / `US` 等），代码部分不含分隔符；
 - **SH 指数类（`SH000001`–`SH000999` 区间）自 2026-11-01 起为 6 位**（去掉数字部分前两个 `0`）：
   `SH000001` → `SH0001`、`SH000985` → `SH0985`；代码侧与上游（`FinvQuantDesign/Scripts/SecuSync`）均已按 6 位产出；
-- 迁移 `V200074` 负责历史数据对齐：8 位 usc **只在没有对应 6 位行时就地改号**（避免撞主键 `finv_security_pkey` 与唯一约束 `uq_finv_security_exchange_code`），已存在 6 位行时以 6 位为准并回填英文名、`flag_enable='1'` 优先、`gmt_create` 取较早值；
+- 迁移 `V300074` 负责历史数据对齐：8 位 usc **只在没有对应 6 位行时就地改号**（避免撞主键 `finv_security_pkey` 与唯一约束 `uq_finv_security_exchange_code`），已存在 6 位行时以 6 位为准并回填英文名、`flag_enable='1'` 优先、`gmt_create` 取较早值；
 - 8 位重复行**本期保留不删**（用户决策 D7），由后续需求清理；`futu.finv_futu_mapping_security.finv_usc` 已同步为 6 位；
 - 新增/修改证券时**必须**按上述口径生成 `usc`，不得再补前导 `0` 成 8 位；否则会重新产生两套 usc 并导致主键/唯一约束冲突。
 
@@ -158,12 +158,12 @@
 |---|---|---|
 | `0` | 未知/默认 | `UNK` |
 | `1` | 全球（含外汇/加密货币兜底） | `GLOBAL` |
-| `2`~`100` | **非国家类扩展预留段** | `2`=`FX`（外汇）、`3`=`CC`（加密货币；`V200078` 把初值 `CRYPTO` 修正为 `CC`，`V200079` 起 `finv_exchange` 10000~10007 已引用） |
+| `2`~`100` | **非国家类扩展预留段** | `2`=`FX`（外汇）、`3`=`CC`（加密货币；`V300078` 把初值 `CRYPTO` 修正为 `CC`，`V300079` 起 `finv_exchange` 10000~10007 已引用） |
 | `101`+ | 富途 region 原值 + 99 的国家/地区序列 | `101`=`CN` … `123`=`ID`；`103`=`US` |
 
 - 约束方向：`finv_exchange.region` 的每个取值都应在 `finv_region.region` 中存在（`cdeu/store.go` 的元数据回填依赖该 join）。
 - 已知缺口（未处理）：`finv_exchange.region='N/A'`（120 `BD` / 121 `BMS` / 122 `FD` / 9003 `TFD`）尚未入字典，靠 `COALESCE` 退化取文本；补录需另立需求。
-- 加密货币交易所（10000~10007）的 `region` 已由 `GLOBAL` 切换为 `CC`（`V200079`，需求 10879）；导出路径 `region` 段相应由 `GLOBAL_*` 变为 `CC_*`，该批证券无历史导出记录，无回溯包袱。
+- 加密货币交易所（10000~10007）的 `region` 已由 `GLOBAL` 切换为 `CC`（`V300079`，需求 10879）；导出路径 `region` 段相应由 `GLOBAL_*` 变为 `CC_*`，该批证券无历史导出记录，无回溯包袱。
 
 
 ## 2. 表命名
@@ -181,12 +181,12 @@
 
 ### 3.1 融合前的同名表风险（重要）
 
-- `search_path` 为 `public, quote, quant, futu, export, sche, cdeu, archive, sys`（`cdeu` 于 `V100077` 纳入；`dedup` 已于需求 10834 由 `V100086` 删除），**`public` 位于首位**：未限定的 CRUD 语句会优先命中 `public` 中的同名表。
+- `search_path` 为 `public, quote, quant, futu, export, sche, cdeu, archive, sys`（`cdeu` 于 `V200077` 纳入；`dedup` 已于需求 10834 由 `V200086` 删除），**`public` 位于首位**：未限定的 CRUD 语句会优先命中 `public` 中的同名表。
 - 系统融合阶段若需要在其它 schema 引入与域表同名的表，必须遵守：
   1. 新表一律放入明确 schema，不得落 `public`；
   2. 代码侧引用一律写全限定名（已由 `TestSQLSchemaQualified` 强制）；
-  3. 若确实需要在 `public` 放同名表，必须先把 `public` 移出 `search_path` 首位，并同步核验历史种子迁移（`V100100xxx` 不带 schema 前缀，依赖 `search_path` 定位 `quote`/`quant`/`futu` 与 `public` 的基础主数据表）。
-- **已存在的实例**：`finv_quote_secu_kline_min` 有 2 份（`quote.` / `cdeu.`，见 §0.2 保护名单），另有导出中转表 `cdeu.finv_quote_secu_kline_min_export`（`V100088` 自 `export.` 迁入、同构、允许清空；原 `export.` 副本已随该迁移删除，第 4 份 `dedup_frozen.` 已随 `V100086` 删除）。裸写表名会按 `search_path` 命中**排在最前的 `quote.`**，因此各类使用者各自必须写自己的前缀：回测/查询写 `quote.`、K 线 API 与导出链路写 `cdeu.`、导出中转写 `cdeu.finv_quote_secu_kline_min_export`。**不要以「主表在哪」为理由去改其它副本**。
+  3. 若确实需要在 `public` 放同名表，必须先把 `public` 移出 `search_path` 首位，并同步核验历史种子迁移（`V300xxx` 不带 schema 前缀，依赖 `search_path` 定位 `quote`/`quant`/`futu` 与 `public` 的基础主数据表）。
+- **已存在的实例**：`finv_quote_secu_kline_min` 有 2 份（`quote.` / `cdeu.`，见 §0.2 保护名单），另有导出中转表 `cdeu.finv_quote_secu_kline_min_export`（`V200088` 自 `export.` 迁入、同构、允许清空；原 `export.` 副本已随该迁移删除，第 4 份 `dedup_frozen.` 已随 `V200086` 删除）。裸写表名会按 `search_path` 命中**排在最前的 `quote.`**，因此各类使用者各自必须写自己的前缀：回测/查询写 `quote.`、K 线 API 与导出链路写 `cdeu.`、导出中转写 `cdeu.finv_quote_secu_kline_min_export`。**不要以「主表在哪」为理由去改其它副本**。
 - 历史种子迁移是唯一仍依赖 `search_path` 的 SQL，改动其定位行为前必须跑「全新库全链迁移」验证。
 - 手工运维时若未设置 `search_path`，须写全限定名，例如 `select count(*) from cdeu.finv_quote_secu_kline_min;`。
 - `schema_version` 与迁移机制保留在 `public`，不随业务域迁移。
@@ -196,20 +196,30 @@
   | schema | 使用者 | 说明 |
   |---|---|---|
   | `quote.` | 历史行情导入、行情查询、回测 | `internal/meta/finv/quote`（`Import/Upload` 与 `History/QuoteQuery`）与 `internal/meta/finv/quant/backtest`；回测 SQL 必须写 `quote.` 前缀 |
-  | `cdeu.` | K 线 API 写入、去重 / 导出 / 上传链路 | `internal/meta/finv/quote/cdeu/kline`（`Cdeu/Min/{Add,Batch,Upsert,Page,Query,Patch,BatchDelete}` 等）与 `internal/meta/finv/quote/cdeu`；写入与重写（含导出前清洗）。原 `dedup.` 副本已由 `V100086` 删除 |
-  | `cdeu.finv_quote_secu_kline_min_export` | 导出中转 | 快照暂存表，允许清空；`V100088` 自 `export.` 迁入（原名 `export.finv_quote_secu_kline_min`，源表已删除） |
-  隔离靠 schema 前缀强制：漏写前缀会命中 `search_path` 里的另一张表，`internal/database/schema_qualify_test.go` 的 `exactTableSchema` 已把 `finv_quote_secu_kline_min`（`quote.` / `cdeu.`）与 `finv_quote_secu_kline_min_export`（`cdeu.`）列为白名单。`V100076` 恢复了被 `V100038` 迁走的 `quote.` 副本（结构与加工侧对齐、数据一次性回填，之后各自演进）；加工侧那份已从 `dedup.` 整体迁入 `cdeu.` 并删除旧 schema。
-- **去重的层次选择**：`cdeu.finv_quote_secu_kline_min` 已有主键 `(usc, ts)`，跨批次幂等直接用 `INSERT ... ON CONFLICT DO NOTHING` 即可；只有「批内去重暂存」「跨源内容指纹比对」「入库审计留痕」这三类才需要额外对象。`cdeu` 域承载的是**去重 / 导出 / 上传链路**那份副本（`V100038` 迁入 `dedup`、`V100080` 再迁入 `cdeu`），它**不是唯一副本**——`quote.` 侧还有回测专用的同名副本（`V100076` 恢复），两者禁止合并，详见 §0.2。新增对象不得与其同名。
+  | `cdeu.` | K 线 API 写入、去重 / 导出 / 上传链路 | `internal/meta/finv/quote/cdeu/kline`（`Cdeu/Min/{Add,Batch,Upsert,Page,Query,Patch,BatchDelete}` 等）与 `internal/meta/finv/quote/cdeu`；写入与重写（含导出前清洗）。原 `dedup.` 副本已由 `V200086` 删除 |
+  | `cdeu.finv_quote_secu_kline_min_export` | 导出中转 | 快照暂存表，允许清空；`V200088` 自 `export.` 迁入（原名 `export.finv_quote_secu_kline_min`，源表已删除） |
+  隔离靠 schema 前缀强制：漏写前缀会命中 `search_path` 里的另一张表，`internal/database/schema_qualify_test.go` 的 `exactTableSchema` 已把 `finv_quote_secu_kline_min`（`quote.` / `cdeu.`）与 `finv_quote_secu_kline_min_export`（`cdeu.`）列为白名单。`V200076` 恢复了被 `V200038` 迁走的 `quote.` 副本（结构与加工侧对齐、数据一次性回填，之后各自演进）；加工侧那份已从 `dedup.` 整体迁入 `cdeu.` 并删除旧 schema。
+- **去重的层次选择**：`cdeu.finv_quote_secu_kline_min` 已有主键 `(usc, ts)`，跨批次幂等直接用 `INSERT ... ON CONFLICT DO NOTHING` 即可；只有「批内去重暂存」「跨源内容指纹比对」「入库审计留痕」这三类才需要额外对象。`cdeu` 域承载的是**去重 / 导出 / 上传链路**那份副本（`V200038` 迁入 `dedup`、`V200080` 再迁入 `cdeu`），它**不是唯一副本**——`quote.` 侧还有回测专用的同名副本（`V200076` 恢复），两者禁止合并，详见 §0.2。新增对象不得与其同名。
 
 ## 4. 迁移约定
 
-- 结构迁移用 `V<number>__<name>.sql`（`V100001`～`V199999`），种子/数据迁移用 `V200000+`，两类均按版本号升序执行。
-  - 种子段实例：`V200000`～`V100018`（交易所/货币/证券/富途映射/地区等字典）、`V100019`～`V100024`（量化与回测种子及收尾）、`V100025`（`sys.sys_config` 初始配置 5 条，`ON CONFLICT (config_no) DO NOTHING` 保证重跑不覆盖生产已调整的值）、`V100026`（`sys.sys_dict` 初始字典定义 19 条，同策略）、`V100027`（`sys.sys_dict_sub` 初始子项 89 条，同策略）、`V100028`（地区/国籍子项 387 条，同策略，`3105` 待补增量）、`V100029`（通用标志/分页/数据类型子项 28 条，同策略）、`V100030`（`3105` 国籍补齐至 235 条，增量种子）、`V100031`（`sys_config` 新增 `20000`/`20001` 运行与收集模式配置）、`V100032`（上述两项 `create_by` 修正为 `fqe`）、`V100033`（`20001` 备注文案修订）、`V100034`（`20002` 归档上传开关 + `20003` GitHub PAT，不覆盖用户配置）、`V100035`（`20004` 文件上传仓库配置 `{owner}:{repo}:{branch}:{pre_path_key}`）、`V100040`（`20005` CDEU 工作流运行模式，`str_value` 默认 `Manual`：Manual=仅手动触发、调度器不自动跑；Auto=按定时任务时间自动跑）、`V100041`（`20006` 导出低峰窗口，`str_value` 格式 **`HH:MM:SS|HH:MM:SS`**（精确到秒、半角竖线分隔、支持跨零点），默认 `00:30:00|06:30:00`；`V100042`（`20007` 导出成功后立即删除主表行情数据标志，`char_value`：`1`-上传成功后立即删除（默认，之后再次插入按 INCR 增量导出版本号 N 递增）/`0`-保留数据并覆盖同名 BASE、不生成 INCR；取代环境变量 `FINV_QUOTE_DEDUB_PURGE_MAIN_ENABLED`/`_PURGE_MAIN_MONTHS`；删除有两条触发路径——① 上传成功后立即删（`UPLOAD_PENDING_EXPORT_FILES`）；② **沉淀月补偿清理**（`CLEAN_EXPIRED_EXPORT_ARTIFACTS`，判定「BASE 已 EXPORTED + UPLOADED + 主表该月有数据 + BASE 生成后无新增/更新」），用于兜住「checksum 未变→跳过上传→① 永不触发」形成的死水区；删除只作用于 `dedup`，`quote` 副本不动）；同时**删除 `dedup.finv_dedup_runtime_setting`**——该表仅为承载两个时间而建，窗口改由 `20006` 承载，删除前硬校验「表中仅含 `EXPORT_WINDOW_START`/`EXPORT_WINDOW_END` 两键」，`V100046`（`20008` 历史运行动态 JOB 保留天数，`data_type='1'`，`int_value` 默认 `30`，合法区间 `1~3650`，越界或非法时运行期回退默认 30；配合 `V100045` 的动态实例按运行隔离，由 `CLEAN_EXPIRED_EXPORT_ARTIFACTS` 按该天数清理），授权记录见 `RequirementList` 10653）。
+- 迁移文件统一 `V<number>__<name>.sql`，按**三段号段**划分，全部按版本号升序执行（需求 10881 号段平移后）：
+
+  | 号段 | 用途 | 现状 |
+  |---|---|---|
+  | `V100000`～`V199999` | **基础准备**：创建角色、校验数据库、创建 schema | `V100001` 角色 `finv`、`V100002` 8 个 schema（`quote`/`quant`/`futu`/`sys`/`sche`/`cdeu`/`archive`，`public` 由 PG 自带）、`V100003` 数据库与权限校验 |
+  | `V200000`～`V299999` | **表结构 DDL**：建表、加列、改约束、移表 | 原 `V1xxxxx` 段整体 `+100000`（`V200001`～`V200089`） |
+  | `V300000`～`V399999` | **数据**：字典种子、数据回填与修正 | 原 `V2xxxxx` 段整体 `+100000`（`V300000`～`V300080`） |
+
+  - 平移规则：旧 `V1xxxxx` → `V2xxxxx`、旧 `V2xxxxx` → `V3xxxxx`，编号一一对应（`+100000`），执行顺序不变；存量库的 `public.schema_version` 由 `Deploy/Upgrade/2611-001-MigrationSegmentsShift.sql` 一次性 `+100000`，`public.schema_version_plan_shift` marker 表保证只执行一次。
+  - 新增脚本：DDL 用 `V200090+`、数据用 `V300081+`；号段排序天然保证「DDL 段整体先于数据段」，新的 DDL 只要仍在 `V2xxxxx` 就会排到已有数据之前执行（与旧体系行为一致）。
+  - 数据段实例（原 `V2xxxxx` → `V300004`～`V300080`）：地区/富途映射字典、`sys.sys_config` / `sys.sys_dict` / `sys.sys_dict_sub` 初始数据、`sys_config` 运行模式与低峰窗口等配置、`finv_security` / `futu_quote_collect` Supabase 种子、市场码与证券口径回填修正等。
+  - 历史遗留（本次平移不重分类）：早期部分数据脚本与 DDL 混写在原 `V1xxxxx` 段（如 `V200018` 交易所种子、`V200025`～`V200042` 系统字典与配置、`V300060` BRS 建表），平移后分别落在 `V2xxxxx` / `V3xxxxx`；基线重做时可择机归位到 `V3xxxxx`。
 - **历史迁移文件不可回改**；唯一例外是「新结构已使历史迁移无法在全新库执行」的兼容修正，此类修正必须：只改被阻断语句、保持幂等、对已应用库无影响，并在 `CHANGELOG` 与对应改造清单中登记。
-  - 已发生的例子：`V100029` 把 `secu_code` 改名为 `usc` 后，晚于它执行的种子迁移 `V100019`（INSERT 列清单）与 `V100023`（`CREATE TABLE` 列定义）仍引用旧列名，只修正这两处，改为 `usc`。
-- 需要排在种子段之后执行的结构收尾迁移，使用 `V101000xx` 编号并在此文档与迁移文件头注明原因。
-  - 已发生的例子：`V100024`（把 `V100023` 在 `public` 新建的 3 张 `finv_quant_*` 表移入 `quant`）。
-  - 反例（无需收尾迁移）：`finv_futu_*` 的建表全部在 `V100007`～`V100017`，种子段只做 `INSERT`/`UPDATE`/`DELETE`，故 `V100033` 一次迁移即可完成，不需要 `V101000xx` 收尾（详见 [`../Refactor/2610-004-MoveFutuTablesToSchema.md`](../Refactor/2610-004-MoveFutuTablesToSchema.md)）。
+  - 已发生的例子：`V200029` 把 `secu_code` 改名为 `usc` 后，晚于它执行的种子迁移 `V200019`（INSERT 列清单）与 `V200023`（`CREATE TABLE` 列定义）仍引用旧列名，只修正这两处，改为 `usc`。
+- 需要排在种子段之后执行的结构收尾迁移，使用 `V201000xx` 编号并在此文档与迁移文件头注明原因。
+  - 已发生的例子：`V200024`（把 `V200023` 在 `public` 新建的 3 张 `finv_quant_*` 表移入 `quant`）。
+  - 反例（无需收尾迁移）：`finv_futu_*` 的建表全部在 `V200007`～`V200017`，种子段只做 `INSERT`/`UPDATE`/`DELETE`，故 `V200033` 一次迁移即可完成，不需要 `V201000xx` 收尾（详见 [`../Refactor/2610-004-MoveFutuTablesToSchema.md`](../Refactor/2610-004-MoveFutuTablesToSchema.md)）。
 - 新建/移动表的迁移必须幂等（`CREATE SCHEMA IF NOT EXISTS`、`pg_tables` 位置判断），并在脚本末尾做收敛校验（`RAISE EXCEPTION` 触发整体回滚）。
 
 ## 5. 变更要求
@@ -217,5 +227,5 @@
 - 新增或调整 schema 归属须同步：迁移脚本、`internal/` 中的 SQL、`Docs/API`、`Docs/Menu`、`Docs/DataFormat`、`Docs/DevSpec/BacktestStrategySpec.md` 与本文件。
 - 破坏性变更（schema 迁移、列改名、删表）必须在 `CHANGELOG` 标注并说明升级约束（禁止新旧镜像共存、升级前备份），且必须先满足 §0.1～§0.3 的授权与登记要求。
 - **任何 `DROP TABLE` / `SET SCHEMA` / `RENAME` / `TRUNCATE` 都必须先有 `Docs/RequirementList.md` 条目**；无条目即视为越权变更，评审直接拒绝。
-- 新增 schema 的迁移须同时授予应用角色 `USAGE`/`CREATE`（`V100034` 以 `current_user` 动态授权，库名/角色名变更后无需改迁移）。
-- 只建 schema 的空迁移沿用「建 schema → 属主/授权 → 追加 `search_path` 末尾 → 收敛校验」四段式模板：`V100034`（`export`/`sche`）、`V100036`（`dedup`，该 schema 已于 `V100086` 删除）、`V100037`（`archive`）、`V100071`（`sys`）。
+- 新增 schema 的迁移须同时授予应用角色 `USAGE`/`CREATE`（`V200034` 以 `current_user` 动态授权，库名/角色名变更后无需改迁移）。
+- 只建 schema 的空迁移沿用「建 schema → 属主/授权 → 追加 `search_path` 末尾 → 收敛校验」四段式模板：`V200034`（`export`/`sche`）、`V200036`（`dedup`，该 schema 已于 `V200086` 删除）、`V200037`（`archive`）、`V200071`（`sys`）。

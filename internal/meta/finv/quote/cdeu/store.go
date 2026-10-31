@@ -441,7 +441,7 @@ UPDATE `+tableUsc+` u
 	return inserted, nil
 }
 
-// 归档默认值口径：模板未命中 / 未配置覆盖时的兜底值（沿用 V100051 以来的 100 / 5 / 7）。
+// 归档默认值口径：模板未命中 / 未配置覆盖时的兜底值（沿用 V200051 以来的 100 / 5 / 7）。
 const (
 	defaultPriorityRank = 100
 	defaultSlaDays      = 5
@@ -474,7 +474,7 @@ type UscBackfillStat struct {
 //
 // 为什么需要它：自动发现（DiscoverUsc）只写 usc 与 flag_auto_discover，其余列全空；
 // 而 RefreshSecurityMetadata 的 INSERT 只取 finv_security.flag_enable='1' 的行，
-// 证券默认为禁用（V200062 种子全是 '0'）或根本不在 finv_security 时，
+// 证券默认为禁用（V300062 种子全是 '0'）或根本不在 finv_security 时，
 // region/market/currency/name/timezone/category 永远补不上，证券就永远进不了导出候选。
 //
 // 补全分六步（逐次 Exec，每步只补空、幂等）：
@@ -494,7 +494,7 @@ type UscBackfillStat struct {
 //     推出 region=CN、market=SH/SZ、category=StockIndex（个股代码不带前缀）。
 //  5. 按模板表 cdeu.finv_quote_cdeu_usc_day_incr_row_tpl 补 day_expect_rows：
 //     模板三列均可为空串通配，非空维度必须与 usc 值相等；NULL 维度不凭空匹配，
-//     所以区域级兜底靠 V200066 的 `CN/”/”`、`HK/”/”`、`US/”/”` 等模板行，
+//     所以区域级兜底靠 V300066 的 `CN/”/”`、`HK/”/”`、`US/”/”` 等模板行，
 //     排序按「模板特异性 → region/market/category 字典序」取第一条。
 //  6. priority_rank / sla_days / max_wait_days 三列同时为 NULL 时补 100 / 5 / 7，
 //     且**不写** priority_gmt_update（NULL = 默认值，非 NULL = 人工设置）。
@@ -647,7 +647,7 @@ UPDATE `+tableUsc+`
 	// 匹配规则：模板维度为空串 = 通配，否则必须与 usc 的值（upper 归一）相等；
 	// **用户侧为 NULL 的维度不会凭空匹配**（NULL ≠ 任何具体值），全空的证券只能
 	// 命中全通配模板（当前刻意不提供，避免把残缺月的成熟度误判为 COMPLETE）。
-	// region/market 缺失时的可导性由第 2/3/4 步和 V200066 的区域级兜底模板保证。
+	// region/market 缺失时的可导性由第 2/3/4 步和 V300066 的区域级兜底模板保证。
 	rows, qerr := s.pool.Query(ctx, `
 WITH tpl AS (
     SELECT upper(t.region) AS region,
@@ -845,7 +845,7 @@ SELECT usc
 
 // RefreshSecurityMetadata 从 finv_security / finv_exchange / finv_market / finv_region 刷新证券主数据。
 //
-// 取值口径（ACANX 2026-10-26 调整，见迁移 V100036）：
+// 取值口径（ACANX 2026-10-26 调整，见迁移 V200036）：
 //   - market：取 finv_market.market_symbol（市场符号，如 SH / SZ / BJ / NSDQ / CFD）；
 //     为空串时依次回退 market_flag、exchange_flag，避免字段未维护时值变成 NULL。
 //     历史口径直接拄 market_flag（SSE-A / US-NSDQ 这种板块级标识），与归档
@@ -1020,7 +1020,7 @@ ON CONFLICT (batch_no, usc, biz_month, export_type) DO UPDATE SET
 // GenerateDynamicJobs 按批次清单生成单证券导出 JOB。
 //
 // BASE 条目挂在 PROCESS_EXPORT_FILE_MON_BASE，INCR 条目挂在
-// PROCESS_EXPORT_FILE_MON_INCR；自 V200045 起唯一键为
+// PROCESS_EXPORT_FILE_MON_INCR；自 V300045 起唯一键为
 // (workflow_run_id, usc, biz_month)，每次运行各自持有独立实例。
 func (s *Store) GenerateDynamicJobs(ctx context.Context, batchNo string) (int64, error) {
 	batchRunID := cdeuRunIDFromContext(ctx)
@@ -1074,7 +1074,7 @@ ON CONFLICT DO NOTHING`, batchRunID); err != nil {
 
 // dynamicJobSelectionSQL 生成「按 (usc, biz_month) 定位目标动态导出实例」的子查询。
 //
-// 自 V200045 起动态实例按运行隔离，定位规则：
+// 自 V300045 起动态实例按运行隔离，定位规则：
 //
 //	优先匹配调用方上下文携带的 workflow run（runParam 为 0 时视为无）；
 //	无匹配时回退到最新一条，兼容手动单实例执行。
@@ -1093,7 +1093,7 @@ func dynamicJobSelectionSQL(runParam string) string {
 
 // MarkDynamicJobStepStatus 更新动态 JOB 内指定 Step 状态。
 //
-// 自 V200045 起动态实例按运行隔离，目标实例由 dynamicJobSelectionSQL 定位。
+// 自 V300045 起动态实例按运行隔离，目标实例由 dynamicJobSelectionSQL 定位。
 func (s *Store) MarkDynamicJobStepStatus(ctx context.Context, usc string, bizMonth int,
 	stepCode, status, errText string) error {
 	var errArg *string
@@ -1141,7 +1141,7 @@ UPDATE `+tableDynamicStep+` ds
 
 // GenerateUploadDynamicJobs 基于已导出且未完成上传的月归档文件生成上传动态 JOB。
 //
-// 自 V200045 起唯一键为 (workflow_run_id, file_id)，每次运行各自持有独立实例。
+// 自 V300045 起唯一键为 (workflow_run_id, file_id)，每次运行各自持有独立实例。
 func (s *Store) GenerateUploadDynamicJobs(ctx context.Context) (int64, error) {
 	uploadRunID := cdeuRunIDFromContext(ctx)
 	// runLogID 与 workflow_run_id 不同：前者是本次「运行日志」主键（前端「执行日志」按它查），
@@ -1306,7 +1306,7 @@ UPDATE `+tableDynamicJob+` dj
 // EnsureDynamicExportJob 在实际检测到增量后创建单证券 INCR 动态 JOB。
 // 批次清单只负责候选扫描，不能在确认 delta > 0 前生成 INCR 任务。
 //
-// 自 V200045 起唯一键为 (workflow_run_id, usc, biz_month)：
+// 自 V300045 起唯一键为 (workflow_run_id, usc, biz_month)：
 // 同一运行内重复调用为幂等 UPSERT（重置为 PENDING），
 // 不同运行各自持有独立实例，不再把上一轮的记录改写成本轮。
 func (s *Store) EnsureDynamicExportJob(ctx context.Context, processCode, usc string, bizMonth int,
@@ -1928,7 +1928,7 @@ SELECT count(*) FROM `+tableMain+`
 
 // dynamicJobRetentionDays 历史运行动态实例的保留天数。
 //
-// 自 V200045 起动态 JOB 每次运行一条，会持续累积；
+// 自 V300045 起动态 JOB 每次运行一条，会持续累积；
 // 超过保留期且所属运行已终态的实例由 CLEAN_EXPIRED_EXPORT_ARTIFACTS 清理。
 const dynamicJobRetentionDays = 30
 

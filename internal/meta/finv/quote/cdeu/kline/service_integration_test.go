@@ -36,7 +36,7 @@ func TestServiceIntegration(t *testing.T) {
 
 	// 临时表必须建在 cdeu（业务域）：`dedup` schema 已按需求 10759 冻结为
 	// `dedup_frozen` 并移出 search_path，此处若再 `CREATE SCHEMA dedup` 会让
-	// 冻结域在库里复活（V100080 之后的代码统一读写 cdeu.*）。
+	// 冻结域在库里复活（V200080 之后的代码统一读写 cdeu.*）。
 	const testTable = "cdeu.finv_quote_secu_kline_min_it"
 	if _, err := pool.Exec(ctx, `CREATE SCHEMA IF NOT EXISTS cdeu`); err != nil {
 		t.Fatalf("创建 cdeu schema 失败: %v", err)

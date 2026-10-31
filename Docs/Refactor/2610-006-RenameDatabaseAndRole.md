@@ -5,7 +5,7 @@
 > 编号规则：本文件条目 `E-01`～`E-xx`，**只增不改**；待决策用 `EE-01`～（双字母前缀）。
 > 完成判定：每项给出可执行的核验命令或明确的代码检查点，**未通过判定不得勾选**。
 > 关联文档：改造项 A～D（[`2610-001-SecuCodeToUsc.md`](2610-001-SecuCodeToUsc.md) / [`2610-002-PrevCloseToLastClose.md`](2610-002-PrevCloseToLastClose.md) / [`2610-003-MoveTablesToSchemas.md`](2610-003-MoveTablesToSchemas.md) / [`2610-004-MoveFutuTablesToSchema.md`](2610-004-MoveFutuTablesToSchema.md)）；schema 规范见 [`../DevSpec/DbSchemaSpec.md`](../DevSpec/DbSchemaSpec.md)；需求验收见 [`../RequirementList.md`](../RequirementList.md)。
-> 基线：仓库 `VERSION=0.1.1`，结构迁移最高版本 `V33`，种子段 `V100024`。
+> 基线：仓库 `VERSION=0.1.1`，结构迁移最高版本 `V33`，种子段 `V200024`。
 
 ## 0. 概览
 
@@ -59,7 +59,7 @@ PostgreSQL 的权限与 `search_path` 都绑定 **OID**（对象内部 ID），�
 | E-20 | 确认库级 `search_path` 保留 | `psql -d finv` | `select setconfig from pg_db_role_setting s join pg_database d on d.oid=s.setdatabase where d.datname='finv'` 输出 `search_path=public, quote, quant, futu` | ☑ 2026-10-24 |
 | E-21 | 确认 `pg_hba.conf` 无按用户名白名单（容器默认 `all`） | `docker exec fq-postgres cat /var/lib/postgresql/data/pg_hba.conf` | 无 `finvquant` 字面量 | ☑ 2026-10-24 |
 | E-22 | 重启服务（compose 会因 env 变化重建 postgres 容器，**数据卷保留**） | `docker compose up -d` | `docker ps` 三容器 healthy | ☑ 2026-10-24 |
-| E-23 | 数据完整性验证 | `psql -d finv` | 行数 2,804,329 不变；`schema_version` 最高 `V100024`；`success` 全 `t` | ☑ 2026-10-24 |
+| E-23 | 数据完整性验证 | `psql -d finv` | 行数 2,804,329 不变；`schema_version` 最高 `V200024`；`success` 全 `t` | ☑ 2026-10-24 |
 | E-24 | 接口与前端回归 | `/API/V1/Health/Ready`、`/API/V1/Version`、行情页 | 200/版本正确/图表有数据 | ☑ 2026-10-24 |
 | E-25 | 文档同步（8 篇）：Docker 2 篇、Native 3 篇、`Deploy/README.md`、`Prompt.md`、`DbSchemaSpec.md` | 各文档 | `grep -rn 'FINV_PG_USER' ` 默认值均为 `finv` | ☑ 2026-10-24 |
 | E-26 | 迁移脚本核对：库名未硬编码（`V32`/`V33` 用 `current_database()`），**无需修改历史迁移** | `Deploy/Migrations/V32*.sql`、`V33*.sql` | `grep -c 'current_database()' ` 各命中 1；`grep -c 'ALTER DATABASE finvquant'` = 0 | ☑ 2026-10-24 |
@@ -108,7 +108,7 @@ PostgreSQL 的权限与 `search_path` 都绑定 **OID**（对象内部 ID），�
 | `pg_db_role_setting` | `search_path=public, quote, quant, futu`（随 OID 保留） |
 | 表数量（4 个 schema） | quote 3 / quant 13 / futu 5 / public 6 = 27 张 |
 | `quote.finv_quote_secu_kline_min` 行数 | 2,804,329（不变） |
-| `schema_version` 最高版本 | `V100024`，`success` 全 `t` |
+| `schema_version` 最高版本 | `V200024`，`success` 全 `t` |
 | 备份文件名前缀 | 仍为 `finvquant_`（产品前缀，不变） |
 | 接口 `/API/V1/Health/Ready` | `{"postgres":"ok","redis":"ok"}` |
 | 行情接口（`NVDA` / `20260630`） | `code:0`，返回真实分钟线 |

@@ -106,7 +106,7 @@ type cdeuJobStepRun struct {
 
 // cdeuRunKey 标识一次 JOB 运行实例。
 //
-// 自 V200044 起 cdeu_job_run 不再使用自增主键 job_run_id，改由
+// 自 V300044 起 cdeu_job_run 不再使用自增主键 job_run_id，改由
 // (workflow_run_id, process_id, job_id) 三元组唯一确定一次运行实例，
 // 因此所有定位 JOB 运行的入口统一用该结构体传参。
 type cdeuRunKey struct {

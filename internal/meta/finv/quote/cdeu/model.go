@@ -8,7 +8,7 @@
 //
 // 关键约束（不可违反）：
 //   - 不修改 cdeu.finv_quote_secu_kline_min 与 cdeu.finv_quote_secu_kline_min_export 的结构；
-//   - 新增表全部在 cdeu 域（V100079 起统一 finv_quote_cdeu_* 前缀），全库无外键；
+//   - 新增表全部在 cdeu 域（V200079 起统一 finv_quote_cdeu_* 前缀），全库无外键；
 //   - 导出与上传文件格式均为 .mvsv（16 行文件头 + 1 行空行 + 管道分隔数据行），不生成 .csv；
 //   - 所有 SQL 必须写 schema 全限定名（见 Docs/DevSpec/DbSchemaSpec.md §3）；
 //   - 单任务三阶段各自短事务，支持暂停续跑、多 worker 安全领取（行锁 + 租约 + 心跳）。
@@ -37,7 +37,7 @@ const (
 	JobScanPostSealPatches = "SCAN_POST_SEAL_PATCHES"
 	// JobCleanExpiredExportArtifacts 每日：清理超期中转残留、过期本地文件与主表旧数据。
 	//
-	// Deprecated（需求 10717）：自 V200048 起已拆为 JobCleanExportStorage（存储）、
+	// Deprecated（需求 10717）：自 V300048 起已拆为 JobCleanExportStorage（存储）、
 	// JobPurgeExportedMonth（主表）、JobPurgeStaleDynamic（动态实例）三个独立 JOB，
 	// 并整体迁至 PHASE_REVIEW（归档复核）。保留常量仅供历史运行记录追溯。
 	JobCleanExpiredExportArtifacts = "CLEAN_EXPIRED_EXPORT_ARTIFACTS"

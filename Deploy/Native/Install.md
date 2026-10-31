@@ -271,7 +271,7 @@ FINV_LOG_MAX_MB=10
 | `systemctl status` 显示 `failed` | `journalctl -u finvquant -n 100 --no-pager` 看具体错误 |
 | 启动报 `Failed to load environment files` / 找不到二进制 | 确认 unit 里的 `@PREFIX@` 已渲染（`grep -n 'data/App' /etc/systemd/system/finvquant.service`），且 `/data` 已挂载 |
 | 日志含 `迁移 V<n> 失败` | 迁移单事务执行、失败已回滚；多为权限不足（需 `CREATE SCHEMA` 权限，见第 3 节授权） |
-| `迁移 V100001 失败: relation "finv_quote_secu_kline_min" already exists` | 旧版脚本遗留问题：V100001 未限定 schema，按 `search_path` 落到 `public` 撞到其它服务的同名表。**已修正**（V100001/V100021/V100029/V100030/V100031/V100032 显式 `quote.`，且不再从 `public` 搬表）；更新脚本后重跑即可，脚本不会删除/重命名任何表 |
+| `迁移 V200001 失败: relation "finv_quote_secu_kline_min" already exists` | 旧版脚本遗留问题：V200001 未限定 schema，按 `search_path` 落到 `public` 撞到其它服务的同名表。**已修正**（V200001/V200021/V200029/V200030/V200031/V200032 显式 `quote.`，且不再从 `public` 搬表）；更新脚本后重跑即可，脚本不会删除/重命名任何表 |
 | `PG 连通性检查失败` | 检查 `FINV_PG_HOST/PORT/USER/PASSWORD` 与 `pg_hba.conf`（`127.0.0.1/32` 是否 `scram-sha-256`） |
 | 健康检查通过但 Web 打不开 | 确认 `FINV_SERVER_HOST=127.0.0.1` 且 Nginx 反代指向 16002；或临时改 0.0.0.0 直连验证 |
 | 手工 `psql` 报 `relation does not exist` | 表在 `quote`/`quant`/`futu`/`export`/`sche`/`dedup`/`archive`/`sys` schema，需写全限定名或设置 `search_path`，见 `Docs/DevSpec/DbSchemaSpec.md` |

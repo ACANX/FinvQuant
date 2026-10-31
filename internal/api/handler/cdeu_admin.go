@@ -164,7 +164,7 @@ func (h *ExportArchive) PriorityDelete(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "usc 不能为空"})
 		return
 	}
-	// V200051 起「删除优先级」等价于「清空覆盖」，证券行本身保留。
+	// V300051 起「删除优先级」等价于「清空覆盖」，证券行本身保留。
 	if err := h.service.Store().SetUscPriority(c.Request.Context(), usc, nil); err != nil {
 		status := http.StatusInternalServerError
 		if errors.Is(err, cdeu.ErrUscNotFound) {

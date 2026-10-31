@@ -37,7 +37,7 @@
 
 ## 3. 前置条件
 
-1. **已完成数据库迁移**：`cdeu.finv_quote_secu_kline_min` 已存在（迁移 `V100001–V100080` 跑完）：
+1. **已完成数据库迁移**：`cdeu.finv_quote_secu_kline_min` 已存在（迁移 `V200001–V200080` 跑完）：
 
    ```bash
    sudo -u postgres psql -d finv -tAc "select to_regclass('cdeu.finv_quote_secu_kline_min')"

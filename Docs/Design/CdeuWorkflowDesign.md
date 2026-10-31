@@ -163,7 +163,7 @@ quote.finv_quote_secu_kline_min ──► cdeu.finv_quote_secu_kline_min（主�
       └──────────────── ⑥ 复核：超时回收 / 健康检查 / 数据释放 / 运行记录保留
 ```
 
-关键隔离：**主表 `cdeu.` 是唯一加工口径，中转表 `cdeu.finv_quote_secu_kline_min_export`（`V100088` 自 `export.` 域迁入）只做导出期间的临时落地区，回测副本 `quote.` 本工作流只读**。仓库 `DbSchemaSpec` §0 禁止把三张同名表合并（历史事故见该文档第 70 行）。
+关键隔离：**主表 `cdeu.` 是唯一加工口径，中转表 `cdeu.finv_quote_secu_kline_min_export`（`V200088` 自 `export.` 域迁入）只做导出期间的临时落地区，回测副本 `quote.` 本工作流只读**。仓库 `DbSchemaSpec` §0 禁止把三张同名表合并（历史事故见该文档第 70 行）。
 
 ### 3.2 代码分层
 

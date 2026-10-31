@@ -66,7 +66,7 @@ func main() {
 
 	// 应用数据库迁移（启动时幂等；quote.finv_quote_secu_kline_min 等域表建表）
 	//
-	// 超时给到 10 分钟：迁移里可能包含存量数据回填（如 V100076 恢复 quote 隔离副本需
+	// 超时给到 10 分钟：迁移里可能包含存量数据回填（如 V200076 恢复 quote 隔离副本需
 	// 搬运数百万行，实测 280 万行耗时约 4 分钟；慢盘/低配环境更久），
 	// 30 秒会在大表上超时，导致服务启动失败。
 	migrateCtx, migrateCancel := context.WithTimeout(ctx, 10*time.Minute)

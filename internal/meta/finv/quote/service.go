@@ -164,7 +164,7 @@ func (s *Service) ImportRows(ctx context.Context, rows []mvsv.Row, mode UpsertMo
 			rows[index].Remark = &value
 		}
 	}
-	// 增量兜底：开盘价缺失（NULL 或 0）时用前收盘价填充，与迁移 V100031 同规则，
+	// 增量兜底：开盘价缺失（NULL 或 0）时用前收盘价填充，与迁移 V200031 同规则，
 	// 保证新导入数据不再产生缺 open 的行。
 	fillOpenFromLastClose(rows)
 	// 涨跌额/涨跌幅：文件 cp/cr 列当前忽略；缺失时按「last_close → open → 不写」
@@ -196,7 +196,7 @@ func (s *Service) ImportRows(ctx context.Context, rows []mvsv.Row, mode UpsertMo
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
-	// market_code 已从主表移除（V100021）：从 finv_security 字典关联获取，保持响应字段兼容
+	// market_code 已从主表移除（V200021）：从 finv_security 字典关联获取，保持响应字段兼容
 	marketCode := 0
 	if err := s.pool.QueryRow(ctx,
 		`SELECT market_code FROM finv_security WHERE usc = $1 OR security_code = $1 LIMIT 1`,
@@ -305,7 +305,7 @@ func computeChangeFields(rows []mvsv.Row) {
 }
 
 // fillOpenFromLastClose 兜底：`open` 为 NULL 或 0 时用 `last_close` 填充。
-// 触发条件与迁移 V100031 一致（要求 last_close 非 NULL 且非 0），返回填充行数。
+// 触发条件与迁移 V200031 一致（要求 last_close 非 NULL 且非 0），返回填充行数。
 func fillOpenFromLastClose(rows []mvsv.Row) int {
 	filled := 0
 	for index := range rows {

@@ -9,12 +9,12 @@
 
 | 项 | 实际实现 |
 |---|---|
-| 迁移 | `V200060__brs_backup_table.sql`（brs schema、登记表、触发器、39001、12 条种子） |
+| 迁移 | `V300060__brs_backup_table.sql`（brs schema、登记表、触发器、39001、12 条种子） |
 | cron | `internal/meta/base/cron`（6 段，独立包，仅标准库） |
 | 调度/备份 | `internal/meta/finv/brs`（登记读取、cron 调度、`pg_dump`） |
 | 对象存储 | `internal/meta/base/oss`（`Store` 接口 + `Config` + `New` 注册机制）；首期实现 `oss/local`；`oss/s3` 二期（`aws-sdk-go-v2`，**不使用 minio-go**） |
 | 配置 | `FINV_BRS_BACKUP_DIR`（默认 `<PREFIX>/Backup/BRS`） |
-| 二期（对象存储） | `V200061__brs_upload.sql`：`flag_upload`（默认 '1'）、`39002` JSON（默认 enabled=false）；`oss/s3` 适配器（aws-sdk-go-v2，无 minio-go）；`brs.RunOnce` 按 `flag_upload` 上传，失败保留本地 |
+| 二期（对象存储） | `V300061__brs_upload.sql`：`flag_upload`（默认 '1'）、`39002` JSON（默认 enabled=false）；`oss/s3` 适配器（aws-sdk-go-v2，无 minio-go）；`brs.RunOnce` 按 `flag_upload` 上传，失败保留本地 |
 | 验证 | 143 个迁移 0 错误；种子 12 行；39001=`0 0 3 * * *`；39002 enabled=false/provider=s3；priority 唯一（12/12）；`go build`、`go test ./internal/meta/finv/brs ./internal/meta/base/cron ./internal/meta/base/oss/...` 通过 |
 
 ## 1. 背景与目标
@@ -252,7 +252,7 @@ func New(cfg Config) (Store, error)
 
 | 阶段 | 内容 | 产出 |
 |---|---|---|
-| P1 | 迁移 `V200060`：`brs` schema、登记表、触发器、39001、12 条种子 | SQL |
+| P1 | 迁移 `V300060`：`brs` schema、登记表、触发器、39001、12 条种子 | SQL |
 | P2 | `internal/meta/base/cron`（6 段解析/匹配/Next）+ 单测 | 包 |
 | P3 | `internal/meta/finv/brs`（登记读取、调度、pg_dump、日志）+ `cmd/server` 接入 | 服务 |
 | P4 | 文档：运维手册（`Docs/FinvQuant/Brs.md`）、`FINV_BRS_BACKUP_DIR`、Install 目录 | 文档 |

@@ -2,7 +2,7 @@
 
 > 本目录存放量化策略通用回测框架的设计图（SVG，可用浏览器直接打开）。
 > 对应实现：`internal/meta/finv/quant/backtest`（引擎/服务）+ `internal/api/handler/backtest.go`（API）
-> + `Web/src/views/*Backtest*`（前端）+ `Deploy/Migrations/V22~V28/V100019~V100020`（存储）。
+> + `Web/src/views/*Backtest*`（前端）+ `Deploy/Migrations/V22~V28/V200019~V200020`（存储）。
 
 ## 图集清单
 

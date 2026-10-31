@@ -67,7 +67,7 @@ type WatermarkRow struct {
 	GmtUpdate     time.Time `db:"gmt_update" json:"gmt_update"`
 }
 
-// PriorityRow 证券优先级与 SLA（V200051 起数据源为 cdeu.finv_quote_cdeu_usc）。
+// PriorityRow 证券优先级与 SLA（V300051 起数据源为 cdeu.finv_quote_cdeu_usc）。
 //
 // 只包含已配置覆盖的证券；未配置的证券不在此列表出现（在 UscRow 里为 NULL）。
 type PriorityRow struct {
@@ -99,7 +99,7 @@ type UscRow struct {
 	Name             *string    `db:"name" json:"name"`
 	Timezone         *string    `db:"timezone" json:"timezone"`
 	Currency         *string    `db:"currency" json:"currency"`
-	// 归档优先级覆盖配置（V100051 由 finv_dedup_usc_priority 合并而来）：
+	// 归档优先级覆盖配置（V200051 由 finv_dedup_usc_priority 合并而来）：
 	// 三列同时为 NULL 表示未配置，分别按 100 / 5 / 7 兜底；自动补全（需求 10821）
 	// 发现三列全 NULL 时会直接写成 100 / 5 / 7，且不写 priority_gmt_update——
 	// 因此 priority_gmt_update 为 NULL 表示「默认值」，非 NULL 表示「人工设置过」。
@@ -236,7 +236,7 @@ type UscUpsertInput struct {
 	Currency         *string
 }
 
-// PriorityUpsertInput 优先级覆盖设置入参（V200051 起落到 finv_quote_cdeu_usc）。
+// PriorityUpsertInput 优先级覆盖设置入参（V300051 起落到 finv_quote_cdeu_usc）。
 //
 // 三列同为一组：要么全有值（设置覆盖），要么通过 SetUscPriority(ctx, usc, nil) 整组清空。
 type PriorityUpsertInput struct {

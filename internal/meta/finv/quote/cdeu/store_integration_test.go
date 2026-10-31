@@ -81,7 +81,7 @@ VALUES ($1, 'A_SHARE', 3, 'CN', 'SZ', 'FTMM', '集成测试证券', 'Asia/Shangh
 		integrationUsc); err != nil {
 		t.Fatalf("插入证券主数据失败: %v", err)
 	}
-	// V200051 起优先级已合并进 finv_quote_cdeu_usc，直接更新主表列。
+	// V300051 起优先级已合并进 finv_quote_cdeu_usc，直接更新主表列。
 	if _, err := pool.Exec(ctx, `
 UPDATE cdeu.finv_quote_cdeu_usc
    SET priority_rank = 1, sla_days = 5, max_wait_days = 7, priority_gmt_update = now()

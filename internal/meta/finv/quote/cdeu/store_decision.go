@@ -339,7 +339,7 @@ type StockFilter struct {
 // 用成熟度表补充「已被清理月份」的规模，用导出任务表标注「是否已导出」。
 //
 // 需求 10835：让运维在跑流程前就能看到该月会被导出的证券清单、每证券行数与大致文件大小。
-// 数据源一律 `cdeu.*`（`dedup` / `dedup_frozen` 已于 V100086 删除）。
+// 数据源一律 `cdeu.*`（`dedup` / `dedup_frozen` 已于 V200086 删除）。
 func (s *Store) ExportStockPage(ctx context.Context, filter StockFilter) (StockPage, error) {
 	page := StockPage{BizMonth: filter.BizMonth, Items: []StockRow{}}
 	if filter.BizMonth <= 0 {

@@ -73,4 +73,4 @@
 
 - `usc` 为主键且**不可修改**；同一交易所内 `security_code` 唯一（数据库约束）。
 - `exchange_code` 应对齐 `finv_exchange` 字典、`currency_type` 应对齐 `finv_currency` 字典（程序层控制，不建物理外键）。
-- 字典数据来源为 `finv_security` 表（V5 表结构 + V100002 15 条 + V100009 增量 503 条）。
+- 字典数据来源为 `finv_security` 表（V5 表结构 + V200002 15 条 + V200009 增量 503 条）。
