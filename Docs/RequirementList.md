@@ -2616,6 +2616,13 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10885 | CDEU 工作流视图「JOB 进度」卡片标题去掉重复计数：原为 `JOB 进度（{N} 个 JOB / {M} 个 Step）`，而卡片正文已展示 `成功 / 总数` 与「失败 · 待执行」，标题里的计数属重复描述。改为纯文本 `JOB 进度`，并删除因此不再被引用的 `jobStepStats` computed（避免 `vue-tsc` 未使用变量报错）。 | `grep -n "JOB 进度" Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 输出为 `<div class="text-caption text-medium-emphasis">JOB 进度</div>`（无 `个 JOB`/`个 Step`）；`grep -c jobStepStats` = 0；`cd Web && npm run build` 通过；页面「JOB 进度」卡片标题仅显示 `JOB 进度`，下方 `成功/总数`、`失败 · 待执行` 指标不变 | √ |
 
 
+## 一百九十九、「当日累计均价」字段名调整（待办）（10886）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10886 | 【**待办**】「当日累计均价」字段名调整。**现状口径（三处并不一致）**：① 数据库列名 `paocd`，存在于 `cdeu.finv_quote_secu_kline_min`、`cdeu.finv_quote_secu_kline_min_export`、`quote.finv_quote_secu_kline_min` 三张表；② 对外 API 字段名 **`pacd`**（`internal/meta/finv/quote/cdeu/kline/model.go` 的 `ColPaocd = "paocd" // 库列名；对外 API 字段为 pacd`、`request.go` 的 `Pacd OptDec \`json:"pacd"\``）；③ 导出 `.mvsv` V2 头部字段名 `paocd`（`mvsv/writer_v2.go` 的 `v2FieldNames` / `parser_v2.go` 同时接受 `paocd` 与 `pacd`），中文名「累计均价」；④ 库注释为「当日实时累计均价」，API 文档写作「当日累计均价」。**动工前须确认三点**：① 调整范围——只改对外 API 名 / 只改库列名 / 库列+API+导出三处统一 / 连中文名一并调整；② 目标名称（如 `avg_price`、`acc_avg_price`、`pa` 等，由需求方给定）；③ 兼容策略——旧名是否保留（视图、别名列、`parser_v2.go` 继续接受旧名）、已导出的历史 `.mvsv` 文件是否需要兼容读取、`quote.` 表是否随 `cdeu.` 同步改名。 | 待方案确定后细化；初步验收口径：① 新旧名称在库列、Go 常量/结构体 tag、API 文档（`Docs/API/Quote/Cdeu/Min/*`、`Docs/OpenAPI/Quote/Cdeu/Min/*`）、`.mvsv` V2 字段名表四处保持一致（若决定改名）；② `grep -rn "<旧名>" internal/ Docs/ Deploy/` 无遗漏（若保留兼容则仅限显式白名单）；③ 迁移脚本幂等、单事务、末尾收敛校验；④ `go build ./...` 与 `go test ./internal/meta/finv/quote/...` 通过；⑤ 现有 277,295 行 `cdeu.finv_quote_secu_kline_min` 数据在改名后仍可正常读写（抽样 upsert + page 查询） | |
+
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2855,7 +2862,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | CDEU 运行树状态误判修复（PENDING 不再显示 RUNNING） | 10883 | 1 |
 | CDEU 历史残留运行记录收敛（已终态 run 的孤儿子级） | 10884 | 1 |
 | CDEU「JOB 进度」标题去掉重复计数 | 10885 | 1 |
-| **合计** | **10001–10885** | **884** |
+| 「当日累计均价」字段名调整（待办） | 10886 | 1 |
+| **合计** | **10001–10886** | **885** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
