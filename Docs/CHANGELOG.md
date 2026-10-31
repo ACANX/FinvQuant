@@ -313,6 +313,17 @@
   - 改动：`Web/src/config/menuConfig.ts`、`Web/src/router.ts`、`Web/src/views/Common/PlaceholderView.vue`；
     `npm run build`（含 `vue-tsc -b`）通过。
 
+### 新增
+
+- **SH 指数类 usc 由 8 位规范为 6 位（需求 10873，迁移 `V200074`）**
+  - 背景：上游证券代码口径调整（`SH000001`~`SH000999` → `SH0001`~`SH0999`，去掉数字部分前两个 `0`）。库中同时存在两套 usc：8 位来自 `V200009` 增量种子（`provider=''`、英文名），6 位来自 `V200062` Supabase 批量导入（`provider='FTMM'`、中文名）与历史手工改名，生产库 22 组并存、全新库 23 组（多一条 `SH000001`）。
+  - 冲突规避（脚本不会因冲突失败）：8 位 usc **只在没有对应 6 位行时就地改号**（`usc` + `security_code` 同步，并用双 `NOT EXISTS` 同时避开主键 `finv_security_pkey` 与唯一约束 `uq_finv_security_exchange_code`）；已存在 6 位行时以 6 位为准，不 rename、不插入，只回填字段。
+  - 合并规则（用户逐条批准 D1–D10）：英文名回填 6 位行（D1）、`flag_enable` 取 `'1'` 优先（D2）、`gmt_create` 保留较早值（D3）、`SH0985` 对齐为 `exchange_code=11` / `security_code='SH0985'`（D4）、`security_type` 保留 6 位现网值（D5）、其余 17 张含 `usc` 的表本期只巡检不迁移（D6）、8 位重复行**暂不删除**（D7）、`SH0001` 的 `security_code` 归一为 `'SH0001'`（D8）。
+  - 同步范围：`futu.finv_futu_mapping_security.finv_usc`（8 位 usc 的源头，`V200003` 种子 23 行）一并改 6 位；`Deploy/Migrations/V200009`/`V200003` 历史迁移不改，由 `V200074` 在其后收口（与 `V200071` 同一套路），全新库同样收敛。
+  - 验证：独立库 `finv_migtest` 全链 164 个迁移 0 失败、`TestMigrateIntegration` 通过；两库 `select ... where usc ~ '^SH[0-9]{4}$'` = **317**、8 位残留 **22**、6 位 usc 行中 `security_code` 仍为 8 位的 **0** 行、futu 映射表 8 位 **0** 行；`V200074` 重跑影响 **0 行**（幂等）；生产库 `V200074` 登记 `t`、服务 Live/Web 200。
+  - 备份：执行前 `pg_dump`（`finv_security` + `futu.finv_futu_mapping_security`）至 `Deploy/Backup/usc_sh6_pre_20261101_020848.dump`。
+  - 文档：`DbSchemaSpec` 新增 §1.2「`usc` 编码口径」；`RequirementList` 新增 10873（汇总 10001–10873 / 872 条）。
+
 ### 修复
 
 - **全新库全链迁移跑不通（独立库 `finv_migtest` 验证发现，4 处修复）**

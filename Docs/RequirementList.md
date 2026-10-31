@@ -2575,6 +2575,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10872 | 前端「金融投资」系统在「量化」二级菜单之后新增「备份与恢复」二级分组（`key='brs'`，`icon=mdi-backup-restore`），下辖「备份管理」「恢复管理」两个三级分组与 4 个占位叶子：备份登记维护（`/Meta/Finv/Brs/Backup/Table`）、备份记录与产物（`/Meta/Finv/Brs/Backup/Record`）、对象存储配置（`/Meta/Finv/Brs/Backup/Storage`）、数据恢复（`/Meta/Finv/Brs/Restore/Run`）；路由前缀 `/Meta/Finv/Brs/`，复用 `PlaceholderView` 并登记各页规划说明，作为后续 BRS 服务（`internal/meta/finv/brs`）前端菜单的扩展位。 | `grep -c "key: 'brs'" Web/src/config/menuConfig.ts` 为 1 且该节点在 `key: 'quant'` 之后；`grep -c "'/Meta/Finv/Brs/" Web/src/router.ts` = 4；`grep -c "'brs-" Web/src/views/Common/PlaceholderView.vue` = 4；菜单全部 `path` 有对应路由、图标有效（`grep -c '\.mdi-backup-restore::before' Web/node_modules/@mdi/font/css/materialdesignicons.css` = 1）、无重复 key；`npm run build`（含 `vue-tsc -b`）通过 | √ |
 
+## 一百九十四、SH 指数类 usc 8 位改 6 位（10873）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10873 | 上游证券代码口径调整后（`SH000001`~`SH000999` → `SH0001`~`SH0999`，去掉数字部分前两个 `0`），生产库历史数据需对齐且不得因主键/唯一约束冲突导致脚本失败：`V200074` 对 8 位 usc 只在**没有对应 6 位行**时就地改号（`usc` + `security_code` 同步，双 `NOT EXISTS` 避 `finv_security_pkey` 与 `uq_finv_security_exchange_code`），已存在 6 位行时以 6 位为准回填英文名（D1）、`flag_enable='1'` 优先（D2）、`gmt_create` 取较早值（D3）；`SH0985` 对齐为 `exchange_code=11` / `security_code='SH0985'`（D4）、`security_type` 保留 6 位现网值（D5）；`SH0001` 的 `security_code` 归一为 `'SH0001'`（D8）；`futu.finv_futu_mapping_security.finv_usc` 同步 6 位；其余 17 张含 `usc` 的表本期只巡检不处理（D6）、8 位重复行暂不删除（D7）。 | 独立库与生产库执行后 `select count(*) from public.finv_security where usc ~ '^SH[0-9]{4}$'` = 317、`select count(*) from public.finv_security where usc ~ '^SH[0-9]{6}$'` = 22（D7 保留）、`select count(*) from public.finv_security where usc ~ '^SH[0-9]{4}$' and security_code ~ '^SH[0-9]{6}$'` = 0、`select count(*) from futu.finv_futu_mapping_security where finv_usc ~ '^SH[0-9]{6}$'` = 0、`select concat(exchange_code, '/', security_code) from public.finv_security where usc='SH0985'` = `11/SH0985`、`select security_code from public.finv_security where usc='SH0001'` = `SH0001`；`select success from public.schema_version where version='200074'` 为 `t`；`V200074` 重跑全部 0 行影响；`go test -p 1 ./internal/database -run TestMigrateIntegration` 通过 | √ |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2801,7 +2807,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 生产前独立库全链迁移验证 | 10870 | 1 |
 | finv_market 字典编号体系对齐 | 10871 | 1 |
 | 「备份与恢复」前端二级菜单 | 10872 | 1 |
-| **合计** | **10001–10872** | **871** |
+| SH 指数类 usc 8 位改 6 位 | 10873 | 1 |
+| **合计** | **10001–10873** | **872** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

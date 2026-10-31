@@ -138,6 +138,18 @@
   4. **任何读写必须写全限定名**。`TestSQLSchemaQualified` 对 `finv_quote_secu_kline_min` 有**固定 schema 校验**（允许 `quote.` / `cdeu.`，写成已删除的 `dedup.` 或漏写前缀都会失败），对转存表 `finv_quote_secu_kline_min_export` 固定为 `cdeu.`；其余域表按前缀规则校验。
   5. **现状（`V100088` 起）**：唯一的导出中转表是 `cdeu.finv_quote_secu_kline_min_export`（用户要求从 `export` 域迁入 `cdeu` 域并加 `_export` 后缀，源表已 `DROP`）；后续若再建暂存副本，同样需在本文档 §1 与 §0.2 登记职责与使用人。
 
+### 1.2 `usc` 编码口径（需求 10873）
+
+`usc`（统一证券代码）是证券在各域的唯一标识，主键/关联键都用它：
+
+- 形式：**交易所前缀 + 代码**，前缀 2 位（`SH` / `SZ` / `BJ` / `HK` / `US` 等），代码部分不含分隔符；
+- **SH 指数类（`SH000001`–`SH000999` 区间）自 2026-11-01 起为 6 位**（去掉数字部分前两个 `0`）：
+  `SH000001` → `SH0001`、`SH000985` → `SH0985`；代码侧与上游（`FinvQuantDesign/Scripts/SecuSync`）均已按 6 位产出；
+- 迁移 `V200074` 负责历史数据对齐：8 位 usc **只在没有对应 6 位行时就地改号**（避免撞主键 `finv_security_pkey` 与唯一约束 `uq_finv_security_exchange_code`），已存在 6 位行时以 6 位为准并回填英文名、`flag_enable='1'` 优先、`gmt_create` 取较早值；
+- 8 位重复行**本期保留不删**（用户决策 D7），由后续需求清理；`futu.finv_futu_mapping_security.finv_usc` 已同步为 6 位；
+- 新增/修改证券时**必须**按上述口径生成 `usc`，不得再补前导 `0` 成 8 位；否则会重新产生两套 usc 并导致主键/唯一约束冲突。
+
+
 ## 2. 表命名
 
 - 表名**保留业务前缀**（`finv_quote_*`、`finv_quant_*`），schema 与前缀不重复表述业务——前缀用于跨 schema 检索、日志与 `pg_dump` 过滤，暂不裁剪。
