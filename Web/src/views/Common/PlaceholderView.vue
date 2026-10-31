@@ -37,6 +37,27 @@ const plans: Record<string, { icon: string; desc: string; features: string[] }> 
     desc: '内容管理（CMS）：系统已接入，业务菜单待整合。后续将按 CMS 侧的内容管理菜单（博客、待办、笔记、书签、媒体库等）逐步接入。',
     features: ['内容管理业务菜单接入', '与金融投资系统的统一导航与权限', '跨系统数据与配置共享'],
   },
+  // BRS 备份与恢复（需求 10872）：后端服务已实现，前端 API 待开放
+  'brs-table': {
+    icon: 'mdi-table-cog',
+    desc: '备份登记维护：维护表级备份范围 `brs.brs_bak_rdb_table`（rdb_type / schema_name / table_name / flag_enable / priority 唯一 / bak_scope / compression / where_clause）。',
+    features: ['登记行增删改查与启用开关', 'priority 唯一性与执行顺序校验', '备份范围（both/schema/data）与压缩算法选择'],
+  },
+  'brs-record': {
+    icon: 'mdi-file-clock-outline',
+    desc: '备份记录与产物：查看每日备份结果（`<PREFIX>/Backup/BRS/<yyyyMMdd>/`）下的 dump 产物、大小与上传对象存储的状态。',
+    features: ['按日期/表浏览备份产物与文件大小', '单表备份成功/失败与上传结果汇总', '失败原因与日志（`[brs]` 前缀）联动查看'],
+  },
+  'brs-storage': {
+    icon: 'mdi-cloud-cog-outline',
+    desc: '对象存储配置：维护 `sys.sys_config 39002`（S3 兼容：Cloudflare R2 / AWS S3 / MinIO）的开关、endpoint、bucket、prefix 与凭证。',
+    features: ['对象存储开关与连接参数维护（凭证脱敏展示，不落日志）', '连通性测试与上传结果校验', '按表级 `flag_upload` 控制是否上传'],
+  },
+  'brs-restore-run': {
+    icon: 'mdi-database-arrow-left',
+    desc: '数据恢复：从选定日期的备份产物中挑选表做 `pg_restore` 恢复（支持 --clean --if-exists、按表选择性恢复）。',
+    features: ['按日期与表定位备份产物', '恢复前预检（表是否存在/影响行数/目标库）', '恢复执行与结果回显'],
+  },
 }
 
 const plan = computed(() => plans[route.name as string] ?? {

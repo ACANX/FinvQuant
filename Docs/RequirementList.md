@@ -2569,6 +2569,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10870 | 上生产前必须在**独立测试库**上完整跑一次「全链迁移 + 数据库集成测试」，确认 `V100086`/`V100088`/`V100089` 与 `V200068`–`V200070` 在全新库上按版本顺序执行无错、幂等重跑 0 变更。 | 在空库执行 `FINV_TEST_PG_DSN=... go test -p 1 ./internal/database -run TestMigrateIntegration -v` 通过；`grep -rn "schemaname = 'dedup'\|table_schema = 'dedup'" internal/database/migrate_integration_test.go` 无输出；全链跑完后 `select count(*) from pg_namespace where nspname in ('dedup','dedup_frozen','export')` = 0 | √（2026-10-31 在独立库 `finv_migtest` 验证通过，161 个迁移 0 失败；修复了 `V100086` 提前删 dedup、`V200057` 冲掉 `JOB_EXPLAIN_EXPORT_DECISION`、`V200070` 缺字典等 3 处阻塞） |
 | 10871 | 让 `finv_market` 字典编号体系在「全新库」与「生产库」一致：仓库种子（`V200017`/`V200018`）用的是 `1150 HKFE-F` / `1313 US-OTC` / `1314 US-I2` / `1312 US-ARCA` / `1315 BMS` … 旧编号，生产库现行体系是 `1250 HKFE-F` / `1331 US-OTC` / `1312 US-I2` / `1317 US-ARCA` / `1315 US-NSDQ` / `1330 US-ADR` / `1340 BMS` …；全新库因此有 77 行证券的 `market_code` 落在字典外。需按生产库口径重编号字典并同步证券 `market_code`（或反向统一到种子口径并重生成 `V200062`）。 | 在独立库 `finv_migtest` 全链跑完后 `select count(*) from public.finv_security s left join public.finv_market m on m.market_code=s.market_code where m.market_code is null` = 0；`select count(*) from public.finv_market` 与生产库相同（当前生产库 63 行）；`select market_code,market_flag from public.finv_market where market_flag in ('HKFE-F','US-OTC','US-I2','US-ARCA','US-NSDQ')` 与生产库逐一相同 | √（2026-10-31 由 `V200073` 完成：全新库与生产库 `finv_market` 均 63 行且逐字段一致，两库证券字典外均 0 行） |
 
+## 一百九十三、「备份与恢复」前端二级菜单（10872）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10872 | 前端「金融投资」系统在「量化」二级菜单之后新增「备份与恢复」二级分组（`key='brs'`，`icon=mdi-backup-restore`），下辖「备份管理」「恢复管理」两个三级分组与 4 个占位叶子：备份登记维护（`/Meta/Finv/Brs/Backup/Table`）、备份记录与产物（`/Meta/Finv/Brs/Backup/Record`）、对象存储配置（`/Meta/Finv/Brs/Backup/Storage`）、数据恢复（`/Meta/Finv/Brs/Restore/Run`）；路由前缀 `/Meta/Finv/Brs/`，复用 `PlaceholderView` 并登记各页规划说明，作为后续 BRS 服务（`internal/meta/finv/brs`）前端菜单的扩展位。 | `grep -c "key: 'brs'" Web/src/config/menuConfig.ts` 为 1 且该节点在 `key: 'quant'` 之后；`grep -c "'/Meta/Finv/Brs/" Web/src/router.ts` = 4；`grep -c "'brs-" Web/src/views/Common/PlaceholderView.vue` = 4；菜单全部 `path` 有对应路由、图标有效（`grep -c '\.mdi-backup-restore::before' Web/node_modules/@mdi/font/css/materialdesignicons.css` = 1）、无重复 key；`npm run build`（含 `vue-tsc -b`）通过 | √ |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2794,7 +2800,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 市场码与货币口径收口 | 10869 | 1 |
 | 生产前独立库全链迁移验证 | 10870 | 1 |
 | finv_market 字典编号体系对齐 | 10871 | 1 |
-| **合计** | **10001–10871** | **870** |
+| 「备份与恢复」前端二级菜单 | 10872 | 1 |
+| **合计** | **10001–10872** | **871** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

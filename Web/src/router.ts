@@ -161,6 +161,11 @@ const router = createRouter({
     // 仿真数据验证 / 模拟盘验证 / 实盘仿真验证 / 实盘交易（规划占位）
     // CDEU 域占位页（需求 10865）：CDEU自动化
     { path: '/Meta/Finv/Quote/Cdeu/Automation', name: 'cdeu-automation', component: PlaceholderView, meta: { title: 'CDEU自动化' } },
+    // BRS 备份与恢复域占位页（需求 10872）：后端 internal/meta/finv/brs 尚未开放 HTTP API，先占位
+    { path: '/Meta/Finv/Brs/Backup/Table', name: 'brs-table', component: PlaceholderView, meta: { title: '备份登记维护' } },
+    { path: '/Meta/Finv/Brs/Backup/Record', name: 'brs-record', component: PlaceholderView, meta: { title: '备份记录与产物' } },
+    { path: '/Meta/Finv/Brs/Backup/Storage', name: 'brs-storage', component: PlaceholderView, meta: { title: '对象存储配置' } },
+    { path: '/Meta/Finv/Brs/Restore/Run', name: 'brs-restore-run', component: PlaceholderView, meta: { title: '数据恢复' } },
     { path: '/Meta/Finv/Quant/Simulation/Data', name: 'simulation-data', component: PlaceholderView, meta: { title: '仿真数据验证' } },
     { path: '/Meta/Finv/Quant/Simulation/Paper', name: 'simulation-paper', component: PlaceholderView, meta: { title: '模拟盘验证' } },
     { path: '/Meta/Finv/Quant/Simulation/LiveSim', name: 'simulation-live-sim', component: PlaceholderView, meta: { title: '实盘仿真验证' } },

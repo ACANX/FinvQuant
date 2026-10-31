@@ -301,6 +301,18 @@
   - 验证：`dedup-kline-query` 在菜单配置中出现 1 次且位于 `quote-cdeu` 段内；
     菜单图标全部有效、所有 `path` 均有对应路由、无重复 key；`go test ./internal/docs` 通过。
 
+### 新增
+
+- **前端新增「备份与恢复」二级菜单（需求 10872）**
+  - 「金融投资 → 量化」之后新增「备份与恢复」二级分组（`key='brs'`，`mdi-backup-restore`），下辖两个三级分组：
+    「备份管理」→ 备份登记维护 / 备份记录与产物 / 对象存储配置；「恢复管理」→ 数据恢复。
+  - 全部 4 个叶子先复用 `PlaceholderView` 占位（`/Meta/Finv/Brs/Backup/Table|Record|Storage`、`/Meta/Finv/Brs/Restore/Run`），
+    页内登记 BRS 现网实现要点（`brs.brs_bak_rdb_table`、cron `39001`、S3 上传 `39002`）与规划功能。
+  - 原因：后端 `internal/meta/finv/brs` 已实现调度/pg_dump 表级备份/对象存储上传，但尚未开放 HTTP API，
+    前端先建菜单骨架，后续 brs 服务相关页面在 `/Meta/Finv/Brs/` 前缀下继续追加。
+  - 改动：`Web/src/config/menuConfig.ts`、`Web/src/router.ts`、`Web/src/views/Common/PlaceholderView.vue`；
+    `npm run build`（含 `vue-tsc -b`）通过。
+
 ### 修复
 
 - **全新库全链迁移跑不通（独立库 `finv_migtest` 验证发现，4 处修复）**

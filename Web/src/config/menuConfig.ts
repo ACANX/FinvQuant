@@ -181,6 +181,37 @@ const finvQuantMenu: MenuNode[] = [
       },
     ],
   },
+  {
+    // 「备份与恢复」二级分组（需求 10872 建立；BRS = Backup & Restore Service）。
+    // 后端 internal/meta/finv/brs 已实现调度（cron 39001）、表级 pg_dump 备份与 S3 兼容
+    // 对象存储上传（39002），目前尚未开放 HTTP API，故本轮前端先落占位页；
+    // 分组前缀 /Meta/Finv/Brs/，后续 brs 服务相关菜单在此二级分组下继续追加。
+    key: 'brs',
+    title: '备份与恢复',
+    icon: 'mdi-backup-restore',
+    children: [
+      {
+        // 备份管理（三级分组）：备份范围登记、备份产物与记录、对象存储上传配置。
+        key: 'brs-manage',
+        title: '备份管理',
+        icon: 'mdi-content-save-cog-outline',
+        children: [
+          { key: 'brs-table', title: '备份登记维护', icon: 'mdi-table-cog', path: '/Meta/Finv/Brs/Backup/Table' },
+          { key: 'brs-record', title: '备份记录与产物', icon: 'mdi-file-clock-outline', path: '/Meta/Finv/Brs/Backup/Record' },
+          { key: 'brs-storage', title: '对象存储配置', icon: 'mdi-cloud-cog-outline', path: '/Meta/Finv/Brs/Backup/Storage' },
+        ],
+      },
+      {
+        // 恢复管理（三级分组）：按备份产物选择表做恢复（pg_restore）。
+        key: 'brs-restore',
+        title: '恢复管理',
+        icon: 'mdi-restore',
+        children: [
+          { key: 'brs-restore-run', title: '数据恢复', icon: 'mdi-database-arrow-left', path: '/Meta/Finv/Brs/Restore/Run' },
+        ],
+      },
+    ],
+  },
 ]
 
 /** 内容管理（CMS，本轮仅占位，业务菜单后续整合） */
