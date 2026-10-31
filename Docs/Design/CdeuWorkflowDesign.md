@@ -163,16 +163,16 @@ quote.finv_quote_secu_kline_min ──► cdeu.finv_quote_secu_kline_min（主�
       └──────────────── ⑥ 复核：超时回收 / 健康检查 / 数据释放 / 运行记录保留
 ```
 
-关键隔离：**主表 `cdeu.` 是唯一加工口径，中转表 `export.` 只做导出期间的临时落地区，回测副本 `quote.` 本工作流只读**。仓库 `DbSchemaSpec` §0 禁止把三张同名表合并（历史事故见该文档第 70 行）。
+关键隔离：**主表 `cdeu.` 是唯一加工口径，中转表 `cdeu.finv_quote_secu_kline_min_export`（`V100088` 自 `export.` 域迁入）只做导出期间的临时落地区，回测副本 `quote.` 本工作流只读**。仓库 `DbSchemaSpec` §0 禁止把三张同名表合并（历史事故见该文档第 70 行）。
 
 ### 3.2 代码分层
 
 | 目录 | 职责 |
 |---|---|
-| `internal/meta/finv/quote/dedup/` | 领域核心：运行层（`cdeu*.go`）、存储层（`store*.go`）、导出/上传/补丁实现（`job_export.go`、`job_upload.go`、`job_patch.go`） |
-| `internal/meta/finv/quote/dedup/job/` | 22 个 JOB 的执行体，每个 JOB 一个文件，`init()` 里注册到 JOB 注册表 |
-| `internal/meta/finv/quote/dedup/jobmeta/` | JOB 的调度元数据（触发时间、顺序），`jobmeta.All()` 决定调度器看到的顺序 |
-| `internal/meta/finv/quote/dedup/job/…` + `jobmeta/` | 拆包原则：`dedup` 包不感知具体调度清单，新增 JOB 只需在 `job/` 加文件并登记 `jobmeta` |
+| `internal/meta/finv/quote/cdeu/` | 领域核心：运行层（`cdeu*.go`）、存储层（`store*.go`）、导出/上传/补丁实现（`job_export.go`、`job_upload.go`、`job_patch.go`） |
+| `internal/meta/finv/quote/cdeu/job/` | 22 个 JOB 的执行体，每个 JOB 一个文件，`init()` 里注册到 JOB 注册表 |
+| `internal/meta/finv/quote/cdeu/jobmeta/` | JOB 的调度元数据（触发时间、顺序），`jobmeta.All()` 决定调度器看到的顺序 |
+| `internal/meta/finv/quote/cdeu/job/…` + `jobmeta/` | 拆包原则：`cdeu` 包不感知具体调度清单，新增 JOB 只需在 `job/` 加文件并登记 `jobmeta` |
 | `internal/meta/finv/quote/mvsv/` | MVSV-1/2 文件的解析与写出（与归档共用格式实现） |
 | `internal/meta/finv/sys/` | `sys.sys_config` 配置读写（20001–20012），带 TTL 缓存 |
 | `internal/api/handler/{cdeu.go,cdeu_admin.go}` | 页面接口：概览、运行历史、JOB 手动触发、暂停/取消、成熟度重算 |
@@ -633,19 +633,19 @@ COLLECT ──► DEDUP ──► DECISION ──► EXPORT ──► UPLOAD ─
 
 | 文件 | 职责 |
 |---|---|
-| `internal/meta/finv/quote/dedup/cdeu.go` | 运行层：状态常量、完成条件、执行上下文、阶段推进、逐级评估入口 |
-| `internal/meta/finv/quote/dedup/cdeu_store.go` | 运行表读写、层级评估 SQL、历史运行树、终止与清理 |
-| `internal/meta/finv/quote/dedup/cdeu_admin.go` | 页面接口：概览树、运行历史、暂停/取消、成熟度重算 |
-| `internal/meta/finv/quote/dedup/job_export.go` | 单证券月 LOAD → EXPORT → CLEANUP 与动态 JOB 编排 |
-| `internal/meta/finv/quote/dedup/job_patch.go` | 补丁候选、L1/L2/L3 分级、INCR 写出 |
-| `internal/meta/finv/quote/dedup/job_upload.go` | 单文件上传（校验、幂等、审计、退避） |
-| `internal/meta/finv/quote/dedup/job_health.go` | 健康指标汇总与告警构建 |
-| `internal/meta/finv/quote/dedup/job_stats.go` | 预算计算与统计聚合 |
-| `internal/meta/finv/quote/dedup/job_maturity.go` | 收口日与可定稿月份计算 |
-| `internal/meta/finv/quote/dedup/naming.go` | 文件名、16 行文件头、数值文本规则 |
-| `internal/meta/finv/quote/dedup/store*.go` | 主表/中转表/批次/文件/预算/成熟度/水位的 SQL |
-| `internal/meta/finv/quote/dedup/job/*.go` | 22 个 JOB 的执行体（每个 JOB 一个文件，`init()` 注册） |
-| `internal/meta/finv/quote/dedup/jobmeta/*.go` | JOB 调度元数据与顺序清单 |
-| `internal/meta/finv/quote/dedup/scheduler.go` | 定时触发与窗口/预算前置检查 |
+| `internal/meta/finv/quote/cdeu/cdeu.go` | 运行层：状态常量、完成条件、执行上下文、阶段推进、逐级评估入口 |
+| `internal/meta/finv/quote/cdeu/cdeu_store.go` | 运行表读写、层级评估 SQL、历史运行树、终止与清理 |
+| `internal/meta/finv/quote/cdeu/cdeu_admin.go` | 页面接口：概览树、运行历史、暂停/取消、成熟度重算 |
+| `internal/meta/finv/quote/cdeu/job_export.go` | 单证券月 LOAD → EXPORT → CLEANUP 与动态 JOB 编排 |
+| `internal/meta/finv/quote/cdeu/job_patch.go` | 补丁候选、L1/L2/L3 分级、INCR 写出 |
+| `internal/meta/finv/quote/cdeu/job_upload.go` | 单文件上传（校验、幂等、审计、退避） |
+| `internal/meta/finv/quote/cdeu/job_health.go` | 健康指标汇总与告警构建 |
+| `internal/meta/finv/quote/cdeu/job_stats.go` | 预算计算与统计聚合 |
+| `internal/meta/finv/quote/cdeu/job_maturity.go` | 收口日与可定稿月份计算 |
+| `internal/meta/finv/quote/cdeu/naming.go` | 文件名、16 行文件头、数值文本规则 |
+| `internal/meta/finv/quote/cdeu/store*.go` | 主表/中转表/批次/文件/预算/成熟度/水位的 SQL |
+| `internal/meta/finv/quote/cdeu/job/*.go` | 22 个 JOB 的执行体（每个 JOB 一个文件，`init()` 注册） |
+| `internal/meta/finv/quote/cdeu/jobmeta/*.go` | JOB 调度元数据与顺序清单 |
+| `internal/meta/finv/quote/cdeu/scheduler.go` | 定时触发与窗口/预算前置检查 |
 | `internal/meta/finv/quote/mvsv/` | MVSV-1/2 解析与写出（格式契约实现） |
 | `Deploy/Migrations/V1000xx__finv_dedup_cdeu_*.sql` | 定义数据与表结构演进 |

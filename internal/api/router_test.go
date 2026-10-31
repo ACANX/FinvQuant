@@ -13,7 +13,7 @@ import (
 
 	"github.com/acanx/finvquant/internal/config"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
-	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
 )
 
 func newTestRouter(t *testing.T) *gin.Engine {
@@ -34,7 +34,7 @@ func newTestRouterWithConfig(t *testing.T, cfg *config.Config) *gin.Engine {
 		t.Fatalf("创建测试连接池失败: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	archiveService, err := dedup.NewService(pool, dedup.Options{UploadMode: dedup.UploadModeNone})
+	archiveService, err := cdeu.NewService(pool, cdeu.Options{UploadMode: cdeu.UploadModeNone})
 	if err != nil {
 		t.Fatalf("创建归档服务失败: %v", err)
 	}

@@ -20,9 +20,17 @@
 
 ### 新增
 
+- **`dedup` 包整体迁入 `cdeu` 域（`internal/meta/finv/quote/cdeu`）**
+  - 背景：该包原在 `internal/meta/finv/quote/dedup`、包名 `dedup`，与已删除的 `dedup` schema 同名，容易被误读为「去重域」；实际它承载的是 CDEU 归档工作流（日志前缀早已是 `[cdeu]`、全部读写 `cdeu.*` 表），应与 `cdeu/kline` 同域。
+  - 迁移范围：`internal/meta/finv/quote/dedup/**`（42 个 Go 文件，含 `job/` 22 个 JOB 执行体、`jobmeta/` 调度元数据两个子包）→ `internal/meta/finv/quote/cdeu/**`；包名 `dedup` → `cdeu`（含测试包 `dedup_test` → `cdeu_test`），子包 `job` / `jobmeta` 包名不变。
+  - 引用同步：`cmd/server/main.go`（含 `_` 导入 `cdeu/job` 注册 JOB）、`internal/api/router.go`、`internal/api/router_test.go`、`internal/api/handler/cdeu.go`、`internal/api/handler/cdeu_admin.go` 以及 `cdeu/job/*` 的 import 路径与包限定符（`dedup.Xxx` → `cdeu.Xxx`）全部更新。
+  - 冲突处理：`cdeu/` 目录原先只有 `kline/` 子包、无根级 `.go` 文件，未发生同名文件冲突；`kline` 与 `cdeu` 是不同目录的不同包，无标识符冲突；上述引用方均未占用 `cdeu` 局部标识符，可直接用 `cdeu.` 限定（无需 import alias）。
+  - 文档：`Docs/Design/CdeuWorkflowDesign.md` 代码分层表、`Docs/DevSpec/DbSchemaSpec.md` §3.1 的运行包路径同步；`Docs/RequirementList.md` / `Docs/Refactor/*` / CHANGELOG 历史条目属历史记录，按「只增不改」保留原文。
+  - 验证：`go build ./...`、`go vet ./...` 无输出；`go test ./internal/...` 除 `internal/meta/finv/quote/cdeu` 的 `TestDirUploader`（Windows 下 `/abs/escape.mvsv` 路径语义，已用 `git stash` 复核确认与本次无关）外全部通过。
+
 - **导出中转表从 `export` 域迁入 `cdeu` 域（`V100088`）**
   - 新增迁移 `Deploy/Migrations/V100088__move_export_kline_staging_to_cdeu.sql`：建 `cdeu.finv_quote_secu_kline_min_export`（与 `cdeu.finv_quote_secu_kline_min` 同构，`LIKE ... INCLUDING DEFAULTS/CONSTRAINTS/INDEXES/STORAGE/COMMENTS`，触发器 `trg_finv_quote_secu_kline_min_export_gmt_update` 单独补齐），搬迁 `export.finv_quote_secu_kline_min` 存量行（`ON CONFLICT DO NOTHING`，本地库实测 0 行）后 `DROP` 源表；`export` schema 保留为空（删除 schema 需单独授权）。迁移幂等，重跑影响 0 行，末尾收敛校验（列数/主键/触发器/源表已删）不符即回滚。
-  - 代码：`internal/meta/finv/quote/dedup/store.go` 的中转表常量 `tableStaging` 改为 `cdeu.finv_quote_secu_kline_min_export`（`LOAD`/`EXPORT`/`CLEANUP`/补丁链路全部随之生效，无需逐处改 SQL）；`model.go`、`job_patch.go` 注释同步；两个集成测试的清理语句改为新表。
+  - 代码：`internal/meta/finv/quote/cdeu/store.go` 的中转表常量 `tableStaging` 改为 `cdeu.finv_quote_secu_kline_min_export`（`LOAD`/`EXPORT`/`CLEANUP`/补丁链路全部随之生效，无需逐处改 SQL）；`model.go`、`job_patch.go` 注释同步；两个集成测试的清理语句改为新表。
   - 防回归闸门：`internal/database/schema_qualify_test.go` 的 `exactTableSchema` 把 `finv_quote_secu_kline_min` 白名单收敛为 `quote.` / `cdeu.`（不再允许 `export.`），并为 `finv_quote_secu_kline_min_export` 固定 schema 为 `cdeu.`（否则会被 `finv_quote_` 前缀规则误判为需写 `quote.`）。
   - 文档：`Docs/DevSpec/DbSchemaSpec.md` 同步 §0.2 保护名单、§1 schema 划分表（`export` 域暂无表、`cdeu` 域 27 → 28 张）、§3.1 同名转存表规则与实例清单。
   - 验证：`go build ./...` 通过、`go test ./internal/database -run TestSQLSchemaQualified` 通过、`cdeu/kline` 单测通过；`dedup` 包的 `TestDirUploader` 在 Windows 上失败（`/abs/escape.mvsv` 路径语义），已用 `git stash` 对比确认与本次改动无关。

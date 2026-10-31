@@ -25,8 +25,8 @@ import (
 	"github.com/acanx/finvquant/internal/logging"
 	"github.com/acanx/finvquant/internal/meta/finv/auth"
 	"github.com/acanx/finvquant/internal/meta/finv/brs"
-	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
-	_ "github.com/acanx/finvquant/internal/meta/finv/quote/dedup/job"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
+	_ "github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/job"
 	"github.com/acanx/finvquant/internal/meta/finv/sys"
 	"github.com/acanx/finvquant/internal/redisclient"
 	"github.com/acanx/finvquant/internal/static"
@@ -95,14 +95,14 @@ func main() {
 
 	// 证券行情月归档导出与上传：服务始终创建（运维接口可用），
 	// 自动化调度受 FINV_QUOTE_DEDUB_ENABLED 功能开关控制（M-10）。
-	archiveService, err := dedup.NewService(pool, dedup.OptionsFromConfig(cfg))
+	archiveService, err := cdeu.NewService(pool, cdeu.OptionsFromConfig(cfg))
 	if err != nil {
 		log.Fatalf("[finvquant] 初始化导出归档服务失败: %v", err)
 	}
 	// 低峰窗口与 CDEU 运行模式不再在启动时加载到内存：两者统一从 sys.sys_config
 	// （20006 / 20005）读取，由 syscfg.Store 的 30s TTL 缓存保证在线修改即时生效。
 	if cfg.QuoteDeDupEnabled {
-		go dedup.NewScheduler(archiveService).Run(ctx)
+		go cdeu.NewScheduler(archiveService).Run(ctx)
 		log.Printf("[finvquant] 导出归档调度已启用（上传模式 %s）", archiveService.Uploader().Mode())
 	} else {
 		log.Printf("[finvquant] 导出归档调度未启用（FINV_QUOTE_DEDUB_ENABLED=false），仅提供运维接口")

@@ -12,7 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
 	"github.com/acanx/finvquant/internal/meta/finv/sys"
 )
 
@@ -20,11 +20,11 @@ import (
 //
 // 路径前缀：/API/V1/Meta/Finv/Quote/DeDup/**
 type ExportArchive struct {
-	service *dedup.Service
+	service *cdeu.Service
 }
 
 // NewExportArchive 创建处理器。
-func NewExportArchive(service *dedup.Service) *ExportArchive {
+func NewExportArchive(service *cdeu.Service) *ExportArchive {
 	return &ExportArchive{service: service}
 }
 
@@ -64,7 +64,7 @@ func (h *ExportArchive) Status(c *gin.Context) {
 		"data": gin.H{
 			"metrics": metrics,
 			"options": optionsData,
-			"jobs":    dedup.JobRuntimes(),
+			"jobs":    cdeu.JobRuntimes(),
 		},
 	})
 }
@@ -159,7 +159,7 @@ func (h *ExportArchive) CDEUWorkflowRun(c *gin.Context) {
 	}
 	runID, err := h.service.StartCDEUWorkflow(c.Request.Context(), operator)
 	if err != nil {
-		if errors.Is(err, dedup.ErrCDEUWorkflowActive) {
+		if errors.Is(err, cdeu.ErrCDEUWorkflowActive) {
 			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": err.Error()})
 			return
 		}
@@ -194,11 +194,11 @@ func (h *ExportArchive) CDEUWorkflowTerminate(c *gin.Context) {
 	result, err := h.service.TerminateCDEUWorkflow(c.Request.Context(), request.RunID)
 	if err != nil {
 		switch {
-		case errors.Is(err, dedup.ErrCDEURunTerminal):
+		case errors.Is(err, cdeu.ErrCDEURunTerminal):
 			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": err.Error()})
-		case errors.Is(err, dedup.ErrCDEUWorkflowActive):
+		case errors.Is(err, cdeu.ErrCDEUWorkflowActive):
 			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "没有运行中的 CDEU 工作流可终止"})
-		case errors.Is(err, dedup.ErrCDEURunNotFound):
+		case errors.Is(err, cdeu.ErrCDEURunNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "CDEU 工作流运行实例不存在"})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "终止 CDEU 工作流失败: " + err.Error()})
@@ -224,7 +224,7 @@ func (h *ExportArchive) CDEUOverview(c *gin.Context) {
 	historyLimit, _ := queryIntParam(c, "historyLimit")
 	overview, err := h.service.CDEUOverview(c.Request.Context(), runID, historyLimit)
 	if err != nil {
-		if errors.Is(err, dedup.ErrCDEURunNotFound) {
+		if errors.Is(err, cdeu.ErrCDEURunNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "CDEU 工作流运行实例不存在"})
 			return
 		}
@@ -243,7 +243,7 @@ func (h *ExportArchive) RunLogDetail(c *gin.Context) {
 	}
 	detail, err := h.service.RunLogDetail(c.Request.Context(), int64(runIDValue))
 	if err != nil {
-		if errors.Is(err, dedup.ErrRunLogNotFound) {
+		if errors.Is(err, cdeu.ErrRunLogNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "Job 运行记录不存在"})
 			return
 		}
@@ -255,7 +255,7 @@ func (h *ExportArchive) RunLogDetail(c *gin.Context) {
 
 // JobList 分页查询证券月导出任务（GET .../Job/List）。
 func (h *ExportArchive) JobList(c *gin.Context) {
-	filter := dedup.JobFilter{
+	filter := cdeu.JobFilter{
 		Status: strings.TrimSpace(c.Query("status")),
 		Usc:    strings.TrimSpace(c.Query("usc")),
 	}
@@ -275,7 +275,7 @@ func (h *ExportArchive) JobList(c *gin.Context) {
 
 // FileList 分页查询导出文件登记与上传状态（GET .../File/List）。
 func (h *ExportArchive) FileList(c *gin.Context) {
-	filter := dedup.FileFilter{
+	filter := cdeu.FileFilter{
 		UploadStatus: strings.TrimSpace(c.Query("uploadStatus")),
 		FileType:     strings.TrimSpace(c.Query("fileType")),
 		Usc:          strings.TrimSpace(c.Query("usc")),

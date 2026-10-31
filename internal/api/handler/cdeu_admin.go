@@ -10,15 +10,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
 )
 
 // 本文件实现归档运维台的查询接口与管理員编辑接口（路径前缀 /API/V1/Meta/Finv/Quote/DeDup/）。
 // 约定：写操作成功后会追加一条管理审计（finv_dedup_job_run_log_export_file，job_kind=MANUAL_ADMIN_EDIT）。
 
 // adminFilter 从查询参数解析通用过滤条件。
-func adminFilter(c *gin.Context) dedup.AdminFilter {
-	filter := dedup.AdminFilter{
+func adminFilter(c *gin.Context) cdeu.AdminFilter {
+	filter := cdeu.AdminFilter{
 		Usc:      strings.TrimSpace(c.Query("usc")),
 		Keyword:  strings.TrimSpace(c.Query("keyword")),
 		Status:   strings.TrimSpace(c.Query("status")),
@@ -90,7 +90,7 @@ func (h *ExportArchive) UscUpsert(c *gin.Context) {
 			return
 		}
 	}
-	input := dedup.UscUpsertInput{
+	input := cdeu.UscUpsertInput{
 		Usc:              strings.TrimSpace(request.Usc),
 		Category:         request.Category,
 		DayExpectRows:    request.DayExpectRows,
@@ -138,7 +138,7 @@ func (h *ExportArchive) PriorityUpsert(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "priority_rank 必须为正整数，sla_days / max_wait_days 不能为负"})
 		return
 	}
-	input := dedup.PriorityUpsertInput{
+	input := cdeu.PriorityUpsertInput{
 		Usc:          strings.TrimSpace(request.Usc),
 		PriorityRank: request.PriorityRank,
 		SlaDays:      request.SlaDays,
@@ -146,7 +146,7 @@ func (h *ExportArchive) PriorityUpsert(c *gin.Context) {
 	}
 	if err := h.service.Store().SetUscPriority(c.Request.Context(), input.Usc, &input); err != nil {
 		status := http.StatusInternalServerError
-		if errors.Is(err, dedup.ErrUscNotFound) {
+		if errors.Is(err, cdeu.ErrUscNotFound) {
 			status = http.StatusNotFound
 		}
 		c.JSON(status, gin.H{"code": status, "message": "更新优先级失败: " + err.Error()})
@@ -167,7 +167,7 @@ func (h *ExportArchive) PriorityDelete(c *gin.Context) {
 	// V200051 起「删除优先级」等价于「清空覆盖」，证券行本身保留。
 	if err := h.service.Store().SetUscPriority(c.Request.Context(), usc, nil); err != nil {
 		status := http.StatusInternalServerError
-		if errors.Is(err, dedup.ErrUscNotFound) {
+		if errors.Is(err, cdeu.ErrUscNotFound) {
 			status = http.StatusNotFound
 		}
 		c.JSON(status, gin.H{"code": status, "message": "清除优先级失败: " + err.Error()})
@@ -202,7 +202,7 @@ func (h *ExportArchive) CalendarUpsert(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "trade_date 应为 yyyymmdd 整数"})
 		return
 	}
-	input := dedup.CalendarUpsertInput{
+	input := cdeu.CalendarUpsertInput{
 		Usc:          strings.TrimSpace(request.Usc),
 		TradeDate:    request.TradeDate,
 		FlagTradeDay: request.FlagTradeDay,
@@ -243,7 +243,7 @@ func (h *ExportArchive) MaturityPage(c *gin.Context) {
 
 // MaturityRefresh 触发成熟度重算（POST .../Maturity/Refresh）。
 func (h *ExportArchive) MaturityRefresh(c *gin.Context) {
-	h.runJobAsync(c, dedup.JobRefreshQuoteMaturity, "REFRESH_QUOTE_MATURITY")
+	h.runJobAsync(c, cdeu.JobRefreshQuoteMaturity, "REFRESH_QUOTE_MATURITY")
 }
 
 // StatsPage 分页查询每日入口统计（GET .../Stats/Page）。
@@ -299,7 +299,7 @@ func (h *ExportArchive) BudgetOverride(c *gin.Context) {
 		}
 		bizDate = parsed
 	}
-	input := dedup.BudgetOverrideInput{
+	input := cdeu.BudgetOverrideInput{
 		BudgetRows:  request.BudgetRows,
 		HardCapRows: request.HardCapRows,
 		Factor:      request.Factor,
@@ -396,12 +396,12 @@ func (h *ExportArchive) PatchRetry(c *gin.Context) {
 
 // JobPause 暂停导出任务（POST .../Job/Pause）。
 func (h *ExportArchive) JobPause(c *gin.Context) {
-	h.setJobStatus(c, dedup.JobStatusPaused, "管理员暂停")
+	h.setJobStatus(c, cdeu.JobStatusPaused, "管理员暂停")
 }
 
 // JobCancel 取消导出任务（POST .../Job/Cancel，置为 FAILED 并记录原因）。
 func (h *ExportArchive) JobCancel(c *gin.Context) {
-	h.setJobStatus(c, dedup.JobStatusFailed, "管理员取消")
+	h.setJobStatus(c, cdeu.JobStatusFailed, "管理员取消")
 }
 
 // setJobStatus 解析 job_id 并变更任务状态。
@@ -467,7 +467,7 @@ func (h *ExportArchive) StockPage(c *gin.Context) {
 	if !ok || pageSize <= 0 {
 		pageSize = 100
 	}
-	filter := dedup.StockFilter{
+	filter := cdeu.StockFilter{
 		BizMonth: bizMonth,
 		Usc:      strings.TrimSpace(c.Query("usc")),
 		Limit:    pageSize,

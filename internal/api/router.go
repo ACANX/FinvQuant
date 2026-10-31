@@ -16,7 +16,7 @@ import (
 	"github.com/acanx/finvquant/internal/meta/finv/quant/backtest"
 	"github.com/acanx/finvquant/internal/meta/finv/quote"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
-	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
 )
 
 // Deps 路由依赖。
@@ -27,7 +27,7 @@ type Deps struct {
 	Commit        string
 	Server        string
 	Config        *config.Config
-	ExportArchive *dedup.Service
+	ExportArchive *cdeu.Service
 	// Auth 登录认证服务；为 nil 时不启用登录校验（仅供单元测试构造）。
 	// 生产环境由 cmd/server 注入，任何业务请求都必须携带有效令牌。
 	Auth *auth.Service
