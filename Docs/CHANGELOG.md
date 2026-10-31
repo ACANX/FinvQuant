@@ -315,6 +315,14 @@
 
 ### 新增
 
+- **修正 `USDIndex` 的 `type_secu_sub` 为 `CIX`（需求 10875，迁移 `V200075`）**
+  - 背景：`finv_security.type_secu_sub` 应与所属市场的 `market_symbol` 一致（1251→`CER`、1252→`CFD`、1253→`CIX`）。`USDIndex`（美元指数）由 `V200062` 从 Supabase 导入时，上游 `sub_instrument_type=10001` 被统一映射成 `CER`，导致它挂 1253（`FX-IDX`/`CIX`）却带 `CER`。
+  - 改动：仅 `usc='USDIndex'` 一行 `CER` → `CIX`；不动 `market_code`/`currency_type`/`flag_enable`，也不动小写 `USDindex`（`V200003` 老种子、`type_secu_sub` 本为空串）。
+  - 校验：`USDIndex.type_secu_sub='CIX'`；1253 市场下非空 `type_secu_sub` 全部为 `CIX`；小写 `USDindex` 仍为空串；`V200075` 重跑影响 0 行；全新库全链（165 个迁移）0 失败、`TestMigrateIntegration` 通过；生产库 `V200075` 登记 `t`、Live/Web 200。
+  - 文档：`RequirementList` 新增 10875（汇总 10001–10875 / 874 条）。
+
+### 新增
+
 - **登记待办：兼容期 8 位 usc 重复行延后清理（需求 10874）**
   - `public.finv_security` 中 22 行 8 位 usc（`SH000002`…`SH000985`）**为兼容保留**，`V200074` 按决策 D7 暂不删除；代码、采集与 CDEU 链路均已走 6 位，不影响功能。
   - 计划：待**下月初（2026-12 月初）上游数据更新完成后**再统一清理；删除条件固定为「同 usc 的 6 位行已存在且字段完整」（`DELETE ... WHERE usc ~ '^SH[0-9]{6}$' AND EXISTS (同 usc 的 6 位行)`），脚本须幂等可重跑，执行前 `pg_dump` 备份到 `Deploy/Backup/`。
