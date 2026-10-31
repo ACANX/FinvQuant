@@ -2580,6 +2580,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
 | 10873 | 上游证券代码口径调整后（`SH000001`~`SH000999` → `SH0001`~`SH0999`，去掉数字部分前两个 `0`），生产库历史数据需对齐且不得因主键/唯一约束冲突导致脚本失败：`V200074` 对 8 位 usc 只在**没有对应 6 位行**时就地改号（`usc` + `security_code` 同步，双 `NOT EXISTS` 避 `finv_security_pkey` 与 `uq_finv_security_exchange_code`），已存在 6 位行时以 6 位为准回填英文名（D1）、`flag_enable='1'` 优先（D2）、`gmt_create` 取较早值（D3）；`SH0985` 对齐为 `exchange_code=11` / `security_code='SH0985'`（D4）、`security_type` 保留 6 位现网值（D5）；`SH0001` 的 `security_code` 归一为 `'SH0001'`（D8）；`futu.finv_futu_mapping_security.finv_usc` 同步 6 位；其余 17 张含 `usc` 的表本期只巡检不处理（D6）、8 位重复行暂不删除（D7）。 | 独立库与生产库执行后 `select count(*) from public.finv_security where usc ~ '^SH[0-9]{4}$'` = 317、`select count(*) from public.finv_security where usc ~ '^SH[0-9]{6}$'` = 22（D7 保留）、`select count(*) from public.finv_security where usc ~ '^SH[0-9]{4}$' and security_code ~ '^SH[0-9]{6}$'` = 0、`select count(*) from futu.finv_futu_mapping_security where finv_usc ~ '^SH[0-9]{6}$'` = 0、`select concat(exchange_code, '/', security_code) from public.finv_security where usc='SH0985'` = `11/SH0985`、`select security_code from public.finv_security where usc='SH0001'` = `SH0001`；`select success from public.schema_version where version='200074'` 为 `t`；`V200074` 重跑全部 0 行影响；`go test -p 1 ./internal/database -run TestMigrateIntegration` 通过 | √ |
+| 10874 | 【**待办**】`public.finv_security` 中 22 行 8 位 usc（`SH000002`…`SH000985`）是**为兼容保留**的重复记录（迁移 `V200074` 按决策 D7 未删除，6 位行为准、代码与采集均走 6 位）。暂不处理；待**下月初（2026-12 月初）上游数据更新完成后**再评估并清理：删除条件必须是「同 usc 的 6 位行已存在且字段完整」（`DELETE ... WHERE usc ~ '^SH[0-9]{6}$' AND EXISTS (同 usc 的 6 位行)`），脚本需幂等可重跑，执行前 `pg_dump` 备份到 `Deploy/Backup/`。 | 保留期：`select count(*) from public.finv_security where usc ~ '^SH[0-9]{6}$'` = 22 且 `select count(*) from public.finv_security where usc ~ '^SH[0-9]{4}$'` = 317；清理后：8 位行 = 0、6 位行 = 317，且两个库（`finv` / 全新库）一致；清理脚本重跑影响 0 行；`select success from public.schema_version where version='<清理迁移编号>'` 为 `t` | |
 
 ## 汇总
 
@@ -2808,7 +2809,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | finv_market 字典编号体系对齐 | 10871 | 1 |
 | 「备份与恢复」前端二级菜单 | 10872 | 1 |
 | SH 指数类 usc 8 位改 6 位 | 10873 | 1 |
-| **合计** | **10001–10873** | **872** |
+| 兼容期 8 位 usc 重复行延后清理（待办） | 10874 | 1 |
+| **合计** | **10001–10874** | **873** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
