@@ -310,7 +310,8 @@
   - 修复三：新增 `V200072__cdeu_restore_explain_export_decision_job.sql` —— `V100085` 插入的 `JOB_EXPLAIN_EXPORT_DECISION` 在全新库上会被 `V200057`（“cdeu 配置落后时清空重灌”）删掉，导致全新库 22 个 JOB、生产库 23 个；幂等补回后两边收敛到 23。
   - 修复四：`internal/database/migrate_integration_test.go` 的过期断言对齐生产库现状（CDEU 初始数据 1/6/17/23/15、`PHASE_REVIEW` 下 5 个 Process、`PROCESS_RECOVER` 归 `PHASE_REVIEW`、`PROCESS_HISTORY_INGEST` 挂 1 个 JOB、`PROCESS_EXPORT_DECISION` 挂 2 个 JOB、`jobs_without_step=8`）。
   - 验证：在独立库 `finv_migtest` 上 `TestMigrateIntegration` **通过**（161 个迁移全链执行 + 幂等重跑 + 表/索引/列/种子断言）；生产库重建镜像后 `V200071`/`V200072` 登记为 `t`，`dedup`/`dedup_frozen` 不存在、JOB 数 23、字典外证券 0 行。
-  - **待解决（需求 10871）**：仓库种子（`V200017`/`V200018`）的 `finv_market` 编号体系（`1150 HKFE-F` / `1313 US-OTC` / `1314 US-I2` / `1312 US-ARCA` …）与生产库现行体系（`1250 HKFE-F` / `1331 US-OTC` / `1312 US-I2` / `1317 US-ARCA` / `1315 US-NSDQ` …）不一致 —— 全新库因此仍有 **77 行证券的 `market_code` 落在字典外**。需另起迁移把字典与证券按生产库口径对齐。
+  - 修复四：**`V200073__finv_market_align_with_production.sql`（需求 10871）** —— 仓库种子（`V200017`/`V200018`）的 `finv_market` 编号体系（`1150 HKFE-F` / `1313 US-OTC` / `1314 US-I2` / `1312 US-ARCA` / `1315 BMS` …）与生产库现行体系（`1250 HKFE-F` / `1331 US-OTC` / `1312 US-I2` / `1317 US-ARCA` / `1315 US-NSDQ` / `1340 BMS` …）不一致，全新库因此有 77 行证券落在字典外。按「以生产库为准」（用户明确）重编号 9 行、补齐 3 行（`US-NSDQ`/`US-NYSE`/`US-BATS`）、并以生产库现值全量对齐 63 行属性；同时把另一批仍为 `market_code=0` 的 41 行历史种子按生产库同 `usc` 现值回填（`SH000001` 生产库已治理改名为 `SH0001`，按「上交所指数 → 1110」定值）。顺带修正生产库 `market_code=1110` 的乱码名称 `'??? A ?'` → `'上交所 A 股'`。
+  - 收口结果：全新库与生产库 `finv_market` 均 63 行且逐字段一致（仅上述 1110 名称已修）；两库 `finv_security` 字典外均为 **0** 行、`market_code=0` 均为 0 行；剩余 4 行归属差异来自历史 `usc` 治理（`000680`/`000985` 在生产库已改名为 `SH0680`/`SH0985`），属既定差异。
 
 - **元数据域改名后残留一处旧名注释（需求 10852 附带修复）**
   - 现象：`Web/src/config/menuConfig.ts` 中「历史行情数据导入」叶子的注释仍写着
