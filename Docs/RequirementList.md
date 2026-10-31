@@ -2623,6 +2623,13 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10886 | 【**待办**】「当日累计均价」字段名调整。**现状口径（三处并不一致）**：① 数据库列名 `paocd`，存在于 `cdeu.finv_quote_secu_kline_min`、`cdeu.finv_quote_secu_kline_min_export`、`quote.finv_quote_secu_kline_min` 三张表；② 对外 API 字段名 **`pacd`**（`internal/meta/finv/quote/cdeu/kline/model.go` 的 `ColPaocd = "paocd" // 库列名；对外 API 字段为 pacd`、`request.go` 的 `Pacd OptDec \`json:"pacd"\``）；③ 导出 `.mvsv` V2 头部字段名 `paocd`（`mvsv/writer_v2.go` 的 `v2FieldNames` / `parser_v2.go` 同时接受 `paocd` 与 `pacd`），中文名「累计均价」；④ 库注释为「当日实时累计均价」，API 文档写作「当日累计均价」。**动工前须确认三点**：① 调整范围——只改对外 API 名 / 只改库列名 / 库列+API+导出三处统一 / 连中文名一并调整；② 目标名称（如 `avg_price`、`acc_avg_price`、`pa` 等，由需求方给定）；③ 兼容策略——旧名是否保留（视图、别名列、`parser_v2.go` 继续接受旧名）、已导出的历史 `.mvsv` 文件是否需要兼容读取、`quote.` 表是否随 `cdeu.` 同步改名。 | 待方案确定后细化；初步验收口径：① 新旧名称在库列、Go 常量/结构体 tag、API 文档（`Docs/API/Quote/Cdeu/Min/*`、`Docs/OpenAPI/Quote/Cdeu/Min/*`）、`.mvsv` V2 字段名表四处保持一致（若决定改名）；② `grep -rn "<旧名>" internal/ Docs/ Deploy/` 无遗漏（若保留兼容则仅限显式白名单）；③ 迁移脚本幂等、单事务、末尾收敛校验；④ `go build ./...` 与 `go test ./internal/meta/finv/quote/...` 通过；⑤ 现有 277,295 行 `cdeu.finv_quote_secu_kline_min` 数据在改名后仍可正常读写（抽样 upsert + page 查询） | |
 
 
+## 二百、CDEU 指标卡片顺序调整（10887）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10887 | CDEU 工作流视图指标卡片顺序调整：「运行时长」卡片由最右侧（第 4 位）移到最左侧（第 1 位），其余三张（工作流状态、阶段进度（参与完成判定）、JOB 进度）相对顺序不变。卡片内容、响应式断点（`cols="12" sm="6" lg="3"`）与统计口径均不改动。 | 提取 `Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 指标卡片区（约第 1303～1356 行）的四张卡片标题，顺序应为「运行时长、工作流状态、阶段进度、JOB 进度」；`grep -c` 该区间 `<v-col cols="12" sm="6" lg="3">` 计数 = 4（无卡片缺失）；`cd Web && npm run build` 通过；页面首屏四张指标卡顺序符合预期 | √ |
+
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2863,7 +2870,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | CDEU 历史残留运行记录收敛（已终态 run 的孤儿子级） | 10884 | 1 |
 | CDEU「JOB 进度」标题去掉重复计数 | 10885 | 1 |
 | 「当日累计均价」字段名调整（待办） | 10886 | 1 |
-| **合计** | **10001–10886** | **885** |
+| CDEU 指标卡片顺序调整（运行时长移到最左） | 10887 | 1 |
+| **合计** | **10001–10887** | **886** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

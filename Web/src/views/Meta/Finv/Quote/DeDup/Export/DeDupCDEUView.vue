@@ -1302,6 +1302,17 @@ onBeforeUnmount(() => {
 
     <v-row class="mb-1" dense>
       <v-col cols="12" sm="6" lg="3">
+        <v-card variant="tonal" height="100%">
+          <v-card-text>
+            <div class="text-caption text-medium-emphasis">运行时长</div>
+            <div class="text-h5 font-weight-bold mt-1">{{ run ? formatDuration(run.started_at, run.finished_at) : '-' }}</div>
+            <div class="text-caption text-medium-emphasis mt-1">
+              {{ run?.started_at ? `开始 ${fmtISO(run.started_at)}` : '等待首次触发' }}
+            </div>
+          </v-card-text>
+        </v-card>
+      </v-col>
+      <v-col cols="12" sm="6" lg="3">
         <v-card variant="tonal" color="primary" height="100%">
           <v-card-text>
             <div class="d-flex align-center justify-space-between">
@@ -1339,17 +1350,6 @@ onBeforeUnmount(() => {
               <span class="text-caption text-medium-emphasis">失败 {{ jobStats.failed }} · 待执行 {{ jobStats.pending }}</span>
             </div>
             <v-progress-linear class="mt-3" :model-value="progressPercent(jobStats.success, jobStats.total)" color="success" height="8" rounded />
-          </v-card-text>
-        </v-card>
-      </v-col>
-      <v-col cols="12" sm="6" lg="3">
-        <v-card variant="tonal" height="100%">
-          <v-card-text>
-            <div class="text-caption text-medium-emphasis">运行时长</div>
-            <div class="text-h5 font-weight-bold mt-1">{{ run ? formatDuration(run.started_at, run.finished_at) : '-' }}</div>
-            <div class="text-caption text-medium-emphasis mt-1">
-              {{ run?.started_at ? `开始 ${fmtISO(run.started_at)}` : '等待首次触发' }}
-            </div>
           </v-card-text>
         </v-card>
       </v-col>
