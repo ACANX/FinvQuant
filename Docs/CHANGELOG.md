@@ -25,6 +25,15 @@
   - 根 `VERSION` 文件由 `0.1.4` 升为 **`0.1.5`**（版本号单一来源，见 `GitSpec` §4；后端 `-ldflags`、镜像与发行包名均取自该文件）。
   - 说明：`v0.1.4` 在 `feat/cdeu` 分支手工打标，按 `GitSpec` §4 正式 release tag 通常由 CI 在代码合入 `main` 时创建；合入 `main` 时若 CI 检测到 `v0.1.4` 已存在会跳过创建并沿用该 tag，届时如需重新指向合并提交请先删除本地/远端 tag 再触发。
 
+### 修复
+
+- **CDEU 运行树把「未开始」显示成「在运行」（需求 10883）**
+  - 现象：第 81 次 CDEU 运行（`CDEU_DAILY` / 2026-11-01 / MANUAL）里，前置阶段全部 `PENDING`，但「导出决策」阶段的「每日入口流量统计」显示 `RUNNING`；实际该流程无任何 `job_run` 记录、`started_at` 为 `NULL`，`JOB_CALC_INGEST_STATS` 最后一次真实执行是 10-30 的 run 79。
+  - 根因：`decideCDEUStatus` 把子级的 `PENDING`/`READY` 与 `RUNNING` 一并算作 `hasRunning`，于是「子 JOB 还没建立运行记录」的流程被评估一次就写成 `RUNNING`（开始时间由子级推导，推不出来就是 `NULL`）。
+  - 修复（`internal/meta/finv/quote/cdeu/cdeu_store.go`）：`RUNNING` 单独判 `hasRunning`，`PENDING`/`READY` 单独记 `hasPending`；判定顺序改为 `RUNNING` → 关键失败 `FAILED` → `PAUSED` →（未满足完成条件且有未开始子级）`PENDING` → `FAILED`/`PARTIAL`/`SUCCESS`。`ANY_OF`/`AT_LEAST` 已满足条件时不受未开始子级影响。
+  - 测试：`cdeu_test.go` 新增 6 个用例（全部未开始 / 部分未开始 / READY 视为未开始 / 关键失败优先 / 运行中优先 / ANY_OF 不被拖住），`go test ./internal/meta/finv/quote/cdeu -run TestDecideCDEUStatus` 全绿。
+  - 说明：本修复只影响状态判定口径，不改任何触发条件与阶段门禁（手动触发仍不经过门禁）。
+
 ### 新增
 
 - **登记待办：生产库基线重做（需求 10882）**

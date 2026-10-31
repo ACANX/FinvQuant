@@ -2596,6 +2596,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10882 | 【**待办**】生产库基线重做：等 2026 年 10 月数据导出完成后，按需求 10881 确立的三段号段（`V100000`～`V199999` 基础准备、`V200000`～`V299999` 表结构 DDL、`V300000`～`V399999` 数据），把当前 **173 个历史迁移**重做为一份干净基线后重建生产库。**待明确的三件事**（需在动工前与用户逐项确认）：① 基线形态——是「保留 173 个文件、仅按新号段一次跑通」还是「压缩/合并为少量基线脚本（全新库只跑基线，不再回放历史演进）」；② 历史遗留归位——把混在 DDL 段的数据脚本（`V200018` 交易所种子、`V200025`～`V200042` 系统字典与配置、`V300060` BRS 建表）重新归入 `V3xxxxx`，并合并 `V3xxxxx` 中大量一次性数据修正（`V300068` 起的 market_code / usc / region 修正）；③ 废弃对象清理——已删除的 `dedup` / `dedup_frozen` / `export` schema 相关脚本是否直接剔除，`brs` schema 是否纳入 `V100002` 的 schema 清单。**执行前置**：10 月数据已完整导出并归档到 GitHub（`Data/Finv/SecuQuoteMon/FTMM/`），`finv_security` 等业务数据可重建（或按需从归档回灌）。 | 基线方案确定后细化；初步验收口径：① 全新库从零跑基线 **0 失败**，`select count(*) from public.schema_version` 等于基线脚本数且 `min(version::bigint) >= 100001`；② 基线重建后的库与当前生产库逐表结构一致（`information_schema.columns` 差集为空）、关键字典数据一致（`finv_region` 27 行、`finv_market` 63 行、`finv_exchange` 行数一致）；③ `go test ./internal/database -run TestMigrateIntegration` 与 `go test ./internal/docs` 通过；④ 旧库已 `pg_dump` 备份到 `Deploy/Backup/` 且保留期明确 | |
 
 
+## 一百九十六、CDEU 运行树状态判定修复（10883）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10883 | CDEU 运行树状态误判修复：`decideCDEUStatus` 原把子级的 `PENDING`/`READY` 与 `RUNNING` 一起归入 `hasRunning`，导致「子 JOB 尚未建立运行记录」的流程被评估一次就写成 `RUNNING`（`started_at` 仍为 `NULL`，因为时间由子级推导）。界面表现：前序阶段还是 `PENDING`，后序阶段里的流程（如「每日入口流量统计」）却显示在跑，实际没有任何 `job_run` 在执行。修复口径：① `RUNNING` 单独判 `hasRunning`；② `PENDING`/`READY` 单独记 `hasPending`；③ 判定顺序 `RUNNING` → 关键失败 `FAILED` → `PAUSED` → **未满足完成条件且存在未开始子级时回写 `PENDING`** → `FAILED`/`PARTIAL`/`SUCCESS`；④ `ANY_OF`/`AT_LEAST` 已满足条件时不受未开始子级影响（仍按原逻辑判 `PARTIAL`/`SUCCESS`）。 | `go test ./internal/meta/finv/quote/cdeu -run TestDecideCDEUStatus -v` 全绿（含新增「全部未开始」「部分未开始」「READY 视为未开始」「关键失败优先于未开始」「运行中优先于未开始」「ANY_OF 满足后不被未开始拖住」6 个用例）；`go build ./...` 通过；生产库对 run 81 重新评估后 `select process_id,status,started_at from cdeu.finv_quote_cdeu_process_run where workflow_run_id=81` 中「每日入口流量统计」由 `RUNNING`（`started_at` 为空）变为 `PENDING`，且无 `RUNNING` 记录 | √ |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2832,7 +2838,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 20 只加密货币证券 exchange_code 修正为 10001 | 10880 | 1 |
 | 迁移号段重排（1/2/3 三段，为基线重做准备） | 10881 | 1 |
 | 生产库基线重做（待办） | 10882 | 1 |
-| **合计** | **10001–10882** | **881** |
+| CDEU 运行树状态误判修复（PENDING 不再显示 RUNNING） | 10883 | 1 |
+| **合计** | **10001–10883** | **882** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

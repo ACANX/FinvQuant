@@ -1353,6 +1353,7 @@ func decideCDEUStatus(rule CDEUCompletionRule, rawChildren []cdeuChild) (status 
 	}
 
 	hasRunning := false
+	hasPending := false
 	hasPaused := false
 	failedCritical := false
 	selected := map[string]bool{}
@@ -1365,8 +1366,18 @@ func decideCDEUStatus(rule CDEUCompletionRule, rawChildren []cdeuChild) (status 
 	selectedCompleted := 0
 	for _, child := range children {
 		switch child.Status {
-		case CDEUStatusPending, CDEUStatusReady, CDEUStatusRunning:
+		case CDEUStatusRunning:
 			hasRunning = true
+		case CDEUStatusPending, CDEUStatusReady:
+			// 需求 10883：未开始 ≠ 在运行。
+			//
+			// 原实现把 PENDING / READY 与 RUNNING 一起归入 hasRunning，于是任何
+			// 「子 JOB 还没建立运行记录」的流程被评估一次就写成 RUNNING（started_at
+			// 仍为 NULL，因为时间由子级推导），界面上表现为：前序阶段还是 PENDING，
+			// 后序阶段里的流程却显示在跑。未开始的子级单独记为 hasPending，
+			// 在「未满足完成条件」时才回写 PENDING（满足条件时不受其影响，
+			// 避免 ANY_OF / AT_LEAST 被还没轮到的兄弟拖住）。
+			hasPending = true
 		case CDEUStatusPaused:
 			hasPaused = true
 			failed++
@@ -1422,6 +1433,11 @@ func decideCDEUStatus(rule CDEUCompletionRule, rawChildren []cdeuChild) (status 
 		ok = selectedCompleted == selectedTotal
 	}
 	if !ok {
+		// 未满足完成条件，但还有未开始的子级：只是在等前序/等调度，不能判失败
+		// （原实现靠 hasRunning 掩盖成了 RUNNING，见上方需求 10883 说明）。
+		if hasPending {
+			return CDEUStatusPending, completed, total, failed
+		}
 		return CDEUStatusFailed, completed, total, failed
 	}
 	if failed > 0 || completed < total {

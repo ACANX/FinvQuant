@@ -24,6 +24,17 @@ func TestDecideCDEUStatus(t *testing.T) {
 	}{
 		{"全部成功", CDEUCompletionRule{Mode: "ALL"}, children(CDEUStatusSuccess, CDEUStatusSuccess), CDEUStatusSuccess},
 		{"存在运行中", CDEUCompletionRule{Mode: "ALL"}, children(CDEUStatusSuccess, CDEUStatusRunning), CDEUStatusRunning},
+		// 需求 10883：未开始（PENDING/READY）必须保持 PENDING，不能被当成「在运行」，
+		// 也不能因未满足完成条件而判失败。
+		{"全部未开始", CDEUCompletionRule{Mode: "ALL"}, children(CDEUStatusPending, CDEUStatusPending), CDEUStatusPending},
+		{"部分未开始", CDEUCompletionRule{Mode: "ALL"}, children(CDEUStatusSuccess, CDEUStatusPending), CDEUStatusPending},
+		{"READY 视为未开始", CDEUCompletionRule{Mode: "ALL"}, children(CDEUStatusReady, CDEUStatusReady), CDEUStatusPending},
+		{"关键失败优先于未开始", CDEUCompletionRule{Mode: "ALL"}, children(CDEUStatusFailed, CDEUStatusPending), CDEUStatusFailed},
+		{"运行中优先于未开始", CDEUCompletionRule{Mode: "ALL"}, children(CDEUStatusRunning, CDEUStatusPending), CDEUStatusRunning},
+		{"ANY_OF 满足后不被未开始拖住", CDEUCompletionRule{Mode: "ANY_OF", Items: []string{"A"}}, []cdeuChild{
+			{Code: "A", Status: CDEUStatusSuccess, Critical: true, Affects: true},
+			{Code: "B", Status: CDEUStatusPending, Critical: true, Affects: true},
+		}, CDEUStatusPartial},
 		{"关键失败", CDEUCompletionRule{Mode: "ALL"}, children(CDEUStatusFailed, CDEUStatusSuccess), CDEUStatusFailed},
 		{"非关键失败产生 PARTIAL", CDEUCompletionRule{Mode: "CRITICAL_ALL"}, []cdeuChild{
 			{Code: "A", Status: CDEUStatusSuccess, Critical: true, Affects: true},
