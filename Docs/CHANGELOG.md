@@ -84,6 +84,13 @@
 
 ### 变更
 
+- **市场码与计价货币口径收口，删除空壳 `export` schema（`V100089` / `V200070`，需求 10869）**
+  - `V200070__finv_market_currency_and_secu_market_fix.sql`：字典外重复码并入已登记等价码 —— `1313`（美股 OTC 场外，未登记）→ `1331 US-OTC` 共 15 行，使全文再无「`market_code` 不在 `finv_market` 字典内」的证券；港股人民币柜台（8 开头 5 位代码，如 `80700` 腾讯控股-R）由 `1201` 归入 `1205 HKEX-HR` 共 25 行（该市场 `base_currency` 已是 CNY）；韩国 KOSPI 指数（`1508`）、印度 SENSEX 指数（`1521`）的 `base_currency` 与证券 `currency_type` 由 `USD` 改为 `KRW` / `INR`（原先由 `V200009` 以 `exchange_code=100` 兜底推导为 USD）。
+  - `V100089__drop_export_schema.sql`：`export` 域唯一表已由 `V100088` 迁入 `cdeu`，该 schema 现无任何对象，先校验「空壳」再 `DROP SCHEMA`；同步从 `internal/database/postgres.go` 的 `search_path` 与集成测试中移除 `export` / `dedup`（后者已由 `V100086` 删除）。
+  - 配置侧同步（仓库外 `FinvQuantDesign/Scripts/SecuSync/`）：`SecuMapping.json` 的 `marketCodeByFutu` 改为 `13→1331`、`24→1312`、`111/113/114→1250`，`knownFinvMarketCodes` 移除 `1150`/`1313`/`1314` 并补 `1250`/`1331`，`hkRmbCounter` 新增 `marketCode=1205`；`ExportSecu.py` 在 `market_code` 解析后应用人民币柜台规则 —— 避免下次增量导入把已迁移的市场码/货币冲回旧值。已用构造记录实测：futu 13→1331、futu 111→1250、`80700`→1205（CNY）、`00700`→1201。
+  - 注释与测试清理：`cdeu` 包、`internal/api/handler` 中约 50 处历史表名（`finv_dedup_*`）与「dedup 主表/主包/schema」描述改为现行 `finv_quote_cdeu_*` / `cdeu` 口径；`internal/database/migrate_integration_test.go` 的迁移断言从已删除的 `dedup` schema 改为 `cdeu`（表清单与索引名按 `cdeu` 现行命名，否则独立库全链测试必定失败）。
+  - 遗留未动（需业务确认）：`0828EA`（名 GOLDETF 却 `security_type='Bond'`）的类型归属。
+
 - **`AGENTS.md` 新增「授权边界（强制）」条款**
   - 明确以下动作先问后做、未获明确同意不得执行：新建 / 移动 / 重命名 / 删除文件；修改 `AGENTS.md`、`Docs/DevSpec/*`、`Docs/RequirementList.md`、`Docs/CHANGELOG.md`；新增或撤销需求编号；`git push`、`git reset`、改 tag。
   - 要求执行前先输出「拟改动清单 + 待确认决策点」；需求含歧义（放哪个目录、文件叫什么、算不算规范、算不算需求）时默认不执行，只给选项并提问。

@@ -32,7 +32,7 @@ func TestMigrateIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("解析测试 DSN 失败: %v", err)
 	}
-	config.ConnConfig.RuntimeParams["search_path"] = "public,quote,quant,futu,export,sche,dedup,cdeu,archive,sys"
+	config.ConnConfig.RuntimeParams["search_path"] = "public,quote,quant,futu,sche,cdeu,archive,sys"
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		t.Fatalf("连接测试库失败: %v", err)
@@ -54,86 +54,86 @@ func TestMigrateIntegration(t *testing.T) {
 		t.Fatalf("重复执行迁移失败（幂等性）: %v", err)
 	}
 
-	// V100041：归档表 + 索引全部就绪（V200051 起 finv_dedup_usc_priority 已合并进 finv_dedup_usc，共 11 张）。
+	// V100041：归档表 + 索引全部就绪（V200051 起归档优先级已合并进 finv_quote_cdeu_usc；V100080 起全部表在 cdeu 域，共 11 张）。
 	//
-	// 注意：dedup.finv_dedup_runtime_setting 不在清单内——该表于 V200041 删除
+	// 注意：原 dedup 域的 finv_dedup_runtime_setting 不在清单内——该表于 V200041 删除
 	// （导出低峰窗口改由 sys.sys_config 20006 承载），见 RequirementList 10653。
 	tables := []string{
-		"finv_dedup_ingest_stats",
-		"finv_dedup_daily_budget",
-		"finv_dedup_scan_watermark",
-		"finv_dedup_quote_maturity_mon",
-		"finv_dedup_trade_calendar",
-		"finv_dedup_job_run_log_export_file",
-		"finv_dedup_usc",
-		"finv_dedup_export_job",
-		"finv_dedup_export_file",
-		"finv_dedup_export_file_upload_log",
-		"finv_dedup_export_file_patch",
-		"cdeu_workflow",
-		"cdeu_phase",
-		"cdeu_process",
-		"cdeu_job",
-		"cdeu_job_step",
-		"cdeu_workflow_run",
-		"cdeu_phase_run",
-		"cdeu_process_run",
-		"cdeu_job_run",
-		"cdeu_job_step_run",
-		"finv_dedup_export_batch",
-		"cdeu_job_dynamic",
-		"cdeu_job_step_dynamic",
+		"finv_quote_cdeu_ingest_stats",
+		"finv_quote_cdeu_daily_budget",
+		"finv_quote_cdeu_scan_watermark",
+		"finv_quote_cdeu_quote_maturity_mon",
+		"finv_quote_cdeu_trade_calendar",
+		"finv_quote_cdeu_job_run_log_export_file",
+		"finv_quote_cdeu_usc",
+		"finv_quote_cdeu_export_job",
+		"finv_quote_cdeu_export_file",
+		"finv_quote_cdeu_export_file_upload_log",
+		"finv_quote_cdeu_export_file_patch",
+		"finv_quote_cdeu_workflow",
+		"finv_quote_cdeu_phase",
+		"finv_quote_cdeu_process",
+		"finv_quote_cdeu_job",
+		"finv_quote_cdeu_job_step",
+		"finv_quote_cdeu_workflow_run",
+		"finv_quote_cdeu_phase_run",
+		"finv_quote_cdeu_process_run",
+		"finv_quote_cdeu_job_run",
+		"finv_quote_cdeu_job_step_run",
+		"finv_quote_cdeu_export_batch",
+		"finv_quote_cdeu_job_dynamic",
+		"finv_quote_cdeu_job_step_dynamic",
 	}
 	for _, table := range tables {
 		var exists bool
 		if err := pool.QueryRow(ctx, `
-SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'dedup' AND tablename = $1)`,
+SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'cdeu' AND tablename = $1)`,
 			table).Scan(&exists); err != nil {
 			t.Fatalf("查询表 %s 失败: %v", table, err)
 		}
 		if !exists {
-			t.Fatalf("迁移后缺少表 dedup.%s", table)
+			t.Fatalf("迁移后缺少表 cdeu.%s", table)
 		}
 	}
 
 	indexes := []string{
-		"idx_dedupquotematuritymon_month_status",
-		"idx_dedupquotematuritymon_status_usc",
-		"idx_dedupjobrunlogexportfile_kind_time",
-		"idx_dedupjobrunlogexportfile_job",
-		"idx_dedupjobrunlogexportfile_running",
-		"idx_dedupexportjob_pick",
-		"idx_dedupexportfile_upload",
-		"idx_dedupexportfile_network",
-		"idx_dedupexportfile_job",
-		"idx_dedupexportfileuploadlog_file",
-		"idx_dedupexportfilepatch_pending",
-		"idx_dedupexportfilepatch_job",
-		"idx_dedupexportfilepatch_file",
+		"idx_quotecdeuquotematuritymon_month_status",
+		"idx_quotecdeuquotematuritymon_status_usc",
+		"idx_quotecdeujobrunlogexportfile_kind_time",
+		"idx_quotecdeujobrunlogexportfile_job",
+		"idx_quotecdeujobrunlogexportfile_running",
+		"idx_quotecdeuexportjob_pick",
+		"idx_quotecdeuexportfile_upload",
+		"idx_quotecdeuexportfile_network",
+		"idx_quotecdeuexportfile_job",
+		"idx_quotecdeuexportfileuploadlog_file",
+		"idx_quotecdeuexportfilepatch_pending",
+		"idx_quotecdeuexportfilepatch_job",
+		"idx_quotecdeuexportfilepatch_file",
 		"uq_cdeuworkflowrun_running",
 		"idx_cdeuworkflowrun_biz",
-		"idx_cdeu_job_run_process",
-		"idx_cdeu_job_run_log",
-		"idx_cdeu_job_step_job",
-		"idx_cdeu_job_step_run_job",
-		"idx_dedupexportbatch_lookup",
-		"idx_dedupexportbatch_biz",
-		"idx_cdeu_job_dynamic_process",
-		"idx_cdeu_job_dynamic_status",
-		"idx_cdeu_job_step_dynamic_job",
-		"idx_cdeu_job_dynamic_file",
-		"uq_cdeu_job_dynamic_export",
-		"uq_cdeu_job_dynamic_upload",
+		"idx_finv_quote_cdeu_job_run_process_code",
+		"idx_finv_quote_cdeu_job_run_log",
+		"idx_finv_quote_cdeu_job_step_job",
+		"idx_finv_quote_cdeu_job_step_run_seq",
+		"idx_quotecdeuexportbatch_lookup",
+		"idx_quotecdeuexportbatch_biz",
+		"idx_finv_quote_cdeu_job_dynamic_process",
+		"idx_finv_quote_cdeu_job_dynamic_status",
+		"idx_finv_quote_cdeu_job_step_dynamic_job",
+		"idx_finv_quote_cdeu_job_dynamic_file",
+		"uq_cdeu_job_dynamic_export_run",
+		"uq_cdeu_job_dynamic_upload_run",
 	}
 	for _, index := range indexes {
 		var exists bool
 		if err := pool.QueryRow(ctx, `
-SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'dedup' AND indexname = $1)`,
+SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'cdeu' AND indexname = $1)`,
 			index).Scan(&exists); err != nil {
 			t.Fatalf("查询索引 %s 失败: %v", index, err)
 		}
 		if !exists {
-			t.Fatalf("迁移后缺少索引 dedup.%s", index)
+			t.Fatalf("迁移后缺少索引 cdeu.%s", index)
 		}
 	}
 
@@ -143,7 +143,7 @@ SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'dedup' AND indexname
 		var exists bool
 		if err := pool.QueryRow(ctx, `
 SELECT EXISTS (SELECT 1 FROM information_schema.columns
- WHERE table_schema = 'dedup' AND table_name = 'finv_dedup_job_run_log_export_file' AND column_name = $1)`,
+ WHERE table_schema = 'cdeu' AND table_name = 'finv_quote_cdeu_job_run_log_export_file' AND column_name = $1)`,
 			column).Scan(&exists); err != nil {
 			t.Fatalf("查询列 %s 失败: %v", column, err)
 		}

@@ -596,7 +596,7 @@ DELETE FROM `+tableMain+`
 
 // PurgeMainSecurityMonth 删除指定证券某月的全部主表行情数据（20007=1 上传成功后调用）。
 //
-// 只删 dedup schema 的主表；quote schema 是回测/查询专用的独立副本，不参与本操作。
+// 只删 cdeu schema 的主表；quote schema 是回测/查询专用的独立副本，不参与本操作。
 // 分批删除（ctid 子查询 + LIMIT），避免长事务与大量 WAL。
 func (s *Store) PurgeMainSecurityMonth(ctx context.Context, usc string, bizMonth, limit int) (int64, error) {
 	if limit <= 0 {

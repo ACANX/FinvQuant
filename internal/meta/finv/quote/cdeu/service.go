@@ -13,7 +13,7 @@ import (
 	"github.com/acanx/finvquant/internal/meta/finv/sys"
 )
 
-// Result 一次 Job 执行的结果（同时写入 finv_dedup_job_run_log_export_file）。
+// Result 一次 Job 执行的结果（同时写入 finv_quote_cdeu_job_run_log_export_file）。
 type Result struct {
 	JobKind        string `json:"job_kind"`
 	Status         string `json:"status"`
@@ -140,7 +140,7 @@ func (s *Service) CDEUMode(ctx context.Context) (string, error) {
 	return syscfg.NormalizeCDEUMode(values.CDEUModeRaw), nil
 }
 
-// PurgeAfterExportEnabled 读取 20007：导出成功后是否删除 dedup 主表行情数据。
+// PurgeAfterExportEnabled 读取 20007：导出成功后是否删除 cdeu 主表行情数据。
 //
 //   - true（默认）：远端上传成功后删除 cdeu.finv_quote_secu_kline_min 中该
 //     (usc, biz_month) 的数据；此后表内再次插入历史数据按 INCR 增量导出（序号 N 递增）。

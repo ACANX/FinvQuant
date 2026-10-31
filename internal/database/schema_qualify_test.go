@@ -12,7 +12,7 @@ import (
 // domainTablePrefixes 业务域表名前缀 → 必须使用的 schema 限定前缀。
 //
 // 为什么要强制限定：融合后不同 schema 可能出现同名表，而 search_path
-// （public, quote, quant, futu, export, sche, dedup, cdeu, archive, sys）中 public 位于首位——任何未限定的 CRUD
+// （public, quote, quant, futu, sche, cdeu, archive, sys）中 public 位于首位——任何未限定的 CRUD
 // 语句都会优先命中 public 的同名表，导致读写错表。
 var domainTablePrefixes = map[string]string{
 	// CDEU 工作流域（V100078 建表、V100079 统一前缀、V100080 迁入数据）：
@@ -30,11 +30,10 @@ var domainTablePrefixes = map[string]string{
 //	· 原 cdeu_*（12 张）：V100079 把 cdeu_ 替换为 finv_quote_cdeu_
 //	· 原 finv_dedup_*（13 张）：V100078 建表时即替换
 //
-// 另有 cdeu.finv_quote_secu_kline_min 副本，由 exactTableSchema 单独管控。
+// 另有 cdeu.finv_quote_secu_kline_min 副本与导出中转表 cdeu.finv_quote_secu_kline_min_export，
+// 均由 exactTableSchema 单独管控。
 //
-// 过渡期说明：dedup 下同名同构的表仍在使用（代码尚未切到 cdeu），
-// 因此这里不强制 cdeu. 前缀；工作流改造切换读写后，再把对应表名从 dedup. 白名单
-// 切到 {dedup., cdeu.} 或 {cdeu.}。
+// 说明：原 `dedup` 域已于 V100086 删除，本表仅供前缀规则判定，不再代表任何 schema 白名单。
 var cdeuTables = map[string]bool{
 	// 原 cdeu_*（V100079 改名）
 	"finv_quote_cdeu_workflow":         true,

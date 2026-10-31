@@ -179,7 +179,7 @@ func (h *ExportArchive) CDEUWorkflowRun(c *gin.Context) {
 //
 // 请求体：{"run_id": 60, "operator": "web"}；run_id 缺省或 0 时取最近一次未终态运行。
 // 把该运行下所有 PENDING/READY/RUNNING 的阶段、流程、JOB、步骤统一置为 CANCELLED，
-// 并释放 finv_dedup_export_job 上遗留的任务锁。
+// 并释放 finv_quote_cdeu_export_job 上遗留的任务锁。
 func (h *ExportArchive) CDEUWorkflowTerminate(c *gin.Context) {
 	var request struct {
 		RunID    int64  `json:"run_id"`

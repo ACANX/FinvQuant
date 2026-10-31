@@ -1,4 +1,4 @@
-// Package dedup 实现证券行情月归档的自动化链路：
+// Package cdeu 实现证券行情月归档（CDEU 工作流）的自动化链路：
 // 成熟度扫描 → 导出候选 → LOAD（主表→中转表）→ EXPORT（中转表→MVsv 文件）
 // → CLEANUP（清理中转数据）→ 登记导出文件（上传任务唯一数据源）
 // → UPLOAD（上传独享存储库并校验 checksum）→ 补丁收口与生命周期清理。
@@ -8,7 +8,7 @@
 //
 // 关键约束（不可违反）：
 //   - 不修改 cdeu.finv_quote_secu_kline_min 与 cdeu.finv_quote_secu_kline_min_export 的结构；
-//   - 新增表全部在 dedup schema（finv_dedup_* 前缀），全库无外键；
+//   - 新增表全部在 cdeu 域（V100079 起统一 finv_quote_cdeu_* 前缀），全库无外键；
 //   - 导出与上传文件格式均为 .mvsv（16 行文件头 + 1 行空行 + 管道分隔数据行），不生成 .csv；
 //   - 所有 SQL 必须写 schema 全限定名（见 Docs/DevSpec/DbSchemaSpec.md §3）；
 //   - 单任务三阶段各自短事务，支持暂停续跑、多 worker 安全领取（行锁 + 租约 + 心跳）。
@@ -21,9 +21,9 @@ import (
 
 // Job 类型标识（全大写、动词 + 对象、含义具体，与方案稿 2.2 节一致）。
 const (
-	// JobCalcDailyIngestStats 每日 00:05：按 gmt_create 聚合主表入口流量，写入 finv_dedup_ingest_stats。
+	// JobCalcDailyIngestStats 每日 00:05：按 gmt_create 聚合主表入口流量，写入 finv_quote_cdeu_ingest_stats。
 	JobCalcDailyIngestStats = "CALC_DAILY_INGEST_STATS"
-	// JobCalcDailyExportBudget 每日 00:05：计算当日导出预算，写入 finv_dedup_daily_budget。
+	// JobCalcDailyExportBudget 每日 00:05：计算当日导出预算，写入 finv_quote_cdeu_daily_budget。
 	JobCalcDailyExportBudget = "CALC_DAILY_EXPORT_BUDGET"
 	// JobRefreshQuoteMaturity 每日 00:10：增量扫描主表刷新成熟度，并自动发现新 usc。
 	JobRefreshQuoteMaturity = "REFRESH_QUOTE_MATURITY"
@@ -48,7 +48,7 @@ const (
 
 	// 以下四个 JOB 均属 PHASE_REVIEW（归档复核），见需求 10716–10723。
 	//
-	// JobPurgeExportedMonth 归档复核：扫描「全部文件已上传」的证券月，按 20007 释放 dedup 主表数据。
+	// JobPurgeExportedMonth 归档复核：扫描「全部文件已上传」的证券月，按 20007 释放 cdeu 主表数据。
 	// 扫描式判据同时覆盖「本次上传完成」与「历史遗留已上传未清理」，不再区分两者。
 	JobPurgeExportedMonth = "PURGE_EXPORTED_MONTH"
 	// JobPurgeLocalExportFiles 归档复核：按 20011 清理本地导出的 .mvsv / Manifest 文件（需求 10744）。
@@ -102,7 +102,7 @@ func AllJobKinds() []string {
 	}
 }
 
-// 导出任务状态（finv_dedup_export_job.status）。
+// 导出任务状态（finv_quote_cdeu_export_job.status）。
 const (
 	JobStatusWaiting   = "WAITING"
 	JobStatusLoading   = "LOADING"
@@ -114,7 +114,7 @@ const (
 	JobStatusFrozen    = "FROZEN"
 )
 
-// 数据成熟度状态（finv_dedup_quote_maturity_mon.maturity_status）。
+// 数据成熟度状态（finv_quote_cdeu_quote_maturity_mon.maturity_status）。
 const (
 	MaturityImmature = "IMMATURE"
 	MaturityPartial  = "PARTIAL"
@@ -122,21 +122,21 @@ const (
 	MaturityFrozen   = "FROZEN"
 )
 
-// 导出文件类型（finv_dedup_export_file.file_type）。
+// 导出文件类型（finv_quote_cdeu_export_file.file_type）。
 const (
 	FileTypeBase     = "BASE"
 	FileTypePatch    = "PATCH"
 	FileTypeManifest = "MANIFEST"
 )
 
-// 导出文件的导出状态（finv_dedup_export_file.export_status）。
+// 导出文件的导出状态（finv_quote_cdeu_export_file.export_status）。
 const (
 	ExportStatusExported   = "EXPORTED"
 	ExportStatusSuperseded = "SUPERSEDED"
 	ExportStatusSkipped    = "SKIPPED"
 )
 
-// 上传状态（finv_dedup_export_file.upload_status）。
+// 上传状态（finv_quote_cdeu_export_file.upload_status）。
 const (
 	UploadStatusPending   = "PENDING_UPLOAD"
 	UploadStatusUploading = "UPLOADING"
@@ -145,26 +145,26 @@ const (
 	UploadStatusSkipped   = "SKIPPED"
 )
 
-// 网盘归档状态（finv_dedup_export_file.network_status）。
+// 网盘归档状态（finv_quote_cdeu_export_file.network_status）。
 const (
 	NetworkStatusNone     = "NONE"
 	NetworkStatusArchived = "ARCHIVED"
 )
 
-// 本地清理状态（finv_dedup_export_file.cleanup_status）。
+// 本地清理状态（finv_quote_cdeu_export_file.cleanup_status）。
 const (
 	CleanupStatusNone         = "NONE"
 	CleanupStatusLocalDeleted = "LOCAL_DELETED"
 )
 
-// 补丁级别（finv_dedup_export_file_patch.patch_level）。
+// 补丁级别（finv_quote_cdeu_export_file_patch.patch_level）。
 const (
 	PatchLevelL1Hot  = "L1_HOT"
 	PatchLevelL2Warm = "L2_WARM"
 	PatchLevelL3Cold = "L3_COLD"
 )
 
-// 补丁任务状态（finv_dedup_export_file_patch.status）。
+// 补丁任务状态（finv_quote_cdeu_export_file_patch.status）。
 const (
 	PatchStatusPending = "PENDING"
 	PatchStatusRunning = "RUNNING"
@@ -172,14 +172,14 @@ const (
 	PatchStatusFailed  = "FAILED"
 )
 
-// 补丁原因（finv_dedup_export_file_patch.reason）。
+// 补丁原因（finv_quote_cdeu_export_file_patch.reason）。
 const (
 	PatchReasonLateArrival   = "LATE_ARRIVAL"
 	PatchReasonUpstreamDelay = "UPSTREAM_DELAY"
 	PatchReasonCorrection    = "CORRECTION"
 )
 
-// RunStatus 运行日志结果（finv_dedup_job_run_log_export_file.status）。
+// RunStatus 运行日志结果（finv_quote_cdeu_job_run_log_export_file.status）。
 const (
 	RunStatusSuccess = "SUCCESS"
 	RunStatusFailed  = "FAILED"

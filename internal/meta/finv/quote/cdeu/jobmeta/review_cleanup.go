@@ -1,13 +1,13 @@
 package jobmeta
 
-// PurgeExportedMonth 归档复核阶段：把「远端 BASE 已完整交付」的证券月从 dedup 主表释放。
+// PurgeExportedMonth 归档复核阶段：把「远端 BASE 已完整交付」的证券月从 cdeu 主表释放。
 var PurgeExportedMonth = Runtime{
 	Kind: "PURGE_EXPORTED_MONTH", DailyAt: "06:10", Schedule: "每日 06:10",
 	Name:     "已归档行情数据清理",
-	Summary:  "扫描「全部文件已上传」的证券月，按系统配置 20007 删除 dedup 主表中的该月行情数据。",
-	Flow:     "聚合 finv_dedup_export_file → 筛出 BASE 与全部 PATCH 均已 UPLOADED 且主表仍有数据的证券月 → 逐月分批删除。",
+	Summary:  "扫描「全部文件已上传」的证券月，按系统配置 20007 删除 cdeu 主表中的该月行情数据。",
+	Flow:     "聚合 finv_quote_cdeu_export_file → 筛出 BASE 与全部 PATCH 均已 UPLOADED 且主表仍有数据的证券月 → 逐月分批删除。",
 	Details:  "扫描式判据天然覆盖「本次上传完成」与「历史遗留已上传未清理」两种来源；20007='0' 时整个 JOB 跳过。",
-	Cautions: "只删 dedup schema（加工侧缓冲区），quote schema 的回测副本不动；删除不可逆，执行前应确认远端文件校验通过。",
+	Cautions: "只删 cdeu schema（加工侧缓冲区），quote schema 的回测副本不动；删除不可逆，执行前应确认远端文件校验通过。",
 }
 
 // PurgeLocalExportFiles 归档复核阶段：按 20011 清理本地导出文件。

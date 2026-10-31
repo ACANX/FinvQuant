@@ -2558,6 +2558,16 @@ if (LEGACY_PATH_MAP[to.path]) {
 |---|---|---|---|
 | 10865 | 「CDEU自动化」由占位分组改为**叶子**菜单（`path=/Meta/Finv/Quote/Cdeu/Automation`），并新增对应路由（复用 `PlaceholderView` 占位页，`meta.title=CDEU自动化`），占位页内登记该模块规划说明。 | `grep -c "key: 'cdeu-automation'" Web/src/config/menuConfig.ts` 为 1 且该行为单行叶子（含 `path: '/Meta/Finv/Quote/Cdeu/Automation'`、无 `children`）；`grep -c "'/Meta/Finv/Quote/Cdeu/Automation'" Web/src/router.ts` 为 1；`grep -c "'cdeu-automation': {" Web/src/views/Common/PlaceholderView.vue` 为 1；菜单全部 `path` 有对应路由、图标有效、无重复 key；`npx vue-tsc --noEmit` 与 `npx vite build` 通过 | |
 
+## 一百九十二、证券主数据与 CDEU 域收口（10866–10870）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10866 | `finv_security` 的 470 条历史种子（`V200002` / `V200009`，因 `market_code` 列后补而长期为 `0` 且 `flag_enable='0'`）回填 `market_code` 并启用；`finv_market` 的一批市场补 `market_symbol` 与 `base_currency`。取值依据：400 条按 `futu.finv_futu_quote_collect` + `SecuSync/SecuMapping.json` 的 `marketCodeByFutu` 口径，70 条按「交易所 + 证券类型 + 代码形态」推导；跨币种市场（`1251` / `2003` / `8000`）`base_currency` 保持空串。 | `select count(*) from public.finv_security where flag_enable='0'` = 0；`select count(*) from public.finv_security where market_code=0` = 0；`select count(*) from public.finv_market m join public.finv_security s on s.market_code=m.market_code where m.market_symbol=''` = 0；`select version, success from public.schema_version where version in ('200068','200069')` 两行 `success` 均为 `t` | √ |
+| 10867 | 导出中转表从 `export` 域迁入 `cdeu.finv_quote_secu_kline_min_export`（与 `cdeu.finv_quote_secu_kline_min` 同构、允许清空），并删除源表 `export.finv_quote_secu_kline_min`；代码中转表常量与集成测试同步，`TestSQLSchemaQualified` 的 `exactTableSchema` 收敛为 `quote.` / `cdeu.`。 | `select to_regclass('export.finv_quote_secu_kline_min')` 为 NULL；`select count(*) from information_schema.tables where table_schema='cdeu' and table_name='finv_quote_secu_kline_min_export'` = 1；`grep -c 'cdeu.finv_quote_secu_kline_min_export' internal/meta/finv/quote/cdeu/store.go` ≥ 1；`go test ./internal/database -run TestSQLSchemaQualified` 通过；`select success from public.schema_version where version='100088'` 为 `t` | √ |
+| 10868 | 原 `internal/meta/finv/quote/dedup` 包整体迁入 `internal/meta/finv/quote/cdeu`（包名 `dedup` → `cdeu`，子包 `job` / `jobmeta` 不变），外部引用（`cmd/server`、`internal/api`、`cdeu/job`）同步更新，不得残留旧路径引用。 | `test ! -d internal/meta/finv/quote/dedup`；`grep -rn 'quote/dedup' --include=*.go internal cmd` 无输出；`go build ./...` 与 `go vet ./...` 通过 | √ |
+| 10869 | 市场码与货币口径收口：字典外重复码并入已登记等价码（`1313`→`1331`、`1314`→`1312`、`1150`→`1250`），港股人民币柜台（8 开头 5 位代码）由 `1201` 归入 `1205`，韩国 KOSPI / 印度 SENSEX 的 `base_currency` 与证券 `currency_type` 由 `USD` 改为 `KRW` / `INR`；删除已空的 `export` schema；仓库外 `SecuSync/SecuMapping.json` 与 `ExportSecu.py` 同步落 1331/1312/1250/1205，确保下次增量导入不回退。 | `select count(*) from public.finv_security s left join public.finv_market m on m.market_code=s.market_code where m.market_code is null` = 0；`select count(*) from public.finv_security where market_code=1205` = 26；`select base_currency from public.finv_market where market_code in (1508,1521)` 为 `KRW` / `INR`；`select count(*) from pg_namespace where nspname='export'` = 0；`select version, success from public.schema_version where version in ('100089','200070')` 均为 `t`；`grep -c '"13": 1331' ../FinvQuantDesign/Scripts/SecuSync/SecuMapping.json` = 1 且 `grep -c '"marketCode": 1205'` = 1 | √ |
+| 10870 | 上生产前必须在**独立测试库**上完整跑一次「全链迁移 + 数据库集成测试」，确认 `V100086`/`V100088`/`V100089` 与 `V200068`–`V200070` 在全新库上按版本顺序执行无错、幂等重跑 0 变更。 | 在空库执行 `FINV_TEST_PG_DSN=... go test -p 1 ./internal/database -run TestMigrateIntegration -v` 通过；`grep -rn "schemaname = 'dedup'\|table_schema = 'dedup'" internal/database/migrate_integration_test.go` 无输出；全链跑完后 `select count(*) from pg_namespace where nspname in ('dedup','dedup_frozen','export')` = 0 | |
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2777,7 +2787,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 系统显示名改为 FinvQuant策略回测量化交易 | 10863 | 1 |
 | 收剔导传ETL 新增「CDEU自动化」 | 10864 | 1 |
 | 「CDEU自动化」改为叶子菜单 | 10865 | 1 |
-| **合计** | **10001–10865** | **864** |
+| 证券主数据 market_code 回填与启用 | 10866 | 1 |
+| 导出中转表迁入 cdeu 域 | 10867 | 1 |
+| dedup 包迁入 cdeu | 10868 | 1 |
+| 市场码与货币口径收口 | 10869 | 1 |
+| 生产前独立库全链迁移验证 | 10870 | 1 |
+| **合计** | **10001–10870** | **869** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

@@ -817,8 +817,8 @@ var ErrCDEURunTerminal = errors.New("该 CDEU 运行已处于终态，无需终�
 // 安全约束：
 //   - 只处理 PENDING / READY / RUNNING 的记录，已有终态（SUCCESS/FAILED/PARTIAL/...）一律不动；
 //   - 单事务完成，任何一步失败整体回滚，不会留下半截状态；
-//   - 同时释放 finv_dedup_export_job 上的任务锁，避免残留锁挡住后续 ClaimJob；
-//   - 不触碰 finv_dedup_export_file 的上传状态（由 RecoverTimeoutUploads 负责）。
+//   - 同时释放 finv_quote_cdeu_export_job 上的任务锁，避免残留锁挡住后续 ClaimJob；
+//   - 不触碰 finv_quote_cdeu_export_file 的上传状态（由 RecoverTimeoutUploads 负责）。
 func (s *Store) TerminateCDEURun(ctx context.Context, runID int64) (CDEUTerminateResult, error) {
 	result := CDEUTerminateResult{RunID: runID, Status: CDEUStatusCancelled}
 	const activeStatusSQL = `('PENDING','READY','RUNNING')`

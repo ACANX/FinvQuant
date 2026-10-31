@@ -7,7 +7,7 @@ import (
 )
 
 // 本文件实现「Job 运行快照」与「执行阶段进度上报」：
-//   - 快照：合并进程内正在执行的 Job 与运行日志表（finv_dedup_job_run_log_export_file），
+//   - 快照：合并进程内正在执行的 Job 与运行日志表（finv_quote_cdeu_job_run_log_export_file），
 //     给出每个 Job 是否在跑、当前阶段 / 进度 / 心跳、最近一次结果与 24 小时统计；
 //   - 上报：Job 内部通过 reportProgress 更新阶段、进度与心跳，供前端区分「进行中 / 卡住 / 已完成」。
 

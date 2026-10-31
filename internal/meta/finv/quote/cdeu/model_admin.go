@@ -236,7 +236,7 @@ type UscUpsertInput struct {
 	Currency         *string
 }
 
-// PriorityUpsertInput 优先级覆盖设置入参（V200051 起落到 finv_dedup_usc）。
+// PriorityUpsertInput 优先级覆盖设置入参（V200051 起落到 finv_quote_cdeu_usc）。
 //
 // 三列同为一组：要么全有值（设置覆盖），要么通过 SetUscPriority(ctx, usc, nil) 整组清空。
 type PriorityUpsertInput struct {

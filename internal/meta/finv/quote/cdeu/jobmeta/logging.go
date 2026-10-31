@@ -1,4 +1,4 @@
-// Package job 提供归档 JOB 的可观测日志文本构造，不依赖 dedup 主包，避免循环引用。
+// Package job 提供归档 JOB 的可观测日志文本构造，不依赖 cdeu 主包，避免循环引用。
 package jobmeta
 
 import "fmt"

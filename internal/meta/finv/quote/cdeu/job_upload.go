@@ -11,7 +11,7 @@ import (
 // uploadBatchLimit 单轮上传 Job 最多处理的文件数（避免长时间占用调度协程）。
 const uploadBatchLimit = 200
 
-// runUploadPendingExportFiles 扫描 finv_dedup_export_file 待上传记录并上传独享存储库（G-08~G-14）。
+// runUploadPendingExportFiles 扫描 finv_quote_cdeu_export_file 待上传记录并上传独享存储库（G-08~G-14）。
 // uploadFile 上传单个文件：本地校验 → 远端去重 → PUT → 远端校验 → 落定状态与审计日志。
 //
 // 过程日志（写入 cdeu.finv_quote_cdeu_job_run_log_line，stage=UPLOAD）逐关键节点一行：
@@ -139,7 +139,7 @@ func (s *Service) uploadFile(ctx context.Context, file *File, result *Result) er
 
 // archiveTargetPath 计算上传文件的远端相对路径（不含 sys_config 20004 的 pre_path_key）。
 //
-// 分层目录 {region}_{market}/{usc}/ 的 region/market 不在 finv_dedup_export_file
+// 分层目录 {region}_{market}/{usc}/ 的 region/market 不在 finv_quote_cdeu_export_file
 // 里，需从证券主数据（cdeu.finv_quote_cdeu_usc）读取：
 //   - 取到且非空 → 使用分层路径（默认布局）；
 //   - 取不到（历史/手工登记数据缺失）→ 退回扁平路径并打警告，不因元数据

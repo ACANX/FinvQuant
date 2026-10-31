@@ -154,7 +154,7 @@ func cdeuExecutionFromContext(ctx context.Context) *CDEUExecution {
 	return execution
 }
 
-// setRunLogID 关联旧运行日志（finv_dedup_job_run_log_export_file）。
+// setRunLogID 关联旧运行日志（finv_quote_cdeu_job_run_log_export_file）。
 func (e *CDEUExecution) setRunLogID(runID int64) {
 	if e == nil {
 		return

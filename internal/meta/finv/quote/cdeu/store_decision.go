@@ -33,7 +33,7 @@ type ExportConditionReport struct {
 	SampleCandidates  []string `json:"sample_candidates"`   // 前 10 个候选，便于人工核对
 }
 
-// QuoteIngestSnapshot 读取采集侧数据新鲜度（只读 quote schema，不影响加工侧的 dedup 副本）。
+// QuoteIngestSnapshot 读取采集侧数据新鲜度（只读 quote schema，不影响加工侧的 cdeu 副本）。
 func (s *Store) QuoteIngestSnapshot(ctx context.Context, today time.Time) (IngestSnapshot, error) {
 	var snapshot IngestSnapshot
 	snapshot.CurrentMonth = today.Year()*100 + int(today.Month())
@@ -42,7 +42,7 @@ func (s *Store) QuoteIngestSnapshot(ctx context.Context, today time.Time) (Inges
 	// 拆成三条走索引/估算的短查询：
 	//   ① 最新行（ORDER BY date DESC, ts DESC LIMIT 1）走 idx_finv_quote_date_usc_ts；
 	//   ② 总行数取 pg_class.reltuples 估算（避免全表 count）；
-	//   ③ 证券数取自加工侧 finv_dedup_usc，不扫行情表。
+	//   ③ 证券数取自加工侧 finv_quote_cdeu_usc，不扫行情表。
 	if err := s.pool.QueryRow(ctx, `
 SELECT m.date, m.gmt_create
   FROM quote.finv_quote_secu_kline_min m

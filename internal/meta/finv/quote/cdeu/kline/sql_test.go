@@ -6,8 +6,8 @@ import (
 )
 
 func TestTableConstantQualified(t *testing.T) {
-	// K 线 API（写入/查询）自 V100080 起读写 cdeu.finv_quote_secu_kline_min
-	// （原 dedup 副本的数据已迁入 cdeu，dedup 侧待淘汰）。
+	// K 线 API（写入/查询）自 V100080 起读写 cdeu.finv_quote_secu_kline_min；
+	// 原 dedup 域的副本已随 V100086 删除。
 	if !strings.HasPrefix(Table, "cdeu.") {
 		t.Fatalf("Table 常量必须使用 cdeu. 前缀，实际 %s", Table)
 	}

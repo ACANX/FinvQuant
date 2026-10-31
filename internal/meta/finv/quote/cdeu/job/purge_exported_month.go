@@ -11,7 +11,7 @@ import (
 func init() {
 	// PURGE_EXPORTED_MONTH —— 归档复核阶段：按 20007 释放已完整交付的证券月（需求 10716/10720）。
 	//
-	// 判据是「扫描式」的：只要某证券月的 BASE 与全部 PATCH 都已 UPLOADED、且 dedup 主表仍留有
+	// 判据是「扫描式」的：只要某证券月的 BASE 与全部 PATCH 都已 UPLOADED、且 cdeu 主表仍留有
 	// 该月数据，就删除。因此天然覆盖两种情况：
 	//   ① 本次上传刚刚完成；
 	//   ② 历史上已上传但没被清理（20007 上线前遗留、或 RegisterFile 因 checksum 未变而保持
@@ -70,10 +70,10 @@ func init() {
 	})
 }
 
-// purgeMainSecurityMonth 分批删除指定证券某月的 dedup 主表行情数据（20007=1）。
+// purgeMainSecurityMonth 分批删除指定证券某月的 cdeu 主表行情数据（20007=1）。
 //
 // 返回本次删除的总行数；单批上限 mainPurgeBatchLimit，循环直到删空。
-// 只删 dedup 主表，不触碰 quote schema 的回测副本。
+// 只删 cdeu 主表，不触碰 quote schema 的回测副本。
 func purgeMainSecurityMonth(ctx context.Context, svc *cdeu.Service, usc string, bizMonth int) (int64, error) {
 	var total int64
 	for {

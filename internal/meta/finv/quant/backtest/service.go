@@ -1019,7 +1019,7 @@ func (s *Service) executeRun(ctx context.Context, runID string) {
 
 // loadBars 加载分钟行情（date 范围，时间升序）。
 //
-// 读 quote schema：回测属“消费者”侧，与去重/导出/上传链路（dedup）隔离。
+// 读 quote schema：回测属“消费者”侧，与去重/导出/上传链路（cdeu）隔离。
 func (s *Service) loadBars(ctx context.Context, usc string, startDate, endDate int) ([]Bar, error) {
 	rows, err := s.pool.Query(ctx, `
 SELECT ts, COALESCE(date, 0), COALESCE("time", 0),

@@ -14,7 +14,7 @@ import (
 )
 
 // 本文件实现归档运维台的查询接口与管理員编辑接口（路径前缀 /API/V1/Meta/Finv/Quote/DeDup/）。
-// 约定：写操作成功后会追加一条管理审计（finv_dedup_job_run_log_export_file，job_kind=MANUAL_ADMIN_EDIT）。
+// 约定：写操作成功后会追加一条管理审计（finv_quote_cdeu_job_run_log_export_file，job_kind=MANUAL_ADMIN_EDIT）。
 
 // adminFilter 从查询参数解析通用过滤条件。
 func adminFilter(c *gin.Context) cdeu.AdminFilter {
