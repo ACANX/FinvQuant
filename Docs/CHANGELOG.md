@@ -20,6 +20,13 @@
 
 ### 新增
 
+- **历史种子证券回填 `market_code` 并启用、`finv_market` 补市场符号与基础货币（`V200068` / `V200069`）**
+  - 背景：`V200002` / `V200009` 两批共 470 条证券种子在 `market_code` 列存在之前入库（该列由 `V100019` 以 `DEFAULT 0` 补加），长期停留在「待维护」状态且 `flag_enable='0'`，无法参与按市场的行情导入、归档导出与去重取数。
+  - 新增迁移 `Deploy/Migrations/V200068__finv_security_marketcode_backfill.sql`：按显式 `usc → market_code` 清单回填 470 条——其中 400 条按 `futu.finv_futu_quote_collect` 关联并套用 `V200062` 生成时的同一份口径（`SecuSync/SecuMapping.json` 的 `marketCodeByFutu`），余 70 条（`SHI` / `HS300I` / `N225` / `LIST*` 等无富途记录的历史 usc）按「交易所 + 证券类型 + 代码形态」推导并经人工确认；同时把这 470 条的 `flag_enable` 由 `0` 置为 `1`。另按语义细分原 `market_code=1314`（配置侧存在、`finv_market` 未登记的重复码）的 180 条美股指数：道琼斯美国行业指数 155 条 → `1311`、道琼斯宽基/风格 16 条 → `1312`、标普/纳指/Wilshire/Cboe/波动率 9 条 → `1310`。
+  - 新增迁移 `Deploy/Migrations/V200069__finv_market_symbol_and_base_currency.sql`：为 8 个有证券数据但符号未维护的市场补 `market_symbol`（`10011`/`10013`/`10014` → `FTC`、`8000` → `SECTOR`、`2001` → `BD`、`2003` → `BDY`、`3001` → `FD`、`1521` → `IN`），为 10 个所辖证券计价货币唯一的市场补 `base_currency`（`1501`→JPY、`1508`→USD、`1511`→SGD、`1521`→USD、`2001`→HKD、`3001`→USD、`10001`/`10011`/`10013`/`10014`→USD）；跨币种市场（`1251 FX`、`2003`、`8000`）保持空串——一个市场只有一列基础计价货币，跨币种由证券层 `currency_type` 区分，不拆市场、不在 `market_symbol` 上叠加货币后缀。
+  - 影响范围：`finv_security` 由「16,729 条启用 / 470 条禁用且市场未维护」变为「17,199 条全部启用且 `market_code` 无 `0`」；`finv_market` 36 个有数据的市场 `market_symbol` 全部非空。
+  - 幂等与验证：两迁移用临时表 + `IS DISTINCT FROM` 条件，在已按同口径改过的库上重放影响 0 行；收敛校验不符则整事务回滚。已用事务反向模拟全新库初始状态（470 条复位 `market_code=0`/`flag_enable='0'`、180 条复位 `1314`、市场符号与货币复位空串）执行两迁移，结果与生产库一致后回滚，本地库未受影响。
+
 - **业务月份改为自动生成的下拉列表（需求 10828）**
   - 业务月份是确定的枚举值（`yyyymm`），原先三处都是手工输入 `v-text-field`（交易日历、成熟度查询、导出文件筛选），容易输错格式触发「业务月份格式应为 yyyymm」校验。
   - 新增 `Web/src/utils.ts` 的 `bizMonthOptions(years = 10, now = new Date())`：按年月倒序生成最近 10 年（含当前月，共 120 项）的选项，`value` 为 `yyyymm` 字符串（与既有 `bizMonthParam` 解析口径一致）、`title` 为 `yyyy-MM`。
