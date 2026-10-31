@@ -315,6 +315,15 @@
 
 ### 新增
 
+- **`USDIndex` 固定归属市场 1253（需求 10876，迁移 `V200076`）**
+  - 决策：用户 2026-11-01 明确「1253 是手工加上的，按 1253 来定义，后续 `USDIndex` 就是 1253」。
+  - 问题：`V200062` 种子把 `USDIndex` 写成 `market_code=1251`（`FX`/`CER`），生产库的 `1253` 来自早前手工回填（未落迁移）→ 全新库复现不出生产口径，且 `V200075` 之后会出现「1251 市场 + `type_secu_sub=CIX`」的矛盾行。
+  - 改动：仅 `usc='USDIndex'` 一行 `market_code` → `1253`；不动 `type_secu_sub`/`currency_type`/`flag_enable`，不动小写 `USDindex`。
+  - 校验：`USDIndex` = `1253/CIX`；1253 下无非 `CIX` 的非空 `type_secu_sub`；1251 下无 `CIX`；两库（`finv` / 全新库）一致；`V200076` 重跑影响 0 行；全新库全链（166 个迁移）0 失败、`TestMigrateIntegration` 通过；生产库 `V200076` 登记 `t`、Live/Web 200。
+  - 文档：`RequirementList` 新增 10876（汇总 10001–10876 / 875 条）。
+
+### 新增
+
 - **修正 `USDIndex` 的 `type_secu_sub` 为 `CIX`（需求 10875，迁移 `V200075`）**
   - 背景：`finv_security.type_secu_sub` 应与所属市场的 `market_symbol` 一致（1251→`CER`、1252→`CFD`、1253→`CIX`）。`USDIndex`（美元指数）由 `V200062` 从 Supabase 导入时，上游 `sub_instrument_type=10001` 被统一映射成 `CER`，导致它挂 1253（`FX-IDX`/`CIX`）却带 `CER`。
   - 改动：仅 `usc='USDIndex'` 一行 `CER` → `CIX`；不动 `market_code`/`currency_type`/`flag_enable`，也不动小写 `USDindex`（`V200003` 老种子、`type_secu_sub` 本为空串）。
