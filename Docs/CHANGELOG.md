@@ -315,6 +315,16 @@
 
 ### 新增
 
+- **20 只加密货币证券的 `exchange_code` 由 `100` 修正为 `10001`（需求 10880，迁移 `V200080`）**
+  - 成因：`V200009` 增量种子（2026-08-05）就把这 20 只的 `exchange_code` 写成 `100`（`FX` 外汇市场）；`V200062` 权威导入给的是 `10001`（`CRYPTO`），但 `INSERT ... ON CONFLICT (usc) DO NOTHING` 使其从未覆盖旧行；`V200068` 只修了 `market_code`。
+  - 依据：`futu.finv_futu_quote_collect` 中这批 `quote_market='CC'`、`market_type=17`、富途市场码 360/400，与 `FX` 明显不同品种；`V200062` 中 19 只明确为 10001，`PAXG` 不在 `V200062` 但富途镜像同属 `CC`。
+  - 改动：仅这 20 行 `exchange_code` → `10001`（明确 usc 清单限定）；`market_code` 不变（19 只 10001、`BTCUSD` 保持 10011）；写入前做 `uq_finv_security_exchange_code` 冲突预检（0 冲突）。
+  - 影响：这批证券回填 `region` 由 `FX` 变 `CC`（`V200079` 已把加密交易所切到 `CC`），导出文件名 `region` 段由 `FX_*` 变 `CC_*`；`cdeu.finv_quote_cdeu_export_file` 中这批证券历史导出 **0 条**，无回溯包袱。
+  - 校验：20 行全部 10001；`exchange_code=100` 挂加密市场 0 行；加密市场（10001/10011/10013/10014）全部 `exchange_code` ∈ 10000~10007；192 只加密证券 `region='CC'`；`V200080` 重跑 0 行；全新库全链（170 个迁移）0 失败、`TestMigrateIntegration` 通过；生产库 `V200080` 登记 `t`、Live/Web 200。
+  - 文档：`RequirementList` 新增 10880（汇总 10001–10880 / 879 条）。
+
+### 新增
+
 - **8 个加密货币交易所的 `region` 由 `GLOBAL` 切到 `CC`（需求 10879，迁移 `V200079`）**
   - `finv_region` 已有 `(3, CC, 加密货币)`，但 `finv_exchange` 的 `10000 CC` ~ `10007 CCPT` 仍挂 `GLOBAL`，导致 `CC` 行没有任何引用；本次把 8 行 `region` 改为 `CC`。
   - 影响：`cdeu/store.go` 元数据回填对加密证券的 `region` 变为 `CC`（`cdeu.finv_quote_cdeu_usc` 当前无加密证券行，无需回刷）；加密证券导出文件名 `region` 段由 `GLOBAL_*` 变为 `CC_*`，而 `cdeu.finv_quote_cdeu_export_file` 中此类证券历史导出 **0 条**、远端无归档文件，改名无历史包袱。
