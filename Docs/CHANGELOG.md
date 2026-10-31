@@ -303,6 +303,15 @@
 
 ### 修复
 
+- **全新库全链迁移跑不通（独立库 `finv_migtest` 验证发现，4 处修复）**
+  - 现象：在空库上按版本顺序执行全部 161 个迁移时，`V200036` 报 `relation "dedup.finv_dedup_usc" does not exist`，后续 12 个依赖 `dedup.*` 的历史数据迁移（`V200036`–`V200052`）连带失败。根因：`V100086`（需求 10834）在 `V200036` 之前就把 `dedup` / `dedup_frozen` 删了；生产库是增量演进库（那批迁移早已执行），所以从未暴露。
+  - 修复一：`V100086` 不再直接 `DROP SCHEMA`，改为只跑前置数据校验并把删除动作推迟；新增 `V200071__drop_dedup_schemas_after_data_migrations.sql`，在最后一个 dedup 数据迁移之后删 schema（含同等前置校验与收敛校验）。终态不变（`dedup`/`dedup_frozen` 均不存在），已执行过 `V100086` 的库不受影响（不重跑）。
+  - 修复二：`V200070` 增加「`finv_market` 字典补齐」段（`1205`/`1250`/`1252`/`1253`/`1320`/`1321`/`1322`/`1330`/`1331`/`1340`，按 code 与 flag 双条件幂等插入，避开 `uq_finv_market_flag`）；并把「字典外行数」校验从 `RAISE EXCEPTION` 降为 `RAISE NOTICE`（字典编号体系差异属独立问题，见下方「待解决」）。
+  - 修复三：新增 `V200072__cdeu_restore_explain_export_decision_job.sql` —— `V100085` 插入的 `JOB_EXPLAIN_EXPORT_DECISION` 在全新库上会被 `V200057`（“cdeu 配置落后时清空重灌”）删掉，导致全新库 22 个 JOB、生产库 23 个；幂等补回后两边收敛到 23。
+  - 修复四：`internal/database/migrate_integration_test.go` 的过期断言对齐生产库现状（CDEU 初始数据 1/6/17/23/15、`PHASE_REVIEW` 下 5 个 Process、`PROCESS_RECOVER` 归 `PHASE_REVIEW`、`PROCESS_HISTORY_INGEST` 挂 1 个 JOB、`PROCESS_EXPORT_DECISION` 挂 2 个 JOB、`jobs_without_step=8`）。
+  - 验证：在独立库 `finv_migtest` 上 `TestMigrateIntegration` **通过**（161 个迁移全链执行 + 幂等重跑 + 表/索引/列/种子断言）；生产库重建镜像后 `V200071`/`V200072` 登记为 `t`，`dedup`/`dedup_frozen` 不存在、JOB 数 23、字典外证券 0 行。
+  - **待解决（需求 10871）**：仓库种子（`V200017`/`V200018`）的 `finv_market` 编号体系（`1150 HKFE-F` / `1313 US-OTC` / `1314 US-I2` / `1312 US-ARCA` …）与生产库现行体系（`1250 HKFE-F` / `1331 US-OTC` / `1312 US-I2` / `1317 US-ARCA` / `1315 US-NSDQ` …）不一致 —— 全新库因此仍有 **77 行证券的 `market_code` 落在字典外**。需另起迁移把字典与证券按生产库口径对齐。
+
 - **元数据域改名后残留一处旧名注释（需求 10852 附带修复）**
   - 现象：`Web/src/config/menuConfig.ts` 中「历史行情数据导入」叶子的注释仍写着
     「从『元数据 → 业务元数据维护』移入」，与 10852 改名后的实际菜单名不一致。

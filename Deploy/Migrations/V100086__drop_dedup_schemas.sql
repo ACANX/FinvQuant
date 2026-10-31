@@ -66,24 +66,28 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------
--- 2. 删除 schema（CASCADE 会一并清理表、序列、索引、约束）
+-- 2. 删除 schema —— **已推迟到 V200071 执行**
+--
+-- 原因（2026-10-31 在独立库 finv_migtest 做全新库全链验证时发现）：
+--   V200036–V200052 等 13 个历史数据迁移仍引用 `dedup.*`（如
+--   `dedup.finv_dedup_usc`），且按版本号在本迁移**之后**执行。若在此处删 schema，
+--   全新库会在 V200036 直接报错。本库（生产）当时已跑过那批迁移，属增量演进库，
+--   所以从未暴露。故把删除动作后移到最后一个数据迁移之后（V200071），
+--   终态仍为「dedup / dedup_frozen 不存在」，与需求 10834 的验收口径一致。
+--   已执行过本版本的库（含生产库）不重跑，不受影响。
 -- ---------------------------------------------------------------------
-DROP SCHEMA IF EXISTS dedup CASCADE;
-DROP SCHEMA IF EXISTS dedup_frozen CASCADE;
+DO $$
+BEGIN
+    RAISE NOTICE 'V100086：dedup / dedup_frozen 的删除已推迟到 V200071（需先跑完 V200036–V200052），本迁移不改 schema';
+END $$;
 
 -- ---------------------------------------------------------------------
--- 3. 后置校验：schema 必须不存在，且 cdeu / quote / export 三份同名表仍在
+-- 3. 后置校验：保护名单里的同名副本必须齐全（dedup 相关 schema 的最终校验在 V200071）
 -- ---------------------------------------------------------------------
 DO $$
 DECLARE
     v_count int;
 BEGIN
-    SELECT count(*) INTO v_count FROM pg_namespace WHERE nspname IN ('dedup', 'dedup_frozen');
-    IF v_count <> 0 THEN
-        RAISE EXCEPTION 'V100086 后置校验失败：仍有 % 个 dedup 相关 schema', v_count;
-    END IF;
-
-    -- 保护名单里的其余副本不得受影响（DbSchemaSpec §0.2）
     SELECT count(*) INTO v_count
       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
      WHERE c.relname = 'finv_quote_secu_kline_min'
@@ -92,7 +96,7 @@ BEGIN
         RAISE EXCEPTION 'V100086 后置校验失败：quote/export/cdeu 三份主表应各存一份，实际 % 份', v_count;
     END IF;
 
-    RAISE NOTICE 'V100086 完成：dedup / dedup_frozen 已删除，quote/export/cdeu 主表保留';
+    RAISE NOTICE 'V100086 完成：前置数据校验通过，schema 删除推迟到 V200071';
 END $$;
 
 COMMIT;

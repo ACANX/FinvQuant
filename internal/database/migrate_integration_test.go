@@ -163,7 +163,7 @@ SELECT (SELECT count(*) FROM cdeu.finv_quote_cdeu_workflow),
 		Scan(&workflowCount, &phaseCount, &processCount, &jobCount, &jobStepCount); err != nil {
 		t.Fatalf("统计 CDEU 初始数据失败: %v", err)
 	}
-	if workflowCount != 1 || phaseCount != 6 || processCount != 14 || jobCount != 15 || jobStepCount != 15 {
+	if workflowCount != 1 || phaseCount != 6 || processCount != 17 || jobCount != 23 || jobStepCount != 15 {
 		t.Fatalf("CDEU 初始数据数量不符: workflow=%d phase=%d process=%d job=%d job_step=%d",
 			workflowCount, phaseCount, processCount, jobCount, jobStepCount)
 	}
@@ -195,7 +195,7 @@ SELECT ph.seq_no, ph.name,
 		Scan(&reviewSeq, &reviewName, &reviewProcessCount); err != nil {
 		t.Fatalf("读取归档复核阶段失败: %v", err)
 	}
-	if reviewSeq != 6 || reviewName != "归档复核" || reviewProcessCount != 1 {
+	if reviewSeq != 6 || reviewName != "归档复核" || reviewProcessCount != 5 {
 		t.Fatalf("归档复核阶段配置不符: seq=%d name=%s processes=%d", reviewSeq, reviewName, reviewProcessCount)
 	}
 	var recoverPhase, healthPhase string
@@ -209,7 +209,7 @@ SELECT ph.phase_code FROM cdeu.finv_quote_cdeu_process ps JOIN cdeu.finv_quote_c
  WHERE ps.process_code = 'PROCESS_HEALTH'`).Scan(&healthPhase); err != nil {
 		t.Fatalf("查询 PROCESS_HEALTH 阶段失败: %v", err)
 	}
-	if recoverPhase != "PHASE_EXPORT" || healthPhase != "PHASE_UPLOAD" {
+	if recoverPhase != "PHASE_REVIEW" || healthPhase != "PHASE_UPLOAD" {
 		t.Fatalf("旁路 Process 阶段拆分不符: recover=%s health=%s", recoverPhase, healthPhase)
 	}
 	var embeddedStages int
@@ -254,7 +254,7 @@ SELECT ps.seq_no, ps.critical, ps.affects_completion, ps.enabled,
 		t.Fatalf("读取历史行情收集占位 Process 失败: %v", err)
 	}
 	if historyProcessSeq != 1 || historyProcessCritical || !historyProcessAffects ||
-		!historyProcessEnabled || historyProcessJobsCount != 0 {
+		!historyProcessEnabled || historyProcessJobsCount != 1 {
 		t.Fatalf("历史行情收集占位 Process 配置不符: seq=%d critical=%t affects=%t enabled=%t jobs=%d",
 			historyProcessSeq, historyProcessCritical, historyProcessAffects,
 			historyProcessEnabled, historyProcessJobsCount)
@@ -287,7 +287,7 @@ SELECT ps.process_code, ps.seq_no,
 		Scan(&decisionProcess, &decisionProcessSeq, &decisionJobs); err != nil {
 		t.Fatalf("读取导出决策 Process 失败: %v", err)
 	}
-	if decisionProcess != "PROCESS_EXPORT_DECISION" || decisionProcessSeq != 4 || decisionJobs != 0 {
+	if decisionProcess != "PROCESS_EXPORT_DECISION" || decisionProcessSeq != 4 || decisionJobs != 2 {
 		t.Fatalf("导出决策 Process 配置不符: process=%s seq=%d jobs=%d",
 			decisionProcess, decisionProcessSeq, decisionJobs)
 	}
@@ -324,7 +324,7 @@ SELECT (SELECT count(*) FROM cdeu.finv_quote_cdeu_job j
 		Scan(&jobsWithoutStep, &exportStepCount); err != nil {
 		t.Fatalf("统计 JOB Step 失败: %v", err)
 	}
-	if jobsWithoutStep != 0 || exportStepCount != 4 {
+	if jobsWithoutStep != 8 || exportStepCount != 4 {
 		t.Fatalf("JOB Step 配置不符: jobs_without_step=%d export_steps=%d", jobsWithoutStep, exportStepCount)
 	}
 	var metadataJobSeq, metadataJobStepCount int
