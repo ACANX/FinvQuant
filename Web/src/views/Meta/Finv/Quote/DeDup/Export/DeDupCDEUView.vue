@@ -303,26 +303,6 @@ const jobStats = computed(() => {
   return { total, success, failed, running, pending }
 })
 
-const jobStepStats = computed(() => {
-  let total = 0
-  let success = 0
-  let failed = 0
-  let running = 0
-  for (const phase of phases.value) {
-    for (const process of phase.processes) {
-      for (const job of process.jobs) {
-        for (const step of job.steps) {
-          total += 1
-          if (step.status === 'SUCCESS') success += 1
-          else if (step.status === 'FAILED' || step.status === 'PARTIAL') failed += 1
-          else if (step.status === 'RUNNING') running += 1
-        }
-      }
-    }
-  }
-  return { total, success, failed, running }
-})
-
 const overallProgress = computed(() => {
   if (!run.value) return 0
   if (phaseStats.value.total === 0) return 0
@@ -1353,7 +1333,7 @@ onBeforeUnmount(() => {
       <v-col cols="12" sm="6" lg="3">
         <v-card variant="tonal" color="success" height="100%">
           <v-card-text>
-            <div class="text-caption text-medium-emphasis">JOB 进度（{{ jobStats.total }} 个 JOB / {{ jobStepStats.total }} 个 Step）</div>
+            <div class="text-caption text-medium-emphasis">JOB 进度</div>
             <div class="d-flex align-baseline justify-space-between mt-1">
               <span class="text-h5 font-weight-bold">{{ jobStats.success }} / {{ jobStats.total }}</span>
               <span class="text-caption text-medium-emphasis">失败 {{ jobStats.failed }} · 待执行 {{ jobStats.pending }}</span>

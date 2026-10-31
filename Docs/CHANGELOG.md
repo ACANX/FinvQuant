@@ -25,7 +25,12 @@
   - 根 `VERSION` 文件由 `0.1.4` 升为 **`0.1.5`**（版本号单一来源，见 `GitSpec` §4；后端 `-ldflags`、镜像与发行包名均取自该文件）。
   - 说明：`v0.1.4` 在 `feat/cdeu` 分支手工打标，按 `GitSpec` §4 正式 release tag 通常由 CI 在代码合入 `main` 时创建；合入 `main` 时若 CI 检测到 `v0.1.4` 已存在会跳过创建并沿用该 tag，届时如需重新指向合并提交请先删除本地/远端 tag 再触发。
 
-### 修复
+### 变更
+
+- **CDEU 工作流视图「JOB 进度」卡片标题去掉重复计数（需求 10885）**
+  - 标题由 `JOB 进度（{N} 个 JOB / {M} 个 Step）` 改为 `JOB 进度`：卡片正文已展示 `成功 / 总数` 与「失败 · 待执行」，标题里的计数属重复描述。
+  - 同步删除因此不再被引用的 `jobStepStats` computed；`npm run build`（`vue-tsc -b && vite build`）通过。
+
 
 - **收敛「工作流已终态、子级仍非终态」的历史残留运行记录（需求 10884，`V300081`）**
   - 现象：run 59（`FAILED`，2026-10-27）残留 2 个 `RUNNING` 的 `job_run`（`JOB_UPLOAD_FILES` / `JOB_EXPORT_LOAD`）、61 条 `GCMAIN` 上传动态实例、4 个未终态 `process_run`；run 55（`SUCCESS`）残留 1 个 `RUNNING` 的 `process_run`（`PROCESS_EXPORT_FILE_MON_BASE`）。残留导致「运行中」永不收敛，干扰 Job 门禁与界面状态。

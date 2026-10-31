@@ -2609,6 +2609,13 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10884 | 收敛「工作流已终态、子级仍非终态」的历史残留运行记录（`V300081`）：旧版本在运行被终止/失败/完成后不彻底收尾，留下孤儿子级 —— run 59（`FAILED`，2026-10-27）残留 2 个 `RUNNING` 的 `job_run`（`JOB_UPLOAD_FILES` / `JOB_EXPORT_LOAD`）、61 条 `GCMAIN` 上传动态实例、4 个未终态 `process_run`；run 55（`SUCCESS`）残留 1 个 `RUNNING` 的 `process_run`（`PROCESS_EXPORT_FILE_MON_BASE`）。处置口径：只把「所属 `workflow_run` 已终态而自身仍为 `PENDING`/`READY`/`RUNNING`」的 `job_step_run` / `job_run` / `job_dynamic` / `process_run` / `phase_run` 改为 `CANCELLED` 并补齐结束时间（`finished_at` / `gmt_finish`），**不删除任何记录**，不改动已终态行与 run/phase 的既定结论。 | ① 迁移执行输出 `UPDATE 5 / 5 / 61 / 5 / 1` + `NOTICE: V300081 收敛完成`，重复执行全部为 `UPDATE 0`（幂等）；② 收敛后 `select count(*) from cdeu.finv_quote_cdeu_job_run s join cdeu.finv_quote_cdeu_workflow_run r on r.run_id=s.workflow_run_id where r.status in ('SUCCESS','FAILED','PARTIAL','CANCELLED','PAUSED') and s.status in ('PENDING','READY','RUNNING')` = 0，`job_step_run` / `job_dynamic` / `process_run` / `phase_run` 同类查询同为 0；③ `select run_id,status from cdeu.finv_quote_cdeu_workflow_run where run_id in (55,59)` 仍为 `55=SUCCESS`、`59=FAILED`（查询结论未被改写）；④ `select count(*) from cdeu.finv_quote_cdeu_export_job where locked_by is not null` = 0（无残留锁）；⑤ `public.schema_version` 出现 `300081`，服务 Live/Web 200 | √ |
 
 
+## 一百九十八、CDEU「JOB 进度」标题去重（10885）
+
+| 编号 | 需求描述 | 核对方式 | 结果 |
+|---|---|---|---|
+| 10885 | CDEU 工作流视图「JOB 进度」卡片标题去掉重复计数：原为 `JOB 进度（{N} 个 JOB / {M} 个 Step）`，而卡片正文已展示 `成功 / 总数` 与「失败 · 待执行」，标题里的计数属重复描述。改为纯文本 `JOB 进度`，并删除因此不再被引用的 `jobStepStats` computed（避免 `vue-tsc` 未使用变量报错）。 | `grep -n "JOB 进度" Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 输出为 `<div class="text-caption text-medium-emphasis">JOB 进度</div>`（无 `个 JOB`/`个 Step`）；`grep -c jobStepStats` = 0；`cd Web && npm run build` 通过；页面「JOB 进度」卡片标题仅显示 `JOB 进度`，下方 `成功/总数`、`失败 · 待执行` 指标不变 | √ |
+
+
 ## 汇总
 
 | 分类 | 编号区间 | 条目数 |
@@ -2847,7 +2854,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 生产库基线重做（待办） | 10882 | 1 |
 | CDEU 运行树状态误判修复（PENDING 不再显示 RUNNING） | 10883 | 1 |
 | CDEU 历史残留运行记录收敛（已终态 run 的孤儿子级） | 10884 | 1 |
-| **合计** | **10001–10884** | **883** |
+| CDEU「JOB 进度」标题去掉重复计数 | 10885 | 1 |
+| **合计** | **10001–10885** | **884** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
