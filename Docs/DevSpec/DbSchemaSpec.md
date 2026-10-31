@@ -150,6 +150,22 @@
 - 新增/修改证券时**必须**按上述口径生成 `usc`，不得再补前导 `0` 成 8 位；否则会重新产生两套 usc 并导致主键/唯一约束冲突。
 
 
+### 1.3 `finv_region` 字典 idx 编码约定（需求 10877）
+
+`public.finv_region`（区域/板块字典）主键 `idx`、业务键 `region`（唯一约束 `uq_finv_region_region`）：
+
+| idx 段 | 语义 | 现有取值 |
+|---|---|---|
+| `0` | 未知/默认 | `UNK` |
+| `1` | 全球（含外汇/加密货币兜底） | `GLOBAL` |
+| `2`~`100` | **非国家类扩展预留段** | `2`=`FX`（外汇）、`3`=`CRYPTO`（加密货币，字典先行，暂无交易所引用） |
+| `101`+ | 富途 region 原值 + 99 的国家/地区序列 | `101`=`CN` … `123`=`ID`；`103`=`US` |
+
+- 约束方向：`finv_exchange.region` 的每个取值都应在 `finv_region.region` 中存在（`cdeu/store.go` 的元数据回填依赖该 join）。
+- 已知缺口（未处理）：`finv_exchange.region='N/A'`（120 `BD` / 121 `BMS` / 122 `FD` / 9003 `TFD`）尚未入字典，靠 `COALESCE` 退化取文本；补录需另立需求。
+- 加密货币交易所（10000~10007）当前 `region='GLOBAL'`，`CRYPTO` 行加入后**未回填**，切换需另立需求并同步评估导出路径 `region` 段变化（`GLOBAL_*` → `CRYPTO_*`）。
+
+
 ## 2. 表命名
 
 - 表名**保留业务前缀**（`finv_quote_*`、`finv_quant_*`），schema 与前缀不重复表述业务——前缀用于跨 schema 检索、日志与 `pg_dump` 过滤，暂不裁剪。

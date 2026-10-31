@@ -315,6 +315,16 @@
 
 ### 新增
 
+- **`finv_region` 补 `FX` / `CRYPTO` 两行并统一 `US`（需求 10877，迁移 `V200077`）**
+  - `FX`（idx=2，name=`外汇`）：`finv_exchange` 的 100 `FX` / 101 `FX-CFD` 使用的 `region='FX'` 此前不在字典中，`cdeu/store.go` 元数据回填的 `LEFT JOIN finv_region r ON r.region = e.region` 永远落空，只能靠 `COALESCE` 退化取交易所文本；补齐后 `region` 段取值链路闭环（`finv_exchange.region='FX'` → `finv_region.region='FX'` → `cdeu.usc.region='FX'`）。
+  - `CRYPTO`（idx=3，name=`加密货币`）：用户要求顺带加入；本期**未改** `finv_exchange.region`（8 个加密货币交易所 10000~10007 仍为 `GLOBAL`），属「字典先行、交易所归属后续单独决策」。
+  - `idx=103` 的 `region` 由 `USA` 改为 `US`：与生产库及 `finv_exchange.region`（9 个美股交易所）一致，避免全新库美股导出文件名 `region` 段为 `USA`、生产库为 `US` 而互相对不上。
+  - 未处理：`finv_exchange.region='N/A'`（120/121/122/9003）仍未入字典；`futu.finv_futu_mapping_region` 未动。
+  - 校验：`finv_region` 27 行；`(2,FX,外汇)`、`(3,CRYPTO,加密货币)`、`(103,US,美国)` 就位；`finv_exchange` 中 `region in ('FX','US')` 的 11 行 100% 匹配字典（`unmatched=0`）；`V200077` 重跑 0 行；全新库全链（167 个迁移）0 失败、`TestMigrateIntegration` 通过；生产库 `V200077` 登记 `t`、Live/Web 200。
+  - 文档：`RequirementList` 新增 10877（汇总 10001–10877 / 876 条）；`DbSchemaSpec` §1.3 记录 `region` 字典 idx 编码约定。
+
+### 新增
+
 - **`USDIndex` 固定归属市场 1253（需求 10876，迁移 `V200076`）**
   - 决策：用户 2026-11-01 明确「1253 是手工加上的，按 1253 来定义，后续 `USDIndex` 就是 1253」。
   - 问题：`V200062` 种子把 `USDIndex` 写成 `market_code=1251`（`FX`/`CER`），生产库的 `1253` 来自早前手工回填（未落迁移）→ 全新库复现不出生产口径，且 `V200075` 之后会出现「1251 市场 + `type_secu_sub=CIX`」的矛盾行。
