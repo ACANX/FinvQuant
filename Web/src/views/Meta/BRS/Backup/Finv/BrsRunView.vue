@@ -183,11 +183,11 @@ onBeforeUnmount(() => window.clearTimeout(timer))
 <template>
   <v-card>
     <v-card-title>
-      <v-icon icon="mdi-play-circle-outline" class="mr-2" />
-      手动备份与日志
+      <v-icon icon="mdi-database-export" class="mr-2" />
+      小表全量备份
     </v-card-title>
     <v-card-subtitle>
-      随时触发一轮备份（与定时任务共用同一执行链），实时查看进度与运行日志；备份范围取「备份登记维护」中启用的表。
+      手动触发一轮小表全量备份（与定时任务共用同一执行链），实时查看进度与运行日志；备份范围取「备份登记维护」中启用的表。大表按分片增量备份见「大表增量备份」。
     </v-card-subtitle>
 
     <v-card-text>

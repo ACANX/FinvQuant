@@ -7,7 +7,7 @@
 //   GET  /Meta/BRS/Backup/Finv/Slice/Plan?ruleId          单个登记的分片明细
 //   POST /Meta/BRS/Backup/Finv/Slice/Run/Manual          手动触发一轮（异步）
 //   GET  /Meta/BRS/Backup/Finv/Slice/Run/Status?sinceSeq 运行状态与日志
-// 与小表全量备份（手动备份与日志）完全独立：各自一套登记、执行链与运行状态。
+// 与小表全量备份（菜单「小表全量备份」）完全独立：各自一套登记、执行链与运行状态。
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { apiGet, apiPost } from '../../../../../api'

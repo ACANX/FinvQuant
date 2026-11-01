@@ -121,8 +121,8 @@
 | 97 | POST | `/API/V1/Meta/BRS/Backup/Finv/OSSConfig/Save` | 保存对象存储配置（secret_key 留空表示不修改；下一轮备份生效） | [BRS/OSSConfig.md](BRS/OSSConfig.md) | 对象存储配置（同上） |
 | 98 | GET | `/API/V1/Meta/BRS/Backup/Finv/Schedule/Get` | 读取备份调度配置（sys.sys_config 39001，6 段 cron）+ 未来 5 次执行时间 | [BRS/Schedule.md](BRS/Schedule.md) | 备份调度配置（`BrsScheduleView.vue`） |
 | 99 | POST | `/API/V1/Meta/BRS/Backup/Finv/Schedule/Save` | 保存备份调度配置（校验 6 段；最多 1 分钟生效） | [BRS/Schedule.md](BRS/Schedule.md) | 备份调度配置（同上） |
-| 100 | POST | `/API/V1/Meta/BRS/Backup/Finv/Run/Manual` | 手动触发一轮备份（异步，返回运行快照；并发时 409） | [BRS/Run.md](BRS/Run.md) | 手动备份与日志（`BrsRunView.vue`） |
-| 101 | GET | `/API/V1/Meta/BRS/Backup/Finv/Run/Status` | 查询运行状态与日志（`sinceSeq` 增量） | [BRS/Run.md](BRS/Run.md) | 手动备份与日志（同上） |
+| 100 | POST | `/API/V1/Meta/BRS/Backup/Finv/Run/Manual` | 手动触发一轮备份（异步，返回运行快照；并发时 409） | [BRS/Run.md](BRS/Run.md) | 小表全量备份（`BrsRunView.vue`） |
+| 101 | GET | `/API/V1/Meta/BRS/Backup/Finv/Run/Status` | 查询运行状态与日志（`sinceSeq` 增量） | [BRS/Run.md](BRS/Run.md) | 小表全量备份（同上） |
 | 102 | GET | `/API/V1/Meta/BRS/Backup/Finv/Slice/Rule/List` | 大表分片备份登记列表 + 每张表的分片完成度 | [BRS/Slice.md](BRS/Slice.md) | 大表增量备份（`BrsSliceView.vue`） |
 | 103 | POST | `/API/V1/Meta/BRS/Backup/Finv/Slice/Rule/Save` | 新增/编辑大表分片备份登记（校验模式、条件模板、分片上限） | [BRS/Slice.md](BRS/Slice.md) | 大表增量备份（同上） |
 | 104 | POST | `/API/V1/Meta/BRS/Backup/Finv/Slice/Rule/Toggle` | 启用/停用大表分片备份登记 | [BRS/Slice.md](BRS/Slice.md) | 大表增量备份（同上） |

@@ -74,7 +74,7 @@ Authorization: Bearer <token>
   - [`BRS/BackupTable.md`](BRS/BackupTable.md) — `GET/POST /API/V1/Meta/BRS/Backup/Finv/Table/*`（备份登记维护：查询 / 新增修改 / 启用禁用）
   - [`BRS/OSSConfig.md`](BRS/OSSConfig.md) — `GET/POST /API/V1/Meta/BRS/Backup/Finv/OSSConfig/*`（对象存储配置：sys_config 39002 可视化读写，secret_key 不回传）
   - [`BRS/Schedule.md`](BRS/Schedule.md) — `GET/POST /API/V1/Meta/BRS/Backup/Finv/Schedule/*`（备份调度配置：sys_config 39001 的 6 段 cron + 未来执行时间预览）
-  - [`BRS/Run.md`](BRS/Run.md) — `POST .../Run/Manual`、`GET .../Run/Status`（手动备份 + 实时进度与增量日志）
+  - [`BRS/Run.md`](BRS/Run.md) — `POST .../Run/Manual`、`GET .../Run/Status`（小表全量备份：手动触发 + 实时进度与增量日志）
   - [`BRS/Slice.md`](BRS/Slice.md) — `GET/POST .../Slice/Rule/*`、`.../Slice/Plan`、`.../Slice/Run/{Manual,Status}`（大表增量备份：按分片切分、只补缺失分片）
   - 证券行情月归档导出与上传（`/API/V1/Meta/Finv/Quote/DeDup/*`，**一个接口一个文档**）：
     - [`QuoteDeDup/Status.md`](QuoteDeDup/Status.md) — `GET .../DeDup/Status`（归档链路指标、运行参数与调度表）

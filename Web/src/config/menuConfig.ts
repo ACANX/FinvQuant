@@ -201,7 +201,7 @@ const finvQuantMenu: MenuNode[] = [
           { key: 'brs-record', title: '备份记录与产物', icon: 'mdi-file-clock-outline', path: '/Meta/BRS/Backup/Finv/Record' },
           { key: 'brs-storage', title: '对象存储配置', icon: 'mdi-cloud-cog-outline', path: '/Meta/BRS/Backup/Finv/OSSConfig' },
           { key: 'brs-schedule', title: '备份调度配置', icon: 'mdi-calendar-clock', path: '/Meta/BRS/Backup/Finv/Schedule' },
-          { key: 'brs-run', title: '手动备份与日志', icon: 'mdi-database-export', path: '/Meta/BRS/Backup/Finv/Run' },
+          { key: 'brs-run', title: '小表全量备份', icon: 'mdi-database-export', path: '/Meta/BRS/Backup/Finv/Run' },
           { key: 'brs-slice', title: '大表增量备份', icon: 'mdi-table-large', path: '/Meta/BRS/Backup/Finv/Slice' },
         ],
       },

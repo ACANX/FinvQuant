@@ -155,7 +155,7 @@ onMounted(load)
       </v-row>
       <v-row dense>
         <v-col cols="4" sm="3">手动模式</v-col>
-        <v-col cols="8" sm="9">「备份执行 → 手动备份与日志」页面随时触发，与自动模式共用同一执行链</v-col>
+        <v-col cols="8" sm="9">「小表全量备份」页面随时触发，与自动模式共用同一执行链</v-col>
       </v-row>
       <v-row dense>
         <v-col cols="4" sm="3">生效时机</v-col>

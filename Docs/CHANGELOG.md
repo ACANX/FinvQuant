@@ -267,6 +267,12 @@
 
 ### 变更
 
+- **菜单「手动备份与日志」改名为「小表全量备份」**
+  - 与「大表增量备份」对称，一眼能看出两套备份策略的分工；路由（`/Meta/BRS/Backup/Finv/Run`）与接口不变。
+  - 页面标题、副标题同步；「备份调度配置」页里对该页的引用一并更新；接口文档 `Docs/API/BRS/Run.md` 标题与 `Docs/API/{APIs,README}.md` 的已使用位置列同步。
+
+### 变更
+
 - **小表全量登记表改名 `brs_bak_rdb_table` → `brs_bak_rdb_table_full`（需求 10908）**
   - 与需求 10905 的 `brs_bak_rdb_table_incr` 并列：`_full` 全量 / `_incr` 增量，避免「一张叫 table、另一张带后缀」的不对称。
   - 迁移 `V300091`：改名表 + 约束（主键/唯一/CHECK/NOT NULL）+ 触发器 `trg_brs_bak_rdb_table_full_gmt_update` + identity 序列 `brs_bak_rdb_table_full_idn_seq`，幂等；`V300060`/`V300061`/`V200090`/`V300083`/`V300086` 等历史迁移保持原样。

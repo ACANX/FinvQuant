@@ -1,4 +1,4 @@
-# POST /API/V1/Meta/BRS/Backup/Finv/Run/Manual · GET .../Run/Status — 手动备份与实时日志
+# POST /API/V1/Meta/BRS/Backup/Finv/Run/Manual · GET .../Run/Status — 小表全量备份（手动触发 + 实时日志）
 
 手动模式：随时触发一轮备份，并实时查看进度与运行日志。与自动模式（`sys.sys_config` 39001 定时）**共用同一执行链**，页面看到的行为一致。
 
