@@ -1,4 +1,4 @@
-# qmio 数据搬运工具设计
+# qiom 数据搬运工具设计
 
 **文档版本**：v1.0.0
 **状态**：生效
@@ -19,7 +19,7 @@
 
 ## 0. 定位与读者
 
-本文描述 **`qmio`（Quick Market IO）** 的设计与实现：一个不依赖主服务的命令行数据搬运工具，用于把 `cdeu.finv_quote_secu_kline_min` 整表导出成 MVSV-2 文件、再导入到另一个库，以及校验文件完整性。
+本文描述 **`qiom`（原二进制名 `qmio`，Quick Market IO；需求 10904 更名）** 的设计与实现：一个不依赖主服务的命令行数据搬运工具，用于把 `cdeu.finv_quote_secu_kline_min` 整表导出成 MVSV-2 文件、再导入到另一个库，以及校验文件完整性。
 
 读者：
 
@@ -29,7 +29,7 @@
 
 配套文档：
 
-- 使用手册（参数、示例）：[Qmio.md](../FinvQuant/Qmio.md)
+- 使用手册（参数、示例）：[Qiom.md](../FinvQuant/Qiom.md)
 - 文件格式契约：[MvsvFileFormat.md](../DataFormat/MvsvFileFormat.md) §5「MVSV-2」
 - 设计前身（导出/导入方案的取舍）：[2610-010-CdeuKlineDumpImport.md](../Refactor/2610-010-CdeuKlineDumpImport.md)
 - 数据来源与归档链路：[CdeuWorkflowDesign.md](CdeuWorkflowDesign.md)
@@ -65,7 +65,7 @@
 ## 3. 总体架构
 
 ```
-qmio export / import / verify
+qiom export / import / verify
    │
    ├─ main.go       子命令分发、退出码、连接池与 Ping（5 s 超时）
    ├─ envfile.go    未给 --pg-url 时按 4 级候选路径加载 finvquant.env
@@ -87,7 +87,7 @@ qmio export / import / verify
         └─ 仍缺 → config.Load() 读取 FINV_PG_* 组装 DSN（sslmode=disable）
 ```
 
-**为什么需要 envfile 自动加载**：systemd 会用 `EnvironmentFile` 注入配置，但运维手工执行 `qmio` 时没有这些变量——手工跑就报「缺数据库密码」是很差的体验，因此工具自己去找同目录的 `finvquant.env`，且**只填空、不覆盖**已设置的变量。
+**为什么需要 envfile 自动加载**：systemd 会用 `EnvironmentFile` 注入配置，但运维手工执行 `qiom` 时没有这些变量——手工跑就报「缺数据库密码」是很差的体验，因此工具自己去找同目录的 `finvquant.env`，且**只填空、不覆盖**已设置的变量。
 
 ### 3.2 退出码约定
 
@@ -219,7 +219,7 @@ ext_field, remark, provider, gmt_create, gmt_update
 
 ## 8. 相关文档
 
-- [Qmio.md](../FinvQuant/Qmio.md) — 使用手册：安装、参数、示例流程
+- [Qiom.md](../FinvQuant/Qiom.md) — 使用手册：安装、参数、示例流程
 - [MvsvFileFormat.md](../DataFormat/MvsvFileFormat.md) — MVSV-1 / MVSV-2 格式契约（§5 为 MVSV-2）
 - [2610-010-CdeuKlineDumpImport.md](../Refactor/2610-010-CdeuKlineDumpImport.md) — 方案取舍（为何选 Go CLI 而非 `pg_dump`）
 - [CdeuWorkflowDesign.md](CdeuWorkflowDesign.md) — 数据来源：CDEU 归档链路
@@ -229,11 +229,11 @@ ext_field, remark, provider, gmt_create, gmt_update
 
 | 文件 | 职责 |
 |---|---|
-| `cmd/qmio/main.go` | 子命令分发、用法文本、连接池与 Ping |
-| `cmd/qmio/export.go` | 快照事务、列清单与 `::text` 输出、MVSV-2 写入、校验文件 |
-| `cmd/qmio/import.go` | 参数校验、gzip 魔数识别、分批 INSERT、三种冲突模式、事务提交 |
-| `cmd/qmio/verify.go` | 哈希校验 + 解析计数输出 |
-| `cmd/qmio/envfile.go` | `finvquant.env` 候选路径查找与解析（不覆盖已有变量） |
-| `cmd/qmio/util.go` | `sha256` 计算与 `.sha256` 文件读写 |
+| `cmd/qiom/main.go` | 子命令分发、用法文本、连接池与 Ping |
+| `cmd/qiom/export.go` | 快照事务、列清单与 `::text` 输出、MVSV-2 写入、校验文件 |
+| `cmd/qiom/import.go` | 参数校验、gzip 魔数识别、分批 INSERT、三种冲突模式、事务提交 |
+| `cmd/qiom/verify.go` | 哈希校验 + 解析计数输出 |
+| `cmd/qiom/envfile.go` | `finvquant.env` 候选路径查找与解析（不覆盖已有变量） |
+| `cmd/qiom/util.go` | `sha256` 计算与 `.sha256` 文件读写 |
 | `internal/meta/finv/quote/mvsv/writer_v2.go` | MVSV-2 写出：`V2Columns`、文件头、数据行格式化 |
 | `internal/meta/finv/quote/mvsv/parser_v2.go` | MVSV-2 解析：`Format` 判定、按 `# Field` 列名映射 |

@@ -279,7 +279,7 @@ type Store interface {
 - [2610-011-BrsBackup.md](../Refactor/2610-011-BrsBackup.md) — 方案与取舍（为何不用 `pg_dumpall`、为何表级登记）
 - [DbSchemaSpec.md](../DevSpec/DbSchemaSpec.md) — schema 隔离红线（`brs` schema 的归属）
 - [CdeuWorkflowDesign.md](CdeuWorkflowDesign.md) — 行情表的归档链路（与本文互补：大表走导出上传，配置/字典表走备份）
-- [QmioDesign.md](QmioDesign.md) — 行情数据整表搬运工具
+- [QiomDesign.md](QiomDesign.md) — 行情数据整表搬运工具
 
 ## 11. 源码索引
 

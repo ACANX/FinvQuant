@@ -339,7 +339,7 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 | 1.4 | 2026-08-06 | 必填键 11→20：新增 `Title` / `Region` / `Name` / `Period` / `Dsv` / `FieldType` / `FieldName` / `字段名称` / `StockId`（溯源类键强制） |
 | 1.5 | 2026-08-06 | 布局匹配放宽：`# Field` 以核心布局开头即可，多余列（如已过时 `pc`）允许并忽略（修复 13 列 GCmain 文件无法导入） |
 
-## 5. MVSV-2（多证券，qmio 导出/导入）
+## 5. MVSV-2（多证券，qiom 导出/导入）
 
 > 用途：单文件搬运整张 `cdeu.finv_quote_secu_kline_min`（灌数据/联调）。
 > 与 MVSV-1 并列，`Format` 字段区分；MVSV-1 的解析与导出链路不变。
@@ -378,4 +378,4 @@ GCMain|1000|20261028|93000|3.500000|3.620000|3.400000|3.600000|3.500000|12.34567
 
 - `Format=MVSV-2` 时按 `Field` 列名动态解析（`usc`/`ts` 必填）；
 - 旧 `MVSV-1` 文件继续走原固定布局解析，互不影响；
-- 工具实现见 [`Docs/FinvQuant/Qmio.md`](../FinvQuant/Qmio.md)。
+- 工具实现见 [`Docs/FinvQuant/Qiom.md`](../FinvQuant/Qiom.md)。

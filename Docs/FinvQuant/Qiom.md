@@ -1,12 +1,12 @@
-# qmio — FinvQuant 数据搬运工具
+# qiom — FinvQuant 数据搬运工具
 
-> 安装位置：`<PREFIX>/bin/qmio`（与 `finvquant` 二进制**同目录**）
-> 源码：`cmd/qmio` · 依赖：`internal/meta/finv/quote/mvsv`（MVSV-2）
+> 安装位置：`<PREFIX>/bin/qiom`（与 `finvquant` 二进制**同目录**）
+> 源码：`cmd/qiom` · 依赖：`internal/meta/finv/quote/mvsv`（MVSV-2）
 > 用途：快速导出/导入 `cdeu.finv_quote_secu_kline_min`，用于灌数据、联调、压测。
 
 ## 1. 简介
 
-`qmio`（Quick Market IO）是独立小工具，通过命令行完成：
+`qiom`（原二进制名 `qmio`，Quick Market IO；需求 10904 更名）是独立小工具，通过命令行完成：
 
 | 子命令 | 作用 |
 |---|---|
@@ -18,12 +18,12 @@
 
 ## 2. 安装
 
-由安装包/安装脚本自动放到 `<PREFIX>/bin/qmio`，并创建软链 `/usr/local/bin/qmio`。
-升级/卸载脚本会同步处理 `qmio` 与 `qmio.prev`。
+由安装包/安装脚本自动放到 `<PREFIX>/bin/qiom`，并创建软链 `/usr/local/bin/qiom`。
+升级/卸载脚本会同步处理 `qiom` 与 `qiom.prev`。
 
 ```bash
-ls -l /data/App/FinvQuant/bin/qmio
-qmio --help
+ls -l /data/App/FinvQuant/bin/qiom
+qiom --help
 ```
 
 ## 3. 命令
@@ -31,7 +31,7 @@ qmio --help
 ### 3.1 导出
 
 ```bash
-qmio export \
+qiom export \
   --out /data/App/FinvQuant/Export/CdeuKline \
   [--where "usc = 'GCMain' AND date >= 20260101"] \
   [--no-gmt] [--no-gzip] \
@@ -57,13 +57,13 @@ cdeu_kline_YYYYMMDD_HHMMSS.mvsv.gz.sha256
 
 ```bash
 # 默认 upsert（冲突覆盖业务列，幂等）
-qmio import /data/App/FinvQuant/Export/CdeuKline/cdeu_kline_*.mvsv.gz
+qiom import /data/App/FinvQuant/Export/CdeuKline/cdeu_kline_*.mvsv.gz
 
 # 只插入不覆盖
-qmio import FILE --mode append
+qiom import FILE --mode append
 
 # 清空后重建（破坏性，必须 --force）
-qmio import FILE --mode replace --force
+qiom import FILE --mode replace --force
 ```
 
 | 参数 | 默认 | 说明 |
@@ -82,7 +82,7 @@ qmio import FILE --mode replace --force
 ### 3.3 校验
 
 ```bash
-qmio verify /data/App/FinvQuant/Export/CdeuKline/cdeu_kline_*.mvsv.gz
+qiom verify /data/App/FinvQuant/Export/CdeuKline/cdeu_kline_*.mvsv.gz
 ```
 
 输出 `Format` / `Count` / `Field`；存在 `.sha256` 时自动比对。
@@ -100,10 +100,10 @@ MVSV-2（多证券、单文件全表），字段与列名见
 
 ```bash
 # 1) 从生产导出
-qmio export --out /tmp/kline
+qiom export --out /tmp/kline
 
 # 2) 传到测试机后导入（upsert，重复执行安全）
-qmio import /tmp/kline/cdeu_kline_*.mvsv.gz
+qiom import /tmp/kline/cdeu_kline_*.mvsv.gz
 
 # 3) 校验行数
 sudo -u postgres psql -d finv -tAc "select count(*) from cdeu.finv_quote_secu_kline_min"

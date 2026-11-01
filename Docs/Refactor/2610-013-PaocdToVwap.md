@@ -39,8 +39,8 @@
 | C-10 | `internal/meta/finv/quote/cdeu/kline/model.go` | `ColPaocd` → `ColVwap="vwap"`；`Row.Pacd` → `Row.Vwap`；`ListItem.Pa` → `Vwa`（`json:"vwa"`）；`CompactFieldMap` 短名 `vwa`；`MarshalJSON` 输出 `vwap` | `go build ./...` 通过 | ☑ 2026-11-02 `5f9d5e5`/`c96b928` |
 | C-11 | `kline/sql.go`、`kline/request.go`、`kline/service.go`、`cdeu/store.go` | DDL 类型键、插入列映射、扫描顺序、6 段 SQL 列名 | 同上 | ☑ 2026-11-02 `5f9d5e5` |
 | C-12 | `kline/request.go` | 入参 `Vwap json:"vwap"` 优先；`Pacd json:"pacd"` 仅在 `vwap` 未传或 `null` 时兜底；`ToPatchItem` 同步判定 | 兼容测试通过 | ☑ 2026-11-02 `c96b928` |
-| C-13 | `internal/meta/finv/quote/service.go`、`cmd/qmio/export.go` | upsert SQL、导出 SQL 与扫描列 | `go build` 通过 | ☑ 2026-11-02 `5f9d5e5`/`2256a3d` |
-| C-14 | `mvsv/parser.go`、`parser_v2.go`、`writer_v2.go`、`cmd/qmio/import.go` | `Row.Paocd` → `Row.Vwap`；导入 `case "paocd","pacd","vwap"`；导出列名/FieldName/中文名/类型改 `vwap` | 兼容测试通过 | ☑ 2026-11-02 `2256a3d` |
+| C-13 | `internal/meta/finv/quote/service.go`、`cmd/qiom/export.go` | upsert SQL、导出 SQL 与扫描列 | `go build` 通过 | ☑ 2026-11-02 `5f9d5e5`/`2256a3d` |
+| C-14 | `mvsv/parser.go`、`parser_v2.go`、`writer_v2.go`、`cmd/qiom/import.go` | `Row.Paocd` → `Row.Vwap`；导入 `case "paocd","pacd","vwap"`；导出列名/FieldName/中文名/类型改 `vwap` | 兼容测试通过 | ☑ 2026-11-02 `2256a3d` |
 | C-15 | 测试 | 更新既有断言；新增 `kline/vwap_compat_test.go`（7 例）与 `mvsv/vwap_compat_test.go`（3 例） | `go test ./internal/meta/finv/quote/...` 通过 | ☑ 2026-11-02 `c96b928`/`2256a3d` |
 
 ## 4. 接口与文件格式
@@ -51,7 +51,7 @@
 | C-21 | `/Page`、`/PageUni` | 第 13 项短名 `pa` → `vwa` | `column[12] == "vwa"` 且值为 `vwap` 数值 | ☑ 2026-11-02 `c96b928`（实测 `['…','cr','cp','vwa','pv','ext']`） |
 | C-22 | `/Upsert`、`/Batch` | 入参 `vwap` 优先、`pacd` 兼容 | `pacd=3.56` 落库 `vwap=3.56`；`vwap=9.99` 与 `pacd=3.56` 同传取 `9.99` | ☑ 2026-11-02 `c96b928`（实测） |
 | C-23 | MVSV-2 导出 | `# Field`/`# FieldName`/`# 字段名称`/`# FieldType` 第 14 列改 `vwap` | 导出文件头含 `vwap`、不含 `paocd` | ☑ 2026-11-02 `2256a3d` |
-| C-24 | MVSV / qmio 导入 | 列名兼容 `paocd`、`pacd`、`vwap` | 三名各构造文件均可导入为 `vwap` | ☑ 2026-11-02 `2256a3d` |
+| C-24 | MVSV / qiom 导入 | 列名兼容 `paocd`、`pacd`、`vwap` | 三名各构造文件均可导入为 `vwap` | ☑ 2026-11-02 `2256a3d` |
 
 ## 5. 文档
 
@@ -59,7 +59,7 @@
 |---|---|---|---|---|
 | C-30 | `Docs/API/Quote/Cdeu/Min/{KLineAdd,KLinePage,KLinePageUni,KLineQuery,KLineUpsert}.md` + `KLineUpsert.yml` | 字段表、示例 JSON、紧凑字段映射 | 无残留旧字段（除兼容说明） | ☑ 2026-11-02 |
 | C-31 | `Docs/OpenAPI/Quote/Cdeu/Min/{PageUni,Upsert}.md` + `Upsert.yml` | 同上（OpenAPI 目录双份） | 同上 | ☑ 2026-11-02 |
-| C-32 | `Docs/DataFormat/MvsvFileFormat.md`、`Docs/Design/QmioDesign.md` | MVSV-2 文件头示例与列清单 | 示例第 14 列为 `vwap` / `Vwap` | ☑ 2026-11-02 |
+| C-32 | `Docs/DataFormat/MvsvFileFormat.md`、`Docs/Design/QiomDesign.md` | MVSV-2 文件头示例与列清单 | 示例第 14 列为 `vwap` / `Vwap` | ☑ 2026-11-02 |
 | C-33 | `Docs/FinvQuant/Brs.md` | 恢复章节补「旧备份恢复后需手工改名」提示 | 文档含 `RENAME COLUMN paocd TO vwap` 说明 | ☑ 2026-11-02 |
 | C-34 | `Deploy/Upgrade/2610-004-MigratePublicKlineToCdeu.sql` | 头部补列名提示（改名后须把 `paocd` 换成 `vwap`） | 头部含「列名提示」段 | ☑ 2026-11-02 |
 
@@ -77,5 +77,5 @@
 
 | 编号 | 事项 | 触发条件 |
 |---|---|---|
-| C-40 | 移除 `pacd` 入参兼容（`kline/request.go` 的 `Pacd` 字段、`mvsv` 的 `pacd` 分支、`qmio import` 的 `pacd` 分支） | 前端与外部调用方全部切到 `vwap` 后，见需求 10903 |
+| C-40 | 移除 `pacd` 入参兼容（`kline/request.go` 的 `Pacd` 字段、`mvsv` 的 `pacd` 分支、`qiom import` 的 `pacd` 分支） | 前端与外部调用方全部切到 `vwap` 后，见需求 10903 |
 | C-41 | 旧 `.dump` 恢复后的列名校正若反复发生，可在恢复链内置改名步骤 | `Docs/FinvQuant/Brs.md` 的手工提示不再够用时 |
