@@ -14,7 +14,11 @@
 
 脚本对源表**只读**（仅 `SELECT`），不改名、不删除、不 `TRUNCATE`，源表保持原样。
 
-> 数据搬完后源表可由迁移 `V300085__drop_public_kline_min.sql` 自动清理：按 `(ts, usc)` 校验差集为 0 才 `DROP`，差集不为 0（或目标表/列缺失、存在视图依赖）时**保留该表**并记 `WARNING`。执行前请先 `pg_dump -t public.finv_quote_secu_kline_min` 备份。
+> 数据搬完后源表的清理分两步：
+> 1. 迁移 `V300086` 把该表加入 BRS 备份登记（仅当表存在时登记），等 BRS 把产物备份到对象存储；
+> 2. 确认 R2 上已有 `<prefix>/<env>/<yyyyMMdd>/finv.public.finv_quote_secu_kline_min.dump` 后，执行 `Deploy/Upgrade/2610-003-DropPublicKlineMin.sql` 手工删除（脚本会再次校验差集，为 0 才删，并同步移除备份登记）。
+>
+> 迁移 `V300085` 只做校验与提示（`NOTICE`），**不删表**——删除动作按要求暂缓（需求 10900）。
 
 ## 2. 表结构与列映射
 

@@ -1,5 +1,9 @@
 -- =====================================================================
--- V300085：清理历史遗留的 public.finv_quote_secu_kline_min（需求 10899）
+-- V300085：历史遗留 public.finv_quote_secu_kline_min 的暂缓清理（需求 10899 / 10900）
+--
+-- ⚠️ 删除动作已**暂缓**（需求 10900）：该表数据需先由 BRS 备份到 R2，
+--   备份完成后再执行 Deploy/Upgrade/2610-003-DropPublicKlineMin.sql 手工删除。
+--   本迁移只做校验与提示，不删表，保证部署/升级链路先通过。
 --
 -- 背景：早期版本把分钟 K 线建在 public 下；新版只读写 cdeu.finv_quote_secu_kline_min，
 --   数据由一次性脚本 Deploy/Upgrade/MigratePublicKlineToCdeu.sql（需求 10773）搬迁。
@@ -12,17 +16,17 @@
 --   2) 目标表不存在、或源表缺少 usc/secu_code 列 → 无法校验，**保留不删** 并 WARNING；
 --   3) 源表仍有行未在 cdeu 中落地（按 (ts, usc) 差集）→ **保留不删** 并 WARNING，
 --      提示先执行 Deploy/Upgrade/MigratePublicKlineToCdeu.sql；
---   4) 差集为 0 → DROP TABLE；
---   5) DROP 若因依赖（视图/外键）失败 → 捕获异常、**保留表** 并 WARNING，迁移本身仍成功，
---      避免把整个服务和迁移链一起拖垮（V300083 曾因校验过严导致反复重启）。
+--   4) 差集为 0 → 只输出 NOTICE 提示「可以删除」，**不执行 DROP**（暂缓，需求 10900）。
 --
--- **执行前请先备份该表**（迁移内无法调用 pg_dump，需由运维在部署前完成）：
---   pg_dump -h <host> -p <port> -U <user> -d finv -Fc \
---           -t public.finv_quote_secu_kline_min \
---           -f Deploy/Backup/finv_public_kline_min_$(date +%Y%m%d_%H%M%S).dump
+-- 后续删除（备份到 R2 之后）：
+--   1) 确认 BRS 已把该表备份到对象存储（备份登记见迁移 V300086；R2 路径
+--      <prefix>/<env>/<yyyyMMdd>/finv.public.finv_quote_secu_kline_min.dump）；
+--   2) 在目标库手工执行 Deploy/Upgrade/2610-003-DropPublicKlineMin.sql
+--      （同样先校验差集，为 0 才删除，否则整脚本报错中止）；
+--   3) 恢复「迁移内自动删除」时，把本文件的第 4 步还原为删除语句即可。
 --
 -- 幂等：源表删除后重跑直接跳过。
--- 迁移策略：单事务；校验失败只告警不中断，保证服务可启动。
+-- 迁移策略：单事务；只校验与提示，不改变数据。
 -- =====================================================================
 
 BEGIN;
@@ -82,13 +86,9 @@ BEGIN
         RETURN;
     END IF;
 
-    -- 4. 数据已全部搬迁 → 删除；任何依赖导致的失败都只告警
-    BEGIN
-        DROP TABLE public.finv_quote_secu_kline_min;
-        RAISE NOTICE 'V300085：已删除 %（源表 % 行，与 % 差集 0）', c_src, v_src_rows, c_dst;
-    EXCEPTION WHEN OTHERS THEN
-        RAISE WARNING 'V300085：删除 % 失败（%），保留该表；请人工处理依赖后重试', c_src, SQLERRM;
-    END;
+    -- 4. 数据已全部搬迁 → 本迁移只提示，删除动作暂缓（需求 10900）
+    RAISE NOTICE 'V300085：% 共 % 行，与 % 差集 0，数据已搬迁完整，可以删除；删除已暂缓，待 BRS 备份到 R2 后执行 Deploy/Upgrade/2610-003-DropPublicKlineMin.sql',
+                 c_src, v_src_rows, c_dst;
 END $$;
 
 COMMIT;

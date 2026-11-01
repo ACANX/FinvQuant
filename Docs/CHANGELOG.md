@@ -141,6 +141,15 @@
   - 文档：`Docs/API/BRS/OSSConfig.md` 的 `endpoint` 字段说明与失败表同步。
   - 注：这是**配置**问题，不是代码拼接；代码只生成 `<prefix>/<yyyyMMdd>/<schema>.<table>.dump`。
 
+### 变更
+
+- **暂缓删除 `public.finv_quote_secu_kline_min`，先加入备份清单（需求 10900）**
+  - `V300085__drop_public_kline_min.sql` 改为**只校验与提示、不删表**（差集为 0 时输出 `NOTICE`），部署/升级链路先通过。
+  - 新增 `V300086__brs_backup_table_public_kline_min.sql`：把该表加入 BRS 备份登记（priority 660 排在最后；`both`/`pg_dump`/`zstd`/上传开），**仅当表存在时登记**。
+  - 新增一次性脚本 `Deploy/Upgrade/2610-003-DropPublicKlineMin.sql`：备份到 R2 确认后执行——再次校验 `(ts, usc)` 差集，为 0 才 `DROP TABLE` 并同步移除备份登记；差集不为 0 时整体报错中止。
+  - 文档：`Deploy/README.md`、`Docs/FinvQuant/MigratePublicKlineToCdeu.md`（清理三步流程）。
+  - 本机实测：表存在时登记成功（总数 25），手动备份产出 `finv.public.finv_quote_secu_kline_min.dump` 并上传到 `Local/20261101/`；执行 Upgrade 脚本后表与登记同时消失（总数回到 24）。
+
 ### 移除
 
 - **清理历史遗留表 `public.finv_quote_secu_kline_min`（需求 10899）**
