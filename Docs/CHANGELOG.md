@@ -127,6 +127,13 @@
 
 ### 新增
 
+- **BRS 对象存储配置页面与接口（需求 10890）**
+  - 后端：`internal/meta/finv/brs/ossconfig.go`（`LoadOSSConfig` / `SaveOSSConfig`）、`internal/api/handler/brs.go` 与 `router.go` 注册 `GET|POST /API/V1/Meta/BRS/Backup/Finv/OSSConfig/{Get,Save}`。
+  - 前端：`Web/src/views/Meta/BRS/Backup/Finv/BrsOssConfigView.vue` 替换占位页——开关、provider、endpoint、bucket、region、access_key、secret_key、prefix 表单，可展开查看 39002 的字段说明。
+  - 安全：读取永不回传 `secret_key` 明文（只给 `secret_key_set`）；保存时 `secret_key` 留空表示保持库内现值；日志与错误不带出密钥。
+  - 生效时机：每轮备份前读取 39002，保存后下一轮备份生效，无需重启。
+  - 文档：新增 `Docs/API/BRS/OSSConfig.md`，`Docs/API/APIs.md`（#96～#97）与 `Docs/API/README.md` 登记。
+
 - **`brs.brs_bak_rdb_table` 增加 `db`（数据库名）列（需求 10889）**
   - 迁移 `V200090__brs_bak_rdb_table_add_db.sql`：`db varchar(64) NOT NULL DEFAULT 'finv'`（存量登记回填 `finv`）；唯一约束由 `(rdb_type, schema_name, table_name)` 改为 `(rdb_type, db, schema_name, table_name)`（`rdb_type` 保留）；末尾收敛校验列、空值、约束列。
   - 后端：`brs.RegistryRow` 增 `DB`（`json:"db"`），`List`/`Get`/`Save` 读写该列，`db` 缺省填 `finv`，唯一冲突消息改为「同一 rdb_type + db + schema_name + table_name 只能有一条」。

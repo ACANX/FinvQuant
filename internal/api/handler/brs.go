@@ -106,6 +106,47 @@ func isBrsInputError(err error) bool {
 	return errors.As(err, &target)
 }
 
+// GetOSSConfig 读取对象存储配置（GET /API/V1/Meta/BRS/Backup/Finv/OSSConfig/Get）。
+//
+// 响应不含 secret_key 明文，只给 secret_key_set 标记与 39002 的字段说明。
+func (h *BrsBackupTable) GetOSSConfig(c *gin.Context) {
+	cfg, err := h.registry.LoadOSSConfig(c.Request.Context())
+	if err != nil {
+		if isBrsInputError(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "读取对象存储配置失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "查询完成", "data": cfg})
+}
+
+// SaveOSSConfig 保存对象存储配置（POST /API/V1/Meta/BRS/Backup/Finv/OSSConfig/Save）。
+//
+// secret_key 留空表示保持库内现值；保存后下一轮备份生效（无需重启）。
+func (h *BrsBackupTable) SaveOSSConfig(c *gin.Context) {
+	var cfg brs.OSSConfig
+	if err := c.ShouldBindJSON(&cfg); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
+		return
+	}
+	operator := ""
+	if session, ok := SessionFrom(c); ok && session != nil {
+		operator = session.UID
+	}
+	saved, err := h.registry.SaveOSSConfig(c.Request.Context(), cfg, operator)
+	if err != nil {
+		if isBrsInputError(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "保存对象存储配置失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "保存成功", "data": saved})
+}
+
 // parseCamelPager 解析分页参数 page / pageSize（小驼峰，ApiSpec §3）。
 func parseCamelPager(c *gin.Context) (int, int) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))

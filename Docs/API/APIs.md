@@ -117,6 +117,8 @@
 | 93 | GET | `/API/V1/Meta/BRS/Backup/Finv/Table/List` | 分页查询 BRS 备份登记（brs.brs_bak_rdb_table；keyword/flagEnable 过滤，priority 倒序） | [BRS/BackupTable.md](BRS/BackupTable.md) | 备份登记维护（`BrsBackupTableView.vue`） |
 | 94 | POST | `/API/V1/Meta/BRS/Backup/Finv/Table/Save` | 新增或修改备份登记（idn=0 新增；表唯一、priority 唯一） | [BRS/BackupTable.md](BRS/BackupTable.md) | 备份登记维护（同上） |
 | 95 | POST | `/API/V1/Meta/BRS/Backup/Finv/Table/Toggle` | 启用/禁用备份登记（flag_enable） | [BRS/BackupTable.md](BRS/BackupTable.md) | 备份登记维护（同上） |
+| 96 | GET | `/API/V1/Meta/BRS/Backup/Finv/OSSConfig/Get` | 读取 BRS 对象存储配置（sys.sys_config 39002；不返回 secret_key 明文，返回 secret_key_set） | [BRS/OSSConfig.md](BRS/OSSConfig.md) | 对象存储配置（`BrsOssConfigView.vue`） |
+| 97 | POST | `/API/V1/Meta/BRS/Backup/Finv/OSSConfig/Save` | 保存对象存储配置（secret_key 留空表示不修改；下一轮备份生效） | [BRS/OSSConfig.md](BRS/OSSConfig.md) | 对象存储配置（同上） |
 
 ## 说明
 

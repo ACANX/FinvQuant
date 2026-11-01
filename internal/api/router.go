@@ -180,6 +180,11 @@ func NewRouter(deps *Deps) *gin.Engine {
 		brsTable.POST("/Save", brsBackupTable.Save)
 		brsTable.POST("/Toggle", brsBackupTable.Toggle)
 
+		// BRS 对象存储配置（sys.sys_config 39002 的 JSON 可视化配置）
+		brsOss := apiGroup.Group("/Meta/BRS/Backup/Finv/OSSConfig")
+		brsOss.GET("/Get", brsBackupTable.GetOSSConfig)
+		brsOss.POST("/Save", brsBackupTable.SaveOSSConfig)
+
 		// 元数据管理：交易所 / 市场 / 证券字典维护
 		apiGroup.GET("/Meta/Finv/Quant/Metadata/Exchange/List", metaHandler.ListExchanges)
 		apiGroup.POST("/Meta/Finv/Quant/Metadata/Exchange/Save", metaHandler.SaveExchange)
