@@ -173,6 +173,13 @@
 
 ### 变更
 
+- **BRS 备份文件名增加数据库名前缀（需求 10898）**
+  - 文件名由 `<schema>.<table>.dump` 改为 **`<db>.<schema>.<table>.dump`**（如 `finv.sys.sys_config.dump`），本地文件与对象存储 key 同步。
+  - `<db>` 取登记表 `brs.brs_bak_rdb_table.db`（`LoadTables` 新增查询该列），为空时回落连接库 `FINV_PG_DATABASE`；便于在对象存储上区分不同库的同名表。
+  - 文档：`Docs/API/BRS/{Run,OSSConfig}.md`、`Docs/FinvQuant/Brs.md`（产物示例与 `pg_restore` 命令）、`Docs/Design/BrsBackupDesign.md` 同步。
+
+### 变更
+
 - **BRS 上传路径增加运行环境层级（需求 10897）**
   - 对象 key 由 `<prefix>/<yyyyMMdd>/<schema>.<table>.dump` 改为 **`<prefix>/<env>/<yyyyMMdd>/<schema>.<table>.dump`**：`prefix` 仍是 39002 里配置的路径前缀（如 `BRS/Finv/`），`env` 取 `sys_config` **1002** 的 `str_value`（`dev`/`test`/`uat`/`prod` 等）。
   - 每轮备份开始时读取一次 1002，日志增加「上传环境目录：<env>」；上传行形如 `已上传 prod/20261101/sys.sys_user.dump`。

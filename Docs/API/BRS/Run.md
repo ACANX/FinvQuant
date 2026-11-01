@@ -6,7 +6,7 @@
 >
 > 状态存储：运行状态与日志**只保存在服务内存**，服务重启后清空（备份产物仍落磁盘与对象存储）。
 >
-> 上传目标：`<39002.prefix>/<1002.str_value>/<yyyyMMdd>/<schema>.<table>.dump`；1002 缺失或非法时跳过上传（本地备份保留）。
+> 上传目标：`<39002.prefix>/<1002.str_value>/<yyyyMMdd>/<db>.<schema>.<table>.dump`；1002 缺失或非法时跳过上传（本地备份保留）。
 >
 > 前端页面：`/Meta/BRS/Backup/Finv/Run`（`Web/src/views/Meta/BRS/Backup/Finv/BrsRunView.vue`）。
 
@@ -90,8 +90,8 @@
 [info]  未启用对象存储上传（39002 enabled=false），仅本地备份
 [info]  开始备份：12 张表 → /data/App/Backup/BRS/20261101
 [info]  上传环境目录：prod
-[info]  备份成功 sys.sys_user（…/sys.sys_user.dump，1.2 MiB，耗时 210ms）
-[info]  已上传 prod/20261101/sys.sys_user.dump
+[info]  备份成功 sys.sys_user（…/finv.sys.sys_user.dump，1.2 MiB，耗时 210ms）
+[info]  已上传 prod/20261101/finv.sys.sys_user.dump
 [info]  本轮备份完成：12 张表
 [info]  运行结束（成功）
 ```

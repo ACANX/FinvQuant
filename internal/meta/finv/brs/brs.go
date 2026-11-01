@@ -57,6 +57,7 @@ type Options struct {
 // Table 一条备份登记。
 type Table struct {
 	IDN         int64
+	DB          string // 登记归属库（brs_bak_rdb_table.db），用作备份文件名前缀
 	SchemaName  string
 	TableName   string
 	Priority    int
@@ -70,7 +71,7 @@ type Table struct {
 // LoadTables 读取启用的备份登记（priority 倒序）。
 func LoadTables(ctx context.Context, pool *pgxpool.Pool) ([]Table, error) {
 	const query = `
-SELECT idn, schema_name, table_name, priority, bak_scope, bak_method, compression,
+SELECT idn, db, schema_name, table_name, priority, bak_scope, bak_method, compression,
        COALESCE(where_clause, ''), flag_upload
   FROM brs.brs_bak_rdb_table
  WHERE rdb_type = 'postgresql' AND flag_enable = '1'
@@ -84,7 +85,7 @@ SELECT idn, schema_name, table_name, priority, bak_scope, bak_method, compressio
 	tables := make([]Table, 0, 16)
 	for rows.Next() {
 		var table Table
-		if err := rows.Scan(&table.IDN, &table.SchemaName, &table.TableName, &table.Priority,
+		if err := rows.Scan(&table.IDN, &table.DB, &table.SchemaName, &table.TableName, &table.Priority,
 			&table.BakScope, &table.BakMethod, &table.Compression, &table.WhereClause, &table.FlagUpload); err != nil {
 			return nil, err
 		}
@@ -325,8 +326,14 @@ func dumpTable(ctx context.Context, opts Options, dayDir, day string, table Tabl
 	if dumpBin == "" {
 		dumpBin = "pg_dump"
 	}
-	// 文件名不带时间戳（需求 10893）：同一张表当天重复备份会覆盖上一次，属预期行为。
-	fileName := fmt.Sprintf("%s.%s.dump", table.SchemaName, table.TableName)
+	// 文件名格式 <db>.<schema>.<table>.dump（需求 10898）：
+	// 加库名前缀，便于对象存储上区分不同库的同名表；不带时间戳（需求 10893），
+	// 同一张表当天重复备份会覆盖上一次，属预期行为。
+	dbName := strings.TrimSpace(table.DB)
+	if dbName == "" {
+		dbName = strings.TrimSpace(opts.Database)
+	}
+	fileName := fmt.Sprintf("%s.%s.%s.dump", dbName, table.SchemaName, table.TableName)
 	filePath := filepath.Join(dayDir, fileName)
 
 	args := []string{

@@ -9,7 +9,7 @@
 
 - 每天按 cron 自动执行一次表级备份；
 - 备份范围由登记表控制（`priority` 唯一，按倒序执行）；
-- 备份文件保存在 `$FINV_BRS_BACKUP_DIR/<yyyyMMdd>/`（默认 `/data/App/Backup/BRS`，不含产品名段）；文件名 `<schema>.<table>.dump`，不含时间戳；
+- 备份文件保存在 `$FINV_BRS_BACKUP_DIR/<yyyyMMdd>/`（默认 `/data/App/Backup/BRS`，不含产品名段）；文件名 `<db>.<schema>.<table>.dump`（库名前缀取登记 `db`），不含时间戳；
 - 过程只写服务日志（`Log/FinvQuant.log`，前缀 `[brs]`），暂不落库。
 
 ## 2. 配置
@@ -47,9 +47,9 @@ FINV_BRS_BACKUP_DIR=/data/App/Backup/BRS
 
 ```
 <FINV_BRS_BACKUP_DIR>/20261029/
-├── sys.sys_user.dump
-├── sys.sys_config.dump
-├── cdeu.finv_quote_cdeu_workflow.dump
+├── finv.sys.sys_user.dump
+├── finv.sys.sys_config.dump
+├── finv.cdeu.finv_quote_cdeu_workflow.dump
 └── ...
 ```
 
@@ -63,11 +63,11 @@ FINV_BRS_BACKUP_DIR=/data/App/Backup/BRS
 grep '\[brs\]' /data/App/FinvQuant/Log/FinvQuant.log | tail -20
 journalctl -u finvquant | grep '\[brs\]' | tail -20
 
-pg_restore -l Backup/BRS/20261029/sys.sys_config.dump
+pg_restore -l Backup/BRS/20261029/finv.sys.sys_config.dump
 
 pg_restore -h 127.0.0.1 -U finv -d finv \
   --table=sys.sys_config --clean --if-exists \
-  Backup/BRS/20261029/sys.sys_config.dump
+  Backup/BRS/20261029/finv.sys.sys_config.dump
 ```
 
 ## 5. 预置登记（种子，共 24 张）
@@ -109,7 +109,7 @@ pg_restore -h 127.0.0.1 -U finv -d finv \
 |---|---|
 | 全局开关 | 39002 `enabled`（默认 `false`） |
 | 表级开关 | `brs_bak_rdb_table.flag_upload`（`'1'` 上传 / `'0'` 只留本地，默认 `'1'`） |
-| 上传 key | `<prefix>/<env>/<yyyyMMdd>/<schema>.<table>.dump`（`env` = `sys_config` 1002 的运行环境标识；缺失或非法则跳过上传） |
+| 上传 key | `<prefix>/<env>/<yyyyMMdd>/<db>.<schema>.<table>.dump`（`env` = `sys_config` 1002 的运行环境标识；缺失或非法则跳过上传） |
 | 凭证 | `access_key`/`secret_key` 存 `sys_config`（`access_level` 限制），不写日志 |
 | 失败 | 保留本地文件并记日志，不影响下一张表 |
 | 下载 | `aws s3 cp` / `rclone` 等任意 S3 兼容工具 |
