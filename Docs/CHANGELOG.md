@@ -257,6 +257,14 @@
   - 新增 `kline/vwap_compat_test.go`（7 个用例）：vwap 优先 / pacd 兼容 / vwap=null 回退 / 两列皆空 / 增量补丁列名 / 短名 vwa / `/Page` 输出。
   - 本机 API 实测：`pacd` 入参落库 `vwap=3.56`；`vwap=9.99` 与 `pacd=3.56` 同传取 9.99；`/Page`、`/PageUni` 第 13 项为 `vwa`；`/Add`、`/Query` 输出 `vwap` 且无 `pacd`。
 
+### 变更
+
+- **清理 `finv_quote_cdeu_usc` 存量脏行 + 缺口自愈（需求 10921）**
+  - 新增一次性脚本 `Deploy/Upgrade/2611-001-PurgeUscWithoutQuote.sql`：删除「主表 `cdeu.finv_quote_secu_kline_min` 中不存在任何一行」的 usc；按 `DbSchemaSpec` §0.7 先整行备份到 `archive.finv_quote_cdeu_usc_purge_20261102`（含 `src_schema`/`reason`/`backup_at`），单事务「备份 → 删除 → 校验」，校验不通过 `RAISE EXCEPTION` 回滚；脚本末尾附回滚 SQL。
+  - 本机执行结果：17199 → 485 行，备份 16714 行。
+  - `DiscoverUsc` 增加缺口自愈：每天最多一次检测「主表是否还有未登记 usc」（水位 `DISCOVER_USC_GAP_CHECK`，走 `idx_finv_quote_usc_date_ts`，命中即停），发现缺口自动升级为全量扫描。
+  - 自愈效果：删除后触发 `REFRESH_QUOTE_MATURITY`，13 个历史证券被自动补回，485 → 498，与主表 `DISTINCT usc` 完全一致。
+
 ### 修复
 
 - **`finv_quote_cdeu_usc` 行序不再从证券字典拷贝（需求 10920）**

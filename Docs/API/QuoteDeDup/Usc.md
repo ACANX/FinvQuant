@@ -7,6 +7,8 @@
 这张表的行**唯一来源是主表 `cdeu.finv_quote_secu_kline_min` 中真实出现过的证券**，不是证券字典 `public.finv_security`：
 
 - 发现（`DiscoverUsc`）：首次执行全量扫描主表 `DISTINCT usc`，之后按 `gmt_update` 时间窗增量补充；
+- 缺口自愈：每天最多一次检查「主表里还有没有未登记的 usc」（`uscHasUnregistered`，水位键 `DISCOVER_USC_GAP_CHECK`），发现缺口自动升级为全量扫描——补导历史数据、人工清表后都无需手工干预；
+- 存量清理：10920 之前的脏行用一次性脚本 `Deploy/Upgrade/2611-001-PurgeUscWithoutQuote.sql` 删除（备份到 `archive.finv_quote_cdeu_usc_purge_20261102`，单事务 + `RAISE EXCEPTION` 校验）；
 - 元数据补全（`RefreshSecurityMetadata`）：只对**已登记**的 usc 用字典刷新 `category` / `region` / `market` / `name` / `timezone` / `currency`，**不再插入新行**；
 - 永不删除：某只证券当月/上月乃至连续几个月没有数据（停牌、退市、上游断供）时仍保留记录，否则会连带丢掉归档优先级、`day_expect_rows` 与人工维护的元数据。
 

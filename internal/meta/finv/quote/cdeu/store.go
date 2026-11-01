@@ -428,6 +428,19 @@ func thresholdString(threshold float64) string {
 // 某只证券当月/上月乃至连续几个月没有数据（停牌、退市、上游断供）时它依然是已知
 // 证券，删掉会连带丢掉归档优先级、day_expect_rows、人工维护的元数据。
 func (s *Store) DiscoverUsc(ctx context.Context, since, until time.Time, full bool) (int64, error) {
+	// 缺口自愈（需求 10920）：增量窗口只看 gmt_update，历史证券（窗口外、补导数据、
+	// 人工清过 usc 表）会被漏掉。每天最多做一次「主表里还有没有未登记的 usc」检测，
+	// 一旦发现缺口就升级为全量扫描，不需要人工干预。
+	if !full {
+		gap, gapErr := s.uscHasUnregistered(ctx, until)
+		if gapErr != nil {
+			log.Printf("[cdeu] 检查未登记证券失败: %v", gapErr)
+		} else if gap {
+			log.Printf("[cdeu] 发现主表中存在尚未登记的证券，本轮改为全量扫描")
+			full = true
+		}
+	}
+
 	var (
 		tag pgconn.CommandTag
 		err error
@@ -481,6 +494,35 @@ UPDATE `+tableUsc+` u
 		return inserted, providerErr
 	}
 	return inserted, nil
+}
+
+// watermarkUscGapCheck 记录「主表未登记证券」检测的上次执行时间（每天最多一次）。
+const watermarkUscGapCheck = "DISCOVER_USC_GAP_CHECK"
+
+// uscHasUnregistered 判断主表里是否还有未登记到 finv_quote_cdeu_usc 的 usc。
+//
+// 该查询要从主表出发反查（走 idx_finv_quote_usc_date_ts，命中一条未登记即返回），
+// 因此按天限流：同一天内重复调用直接返回 false，避免每次成熟度 JOB 都扫一遍索引。
+func (s *Store) uscHasUnregistered(ctx context.Context, now time.Time) (bool, error) {
+	last, found, err := s.Watermark(ctx, watermarkUscGapCheck)
+	if err != nil {
+		return false, err
+	}
+	if found && last.Year() == now.Year() && last.YearDay() == now.YearDay() {
+		return false, nil
+	}
+	var exists bool
+	if err := s.pool.QueryRow(ctx, `
+SELECT EXISTS (
+  SELECT 1 FROM `+tableMain+` m
+   WHERE m.usc IS NOT NULL AND m.usc <> ''
+     AND NOT EXISTS (SELECT 1 FROM `+tableUsc+` u WHERE u.usc = m.usc))`).Scan(&exists); err != nil {
+		return false, err
+	}
+	if err := s.UpsertWatermark(ctx, watermarkUscGapCheck, now); err != nil {
+		return exists, err
+	}
+	return exists, nil
 }
 
 // 归档默认值口径：模板未命中 / 未配置覆盖时的兜底值（沿用 V200051 以来的 100 / 5 / 7）。
