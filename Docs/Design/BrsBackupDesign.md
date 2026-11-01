@@ -228,7 +228,7 @@ type Store interface {
 `host`/`port`/`database_name`/`username`、`password_cipher`（加密口令，空则回退 `FINV_PG_PASSWORD`）、
 `ssl_mode`、`connect_timeout`、`is_default`（全表最多一条，部分唯一索引）、`flag_enable`、`priority`、`remark`、`gmt_*`。
 
-> **当前不生效**：备份连接参数仍取 `FINV_PG_*` 环境变量，表中无种子数据、无接口、备份链路不读取；
+> **当前不生效**：备份连接参数仍取 `FINV_PG_*` 环境变量；表中只有迁移 `V300093` 写入的 1 条 `code=finv` 示例（无接口、备份链路不读取）；
 > 连接测试、口令加解密与页面维护待后续需求实现。
 
 ### 7.3 配置项

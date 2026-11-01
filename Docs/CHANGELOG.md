@@ -262,8 +262,9 @@
 - **BRS RDB 数据源登记表 `brs.brs_bak_rdb_datasource`（需求 10909，仅建表）**
   - 现状：备份连接参数只来自 `FINV_PG_*` 环境变量，只能备份当前实例；多实例/跨库备份需要把数据源落库，故先把登记表建好。
   - 字段：`code`（唯一，供备份登记引用）、`name`、`rdb_type`（首期仅 `postgresql`）、`host`、`port`、`database_name`、`username`、`password_cipher`（加密口令；空则回退环境变量，禁止明文）、`ssl_mode`、`connect_timeout`、`is_default`（全表最多一条，部分唯一索引）、`flag_enable`、`priority`、`remark`、`creator`、`gmt_create`/`gmt_update`。
-  - 迁移 `V300092`：建表 + 6 个 CHECK + 唯一约束 + 部分唯一索引 + `gmt_update` 触发器（复用 `brs.brs_set_gmt_update()`）；**不插种子**，不注册接口、不改备份链路。
-  - 本机实测：`V300092` success；`\d` 结构符合设计；两条 `is_default='1'` 第二条被部分唯一索引拒绝；`port=70000` 被 CHECK 拒绝；`UPDATE` 后 `gmt_update` 自动刷新。
+  - 迁移 `V300092`：建表 + 6 个 CHECK + 唯一约束 + 部分唯一索引 + `gmt_update` 触发器（复用 `brs.brs_set_gmt_update()`）；不注册接口、不改备份链路。
+  - 迁移 `V300093`：写入 1 条 `code=finv` 的**示例数据源**（`127.0.0.1:5432/finv`、`username=finv`、`password_cipher` 留空回退 `FINV_PG_PASSWORD`、`is_default=1`、`creator=migration`），幂等（`code=finv` 已存在则跳过；若已有其它默认源则本条插为 `is_default=0`，避免部分唯一索引冲突）；仅为示例，备份链路不读取。
+  - 本机实测：`V300092`/`V300093` success；`\d` 结构符合设计；两条 `is_default='1'` 第二条被部分唯一索引拒绝；`port=70000` 被 CHECK 拒绝；`UPDATE` 后 `gmt_update` 自动刷新；表内 1 行 `code=finv` 示例，重复执行不新增。
 
 ### 变更
 
