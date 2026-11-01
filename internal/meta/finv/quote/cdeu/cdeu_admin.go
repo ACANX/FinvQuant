@@ -822,6 +822,60 @@ SELECT jsr.step_id, jsr.status, jsr.attempt, jsr.started_at, jsr.finished_at,
 		if phase.Status == CDEUStatusPending && total > 0 && success == total {
 			phase.Status = CDEUStatusSuccess
 		}
+		deriveCDEURunning(phase)
 	}
 	return nil
+}
+
+// deriveCDEURunning 用子级实际运行情况兜底修正「待执行」展示（需求 10919）。
+//
+// 场景：阶段/流程的运行状态由状态机在特定时机回写（JOB 结束时触发评估）。
+// 动态 JOB（月度行情导出按 USC / 业务月展开的批量实例）由后台续跑，某些时刻
+// 子级已在跑、父级状态还停在 PENDING，页面就呈现「阶段 待执行 / 里面的 JOB 已跑
+// 199/321 / 耗时在走」的矛盾。
+//
+// 只在父级**未开始**（PENDING / READY）时派生为 RUNNING：
+//
+//	· 任一子级 RUNNING；
+//	· 或父级有 started_at 但无 finished_at（说明已经开始过）。
+//
+// 已终态或已 RUNNING 的阶段不受影响，不会掩盖失败语义。
+func deriveCDEURunning(phase *CDEUPhaseView) {
+	if phase.Status != CDEUStatusPending && phase.Status != CDEUStatusReady {
+		return
+	}
+	running := phase.StartedAt != nil && phase.FinishedAt == nil
+	if !running {
+		for _, process := range phase.Processes {
+			if process.Status == CDEUStatusRunning || processHasRunningJob(process) {
+				running = true
+				break
+			}
+		}
+	}
+	if !running {
+		return
+	}
+	phase.Status = CDEUStatusRunning
+	// 同步修正子流程：父级已在跑，PENDING 的子流程若自身有运行中的 JOB 也应为 RUNNING。
+	for index := range phase.Processes {
+		process := &phase.Processes[index]
+		if process.Status != CDEUStatusPending && process.Status != CDEUStatusReady {
+			continue
+		}
+		if processHasRunningJob(*process) ||
+			(process.StartedAt != nil && process.FinishedAt == nil) {
+			process.Status = CDEUStatusRunning
+		}
+	}
+}
+
+// processHasRunningJob 判断流程下是否有正在执行的 JOB（含动态 JOB 实例）。
+func processHasRunningJob(process CDEUProcessView) bool {
+	for _, job := range process.Jobs {
+		if job.Status == CDEUStatusRunning {
+			return true
+		}
+	}
+	return false
 }

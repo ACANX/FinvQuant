@@ -2659,6 +2659,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10916 | 大表分片增量由「末尾 N 个无条件重做」改为**内容指纹比对**：① 每个分片先算源端指纹 `(count(*), sum(hashtextextended(行文本,0)))`（一次范围扫描，不导出不上传）；② 备份成功后把指纹写入本地 sidecar `<分片文件>.fp` 与远端 `<key>.fp`（JSON：rows/hash/gmt）；③ 已存在分片：本地指纹优先、其次远端指纹，与源端比较——相同则跳过并记「内容无变化」，不同则重做并覆盖指纹；④ 无指纹（10916 之前的产物）时 `redo_slices` 退化为**兜底窗口**：窗口内重做、窗口外跳过并 `warn`（不再每轮整批重做）；⑤ 源端指纹计算失败时保守重做且不写指纹；远端指纹上传失败只告警（只影响下一轮差异判断）；⑥ 页面分片明细的 `done`/`backuped` 改为「产物存在即已备份」，`redo_from` 语义改为兜底窗口起点，文案同步。 | `go test ./internal/meta/finv/brs/ -run Fingerprint`、`-run DecideSkip`、`-run SaveFingerprints` 三段均通过（7 个用例：本地/远端读写、损坏视为无效、Equal 只比 rows+hash、四条跳过分支、双写、关闭上传只写本地）；运行态三轮验证：首轮旧产物无指纹 → `warn` 跳过、新分片写入 `.fp`；第二轮 → 日志「内容无变化」跳过；改一条数据后再跑 → 该分片「备份成功」并重新上传，其它分片仍「内容无变化」；`ls $FINV_BRS_BACKUP_DIR/Incr/<表>/` 出现 `<分片键>.mvsv.gz.fp` | √ |
 | 10917 | 本地清理与指纹 sidecar 的关系固化为可验证行为：① 清理只扫描 `<备份目录>/Full/<yyyyMMdd>/`（及 10915 前的旧位置）里的 `*.dump`，**`Incr/` 分片目录与分片指纹 `<分片键>.mvsv.gz.fp` 完全不在清理范围内**；② 删除过期 dump 时**成对删除同名 `<文件>.dump.fp`**（防止将来小表也引入指纹后留下孤儿 sidecar），孤立的 `.fp` 不动；③ 新增两条回归测试固化该行为。 | `go test ./internal/meta/finv/brs/ -run Cleanup` 通过（新增 `TestCleanupLocalDumpsKeepsIncrFingerprint`：`Incr/<表>/20260101.mvsv.gz` 与 `.fp` 清理后仍在；`TestCleanupLocalDumpsRemovesPairedFingerprint`：过期 dump 与其 `.dump.fp` 一起删除、孤立 `keep.dump.fp` 保留）；`grep -n 'filepath.Ext(file.Name()) != ".dump"' internal/meta/finv/brs/cleanup.go` 命中 1 处 | √ |
 | 10918 | 分片备份两处整改：① **旧产物缺指纹时改为自愈**（原实现窗口外只跳过 + `warn`，导致每轮都报同一批告警、永远不建立指纹）：缺指纹 → 重做一次并写回指纹，日志 `缺少指纹记录（10916 之前的产物），重做一次建立基线：N 行 / hash`；`redo_slices=0` 时仍跳过并 `warn`（显式关闭自愈）；`redo_slices` 语义同步改为「自愈开关」，迁移 `V300095` 更新字段注释；② **备份成功日志输出本地产物路径**：`备份成功 <表> 分片 <键>（N 行，大小，耗时）→ <备份目录>/Incr/<表>/<键>.mvsv.gz`（上传日志仍输出远端 key）。 | `go test ./internal/meta/finv/brs/ -run DecideSkip` 通过（无指纹+自愈开启 → 重做并输出「重做一次建立基线」；无指纹+自愈关闭 → 跳过并输出「自愈关闭」告警）；运行态两轮验证：先 `rm -f <备份目录>/Incr/<表>/*.fp` 模拟旧产物 → 跑一轮日志为「重做一次建立基线」+ 成功日志带本地路径 + 生成 9 个 `.fp`；再跑一轮 → 全部「内容无变化」跳过、`done=0`、`warn=0`；`grep -n '重做一次建立基线' internal/meta/finv/brs/slice.go` 命中 1 处 | √ |
+| 10919 | 工作流界面阶段状态必须反映实际执行：阶段/流程内的子级（含动态导出 JOB 实例）正在执行时，阶段不得显示「待执行」。① 动态导出 JOB 启动时同步把工作流/阶段/流程置为 RUNNING（新增 `TouchCDEUHierarchyByProcess`，`startDynamicExportJob` 调用），结束后重新评估所在流程（`evaluateDynamicHierarchy` → `EvaluateCDEUProcess`）；② `CDEUOverview` 增加展示层派生 `deriveCDEURunning`：父级状态为 PENDING/READY 且（任一子级 RUNNING、或自身 started_at 非空 finished_at 为空）时输出 RUNNING，已终态与已 RUNNING 不受影响；③ 子流程同样派生，PENDING 的流程若自身有 RUNNING 的 JOB 也置 RUNNING。 | `go test ./internal/meta/finv/quote/cdeu/ -run DeriveCDEURunning` 通过（5 个分支：子 JOB RUNNING、子流程 RUNNING、已开始未结束、全未开始保持 PENDING、终态不被改写）；运行态验证：把 run 84 的 `PHASE_EXPORT` 的 phase_run 置 PENDING（其下有 RUNNING 的动态导出 JOB）后请求 `/API/V1/Meta/Finv/Quote/DeDup/CDEU/Overview?runId=84`，返回该阶段 `status=RUNNING`（前端显示「执行中」）而非 PENDING；`grep -n 'deriveCDEURunning' internal/meta/finv/quote/cdeu/cdeu_admin.go` 命中调用与定义；`grep -n 'TouchCDEUHierarchyByProcess' internal/meta/finv/quote/cdeu/job_export.go` 命中 | √ |
 
 
 ## 汇总
@@ -2902,7 +2903,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | CDEU「JOB 进度」标题去掉重复计数 | 10885 | 1 |
 | 「当日累计均价」字段名调整（待办） | 10886 | 1 |
 | CDEU 指标卡片顺序调整（运行时长移到最左） | 10887 | 1 |
-| **合计** | **10001–10918** | **917** |
+| **合计** | **10001–10919** | **918** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

@@ -259,6 +259,14 @@
 
 ### 修复
 
+- **工作流界面：阶段内有 JOB 在跑却显示「待执行」（需求 10919）**
+  - 现象：「月度行情导出」阶段显示 `待执行`，但阶段内 JOB 已跑 199/321、耗时在走（1/3 流程完成）。
+  - 根因：动态导出 JOB（按 USC/业务月展开的批量实例）由后台续跑链执行，全程只更新动态 JOB 自身状态，不回写 `phase_run` / `process_run`，阶段状态停在 `PENDING`。
+  - 修复：① 动态 JOB 启动时 `TouchCDEUHierarchyByProcess` 把三层置 RUNNING，结束后 `EvaluateCDEUProcess` 重新收敛；② `CDEUOverview` 新增 `deriveCDEURunning` 派生兜底：父级 PENDING/READY 且有 RUNNING 子级（或已开始未结束）时输出 RUNNING，终态不改写；③ 子流程同理派生。
+  - 新增 `derive_running_test.go`（5 分支）；文档无破坏性变更。
+
+### 修复
+
 - **分片备份：旧产物缺指纹改为自愈 + 成功日志输出本地路径（需求 10918）**
   - 问题：缺指纹的旧产物在窗口外只 `warn` 跳过，导致每轮都报同一批告警、永远建立不了指纹，且日志看不到导出路径。
   - 修复：缺指纹 → **重做一次建立基线**并写回指纹（`redo_slices=0` 时仍跳过并告警）；`redo_slices` 语义改为「自愈开关」，迁移 `V300095` 更新字段注释。

@@ -216,11 +216,21 @@ SELECT COALESCE(export_job_id, 0), process_id, usc, biz_month, job_category, sta
 	target.job = job
 	target.runID = runID
 	_ = s.store.MarkDynamicJobStatus(ctx, target.usc, target.bizMonth, CDEUStatusRunning, "", runID)
+	// 需求 10919：动态 JOB 开始执行时把工作流/阶段/流程同步为 RUNNING，
+	// 否则阶段状态停在 PENDING，页面显示「待执行」而 JOB 已在跑。
+	if target.workflowRunID > 0 {
+		if touchErr := s.store.TouchCDEUHierarchyByProcess(ctx, target.workflowRunID, target.processID); touchErr != nil {
+			log.Printf("[cdeu] 动态 JOB 置 RUNNING 失败 dynamic_job_id=%d err=%v", target.dynamicJobID, touchErr)
+		}
+	}
 	return target, nil
 }
 
 // executeDynamicExportJob 执行已抢占的动态 JOB，并同步动态 JOB / Step 状态。
 func (s *Service) executeDynamicExportJob(ctx context.Context, target dynamicExportTarget) (bool, error) {
+	// 需求 10919：动态 JOB 结束（成功/失败/暂停）后重新评估所在流程，
+	// 让 phase_run / process_run 状态跟着动态实例收敛，而不是停在 RUNNING。
+	defer s.evaluateDynamicHierarchy(target)
 	outcome := s.processJobWithRunID(ctx, target.job, target.runID)
 	if outcome.Err != nil {
 		_ = s.store.MarkDynamicJobStatus(ctx, target.usc, target.bizMonth, CDEUStatusFailed, outcome.Err.Error(), outcome.RunLogID)
@@ -235,6 +245,18 @@ func (s *Service) executeDynamicExportJob(ctx context.Context, target dynamicExp
 	_ = s.store.MarkDynamicJobStatus(ctx, target.usc, target.bizMonth, CDEUStatusSuccess, "", outcome.RunLogID)
 	_ = s.store.CompleteDynamicJobSteps(ctx, target.usc, target.bizMonth)
 	return false, nil
+}
+
+// evaluateDynamicHierarchy 重新评估动态 JOB 所在流程及其上级状态（需求 10919）。
+func (s *Service) evaluateDynamicHierarchy(target dynamicExportTarget) {
+	if target.workflowRunID <= 0 || target.processID <= 0 {
+		return
+	}
+	ctx := context.WithoutCancel(context.Background())
+	if err := s.store.EvaluateCDEUProcess(ctx, target.workflowRunID, target.processID); err != nil {
+		log.Printf("[cdeu] 动态 JOB 结束后评估流程失败 run_id=%d process_id=%d err=%v",
+			target.workflowRunID, target.processID, err)
+	}
 }
 
 // runSubsequentDynamicExportJobs 续跑同一 Process 中排在当前动态 JOB 之后的待执行动态导出 JOB。

@@ -576,6 +576,24 @@ UPDATE cdeu.finv_quote_cdeu_process_run
 	return err
 }
 
+// TouchCDEUHierarchyByProcess 按 process_id 反查阶段运行并把工作流/阶段/流程置为 RUNNING。
+//
+// 需求 10919：动态导出 JOB（`RunDynamicExportJob`）走的是独立执行链，原实现只更新
+// 动态 JOB 自身状态，不碰 phase_run / process_run，于是界面上出现「阶段 待执行、
+// 里面的动态 JOB 却在跑、耗时在走」的矛盾展示。改为启动动态 JOB 时同步 THREE 层状态。
+func (s *Store) TouchCDEUHierarchyByProcess(ctx context.Context, runID, processID int64) error {
+	var phaseID, phaseRunID int64
+	if err := s.pool.QueryRow(ctx, `
+SELECT p.phase_id, pr.phase_run_id
+  FROM cdeu.finv_quote_cdeu_process p
+  JOIN cdeu.finv_quote_cdeu_phase_run pr
+    ON pr.workflow_run_id = $1 AND pr.phase_id = p.phase_id
+ WHERE p.process_id = $2`, runID, processID).Scan(&phaseID, &phaseRunID); err != nil {
+		return err
+	}
+	return s.TouchCDEUHierarchy(ctx, runID, phaseID, phaseRunID, processID)
+}
+
 // cdeuPhasePredecessorState 返回同一工作流内 seq_no 最小且非成功的前序阶段状态（需求 10733）。
 //
 // blocked=true 表示本阶段不应继续判定完成：
