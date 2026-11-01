@@ -127,6 +127,10 @@
 
 ### 变更
 
+- **对象存储配置页面：提供方只展示「S3 兼容」，实现细节移到下方独立卡片（需求 10891）**
+  - `BrsOssConfigView.vue` 的 provider 选项标题由「S3 兼容（aws-sdk-go-v2）」改为「S3 兼容」，不再把技术实现塞进配置项标签。
+  - 新增「实现说明」卡片（配置表单下方）：S3 兼容协议适用范围、客户端经 `internal/meta/base/oss` 抽象接入且默认适配器基于 `aws-sdk-go-v2`（不使用 `minio-go`）、生效时机、凭证保存与上传失败行为。
+
 - **39002 对象存储配置的凭证键改为 `ak` / `sk`（需求 10891）**
   - 迁移 `V300082__brs_oss_config_ak_sk.sql`：`sys.sys_config` 39002 的 `json_value` 内 `access_key`→`ak`、`secret_key`→`sk`，保留原值；仅当旧键存在时执行（幂等），末尾校验无旧键残留且新键齐全。
   - 服务层：`brs/ossconfig.go` 与 `brs/brs.go` 的配置结构改用 `ak`/`sk`，并保留 `access_key`/`secret_key` 旧键兜底读取（迁移与升级先后顺序不影响已有密钥）；保存只写新键。

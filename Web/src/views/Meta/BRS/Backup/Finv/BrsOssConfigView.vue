@@ -119,7 +119,7 @@ onMounted(load)
         <v-col cols="12" sm="6">
           <v-select
             v-model="form.provider"
-            :items="[{ title: 'S3 兼容（aws-sdk-go-v2）', value: 's3' }]"
+            :items="[{ title: 'S3 兼容', value: 's3' }]"
             item-title="title"
             item-value="value"
             label="提供方"
@@ -206,6 +206,41 @@ onMounted(load)
         <v-btn color="primary" prepend-icon="mdi-content-save" :loading="saving" @click="save">保存</v-btn>
         <v-btn variant="text" class="ml-2" prepend-icon="mdi-refresh" :loading="loading" @click="load">重新加载</v-btn>
       </div>
+    </v-card-text>
+  </v-card>
+
+  <!-- 实现说明：技术细节与配置分离，避免占用配置项标签 -->
+  <v-card class="mt-4" variant="outlined">
+    <v-card-title class="text-subtitle-1">
+      <v-icon icon="mdi-information-outline" class="mr-2" size="small" />
+      实现说明
+    </v-card-title>
+    <v-card-text class="text-body-2">
+      <v-list density="compact" lines="two">
+        <v-list-item prepend-icon="mdi-cloud-outline">
+          <v-list-item-title>S3 兼容协议</v-list-item-title>
+          <v-list-item-subtitle>
+            支持 Cloudflare R2、AWS S3、MinIO 等 S3 兼容对象存储；需要提前创建 Bucket 并保证凭证具备 Object Read &amp; Write 权限。
+          </v-list-item-subtitle>
+        </v-list-item>
+        <v-list-item prepend-icon="mdi-code-braces">
+          <v-list-item-title>客户端实现</v-list-item-title>
+          <v-list-item-subtitle>
+            经 <code>internal/meta/base/oss</code> 抽象接入，默认适配器基于 <code>aws-sdk-go-v2</code>；不使用
+            <code>minio-go</code> 及 MinIO 官方库，后续可扩展 local 等适配器。
+          </v-list-item-subtitle>
+        </v-list-item>
+        <v-list-item prepend-icon="mdi-timer-sand">
+          <v-list-item-title>生效时机</v-list-item-title>
+          <v-list-item-subtitle>保存后下一轮备份生效（每轮备份前重新读取配置），无需重启服务。</v-list-item-subtitle>
+        </v-list-item>
+        <v-list-item prepend-icon="mdi-file-lock-outline">
+          <v-list-item-title>凭证保存</v-list-item-title>
+          <v-list-item-subtitle>
+            凭证存于本系统配置（json_value，键名 <code>ak</code>/<code>sk</code>），读取时 Secret 不回传明文，留空即不修改；上传失败会保留本地文件并记日志，不影响本地备份。
+          </v-list-item-subtitle>
+        </v-list-item>
+      </v-list>
     </v-card-text>
   </v-card>
 </template>
