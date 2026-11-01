@@ -171,20 +171,24 @@ pg_restore -h 127.0.0.1 -U finv -d finv \
 
 ```json
 {
-  "enabled": false,
-  "provider": "s3",
+  "enable": false,
+  "protocol": "s3",
+  "provider": "cloudflare-r2",
   "endpoint": "https://<account>.r2.cloudflarestorage.com",
   "bucket": "finvquant-backup",
   "region": "auto",
-  "access_key": "...",
-  "secret_key": "...",
+  "ak": "...",
+  "sk": "...",
   "prefix": "brs/"
 }
 ```
 
+> 字段语义：`enable` 启用上传；`protocol` 是协议（`s3` / `local`）；`provider` 是厂商标签（`cloudflare-r2` / `aws-s3` / 自定义），S3 兼容厂商统一走 `s3` 适配器。
+> 兼容：旧键 `enabled`、误拼 `protocal`、以及只有协议的 `"provider":"s3"` 都能读；**保存时一律写上面这套新键**（详见 [`../API/BRS/OSSConfig.md`](../API/BRS/OSSConfig.md) §0）。
+
 | 项 | 说明 |
 |---|---|
-| 全局开关 | 39002 `enabled`（默认 `false`） |
+| 全局开关 | 39002 `enable`（旧键 `enabled` 兼容读取；默认 `false`） |
 | 表级开关 | `brs_bak_rdb_table_full.flag_upload`（`'1'` 上传 / `'0'` 只留本地，默认 `'1'`） |
 | 上传 key | `<prefix>/<env>/<yyyyMMdd>/<db>.<schema>.<table>.dump`（`env` = `sys_config` 1002 的运行环境标识；缺失或非法则跳过上传） |
 | 凭证 | `access_key`/`secret_key` 存 `sys_config`（`access_level` 限制），不写日志 |
@@ -201,13 +205,14 @@ pg_restore -h 127.0.0.1 -U finv -d finv \
 ```sql
 UPDATE sys.sys_config
    SET json_value = '{
-     "enabled": true,
-     "provider": "s3",
+     "enable": true,
+     "protocol": "s3",
+     "provider": "cloudflare-r2",
      "endpoint": "https://<account_id>.r2.cloudflarestorage.com",
      "bucket": "finvquant-backup",
      "region": "auto",
-     "access_key": "<ACCESS_KEY>",
-     "secret_key": "<SECRET_KEY>",
+     "ak": "<ACCESS_KEY>",
+     "sk": "<SECRET_KEY>",
      "prefix": "brs/"
    }'::json,
        gmt_modify = now()

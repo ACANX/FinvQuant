@@ -8,7 +8,8 @@ import { computed, onMounted, ref } from 'vue'
 import { apiGet, apiPost } from '../../../../../api'
 
 interface OssConfig {
-  enabled: boolean
+  enable: boolean
+  protocol: string
   provider: string
   endpoint: string
   bucket: string
@@ -29,8 +30,9 @@ const error = ref('')
 const message = ref('')
 
 const form = ref<OssConfig>({
-  enabled: false,
-  provider: 's3',
+  enable: false,
+  protocol: 's3',
+  provider: 'cloudflare-r2',
   endpoint: '',
   bucket: '',
   region: 'auto',
@@ -41,6 +43,13 @@ const form = ref<OssConfig>({
   remark: '',
   gmt_modify: null,
 })
+
+// 厂商候选（仅作标签：S3 兼容厂商统一走 s3 适配器）
+const providerItems = [
+  { title: 'Cloudflare R2', value: 'cloudflare-r2' },
+  { title: 'AWS S3', value: 'aws-s3' },
+  { title: '本地目录（local）', value: 'local' },
+]
 
 // secret_key 输入框提示：已配置过时留空表示不修改
 const secretHint = computed(() =>
@@ -66,8 +75,9 @@ async function save() {
   saving.value = true
   try {
     const data = await apiPost<OssConfig>(`${API_PREFIX}/Save`, {
-      enabled: form.value.enabled,
-      provider: form.value.provider.trim() || 's3',
+      enable: form.value.enable,
+      protocol: form.value.protocol.trim() || 's3',
+      provider: form.value.provider.trim(),
       endpoint: form.value.endpoint.trim(),
       bucket: form.value.bucket.trim(),
       region: form.value.region.trim() || 'auto',
@@ -76,7 +86,7 @@ async function save() {
       prefix: form.value.prefix.trim() || 'brs/',
     })
     form.value = { ...form.value, ...data, secret_key: '' }
-    message.value = data.enabled ? '保存成功：下一轮备份将上传到对象存储' : '保存成功：当前为「仅本地备份」，不上传'
+    message.value = data.enable ? '保存成功：下一轮备份将上传到对象存储' : '保存成功：当前为「仅本地备份」，不上传'
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -109,7 +119,7 @@ onMounted(load)
       <v-row dense>
         <v-col cols="12" sm="6">
           <v-switch
-            v-model="form.enabled"
+            v-model="form.enable"
             label="启用上传（关闭则只保留本地备份）"
             color="primary"
             density="compact"
@@ -118,24 +128,40 @@ onMounted(load)
         </v-col>
         <v-col cols="12" sm="6">
           <v-select
-            v-model="form.provider"
-            :items="[{ title: 'S3 兼容', value: 's3' }]"
+            v-model="form.protocol"
+            :items="[{ title: 's3（S3 兼容协议）', value: 's3' }, { title: 'local（本地目录）', value: 'local' }]"
             item-title="title"
             item-value="value"
-            label="提供方"
+            label="协议 protocol"
             density="compact"
             hide-details
-            :disabled="!form.enabled"
+            :disabled="!form.enable"
+          />
+        </v-col>
+        <v-col cols="12" sm="6">
+          <v-combobox
+            v-model="form.provider"
+            :items="providerItems"
+            item-title="title"
+            item-value="value"
+            label="厂商 provider（S3 兼容厂商统一走 s3 适配器）"
+            density="compact"
+            hide-details
+            :disabled="!form.enable"
           />
         </v-col>
 
         <v-col cols="12">
           <v-text-field
             v-model="form.endpoint"
-            label="Endpoint（R2：https://<account_id>.r2.cloudflarestorage.com；AWS S3 留空；MinIO：http://<host>:9000）"
+            :label="
+              form.protocol === 'local'
+                ? 'Endpoint（local 协议：填写本地目录绝对路径，如 /data/App/FinvQuant/BRS/Mirror）'
+                : 'Endpoint（R2：https://<account_id>.r2.cloudflarestorage.com；AWS S3：可留空；MinIO：http://<host>:9000）'
+            "
             density="compact"
-            :disabled="!form.enabled"
-            :rules="[(v: string) => !form.enabled || !!v || '启用上传时必填']"
+            :disabled="!form.enable"
+            :rules="[(v: string) => !form.enable || !!v || '启用上传时必填']"
           />
         </v-col>
         <v-col cols="12" sm="6">
@@ -143,8 +169,8 @@ onMounted(load)
             v-model="form.bucket"
             label="Bucket（需提前创建）"
             density="compact"
-            :disabled="!form.enabled"
-            :rules="[(v: string) => !form.enabled || !!v || '启用上传时必填']"
+            :disabled="!form.enable"
+            :rules="[(v: string) => !form.enable || !!v || '启用上传时必填']"
           />
         </v-col>
         <v-col cols="12" sm="6">
@@ -152,7 +178,7 @@ onMounted(load)
             v-model="form.region"
             label="Region（R2 填 auto；AWS 填实际区域；MinIO 常用 us-east-1）"
             density="compact"
-            :disabled="!form.enabled"
+            :disabled="!form.enable"
           />
         </v-col>
 
@@ -162,8 +188,8 @@ onMounted(load)
             label="Access Key ID"
             density="compact"
             autocomplete="off"
-            :disabled="!form.enabled"
-            :rules="[(v: string) => !form.enabled || !!v || '启用上传时必填']"
+            :disabled="!form.enable"
+            :rules="[(v: string) => !form.enable || !!v || '启用上传时必填']"
           />
         </v-col>
         <v-col cols="12" sm="6">
@@ -175,7 +201,7 @@ onMounted(load)
             type="password"
             density="compact"
             autocomplete="new-password"
-            :disabled="!form.enabled"
+            :disabled="!form.enable"
           />
         </v-col>
 
@@ -184,7 +210,7 @@ onMounted(load)
             v-model="form.prefix"
             label="对象 Key 前缀（最终 key = <前缀>/<yyyyMMdd>/<schema>.<table>_<HHmmss>.dump）"
             density="compact"
-            :disabled="!form.enabled"
+            :disabled="!form.enable"
           />
         </v-col>
         <v-col cols="12" sm="6" class="d-flex align-center">

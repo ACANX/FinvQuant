@@ -257,6 +257,16 @@
   - 新增 `kline/vwap_compat_test.go`（7 个用例）：vwap 优先 / pacd 兼容 / vwap=null 回退 / 两列皆空 / 增量补丁列名 / 短名 vwa / `/Page` 输出。
   - 本机 API 实测：`pacd` 入参落库 `vwap=3.56`；`vwap=9.99` 与 `pacd=3.56` 同传取 9.99；`/Page`、`/PageUni` 第 13 项为 `vwa`；`/Add`、`/Query` 输出 `vwap` 且无 `pacd`。
 
+### 变更
+
+- **39002 对象存储配置格式调整（需求 10912）**
+  - 新格式：`{"enable":true,"protocol":"s3","provider":"cloudflare-r2","endpoint":…,"bucket":…,"region":…,"ak":…,"sk":…,"prefix":…}`；`enabled`→`enable`，原 `provider`（协议）拆为 `protocol`（协议）+ `provider`（厂商标签）。
+  - 保存一律写新键；读取兼容旧键 `enabled`、误拼别名 `protocal`、旧格式 `"provider":"s3"`（按 endpoint 推断 `cloudflare-r2`/`aws-s3`）与旧凭证键 `access_key`/`secret_key`，升级后不改配置即可继续上传。
+  - 新增 `normalizeOSS` 统一归一化（未知协议 400 拒绝；`s3`→`oss/s3`、`local`→`oss/local` 适配器）；`loadOssStore` 去掉重复的 `OssSettings` 结构，复用同一归一化。
+  - 迁移 `V300094` 仅更新 39002 的 `remark` 字段说明，**不改 `json_value`**。
+  - 前端「对象存储配置」改为 `enable` / `protocol` / `provider` 三项（`provider` 为 `v-combobox`，可填自定义厂商；`protocol=local` 时 endpoint 填本地目录路径）。
+  - 新增 `ossconfig_test.go` 3 组用例（归一化 8 例、兼容读取 4 例、序列化只写新键）；文档 `OSSConfig.md` 新增 §0「配置格式与兼容」、`Brs.md` §6 同步。
+
 ### 新增
 
 - **BRS 磁盘水位告警（需求 10911）**
