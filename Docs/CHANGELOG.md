@@ -133,6 +133,14 @@
   - 文档：`Docs/API/BRS/OSSConfig.md` 的 `endpoint` 字段说明与失败表同步。
   - 注：这是**配置**问题，不是代码拼接；代码只生成 `<prefix>/<yyyyMMdd>/<schema>.<table>.dump`。
 
+### 移除
+
+- **退役号段平移脚本与 marker 表（需求 10895）**
+  - 删除 `Deploy/Upgrade/2611-001-MigrationSegmentsShift.sql`（需求 10881 的一次性存量库过渡脚本，所有存量库已完成平移）。
+  - 迁移 `V300084__drop_schema_version_plan_shift.sql` 删除 marker 表 `public.schema_version_plan_shift`，并删除 `brs.brs_bak_rdb_table` 中该表的备份登记（备份总数 25 → 24）。
+  - 前置校验：`public.schema_version` 若仍有 `<100000` 的旧号段记录则整事务回滚并报错，避免在未平移的库上误删 marker。
+  - 文档：`Deploy/README.md`（Upgrade 说明与号段过渡提示）、`Deploy/Script/README.md`、`Deploy/Native/Install.md`、`DbSchemaSpec` §4、`Docs/FinvQuant/Brs.md` 同步。
+
 ### 变更
 
 - **`public` / `futu` schema 的表纳入 BRS 备份清单（需求 10894）**

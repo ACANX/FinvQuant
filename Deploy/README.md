@@ -23,7 +23,7 @@ Deploy/
 | `Migrations/` | 是 | 三段号段：`V100000`～`V199999` 基础准备（角色/库校验/schema）、`V200000`～`V299999` 表结构 DDL、`V300000`～`V399999` 数据，**历史文件不可回改** |
 | `Init/` | 是 | 初始化脚本（**部署前手工执行一次**，不随启动执行）：`2610-001-CreateDatabase.sql`（建库 + 属主 + `public` 授权，幂等；`CREATE DATABASE` 不能在迁移事务内执行，故不放进 `Migrations/`）。容器方式由 `POSTGRES_DB` 建库，一般无需执行 |
 | `Script/` | 是 | `PackSnapshot.sh`（快照包构建，CI 与本地共用）+ `PackSnapshot.cmd`（Windows 封装，转调 .sh）+ `Download.sh`/`Download.cmd`（一键下载发行包），见 §2.3 |
-| `Upgrade/` | 是 | 一次性升级/维护脚本（**不随启动自动执行**，需手工 `psql -f`）：`2611-001-MigrationSegmentsShift.sql`（存量库 `schema_version` 号段 +100000，marker 表保证只跑一次）、`MigratePublicKlineToCdeu.sql`（早期 `public` 分钟 K 线一次性搬入 `cdeu`，见 [`../Docs/FinvQuant/MigratePublicKlineToCdeu.md`](../Docs/FinvQuant/MigratePublicKlineToCdeu.md)） |
+| `Upgrade/` | 是 | 一次性升级/维护脚本（**不随启动自动执行**，需手工 `psql -f`）：`MigratePublicKlineToCdeu.sql`（早期 `public` 分钟 K 线一次性搬入 `cdeu`，见 [`../Docs/FinvQuant/MigratePublicKlineToCdeu.md`](../Docs/FinvQuant/MigratePublicKlineToCdeu.md)） |
 | `Backup/` | 否 | `pg_dump -Fc` 产物，两种方式共用，命名 `finvquant_YYYYMMDD_HHMMSS.dump` |
 
 > Native 方式在宿主机上的安装根目录统一为 `/data/App/FinvQuant/`（二进制、迁移、配置、部署文件、备份与导出），
@@ -46,7 +46,7 @@ Deploy/
 
 - 命名 `V<版本号>__<描述>.sql`；三段号段：`V100000`～`V199999` 基础准备（创建角色/校验数据库/创建 schema）、`V200000`～`V299999` 表结构 DDL、`V300000`～`V399999` 数据（种子/回填/修正），全部按版本号升序执行。详见 [`../Docs/DevSpec/DbSchemaSpec.md`](../Docs/DevSpec/DbSchemaSpec.md) §4。
 - 服务（容器或二进制）**启动时自动应用未执行版本**，记录在 `public.schema_version`；单事务执行，失败整体回滚。
-- ⚠️ **号段平移过渡（需求 10881）**：`V1xxxxx`/`V2xxxxx` 已于 2026-11 重排为三段。已按旧号段建过库的环境，必须在部署/启动新版**之前**先手工执行 `Upgrade/2611-001-MigrationSegmentsShift.sql`（把 `schema_version` 版本号 +100000），否则迁移器会把新号段当成未执行而重跑全部迁移。全新库无需执行。
+- **号段平移过渡（需求 10881，已退役）**：`V1xxxxx`/`V2xxxxx` 已于 2026-11 重排为三段；存量库过渡脚本 `2611-001-MigrationSegmentsShift.sql` 与 marker 表 `public.schema_version_plan_shift` 已随需求 10895 退役（所有存量库平移完成）。此前按旧号段建过、尚未平移的库需手工把 `public.schema_version.version` 整体 +100000 后再启动新版。
 - **历史迁移文件不可回改**（已应用库会按 `schema_version` 跳过，改动会造成存量库与全新库结构分叉）；唯一例外是「新结构已使历史迁移无法在全新库执行」的兼容修正，规则见 [`../Docs/DevSpec/DbSchemaSpec.md`](../Docs/DevSpec/DbSchemaSpec.md) §4。
 - 目录位置：容器方式构建时拷入镜像 `/etc/finvquant/Migrations`（镜像内部路径）；Native 方式随包放在 `<PREFIX>/Deploy/Migrations`（与仓库结构一致，默认 `/data/App/FinvQuant/Deploy/Migrations`），安装/升级脚本按需同步；统一由环境变量 `FINV_MIGRATIONS_DIR` 指向。
 - 手工执行迁移**不推荐**：请用服务启动自迁移，避免 `schema_version` 与实际结构不一致。
