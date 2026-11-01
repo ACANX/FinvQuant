@@ -37,6 +37,12 @@
 
 ### 变更
 
+- **基础准备段迁移粒度定为「一对象一脚本」（需求 10882 方案落定）**
+  - 结论：`V100000`～`V199999` 段中**一个角色 / 一个 schema / 一次库校验各占一个脚本**，不再用一个脚本创建多个对象（`V100002__create_schemas.sql` 一次建 7 个 schema 的写法在基线重做时废弃）。
+  - 基线规划：`V100001__role_finv`、`V100002`～`V100008`（`schema_quote` / `schema_quant` / `schema_futu` / `schema_sys` / `schema_sche` / `schema_cdeu` / `schema_archive`）、`V100009__schema_brs`（`brs` 从数据段 `V300060` 归位到基础准备段）、`V100010__verify_database`。
+  - 本次不改动任何 SQL 文件：`V100001`～`V100003` 已随 `v0.1.4` 发布，按 `DbSchemaSpec` §4「历史迁移文件不可回改」保持原样；粒度规则与新编号规划只写进需求 10882 与 `DbSchemaSpec` §4，实际拆分随基线重做一次落地。
+  - 数据库脚本仍只做只读校验：`CREATE DATABASE` 不能在迁移事务内执行，建库继续由 `Install.sh` / DBA 负责。
+
 - **CDEU 工作流视图「运行时长」卡片移到最左侧（需求 10887）**
   - 指标卡片顺序由「工作流状态 → 阶段进度 → JOB 进度 → 运行时长」调整为「**运行时长** → 工作流状态 → 阶段进度 → JOB 进度」；卡片内容、响应式断点（`cols="12" sm="6" lg="3"`）与统计口径不变。
   - 验证：四张卡片数量仍为 4，`npm run build`（`vue-tsc -b && vite build`）通过。
