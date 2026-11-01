@@ -4,7 +4,7 @@
 //
 //	· 配置独立（另一张表，不改小表登记）；
 //	· 产物独立（<BackupDir>/Incr/<db>.<schema>.<table>/<分片键>.mvsv[.gz]）；
-//	· 上传独立（<env>/<db>.<schema>.<table>/<分片键>.dump）。
+//	· 上传独立（<env>/Incr/<db>.<schema>.<table>/<分片键>.mvsv[.gz]）。
 //
 // 增量语义（不新增状态表）：
 //
@@ -278,9 +278,12 @@ func (r SliceRule) localPath(backupDir string, s Slice) string {
 	return filepath.Join(backupDir, IncrDirName, r.tableDir(), r.fileKey(s)+r.fileExt())
 }
 
-// remoteKey 远端 key：<env>/<db>.<schema>.<table>/<分片键>.mvsv[.gz]（prefix 由适配器拼接）。
+// remoteKey 远端 key：<env>/Incr/<db>.<schema>.<table>/<分片键>.mvsv[.gz]（prefix 由适配器拼接）。
+//
+// `Incr/` 段与本地 <BackupDir>/Incr/ 一一对应，便于在对象存储上直接区分
+// 增量分片产物与其它备份文件（如 <env>/<yyyyMMdd>/ 下的小表全量 dump）。
 func (r SliceRule) remoteKey(env string, s Slice) string {
-	key := r.tableDir() + "/" + r.fileKey(s) + r.fileExt()
+	key := IncrDirName + "/" + r.tableDir() + "/" + r.fileKey(s) + r.fileExt()
 	if env != "" {
 		key = env + "/" + key
 	}

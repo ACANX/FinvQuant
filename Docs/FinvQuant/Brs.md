@@ -29,7 +29,7 @@ BRS 有**两套相互独立的备份策略**，各自一张登记表、各自一
 | 切分依据 | `slice_mode`（`date`/`week`/`month`/`column`/`expr`）+ `slice_where_tpl`（占位 `{value}`/`{start}`/`{end}`） |
 | 导出方式 | 按行读取分片数据后写 **MVSV-2**（复用 `mvsv.WriteV2`，与 `qiom export` 同格式）；`pg_dump` 无行级过滤（无 `--where`），故不用它 |
 | 本地产物 | `<备份目录>/Incr/<db>.<schema>.<表>/<分片键>.mvsv.gz`（`compression=none` 时 `.mvsv`） |
-| 远端 key | `<prefix>/<env>/<db>.<schema>.<表>/<分片键>.mvsv.gz` |
+| 远端 key | `<prefix>/<env>/Incr/<db>.<schema>.<表>/<分片键>.mvsv.gz`（`Incr/` 与本地目录对应） |
 | 增量判定 | 分片键从库枚举 → 本地文件或远端对象已存在即跳过；末尾 `redo_slices` 个分片每轮重做（当天可能仍在增长） |
 | 粒度保护 | `min_rows`（低于则跳过）、`max_slices`（超过则拒绝执行，防误配） |
 | 目录预检 | 启动时与每轮执行前各预检一次 `<备份目录>/Incr` 是否可写；不可写时**整轮一次性失败**并在页面顶部红色告警（`backup_dir_ok=false` + `backup_dir_error`），不逐分片重复报错 |

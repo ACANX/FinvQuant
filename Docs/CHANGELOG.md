@@ -301,7 +301,7 @@
 
 - **大表增量（分片）备份（需求 10905）**
   - 新增登记表 `brs.brs_bak_rdb_table_incr`（迁移 `V300088` 建表、`V300090` 由 `brs_bak_rdb_table_slice` 改名为 `_incr`）：与小表全量登记 `brs_bak_rdb_table` 完全独立，不改其结构与语义；首期种子 `cdeu.finv_quote_secu_kline_min` 按自然日 `date` 切分。
-  - 分片引擎 `internal/meta/finv/brs/slice.go`：分片键从库枚举（`date`/`week`/`month` 内置模板，`column`/`expr` 自定义 SQL），逐片按行读取后写 **MVSV-2**（复用 `mvsv.WriteV2`，与 `qiom export` 同格式、gzip 压缩；`pg_dump` 没有行级过滤选项，不能用于分片）；产物 `Slice/<db>.<schema>.<表>/<分片键>.mvsv.gz`，远端 `<env>/<db>.<schema>.<表>/<分片键>.mvsv.gz`；保存登记时校验目标表与 `cdeu.finv_quote_secu_kline_min` 同构（19 列）。
+  - 分片引擎 `internal/meta/finv/brs/slice.go`：分片键从库枚举（`date`/`week`/`month` 内置模板，`column`/`expr` 自定义 SQL），逐片按行读取后写 **MVSV-2**（复用 `mvsv.WriteV2`，与 `qiom export` 同格式、gzip 压缩；`pg_dump` 没有行级过滤选项，不能用于分片）；产物 `Incr/<db>.<schema>.<表>/<分片键>.mvsv.gz`，远端 `<env>/Incr/<db>.<schema>.<表>/<分片键>.mvsv.gz`；保存登记时校验目标表与 `cdeu.finv_quote_secu_kline_min` 同构（19 列）。
   - 增量不引入状态表：分片产物存在（本地或远端 `Stat`）即跳过，末尾 `redo_slices` 个分片每轮重做；`min_rows`/`max_slices` 防碎片与防误配。
   - 独立运行器 `SliceRunner`（只手动触发，与小表备份互不阻塞）+ 接口 `Slice/Rule/{List,Save,Toggle}`、`Slice/Plan`、`Slice/Run/{Manual,Status}`；页面 `BrsSliceView.vue`（登记维护 + 分片完成度 + 立即备份 + 进度/日志），菜单「备份管理 → 大表增量备份」。
   - 本机实测（10 个自然日 / 27.7 万行）：首轮 10 片全部导出并上传约 17 s；第二轮跳过 8 片、仅重做末尾 2 片约 3.4 s；`20260930.mvsv.gz` 经 `qiom verify` 校验通过（`Format=MVSV-2`、`Count=37355`，与源表该日行数一致）。

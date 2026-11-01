@@ -317,7 +317,7 @@ type Store interface {
 | 执行链 | `RunOnce` / `Runner` / 39001 cron | `RunSliceOnceWithHooks` / `SliceRunner`（仅手动） |
 | 导出 | `pg_dump -Fc`（custom 格式） | 按行读取后写 **MVSV-2**（复用 `mvsv.WriteV2`，与 `qiom export` 同格式） |
 | 产物 | `<备份目录>/<执行日>/<db>.<schema>.<表>.dump` | `<备份目录>/Incr/<db>.<schema>.<表>/<分片键>.mvsv.gz` |
-| 远端 | `<prefix>/<env>/<执行日>/<file>` | `<prefix>/<env>/<db>.<schema>.<表>/<分片键>.mvsv.gz` |
+| 远端 | `<prefix>/<env>/<执行日>/<file>` | `<prefix>/<env>/Incr/<db>.<schema>.<表>/<分片键>.mvsv.gz` |
 | 增量 | 每轮整表覆盖 | 分片键枚举 + 产物存在即跳过；末尾 `redo_slices` 个重做 |
 
 **为什么不用 pg_dump**：`pg_dump` 没有行级过滤选项（不存在 `--where`），无法按分片截取数据。

@@ -14,7 +14,7 @@
 | 方式 | `pg_dump -Fc`（custom 格式，`pg_restore` 可选择性恢复） | 按行读取后写 **MVSV-2**（与 `qiom export` 同一 writer），gzip 压缩 |
 | 增量 | 每轮整表重做（覆盖同名文件） | 分片键从库枚举，已有产物跳过，只补缺失 + 末尾 `redo_slices` 个 |
 | 本地 | `<备份目录>/<执行日>/<库>.<schema>.<表>.dump` | `<备份目录>/Incr/<库>.<schema>.<表>/<分片键>.mvsv[.gz]` |
-| 远端 | `<prefix>/<env>/<执行日>/<库>.<schema>.<表>.dump` | `<prefix>/<env>/<库>.<schema>.<表>/<分片键>.mvsv[.gz]` |
+| 远端 | `<prefix>/<env>/<执行日>/<库>.<schema>.<表>.dump` | `<prefix>/<env>/Incr/<库>.<schema>.<表>/<分片键>.mvsv[.gz]` |
 | 调度 | 39001 cron | 本期只支持手动触发 |
 
 > 为什么不用 `pg_dump`：`pg_dump` **没有行级过滤选项**（不存在 `--where`），无法按分片截取数据；因此分片按行读取后写 **MVSV-2**。
@@ -140,7 +140,7 @@ ls /data/App/FinvQuant/BRS/Incr/finv.cdeu.finv_quote_secu_kline_min/
 # 20260930.mvsv.gz  20261001.mvsv.gz ...
 
 # 远端（R2）
-# <prefix>/<env>/finv.cdeu.finv_quote_secu_kline_min/20260930.mvsv.gz
+# <prefix>/<env>/Incr/finv.cdeu.finv_quote_secu_kline_min/20260930.mvsv.gz
 ```
 
 恢复单日数据（目标库表结构需已由迁移建好）：
