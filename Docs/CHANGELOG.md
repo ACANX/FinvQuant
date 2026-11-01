@@ -259,6 +259,14 @@
 
 ### 新增
 
+- **BRS 磁盘水位告警（需求 10911）**
+  - 新增 `brs/disk.go`：`checkDisk` 检测备份目录所在文件系统的可用/总空间（目录不存在时沿父目录回落），Linux/macOS 走 `syscall.Statfs`，Windows 返回「未知」。
+  - 阈值 `FINV_BRS_DISK_MIN_FREE_GB`（默认 5 GB，`<=0` 关闭）；运行器启动、每轮备份开始前与结束后各检测一次，低于阈值写 `warn`（含可用/阈值/路径与清理建议）。
+  - 状态接口新增 `disk_path` / `disk_free_bytes` / `disk_total_bytes` / `disk_min_free_bytes` / `disk_low` / `disk_error`；两个备份页面顶部加黄色告警条，状态行显示磁盘剩余与阈值。
+  - 新增 `disk_test.go`（4 个用例，Windows 自动跳过）；文档 `Brs.md` 新增 §1.3「磁盘水位告警」。
+
+### 新增
+
 - **BRS 本地备份产物自动清理（需求 10910）**
   - 问题：小表全量备份每天写一个新日期目录（`<备份目录>/<yyyyMMdd>/`，每表一个 dump），此前上传成功后不删本地 → 日积月累占满文件系统；大表分片按分片键覆盖、文件数等于分片数，不随时间增长。
   - 新增 `brs/cleanup.go`：每轮全量备份结束（成功或失败）清理超过 `FINV_BRS_LOCAL_KEEP_DAYS`（默认 7，`<=0` 不清理）的 `*.dump`；**只删远端 `Stat` 命中（已上传成功）的文件**，远端不存在则保留；空目录一并删除；`Incr/` 与非 `yyyyMMdd` 目录不参与。

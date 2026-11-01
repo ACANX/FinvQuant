@@ -58,6 +58,8 @@ type Options struct {
 	DumpBin   string // pg_dump 路径（默认 PATH 中查找）
 	// LocalKeepDays 本地全量 dump 保留天数（<=0 表示不清理）；仅删除远端已存在的文件。
 	LocalKeepDays int
+	// DiskMinFreeGB 磁盘剩余空间告警阈值（GB，<=0 关闭告警）。
+	DiskMinFreeGB int
 	Store         oss.Store // 可选：对象存储上传实现（nil 不上传）
 }
 

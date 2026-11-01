@@ -76,6 +76,12 @@ interface SliceRunState {
   backup_dir: string
   backup_dir_ok: boolean
   backup_dir_error: string
+  disk_path: string
+  disk_free_bytes: number
+  disk_total_bytes: number
+  disk_min_free_bytes: number
+  disk_low: boolean
+  disk_error: string
   error: string
   logs: LogEntry[]
   last_seq: number
@@ -117,6 +123,12 @@ const state = ref<SliceRunState>({
   backup_dir: '',
   backup_dir_ok: true,
   backup_dir_error: '',
+  disk_path: '',
+  disk_free_bytes: 0,
+  disk_total_bytes: 0,
+  disk_min_free_bytes: 0,
+  disk_low: false,
+  disk_error: '',
   error: '',
   logs: [],
   last_seq: 0,
@@ -315,6 +327,18 @@ async function triggerManual() {
   }
 }
 
+function formatBytes(v: number): string {
+  if (!v || v <= 0) return '-'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let value = v
+  let index = 0
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024
+    index++
+  }
+  return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`
+}
+
 function formatTime(v: string | null): string {
   if (!v) return '-'
   return v.replace('T', ' ').slice(0, 19)
@@ -365,6 +389,10 @@ onBeforeUnmount(() => window.clearTimeout(timer))
         备份目录不可用：{{ state.backup_dir_error }}（当前 <code>{{ state.backup_dir }}</code>）；
         请确认目录存在、位于可写文件系统且运行用户可写（Native 由 Install/Upgrade 预建，容器检查 volume 挂载）
       </v-alert>
+      <v-alert v-if="state.disk_low" type="warning" class="mb-3" density="compact">
+        磁盘剩余空间偏低：<b>{{ formatBytes(state.disk_free_bytes) }}</b> / 总 {{ formatBytes(state.disk_total_bytes) }}，
+        低于阈值 {{ formatBytes(state.disk_min_free_bytes) }}（{{ state.disk_path }}）。分片产物会持续写入，请及时清理或扩容。
+      </v-alert>
       <v-alert v-if="error" type="error" class="mb-3" density="compact">{{ error }}</v-alert>
       <v-alert v-if="message" type="success" class="mb-3" density="compact">{{ message }}</v-alert>
 
@@ -403,6 +431,11 @@ onBeforeUnmount(() => window.clearTimeout(timer))
         <v-col cols="12" sm="6" md="3"><span class="text-medium-emphasis">开始：</span>{{ formatTime(state.started_at) }}</v-col>
         <v-col cols="12" sm="6" md="3"><span class="text-medium-emphasis">耗时：</span>{{ state.elapsed_ms > 0 ? (state.elapsed_ms / 1000).toFixed(1) + 's' : '-' }}</v-col>
         <v-col cols="12" sm="6" md="3"><span class="text-medium-emphasis">失败分片：</span>{{ state.failed }}</v-col>
+        <v-col cols="12" sm="6" md="3">
+          <span class="text-medium-emphasis">磁盘剩余：</span>
+          <span :class="state.disk_low ? 'text-warning' : ''">{{ formatBytes(state.disk_free_bytes) }}</span>
+          <span class="text-medium-emphasis"> / 阈值 {{ formatBytes(state.disk_min_free_bytes) }}</span>
+        </v-col>
         <v-col cols="12" sm="6" md="3">
           <span class="text-medium-emphasis">备份目录：</span>
           <code>{{ state.backup_dir || '-' }}</code>

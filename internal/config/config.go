@@ -45,6 +45,8 @@ type Config struct {
 	BrsBackupDir string
 	// BrsLocalKeepDays 本地全量 dump 保留天数（<=0 不清理；只删远端已存在的文件）。
 	BrsLocalKeepDays int
+	// BrsDiskMinFreeGB 备份目录剩余空间告警阈值（GB，<=0 关闭）。
+	BrsDiskMinFreeGB int
 
 	// OpenAPIKey 外部 OpenAPI（/OpenAPI/V1）静态访问密钥（需求 10787，过渡方案）。
 	// 为空时不注册外部路由；后续 API Key 体系落地后由 DB 凭证替换。
@@ -108,6 +110,7 @@ func Load() *Config {
 		LogMaxMB:          envIntOr("FINV_LOG_MAX_MB", 10),
 		BrsBackupDir:      envOr("FINV_BRS_BACKUP_DIR", "/data/App/FinvQuant/BRS"),
 		BrsLocalKeepDays:  envIntOr("FINV_BRS_LOCAL_KEEP_DAYS", 7),
+		BrsDiskMinFreeGB:  envIntOr("FINV_BRS_DISK_MIN_FREE_GB", 5),
 
 		ErrorDetailMode:         envLowerOr("FINV_ERROR_DETAIL_MODE", "safe"),
 		ErrorDebugToken:         os.Getenv("FINV_ERROR_DEBUG_TOKEN"),

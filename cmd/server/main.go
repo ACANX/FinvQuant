@@ -88,6 +88,7 @@ func main() {
 	brsRunner := brs.NewRunner(pool, brs.Options{
 		BackupDir:     cfg.BrsBackupDir,
 		LocalKeepDays: cfg.BrsLocalKeepDays,
+		DiskMinFreeGB: cfg.BrsDiskMinFreeGB,
 		Host:          cfg.PgHost,
 		Port:          cfg.PgPort,
 		User:          cfg.PgUser,
@@ -101,6 +102,7 @@ func main() {
 	brsSliceRunner := brs.NewSliceRunner(pool, brs.Options{
 		BackupDir:     cfg.BrsBackupDir,
 		LocalKeepDays: cfg.BrsLocalKeepDays,
+		DiskMinFreeGB: cfg.BrsDiskMinFreeGB,
 		Host:          cfg.PgHost,
 		Port:          cfg.PgPort,
 		User:          cfg.PgUser,

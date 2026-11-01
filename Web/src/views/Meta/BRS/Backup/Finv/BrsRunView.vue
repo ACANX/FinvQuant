@@ -26,6 +26,12 @@ interface RunState {
   failed: number
   current_table: string
   backup_dir: string
+  disk_path: string
+  disk_free_bytes: number
+  disk_total_bytes: number
+  disk_min_free_bytes: number
+  disk_low: boolean
+  disk_error: string
   error: string
   logs: LogEntry[]
   last_seq: number
@@ -47,6 +53,12 @@ const state = ref<RunState>({
   failed: 0,
   current_table: '',
   backup_dir: '',
+  disk_path: '',
+  disk_free_bytes: 0,
+  disk_total_bytes: 0,
+  disk_min_free_bytes: 0,
+  disk_low: false,
+  disk_error: '',
   error: '',
   logs: [],
   last_seq: 0,
@@ -149,6 +161,18 @@ async function triggerManual() {
   }
 }
 
+function formatBytes(v: number): string {
+  if (!v || v <= 0) return '-'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let value = v
+  let index = 0
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024
+    index++
+  }
+  return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`
+}
+
 function formatTime(v: string | null): string {
   if (!v) return '-'
   return v.replace('T', ' ').slice(0, 19)
@@ -191,6 +215,12 @@ onBeforeUnmount(() => window.clearTimeout(timer))
     </v-card-subtitle>
 
     <v-card-text>
+      <v-alert v-if="state.disk_low" type="warning" class="mb-3" density="compact">
+        磁盘剩余空间偏低：<b>{{ formatBytes(state.disk_free_bytes) }}</b> / 总 {{ formatBytes(state.disk_total_bytes) }}，
+        低于阈值 {{ formatBytes(state.disk_min_free_bytes) }}（{{ state.disk_path }}）。
+        请清理旧备份或扩容（本地保留天数见 <code>FINV_BRS_LOCAL_KEEP_DAYS</code>）。
+      </v-alert>
+      <v-alert v-if="state.disk_error" type="info" class="mb-3" density="compact">{{ state.disk_error }}</v-alert>
       <v-alert v-if="error" type="error" class="mb-3" density="compact">{{ error }}</v-alert>
       <v-alert v-if="message" type="success" class="mb-3" density="compact">{{ message }}</v-alert>
 
@@ -244,6 +274,11 @@ onBeforeUnmount(() => window.clearTimeout(timer))
         </v-col>
         <v-col v-if="state.error" cols="12" class="text-error">错误：{{ state.error }}</v-col>
         <v-col cols="12"><span class="text-medium-emphasis">备份目录：</span>{{ state.backup_dir || '-' }}</v-col>
+        <v-col cols="12">
+          <span class="text-medium-emphasis">磁盘剩余：</span>
+          <span :class="state.disk_low ? 'text-warning' : ''">{{ formatBytes(state.disk_free_bytes) }}</span>
+          <span class="text-medium-emphasis"> / 总 {{ formatBytes(state.disk_total_bytes) }}（阈值 {{ formatBytes(state.disk_min_free_bytes) }}）</span>
+        </v-col>
       </v-row>
 
       <div class="text-subtitle-2 mt-4 mb-1">运行日志</div>

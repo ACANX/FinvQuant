@@ -65,9 +65,16 @@ type RunState struct {
 	Failed       int        `json:"failed"`
 	CurrentTable string     `json:"current_table"`
 	BackupDir    string     `json:"backup_dir"`
-	Error        string     `json:"error"`
-	Logs         []LogEntry `json:"logs"`
-	LastSeq      int64      `json:"last_seq"`
+	// 磁盘水位（备份目录所在文件系统）
+	DiskPath         string     `json:"disk_path"`
+	DiskFreeBytes    uint64     `json:"disk_free_bytes"`
+	DiskTotalBytes   uint64     `json:"disk_total_bytes"`
+	DiskMinFreeBytes uint64     `json:"disk_min_free_bytes"`
+	DiskLow          bool       `json:"disk_low"`
+	DiskError        string     `json:"disk_error"`
+	Error            string     `json:"error"`
+	Logs             []LogEntry `json:"logs"`
+	LastSeq          int64      `json:"last_seq"`
 }
 
 // BusyError 表示已有备份任务在运行。
@@ -103,14 +110,25 @@ func NewRunner(pool *pgxpool.Pool, opts Options) *Runner {
 	if strings.TrimSpace(opts.BackupDir) == "" {
 		opts.BackupDir = defaultBackupDir
 	}
+	// 启动即取一次磁盘水位：页面在尚未执行过备份时也能看到剩余空间。
+	disk := checkDisk(opts.BackupDir, opts.DiskMinFreeGB)
+	if disk.Low {
+		log.Printf("[brs] %s", lowDiskMessage(disk))
+	}
 	return &Runner{
 		pool:    pool,
 		opts:    opts,
 		baseCtx: context.Background(),
 		state: RunState{
-			Status:    StatusIdle,
-			BackupDir: opts.BackupDir,
-			Logs:      []LogEntry{},
+			Status:           StatusIdle,
+			BackupDir:        opts.BackupDir,
+			DiskPath:         disk.Path,
+			DiskFreeBytes:    disk.AvailableBytes,
+			DiskTotalBytes:   disk.TotalBytes,
+			DiskMinFreeBytes: disk.MinFreeBytes,
+			DiskLow:          disk.Low,
+			DiskError:        disk.Error,
+			Logs:             []LogEntry{},
 		},
 	}
 }
@@ -192,13 +210,20 @@ func (r *Runner) trigger(t Trigger) (RunState, error) {
 		return RunState{}, busy
 	}
 	now := time.Now()
+	disk := checkDisk(r.opts.BackupDir, r.opts.DiskMinFreeGB)
 	r.state = RunState{
-		RunID:     fmt.Sprintf("%s-%s", now.Format("20060102-150405"), t),
-		Trigger:   t,
-		Status:    StatusRunning,
-		StartedAt: &now,
-		BackupDir: optsBackupDir(r.opts),
-		Logs:      make([]LogEntry, 0, 64),
+		RunID:            fmt.Sprintf("%s-%s", now.Format("20060102-150405"), t),
+		Trigger:          t,
+		Status:           StatusRunning,
+		StartedAt:        &now,
+		BackupDir:        optsBackupDir(r.opts),
+		DiskPath:         disk.Path,
+		DiskFreeBytes:    disk.AvailableBytes,
+		DiskTotalBytes:   disk.TotalBytes,
+		DiskMinFreeBytes: disk.MinFreeBytes,
+		DiskLow:          disk.Low,
+		DiskError:        disk.Error,
+		Logs:             make([]LogEntry, 0, 64),
 	}
 	snapshot := r.snapshotLocked(0)
 	runCtx := r.baseCtx
@@ -221,6 +246,10 @@ func (r *Runner) run(ctx context.Context, t Trigger) {
 		},
 	}
 
+	// 磁盘水位：低于阈值时先告警（备份可能因空间不足而失败）。
+	if disk := checkDisk(r.opts.BackupDir, r.opts.DiskMinFreeGB); disk.Low {
+		r.appendLog("warn", lowDiskMessage(disk))
+	}
 	r.appendLog("info", fmt.Sprintf("开始执行 %s 备份（run_id=%s）", triggerLabel(t), r.runID()))
 	err := RunOnceWithHooks(ctx, r.pool, r.opts, hooks)
 
@@ -239,9 +268,20 @@ func (r *Runner) run(ctx context.Context, t Trigger) {
 		r.state.Status = StatusSucceeded
 		r.state.Done = r.state.Total
 	}
+	// 结束再刷新一次磁盘水位（本轮写入会消耗空间）
+	disk := checkDisk(r.opts.BackupDir, r.opts.DiskMinFreeGB)
+	r.state.DiskPath = disk.Path
+	r.state.DiskFreeBytes = disk.AvailableBytes
+	r.state.DiskTotalBytes = disk.TotalBytes
+	r.state.DiskMinFreeBytes = disk.MinFreeBytes
+	r.state.DiskLow = disk.Low
+	r.state.DiskError = disk.Error
 	r.state.LastSeq = r.seq
 	r.mu.Unlock()
 
+	if disk.Low {
+		r.appendLog("warn", lowDiskMessage(disk))
+	}
 	if err != nil {
 		r.appendLog("error", fmt.Sprintf("运行结束（失败）：%v", err))
 	} else {

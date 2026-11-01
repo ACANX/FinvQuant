@@ -33,9 +33,16 @@ type SliceRunState struct {
 	BackupDir    string     `json:"backup_dir"`       // 本地备份根目录
 	BackupDirOK  bool       `json:"backup_dir_ok"`    // 备份目录是否已创建且可写
 	BackupDirErr string     `json:"backup_dir_error"` // 目录不可用的原因（可用时为空）
-	Error        string     `json:"error"`            // 失败原因（成功时为空）
-	Logs         []LogEntry `json:"logs"`             // 运行日志（增量拉取）
-	LastSeq      int64      `json:"last_seq"`         // 最大日志序号
+	// 磁盘水位（备份目录所在文件系统）
+	DiskPath         string     `json:"disk_path"`
+	DiskFreeBytes    uint64     `json:"disk_free_bytes"`
+	DiskTotalBytes   uint64     `json:"disk_total_bytes"`
+	DiskMinFreeBytes uint64     `json:"disk_min_free_bytes"`
+	DiskLow          bool       `json:"disk_low"`
+	DiskError        string     `json:"disk_error"`
+	Error            string     `json:"error"`    // 失败原因（成功时为空）
+	Logs             []LogEntry `json:"logs"`     // 运行日志（增量拉取）
+	LastSeq          int64      `json:"last_seq"` // 最大日志序号
 }
 
 // SliceRunner 大表分片备份运行器（仅手动触发）。
@@ -59,15 +66,22 @@ func NewSliceRunner(pool *pgxpool.Pool, opts Options) *SliceRunner {
 		dirOK, dirErr = false, err.Error()
 		log.Printf("[brs] 大表分片备份目录不可用: %v", err)
 	}
+	disk := checkDisk(opts.BackupDir, opts.DiskMinFreeGB)
 	return &SliceRunner{
 		pool: pool,
 		opts: opts,
 		state: SliceRunState{
-			Status:       StatusIdle,
-			BackupDir:    opts.BackupDir,
-			BackupDirOK:  dirOK,
-			BackupDirErr: dirErr,
-			Logs:         []LogEntry{},
+			DiskPath:         disk.Path,
+			DiskFreeBytes:    disk.AvailableBytes,
+			DiskTotalBytes:   disk.TotalBytes,
+			DiskMinFreeBytes: disk.MinFreeBytes,
+			DiskLow:          disk.Low,
+			DiskError:        disk.Error,
+			Status:           StatusIdle,
+			BackupDir:        opts.BackupDir,
+			BackupDirOK:      dirOK,
+			BackupDirErr:     dirErr,
+			Logs:             []LogEntry{},
 		},
 	}
 }
@@ -83,13 +97,20 @@ func (r *SliceRunner) TriggerManual() (SliceRunState, error) {
 		return SliceRunState{}, busy
 	}
 	now := time.Now()
+	disk := checkDisk(r.opts.BackupDir, r.opts.DiskMinFreeGB)
 	r.state = SliceRunState{
-		RunID:     fmt.Sprintf("%s-%s", now.Format("20060102-150405"), TriggerManual),
-		Trigger:   TriggerManual,
-		Status:    StatusRunning,
-		StartedAt: &now,
-		BackupDir: r.opts.BackupDir,
-		Logs:      make([]LogEntry, 0, 64),
+		RunID:            fmt.Sprintf("%s-%s", now.Format("20060102-150405"), TriggerManual),
+		Trigger:          TriggerManual,
+		Status:           StatusRunning,
+		StartedAt:        &now,
+		BackupDir:        r.opts.BackupDir,
+		DiskPath:         disk.Path,
+		DiskFreeBytes:    disk.AvailableBytes,
+		DiskTotalBytes:   disk.TotalBytes,
+		DiskMinFreeBytes: disk.MinFreeBytes,
+		DiskLow:          disk.Low,
+		DiskError:        disk.Error,
+		Logs:             make([]LogEntry, 0, 64),
 	}
 	snapshot := r.snapshotLocked(0)
 	r.mu.Unlock()
@@ -132,6 +153,10 @@ func (r *SliceRunner) run() {
 	r.state.BackupDirErr = ""
 	r.mu.Unlock()
 
+	// 磁盘水位：低于阈值时先告警。
+	if disk := checkDisk(r.opts.BackupDir, r.opts.DiskMinFreeGB); disk.Low {
+		r.appendLog("warn", lowDiskMessage(disk))
+	}
 	r.appendLog("info", fmt.Sprintf("开始执行大表分片备份（run_id=%s）", r.runID()))
 	err := RunSliceOnceWithHooks(context.Background(), r.pool, r.opts, hooks)
 
@@ -151,9 +176,19 @@ func (r *SliceRunner) run() {
 		// 成功时按已处理分片数收尾，避免进度条停在 done < total。
 		r.state.Done = r.state.Total
 	}
+	disk := checkDisk(r.opts.BackupDir, r.opts.DiskMinFreeGB)
+	r.state.DiskPath = disk.Path
+	r.state.DiskFreeBytes = disk.AvailableBytes
+	r.state.DiskTotalBytes = disk.TotalBytes
+	r.state.DiskMinFreeBytes = disk.MinFreeBytes
+	r.state.DiskLow = disk.Low
+	r.state.DiskError = disk.Error
 	r.state.LastSeq = r.seq
 	r.mu.Unlock()
 
+	if disk.Low {
+		r.appendLog("warn", lowDiskMessage(disk))
+	}
 	if err != nil {
 		r.appendLog("error", fmt.Sprintf("运行结束（失败）：%v", err))
 	} else {
