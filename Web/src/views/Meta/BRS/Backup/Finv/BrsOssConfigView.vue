@@ -209,26 +209,35 @@ onMounted(load)
     </v-card-text>
   </v-card>
 
-  <!-- 实现说明卡片：保留卡片容器，去掉 outlined 的白亮边框，内容为纯文字 -->
+  <!-- 实现说明卡片：保留卡片容器，去掉 outlined 白亮边框；标签/内容左右两列对齐，无冒号 -->
   <v-card class="mt-4" variant="flat">
     <v-card-title class="text-subtitle-2">实现说明</v-card-title>
     <v-card-text class="text-body-2 text-medium-emphasis">
-      <v-row dense class="mb-1">
-        <v-col cols="12" sm="6">
-          S3 兼容协议：支持 Cloudflare R2、AWS S3、MinIO 等。
-        </v-col>
-        <v-col cols="12" sm="6">
-          前置条件：需提前创建 Bucket；凭证需具备 Object Read &amp; Write 权限。
+      <v-row dense>
+        <v-col cols="4" sm="3">S3 兼容协议</v-col>
+        <v-col cols="8" sm="9">支持 Cloudflare R2、AWS S3、MinIO 等</v-col>
+      </v-row>
+      <v-row dense>
+        <v-col cols="4" sm="3">前置条件</v-col>
+        <v-col cols="8" sm="9">需提前创建 Bucket；凭证需具备 Object Read &amp; Write 权限</v-col>
+      </v-row>
+      <v-row dense>
+        <v-col cols="4" sm="3">客户端实现</v-col>
+        <v-col cols="8" sm="9">
+          经 <code>internal/meta/base/oss</code> 抽象接入，默认适配器基于 <code>aws-sdk-go-v2</code>，不使用
+          <code>minio-go</code>，后续可扩展 local 等适配器
         </v-col>
       </v-row>
-      <p class="mb-1">
-        客户端实现：经 <code>internal/meta/base/oss</code> 抽象接入，默认适配器基于 <code>aws-sdk-go-v2</code>，不使用
-        <code>minio-go</code>，后续可扩展 local 等适配器。
-      </p>
-      <p class="mb-1">生效时机：保存后下一轮备份生效，无需重启。</p>
-      <p class="mb-0">
-        凭证保存：存于本系统配置（键名 <code>ak</code>/<code>sk</code>）；Secret 读取不回传明文、留空表示不修改；上传失败会保留本地文件并记日志，不影响本地备份。
-      </p>
+      <v-row dense>
+        <v-col cols="4" sm="3">生效时机</v-col>
+        <v-col cols="8" sm="9">保存后下一轮备份生效，无需重启</v-col>
+      </v-row>
+      <v-row dense>
+        <v-col cols="4" sm="3">凭证保存</v-col>
+        <v-col cols="8" sm="9">
+          存于本系统配置（键名 <code>ak</code>/<code>sk</code>）；Secret 读取不回传明文、留空表示不修改；上传失败会保留本地文件并记日志，不影响本地备份
+        </v-col>
+      </v-row>
     </v-card-text>
   </v-card>
 </template>
