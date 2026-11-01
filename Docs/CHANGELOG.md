@@ -257,6 +257,14 @@
   - 新增 `kline/vwap_compat_test.go`（7 个用例）：vwap 优先 / pacd 兼容 / vwap=null 回退 / 两列皆空 / 增量补丁列名 / 短名 vwa / `/Page` 输出。
   - 本机 API 实测：`pacd` 入参落库 `vwap=3.56`；`vwap=9.99` 与 `pacd=3.56` 同传取 9.99；`/Page`、`/PageUni` 第 13 项为 `vwa`；`/Add`、`/Query` 输出 `vwap` 且无 `pacd`。
 
+### 修复
+
+- **用 SQL 发放补全 `finv_quote_cdeu_usc` 缺失元数据（需求 10922）**
+  - 现象：498 行里 timezone 缺 29、day_expect_rows 缺 29、name 缺 13、category/region/market/currency 各缺 9。
+  - 根因：① `BackfillUscDefaults` 的时区推导只覆盖 CN/HK/US/FX/GLOBAL，**漏了 `CC`（加密货币）**，模板表也没有 `CC` 行，于是 `region=CC` 的 20 行一直补不上；② `AMAT`/`MRVL`/`NOW`/`PLTR`/`SMCI`/`XRP`/`899050`/`SH0006xx` 等 13 只证券在 `public.finv_security` 与 futu 镜像表里都没有记录（行情已采、字典未收录），程序无来源可推。
+  - 修复：新增迁移 `V300096__cdeu_usc_fill_missing_metadata.sql` 做**纯 SQL 数据发放**：模板补 `CC/FTC/Crypto=1440` 与 `CC//=1440` 两行；`region=CC` 补 `timezone='UTC'`、`day_expect_rows=1440`；上游未收录证券按显式清单补全（美股 5 只、`XRP`、3 个 A 股指数）；`name` 无来源的用 `usc` 兜底（不编造名称）。全部 `COALESCE(原值, 新值)`，不覆盖人工值，幂等。
+  - 本机验证：498 行中 category/region/market 各缺 3（仅 `IT001~003` 测试残留），name/timezone/currency/day_expect_rows 全为 0。
+
 ### 变更
 
 - **清理 `finv_quote_cdeu_usc` 存量脏行 + 缺口自愈（需求 10921）**
