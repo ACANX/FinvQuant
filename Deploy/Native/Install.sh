@@ -221,6 +221,7 @@ install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
 # BRS 备份根目录独立于 Backup（需求 10907）：运行用户可写，避免与数据库逻辑
 # 备份的属主/权限互相干扰；表级与分片产物都在这里。
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}"
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}/Full"
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}/Incr"
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0755 "${EXPORT_DIR}"
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${LOG_DIR}"

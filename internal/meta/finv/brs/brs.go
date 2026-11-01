@@ -38,6 +38,9 @@ const CronConfigNo = 39001
 // 上传到对象存储时作为 key 的一级目录：<prefix>/<env>/<yyyyMMdd>/<schema>.<table>.dump。
 const EnvConfigNo = 1002
 
+// FullDirName 小表全量备份的子目录名（与大表增量的 Incr/ 对称，需求 10915）。
+const FullDirName = "Full"
+
 // defaultBackupDir 未配置 FINV_BRS_BACKUP_DIR 时的兜底备份根目录。
 //
 // 取 Native 安装根目录下的 BRS（<PREFIX>/BRS），**不放 <PREFIX>/Backup 下**：
@@ -297,7 +300,8 @@ func RunOnceWithHooks(ctx context.Context, pool *pgxpool.Pool, opts Options, hoo
 	}
 
 	day := time.Now().Format("20060102")
-	dayDir := filepath.Join(opts.BackupDir, day)
+	// 小表全量产物统一落在 <BackupDir>/Full/<yyyyMMdd>/，与大表增量的 Incr/ 对称。
+	dayDir := filepath.Join(opts.BackupDir, FullDirName, day)
 	if err := os.MkdirAll(dayDir, 0o750); err != nil {
 		hooks.emit("error", "创建备份目录失败: %v；请检查 FINV_BRS_BACKUP_DIR（当前 %s）是否存在且运行用户可写", err, opts.BackupDir)
 		return fmt.Errorf("创建备份目录失败: %w（FINV_BRS_BACKUP_DIR=%s，请确认目录可写）", err, opts.BackupDir)
@@ -398,10 +402,10 @@ func dumpTable(ctx context.Context, opts Options, dayDir, day string, table Tabl
 
 // upload 把本地备份文件上传到对象存储。
 //
-// key 结构：<prefix>/<env>/<yyyyMMdd>/<schema>.<table>.dump
+// key 结构：<prefix>/<env>/Full/<yyyyMMdd>/<db>.<schema>.<table>.dump
 //
 //	prefix 由 39002 的 prefix 决定（适配器拼接），env 为 1002 的运行环境标识，
-//	day 为本地日期目录。
+//	Full/<day> 为小表全量子目录与日期目录（与大表增量的 Incr/ 对称）。
 func upload(ctx context.Context, store oss.Store, env, day, path string, hooks Hooks) error {
 	file, err := os.Open(path)
 	if err != nil {
@@ -412,7 +416,7 @@ func upload(ctx context.Context, store oss.Store, env, day, path string, hooks H
 	if err != nil {
 		return err
 	}
-	key := day + "/" + filepath.Base(path)
+	key := FullDirName + "/" + day + "/" + filepath.Base(path)
 	if env != "" {
 		key = env + "/" + key
 	}

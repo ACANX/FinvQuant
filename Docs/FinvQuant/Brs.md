@@ -15,7 +15,7 @@ BRS 有**两套相互独立的备份策略**，各自一张登记表、各自一
 | 大表增量（分片） | 体量大、按天/周/月增长的表（如 K 线） | `brs.brs_bak_rdb_table_incr` | 按分片键 1 片 1 个 `.mvsv[.gz]`（MVSV-2） | 页面手动（本期） |
 
 - 小表全量：每天按 cron 自动执行一次，备份范围由登记表控制（`priority` 唯一，倒序执行）；
-- 备份文件保存在 `$FINV_BRS_BACKUP_DIR/<yyyyMMdd>/`；Native 与容器**统一**为 `/data/App/FinvQuant/BRS`（Native 由 `Install.sh`/`Upgrade.sh` 预建该目录与 `Incr/` 子目录并补齐 env 项；容器由 compose volume 映射到宿主 `FINV_BRS_HOST_DIR`）；文件名 `<db>.<schema>.<table>.dump`（库名前缀取登记 `db`），不含时间戳；
+- 备份文件保存在 `$FINV_BRS_BACKUP_DIR/Full/<yyyyMMdd>/`（`Full/` 与大表增量的 `Incr/` 对称）；Native 与容器**统一**为 `/data/App/FinvQuant/BRS`（Native 由 `Install.sh`/`Upgrade.sh` 预建该目录与 `Full/`、`Incr/` 子目录并补齐 env 项；容器由 compose volume 映射到宿主 `FINV_BRS_HOST_DIR`）；文件名 `<db>.<schema>.<table>.dump`（库名前缀取登记 `db`），不含时间戳；
 - 大表分片：按分片维度（日/周/月/列值/自定义条件）把表切成多个文件，**同一分片键覆盖同一文件**，已存在的分片自动跳过，只补缺失与末尾 `redo_slices` 个；
 - 过程只写服务日志（`Log/FinvQuant.log`，前缀 `[brs]`），运行状态与进度由页面内存展示，暂不落库。
 
@@ -49,7 +49,7 @@ BRS 有**两套相互独立的备份策略**，各自一张登记表、各自一
 
 | 策略 | 本地增长特征 | 清理方式 |
 |------|--------------|----------|
-| 小表全量 | **每天一个新日期目录**（`<备份目录>/<yyyyMMdd>/`，每表一个 dump），不清理会持续累积 | 每轮结束自动清理：删除超过 `FINV_BRS_LOCAL_KEEP_DAYS`（默认 7 天）**且远端已存在**的 dump，空目录一并删除 |
+| 小表全量 | **每天一个新日期目录**（`<备份目录>/Full/<yyyyMMdd>/`，每表一个 dump），不清理会持续累积 | 每轮结束自动清理：删除超过 `FINV_BRS_LOCAL_KEEP_DAYS`（默认 7 天）**且远端已存在**的 dump，空目录一并删除 |
 | 大表增量 | 文件数 = 分片数（按分片键覆盖），**不随时间增长** | 不自动删除（分片本身就是全量集合）；需要释放时可手工删除 `<备份目录>/Incr/<表>/` 下的旧分片，下一轮会自动重新导出缺失分片 |
 
 ### 1.3 磁盘水位告警
@@ -74,7 +74,7 @@ curl -s '.../Run/Status' -H "Authorization: Bearer $T" | jq '.data | {disk_path,
 | 对象存储未启用 / 运行环境标识（1002）缺失或非法 | **完全跳过清理**并 `warn`（本地是唯一副本） |
 | 某个 dump 在远端不存在（上传曾失败） | **保留**该文件，日志计入「因远端不存在而保留」 |
 | `FINV_BRS_LOCAL_KEEP_DAYS<=0` | 不清理，保留全部本地产物（`info` 提示） |
-| `Incr/` 分片目录、非 `yyyyMMdd` 目录 | 不参与清理 |
+| `Incr/` 分片目录、非 `yyyyMMdd` 目录 | 不参与清理；10915 之前的旧位置 `<备份目录>/<yyyyMMdd>/` 仍按同一规则清理 |
 
 ```bash
 # 查看当前占用
@@ -119,12 +119,19 @@ FINV_BRS_BACKUP_DIR=/data/App/FinvQuant/BRS
 ## 3. 备份产物
 
 ```
-<FINV_BRS_BACKUP_DIR>/20261029/
-├── finv.sys.sys_user.dump
-├── finv.sys.sys_config.dump
-├── finv.cdeu.finv_quote_cdeu_workflow.dump
-└── ...
+<FINV_BRS_BACKUP_DIR>/
+├── Full/                     小表全量（与大表增量的 Incr/ 对称）
+│   └── 20261029/
+│       ├── finv.sys.sys_user.dump
+│       ├── finv.sys.sys_config.dump
+│       ├── finv.cdeu.finv_quote_cdeu_workflow.dump
+│       └── ...
+└── Incr/                     大表增量分片
+    └── finv.cdeu.finv_quote_secu_kline_min/
+        └── 20260930.mvsv.gz
 ```
+
+> 10915 之前的本地产物在 `<FINV_BRS_BACKUP_DIR>/<yyyyMMdd>/`（无 `Full/` 段），清理逻辑仍会处理；如需手工归位可 `mkdir -p Full && mv <yyyyMMdd> Full/`。
 
 - `-Fc` 自定义格式（`pg_restore` 可选择性恢复）；
 - 压缩在文件内部（`--compress=zstd:3`），无需再 `gzip`；
@@ -190,7 +197,7 @@ pg_restore -h 127.0.0.1 -U finv -d finv \
 |---|---|
 | 全局开关 | 39002 `enable`（旧键 `enabled` 兼容读取；默认 `false`） |
 | 表级开关 | `brs_bak_rdb_table_full.flag_upload`（`'1'` 上传 / `'0'` 只留本地，默认 `'1'`） |
-| 上传 key | `<prefix>/<env>/<yyyyMMdd>/<db>.<schema>.<table>.dump`（`env` = `sys_config` 1002 的运行环境标识；缺失或非法则跳过上传） |
+| 上传 key | `<prefix>/<env>/Full/<yyyyMMdd>/<db>.<schema>.<table>.dump`（`Full/` 与大表增量的 `Incr/` 对称；`env` = `sys_config` 1002 的运行环境标识；缺失或非法则跳过上传） |
 | 凭证 | `access_key`/`secret_key` 存 `sys_config`（`access_level` 限制），不写日志 |
 | 失败 | 保留本地文件并记日志，不影响下一张表 |
 | 下载 | `aws s3 cp` / `rclone` 等任意 S3 兼容工具 |

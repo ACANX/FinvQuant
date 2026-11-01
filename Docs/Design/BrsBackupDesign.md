@@ -84,7 +84,7 @@ RunOnce
         ├─ pg_dump --table <schema>.<table> -Fc --compress <…> --file <…>
         │     └─ 失败：记日志，继续下一张
         └─ flag_upload='1' 且 Store 可用
-              └─ Put(key = <env>/<yyyyMMdd>/<basename>)  → 加 prefix 后为 <prefix>/<env>/<yyyyMMdd>/<basename>
+              └─ Put(key = <env>/Full/<yyyyMMdd>/<basename>)  → 加 prefix 后为 <prefix>/<env>/Full/<yyyyMMdd>/<basename>
                     └─ 失败：记日志，本地文件保留
 ```
 
@@ -185,7 +185,7 @@ type Store interface {
 | 项 | 行为 |
 |---|---|
 | 上传条件 | 39002 `enabled=true` 且能构造出 `Store`；且该表 `flag_upload='1'` |
-| 对象 key | `<prefix>/<env>/<yyyyMMdd>/<db>.<schema>.<table>.dump`（`env` 取 `sys_config` 1002 的运行环境标识，缺失或非法则跳过上传） |
+| 对象 key | `<prefix>/<env>/Full/<yyyyMMdd>/<db>.<schema>.<table>.dump`（`Full/` 与大表增量的 `Incr/` 对称；`env` 取 `sys_config` 1002 的运行环境标识，缺失或非法则跳过上传） |
 | Content-Type | `application/octet-stream` |
 | 大小 | 取本地文件 `Stat` 的字节数，作为 `ContentLength` 传给 SDK |
 | 失败处理 | 记日志「上传失败 …（本地文件保留）」，**不影响其它表**，也不影响本轮结论 |
@@ -317,7 +317,7 @@ type Store interface {
 | 执行链 | `RunOnce` / `Runner` / 39001 cron | `RunSliceOnceWithHooks` / `SliceRunner`（仅手动） |
 | 导出 | `pg_dump -Fc`（custom 格式） | 按行读取后写 **MVSV-2**（复用 `mvsv.WriteV2`，与 `qiom export` 同格式） |
 | 产物 | `<备份目录>/<执行日>/<db>.<schema>.<表>.dump` | `<备份目录>/Incr/<db>.<schema>.<表>/<分片键>.mvsv.gz` |
-| 远端 | `<prefix>/<env>/<执行日>/<file>` | `<prefix>/<env>/Incr/<db>.<schema>.<表>/<分片键>.mvsv.gz` |
+| 远端 | `<prefix>/<env>/Full/<执行日>/<file>` | `<prefix>/<env>/Incr/<db>.<schema>.<表>/<分片键>.mvsv.gz` |
 | 增量 | 每轮整表覆盖 | 分片键枚举 + 产物存在即跳过；末尾 `redo_slices` 个重做 |
 
 **为什么不用 pg_dump**：`pg_dump` 没有行级过滤选项（不存在 `--where`），无法按分片截取数据。

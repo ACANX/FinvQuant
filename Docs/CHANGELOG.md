@@ -257,6 +257,14 @@
   - 新增 `kline/vwap_compat_test.go`（7 个用例）：vwap 优先 / pacd 兼容 / vwap=null 回退 / 两列皆空 / 增量补丁列名 / 短名 vwa / `/Page` 输出。
   - 本机 API 实测：`pacd` 入参落库 `vwap=3.56`；`vwap=9.99` 与 `pacd=3.56` 同传取 9.99；`/Page`、`/PageUni` 第 13 项为 `vwa`；`/Add`、`/Query` 输出 `vwap` 且无 `pacd`。
 
+### 变更
+
+- **小表全量备份增加 `Full/` 目录段（需求 10915）**
+  - 本地：`<备份目录>/<yyyyMMdd>/` → `<备份目录>/Full/<yyyyMMdd>/`；
+  - 远端 key：`<prefix>/<env>/<yyyyMMdd>/<db>.<schema>.<table>.dump` → `<prefix>/<env>/Full/<yyyyMMdd>/<db>.<schema>.<table>.dump`（与 `Incr/` 对称）；
+  - 本地清理同时覆盖新位置与历史旧位置（旧 key 无 `Full/` 段时按原 key 校验，避免误删未上传文件）；
+  - `Install.sh`/`Upgrade.sh` 预建 `BRS/Full`；文档 `Brs.md`（目录树、上传 key）、`BrsBackupDesign.md`、`OSSConfig.md`、`Slice.md`、`MigratePublicKlineToCdeu.md` 同步。
+
 ### 修复
 
 - **升级/安装脚本纠正 BRS 备份目录旧默认值（需求 10914）**

@@ -160,6 +160,41 @@ func TestCleanupLocalDumpsDisabled(t *testing.T) {
 	}
 }
 
+// TestCleanupLocalDumpsFullDir 校验新位置 Full/<yyyyMMdd>/ 的清理：
+// 远端 key 必须带 Full/ 段；远端存在才删，不存在则保留。
+func TestCleanupLocalDumpsFullDir(t *testing.T) {
+	backupDir := t.TempDir()
+	mirrorDir := t.TempDir()
+	store := newLocalStore(t, mirrorDir)
+
+	day := "20260101"
+	dir := filepath.Join(backupDir, FullDirName, day)
+	uploaded := writeLocalDump(t, dir, "finv.sys.sys_user.dump", "dump-uploaded")
+	localOnly := writeLocalDump(t, dir, "finv.sys.sys_config.dump", "dump-local-only")
+	// 远端 key 带 Full/（与 upload() 一致）
+	putObject(t, store, "prod/Full/"+day+"/finv.sys.sys_user.dump", "dump-uploaded")
+	// 反例：旧的不带 Full/ 的 key 不应被当成「已上传」
+	putObject(t, store, "prod/"+day+"/finv.sys.sys_config.dump", "dump-local-only")
+
+	result, err := cleanupLocalDumps(context.Background(),
+		Options{BackupDir: backupDir}, store, "prod", defaultLocalKeepDays, Hooks{})
+	if err != nil {
+		t.Fatalf("cleanupLocalDumps 失败: %v", err)
+	}
+	if _, statErr := os.Stat(uploaded); !os.IsNotExist(statErr) {
+		t.Fatalf("远端带 Full/ 的旧文件应被删除: %s", uploaded)
+	}
+	if _, statErr := os.Stat(localOnly); statErr != nil {
+		t.Fatalf("远端 key 无 Full/ 段时必须保留（不能误判为已上传）: %v", statErr)
+	}
+	if result.RemovedFiles != 1 || result.KeptFiles != 1 {
+		t.Fatalf("统计不符: %+v", result)
+	}
+	if _, statErr := os.Stat(dir); statErr != nil {
+		t.Fatalf("目录仍有未删文件时应保留: %v", statErr)
+	}
+}
+
 // TestCleanupLocalDumpsIgnoresIncrDir 校验 Incr/ 分片目录不受清理影响。
 func TestCleanupLocalDumpsIgnoresIncrDir(t *testing.T) {
 	backupDir := t.TempDir()

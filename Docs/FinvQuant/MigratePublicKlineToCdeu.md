@@ -16,7 +16,7 @@
 
 > 数据搬完后源表的清理分两步：
 > 1. 迁移 `V300086` 把该表加入 BRS 备份登记（仅当表存在时登记），等 BRS 把产物备份到对象存储；
-> 2. 确认 R2 上已有 `<prefix>/<env>/<yyyyMMdd>/finv.public.finv_quote_secu_kline_min.dump` 后，执行 `Deploy/Upgrade/2610-003-DropPublicKlineMin.sql` 手工删除（脚本会再次校验差集，为 0 才删，并同步移除备份登记）。
+> 2. 确认 R2 上已有 `<prefix>/<env>/Full/<yyyyMMdd>/finv.public.finv_quote_secu_kline_min.dump` 后，执行 `Deploy/Upgrade/2610-003-DropPublicKlineMin.sql` 手工删除（脚本会再次校验差集，为 0 才删，并同步移除备份登记）。
 >
 > 迁移 `V300085` 只做校验与提示（`NOTICE`），**不删表**——删除动作由上述第 2 步的手工脚本执行（需求 10900）。
 > 数据已备份到对象存储并确认可以解析后即放行删除：执行 `2610-003-DropPublicKlineMin.sql` 会同时移除 `brs.brs_bak_rdb_table` 中的该表登记。

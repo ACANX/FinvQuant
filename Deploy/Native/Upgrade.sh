@@ -103,6 +103,7 @@ fi
 install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
 # BRS 备份根目录独立于 Backup（需求 10907）：运行用户可写，表级与分片产物都在这里
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}"
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}/Full"
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}/Incr"
 
 # 旧目录（<PREFIX>/Backup/BRS）迁移提示：不自动搬动历史产物，只给出可复制命令

@@ -1,10 +1,11 @@
 // 本地产物清理：对象存储上传成功后，把过期的小表全量 dump 从本地删掉，
-// 避免 <BackupDir>/<yyyyMMdd>/ 目录每天累积、持续占用文件系统空间。
+// 避免 <BackupDir>/Full/<yyyyMMdd>/ 目录每天累积、持续占用文件系统空间。
 //
 // 设计原则（宁可不删，不可误删）：
 //   - 只清理**确认已在对象存储中存在**的文件（逐个 Stat 远端 key），远端没有就不删；
 //   - 对象存储未启用 / 运行环境标识缺失时**整体跳过**（本地是唯一副本）；
-//   - 只处理形如 yyyyMMdd 的日期目录下的 *.dump，不碰 Incr/ 分片目录与其它文件；
+//   - 只处理 Full/ 与历史根目录下形如 yyyyMMdd 的日期目录里的 *.dump，
+//     不碰 Incr/ 分片目录与其它文件；
 //   - 保留天数由 FINV_BRS_LOCAL_KEEP_DAYS 控制（默认 7，<=0 表示不清理）。
 //
 // 大表分片（Incr/）不在清理范围：分片按数据日期固定一份、重跑覆盖，
@@ -13,7 +14,6 @@ package brs
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -50,11 +50,34 @@ func cleanupLocalDumps(ctx context.Context, opts Options, store oss.Store, env s
 		return result, nil
 	}
 
-	entries, err := os.ReadDir(opts.BackupDir)
-	if err != nil {
-		return result, fmt.Errorf("读取备份目录失败: %w", err)
-	}
 	cutoff := time.Now().AddDate(0, 0, -keepDays).Format("20060102")
+
+	// 新位置：<BackupDir>/Full/<yyyyMMdd>/；同时兼容 10915 之前的旧位置 <BackupDir>/<yyyyMMdd>/。
+	roots := []string{filepath.Join(opts.BackupDir, FullDirName), opts.BackupDir}
+	for _, root := range roots {
+		cleanupDayDirs(ctx, root, env, cutoff, store, hooks, &result)
+	}
+
+	if result.RemovedFiles > 0 || result.KeptFiles > 0 {
+		hooks.emit("info", "本地清理完成：删除 %d 个文件（释放 %s）、%d 个空目录；%d 个文件因远端不存在而保留（保留期 %d 天）",
+			result.RemovedFiles, humanSize(result.RemovedBytes), result.RemovedDirs, result.KeptFiles, keepDays)
+	}
+	return result, nil
+}
+
+// cleanupDayDirs 清理 root 下早于 cutoff 的 yyyyMMdd 日期目录。
+//
+// 远端 key 的子目录段与本地一致：Full/ 下的日期目录带 `Full/`，
+// 历史根目录下的产物不带（10915 之前上传的 key 没有 Full/ 段）。
+func cleanupDayDirs(ctx context.Context, root, env, cutoff string, store oss.Store, hooks Hooks, result *CleanupResult) {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return
+	}
+	keyPrefix := ""
+	if filepath.Base(root) == FullDirName {
+		keyPrefix = FullDirName + "/"
+	}
 
 	for _, entry := range entries {
 		if !entry.IsDir() || !dayDirPattern.MatchString(entry.Name()) {
@@ -64,7 +87,7 @@ func cleanupLocalDumps(ctx context.Context, opts Options, store oss.Store, env s
 		if day >= cutoff {
 			continue
 		}
-		dir := filepath.Join(opts.BackupDir, day)
+		dir := filepath.Join(root, day)
 		files, err := os.ReadDir(dir)
 		if err != nil {
 			hooks.emit("warn", "读取目录失败，跳过 %s: %v", dir, err)
@@ -76,7 +99,10 @@ func cleanupLocalDumps(ctx context.Context, opts Options, store oss.Store, env s
 				continue
 			}
 			path := filepath.Join(dir, file.Name())
-			key := env + "/" + day + "/" + file.Name()
+			key := keyPrefix + day + "/" + file.Name()
+			if env != "" {
+				key = env + "/" + key
+			}
 			if _, statErr := store.Stat(ctx, key); statErr != nil {
 				// 远端没有 → 本地是唯一副本，必须保留。
 				result.KeptFiles++
@@ -102,10 +128,4 @@ func cleanupLocalDumps(ctx context.Context, opts Options, store oss.Store, env s
 			}
 		}
 	}
-
-	if result.RemovedFiles > 0 || result.KeptFiles > 0 {
-		hooks.emit("info", "本地清理完成：删除 %d 个文件（释放 %s）、%d 个空目录；%d 个文件因远端不存在而保留（保留期 %d 天）",
-			result.RemovedFiles, humanSize(result.RemovedBytes), result.RemovedDirs, result.KeptFiles, keepDays)
-	}
-	return result, nil
 }

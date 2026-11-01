@@ -56,11 +56,11 @@ func TestOSSSettingsMarshalWritesNewKeys(t *testing.T) {
 // TestNormalizeOSS 校验协议/厂商归一化（需求 10912）。
 func TestNormalizeOSS(t *testing.T) {
 	cases := []struct {
-		name                           string
-		protocol, provider, endpoint   string
-		wantProtocol, wantProvider     string
-		wantDriver                     string
-		wantErr                        bool
+		name                         string
+		protocol, provider, endpoint string
+		wantProtocol, wantProvider   string
+		wantDriver                   string
+		wantErr                      bool
 	}{
 		{"新格式 cloudflare-r2", "s3", "cloudflare-r2", "https://x.r2.cloudflarestorage.com", "s3", "cloudflare-r2", "s3", false},
 		{"旧格式 provider=s3 + R2 endpoint", "", "s3", "https://x.r2.cloudflarestorage.com", "s3", "cloudflare-r2", "s3", false},

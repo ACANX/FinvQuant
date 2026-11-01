@@ -45,7 +45,7 @@ const plans: Record<string, { icon: string; desc: string; features: string[] }> 
   },
   'brs-record': {
     icon: 'mdi-file-clock-outline',
-    desc: '备份记录与产物：查看每日备份结果（`<PREFIX>/BRS/<yyyyMMdd>/`）下的 dump 产物、大小与上传对象存储的状态。',
+    desc: '备份记录与产物：查看每日备份结果（`<PREFIX>/BRS/Full/<yyyyMMdd>/`）下的 dump 产物、大小与上传对象存储的状态。',
     features: ['按日期/表浏览备份产物与文件大小', '单表备份成功/失败与上传结果汇总', '失败原因与日志（`[brs]` 前缀）联动查看'],
   },
   'brs-storage': {
