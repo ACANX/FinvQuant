@@ -66,9 +66,21 @@ func buildHeaderV2(values map[string]string) (*Header, error) {
 
 // parseRowV2 按列名解析 MVSV-2 数据行。
 func parseRowV2(line string, header *Header, lineNumber int) (Row, error) {
-	fields := strings.Split(line, "|")
-	if len(fields) != len(header.Columns) {
-		return Row{}, fmt.Errorf("列数=%d，与 Field 列数 %d 不一致", len(fields), len(header.Columns))
+	// 头部声明 # Escape : "backslash" 时按转义解析（新导出的文件）；
+	// 未声明则沿用旧的直接切分，保证历史文件行为不变。
+	var fields []string
+	if usesEscape(header.Values) {
+		split, err := splitEscaped(line, len(header.Columns))
+		if err != nil {
+			return Row{}, err
+		}
+		fields = split
+	} else {
+		fields = strings.Split(line, "|")
+		if len(fields) != len(header.Columns) {
+			return Row{}, fmt.Errorf("列数=%d，与 Field 列数 %d 不一致（若文本列含 `|`，需文件头部声明 # %s : %q）",
+				len(fields), len(header.Columns), EscapeHeaderKey, EscapeBackslash)
+		}
 	}
 	row := Row{}
 	for index, column := range header.Columns {

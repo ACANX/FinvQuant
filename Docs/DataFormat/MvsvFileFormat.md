@@ -338,6 +338,7 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 | 1.3 | 2026-08-06 | 必填键 9→11：新增 `Exchange` / `ExchangeCode`（与 `Market` / `MarketCode` 四键必填）；`MarketCode` 通常为四位；示例统一 NVDA→1315、GCMain→1320 |
 | 1.4 | 2026-08-06 | 必填键 11→20：新增 `Title` / `Region` / `Name` / `Period` / `Dsv` / `FieldType` / `FieldName` / `字段名称` / `StockId`（溯源类键强制） |
 | 1.5 | 2026-08-06 | 布局匹配放宽：`# Field` 以核心布局开头即可，多余列（如已过时 `pc`）允许并忽略（修复 13 列 GCmain 文件无法导入） |
+| 1.6 | 2026-11-02 | MVSV-2 增加 **字段转义**（需求 10906）：文本列含 `\|`、换行、回车、反斜杠时按反斜杠转义写出，头部声明 `# Escape : "backslash"`；读取端仅在该头存在时按转义解析，历史文件行为不变（详见 §5.5） |
 
 ## 5. MVSV-2（多证券，qiom 导出/导入）
 
@@ -362,6 +363,7 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 # FieldType : "String|Int|Int|Int|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|String|String|String|Timestamp|Timestamp"
 # FieldName : "Usc|Ts|Date|Time|Open|High|Low|Close|LastClose|Volume|Turnover|ChangePrice|ChangeRatio|Vwap|ExtField|Remark|Provider|GmtCreate|GmtUpdate"
 # 字段名称 : "证券代码|时间戳(UTC)|交易日期|交易时间|开盘价|最高价|最低价|收盘价|上一收盘价|成交量|成交额|涨跌额|涨跌幅|成交量加权平均价|扩展字段|备注|数据来源|创建时间|更新时间"
+# Escape : "backslash"
 # Count : 2
 # DataScope : "all"
 # ExportTime : "2026-10-28T12:00:00+08:00"
@@ -379,3 +381,38 @@ GCMain|1000|20261028|93000|3.500000|3.620000|3.400000|3.600000|3.500000|12.34567
 - `Format=MVSV-2` 时按 `Field` 列名动态解析（`usc`/`ts` 必填）；
 - 旧 `MVSV-1` 文件继续走原固定布局解析，互不影响；
 - 工具实现见 [`Docs/FinvQuant/Qiom.md`](../FinvQuant/Qiom.md)。
+
+### 5.5 字段转义（`# Escape`）
+
+数据区以 `\|` 分隔字段、以换行分隔记录，但 `ext_field` / `remark` 等文本列本身可能包含 `\|` 或换行
+（历史数据中存在）。**允许**这种取值，通过转义保证可逆：
+
+| 原始字符 | 转义后 |
+|----------|--------|
+| `\`（反斜杠） | `\\` |
+| `\|`（竖线） | `\|`（`\` + `\|`，即反斜杠 + 竖线） |
+| 换行 `\n` | `\n`（字面两字符） |
+| 回车 `\r` | `\r`（字面两字符） |
+
+写侧规则：
+
+- 每个字段独立转义后再用 `\|` 拼接；转义顺序为先 `\`、再其它，避免二次转义；
+- 头部固定写出 `# Escape : "backslash"`；
+- 未知转义序列（如 `\x`）在读取时按原样保留（`\` + 字符），避免吞掉历史数据里的裸反斜杠。
+
+读侧规则（**向后兼容**）：
+
+| 文件情况 | 解析方式 |
+|----------|----------|
+| 头部有 `# Escape : "backslash"` | 逐字符扫描，按转义还原后再按列名映射 |
+| 头部无该键（历史文件） | 沿用旧的 `Split("\|")`；文本列若含裸 `\|` 会因列数不符报错，并提示缺少 `# Escape` 声明 |
+| `MVSV-1` 文件 | 不受影响（供应商文件不写该头，仍按固定布局解析） |
+
+示例（`ext_field = 'source|vendor'`、`remark = "第一行\n第二行"`）：
+
+```
+TESTPIPE|1792000000|20261001|93000|10.000000|11.000000|9.000000|10.500000||100.000000|1050.00000000|||10.200000|source\|vendor|第一行\n第二行|FT|...
+```
+
+对应实现：`internal/meta/finv/quote/mvsv/escape.go`（`escapeCell` / `unescapeCell` / `splitEscaped`），
+单测 `escape_test.go` 覆盖往返、未知转义、历史文件兼容与缺头提示。

@@ -190,6 +190,7 @@ func writeV2Header(out io.Writer, opts V2Options, columnCount int, expectedRows 
 		fmt.Sprintf("# DataScope : %q", dataScope),
 		fmt.Sprintf("# ExportTime : %q", time.Now().Format(time.RFC3339)),
 		fmt.Sprintf("# TimeZone : %q", timezone),
+		fmt.Sprintf("# %s : %q", EscapeHeaderKey, EscapeBackslash),
 		`# Region : ""`,
 		`# Name : ""`,
 		`# Period : "Min"`,
@@ -228,6 +229,11 @@ func renderV2Row(row Row, includeGmt bool) string {
 	}
 	if includeGmt {
 		cells = append(cells, textOf(row.GmtCreate), textOf(row.GmtUpdate))
+	}
+	// 逐字段转义后再拼装：ext_field / remark 等文本列可能含 `|`、换行或反斜杠，
+	// 不转义会让数据行与分隔符冲突（见 escape.go 的规则与兼容说明）。
+	for i := range cells {
+		cells[i] = escapeCell(cells[i])
 	}
 	return strings.Join(cells, "|") + "\n"
 }

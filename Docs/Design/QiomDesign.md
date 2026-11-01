@@ -174,6 +174,8 @@ qiom export / import / verify
 usc, ts, date, time, open, high, low, close, last_close,
 volume, turnover, change_price, change_ratio, vwap,
 ext_field, remark, provider, gmt_create, gmt_update
+
+> 文本列含 `|` / 换行 / 反斜杠时按 `# Escape : "backslash"` 转义写出（需求 10906），导入端按该头还原。
 ```
 
 ### 5.3 目标表

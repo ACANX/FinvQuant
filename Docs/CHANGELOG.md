@@ -257,6 +257,15 @@
   - 新增 `kline/vwap_compat_test.go`（7 个用例）：vwap 优先 / pacd 兼容 / vwap=null 回退 / 两列皆空 / 增量补丁列名 / 短名 vwa / `/Page` 输出。
   - 本机 API 实测：`pacd` 入参落库 `vwap=3.56`；`vwap=9.99` 与 `pacd=3.56` 同传取 9.99；`/Page`、`/PageUni` 第 13 项为 `vwa`；`/Add`、`/Query` 输出 `vwap` 且无 `pacd`。
 
+### 修复
+
+- **MVSV-2 文本字段含 `|` / 换行导致导出文件不可解析（需求 10906）**
+  - 根因：数据行以 `|` 分隔、换行分隔记录，写侧 `strings.Join` 零转义；`ext_field`/`remark` 含 `|` 会切出多余列（列数校验失败，整文件不可用），含换行会把一条记录拆成两行。`qiom export` 与 CDEU 导出、BRS 分片备份共用该 writer，均受影响。
+  - 修法：新增 `mvsv/escape.go`——写侧对每个字段做可逆转义（`\\`→`\\\\`、`\|`→`\\\|`、换行→`\n`、回车→`\r`），头部写出 `# Escape : "backslash"`；读侧**仅当头部声明该键**时按转义解析，历史文件行为不变；未知转义按原样保留。
+  - 历史文件若含裸 `|` 导致列数不符，错误信息会提示缺少 `# Escape` 声明，便于定位。
+  - 新增 `escape_test.go`（往返 11 组、未知转义、历史文件兼容、缺头提示）+ 端到端实测：`ext_field='source|vendor'`、`remark` 含换行 → 分片文件头部含 `# Escape`、数据行 `source\\\|vendor` → `qiom verify` 通过（Count 一致）→ `qiom import` 后库内值完整还原。
+  - 文档：`Docs/DataFormat/MvsvFileFormat.md` §5.5 + 版本记录 1.6、`Docs/API/BRS/Slice.md`、`Docs/Design/QiomDesign.md`。
+
 ### 新增
 
 - **大表增量（分片）备份（需求 10905）**
@@ -265,6 +274,8 @@
   - 增量不引入状态表：分片产物存在（本地或远端 `Stat`）即跳过，末尾 `redo_slices` 个分片每轮重做；`min_rows`/`max_slices` 防碎片与防误配。
   - 独立运行器 `SliceRunner`（只手动触发，与小表备份互不阻塞）+ 接口 `Slice/Rule/{List,Save,Toggle}`、`Slice/Plan`、`Slice/Run/{Manual,Status}`；页面 `BrsSliceView.vue`（登记维护 + 分片完成度 + 立即备份 + 进度/日志），菜单「备份管理 → 大表增量备份」。
   - 本机实测（10 个自然日 / 27.7 万行）：首轮 10 片全部导出并上传约 17 s；第二轮跳过 8 片、仅重做末尾 2 片约 3.4 s；`20260930.mvsv.gz` 经 `qiom verify` 校验通过（`Format=MVSV-2`、`Count=37355`，与源表该日行数一致）。
+  - 压缩口径收敛（`V300089`）：分片产物是 MVSV-2 文本，`compression` 仅支持 `gzip`（默认）/ `none`；`V300088` 沿用的 `zstd` 改为 `gzip`，CHECK 约束收敛为 `('none','gzip')`，保存时传 `zstd` 返回 400。
+  - 页面补「分片明细」入口：调用 `Slice/Plan` 展示每个分片的键、行数与已备份/待备份状态，支持只看待备份。
   - 文档：`Docs/API/BRS/Slice.md`、`Docs/APIs.md` #102~#107、`Docs/API/README.md`、`Docs/FinvQuant/Brs.md`（§1.1）、`Docs/Design/BrsBackupDesign.md`（§12 与实现现状）。
 
 ### 变更
