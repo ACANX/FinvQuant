@@ -234,6 +234,15 @@
 
 ### 变更
 
+- **`paocd` → `vwap` 字段改名（需求 10902，第二步：API 契约）**
+  - 出参：`/Add`、`/Query` 响应字段 `pacd` → **`vwap`**（不再输出 `pacd`）；`/Page` 与 `/PageUni` 的第 13 项短名 `pa` → **`vwa`**（全名 `vwap`），`column` 仍固定 15 项、顺序不变。
+  - 入参：优先读 `vwap`；未传（或显式 `null`）时回退旧字段 `pacd`，`/Upsert`、`/Batch` 的增量更新同样回退。兼容项登记为待办需求 10903，待前端与外部调用方全部切换后移除。
+  - Go 侧：`kline.Row.Pacd` → `Row.Vwap`、`ListItem.Pa` → `Vwa`、`CompactFieldMap` 短名 `vwa`。
+  - 新增 `kline/vwap_compat_test.go`（7 个用例）：vwap 优先 / pacd 兼容 / vwap=null 回退 / 两列皆空 / 增量补丁列名 / 短名 vwa / `/Page` 输出。
+  - 本机 API 实测：`pacd` 入参落库 `vwap=3.56`；`vwap=9.99` 与 `pacd=3.56` 同传取 9.99；`/Page`、`/PageUni` 第 13 项为 `vwa`；`/Add`、`/Query` 输出 `vwap` 且无 `pacd`。
+
+### 变更
+
 - **`paocd` → `vwap` 字段改名（需求 10902，第一步：数据库层）**
   - 新增迁移 `V300087__finv_quote_kline_rename_paocd_to_vwap.sql`：`RENAME COLUMN paocd TO vwap` 三张表——`quote.finv_quote_secu_kline_min`、`cdeu.finv_quote_secu_kline_min`、`cdeu.finv_quote_secu_kline_min_export`；幂等（列已是 `vwap` 或表不存在则跳过），带收敛校验；列注释改为「成交量加权平均价（VWAP；原名 paocd / 当日实时累计均价）」。
   - 纯 catalog 操作：该列无索引/视图/物化视图/触发器/函数依赖（逐项核实），`RENAME COLUMN` 不改列顺序；历史迁移里的 `paocd` 字样一律不动。

@@ -134,11 +134,14 @@ type ItemIn struct {
 	Turnover    OptDec  `json:"turnover"`
 	ChangePrice OptDec  `json:"change_price"`
 	ChangeRatio OptDec  `json:"change_ratio"`
-	Pacd        OptDec  `json:"pacd"`
-	ExtField    OptStr  `json:"ext_field"`
-	Remark      OptStr  `json:"remark"`
-	Provider    OptStr  `json:"provider"`
-	LastClose   OptDec  `json:"last_close"`
+	Vwap        OptDec  `json:"vwap"`
+	// Pacd 为旧字段名（库列 paocd 的缩写），仅作兼容：vwap 未传时生效。
+	// 待前端与外部调用方全部切到 vwap 后移除（待办需求 10903）。
+	Pacd      OptDec `json:"pacd"`
+	ExtField  OptStr `json:"ext_field"`
+	Remark    OptStr `json:"remark"`
+	Provider  OptStr `json:"provider"`
+	LastClose OptDec `json:"last_close"`
 }
 
 // BatchIn 批量写入请求体。
@@ -284,7 +287,11 @@ func (item ItemIn) ToRow(unit string) (Row, *Error) {
 	}
 	row.ChangePrice = item.ChangePrice.Value()
 	row.ChangeRatio = item.ChangeRatio.Value()
-	row.Pacd = item.Pacd.Value()
+	// vwap 优先；仅当未传 vwap 时用旧字段 pacd 兜底（兼容期，见待办需求 10903）。
+	row.Vwap = item.Vwap.Value()
+	if !item.Vwap.Set || item.Vwap.Null {
+		row.Vwap = item.Pacd.Value()
+	}
 	row.ExtField = item.ExtField.Value()
 	row.Remark = item.Remark.Value()
 	row.Provider = item.Provider.Value()
@@ -305,6 +312,11 @@ func (item ItemIn) ToPatchItem(unit string) (PatchItem, *Error) {
 		return PatchItem{}, keyErr
 	}
 	patch := PatchItem{Usc: usc, Ts: ts}
+	// 兼容旧字段名：仅当 vwap 未显式传入时，用 pacd 的显式传入值兜底。
+	vwapField := item.Vwap
+	if !vwapField.Set && item.Pacd.Set {
+		vwapField = item.Pacd
+	}
 	open := item.Open
 	if (!open.Set || open.Null) && item.LastClose.Set && !item.LastClose.Null {
 		open = item.LastClose
@@ -326,7 +338,7 @@ func (item ItemIn) ToPatchItem(unit string) (PatchItem, *Error) {
 		{ColTurnover, item.Turnover},
 		{ColChangePrice, item.ChangePrice},
 		{ColChangeRatio, item.ChangeRatio},
-		{ColVwap, item.Pacd},
+		{ColVwap, vwapField},
 	} {
 		if field.value.Set {
 			appendCol(field.column, field.value.Value())

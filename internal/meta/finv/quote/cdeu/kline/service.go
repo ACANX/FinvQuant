@@ -41,7 +41,7 @@ func NewService(pool *pgxpool.Pool, opts Options) *Service {
 func rowArgs(row Row) []any {
 	return []any{
 		row.Usc, row.Ts, row.Date, row.Time, row.Open, row.High, row.Low, row.Close, row.LastClose,
-		row.Volume, row.Turnover, row.ChangePrice, row.ChangeRatio, row.Pacd,
+		row.Volume, row.Turnover, row.ChangePrice, row.ChangeRatio, row.Vwap,
 		row.ExtField, row.Remark, row.Provider,
 	}
 }
@@ -50,7 +50,7 @@ func rowArgs(row Row) []any {
 func rowTargets(row *Row) []any {
 	return []any{
 		&row.Usc, &row.Ts, &row.Date, &row.Time, &row.Open, &row.High, &row.Low, &row.Close, &row.LastClose,
-		&row.Volume, &row.Turnover, &row.ChangePrice, &row.ChangeRatio, &row.Pacd,
+		&row.Volume, &row.Turnover, &row.ChangePrice, &row.ChangeRatio, &row.Vwap,
 		&row.ExtField, &row.Remark, &row.Provider,
 	}
 }

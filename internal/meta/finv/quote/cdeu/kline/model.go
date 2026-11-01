@@ -65,7 +65,7 @@ var CompactFieldMap = []struct {
 	{"t", ColTurnover},
 	{"cr", ColChangeRatio},
 	{"cp", ColChangePrice},
-	{"pa", ColVwap},
+	{"vwa", ColVwap},
 	{"pv", ColProvider},
 	{"ext", ColExtField},
 }
@@ -101,7 +101,7 @@ type Row struct {
 	Turnover    *string
 	ChangePrice *string
 	ChangeRatio *string
-	Pacd        *string
+	Vwap        *string
 	ExtField    *string
 	Remark      *string
 	Provider    *string
@@ -127,7 +127,7 @@ type ListItem struct {
 	T    json.RawMessage `json:"t"`
 	Cr   *string         `json:"cr"`
 	Cp   json.RawMessage `json:"cp"`
-	Pa   json.RawMessage `json:"pa"`
+	Vwa  json.RawMessage `json:"vwa"`
 	Pv   *string         `json:"pv"`
 	Ext  *string         `json:"ext"`
 }
@@ -180,7 +180,7 @@ func (r Row) ListItem() ListItem {
 		T:    numericJSON(r.Turnover),
 		Cr:   RatioText(r.ChangeRatio),
 		Cp:   numericJSON(r.ChangePrice),
-		Pa:   numericJSON(r.Pacd),
+		Vwa:  numericJSON(r.Vwap),
 		Pv:   r.Provider,
 		Ext:  r.ExtField,
 	}
@@ -200,7 +200,7 @@ func (r Row) UniRow() []*string {
 		&r.Usc, &tsText, intText(r.Date), intText(r.Time),
 		CellText(r.Open), CellText(r.High), CellText(r.Low), CellText(r.Close),
 		CellText(r.Volume), CellText(r.Turnover), RatioText(r.ChangeRatio),
-		CellText(r.ChangePrice), CellText(r.Pacd), r.Provider, r.ExtField,
+		CellText(r.ChangePrice), CellText(r.Vwap), r.Provider, r.ExtField,
 	}
 }
 
@@ -222,7 +222,7 @@ func (r Row) MarshalJSON() ([]byte, error) {
 	writeNumericField(&buf, "turnover", r.Turnover)
 	writeNumericField(&buf, "change_price", r.ChangePrice)
 	writeNumericField(&buf, "change_ratio", r.ChangeRatio)
-	writeNumericField(&buf, "pacd", r.Pacd)
+	writeNumericField(&buf, "vwap", r.Vwap)
 	writeOptionalString(&buf, "ext_field", r.ExtField)
 	writeOptionalString(&buf, "remark", r.Remark)
 	writeOptionalString(&buf, "provider", r.Provider)

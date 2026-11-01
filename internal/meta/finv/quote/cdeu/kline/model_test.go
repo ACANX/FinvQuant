@@ -21,7 +21,7 @@ func testRow() Row {
 		Turnover:    strPtr("4507048.00000000"),
 		ChangePrice: strPtr("-0.020000"),
 		ChangeRatio: strPtr("-0.170000"),
-		Pacd:        nil,
+		Vwap:        nil,
 		ExtField:    nil,
 		Provider:    strPtr("FTMM"),
 	}
@@ -45,8 +45,11 @@ func TestRowJSON(t *testing.T) {
 	if decoded["last_close"].(float64) != 11.5 {
 		t.Fatalf("last_close 应为 JSON 数字 11.5，实际 %v", decoded["last_close"])
 	}
-	if _, ok := decoded["pacd"]; !ok {
-		t.Fatal("应输出 pacd 字段")
+	if _, ok := decoded["vwap"]; !ok {
+		t.Fatal("应输出 vwap 字段")
+	}
+	if _, ok := decoded["pacd"]; ok {
+		t.Fatal("不应再输出旧字段 pacd")
 	}
 	if value, ok := decoded["open"]; !ok || value != nil {
 		t.Fatalf("open 应为 null，实际 %v", decoded["open"])
