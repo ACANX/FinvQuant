@@ -209,9 +209,9 @@ onMounted(load)
     </v-card-text>
   </v-card>
 
-  <!-- 实现说明卡片：保留卡片容器，去掉 outlined 白亮边框；标签/内容左右两列对齐，无冒号 -->
+  <!-- 配置说明卡片：保留卡片容器，去掉 outlined 白亮边框；标签/内容左右两列对齐，无冒号 -->
   <v-card class="mt-4" variant="flat">
-    <v-card-title class="text-subtitle-2">实现说明</v-card-title>
+    <v-card-title class="text-subtitle-2">配置说明</v-card-title>
     <v-card-text class="text-body-2 text-medium-emphasis">
       <v-row dense>
         <v-col cols="4" sm="3">S3 兼容协议</v-col>
