@@ -60,6 +60,8 @@
 3. `Docs/CHANGELOG.md` 的变更记录（看时间戳）；
 4. `Docs/Refactor/*` 的改造清单（**仅代表该改造完成时的状态**，可能已被后续迁移推翻）。
 
+**历史遗留副本清理**：早期建在 `public` 下的 `public.finv_quote_secu_kline_min` 不在 §0.2 保护名单（名单只有 `quote.` / `cdeu.`），由迁移 `V300085`（需求 10899）在数据搬入 `cdeu` 后清理：差集为 0 才 `DROP`，否则保留并告警。
+
 **特别注意**：`Docs/Refactor/2610-003-MoveTablesToSchemas.md` 的 `C-10`～`C-20` 验收记录写的是 `quote.finv_quote_secu_kline_min`，后于 `V200038` 被推翻、再由 `V200076` 恢复。**看到这类"☑ 已完成"的清单，不能直接当作当前事实**，必须与 §1 的 schema 划分表核对。
 
 ### 0.5 事故记录（反例，勿重犯）

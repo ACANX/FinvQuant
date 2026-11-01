@@ -143,6 +143,15 @@
 
 ### 移除
 
+- **清理历史遗留表 `public.finv_quote_secu_kline_min`（需求 10899）**
+  - 迁移 `V300085__drop_public_kline_min.sql`：数据已搬入 `cdeu.finv_quote_secu_kline_min` 时删除 `public` 副本；该副本不在 `DbSchemaSpec` §0.2 保护名单，代码无业务读写。
+  - 安全策略（宁可保留不可误删）：源表不存在→跳过；目标表缺失/源表缺 `usc`·`secu_code` 列→保留并 `WARNING`；`(ts, usc)` 差集不为 0→保留并 `WARNING`；`DROP` 因依赖失败→捕获异常、保留表、迁移仍成功（不复现 V300083 那种「校验过严导致服务反复重启」）。
+  - 执行前需运维先备份：`pg_dump -t public.finv_quote_secu_kline_min -Fc -f Deploy/Backup/finv_public_kline_min_<ts>.dump`（迁移内无法调用 `pg_dump`）。
+  - 文档：`Docs/FinvQuant/MigratePublicKlineToCdeu.md`、`DbSchemaSpec` §0 增补说明。
+  - 本机三分支验证通过（保留 / 删除 / 跳过）。
+
+### 移除
+
 - **退役号段平移脚本与 marker 表（需求 10895）**
   - 删除 `Deploy/Upgrade/2611-001-MigrationSegmentsShift.sql`（需求 10881 的一次性存量库过渡脚本，所有存量库已完成平移）。
   - 迁移 `V300084__drop_schema_version_plan_shift.sql` 删除 marker 表 `public.schema_version_plan_shift`，并删除 `brs.brs_bak_rdb_table` 中该表的备份登记（备份总数 25 → 24）。

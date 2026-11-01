@@ -14,6 +14,8 @@
 
 脚本对源表**只读**（仅 `SELECT`），不改名、不删除、不 `TRUNCATE`，源表保持原样。
 
+> 数据搬完后源表可由迁移 `V300085__drop_public_kline_min.sql` 自动清理：按 `(ts, usc)` 校验差集为 0 才 `DROP`，差集不为 0（或目标表/列缺失、存在视图依赖）时**保留该表**并记 `WARNING`。执行前请先 `pg_dump -t public.finv_quote_secu_kline_min` 备份。
+
 ## 2. 表结构与列映射
 
 | 旧表（`public`） | 新表（`cdeu`） | 处理方式 |
