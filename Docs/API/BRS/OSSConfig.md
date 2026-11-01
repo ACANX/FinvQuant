@@ -44,7 +44,7 @@ BRS 备份产物上传的 S3 兼容对象存储配置，对应系统配置 `sys.
 |------|------|------|
 | `enabled` | bool | `true` 启用上传；`false` 仅本地备份（默认） |
 | `provider` | string | 固定 `s3`（经 `internal/meta/base/oss` 抽象） |
-| `endpoint` | string | 对象存储地址；AWS S3 留空走默认域名 |
+| `endpoint` | string | 对象存储地址（scheme://host[:port]，不带路径/桶名）；AWS S3 留空走默认域名 |
 | `bucket` | string | 桶名（需提前创建） |
 | `region` | string | R2 用 `auto`；AWS 填实际区域；MinIO 常用 `us-east-1` |
 | `access_key` | string | 访问凭证 Access Key ID |
@@ -73,7 +73,7 @@ BRS 备份产物上传的 S3 兼容对象存储配置，对应系统配置 `sys.
 |------|------|------|------|
 | `enabled` | bool | ✅ | 是否启用上传 |
 | `provider` | string | 可选 | 空则 `s3`；首期仅支持 `s3` |
-| `endpoint` | string | 条件 | `enabled=true` 时必填 |
+| `endpoint` | string | 条件 | `enabled=true` 时必填。**只填 `scheme://host[:port]`，不得带路径**（如 R2 用 `https://<account_id>.r2.cloudflarestorage.com`）；桶名填 `bucket`，目录前缀填 `prefix`。带路径会 400 |
 | `bucket` | string | 条件 | `enabled=true` 时必填 |
 | `region` | string | 可选 | 空则 `auto` |
 | `access_key` | string | 条件 | `enabled=true` 时必填 |
@@ -92,7 +92,7 @@ BRS 备份产物上传的 S3 兼容对象存储配置，对应系统配置 `sys.
 
 | HTTP | code | 场景 |
 |------|------|------|
-| 400 | 400 | `provider` 非 `s3`；`enabled=true` 而 `endpoint`/`bucket`/`access_key`/`secret_key` 缺失（且库内无旧密钥）；39002 配置行不存在（提示执行迁移 `V300061`） |
+| 400 | 400 | `provider` 非 `s3`；`endpoint` 无法解析或带路径；`enabled=true` 而 `endpoint`/`bucket`/`access_key`/`secret_key` 缺失（且库内无旧密钥）；39002 配置行不存在（提示执行迁移 `V300061`） |
 | 500 | 2006 | 数据库读写失败 |
 
 ## 3. 数据来源与关联

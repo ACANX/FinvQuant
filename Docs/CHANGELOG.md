@@ -125,6 +125,14 @@
   - **文档**：`DbSchemaSpec` §4 号段约定重写（三段表 + 平移规则 + 历史遗留说明）；`Deploy/README.md` 同步；`RequirementList` 新增 10881（汇总 10001–10881 / 880 条）。
   - **注意**：本次只改编号与引用，**不改任何 SQL 逻辑**；`CHANGELOG`/`RequirementList`/`Docs/Refactor/*` 中的历史版本号为可追溯性已一并改为新号（对应文件已重命名）。
 
+### 修复
+
+- **对象存储 endpoint 带路径导致对象 key 多出一层目录（`finvquant/`）**
+  - 现象：39002 的 `endpoint` 写成 `https://<account_id>.r2.cloudflarestorage.com/finvquant` 时，适配器按 path-style 拼 `/<bucket>/<key>`，多出的路径段被对象存储当成 key 的一部分，最终对象变成 `finvquant/BRS/Finv/<date>/<table>.dump`。
+  - 修复：`SaveOSSConfig` 增加 endpoint 校验——必须是 `scheme://host[:port]`，带路径直接 400 并提示「桶名填到 bucket、目录前缀填到 prefix」。
+  - 文档：`Docs/API/BRS/OSSConfig.md` 的 `endpoint` 字段说明与失败表同步。
+  - 注：这是**配置**问题，不是代码拼接；代码只生成 `<prefix>/<yyyyMMdd>/<schema>.<table>.dump`。
+
 ### 变更
 
 - **BRS 备份路径与文件名调整（需求 10893）**

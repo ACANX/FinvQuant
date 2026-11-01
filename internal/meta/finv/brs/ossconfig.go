@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -173,6 +174,20 @@ func (r *Registry) SaveOSSConfig(ctx context.Context, cfg OSSConfig, operator st
 			if cfg.Enabled {
 				return OSSConfig{}, inputErrorf("启用上传时必须填写 secret_key（或此前已配置过）")
 			}
+		}
+	}
+
+	if cfg.Endpoint != "" {
+		// endpoint 只能是 scheme://host[:port]，不允许带路径。
+		// 为什么：适配器按 path-style 拼 URL（/<bucket>/<key>），endpoint 里多出来的路径段
+		// 会被对象存储当成 key 的一部分（例：endpoint 写 .../finvquant 时，
+		// 最终对象 key 变成 finvquant/BRS/Finv/...，凭空多一层目录）。
+		u, perr := url.Parse(cfg.Endpoint)
+		if perr != nil || u.Scheme == "" || u.Host == "" {
+			return OSSConfig{}, inputErrorf("endpoint 必须是完整 URL（如 https://<account_id>.r2.cloudflarestorage.com），当前值无法解析")
+		}
+		if strings.Trim(u.Path, "/") != "" {
+			return OSSConfig{}, inputErrorf("endpoint 不能带路径（当前为 %q）：桶名填到 bucket，目录前缀填到 prefix；endpoint 只保留 scheme://host[:port]", u.Path)
 		}
 	}
 
