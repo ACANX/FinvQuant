@@ -9,11 +9,11 @@ import (
 
 // ensureEnvLoaded 在未显式提供 --pg-url 时，自动加载 finvquant.env。
 //
-// systemd 会通过 EnvironmentFile 注入配置，但手工执行 qmio 不会；
+// systemd 会通过 EnvironmentFile 注入配置，但手工执行 qiom 不会；
 // 这里按以下顺序查找并加载（已存在的环境变量不覆盖）：
 //  1. FINV_ENV_FILE
-//  2. <qmio 所在目录>/finvquant.env        （qmio 与 env 同目录）
-//  3. <qmio 所在目录>/../finvquant.env     （qmio 在 bin/ 下）
+//  2. <qiom 所在目录>/finvquant.env        （qiom 与 env 同目录）
+//  3. <qiom 所在目录>/../finvquant.env     （qiom 在 bin/ 下）
 //  4. /data/App/FinvQuant/finvquant.env    （默认安装根目录）
 func ensureEnvLoaded() {
 	if os.Getenv("FINV_PG_PASSWORD") != "" || os.Getenv("FINV_PG_HOST") != "" {

@@ -1,4 +1,4 @@
-// Command qmio 是 FinvQuant 的数据搬运小工具（Quick Market IO）。
+// Command qiom 是 FinvQuant 的数据搬运小工具（原名 qmio，Quick Market IO）。
 //
 // 子命令：
 //
@@ -6,7 +6,7 @@
 //	import  导入 MVSV-2（默认 upsert）
 //	verify  校验 MVSV 文件（格式/行数/sha256）
 //
-// 该二进制与 finvquant 安装在同一目录（<PREFIX>/bin/qmio）。
+// 该二进制与 finvquant 安装在同一目录（<PREFIX>/bin/qiom）。
 package main
 
 import (
@@ -22,19 +22,19 @@ import (
 	"github.com/acanx/finvquant/internal/config"
 )
 
-const usage = `qmio — FinvQuant 数据搬运工具
+const usage = `qiom — FinvQuant 数据搬运工具
 
 用法:
-  qmio export [参数]     导出 cdeu.finv_quote_secu_kline_min 为 MVSV-2
-  qmio import FILE [参数] 导入 MVSV-2（默认 upsert）
-  qmio verify FILE       校验 MVSV 文件
+  qiom export [参数]     导出 cdeu.finv_quote_secu_kline_min 为 MVSV-2
+  qiom import FILE [参数] 导入 MVSV-2（默认 upsert）
+  qiom verify FILE       校验 MVSV 文件
 
 公共参数:
   --pg-url URL           覆盖数据库连接串（默认读取 FINV_PG_* 环境变量）
 
 示例:
-  qmio export --out /data/App/FinvQuant/Export/CdeuKline
-  qmio import /data/App/FinvQuant/Export/CdeuKline/cdeu_kline_*.mvsv.gz
+  qiom export --out /data/App/FinvQuant/Export/CdeuKline
+  qiom import /data/App/FinvQuant/Export/CdeuKline/cdeu_kline_*.mvsv.gz
 `
 
 func main() {

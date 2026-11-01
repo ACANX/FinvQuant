@@ -13,7 +13,7 @@ func runVerify(args []string) int {
 	skipChecksum := fs.Bool("skip-checksum", false, "跳过 .sha256 校验")
 	_ = fs.Parse(args)
 	if fs.NArg() < 1 {
-		fmt.Fprintln(os.Stderr, "用法: qmio verify FILE")
+		fmt.Fprintln(os.Stderr, "用法: qiom verify FILE")
 		return 2
 	}
 	path := fs.Arg(0)

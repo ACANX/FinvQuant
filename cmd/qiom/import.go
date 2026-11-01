@@ -25,7 +25,7 @@ func runImport(args []string) int {
 	pgURL := fs.String("pg-url", "", "数据库连接串")
 	_ = fs.Parse(args)
 	if fs.NArg() < 1 {
-		fmt.Fprintln(os.Stderr, "用法: qmio import FILE [--mode upsert|append|replace] [--force]")
+		fmt.Fprintln(os.Stderr, "用法: qiom import FILE [--mode upsert|append|replace] [--force]")
 		return 2
 	}
 	path := fs.Arg(0)
