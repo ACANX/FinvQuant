@@ -40,7 +40,7 @@
 - **前端路由「备份管理」三个端点统一改为 `/Meta/BRS/Backup/Finv/*`（原 `/Meta/Finv/Brs/Backup/*`）**
   - `备份登记维护`：`/Meta/BRS/Backup/Finv/Table`（`brs-table`）
   - `备份记录与产物`：`/Meta/BRS/Backup/Finv/Record`（`brs-record`）
-  - `对象存储配置`：`/Meta/BRS/Backup/Finv/Storage`（`brs-storage`）
+  - `对象存储配置`：`/Meta/BRS/Backup/Finv/OSSConfig`（`brs-storage`；初版为 `.../Storage`，同日按 OSS 配置语义改为 `OSSConfig`）
   - 路由与菜单两处同步：`Web/src/router.ts`、`Web/src/config/menuConfig.ts`。仅调整 URL 命名（BRS 域 → Backup 分组 → Finv 业务 → 对象），页面组件与菜单标题不变；`恢复管理` 占位端点 `Restore/Run` 本轮未动，仍为 `/Meta/Finv/Brs/Restore/Run`。
 
 - **运维 SQL 按职责归位：初始化 → `Deploy/Init/`，升级维护 → `Deploy/Upgrade/`**
