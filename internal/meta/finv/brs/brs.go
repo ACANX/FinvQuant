@@ -55,8 +55,10 @@ type Options struct {
 	User      string
 	Password  string
 	Database  string
-	DumpBin   string    // pg_dump 路径（默认 PATH 中查找）
-	Store     oss.Store // 可选：对象存储上传实现（nil 不上传）
+	DumpBin   string // pg_dump 路径（默认 PATH 中查找）
+	// LocalKeepDays 本地全量 dump 保留天数（<=0 表示不清理）；仅删除远端已存在的文件。
+	LocalKeepDays int
+	Store         oss.Store // 可选：对象存储上传实现（nil 不上传）
 }
 
 // Table 一条备份登记。
@@ -322,6 +324,11 @@ func RunOnceWithHooks(ctx context.Context, pool *pgxpool.Pool, opts Options, hoo
 			hooks.emit("info", "%s.%s 已关闭上传（flag_upload=0），仅保留本地文件", table.SchemaName, table.TableName)
 		}
 	}
+	// 本地产物清理：只删「远端已存在」且超过保留期的 dump，避免目录每天累积。
+	if _, err := cleanupLocalDumps(ctx, opts, store, env, opts.LocalKeepDays, hooks); err != nil {
+		hooks.emit("warn", "本地清理失败（不影响本轮备份结果）: %v", err)
+	}
+
 	if failed > 0 {
 		hooks.emit("error", "本轮备份结束：%d/%d 张表失败", failed, len(tables))
 		return fmt.Errorf("%d/%d 张表备份失败", failed, len(tables))

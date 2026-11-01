@@ -86,24 +86,26 @@ func main() {
 	// BRS 备份运行器（首期：pg_dump 表级备份，cron 读 sys_config 39001）。
 	// 自动调度与前端手动触发共用同一个 Runner，页面能看到同一份运行状态与日志。
 	brsRunner := brs.NewRunner(pool, brs.Options{
-		BackupDir: cfg.BrsBackupDir,
-		Host:      cfg.PgHost,
-		Port:      cfg.PgPort,
-		User:      cfg.PgUser,
-		Password:  cfg.PgPassword,
-		Database:  cfg.PgDatabase,
+		BackupDir:     cfg.BrsBackupDir,
+		LocalKeepDays: cfg.BrsLocalKeepDays,
+		Host:          cfg.PgHost,
+		Port:          cfg.PgPort,
+		User:          cfg.PgUser,
+		Password:      cfg.PgPassword,
+		Database:      cfg.PgDatabase,
 	})
 	go brsRunner.Start(ctx)
 
 	// BRS 大表增量（分片）备份运行器：只做手动触发（需求 10905），
 	// 与小表全量备份各自独立的状态与执行链，互不阻塞。
 	brsSliceRunner := brs.NewSliceRunner(pool, brs.Options{
-		BackupDir: cfg.BrsBackupDir,
-		Host:      cfg.PgHost,
-		Port:      cfg.PgPort,
-		User:      cfg.PgUser,
-		Password:  cfg.PgPassword,
-		Database:  cfg.PgDatabase,
+		BackupDir:     cfg.BrsBackupDir,
+		LocalKeepDays: cfg.BrsLocalKeepDays,
+		Host:          cfg.PgHost,
+		Port:          cfg.PgPort,
+		User:          cfg.PgUser,
+		Password:      cfg.PgPassword,
+		Database:      cfg.PgDatabase,
 	})
 
 	// 证券行情月归档导出与上传：服务始终创建（运维接口可用），

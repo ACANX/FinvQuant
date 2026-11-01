@@ -259,6 +259,16 @@
 
 ### 新增
 
+- **BRS 本地备份产物自动清理（需求 10910）**
+  - 问题：小表全量备份每天写一个新日期目录（`<备份目录>/<yyyyMMdd>/`，每表一个 dump），此前上传成功后不删本地 → 日积月累占满文件系统；大表分片按分片键覆盖、文件数等于分片数，不随时间增长。
+  - 新增 `brs/cleanup.go`：每轮全量备份结束（成功或失败）清理超过 `FINV_BRS_LOCAL_KEEP_DAYS`（默认 7，`<=0` 不清理）的 `*.dump`；**只删远端 `Stat` 命中（已上传成功）的文件**，远端不存在则保留；空目录一并删除；`Incr/` 与非 `yyyyMMdd` 目录不参与。
+  - 安全边界：对象存储未启用或运行环境标识（1002）缺失/非法时整体跳过并 `warn`（本地是唯一副本）；日志输出删除数、释放字节数、保留数与保留期。
+  - 配置：`FINV_BRS_LOCAL_KEEP_DAYS`（`internal/config`、`FinvQuant.env.example`、`docker-compose.yml`、`Docker.env.example`）。
+  - 新增 `cleanup_test.go` 5 个用例（已上传才删 / 保留期内不删 / 无 store 跳过 / `keepDays=0` 跳过 / `Incr/` 不受影响）。
+  - 文档：`Docs/FinvQuant/Brs.md` 新增 §1.2「本地空间与清理」（增长特征、清理规则、安全边界、查看命令）。
+
+### 新增
+
 - **BRS RDB 数据源登记表 `brs.brs_bak_rdb_datasource`（需求 10909，仅建表）**
   - 现状：备份连接参数只来自 `FINV_PG_*` 环境变量，只能备份当前实例；多实例/跨库备份需要把数据源落库，故先把登记表建好。
   - 字段：`code`（唯一，供备份登记引用）、`name`、`rdb_type`（首期仅 `postgresql`）、`host`、`port`、`database_name`、`username`、`password_cipher`（加密口令；空则回退环境变量，禁止明文）、`ssl_mode`、`connect_timeout`、`is_default`（全表最多一条，部分唯一索引）、`flag_enable`、`priority`、`remark`、`creator`、`gmt_create`/`gmt_update`。

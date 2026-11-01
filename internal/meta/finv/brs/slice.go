@@ -373,7 +373,7 @@ func RunSliceOnceWithHooks(ctx context.Context, pool *pgxpool.Pool, opts Options
 		hooks.emit("error", "本轮分片备份结束：%d 个失败", failed)
 		return fmt.Errorf("%d 个分片备份失败", failed)
 	}
-	hooks.emit("info", "本轮分片备份完成：处理 %d 个分片", done)
+	hooks.emit("info", "本轮分片备份完成：处理 %d 个分片（本地产物按分片键覆盖，文件数等于分片数，不随时间增长）", done)
 	return nil
 }
 
