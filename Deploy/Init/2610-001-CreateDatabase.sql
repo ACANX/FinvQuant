@@ -32,6 +32,9 @@
 
 \set ON_ERROR_STOP on
 
+-- 注：中止时统一用 RAISE EXCEPTION 而非 `\quit 1`——psql 的 `\quit` 不接受退出码
+--（会报 "extra argument ignored" 且返回 0），RAISE + ON_ERROR_STOP 才能给出非 0 退出码。
+
 -- ---------------------------------------------------------------------
 -- 0. 参数缺省值
 -- ---------------------------------------------------------------------
@@ -53,7 +56,7 @@ SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'owner') AS fq_role_ok \g
 \if :fq_role_ok
 \else
   \echo '!!! 建库中止：角色' :owner '不存在。请先创建角色（迁移 V100001，或超级用户执行 CREATE ROLE <name> LOGIN PASSWORD ...）'
-  \quit 1
+  DO $$ BEGIN RAISE EXCEPTION '角色不存在，已中止'; END $$;
 \endif
 
 -- ---------------------------------------------------------------------
@@ -91,7 +94,7 @@ SELECT (:'db'::text = current_database()) AS fq_db_ok \gset
 \if :fq_db_ok
 \else
   \echo '!!! 校验失败：当前连接的库不是目标库'
-  \quit 1
+  DO $$ BEGIN RAISE EXCEPTION '当前连接的库不是目标库，已中止'; END $$;
 \endif
 
 SELECT EXISTS (
@@ -100,14 +103,14 @@ SELECT EXISTS (
 \if :fq_owner_ok
 \else
   \echo '!!! 校验失败：数据库属主不是目标角色'
-  \quit 1
+  DO $$ BEGIN RAISE EXCEPTION '数据库属主不是目标角色，已中止'; END $$;
 \endif
 
 SELECT has_schema_privilege(:'owner', 'public', 'CREATE') AS fq_priv_ok \gset
 \if :fq_priv_ok
 \else
   \echo '!!! 校验失败：角色对 schema public 无 CREATE 权限'
-  \quit 1
+  DO $$ BEGIN RAISE EXCEPTION '角色对 schema public 无 CREATE 权限，已中止'; END $$;
 \endif
 
 \echo '<<< 完成：数据库' :db '已就绪（属主' :owner '，UTF8），可启动服务执行迁移'

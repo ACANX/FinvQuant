@@ -173,6 +173,15 @@
 
 ### 新增
 
+- **运行环境标识配置 1002 与一次性初始化脚本（需求 10896）**
+  - 新增 `Deploy/Init/2610-002-AddRuntimeEnvConfig.sql`：向 `sys.sys_config` 写入 `config_no=1002`（`data_type='3'`，值存 `str_value`），标识当前实例运行环境（`dev`/`test`/`uat`/`prod` 等）。
+  - 用法：`psql ".../finv" -v env=prod -f Deploy/Init/2610-002-AddRuntimeEnvConfig.sql`；`overwrite` 缺省 0（已存在不覆盖），传 1 才覆盖。
+  - 安全性：取值格式校验（2~32 位字母/数字/下划线/短横线）；参数非法或 `sys.sys_config` 不存在时以非 0 退出码中止。
+  - 不进迁移链：运行环境随部署而定，不能由迁移给所有环境套同一个值。
+  - 顺带修正：`Deploy/Init/` 两个脚本的异常中止由 `\quit 1` 改为 `RAISE EXCEPTION`（psql 的 `\quit` 不接受退出码，会打印 "extra argument ignored" 且返回 0）。
+
+### 新增
+
 - **BRS 备份执行：调度配置 + 手动备份 + 实时进度与日志（需求 10892）**
   - 后端新增 `internal/meta/finv/brs/runner.go`：`Runner` 统一自动（39001 cron）与手动触发，内存保存运行状态与日志（最多 1000 条、`seq` 递增），同一时刻只允许一个运行（`*BusyError`）；`brs.go` 增加 `Hooks`/`RunOnceWithHooks`，把进度与日志同时投递给服务日志与页面。
   - 新增接口：`GET|POST /API/V1/Meta/BRS/Backup/Finv/Schedule/{Get,Save}`（39001 的 6 段 cron，校验 + 未来 5 次执行时间）、`POST .../Run/Manual`（异步触发，并发 409）、`GET .../Run/Status`（`sinceSeq` 增量日志）。

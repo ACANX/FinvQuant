@@ -21,7 +21,7 @@ Deploy/
 | `Docker/` | 是 | `docker-compose.yml`、`Dockerfile`、`.env.example`、部署/升级/回滚脚本、Windows Docker 文档 |
 | `Native/` | 是 | systemd unit、安装/升级/卸载脚本、环境变量与 Nginx 模板、安装与升级手册 |
 | `Migrations/` | 是 | 三段号段：`V100000`～`V199999` 基础准备（角色/库校验/schema）、`V200000`～`V299999` 表结构 DDL、`V300000`～`V399999` 数据，**历史文件不可回改** |
-| `Init/` | 是 | 初始化脚本（**部署前手工执行一次**，不随启动执行）：`2610-001-CreateDatabase.sql`（建库 + 属主 + `public` 授权，幂等；`CREATE DATABASE` 不能在迁移事务内执行，故不放进 `Migrations/`）。容器方式由 `POSTGRES_DB` 建库，一般无需执行 |
+| `Init/` | 是 | 初始化脚本（**部署前手工执行一次**，不随启动执行）：`2610-001-CreateDatabase.sql`（建库 + 属主 + `public` 授权，幂等；`CREATE DATABASE` 不能在迁移事务内执行，故不放进 `Migrations/`）、`2610-002-AddRuntimeEnvConfig.sql`（发放运行环境标识 `sys_config 1002`，按环境传 `-v env=dev\|test\|uat\|prod`）。容器方式由 `POSTGRES_DB` 建库，一般无需执行建库脚本 |
 | `Script/` | 是 | `PackSnapshot.sh`（快照包构建，CI 与本地共用）+ `PackSnapshot.cmd`（Windows 封装，转调 .sh）+ `Download.sh`/`Download.cmd`（一键下载发行包），见 §2.3 |
 | `Upgrade/` | 是 | 一次性升级/维护脚本（**不随启动自动执行**，需手工 `psql -f`）：`MigratePublicKlineToCdeu.sql`（早期 `public` 分钟 K 线一次性搬入 `cdeu`，见 [`../Docs/FinvQuant/MigratePublicKlineToCdeu.md`](../Docs/FinvQuant/MigratePublicKlineToCdeu.md)） |
 | `Backup/` | 否 | `pg_dump -Fc` 产物，两种方式共用，命名 `finvquant_YYYYMMDD_HHMMSS.dump` |
