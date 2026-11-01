@@ -259,6 +259,15 @@
 
 ### 修复
 
+- **补全 `finv_quote_cdeu_usc.date_list`（需求 10925）**
+  - 现象：495 行里 10 行 `date_list`（上市/上线日期）为空，正是需求 10922 那批「上游证券字典未收录、行情确在采」的证券。
+  - 根因：该列唯一来源是 `RefreshSecurityMetadata` 从 `public.finv_security.init_date` 取值，上游没有记录的证券永远补不上。
+  - 修复：迁移 `V300097` 做 SQL 发放——美股 5 只（`AMAT`/`MRVL`/`NOW`/`PLTR`/`SMCI`）按公开上市日补齐；其余（`XRP`、`899050`、`SH0006xx`、`SH000888`）用主表最早行情交易日兜底（主表 `date` 为 integer，需 `to_date` 且越界值不参与）。
+  - 代码侧自愈：`DiscoverUsc` 登记新 usc 时同步写 `date_list = min(m.date)`（全量/增量两分支），`ON CONFLICT DO UPDATE ... WHERE date_list IS NULL` 只补空，不覆盖上游与人工值。
+  - 实测：本机 `date_list IS NULL` 归零；新插入 `TEST.DATE.0001`（最早 `20260920`）后触发成熟度 JOB，`date_list` 自动为 `2026-09-20`。
+
+### 修复
+
 - **`BackfillUscDefaults` 的时区推导补上 `CC` 区域（需求 10924）**
   - 问题：推导只覆盖 `CN`/`HK`/`US`/`FX`/`GLOBAL`，而本库加密货币的 `region` 实际取值是 `CC`（`market=FTC`、`category=Crypto`），于是新增的加密货币永远补不上 `timezone`——`V300096` 只发了存量。
   - 修复：`CASE` 增加 `WHEN 'CC' THEN 'UTC'`；币种保持不推（加密货币计价币种不统一）。

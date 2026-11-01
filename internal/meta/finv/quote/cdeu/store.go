@@ -424,7 +424,11 @@ func thresholdString(threshold float64) string {
 //   - full=true（首次执行 / 水位缺失）：全量扫描主表 DISTINCT usc，把历史证券补齐；
 //   - full=false（日常增量）：只扫 gmt_update 落在 (since, until] 的行。
 //
-// 已存在的行**永不删除**（ON CONFLICT DO NOTHING，且本函数没有任何 DELETE）：
+// 新登记的行同时写入 `date_list`（该证券在主表的最早交易日，`min(date)`），
+// 并在已有行 `date_list` 为空时补上；上游 `finv_security.init_date` 与人工维护的
+// 值都不覆盖（需求 10925）。
+//
+// 已存在的行**永不删除**（ON CONFLICT 只补空，且本函数没有任何 DELETE）：
 // 某只证券当月/上月乃至连续几个月没有数据（停牌、退市、上游断供）时它依然是已知
 // 证券，删掉会连带丢掉归档优先级、day_expect_rows、人工维护的元数据。
 func (s *Store) DiscoverUsc(ctx context.Context, since, until time.Time, full bool) (int64, error) {
@@ -447,19 +451,35 @@ func (s *Store) DiscoverUsc(ctx context.Context, since, until time.Time, full bo
 	)
 	if full {
 		tag, err = s.pool.Exec(ctx, `
-INSERT INTO `+tableUsc+` (usc, flag_auto_discover)
-SELECT DISTINCT m.usc, true
+INSERT INTO `+tableUsc+` (usc, flag_auto_discover, date_list)
+SELECT m.usc, true,
+         CASE WHEN min(m.date) BETWEEN 19500101 AND 21001231
+              THEN to_date(min(m.date)::text, 'YYYYMMDD') END
   FROM `+tableMain+` m
  WHERE m.usc IS NOT NULL AND m.usc <> ''
-ON CONFLICT (usc) DO NOTHING`)
+ GROUP BY m.usc
+ON CONFLICT (usc) DO UPDATE SET
+    -- 只补空：人工维护或上游给的上市日不覆盖（需求 10925）
+    date_list = COALESCE(`+tableUsc+`.date_list, EXCLUDED.date_list),
+    gmt_update = CASE WHEN `+tableUsc+`.date_list IS NULL AND EXCLUDED.date_list IS NOT NULL
+                      THEN now() ELSE `+tableUsc+`.gmt_update END
+ WHERE `+tableUsc+`.date_list IS NULL AND EXCLUDED.date_list IS NOT NULL`)
 	} else {
 		tag, err = s.pool.Exec(ctx, `
-INSERT INTO `+tableUsc+` (usc, flag_auto_discover)
-SELECT DISTINCT m.usc, true
+INSERT INTO `+tableUsc+` (usc, flag_auto_discover, date_list)
+SELECT m.usc, true,
+         CASE WHEN min(m.date) BETWEEN 19500101 AND 21001231
+              THEN to_date(min(m.date)::text, 'YYYYMMDD') END
   FROM `+tableMain+` m
  WHERE m.gmt_update > $1 AND m.gmt_update <= $2
    AND m.usc IS NOT NULL AND m.usc <> ''
-ON CONFLICT (usc) DO NOTHING`, since, until)
+ GROUP BY m.usc
+ON CONFLICT (usc) DO UPDATE SET
+    -- 只补空：人工维护或上游给的上市日不覆盖（需求 10925）
+    date_list = COALESCE(`+tableUsc+`.date_list, EXCLUDED.date_list),
+    gmt_update = CASE WHEN `+tableUsc+`.date_list IS NULL AND EXCLUDED.date_list IS NOT NULL
+                      THEN now() ELSE `+tableUsc+`.gmt_update END
+ WHERE `+tableUsc+`.date_list IS NULL AND EXCLUDED.date_list IS NOT NULL`, since, until)
 	}
 	if err != nil {
 		return 0, err

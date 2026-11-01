@@ -9,6 +9,7 @@
 - 发现（`DiscoverUsc`）：首次执行全量扫描主表 `DISTINCT usc`，之后按 `gmt_update` 时间窗增量补充；
 - 缺口自愈：每天最多一次检查「主表里还有没有未登记的 usc」（`uscHasUnregistered`，水位键 `DISCOVER_USC_GAP_CHECK`），发现缺口自动升级为全量扫描——补导历史数据、人工清表后都无需手工干预；
 - 存量清理：10920 之前的脏行用一次性脚本 `Deploy/Upgrade/2611-001-PurgeUscWithoutQuote.sql` 删除（备份到 `archive.finv_quote_cdeu_usc_purge_20261102`，单事务 + `RAISE EXCEPTION` 校验）；
+- `date_list`（上市/上线日期）来源：优先 `public.finv_security.init_date`（`RefreshSecurityMetadata`）；上游未收录时由 `DiscoverUsc` 按主表最早交易日（`min(date)`）写入，存量由 `V300097` 发放（美股 5 只用公开上市日，其余取主表最早交易日）；`date_delist` 为空表示仍在市；
 - 数据发放：`V300096` 用 SQL 补齐两类缺口——① `region=CC`（加密货币）补模板行 `CC/FTC/Crypto=1440`、`timezone=UTC`、`day_expect_rows=1440`；② 上游字典（`finv_security` / futu 镜像）未收录但行情确在采的证券按显式清单补齐（美股 5 只、`XRP`、3 个 A 股指数）；`name` 仍无来源的用 `usc` 兜底（不编造名称）；
 - 元数据补全（`RefreshSecurityMetadata`）：只对**已登记**的 usc 用字典刷新 `category` / `region` / `market` / `name` / `timezone` / `currency`，**不再插入新行**；
 - 永不删除：某只证券当月/上月乃至连续几个月没有数据（停牌、退市、上游断供）时仍保留记录，否则会连带丢掉归档优先级、`day_expect_rows` 与人工维护的元数据。
