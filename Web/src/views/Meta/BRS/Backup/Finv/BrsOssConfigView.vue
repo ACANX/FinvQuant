@@ -44,12 +44,8 @@ const form = ref<OssConfig>({
   gmt_modify: null,
 })
 
-// 厂商候选（仅作标签：S3 兼容厂商统一走 s3 适配器）
-const providerItems = [
-  { title: 'Cloudflare R2', value: 'cloudflare-r2' },
-  { title: 'AWS S3', value: 'aws-s3' },
-  { title: '本地目录（local）', value: 'local' },
-]
+// 厂商标签的常用取值（仅提示用：S3 兼容厂商统一走 s3 适配器，可自由填写）
+const PROVIDER_HINT = '常用：cloudflare-r2 / aws-s3 / minio / local'
 
 // secret_key 输入框提示：已配置过时留空表示不修改
 const secretHint = computed(() =>
@@ -69,19 +65,32 @@ async function load() {
   }
 }
 
+// 把可能为对象/数组/空的绑定值归一成去空白的字符串。
+// v-select / v-combobox 在个别配置下会把「选中项对象」写回 v-model，
+// 直接 .trim() 会抛 “xxx.trim is not a function”，这里统一兜底。
+function toText(value: unknown): string {
+  if (typeof value === 'string') return value.trim()
+  if (Array.isArray(value)) return value.length > 0 ? toText(value[0]) : ''
+  if (value && typeof value === 'object') {
+    const item = value as Record<string, unknown>
+    return toText(item.value ?? item.title ?? '')
+  }
+  return value == null ? '' : String(value).trim()
+}
+
 async function save() {
   saving.value = true
   try {
     const data = await apiPost<OssConfig>(`${API_PREFIX}/Save`, {
       enable: form.value.enable,
-      protocol: form.value.protocol.trim() || 's3',
-      provider: form.value.provider.trim(),
-      endpoint: form.value.endpoint.trim(),
-      bucket: form.value.bucket.trim(),
-      region: form.value.region.trim() || 'auto',
-      access_key: form.value.access_key.trim(),
-      secret_key: form.value.secret_key.trim(),
-      prefix: form.value.prefix.trim() || 'brs/',
+      protocol: toText(form.value.protocol) || 's3',
+      provider: toText(form.value.provider),
+      endpoint: toText(form.value.endpoint),
+      bucket: toText(form.value.bucket),
+      region: toText(form.value.region) || 'auto',
+      access_key: toText(form.value.access_key),
+      secret_key: toText(form.value.secret_key),
+      prefix: toText(form.value.prefix) || 'brs/',
     })
     form.value = { ...form.value, ...data, secret_key: '' }
     showToast(data.enable ? '保存成功：下一轮备份将上传到对象存储' : '保存成功：当前为「仅本地备份」，不上传')
@@ -136,12 +145,10 @@ onMounted(load)
           />
         </v-col>
         <v-col cols="12" sm="6">
-          <v-combobox
+          <v-text-field
             v-model="form.provider"
-            :items="providerItems"
-            item-title="title"
-            item-value="value"
-            label="厂商 provider（S3 兼容厂商统一走 s3 适配器）"
+            label="厂商 provider（仅作标签，S3 兼容厂商统一走 s3 适配器）"
+            :placeholder="PROVIDER_HINT"
             density="compact"
             hide-details
             :disabled="!form.enable"

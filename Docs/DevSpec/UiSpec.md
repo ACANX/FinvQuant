@@ -145,3 +145,31 @@ cd Web && npx vue-tsc -b
 # 4) 人工回归：保存/启停/触发备份后提示应悬浮在顶部并在约 5 秒后自动消失，
 #    消失后页面布局不应发生跳动
 ```
+
+## 5. 表单取值归一（v-select / v-combobox）
+
+**提交前必须把表单字段归一成字符串，不得直接 `.trim()`。** Vuetify 的 `v-combobox`（以及部分 `v-select` 配置）在用户自由输入或从 `{title,value}` 下拉选中时，`v-model` 可能写回**字符串或对象**两种形态，直接 `value.trim()` 会抛 `xxx.trim is not a function`（需求 10912 上线后实际踩过）。
+
+### 5.1 标准写法
+
+```ts
+// 归一：字符串原样去空白；数组取首项；对象取 value/title；空值 → ''
+function toText(value: unknown): string {
+  if (typeof value === 'string') return value.trim()
+  if (Array.isArray(value)) return value.length > 0 ? toText(value[0]) : ''
+  if (value && typeof value === 'object') {
+    const item = value as Record<string, unknown>
+    return toText(item.value ?? item.title ?? '')
+  }
+  return value == null ? '' : String(value).trim()
+}
+```
+
+### 5.2 约定
+
+- 表单里**需要自由输入**的字段（厂商名、备注、路径等）优先用 `v-text-field`，避免 combobox 的双形态返回值；
+- 必须用 `v-combobox`（可选可填）时，提交前一律经过 `toText()`；
+- `v-text-field` / `v-switch` / `v-textarea` 的绑定值是确定的类型，可直接使用；
+- `v-select` 配 `item-title`/`item-value` 时返回 `item-value`，但仍建议提交前归一，防止后续换成 combobox 时漏改。
+
+参考实现：`Web/src/views/Meta/BRS/Backup/Finv/BrsOssConfigView.vue`（`toText()` + `provider` 用 `v-text-field`）。
