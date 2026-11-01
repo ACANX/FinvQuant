@@ -52,7 +52,7 @@
 | `compression` | string | `gzip`（默认，产物 `.mvsv.gz`）/ `none`（`.mvsv`）；分片产物是 MVSV-2 文本，**不支持 `zstd`** |
 | `min_rows` | number | 分片行数下限，低于该值跳过 |
 | `max_slices` | number | 分片数上限，超过则拒绝执行 |
-| `redo_slices` | number | 兜底窗口：仅当分片**缺指纹**（10916 之前产物）时，末尾 N 个分片重做、其余跳过 |
+| `redo_slices` | number | 旧产物自愈开关：`>0`（默认 2）缺指纹的分片重做一次建立基线；`0` 则跳过并告警 |
 | `flag_upload` | string | `1` 上传对象存储 / `0` 仅本地 |
 | `plan` | object | 分片完成度，见下表 |
 
@@ -65,7 +65,7 @@
 | `done` | 已备份分片数（产物存在即计入；内容是否变化由运行时指纹比对决定） |
 | `missing` | 待备份分片数 |
 | `skipped` | 行数低于 `min_rows` 被跳过的分片数 |
-| `redo_from` | 兜底窗口起点下标（缺指纹时该下标之后的分片重做） |
+| `redo_from` | 兼容字段：自愈开启时为 0，关闭时为分片总数（前端据此提示，不再表示重做窗口） |
 | `items` | 明细数组（最多前 50 条；`Plan` 接口最多 200 条） |
 
 ## 3. `Rule/Save`

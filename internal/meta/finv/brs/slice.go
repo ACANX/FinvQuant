@@ -297,8 +297,8 @@ func (r SliceRule) remoteKey(env string, s Slice) string {
 //   - 分片已存在（本地或远端）→ **比对内容指纹**：先算源端 (行数, 哈希和)，
 //     再读上次备份写入的 sidecar（本地 <分片文件>.fp，其次远端 <key>.fp）：
 //     相同 → 跳过；不同 → 重做并覆盖指纹；
-//   - 无指纹（10916 之前的产物）→ 落在 redo_slices 兜底窗口内则重做，否则跳过并提示；
-//   - redo_slices 不再"无条件重做末尾分片"，仅作为「无法比对时的兜底窗口」。
+//   - 无指纹（10916 之前的产物）→ **重做一次以建立基线**（自愈），并写回指纹；
+//     `redo_slices = 0` 时改为「跳过 + warn」（显式关闭自愈，只补缺失分片）。
 func RunSliceOnceWithHooks(ctx context.Context, pool *pgxpool.Pool, opts Options, hooks Hooks) error {
 	rules, err := LoadSliceRules(ctx, pool)
 	if err != nil {
@@ -335,11 +335,9 @@ func RunSliceOnceWithHooks(ctx context.Context, pool *pgxpool.Pool, opts Options
 			continue
 		}
 
-		redoFrom := len(slices) - rule.RedoSlices
-		if redoFrom < 0 {
-			redoFrom = 0
-		}
-		for i, slice := range slices {
+		// 旧产物缺指纹时的自愈开关：redo_slices > 0 表示重做一次建立基线，0 表示跳过。
+		selfHeal := rule.RedoSlices > 0
+		for _, slice := range slices {
 			if slice.Rows < rule.MinRows {
 				hooks.emit("info", "跳过 %s 分片 %s（%d 行 < min_rows=%d）", rule.Table(), slice.Key, slice.Rows, rule.MinRows)
 				continue
@@ -356,7 +354,7 @@ func RunSliceOnceWithHooks(ctx context.Context, pool *pgxpool.Pool, opts Options
 
 			// 已存在时按内容指纹判断是否需要重做（不再无条件重做末尾分片）。
 			if exists, size := sliceExists(ctx, store, rule, opts, env, slice); exists {
-				skip, reason := decideSkipSlice(ctx, store, rule, opts, env, slice, srcFP, fpOK, i >= redoFrom, hooks)
+				skip, reason := decideSkipSlice(ctx, store, rule, opts, env, slice, srcFP, fpOK, selfHeal, hooks)
 				if skip {
 					hooks.emit("info", "已备份，跳过 %s 分片 %s（%s）%s", rule.Table(), slice.Key, humanSize(size), reason)
 					continue
@@ -402,10 +400,10 @@ func RunSliceOnceWithHooks(ctx context.Context, pool *pgxpool.Pool, opts Options
 //  1. 源端指纹算不出来 → 保守重做（skip=false），避免"以为没变"；
 //  2. 本地指纹 sidecar 命中 → 与源端比较，相同跳过、不同重做；
 //  3. 本地没有则读远端 sidecar（本地文件可能被手工清理过）；
-//  4. 两边都没有指纹（10916 之前的产物）→ 仅在兜底窗口（redo_slices）内重做，
-//     窗口外跳过并提示（避免每轮把历史产物整批重做）。
+//  4. 两边都没有指纹（10916 之前的产物）→ 默认重做一次建立基线（自愈）；
+//     redo_slices=0 时跳过并提示（显式关闭自愈，只补缺失分片）。
 func decideSkipSlice(ctx context.Context, store oss.Store, rule SliceRule, opts Options, env string,
-	slice Slice, srcFP sliceFingerprint, srcOK, redoWindow bool, hooks Hooks) (bool, string) {
+	slice Slice, srcFP sliceFingerprint, srcOK, selfHeal bool, hooks Hooks) (bool, string) {
 	if !srcOK {
 		return false, ""
 	}
@@ -421,10 +419,11 @@ func decideSkipSlice(ctx context.Context, store oss.Store, rule SliceRule, opts 
 		}
 		return false, ""
 	}
-	if !redoWindow {
-		hooks.emit("warn", "分片 %s 缺少指纹记录（旧版本产物），本轮跳过；如需校验请删除该分片产物后重跑，或将其纳入 redo_slices 兜底窗口", slice.Key)
+	if !selfHeal {
+		hooks.emit("warn", "分片 %s 缺少指纹记录且 redo_slices=0（自愈关闭），本轮跳过；如需建立基线请把 redo_slices 设为 >=1 后重跑", slice.Key)
 		return true, "（无指纹记录，跳过）"
 	}
+	hooks.emit("info", "分片 %s 缺少指纹记录（10916 之前的产物），重做一次建立基线：%s", slice.Key, srcFP.String())
 	return false, ""
 }
 
@@ -522,8 +521,8 @@ func dumpSlice(ctx context.Context, pool *pgxpool.Pool, opts Options, rule Slice
 	if statErr == nil {
 		size = info.Size()
 	}
-	hooks.emit("info", "备份成功 %s 分片 %s（%d 行，%s，耗时 %s）",
-		rule.Table(), slice.Key, count, humanSize(size), time.Since(start).Round(time.Millisecond))
+	hooks.emit("info", "备份成功 %s 分片 %s（%d 行，%s，耗时 %s）→ %s",
+		rule.Table(), slice.Key, count, humanSize(size), time.Since(start).Round(time.Millisecond), path)
 	return path, size, nil
 }
 

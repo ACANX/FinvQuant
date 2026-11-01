@@ -119,24 +119,33 @@ func TestDecideSkipSliceFingerprint(t *testing.T) {
 		t.Fatal("算不出源端指纹时不应跳过")
 	}
 
-	// 2) 无指纹 + 兜底窗口内 → 重做
-	if skip, _ := decideSkipSlice(context.Background(), store, rule, opts, "Prod", slice, src, true, true, Hooks{}); skip {
-		t.Fatal("无指纹且在兜底窗口内应重做")
+	// 2) 无指纹 + 自愈开启 → 重做一次建立基线，并输出 info 说明
+	var healed bool
+	hooks := Hooks{OnLog: func(level, message string) {
+		if level == "info" && strings.Contains(message, "重做一次建立基线") {
+			healed = true
+		}
+	}}
+	if skip, _ := decideSkipSlice(context.Background(), store, rule, opts, "Prod", slice, src, true, true, hooks); skip {
+		t.Fatal("无指纹且自愈开启时应重做")
+	}
+	if !healed {
+		t.Fatal("应输出「重做一次建立基线」日志")
 	}
 
-	// 3) 无指纹 + 窗口外 → 跳过并告警
+	// 3) 无指纹 + 自愈关闭（redo_slices=0）→ 跳过并告警
 	var warned bool
-	hooks := Hooks{OnLog: func(level, message string) {
-		if level == "warn" && strings.Contains(message, "缺少指纹记录") {
+	closedHooks := Hooks{OnLog: func(level, message string) {
+		if level == "warn" && strings.Contains(message, "自愈关闭") {
 			warned = true
 		}
 	}}
-	skip, reason := decideSkipSlice(context.Background(), store, rule, opts, "Prod", slice, src, true, false, hooks)
+	skip, reason := decideSkipSlice(context.Background(), store, rule, opts, "Prod", slice, src, true, false, closedHooks)
 	if !skip || !strings.Contains(reason, "无指纹") {
-		t.Fatalf("窗口外且无指纹应跳过，得到 skip=%v reason=%q", skip, reason)
+		t.Fatalf("自愈关闭且无指纹应跳过，得到 skip=%v reason=%q", skip, reason)
 	}
 	if !warned {
-		t.Fatal("应输出缺指纹告警")
+		t.Fatal("应输出「自愈关闭」告警")
 	}
 
 	// 4) 本地指纹与源端一致 → 跳过（且提示内容无变化）

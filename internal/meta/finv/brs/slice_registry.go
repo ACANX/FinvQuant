@@ -307,11 +307,13 @@ func BuildSlicePlan(ctx context.Context, pool *pgxpool.Pool, opts Options, rule 
 	store, env := resolveStoreAndEnv(ctx, pool, opts, Hooks{})
 
 	plan.Total = len(slices)
-	redoFrom := len(slices) - rule.RedoSlices
-	if redoFrom < 0 {
-		redoFrom = 0
+	// redo_from 保留字段以兼容前端：0 表示自愈开启（旧产物会重做一次建立基线），
+	// 等于分片总数表示自愈关闭（旧产物只跳过）。
+	if rule.RedoSlices > 0 {
+		plan.RedoFrom = 0
+	} else {
+		plan.RedoFrom = len(slices)
 	}
-	plan.RedoFrom = redoFrom
 	if limit <= 0 || limit > len(slices) {
 		limit = len(slices)
 	}
