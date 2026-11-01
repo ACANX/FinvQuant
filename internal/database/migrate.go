@@ -118,7 +118,7 @@ func discoverMigrations(dir string) ([]migrationFile, error) {
 	}
 
 	// 同版本多文件：号段重排（需求 10881）后，安装目录里若残留旧号段脚本，会与
-	// 新号段脚本撞同一版本号（如 V100003 既是旧的 finv_market 建表、又是新的库校验）。
+	// 新号段脚本撞同一版本号（如 V100003 既是旧的 finv_market 建表、又是新的 schema_quant 建 schema）。
 	// 此时无论先执行哪一个都可能撞表或撞主键，必须拒绝执行并指出冲突文件。
 	if len(byVersion) != len(files) {
 		conflicts := make([]string, 0, len(files)-len(byVersion))
