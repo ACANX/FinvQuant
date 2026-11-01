@@ -37,6 +37,12 @@
 
 ### 变更
 
+- **新增建库一次性脚本 `Deploy/Upgrade/2611-002-CreateDatabase.sql`（需求 10882 ①）**
+  - 背景：迁移器每个脚本跑在单事务里，`CREATE DATABASE` 不能在事务块内执行，且迁移只能发生在已连上的库；此前建库只存在于容器 `POSTGRES_DB` 与 `Install.sh` 的 `createdb`，仓库里没有可手工复用的建库脚本。
+  - 用法：`psql "postgres://postgres@host:5432/postgres" -v db=finv -v owner=finv -f Deploy/Upgrade/2611-002-CreateDatabase.sql`（参数缺省即 `finv`/`finv`）。
+  - 行为：前置校验角色存在 → 库不存在则 `CREATE DATABASE ... OWNER ... ENCODING UTF8 TEMPLATE template0` → 属主不符则 `ALTER DATABASE ... OWNER TO` → 切库 `GRANT ALL ON DATABASE` / `GRANT ALL ON SCHEMA public` → 三项收敛校验（库名 / 属主 / `public` 的 `CREATE`）。幂等、不建角色、不设密码、不 DROP/TRUNCATE 任何对象。
+  - 与迁移链的关系：`V100010__verify_database.sql` 只校验库名，建库仍归部署侧（容器 `POSTGRES_DB`、裸机 `Install.sh`、或本脚本）。
+
 - **基础准备段改为「一对象一脚本」（需求 10882 ①，已落地）**
   - 结论：`V100000`～`V199999` 段中**一个角色 / 一个 schema / 一次库校验各占一个脚本**，不再用一个脚本创建多个对象。
   - 落地拆分：`V100001__role_finv_create`（角色）、`V100002__schema_quote_create`、`V100003__schema_quant_create`、`V100004__schema_futu_create`、`V100005__schema_sys_create`、`V100006__schema_sche_create`、`V100007__schema_cdeu_create`、`V100008__schema_archive_create`（七个 schema 各自一个文件，每个只做 `CREATE SCHEMA IF NOT EXISTS` + 自身收敛校验）、`V100009__schema_brs_create`（`brs` 从数据段 `V300060` 归位到基础准备段，`V300060` 里同名语句保留、幂等）、`V100010__verify_database`（库名校验）、`V100011__verify_role_privilege`（角色对 `public` 的 `CREATE` 权限）、`V100012__verify_schema_privilege`（8 个基础 schema 的 `USAGE`/`CREATE` 权限）——三项校验各占一个文件。
