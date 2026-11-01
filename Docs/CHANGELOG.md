@@ -257,6 +257,14 @@
   - 新增 `kline/vwap_compat_test.go`（7 个用例）：vwap 优先 / pacd 兼容 / vwap=null 回退 / 两列皆空 / 增量补丁列名 / 短名 vwa / `/Page` 输出。
   - 本机 API 实测：`pacd` 入参落库 `vwap=3.56`；`vwap=9.99` 与 `pacd=3.56` 同传取 9.99；`/Page`、`/PageUni` 第 13 项为 `vwa`；`/Add`、`/Query` 输出 `vwap` 且无 `pacd`。
 
+### 新增
+
+- **BRS RDB 数据源登记表 `brs.brs_bak_rdb_datasource`（需求 10909，仅建表）**
+  - 现状：备份连接参数只来自 `FINV_PG_*` 环境变量，只能备份当前实例；多实例/跨库备份需要把数据源落库，故先把登记表建好。
+  - 字段：`code`（唯一，供备份登记引用）、`name`、`rdb_type`（首期仅 `postgresql`）、`host`、`port`、`database_name`、`username`、`password_cipher`（加密口令；空则回退环境变量，禁止明文）、`ssl_mode`、`connect_timeout`、`is_default`（全表最多一条，部分唯一索引）、`flag_enable`、`priority`、`remark`、`creator`、`gmt_create`/`gmt_update`。
+  - 迁移 `V300092`：建表 + 6 个 CHECK + 唯一约束 + 部分唯一索引 + `gmt_update` 触发器（复用 `brs.brs_set_gmt_update()`）；**不插种子**，不注册接口、不改备份链路。
+  - 本机实测：`V300092` success；`\d` 结构符合设计；两条 `is_default='1'` 第二条被部分唯一索引拒绝；`port=70000` 被 CHECK 拒绝；`UPDATE` 后 `gmt_update` 自动刷新。
+
 ### 变更
 
 - **小表全量登记表改名 `brs_bak_rdb_table` → `brs_bak_rdb_table_full`（需求 10908）**

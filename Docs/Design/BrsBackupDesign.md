@@ -222,6 +222,15 @@ type Store interface {
 
 **刻意不含** `cdeu.finv_quote_secu_kline_min`：该表体量大且已有「导出 → 上传」的专用归档链路（见 `CdeuWorkflowDesign.md`），用 `pg_dump` 备份既慢又重复。
 
+### 7.4 数据源登记表 `brs.brs_bak_rdb_datasource`（已建表、业务未实现）
+
+需求 10909 先建表，为「多实例 / 跨库备份」预留：`code`（唯一，供备份登记引用）、`name`、`rdb_type`、
+`host`/`port`/`database_name`/`username`、`password_cipher`（加密口令，空则回退 `FINV_PG_PASSWORD`）、
+`ssl_mode`、`connect_timeout`、`is_default`（全表最多一条，部分唯一索引）、`flag_enable`、`priority`、`remark`、`gmt_*`。
+
+> **当前不生效**：备份连接参数仍取 `FINV_PG_*` 环境变量，表中无种子数据、无接口、备份链路不读取；
+> 连接测试、口令加解密与页面维护待后续需求实现。
+
 ### 7.3 配置项
 
 | 编号 | 名称 | 默认 | 说明 |
