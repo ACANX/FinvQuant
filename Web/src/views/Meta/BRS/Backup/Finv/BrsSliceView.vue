@@ -94,6 +94,12 @@ const autoScroll = ref(true)
 const dialog = ref(false)
 const form = ref<SliceRule>(emptyRule())
 
+// 分片明细（调用 Slice/Plan，展示每个分片的键、行数与是否已备份）
+const planDialog = ref(false)
+const planLoading = ref(false)
+const planDetail = ref<SlicePlan | null>(null)
+const planOnlyMissing = ref(false)
+
 const state = ref<SliceRunState>({
   run_id: '',
   trigger: '',
@@ -167,7 +173,7 @@ function emptyRule(): SliceRule {
     slice_where_tpl: 'date = {value}',
     slice_file_tpl: '{key}',
     bak_scope: 'data',
-    compression: 'zstd',
+    compression: 'gzip',
     min_rows: 1000,
     max_slices: 5000,
     redo_slices: 2,
@@ -218,6 +224,26 @@ async function saveRule() {
     saving.value = false
   }
 }
+
+async function openPlan(row: SliceRule) {
+  planDialog.value = true
+  planLoading.value = true
+  planDetail.value = null
+  planOnlyMissing.value = false
+  try {
+    planDetail.value = await apiGet<SlicePlan>(`${API_PREFIX}/Plan?ruleId=${row.idn}`)
+  } catch (e) {
+    error.value = (e as Error).message
+    planDialog.value = false
+  } finally {
+    planLoading.value = false
+  }
+}
+
+const planItems = computed(() => {
+  const items = planDetail.value?.items ?? []
+  return planOnlyMissing.value ? items.filter((item) => !item.backuped) : items
+})
 
 async function toggleRule(row: SliceRule) {
   error.value = ''
@@ -408,6 +434,7 @@ onBeforeUnmount(() => window.clearTimeout(timer))
             </td>
             <td class="text-center">{{ row.flag_upload === '1' ? '是' : '否' }}</td>
             <td class="text-center">
+              <v-btn size="x-small" variant="text" @click="openPlan(row)">分片明细</v-btn>
               <v-btn size="x-small" variant="text" @click="openEdit(row)">编辑</v-btn>
               <v-btn size="x-small" variant="text" @click="toggleRule(row)">{{ row.flag_enable === '1' ? '停用' : '启用' }}</v-btn>
             </td>
@@ -449,7 +476,15 @@ onBeforeUnmount(() => window.clearTimeout(timer))
             <v-text-field v-model.number="form.priority" label="优先级" type="number" density="compact" variant="outlined" />
           </v-col>
           <v-col cols="12" sm="3">
-            <v-select v-model="form.compression" :items="['zstd', 'gzip', 'none']" label="压缩" density="compact" variant="outlined" />
+            <v-select
+              v-model="form.compression"
+              :items="[{ title: 'gzip（默认）', value: 'gzip' }, { title: '不压缩', value: 'none' }]"
+              item-title="title"
+              item-value="value"
+              label="压缩"
+              density="compact"
+              variant="outlined"
+            />
           </v-col>
           <v-col cols="12">
             <v-textarea
@@ -477,7 +512,15 @@ onBeforeUnmount(() => window.clearTimeout(timer))
             <v-text-field v-model="form.slice_file_tpl" label="文件名模板" density="compact" variant="outlined" hint="默认 {key}" persistent-hint />
           </v-col>
           <v-col cols="12" sm="4">
-            <v-select v-model="form.bak_scope" :items="['data', 'both', 'schema']" label="备份范围" density="compact" variant="outlined" />
+            <v-select
+              v-model="form.bak_scope"
+              :items="[{ title: 'data（仅数据，结构由迁移创建）', value: 'data' }]"
+              item-title="title"
+              item-value="value"
+              label="备份范围"
+              density="compact"
+              variant="outlined"
+            />
           </v-col>
           <v-col cols="12" sm="4">
             <v-select v-model="form.flag_upload" :items="[{ title: '上传', value: '1' }, { title: '仅本地', value: '0' }]" item-title="title" item-value="value" label="对象存储" density="compact" variant="outlined" />
@@ -503,6 +546,58 @@ onBeforeUnmount(() => window.clearTimeout(timer))
         <v-spacer />
         <v-btn variant="text" @click="dialog = false">取消</v-btn>
         <v-btn color="primary" :loading="saving" @click="saveRule">保存</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!-- 分片明细 -->
+  <v-dialog v-model="planDialog" max-width="760" scrollable>
+    <v-card>
+      <v-card-title class="d-flex align-center">
+        <span>分片明细<template v-if="planDetail">：{{ planDetail.table }}</template></span>
+        <v-spacer />
+        <v-switch v-model="planOnlyMissing" label="仅看待备份" density="compact" hide-details class="mr-2" />
+      </v-card-title>
+      <v-card-text>
+        <div v-if="planLoading" class="text-medium-emphasis">加载中…</div>
+        <template v-else-if="planDetail">
+          <v-row dense class="text-body-2 mb-2">
+            <v-col cols="6" sm="3"><span class="text-medium-emphasis">分片总数：</span>{{ planDetail.total }}</v-col>
+            <v-col cols="6" sm="3"><span class="text-medium-emphasis">已备份：</span>{{ planDetail.done }}</v-col>
+            <v-col cols="6" sm="3"><span class="text-medium-emphasis">待备份：</span>{{ planDetail.missing }}</v-col>
+            <v-col cols="6" sm="3"><span class="text-medium-emphasis">跳过（低于 min_rows）：</span>{{ planDetail.skipped }}</v-col>
+          </v-row>
+          <v-table density="compact" class="text-body-2" height="360">
+            <thead>
+              <tr>
+                <th>分片键</th>
+                <th class="text-right">行数</th>
+                <th class="text-center">状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="planItems.length === 0">
+                <td colspan="3" class="text-medium-emphasis">无匹配分片</td>
+              </tr>
+              <tr v-for="item in planItems" :key="item.key">
+                <td><code>{{ item.key }}</code></td>
+                <td class="text-right">{{ item.rows }}</td>
+                <td class="text-center">
+                  <v-chip size="x-small" :color="item.backuped ? 'success' : 'warning'">
+                    {{ item.backuped ? '已备份' : '待备份' }}
+                  </v-chip>
+                </td>
+              </tr>
+            </tbody>
+          </v-table>
+          <div class="text-caption text-medium-emphasis mt-2">
+            明细最多返回 200 条；末尾 {{ Math.max(planDetail.total - planDetail.redo_from, 0) }} 个分片属重做窗口，每轮会重新备份。
+          </div>
+        </template>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn variant="text" @click="planDialog = false">关闭</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

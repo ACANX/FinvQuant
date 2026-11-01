@@ -49,7 +49,7 @@
 | `slice_where_tpl` | string | 分片条件模板，占位 `{value}` / `{start}` / `{end}` |
 | `slice_file_tpl` | string | 产物文件名模板，占位 `{key}`，默认 `{key}` |
 | `bak_scope` | string | 固定 `data`（分片只导数据，表结构由迁移创建） |
-| `compression` | string | `gzip`（默认，产物 `.mvsv.gz`）/ `none`（`.mvsv`） |
+| `compression` | string | `gzip`（默认，产物 `.mvsv.gz`）/ `none`（`.mvsv`）；分片产物是 MVSV-2 文本，**不支持 `zstd`** |
 | `min_rows` | number | 分片行数下限，低于该值跳过 |
 | `max_slices` | number | 分片数上限，超过则拒绝执行 |
 | `redo_slices` | number | 末尾 N 个分片每轮强制重做 |
@@ -104,7 +104,7 @@
 | `slice_where_tpl` | 至少包含 `{value}` 或 `{start}`/`{end}`；用 `{start}/{end}` 时要求分片 SQL 返回区间值 |
 | `slice_file_tpl` | 必须包含 `{key}` |
 | `bak_scope` | 只能是 `data` |
-| `compression` | `gzip` / `none` |
+| `compression` | `gzip` / `none`（`zstd` 会被拒绝：分片产物是 MVSV-2 文本） |
 | `min_rows` / `max_slices` / `redo_slices` | `min_rows>=0`、`1<=max_slices<=100000`、`0<=redo_slices<=max_slices` |
 
 ## 4. `Run/Manual` 与 `Run/Status`
@@ -130,7 +130,9 @@
 ## 5. 产物与恢复
 
 产物命名：`<分片键>.mvsv[.gz]`（`slice_file_tpl` 可改，默认直接用分片键）。文件为 **MVSV-2**，
-头部含 `# Field` / `# FieldType` / `# FieldName` / `# 字段名称` / `# Count`，与 `qiom export` 完全一致。
+头部含 `# Field` / `# FieldType` / `# FieldName` / `# 字段名称` / `# Count` / `# Escape`，与 `qiom export` 完全一致。
+
+> 文本列（`ext_field`/`remark`/`provider`）允许包含 `|`、换行等字符：写出时按 `# Escape : "backslash"` 转义，`qiom verify` / `qiom import` 可正确还原（详见 [`../../DataFormat/MvsvFileFormat.md`](../../DataFormat/MvsvFileFormat.md) §5.5）。
 
 ```bash
 # 本地

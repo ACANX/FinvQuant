@@ -146,13 +146,14 @@ func (in *SliceRuleInput) validate() error {
 	if in.BakScope != ScopeData {
 		return inputErrorf("bak_scope 只能是 data（分片备份只导数据，表结构由迁移创建）")
 	}
+	// 分片产物是 MVSV-2 文本文件，只支持 gzip（默认）或不压缩；pg_dump 的 zstd 不适用。
 	if in.Compression == "" {
-		in.Compression = CompressionZstd
+		in.Compression = CompressionGzip
 	}
 	switch in.Compression {
-	case CompressionNone, CompressionGzip, CompressionZstd:
+	case CompressionNone, CompressionGzip:
 	default:
-		return inputErrorf("compression 只能是 none / gzip / zstd")
+		return inputErrorf("compression 只能是 gzip / none（分片产物为 MVSV-2 文本）")
 	}
 	if in.Priority < 0 {
 		return inputErrorf("priority 不能为负")
