@@ -53,7 +53,8 @@ services:
       # 导出低峰窗口改由 sys.sys_config 20006 承载（格式 HH:MM:SS|HH:MM:SS），
       # 不再从环境变量读取；缺失或非法时按内置默认 00:30:00|06:30:00 兜底。
       FINV_QUOTE_DEDUB_PAGE_SIZE: ${FINV_QUOTE_DEDUB_PAGE_SIZE:-10000}
-      # BRS 备份根目录（默认 /data/App/Backup/BRS，不带产品名段）；留空即用代码默认值
+      # BRS 备份根目录：容器内默认 /data/App/Backup/BRS（由下方 volume 映射到宿主）。
+      # 注意与 Native 不同：Native 默认 <PREFIX>/Backup/BRS，由 Install/Upgrade 脚本创建。
       FINV_BRS_BACKUP_DIR: ${FINV_BRS_BACKUP_DIR:-/data/App/Backup/BRS}
     volumes:
       # 本地导出与上传暂存目录（容器重建不丢文件；独享存储可用 NAS 挂载目录）

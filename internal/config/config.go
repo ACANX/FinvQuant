@@ -104,7 +104,7 @@ func Load() *Config {
 		LogDir:            envOr("FINV_LOG_DIR", ""),
 		LogFile:           envOr("FINV_LOG_FILE", "FinvQuant.log"),
 		LogMaxMB:          envIntOr("FINV_LOG_MAX_MB", 10),
-		BrsBackupDir:      envOr("FINV_BRS_BACKUP_DIR", "/data/App/Backup/BRS"),
+		BrsBackupDir:      envOr("FINV_BRS_BACKUP_DIR", "/data/App/FinvQuant/Backup/BRS"),
 
 		ErrorDetailMode:         envLowerOr("FINV_ERROR_DETAIL_MODE", "safe"),
 		ErrorDebugToken:         os.Getenv("FINV_ERROR_DEBUG_TOKEN"),

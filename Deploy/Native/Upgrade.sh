@@ -92,6 +92,15 @@ if [[ ! -f "${ENV_FILE}" && -f "${LEGACY_ENV_FILE}" ]]; then
   ok "已迁移旧配置 ${LEGACY_ENV_FILE} → ${ENV_FILE}"
 fi
 [[ -f "${ENV_FILE}" ]] || die "未找到 ${ENV_FILE}，请先执行 Install.sh（或用 --prefix 指定安装根目录）"
+
+# BRS 备份目录：目录预先创建 + 旧配置补齐 FINV_BRS_BACKUP_DIR（不覆盖已有值）。
+# 老版本 env 没有该键时二进制会用默认值，可能落在不可写路径导致首次备份失败。
+install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}/BRS"
+if ! grep -q '^FINV_BRS_BACKUP_DIR=' "${ENV_FILE}"; then
+  printf '\n# BRS 表级备份目录（升级脚本自动补齐）\nFINV_BRS_BACKUP_DIR=%s\n' "${BACKUP_DIR}/BRS" >> "${ENV_FILE}"
+  ok "已补齐 FINV_BRS_BACKUP_DIR=${BACKUP_DIR}/BRS"
+fi
 ok "安装根目录：${PREFIX}"
 
 # ---------------------------------------------------------------------

@@ -39,8 +39,12 @@ const CronConfigNo = 39001
 const EnvConfigNo = 1002
 
 // defaultBackupDir 未配置 FINV_BRS_BACKUP_DIR 时的兜底备份根目录。
-// 不带产品名（需求 10893）：路径只由使用方配置决定，代码不再自作主张加 /FinvQuant 段。
-const defaultBackupDir = "/data/App/Backup/BRS"
+//
+// 取 Native 安装根目录下的 Backup/BRS（与 Install.sh 创建的 <PREFIX>/Backup 一致）：
+// 裸机部署的 /data/App 往往只读或不属于运行用户，落到 /data/App/Backup 会 mkdir 失败
+// （2026-11-01 线上：mkdir /data/App/Backup: read-only file system）。
+// 容器部署由 docker-compose 显式传 FINV_BRS_BACKUP_DIR=/data/App/Backup/BRS，不受影响。
+const defaultBackupDir = "/data/App/FinvQuant/Backup/BRS"
 
 // Options 备份执行参数。
 type Options struct {
@@ -249,8 +253,8 @@ func RunOnceWithHooks(ctx context.Context, pool *pgxpool.Pool, opts Options, hoo
 	day := time.Now().Format("20060102")
 	dayDir := filepath.Join(opts.BackupDir, day)
 	if err := os.MkdirAll(dayDir, 0o750); err != nil {
-		hooks.emit("error", "创建备份目录失败: %v", err)
-		return fmt.Errorf("创建备份目录失败: %w", err)
+		hooks.emit("error", "创建备份目录失败: %v；请检查 FINV_BRS_BACKUP_DIR（当前 %s）是否存在且运行用户可写", err, opts.BackupDir)
+		return fmt.Errorf("创建备份目录失败: %w（FINV_BRS_BACKUP_DIR=%s，请确认目录可写）", err, opts.BackupDir)
 	}
 
 	store := opts.Store

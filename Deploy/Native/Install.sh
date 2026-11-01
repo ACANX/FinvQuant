@@ -213,6 +213,9 @@ install -d -o root -g root -m 0755 "${BIN_DIR}"
 install -d -o root -g root -m 0755 "${DEPLOY_DIR}"
 install -d -o root -g "${APP_GROUP}" -m 0755 "${MIGRATIONS_DIR}"
 install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
+# BRS 表级备份目录必须由安装脚本预建：运行用户无权在 /data/App 下创建目录，
+# 等首次备份再 MkdirAll 会直接失败（read-only file system / permission denied）。
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}/BRS"
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0755 "${EXPORT_DIR}"
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${LOG_DIR}"
 ok "目录：${BIN_DIR} / ${MIGRATIONS_DIR} / ${BACKUP_DIR} / ${EXPORT_DIR} / ${LOG_DIR} / ${DEPLOY_DIR}（配置：${ENV_FILE}）"
@@ -337,6 +340,11 @@ if [[ -f "${ENV_FILE}" ]]; then
     printf '\n# 日志目录（安装脚本自动补齐）\nFINV_LOG_DIR=%s\nFINV_LOG_FILE=FinvQuant.log\nFINV_LOG_MAX_MB=10\n' "${LOG_DIR}" >> "${ENV_FILE}"
     ok "已补齐 FINV_LOG_DIR=${LOG_DIR}"
   fi
+  # 旧配置补齐 BRS 备份目录（不覆盖已有值）
+  if ! grep -q '^FINV_BRS_BACKUP_DIR=' "${ENV_FILE}"; then
+    printf '\n# BRS 表级备份目录（安装脚本自动补齐）\nFINV_BRS_BACKUP_DIR=%s\n' "${BACKUP_DIR}/BRS" >> "${ENV_FILE}"
+    ok "已补齐 FINV_BRS_BACKUP_DIR=${BACKUP_DIR}/BRS"
+  fi
 else
   DB_PASSWORD="$(openssl rand -hex 16)"
   install -o root -g root -m 0600 "${SCRIPT_DIR}/FinvQuant.env.example" "${ENV_FILE}"
@@ -346,6 +354,7 @@ else
   sed -i "s|^FINV_QUOTE_DEDUB_OUTPUT_DIR=.*|FINV_QUOTE_DEDUB_OUTPUT_DIR=${EXPORT_DIR}|" "${ENV_FILE}"
   sed -i "s|^FINV_QUOTE_DEDUB_UPLOAD_DIR=.*|FINV_QUOTE_DEDUB_UPLOAD_DIR=${EXPORT_DIR}/Upload|" "${ENV_FILE}"
   sed -i "s|^FINV_LOG_DIR=.*|FINV_LOG_DIR=${LOG_DIR}|" "${ENV_FILE}"
+  sed -i "s|^FINV_BRS_BACKUP_DIR=.*|FINV_BRS_BACKUP_DIR=${BACKUP_DIR}/BRS|" "${ENV_FILE}"
   ok "已生成 ${ENV_FILE}（随机数据库密码，权限 600）"
 fi
 [[ -n "${DB_PASSWORD}" ]] || die "未能读取或生成数据库密码，请检查 ${ENV_FILE}"

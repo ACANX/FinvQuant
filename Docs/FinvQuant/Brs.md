@@ -9,7 +9,7 @@
 
 - 每天按 cron 自动执行一次表级备份；
 - 备份范围由登记表控制（`priority` 唯一，按倒序执行）；
-- 备份文件保存在 `$FINV_BRS_BACKUP_DIR/<yyyyMMdd>/`（默认 `/data/App/Backup/BRS`，不含产品名段）；文件名 `<db>.<schema>.<table>.dump`（库名前缀取登记 `db`），不含时间戳；
+- 备份文件保存在 `$FINV_BRS_BACKUP_DIR/<yyyyMMdd>/`；Native 默认 `<PREFIX>/Backup/BRS`（即 `/data/App/FinvQuant/Backup/BRS`，`Install.sh`/`Upgrade.sh` 会预建该目录并补齐 env 项），容器默认 `/data/App/Backup/BRS`（compose volume 映射到宿主）；文件名 `<db>.<schema>.<table>.dump`（库名前缀取登记 `db`），不含时间戳；
 - 过程只写服务日志（`Log/FinvQuant.log`，前缀 `[brs]`），暂不落库。
 
 ## 2. 配置

@@ -127,6 +127,15 @@
 
 ### 修复
 
+- **裸机部署首次备份失败：`mkdir /data/App/Backup: read-only file system`（需求 10901）**
+  - `FINV_BRS_BACKUP_DIR` 的代码默认值改回 `<PREFIX>/Backup/BRS`（`/data/App/FinvQuant/Backup/BRS`）：裸机 `/data/App` 只读或不属于运行用户，不能作为默认落点；容器由 compose 显式传 `/data/App/Backup/BRS`，行为不变。
+  - `Install.sh` 预建 `<PREFIX>/Backup/BRS`（属主运行用户、0750），并在 `finvquant.env` 中补齐 `FINV_BRS_BACKUP_DIR`（新装改写、升级补齐、不覆盖已有值）。
+  - `Upgrade.sh` 同样预建目录并补齐老 env 的缺失项——老版本 `finvquant.env` 没有该键正是本次故障的直接原因。
+  - 备份创建目录失败时，错误与日志补充可操作提示（检查 `FINV_BRS_BACKUP_DIR` 与目录可写性）。
+  - 文档：`Docs/FinvQuant/Brs.md`、`Deploy/Native/FinvQuant.env.example`、`docker-compose.yml` 注释说明 Native 与容器的默认目录差异。
+
+### 修复
+
 - **V300083 的收敛校验过严导致服务无法启动（线上事故）**
   - 现象：生产库 `public` 下仍有早期落在 public 的分钟 K 线表 `public.finv_quote_secu_kline_min`，原校验遍历 `pg_tables` 要求「`public`/`futu` 下所有表都已登记」，判定未登记后 `RAISE EXCEPTION`，迁移失败 → `finvquant.service` 反复重启（restart counter 持续累加）。
   - 修复：校验改为**只检查本迁移显式列出的 13 张表**是否已登记，不再要求 schema 下全表覆盖；其它历史遗留表由运维在「备份登记维护」页面按需追加。
