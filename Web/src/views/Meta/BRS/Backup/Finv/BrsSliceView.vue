@@ -74,6 +74,8 @@ interface SliceRunState {
   done: number
   failed: number
   backup_dir: string
+  backup_dir_ok: boolean
+  backup_dir_error: string
   error: string
   logs: LogEntry[]
   last_seq: number
@@ -113,6 +115,8 @@ const state = ref<SliceRunState>({
   done: 0,
   failed: 0,
   backup_dir: '',
+  backup_dir_ok: true,
+  backup_dir_error: '',
   error: '',
   logs: [],
   last_seq: 0,
@@ -357,6 +361,10 @@ onBeforeUnmount(() => window.clearTimeout(timer))
     </v-card-subtitle>
 
     <v-card-text>
+      <v-alert v-if="state.backup_dir_ok === false" type="error" class="mb-3" density="compact">
+        备份目录不可用：{{ state.backup_dir_error }}（当前 <code>{{ state.backup_dir }}</code>）；
+        请确认目录存在、位于可写文件系统且运行用户可写（Native 由 Install/Upgrade 预建，容器检查 volume 挂载）
+      </v-alert>
       <v-alert v-if="error" type="error" class="mb-3" density="compact">{{ error }}</v-alert>
       <v-alert v-if="message" type="success" class="mb-3" density="compact">{{ message }}</v-alert>
 
@@ -395,6 +403,12 @@ onBeforeUnmount(() => window.clearTimeout(timer))
         <v-col cols="12" sm="6" md="3"><span class="text-medium-emphasis">开始：</span>{{ formatTime(state.started_at) }}</v-col>
         <v-col cols="12" sm="6" md="3"><span class="text-medium-emphasis">耗时：</span>{{ state.elapsed_ms > 0 ? (state.elapsed_ms / 1000).toFixed(1) + 's' : '-' }}</v-col>
         <v-col cols="12" sm="6" md="3"><span class="text-medium-emphasis">失败分片：</span>{{ state.failed }}</v-col>
+        <v-col cols="12" sm="6" md="3">
+          <span class="text-medium-emphasis">备份目录：</span>
+          <code>{{ state.backup_dir || '-' }}</code>
+          <v-icon v-if="state.backup_dir_ok" icon="mdi-check-circle" color="success" size="x-small" class="ml-1" />
+          <v-icon v-else icon="mdi-alert-circle" color="error" size="x-small" class="ml-1" />
+        </v-col>
         <v-col v-if="state.current_table" cols="12">
           <span class="text-medium-emphasis">当前：</span>
           <code>{{ state.current_table }} / {{ state.current_slice }}</code>

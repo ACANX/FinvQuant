@@ -12,7 +12,7 @@ BRS 有**两套相互独立的备份策略**，各自一张登记表、各自一
 | 策略 | 适用对象 | 登记表 | 产物 | 触发 |
 |------|----------|--------|------|------|
 | 小表全量 | 配置/字典/元数据等小表（24 张） | `brs.brs_bak_rdb_table` | 整表 1 个 `.dump`（`pg_dump -Fc`） | 39001 cron + 页面手动 |
-| 大表增量（分片） | 体量大、按天/周/月增长的表（如 K 线） | `brs.brs_bak_rdb_table_slice` | 按分片键 1 片 1 个 `.mvsv[.gz]`（MVSV-2） | 页面手动（本期） |
+| 大表增量（分片） | 体量大、按天/周/月增长的表（如 K 线） | `brs.brs_bak_rdb_table_incr` | 按分片键 1 片 1 个 `.mvsv[.gz]`（MVSV-2） | 页面手动（本期） |
 
 - 小表全量：每天按 cron 自动执行一次，备份范围由登记表控制（`priority` 唯一，倒序执行）；
 - 备份文件保存在 `$FINV_BRS_BACKUP_DIR/<yyyyMMdd>/`；Native 默认 `<PREFIX>/Backup/BRS`（即 `/data/App/FinvQuant/Backup/BRS`，`Install.sh`/`Upgrade.sh` 会预建该目录并补齐 env 项），容器默认 `/data/App/Backup/BRS`（compose volume 映射到宿主）；文件名 `<db>.<schema>.<table>.dump`（库名前缀取登记 `db`），不含时间戳；
@@ -25,13 +25,15 @@ BRS 有**两套相互独立的备份策略**，各自一张登记表、各自一
 
 | 项 | 说明 |
 |------|------|
-| 登记表 | `brs.brs_bak_rdb_table_slice`（迁移 `V300088`，首期种子：`cdeu.finv_quote_secu_kline_min` 按自然日） |
+| 登记表 | `brs.brs_bak_rdb_table_incr`（迁移 `V300088` 建表、`V300090` 由 `_slice` 改名为 `_incr`；首期种子：`cdeu.finv_quote_secu_kline_min` 按自然日） |
 | 切分依据 | `slice_mode`（`date`/`week`/`month`/`column`/`expr`）+ `slice_where_tpl`（占位 `{value}`/`{start}`/`{end}`） |
 | 导出方式 | 按行读取分片数据后写 **MVSV-2**（复用 `mvsv.WriteV2`，与 `qiom export` 同格式）；`pg_dump` 无行级过滤（无 `--where`），故不用它 |
 | 本地产物 | `<备份目录>/Slice/<db>.<schema>.<表>/<分片键>.mvsv.gz`（`compression=none` 时 `.mvsv`） |
 | 远端 key | `<prefix>/<env>/<db>.<schema>.<表>/<分片键>.mvsv.gz` |
 | 增量判定 | 分片键从库枚举 → 本地文件或远端对象已存在即跳过；末尾 `redo_slices` 个分片每轮重做（当天可能仍在增长） |
 | 粒度保护 | `min_rows`（低于则跳过）、`max_slices`（超过则拒绝执行，防误配） |
+| 目录预检 | 启动时与每轮执行前各预检一次 `<备份目录>/Slice` 是否可写；不可写时**整轮一次性失败**并在页面顶部红色告警（`backup_dir_ok=false` + `backup_dir_error`），不逐分片重复报错 |
+| 目录创建 | Native：`Install.sh`/`Upgrade.sh` 预建 `<PREFIX>/Backup/BRS/Slice`（属主运行用户，0750）；容器：`FINV_BRS_BACKUP_DIR` 指向的 volume 需可写 |
 | 恢复 | 目标库先由迁移建好表结构，再 `qiom import <分片>.mvsv.gz`（默认 upsert，可按需 `qiom verify` 先校验） |
 
 ```bash

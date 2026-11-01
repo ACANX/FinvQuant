@@ -1,4 +1,4 @@
-// 大表分片备份登记（brs.brs_bak_rdb_table_slice）的维护：列表 / 新增编辑 / 分片计划查询。
+// 大表分片备份登记（brs.brs_bak_rdb_table_incr）的维护：列表 / 新增编辑 / 分片计划查询。
 //
 // 与执行链（RunSliceOnceWithHooks）共用同一张登记表：页面改完规则后，
 // 下一次手动触发即按新规则执行，不需要重启服务。
@@ -26,7 +26,7 @@ SELECT idn, rdb_type, db, schema_name, table_name, flag_enable, priority,
        slice_mode, slice_key_sql, slice_where_tpl, slice_file_tpl,
        bak_scope, compression, min_rows, max_slices, redo_slices, flag_upload,
        remark, creator, gmt_create, gmt_update
-  FROM brs.brs_bak_rdb_table_slice
+  FROM brs.brs_bak_rdb_table_incr
  ORDER BY priority DESC, idn ASC`
 	rows, err := pool.Query(ctx, query)
 	if err != nil {
@@ -216,12 +216,12 @@ func SaveSliceRule(ctx context.Context, pool *pgxpool.Pool, in SliceRuleInput, o
 	}
 
 	const upsert = `
-INSERT INTO brs.brs_bak_rdb_table_slice
+INSERT INTO brs.brs_bak_rdb_table_incr
     (rdb_type, db, schema_name, table_name, flag_enable, priority,
      slice_mode, slice_key_sql, slice_where_tpl, slice_file_tpl,
      bak_scope, compression, min_rows, max_slices, redo_slices, flag_upload, remark, creator)
 VALUES ('postgresql', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-ON CONFLICT ON CONSTRAINT uq_brs_bak_rdb_table_slice DO UPDATE SET
+ON CONFLICT ON CONSTRAINT uq_brs_bak_rdb_table_incr DO UPDATE SET
     flag_enable     = EXCLUDED.flag_enable,
     priority        = EXCLUDED.priority,
     slice_mode      = EXCLUDED.slice_mode,
@@ -284,7 +284,7 @@ func ToggleSliceRule(ctx context.Context, pool *pgxpool.Pool, idn int64, enable 
 		flag = FlagEnable
 	}
 	res, err := pool.Exec(ctx,
-		`UPDATE brs.brs_bak_rdb_table_slice SET flag_enable = $2 WHERE idn = $1`, idn, flag)
+		`UPDATE brs.brs_bak_rdb_table_incr SET flag_enable = $2 WHERE idn = $1`, idn, flag)
 	if err != nil {
 		return SliceRule{}, fmt.Errorf("更新启用状态失败: %w", err)
 	}

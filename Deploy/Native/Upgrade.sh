@@ -101,6 +101,8 @@ fi
 # 老版本 env 没有该键时二进制会用默认值，可能落在不可写路径导致首次备份失败。
 install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}/BRS"
+# 大表分片备份子目录（需求 10905）：与 BRS 同级，运行用户需可写
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}/BRS/Slice"
 if ! grep -q '^FINV_BRS_BACKUP_DIR=' "${ENV_FILE}"; then
   printf '\n# BRS 表级备份目录（升级脚本自动补齐）\nFINV_BRS_BACKUP_DIR=%s\n' "${BACKUP_DIR}/BRS" >> "${ENV_FILE}"
   ok "已补齐 FINV_BRS_BACKUP_DIR=${BACKUP_DIR}/BRS"

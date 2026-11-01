@@ -10,6 +10,7 @@ package brs
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -18,21 +19,23 @@ import (
 
 // SliceRunState 分片备份运行状态快照。
 type SliceRunState struct {
-	RunID        string     `json:"run_id"`        // 本轮运行 ID（yyyyMMdd-HHmmss-manual）
-	Trigger      Trigger    `json:"trigger"`       // 触发来源（当前只有 manual）
-	Status       string     `json:"status"`        // 运行状态：idle / running / succeeded / failed
-	StartedAt    *time.Time `json:"started_at"`    // 开始时间
-	FinishedAt   *time.Time `json:"finished_at"`   // 结束时间
-	ElapsedMs    int64      `json:"elapsed_ms"`    // 已耗时（毫秒）
-	CurrentTable string     `json:"current_table"` // 当前处理的表（db.schema.table）
-	CurrentSlice string     `json:"current_slice"` // 当前处理的分片键
-	Total        int        `json:"total"`         // 本轮需处理的分片数（累计）
-	Done         int        `json:"done"`          // 已完成分片数
-	Failed       int        `json:"failed"`        // 失败分片数
-	BackupDir    string     `json:"backup_dir"`    // 本地备份根目录
-	Error        string     `json:"error"`         // 失败原因（成功时为空）
-	Logs         []LogEntry `json:"logs"`          // 运行日志（增量拉取）
-	LastSeq      int64      `json:"last_seq"`      // 最大日志序号
+	RunID        string     `json:"run_id"`           // 本轮运行 ID（yyyyMMdd-HHmmss-manual）
+	Trigger      Trigger    `json:"trigger"`          // 触发来源（当前只有 manual）
+	Status       string     `json:"status"`           // 运行状态：idle / running / succeeded / failed
+	StartedAt    *time.Time `json:"started_at"`       // 开始时间
+	FinishedAt   *time.Time `json:"finished_at"`      // 结束时间
+	ElapsedMs    int64      `json:"elapsed_ms"`       // 已耗时（毫秒）
+	CurrentTable string     `json:"current_table"`    // 当前处理的表（db.schema.table）
+	CurrentSlice string     `json:"current_slice"`    // 当前处理的分片键
+	Total        int        `json:"total"`            // 本轮需处理的分片数（累计）
+	Done         int        `json:"done"`             // 已完成分片数
+	Failed       int        `json:"failed"`           // 失败分片数
+	BackupDir    string     `json:"backup_dir"`       // 本地备份根目录
+	BackupDirOK  bool       `json:"backup_dir_ok"`    // 备份目录是否已创建且可写
+	BackupDirErr string     `json:"backup_dir_error"` // 目录不可用的原因（可用时为空）
+	Error        string     `json:"error"`            // 失败原因（成功时为空）
+	Logs         []LogEntry `json:"logs"`             // 运行日志（增量拉取）
+	LastSeq      int64      `json:"last_seq"`         // 最大日志序号
 }
 
 // SliceRunner 大表分片备份运行器（仅手动触发）。
@@ -50,13 +53,21 @@ func NewSliceRunner(pool *pgxpool.Pool, opts Options) *SliceRunner {
 	if opts.BackupDir == "" {
 		opts.BackupDir = defaultBackupDir
 	}
+	// 启动即预检一次：目录不可写在页面/日志里立刻可见，不必等到首次手动触发。
+	dirOK, dirErr := true, ""
+	if _, err := EnsureSliceRoot(opts.BackupDir); err != nil {
+		dirOK, dirErr = false, err.Error()
+		log.Printf("[brs] 大表分片备份目录不可用: %v", err)
+	}
 	return &SliceRunner{
 		pool: pool,
 		opts: opts,
 		state: SliceRunState{
-			Status:    StatusIdle,
-			BackupDir: opts.BackupDir,
-			Logs:      []LogEntry{},
+			Status:       StatusIdle,
+			BackupDir:    opts.BackupDir,
+			BackupDirOK:  dirOK,
+			BackupDirErr: dirErr,
+			Logs:         []LogEntry{},
 		},
 	}
 }
@@ -100,6 +111,26 @@ func (r *SliceRunner) run() {
 			r.mu.Unlock()
 		},
 	}
+
+	if _, err := EnsureSliceRoot(r.opts.BackupDir); err != nil {
+		r.mu.Lock()
+		r.state.BackupDirOK = false
+		r.state.BackupDirErr = err.Error()
+		r.mu.Unlock()
+		r.appendLog("error", err.Error())
+		r.mu.Lock()
+		finished := time.Now()
+		r.state.FinishedAt = &finished
+		r.state.Status = StatusFailed
+		r.state.Error = err.Error()
+		r.state.LastSeq = r.seq
+		r.mu.Unlock()
+		return
+	}
+	r.mu.Lock()
+	r.state.BackupDirOK = true
+	r.state.BackupDirErr = ""
+	r.mu.Unlock()
 
 	r.appendLog("info", fmt.Sprintf("开始执行大表分片备份（run_id=%s）", r.runID()))
 	err := RunSliceOnceWithHooks(context.Background(), r.pool, r.opts, hooks)

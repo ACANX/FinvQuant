@@ -304,7 +304,7 @@ type Store interface {
 
 | 项 | 小表全量 | 大表分片 |
 |---|---|---|
-| 登记表 | `brs.brs_bak_rdb_table` | `brs.brs_bak_rdb_table_slice`（`V300088`） |
+| 登记表 | `brs.brs_bak_rdb_table` | `brs.brs_bak_rdb_table_incr`（`V300088` 建表，`V300090` 由 `_slice` 改名为 `_incr`） |
 | 执行链 | `RunOnce` / `Runner` / 39001 cron | `RunSliceOnceWithHooks` / `SliceRunner`（仅手动） |
 | 导出 | `pg_dump -Fc`（custom 格式） | 按行读取后写 **MVSV-2**（复用 `mvsv.WriteV2`，与 `qiom export` 同格式） |
 | 产物 | `<备份目录>/<执行日>/<db>.<schema>.<表>.dump` | `<备份目录>/Slice/<db>.<schema>.<表>/<分片键>.mvsv.gz` |

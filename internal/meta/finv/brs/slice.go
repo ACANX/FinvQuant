@@ -1,4 +1,4 @@
-// 大表增量（分片）备份：登记表 brs.brs_bak_rdb_table_slice 的读取、分片枚举与逐片导出。
+// 大表增量（分片）备份：登记表 brs.brs_bak_rdb_table_incr 的读取、分片枚举与逐片导出。
 //
 // 与小表全量备份（brs.brs_bak_rdb_table + RunOnce）完全独立：
 //
@@ -41,7 +41,26 @@ const (
 // SliceDirName 分片备份在备份根目录下的子目录名。
 const SliceDirName = "Slice"
 
-// SliceRule 一条大表分片备份登记（对应 brs.brs_bak_rdb_table_slice 一行）。
+// EnsureSliceRoot 预检分片备份根目录：创建 `<BackupDir>/Slice` 并验证可写。
+//
+// 为什么单独做：目录不可写（只读挂载、属主不对、磁盘满）如果等到逐分片才失败，
+// 会给出 N 条重复错误；这里一次性定位并把原因写清楚（生产曾出现
+// `mkdir /data/App/Backup: read-only file system` 的同类问题）。
+func EnsureSliceRoot(backupDir string) (string, error) {
+	root := filepath.Join(backupDir, SliceDirName)
+	if err := os.MkdirAll(root, 0o750); err != nil {
+		return root, fmt.Errorf("创建分片备份根目录失败: %w（FINV_BRS_BACKUP_DIR=%s；请确认目录存在、位于可写文件系统且运行用户可写）",
+			err, backupDir)
+	}
+	probe := filepath.Join(root, ".write-probe")
+	if err := os.WriteFile(probe, []byte("ok"), 0o600); err != nil {
+		return root, fmt.Errorf("分片备份目录不可写: %w（%s）", err, root)
+	}
+	_ = os.Remove(probe)
+	return root, nil
+}
+
+// SliceRule 一条大表分片备份登记（对应 brs.brs_bak_rdb_table_incr 一行）。
 type SliceRule struct {
 	IDN           int64      `json:"idn"`             // 主键
 	RdbType       string     `json:"rdb_type"`        // 数据库类型（首期固定 postgresql）
@@ -105,7 +124,7 @@ SELECT idn, rdb_type, db, schema_name, table_name, flag_enable, priority,
        slice_mode, slice_key_sql, slice_where_tpl, slice_file_tpl,
        bak_scope, compression, min_rows, max_slices, redo_slices, flag_upload,
        remark, creator, gmt_create, gmt_update
-  FROM brs.brs_bak_rdb_table_slice
+  FROM brs.brs_bak_rdb_table_incr
  WHERE rdb_type = 'postgresql' AND flag_enable = '1'
  ORDER BY priority DESC, idn ASC`
 	rows, err := pool.Query(ctx, query)
@@ -279,6 +298,12 @@ func RunSliceOnceWithHooks(ctx context.Context, pool *pgxpool.Pool, opts Options
 	if len(rules) == 0 {
 		hooks.emit("warn", "没有启用的大表分片备份登记，跳过")
 		return nil
+	}
+
+	// 一次性预检备份根目录：不可写时整轮快速失败，避免逐分片重复报错。
+	if _, err := EnsureSliceRoot(opts.BackupDir); err != nil {
+		hooks.emit("error", "%v", err)
+		return err
 	}
 
 	store, env := resolveStoreAndEnv(ctx, pool, opts, hooks)

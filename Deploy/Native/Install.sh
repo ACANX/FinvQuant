@@ -219,6 +219,8 @@ install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
 # BRS 表级备份目录必须由安装脚本预建：运行用户无权在 /data/App 下创建目录，
 # 等首次备份再 MkdirAll 会直接失败（read-only file system / permission denied）。
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}/BRS"
+# 大表分片备份子目录（需求 10905）：与 BRS 同级，运行用户需可写
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}/BRS/Slice"
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0755 "${EXPORT_DIR}"
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${LOG_DIR}"
 ok "目录：${BIN_DIR} / ${MIGRATIONS_DIR} / ${BACKUP_DIR} / ${EXPORT_DIR} / ${LOG_DIR} / ${DEPLOY_DIR}（配置：${ENV_FILE}）"

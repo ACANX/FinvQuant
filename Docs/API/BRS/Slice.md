@@ -9,7 +9,7 @@
 
 | 项 | 小表全量备份（`Run.md`） | 大表分片备份（本文） |
 |---|---|---|
-| 登记 | `brs.brs_bak_rdb_table` | `brs.brs_bak_rdb_table_slice` |
+| 登记 | `brs.brs_bak_rdb_table` | `brs.brs_bak_rdb_table_incr`（增量，`V300088` 建表、`V300090` 改名） |
 | 切分 | 整表 1 个文件 | 按分片维度切分成 N 个文件（日 / 周 / 月 / 列值 / 自定义条件） |
 | 方式 | `pg_dump -Fc`（custom 格式，`pg_restore` 可选择性恢复） | 按行读取后写 **MVSV-2**（与 `qiom export` 同一 writer），gzip 压缩 |
 | 增量 | 每轮整表重做（覆盖同名文件） | 分片键从库枚举，已有产物跳过，只补缺失 + 末尾 `redo_slices` 个 |
