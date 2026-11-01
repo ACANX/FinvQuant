@@ -12,7 +12,7 @@
 -- 用法（连**任意已存在的库**执行，默认连 postgres 库）：
 --   psql "postgres://postgres@127.0.0.1:5432/postgres" \
 --        -v db=finv -v owner=finv \
---        -f 2611-002-CreateDatabase.sql
+--        -f 2610-001-CreateDatabase.sql
 --
 --   容器方式：PostgreSQL 镜像由 `POSTGRES_DB` 自动建库，一般**无需**执行本脚本；
 --   裸机方式：`Install.sh` 会自动 `createdb`；仅在需要手工预置库/属主时执行。

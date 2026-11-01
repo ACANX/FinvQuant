@@ -21,7 +21,7 @@ Deploy/
 | `Native/` | 是 | systemd unit、安装/升级/卸载脚本、环境变量与 Nginx 模板、安装与升级手册 |
 | `Migrations/` | 是 | 三段号段：`V100000`～`V199999` 基础准备（角色/库校验/schema）、`V200000`～`V299999` 表结构 DDL、`V300000`～`V399999` 数据，**历史文件不可回改** |
 | `Script/` | 是 | `PackSnapshot.sh`（快照包构建，CI 与本地共用）+ `PackSnapshot.cmd`（Windows 封装，转调 .sh）+ `Download.sh`/`Download.cmd`（一键下载发行包），见 §2.3 |
-| `Upgrade/` | 是 | 一次性升级/维护脚本（**不随启动自动执行**，需在部署前手工 `psql -f`）：如 `2611-001-MigrationSegmentsShift.sql`（存量库 `schema_version` 号段 +100000，marker 表保证只跑一次）、`2611-002-CreateDatabase.sql`（建库 + 属主 + `public` 授权，幂等；`CREATE DATABASE` 不能在迁移事务内执行，故不放进 `Migrations/`） |
+| `Upgrade/` | 是 | 一次性升级/维护脚本（**不随启动自动执行**，需在部署前手工 `psql -f`）：如 `2611-001-MigrationSegmentsShift.sql`（存量库 `schema_version` 号段 +100000，marker 表保证只跑一次）、`2610-001-CreateDatabase.sql`（建库 + 属主 + `public` 授权，幂等；`CREATE DATABASE` 不能在迁移事务内执行，故不放进 `Migrations/`） |
 | `Backup/` | 否 | `pg_dump -Fc` 产物，两种方式共用，命名 `finvquant_YYYYMMDD_HHMMSS.dump` |
 
 > Native 方式在宿主机上的安装根目录统一为 `/data/App/FinvQuant/`（二进制、迁移、配置、部署文件、备份与导出），

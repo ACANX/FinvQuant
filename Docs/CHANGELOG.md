@@ -37,9 +37,9 @@
 
 ### 变更
 
-- **新增建库一次性脚本 `Deploy/Upgrade/2611-002-CreateDatabase.sql`（需求 10882 ①）**
+- **新增建库一次性脚本 `Deploy/Upgrade/2610-001-CreateDatabase.sql`（需求 10882 ①）**
   - 背景：迁移器每个脚本跑在单事务里，`CREATE DATABASE` 不能在事务块内执行，且迁移只能发生在已连上的库；此前建库只存在于容器 `POSTGRES_DB` 与 `Install.sh` 的 `createdb`，仓库里没有可手工复用的建库脚本。
-  - 用法：`psql "postgres://postgres@host:5432/postgres" -v db=finv -v owner=finv -f Deploy/Upgrade/2611-002-CreateDatabase.sql`（参数缺省即 `finv`/`finv`）。
+  - 用法：`psql "postgres://postgres@host:5432/postgres" -v db=finv -v owner=finv -f Deploy/Upgrade/2610-001-CreateDatabase.sql`（参数缺省即 `finv`/`finv`）。
   - 行为：前置校验角色存在 → 库不存在则 `CREATE DATABASE ... OWNER ... ENCODING UTF8 TEMPLATE template0` → 属主不符则 `ALTER DATABASE ... OWNER TO` → 切库 `GRANT ALL ON DATABASE` / `GRANT ALL ON SCHEMA public` → 三项收敛校验（库名 / 属主 / `public` 的 `CREATE`）。幂等、不建角色、不设密码、不 DROP/TRUNCATE 任何对象。
   - 与迁移链的关系：`V100010__verify_database.sql` 只校验库名，建库仍归部署侧（容器 `POSTGRES_DB`、裸机 `Install.sh`、或本脚本）。
 
