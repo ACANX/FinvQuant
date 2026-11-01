@@ -334,6 +334,17 @@ for T in "${TARGETS[@]}"; do
         chmod 0644 "${PKG_ROOT}/Deploy/Script/"*
     fi
 
+    # 初始化脚本（建库等，部署前一次性手工执行）随包分发：
+    # 安装后在 <PREFIX>/Deploy/Init/，不进入 schema_version 迁移链
+    if compgen -G "Deploy/Init/*.sql" > /dev/null; then
+        mkdir -p "${PKG_ROOT}/Deploy/Init"
+        cp Deploy/Init/*.sql "${PKG_ROOT}/Deploy/Init/"
+        if [[ -f Deploy/Init/README.md ]]; then
+            cp Deploy/Init/README.md "${PKG_ROOT}/Deploy/Init/"
+        fi
+        chmod 0644 "${PKG_ROOT}/Deploy/Init/"*
+    fi
+
     if [[ "${GOOS_V}" == "linux" ]]; then
         # Linux：宿主直装（systemd）全套脚本与文档
         mkdir -p "${PKG_ROOT}/Deploy/Native"

@@ -297,22 +297,24 @@ chmod 0755 "${DEPLOY_DIR}"/*.sh
 for f in "${DEPLOY_DIR}"/*.md "${DEPLOY_DIR}"/*.example "${DEPLOY_DIR}"/*.service; do
   if [[ -f "${f}" ]]; then chmod 0644 "${f}"; fi
 done
-# 一次性运维脚本（Deploy/Script/*.sql）随安装目录留存；与 DEPLOY_DIR 相同布局时跳过
-SCRIPT_SRC_DIR="${SCRIPT_DIR}/../Script"
-if [[ -d "${SCRIPT_SRC_DIR}" ]] && \
-   [[ "$(readlink -f "${SCRIPT_SRC_DIR}")" != "$(readlink -f "${DEPLOY_DIR}/Script" 2>/dev/null || echo -)" ]]; then
-  mkdir -p "${DEPLOY_DIR}/Script"
-  if compgen -G "${SCRIPT_SRC_DIR}/*.sql" > /dev/null; then
-    cp -f "${SCRIPT_SRC_DIR}"/*.sql "${DEPLOY_DIR}/Script/"
+# 一次性运维脚本（Deploy/Script/*.sql）与初始化脚本（Deploy/Init/*.sql）随安装目录留存；
+# 与 DEPLOY_DIR 相同布局时跳过
+for pair in "Script:运维" "Init:初始化"; do
+  src_sub="${pair%%:*}"; src_label="${pair#*:}"
+  src_dir="${SCRIPT_DIR}/../${src_sub}"
+  [[ -d "${src_dir}" ]] || continue
+  [[ "$(readlink -f "${src_dir}")" != "$(readlink -f "${DEPLOY_DIR}/${src_sub}" 2>/dev/null || echo -)" ]] || continue
+  mkdir -p "${DEPLOY_DIR}/${src_sub}"
+  if compgen -G "${src_dir}/*.sql" > /dev/null; then
+    cp -f "${src_dir}"/*.sql "${DEPLOY_DIR}/${src_sub}/"
   fi
-  if [[ -f "${SCRIPT_SRC_DIR}/README.md" ]]; then
-    cp -f "${SCRIPT_SRC_DIR}/README.md" "${DEPLOY_DIR}/Script/README.md"
+  if [[ -f "${src_dir}/README.md" ]]; then
+    cp -f "${src_dir}/README.md" "${DEPLOY_DIR}/${src_sub}/README.md"
   fi
-fi
-if [[ -d "${DEPLOY_DIR}/Script" ]]; then
-  chmod 0644 "${DEPLOY_DIR}/Script/"* 2>/dev/null || true
-fi
-ok "部署文件：${DEPLOY_DIR}（脚本、unit 模板、env 模板、Nginx 示例、运维 SQL 脚本、手册）"
+  chmod 0644 "${DEPLOY_DIR}/${src_sub}/"* 2>/dev/null || true
+  ok "${src_label}脚本：${DEPLOY_DIR}/${src_sub}"
+done
+ok "部署文件：${DEPLOY_DIR}（脚本、unit 模板、env 模板、Nginx 示例、运维与初始化 SQL 脚本、手册）"
 
 # ---------------------------------------------------------------------
 # 7. 环境变量文件（存在则不覆盖）

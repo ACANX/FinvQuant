@@ -17,6 +17,7 @@
 | 配置 | `/data/App/FinvQuant/finvquant.env`（权限 600，含随机生成的数据库密码） |
 | 迁移脚本 | `/data/App/FinvQuant/Deploy/Migrations/`（与仓库结构一致，服务启动时自动应用未执行版本） |
 | 部署脚本与文件 | `/data/App/FinvQuant/Deploy/`（`Install.sh`/`Upgrade.sh`/`Uninstall.sh`、`finvquant.service`、env 与 Nginx 模板、本手册） |
+| 初始化脚本 | `/data/App/FinvQuant/Deploy/Init/`（建库等部署前**手工执行一次**，如 `2610-001-CreateDatabase.sql`；`CREATE DATABASE` 不能在迁移事务内执行，故不放进 `Migrations/`） |
 | 一次性运维脚本 | `/data/App/FinvQuant/Deploy/Script/`（如 `MigratePublicKlineToCdeu.sql`；不进入迁移链） |
 | BRS 备份 | `/data/App/FinvQuant/Backup/BRS/<yyyyMMdd>/`（每日表级 `pg_dump`，见 [Brs.md](../../Docs/FinvQuant/Brs.md)） |
 | 服务日志 | `/data/App/FinvQuant/Log/FinvQuant.log`（`FINV_LOG_DIR`；10MB 切分、按日 `tar.gz` 归档） |

@@ -212,7 +212,7 @@
   | `V300000`～`V399999` | **数据**：字典种子、数据回填与修正 | 原 `V2xxxxx` 段整体 `+100000`（`V300000`～`V300080`） |
 
   - 平移规则：旧 `V1xxxxx` → `V2xxxxx`、旧 `V2xxxxx` → `V3xxxxx`，编号一一对应（`+100000`），执行顺序不变；存量库的 `public.schema_version` 由 `Deploy/Upgrade/2611-001-MigrationSegmentsShift.sql` 一次性 `+100000`，`public.schema_version_plan_shift` marker 表保证只执行一次。
-  - **基础准备段粒度：一对象一脚本**（需求 10882 ①已落地）——一个角色、一个 schema、一次库校验各占一个文件；禁止再用一个脚本批量 `CREATE SCHEMA`；新增 schema 时同时新增对应文件与编号，不得拼到已有脚本里。建库不在迁移内：`CREATE DATABASE` 不能在事务块执行，由安装脚本（容器 `POSTGRES_DB`、裸机 `Install.sh` 的 `createdb`）或一次性脚本 [`../../Deploy/Upgrade/2610-001-CreateDatabase.sql`](../../Deploy/Upgrade/2610-001-CreateDatabase.sql)（`psql -v db=finv -v owner=finv -f`，幂等，不建角色不设密码）完成；迁移链只做 `V100010` 库名校验。
+  - **基础准备段粒度：一对象一脚本**（需求 10882 ①已落地）——一个角色、一个 schema、一次库校验各占一个文件；禁止再用一个脚本批量 `CREATE SCHEMA`；新增 schema 时同时新增对应文件与编号，不得拼到已有脚本里。建库不在迁移内：`CREATE DATABASE` 不能在事务块执行，由安装脚本（容器 `POSTGRES_DB`、裸机 `Install.sh` 的 `createdb`）或初始化脚本 [`../../Deploy/Init/2610-001-CreateDatabase.sql`](../../Deploy/Init/2610-001-CreateDatabase.sql)（`psql -v db=finv -v owner=finv -f`，幂等，不建角色不设密码）完成；迁移链只做 `V100010` 库名校验。
   - 新增脚本：DDL 用 `V200090+`、数据用 `V300081+`；号段排序天然保证「DDL 段整体先于数据段」，新的 DDL 只要仍在 `V2xxxxx` 就会排到已有数据之前执行（与旧体系行为一致）。
   - 数据段实例（原 `V2xxxxx` → `V300004`～`V300080`）：地区/富途映射字典、`sys.sys_config` / `sys.sys_dict` / `sys.sys_dict_sub` 初始数据、`sys_config` 运行模式与低峰窗口等配置、`finv_security` / `futu_quote_collect` Supabase 种子、市场码与证券口径回填修正等。
   - 历史遗留（本次平移不重分类）：早期部分数据脚本与 DDL 混写在原 `V1xxxxx` 段（如 `V200018` 交易所种子、`V200025`～`V200042` 系统字典与配置、`V300060` BRS 建表），平移后分别落在 `V2xxxxx` / `V3xxxxx`；基线重做时可择机归位到 `V3xxxxx`。
