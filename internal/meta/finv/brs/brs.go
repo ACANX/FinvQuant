@@ -1,6 +1,6 @@
 // Package brs 提供数据库备份服务（Backup & Restore Service）的首期实现：
 //
-//   - 从 brs.brs_bak_rdb_table 读取需要备份的表（flag_enable='1'，priority 倒序）；
+//   - 从 brs.brs_bak_rdb_table_full 读取需要备份的表（flag_enable='1'，priority 倒序）；
 //   - 按 sys.sys_config 39001 的 6 段 cron（秒 分 时 日 月 周）每日触发；
 //   - 对每张表执行 pg_dump（--table + -Fc + 按 compression 压缩）；
 //   - 备份完成后可选上传对象存储（oss.Store 接口，首期为 nil 不上传）；
@@ -62,7 +62,7 @@ type Options struct {
 // Table 一条备份登记。
 type Table struct {
 	IDN         int64
-	DB          string // 登记归属库（brs_bak_rdb_table.db），用作备份文件名前缀
+	DB          string // 登记归属库（brs_bak_rdb_table_full.db），用作备份文件名前缀
 	SchemaName  string
 	TableName   string
 	Priority    int
@@ -78,7 +78,7 @@ func LoadTables(ctx context.Context, pool *pgxpool.Pool) ([]Table, error) {
 	const query = `
 SELECT idn, db, schema_name, table_name, priority, bak_scope, bak_method, compression,
        COALESCE(where_clause, ''), flag_upload
-  FROM brs.brs_bak_rdb_table
+  FROM brs.brs_bak_rdb_table_full
  WHERE rdb_type = 'postgresql' AND flag_enable = '1'
  ORDER BY priority DESC, idn ASC`
 	rows, err := pool.Query(ctx, query)

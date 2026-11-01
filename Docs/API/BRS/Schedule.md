@@ -74,4 +74,4 @@
 | 配置行 | `sys.sys_config` 39001（`V300060` 初始化，`data_type='3'`，`str_value`） |
 | 调度实现 | `internal/meta/finv/brs/runner.go`（`Runner.Start` 每秒匹配、每 60 秒重读配置） |
 | 执行链 | 与手动触发共用 `RunOnceWithHooks`，见 [Run.md](Run.md) |
-| 备份范围 | `brs.brs_bak_rdb_table`（`flag_enable='1'`，`priority` 倒序），见 [BackupTable.md](BackupTable.md) |
+| 备份范围 | `brs.brs_bak_rdb_table_full`（`flag_enable='1'`，`priority` 倒序），见 [BackupTable.md](BackupTable.md) |

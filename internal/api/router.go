@@ -176,7 +176,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 			group.POST("/Maturity/Refresh", archive.MaturityRefresh)
 		}
 
-		// BRS 备份登记维护（brs.brs_bak_rdb_table）：查询 / 新增编辑 / 启用禁用。
+		// BRS 备份登记维护（brs.brs_bak_rdb_table_full）：查询 / 新增编辑 / 启用禁用。
 		// 前端路由 /Meta/BRS/Backup/Finv/Table 与接口前缀保持一致。
 		brsBackupTable := handler.NewBrsBackupTable(brs.NewRegistry(deps.Pool))
 		brsTable := apiGroup.Group("/Meta/BRS/Backup/Finv/Table")

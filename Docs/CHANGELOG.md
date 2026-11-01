@@ -259,6 +259,14 @@
 
 ### 变更
 
+- **小表全量登记表改名 `brs_bak_rdb_table` → `brs_bak_rdb_table_full`（需求 10908）**
+  - 与需求 10905 的 `brs_bak_rdb_table_incr` 并列：`_full` 全量 / `_incr` 增量，避免「一张叫 table、另一张带后缀」的不对称。
+  - 迁移 `V300091`：改名表 + 约束（主键/唯一/CHECK/NOT NULL）+ 触发器 `trg_brs_bak_rdb_table_full_gmt_update` + identity 序列 `brs_bak_rdb_table_full_idn_seq`，幂等；`V300060`/`V300061`/`V200090`/`V300083`/`V300086` 等历史迁移保持原样。
+  - 代码：`LoadTables`、登记维护 CRUD、唯一约束冲突识别（`uq_brs_bak_rdb_table_full` / `..._full_priority`）同步。
+  - 文档：`Docs/API/APIs.md`、`Docs/API/BRS/{BackupTable,OSSConfig,Run,Schedule,Slice}.md`、`Docs/Design/BrsBackupDesign.md`、`Docs/FinvQuant/Brs.md`。
+
+### 变更
+
 - **BRS 备份目录迁到 `<PREFIX>/BRS`，不再放在 `Backup/` 下（需求 10907）**
   - 原因：`<PREFIX>/Backup` 是数据库逻辑备份目录（`Upgrade.sh` 写入、root 属主），BRS 产物需要运行用户可写，放在同一个父目录下容易出现属主/权限互相干扰。
   - `FINV_BRS_BACKUP_DIR` 默认值：`/data/App/FinvQuant/Backup/BRS` → **`/data/App/FinvQuant/BRS`**（`internal/config`、`brs.defaultBackupDir` 同步）。

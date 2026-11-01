@@ -38,7 +38,7 @@
 
 | 目标 | 说明 |
 |---|---|
-| 登记驱动 | 备份哪些表由 `brs.brs_bak_rdb_table` 决定，改配置即可增减，不改代码、不重启 |
+| 登记驱动 | 备份哪些表由 `brs.brs_bak_rdb_table_full` 决定，改配置即可增减，不改代码、不重启 |
 | 优先级可控 | `priority` 越大越先备份，保证核心表（用户、配置、字典）先落地 |
 | 在线可备 | 用 `pg_dump` 一致性快照导出，不需要停服；单表 30 分钟超时 |
 | 失败隔离 | 单表失败只记日志并继续下一张，一轮结束后汇总失败数 |
@@ -58,7 +58,7 @@
 | 术语 | 含义 |
 |---|---|
 | BRS | Backup & Restore Service，本备份子系统的简称 |
-| 登记表 | `brs.brs_bak_rdb_table`，一行 = 一张要备份的表 |
+| 登记表 | `brs.brs_bak_rdb_table_full`，一行 = 一张要备份的表 |
 | `bak_scope` | 备份范围：`both`（结构+数据）/ `schema`（`--schema-only`）/ `data`（`--data-only`） |
 | `compression` | 压缩方式：`none` / `gzip` / `zstd`，映射到 `pg_dump --compress` |
 | `flag_upload` | 表级上传开关：`1` 上传远端，`0` 只留本地 |
@@ -77,7 +77,7 @@ brs.Start(ctx, pool, opts)  ── 命中且无进行中轮次 → go RunOnce(..
         │
         ▼
 RunOnce
-  ├─ LoadTables：brs.brs_bak_rdb_table（flag_enable='1'，priority DESC, idn ASC）
+  ├─ LoadTables：brs.brs_bak_rdb_table_full（flag_enable='1'，priority DESC, idn ASC）
   ├─ 建本地目录：<BackupDir>/<yyyyMMdd>/（0750）
   ├─ 解析 39002 → oss.New(cfg) 得到 Store（未启用/失败 → 本轮不上传）
   └─ 逐表（priority 倒序）
@@ -194,7 +194,7 @@ type Store interface {
 
 ## 7. 数据契约
 
-### 7.1 登记表 `brs.brs_bak_rdb_table`
+### 7.1 登记表 `brs.brs_bak_rdb_table_full`
 
 | 字段 | 类型 | 约束/默认 | 说明 |
 |---|---|---|---|
@@ -236,7 +236,7 @@ type Store interface {
 | 操作 | 做法 |
 |---|---|
 | 改备份时间 | 更新 `sys.sys_config` 39001 的 `str_value`，**最多 60 秒**生效 |
-| 新增备份表 | 向 `brs_bak_rdb_table` 插入一行（`priority` 必须唯一），下一轮自动纳入 |
+| 新增备份表 | 向 `brs_bak_rdb_table_full` 插入一行（`priority` 必须唯一），下一轮自动纳入 |
 | 临时停某表 | 把 `flag_enable` 置 `'0'`（保留登记） |
 | 只留本地不上传 | 该表 `flag_upload='0'`，或 39002 `enabled=false` |
 | 立即跑一轮 | 不改 cron，直接调用 `brs.RunOnce`（当前无 CLI 入口，见 §9） |
@@ -304,7 +304,7 @@ type Store interface {
 
 | 项 | 小表全量 | 大表分片 |
 |---|---|---|
-| 登记表 | `brs.brs_bak_rdb_table` | `brs.brs_bak_rdb_table_incr`（`V300088` 建表，`V300090` 由 `_slice` 改名为 `_incr`） |
+| 登记表 | `brs.brs_bak_rdb_table_full` | `brs.brs_bak_rdb_table_incr`（`V300088` 建表，`V300090` 由 `_slice` 改名为 `_incr`） |
 | 执行链 | `RunOnce` / `Runner` / 39001 cron | `RunSliceOnceWithHooks` / `SliceRunner`（仅手动） |
 | 导出 | `pg_dump -Fc`（custom 格式） | 按行读取后写 **MVSV-2**（复用 `mvsv.WriteV2`，与 `qiom export` 同格式） |
 | 产物 | `<备份目录>/<执行日>/<db>.<schema>.<表>.dump` | `<备份目录>/Incr/<db>.<schema>.<表>/<分片键>.mvsv.gz` |

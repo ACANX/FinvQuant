@@ -106,5 +106,5 @@ BRS 备份产物上传的 S3 兼容对象存储配置，对应系统配置 `sys.
 | 配置行 | `sys.sys_config` 39002（`V300061` 初始化，`data_type='4'`，JSON；`V300082` 把凭证键改为 `ak`/`sk`） |
 | 服务读取 | `internal/meta/finv/brs/ossconfig.go`（`LoadOSSConfig` / `SaveOSSConfig`，负责 `access_key`↔`ak`、`secret_key`↔`sk` 映射）、`brs.go` 的 `loadOssStore`（每轮备份构造客户端，读 `ak`/`sk`，兼容旧键） |
 | 上传实现 | `internal/meta/base/oss`（默认适配器 s3，基于 aws-sdk-go-v2，不使用 minio-go） |
-| 表级开关 | `brs.brs_bak_rdb_table.flag_upload`（`'1'` 上传 / `'0'` 只留本地），见 [BackupTable.md](BackupTable.md) |
+| 表级开关 | `brs.brs_bak_rdb_table_full.flag_upload`（`'1'` 上传 / `'0'` 只留本地），见 [BackupTable.md](BackupTable.md) |
 | 每日调度 | `sys.sys_config` 39001（6 段 cron，默认每天 03:00:00） |

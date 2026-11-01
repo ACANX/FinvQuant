@@ -1,6 +1,6 @@
 // 39002 BRS 对象存储配置（sys.sys_config.json_value）的读写。
 //
-// 为什么单独成文件：备份登记（registry.go）维护 brs.brs_bak_rdb_table，
+// 为什么单独成文件：备份登记（registry.go）维护 brs.brs_bak_rdb_table_full，
 // 而对象存储配置是 sys.sys_config 的 JSON 配置项，两者存储位置与语义都不同。
 //
 // 密钥处理原则：

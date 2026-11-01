@@ -114,7 +114,7 @@
 | 90 | GET | `/API/V1/Meta/Finv/Quote/DeDup/RunLog/Detail` | 查询单次 Job 运行汇总与详细日志行 | [QuoteDeDup/RunLog.md](QuoteDeDup/RunLog.md) | 归档日志与补丁 / 工作流控制与监控 |
 | 91 | POST | `/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert` | 外部 OpenAPI 示例：批量 upsert（当前公开访问，暂不鉴权；成功响应 `{code,data,message}`，code 默认 0） | [../OpenAPI/Quote/Cdeu/Min/Upsert.md](../OpenAPI/Quote/Cdeu/Min/Upsert.md) | 外部 HOOK / 采集端 |
 | 92 | GET | `/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni` | 外部 OpenAPI：条件分页查询（column/row；成功响应 `{code,data,message}`，code 默认 0） | [../OpenAPI/Quote/Cdeu/Min/PageUni.md](../OpenAPI/Quote/Cdeu/Min/PageUni.md) | 外部 HOOK / 核对工具 |
-| 93 | GET | `/API/V1/Meta/BRS/Backup/Finv/Table/List` | 分页查询 BRS 备份登记（brs.brs_bak_rdb_table；keyword/flagEnable 过滤，priority 倒序） | [BRS/BackupTable.md](BRS/BackupTable.md) | 备份登记维护（`BrsBackupTableView.vue`） |
+| 93 | GET | `/API/V1/Meta/BRS/Backup/Finv/Table/List` | 分页查询 BRS 备份登记（brs.brs_bak_rdb_table_full；keyword/flagEnable 过滤，priority 倒序） | [BRS/BackupTable.md](BRS/BackupTable.md) | 备份登记维护（`BrsBackupTableView.vue`） |
 | 94 | POST | `/API/V1/Meta/BRS/Backup/Finv/Table/Save` | 新增或修改备份登记（idn=0 新增；表唯一、priority 唯一） | [BRS/BackupTable.md](BRS/BackupTable.md) | 备份登记维护（同上） |
 | 95 | POST | `/API/V1/Meta/BRS/Backup/Finv/Table/Toggle` | 启用/禁用备份登记（flag_enable） | [BRS/BackupTable.md](BRS/BackupTable.md) | 备份登记维护（同上） |
 | 96 | GET | `/API/V1/Meta/BRS/Backup/Finv/OSSConfig/Get` | 读取 BRS 对象存储配置（sys.sys_config 39002；不返回 secret_key 明文，返回 secret_key_set） | [BRS/OSSConfig.md](BRS/OSSConfig.md) | 对象存储配置（`BrsOssConfigView.vue`） |

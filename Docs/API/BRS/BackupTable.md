@@ -1,6 +1,6 @@
 # GET/POST /API/V1/Meta/BRS/Backup/Finv/Table/* — 备份登记维护
 
-BRS（Backup & Restore Service）备份范围登记表 `brs.brs_bak_rdb_table` 的维护接口：分页查询、新增/修改、启用/禁用。
+BRS（Backup & Restore Service）备份范围登记表 `brs.brs_bak_rdb_table_full` 的维护接口：分页查询、新增/修改、启用/禁用。
 
 > 登记直接决定每日备份（`sys.sys_config` 39001 的 6 段 cron）执行哪些表：只备份 `flag_enable='1'` 的行，按 `priority` **倒序**（越大越先）。修改后下一轮备份即生效，无需重启服务。
 >
@@ -126,7 +126,7 @@ BRS（Backup & Restore Service）备份范围登记表 `brs.brs_bak_rdb_table` �
 
 | 项 | 说明 |
 |------|------|
-| 表 | `brs.brs_bak_rdb_table`（迁移 `V300060`；`flag_upload` 由 `V300061` 增加；`db` 由 `V200090` 增加，默认 `finv`） |
+| 表 | `brs.brs_bak_rdb_table_full`（迁移 `V300060`；`flag_upload` 由 `V300061` 增加；`db` 由 `V200090` 增加，默认 `finv`） |
 | 备份调度 | `sys.sys_config` 39001（6 段 cron，默认每天 03:00:00） |
 | 对象存储 | `sys.sys_config` 39002（JSON，`enabled=false` 时不上传）；页面见 `/Meta/BRS/Backup/Finv/OSSConfig`（占位） |
 | 服务实现 | `internal/meta/finv/brs`（`LoadTables` 读登记执行备份；`Registry` 提供本页维护能力） |

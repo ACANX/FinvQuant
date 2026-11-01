@@ -2,7 +2,7 @@
 
 > 源码：`internal/meta/finv/brs`（调度/执行）、`internal/meta/base/cron`（6 段 cron）、`internal/meta/base/oss`（对象存储抽象，二期）
 > 配置：`sys.sys_config` **39001**（每日备份 cron）
-> 登记表：`brs.brs_bak_rdb_table`
+> 登记表：`brs.brs_bak_rdb_table_full`
 > 备份实现：`pg_dump --table=<schema>.<table> -Fc --compress=<算法>`
 
 ## 1. 功能
@@ -11,7 +11,7 @@ BRS 有**两套相互独立的备份策略**，各自一张登记表、各自一
 
 | 策略 | 适用对象 | 登记表 | 产物 | 触发 |
 |------|----------|--------|------|------|
-| 小表全量 | 配置/字典/元数据等小表（24 张） | `brs.brs_bak_rdb_table` | 整表 1 个 `.dump`（`pg_dump -Fc`） | 39001 cron + 页面手动 |
+| 小表全量 | 配置/字典/元数据等小表（24 张） | `brs.brs_bak_rdb_table_full` | 整表 1 个 `.dump`（`pg_dump -Fc`） | 39001 cron + 页面手动 |
 | 大表增量（分片） | 体量大、按天/周/月增长的表（如 K 线） | `brs.brs_bak_rdb_table_incr` | 按分片键 1 片 1 个 `.mvsv[.gz]`（MVSV-2） | 页面手动（本期） |
 
 - 小表全量：每天按 cron 自动执行一次，备份范围由登记表控制（`priority` 唯一，倒序执行）；
@@ -63,7 +63,7 @@ BRS 有**两套相互独立的备份策略**，各自一张登记表、各自一
 
 ### 2.2 登记表
 
-`brs.brs_bak_rdb_table`：`idn`、`rdb_type`、`schema_name`、`table_name`、
+`brs.brs_bak_rdb_table_full`：`idn`、`rdb_type`、`schema_name`、`table_name`、
 `flag_enable`（`'1'/'0'`）、`priority`（**必填且唯一**）、`bak_scope`（both/schema/data）、
 `bak_method`（pg_dump）、`compression`（none/gzip/zstd）、`where_clause`、`remark`、
 `creator`（uid）、`gmt_create`、`gmt_update`。
@@ -145,7 +145,7 @@ pg_restore -h 127.0.0.1 -U finv -d finv \
 | 项 | 说明 |
 |---|---|
 | 全局开关 | 39002 `enabled`（默认 `false`） |
-| 表级开关 | `brs_bak_rdb_table.flag_upload`（`'1'` 上传 / `'0'` 只留本地，默认 `'1'`） |
+| 表级开关 | `brs_bak_rdb_table_full.flag_upload`（`'1'` 上传 / `'0'` 只留本地，默认 `'1'`） |
 | 上传 key | `<prefix>/<env>/<yyyyMMdd>/<db>.<schema>.<table>.dump`（`env` = `sys_config` 1002 的运行环境标识；缺失或非法则跳过上传） |
 | 凭证 | `access_key`/`secret_key` 存 `sys_config`（`access_level` 限制），不写日志 |
 | 失败 | 保留本地文件并记日志，不影响下一张表 |

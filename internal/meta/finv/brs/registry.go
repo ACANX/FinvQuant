@@ -1,4 +1,4 @@
-// Package brs 的备份登记（brs.brs_bak_rdb_table）管理：查询 / 新增 / 编辑 / 启用禁用。
+// Package brs 的备份登记（brs.brs_bak_rdb_table_full）管理：查询 / 新增 / 编辑 / 启用禁用。
 //
 // 与备份执行链（LoadTables）共用同一张登记表：本文件只做登记维护，
 // 修改后下一轮 cron 备份（sys.sys_config 39001）即按新登记执行，无需重启。
@@ -105,7 +105,7 @@ SELECT idn, rdb_type, db, schema_name, table_name, flag_enable, priority, bak_sc
        bak_method, compression, flag_upload, where_clause, remark, creator,
        gmt_create, gmt_update,
        count(*) OVER () AS total
-  FROM brs.brs_bak_rdb_table
+  FROM brs.brs_bak_rdb_table_full
  WHERE ($1 = '' OR schema_name ILIKE $1 OR table_name ILIKE $1 OR COALESCE(remark, '') ILIKE $1)
    AND ($2 = '' OR flag_enable = $2)
  ORDER BY priority DESC, idn
@@ -141,7 +141,7 @@ func (r *Registry) Get(ctx context.Context, idn int64) (RegistryRow, error) {
 SELECT idn, rdb_type, db, schema_name, table_name, flag_enable, priority, bak_scope,
        bak_method, compression, flag_upload, where_clause, remark, creator,
        gmt_create, gmt_update
-  FROM brs.brs_bak_rdb_table
+  FROM brs.brs_bak_rdb_table_full
  WHERE idn = $1`
 	var row RegistryRow
 	err := r.pool.QueryRow(ctx, query, idn).Scan(&row.IDN, &row.RdbType, &row.DB, &row.SchemaName,
@@ -223,7 +223,7 @@ func (r *Registry) Save(ctx context.Context, row RegistryRow) (int64, error) {
 
 	if row.IDN == 0 {
 		const insert = `
-INSERT INTO brs.brs_bak_rdb_table
+INSERT INTO brs.brs_bak_rdb_table_full
     (rdb_type, db, schema_name, table_name, flag_enable, priority, bak_scope, bak_method,
      compression, flag_upload, where_clause, remark, creator)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
@@ -239,7 +239,7 @@ RETURNING idn`
 	}
 
 	const update = `
-UPDATE brs.brs_bak_rdb_table SET
+UPDATE brs.brs_bak_rdb_table_full SET
     rdb_type = $2, db = $3, schema_name = $4, table_name = $5, flag_enable = $6,
     priority = $7, bak_scope = $8, bak_method = $9, compression = $10, flag_upload = $11,
     where_clause = $12, remark = $13
@@ -265,7 +265,7 @@ func (r *Registry) Toggle(ctx context.Context, idn int64, flagEnable string) err
 		return inputErrorf("flag_enable 只能为 0 或 1")
 	}
 	tag, err := r.pool.Exec(ctx,
-		`UPDATE brs.brs_bak_rdb_table SET flag_enable = $2 WHERE idn = $1`, idn, flagEnable)
+		`UPDATE brs.brs_bak_rdb_table_full SET flag_enable = $2 WHERE idn = $1`, idn, flagEnable)
 	if err != nil {
 		return fmt.Errorf("更新启用状态失败: %w", err)
 	}
@@ -280,9 +280,9 @@ func wrapRegistryWriteError(err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 		switch pgErr.ConstraintName {
-		case "uq_brs_bak_rdb_table":
+		case "uq_brs_bak_rdb_table_full":
 			return inputErrorf("该表已登记：同一 rdb_type + db + schema_name + table_name 只能有一条")
-		case "uq_brs_bak_rdb_table_priority":
+		case "uq_brs_bak_rdb_table_full_priority":
 			return inputErrorf("优先级 priority 已被其他登记占用，请换一个非负整数")
 		}
 		return inputErrorf("唯一键冲突（%s）：%s", pgErr.ConstraintName, pgErr.Detail)

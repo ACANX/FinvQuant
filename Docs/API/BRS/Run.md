@@ -103,6 +103,6 @@
 | 项 | 说明 |
 |------|------|
 | 触发源 | 页面按钮（`manual`）与 39001 cron（`auto`），见 [Schedule.md](Schedule.md) |
-| 备份范围 | `brs.brs_bak_rdb_table` 中 `flag_enable='1'` 的登记，`priority` 倒序，见 [BackupTable.md](BackupTable.md) |
+| 备份范围 | `brs.brs_bak_rdb_table_full` 中 `flag_enable='1'` 的登记，`priority` 倒序，见 [BackupTable.md](BackupTable.md) |
 | 上传目标 | 39002 对象存储配置（`flag_upload='1'` 的表才上传），见 [OSSConfig.md](OSSConfig.md) |
 | 服务实现 | `internal/meta/finv/brs/runner.go`（Runner 状态机与日志缓冲）、`brs.go`（`RunOnceWithHooks` 逐表 pg_dump） |

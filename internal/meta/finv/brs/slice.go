@@ -1,6 +1,6 @@
 // 大表增量（分片）备份：登记表 brs.brs_bak_rdb_table_incr 的读取、分片枚举与逐片导出。
 //
-// 与小表全量备份（brs.brs_bak_rdb_table + RunOnce）完全独立：
+// 与小表全量备份（brs.brs_bak_rdb_table_full + RunOnce）完全独立：
 //
 //	· 配置独立（另一张表，不改小表登记）；
 //	· 产物独立（<BackupDir>/Incr/<db>.<schema>.<table>/<分片键>.mvsv[.gz]）；

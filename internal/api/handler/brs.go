@@ -1,4 +1,4 @@
-// BRS 备份登记维护处理器（brs.brs_bak_rdb_table 的查询 / 新增 / 编辑 / 启用禁用）。
+// BRS 备份登记维护处理器（brs.brs_bak_rdb_table_full 的查询 / 新增 / 编辑 / 启用禁用）。
 //
 // URL 查询参数遵循小驼峰（Docs/DevSpec/ApiSpec.md §3）：page / pageSize / keyword / flagEnable；
 // JSON 请求与响应体为 snake_case（与库列名一致）。
