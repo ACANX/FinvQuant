@@ -178,6 +178,7 @@
   - 用法：`psql ".../finv" -v env=prod -f Deploy/Init/2610-002-AddRuntimeEnvConfig.sql`；`overwrite` 缺省 0（已存在不覆盖），传 1 才覆盖。
   - 安全性：取值格式校验（2~32 位字母/数字/下划线/短横线）；参数非法或 `sys.sys_config` 不存在时以非 0 退出码中止。
   - 不进迁移链：运行环境随部署而定，不能由迁移给所有环境套同一个值。
+  - `remark` 文案按需求方给定措辞：`当前实例的运行环境标识（如 Dev / Test / Uat / Prod）；由部署侧一次性写入，服务只读展示`。
   - 顺带修正：`Deploy/Init/` 两个脚本的异常中止由 `\quit 1` 改为 `RAISE EXCEPTION`（psql 的 `\quit` 不接受退出码，会打印 "extra argument ignored" 且返回 0）。
 
 ### 新增

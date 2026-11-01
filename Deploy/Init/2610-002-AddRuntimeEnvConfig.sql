@@ -71,7 +71,7 @@ INSERT INTO sys.sys_config
     (config_no, config_name, data_type, int_value, char_value, str_value, json_value, remark, create_by)
 VALUES
     (1002, '运行环境标识', '3', 0, '', :'env', NULL,
-     '当前实例的运行环境标识（如 dev / test / uat / prod）；由部署侧一次性写入，服务只读展示', 'init')
+     '当前实例的运行环境标识（如 Dev / Test / Uat / Prod）；由部署侧一次性写入，服务只读展示', 'init')
 ON CONFLICT (config_no) DO UPDATE
    SET str_value  = EXCLUDED.str_value,
        remark     = EXCLUDED.remark,
