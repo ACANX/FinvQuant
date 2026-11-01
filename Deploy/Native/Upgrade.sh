@@ -193,8 +193,35 @@ fi
 install -d -o root -g "${APP_GROUP}" -m 0755 "${MIGRATIONS_DIR}"
 if [[ "$(readlink -f "${MIGRATIONS_SRC}")" == "$(readlink -f "${MIGRATIONS_DIR}" 2>/dev/null || echo -)" ]]; then
   ok "迁移目录即安装目录，无需同步：${MIGRATIONS_DIR}"
+  # 源与目标同一目录时没有参照集，无法自动隔离；至少把同版本重名（新旧号段混存）挑出来
+  dup="$(ls -1 "${MIGRATIONS_DIR}"/V*__*.sql 2>/dev/null | sed -E 's#.*/V([0-9]+)__.*#\1#' | sort -n | uniq -d | head -5)"
+  [[ -z "${dup}" ]] || die "迁移目录存在同版本重名脚本（版本号：${dup//$'\n'/、}），迁移器会拒绝启动；请先清理非当前发行包的文件（建议移到 ${BACKUP_DIR}/Migrations.old.<时间戳>/）后重跑；服务当前保持停止，可用 $0 --rollback 换回旧二进制"
 else
   cp -f "${MIGRATIONS_SRC}"/*.sql "${MIGRATIONS_DIR}/"
+  # `cp -f` 只增不删：号段重排（需求 10881）后，旧号段脚本（如 V100003__finv_market.sql）
+  # 会与新号段脚本撞同一版本号，迁移器会拒绝启动；这里对「源目录不存在」的文件做隔离，不删除。
+  migrate_isolate_stale() {
+    local src="$1" dst="$2"
+    local src_cnt stale=() f base
+    src_cnt="$(find "${src}" -maxdepth 1 -type f -name 'V*__*.sql' | wc -l)"
+    if [[ "${src_cnt:-0}" -eq 0 ]]; then
+      warn "源迁移目录无脚本，跳过旧文件隔离：${src}"
+      return 0
+    fi
+    while IFS= read -r f; do
+      base="${f##*/}"
+      [[ -f "${src}/${base}" ]] || stale+=("${f}")
+    done < <(find "${dst}" -maxdepth 1 -type f -name 'V*__*.sql' -print 2>/dev/null)
+    [[ ${#stale[@]} -gt 0 ]] || return 0
+    install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
+    local keep
+    keep="$(mktemp -d "${BACKUP_DIR}/Migrations.old.$(date +%Y%m%d_%H%M%S).XXXXXX")"
+    chown root:root "${keep}"
+    chmod 0750 "${keep}"
+    for f in "${stale[@]}"; do mv -f "${f}" "${keep}/"; done
+    warn "迁移目录有 ${#stale[@]} 个非当前发行包的文件，已隔离到 ${keep}（未删除，请人工核对后处理）"
+  }
+  migrate_isolate_stale "${MIGRATIONS_SRC}" "${MIGRATIONS_DIR}"
   ok "迁移脚本已同步（$(ls -1 "${MIGRATIONS_DIR}"/*.sql | wc -l) 个）"
 fi
 chown -R root:"${APP_GROUP}" "${MIGRATIONS_DIR}"

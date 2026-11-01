@@ -18,6 +18,16 @@
 
 > 0.1.4 开发中。变更按 `新增` / `变更` / `修复` / `移除` / `安全` 分类追加，发布时整体改为版本号并补日期。
 
+### 修复
+
+- **部署侧迁移号段混存与迁移错误定位（需求 10881 收尾）**
+  - 现象：Native 安装健康检查 30s 未通过，`journalctl -u finvquant` 反复报 `数据库迁移失败: 迁移 V100003 失败: ERROR: relation "finv_market" already exists (SQLSTATE 42P07)`。`V100003` 在建表说明加载的是号段重排（需求 10881）前的旧脚本——旧号段里 `V100003__finv_market.sql` 是建表，新号段同一版本是只读的库名/权限校验（`V100003__verify_database_and_privileges.sql`）。
+  - 根因：`Install.sh` / `Upgrade.sh` 同步迁移脚本用 `cp -f *.sql`，只增不删；旧版本装过之后，`<PREFIX>/Deploy/Migrations` 里旧号段文件与新版并存，与新号段脚本撞同一版本号，先执行哪一个都可能撞表或撞 `schema_version` 主键。
+  - 修复（部署脚本）：同步迁移目录后，把「源目录不存在」的 `V*__*.sql` 隔离到 `<PREFIX>/Backup/Migrations.old.<时间戳>.XXXXXX/`（移动、不删除）；源与目标为同一目录时无法比对，改为检测同版本重名并中止、给出清理指引；源目录无脚本时不做隔离，避免误移。
+  - 修复（迁移器）：`internal/database/migrate.go` 的 `discoverMigrations` 检测同版本多文件并拒绝执行，错误信息列出全部冲突文件名并提示「新旧号段混存」；单条迁移失败信息由 `迁移 V%d 失败` 改为 `迁移 V%d（文件名）失败`，不再把版本号误指到同名的新脚本。
+  - 修复（安装前置校验）：`Install.sh` 在「目标库已有业务表但缺 `public.schema_version`」时由原来的 `warn` 后继续改为 `die` 中止（此前会装出一个必然崩溃、由 systemd 反复重启的服务），并给出三种处置（换独立库 / 换实例 / 备份后手工重建库）；`--skip-db` 仍可跳过本步。
+  - 验证：`bash -n Install.sh Upgrade.sh` 通过；隔离函数用构造目录实测（混存 2 个旧文件 → 隔离到 `Backup/`、目标目录不再重号、重复调用幂等、源目录为空不误移）；冲突检测用同一构造样例验证输出（3 组重名全部列出），真实仓库目录 174 个迁移无重号；`go build ./...`、`go vet ./internal/database`、`gofmt -l` 均通过。
+
 ### 新增
 
 - **登记待办：「当日累计均价」字段名调整（需求 10886）**
