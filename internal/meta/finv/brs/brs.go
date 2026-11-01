@@ -32,6 +32,10 @@ import (
 // CronConfigNo 每日备份 cron 的系统配置编号（6 段）。
 const CronConfigNo = 39001
 
+// defaultBackupDir 未配置 FINV_BRS_BACKUP_DIR 时的兜底备份根目录。
+// 不带产品名（需求 10893）：路径只由使用方配置决定，代码不再自作主张加 /FinvQuant 段。
+const defaultBackupDir = "/data/App/Backup/BRS"
+
 // Options 备份执行参数。
 type Options struct {
 	BackupDir string // 备份根目录（默认 <PREFIX>/Backup/BRS）
@@ -99,7 +103,7 @@ func loadCronExpr(ctx context.Context, pool *pgxpool.Pool) (string, error) {
 // 修改配置后最多 60 秒生效。非法表达式只记日志并跳过。
 func Start(ctx context.Context, pool *pgxpool.Pool, opts Options) {
 	if strings.TrimSpace(opts.BackupDir) == "" {
-		opts.BackupDir = "/data/App/FinvQuant/Backup/BRS"
+		opts.BackupDir = defaultBackupDir
 	}
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -265,7 +269,8 @@ func dumpTable(ctx context.Context, opts Options, dayDir, day string, table Tabl
 	if dumpBin == "" {
 		dumpBin = "pg_dump"
 	}
-	fileName := fmt.Sprintf("%s.%s_%s.dump", table.SchemaName, table.TableName, time.Now().Format("150405"))
+	// 文件名不带时间戳（需求 10893）：同一张表当天重复备份会覆盖上一次，属预期行为。
+	fileName := fmt.Sprintf("%s.%s.dump", table.SchemaName, table.TableName)
 	filePath := filepath.Join(dayDir, fileName)
 
 	args := []string{

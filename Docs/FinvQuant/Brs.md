@@ -9,7 +9,7 @@
 
 - 每天按 cron 自动执行一次表级备份；
 - 备份范围由登记表控制（`priority` 唯一，按倒序执行）；
-- 备份文件保存在 `<PREFIX>/Backup/BRS/<yyyyMMdd>/`；
+- 备份文件保存在 `$FINV_BRS_BACKUP_DIR/<yyyyMMdd>/`（默认 `/data/App/Backup/BRS`，不含产品名段）；文件名 `<schema>.<table>.dump`，不含时间戳；
 - 过程只写服务日志（`Log/FinvQuant.log`，前缀 `[brs]`），暂不落库。
 
 ## 2. 配置
@@ -38,7 +38,7 @@
 ### 2.3 备份目录
 
 ```env
-FINV_BRS_BACKUP_DIR=/data/App/FinvQuant/Backup/BRS
+FINV_BRS_BACKUP_DIR=/data/App/Backup/BRS
 ```
 
 目录由服务自动创建（`0750`）。
@@ -46,15 +46,16 @@ FINV_BRS_BACKUP_DIR=/data/App/FinvQuant/Backup/BRS
 ## 3. 备份产物
 
 ```
-Backup/BRS/20261029/
-├── sys.sys_user_030000.dump
-├── sys.sys_config_030001.dump
-├── cdeu.finv_quote_cdeu_workflow_030002.dump
+<FINV_BRS_BACKUP_DIR>/20261029/
+├── sys.sys_user.dump
+├── sys.sys_config.dump
+├── cdeu.finv_quote_cdeu_workflow.dump
 └── ...
 ```
 
 - `-Fc` 自定义格式（`pg_restore` 可选择性恢复）；
-- 压缩在文件内部（`--compress=zstd:3`），无需再 `gzip`。
+- 压缩在文件内部（`--compress=zstd:3`），无需再 `gzip`；
+- 文件名**不带时间戳**：同一张表当天重复备份会覆盖上一次（以最后一次为准）。
 
 ## 4. 查看与恢复
 
@@ -62,11 +63,11 @@ Backup/BRS/20261029/
 grep '\[brs\]' /data/App/FinvQuant/Log/FinvQuant.log | tail -20
 journalctl -u finvquant | grep '\[brs\]' | tail -20
 
-pg_restore -l Backup/BRS/20261029/sys.sys_config_030001.dump
+pg_restore -l Backup/BRS/20261029/sys.sys_config.dump
 
 pg_restore -h 127.0.0.1 -U finv -d finv \
   --table=sys.sys_config --clean --if-exists \
-  Backup/BRS/20261029/sys.sys_config_030001.dump
+  Backup/BRS/20261029/sys.sys_config.dump
 ```
 
 ## 5. 预置登记（种子）
@@ -99,7 +100,7 @@ pg_restore -h 127.0.0.1 -U finv -d finv \
 |---|---|
 | 全局开关 | 39002 `enabled`（默认 `false`） |
 | 表级开关 | `brs_bak_rdb_table.flag_upload`（`'1'` 上传 / `'0'` 只留本地，默认 `'1'`） |
-| 上传 key | `<prefix>/<yyyyMMdd>/<schema>.<table>_<HHmmss>.dump` |
+| 上传 key | `<prefix>/<yyyyMMdd>/<schema>.<table>.dump` |
 | 凭证 | `access_key`/`secret_key` 存 `sys_config`（`access_level` 限制），不写日志 |
 | 失败 | 保留本地文件并记日志，不影响下一张表 |
 | 下载 | `aws s3 cp` / `rclone` 等任意 S3 兼容工具 |

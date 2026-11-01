@@ -70,7 +70,7 @@
 | `elapsed_ms` | int | 已耗时（运行中实时增长） |
 | `total` / `done` / `failed` | int | 总表数 / 已完成 / 失败张数（`done` 为已处理张数） |
 | `current_table` | string | 当前正在备份的表（`schema.table`） |
-| `backup_dir` | string | 本轮备份目录（`<BackupDir>/<yyyyMMdd>`） |
+| `backup_dir` | string | 本轮备份目录（`<BackupDir>/<yyyyMMdd>`，`BackupDir` 取 `FINV_BRS_BACKUP_DIR`，默认 `/data/App/Backup/BRS`） |
 | `error` | string | 失败原因（`status=failed` 时） |
 | `logs` | array | 日志条目：`{seq, time, level, message}`，`level` 取 `info` / `warn` / `error` |
 | `last_seq` | int | 当前最大日志序号，下一次增量拉取用 |
@@ -87,7 +87,7 @@
 [info]  开始执行 手动 备份（run_id=20261101-204512-manual）
 [info]  未启用对象存储上传（39002 enabled=false），仅本地备份
 [info]  开始备份：12 张表 → /data/App/FinvQuant/Backup/BRS/20261101
-[info]  备份成功 sys.sys_user（…/sys.sys_user_204513.dump，1.2 MiB，耗时 210ms）
+[info]  备份成功 sys.sys_user（…/sys.sys_user.dump，1.2 MiB，耗时 210ms）
 [info]  本轮备份完成：12 张表
 [info]  运行结束（成功）
 ```

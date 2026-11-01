@@ -127,6 +127,15 @@
 
 ### 变更
 
+- **BRS 备份路径与文件名调整（需求 10893）**
+  - 备份根目录默认值由 `/data/App/FinvQuant/Backup/BRS` 改为 **`/data/App/Backup/BRS`**（`FINV_BRS_BACKUP_DIR` 显式配置时以其为准），代码不再在路径里自行拼接产品名段。
+  - Docker compose 透传 `FINV_BRS_BACKUP_DIR` 并新增 `/data/App/Backup` 的宿主映射（`FINV_BRS_HOST_DIR`，默认 `./data/App/Backup`），容器重建不再丢备份文件。
+  - 备份文件名去掉时间戳：`<schema>.<table>_<HHmmss>.dump` → **`<schema>.<table>.dump`**（本地与对象存储 key 同步）；同一张表当天重复备份会覆盖上一次。
+  - 文档同步：`Docs/FinvQuant/Brs.md`、`Docs/Design/BrsBackupDesign.md`、`Docs/API/BRS/{Run,OSSConfig}.md`。
+  - 注：迁移 `V300061` 里 39002 的 remark 说明仍写旧命名（历史迁移不可回改），实际行为以本节为准。
+
+### 变更
+
 - **对象存储配置页面：提供方只展示「S3 兼容」，实现细节移到下方独立卡片（需求 10891）**
   - `BrsOssConfigView.vue` 的 provider 选项标题由「S3 兼容（aws-sdk-go-v2）」改为「S3 兼容」，不再把技术实现塞进配置项标签。
   - 新增「实现说明」卡片（配置表单下方）：S3 兼容协议适用范围、客户端经 `internal/meta/base/oss` 抽象接入且默认适配器基于 `aws-sdk-go-v2`（不使用 `minio-go`）、生效时机、凭证保存与上传失败行为。

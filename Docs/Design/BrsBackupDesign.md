@@ -119,7 +119,7 @@ RunOnce
 |---|---|
 | 输入 | 登记行（schema、表名、范围、压缩）、连接参数（host/port/user/password/db） |
 | 处理 | 拼装 `pg_dump` 参数 → `exec.CommandContext`（30 分钟超时）→ 密码经 `PGPASSWORD` 环境变量传递 |
-| 输出 | `<BackupDir>/<yyyyMMdd>/<schema>.<table>_<HHmmss>.dump`（`-Fc` 自定义格式，可用 `pg_restore` 选择性恢复） |
+| 输出 | `<BackupDir>/<yyyyMMdd>/<schema>.<table>.dump`（`-Fc` 自定义格式，可用 `pg_restore` 选择性恢复；文件名不带时间戳） |
 | 失败 | 记录 `pg_dump` 输出（截断 500 字符）后继续下一张表；本轮结束汇总 `N/M 张表备份失败` |
 
 `pg_dump` 参数映射：
@@ -131,7 +131,7 @@ RunOnce
 
 **为什么用 `-Fc`（custom 格式）**：支持 `pg_restore` 的按表/按对象选择性恢复，也能与 `--compress` 协同；纯 SQL 文本虽然可读，但体积大且无法选择性恢复。
 
-**文件名含时间戳**：同一张表一天内多次备份不会互相覆盖（`<schema>.<table>_<HHmmss>.dump`）。
+**文件名不含时间戳**（2026-11-01 调整）：同一张表当天重复备份会**覆盖**上一次（`<schema>.<table>.dump`），与手动/自动多次执行叠加时以最后一次为准。
 
 ## 6. 对象存储上传
 
@@ -185,7 +185,7 @@ type Store interface {
 | 项 | 行为 |
 |---|---|
 | 上传条件 | 39002 `enabled=true` 且能构造出 `Store`；且该表 `flag_upload='1'` |
-| 对象 key | `<prefix>/<yyyyMMdd>/<schema>.<table>_<HHmmss>.dump` |
+| 对象 key | `<prefix>/<yyyyMMdd>/<schema>.<table>.dump` |
 | Content-Type | `application/octet-stream` |
 | 大小 | 取本地文件 `Stat` 的字节数，作为 `ContentLength` 传给 SDK |
 | 失败处理 | 记日志「上传失败 …（本地文件保留）」，**不影响其它表**，也不影响本轮结论 |

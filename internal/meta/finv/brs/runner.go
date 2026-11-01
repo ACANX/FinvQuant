@@ -101,7 +101,7 @@ type Runner struct {
 // NewRunner 创建备份运行器。
 func NewRunner(pool *pgxpool.Pool, opts Options) *Runner {
 	if strings.TrimSpace(opts.BackupDir) == "" {
-		opts.BackupDir = "/data/App/FinvQuant/Backup/BRS"
+		opts.BackupDir = defaultBackupDir
 	}
 	return &Runner{
 		pool:    pool,
@@ -373,7 +373,7 @@ func nextRunsFrom(sched *cron.Schedule, from time.Time, n int) []string {
 // optsBackupDir 返回生效的备份目录。
 func optsBackupDir(opts Options) string {
 	if strings.TrimSpace(opts.BackupDir) == "" {
-		return "/data/App/FinvQuant/Backup/BRS"
+		return defaultBackupDir
 	}
 	return opts.BackupDir
 }

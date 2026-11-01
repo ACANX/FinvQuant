@@ -49,7 +49,7 @@ BRS 备份产物上传的 S3 兼容对象存储配置，对应系统配置 `sys.
 | `region` | string | R2 用 `auto`；AWS 填实际区域；MinIO 常用 `us-east-1` |
 | `access_key` | string | 访问凭证 Access Key ID |
 | `secret_key` | string | **恒为空**（不回传明文） |
-| `prefix` | string | 对象 key 前缀，最终 key 为 `<prefix>/<yyyyMMdd>/<schema>.<table>_<HHmmss>.dump` |
+| `prefix` | string | 对象 key 前缀，最终 key 为 `<prefix>/<yyyyMMdd>/<schema>.<table>.dump`（文件名不带时间戳） |
 | `secret_key_set` | bool | 只读：库内是否已配置 secret_key |
 | `remark` | string | 只读：39002 的字段说明（迁移 `V300061` 内置） |
 | `gmt_modify` | string | 只读：最近修改时间 |
