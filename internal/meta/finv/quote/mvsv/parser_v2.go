@@ -104,8 +104,9 @@ func parseRowV2(line string, header *Header, lineNumber int) (Row, error) {
 			row.ChangePrice = decimalOrNil(raw)
 		case "change_ratio":
 			row.ChangeRatio = decimalOrNil(raw)
-		case "paocd", "pacd":
-			row.Paocd = decimalOrNil(raw)
+		case "paocd", "pacd", "vwap":
+			// 兼容三名额：paocd（旧导出文件）、pacd（旧 API 字段名）、vwap（新名）。
+			row.Vwap = decimalOrNil(raw)
 		case "ext_field":
 			row.ExtField = decimalOrNil(raw)
 		case "remark":

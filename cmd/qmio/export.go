@@ -86,7 +86,7 @@ func runExport(args []string) int {
 			if err := rows.Scan(
 				&row.Usc, &row.Ts, &row.Date, &row.Time,
 				&row.Open, &row.High, &row.Low, &row.Close, &row.LastClose,
-				&row.Volume, &row.Turnover, &row.ChangePrice, &row.ChangeRatio, &row.Paocd,
+				&row.Volume, &row.Turnover, &row.ChangePrice, &row.ChangeRatio, &row.Vwap,
 				&row.ExtField, &row.Remark, &row.Provider,
 				&gmtCreate, &gmtUpdate,
 			); err != nil {

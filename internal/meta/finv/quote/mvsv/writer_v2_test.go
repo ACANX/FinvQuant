@@ -16,7 +16,7 @@ func sampleV2Row() Row {
 		Date: intPtr(20231114), Time: intPtr(93000),
 		Open: strPtr("3.51"), High: strPtr("3.62"), Low: strPtr("3.50"), Close: strPtr("3.60"),
 		LastClose: strPtr("3.50"), Volume: strPtr("12.345678"), Turnover: strPtr("3560.00"),
-		ChangePrice: strPtr("0.10"), ChangeRatio: strPtr("2.857143"), Paocd: strPtr("3.56"),
+		ChangePrice: strPtr("0.10"), ChangeRatio: strPtr("2.857143"), Vwap: strPtr("3.56"),
 		Provider:  strPtr("FT"),
 		GmtCreate: strPtr("2026-10-28T12:00:00+08:00"),
 		GmtUpdate: strPtr("2026-10-28T12:00:00+08:00"),

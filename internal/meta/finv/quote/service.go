@@ -342,7 +342,7 @@ func rowParams(row mvsv.Row) []any {
 		row.Close,
 		row.ChangePrice,
 		row.ChangeRatio,
-		row.Paocd,
+		row.Vwap,
 		row.Volume,
 		row.Turnover,
 		row.ExtField,

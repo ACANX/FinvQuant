@@ -39,7 +39,7 @@ type V2Options struct {
 func V2Columns(includeGmt bool) []string {
 	columns := []string{
 		"usc", "ts", "date", "time", "open", "high", "low", "close", "last_close",
-		"volume", "turnover", "change_price", "change_ratio", "paocd",
+		"volume", "turnover", "change_price", "change_ratio", "vwap",
 		"ext_field", "remark", "provider",
 	}
 	if includeGmt {
@@ -53,7 +53,7 @@ var v2FieldNames = map[string]string{
 	"open": "Open", "high": "High", "low": "Low", "close": "Close",
 	"last_close": "LastClose", "volume": "Volume", "turnover": "Turnover",
 	"change_price": "ChangePrice", "change_ratio": "ChangeRatio",
-	"paocd": "Paocd", "ext_field": "ExtField", "remark": "Remark",
+	"vwap": "Vwap", "ext_field": "ExtField", "remark": "Remark",
 	"provider": "Provider", "gmt_create": "GmtCreate", "gmt_update": "GmtUpdate",
 }
 
@@ -61,7 +61,7 @@ var v2FieldNamesCN = map[string]string{
 	"usc": "证券代码", "ts": "时间戳(UTC)", "date": "交易日期", "time": "交易时间",
 	"open": "开盘价", "high": "最高价", "low": "最低价", "close": "收盘价",
 	"last_close": "上一收盘价", "volume": "成交量", "turnover": "成交额",
-	"change_price": "涨跌额", "change_ratio": "涨跌幅", "paocd": "累计均价",
+	"change_price": "涨跌额", "change_ratio": "涨跌幅", "vwap": "成交量加权平均价",
 	"ext_field": "扩展字段", "remark": "备注", "provider": "数据来源",
 	"gmt_create": "创建时间", "gmt_update": "更新时间",
 }
@@ -70,7 +70,7 @@ var v2FieldTypes = map[string]string{
 	"usc": "String", "ts": "Int", "date": "Int", "time": "Int",
 	"open": "Decimal", "high": "Decimal", "low": "Decimal", "close": "Decimal",
 	"last_close": "Decimal", "volume": "Decimal", "turnover": "Decimal",
-	"change_price": "Decimal", "change_ratio": "Decimal", "paocd": "Decimal",
+	"change_price": "Decimal", "change_ratio": "Decimal", "vwap": "Decimal",
 	"ext_field": "String", "remark": "String", "provider": "String",
 	"gmt_create": "Timestamp", "gmt_update": "Timestamp",
 }
@@ -221,7 +221,7 @@ func renderV2Row(row Row, includeGmt bool) string {
 		textOf(row.Turnover),
 		textOf(row.ChangePrice),
 		textOf(row.ChangeRatio),
-		textOf(row.Paocd),
+		textOf(row.Vwap),
 		textOf(row.ExtField),
 		textOf(row.Remark),
 		textOf(row.Provider),

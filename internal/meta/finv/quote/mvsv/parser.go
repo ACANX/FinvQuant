@@ -125,7 +125,7 @@ type Row struct {
 	Close       *string
 	ChangePrice *string // 涨跌额：MVSV 的 cp 列当前忽略，由导入服务按规则计算
 	ChangeRatio *string // 涨跌幅（%）：MVSV 的 cr 列当前忽略，由导入服务按规则计算
-	Paocd       *string
+	Vwap        *string
 	Volume      *string // 成交量（十进制文本，保留小数与精度）
 	Turnover    *string
 	ExtField    *string

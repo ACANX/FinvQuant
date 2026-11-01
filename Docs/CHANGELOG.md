@@ -234,6 +234,14 @@
 
 ### 变更
 
+- **`paocd` → `vwap` 字段改名（需求 10902，第三步：MVSV / qmio 导入导出）**
+  - 导出（K 线导出与 `qmio export`）：`# Field` 第 14 列 `paocd` → `vwap`，`# FieldName` `Paocd` → `Vwap`，`# 字段名称`「累计均价」→「成交量加权平均价」，`# FieldType` 键同步。
+  - 导入（`qmio import` 与 MVSV 解析）：列名同时接受 `paocd`（旧导出文件）、`pacd`（旧 API 字段名）、`vwap`（新名），三者都落到 `Row.Vwap`。
+  - `mvsv.Row.Paocd` → `Row.Vwap`；`cmd/qmio/export.go` 扫描列、`finv/quote/service.go` 落库行同步。
+  - 新增 `mvsv/vwap_compat_test.go`（3 个用例）：三名额导入、导出列名/FieldName/中文名不含 `paocd`、vwap 值往返一致。
+
+### 变更
+
 - **`paocd` → `vwap` 字段改名（需求 10902，第二步：API 契约）**
   - 出参：`/Add`、`/Query` 响应字段 `pacd` → **`vwap`**（不再输出 `pacd`）；`/Page` 与 `/PageUni` 的第 13 项短名 `pa` → **`vwa`**（全名 `vwap`），`column` 仍固定 15 项、顺序不变。
   - 入参：优先读 `vwap`；未传（或显式 `null`）时回退旧字段 `pacd`，`/Upsert`、`/Batch` 的增量更新同样回退。兼容项登记为待办需求 10903，待前端与外部调用方全部切换后移除。

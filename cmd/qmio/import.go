@@ -201,8 +201,9 @@ func rowValue(row mvsv.Row, column string) any {
 		return textValue(row.ChangePrice)
 	case "change_ratio":
 		return textValue(row.ChangeRatio)
-	case "paocd":
-		return textValue(row.Paocd)
+	case "paocd", "pacd", "vwap":
+		// 兼容旧导出文件的 paocd、旧 API 字段 pacd 与新名 vwap。
+		return textValue(row.Vwap)
 	case "ext_field":
 		return textValue(row.ExtField)
 	case "remark":
