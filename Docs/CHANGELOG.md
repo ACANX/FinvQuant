@@ -127,6 +127,14 @@
 
 ### 修复
 
+- **V300083 的收敛校验过严导致服务无法启动（线上事故）**
+  - 现象：生产库 `public` 下仍有早期落在 public 的分钟 K 线表 `public.finv_quote_secu_kline_min`，原校验遍历 `pg_tables` 要求「`public`/`futu` 下所有表都已登记」，判定未登记后 `RAISE EXCEPTION`，迁移失败 → `finvquant.service` 反复重启（restart counter 持续累加）。
+  - 修复：校验改为**只检查本迁移显式列出的 13 张表**是否已登记，不再要求 schema 下全表覆盖；其它历史遗留表由运维在「备份登记维护」页面按需追加。
+  - 影响面：`V300083` 从未在任何环境成功执行过（失败即回滚、不写 `schema_version`），因此直接修正脚本本身，不产生历史数据迁移。
+  - 恢复：更新代码/换新包后重启服务即可；迁移会自动重跑并通过。
+
+### 修复
+
 - **对象存储 endpoint 带路径导致对象 key 多出一层目录（`finvquant/`）**
   - 现象：39002 的 `endpoint` 写成 `https://<account_id>.r2.cloudflarestorage.com/finvquant` 时，适配器按 path-style 拼 `/<bucket>/<key>`，多出的路径段被对象存储当成 key 的一部分，最终对象变成 `finvquant/BRS/Finv/<date>/<table>.dump`。
   - 修复：`SaveOSSConfig` 增加 endpoint 校验——必须是 `scheme://host[:port]`，带路径直接 400 并提示「桶名填到 bucket、目录前缀填到 prefix」。
