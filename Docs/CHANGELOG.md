@@ -234,6 +234,14 @@
 
 ### 变更
 
+- **`paocd` → `vwap` 字段改名（需求 10902，第一步：数据库层）**
+  - 新增迁移 `V300087__finv_quote_kline_rename_paocd_to_vwap.sql`：`RENAME COLUMN paocd TO vwap` 三张表——`quote.finv_quote_secu_kline_min`、`cdeu.finv_quote_secu_kline_min`、`cdeu.finv_quote_secu_kline_min_export`；幂等（列已是 `vwap` 或表不存在则跳过），带收敛校验；列注释改为「成交量加权平均价（VWAP；原名 paocd / 当日实时累计均价）」。
+  - 纯 catalog 操作：该列无索引/视图/物化视图/触发器/函数依赖（逐项核实），`RENAME COLUMN` 不改列顺序；历史迁移里的 `paocd` 字样一律不动。
+  - Go 侧列名同步：`kline.ColPaocd` → `kline.ColVwap`（值 `vwap`）、`sql.go` DDL 类型键、`cdeu/store.go` 6 段 SQL、`finv/quote/service.go` upsert SQL、`cmd/qmio/export.go` 导出 SQL；集成测试建表/插入语句同步。
+  - 本机实测：`V300087` success，三张表列均为 `vwap`、无 `paocd`；服务正常启动。
+
+### 变更
+
 - **升级脚本命名规范化：`MigratePublicKlineToCdeu.sql` → `2610-004-MigratePublicKlineToCdeu.sql`**
   - `Deploy/Upgrade/` 下统一为 `<yyMM>-<NNN>-<动作><对象>.sql`，与 `2610-001-CreateDatabase.sql`、`2610-002-AddRuntimeEnvConfig.sql`、`2610-003-DropPublicKlineMin.sql` 一致（原文件名缺编号前缀）。
   - 同步更新全部引用：`Deploy/README.md`（目录表格，按编号顺序排列）、`Deploy/Native/Install.md`、`Deploy/Script/README.md`、`Deploy/Migrations/V300085__drop_public_kline_min.sql`（提示文本）、`Deploy/Upgrade/2610-003-DropPublicKlineMin.sql`（提示文本）、`Docs/FinvQuant/MigratePublicKlineToCdeu.md`、`Docs/RequirementList.md`（10773/10776 验收命令）。

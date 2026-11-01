@@ -134,7 +134,7 @@ UPDATE cdeu.finv_quote_cdeu_usc
 	insertMainRow := func(ts int64, clock int) {
 		if _, err := pool.Exec(ctx, `
 INSERT INTO cdeu.finv_quote_secu_kline_min
-  (usc, ts, date, "time", open, high, low, close, paocd, volume, turnover,
+  (usc, ts, date, "time", open, high, low, close, vwap, volume, turnover,
    change_price, change_ratio, last_close, provider)
 VALUES ($1, $2, 20250102, $3, 1.1, 1.2, 1.0, 1.15, 1.12, 100, 115.5, 0.05, 4.5, 1.10, 'FTMM')
 ON CONFLICT (ts, usc) DO NOTHING`, integrationUsc, ts, clock); err != nil {

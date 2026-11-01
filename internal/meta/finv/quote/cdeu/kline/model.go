@@ -23,7 +23,7 @@ const (
 	ColChangePrice = "change_price"
 	ColChangeRatio = "change_ratio"
 	ColLastClose   = "last_close"
-	ColPaocd       = "paocd" // 库列名；对外 API 字段为 pacd
+	ColVwap        = "vwap" // 成交量加权平均价（原 paocd）；对外 API 字段为 vwap
 	ColExtField    = "ext_field"
 	ColRemark      = "remark"
 	ColProvider    = "provider"
@@ -32,7 +32,7 @@ const (
 // InsertColumns 写入列（gmt_* 由数据库默认值与触发器维护）。
 var InsertColumns = []string{
 	ColUsc, ColTs, ColDate, ColTime, ColOpen, ColHigh, ColLow, ColClose, ColLastClose,
-	ColVolume, ColTurnover, ColChangePrice, ColChangeRatio, ColPaocd,
+	ColVolume, ColTurnover, ColChangePrice, ColChangeRatio, ColVwap,
 	ColExtField, ColRemark, ColProvider,
 }
 
@@ -65,7 +65,7 @@ var CompactFieldMap = []struct {
 	{"t", ColTurnover},
 	{"cr", ColChangeRatio},
 	{"cp", ColChangePrice},
-	{"pa", ColPaocd},
+	{"pa", ColVwap},
 	{"pv", ColProvider},
 	{"ext", ColExtField},
 }
@@ -83,7 +83,7 @@ func CompactFields() []string {
 var NumericColumns = map[string]bool{
 	ColOpen: true, ColHigh: true, ColLow: true, ColClose: true,
 	ColVolume: true, ColTurnover: true, ColChangePrice: true,
-	ColChangeRatio: true, ColLastClose: true, ColPaocd: true,
+	ColChangeRatio: true, ColLastClose: true, ColVwap: true,
 }
 
 // Row 落库 / 查询行；所有 numeric 值以字符串承载，避免 float64 精度损失。

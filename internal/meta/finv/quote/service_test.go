@@ -38,7 +38,7 @@ func TestBuildUpsertSQLRowMode(t *testing.T) {
 func TestBuildUpsertSQLCoversAllUpdatableColumns(t *testing.T) {
 	sql := buildUpsertSQL(UpsertModeField)
 	for _, column := range []string{"date", `"time"`, "last_close", "open", "high", "low",
-		"close", "paocd", "volume", "turnover", "ext_field", "remark"} {
+		"close", "vwap", "volume", "turnover", "ext_field", "remark"} {
 		if !strings.Contains(sql, column) {
 			t.Fatalf("upsert 未覆盖列: %s", column)
 		}

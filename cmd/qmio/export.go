@@ -52,7 +52,7 @@ func runExport(args []string) int {
 	}
 
 	columns := "usc, ts, date, \"time\", open::text, high::text, low::text, close::text, last_close::text, " +
-		"volume::text, turnover::text, change_price::text, change_ratio::text, paocd::text, " +
+		"volume::text, turnover::text, change_price::text, change_ratio::text, vwap::text, " +
 		"ext_field, remark, provider, gmt_create::text, gmt_update::text"
 	query := "SELECT " + columns + " FROM cdeu.finv_quote_secu_kline_min" + whereClause + " ORDER BY usc, date, ts"
 	rows, err := tx.Query(ctx, query)

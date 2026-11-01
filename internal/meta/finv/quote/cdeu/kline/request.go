@@ -326,7 +326,7 @@ func (item ItemIn) ToPatchItem(unit string) (PatchItem, *Error) {
 		{ColTurnover, item.Turnover},
 		{ColChangePrice, item.ChangePrice},
 		{ColChangeRatio, item.ChangeRatio},
-		{ColPaocd, item.Pacd},
+		{ColVwap, item.Pacd},
 	} {
 		if field.value.Set {
 			appendCol(field.column, field.value.Value())

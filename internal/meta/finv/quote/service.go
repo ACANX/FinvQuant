@@ -221,13 +221,13 @@ func buildUpsertSQL(mode UpsertMode) string {
 	updatable := []string{
 		"date", `"time"`, "last_close", "open", "high", "low", "close",
 		"change_price", "change_ratio",
-		"paocd", "volume", "turnover", "ext_field", "remark",
+		"vwap", "volume", "turnover", "ext_field", "remark",
 	}
 	base := `
 INSERT INTO quote.finv_quote_secu_kline_min
     (usc, ts, date, "time", last_close, open, high, low, close,
      change_price, change_ratio,
-     paocd, volume, turnover, ext_field, remark)
+     vwap, volume, turnover, ext_field, remark)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 ON CONFLICT (ts, usc) DO UPDATE SET
 `

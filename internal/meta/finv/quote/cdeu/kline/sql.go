@@ -25,7 +25,7 @@ var ColumnTypes = map[string]string{
 	ColTurnover:    "numeric(30,8)",
 	ColChangePrice: "numeric(20,6)",
 	ColChangeRatio: "numeric(20,6)",
-	ColPaocd:       "numeric(20,6)",
+	ColVwap:        "numeric(20,6)",
 	ColExtField:    "text",
 	ColRemark:      "text",
 	ColProvider:    "varchar",

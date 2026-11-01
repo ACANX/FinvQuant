@@ -59,7 +59,7 @@ CREATE TABLE `+testTable+` (
     turnover      numeric(30,8),
     change_price  numeric(20,6),
     change_ratio  numeric(20,6),
-    paocd         numeric(20,6),
+    vwap          numeric(20,6),
     ext_field     text,
     remark        text,
     provider      varchar(255),

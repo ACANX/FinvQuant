@@ -1746,7 +1746,7 @@ func (s *Store) LoadPage(ctx context.Context, usc string, date int, tsAfter int6
 	var result LoadPageResult
 	err := s.pool.QueryRow(ctx, `
 WITH page AS (
-  SELECT ts, date, "time", open, high, low, close, paocd, volume, turnover,
+  SELECT ts, date, "time", open, high, low, close, vwap, volume, turnover,
          change_price, change_ratio, ext_field, last_close, remark, provider
     FROM `+tableMain+`
    WHERE usc = $1 AND date = $2 AND ts > $3
@@ -1754,9 +1754,9 @@ WITH page AS (
    LIMIT $4
 ), ins AS (
   INSERT INTO `+tableStaging+`
-    (usc, ts, date, "time", open, high, low, close, paocd, volume, turnover,
+    (usc, ts, date, "time", open, high, low, close, vwap, volume, turnover,
      change_price, change_ratio, ext_field, last_close, remark, provider)
-  SELECT $1, ts, date, "time", open, high, low, close, paocd, volume, turnover,
+  SELECT $1, ts, date, "time", open, high, low, close, vwap, volume, turnover,
          change_price, change_ratio, ext_field, last_close, remark, provider
     FROM page
   ON CONFLICT (ts, usc) DO NOTHING
@@ -1777,7 +1777,7 @@ func (s *Store) LoadPatchPage(ctx context.Context, usc string, date int, tsAfter
 	var result LoadPageResult
 	err := s.pool.QueryRow(ctx, `
 WITH page AS (
-  SELECT ts, date, "time", open, high, low, close, paocd, volume, turnover,
+  SELECT ts, date, "time", open, high, low, close, vwap, volume, turnover,
          change_price, change_ratio, ext_field, last_close, remark, provider
     FROM `+tableMain+`
    WHERE usc = $1 AND date = $2 AND ts > $3
@@ -1786,9 +1786,9 @@ WITH page AS (
    LIMIT $4
 ), ins AS (
   INSERT INTO `+tableStaging+`
-    (usc, ts, date, "time", open, high, low, close, paocd, volume, turnover,
+    (usc, ts, date, "time", open, high, low, close, vwap, volume, turnover,
      change_price, change_ratio, ext_field, last_close, remark, provider)
-  SELECT $1, ts, date, "time", open, high, low, close, paocd, volume, turnover,
+  SELECT $1, ts, date, "time", open, high, low, close, vwap, volume, turnover,
          change_price, change_ratio, ext_field, last_close, remark, provider
     FROM page
   ON CONFLICT (ts, usc) DO NOTHING
