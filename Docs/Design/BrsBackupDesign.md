@@ -48,7 +48,7 @@
 **不在范围内**：
 
 - **恢复流程自动化**：本文只负责「产出并留存」，恢复用 `pg_restore` 手工执行（见 `Brs.md` §4）。
-- **增量/差异备份**：每轮都是整表 `pg_dump`，不做 WAL 归档，也不做 PITR。
+- **整表增量 / WAL 归档 / PITR**：小表每轮都是整表 `pg_dump`；**大表的分片增量**见 §12（按分片键补缺失，不做行级增量与 PITR）。
 - **备份文件生命周期管理**：本地目录与远端桶的保留期、清理策略不在代码内，由运维侧策略或桶生命周期规则处理。
 - **备份结果落库**：当前只写服务日志，不写「备份历史表」（见 §9）。
 - **跨数据库类型**：`rdb_type` 当前只有 `postgresql`；`bak_method` 约束里保留了 `copy`，但实现只有 `pg_dump`。
@@ -271,7 +271,9 @@ type Store interface {
 | 失败重试与断点续传 | ⛔ 单轮内失败即跳过，等下一轮 |
 | 备份文件保留期与自动清理（本地/远端） | ⛔ 无内建策略，依赖运维或桶生命周期规则 |
 | 手动触发一轮的 CLI/接口入口 | ⛔ 无；需等待 cron 命中 |
-| 恢复自动化 | ⛔ 手工 `pg_restore` |
+| 恢复自动化 | ⛔ 手工 `pg_restore`（小表）/ `COPY FROM`（大表分片） |
+| 大表分片备份（按日/周/月/列/自定义条件，只补缺失分片，手动触发） | ✅（`V300088` + `slice.go` + `BrsSliceView.vue`） |
+| 大表分片备份的定时调度 / 保留期清理 | ⛔ 本期未做（验收后再定） |
 
 ## 10. 相关文档
 
@@ -294,3 +296,31 @@ type Store interface {
 | `cmd/server/main.go` | 启动时 `go brs.Start(...)`，注入连接参数与备份目录 |
 | `Deploy/Migrations/V300060__brs_backup_table.sql` | `brs` schema、登记表、39001 与 12 行种子 |
 | `Deploy/Migrations/V300061__brs_upload.sql` | `flag_upload` 列、39002 默认 JSON |
+
+## 12. 大表增量（分片）备份（需求 10905）
+
+小表全量备份不适合体量大、按天增长的表（单文件过大、上传易失败、每轮全量重做）。因此**另起一套独立策略**，
+不修改小表登记与执行链：
+
+| 项 | 小表全量 | 大表分片 |
+|---|---|---|
+| 登记表 | `brs.brs_bak_rdb_table` | `brs.brs_bak_rdb_table_slice`（`V300088`） |
+| 执行链 | `RunOnce` / `Runner` / 39001 cron | `RunSliceOnceWithHooks` / `SliceRunner`（仅手动） |
+| 导出 | `pg_dump -Fc`（custom 格式） | 按行读取后写 **MVSV-2**（复用 `mvsv.WriteV2`，与 `qiom export` 同格式） |
+| 产物 | `<备份目录>/<执行日>/<db>.<schema>.<表>.dump` | `<备份目录>/Slice/<db>.<schema>.<表>/<分片键>.mvsv.gz` |
+| 远端 | `<prefix>/<env>/<执行日>/<file>` | `<prefix>/<env>/<db>.<schema>.<表>/<分片键>.mvsv.gz` |
+| 增量 | 每轮整表覆盖 | 分片键枚举 + 产物存在即跳过；末尾 `redo_slices` 个重做 |
+
+**为什么不用 pg_dump**：`pg_dump` 没有行级过滤选项（不存在 `--where`），无法按分片截取数据。
+
+**为什么产物是 MVSV-2**：MVSV-2 是系统既有的行情交换格式（`qiom export/import` 同格式、同一 `mvsv.WriteV2` writer），
+分片产物可 `qiom verify` 校验、`qiom import` 直接恢复；CSV 只是临时格式，不作为产物。
+代价：目标表须与 `cdeu.finv_quote_secu_kline_min` 同构（19 列），保存登记时校验。
+
+**分片维度**：由 `slice_mode` + `slice_key_sql` + `slice_where_tpl` 表达——`date`/`week`/`month` 用内置枚举 SQL，
+`column`/`expr` 由配置自定义（须返回 `slice_key` / `slice_start` / `slice_end` / `slice_rows` 四列）。
+周/月必须写成区间条件（`date >= {start} AND date <= {end}`）才能走索引。
+
+**结构归属**：分片只导数据（`bak_scope=data`），表结构由迁移创建；恢复顺序为「迁移建表 → `qiom import <分片>.mvsv.gz`」。
+
+**已知限制**：仅手动触发（无 cron）；无保留期清理；运行状态只存内存；分片键为空的行不在覆盖范围。

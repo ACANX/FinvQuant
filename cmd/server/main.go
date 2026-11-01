@@ -95,6 +95,17 @@ func main() {
 	})
 	go brsRunner.Start(ctx)
 
+	// BRS 大表增量（分片）备份运行器：只做手动触发（需求 10905），
+	// 与小表全量备份各自独立的状态与执行链，互不阻塞。
+	brsSliceRunner := brs.NewSliceRunner(pool, brs.Options{
+		BackupDir: cfg.BrsBackupDir,
+		Host:      cfg.PgHost,
+		Port:      cfg.PgPort,
+		User:      cfg.PgUser,
+		Password:  cfg.PgPassword,
+		Database:  cfg.PgDatabase,
+	})
+
 	// 证券行情月归档导出与上传：服务始终创建（运维接口可用），
 	// 自动化调度受 FINV_QUOTE_DEDUB_ENABLED 功能开关控制（M-10）。
 	archiveService, err := cdeu.NewService(pool, cdeu.OptionsFromConfig(cfg))
@@ -116,7 +127,7 @@ func main() {
 	// 16001：API 服务
 	apiServer := &http.Server{
 		Addr:              cfg.ListenAddr(),
-		Handler:           api.NewRouter(&api.Deps{Pool: pool, Redis: rdb, Version: version, Commit: commit, Server: "finvquant", Config: cfg, ExportArchive: archiveService, Auth: authService, BRSRunner: brsRunner}),
+		Handler:           api.NewRouter(&api.Deps{Pool: pool, Redis: rdb, Version: version, Commit: commit, Server: "finvquant", Config: cfg, ExportArchive: archiveService, Auth: authService, BRSRunner: brsRunner, BRSSliceRunner: brsSliceRunner}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

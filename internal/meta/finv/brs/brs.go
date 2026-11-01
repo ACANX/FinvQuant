@@ -193,6 +193,8 @@ type Hooks struct {
 	OnLog func(level, message string)
 	// OnProgress 每张表开始备份前调用：index 从 1 开始，done 为已完成张数。
 	OnProgress func(index, done, total int, table Table)
+	// OnSliceProgress 大表分片备份时每个分片开始前调用（done 为已完成分片数）。
+	OnSliceProgress func(rule SliceRule, slice Slice, done, total int)
 }
 
 // emit 同时写服务日志（保持 [brs] 前缀不变）与运行期回调。
@@ -202,6 +204,45 @@ func (h Hooks) emit(level, format string, a ...any) {
 	if h.OnLog != nil {
 		h.OnLog(level, message)
 	}
+}
+
+// resolveStoreAndEnv 解析本次运行使用的对象存储与环境目录。
+//
+// 上传 key 的一级目录取 1002 的运行环境标识（需求 10897）：
+// <prefix>/<env>/... 。环境标识缺失或非法时**不上传**，避免不同环境的备份混到同一路径下；
+// 39002 未启用或配置无效时同样不上传（仅本地备份）。
+func resolveStoreAndEnv(ctx context.Context, pool *pgxpool.Pool, opts Options, hooks Hooks) (oss.Store, string) {
+	store := opts.Store
+	if store == nil {
+		loaded, err := loadOssStore(ctx, pool)
+		if err != nil {
+			hooks.emit("warn", "对象存储配置无效，跳过上传: %v", err)
+		} else {
+			store = loaded
+			if store == nil {
+				hooks.emit("info", "未启用对象存储上传（39002 enabled=false），仅本地备份")
+			}
+		}
+	}
+	if store == nil {
+		return nil, ""
+	}
+
+	loaded, err := loadRuntimeEnv(ctx, pool)
+	if err != nil {
+		hooks.emit("warn", "读取运行环境标识（sys_config %d）失败，跳过上传: %v", EnvConfigNo, err)
+		return nil, ""
+	}
+	if loaded == "" {
+		hooks.emit("warn", "未配置运行环境标识（sys_config %d），跳过对象存储上传；本地备份保留", EnvConfigNo)
+		return nil, ""
+	}
+	if !validEnvName(loaded) {
+		hooks.emit("warn", "运行环境标识 %q 非法（只允许 2~32 位字母/数字/下划线/短横线），跳过上传", loaded)
+		return nil, ""
+	}
+	hooks.emit("info", "上传环境目录：%s", loaded)
+	return store, loaded
 }
 
 // loadRuntimeEnv 读取 1002 的运行环境标识（缺失返回空串，不报错）。
@@ -257,39 +298,8 @@ func RunOnceWithHooks(ctx context.Context, pool *pgxpool.Pool, opts Options, hoo
 		return fmt.Errorf("创建备份目录失败: %w（FINV_BRS_BACKUP_DIR=%s，请确认目录可写）", err, opts.BackupDir)
 	}
 
-	store := opts.Store
-	if store == nil {
-		loaded, err := loadOssStore(ctx, pool)
-		if err != nil {
-			hooks.emit("warn", "对象存储配置无效，跳过上传: %v", err)
-		} else {
-			store = loaded
-			if store == nil {
-				hooks.emit("info", "未启用对象存储上传（39002 enabled=false），仅本地备份")
-			}
-		}
-	}
-
-	// 上传 key 的一级目录取 1002 的运行环境标识（需求 10897）：
-	// <prefix>/<env>/<yyyyMMdd>/<schema>.<table>.dump。
-	// 缺失或非法时不上传——避免把不同环境的备份混到同一路径下。
-	env := ""
-	if store != nil {
-		loaded, err := loadRuntimeEnv(ctx, pool)
-		if err != nil {
-			hooks.emit("warn", "读取运行环境标识（sys_config %d）失败，跳过上传: %v", EnvConfigNo, err)
-			store = nil
-		} else if loaded == "" {
-			hooks.emit("warn", "未配置运行环境标识（sys_config %d），跳过对象存储上传；本地备份保留", EnvConfigNo)
-			store = nil
-		} else if !validEnvName(loaded) {
-			hooks.emit("warn", "运行环境标识 %q 非法（只允许 2~32 位字母/数字/下划线/短横线），跳过上传", loaded)
-			store = nil
-		} else {
-			env = loaded
-			hooks.emit("info", "上传环境目录：%s", env)
-		}
-	}
+	// 对象存储与环境标识：小表全量与大表分片共用同一套解析（39002 + 1002）。
+	store, env := resolveStoreAndEnv(ctx, pool, opts, hooks)
 
 	hooks.emit("info", "开始备份：%d 张表 → %s", len(tables), dayDir)
 	var failed int

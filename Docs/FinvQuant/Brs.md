@@ -7,10 +7,41 @@
 
 ## 1. 功能
 
-- 每天按 cron 自动执行一次表级备份；
-- 备份范围由登记表控制（`priority` 唯一，按倒序执行）；
+BRS 有**两套相互独立的备份策略**，各自一张登记表、各自一条执行链：
+
+| 策略 | 适用对象 | 登记表 | 产物 | 触发 |
+|------|----------|--------|------|------|
+| 小表全量 | 配置/字典/元数据等小表（24 张） | `brs.brs_bak_rdb_table` | 整表 1 个 `.dump`（`pg_dump -Fc`） | 39001 cron + 页面手动 |
+| 大表增量（分片） | 体量大、按天/周/月增长的表（如 K 线） | `brs.brs_bak_rdb_table_slice` | 按分片键 1 片 1 个 `.mvsv[.gz]`（MVSV-2） | 页面手动（本期） |
+
+- 小表全量：每天按 cron 自动执行一次，备份范围由登记表控制（`priority` 唯一，倒序执行）；
 - 备份文件保存在 `$FINV_BRS_BACKUP_DIR/<yyyyMMdd>/`；Native 默认 `<PREFIX>/Backup/BRS`（即 `/data/App/FinvQuant/Backup/BRS`，`Install.sh`/`Upgrade.sh` 会预建该目录并补齐 env 项），容器默认 `/data/App/Backup/BRS`（compose volume 映射到宿主）；文件名 `<db>.<schema>.<table>.dump`（库名前缀取登记 `db`），不含时间戳；
-- 过程只写服务日志（`Log/FinvQuant.log`，前缀 `[brs]`），暂不落库。
+- 大表分片：按分片维度（日/周/月/列值/自定义条件）把表切成多个文件，**同一分片键覆盖同一文件**，已存在的分片自动跳过，只补缺失与末尾 `redo_slices` 个；
+- 过程只写服务日志（`Log/FinvQuant.log`，前缀 `[brs]`），运行状态与进度由页面内存展示，暂不落库。
+
+### 1.1 大表增量（分片）备份
+
+配置入口：页面「备份与恢复 → 备份管理 → 大表增量备份」（接口见 [`../API/BRS/Slice.md`](../API/BRS/Slice.md)）。
+
+| 项 | 说明 |
+|------|------|
+| 登记表 | `brs.brs_bak_rdb_table_slice`（迁移 `V300088`，首期种子：`cdeu.finv_quote_secu_kline_min` 按自然日） |
+| 切分依据 | `slice_mode`（`date`/`week`/`month`/`column`/`expr`）+ `slice_where_tpl`（占位 `{value}`/`{start}`/`{end}`） |
+| 导出方式 | 按行读取分片数据后写 **MVSV-2**（复用 `mvsv.WriteV2`，与 `qiom export` 同格式）；`pg_dump` 无行级过滤（无 `--where`），故不用它 |
+| 本地产物 | `<备份目录>/Slice/<db>.<schema>.<表>/<分片键>.mvsv.gz`（`compression=none` 时 `.mvsv`） |
+| 远端 key | `<prefix>/<env>/<db>.<schema>.<表>/<分片键>.mvsv.gz` |
+| 增量判定 | 分片键从库枚举 → 本地文件或远端对象已存在即跳过；末尾 `redo_slices` 个分片每轮重做（当天可能仍在增长） |
+| 粒度保护 | `min_rows`（低于则跳过）、`max_slices`（超过则拒绝执行，防误配） |
+| 恢复 | 目标库先由迁移建好表结构，再 `qiom import <分片>.mvsv.gz`（默认 upsert，可按需 `qiom verify` 先校验） |
+
+```bash
+# 本机实测（10 个自然日、27.7 万行）
+# 首轮：10 个分片全部导出并上传，约 17 s
+# 第二轮：跳过 8 个已备份分片，只重做最后 2 个，约 3.4 s
+# 产物 20260930.mvsv.gz：qiom verify 校验通过，Count=37355（与源表该日行数一致）
+```
+
+> 本期只支持手动触发；要不要接入定时（跑完小表后接着跑）待验收后再定。
 
 ## 2. 配置
 

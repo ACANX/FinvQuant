@@ -32,8 +32,10 @@ type Deps struct {
 	// Auth 登录认证服务；为 nil 时不启用登录校验（仅供单元测试构造）。
 	// 生产环境由 cmd/server 注入，任何业务请求都必须携带有效令牌。
 	Auth *auth.Service
-	// BRSRunner 备份运行器（手动触发 + 运行状态）；为 nil 时不注册相关路由（仅供单元测试构造）。
+	// BRSRunner 小表全量备份运行器（手动触发 + 运行状态）；为 nil 时不注册相关路由（仅供单元测试构造）。
 	BRSRunner *brs.Runner
+	// BRSSliceRunner 大表分片备份运行器（手动触发 + 运行状态）；为 nil 时不注册相关路由。
+	BRSSliceRunner *brs.SliceRunner
 }
 
 // NewRouter 构建 Gin 路由（默认监听端口 16001）。
@@ -197,6 +199,20 @@ func NewRouter(deps *Deps) *gin.Engine {
 			run := apiGroup.Group("/Meta/BRS/Backup/Finv/Run")
 			run.POST("/Manual", brsRun.TriggerManual)
 			run.GET("/Status", brsRun.Status)
+		}
+
+		// BRS 大表增量（分片）备份：登记维护 + 分片计划 + 手动触发 + 运行状态。
+		// 与小表全量备份完全独立（各自一套登记、执行链与运行状态）。
+		if deps.BRSSliceRunner != nil {
+			brsSlice := handler.NewBrsSlice(deps.BRSSliceRunner)
+			sliceRule := apiGroup.Group("/Meta/BRS/Backup/Finv/Slice/Rule")
+			sliceRule.GET("/List", brsSlice.ListRules)
+			sliceRule.POST("/Save", brsSlice.SaveRule)
+			sliceRule.POST("/Toggle", brsSlice.ToggleRule)
+			apiGroup.GET("/Meta/BRS/Backup/Finv/Slice/Plan", brsSlice.Plan)
+			sliceRun := apiGroup.Group("/Meta/BRS/Backup/Finv/Slice/Run")
+			sliceRun.POST("/Manual", brsSlice.TriggerManual)
+			sliceRun.GET("/Status", brsSlice.Status)
 		}
 
 		// 元数据管理：交易所 / 市场 / 证券字典维护
