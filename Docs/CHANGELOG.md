@@ -259,6 +259,15 @@
 
 ### 变更
 
+- **大表分片增量改为内容指纹比对（需求 10916）**
+  - 原行为：`redo_slices` 末尾 N 个分片每轮无条件重导 + 上传，窗口外即使数据变了也永远跳过。
+  - 新行为：每片先算源端指纹 `(count(*), sum(hashtextextended(行文本,0)))`，与上次备份写入的指纹比较——相同跳过、不同重做；指纹存本地 `<分片文件>.fp` 与远端 `<key>.fp`。
+  - `redo_slices` 退化为**兜底窗口**：仅对「缺指纹」的旧产物生效（窗口内重做、窗口外跳过并 `warn`），不再无条件重做。
+  - 新增 `slice_fingerprint.go`（指纹计算/读写/跳过判定）+ `slice_fingerprint_test.go`（7 个用例）。
+  - 页面分片明细 `done`/`backuped` 改为「产物存在即已备份」，`redo_from` 改为兜底窗口起点，说明文案同步；文档 `Brs.md`、`Slice.md` 更新。
+
+### 变更
+
 - **小表全量备份增加 `Full/` 目录段（需求 10915）**
   - 本地：`<备份目录>/<yyyyMMdd>/` → `<备份目录>/Full/<yyyyMMdd>/`；
   - 远端 key：`<prefix>/<env>/<yyyyMMdd>/<db>.<schema>.<table>.dump` → `<prefix>/<env>/Full/<yyyyMMdd>/<db>.<schema>.<table>.dump`（与 `Incr/` 对称）；

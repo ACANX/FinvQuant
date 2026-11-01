@@ -110,7 +110,7 @@ type SlicePlan struct {
 	Done     int             `json:"done"`      // 已备份分片数
 	Missing  int             `json:"missing"`   // 待备份分片数
 	Skipped  int             `json:"skipped"`   // 行数低于 min_rows 而跳过的分片数
-	RedoFrom int             `json:"redo_from"` // 重做窗口起点（该下标之后的分片每轮重做）
+	RedoFrom int             `json:"redo_from"` // 兜底窗口起点（无指纹可比时，该下标之后的分片重做）
 	Items    []SlicePlanItem `json:"items"`     // 明细（最多前 N 条）
 }
 
@@ -292,8 +292,13 @@ func (r SliceRule) remoteKey(env string, s Slice) string {
 
 // RunSliceOnceWithHooks 执行一轮大表分片备份：逐规则、逐分片导出并上传。
 //
-// 增量判定不依赖状态表：分片键由库枚举，本地文件或远端对象已存在即跳过；
-// 末尾 redo_slices 个分片强制重做（最近的日期数据可能仍在增长）。
+// 增量判定（需求 10916）：
+//   - 分片不存在 → 备份；
+//   - 分片已存在（本地或远端）→ **比对内容指纹**：先算源端 (行数, 哈希和)，
+//     再读上次备份写入的 sidecar（本地 <分片文件>.fp，其次远端 <key>.fp）：
+//     相同 → 跳过；不同 → 重做并覆盖指纹；
+//   - 无指纹（10916 之前的产物）→ 落在 redo_slices 兜底窗口内则重做，否则跳过并提示；
+//   - redo_slices 不再"无条件重做末尾分片"，仅作为「无法比对时的兜底窗口」。
 func RunSliceOnceWithHooks(ctx context.Context, pool *pgxpool.Pool, opts Options, hooks Hooks) error {
 	rules, err := LoadSliceRules(ctx, pool)
 	if err != nil {
@@ -340,10 +345,20 @@ func RunSliceOnceWithHooks(ctx context.Context, pool *pgxpool.Pool, opts Options
 				continue
 			}
 			total++
-			// 增量：已存在且不在重做窗口内 → 跳过。
-			if i < redoFrom {
-				if exists, size := sliceExists(ctx, store, rule, opts, env, slice); exists {
-					hooks.emit("info", "已备份，跳过 %s 分片 %s（%s）", rule.Table(), slice.Key, humanSize(size))
+
+			// 源端指纹：一次分片范围扫描，成本远低于「导出 + gzip + 上传」。
+			// 已存在的分片用它和上次备份记录的指纹比对，判断数据是否真的变了。
+			srcFP, fpErr := computeSliceFingerprint(ctx, pool, rule, slice)
+			fpOK := fpErr == nil
+			if fpErr != nil {
+				hooks.emit("warn", "计算分片指纹失败 %s 分片 %s: %v（本轮按需重做，且不写指纹）", rule.Table(), slice.Key, fpErr)
+			}
+
+			// 已存在时按内容指纹判断是否需要重做（不再无条件重做末尾分片）。
+			if exists, size := sliceExists(ctx, store, rule, opts, env, slice); exists {
+				skip, reason := decideSkipSlice(ctx, store, rule, opts, env, slice, srcFP, fpOK, i >= redoFrom, hooks)
+				if skip {
+					hooks.emit("info", "已备份，跳过 %s 分片 %s（%s）%s", rule.Table(), slice.Key, humanSize(size), reason)
 					continue
 				}
 			}
@@ -366,6 +381,10 @@ func RunSliceOnceWithHooks(ctx context.Context, pool *pgxpool.Pool, opts Options
 			} else {
 				hooks.emit("info", "%s 分片 %s 已关闭上传（flag_upload=0），仅保留本地文件", rule.Table(), slice.Key)
 			}
+			// 记录本次内容指纹，供下一轮差异比对。
+			if fpOK {
+				saveFingerprints(ctx, store, rule, opts, env, slice, srcFP, hooks)
+			}
 			_ = size
 		}
 	}
@@ -375,6 +394,38 @@ func RunSliceOnceWithHooks(ctx context.Context, pool *pgxpool.Pool, opts Options
 	}
 	hooks.emit("info", "本轮分片备份完成：处理 %d 个分片（本地产物按分片键覆盖，文件数等于分片数，不随时间增长）", done)
 	return nil
+}
+
+// decideSkipSlice 判断已存在的分片能否跳过（需求 10916）。
+//
+// 返回 (是否跳过, 日志后缀)。判定顺序：
+//  1. 源端指纹算不出来 → 保守重做（skip=false），避免"以为没变"；
+//  2. 本地指纹 sidecar 命中 → 与源端比较，相同跳过、不同重做；
+//  3. 本地没有则读远端 sidecar（本地文件可能被手工清理过）；
+//  4. 两边都没有指纹（10916 之前的产物）→ 仅在兜底窗口（redo_slices）内重做，
+//     窗口外跳过并提示（避免每轮把历史产物整批重做）。
+func decideSkipSlice(ctx context.Context, store oss.Store, rule SliceRule, opts Options, env string,
+	slice Slice, srcFP sliceFingerprint, srcOK, redoWindow bool, hooks Hooks) (bool, string) {
+	if !srcOK {
+		return false, ""
+	}
+	if bak, ok := loadLocalFingerprint(rule.fingerprintPath(opts.BackupDir, slice)); ok {
+		if bak.Equal(srcFP) {
+			return true, "（内容无变化：" + srcFP.String() + "）"
+		}
+		return false, ""
+	}
+	if bak, ok := loadRemoteFingerprint(ctx, store, rule.remoteFingerprintKey(env, slice)); ok {
+		if bak.Equal(srcFP) {
+			return true, "（内容无变化：" + srcFP.String() + "）"
+		}
+		return false, ""
+	}
+	if !redoWindow {
+		hooks.emit("warn", "分片 %s 缺少指纹记录（旧版本产物），本轮跳过；如需校验请删除该分片产物后重跑，或将其纳入 redo_slices 兜底窗口", slice.Key)
+		return true, "（无指纹记录，跳过）"
+	}
+	return false, ""
 }
 
 // sliceExists 判断分片产物是否已存在（先本地文件，再远端对象）。

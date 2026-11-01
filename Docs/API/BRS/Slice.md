@@ -12,7 +12,7 @@
 | 登记 | `brs.brs_bak_rdb_table_full` | `brs.brs_bak_rdb_table_incr`（增量，`V300088` 建表、`V300090` 改名） |
 | 切分 | 整表 1 个文件 | 按分片维度切分成 N 个文件（日 / 周 / 月 / 列值 / 自定义条件） |
 | 方式 | `pg_dump -Fc`（custom 格式，`pg_restore` 可选择性恢复） | 按行读取后写 **MVSV-2**（与 `qiom export` 同一 writer），gzip 压缩 |
-| 增量 | 每轮整表重做（覆盖同名文件） | 分片键从库枚举，已有产物跳过，只补缺失 + 末尾 `redo_slices` 个 |
+| 增量 | 每轮整表重做（覆盖同名文件） | 分片键从库枚举；已有产物按**内容指纹**比对：相同跳过、不同重做；缺指纹的旧产物由 `redo_slices` 兜底窗口决定 |
 | 本地 | `<备份目录>/<执行日>/<库>.<schema>.<表>.dump` | `<备份目录>/Incr/<库>.<schema>.<表>/<分片键>.mvsv[.gz]` |
 | 远端 | `<prefix>/<env>/Full/<执行日>/<库>.<schema>.<表>.dump` | `<prefix>/<env>/Incr/<库>.<schema>.<表>/<分片键>.mvsv[.gz]` |
 | 调度 | 39001 cron | 本期只支持手动触发 |
@@ -52,7 +52,7 @@
 | `compression` | string | `gzip`（默认，产物 `.mvsv.gz`）/ `none`（`.mvsv`）；分片产物是 MVSV-2 文本，**不支持 `zstd`** |
 | `min_rows` | number | 分片行数下限，低于该值跳过 |
 | `max_slices` | number | 分片数上限，超过则拒绝执行 |
-| `redo_slices` | number | 末尾 N 个分片每轮强制重做 |
+| `redo_slices` | number | 兜底窗口：仅当分片**缺指纹**（10916 之前产物）时，末尾 N 个分片重做、其余跳过 |
 | `flag_upload` | string | `1` 上传对象存储 / `0` 仅本地 |
 | `plan` | object | 分片完成度，见下表 |
 
@@ -62,10 +62,10 @@
 |------|------|
 | `rule_id` / `table` | 登记主键与 `db.schema.table` |
 | `total` | 分片总数 |
-| `done` | 已备份分片数（重做窗口内的分片算未完成） |
+| `done` | 已备份分片数（产物存在即计入；内容是否变化由运行时指纹比对决定） |
 | `missing` | 待备份分片数 |
 | `skipped` | 行数低于 `min_rows` 被跳过的分片数 |
-| `redo_from` | 重做窗口起点下标 |
+| `redo_from` | 兜底窗口起点下标（缺指纹时该下标之后的分片重做） |
 | `items` | 明细数组（最多前 50 条；`Plan` 接口最多 200 条） |
 
 ## 3. `Rule/Save`

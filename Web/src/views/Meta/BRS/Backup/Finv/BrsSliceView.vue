@@ -631,7 +631,7 @@ onBeforeUnmount(() => window.clearTimeout(timer))
             </tbody>
           </v-table>
           <div class="text-caption text-medium-emphasis mt-2">
-            明细最多返回 200 条；末尾 {{ Math.max(planDetail.total - planDetail.redo_from, 0) }} 个分片属重做窗口，每轮会重新备份。
+            明细最多返回 200 条；已备份分片每轮按内容指纹比对：数据未变则跳过，数据变化才重做；缺指纹的旧产物落在末尾 {{ Math.max(planDetail.total - planDetail.redo_from, 0) }} 个分片的兜底窗口内。
           </div>
         </template>
       </v-card-text>

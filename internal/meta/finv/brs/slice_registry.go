@@ -315,14 +315,15 @@ func BuildSlicePlan(ctx context.Context, pool *pgxpool.Pool, opts Options, rule 
 	if limit <= 0 || limit > len(slices) {
 		limit = len(slices)
 	}
-	for i, slice := range slices {
+	for _, slice := range slices {
 		if slice.Rows < rule.MinRows {
 			plan.Skipped++
 			continue
 		}
 		exists, _ := sliceExists(ctx, store, rule, opts, env, slice)
-		// 重做窗口内的分片即使已存在也算「待处理」，与本轮执行口径一致。
-		backed := exists && i < redoFrom
+		// 存在即视为已备份：内容是否变化由运行时指纹比对自动决定（需求 10916），
+		// 页面上的完成度不再把兜底窗口内的分片重复计入「待处理」。
+		backed := exists
 		if backed {
 			plan.Done++
 		} else {
