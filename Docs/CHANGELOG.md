@@ -35,6 +35,14 @@
   - 待确认：① 调整范围（API / 库列 / 导出字段 / 中文名）；② 目标名称；③ 兼容策略（旧名是否保留、历史 `.mvsv` 是否兼容、`quote.` 表是否同步）。
   - 文档：`RequirementList` 新增「一百九十九」章 10886（未勾验收，汇总 10001–10886 / 885 条）。
 
+### 修复
+
+- **查询参数统一小驼峰：`page_size` → `pageSize`、`flag_enable` → `flagEnable`（ApiSpec §3）**
+  - 服务端：`internal/api/handler/meta.go` 的 `parsePager` 改读 `pageSize`（`page_size` 仅作兼容兜底），新增 `queryFlagEnable` 读取 `flagEnable`（`flag_enable` 兼容兜底），影响交易所/市场/证券字典的 `List` 接口。
+  - 前端同步：`MetaExchangeView.vue`、`MetaMarketView.vue`、`MetaSecurityView.vue`、`HistoryQuoteImportView.vue` 共 7 处 `page_size=` 改为 `pageSize=`。
+  - 新增静态检查 `internal/api/handler/queryparam_naming_test.go`：扫描 handler 内 `Query/DefaultQuery/GetQuery` 的参数名，出现未登记的 snake_case 即测试失败；已登记的兼容参数必须在同文件同时存在小驼峰主名。
+  - 规范同步：`ApiSpec` §7.5 登记迁移期兼容参数（`pageSize`/`flagEnable`/`secuName`/`startTs`/`endTs`）与静态校验说明。
+
 ### 变更
 
 - **前端路由「备份管理」三个端点统一改为 `/Meta/BRS/Backup/Finv/*`（原 `/Meta/Finv/Brs/Backup/*`）**

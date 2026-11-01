@@ -86,7 +86,7 @@ async function load() {
   error.value = ''
   try {
     const data = await apiGet<{ total: number; list: SecurityRow[] }>(
-      `/Meta/Finv/Quant/Metadata/Security/List?page=${page.value}&page_size=${pageSize.value}&keyword=${encodeURIComponent(keyword.value)}`,
+      `/Meta/Finv/Quant/Metadata/Security/List?page=${page.value}&pageSize=${pageSize.value}&keyword=${encodeURIComponent(keyword.value)}`,
     )
     rows.value = data.list ?? []
     total.value = data.total ?? 0
@@ -176,8 +176,8 @@ async function toggle(row: SecurityRow) {
 async function loadOptions() {
   try {
     const [exData, mkData] = await Promise.all([
-      apiGet<{ list: ExchangeOption[] }>('/Meta/Finv/Quant/Metadata/Exchange/List?page=1&page_size=500'),
-      apiGet<{ list: MarketOption[] }>('/Meta/Finv/Quant/Metadata/Market/List?page=1&page_size=500'),
+      apiGet<{ list: ExchangeOption[] }>('/Meta/Finv/Quant/Metadata/Exchange/List?page=1&pageSize=500'),
+      apiGet<{ list: MarketOption[] }>('/Meta/Finv/Quant/Metadata/Market/List?page=1&pageSize=500'),
     ])
     // 仅启用（flag_enable='1'）的记录入下拉；保持后端排序（启用优先）
     exchangeOptions.value = (exData.list ?? []).filter((e) => e.flag_enable === '1')

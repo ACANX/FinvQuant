@@ -73,6 +73,7 @@ API 契约测试必须覆盖：
 
 - **运维根端点**：`GET /Health`、`GET /healthz` 不挂在业务前缀下（探针/脚本使用），不属于前缀违规。
 - **URL 查询参数双读**：`dateFrom/dateTo/tsFrom/tsTo/onConflict`（小驼峰，规范名）与 `date_from/date_to/ts_from/ts_to/on_conflict`（旧下划线名）同时接受；文档以规范名为准。
+- **迁移期兼容参数双读（2026-11-01 登记）**：`pageSize`（兼容 `page_size`）、`flagEnable`（兼容 `flag_enable`）用于元数据字典接口；`secuName`（兼容 `secu_name`）、`startTs/endTs`（兼容 `start_ts/end_ts`）用于历史行情查询。规范名为主路径，旧名仅兜底，**新接口不得照此新增**；`internal/api/handler/queryparam_naming_test.go` 静态校验：出现未登记的下划线查询参数即测试失败。
 - **列表信封沿用旧契约**：`GET /Page`、`GET /PageUni` 成功响应为 `{"code":1,"data":{...},"message":"OK"}`（成功码 `1` 属成功码集合，允许）。
 - **错误体为超集**：`{code,message,detail,request_id,error}`，保留旧客户端依赖的 `detail` 字段；`code` 见 `ErrorCodeSpec` §1.1。
 - **运维端点无 `/API/V1` 前缀**：`GET /Health`（旧 `/healthz` 过渡别名）、`GET /` 服务标识。

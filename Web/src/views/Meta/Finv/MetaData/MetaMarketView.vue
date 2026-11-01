@@ -43,7 +43,7 @@ async function load() {
   error.value = ''
   try {
     const data = await apiGet<{ total: number; list: MarketRow[] }>(
-      `/Meta/Finv/Quant/Metadata/Market/List?page=${page.value}&page_size=${pageSize.value}&keyword=${encodeURIComponent(keyword.value)}`,
+      `/Meta/Finv/Quant/Metadata/Market/List?page=${page.value}&pageSize=${pageSize.value}&keyword=${encodeURIComponent(keyword.value)}`,
     )
     rows.value = data.list ?? []
     total.value = data.total ?? 0
