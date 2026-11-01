@@ -35,7 +35,7 @@
     "done": 0,
     "failed": 0,
     "current_table": "",
-    "backup_dir": "/data/App/FinvQuant/Backup/BRS",
+    "backup_dir": "/data/App/FinvQuant/BRS",
     "error": "",
     "logs": [{ "seq": 1, "time": "2026-11-01T20:45:12.345678+08:00", "level": "info", "message": "开始执行 手动 备份（run_id=20261101-204512-manual）" }],
     "last_seq": 1
@@ -72,7 +72,7 @@
 | `elapsed_ms` | int | 已耗时（运行中实时增长） |
 | `total` / `done` / `failed` | int | 总表数 / 已完成 / 失败张数（`done` 为已处理张数） |
 | `current_table` | string | 当前正在备份的表（`schema.table`） |
-| `backup_dir` | string | 本轮备份目录（`<BackupDir>/<yyyyMMdd>`，`BackupDir` 取 `FINV_BRS_BACKUP_DIR`，默认 `/data/App/Backup/BRS`） |
+| `backup_dir` | string | 本轮备份目录（`<BackupDir>/<yyyyMMdd>`，`BackupDir` 取 `FINV_BRS_BACKUP_DIR`；Native 与容器统一为 `/data/App/FinvQuant/BRS`） |
 | `error` | string | 失败原因（`status=failed` 时） |
 | `logs` | array | 日志条目：`{seq, time, level, message}`，`level` 取 `info` / `warn` / `error` |
 | `last_seq` | int | 当前最大日志序号，下一次增量拉取用 |
@@ -88,7 +88,7 @@
 ```text
 [info]  开始执行 手动 备份（run_id=20261101-204512-manual）
 [info]  未启用对象存储上传（39002 enabled=false），仅本地备份
-[info]  开始备份：12 张表 → /data/App/Backup/BRS/20261101
+[info]  开始备份：12 张表 → /data/App/FinvQuant/BRS/20261101
 [info]  上传环境目录：prod
 [info]  备份成功 sys.sys_user（…/finv.sys.sys_user.dump，1.2 MiB，耗时 210ms）
 [info]  已上传 prod/20261101/finv.sys.sys_user.dump

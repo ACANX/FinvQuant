@@ -629,7 +629,7 @@ onBeforeUnmount(() => window.clearTimeout(timer))
       </v-row>
       <v-row dense>
         <v-col cols="4" sm="3">产物路径</v-col>
-        <v-col cols="8" sm="9">本地 <code>&lt;备份目录&gt;/Slice/&lt;库&gt;.&lt;schema&gt;.&lt;表&gt;/&lt;分片键&gt;.mvsv.gz</code>；远端 <code>&lt;prefix&gt;/&lt;环境&gt;/&lt;库&gt;.&lt;schema&gt;.&lt;表&gt;/&lt;分片键&gt;.mvsv.gz</code>（MVSV-2，gzip 压缩）</v-col>
+        <v-col cols="8" sm="9">本地 <code>&lt;备份目录&gt;/Incr/&lt;库&gt;.&lt;schema&gt;.&lt;表&gt;/&lt;分片键&gt;.mvsv.gz</code>；远端 <code>&lt;prefix&gt;/&lt;环境&gt;/&lt;库&gt;.&lt;schema&gt;.&lt;表&gt;/&lt;分片键&gt;.mvsv.gz</code>（MVSV-2，gzip 压缩）</v-col>
       </v-row>
       <v-row dense>
         <v-col cols="4" sm="3">恢复顺序</v-col>

@@ -60,7 +60,8 @@ set_prefix() {
   BIN_DIR="${PREFIX}/bin"
   MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"
   DEPLOY_DIR="${PREFIX}/Deploy"
-  BACKUP_DIR="${PREFIX}/Backup"
+  BACKUP_DIR="${PREFIX}/Backup"          # 数据库逻辑备份
+  BRS_DIR="${PREFIX}/BRS"                # BRS 备份产物（需求 10907，独立于 Backup）
   ENV_FILE="${PREFIX}/finvquant.env"
   BINARY="${BIN_DIR}/finvquant"
   BINARY_PREV="${BIN_DIR}/finvquant.prev"
@@ -100,12 +101,18 @@ fi
 # BRS 备份目录：目录预先创建 + 旧配置补齐 FINV_BRS_BACKUP_DIR（不覆盖已有值）。
 # 老版本 env 没有该键时二进制会用默认值，可能落在不可写路径导致首次备份失败。
 install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
-install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}/BRS"
-# 大表分片备份子目录（需求 10905）：与 BRS 同级，运行用户需可写
-install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}/BRS/Slice"
+# BRS 备份根目录独立于 Backup（需求 10907）：运行用户可写，表级与分片产物都在这里
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}"
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}/Incr"
+
+# 旧目录（<PREFIX>/Backup/BRS）迁移提示：不自动搬动历史产物，只给出可复制命令
+if [[ -d "${BACKUP_DIR}/BRS" ]] && [[ -n "$(ls -A "${BACKUP_DIR}/BRS" 2>/dev/null || true)" ]]; then
+  warn "检测到旧 BRS 目录 ${BACKUP_DIR}/BRS（含历史产物）；新目录为 ${BRS_DIR}。"
+  warn "如需保留历史产物： sudo cp -a ${BACKUP_DIR}/BRS/. ${BRS_DIR}/ && sudo chown -R ${APP_USER}:${APP_GROUP} ${BRS_DIR}"
+fi
 if ! grep -q '^FINV_BRS_BACKUP_DIR=' "${ENV_FILE}"; then
-  printf '\n# BRS 表级备份目录（升级脚本自动补齐）\nFINV_BRS_BACKUP_DIR=%s\n' "${BACKUP_DIR}/BRS" >> "${ENV_FILE}"
-  ok "已补齐 FINV_BRS_BACKUP_DIR=${BACKUP_DIR}/BRS"
+  printf '\n# BRS 备份目录（升级脚本自动补齐）\nFINV_BRS_BACKUP_DIR=%s\n' "${BRS_DIR}" >> "${ENV_FILE}"
+  ok "已补齐 FINV_BRS_BACKUP_DIR=${BRS_DIR}"
 fi
 ok "安装根目录：${PREFIX}"
 

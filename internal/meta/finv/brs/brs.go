@@ -40,11 +40,12 @@ const EnvConfigNo = 1002
 
 // defaultBackupDir 未配置 FINV_BRS_BACKUP_DIR 时的兜底备份根目录。
 //
-// 取 Native 安装根目录下的 Backup/BRS（与 Install.sh 创建的 <PREFIX>/Backup 一致）：
-// 裸机部署的 /data/App 往往只读或不属于运行用户，落到 /data/App/Backup 会 mkdir 失败
-// （2026-11-01 线上：mkdir /data/App/Backup: read-only file system）。
-// 容器部署由 docker-compose 显式传 FINV_BRS_BACKUP_DIR=/data/App/Backup/BRS，不受影响。
-const defaultBackupDir = "/data/App/FinvQuant/Backup/BRS"
+// 取 Native 安装根目录下的 BRS（<PREFIX>/BRS），**不放 <PREFIX>/Backup 下**：
+// Backup 是数据库逻辑备份目录（Upgrade.sh 写入，root 0705/0750），BRS 需要运行用户
+// 可写，两者混在同一个父目录里容易出现属主/权限互相干扰（2026-11-01 线上曾因
+// /data/App 不可写导致 mkdir 失败，需求 10893/10901 的历史包袱）。
+// 容器部署由 docker-compose 显式传 FINV_BRS_BACKUP_DIR，不受本默认值影响。
+const defaultBackupDir = "/data/App/FinvQuant/BRS"
 
 // Options 备份执行参数。
 type Options struct {

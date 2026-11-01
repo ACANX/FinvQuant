@@ -35,7 +35,8 @@ APP_GROUP="finvquant"
 PREFIX="${FINVQ_PREFIX:-/data/App/FinvQuant}"
 BIN_DIR="${PREFIX}/bin"
 MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"
-BACKUP_DIR="${PREFIX}/Backup"
+BACKUP_DIR="${PREFIX}/Backup"          # 数据库逻辑备份（Upgrade.sh 写入）
+BRS_DIR="${PREFIX}/BRS"                # BRS 备份产物（运行用户可写，独立于 Backup）
 EXPORT_DIR="${PREFIX}/Export"
 LOG_DIR="${PREFIX}/Log"
 DEPLOY_DIR="${PREFIX}/Deploy"
@@ -71,6 +72,7 @@ while [[ $# -gt 0 ]]; do
     --prefix)     PREFIX="${2:-}"; shift 2
                   BIN_DIR="${PREFIX}/bin"
                   MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"; BACKUP_DIR="${PREFIX}/Backup"
+                  BRS_DIR="${PREFIX}/BRS"
                   EXPORT_DIR="${PREFIX}/Export"; LOG_DIR="${PREFIX}/Log"; DEPLOY_DIR="${PREFIX}/Deploy"
                   ENV_FILE="${PREFIX}/finvquant.env"; BINARY="${BIN_DIR}/finvquant"
                   QIOM_BINARY="${BIN_DIR}/qiom" ;;
@@ -216,14 +218,13 @@ install -d -o root -g root -m 0755 "${BIN_DIR}"
 install -d -o root -g root -m 0755 "${DEPLOY_DIR}"
 install -d -o root -g "${APP_GROUP}" -m 0755 "${MIGRATIONS_DIR}"
 install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
-# BRS 表级备份目录必须由安装脚本预建：运行用户无权在 /data/App 下创建目录，
-# 等首次备份再 MkdirAll 会直接失败（read-only file system / permission denied）。
-install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}/BRS"
-# 大表分片备份子目录（需求 10905）：与 BRS 同级，运行用户需可写
-install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}/BRS/Slice"
+# BRS 备份根目录独立于 Backup（需求 10907）：运行用户可写，避免与数据库逻辑
+# 备份的属主/权限互相干扰；表级与分片产物都在这里。
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}"
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}/Incr"
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0755 "${EXPORT_DIR}"
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${LOG_DIR}"
-ok "目录：${BIN_DIR} / ${MIGRATIONS_DIR} / ${BACKUP_DIR} / ${EXPORT_DIR} / ${LOG_DIR} / ${DEPLOY_DIR}（配置：${ENV_FILE}）"
+ok "目录：${BIN_DIR} / ${MIGRATIONS_DIR} / ${BACKUP_DIR} / ${BRS_DIR} / ${EXPORT_DIR} / ${LOG_DIR} / ${DEPLOY_DIR}（配置：${ENV_FILE}）"
 
 # ---------------------------------------------------------------------
 # 6. 安装二进制、迁移脚本与部署文件
@@ -352,8 +353,8 @@ if [[ -f "${ENV_FILE}" ]]; then
   fi
   # 旧配置补齐 BRS 备份目录（不覆盖已有值）
   if ! grep -q '^FINV_BRS_BACKUP_DIR=' "${ENV_FILE}"; then
-    printf '\n# BRS 表级备份目录（安装脚本自动补齐）\nFINV_BRS_BACKUP_DIR=%s\n' "${BACKUP_DIR}/BRS" >> "${ENV_FILE}"
-    ok "已补齐 FINV_BRS_BACKUP_DIR=${BACKUP_DIR}/BRS"
+    printf '\n# BRS 备份目录（安装脚本自动补齐）\nFINV_BRS_BACKUP_DIR=%s\n' "${BRS_DIR}" >> "${ENV_FILE}"
+    ok "已补齐 FINV_BRS_BACKUP_DIR=${BRS_DIR}"
   fi
 else
   DB_PASSWORD="$(openssl rand -hex 16)"
@@ -364,7 +365,7 @@ else
   sed -i "s|^FINV_QUOTE_DEDUB_OUTPUT_DIR=.*|FINV_QUOTE_DEDUB_OUTPUT_DIR=${EXPORT_DIR}|" "${ENV_FILE}"
   sed -i "s|^FINV_QUOTE_DEDUB_UPLOAD_DIR=.*|FINV_QUOTE_DEDUB_UPLOAD_DIR=${EXPORT_DIR}/Upload|" "${ENV_FILE}"
   sed -i "s|^FINV_LOG_DIR=.*|FINV_LOG_DIR=${LOG_DIR}|" "${ENV_FILE}"
-  sed -i "s|^FINV_BRS_BACKUP_DIR=.*|FINV_BRS_BACKUP_DIR=${BACKUP_DIR}/BRS|" "${ENV_FILE}"
+  sed -i "s|^FINV_BRS_BACKUP_DIR=.*|FINV_BRS_BACKUP_DIR=${BRS_DIR}|" "${ENV_FILE}"
   ok "已生成 ${ENV_FILE}（随机数据库密码，权限 600）"
 fi
 [[ -n "${DB_PASSWORD}" ]] || die "未能读取或生成数据库密码，请检查 ${ENV_FILE}"

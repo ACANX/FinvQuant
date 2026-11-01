@@ -13,7 +13,7 @@
 | 切分 | 整表 1 个文件 | 按分片维度切分成 N 个文件（日 / 周 / 月 / 列值 / 自定义条件） |
 | 方式 | `pg_dump -Fc`（custom 格式，`pg_restore` 可选择性恢复） | 按行读取后写 **MVSV-2**（与 `qiom export` 同一 writer），gzip 压缩 |
 | 增量 | 每轮整表重做（覆盖同名文件） | 分片键从库枚举，已有产物跳过，只补缺失 + 末尾 `redo_slices` 个 |
-| 本地 | `<备份目录>/<执行日>/<库>.<schema>.<表>.dump` | `<备份目录>/Slice/<库>.<schema>.<表>/<分片键>.mvsv[.gz]` |
+| 本地 | `<备份目录>/<执行日>/<库>.<schema>.<表>.dump` | `<备份目录>/Incr/<库>.<schema>.<表>/<分片键>.mvsv[.gz]` |
 | 远端 | `<prefix>/<env>/<执行日>/<库>.<schema>.<表>.dump` | `<prefix>/<env>/<库>.<schema>.<表>/<分片键>.mvsv[.gz]` |
 | 调度 | 39001 cron | 本期只支持手动触发 |
 
@@ -136,7 +136,7 @@
 
 ```bash
 # 本地
-ls /data/App/FinvQuant/Backup/BRS/Slice/finv.cdeu.finv_quote_secu_kline_min/
+ls /data/App/FinvQuant/BRS/Incr/finv.cdeu.finv_quote_secu_kline_min/
 # 20260930.mvsv.gz  20261001.mvsv.gz ...
 
 # 远端（R2）

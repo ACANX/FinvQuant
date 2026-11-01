@@ -257,6 +257,15 @@
   - 新增 `kline/vwap_compat_test.go`（7 个用例）：vwap 优先 / pacd 兼容 / vwap=null 回退 / 两列皆空 / 增量补丁列名 / 短名 vwa / `/Page` 输出。
   - 本机 API 实测：`pacd` 入参落库 `vwap=3.56`；`vwap=9.99` 与 `pacd=3.56` 同传取 9.99；`/Page`、`/PageUni` 第 13 项为 `vwa`；`/Add`、`/Query` 输出 `vwap` 且无 `pacd`。
 
+### 变更
+
+- **BRS 备份目录迁到 `<PREFIX>/BRS`，不再放在 `Backup/` 下（需求 10907）**
+  - 原因：`<PREFIX>/Backup` 是数据库逻辑备份目录（`Upgrade.sh` 写入、root 属主），BRS 产物需要运行用户可写，放在同一个父目录下容易出现属主/权限互相干扰。
+  - `FINV_BRS_BACKUP_DIR` 默认值：`/data/App/FinvQuant/Backup/BRS` → **`/data/App/FinvQuant/BRS`**（`internal/config`、`brs.defaultBackupDir` 同步）。
+  - `Install.sh`/`Upgrade.sh`：新增 `BRS_DIR=<PREFIX>/BRS`，预建 `BRS` 与 `BRS/Incr`（属主运行用户，0750；分片子目录由 `Slice` 更名为 `Incr`，与登记表 `_incr` 对齐），env 补齐/改写为该路径；`Upgrade.sh` 检测到旧 `Backup/BRS` 仍有产物时打印迁移命令（不自动搬动生产数据）。
+  - 容器：`FINV_BRS_BACKUP_DIR` 与 volume 挂载点统一为 `/data/App/FinvQuant/BRS`（与 Native 完全一致），volume 宿主目录 `FINV_BRS_HOST_DIR` 不变。
+  - 文档：`Brs.md`（路径/运维命令）、`BrsBackupDesign.md`（默认值）、`Deploy/Native/Install.md`、`Docs/API/BRS/{Run,Slice}.md`。
+
 ### 修复
 
 - **MVSV-2 文本字段含 `|` / 换行导致导出文件不可解析（需求 10906）**

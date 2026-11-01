@@ -111,7 +111,7 @@ RunOnce
 | 执行方式 | 命中后 `go RunOnce(...)` | 备份是长任务，不能阻塞 ticker |
 | 停止 | `ctx.Done()` 退出循环 | 与进程生命周期一致 |
 
-**默认值**：迁移种子把 39001 设为 `0 0 3 * * *`（每日 03:00）；`Start` 的兜底备份目录为 `/data/App/FinvQuant/Backup/BRS`，实际以 `FINV_BRS_BACKUP_DIR` 为准。
+**默认值**：迁移种子把 39001 设为 `0 0 3 * * *`（每日 03:00）；`Start` 的兜底备份目录为 `/data/App/FinvQuant/BRS`（需求 10907：独立于 `<PREFIX>/Backup`，避免与数据库逻辑备份的属主/权限互相干扰），实际以 `FINV_BRS_BACKUP_DIR` 为准。
 
 ## 5. 单表备份
 
@@ -307,7 +307,7 @@ type Store interface {
 | 登记表 | `brs.brs_bak_rdb_table` | `brs.brs_bak_rdb_table_incr`（`V300088` 建表，`V300090` 由 `_slice` 改名为 `_incr`） |
 | 执行链 | `RunOnce` / `Runner` / 39001 cron | `RunSliceOnceWithHooks` / `SliceRunner`（仅手动） |
 | 导出 | `pg_dump -Fc`（custom 格式） | 按行读取后写 **MVSV-2**（复用 `mvsv.WriteV2`，与 `qiom export` 同格式） |
-| 产物 | `<备份目录>/<执行日>/<db>.<schema>.<表>.dump` | `<备份目录>/Slice/<db>.<schema>.<表>/<分片键>.mvsv.gz` |
+| 产物 | `<备份目录>/<执行日>/<db>.<schema>.<表>.dump` | `<备份目录>/Incr/<db>.<schema>.<表>/<分片键>.mvsv.gz` |
 | 远端 | `<prefix>/<env>/<执行日>/<file>` | `<prefix>/<env>/<db>.<schema>.<表>/<分片键>.mvsv.gz` |
 | 增量 | 每轮整表覆盖 | 分片键枚举 + 产物存在即跳过；末尾 `redo_slices` 个重做 |
 

@@ -53,14 +53,14 @@ services:
       # 导出低峰窗口改由 sys.sys_config 20006 承载（格式 HH:MM:SS|HH:MM:SS），
       # 不再从环境变量读取；缺失或非法时按内置默认 00:30:00|06:30:00 兜底。
       FINV_QUOTE_DEDUB_PAGE_SIZE: ${FINV_QUOTE_DEDUB_PAGE_SIZE:-10000}
-      # BRS 备份根目录：容器内默认 /data/App/Backup/BRS（由下方 volume 映射到宿主）。
-      # 注意与 Native 不同：Native 默认 <PREFIX>/Backup/BRS，由 Install/Upgrade 脚本创建。
-      FINV_BRS_BACKUP_DIR: ${FINV_BRS_BACKUP_DIR:-/data/App/Backup/BRS}
+      # BRS 备份根目录：容器内 /data/App/FinvQuant/BRS（与 Native 完全一致），
+      # 与数据库逻辑备份分开，避免权限互相干扰；由下方 volume 映射到宿主。
+      FINV_BRS_BACKUP_DIR: ${FINV_BRS_BACKUP_DIR:-/data/App/FinvQuant/BRS}
     volumes:
       # 本地导出与上传暂存目录（容器重建不丢文件；独享存储可用 NAS 挂载目录）
       - ${FINV_QUOTE_DEDUB_HOST_DIR:-./data/App/FinvQuant/Export}:/data/App/FinvQuant/Export
       # BRS 备份产物目录（容器重建不丢文件）
-      - ${FINV_BRS_HOST_DIR:-./data/App/Backup}:/data/App/Backup
+      - ${FINV_BRS_HOST_DIR:-./data/App/Backup}:/data/App/FinvQuant/BRS
     depends_on:
       postgres:
         condition: service_healthy

@@ -3,7 +3,7 @@
 // 与小表全量备份（brs.brs_bak_rdb_table + RunOnce）完全独立：
 //
 //	· 配置独立（另一张表，不改小表登记）；
-//	· 产物独立（<BackupDir>/Slice/<db>.<schema>.<table>/<分片键>.dump）；
+//	· 产物独立（<BackupDir>/Incr/<db>.<schema>.<table>/<分片键>.mvsv[.gz]）；
 //	· 上传独立（<env>/<db>.<schema>.<table>/<分片键>.dump）。
 //
 // 增量语义（不新增状态表）：
@@ -38,8 +38,10 @@ const (
 	SliceModeExpr   = "expr"
 )
 
-// SliceDirName 分片备份在备份根目录下的子目录名。
-const SliceDirName = "Slice"
+// IncrDirName 大表增量（分片）备份在备份根目录下的子目录名。
+//
+// 与登记表 brs_bak_rdb_table_incr 命名保持一致（需求 10907：目录名由 Slice 改为 Incr）。
+const IncrDirName = "Incr"
 
 // EnsureSliceRoot 预检分片备份根目录：创建 `<BackupDir>/Slice` 并验证可写。
 //
@@ -47,7 +49,7 @@ const SliceDirName = "Slice"
 // 会给出 N 条重复错误；这里一次性定位并把原因写清楚（生产曾出现
 // `mkdir /data/App/Backup: read-only file system` 的同类问题）。
 func EnsureSliceRoot(backupDir string) (string, error) {
-	root := filepath.Join(backupDir, SliceDirName)
+	root := filepath.Join(backupDir, IncrDirName)
 	if err := os.MkdirAll(root, 0o750); err != nil {
 		return root, fmt.Errorf("创建分片备份根目录失败: %w（FINV_BRS_BACKUP_DIR=%s；请确认目录存在、位于可写文件系统且运行用户可写）",
 			err, backupDir)
@@ -271,9 +273,9 @@ func (r SliceRule) tableDir() string {
 	return fmt.Sprintf("%s.%s.%s", r.DB, r.SchemaName, r.TableName)
 }
 
-// localPath 本地产物路径：<BackupDir>/Slice/<db>.<schema>.<table>/<分片键>.mvsv[.gz]。
+// localPath 本地产物路径：<BackupDir>/Incr/<db>.<schema>.<table>/<分片键>.mvsv[.gz]。
 func (r SliceRule) localPath(backupDir string, s Slice) string {
-	return filepath.Join(backupDir, SliceDirName, r.tableDir(), r.fileKey(s)+r.fileExt())
+	return filepath.Join(backupDir, IncrDirName, r.tableDir(), r.fileKey(s)+r.fileExt())
 }
 
 // remoteKey 远端 key：<env>/<db>.<schema>.<table>/<分片键>.mvsv[.gz]（prefix 由适配器拼接）。
@@ -318,7 +320,7 @@ func RunSliceOnceWithHooks(ctx context.Context, pool *pgxpool.Pool, opts Options
 		}
 		hooks.emit("info", "%s：slice_mode=%s，共 %d 个分片", rule.Table(), rule.SliceMode, len(slices))
 
-		dir := filepath.Join(opts.BackupDir, SliceDirName, rule.tableDir())
+		dir := filepath.Join(opts.BackupDir, IncrDirName, rule.tableDir())
 		if err := os.MkdirAll(dir, 0o750); err != nil {
 			failed++
 			hooks.emit("error", "创建分片目录失败 %s: %v；请检查 FINV_BRS_BACKUP_DIR 可写", dir, err)

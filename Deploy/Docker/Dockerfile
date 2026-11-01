@@ -57,7 +57,7 @@ ENV FINV_MIGRATIONS_DIR=/etc/finvquant/Migrations
 
 # 运行目录与导出归档目录（非 root 用户需要可写）
 WORKDIR /app
-RUN mkdir -p /data/App/FinvQuant/Export && chown -R finvquant:finvquant /app /data
+RUN mkdir -p /data/App/FinvQuant/Export /data/App/FinvQuant/BRS && chown -R finvquant:finvquant /app /data
 
 USER finvquant
 EXPOSE 16001 16002
