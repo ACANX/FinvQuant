@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { apiGet, apiPost } from '../../../../../api'
+import { showToast } from '../../../../../ui/toast'
 import { fmtDate, fmtNum, fmtPct } from '../../../../../utils'
 
 // 任务状态 → ICON + 颜色（列表"状态"列用图标直观展示，替代文本，与黄金回测验证页一致）
@@ -81,7 +82,6 @@ const secuFilter = ref('')
 const keyword = ref('')
 const loading = ref(false)
 const error = ref('')
-const message = ref('')
 const cancelling = ref('')
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
@@ -143,7 +143,7 @@ async function cancelRun(run: RunRow) {
     await apiPost('/Meta/Finv/Quant/Backtest/Run/Cancel', { run_id: run.run_id })
     await loadRuns()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   } finally {
     cancelling.value = ''
   }
@@ -155,11 +155,11 @@ async function deleteRun(run: RunRow) {
   if (!confirm(msg)) return
   try {
     const res = await apiPost<{ del_task_id: string }>('/Meta/Finv/Quant/Backtest/Run/Delete', { run_id: run.run_id })
-    message.value = `删除任务已提交（${res.del_task_id}），后台异步执行中`
+    showToast(`删除任务已提交（${res.del_task_id}），后台异步执行中`)
     // 跳转到删除任务管理页查看进度与日志
     router.push({ path: '/Meta/Finv/Quant/Backtest/RunDeleteTasks' })
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
@@ -198,7 +198,6 @@ onBeforeUnmount(() => {
       </v-card-title>
 
       <v-alert v-if="error" type="error" dismissible class="mx-4 mb-2">{{ error }}</v-alert>
-      <v-alert v-if="message" type="success" dismissible class="mx-4 mb-2">{{ message }}</v-alert>
 
       <v-card-text class="pt-0">
         <v-row>

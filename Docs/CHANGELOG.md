@@ -259,6 +259,15 @@
 
 ### 变更
 
+- **前端操作反馈统一为悬浮 Toast（需求 10913）**
+  - 新增 `Web/src/ui/toast.ts`（全局队列、`showToast(text, type, timeout=5000)`、`dismissToast`、`clearToasts`）与 `Web/src/components/AppToast.vue`（顶部居中悬浮、不占布局、5 秒自动消失、可手动关闭、FIFO 不堆叠、长文案折行），在 `App.vue` 挂载一次。
+  - 14 个页面把「保存成功 / 已启用 / 已开始备份」等一次性提示从内嵌 `v-alert` + `message` ref 改为 `showToast`；操作类失败（非 `load*` 的 catch）改为 `showToast(msg, 'error')`。
+  - 加载失败、持续状态（运行中 / 磁盘水位 / 备份目录不可用）、表单校验仍保留内联 `v-alert`。
+  - 删除页面内自建 `v-snackbar`：`EnvironmentView` 的本地 toast 与 `App.vue` 改密提示统一走 `AppToast`。
+  - `Docs/DevSpec/UiSpec.md` 新增 §4「操作反馈提示（Toast / Snackbar）规范」；`AGENTS.md` 规范表补登 `UiSpec.md`、`MenuSpec.md`、`BacktestStrategySpec.md`。
+
+### 变更
+
 - **39002 对象存储配置格式调整（需求 10912）**
   - 新格式：`{"enable":true,"protocol":"s3","provider":"cloudflare-r2","endpoint":…,"bucket":…,"region":…,"ak":…,"sk":…,"prefix":…}`；`enabled`→`enable`，原 `provider`（协议）拆为 `protocol`（协议）+ `provider`（厂商标签）。
   - 保存一律写新键；读取兼容旧键 `enabled`、误拼别名 `protocal`、旧格式 `"provider":"s3"`（按 endpoint 推断 `cloudflare-r2`/`aws-s3`）与旧凭证键 `access_key`/`secret_key`，升级后不改配置即可继续上传。

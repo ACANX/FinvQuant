@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { apiGet, apiPost } from '../../../../../api'
+import { showToast } from '../../../../../ui/toast'
 
 interface StrategyRow {
   strategy_id: string
@@ -25,7 +26,6 @@ const pageSize = ref(20)
 const keyword = ref('')
 const loading = ref(false)
 const error = ref('')
-const message = ref('')
 
 const dialog = ref(false)
 const editing = ref(false)
@@ -232,7 +232,6 @@ function openEdit(row: StrategyRow) {
 }
 
 async function save() {
-  error.value = ''
   // 校验 JSON 定义
   let definition: Record<string, unknown>
   try {
@@ -244,11 +243,11 @@ async function save() {
   defError.value = ''
   try {
     await apiPost('/Meta/Finv/Quant/Backtest/Strategy/Save', { ...form.value, definition })
-    message.value = '保存成功'
+    showToast('保存成功')
     dialog.value = false
     await load()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
@@ -260,7 +259,7 @@ async function toggle(row: StrategyRow) {
     })
     await load()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
@@ -268,10 +267,10 @@ async function remove(row: StrategyRow) {
   if (!confirm(`确认删除策略「${row.strategy_name}」？`)) return
   try {
     await apiPost('/Meta/Finv/Quant/Backtest/Strategy/Delete', { strategy_id: row.strategy_id })
-    message.value = '删除成功'
+    showToast('删除成功')
     await load()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
@@ -294,7 +293,6 @@ onMounted(async () => {
       </v-card-title>
 
       <v-alert v-if="error" type="error" dismissible class="mx-4 mb-2">{{ error }}</v-alert>
-      <v-alert v-if="message" type="success" dismissible class="mx-4 mb-2">{{ message }}</v-alert>
 
       <v-data-table-server v-model:page="page" v-model:items-per-page="pageSize" :headers="[
         { title: '编码', key: 'strategy_code', width: 150 },

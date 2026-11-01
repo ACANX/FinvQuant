@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 
 import { apiGet, apiPost } from '../../../../api'
+import { showToast } from '../../../../ui/toast'
 
 // finv_exchange 交易所/市场字典行
 interface ExchangeRow {
@@ -24,7 +25,6 @@ const pageSize = ref(20)
 const keyword = ref('')
 const loading = ref(false)
 const error = ref('')
-const message = ref('')
 
 // 新增/编辑对话框
 const dialog = ref(false)
@@ -82,14 +82,12 @@ function openEdit(row: ExchangeRow) {
 }
 
 async function save() {
-  error.value = ''
-  message.value = ''
   if (!form.value.exchange_code || form.value.exchange_code <= 0) {
-    error.value = '交易所代码必须为正整数'
+    showToast('交易所代码必须为正整数', 'error')
     return
   }
   if (!form.value.exchange_flag.trim() || !form.value.exchange_abbr.trim()) {
-    error.value = '交易所标志与英文缩写不能为空'
+    showToast('交易所标志与英文缩写不能为空', 'error')
     return
   }
   try {
@@ -104,23 +102,22 @@ async function save() {
       base_currency: form.value.base_currency.trim(),
       ft_list_exchange_code: form.value.ft_list_exchange_code?.trim() || null,
     })
-    message.value = '保存成功'
+    showToast('保存成功')
     dialog.value = false
     await load()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
 async function toggle(row: ExchangeRow) {
-  error.value = ''
   const next = row.flag_enable === '1' ? '0' : '1'
   try {
     await apiPost('/Meta/Finv/Quant/Metadata/Exchange/Toggle', { exchange_code: row.exchange_code, flag_enable: next })
     row.flag_enable = next
-    message.value = `已${next === '1' ? '启用' : '禁用'}交易所 ${row.exchange_code}`
+    showToast(`已${next === '1' ? '启用' : '禁用'}交易所 ${row.exchange_code}`)
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
@@ -164,7 +161,6 @@ onMounted(load)
       </v-row>
 
       <v-alert v-if="error" type="error" class="mb-3" density="compact">{{ error }}</v-alert>
-      <v-alert v-if="message" type="success" class="mb-3" density="compact">{{ message }}</v-alert>
 
       <v-data-table
         :headers="[

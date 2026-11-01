@@ -6,6 +6,7 @@
 import { onMounted, ref } from 'vue'
 
 import { apiGet, apiPost } from '../../../../../api'
+import { showToast } from '../../../../../ui/toast'
 
 interface ScheduleConfig {
   cron_expr: string
@@ -19,7 +20,6 @@ const API_PREFIX = '/Meta/BRS/Backup/Finv/Schedule'
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
-const message = ref('')
 const config = ref<ScheduleConfig>({ cron_expr: '', remark: '', gmt_modify: null, next_runs: [] })
 const cronExpr = ref('')
 
@@ -47,16 +47,14 @@ async function load() {
 }
 
 async function save() {
-  error.value = ''
-  message.value = ''
   saving.value = true
   try {
     const data = await apiPost<ScheduleConfig>(`${API_PREFIX}/Save`, { cron_expr: cronExpr.value.trim() })
     config.value = data
     cronExpr.value = data.cron_expr
-    message.value = '保存成功：调度器最多 1 分钟内按新表达式执行'
+    showToast('保存成功：调度器最多 1 分钟内按新表达式执行')
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   } finally {
     saving.value = false
   }
@@ -86,7 +84,6 @@ onMounted(load)
 
     <v-card-text>
       <v-alert v-if="error" type="error" class="mb-3" density="compact">{{ error }}</v-alert>
-      <v-alert v-if="message" type="success" class="mb-3" density="compact">{{ message }}</v-alert>
 
       <v-row dense>
         <v-col cols="12" sm="6">

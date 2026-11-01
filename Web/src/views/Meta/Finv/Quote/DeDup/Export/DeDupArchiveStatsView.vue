@@ -4,6 +4,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 
 import { apiGet, apiPost, apiPut } from '../../../../../../api'
+import { showToast } from '../../../../../../ui/toast'
 import { bizMonthOptions, fmtBytes, fmtDate, fmtISO, fmtMonth, fmtNum, fmtPct, isoDate } from '../../../../../../utils'
 
 interface PageData<T> {
@@ -70,8 +71,6 @@ const maturityStatusItems = Object.keys(MATURITY_NAME).map((value) => ({ title: 
 
 const tab = ref('stats')
 const error = ref('')
-const toast = ref(false)
-const toastText = ref('')
 
 // ---- 入口统计 ----
 const stats = ref<PageData<IngestStat>>({ total: 0, list: [] })
@@ -242,8 +241,7 @@ async function saveBudget() {
   error.value = ''
   try {
     await apiPut<{ biz_date: string }>('/Meta/Finv/Quote/DeDup/Budget/Override', budgetForm.value)
-    toastText.value = '预算已覆盖，下一个调度周期生效'
-    toast.value = true
+    showToast('预算已覆盖，下一个调度周期生效')
     budgetDialog.value = false
     await loadBudgets()
   } catch (e) {
@@ -263,8 +261,7 @@ async function saveWatermark() {
   error.value = ''
   try {
     await apiPut<{ watermark_name: string }>('/Meta/Finv/Quote/DeDup/Watermark', watermarkForm.value)
-    toastText.value = '水位已重置'
-    toast.value = true
+    showToast('水位已重置')
     watermarkDialog.value = false
     await loadWatermarks()
   } catch (e) {
@@ -279,8 +276,7 @@ async function refreshMaturity() {
   error.value = ''
   try {
     await apiPost<{ job_kind: string }>('/Meta/Finv/Quote/DeDup/Maturity/Refresh', {})
-    toastText.value = '已触发成熟度重算，稍后刷新查看'
-    toast.value = true
+    showToast('已触发成熟度重算，稍后刷新查看')
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -515,6 +511,5 @@ onMounted(async () => {
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="toast" :timeout="3000" color="success">{{ toastText }}</v-snackbar>
   </v-card>
 </template>

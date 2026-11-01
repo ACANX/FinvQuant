@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { apiGet, apiPost } from '../../../../../api'
+import { showToast } from '../../../../../ui/toast'
 
 // 环境行
 interface EnvRow {
@@ -33,12 +34,6 @@ const envPage = ref(1)
 const envPageSize = ref(10)
 const envTypeFilter = ref('')
 const envLoading = ref(false)
-
-// 吐司提示（v-snackbar）：成功/错误消息短暂展示后自动消失，替代内嵌 v-alert
-const toast = ref<{ text: string; type: 'success' | 'error'; visible: boolean }>({ text: '', type: 'success', visible: false })
-function showToast(text: string, type: 'success' | 'error' = 'success') {
-  toast.value = { text, type, visible: true }
-}
 
 const envDialog = ref(false)
 const envEditing = ref(false)
@@ -294,13 +289,5 @@ onMounted(() => {
     </v-card>
 
     <!-- 吐司提示：保存/删除成功等短暂展示后自动消失 -->
-    <v-snackbar v-model="toast.visible" :timeout="3000" :color="toast.type === 'success' ? 'success' : 'error'"
-      location="top" rounded="lg">
-      <v-icon :icon="toast.type === 'success' ? 'mdi-check-circle' : 'mdi-alert-circle'" class="mr-2" />
-      {{ toast.text }}
-      <template #actions>
-        <v-btn variant="text" icon="mdi-close" @click="toast.visible = false" />
-      </template>
-    </v-snackbar>
   </v-container>
 </template>

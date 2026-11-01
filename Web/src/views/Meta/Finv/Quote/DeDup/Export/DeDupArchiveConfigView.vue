@@ -4,6 +4,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 
 import { apiDelete, apiGet, apiPut } from '../../../../../../api'
+import { showToast } from '../../../../../../ui/toast'
 import { bizMonthOptions, fmtISO, fmtNum, isoDate } from '../../../../../../utils'
 
 interface PageData<T> {
@@ -40,8 +41,6 @@ interface CalendarRow {
 
 const tab = ref('usc')
 const error = ref('')
-const toast = ref(false)
-const toastText = ref('')
 
 // ---- 证券主数据 ----
 const uscRows = ref<PageData<UscRow>>({ total: 0, list: [] })
@@ -213,8 +212,7 @@ async function saveUsc() {
   }
   try {
     await apiPut<{ usc: string }>('/Meta/Finv/Quote/DeDup/Usc', payload)
-    toastText.value = `证券 ${form.usc} 已保存`
-    toast.value = true
+    showToast(`证券 ${form.usc} 已保存`)
     uscDialog.value = false
     await loadUsc()
   } catch (e) {
@@ -241,8 +239,7 @@ async function savePriority() {
   error.value = ''
   try {
     await apiPut<{ usc: string }>('/Meta/Finv/Quote/DeDup/Priority', priorityForm.value)
-    toastText.value = `${priorityForm.value.usc} 优先级已保存`
-    toast.value = true
+    showToast(`${priorityForm.value.usc} 优先级已保存`)
     priorityDialog.value = false
     await loadUsc()
   } catch (e) {
@@ -259,8 +256,7 @@ async function clearPriority(usc: string) {
   error.value = ''
   try {
     await apiDelete<{ usc: string }>(`/Meta/Finv/Quote/DeDup/Priority?usc=${encodeURIComponent(usc)}`)
-    toastText.value = `${usc} 优先级覆盖已清除`
-    toast.value = true
+    showToast(`${usc} 优先级覆盖已清除`)
     priorityDialog.value = false
     await loadUsc()
   } catch (e) {
@@ -286,8 +282,7 @@ async function saveCalendar() {
   error.value = ''
   try {
     await apiPut<{ usc: string }>('/Meta/Finv/Quote/DeDup/Calendar', calendarForm.value)
-    toastText.value = '交易日历已保存'
-    toast.value = true
+    showToast('交易日历已保存')
     calendarDialog.value = false
     await loadCalendar()
   } catch (e) {
@@ -304,8 +299,7 @@ async function removeCalendar(row: CalendarRow) {
     await apiDelete<{ usc: string }>(
       `/Meta/Finv/Quote/DeDup/Calendar?usc=${encodeURIComponent(row.usc)}&tradeDate=${row.trade_date}`,
     )
-    toastText.value = '日历记录已删除'
-    toast.value = true
+    showToast('日历记录已删除')
     await loadCalendar()
   } catch (e) {
     error.value = (e as Error).message
@@ -564,6 +558,5 @@ onMounted(async () => {
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="toast" :timeout="3000" color="success">{{ toastText }}</v-snackbar>
   </v-card>
 </template>

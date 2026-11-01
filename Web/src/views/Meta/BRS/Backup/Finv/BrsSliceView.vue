@@ -11,6 +11,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { apiGet, apiPost } from '../../../../../api'
+import { showToast } from '../../../../../ui/toast'
 
 interface LogEntry {
   seq: number
@@ -96,7 +97,6 @@ const loading = ref(false)
 const saving = ref(false)
 const triggering = ref(false)
 const error = ref('')
-const message = ref('')
 const autoScroll = ref(true)
 
 const dialog = ref(false)
@@ -227,15 +227,13 @@ function openEdit(row: SliceRule) {
 
 async function saveRule() {
   saving.value = true
-  error.value = ''
-  message.value = ''
   try {
     await apiPost(`${API_PREFIX}/Rule/Save`, form.value)
     dialog.value = false
-    message.value = '保存成功'
+    showToast('保存成功')
     await loadRules()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   } finally {
     saving.value = false
   }
@@ -249,7 +247,7 @@ async function openPlan(row: SliceRule) {
   try {
     planDetail.value = await apiGet<SlicePlan>(`${API_PREFIX}/Plan?ruleId=${row.idn}`)
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
     planDialog.value = false
   } finally {
     planLoading.value = false
@@ -262,12 +260,11 @@ const planItems = computed(() => {
 })
 
 async function toggleRule(row: SliceRule) {
-  error.value = ''
   try {
     await apiPost(`${API_PREFIX}/Rule/Toggle`, { idn: row.idn, enable: row.flag_enable !== '1' })
     await loadRules()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
@@ -296,9 +293,8 @@ function scrollToBottom() {
 async function poll() {
   try {
     await fetchStatus(state.value.last_seq)
-    error.value = ''
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   } finally {
     schedule()
   }
@@ -310,18 +306,16 @@ function schedule() {
 }
 
 async function triggerManual() {
-  error.value = ''
-  message.value = ''
   triggering.value = true
   try {
     const data = await apiPost<SliceRunState>(`${API_PREFIX}/Run/Manual`, {})
     currentRunId = ''
     state.value = { ...data, logs: [...data.logs] }
-    message.value = '已开始大表分片备份'
+    showToast('已开始大表分片备份')
     await fetchStatus(0)
     schedule()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   } finally {
     triggering.value = false
   }
@@ -365,7 +359,7 @@ onMounted(async () => {
   try {
     await fetchStatus(0)
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
   schedule()
 })
@@ -394,7 +388,6 @@ onBeforeUnmount(() => window.clearTimeout(timer))
         低于阈值 {{ formatBytes(state.disk_min_free_bytes) }}（{{ state.disk_path }}）。分片产物会持续写入，请及时清理或扩容。
       </v-alert>
       <v-alert v-if="error" type="error" class="mb-3" density="compact">{{ error }}</v-alert>
-      <v-alert v-if="message" type="success" class="mb-3" density="compact">{{ message }}</v-alert>
 
       <div class="d-flex align-center flex-wrap ga-2 mb-3">
         <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreate">新增登记</v-btn>

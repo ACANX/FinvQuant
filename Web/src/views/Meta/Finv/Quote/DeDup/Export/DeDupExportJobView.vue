@@ -4,6 +4,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 
 import { apiGet, apiPost } from '../../../../../../api'
+import { showToast } from '../../../../../../ui/toast'
 import { bizMonthOptions, fmtISO, fmtMonth, fmtNum } from '../../../../../../utils'
 
 interface JobRow {
@@ -68,8 +69,6 @@ const total = ref(0)
 const rows = ref<JobRow[]>([])
 const loading = ref(false)
 const error = ref('')
-const toast = ref(false)
-const toastText = ref('')
 const retrying = ref<number | null>(null)
 
 const headers = [
@@ -149,8 +148,7 @@ async function retry(row: JobRow) {
   retrying.value = row.job_id
   try {
     await apiPost<{ job_id: number }>('/Meta/Finv/Quote/DeDup/Job/Retry', { job_id: row.job_id })
-    toastText.value = `任务 ${row.job_id} 已重置为 WAITING`
-    toast.value = true
+    showToast(`任务 ${row.job_id} 已重置为 WAITING`)
     await load()
   } catch (e) {
     error.value = (e as Error).message
@@ -265,6 +263,5 @@ onMounted(load)
       </v-card>
     </v-card-text>
 
-    <v-snackbar v-model="toast" :timeout="3000" color="success">{{ toastText }}</v-snackbar>
   </v-card>
 </template>

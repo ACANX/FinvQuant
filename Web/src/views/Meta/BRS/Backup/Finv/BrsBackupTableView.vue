@@ -6,6 +6,7 @@
 import { onMounted, ref } from 'vue'
 
 import { apiGet, apiPost } from '../../../../../api'
+import { showToast } from '../../../../../ui/toast'
 
 // 一条备份登记（wire 字段 snake_case，与库列一致）
 interface BackupTableRow {
@@ -37,7 +38,6 @@ const keyword = ref('')
 const flagEnable = ref('')
 const loading = ref(false)
 const error = ref('')
-const message = ref('')
 
 // 新增/编辑对话框
 const dialog = ref(false)
@@ -102,14 +102,12 @@ function openEdit(row: BackupTableRow) {
 }
 
 async function save() {
-  error.value = ''
-  message.value = ''
   if (!form.value.db.trim() || !form.value.schema_name.trim() || !form.value.table_name.trim()) {
-    error.value = '数据库、schema 与表名不能为空'
+    showToast('数据库、schema 与表名不能为空', 'error')
     return
   }
   if (!Number.isInteger(form.value.priority) || form.value.priority < 0) {
-    error.value = '优先级必须为非负整数'
+    showToast('优先级必须为非负整数', 'error')
     return
   }
   try {
@@ -128,24 +126,22 @@ async function save() {
       where_clause: form.value.where_clause?.trim() || null,
       remark: form.value.remark?.trim() || null,
     })
-    message.value = '保存成功'
+    showToast('保存成功')
     dialog.value = false
     await load()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
 async function toggle(row: BackupTableRow) {
-  error.value = ''
-  message.value = ''
   const next = row.flag_enable === '1' ? '0' : '1'
   try {
     await apiPost(`${API_PREFIX}/Toggle`, { idn: row.idn, flag_enable: next })
     row.flag_enable = next
-    message.value = `已${next === '1' ? '启用' : '禁用'} ${row.db}.${row.schema_name}.${row.table_name}`
+    showToast(`已${next === '1' ? '启用' : '禁用'} ${row.db}.${row.schema_name}.${row.table_name}`)
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
@@ -210,7 +206,6 @@ onMounted(load)
       </v-row>
 
       <v-alert v-if="error" type="error" class="mb-3" density="compact">{{ error }}</v-alert>
-      <v-alert v-if="message" type="success" class="mb-3" density="compact">{{ message }}</v-alert>
 
       <v-data-table
         :headers="[

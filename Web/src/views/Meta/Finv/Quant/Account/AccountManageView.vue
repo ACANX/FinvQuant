@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { apiGet, apiPost } from '../../../../../api'
+import { showToast } from '../../../../../ui/toast'
 
 // 回测账户行
 interface AccountRow {
@@ -26,7 +27,6 @@ const pageSize = ref(20)
 const keyword = ref('')
 const loading = ref(false)
 const error = ref('')
-const message = ref('')
 
 const dialog = ref(false)
 const editing = ref(false)
@@ -80,21 +80,20 @@ async function openEdit(row: AccountRow) {
     const detail = await apiGet<AccountRow>(`/Meta/Finv/Quant/Backtest/Account/Get?accountId=${row.account_id}`)
     form.value = { ...(detail ?? row) }
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
     form.value = { ...row }
   }
   dialog.value = true
 }
 
 async function save() {
-  error.value = ''
   try {
     await apiPost('/Meta/Finv/Quant/Backtest/Account/Save', form.value)
-    message.value = '保存成功'
+    showToast('保存成功')
     dialog.value = false
     await load()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
@@ -106,7 +105,7 @@ async function toggle(row: AccountRow) {
     })
     await load()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
@@ -114,10 +113,10 @@ async function remove(row: AccountRow) {
   if (!confirm(`确认删除账户「${row.account_name}」？`)) return
   try {
     await apiPost('/Meta/Finv/Quant/Backtest/Account/Delete', { account_id: row.account_id })
-    message.value = '删除成功'
+    showToast('删除成功')
     await load()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
@@ -138,7 +137,6 @@ onMounted(load)
       </v-card-title>
 
       <v-alert v-if="error" type="error" dismissible class="mx-4 mb-2">{{ error }}</v-alert>
-      <v-alert v-if="message" type="success" dismissible class="mx-4 mb-2">{{ message }}</v-alert>
 
       <v-data-table-server v-model:page="page" v-model:items-per-page="pageSize" :headers="[
         { title: '编码', key: 'account_code', width: 130 },

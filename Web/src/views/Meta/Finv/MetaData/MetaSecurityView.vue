@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 
 import { apiGet, apiPost } from '../../../../api'
+import { showToast } from '../../../../ui/toast'
 
 // finv_security 证券代码行
 interface SecurityRow {
@@ -44,7 +45,6 @@ const pageSize = ref(20)
 const keyword = ref('')
 const loading = ref(false)
 const error = ref('')
-const message = ref('')
 
 // 下拉选项：交易所（finv_exchange）/ 市场（finv_market），仅启用记录
 const exchangeOptions = ref<ExchangeOption[]>([])
@@ -124,18 +124,16 @@ function openEdit(row: SecurityRow) {
 }
 
 async function save() {
-  error.value = ''
-  message.value = ''
   if (!form.value.usc.trim()) {
-    error.value = '统一证券代码（usc）不能为空'
+    showToast('统一证券代码（usc）不能为空', 'error')
     return
   }
   if (!form.value.exchange_code || form.value.exchange_code <= 0) {
-    error.value = '交易所代码必须为正整数'
+    showToast('交易所代码必须为正整数', 'error')
     return
   }
   if (!form.value.security_code.trim() || !form.value.security_name_cn.trim()) {
-    error.value = '源证券代码与中文名称不能为空'
+    showToast('源证券代码与中文名称不能为空', 'error')
     return
   }
   try {
@@ -153,23 +151,22 @@ async function save() {
       timezone: form.value.timezone?.trim() || null,
       tz: form.value.tz?.trim() || null,
     })
-    message.value = '保存成功'
+    showToast('保存成功')
     dialog.value = false
     await load()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
 async function toggle(row: SecurityRow) {
-  error.value = ''
   const next = row.flag_enable === '1' ? '0' : '1'
   try {
     await apiPost('/Meta/Finv/Quant/Metadata/Security/Toggle', { usc: row.usc, flag_enable: next })
     row.flag_enable = next
-    message.value = `已${next === '1' ? '启用' : '禁用'}证券 ${row.usc}`
+    showToast(`已${next === '1' ? '启用' : '禁用'}证券 ${row.usc}`)
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
@@ -231,7 +228,6 @@ onMounted(() => {
       </v-row>
 
       <v-alert v-if="error" type="error" class="mb-3" density="compact">{{ error }}</v-alert>
-      <v-alert v-if="message" type="success" class="mb-3" density="compact">{{ message }}</v-alert>
 
       <v-data-table
         :headers="[

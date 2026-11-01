@@ -6,6 +6,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { apiGet, apiPost } from '../../../../../api'
+import { showToast } from '../../../../../ui/toast'
 
 interface LogEntry {
   seq: number
@@ -66,8 +67,6 @@ const state = ref<RunState>({
 
 const loading = ref(false)
 const triggering = ref(false)
-const error = ref('')
-const message = ref('')
 const autoScroll = ref(true)
 
 let timer: number | undefined
@@ -130,9 +129,8 @@ function scrollToBottom() {
 async function poll() {
   try {
     await fetchStatus(state.value.last_seq)
-    error.value = ''
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   } finally {
     schedule()
   }
@@ -144,18 +142,16 @@ function schedule() {
 }
 
 async function triggerManual() {
-  error.value = ''
-  message.value = ''
   triggering.value = true
   try {
     const data = await apiPost<RunState>(`${API_PREFIX}/Manual`, {})
     currentRunId = ''
     state.value = { ...data, logs: [...data.logs] }
-    message.value = '已开始手动备份'
+    showToast('已开始手动备份')
     await fetchStatus(0)
     schedule()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   } finally {
     triggering.value = false
   }
@@ -194,7 +190,7 @@ onMounted(async () => {
   try {
     await fetchStatus(0)
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   } finally {
     loading.value = false
     schedule()
@@ -221,8 +217,6 @@ onBeforeUnmount(() => window.clearTimeout(timer))
         请清理旧备份或扩容（本地保留天数见 <code>FINV_BRS_LOCAL_KEEP_DAYS</code>）。
       </v-alert>
       <v-alert v-if="state.disk_error" type="info" class="mb-3" density="compact">{{ state.disk_error }}</v-alert>
-      <v-alert v-if="error" type="error" class="mb-3" density="compact">{{ error }}</v-alert>
-      <v-alert v-if="message" type="success" class="mb-3" density="compact">{{ message }}</v-alert>
 
       <div class="d-flex align-center flex-wrap ga-2 mb-3">
         <v-btn

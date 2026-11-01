@@ -6,6 +6,7 @@
 import { computed, onMounted, ref } from 'vue'
 
 import { apiGet, apiPost } from '../../../../../api'
+import { showToast } from '../../../../../ui/toast'
 
 interface OssConfig {
   enable: boolean
@@ -27,7 +28,6 @@ const API_PREFIX = '/Meta/BRS/Backup/Finv/OSSConfig'
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
-const message = ref('')
 
 const form = ref<OssConfig>({
   enable: false,
@@ -70,8 +70,6 @@ async function load() {
 }
 
 async function save() {
-  error.value = ''
-  message.value = ''
   saving.value = true
   try {
     const data = await apiPost<OssConfig>(`${API_PREFIX}/Save`, {
@@ -86,9 +84,9 @@ async function save() {
       prefix: form.value.prefix.trim() || 'brs/',
     })
     form.value = { ...form.value, ...data, secret_key: '' }
-    message.value = data.enable ? '保存成功：下一轮备份将上传到对象存储' : '保存成功：当前为「仅本地备份」，不上传'
+    showToast(data.enable ? '保存成功：下一轮备份将上传到对象存储' : '保存成功：当前为「仅本地备份」，不上传')
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   } finally {
     saving.value = false
   }
@@ -114,7 +112,6 @@ onMounted(load)
 
     <v-card-text>
       <v-alert v-if="error" type="error" class="mb-3" density="compact">{{ error }}</v-alert>
-      <v-alert v-if="message" type="success" class="mb-3" density="compact">{{ message }}</v-alert>
 
       <v-row dense>
         <v-col cols="12" sm="6">

@@ -4,6 +4,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 
 import { apiGet, apiPost } from '../../../../../../api'
+import { showToast } from '../../../../../../ui/toast'
 import { bizMonthOptions, fmtBytes, fmtISO, fmtMonth, fmtNum } from '../../../../../../utils'
 
 interface FileRow {
@@ -96,8 +97,6 @@ const total = ref(0)
 const rows = ref<FileRow[]>([])
 const loading = ref(false)
 const error = ref('')
-const toast = ref(false)
-const toastText = ref('')
 const retrying = ref<number | null>(null)
 
 const headers = [
@@ -186,8 +185,7 @@ async function retry(row: FileRow) {
   retrying.value = row.file_id
   try {
     await apiPost<{ file_id: number }>('/Meta/Finv/Quote/DeDup/File/Retry', { file_id: row.file_id })
-    toastText.value = `文件 ${row.file_id} 已重置为 PENDING_UPLOAD`
-    toast.value = true
+    showToast(`文件 ${row.file_id} 已重置为 PENDING_UPLOAD`)
     await load()
   } catch (e) {
     error.value = (e as Error).message
@@ -337,6 +335,5 @@ onMounted(load)
       </v-card>
     </v-card-text>
 
-    <v-snackbar v-model="toast" :timeout="3000" color="success">{{ toastText }}</v-snackbar>
   </v-card>
 </template>
