@@ -29,7 +29,7 @@ BRS（Backup & Restore Service）备份范围登记表 `brs.brs_bak_rdb_table` �
   "code": 0,
   "message": "查询完成",
   "data": {
-    "total": 12,
+    "total": 25,
     "page": 1,
     "pageSize": 20,
     "list": [

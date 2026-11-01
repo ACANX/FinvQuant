@@ -70,11 +70,19 @@ pg_restore -h 127.0.0.1 -U finv -d finv \
   Backup/BRS/20261029/sys.sys_config.dump
 ```
 
-## 5. 预置登记（种子）
+## 5. 预置登记（种子，共 25 张）
 
-`sys.sys_user/sys_config/sys_dict/sys_dict_sub` 与 `cdeu` 配置表（workflow/phase/process/job/job_step/usc/trade_calendar/daily_budget）。
+| 来源 | 表 | priority |
+|------|------|----------|
+| `sys`（`V300060`） | `sys_user`/`sys_config`/`sys_dict`/`sys_dict_sub` | 1000/990/980/970 |
+| `cdeu`（`V300060`） | `finv_quote_cdeu_workflow`/`phase`/`process`/`job`/`job_step`/`usc`/`trade_calendar`/`daily_budget` | 900～830 |
+| `futu`（`V300083`） | `finv_futu_mapping_cs_market`/`mapping_exchange`/`mapping_market_code`/`mapping_region`/`mapping_security`、`finv_futu_quote_collect` | 800～750 |
+| `public`（`V300083`） | `finv_currency`/`finv_exchange`/`finv_market`/`finv_region`/`finv_security`、`schema_version`、`schema_version_plan_shift` | 740～680 |
 
 **未包含** `cdeu.finv_quote_secu_kline_min`（大表后续单独处理）。
+
+> `public.schema_version` 与 `public.schema_version_plan_shift` 是迁移元数据，按「public schema 全部登记」一并纳入；
+> 恢复时请用 `pg_restore` 选择表，**勿整库覆盖**（否则会用备份里的版本记录覆盖目标库实际状态）。
 
 ## 6. 对象存储上传（已实现）
 

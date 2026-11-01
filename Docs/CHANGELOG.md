@@ -135,6 +135,14 @@
 
 ### 变更
 
+- **`public` / `futu` schema 的表纳入 BRS 备份清单（需求 10894）**
+  - 迁移 `V300083__brs_backup_table_public_futu.sql` 新增 13 条登记：`futu` 6 张（富途映射 5 张 + 行情采集，priority 800～750）、`public` 7 张（货币/交易所/市场/地区/证券字典 + `schema_version` + `schema_version_plan_shift`，priority 740～680）。
+  - 登记总数 12 → **25**；`priority` 仍全局唯一（新值落在既有 1000～830 之下）。
+  - 幂等：`ON CONFLICT DO NOTHING`；末尾校验 `public`/`futu` 下所有表均已登记，否则整事务回滚。
+  - 文档：`Docs/FinvQuant/Brs.md` 第 5 节改为按 schema 的登记清单表，并提示 `schema_version*` 属迁移元数据、恢复时勿整库覆盖。
+
+### 变更
+
 - **BRS 备份路径与文件名调整（需求 10893）**
   - 备份根目录默认值由 `/data/App/FinvQuant/Backup/BRS` 改为 **`/data/App/Backup/BRS`**（`FINV_BRS_BACKUP_DIR` 显式配置时以其为准），代码不再在路径里自行拼接产品名段。
   - Docker compose 透传 `FINV_BRS_BACKUP_DIR` 并新增 `/data/App/Backup` 的宿主映射（`FINV_BRS_HOST_DIR`，默认 `./data/App/Backup`），容器重建不再丢备份文件。
