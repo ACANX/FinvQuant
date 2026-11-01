@@ -37,9 +37,11 @@
 
 ### 变更
 
-- **前端路由「备份登记维护」端点改为 `/Meta/BRS/Backup/Finv/Table`（原 `/Meta/Finv/Brs/Backup/Table`）**
-  - 路由与菜单两处同步：`Web/src/router.ts`（`name: 'brs-table'`）、`Web/src/config/menuConfig.ts`。
-  - 仅调整 URL 命名（BRS 域 → Backup 分组 → Finv 业务 → Table 对象），页面组件与菜单标题不变；其余三个占位端点（`Backup/Record`、`Backup/Storage`、`Restore/Run`）本轮未动，仍为 `/Meta/Finv/Brs/` 前缀。
+- **前端路由「备份管理」三个端点统一改为 `/Meta/BRS/Backup/Finv/*`（原 `/Meta/Finv/Brs/Backup/*`）**
+  - `备份登记维护`：`/Meta/BRS/Backup/Finv/Table`（`brs-table`）
+  - `备份记录与产物`：`/Meta/BRS/Backup/Finv/Record`（`brs-record`）
+  - `对象存储配置`：`/Meta/BRS/Backup/Finv/Storage`（`brs-storage`）
+  - 路由与菜单两处同步：`Web/src/router.ts`、`Web/src/config/menuConfig.ts`。仅调整 URL 命名（BRS 域 → Backup 分组 → Finv 业务 → 对象），页面组件与菜单标题不变；`恢复管理` 占位端点 `Restore/Run` 本轮未动，仍为 `/Meta/Finv/Brs/Restore/Run`。
 
 - **运维 SQL 按职责归位：初始化 → `Deploy/Init/`，升级维护 → `Deploy/Upgrade/`**
   - `Deploy/Script/` 恢复为「构建 / 打包 / 下载脚本」专用目录，不再放 SQL；`MigratePublicKlineToCdeu.sql` 由 `Deploy/Script/` 移到 `Deploy/Upgrade/`（与 `2611-001-MigrationSegmentsShift.sql` 同属升级期一次性维护）。

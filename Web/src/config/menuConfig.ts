@@ -197,8 +197,8 @@ const finvQuantMenu: MenuNode[] = [
         icon: 'mdi-content-save-cog-outline',
         children: [
           { key: 'brs-table', title: '备份登记维护', icon: 'mdi-table-cog', path: '/Meta/BRS/Backup/Finv/Table' },
-          { key: 'brs-record', title: '备份记录与产物', icon: 'mdi-file-clock-outline', path: '/Meta/Finv/Brs/Backup/Record' },
-          { key: 'brs-storage', title: '对象存储配置', icon: 'mdi-cloud-cog-outline', path: '/Meta/Finv/Brs/Backup/Storage' },
+          { key: 'brs-record', title: '备份记录与产物', icon: 'mdi-file-clock-outline', path: '/Meta/BRS/Backup/Finv/Record' },
+          { key: 'brs-storage', title: '对象存储配置', icon: 'mdi-cloud-cog-outline', path: '/Meta/BRS/Backup/Finv/Storage' },
         ],
       },
       {
