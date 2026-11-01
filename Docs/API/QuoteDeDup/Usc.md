@@ -1,12 +1,22 @@
 # 证券主数据（Usc）
 
-> 前缀：`/API/V1/Meta/Finv/Quote/DeDup`；数据源：`dedup.finv_dedup_usc`；实现：`internal/api/handler/cdeu_admin.go`
+> 前缀：`/API/V1/Meta/Finv/Quote/DeDup`；数据源：`cdeu.finv_quote_cdeu_usc`；实现：`internal/api/handler/cdeu_admin.go`
+
+## 0. 行序来源（需求 10920）
+
+这张表的行**唯一来源是主表 `cdeu.finv_quote_secu_kline_min` 中真实出现过的证券**，不是证券字典 `public.finv_security`：
+
+- 发现（`DiscoverUsc`）：首次执行全量扫描主表 `DISTINCT usc`，之后按 `gmt_update` 时间窗增量补充；
+- 元数据补全（`RefreshSecurityMetadata`）：只对**已登记**的 usc 用字典刷新 `category` / `region` / `market` / `name` / `timezone` / `currency`，**不再插入新行**；
+- 永不删除：某只证券当月/上月乃至连续几个月没有数据（停牌、退市、上游断供）时仍保留记录，否则会连带丢掉归档优先级、`day_expect_rows` 与人工维护的元数据。
+
+判据：`SELECT count(*) FROM cdeu.finv_quote_cdeu_usc u WHERE NOT EXISTS (SELECT 1 FROM cdeu.finv_quote_secu_kline_min m WHERE m.usc = u.usc);` —— 除人工通过 `PUT /Usc` 预建的证券外，该值应为 0。
 
 `day_expect_rows` 是成熟度判定的校准值：为空时该证券的日数据会长期停留在 `PARTIAL`，永不进入导出候选。
 
 自动补全（需求 10820 / 10823）：成熟度刷新 JOB 与导出 JOB 会按以下顺序为该列为空/元数据不全的证券自动补值，全部**只补空、不覆盖人工值**：
 
-1. 从 `public.finv_security` 回填 `category`/`region`/`market`/`name`/`timezone`/`currency`/`provider`（**不限 `flag_enable`**，禁用只是字典维护开关）；
+1. 从 `public.finv_security` 回填 `category`/`region`/`market`/`name`/`timezone`/`currency`/`provider`（**不限 `flag_enable`**，禁用只是字典维护开关；只回填已登记的 usc，不新建行）；
 2. `finv_security` 未收录时，从 `futu.finv_futu_quote_collect`（富途原始属性镜像）按 `quote_market`（SH/SZ/BJ/HK/US/FX/CC）与 `type_symbol` 兜底；
 3. 按 `region` 推导 `timezone` / `currency`（富途镜像表不带这两列）；
 4. `SH######` / `SZ######` 前缀的 usc 按 A 股指数兜底（`region=CN`、`market=SH/SZ`、`category=StockIndex`）；

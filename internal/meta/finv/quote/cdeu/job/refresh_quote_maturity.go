@@ -27,7 +27,9 @@ func init() {
 		if err != nil {
 			return err
 		}
-		discovered, err := svc.Store().DiscoverUsc(ctx, since, now)
+		// 首次执行（无水位）时全量扫描主表：历史证券哪怕最近几个月没有行情，
+		// 也必须在 finv_quote_cdeu_usc 里有一条记录（需求 10920）。
+		discovered, err := svc.Store().DiscoverUsc(ctx, since, now, !found)
 		if err != nil {
 			return err
 		}

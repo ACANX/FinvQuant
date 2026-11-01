@@ -11,6 +11,7 @@ import (
 
 	"github.com/acanx/finvquant/internal/meta/finv/sys"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -412,21 +413,60 @@ func thresholdString(threshold float64) string {
 	return fmt.Sprintf("%.6f", threshold)
 }
 
-// DiscoverUsc 基于主表扫描自动发现新 usc，并回填 provider（P1）。
-func (s *Store) DiscoverUsc(ctx context.Context, since, until time.Time) (int64, error) {
-	tag, err := s.pool.Exec(ctx, `
+// DiscoverUsc 基于主表（cdeu.finv_quote_secu_kline_min）扫描自动发现新 usc，并回填 provider。
+//
+// 需求 10920：`finv_quote_cdeu_usc` 的行序**唯一来源是主表里真实出现过的证券**，
+// 不是证券字典 `public.finv_security`。字典收录的是「证券主数据」（含从未采集过行情的
+// 标的），把字典整表拷进来会让这张表失去意义——它要回答的是「哪些证券真的有数据」，
+// 一份 17199 行的字典拷贝既看不出行情覆盖度，也给成熟度/归档优先级带来大量空行。
+//
+// 两个口径：
+//   - full=true（首次执行 / 水位缺失）：全量扫描主表 DISTINCT usc，把历史证券补齐；
+//   - full=false（日常增量）：只扫 gmt_update 落在 (since, until] 的行。
+//
+// 已存在的行**永不删除**（ON CONFLICT DO NOTHING，且本函数没有任何 DELETE）：
+// 某只证券当月/上月乃至连续几个月没有数据（停牌、退市、上游断供）时它依然是已知
+// 证券，删掉会连带丢掉归档优先级、day_expect_rows、人工维护的元数据。
+func (s *Store) DiscoverUsc(ctx context.Context, since, until time.Time, full bool) (int64, error) {
+	var (
+		tag pgconn.CommandTag
+		err error
+	)
+	if full {
+		tag, err = s.pool.Exec(ctx, `
+INSERT INTO `+tableUsc+` (usc, flag_auto_discover)
+SELECT DISTINCT m.usc, true
+  FROM `+tableMain+` m
+ WHERE m.usc IS NOT NULL AND m.usc <> ''
+ON CONFLICT (usc) DO NOTHING`)
+	} else {
+		tag, err = s.pool.Exec(ctx, `
 INSERT INTO `+tableUsc+` (usc, flag_auto_discover)
 SELECT DISTINCT m.usc, true
   FROM `+tableMain+` m
  WHERE m.gmt_update > $1 AND m.gmt_update <= $2
-   AND m.usc IS NOT NULL
+   AND m.usc IS NOT NULL AND m.usc <> ''
 ON CONFLICT (usc) DO NOTHING`, since, until)
+	}
 	if err != nil {
 		return 0, err
 	}
 	inserted := tag.RowsAffected()
 
-	if _, err := s.pool.Exec(ctx, `
+	var providerErr error
+	if full {
+		_, providerErr = s.pool.Exec(ctx, `
+UPDATE `+tableUsc+` u
+   SET provider = COALESCE(u.provider, src.provider), gmt_update = now()
+  FROM (
+    SELECT m.usc, max(m.provider) AS provider
+      FROM `+tableMain+` m
+     WHERE m.provider IS NOT NULL AND m.provider <> ''
+     GROUP BY m.usc
+  ) src
+ WHERE u.usc = src.usc AND (u.provider IS NULL OR u.provider = '')`)
+	} else {
+		_, providerErr = s.pool.Exec(ctx, `
 UPDATE `+tableUsc+` u
    SET provider = COALESCE(u.provider, src.provider), gmt_update = now()
   FROM (
@@ -435,8 +475,10 @@ UPDATE `+tableUsc+` u
      WHERE m.gmt_update > $1 AND m.gmt_update <= $2 AND m.provider IS NOT NULL
      GROUP BY m.usc
   ) src
- WHERE u.usc = src.usc AND (u.provider IS NULL OR u.provider = '')`, since, until); err != nil {
-		return inserted, err
+ WHERE u.usc = src.usc AND (u.provider IS NULL OR u.provider = '')`, since, until)
+	}
+	if providerErr != nil {
+		return inserted, providerErr
 	}
 	return inserted, nil
 }
@@ -843,7 +885,13 @@ SELECT usc
 	return samples, rows.Err()
 }
 
-// RefreshSecurityMetadata 从 finv_security / finv_exchange / finv_market / finv_region 刷新证券主数据。
+// RefreshSecurityMetadata 用 finv_security / finv_exchange / finv_market / finv_region
+// 刷新**已在 cdeu.finv_quote_cdeu_usc 中登记**的证券元数据。
+//
+// 需求 10920：本函数**不再插入新行**。行序由 DiscoverUsc 依据主表
+// （cdeu.finv_quote_secu_kline_min）决定；这里只把字典里的元数据补到已登记的证券上。
+// 原实现 `INSERT ... SELECT FROM public.finv_security` 会把整张证券字典（含从未采集
+// 过行情的标的）拷进这张表，使「哪些证券有数据」这一核心语义失效。
 //
 // 取值口径（ACANX 2026-10-26 调整，见迁移 V200036）：
 //   - market：取 finv_market.market_symbol（市场符号，如 SH / SZ / BJ / NSDQ / CFD）；
@@ -862,45 +910,46 @@ SELECT usc
 // MVsv 文件头的 "# Currency" 行，故改为可覆盖。
 func (s *Store) RefreshSecurityMetadata(ctx context.Context) (int64, error) {
 	tag, err := s.pool.Exec(ctx, `
-INSERT INTO `+tableUsc+`
-    (usc, category, date_list, flag_auto_discover, region, market, name, timezone, currency, gmt_update)
-SELECT s.usc,
-       NULLIF(s.security_type, ''),
-       CASE
-           WHEN s.init_date BETWEEN 19500101 AND 21001231
-           THEN to_date(s.init_date::text, 'YYYYMMDD')
-           ELSE NULL
-       END,
-       false,
-       COALESCE(r.region, NULLIF(e.region, '')),
-       COALESCE(NULLIF(m.market_symbol, ''), NULLIF(m.market_flag, ''), NULLIF(e.exchange_flag, '')),
-       COALESCE(NULLIF(s.security_name_cn, ''), NULLIF(s.security_name, '')),
-       COALESCE(NULLIF(s.tz, ''), NULLIF(s.timezone, '')),
-       NULLIF(s.currency_type, ''),
-       now()
-  FROM public.finv_security s
-  LEFT JOIN public.finv_exchange e ON e.exchange_code = s.exchange_code
-  LEFT JOIN public.finv_market m ON m.market_code = s.market_code
-  LEFT JOIN public.finv_region r ON r.region = e.region
- WHERE COALESCE(s.flag_enable, '1') = '1'
-ON CONFLICT (usc) DO UPDATE SET
-    category = COALESCE(`+tableUsc+`.category, EXCLUDED.category),
-    date_list = COALESCE(`+tableUsc+`.date_list, EXCLUDED.date_list),
-    -- 派生列：以字典/主数据为准覆盖（新值为 NULL 时保留旧值）
-    region = COALESCE(EXCLUDED.region, `+tableUsc+`.region),
-    market = COALESCE(EXCLUDED.market, `+tableUsc+`.market),
-    name = COALESCE(`+tableUsc+`.name, EXCLUDED.name),
-    timezone = COALESCE(`+tableUsc+`.timezone, EXCLUDED.timezone),
-    currency = COALESCE(EXCLUDED.currency, `+tableUsc+`.currency),
-    gmt_update = now()
- WHERE EXCLUDED.region IS NOT NULL AND `+tableUsc+`.region IS DISTINCT FROM EXCLUDED.region
-    OR EXCLUDED.market IS NOT NULL AND `+tableUsc+`.market IS DISTINCT FROM EXCLUDED.market
-    OR EXCLUDED.currency IS NOT NULL AND `+tableUsc+`.currency IS DISTINCT FROM EXCLUDED.currency
-    OR `+tableUsc+`.category IS NULL
-    OR `+tableUsc+`.date_list IS NULL
-    OR `+tableUsc+`.name IS NULL
-    OR `+tableUsc+`.timezone IS NULL
-    OR `+tableUsc+`.currency IS NULL`)
+WITH src AS (
+    SELECT s.usc,
+           NULLIF(s.security_type, '')                                            AS category,
+           CASE
+               WHEN s.init_date BETWEEN 19500101 AND 21001231
+               THEN to_date(s.init_date::text, 'YYYYMMDD')
+               ELSE NULL
+           END                                                                   AS date_list,
+           COALESCE(r.region, NULLIF(e.region, ''))                               AS region,
+           COALESCE(NULLIF(m.market_symbol, ''), NULLIF(m.market_flag, ''),
+                    NULLIF(e.exchange_flag, ''))                                 AS market,
+           COALESCE(NULLIF(s.security_name_cn, ''), NULLIF(s.security_name, ''))   AS name,
+           COALESCE(NULLIF(s.tz, ''), NULLIF(s.timezone, ''))                     AS timezone,
+           NULLIF(s.currency_type, '')                                            AS currency
+      FROM public.finv_security s
+      LEFT JOIN public.finv_exchange e ON e.exchange_code = s.exchange_code
+      LEFT JOIN public.finv_market m ON m.market_code = s.market_code
+      LEFT JOIN public.finv_region r ON r.region = e.region
+     WHERE COALESCE(s.flag_enable, '1') = '1'
+)
+UPDATE `+tableUsc+` u
+   SET category   = COALESCE(u.category, src.category),
+       date_list  = COALESCE(u.date_list, src.date_list),
+       -- 派生列：以字典/主数据为准覆盖（新值为 NULL 时保留旧值）
+       region     = COALESCE(src.region, u.region),
+       market     = COALESCE(src.market, u.market),
+       name       = COALESCE(u.name, src.name),
+       timezone   = COALESCE(u.timezone, src.timezone),
+       currency   = COALESCE(src.currency, u.currency),
+       gmt_update = now()
+  FROM src
+ WHERE u.usc = src.usc
+   AND (src.region IS NOT NULL AND u.region IS DISTINCT FROM src.region
+     OR src.market IS NOT NULL AND u.market IS DISTINCT FROM src.market
+     OR src.currency IS NOT NULL AND u.currency IS DISTINCT FROM src.currency
+     OR u.category IS NULL
+     OR u.date_list IS NULL
+     OR u.name IS NULL
+     OR u.timezone IS NULL
+     OR u.currency IS NULL)`)
 	if err != nil {
 		return 0, err
 	}

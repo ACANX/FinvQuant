@@ -259,6 +259,15 @@
 
 ### 修复
 
+- **`finv_quote_cdeu_usc` 行序不再从证券字典拷贝（需求 10920）**
+  - 问题：`RefreshSecurityMetadata` 用 `INSERT ... SELECT FROM public.finv_security` 把整张证券字典拷进 `cdeu.finv_quote_cdeu_usc`，本机 17199 行里只有 498 只有行情，「哪些证券真的有数据」这一核心语义被冲掉。
+  - 修复：改为纯 `UPDATE`，只刷新**已登记** usc 的元数据，不再新建行；行序由 `DiscoverUsc` 依主表决定。
+  - `DiscoverUsc` 增加 `full` 参数：首次执行（无水位）全量扫描主表 `DISTINCT usc`，之后按 `gmt_update` 窗口增量，历史证券不会因窗口外而漏登记。
+  - 已登记行永不删除（无 DELETE，人工预建行同样保留）：某月/连续数月无数据时仍保留归档优先级、`day_expect_rows` 与人工元数据。
+  - 文档 `Docs/API/QuoteDeDup/Usc.md` 新增 §0「行序来源」，并修正过期数据源（`dedup.finv_dedup_usc` → `cdeu.finv_quote_cdeu_usc`）。
+
+### 修复
+
 - **工作流界面：阶段内有 JOB 在跑却显示「待执行」（需求 10919）**
   - 现象：「月度行情导出」阶段显示 `待执行`，但阶段内 JOB 已跑 199/321、耗时在走（1/3 流程完成）。
   - 根因：动态导出 JOB（按 USC/业务月展开的批量实例）由后台续跑链执行，全程只更新动态 JOB 自身状态，不回写 `phase_run` / `process_run`，阶段状态停在 `PENDING`。
