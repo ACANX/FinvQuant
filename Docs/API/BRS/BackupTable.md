@@ -36,6 +36,7 @@ BRS（Backup & Restore Service）备份范围登记表 `brs.brs_bak_rdb_table` �
       {
         "idn": 1,
         "rdb_type": "postgresql",
+        "db": "finv",
         "schema_name": "sys",
         "table_name": "sys_user",
         "flag_enable": "1",
@@ -66,6 +67,7 @@ BRS（Backup & Restore Service）备份范围登记表 `brs.brs_bak_rdb_table` �
 |------|------|------|------|
 | `idn` | int | ✅ | 主键；`0` 表示新增，非 0 表示更新该行 |
 | `rdb_type` | string | 可选 | 数据库类型，空则默认 `postgresql`（首期仅支持该值） |
+| `db` | string | 可选 | 数据库名，空则默认 `finv`（登记归属库；**本次备份执行仍连当前库**，不按该字段分库） |
 | `schema_name` | string | ✅ | schema 名（如 `sys` / `cdeu`） |
 | `table_name` | string | ✅ | 表名（如 `sys_user`） |
 | `flag_enable` | string | 可选 | `1`（启用，默认）/ `0`（停用） |
@@ -77,7 +79,7 @@ BRS（Backup & Restore Service）备份范围登记表 `brs.brs_bak_rdb_table` �
 | `where_clause` | string | 可选 | 预留：部分数据备份条件（首期 `pg_dump` 不生效） |
 | `remark` | string | 可选 | 备注 |
 
-> 唯一性：`(rdb_type, schema_name, table_name)` 唯一（同一张表只能登记一次）；`priority` 全局唯一。
+> 唯一性：`(rdb_type, db, schema_name, table_name)` 唯一（同一数据库内的同一张表只能登记一次）；`priority` 全局唯一。
 
 ### 响应（成功 HTTP 200）
 
@@ -124,7 +126,7 @@ BRS（Backup & Restore Service）备份范围登记表 `brs.brs_bak_rdb_table` �
 
 | 项 | 说明 |
 |------|------|
-| 表 | `brs.brs_bak_rdb_table`（迁移 `V300060`，`flag_upload` 由 `V300061` 增加） |
+| 表 | `brs.brs_bak_rdb_table`（迁移 `V300060`；`flag_upload` 由 `V300061` 增加；`db` 由 `V200090` 增加，默认 `finv`） |
 | 备份调度 | `sys.sys_config` 39001（6 段 cron，默认每天 03:00:00） |
 | 对象存储 | `sys.sys_config` 39002（JSON，`enabled=false` 时不上传）；页面见 `/Meta/BRS/Backup/Finv/OSSConfig`（占位） |
 | 服务实现 | `internal/meta/finv/brs`（`LoadTables` 读登记执行备份；`Registry` 提供本页维护能力） |

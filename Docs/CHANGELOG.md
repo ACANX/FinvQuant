@@ -127,6 +127,13 @@
 
 ### 新增
 
+- **`brs.brs_bak_rdb_table` 增加 `db`（数据库名）列（需求 10889）**
+  - 迁移 `V200090__brs_bak_rdb_table_add_db.sql`：`db varchar(64) NOT NULL DEFAULT 'finv'`（存量登记回填 `finv`）；唯一约束由 `(rdb_type, schema_name, table_name)` 改为 `(rdb_type, db, schema_name, table_name)`（`rdb_type` 保留）；末尾收敛校验列、空值、约束列。
+  - 后端：`brs.RegistryRow` 增 `DB`（`json:"db"`），`List`/`Get`/`Save` 读写该列，`db` 缺省填 `finv`，唯一冲突消息改为「同一 rdb_type + db + schema_name + table_name 只能有一条」。
+  - 前端：备份登记维护表格增「数据库」列，编辑对话框增该字段，启用/禁用提示带库名。
+  - 范围：**只加登记字段**，备份执行链（`LoadTables` / `pg_dump`）仍连当前库，不按 `db` 分库执行。
+  - 文档：`Docs/API/BRS/BackupTable.md` 字段表、示例、唯一性说明同步。
+
 - **BRS 备份登记维护：页面 + 3 个接口（需求 10888）**
   - 后端：`internal/meta/finv/brs/registry.go`（`List` / `Save` / `Toggle`，字段校验与唯一键冲突转可读错误）、`internal/api/handler/brs.go`、`internal/api/router.go` 注册 `GET|POST /API/V1/Meta/BRS/Backup/Finv/Table/{List,Save,Toggle}`。
   - 前端：`Web/src/views/Meta/BRS/Backup/Finv/BrsBackupTableView.vue` 替换原占位页——关键字 + 启用状态筛选、分页、新增/编辑对话框（schema/表名/优先级/范围/方式/压缩/上传开关/where/备注）、行内启用/禁用。

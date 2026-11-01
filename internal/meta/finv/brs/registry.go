@@ -51,6 +51,7 @@ func inputErrorf(format string, a ...any) error {
 type RegistryRow struct {
 	IDN         int64      `json:"idn"`
 	RdbType     string     `json:"rdb_type"`
+	DB          string     `json:"db"`
 	SchemaName  string     `json:"schema_name"`
 	TableName   string     `json:"table_name"`
 	FlagEnable  string     `json:"flag_enable"`
@@ -100,7 +101,7 @@ func (r *Registry) List(ctx context.Context, page, pageSize int, keyword, flagEn
 		pattern = "%" + kw + "%"
 	}
 	const query = `
-SELECT idn, rdb_type, schema_name, table_name, flag_enable, priority, bak_scope,
+SELECT idn, rdb_type, db, schema_name, table_name, flag_enable, priority, bak_scope,
        bak_method, compression, flag_upload, where_clause, remark, creator,
        gmt_create, gmt_update,
        count(*) OVER () AS total
@@ -120,7 +121,7 @@ SELECT idn, rdb_type, schema_name, table_name, flag_enable, priority, bak_scope,
 	total := 0
 	for rows.Next() {
 		var row RegistryRow
-		if err := rows.Scan(&row.IDN, &row.RdbType, &row.SchemaName, &row.TableName,
+		if err := rows.Scan(&row.IDN, &row.RdbType, &row.DB, &row.SchemaName, &row.TableName,
 			&row.FlagEnable, &row.Priority, &row.BakScope, &row.BakMethod, &row.Compression,
 			&row.FlagUpload, &row.WhereClause, &row.Remark, &row.Creator,
 			&row.GmtCreate, &row.GmtUpdate, &total); err != nil {
@@ -137,13 +138,13 @@ SELECT idn, rdb_type, schema_name, table_name, flag_enable, priority, bak_scope,
 // Get 按主键读取一条备份登记；不存在返回 pgx.ErrNoRows。
 func (r *Registry) Get(ctx context.Context, idn int64) (RegistryRow, error) {
 	const query = `
-SELECT idn, rdb_type, schema_name, table_name, flag_enable, priority, bak_scope,
+SELECT idn, rdb_type, db, schema_name, table_name, flag_enable, priority, bak_scope,
        bak_method, compression, flag_upload, where_clause, remark, creator,
        gmt_create, gmt_update
   FROM brs.brs_bak_rdb_table
  WHERE idn = $1`
 	var row RegistryRow
-	err := r.pool.QueryRow(ctx, query, idn).Scan(&row.IDN, &row.RdbType, &row.SchemaName,
+	err := r.pool.QueryRow(ctx, query, idn).Scan(&row.IDN, &row.RdbType, &row.DB, &row.SchemaName,
 		&row.TableName, &row.FlagEnable, &row.Priority, &row.BakScope, &row.BakMethod,
 		&row.Compression, &row.FlagUpload, &row.WhereClause, &row.Remark, &row.Creator,
 		&row.GmtCreate, &row.GmtUpdate)
@@ -164,6 +165,10 @@ func (r *Registry) Save(ctx context.Context, row RegistryRow) (int64, error) {
 	row.RdbType = strings.TrimSpace(row.RdbType)
 	if row.RdbType == "" {
 		row.RdbType = "postgresql"
+	}
+	row.DB = strings.TrimSpace(row.DB)
+	if row.DB == "" {
+		row.DB = "finv"
 	}
 	row.SchemaName = strings.TrimSpace(row.SchemaName)
 	row.TableName = strings.TrimSpace(row.TableName)
@@ -219,12 +224,12 @@ func (r *Registry) Save(ctx context.Context, row RegistryRow) (int64, error) {
 	if row.IDN == 0 {
 		const insert = `
 INSERT INTO brs.brs_bak_rdb_table
-    (rdb_type, schema_name, table_name, flag_enable, priority, bak_scope, bak_method,
+    (rdb_type, db, schema_name, table_name, flag_enable, priority, bak_scope, bak_method,
      compression, flag_upload, where_clause, remark, creator)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 RETURNING idn`
 		var idn int64
-		err := r.pool.QueryRow(ctx, insert, row.RdbType, row.SchemaName, row.TableName,
+		err := r.pool.QueryRow(ctx, insert, row.RdbType, row.DB, row.SchemaName, row.TableName,
 			row.FlagEnable, row.Priority, row.BakScope, row.BakMethod, row.Compression,
 			row.FlagUpload, row.WhereClause, row.Remark, row.Creator).Scan(&idn)
 		if err != nil {
@@ -235,11 +240,11 @@ RETURNING idn`
 
 	const update = `
 UPDATE brs.brs_bak_rdb_table SET
-    rdb_type = $2, schema_name = $3, table_name = $4, flag_enable = $5, priority = $6,
-    bak_scope = $7, bak_method = $8, compression = $9, flag_upload = $10,
-    where_clause = $11, remark = $12
+    rdb_type = $2, db = $3, schema_name = $4, table_name = $5, flag_enable = $6,
+    priority = $7, bak_scope = $8, bak_method = $9, compression = $10, flag_upload = $11,
+    where_clause = $12, remark = $13
 WHERE idn = $1`
-	tag, err := r.pool.Exec(ctx, update, row.IDN, row.RdbType, row.SchemaName, row.TableName,
+	tag, err := r.pool.Exec(ctx, update, row.IDN, row.RdbType, row.DB, row.SchemaName, row.TableName,
 		row.FlagEnable, row.Priority, row.BakScope, row.BakMethod, row.Compression,
 		row.FlagUpload, row.WhereClause, row.Remark)
 	if err != nil {
@@ -276,7 +281,7 @@ func wrapRegistryWriteError(err error) error {
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 		switch pgErr.ConstraintName {
 		case "uq_brs_bak_rdb_table":
-			return inputErrorf("该表已登记：同一 rdb_type + schema_name + table_name 只能有一条")
+			return inputErrorf("该表已登记：同一 rdb_type + db + schema_name + table_name 只能有一条")
 		case "uq_brs_bak_rdb_table_priority":
 			return inputErrorf("优先级 priority 已被其他登记占用，请换一个非负整数")
 		}

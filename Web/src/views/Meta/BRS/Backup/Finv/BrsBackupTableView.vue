@@ -11,6 +11,7 @@ import { apiGet, apiPost } from '../../../../../api'
 interface BackupTableRow {
   idn: number
   rdb_type: string
+  db: string
   schema_name: string
   table_name: string
   flag_enable: string
@@ -47,6 +48,7 @@ function emptyForm(): BackupTableRow {
   return {
     idn: 0,
     rdb_type: 'postgresql',
+    db: 'finv',
     schema_name: '',
     table_name: '',
     flag_enable: '1',
@@ -102,8 +104,8 @@ function openEdit(row: BackupTableRow) {
 async function save() {
   error.value = ''
   message.value = ''
-  if (!form.value.schema_name.trim() || !form.value.table_name.trim()) {
-    error.value = 'schema 与表名不能为空'
+  if (!form.value.db.trim() || !form.value.schema_name.trim() || !form.value.table_name.trim()) {
+    error.value = '数据库、schema 与表名不能为空'
     return
   }
   if (!Number.isInteger(form.value.priority) || form.value.priority < 0) {
@@ -114,6 +116,7 @@ async function save() {
     await apiPost(`${API_PREFIX}/Save`, {
       idn: form.value.idn,
       rdb_type: form.value.rdb_type.trim() || 'postgresql',
+      db: form.value.db.trim(),
       schema_name: form.value.schema_name.trim(),
       table_name: form.value.table_name.trim(),
       flag_enable: form.value.flag_enable,
@@ -140,7 +143,7 @@ async function toggle(row: BackupTableRow) {
   try {
     await apiPost(`${API_PREFIX}/Toggle`, { idn: row.idn, flag_enable: next })
     row.flag_enable = next
-    message.value = `已${next === '1' ? '启用' : '禁用'} ${row.schema_name}.${row.table_name}`
+    message.value = `已${next === '1' ? '启用' : '禁用'} ${row.db}.${row.schema_name}.${row.table_name}`
   } catch (e) {
     error.value = (e as Error).message
   }
@@ -166,7 +169,7 @@ onMounted(load)
       备份登记维护
     </v-card-title>
     <v-card-subtitle>
-      brs.brs_bak_rdb_table 备份范围登记：查询展示、新增、修改、启用/禁用（优先级越大越先备份）
+      brs.brs_bak_rdb_table 备份范围登记：查询展示、新增、修改、启用/禁用（同一数据库内 schema+表唯一，优先级越大越先备份）
     </v-card-subtitle>
 
     <v-card-text>
@@ -212,6 +215,7 @@ onMounted(load)
       <v-data-table
         :headers="[
           { title: '优先级', key: 'priority', width: 90 },
+          { title: '数据库', key: 'db', width: 100 },
           { title: 'schema', key: 'schema_name', width: 120 },
           { title: '表名', key: 'table_name' },
           { title: '范围', key: 'bak_scope', width: 90 },
@@ -276,6 +280,9 @@ onMounted(load)
         <v-card-title>{{ editing ? '修改备份登记' : '新增备份登记' }}</v-card-title>
         <v-card-text>
           <v-row dense>
+            <v-col cols="6">
+              <v-text-field v-model="form.db" label="数据库名（如 finv）" density="compact" />
+            </v-col>
             <v-col cols="6">
               <v-text-field v-model="form.schema_name" label="schema 名（如 sys / cdeu）" density="compact" />
             </v-col>
