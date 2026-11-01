@@ -140,6 +140,16 @@
 
 ### 新增
 
+- **BRS 备份执行：调度配置 + 手动备份 + 实时进度与日志（需求 10892）**
+  - 后端新增 `internal/meta/finv/brs/runner.go`：`Runner` 统一自动（39001 cron）与手动触发，内存保存运行状态与日志（最多 1000 条、`seq` 递增），同一时刻只允许一个运行（`*BusyError`）；`brs.go` 增加 `Hooks`/`RunOnceWithHooks`，把进度与日志同时投递给服务日志与页面。
+  - 新增接口：`GET|POST /API/V1/Meta/BRS/Backup/Finv/Schedule/{Get,Save}`（39001 的 6 段 cron，校验 + 未来 5 次执行时间）、`POST .../Run/Manual`（异步触发，并发 409）、`GET .../Run/Status`（`sinceSeq` 增量日志）。
+  - 前端新增「备份调度配置」页面（`BrsScheduleView.vue`：表达式输入 + 常用预设 + 未来 5 次时间）与「备份执行 → 手动备份与日志」页面（`BrsRunView.vue`：立即备份、进度条、当前表、分级日志、增量轮询）。
+  - 菜单：`备份管理` 下新增「备份调度配置」，新三级分组 `备份执行` 含「手动备份与日志」。
+  - 测试：`internal/meta/finv/brs/runner_test.go`（未来执行时间、非法表达式、并发拒绝、增量日志、日志上限）。
+  - 文档：新增 `Docs/API/BRS/Schedule.md`、`Docs/API/BRS/Run.md`，`Docs/API/APIs.md`（#98～#101）与 `Docs/API/README.md` 登记。
+
+### 新增
+
 - **BRS 对象存储配置页面与接口（需求 10890）**
   - 后端：`internal/meta/finv/brs/ossconfig.go`（`LoadOSSConfig` / `SaveOSSConfig`）、`internal/api/handler/brs.go` 与 `router.go` 注册 `GET|POST /API/V1/Meta/BRS/Backup/Finv/OSSConfig/{Get,Save}`。
   - 前端：`Web/src/views/Meta/BRS/Backup/Finv/BrsOssConfigView.vue` 替换占位页——开关、provider、endpoint、bucket、region、access_key、secret_key、prefix 表单，可展开查看 39002 的字段说明。

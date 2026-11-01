@@ -199,6 +199,16 @@ const finvQuantMenu: MenuNode[] = [
           { key: 'brs-table', title: '备份登记维护', icon: 'mdi-table-cog', path: '/Meta/BRS/Backup/Finv/Table' },
           { key: 'brs-record', title: '备份记录与产物', icon: 'mdi-file-clock-outline', path: '/Meta/BRS/Backup/Finv/Record' },
           { key: 'brs-storage', title: '对象存储配置', icon: 'mdi-cloud-cog-outline', path: '/Meta/BRS/Backup/Finv/OSSConfig' },
+          { key: 'brs-schedule', title: '备份调度配置', icon: 'mdi-calendar-clock', path: '/Meta/BRS/Backup/Finv/Schedule' },
+        ],
+      },
+      {
+        // 备份执行（三级分组）：手动触发备份并实时查看进度与日志（与定时任务共用同一执行链）。
+        key: 'brs-runner',
+        title: '备份执行',
+        icon: 'mdi-play-circle-outline',
+        children: [
+          { key: 'brs-run', title: '手动备份与日志', icon: 'mdi-database-export', path: '/Meta/BRS/Backup/Finv/Run' },
         ],
       },
       {

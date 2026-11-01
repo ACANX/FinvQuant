@@ -83,8 +83,9 @@ func main() {
 	}
 	defer rdb.Close()
 
-	// BRS 每日备份（首期：pg_dump 表级备份，cron 读 sys_config 39001）
-	go brs.Start(ctx, pool, brs.Options{
+	// BRS 备份运行器（首期：pg_dump 表级备份，cron 读 sys_config 39001）。
+	// 自动调度与前端手动触发共用同一个 Runner，页面能看到同一份运行状态与日志。
+	brsRunner := brs.NewRunner(pool, brs.Options{
 		BackupDir: cfg.BrsBackupDir,
 		Host:      cfg.PgHost,
 		Port:      cfg.PgPort,
@@ -92,6 +93,7 @@ func main() {
 		Password:  cfg.PgPassword,
 		Database:  cfg.PgDatabase,
 	})
+	go brsRunner.Start(ctx)
 
 	// 证券行情月归档导出与上传：服务始终创建（运维接口可用），
 	// 自动化调度受 FINV_QUOTE_DEDUB_ENABLED 功能开关控制（M-10）。
@@ -114,7 +116,7 @@ func main() {
 	// 16001：API 服务
 	apiServer := &http.Server{
 		Addr:              cfg.ListenAddr(),
-		Handler:           api.NewRouter(&api.Deps{Pool: pool, Redis: rdb, Version: version, Commit: commit, Server: "finvquant", Config: cfg, ExportArchive: archiveService, Auth: authService}),
+		Handler:           api.NewRouter(&api.Deps{Pool: pool, Redis: rdb, Version: version, Commit: commit, Server: "finvquant", Config: cfg, ExportArchive: archiveService, Auth: authService, BRSRunner: brsRunner}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

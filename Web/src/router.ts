@@ -33,6 +33,8 @@ import EnvironmentView from './views/Meta/Finv/Quant/Backtest/EnvironmentView.vu
 import TemplateView from './views/Meta/Finv/Quant/Backtest/TemplateView.vue'
 import BrsBackupTableView from './views/Meta/BRS/Backup/Finv/BrsBackupTableView.vue'
 import BrsOssConfigView from './views/Meta/BRS/Backup/Finv/BrsOssConfigView.vue'
+import BrsScheduleView from './views/Meta/BRS/Backup/Finv/BrsScheduleView.vue'
+import BrsRunView from './views/Meta/BRS/Backup/Finv/BrsRunView.vue'
 import PlaceholderView from './views/Common/PlaceholderView.vue'
 import LoginView from './views/Common/LoginView.vue'
 
@@ -167,6 +169,8 @@ const router = createRouter({
     { path: '/Meta/BRS/Backup/Finv/Table', name: 'brs-table', component: BrsBackupTableView, meta: { title: '备份登记维护' } },
     { path: '/Meta/BRS/Backup/Finv/Record', name: 'brs-record', component: PlaceholderView, meta: { title: '备份记录与产物' } },
     { path: '/Meta/BRS/Backup/Finv/OSSConfig', name: 'brs-storage', component: BrsOssConfigView, meta: { title: '对象存储配置' } },
+    { path: '/Meta/BRS/Backup/Finv/Schedule', name: 'brs-schedule', component: BrsScheduleView, meta: { title: '备份调度配置' } },
+    { path: '/Meta/BRS/Backup/Finv/Run', name: 'brs-run', component: BrsRunView, meta: { title: '手动备份与日志' } },
     { path: '/Meta/Finv/Brs/Restore/Run', name: 'brs-restore-run', component: PlaceholderView, meta: { title: '数据恢复' } },
     { path: '/Meta/Finv/Quant/Simulation/Data', name: 'simulation-data', component: PlaceholderView, meta: { title: '仿真数据验证' } },
     { path: '/Meta/Finv/Quant/Simulation/Paper', name: 'simulation-paper', component: PlaceholderView, meta: { title: '模拟盘验证' } },

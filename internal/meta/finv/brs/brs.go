@@ -23,6 +23,10 @@ import (
 
 	"github.com/acanx/finvquant/internal/meta/base/cron"
 	"github.com/acanx/finvquant/internal/meta/base/oss"
+	// 对象存储适配器通过 init() 自行注册，必须 blank import 才会编译进二进制。
+	// 早前没有引用导致 oss.New 报「未注册的对象存储 provider」，上传永远不可用。
+	_ "github.com/acanx/finvquant/internal/meta/base/oss/local"
+	_ "github.com/acanx/finvquant/internal/meta/base/oss/s3"
 )
 
 // CronConfigNo 每日备份 cron 的系统配置编号（6 段）。
@@ -166,20 +170,46 @@ func Start(ctx context.Context, pool *pgxpool.Pool, opts Options) {
 	}
 }
 
-// RunOnce 执行一轮备份：按 priority 倒序逐表 pg_dump，失败继续下一张。
+// Hooks 备份运行期回调：把进度与日志同时投递给内存状态（手动备份页面的实时展示）。
+//
+// 自动调度（cron）与手动触发共用同一套 Hooks，页面看到的行为一致。
+type Hooks struct {
+	// OnLog 每产生一条运行日志时调用；level 取 info / warn / error。
+	OnLog func(level, message string)
+	// OnProgress 每张表开始备份前调用：index 从 1 开始，done 为已完成张数。
+	OnProgress func(index, done, total int, table Table)
+}
+
+// emit 同时写服务日志（保持 [brs] 前缀不变）与运行期回调。
+func (h Hooks) emit(level, format string, a ...any) {
+	message := fmt.Sprintf(format, a...)
+	log.Printf("[brs] %s", message)
+	if h.OnLog != nil {
+		h.OnLog(level, message)
+	}
+}
+
+// RunOnce 执行一轮备份（无进度回调）。
 func RunOnce(ctx context.Context, pool *pgxpool.Pool, opts Options) error {
+	return RunOnceWithHooks(ctx, pool, opts, Hooks{})
+}
+
+// RunOnceWithHooks 执行一轮备份：按 priority 倒序逐表 pg_dump，单表失败继续下一张。
+func RunOnceWithHooks(ctx context.Context, pool *pgxpool.Pool, opts Options, hooks Hooks) error {
 	tables, err := LoadTables(ctx, pool)
 	if err != nil {
+		hooks.emit("error", "读取备份登记失败: %v", err)
 		return fmt.Errorf("读取备份登记失败: %w", err)
 	}
 	if len(tables) == 0 {
-		log.Printf("[brs] 没有启用的备份表，跳过")
+		hooks.emit("warn", "没有启用的备份表，跳过")
 		return nil
 	}
 
 	day := time.Now().Format("20060102")
 	dayDir := filepath.Join(opts.BackupDir, day)
 	if err := os.MkdirAll(dayDir, 0o750); err != nil {
+		hooks.emit("error", "创建备份目录失败: %v", err)
 		return fmt.Errorf("创建备份目录失败: %w", err)
 	}
 
@@ -187,38 +217,47 @@ func RunOnce(ctx context.Context, pool *pgxpool.Pool, opts Options) error {
 	if store == nil {
 		loaded, err := loadOssStore(ctx, pool)
 		if err != nil {
-			log.Printf("[brs] 对象存储配置无效，跳过上传: %v", err)
+			hooks.emit("warn", "对象存储配置无效，跳过上传: %v", err)
 		} else {
 			store = loaded
-		}
-	}
-
-	log.Printf("[brs] 开始备份：%d 张表 → %s", len(tables), dayDir)
-	var failed int
-	for _, table := range tables {
-		path, err := dumpTable(ctx, opts, dayDir, day, table)
-		if err != nil {
-			failed++
-			log.Printf("[brs] 备份失败 %s.%s（priority=%d）: %v", table.SchemaName, table.TableName, table.Priority, err)
-			continue
-		}
-		if store != nil && table.FlagUpload == "1" {
-			if err := upload(ctx, store, day, path); err != nil {
-				log.Printf("[brs] 上传失败 %s: %v（本地文件保留）", path, err)
+			if store == nil {
+				hooks.emit("info", "未启用对象存储上传（39002 enabled=false），仅本地备份")
 			}
 		}
 	}
+
+	hooks.emit("info", "开始备份：%d 张表 → %s", len(tables), dayDir)
+	var failed int
+	for i, table := range tables {
+		if hooks.OnProgress != nil {
+			hooks.OnProgress(i+1, i, len(tables), table)
+		}
+		path, err := dumpTable(ctx, opts, dayDir, day, table, hooks)
+		if err != nil {
+			failed++
+			hooks.emit("error", "备份失败 %s.%s（priority=%d）: %v", table.SchemaName, table.TableName, table.Priority, err)
+			continue
+		}
+		if store != nil && table.FlagUpload == "1" {
+			if err := upload(ctx, store, day, path, hooks); err != nil {
+				hooks.emit("warn", "上传失败 %s: %v（本地文件保留）", path, err)
+			}
+		} else if store != nil {
+			hooks.emit("info", "%s.%s 已关闭上传（flag_upload=0），仅保留本地文件", table.SchemaName, table.TableName)
+		}
+	}
 	if failed > 0 {
+		hooks.emit("error", "本轮备份结束：%d/%d 张表失败", failed, len(tables))
 		return fmt.Errorf("%d/%d 张表备份失败", failed, len(tables))
 	}
-	log.Printf("[brs] 本轮备份完成：%d 张表", len(tables))
+	hooks.emit("info", "本轮备份完成：%d 张表", len(tables))
 	return nil
 }
 
 // dumpTable 对单表执行 pg_dump，返回文件路径。
-func dumpTable(ctx context.Context, opts Options, dayDir, day string, table Table) (string, error) {
+func dumpTable(ctx context.Context, opts Options, dayDir, day string, table Table, hooks Hooks) (string, error) {
 	if strings.TrimSpace(table.WhereClause) != "" {
-		log.Printf("[brs] %s.%s 配置了 where_clause，但 pg_dump 模式暂不支持，将备份整表",
+		hooks.emit("warn", "%s.%s 配置了 where_clause，但 pg_dump 模式暂不支持，将备份整表",
 			table.SchemaName, table.TableName)
 	}
 
@@ -260,13 +299,13 @@ func dumpTable(ctx context.Context, opts Options, dayDir, day string, table Tabl
 	if statErr == nil {
 		size = info.Size()
 	}
-	log.Printf("[brs] 备份成功 %s.%s（%s，%s，耗时 %s）", table.SchemaName, table.TableName,
+	hooks.emit("info", "备份成功 %s.%s（%s，%s，耗时 %s）", table.SchemaName, table.TableName,
 		filePath, humanSize(size), time.Since(start).Round(time.Millisecond))
 	return filePath, nil
 }
 
 // upload 把本地备份文件上传到对象存储（key 与本地日期目录同构）。
-func upload(ctx context.Context, store oss.Store, day, path string) error {
+func upload(ctx context.Context, store oss.Store, day, path string, hooks Hooks) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return err
@@ -280,7 +319,7 @@ func upload(ctx context.Context, store oss.Store, day, path string) error {
 	if err := store.Put(ctx, key, file, info.Size(), "application/octet-stream"); err != nil {
 		return err
 	}
-	log.Printf("[brs] 已上传 %s", key)
+	hooks.emit("info", "已上传 %s", key)
 	return nil
 }
 

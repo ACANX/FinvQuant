@@ -42,10 +42,12 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o /finvquant ./cmd/server
 
 # ---- 阶段 3：运行（单镜像单进程）----
-FROM alpine:3.21
+# 基础镜像使用 postgres:18-alpine：BRS 表级备份依赖 pg_dump，客户端主版本不得低于服务端
+# （PG18 需要 pg_dump 18，而 alpine:3.21 官方仓库只有 postgresql17-client）。
+# 该镜像已自带 pg_dump 18、libpq 及 krb5/ldap/sasl 等运行期依赖，无需额外 apk。
+FROM postgres:18-alpine
 
-RUN apk add --no-cache ca-certificates tzdata \
-    && addgroup -S finvquant && adduser -S finvquant -G finvquant
+RUN addgroup -S finvquant && adduser -S finvquant -G finvquant
 
 COPY --from=builder /finvquant /usr/local/bin/finvquant
 # 数据库迁移脚本（启动时自动建表，如 finv_quote_secu_kline_min）
@@ -60,4 +62,7 @@ RUN mkdir -p /data/App/FinvQuant/Export && chown -R finvquant:finvquant /app /da
 USER finvquant
 EXPOSE 16001 16002
 
-ENTRYPOINT ["finvquant"]
+# 覆盖 PostgreSQL 官方镜像的 ENTRYPOINT/CMD：容器只跑 finvquant 单进程，
+# CMD 必须清空，否则默认的 "postgres" 会被当作参数传给 finvquant。
+ENTRYPOINT ["/usr/local/bin/finvquant"]
+CMD []

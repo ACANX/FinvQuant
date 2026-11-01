@@ -73,6 +73,8 @@ Authorization: Bearer <token>
   - [`Meta/MetaSecurity.md`](Meta/MetaSecurity.md) — `GET/POST /API/V1/Meta/Finv/Quant/Metadata/Security/*`（规范证券信息维护，含 `Options` 下拉与 `Lookup` 详情查询）
   - [`BRS/BackupTable.md`](BRS/BackupTable.md) — `GET/POST /API/V1/Meta/BRS/Backup/Finv/Table/*`（备份登记维护：查询 / 新增修改 / 启用禁用）
   - [`BRS/OSSConfig.md`](BRS/OSSConfig.md) — `GET/POST /API/V1/Meta/BRS/Backup/Finv/OSSConfig/*`（对象存储配置：sys_config 39002 可视化读写，secret_key 不回传）
+  - [`BRS/Schedule.md`](BRS/Schedule.md) — `GET/POST /API/V1/Meta/BRS/Backup/Finv/Schedule/*`（备份调度配置：sys_config 39001 的 6 段 cron + 未来执行时间预览）
+  - [`BRS/Run.md`](BRS/Run.md) — `POST .../Run/Manual`、`GET .../Run/Status`（手动备份 + 实时进度与增量日志）
   - 证券行情月归档导出与上传（`/API/V1/Meta/Finv/Quote/DeDup/*`，**一个接口一个文档**）：
     - [`QuoteDeDup/Status.md`](QuoteDeDup/Status.md) — `GET .../DeDup/Status`（归档链路指标、运行参数与调度表）
     - [`QuoteDeDup/JobRuntime.md`](QuoteDeDup/JobRuntime.md) — `GET .../DeDup/Job/Runtime`（10 个 Job 运行快照：阶段 / 进度 / 心跳 / 最近结果）

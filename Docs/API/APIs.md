@@ -119,6 +119,10 @@
 | 95 | POST | `/API/V1/Meta/BRS/Backup/Finv/Table/Toggle` | 启用/禁用备份登记（flag_enable） | [BRS/BackupTable.md](BRS/BackupTable.md) | 备份登记维护（同上） |
 | 96 | GET | `/API/V1/Meta/BRS/Backup/Finv/OSSConfig/Get` | 读取 BRS 对象存储配置（sys.sys_config 39002；不返回 secret_key 明文，返回 secret_key_set） | [BRS/OSSConfig.md](BRS/OSSConfig.md) | 对象存储配置（`BrsOssConfigView.vue`） |
 | 97 | POST | `/API/V1/Meta/BRS/Backup/Finv/OSSConfig/Save` | 保存对象存储配置（secret_key 留空表示不修改；下一轮备份生效） | [BRS/OSSConfig.md](BRS/OSSConfig.md) | 对象存储配置（同上） |
+| 98 | GET | `/API/V1/Meta/BRS/Backup/Finv/Schedule/Get` | 读取备份调度配置（sys.sys_config 39001，6 段 cron）+ 未来 5 次执行时间 | [BRS/Schedule.md](BRS/Schedule.md) | 备份调度配置（`BrsScheduleView.vue`） |
+| 99 | POST | `/API/V1/Meta/BRS/Backup/Finv/Schedule/Save` | 保存备份调度配置（校验 6 段；最多 1 分钟生效） | [BRS/Schedule.md](BRS/Schedule.md) | 备份调度配置（同上） |
+| 100 | POST | `/API/V1/Meta/BRS/Backup/Finv/Run/Manual` | 手动触发一轮备份（异步，返回运行快照；并发时 409） | [BRS/Run.md](BRS/Run.md) | 手动备份与日志（`BrsRunView.vue`） |
+| 101 | GET | `/API/V1/Meta/BRS/Backup/Finv/Run/Status` | 查询运行状态与日志（`sinceSeq` 增量） | [BRS/Run.md](BRS/Run.md) | 手动备份与日志（同上） |
 
 ## 说明
 

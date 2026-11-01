@@ -32,6 +32,8 @@ type Deps struct {
 	// Auth 登录认证服务；为 nil 时不启用登录校验（仅供单元测试构造）。
 	// 生产环境由 cmd/server 注入，任何业务请求都必须携带有效令牌。
 	Auth *auth.Service
+	// BRSRunner 备份运行器（手动触发 + 运行状态）；为 nil 时不注册相关路由（仅供单元测试构造）。
+	BRSRunner *brs.Runner
 }
 
 // NewRouter 构建 Gin 路由（默认监听端口 16001）。
@@ -184,6 +186,18 @@ func NewRouter(deps *Deps) *gin.Engine {
 		brsOss := apiGroup.Group("/Meta/BRS/Backup/Finv/OSSConfig")
 		brsOss.GET("/Get", brsBackupTable.GetOSSConfig)
 		brsOss.POST("/Save", brsBackupTable.SaveOSSConfig)
+
+		// BRS 备份执行：调度配置（39001）+ 手动触发 + 实时运行状态与日志。
+		// Runner 缺失时不注册（单元测试构造的 Deps 可省略）。
+		if deps.BRSRunner != nil {
+			brsRun := handler.NewBrsRun(deps.BRSRunner)
+			schedule := apiGroup.Group("/Meta/BRS/Backup/Finv/Schedule")
+			schedule.GET("/Get", brsRun.GetSchedule)
+			schedule.POST("/Save", brsRun.SaveSchedule)
+			run := apiGroup.Group("/Meta/BRS/Backup/Finv/Run")
+			run.POST("/Manual", brsRun.TriggerManual)
+			run.GET("/Status", brsRun.Status)
+		}
 
 		// 元数据管理：交易所 / 市场 / 证券字典维护
 		apiGroup.GET("/Meta/Finv/Quant/Metadata/Exchange/List", metaHandler.ListExchanges)
