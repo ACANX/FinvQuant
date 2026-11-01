@@ -109,7 +109,7 @@ pg_restore -h 127.0.0.1 -U finv -d finv \
 |---|---|
 | 全局开关 | 39002 `enabled`（默认 `false`） |
 | 表级开关 | `brs_bak_rdb_table.flag_upload`（`'1'` 上传 / `'0'` 只留本地，默认 `'1'`） |
-| 上传 key | `<prefix>/<yyyyMMdd>/<schema>.<table>.dump` |
+| 上传 key | `<prefix>/<env>/<yyyyMMdd>/<schema>.<table>.dump`（`env` = `sys_config` 1002 的运行环境标识；缺失或非法则跳过上传） |
 | 凭证 | `access_key`/`secret_key` 存 `sys_config`（`access_level` 限制），不写日志 |
 | 失败 | 保留本地文件并记日志，不影响下一张表 |
 | 下载 | `aws s3 cp` / `rclone` 等任意 S3 兼容工具 |

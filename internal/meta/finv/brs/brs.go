@@ -10,6 +10,7 @@ package brs
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/acanx/finvquant/internal/meta/base/cron"
@@ -31,6 +33,10 @@ import (
 
 // CronConfigNo 每日备份 cron 的系统配置编号（6 段）。
 const CronConfigNo = 39001
+
+// EnvConfigNo 运行环境标识的系统配置编号（str_value，data_type='3'）。
+// 上传到对象存储时作为 key 的一级目录：<prefix>/<env>/<yyyyMMdd>/<schema>.<table>.dump。
+const EnvConfigNo = 1002
 
 // defaultBackupDir 未配置 FINV_BRS_BACKUP_DIR 时的兜底备份根目录。
 // 不带产品名（需求 10893）：路径只由使用方配置决定，代码不再自作主张加 /FinvQuant 段。
@@ -193,6 +199,35 @@ func (h Hooks) emit(level, format string, a ...any) {
 	}
 }
 
+// loadRuntimeEnv 读取 1002 的运行环境标识（缺失返回空串，不报错）。
+func loadRuntimeEnv(ctx context.Context, pool *pgxpool.Pool) (string, error) {
+	var env string
+	err := pool.QueryRow(ctx,
+		`SELECT COALESCE(str_value, '') FROM sys.sys_config WHERE config_no = $1`, EnvConfigNo).Scan(&env)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", nil
+		}
+		return "", err
+	}
+	return strings.TrimSpace(env), nil
+}
+
+// validEnvName 校验环境标识可作为单级路径使用：2~32 位字母/数字/下划线/短横线。
+func validEnvName(env string) bool {
+	if len(env) < 2 || len(env) > 32 {
+		return false
+	}
+	for _, r := range env {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '_', r == '-':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 // RunOnce 执行一轮备份（无进度回调）。
 func RunOnce(ctx context.Context, pool *pgxpool.Pool, opts Options) error {
 	return RunOnceWithHooks(ctx, pool, opts, Hooks{})
@@ -230,6 +265,27 @@ func RunOnceWithHooks(ctx context.Context, pool *pgxpool.Pool, opts Options, hoo
 		}
 	}
 
+	// 上传 key 的一级目录取 1002 的运行环境标识（需求 10897）：
+	// <prefix>/<env>/<yyyyMMdd>/<schema>.<table>.dump。
+	// 缺失或非法时不上传——避免把不同环境的备份混到同一路径下。
+	env := ""
+	if store != nil {
+		loaded, err := loadRuntimeEnv(ctx, pool)
+		if err != nil {
+			hooks.emit("warn", "读取运行环境标识（sys_config %d）失败，跳过上传: %v", EnvConfigNo, err)
+			store = nil
+		} else if loaded == "" {
+			hooks.emit("warn", "未配置运行环境标识（sys_config %d），跳过对象存储上传；本地备份保留", EnvConfigNo)
+			store = nil
+		} else if !validEnvName(loaded) {
+			hooks.emit("warn", "运行环境标识 %q 非法（只允许 2~32 位字母/数字/下划线/短横线），跳过上传", loaded)
+			store = nil
+		} else {
+			env = loaded
+			hooks.emit("info", "上传环境目录：%s", env)
+		}
+	}
+
 	hooks.emit("info", "开始备份：%d 张表 → %s", len(tables), dayDir)
 	var failed int
 	for i, table := range tables {
@@ -243,7 +299,7 @@ func RunOnceWithHooks(ctx context.Context, pool *pgxpool.Pool, opts Options, hoo
 			continue
 		}
 		if store != nil && table.FlagUpload == "1" {
-			if err := upload(ctx, store, day, path, hooks); err != nil {
+			if err := upload(ctx, store, env, day, path, hooks); err != nil {
 				hooks.emit("warn", "上传失败 %s: %v（本地文件保留）", path, err)
 			}
 		} else if store != nil {
@@ -309,8 +365,13 @@ func dumpTable(ctx context.Context, opts Options, dayDir, day string, table Tabl
 	return filePath, nil
 }
 
-// upload 把本地备份文件上传到对象存储（key 与本地日期目录同构）。
-func upload(ctx context.Context, store oss.Store, day, path string, hooks Hooks) error {
+// upload 把本地备份文件上传到对象存储。
+//
+// key 结构：<prefix>/<env>/<yyyyMMdd>/<schema>.<table>.dump
+//
+//	prefix 由 39002 的 prefix 决定（适配器拼接），env 为 1002 的运行环境标识，
+//	day 为本地日期目录。
+func upload(ctx context.Context, store oss.Store, env, day, path string, hooks Hooks) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return err
@@ -321,6 +382,9 @@ func upload(ctx context.Context, store oss.Store, day, path string, hooks Hooks)
 		return err
 	}
 	key := day + "/" + filepath.Base(path)
+	if env != "" {
+		key = env + "/" + key
+	}
 	if err := store.Put(ctx, key, file, info.Size(), "application/octet-stream"); err != nil {
 		return err
 	}

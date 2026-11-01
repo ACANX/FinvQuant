@@ -84,7 +84,7 @@ RunOnce
         ├─ pg_dump --table <schema>.<table> -Fc --compress <…> --file <…>
         │     └─ 失败：记日志，继续下一张
         └─ flag_upload='1' 且 Store 可用
-              └─ Put(key = <yyyyMMdd>/<basename>)  → 加 prefix 后为 <prefix>/<yyyyMMdd>/<basename>
+              └─ Put(key = <env>/<yyyyMMdd>/<basename>)  → 加 prefix 后为 <prefix>/<env>/<yyyyMMdd>/<basename>
                     └─ 失败：记日志，本地文件保留
 ```
 
@@ -185,7 +185,7 @@ type Store interface {
 | 项 | 行为 |
 |---|---|
 | 上传条件 | 39002 `enabled=true` 且能构造出 `Store`；且该表 `flag_upload='1'` |
-| 对象 key | `<prefix>/<yyyyMMdd>/<schema>.<table>.dump` |
+| 对象 key | `<prefix>/<env>/<yyyyMMdd>/<schema>.<table>.dump`（`env` 取 `sys_config` 1002 的运行环境标识，缺失或非法则跳过上传） |
 | Content-Type | `application/octet-stream` |
 | 大小 | 取本地文件 `Stat` 的字节数，作为 `ContentLength` 传给 SDK |
 | 失败处理 | 记日志「上传失败 …（本地文件保留）」，**不影响其它表**，也不影响本轮结论 |

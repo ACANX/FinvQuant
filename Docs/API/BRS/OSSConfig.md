@@ -4,6 +4,10 @@ BRS 备份产物上传的 S3 兼容对象存储配置，对应系统配置 `sys.
 
 > 生效时机：每轮备份前读取 39002，**保存后下一轮备份生效，无需重启服务**。
 >
+> 上传路径还需要运行环境标识：`sys_config` **1002** 的 `str_value`（`dev`/`test`/`uat`/`prod` 等），
+> 作为 key 的一级目录；未配置或不合法时**跳过对象存储上传**（本地备份保留），避免不同环境的备份混在一起。
+> 1002 由一次性脚本 [`Deploy/Init/2610-002-AddRuntimeEnvConfig.sql`](../../../Deploy/Init/2610-002-AddRuntimeEnvConfig.sql) 发放。
+>
 > 存储键名：`sys.sys_config` 39002 的 JSON 内凭证键为 **`ak` / `sk`**（迁移 `V300082` 由 `access_key`/`secret_key` 改名），
 > 而**本接口的 wire 字段仍是 `access_key` / `secret_key`**（由服务层映射），前端展示与调用方式不变。历史旧键由服务层兜底读取。
 >
@@ -49,7 +53,7 @@ BRS 备份产物上传的 S3 兼容对象存储配置，对应系统配置 `sys.
 | `region` | string | R2 用 `auto`；AWS 填实际区域；MinIO 常用 `us-east-1` |
 | `access_key` | string | 访问凭证 Access Key ID |
 | `secret_key` | string | **恒为空**（不回传明文） |
-| `prefix` | string | 对象 key 前缀，最终 key 为 `<prefix>/<yyyyMMdd>/<schema>.<table>.dump`（文件名不带时间戳） |
+| `prefix` | string | 对象 key 前缀（用户指定，如 `BRS/Finv/`）；最终 key 为 `<prefix>/<env>/<yyyyMMdd>/<schema>.<table>.dump`，`env` 取 `sys_config` 1002 的运行环境标识 |
 | `secret_key_set` | bool | 只读：库内是否已配置 secret_key |
 | `remark` | string | 只读：39002 的字段说明（迁移 `V300061` 内置） |
 | `gmt_modify` | string | 只读：最近修改时间 |

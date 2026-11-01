@@ -171,6 +171,15 @@
   - 测试：新增 `internal/meta/finv/brs/ossconfig_test.go`（新键 / 旧键 / 新旧并存 / 新键为空回退 + 序列化只写 `ak`/`sk`）。
   - 文档：`Docs/API/BRS/OSSConfig.md` 增「存储键名」说明与库内 JSON 形状示例。
 
+### 变更
+
+- **BRS 上传路径增加运行环境层级（需求 10897）**
+  - 对象 key 由 `<prefix>/<yyyyMMdd>/<schema>.<table>.dump` 改为 **`<prefix>/<env>/<yyyyMMdd>/<schema>.<table>.dump`**：`prefix` 仍是 39002 里配置的路径前缀（如 `BRS/Finv/`），`env` 取 `sys_config` **1002** 的 `str_value`（`dev`/`test`/`uat`/`prod` 等）。
+  - 每轮备份开始时读取一次 1002，日志增加「上传环境目录：<env>」；上传行形如 `已上传 prod/20261101/sys.sys_user.dump`。
+  - 1002 缺失、读取失败或取值不合法（非 2~32 位字母/数字/下划线/短横线）时**跳过对象存储上传**并记 warn，本地备份照常保留。
+  - 测试：新增 `internal/meta/finv/brs/env_test.go`（`TestValidEnvName`）。
+  - 文档：`Docs/API/BRS/{OSSConfig,Run}.md`、`Docs/FinvQuant/Brs.md`、`Docs/Design/BrsBackupDesign.md` 同步 key 结构。
+
 ### 新增
 
 - **运行环境标识配置 1002 与一次性初始化脚本（需求 10896）**
