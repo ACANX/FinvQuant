@@ -213,9 +213,14 @@ onMounted(load)
   <v-card class="mt-4" variant="flat">
     <v-card-title class="text-subtitle-2">实现说明</v-card-title>
     <v-card-text class="text-body-2 text-medium-emphasis">
-      <p class="mb-1">
-        S3 兼容协议：支持 Cloudflare R2、AWS S3、MinIO 等；需提前创建 Bucket，凭证需具备 Object Read &amp; Write 权限。
-      </p>
+      <v-row dense class="mb-1">
+        <v-col cols="12" sm="6">
+          S3 兼容协议：支持 Cloudflare R2、AWS S3、MinIO 等。
+        </v-col>
+        <v-col cols="12" sm="6">
+          前置条件：需提前创建 Bucket；凭证需具备 Object Read &amp; Write 权限。
+        </v-col>
+      </v-row>
       <p class="mb-1">
         客户端实现：经 <code>internal/meta/base/oss</code> 抽象接入，默认适配器基于 <code>aws-sdk-go-v2</code>，不使用
         <code>minio-go</code>，后续可扩展 local 等适配器。
