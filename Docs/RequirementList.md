@@ -2051,7 +2051,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10773 | 提供**一次性**数据迁移脚本 `Deploy/Script/MigratePublicKlineToCdeu.sql`，把目标库 `public.finv_quote_secu_kline_min` 的历史数据搬入 `cdeu.finv_quote_secu_kline_min`：源表只读；列名映射 `secu_code→usc`、`prev_close→last_close`，`market_code` 丢弃；同 `(ts,usc)` 多 `market_code` 去重保留最新；`ON CONFLICT (ts,usc) DO NOTHING` 幂等；单事务 + 计数校验，异常整体回滚；不进入迁移链。 | 在含旧结构 `public` 表（5 行，含 1 组重复 `ts`+`secu_code`）的库上执行全部迁移后再跑脚本：源表行数保持 5、目标表 4 行、重复组保留 `gmt_update` 最新值、`last_close` 等于源 `prev_close`；重复执行输出「新增 0 行」且目标仍为 4 行；`grep -c 'ON CONFLICT (ts, usc) DO NOTHING' Deploy/Script/MigratePublicKlineToCdeu.sql` ≥ 1 | |
+| 10773 | 提供**一次性**数据迁移脚本 `Deploy/Upgrade/MigratePublicKlineToCdeu.sql`，把目标库 `public.finv_quote_secu_kline_min` 的历史数据搬入 `cdeu.finv_quote_secu_kline_min`：源表只读；列名映射 `secu_code→usc`、`prev_close→last_close`，`market_code` 丢弃；同 `(ts,usc)` 多 `market_code` 去重保留最新；`ON CONFLICT (ts,usc) DO NOTHING` 幂等；单事务 + 计数校验，异常整体回滚；不进入迁移链。 | 在含旧结构 `public` 表（5 行，含 1 组重复 `ts`+`secu_code`）的库上执行全部迁移后再跑脚本：源表行数保持 5、目标表 4 行、重复组保留 `gmt_update` 最新值、`last_close` 等于源 `prev_close`；重复执行输出「新增 0 行」且目标仍为 4 行；`grep -c 'ON CONFLICT (ts, usc) DO NOTHING' Deploy/Upgrade/MigratePublicKlineToCdeu.sql` ≥ 1 | |
 | 10774 | `Nginx.conf.example` 改为**分阶段**模板：阶段一默认 HTTP/80 + `server_name _;` + `default_server`，无需域名/证书即可 `http://<IP>` 访问；阶段二（443 + `http2 on;` + 证书路径 + 80→443 跳转）以整段注释保留，取消注释即可启用；注释内含切换步骤与 nginx < 1.25.1 写法说明；文档说明需移除 Ubuntu 自带 `sites-enabled/default`。 | `grep -vE '^\s*#' Deploy/Native/Nginx.conf.example \| grep -cE 'listen\s+443\|ssl_certificate\|return 301 https'` = 0；`grep -c 'listen 80 default_server;'` ≥ 1；`grep -c 'server_name _;'` ≥ 1；`grep -cE '^#\s+listen 443 ssl;'` ≥ 1 且 `grep -cE '^#\s+ssl_certificate\s'` ≥ 1；删除自带 default 站点后 `nginx -t` 通过（阶段一）；取消注释块并按 1.24 写法替换后 `nginx -t` 通过（阶段二） | |
 | 10775 | 在 `Docs/FinvQuant/` 提供两份文档：`Nginx-Deploy.md`（阶段一部署/验证/常见问题、阶段二切换/回滚、与 systemd 的关系）与 `Nginx.conf.example-ChangeRequest.md`（可直接作为上游 Issue 正文：问题现象、期望行为、逐项改动、验收标准、兼容性）。 | `ls Docs/FinvQuant/Nginx-Deploy.md Docs/FinvQuant/Nginx.conf.example-ChangeRequest.md` 均存在；前者含「阶段一」「阶段二」「常见问题」「回滚」章节；后者含「建议 Issue 标题」「验收标准」「兼容性」章节；`Deploy/Native/Install.md` §6 与 `Deploy/Native/README.md` 文件表描述已同步为分阶段 | |
 
@@ -2059,7 +2059,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
-| 10776 | 部署包（快照包 / 构建包 / 正式包）必须包含 `Deploy/Script/*.sql` 一次性运维脚本及其 `README.md`；`Install.sh` 安装后需留存到 `<PREFIX>/Deploy/Script/`（权限 0644），且该目录**不进入** `Deploy/Migrations/` 迁移链。 | 执行 `bash Deploy/Script/PackSnapshot.sh --target linux/arm64` 后：`tar -tzf Dist/*.tar.gz \| grep 'Deploy/Script/MigratePublicKlineToCdeu.sql'` 命中；Windows zip 用 `unzip -l` 同样命中；包内该文件权限为 `0644`。安装后 `ls -l /data/App/FinvQuant/Deploy/Script/` 存在 SQL 与 README。源码目录与安装目录同布局时重复执行 `Install.sh` 不报错。 | |
+| 10776 | 部署包（快照包 / 构建包 / 正式包）必须包含 `Deploy/Init/*.sql` 与 `Deploy/Upgrade/*.sql` 初始化与升级维护脚本；`Install.sh` 安装后需留存到 `<PREFIX>/Deploy/Init/` 与 `<PREFIX>/Deploy/Upgrade/`（权限 0644），且两目录**不进入** `Deploy/Migrations/` 迁移链。 | 执行 `bash Deploy/Script/PackSnapshot.sh --target linux/arm64` 后：`tar -tzf Dist/*.tar.gz \| grep 'Deploy/Upgrade/MigratePublicKlineToCdeu.sql'` 与 `grep 'Deploy/Init/2610-001-CreateDatabase.sql'` 均命中；Windows zip 用 `unzip -l` 同样命中；包内该文件权限为 `0644`。安装后 `ls -l /data/App/FinvQuant/Deploy/Init/ /data/App/FinvQuant/Deploy/Upgrade/` 存在 SQL。源码目录与安装目录同布局时重复执行 `Install.sh` 不报错。 | |
 
 ## 一百一十、分钟行情 Upsert 端点迁移到 CDEU 前缀（10777）
 

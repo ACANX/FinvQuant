@@ -13,10 +13,13 @@
 | `PackSnapshot.cmd` | Windows 薄封装：只负责找到 Git Bash 的 `bash.exe` 并转调 `PackSnapshot.sh`，**不含任何打包逻辑** |
 | `Download.sh` | **一键下载逻辑的唯一实现**：检测 OS/架构 → 选版本（正式版/快照）→ 下载 + SHA256 校验 → 安全解压到指定目录（见 §13） |
 | `Download.cmd` | Windows 薄封装：定位 Git Bash 后转调 `Download.sh`，不含下载逻辑 |
-| `MigratePublicKlineToCdeu.sql` | **一次性**数据迁移：`public.finv_quote_secu_kline_min` → `cdeu.finv_quote_secu_kline_min`（只读源表、幂等、列名映射）；说明见 [`../../Docs/FinvQuant/MigratePublicKlineToCdeu.md`](../../Docs/FinvQuant/MigratePublicKlineToCdeu.md) |
 
-> `*.sql` 会随**快照包 / 构建包 / 正式包**一起分发（`PackSnapshot.sh`），
-> 并在 `Install.sh` 安装后留存到 `<PREFIX>/Deploy/Script/`。
+> 本目录只放**构建 / 打包 / 下载**脚本，不放 SQL。运维类 SQL 已按职责分到两个目录：
+> - [`../Init/`](../Init/)：部署前一次性初始化（如建库 `2610-001-CreateDatabase.sql`）；
+> - [`../Upgrade/`](../Upgrade/)：升级期一次性维护（号段平移 `2611-001-MigrationSegmentsShift.sql`、历史数据搬迁 [`MigratePublicKlineToCdeu.sql`](../Upgrade/MigratePublicKlineToCdeu.sql)）。
+>
+> 两个目录的 `*.sql` 都会随**快照包 / 构建包 / 正式包**一起分发（`PackSnapshot.sh`），
+> 并在 `Install.sh` 安装后分别留存到 `<PREFIX>/Deploy/Init/` 与 `<PREFIX>/Deploy/Upgrade/`；
 > 它们**不进入** `Deploy/Migrations/` 迁移链，不参与 `schema_version` 版本化。
 
 ```
@@ -100,6 +103,8 @@ FinvQuant-v0.1.1.00123.2610241530-ubuntu-arm64/
 ├── finvquant                 # 静态链接、stripped；amd64 或 aarch64（按包名）
 ├── Deploy/
 │   ├── Migrations/           # 迁移脚本（与仓库结构一致，安装后即 FINV_MIGRATIONS_DIR）
+│   ├── Init/                 # 初始化 SQL（建库等，部署前手工执行）
+│   ├── Upgrade/              # 升级维护 SQL（号段平移、历史数据搬迁）
 │   ├── Native/               # 宿主直装全套：Install/Upgrade/Uninstall.sh、
 │   │                         #   FinvQuant.service、FinvQuant.env.example、
 │   │                         #   Nginx.conf.example、README/Install/Upgrade.md
@@ -118,6 +123,8 @@ FinvQuant-v0.1.1.00123.2610241530-windows-amd64/
 ├── finvquant.exe
 ├── Deploy/
 │   ├── Migrations/           # 迁移脚本（与仓库结构一致）
+│   ├── Init/                 # 初始化 SQL（建库等）
+│   ├── Upgrade/              # 升级维护 SQL
 │   ├── Docker/               # compose + .env.example + 三个 .cmd + 文档
 │   │                         #   注意：不含 Dockerfile（其 build.context 指向仓库根，
 │   │                         #   包内无源码；Windows 侧直接 docker compose 拉 GHCR 镜像）

@@ -345,6 +345,14 @@ for T in "${TARGETS[@]}"; do
         chmod 0644 "${PKG_ROOT}/Deploy/Init/"*
     fi
 
+    # 升级期维护脚本（号段平移、历史数据搬迁等，手工执行）随包分发：
+    # 安装后在 <PREFIX>/Deploy/Upgrade/
+    if compgen -G "Deploy/Upgrade/*.sql" > /dev/null; then
+        mkdir -p "${PKG_ROOT}/Deploy/Upgrade"
+        cp Deploy/Upgrade/*.sql "${PKG_ROOT}/Deploy/Upgrade/"
+        chmod 0644 "${PKG_ROOT}/Deploy/Upgrade/"*
+    fi
+
     if [[ "${GOOS_V}" == "linux" ]]; then
         # Linux：宿主直装（systemd）全套脚本与文档
         mkdir -p "${PKG_ROOT}/Deploy/Native"

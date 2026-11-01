@@ -37,6 +37,12 @@
 
 ### 变更
 
+- **运维 SQL 按职责归位：初始化 → `Deploy/Init/`，升级维护 → `Deploy/Upgrade/`**
+  - `Deploy/Script/` 恢复为「构建 / 打包 / 下载脚本」专用目录，不再放 SQL；`MigratePublicKlineToCdeu.sql` 由 `Deploy/Script/` 移到 `Deploy/Upgrade/`（与 `2611-001-MigrationSegmentsShift.sql` 同属升级期一次性维护）。
+  - 分发与安装：`PackSnapshot.sh` 打包带上 `Deploy/Init/` 与 `Deploy/Upgrade/`（Linux/Windows 包都带，计入 `SHA256SUMS`）；`Install.sh` 安装时分别留存到 `<PREFIX>/Deploy/Init/` 与 `<PREFIX>/Deploy/Upgrade/`（权限 0644），源=目标时跳过。
+  - 同步：`Deploy/README.md`（目录速览与表格）、`Deploy/Script/README.md`（文件职责与包内结构）、`Deploy/Native/Install.md`（安装目录清单）、`Docs/FinvQuant/MigratePublicKlineToCdeu.md`（脚本路径）、`RequirementList` 10773/10776（路径与验收口径改为 `Deploy/Upgrade/`、`Deploy/Init/`）。
+  - 验证：`bash -n Deploy/Native/Install.sh Deploy/Script/PackSnapshot.sh` 通过；`go test ./internal/docs` 通过。
+
 - **新增建库初始化脚本 `Deploy/Init/2610-001-CreateDatabase.sql`（需求 10882 ①）**
   - 背景：迁移器每个脚本跑在单事务里，`CREATE DATABASE` 不能在事务块内执行，且迁移只能发生在已连上的库；此前建库只存在于容器 `POSTGRES_DB` 与 `Install.sh` 的 `createdb`，仓库里没有可手工复用的建库脚本。
   - 用法：`psql "postgres://postgres@host:5432/postgres" -v db=finv -v owner=finv -f Deploy/Init/2610-001-CreateDatabase.sql`（参数缺省即 `finv`/`finv`）。
@@ -99,7 +105,7 @@
     | `V300000`～`V399999` | 数据（字典种子 / 回填 / 修正） | 原 `V2xxxxx` 段 81 个文件整体 `+100000` |
   - **文件重命名**：`V100001`~`V100089` → `V200001`~`V200089`；`V200000`~`V200080` → `V300000`~`V300080`（编号一一对应，执行顺序不变）。新增 3 个基础准备脚本后迁移总数 **170 → 173**。
   - **基础准备脚本**：`V100001` 幂等确保角色 `finv` 存在（不落密码，无 CREATEROLE 权限时明确报错）；`V100002` 按 `public`→`quote`→`quant`→`futu`→`sys`→`sche`→`cdeu`→`archive` 创建 7 个 schema（`AUTHORIZATION CURRENT_USER`，`public` 由 PG 自带）；`V100003` 校验库名（`finv` 或 `finv*` 测试库）与 schema 权限（`CREATE DATABASE` 不允许在事务内，建库仍由部署侧 `POSTGRES_DB` / `createdb` 负责）。
-  - **全仓引用同步**：`Deploy/`、`internal/`、`cmd/`、`Docs/`、`AGENTS.md`、`README.md` 共 **1678 处**版本号一次扫描替换（规则：`V1xxxxx`→`V2xxxxx`、`V2xxxxx`→`V3xxxxx`，单次遍历避免串号）；另手工修正 `Deploy/README.md`（2 处号段约定）、`Deploy/Script/MigratePublicKlineToCdeu.sql`（迁移范围 `V200001`–`V200080`）、`DbSchemaSpec` §4 号段约定与 `V201000xx` 收尾段示例。
+  - **全仓引用同步**：`Deploy/`、`internal/`、`cmd/`、`Docs/`、`AGENTS.md`、`README.md` 共 **1678 处**版本号一次扫描替换（规则：`V1xxxxx`→`V2xxxxx`、`V2xxxxx`→`V3xxxxx`，单次遍历避免串号）；另手工修正 `Deploy/README.md`（2 处号段约定）、`Deploy/Upgrade/MigratePublicKlineToCdeu.sql`（迁移范围 `V200001`–`V200080`）、`DbSchemaSpec` §4 号段约定与 `V201000xx` 收尾段示例。
   - **存量库过渡**：新增 `Deploy/Upgrade/2611-001-MigrationSegmentsShift.sql`，把 `public.schema_version.version` 一次性 `+100000`。要点：`public.schema_version_plan_shift` marker 表保证只执行一次；**分批 UPDATE**（先 `>=200000` 的旧数据段→`3xxxxx`，再 `<200000` 的旧 DDL 段→`2xxxxx`），避免「旧 `100077` → `200077`」与尚未处理的旧 `200077` 撞主键；同时按 `version` 重算 `description`（`V<n> migration`）。
   - **验证**：全新库 `finv_migtest` 全链 **173 个迁移 0 失败**（`100001`~`300080`），`TestMigrateIntegration` 通过；生产库执行平移脚本后 `schema_version` 由 170 行（`100001`~`200080`）变为 170 行（`200001`~`300080`），重启服务再补跑 3 个基础准备脚本 → 173 行，Live/Web 200；平移脚本重跑输出「此前已执行，跳过」；`go build ./...` 通过，`go test ./...` 仅已知的 `TestDirUploader`（Windows 路径语义）失败。
   - **文档**：`DbSchemaSpec` §4 号段约定重写（三段表 + 平移规则 + 历史遗留说明）；`Deploy/README.md` 同步；`RequirementList` 新增 10881（汇总 10001–10881 / 880 条）。

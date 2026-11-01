@@ -297,9 +297,9 @@ chmod 0755 "${DEPLOY_DIR}"/*.sh
 for f in "${DEPLOY_DIR}"/*.md "${DEPLOY_DIR}"/*.example "${DEPLOY_DIR}"/*.service; do
   if [[ -f "${f}" ]]; then chmod 0644 "${f}"; fi
 done
-# 一次性运维脚本（Deploy/Script/*.sql）与初始化脚本（Deploy/Init/*.sql）随安装目录留存；
+# 运维类 SQL 与构建脚本随安装目录留存：Script/（构建打包）、Init/（初始化）、Upgrade/（升级维护）；
 # 与 DEPLOY_DIR 相同布局时跳过
-for pair in "Script:运维" "Init:初始化"; do
+for pair in "Script:运维" "Init:初始化" "Upgrade:升级维护"; do
   src_sub="${pair%%:*}"; src_label="${pair#*:}"
   src_dir="${SCRIPT_DIR}/../${src_sub}"
   [[ -d "${src_dir}" ]] || continue
