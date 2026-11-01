@@ -213,3 +213,51 @@ func TestCleanupLocalDumpsIgnoresIncrDir(t *testing.T) {
 		t.Fatalf("Incr/ 下的分片不应被删除: %v", statErr)
 	}
 }
+
+// TestCleanupLocalDumpsKeepsIncrFingerprint 校验分片指纹 sidecar 不被清理：
+// 清理只扫 Full/ 与顶层 yyyyMMdd 目录里的 *.dump，Incr/ 完全不在范围内。
+func TestCleanupLocalDumpsKeepsIncrFingerprint(t *testing.T) {
+	backupDir := t.TempDir()
+	store := newLocalStore(t, t.TempDir())
+
+	tableDir := filepath.Join(backupDir, IncrDirName, "finv.cdeu.finv_quote_secu_kline_min")
+	sliceFile := writeLocalDump(t, tableDir, "20260101.mvsv.gz", "slice")
+	fpFile := writeLocalDump(t, tableDir, "20260101.mvsv.gz.fp", `{"rows":10,"hash":"1"}`)
+
+	if _, err := cleanupLocalDumps(context.Background(),
+		Options{BackupDir: backupDir}, store, "prod", defaultLocalKeepDays, Hooks{}); err != nil {
+		t.Fatalf("cleanupLocalDumps 失败: %v", err)
+	}
+	for _, path := range []string{sliceFile, fpFile} {
+		if _, statErr := os.Stat(path); statErr != nil {
+			t.Fatalf("Incr/ 下的产物与指纹不应被清理: %s（%v）", path, statErr)
+		}
+	}
+}
+
+// TestCleanupLocalDumpsRemovesPairedFingerprint 校验删除过期 dump 时成对清理同名 .fp，
+// 而孤立的 .fp（没有对应 dump）保持不动。
+func TestCleanupLocalDumpsRemovesPairedFingerprint(t *testing.T) {
+	backupDir := t.TempDir()
+	store := newLocalStore(t, t.TempDir())
+	day := "20260101"
+	dir := filepath.Join(backupDir, FullDirName, day)
+
+	dumpPath := writeLocalDump(t, dir, "finv.sys.sys_user.dump", "d")
+	fpPath := writeLocalDump(t, dir, "finv.sys.sys_user.dump.fp", `{"rows":1,"hash":"1"}`)
+	orphanFP := writeLocalDump(t, dir, "keep.dump.fp", `{"rows":2,"hash":"2"}`)
+	putObject(t, store, "prod/Full/"+day+"/finv.sys.sys_user.dump", "d")
+
+	if _, err := cleanupLocalDumps(context.Background(),
+		Options{BackupDir: backupDir}, store, "prod", defaultLocalKeepDays, Hooks{}); err != nil {
+		t.Fatalf("cleanupLocalDumps 失败: %v", err)
+	}
+	for _, path := range []string{dumpPath, fpPath} {
+		if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+			t.Fatalf("应成对删除: %s", path)
+		}
+	}
+	if _, statErr := os.Stat(orphanFP); statErr != nil {
+		t.Fatalf("孤立 .fp 不应被删除: %v", statErr)
+	}
+}

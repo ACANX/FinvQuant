@@ -259,6 +259,13 @@
 
 ### 变更
 
+- **本地清理与指纹 sidecar 的边界固化（需求 10917）**
+  - 确认：清理只扫 `Full/<yyyyMMdd>/`（及 10915 前的旧位置）里的 `*.dump`，`Incr/` 分片与其指纹 `<分片键>.mvsv.gz.fp` 不在清理范围。
+  - 加固：删除过期 dump 时成对删除同名 `<文件>.dump.fp`（防将来小表引入指纹后留孤儿），孤立 `.fp` 不动。
+  - 新增 `TestCleanupLocalDumpsKeepsIncrFingerprint`、`TestCleanupLocalDumpsRemovesPairedFingerprint` 两条回归测试。
+
+### 变更
+
 - **大表分片增量改为内容指纹比对（需求 10916）**
   - 原行为：`redo_slices` 末尾 N 个分片每轮无条件重导 + 上传，窗口外即使数据变了也永远跳过。
   - 新行为：每片先算源端指纹 `(count(*), sum(hashtextextended(行文本,0)))`，与上次备份写入的指纹比较——相同跳过、不同重做；指纹存本地 `<分片文件>.fp` 与远端 `<key>.fp`。

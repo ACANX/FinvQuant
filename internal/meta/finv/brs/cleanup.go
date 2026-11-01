@@ -5,7 +5,7 @@
 //   - 只清理**确认已在对象存储中存在**的文件（逐个 Stat 远端 key），远端没有就不删；
 //   - 对象存储未启用 / 运行环境标识缺失时**整体跳过**（本地是唯一副本）；
 //   - 只处理 Full/ 与历史根目录下形如 yyyyMMdd 的日期目录里的 *.dump，
-//     不碰 Incr/ 分片目录与其它文件；
+//     不碰 Incr/ 分片目录与其它文件；分片指纹（Incr/**/*.mvsv.gz.fp）因此不受清理影响；
 //   - 保留天数由 FINV_BRS_LOCAL_KEEP_DAYS 控制（默认 7，<=0 表示不清理）。
 //
 // 大表分片（Incr/）不在清理范围：分片按数据日期固定一份、重跑覆盖，
@@ -121,6 +121,9 @@ func cleanupDayDirs(ctx context.Context, root, env, cutoff string, store oss.Sto
 			}
 			result.RemovedFiles++
 			result.RemovedBytes += size
+			// 成对清理指纹 sidecar（<文件>.fp）：当前小表全量不写指纹，
+			// 但保留这层处理，避免将来小表也引入指纹后留下孤儿 sidecar。
+			_ = os.Remove(path + ".fp") // 不存在时忽略
 		}
 		if remaining == 0 {
 			if removeErr := os.Remove(dir); removeErr == nil {
