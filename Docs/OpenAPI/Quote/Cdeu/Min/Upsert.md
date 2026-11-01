@@ -65,7 +65,7 @@
 | `turnover` | number | 是 | 否 | ≥ 0 | 是 | 成交金额 |
 | `change_price` | number | 是 | 否 | — | 是 | 涨跌额；与 `change_ratio` 均未传时自动计算 |
 | `change_ratio` | number | 是 | 否 | — | 是 | 涨跌幅；与 `change_price` 均未传时自动计算 |
-| `pacd` | number | 是 | 否 | — | 是 | 当日累计均价（库列名 `paocd`） |
+| `vwap` | number | 是 | 否 | — | 是 | 成交量加权平均价（VWAP）（库列名 `vwap`）；旧字段名 `pacd` 兼容接收，`vwap` 优先 |
 | `ext_field` | string | 是 | 否 | — | 是 | 预留扩展字段 |
 | `remark` | string | 是 | 否 | — | 是 | 备注 |
 | `provider` | string | 是 | 否 | ≤ 255 字符 | 是 | 数据来源（如 `FT`） |
@@ -90,7 +90,7 @@
       "turnover": 3560.00,
       "change_price": 0.10,
       "change_ratio": 2.857143,
-      "pacd": 3.56,
+      "vwap": 3.56,
       "ext_field": null,
       "remark": null,
       "provider": "FT"

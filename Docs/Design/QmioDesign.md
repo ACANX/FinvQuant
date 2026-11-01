@@ -172,7 +172,7 @@ qmio export / import / verify
 
 ```
 usc, ts, date, time, open, high, low, close, last_close,
-volume, turnover, change_price, change_ratio, paocd,
+volume, turnover, change_price, change_ratio, vwap,
 ext_field, remark, provider, gmt_create, gmt_update
 ```
 

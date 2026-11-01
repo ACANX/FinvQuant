@@ -358,10 +358,10 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 ```
 # Title : "CdeuKline_20261028_120000"
 # Format : "MVSV-2"
-# Field : "usc|ts|date|time|open|high|low|close|last_close|volume|turnover|change_price|change_ratio|paocd|ext_field|remark|provider|gmt_create|gmt_update"
+# Field : "usc|ts|date|time|open|high|low|close|last_close|volume|turnover|change_price|change_ratio|vwap|ext_field|remark|provider|gmt_create|gmt_update"
 # FieldType : "String|Int|Int|Int|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|String|String|String|Timestamp|Timestamp"
-# FieldName : "Usc|Ts|Date|Time|Open|High|Low|Close|LastClose|Volume|Turnover|ChangePrice|ChangeRatio|Paocd|ExtField|Remark|Provider|GmtCreate|GmtUpdate"
-# 字段名称 : "证券代码|时间戳(UTC)|交易日期|交易时间|开盘价|最高价|最低价|收盘价|上一收盘价|成交量|成交额|涨跌额|涨跌幅|累计均价|扩展字段|备注|数据来源|创建时间|更新时间"
+# FieldName : "Usc|Ts|Date|Time|Open|High|Low|Close|LastClose|Volume|Turnover|ChangePrice|ChangeRatio|Vwap|ExtField|Remark|Provider|GmtCreate|GmtUpdate"
+# 字段名称 : "证券代码|时间戳(UTC)|交易日期|交易时间|开盘价|最高价|最低价|收盘价|上一收盘价|成交量|成交额|涨跌额|涨跌幅|成交量加权平均价|扩展字段|备注|数据来源|创建时间|更新时间"
 # Count : 2
 # DataScope : "all"
 # ExportTime : "2026-10-28T12:00:00+08:00"

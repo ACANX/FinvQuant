@@ -234,6 +234,14 @@
 
 ### 变更
 
+- **`paocd` → `vwap` 字段改名（需求 10902，第四步：文档与需求）**
+  - 接口文档：`Docs/API/Quote/Cdeu/Min/{KLineAdd,KLinePage,KLinePageUni,KLineQuery,KLineUpsert}.md`、`KLineUpsert.yml`、`Docs/OpenAPI/Quote/Cdeu/Min/{PageUni,Upsert}.md`、`Upsert.yml`——字段表、示例 JSON、紧凑字段映射改为 `vwap` / 短名 `vwa`，并注明 `pacd` 仍兼容接收且 `vwap` 优先。
+  - 文件格式：`Docs/DataFormat/MvsvFileFormat.md` 的 MVSV-2 文件头示例（`Field`/`FieldName`/`字段名称`）、`Docs/Design/QmioDesign.md` 列清单改为 `vwap` / `Vwap` / 「成交量加权平均价」。
+  - 运维提示：`Docs/FinvQuant/Brs.md` 恢复章节补充「恢复 2026-11 之前的备份后列名会回退为 `paocd`，需手工 `RENAME COLUMN`」；`Deploy/Upgrade/2610-004-MigratePublicKlineToCdeu.sql` 头部补列名提示。
+  - 新增过程清单 `Docs/Refactor/2610-013-PaocdToVwap.md`（C-01～C-41，逐条附核验方式）；需求登记 10902（改名）与 10903（待办：移除 `pacd` 兼容）。
+
+### 变更
+
 - **`paocd` → `vwap` 字段改名（需求 10902，第三步：MVSV / qmio 导入导出）**
   - 导出（K 线导出与 `qmio export`）：`# Field` 第 14 列 `paocd` → `vwap`，`# FieldName` `Paocd` → `Vwap`，`# 字段名称`「累计均价」→「成交量加权平均价」，`# FieldType` 键同步。
   - 导入（`qmio import` 与 MVSV 解析）：列名同时接受 `paocd`（旧导出文件）、`pacd`（旧 API 字段名）、`vwap`（新名），三者都落到 `Row.Vwap`。

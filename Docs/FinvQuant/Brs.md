@@ -83,6 +83,10 @@ pg_restore -h 127.0.0.1 -U finv -d finv \
 
 > `public.schema_version` 是迁移元数据，按「public schema 全部登记」一并纳入；
 > 恢复时请用 `pg_restore` 选择表，**勿整库覆盖**（否则会用备份里的版本记录覆盖目标库实际状态）。
+> **列名变更提示**：`paocd` 已于需求 10902 改名为 `vwap`（迁移 `V300087`）。恢复 2026-11 之前、
+> 含 `quote` / `cdeu` K 线表的备份后，表结构会带回旧列名 `paocd`，需手工补一次改名：
+> `ALTER TABLE <表> RENAME COLUMN paocd TO vwap;`（三张表：`quote.finv_quote_secu_kline_min`、
+> `cdeu.finv_quote_secu_kline_min`、`cdeu.finv_quote_secu_kline_min_export`）。
 > 原 `public.schema_version_plan_shift`（号段平移 marker）已随需求 10895 删除，不再备份。
 
 ## 6. 对象存储上传（已实现）

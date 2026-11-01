@@ -35,6 +35,11 @@
 --    where exists (select 1 from public.finv_quote_secu_kline_min s
 --                   where s.ts = d.ts and s.usc = d.usc);
 --
+-- 列名提示：本脚本按改名前的列名 paocd 编写（需求 10902 之前）。
+--   若目标库已执行 V300087（paocd 已改名为 vwap），请把脚本内的 paocd
+--   全部替换为 vwap 后再执行；源表 public.finv_quote_secu_kline_min 若已
+--   由 2610-003 删除，本脚本无事可做。
+--
 -- 说明：本脚本为一次性任务，上线验证通过后可直接注释或删除，
 --       不进入 Deploy/Migrations 迁移链，不参与版本化升级。
 -- =====================================================================
