@@ -4,6 +4,9 @@ BRS 备份产物上传的 S3 兼容对象存储配置，对应系统配置 `sys.
 
 > 生效时机：每轮备份前读取 39002，**保存后下一轮备份生效，无需重启服务**。
 >
+> 存储键名：`sys.sys_config` 39002 的 JSON 内凭证键为 **`ak` / `sk`**（迁移 `V300082` 由 `access_key`/`secret_key` 改名），
+> 而**本接口的 wire 字段仍是 `access_key` / `secret_key`**（由服务层映射），前端展示与调用方式不变。历史旧键由服务层兜底读取。
+>
 > 密钥安全：读取接口**永不返回 `secret_key` 明文**，只返回 `secret_key_set` 标记；保存时 `secret_key` 留空表示保持库内现值，只有显式传入非空值才覆盖。日志与错误信息均不带出密钥。
 >
 > 前端页面：`/Meta/BRS/Backup/Finv/OSSConfig`（`Web/src/views/Meta/BRS/Backup/Finv/BrsOssConfigView.vue`）。
@@ -53,6 +56,12 @@ BRS 备份产物上传的 S3 兼容对象存储配置，对应系统配置 `sys.
 
 缺省归一化：`provider` 空 → `s3`，`region` 空 → `auto`，`prefix` 空 → `brs/`。
 
+### 库内 JSON 形状（`sys.sys_config.json_value`，供运维直接查库）
+
+```json
+{"enabled":true,"provider":"s3","endpoint":"11111","bucket":"2222","region":"auto","ak":"1111","sk":"222222","prefix":"BRS/Finv/"}
+```
+
 ## 2. 保存配置
 
 - **方法**：`POST`
@@ -90,8 +99,8 @@ BRS 备份产物上传的 S3 兼容对象存储配置，对应系统配置 `sys.
 
 | 项 | 说明 |
 |------|------|
-| 配置行 | `sys.sys_config` 39002（`V300061` 初始化，`data_type='4'`，JSON） |
-| 服务读取 | `internal/meta/finv/brs/ossconfig.go`（`LoadOSSConfig` / `SaveOSSConfig`）、`brs.go` 的 `loadOssStore`（每轮备份构造客户端） |
+| 配置行 | `sys.sys_config` 39002（`V300061` 初始化，`data_type='4'`，JSON；`V300082` 把凭证键改为 `ak`/`sk`） |
+| 服务读取 | `internal/meta/finv/brs/ossconfig.go`（`LoadOSSConfig` / `SaveOSSConfig`，负责 `access_key`↔`ak`、`secret_key`↔`sk` 映射）、`brs.go` 的 `loadOssStore`（每轮备份构造客户端，读 `ak`/`sk`，兼容旧键） |
 | 上传实现 | `internal/meta/base/oss`（默认适配器 s3，基于 aws-sdk-go-v2，不使用 minio-go） |
 | 表级开关 | `brs.brs_bak_rdb_table.flag_upload`（`'1'` 上传 / `'0'` 只留本地），见 [BackupTable.md](BackupTable.md) |
 | 每日调度 | `sys.sys_config` 39001（6 段 cron，默认每天 03:00:00） |

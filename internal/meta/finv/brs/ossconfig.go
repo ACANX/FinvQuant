@@ -38,16 +38,37 @@ type OSSConfig struct {
 	GmtModify    *time.Time `json:"gmt_modify"`     // 只读：最近修改时间
 }
 
-// ossSettings 库内 JSON 的实际结构（与迁移 V300061 的默认值一致）。
+// ossSettings 库内 JSON 的实际结构（凭证键为 ak / sk，见迁移 V300082）。
+//
+// 兼容：历史配置可能仍是 access_key / secret_key（V300082 之前写入），
+// 旧键放在 Legacy* 字段里兜底读取，保存时统一写 ak / sk。
 type ossSettings struct {
-	Enabled   bool   `json:"enabled"`
-	Provider  string `json:"provider"`
-	Endpoint  string `json:"endpoint"`
-	Bucket    string `json:"bucket"`
-	Region    string `json:"region"`
-	AccessKey string `json:"access_key"`
-	SecretKey string `json:"secret_key"`
-	Prefix    string `json:"prefix"`
+	Enabled  bool   `json:"enabled"`
+	Provider string `json:"provider"`
+	Endpoint string `json:"endpoint"`
+	Bucket   string `json:"bucket"`
+	Region   string `json:"region"`
+	AK       string `json:"ak"`
+	SK       string `json:"sk"`
+	Prefix   string `json:"prefix"`
+	LegacyAK string `json:"access_key,omitempty"`
+	LegacySK string `json:"secret_key,omitempty"`
+}
+
+// accessKey 返回生效的 Access Key（新键优先，旧键兜底）。
+func (s ossSettings) accessKey() string {
+	if strings.TrimSpace(s.AK) != "" {
+		return s.AK
+	}
+	return s.LegacyAK
+}
+
+// secretKey 返回生效的 Secret Key（新键优先，旧键兜底）。
+func (s ossSettings) secretKey() string {
+	if strings.TrimSpace(s.SK) != "" {
+		return s.SK
+	}
+	return s.LegacySK
 }
 
 // LoadOSSConfig 读取 39002 的配置（不返回 secret_key 明文）。
@@ -87,10 +108,10 @@ SELECT COALESCE(json_value::text, ''), COALESCE(remark, ''), gmt_modify
 		Endpoint:     s.Endpoint,
 		Bucket:       s.Bucket,
 		Region:       s.Region,
-		AccessKey:    s.AccessKey,
+		AccessKey:    s.accessKey(),
 		SecretKey:    "", // 明文永不回传
 		Prefix:       s.Prefix,
-		SecretKeySet: strings.TrimSpace(s.SecretKey) != "",
+		SecretKeySet: strings.TrimSpace(s.secretKey()) != "",
 		Remark:       remark,
 		GmtModify:    gmtModify,
 	}, nil
@@ -147,7 +168,7 @@ func (r *Registry) SaveOSSConfig(ctx context.Context, cfg OSSConfig, operator st
 				return OSSConfig{}, fmt.Errorf("解析 %d 的 json_value 失败: %w", OssConfigNo, err)
 			}
 		}
-		secret = old.SecretKey
+		secret = old.secretKey()
 		if secret == "" {
 			if cfg.Enabled {
 				return OSSConfig{}, inputErrorf("启用上传时必须填写 secret_key（或此前已配置过）")
@@ -171,14 +192,14 @@ func (r *Registry) SaveOSSConfig(ctx context.Context, cfg OSSConfig, operator st
 	}
 
 	payload, err := json.Marshal(ossSettings{
-		Enabled:   cfg.Enabled,
-		Provider:  cfg.Provider,
-		Endpoint:  cfg.Endpoint,
-		Bucket:    cfg.Bucket,
-		Region:    cfg.Region,
-		AccessKey: cfg.AccessKey,
-		SecretKey: secret,
-		Prefix:    cfg.Prefix,
+		Enabled:  cfg.Enabled,
+		Provider: cfg.Provider,
+		Endpoint: cfg.Endpoint,
+		Bucket:   cfg.Bucket,
+		Region:   cfg.Region,
+		AK:       cfg.AccessKey,
+		SK:       secret,
+		Prefix:   cfg.Prefix,
 	})
 	if err != nil {
 		return OSSConfig{}, fmt.Errorf("序列化对象存储配置失败: %w", err)

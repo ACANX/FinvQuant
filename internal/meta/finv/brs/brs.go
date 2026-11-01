@@ -319,16 +319,36 @@ func humanSize(bytes int64) string {
 	return fmt.Sprintf("%.1f %ciB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
-// OssSettings 39002 的对象存储配置（JSON）。
+// OssSettings 39002 的对象存储配置（JSON，凭证键 ak / sk，见迁移 V300082）。
+//
+// 兼容 V300082 之前的 access_key / secret_key 旧键。
 type OssSettings struct {
-	Enabled   bool   `json:"enabled"`
-	Provider  string `json:"provider"`
-	Endpoint  string `json:"endpoint"`
-	Bucket    string `json:"bucket"`
-	Region    string `json:"region"`
-	AccessKey string `json:"access_key"`
-	SecretKey string `json:"secret_key"`
-	Prefix    string `json:"prefix"`
+	Enabled  bool   `json:"enabled"`
+	Provider string `json:"provider"`
+	Endpoint string `json:"endpoint"`
+	Bucket   string `json:"bucket"`
+	Region   string `json:"region"`
+	AK       string `json:"ak"`
+	SK       string `json:"sk"`
+	Prefix   string `json:"prefix"`
+	LegacyAK string `json:"access_key,omitempty"`
+	LegacySK string `json:"secret_key,omitempty"`
+}
+
+// AccessKey 返回生效的 Access Key（新键优先，旧键兜底）。
+func (s OssSettings) AccessKey() string {
+	if strings.TrimSpace(s.AK) != "" {
+		return s.AK
+	}
+	return s.LegacyAK
+}
+
+// SecretKey 返回生效的 Secret Key（新键优先，旧键兜底）。
+func (s OssSettings) SecretKey() string {
+	if strings.TrimSpace(s.SK) != "" {
+		return s.SK
+	}
+	return s.LegacySK
 }
 
 // loadOssStore 读取 39002 并构造对象存储客户端；未启用/缺配置返回 nil。
@@ -360,8 +380,8 @@ func loadOssStore(ctx context.Context, pool *pgxpool.Pool) (oss.Store, error) {
 		Endpoint:  settings.Endpoint,
 		Bucket:    settings.Bucket,
 		Region:    settings.Region,
-		AccessKey: settings.AccessKey,
-		SecretKey: settings.SecretKey,
+		AccessKey: settings.AccessKey(),
+		SecretKey: settings.SecretKey(),
 		Prefix:    settings.Prefix,
 	})
 }

@@ -125,6 +125,15 @@
   - **文档**：`DbSchemaSpec` §4 号段约定重写（三段表 + 平移规则 + 历史遗留说明）；`Deploy/README.md` 同步；`RequirementList` 新增 10881（汇总 10001–10881 / 880 条）。
   - **注意**：本次只改编号与引用，**不改任何 SQL 逻辑**；`CHANGELOG`/`RequirementList`/`Docs/Refactor/*` 中的历史版本号为可追溯性已一并改为新号（对应文件已重命名）。
 
+### 变更
+
+- **39002 对象存储配置的凭证键改为 `ak` / `sk`（需求 10891）**
+  - 迁移 `V300082__brs_oss_config_ak_sk.sql`：`sys.sys_config` 39002 的 `json_value` 内 `access_key`→`ak`、`secret_key`→`sk`，保留原值；仅当旧键存在时执行（幂等），末尾校验无旧键残留且新键齐全。
+  - 服务层：`brs/ossconfig.go` 与 `brs/brs.go` 的配置结构改用 `ak`/`sk`，并保留 `access_key`/`secret_key` 旧键兜底读取（迁移与升级先后顺序不影响已有密钥）；保存只写新键。
+  - **HTTP 接口与前端不变**：wire 字段仍是 `access_key` / `secret_key`，前端标签仍是「Access Key ID」「Secret Access Key」。
+  - 测试：新增 `internal/meta/finv/brs/ossconfig_test.go`（新键 / 旧键 / 新旧并存 / 新键为空回退 + 序列化只写 `ak`/`sk`）。
+  - 文档：`Docs/API/BRS/OSSConfig.md` 增「存储键名」说明与库内 JSON 形状示例。
+
 ### 新增
 
 - **BRS 对象存储配置页面与接口（需求 10890）**
