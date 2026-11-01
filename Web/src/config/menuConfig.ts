@@ -191,7 +191,8 @@ const finvQuantMenu: MenuNode[] = [
     icon: 'mdi-backup-restore',
     children: [
       {
-        // 备份管理（三级分组）：备份范围登记、备份产物与记录、对象存储上传配置。
+        // 备份管理（三级分组）：备份范围登记、备份产物与记录、对象存储上传配置、
+        // 调度配置、手动触发备份并实时查看进度与日志（与定时任务共用同一执行链）。
         key: 'brs-manage',
         title: '备份管理',
         icon: 'mdi-content-save-cog-outline',
@@ -200,14 +201,6 @@ const finvQuantMenu: MenuNode[] = [
           { key: 'brs-record', title: '备份记录与产物', icon: 'mdi-file-clock-outline', path: '/Meta/BRS/Backup/Finv/Record' },
           { key: 'brs-storage', title: '对象存储配置', icon: 'mdi-cloud-cog-outline', path: '/Meta/BRS/Backup/Finv/OSSConfig' },
           { key: 'brs-schedule', title: '备份调度配置', icon: 'mdi-calendar-clock', path: '/Meta/BRS/Backup/Finv/Schedule' },
-        ],
-      },
-      {
-        // 备份执行（三级分组）：手动触发备份并实时查看进度与日志（与定时任务共用同一执行链）。
-        key: 'brs-runner',
-        title: '备份执行',
-        icon: 'mdi-play-circle-outline',
-        children: [
           { key: 'brs-run', title: '手动备份与日志', icon: 'mdi-database-export', path: '/Meta/BRS/Backup/Finv/Run' },
         ],
       },
