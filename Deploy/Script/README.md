@@ -16,7 +16,7 @@
 
 > 本目录只放**构建 / 打包 / 下载**脚本，不放 SQL。运维类 SQL 已按职责分到两个目录：
 > - [`../Init/`](../Init/)：部署前一次性初始化（如建库 `2610-001-CreateDatabase.sql`）；
-> - [`../Upgrade/`](../Upgrade/)：升级期一次性维护（历史数据搬迁 [`MigratePublicKlineToCdeu.sql`](../Upgrade/MigratePublicKlineToCdeu.sql)）。
+> - [`../Upgrade/`](../Upgrade/)：升级期一次性维护（历史数据搬迁 [`2610-004-MigratePublicKlineToCdeu.sql`](../Upgrade/2610-004-MigratePublicKlineToCdeu.sql)）。
 >
 > 两个目录的 `*.sql` 都会随**快照包 / 构建包 / 正式包**一起分发（`PackSnapshot.sh`），
 > 并在 `Install.sh` 安装后分别留存到 `<PREFIX>/Deploy/Init/` 与 `<PREFIX>/Deploy/Upgrade/`；

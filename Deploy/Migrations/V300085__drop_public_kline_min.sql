@@ -6,7 +6,7 @@
 --   本迁移只做校验与提示，不删表，保证部署/升级链路先通过。
 --
 -- 背景：早期版本把分钟 K 线建在 public 下；新版只读写 cdeu.finv_quote_secu_kline_min，
---   数据由一次性脚本 Deploy/Upgrade/MigratePublicKlineToCdeu.sql（需求 10773）搬迁。
+--   数据由一次性脚本 Deploy/Upgrade/2610-004-MigratePublicKlineToCdeu.sql（需求 10773）搬迁。
 --   该脚本刻意「只读源表、不删源」，源码注释写明「验证通过后可作废」。
 --   DbSchemaSpec §0.2 的受保护同名表只有 quote. 与 cdeu. 两份，public 这份不在保护名单，
 --   代码中也没有任何业务读写它。
@@ -15,7 +15,7 @@
 --   1) 源表不存在 → 跳过；
 --   2) 目标表不存在、或源表缺少 usc/secu_code 列 → 无法校验，**保留不删** 并 WARNING；
 --   3) 源表仍有行未在 cdeu 中落地（按 (ts, usc) 差集）→ **保留不删** 并 WARNING，
---      提示先执行 Deploy/Upgrade/MigratePublicKlineToCdeu.sql；
+--      提示先执行 Deploy/Upgrade/2610-004-MigratePublicKlineToCdeu.sql；
 --   4) 差集为 0 → 只输出 NOTICE 提示「可以删除」，**不执行 DROP**（暂缓，需求 10900）。
 --
 -- 后续删除（备份到 R2 之后）：
@@ -81,7 +81,7 @@ BEGIN
     $sql$, c_src, c_dst, v_usc_col) INTO v_missing;
 
     IF v_missing > 0 THEN
-        RAISE WARNING 'V300085：% 共 % 行，其中 % 行在 % 中无对应记录，保留该表不删除；请先执行 Deploy/Upgrade/MigratePublicKlineToCdeu.sql',
+        RAISE WARNING 'V300085：% 共 % 行，其中 % 行在 % 中无对应记录，保留该表不删除；请先执行 Deploy/Upgrade/2610-004-MigratePublicKlineToCdeu.sql',
                       c_src, v_src_rows, v_missing, c_dst;
         RETURN;
     END IF;

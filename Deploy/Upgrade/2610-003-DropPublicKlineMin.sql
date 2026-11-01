@@ -3,7 +3,7 @@
 -- （需求 10899 / 10900）
 --
 -- 前置（必须全部满足）：
---   1) 该表的数据已由 Deploy/Upgrade/MigratePublicKlineToCdeu.sql 搬入
+--   1) 该表的数据已由 Deploy/Upgrade/2610-004-MigratePublicKlineToCdeu.sql 搬入
 --      cdeu.finv_quote_secu_kline_min；
 --   2) 该表已由 BRS 备份到对象存储（迁移 V300086 已把它加入备份登记），
 --      确认 R2 上存在 <prefix>/<env>/<yyyyMMdd>/finv.public.finv_quote_secu_kline_min.dump；
@@ -69,7 +69,7 @@ BEGIN
     $sql$, c_src, c_dst, v_usc_col) INTO v_missing;
 
     IF v_missing > 0 THEN
-        RAISE EXCEPTION '校验失败：% 共 % 行，其中 % 行在 % 中无对应记录；请先执行 Deploy/Upgrade/MigratePublicKlineToCdeu.sql，本次未删除',
+        RAISE EXCEPTION '校验失败：% 共 % 行，其中 % 行在 % 中无对应记录；请先执行 Deploy/Upgrade/2610-004-MigratePublicKlineToCdeu.sql，本次未删除',
                         c_src, v_src_rows, v_missing, c_dst;
     END IF;
 

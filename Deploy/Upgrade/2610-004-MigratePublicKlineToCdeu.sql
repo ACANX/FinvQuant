@@ -19,7 +19,7 @@
 --
 -- 执行（建议先备份数据库、在低峰期执行）：
 --   psql -h <host> -p <port> -U <user> -d finv -v ON_ERROR_STOP=1 \
---        -f MigratePublicKlineToCdeu.sql
+--        -f 2610-004-MigratePublicKlineToCdeu.sql
 --
 -- 执行后验证：
 --   select count(*) from cdeu.finv_quote_secu_kline_min;

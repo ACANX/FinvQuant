@@ -52,7 +52,7 @@
   - 路由与菜单两处同步：`Web/src/router.ts`、`Web/src/config/menuConfig.ts`。仅调整 URL 命名（BRS 域 → Backup 分组 → Finv 业务 → 对象），页面组件与菜单标题不变；`恢复管理` 占位端点 `Restore/Run` 本轮未动，仍为 `/Meta/Finv/Brs/Restore/Run`。
 
 - **运维 SQL 按职责归位：初始化 → `Deploy/Init/`，升级维护 → `Deploy/Upgrade/`**
-  - `Deploy/Script/` 恢复为「构建 / 打包 / 下载脚本」专用目录，不再放 SQL；`MigratePublicKlineToCdeu.sql` 由 `Deploy/Script/` 移到 `Deploy/Upgrade/`（与 `2611-001-MigrationSegmentsShift.sql` 同属升级期一次性维护）。
+  - `Deploy/Script/` 恢复为「构建 / 打包 / 下载脚本」专用目录，不再放 SQL；`2610-004-MigratePublicKlineToCdeu.sql` 由 `Deploy/Script/` 移到 `Deploy/Upgrade/`（与 `2611-001-MigrationSegmentsShift.sql` 同属升级期一次性维护）。
   - 分发与安装：`PackSnapshot.sh` 打包带上 `Deploy/Init/` 与 `Deploy/Upgrade/`（Linux/Windows 包都带，计入 `SHA256SUMS`）；`Install.sh` 安装时分别留存到 `<PREFIX>/Deploy/Init/` 与 `<PREFIX>/Deploy/Upgrade/`（权限 0644），源=目标时跳过。
   - 同步：`Deploy/README.md`（目录速览与表格）、`Deploy/Script/README.md`（文件职责与包内结构）、`Deploy/Native/Install.md`（安装目录清单）、`Docs/FinvQuant/MigratePublicKlineToCdeu.md`（脚本路径）、`RequirementList` 10773/10776（路径与验收口径改为 `Deploy/Upgrade/`、`Deploy/Init/`）。
   - 验证：`bash -n Deploy/Native/Install.sh Deploy/Script/PackSnapshot.sh` 通过；`go test ./internal/docs` 通过。
@@ -119,7 +119,7 @@
     | `V300000`～`V399999` | 数据（字典种子 / 回填 / 修正） | 原 `V2xxxxx` 段 81 个文件整体 `+100000` |
   - **文件重命名**：`V100001`~`V100089` → `V200001`~`V200089`；`V200000`~`V200080` → `V300000`~`V300080`（编号一一对应，执行顺序不变）。新增 3 个基础准备脚本后迁移总数 **170 → 173**。
   - **基础准备脚本**：`V100001` 幂等确保角色 `finv` 存在（不落密码，无 CREATEROLE 权限时明确报错）；`V100002` 按 `public`→`quote`→`quant`→`futu`→`sys`→`sche`→`cdeu`→`archive` 创建 7 个 schema（`AUTHORIZATION CURRENT_USER`，`public` 由 PG 自带）；`V100003` 校验库名（`finv` 或 `finv*` 测试库）与 schema 权限（`CREATE DATABASE` 不允许在事务内，建库仍由部署侧 `POSTGRES_DB` / `createdb` 负责）。
-  - **全仓引用同步**：`Deploy/`、`internal/`、`cmd/`、`Docs/`、`AGENTS.md`、`README.md` 共 **1678 处**版本号一次扫描替换（规则：`V1xxxxx`→`V2xxxxx`、`V2xxxxx`→`V3xxxxx`，单次遍历避免串号）；另手工修正 `Deploy/README.md`（2 处号段约定）、`Deploy/Upgrade/MigratePublicKlineToCdeu.sql`（迁移范围 `V200001`–`V200080`）、`DbSchemaSpec` §4 号段约定与 `V201000xx` 收尾段示例。
+  - **全仓引用同步**：`Deploy/`、`internal/`、`cmd/`、`Docs/`、`AGENTS.md`、`README.md` 共 **1678 处**版本号一次扫描替换（规则：`V1xxxxx`→`V2xxxxx`、`V2xxxxx`→`V3xxxxx`，单次遍历避免串号）；另手工修正 `Deploy/README.md`（2 处号段约定）、`Deploy/Upgrade/2610-004-MigratePublicKlineToCdeu.sql`（迁移范围 `V200001`–`V200080`）、`DbSchemaSpec` §4 号段约定与 `V201000xx` 收尾段示例。
   - **存量库过渡**：新增 `Deploy/Upgrade/2611-001-MigrationSegmentsShift.sql`，把 `public.schema_version.version` 一次性 `+100000`。要点：`public.schema_version_plan_shift` marker 表保证只执行一次；**分批 UPDATE**（先 `>=200000` 的旧数据段→`3xxxxx`，再 `<200000` 的旧 DDL 段→`2xxxxx`），避免「旧 `100077` → `200077`」与尚未处理的旧 `200077` 撞主键；同时按 `version` 重算 `description`（`V<n> migration`）。
   - **验证**：全新库 `finv_migtest` 全链 **173 个迁移 0 失败**（`100001`~`300080`），`TestMigrateIntegration` 通过；生产库执行平移脚本后 `schema_version` 由 170 行（`100001`~`200080`）变为 170 行（`200001`~`300080`），重启服务再补跑 3 个基础准备脚本 → 173 行，Live/Web 200；平移脚本重跑输出「此前已执行，跳过」；`go build ./...` 通过，`go test ./...` 仅已知的 `TestDirUploader`（Windows 路径语义）失败。
   - **文档**：`DbSchemaSpec` §4 号段约定重写（三段表 + 平移规则 + 历史遗留说明）；`Deploy/README.md` 同步；`RequirementList` 新增 10881（汇总 10001–10881 / 880 条）。
@@ -231,6 +231,13 @@
   - 不进迁移链：运行环境随部署而定，不能由迁移给所有环境套同一个值。
   - `remark` 文案按需求方给定措辞：`当前实例的运行环境标识（如 Dev / Test / Uat / Prod）；由部署侧一次性写入，服务只读展示`。
   - 顺带修正：`Deploy/Init/` 两个脚本的异常中止由 `\quit 1` 改为 `RAISE EXCEPTION`（psql 的 `\quit` 不接受退出码，会打印 "extra argument ignored" 且返回 0）。
+
+### 变更
+
+- **升级脚本命名规范化：`MigratePublicKlineToCdeu.sql` → `2610-004-MigratePublicKlineToCdeu.sql`**
+  - `Deploy/Upgrade/` 下统一为 `<yyMM>-<NNN>-<动作><对象>.sql`，与 `2610-001-CreateDatabase.sql`、`2610-002-AddRuntimeEnvConfig.sql`、`2610-003-DropPublicKlineMin.sql` 一致（原文件名缺编号前缀）。
+  - 同步更新全部引用：`Deploy/README.md`（目录表格，按编号顺序排列）、`Deploy/Native/Install.md`、`Deploy/Script/README.md`、`Deploy/Migrations/V300085__drop_public_kline_min.sql`（提示文本）、`Deploy/Upgrade/2610-003-DropPublicKlineMin.sql`（提示文本）、`Docs/FinvQuant/MigratePublicKlineToCdeu.md`、`Docs/RequirementList.md`（10773/10776 验收命令）。
+  - 文档名 `Docs/FinvQuant/MigratePublicKlineToCdeu.md` 保持不变（内容命名文档，不加过程编号）。
 
 ### 变更
 
@@ -1334,7 +1341,7 @@
   - 仅文档，不改动现有认证与路由。
 
 - **一次性数据迁移脚本：`public.finv_quote_secu_kline_min` → `cdeu.finv_quote_secu_kline_min`（需求 10773）**
-  - 新增 `Deploy/Script/MigratePublicKlineToCdeu.sql`：早期版本把分钟 K 线建在 `public`，新版本只读写 `cdeu`，脚本把历史数据一次性搬入。
+  - 新增 `Deploy/Script/2610-004-MigratePublicKlineToCdeu.sql`：早期版本把分钟 K 线建在 `public`，新版本只读写 `cdeu`，脚本把历史数据一次性搬入。
   - 特性：对源表**只读**（不改名/删除/TRUNCATE）；幂等（`ON CONFLICT (ts, usc) DO NOTHING`，可重复执行）；列名映射（`secu_code → usc`、`prev_close → last_close`，`market_code` 丢弃）；同键多 `market_code` 去重保留最新；单事务 + 计数校验，异常整体回滚。
   - 文档：`Docs/FinvQuant/MigratePublicKlineToCdeu.md`（执行、验证、回滚、注意事项）；脚本不进入 `Deploy/Migrations/` 迁移链，验证通过后可作废。
 - **Nginx 分阶段部署文档（需求 10775）**
@@ -2119,7 +2126,7 @@
   - 新增 `internal/docs/table_test.go::TestMarkdownTablesHaveHeader`：扫描 `Docs/**/*.md`（跳过 ``` 代码块），任何表格块无表头/分隔行即失败，防止同类问题回归。
 
 - **部署包漏发一次性运维 SQL 脚本（`Deploy/Script/*.sql`，需求 10776）**
-  - 现象：快照包/构建包/正式包只打包 `Deploy/Migrations`、`Deploy/Native`、`Deploy/Docker`，`Deploy/Script/` 下的 `MigratePublicKlineToCdeu.sql` 下载后不存在。
+  - 现象：快照包/构建包/正式包只打包 `Deploy/Migrations`、`Deploy/Native`、`Deploy/Docker`，`Deploy/Script/` 下的 `2610-004-MigratePublicKlineToCdeu.sql` 下载后不存在。
   - `PackSnapshot.sh`：所有平台包新增 `Deploy/Script/`，拷入 `*.sql` 与 `README.md` 并统一 `chmod 0644`。
   - `Install.sh`：安装时把 `Deploy/Script/*.sql` 留存到 `<PREFIX>/Deploy/Script/`（源码目录与目标目录同一布局时自动跳过）。
   - 文档同步：`Deploy/Script/README.md`（随包分发说明）、`Deploy/Native/Install.md`（安装目录清单）、`Docs/FinvQuant/MigratePublicKlineToCdeu.md`（分发路径）。
