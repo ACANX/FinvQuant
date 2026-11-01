@@ -14,9 +14,9 @@ finv_security 证券代码字典维护接口：分页查询、新增/修改、�
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `keyword` | string | 可选 | 关键字，匹配 usc / security_code / security_name / security_name_cn（任一包含即命中） |
-| `flag_enable` | string | 可选 | 按启用状态过滤：`0`（禁用）/ `1`（启用） |
+| `flagEnable` | string | 可选 | 按启用状态过滤：`0`（禁用）/ `1`（启用）；兼容旧名 `flag_enable` |
 | `page` | int | 可选 | 页码（从 1 开始，默认 1） |
-| `page_size` | int | 可选 | 每页条数（默认 20，上限 500） |
+| `pageSize` | int | 可选 | 每页条数（默认 20，上限 500）；兼容旧名 `page_size` |
 
 ### 响应（成功 HTTP 200）
 

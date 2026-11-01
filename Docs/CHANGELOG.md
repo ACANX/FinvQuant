@@ -41,7 +41,7 @@
   - 服务端：`internal/api/handler/meta.go` 的 `parsePager` 改读 `pageSize`（`page_size` 仅作兼容兜底），新增 `queryFlagEnable` 读取 `flagEnable`（`flag_enable` 兼容兜底），影响交易所/市场/证券字典的 `List` 接口。
   - 前端同步：`MetaExchangeView.vue`、`MetaMarketView.vue`、`MetaSecurityView.vue`、`HistoryQuoteImportView.vue` 共 7 处 `page_size=` 改为 `pageSize=`。
   - 新增静态检查 `internal/api/handler/queryparam_naming_test.go`：扫描 handler 内 `Query/DefaultQuery/GetQuery` 的参数名，出现未登记的 snake_case 即测试失败；已登记的兼容参数必须在同文件同时存在小驼峰主名。
-  - 规范同步：`ApiSpec` §7.5 登记迁移期兼容参数（`pageSize`/`flagEnable`/`secuName`/`startTs`/`endTs`）与静态校验说明。
+  - 文档同步：`ApiSpec` §7.5 登记迁移期兼容参数（`pageSize`/`flagEnable`/`secuName`/`startTs`/`endTs`）与静态校验说明；`Docs/API/Meta/MetaExchange.md`、`MetaMarket.md`、`MetaSecurity.md` 的 Query 参数表由 `flag_enable`/`page_size` 改为 `flagEnable`/`pageSize`（标注兼容旧名）。
 
 ### 变更
 
@@ -126,6 +126,12 @@
   - **注意**：本次只改编号与引用，**不改任何 SQL 逻辑**；`CHANGELOG`/`RequirementList`/`Docs/Refactor/*` 中的历史版本号为可追溯性已一并改为新号（对应文件已重命名）。
 
 ### 新增
+
+- **BRS 备份登记维护：页面 + 3 个接口（需求 10888）**
+  - 后端：`internal/meta/finv/brs/registry.go`（`List` / `Save` / `Toggle`，字段校验与唯一键冲突转可读错误）、`internal/api/handler/brs.go`、`internal/api/router.go` 注册 `GET|POST /API/V1/Meta/BRS/Backup/Finv/Table/{List,Save,Toggle}`。
+  - 前端：`Web/src/views/Meta/BRS/Backup/Finv/BrsBackupTableView.vue` 替换原占位页——关键字 + 启用状态筛选、分页、新增/编辑对话框（schema/表名/优先级/范围/方式/压缩/上传开关/where/备注）、行内启用/禁用。
+  - 契约：查询参数小驼峰（`page`/`pageSize`/`keyword`/`flagEnable`），JSON 体 snake_case；不做删除；表登记与 `priority` 唯一冲突返回 400。
+  - 文档：新增 `Docs/API/BRS/BackupTable.md`，并在 `Docs/API/README.md`、`Docs/API/APIs.md`（#93～#95）登记。
 
 - **`dedup` 包整体迁入 `cdeu` 域（`internal/meta/finv/quote/cdeu`）**
   - 背景：该包原在 `internal/meta/finv/quote/dedup`、包名 `dedup`，与已删除的 `dedup` schema 同名，容易被误读为「去重域」；实际它承载的是 CDEU 归档工作流（日志前缀早已是 `[cdeu]`、全部读写 `cdeu.*` 表），应与 `cdeu/kline` 同域。

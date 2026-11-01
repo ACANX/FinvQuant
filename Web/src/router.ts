@@ -31,6 +31,7 @@ import RunDeleteTasksView from './views/Meta/Finv/Quant/Backtest/RunDeleteTasksV
 import ConfigManageView from './views/Meta/Finv/Quant/Backtest/ConfigManageView.vue'
 import EnvironmentView from './views/Meta/Finv/Quant/Backtest/EnvironmentView.vue'
 import TemplateView from './views/Meta/Finv/Quant/Backtest/TemplateView.vue'
+import BrsBackupTableView from './views/Meta/BRS/Backup/Finv/BrsBackupTableView.vue'
 import PlaceholderView from './views/Common/PlaceholderView.vue'
 import LoginView from './views/Common/LoginView.vue'
 
@@ -161,8 +162,8 @@ const router = createRouter({
     // 仿真数据验证 / 模拟盘验证 / 实盘仿真验证 / 实盘交易（规划占位）
     // CDEU 域占位页（需求 10865）：CDEU自动化
     { path: '/Meta/Finv/Quote/Cdeu/Automation', name: 'cdeu-automation', component: PlaceholderView, meta: { title: 'CDEU自动化' } },
-    // BRS 备份与恢复域占位页（需求 10872）：后端 internal/meta/finv/brs 尚未开放 HTTP API，先占位
-    { path: '/Meta/BRS/Backup/Finv/Table', name: 'brs-table', component: PlaceholderView, meta: { title: '备份登记维护' } },
+    // BRS 备份与恢复域（需求 10872 / 10883）：备份登记维护已接后端 API，其余仍为占位页
+    { path: '/Meta/BRS/Backup/Finv/Table', name: 'brs-table', component: BrsBackupTableView, meta: { title: '备份登记维护' } },
     { path: '/Meta/BRS/Backup/Finv/Record', name: 'brs-record', component: PlaceholderView, meta: { title: '备份记录与产物' } },
     { path: '/Meta/BRS/Backup/Finv/OSSConfig', name: 'brs-storage', component: PlaceholderView, meta: { title: '对象存储配置' } },
     { path: '/Meta/Finv/Brs/Restore/Run', name: 'brs-restore-run', component: PlaceholderView, meta: { title: '数据恢复' } },

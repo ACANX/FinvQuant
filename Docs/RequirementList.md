@@ -2628,6 +2628,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 编号 | 需求描述 | 核对方式 | 结果 |
 |---|---|---|---|
 | 10887 | CDEU 工作流视图指标卡片顺序调整：「运行时长」卡片由最右侧（第 4 位）移到最左侧（第 1 位），其余三张（工作流状态、阶段进度（参与完成判定）、JOB 进度）相对顺序不变。卡片内容、响应式断点（`cols="12" sm="6" lg="3"`）与统计口径均不改动。 | 提取 `Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` 指标卡片区（约第 1303～1356 行）的四张卡片标题，顺序应为「运行时长、工作流状态、阶段进度、JOB 进度」；`grep -c` 该区间 `<v-col cols="12" sm="6" lg="3">` 计数 = 4（无卡片缺失）；`cd Web && npm run build` 通过；页面首屏四张指标卡顺序符合预期 | √ |
+| 10888 | BRS 备份登记维护页面实现查询与管理：「备份登记维护」菜单（前端路由 `/Meta/BRS/Backup/Finv/Table`，原为占位页）对接 `brs.brs_bak_rdb_table`：① 查询——关键字（schema / 表名 / 备注）+ 启用状态筛选 + 分页，按 `priority` 倒序；② 新增/编辑——对话框维护 `rdb_type`/`schema_name`/`table_name`/`priority`/`bak_scope`/`bak_method`/`compression`/`flag_upload`/`where_clause`/`remark`；③ 启用/禁用——行内切换 `flag_enable`。接口 `GET\|POST /API/V1/Meta/BRS/Backup/Finv/Table/{List,Save,Toggle}`，URL 查询参数一律小驼峰（`page`/`pageSize`/`keyword`/`flagEnable`），JSON 体 snake_case；**不做删除**；唯一键冲突（表重复登记 / `priority` 重复）返回 400 且消息可读。 | `grep -c 'Meta/BRS/Backup/Finv/Table' internal/api/router.go` ≥ 3；`grep -c 'BrsBackupTableView' Web/src/router.ts` ≥ 1；`go test ./internal/api/...` 通过；运行态：`List` 返回 `{total,list}` 且 `priority` 倒序，`Save`（`idn=0`）后新行出现在列表，重复登记同一 `schema_name+table_name` 返回 400 且消息含「该表已登记」，`priority` 重复返回 400 且消息含「优先级」，`Toggle` 后 `flag_enable` 翻转且带 `flagEnable=1` 查询不再返回该行；`Docs/API/BRS/BackupTable.md` 存在且在 `Docs/API/APIs.md` 与 `Docs/API/README.md` 登记 | √ |
 
 
 ## 汇总
@@ -2871,7 +2872,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | CDEU「JOB 进度」标题去掉重复计数 | 10885 | 1 |
 | 「当日累计均价」字段名调整（待办） | 10886 | 1 |
 | CDEU 指标卡片顺序调整（运行时长移到最左） | 10887 | 1 |
-| **合计** | **10001–10887** | **886** |
+| **合计** | **10001–10888** | **887** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

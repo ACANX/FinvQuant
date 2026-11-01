@@ -13,10 +13,11 @@ import (
 	"github.com/acanx/finvquant/internal/config"
 	"github.com/acanx/finvquant/internal/meta"
 	"github.com/acanx/finvquant/internal/meta/finv/auth"
+	"github.com/acanx/finvquant/internal/meta/finv/brs"
 	"github.com/acanx/finvquant/internal/meta/finv/quant/backtest"
 	"github.com/acanx/finvquant/internal/meta/finv/quote"
-	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
 )
 
 // Deps 路由依赖。
@@ -170,6 +171,14 @@ func NewRouter(deps *Deps) *gin.Engine {
 			group.POST("/Job/Cancel", archive.JobCancel)
 			group.POST("/Maturity/Refresh", archive.MaturityRefresh)
 		}
+
+		// BRS 备份登记维护（brs.brs_bak_rdb_table）：查询 / 新增编辑 / 启用禁用。
+		// 前端路由 /Meta/BRS/Backup/Finv/Table 与接口前缀保持一致。
+		brsBackupTable := handler.NewBrsBackupTable(brs.NewRegistry(deps.Pool))
+		brsTable := apiGroup.Group("/Meta/BRS/Backup/Finv/Table")
+		brsTable.GET("/List", brsBackupTable.List)
+		brsTable.POST("/Save", brsBackupTable.Save)
+		brsTable.POST("/Toggle", brsBackupTable.Toggle)
 
 		// 元数据管理：交易所 / 市场 / 证券字典维护
 		apiGroup.GET("/Meta/Finv/Quant/Metadata/Exchange/List", metaHandler.ListExchanges)
