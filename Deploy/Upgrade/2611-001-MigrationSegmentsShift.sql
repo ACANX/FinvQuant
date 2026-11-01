@@ -17,7 +17,7 @@
 --   **在部署/启动改造后的版本之前**，由具备 DDL 权限的账号手工执行一次：
 --     psql "postgres://finv:<pwd>@<host>:5432/finv" -f 2611-001-MigrationSegmentsShift.sql
 --   全新库（`schema_version` 为空）**无需执行**，直接跑全部迁移即可。
---   ⚠ 执行前库中不应已有基础准备段记录（`100001`～`100010`）：本脚本会把
+--   ⚠ 执行前库中不应已有基础准备段记录（`100001`～`100012`）：本脚本会把
 --   `< 200000` 的行全部 `+100000`；已在改造后版本启动过的库无需再跑本脚本。
 --
 -- 幂等机制：
@@ -124,9 +124,9 @@ BEGIN
     SELECT count(*) INTO v_old
       FROM public.schema_version
      WHERE version ~ '^[0-9]+$'
-       AND version::bigint BETWEEN 100011 AND 199999;
+       AND version::bigint BETWEEN 100013 AND 199999;
     IF v_old <> 0 THEN
-        RAISE EXCEPTION '号段平移校验失败：仍有 % 行落在旧 V1xxxxx 段（100011~199999）', v_old;
+        RAISE EXCEPTION '号段平移校验失败：仍有 % 行落在旧 V1xxxxx 段（100013~199999）', v_old;
     END IF;
 
     -- 新 DDL 段与数据段应各有记录

@@ -39,9 +39,9 @@
 
 - **基础准备段改为「一对象一脚本」（需求 10882 ①，已落地）**
   - 结论：`V100000`～`V199999` 段中**一个角色 / 一个 schema / 一次库校验各占一个脚本**，不再用一个脚本创建多个对象。
-  - 落地拆分：`V100001__role_finv_create`（角色）、`V100002__schema_quote_create`、`V100003__schema_quant_create`、`V100004__schema_futu_create`、`V100005__schema_sys_create`、`V100006__schema_sche_create`、`V100007__schema_cdeu_create`、`V100008__schema_archive_create`（七个 schema 各自一个文件，每个只做 `CREATE SCHEMA IF NOT EXISTS` + 自身收敛校验）、`V100009__schema_brs_create`（`brs` 从数据段 `V300060` 归位到基础准备段，`V300060` 里同名语句保留、幂等）、`V100010__verify_database_and_privileges`（库名 + 角色 + 8 个 schema 权限只读校验）。
+  - 落地拆分：`V100001__role_finv_create`（角色）、`V100002__schema_quote_create`、`V100003__schema_quant_create`、`V100004__schema_futu_create`、`V100005__schema_sys_create`、`V100006__schema_sche_create`、`V100007__schema_cdeu_create`、`V100008__schema_archive_create`（七个 schema 各自一个文件，每个只做 `CREATE SCHEMA IF NOT EXISTS` + 自身收敛校验）、`V100009__schema_brs_create`（`brs` 从数据段 `V300060` 归位到基础准备段，`V300060` 里同名语句保留、幂等）、`V100010__verify_database`（库名校验）、`V100011__verify_role_privilege`（角色对 `public` 的 `CREATE` 权限）、`V100012__verify_schema_privilege`（8 个基础 schema 的 `USAGE`/`CREATE` 权限）——三项校验各占一个文件。
   - 删除：`V100002__create_schemas.sql`（7 个 schema 合一）、`V100003__verify_database_and_privileges.sql`（校验脚本后移至 `V100010`）。对已执行过 `v0.1.4` 旧基础准备段的库，`V100001`～`V100003` 版本号已被 `schema_version` 记录而跳过，`V100004+` 为幂等新增，无行为差异；对全新库为唯一正确执行链。
-  - 迁移总数：173 → **180**（10 基础 + 89 DDL + 81 数据）。`2611-001-MigrationSegmentsShift.sql` 的收敛校验区段由 `100004~199999` 抬到 `100011~199999`，避免把基础准备段记录误判为旧号段。
+  - 迁移总数：174 → **183**（12 基础 + 89 DDL + 82 数据）。`2611-001-MigrationSegmentsShift.sql` 的收敛校验区段由 `100004~199999` 抬到 `100013~199999`，避免把基础准备段记录误判为旧号段。
   - 数据库脚本仍只做只读校验：`CREATE DATABASE` 不能在迁移事务内执行，建库继续由 `Install.sh` / DBA 负责。
   - 验证：`ls Deploy/Migrations | sed -E 's#.*/V([0-9]+)__.*#\1#' | sort -n | uniq -d` 无输出；`V100002`～`V100010` 每个文件只含一个对象；`go test ./internal/docs` 与 `go build ./...` 通过。
 
@@ -88,7 +88,7 @@
   - **号段规划**：
     | 号段 | 用途 | 现状 |
     |---|---|---|
-    | `V100000`～`V199999` | 基础准备（创建角色 / 校验数据库 / 创建 schema） | 新增 `V100001`（角色 `finv`）、`V100002`（8 个 schema）、`V100003`（库与权限校验）；已于 10882 拆为**一对象一脚本**：`V100002`～`V100008` 七个 schema、`V100009` `brs`、`V100010` 库与权限校验，迁移总数 173 → 180 |
+    | `V100000`～`V199999` | 基础准备（创建角色 / 校验数据库 / 创建 schema） | 新增 `V100001`（角色 `finv`）、`V100002`（8 个 schema）、`V100003`（库与权限校验）；已于 10882 拆为**一对象一脚本**：`V100002`～`V100008` 七个 schema、`V100009` `brs`、`V100010`～`V100012` 三项只读校验，迁移总数 174 → 183 |
     | `V200000`～`V299999` | 表结构 DDL（建表 / 加列 / 改约束 / 移表） | 原 `V1xxxxx` 段 89 个文件整体 `+100000` |
     | `V300000`～`V399999` | 数据（字典种子 / 回填 / 修正） | 原 `V2xxxxx` 段 81 个文件整体 `+100000` |
   - **文件重命名**：`V100001`~`V100089` → `V200001`~`V200089`；`V200000`~`V200080` → `V300000`~`V300080`（编号一一对应，执行顺序不变）。新增 3 个基础准备脚本后迁移总数 **170 → 173**。
