@@ -314,10 +314,10 @@ for T in "${TARGETS[@]}"; do
     cp "${ROOT}/pkg/finvquant${EXT}" "${PKG_ROOT}/"
     rm -f "${ROOT}/pkg/finvquant${EXT}"
 
-    # qmio（数据搬运工具）：与 finvquant 放在包根目录，安装后同在 <PREFIX>/bin/
-    build_binary "${GOOS_V}" "${GOARCH_V}" "${ROOT}/pkg/qmio${EXT}" ./cmd/qmio
-    cp "${ROOT}/pkg/qmio${EXT}" "${PKG_ROOT}/qmio${EXT}"
-    rm -f "${ROOT}/pkg/qmio${EXT}"
+    # qiom（数据搬运工具）：与 finvquant 放在包根目录，安装后同在 <PREFIX>/bin/
+    build_binary "${GOOS_V}" "${GOARCH_V}" "${ROOT}/pkg/qiom${EXT}" ./cmd/qiom
+    cp "${ROOT}/pkg/qiom${EXT}" "${PKG_ROOT}/qiom${EXT}"
+    rm -f "${ROOT}/pkg/qiom${EXT}"
 
     # 迁移脚本放在 Deploy/ 下（与仓库结构、安装后的 FINV_MIGRATIONS_DIR=<PREFIX>/Deploy/Migrations 一致）
     cp -r Deploy/Migrations "${PKG_ROOT}/Deploy/Migrations"

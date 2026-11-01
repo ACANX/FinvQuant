@@ -64,8 +64,12 @@ set_prefix() {
   ENV_FILE="${PREFIX}/finvquant.env"
   BINARY="${BIN_DIR}/finvquant"
   BINARY_PREV="${BIN_DIR}/finvquant.prev"
-  QMIO_BINARY="${BIN_DIR}/qmio"
-  QMIO_PREV="${BIN_DIR}/qmio.prev"
+  QIOM_BINARY="${BIN_DIR}/qiom"
+  QIOM_PREV="${BIN_DIR}/qiom.prev"
+  # 旧名 qmio 的残留路径（需求 10904 改名前的版本），升级时清理
+  QMIO_LEGACY_BINARY="${BIN_DIR}/qmio"
+  QMIO_LEGACY_PREV="${BIN_DIR}/qmio.prev"
+  QMIO_LEGACY_LINK="/usr/local/bin/qmio"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -111,10 +115,10 @@ if [[ "${ROLLBACK}" -eq 1 ]]; then
   [[ -f "${BINARY_PREV}" ]] || die "未找到备份二进制 ${BINARY_PREV}，无法回滚"
   systemctl stop "${SERVICE}"
   install -o root -g root -m 0755 "${BINARY_PREV}" "${BINARY}"
-  if [[ -f "${QMIO_PREV}" ]]; then
-    install -o root -g root -m 0755 "${QMIO_PREV}" "${QMIO_BINARY}"
-    ln -sfn "${QMIO_BINARY}" "/usr/local/bin/qmio"
-    ok "qmio 已回滚：${QMIO_BINARY}"
+  if [[ -f "${QIOM_PREV}" ]]; then
+    install -o root -g root -m 0755 "${QIOM_PREV}" "${QIOM_BINARY}"
+    ln -sfn "${QIOM_BINARY}" "/usr/local/bin/qiom"
+    ok "qiom 已回滚：${QIOM_BINARY}"
   fi
   systemctl start "${SERVICE}"
   ok "已回滚并启动；请执行 journalctl -u ${SERVICE} -n 50 确认"
@@ -189,15 +193,20 @@ install -o root -g root -m 0755 "${BINARY_SRC}" "${BINARY}"
 ln -sfn "${BINARY}" "${BINARY_LINK}"
 ok "二进制已替换：${BINARY}"
 
-# qmio：与 finvquant 同目录；源为升级包同目录的 qmio（可选）
-QMIO_SRC="$(dirname "${BINARY_SRC}")/qmio"
-if [[ -f "${QMIO_SRC}" ]]; then
-  if [[ -f "${QMIO_BINARY}" ]]; then
-    install -o root -g root -m 0755 "${QMIO_BINARY}" "${QMIO_PREV}"
+# qiom：与 finvquant 同目录；源为升级包同目录的 qiom（可选）
+QIOM_SRC="$(dirname "${BINARY_SRC}")/qiom"
+if [[ -f "${QIOM_SRC}" ]]; then
+  if [[ -f "${QIOM_BINARY}" ]]; then
+    install -o root -g root -m 0755 "${QIOM_BINARY}" "${QIOM_PREV}"
   fi
-  install -o root -g root -m 0755 "${QMIO_SRC}" "${QMIO_BINARY}"
-  ln -sfn "${QMIO_BINARY}" "/usr/local/bin/qmio"
-  ok "qmio 已替换：${QMIO_BINARY}"
+  install -o root -g root -m 0755 "${QIOM_SRC}" "${QIOM_BINARY}"
+  ln -sfn "${QIOM_BINARY}" "/usr/local/bin/qiom"
+  ok "qiom 已替换：${QIOM_BINARY}"
+fi
+# 清理旧名残留（qmio → qiom 改名，需求 10904）
+if [[ -e "${QMIO_LEGACY_BINARY}" || -L "${QMIO_LEGACY_LINK}" ]]; then
+  rm -f "${QMIO_LEGACY_LINK}" "${QMIO_LEGACY_BINARY}" "${QMIO_LEGACY_PREV}"
+  ok "已清理旧名残留：${QMIO_LEGACY_BINARY} / ${QMIO_LEGACY_LINK}"
 fi
 install -d -o root -g "${APP_GROUP}" -m 0755 "${MIGRATIONS_DIR}"
 if [[ "$(readlink -f "${MIGRATIONS_SRC}")" == "$(readlink -f "${MIGRATIONS_DIR}" 2>/dev/null || echo -)" ]]; then

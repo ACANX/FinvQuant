@@ -41,9 +41,12 @@ LOG_DIR="${PREFIX}/Log"
 DEPLOY_DIR="${PREFIX}/Deploy"
 ENV_FILE="${PREFIX}/finvquant.env"
 BINARY="${BIN_DIR}/finvquant"
-QMIO_BINARY="${BIN_DIR}/qmio"
+QIOM_BINARY="${BIN_DIR}/qiom"
 BINARY_LINK="/usr/local/bin/finvquant"
-QMIO_LINK="/usr/local/bin/qmio"
+QIOM_LINK="/usr/local/bin/qiom"
+# 旧名 qmio 的残留路径（需求 10904 改名前的版本），安装时清理
+QMIO_LEGACY_BINARY="${BIN_DIR}/qmio"
+QMIO_LEGACY_LINK="/usr/local/bin/qmio"
 SERVICE_FILE="/etc/systemd/system/finvquant.service"
 SERVICE="finvquant"
 
@@ -70,7 +73,7 @@ while [[ $# -gt 0 ]]; do
                   MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"; BACKUP_DIR="${PREFIX}/Backup"
                   EXPORT_DIR="${PREFIX}/Export"; LOG_DIR="${PREFIX}/Log"; DEPLOY_DIR="${PREFIX}/Deploy"
                   ENV_FILE="${PREFIX}/finvquant.env"; BINARY="${BIN_DIR}/finvquant"
-                  QMIO_BINARY="${BIN_DIR}/qmio" ;;
+                  QIOM_BINARY="${BIN_DIR}/qiom" ;;
     -h|--help)    sed -n '2,26p' "$0"; exit 0 ;;
     *)            die "未知参数：$1（--help 查看用法）" ;;
   esac
@@ -228,21 +231,26 @@ install -o root -g root -m 0755 "${BINARY_SRC}" "${BINARY}"
 ln -sfn "${BINARY}" "${BINARY_LINK}"
 ok "二进制：${BINARY}（软链 ${BINARY_LINK}）"
 
-# qmio：数据搬运工具，必须与 finvquant 同目录（<PREFIX>/bin/qmio）
-# 来源优先级（PackSnapshot.sh 的包布局是「qmio 与 finvquant 并列放在包根」）：
-#   ① <PREFIX>/qmio（发行包根目录 / 安装后根目录，与 finvquant 同级）
-#   ② <PREFIX>/Deploy/qmio（历史自定义布局，保留兼容）
-#   ③ <PREFIX>/Deploy/Native/qmio（脚本同级，手工放文件时可用）
-QMIO_SRC=""
-for candidate in "${REPO_ROOT}/qmio" "${SCRIPT_DIR}/../qmio" "${SCRIPT_DIR}/qmio"; do
-  if [[ -f "${candidate}" ]]; then QMIO_SRC="${candidate}"; break; fi
+# qiom：数据搬运工具，必须与 finvquant 同目录（<PREFIX>/bin/qiom）
+# 来源优先级（PackSnapshot.sh 的包布局是「qiom 与 finvquant 并列放在包根」）：
+#   ① <PREFIX>/qiom（发行包根目录 / 安装后根目录，与 finvquant 同级）
+#   ② <PREFIX>/Deploy/qiom（历史自定义布局，保留兼容）
+#   ③ <PREFIX>/Deploy/Native/qiom（脚本同级，手工放文件时可用）
+QIOM_SRC=""
+for candidate in "${REPO_ROOT}/qiom" "${SCRIPT_DIR}/../qiom" "${SCRIPT_DIR}/qiom"; do
+  if [[ -f "${candidate}" ]]; then QIOM_SRC="${candidate}"; break; fi
 done
-if [[ -n "${QMIO_SRC}" ]]; then
-  install -o root -g root -m 0755 "${QMIO_SRC}" "${QMIO_BINARY}"
-  ln -sfn "${QMIO_BINARY}" "${QMIO_LINK}"
-  ok "qmio：${QMIO_BINARY}（软链 ${QMIO_LINK}）"
+if [[ -n "${QIOM_SRC}" ]]; then
+  install -o root -g root -m 0755 "${QIOM_SRC}" "${QIOM_BINARY}"
+  ln -sfn "${QIOM_BINARY}" "${QIOM_LINK}"
+  # 清理旧名残留（qmio → qiom 改名，需求 10904）
+  if [[ -e "${QMIO_LEGACY_BINARY}" || -L "${QMIO_LEGACY_LINK}" ]]; then
+    rm -f "${QMIO_LEGACY_LINK}" "${QMIO_LEGACY_BINARY}"
+    ok "已清理旧名残留：${QMIO_LEGACY_BINARY} / ${QMIO_LEGACY_LINK}"
+  fi
+  ok "qiom：${QIOM_BINARY}（软链 ${QIOM_LINK}）"
 else
-  warn "未找到 qmio（已尝试 ${REPO_ROOT}/qmio、${SCRIPT_DIR}/../qmio、${SCRIPT_DIR}/qmio），跳过（不影响主服务）"
+  warn "未找到 qiom（已尝试 ${REPO_ROOT}/qiom、${SCRIPT_DIR}/../qiom、${SCRIPT_DIR}/qiom），跳过（不影响主服务）"
 fi
 if [[ "$(readlink -f "${MIGRATIONS_SRC}")" == "$(readlink -f "${MIGRATIONS_DIR}" 2>/dev/null || echo -)" ]]; then
   ok "迁移目录即安装目录，跳过复制：${MIGRATIONS_DIR}"
@@ -434,7 +442,7 @@ printf '\n\033[1;32m安装完成\033[0m（安装根目录：%s）\n' "${PREFIX}"
 printf '  服务管理：systemctl status|restart|stop %s\n' "${SERVICE}"
 printf '  日志查看：journalctl -u %s -f\n' "${SERVICE}"
 printf '  二进制：%s（软链 %s）\n' "${BINARY}" "${BINARY_LINK}"
-printf '  qmio：%s（软链 %s）\n' "${QMIO_BINARY}" "${QMIO_LINK}"
+printf '  qiom：%s（软链 %s）\n' "${QIOM_BINARY}" "${QIOM_LINK}"
 printf '  配置文件：%s（权限 600）\n' "${ENV_FILE}"
 printf '  迁移目录：%s（启动时自动应用未执行版本）\n' "${MIGRATIONS_DIR}"
 printf '  部署脚本：%s/Upgrade.sh、%s/Uninstall.sh\n' "${DEPLOY_DIR}" "${DEPLOY_DIR}"
