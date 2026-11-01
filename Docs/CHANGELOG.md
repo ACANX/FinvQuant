@@ -257,6 +257,13 @@
   - 新增 `kline/vwap_compat_test.go`（7 个用例）：vwap 优先 / pacd 兼容 / vwap=null 回退 / 两列皆空 / 增量补丁列名 / 短名 vwa / `/Page` 输出。
   - 本机 API 实测：`pacd` 入参落库 `vwap=3.56`；`vwap=9.99` 与 `pacd=3.56` 同传取 9.99；`/Page`、`/PageUni` 第 13 项为 `vwa`；`/Add`、`/Query` 输出 `vwap` 且无 `pacd`。
 
+### 变更
+
+- **删除导入联调残留证券 IT001/IT002/IT003（需求 10923）**
+  - 这三只 usc 各只有 1 行、`date`/`time` 为空、`ts` 相同，`public.finv_security` 与富途镜像表均无记录，无可依据的来源推导 `category`/`region`/`market`（`region`/`market` 会拼进归档目录，编造比空着更危险）。
+  - 新增一次性脚本 `Deploy/Upgrade/2611-002-PurgeTestUsc.sql`：按 `DbSchemaSpec` §0.7 先整行备份到 `archive.finv_quote_secu_kline_min_purge_20261102` 与 `archive.finv_quote_cdeu_usc_purge_20261102`，单事务「备份 → 删除 → 校验」，校验不符 `RAISE EXCEPTION` 回滚，脚本尾部附回滚 SQL。
+  - 执行结果：行情表 3 行、usc 表 3 行全部删除并备份；usc 表行数回到 495，与主表 `DISTINCT usc` 完全一致；`finv_quote_cdeu_usc` 的元数据缺失行数归零。
+
 ### 修复
 
 - **用 SQL 发放补全 `finv_quote_cdeu_usc` 缺失元数据（需求 10922）**
