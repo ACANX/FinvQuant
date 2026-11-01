@@ -351,10 +351,13 @@ if [[ -f "${ENV_FILE}" ]]; then
     printf '\n# 日志目录（安装脚本自动补齐）\nFINV_LOG_DIR=%s\nFINV_LOG_FILE=FinvQuant.log\nFINV_LOG_MAX_MB=10\n' "${LOG_DIR}" >> "${ENV_FILE}"
     ok "已补齐 FINV_LOG_DIR=${LOG_DIR}"
   fi
-  # 旧配置补齐 BRS 备份目录（不覆盖已有值）
+  # 旧配置补齐 BRS 备份目录（不覆盖用户自定义值，但纠正 10907 之前的旧默认值）
   if ! grep -q '^FINV_BRS_BACKUP_DIR=' "${ENV_FILE}"; then
     printf '\n# BRS 备份目录（安装脚本自动补齐）\nFINV_BRS_BACKUP_DIR=%s\n' "${BRS_DIR}" >> "${ENV_FILE}"
     ok "已补齐 FINV_BRS_BACKUP_DIR=${BRS_DIR}"
+  elif [[ "$(grep -E '^FINV_BRS_BACKUP_DIR=' "${ENV_FILE}" | cut -d= -f2-)" == "${BACKUP_DIR}/BRS" ]]; then
+    sed -i "s|^FINV_BRS_BACKUP_DIR=.*|FINV_BRS_BACKUP_DIR=${BRS_DIR}|" "${ENV_FILE}"
+    ok "已更新 FINV_BRS_BACKUP_DIR：${BACKUP_DIR}/BRS → ${BRS_DIR}"
   fi
 else
   DB_PASSWORD="$(openssl rand -hex 16)"

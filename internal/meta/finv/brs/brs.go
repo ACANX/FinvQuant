@@ -49,7 +49,7 @@ const defaultBackupDir = "/data/App/FinvQuant/BRS"
 
 // Options 备份执行参数。
 type Options struct {
-	BackupDir string // 备份根目录（默认 <PREFIX>/Backup/BRS）
+	BackupDir string // 备份根目录（默认 <PREFIX>/BRS，需求 10907）
 	Host      string
 	Port      string
 	User      string

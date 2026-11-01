@@ -257,6 +257,14 @@
   - 新增 `kline/vwap_compat_test.go`（7 个用例）：vwap 优先 / pacd 兼容 / vwap=null 回退 / 两列皆空 / 增量补丁列名 / 短名 vwa / `/Page` 输出。
   - 本机 API 实测：`pacd` 入参落库 `vwap=3.56`；`vwap=9.99` 与 `pacd=3.56` 同传取 9.99；`/Page`、`/PageUni` 第 13 项为 `vwa`；`/Add`、`/Query` 输出 `vwap` 且无 `pacd`。
 
+### 修复
+
+- **升级/安装脚本纠正 BRS 备份目录旧默认值（需求 10914）**
+  - 现象：升级到 10907（BRS 目录独立为 `<PREFIX>/BRS`）后，页面「备份目录」仍显示 `<PREFIX>/Backup/BRS`。
+  - 根因：`Install.sh`/`Upgrade.sh` 对已存在的 `FINV_BRS_BACKUP_DIR` 一律「不覆盖」，10907 之前的旧默认值被保留下来。
+  - 修复：三态处理——无该键则补齐 `<PREFIX>/BRS`；值等于旧默认 `<PREFIX>/Backup/BRS` 则自动改为 `<PREFIX>/BRS`；用户自定义的其它路径保持不动。
+  - 同时修正遗留旧路径文本：`brs.go` 注释、`PlaceholderView.vue` 备份记录说明。
+
 ### 变更
 
 - **前端操作反馈统一为悬浮 Toast（需求 10913）**
