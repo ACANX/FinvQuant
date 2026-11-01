@@ -257,6 +257,13 @@
   - 新增 `kline/vwap_compat_test.go`（7 个用例）：vwap 优先 / pacd 兼容 / vwap=null 回退 / 两列皆空 / 增量补丁列名 / 短名 vwa / `/Page` 输出。
   - 本机 API 实测：`pacd` 入参落库 `vwap=3.56`；`vwap=9.99` 与 `pacd=3.56` 同传取 9.99；`/Page`、`/PageUni` 第 13 项为 `vwa`；`/Add`、`/Query` 输出 `vwap` 且无 `pacd`。
 
+### 修复
+
+- **`BackfillUscDefaults` 的时区推导补上 `CC` 区域（需求 10924）**
+  - 问题：推导只覆盖 `CN`/`HK`/`US`/`FX`/`GLOBAL`，而本库加密货币的 `region` 实际取值是 `CC`（`market=FTC`、`category=Crypto`），于是新增的加密货币永远补不上 `timezone`——`V300096` 只发了存量。
+  - 修复：`CASE` 增加 `WHEN 'CC' THEN 'UTC'`；币种保持不推（加密货币计价币种不统一）。
+  - 实测：把 `BTCUSD`/`XRP` 的 `timezone` 清空后触发 `REFRESH_QUOTE_MATURITY`，两条均被补回 `UTC`。
+
 ### 变更
 
 - **删除导入联调残留证券 IT001/IT002/IT003（需求 10923）**

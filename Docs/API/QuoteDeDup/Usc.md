@@ -21,7 +21,7 @@
 
 1. 从 `public.finv_security` 回填 `category`/`region`/`market`/`name`/`timezone`/`currency`/`provider`（**不限 `flag_enable`**，禁用只是字典维护开关；只回填已登记的 usc，不新建行）；
 2. `finv_security` 未收录时，从 `futu.finv_futu_quote_collect`（富途原始属性镜像）按 `quote_market`（SH/SZ/BJ/HK/US/FX/CC）与 `type_symbol` 兜底；
-3. 按 `region` 推导 `timezone` / `currency`（富途镜像表不带这两列）；
+3. 按 `region` 推导 `timezone` / `currency`（富途镜像表不带这两列）：`CN`→`Asia/Shanghai`+`CNY`、`HK`→`Asia/Hong_Kong`+`HKD`、`US`→`America/New_York`+`USD`、`FX`/`GLOBAL`/`CC`→`UTC`（后三者不推币种）；
 4. `SH######` / `SZ######` 前缀的 usc 按 A 股指数兜底（`region=CN`、`market=SH/SZ`、`category=StockIndex`）；
 5. `day_expect_rows` 按模板表 `cdeu.finv_quote_cdeu_usc_day_incr_row_tpl`（`region` + `market` + `category`，三列可空串通配）匹配。
 

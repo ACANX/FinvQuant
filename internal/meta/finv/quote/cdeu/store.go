@@ -573,7 +573,9 @@ type UscBackfillStat struct {
 //     这一步覆盖「上游有证但 finv_security 未收录」的证券（如富途板块、主连、外汇对）。
 //  3. 按 region 推导 timezone / currency（富途镜像表不带这两列）：
 //     CN→Asia/Shanghai + CNY，HK→Asia/Hong_Kong + HKD，US→America/New_York + USD，
-//     FX / GLOBAL→UTC（币种不推，外汇对与加密货币没有单一计价币种）。
+//     FX / GLOBAL / CC→UTC（币种不推，外汇对与加密货币没有单一计价币种）。
+//     CC 是本库加密货币的实际 region 值（`market=FTC`、`category=Crypto`），
+//     需求 10924 补上——此前漏了它，导致 region=CC 的证券长期缺 timezone。
 //  4. usc 前缀兜底：SH###### / SZ###### 是 finv 体系的 A 股指数编码，
 //     推出 region=CN、market=SH/SZ、category=StockIndex（个股代码不带前缀）。
 //  5. 按模板表 cdeu.finv_quote_cdeu_usc_day_incr_row_tpl 补 day_expect_rows：
@@ -692,6 +694,7 @@ UPDATE `+tableUsc+`
                 WHEN 'US' THEN 'America/New_York'
                 WHEN 'FX' THEN 'UTC'
                 WHEN 'GLOBAL' THEN 'UTC'
+                WHEN 'CC' THEN 'UTC'
            END),
        currency = COALESCE(currency,
            CASE upper(COALESCE(region, ''))
