@@ -276,3 +276,85 @@ JSON 体字段一律 `snake_case`（`ApiSpec` §3）。
 | 规则成环（A 改 B、B 改 A） | 建表时禁止自指；执行前检测环，发现环拒绝执行 |
 | 上游映射不改，patch 无限重复 | 同步更新 `futu.finv_futu_mapping_security`，并在 JOB 日志里统计"重复迁移行数"，持续偏高说明上游待修 |
 | 删数据违规 | 本机制的 `DELETE` 只删已成功 upsert 到目标 usc 的旧行，且与插入在同一语句内；不满足 `DbSchemaSpec` §0 的任何禁止项（不删表、不改结构、不改 schema） |
+
+## 11. 作为 CDEU 工作流「去重」阶段的 JOB
+
+> 需求：10932（待实现）。本节描述把 `PATCH_OUTDATED_USC` 挂进工作流的方案，落地时按此执行。
+
+### 11.1 现状
+
+CDEU 工作流共有 6 个阶段，`PHASE_DEDUP`（历史行情去重）是第 2 个：
+
+| `phase_id` | `phase_code` | 名称 | `seq_no` |
+|------------|--------------|------|----------|
+| 1 | `PHASE_COLLECT` | 历史行情收集 | 1 |
+| 2 | `PHASE_DEDUP` | 历史行情去重 | 2 |
+| 11 | `PHASE_DECISION` | 导出决策 | 3 |
+| 3 | `PHASE_EXPORT` | 月度行情导出 | 4 |
+| 4 | `PHASE_UPLOAD` | 月度行情上传 | 5 |
+| 12 | `PHASE_REVIEW` | 归档复核 | 6 |
+
+`PHASE_DEDUP` 当前只有一个流程：
+
+| `process_id` | `process_code` | 名称 | `seq_no` |
+|--------------|----------------|------|----------|
+| 4 | `PROCESS_SEAL` | 收口冻结与差异报告生成 | 1 |
+
+JOB 与阶段的关联走三层：`finv_quote_cdeu_process.phase_id` → `finv_quote_cdeu_job.process_id` → `finv_quote_cdeu_job_step.job_id`。
+
+`PATCH_OUTDATED_USC` 目前只有 `jobmeta` 里的独立定义（`DailyAt 05:00`），在 `finv_quote_cdeu_job` 里没有登记，所以工作流面板上看不到它。
+
+### 11.2 挂载方案
+
+在 `PHASE_DEDUP` 下新增一个流程，放在收口冻结之前——先补 usc 再收口，否则收口冻结记录的分片清单里仍是旧 usc。
+
+| 层次 | 编码 | 名称 | 关键字段 |
+|------|------|------|----------|
+| 阶段 | `PHASE_DEDUP` | 历史行情去重 | 已存在，`phase_id=2` |
+| 流程 | `PROCESS_USC_PATCH` | 过时 USC 补丁 | `phase_id=2`，`seq_no=1`，`run_mode=INHERIT`，`batch_enabled=false` |
+| JOB | `JOB_PATCH_OUTDATED_USC` | 过时 USC 补丁 | `job_kind=PATCH_OUTDATED_USC`，`trigger_mode=SCHEDULED`，`execution_mode=DIRECT`，`schedule_kind=DAILY`，`schedule_value=05:00` |
+| 步骤 | `STEP_PATCH_OUTDATED_USC` | 过时 USC 补丁 | `seq_no=1`，`critical=true`，`affects_completion=true` |
+
+`PROCESS_SEAL` 的 `seq_no` 由 1 顺延为 2。
+
+### 11.3 两种触发方式的关系
+
+| 触发源 | 行为 |
+|--------|------|
+| 独立定时（`jobmeta` 的 `DailyAt 05:00`） | 每日固定时间跑一次，与工作流无关，保证即使工作流未启动也有兜底 |
+| 工作流阶段内 JOB | 工作流运行到 `PHASE_DEDUP` 时按阶段顺序执行 |
+
+两者共用同一个 `job_kind`，因此必须防重：
+
+| 防重手段 | 说明 |
+|----------|------|
+| 单实例约束 | 执行前检查 `cdeu.finv_quote_cdeu_job_run` 是否已有同 `job_kind` 的 `RUNNING` 记录，有则本轮直接跳过并在日志写明「已有实例在跑」 |
+| 幂等执行 | 执行器本身幂等（规则命中才动，规则停用则 0 行），即使两处都触发也不会产生错误数据 |
+| 水位可选 | 若要进一步减少重复扫描，可引入 `USC_PATCH_WATERMARK`，但当前数据量（单规则千行级）下不必 |
+
+### 11.4 顺序与依赖
+
+| 顺序 | 流程 | 与 patch 的关系 |
+|------|------|-----------------|
+| 1 | `PROCESS_USC_PATCH` | 把旧 usc 的行情迁移到新 usc |
+| 2 | `PROCESS_SEAL` | 收口冻结与差异报告；patch 完成后旧 usc 不再出现在分片清单里 |
+
+`PHASE_COLLECT`（上游导入）与 `PHASE_DECISION`（成熟度、预算）不直接依赖 patch，但成熟度统计会因 usc 归并而变化，因此 patch 排在这两个阶段之间正合适。
+
+### 11.5 落地步骤
+
+| 步骤 | 内容 | 交付物 |
+|------|------|--------|
+| 1 | 迁移新增流程、JOB、步骤，并调整 `PROCESS_SEAL.seq_no` | 迁移 `V300104` |
+| 2 | 执行器加单实例防重（查 `job_run` 的 RUNNING 记录） | `job/patch_outdated_usc.go` |
+| 3 | 工作流面板确认该阶段显示新 JOB | 前端无需改动，`CDEU/Overview` 自动带出 |
+| 4 | 与独立定时并行跑一轮，确认不双写 | 运行日志 |
+
+`V300104` 必须幂等（`ON CONFLICT DO NOTHING`），且调整 `seq_no` 用 `UPDATE ... WHERE process_code='PROCESS_SEAL' AND seq_no=1`，避免重复执行时反复顺延。
+
+### 11.6 待确认
+
+| 编号 | 决策点 | 选项 | 建议 |
+|------|--------|------|------|
+| P7 | 独立定时 05:00 是否保留 | ① 保留（工作流未启动时兜底） ② 取消，只随工作流跑 | ① |
+| P8 | patch 与收口冻结的先后 | ① patch 在前（先归并再收口） ② 收口在前 | ① |

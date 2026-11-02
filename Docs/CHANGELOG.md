@@ -259,6 +259,11 @@
 
 ### 新增
 
+- **USC 补丁 JOB 纳入 CDEU 工作流去重阶段（需求 10932，待实现）**
+  - `PATCH_OUTDATED_USC` 除了每日 05:00 独立定时外，还作为「历史行情去重」（`PHASE_DEDUP`）阶段的阶段内 JOB 运行。
+  - 计划新增流程 `PROCESS_USC_PATCH`（排在收口冻结 `PROCESS_SEAL` 之前）、JOB 登记 `JOB_PATCH_OUTDATED_USC`、步骤 `STEP_PATCH_OUTDATED_USC`。
+  - 两种触发共用同一 `job_kind`，同一时刻只允许一个 RUNNING 实例，避免重复执行。
+  - 设计与落地细节见提案 `Docs/Proposal/202611-0002-UscPatchSchemeProposal.md` 第 11 节。
 - **USC 补丁机制（需求 10931）**
   - 新增规则表 `cdeu.finv_quote_cdeu_usc_patch_rule`（`V300103`），字段 `usc_old`、`usc_new`、`match_mode`、`flag_enable`、`priority`、`note`，带列注释与 `gmt_update` 触发器；部分唯一索引保证同一 `usc_old` 只有一条生效规则，`CHECK` 禁止自指。
   - 执行器 `Store.PatchOutdatedUsc`：按 `ts` 区间分批（默认 5000 行），`INSERT ... ON CONFLICT (ts, usc) DO UPDATE` 规避主键冲突、冲突时按 `gmt_update` 较新者胜，写入与删除旧行在同一语句内完成；`DISTINCT ON` 防止同批多映射触发二次冲突。
