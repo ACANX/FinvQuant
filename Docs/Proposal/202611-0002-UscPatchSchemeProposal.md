@@ -279,7 +279,7 @@ JSON 体字段一律 `snake_case`（`ApiSpec` §3）。
 
 ## 11. 作为 CDEU 工作流「去重」阶段的 JOB
 
-> 需求：10932（待实现）。本节描述把 `PATCH_OUTDATED_USC` 挂进工作流的方案，落地时按此执行。
+> 需求：10932。**已落地**：迁移 `V300106` 完成登记，`PHASE_DEDUP` 阶段已显示 `JOB_PATCH_OUTDATED_USC`。落地时发现 `(phase_id, seq_no)` 有唯一约束，必须先顺延 `PROCESS_SEAL` 再插入新流程。
 
 ### 11.1 现状
 
@@ -345,12 +345,12 @@ JOB 与阶段的关联走三层：`finv_quote_cdeu_process.phase_id` → `finv_q
 
 | 步骤 | 内容 | 交付物 |
 |------|------|--------|
-| 1 | 迁移新增流程、JOB、步骤，并调整 `PROCESS_SEAL.seq_no` | 迁移 `V300104` |
+| 1 | 迁移新增流程、JOB、步骤，并调整 `PROCESS_SEAL.seq_no` | 迁移 `V300106`（已完成） |
 | 2 | 执行器加单实例防重（查 `job_run` 的 RUNNING 记录） | `job/patch_outdated_usc.go` |
 | 3 | 工作流面板确认该阶段显示新 JOB | 前端无需改动，`CDEU/Overview` 自动带出 |
 | 4 | 与独立定时并行跑一轮，确认不双写 | 运行日志 |
 
-`V300104` 必须幂等（`ON CONFLICT DO NOTHING`），且调整 `seq_no` 用 `UPDATE ... WHERE process_code='PROCESS_SEAL' AND seq_no=1`，避免重复执行时反复顺延。
+`V300106` 幂等（按 `process_code`、`job_code`、`step_code` 判存在），且调整 `seq_no` 用 `UPDATE ... WHERE process_code='PROCESS_SEAL' AND seq_no=1`，避免重复执行时反复顺延。注意 `(phase_id, seq_no)` 唯一约束要求**先腾位再插入**。
 
 ### 11.6 待确认
 

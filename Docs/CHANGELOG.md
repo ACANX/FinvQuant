@@ -287,6 +287,15 @@
 
 ### 新增
 
+- **USC 补丁纳入 CDEU 工作流去重阶段（需求 10932）**
+  - `PATCH_OUTDATED_USC` 除每日 05:00 独立定时外，同时登记为 `PHASE_DEDUP`（历史行情去重）下的阶段内 JOB，工作流控制面板可见。
+  - 迁移 `V300106` 新增流程 `PROCESS_USC_PATCH`（`seq_no=1`）、JOB `JOB_PATCH_OUTDATED_USC`、步骤 `STEP_PATCH_OUTDATED_USC`，并把 `PROCESS_SEAL.seq_no` 由 1 顺延为 2——注意 `(phase_id, seq_no)` 有唯一约束，必须先腾位再插入。
+  - 顺序上 patch 排在收口冻结之前：先归并 usc 再收口，否则分片清单里仍是旧 usc。
+  - 两种触发共用 `UscPatchRunner` 的单实例约束，定时触发发现已有实例在跑时跳过。
+  - 验证：`GET /API/V1/Meta/Finv/Quote/DeDup/CDEU/Overview` 的 `PHASE_DEDUP` 阶段已列出 `JOB_PATCH_OUTDATED_USC`。
+
+### 新增
+
 - **USC 补丁执行改为异步并展示逐批日志（需求 10933）**
   - 新增 `UscPatchRunner`：内存状态 + 增量日志 + 单实例约束，手动与定时共用，模式与 `brs.Runner` 一致。
   - `POST .../Usc/Patch/Run` 改为异步触发，立即返回 `running` 快照；新增 `GET .../Usc/Patch/Status?sinceSeq=` 返回状态与增量日志；已有实例运行时返回 HTTP 409、`code=2009`。
