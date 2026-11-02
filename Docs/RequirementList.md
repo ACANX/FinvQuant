@@ -2680,6 +2680,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10937 | 清理成熟度表中的测试残留：`cdeu.finv_quote_cdeu_quote_maturity_mon` 里仍留着 `TEST.USC.9999`（1 行）与 `TEST.DATE.0001`（2 行），是需求 10920、10925 联调时插入的测试证券——当时只清了主表与证券登记表，漏了成熟度表。按 `DbSchemaSpec` §0.7 先整行备份到 `archive.finv_quote_cdeu_quote_maturity_mon_purge_20261102`（`reason` 标注测试残留清理），单事务「备份 → 删除 → 校验」，校验不符 `RAISE EXCEPTION` 回滚。 | `SELECT count(*) FROM cdeu.finv_quote_cdeu_quote_maturity_mon WHERE usc LIKE 'TEST.%'` = 0；`SELECT count(*) FROM archive.finv_quote_cdeu_quote_maturity_mon_purge_20261102 WHERE reason LIKE '测试残留%'` = 3；主表、`cdeu.finv_quote_cdeu_usc`、`public.finv_security` 中 `usc LIKE 'TEST.%'` 均为 0；注意 `09999` 是港股网易的合法代码，不属测试数据 | √ |
 | 10938 | 统一 USC 补丁相关名称：工作流流程、JOB、步骤名称与前端菜单名由「过时 USC 补丁」「USC 补丁规则」统一改为「过时USC映射到新USC」，与功能语义一致（不是打补丁，而是把过时 usc 的行情映射到新 usc）。迁移 `V300107` 更新 `finv_quote_cdeu_process.name`、`finv_quote_cdeu_job.name`、`finv_quote_cdeu_job_step.name`；代码侧同步 `jobmeta` 的 `Name`、前端 `menuConfig` 菜单标题、路由 `meta.title`、页面标题。只改显示名称，接口路径与 `job_kind`、`job_code` 均不变。 | `SELECT count(*) FROM cdeu.finv_quote_cdeu_process WHERE name='过时USC映射到新USC'` = 1；`SELECT count(*) FROM cdeu.finv_quote_cdeu_job WHERE name='过时USC映射到新USC'` = 1；`SELECT count(*) FROM cdeu.finv_quote_cdeu_job_step WHERE name='过时USC映射到新USC'` = 1；`grep -c '过时USC映射到新USC' Web/src/config/menuConfig.ts` = 1；`GET /API/V1/Meta/Finv/Quote/DeDup/CDEU/Overview` 中该 JOB 的 `name` 为「过时USC映射到新USC」 | √ |
 | 10939 | 修复 `PATCH_OUTDATED_USC` 手动执行报「未知 Job」：该 JOB 的 `jobmeta` 定义写好了，但没有加入 `jobmeta.All()`，于是 `JobRuntimes()` 里没有它，`TriggerWithOptions` 判定为未知 Job 直接返回错误，调度器也不会按每日 05:00 调度。修复：把 `PatchOutdatedUsc` 加入 `jobmeta.All()`（排在收口冻结之前）；新增单测 `TestJobRuntimesCoverAllMeta` 校验 `jobmeta.All()` 的每一项都出现在 `JobRuntimes()` 里，防止同类遗漏重犯。 | `GET /API/V1/Meta/Finv/Quote/DeDup/Job/Runtime` 返回项中包含 `PATCH_OUTDATED_USC`、名称「过时USC映射到新USC」、`schedule` 为「每日 05:00」；`POST /API/V1/Meta/Finv/Quote/DeDup/Job/Run {"job_kind":"PATCH_OUTDATED_USC"}` 返回 `code=202` 与 `run_log_id`，不再返回「未知 Job」；容器日志出现 `调度 PATCH_OUTDATED_USC：每日 05:00` 与 `PATCH_OUTDATED_USC 完成 rules=24 ...`；`go test ./internal/meta/finv/quote/cdeu/` 中 `TestJobRuntimesCoverAllMeta`、`TestPatchOutdatedUscRegistered` 均通过 | √ |
+| 10940 | 修复 CDEU 工作流阶段状态顺序倒挂：`attachCDEURun` 在把 PENDING 阶段按「子流程全部成功」回填 SUCCESS 时没有校验前置阶段，而「归档复核」阶段的子流程都是日级清理 JOB、由调度器独立触发，常常在「月度行情上传」还没跑完时就全部成功，于是出现「上传执行中、归档复核成功」的倒挂。修复：回填改为按 `seq_no` 顺序放行，任一前置阶段未成功（RUNNING、PENDING、READY、FAILED、PARTIAL）时后续阶段不再回填 SUCCESS；新增单测覆盖三种情形。 | `go test ./internal/meta/finv/quote/cdeu/` 中 `TestPhaseOrderingBlocksLaterSuccess`、`TestPhaseOrderingAllowsLaterSuccess`、`TestPhaseOrderingBlocksOnFailed` 均通过；`GET /API/V1/Meta/Finv/Quote/DeDup/CDEU/Overview?runId=86` 返回的阶段状态中 `PHASE_UPLOAD` 为 `RUNNING` 时 `PHASE_REVIEW` 不再是 `SUCCESS`；前置阶段全部成功的历史运行，后续阶段仍能回填 `SUCCESS` | √ |
 
 
 ## 汇总
@@ -2923,7 +2924,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | CDEU「JOB 进度」标题去掉重复计数 | 10885 | 1 |
 | 「当日累计均价」字段名调整（待办） | 10886 | 1 |
 | CDEU 指标卡片顺序调整（运行时长移到最左） | 10887 | 1 |
-| **合计** | **10001–10939** | **938** |
+| **合计** | **10001–10940** | **939** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

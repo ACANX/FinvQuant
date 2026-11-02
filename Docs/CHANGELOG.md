@@ -287,6 +287,15 @@
 
 ### 修复
 
+- **CDEU 工作流阶段状态顺序倒挂（需求 10940）**
+  - 现象：`PHASE_UPLOAD`（月度行情上传）还在执行中，`PHASE_REVIEW`（归档复核）却显示「成功」。
+  - 根因：`attachCDEURun` 末尾把 PENDING 阶段在「子流程全部成功」时无条件回填为 SUCCESS。归档复核阶段的子流程是 `RECOVER_TIMEOUT_EXPORT_JOBS`、`PURGE_*`、`CLEAN_EXPORT_STORAGE` 这类日级 JOB，由调度器独立触发，不等月度上传完成就全跑完了，于是被回填成成功。
+  - 修复：回填改为按 `seq_no` 顺序放行——任一前置阶段未成功（RUNNING、PENDING、READY、FAILED、PARTIAL）时，后续阶段不再回填 SUCCESS。
+  - 新增单测 `TestPhaseOrderingBlocksLaterSuccess`、`TestPhaseOrderingAllowsLaterSuccess`、`TestPhaseOrderingBlocksOnFailed`。
+  - 验证：run 86 的 `PHASE_REVIEW` 不再是 SUCCESS。
+
+### 修复
+
 - **`PATCH_OUTDATED_USC` 手动执行报「未知 Job」（需求 10939）**
   - 根因：`jobmeta/patch_outdated_usc.go` 定义写好了，但没加入 `jobmeta.All()`，`JobRuntimes()` 里没有它——手动触发在 `TriggerWithOptions` 的 known 校验处就被拒，调度器也不会按 05:00 调度。
   - 修复：把 `PatchOutdatedUsc` 加入 `All()`，排在收口冻结之前。

@@ -819,10 +819,25 @@ SELECT jsr.step_id, jsr.status, jsr.attempt, jsr.started_at, jsr.finished_at,
 		phase.TotalCount = total
 		phase.SuccessCount = success
 		phase.FailedCount = failed
-		if phase.Status == CDEUStatusPending && total > 0 && success == total {
+	}
+
+	// 阶段状态回填与运行中派生（需求 10919、10940）。
+	//
+	// 1. PENDING 阶段在子流程全部成功时才回填 SUCCESS——但**只允许在前面所有阶段都已成功之后**。
+	//    归档复核阶段的子流程都是日级清理 JOB，由调度器独立触发，常常在月度上传还没跑完时
+	//    就已经全部成功；若无条件提升，就会出现「上传执行中 / 归档复核成功」的顺序倒挂。
+	// 2. 任一前置阶段未成功（含 RUNNING/PENDING/FAILED）时，后续阶段不再回填成功。
+	blocked := false
+	for phaseIndex := range overview.Phases {
+		phase := &overview.Phases[phaseIndex]
+		if !blocked && phase.Status == CDEUStatusPending &&
+			phase.TotalCount > 0 && phase.SuccessCount == phase.TotalCount {
 			phase.Status = CDEUStatusSuccess
 		}
 		deriveCDEURunning(phase)
+		if phase.Status != CDEUStatusSuccess {
+			blocked = true
+		}
 	}
 	return nil
 }
