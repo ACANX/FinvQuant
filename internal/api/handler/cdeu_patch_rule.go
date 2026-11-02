@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -99,18 +100,34 @@ func (h *ExportArchive) UscPatchPreview(c *gin.Context) {
 }
 
 // UscPatchRun 手动触发补丁执行（POST .../Usc/Patch/Run）。
-// 直接同步执行：规则数量有限、单次执行规模受生效规则约束，前端可见完整统计。
+//
+// 异步执行：立即返回运行快照，前端按 sinceSeq 轮询 Status 获取增量日志，
+// 与 BRS 手动备份（/Meta/BRS/Backup/Finv/Run）的交互一致。
 func (h *ExportArchive) UscPatchRun(c *gin.Context) {
 	var req struct {
 		BatchSize int `json:"batch_size"`
 	}
 	_ = c.ShouldBindJSON(&req)
-	stats, err := h.service.Store().PatchOutdatedUsc(c.Request.Context(), req.BatchSize, nil)
+	state, err := h.service.UscPatchRunner().TriggerManual(req.BatchSize)
 	if err != nil {
+		var busy *cdeu.UscPatchBusyError
+		if errors.As(err, &busy) {
+			c.JSON(http.StatusConflict, gin.H{"code": 2009, "message": busy.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 2008, "message": "补丁执行失败: " + err.Error()})
 		return
 	}
-	h.audit(c, "手动执行 USC 补丁：规则 "+strconv.FormatInt(stats.RuleCount, 10)+
-		" 条，迁移 "+strconv.FormatInt(stats.MovedRows, 10)+" 行")
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "执行完成", "data": stats})
+	h.audit(c, "手动执行 USC 补丁 run_id="+state.RunID)
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "已开始执行", "data": state})
+}
+
+// UscPatchStatus 查询补丁执行状态与增量日志（GET .../Usc/Patch/Status?sinceSeq=）。
+func (h *ExportArchive) UscPatchStatus(c *gin.Context) {
+	var sinceSeq int64
+	if value, ok := queryInt64Param(c, "sinceSeq"); ok {
+		sinceSeq = value
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "查询完成",
+		"data": h.service.UscPatchRunner().Status(sinceSeq)})
 }

@@ -154,6 +154,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 			patch.POST("/Delete", archive.UscPatchRuleDelete)
 			patch.GET("/Preview", archive.UscPatchPreview)
 			patch.POST("/Run", archive.UscPatchRun)
+			patch.GET("/Status", archive.UscPatchStatus)
 			group.POST("/Job/Run", archive.JobRun)
 			group.POST("/Job/Dynamic/Run", archive.DynamicJobRun)
 

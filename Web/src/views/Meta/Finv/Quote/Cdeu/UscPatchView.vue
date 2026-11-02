@@ -6,8 +6,10 @@
 //   POST /Enable   启用/停用
 //   POST /Delete   删除
 //   GET  /Preview  试算（只读）
-//   POST /Run      手动执行
-import { onMounted, ref } from 'vue'
+//   POST /Run      手动触发（异步），返回运行快照
+//   GET  /Status   运行状态 + 增量日志（sinceSeq）
+// 交互与 BRS 手动备份一致：运行中 1s 轮询、空闲 5s，run_id 变化时清空日志重新累积。
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { apiGet, apiPost } from '../../../../../api'
 import { showToast } from '../../../../../ui/toast'
@@ -35,19 +37,37 @@ interface PatchPreviewItem {
   max_ts: number
 }
 
-// 执行统计
-interface PatchStats {
+// 运行日志
+interface PatchLogEntry {
+  seq: number
+  time: string
+  level: string
+  message: string
+}
+
+// 运行状态快照
+interface PatchRunState {
+  run_id: string
+  trigger: string
+  status: string
+  started_at: string | null
+  finished_at: string | null
+  elapsed_ms: number
   rule_count: number
   batches: number
   scanned_rows: number
   moved_rows: number
   conflict_rows: number
   deleted_rows: number
-  from_ts: number
-  to_ts: number
+  current_batch: string
+  error: string
+  logs: PatchLogEntry[]
+  last_seq: number
 }
 
 const API_PREFIX = '/Meta/Finv/Quote/Cdeu/Usc/Patch'
+const POLL_RUNNING_MS = 1000
+const POLL_IDLE_MS = 5000
 
 const rows = ref<PatchRuleRow[]>([])
 const total = ref(0)
@@ -68,8 +88,55 @@ const previewTotal = ref(0)
 const previewConflict = ref(0)
 const previewLoading = ref(false)
 
-const running = ref(false)
-const lastStats = ref<PatchStats | null>(null)
+const triggering = ref(false)
+const autoScroll = ref(true)
+let timer: ReturnType<typeof setTimeout> | undefined
+let currentRunId = ''
+
+const state = ref<PatchRunState>({
+  run_id: '',
+  trigger: 'manual',
+  status: 'idle',
+  started_at: null,
+  finished_at: null,
+  elapsed_ms: 0,
+  rule_count: 0,
+  batches: 0,
+  scanned_rows: 0,
+  moved_rows: 0,
+  conflict_rows: 0,
+  deleted_rows: 0,
+  current_batch: '',
+  error: '',
+  logs: [],
+  last_seq: 0,
+})
+
+const isRunning = computed(() => state.value.status === 'running')
+const statusText = computed(() => {
+  switch (state.value.status) {
+    case 'running':
+      return '执行中'
+    case 'succeeded':
+      return '成功'
+    case 'failed':
+      return '失败'
+    default:
+      return '未执行'
+  }
+})
+const statusColor = computed(() => {
+  switch (state.value.status) {
+    case 'running':
+      return 'primary'
+    case 'succeeded':
+      return 'success'
+    case 'failed':
+      return 'error'
+    default:
+      return 'grey'
+  }
+})
 
 function emptyForm(): PatchRuleRow {
   return {
@@ -87,6 +154,18 @@ function emptyForm(): PatchRuleRow {
 
 function toText(value: unknown): string {
   return typeof value === 'string' ? value : value == null ? '' : String(value)
+}
+
+function logTime(value: string): string {
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleTimeString('zh-CN', { hour12: false })
+}
+
+function logClass(level: string): string {
+  if (level === 'error') return 'log-error'
+  if (level === 'warn') return 'log-warn'
+  return 'log-info'
 }
 
 async function load() {
@@ -185,27 +264,74 @@ async function preview() {
   }
 }
 
-async function run() {
-  const ok = window.confirm('确认按当前生效规则执行补丁？执行会迁移行情行并删除旧 usc 行。')
-  if (!ok) return
-  running.value = true
+function scrollToBottom() {
+  if (!autoScroll.value) return
+  requestAnimationFrame(() => {
+    const box = document.getElementById('usc-patch-log')
+    if (box) box.scrollTop = box.scrollHeight
+  })
+}
+
+async function fetchStatus(sinceSeq = 0) {
+  const suffix = sinceSeq > 0 ? `?sinceSeq=${sinceSeq}` : ''
+  const data = await apiGet<PatchRunState>(`${API_PREFIX}/Status${suffix}`)
+  if (data.run_id !== currentRunId) {
+    currentRunId = data.run_id
+    state.value = { ...data, logs: [...data.logs] }
+  } else if (sinceSeq > 0) {
+    state.value = { ...data, logs: [...state.value.logs, ...data.logs] }
+  } else {
+    state.value = { ...data, logs: [...data.logs] }
+  }
+  scrollToBottom()
+}
+
+function schedule() {
+  window.clearTimeout(timer)
+  timer = window.setTimeout(poll, isRunning.value ? POLL_RUNNING_MS : POLL_IDLE_MS)
+}
+
+async function poll() {
   try {
-    lastStats.value = await apiPost<PatchStats>(`${API_PREFIX}/Run`, { batch_size: 5000 })
-    const stats = lastStats.value
-    showToast(
-      `执行完成：迁移 ${stats.moved_rows} 行，冲突 ${stats.conflict_rows} 行，删除 ${stats.deleted_rows} 行`,
-      'success',
-    )
-    void load()
-  } catch (err) {
-    showToast(`执行失败：${(err as Error).message}`, 'error')
+    await fetchStatus(state.value.last_seq)
+  } catch (e) {
+    error.value = (e as Error).message
   } finally {
-    running.value = false
+    schedule()
   }
 }
 
-onMounted(() => {
-  void load()
+async function triggerRun() {
+  const ok = window.confirm('确认按当前生效规则执行补丁？执行会迁移行情行并删除旧 usc 行。')
+  if (!ok) return
+  triggering.value = true
+  try {
+    const data = await apiPost<PatchRunState>(`${API_PREFIX}/Run`, {})
+    currentRunId = ''
+    state.value = { ...data, logs: [...data.logs] }
+    showToast(`已开始执行（run_id=${data.run_id}）`, 'success')
+    await fetchStatus(0)
+    schedule()
+    void load()
+  } catch (e) {
+    showToast(`触发失败：${(e as Error).message}`, 'error')
+  } finally {
+    triggering.value = false
+  }
+}
+
+onMounted(async () => {
+  await load()
+  try {
+    await fetchStatus(0)
+  } catch {
+    // 首次拉取失败不阻塞页面
+  }
+  schedule()
+})
+
+onBeforeUnmount(() => {
+  window.clearTimeout(timer)
 })
 </script>
 
@@ -257,7 +383,15 @@ onMounted(() => {
           </v-btn>
         </v-col>
         <v-col cols="auto">
-          <v-btn color="warning" prepend-icon="mdi-play" :loading="running" @click="run">执行</v-btn>
+          <v-btn
+            color="warning"
+            prepend-icon="mdi-play"
+            :loading="triggering || isRunning"
+            :disabled="isRunning"
+            @click="triggerRun"
+          >
+            执行
+          </v-btn>
         </v-col>
         <v-col cols="auto" class="ml-auto">
           <v-btn color="success" prepend-icon="mdi-plus" @click="openCreate">新增</v-btn>
@@ -268,17 +402,53 @@ onMounted(() => {
         {{ error }}
       </v-alert>
 
-      <v-alert
-        v-if="lastStats"
-        type="info"
-        density="compact"
-        variant="tonal"
-        class="mb-3"
-      >
-        上次执行：规则 {{ lastStats.rule_count }} 条，批次 {{ lastStats.batches }}，
-        扫描 {{ lastStats.scanned_rows }} 行，迁移 {{ lastStats.moved_rows }} 行，
-        冲突 {{ lastStats.conflict_rows }} 行，删除 {{ lastStats.deleted_rows }} 行
-      </v-alert>
+      <!-- 运行状态与日志（与 BRS 手动备份一致：状态卡 + 逐批日志） -->
+      <v-card variant="outlined" class="mb-4">
+        <v-card-text class="pb-2">
+          <v-row dense align="center">
+            <v-col cols="auto">
+              <v-chip :color="statusColor" size="small" variant="flat">{{ statusText }}</v-chip>
+            </v-col>
+            <v-col cols="auto" class="text-caption">
+              run_id：{{ state.run_id || '-' }}
+            </v-col>
+            <v-col cols="auto" class="text-caption">
+              触发：{{ state.trigger === 'scheduled' ? '定时' : '手动' }}
+            </v-col>
+            <v-col cols="auto" class="text-caption">
+              耗时：{{ (state.elapsed_ms / 1000).toFixed(1) }} s
+            </v-col>
+            <v-col cols="auto" class="ml-auto">
+              <v-checkbox v-model="autoScroll" label="自动滚动" density="compact" hide-details />
+            </v-col>
+          </v-row>
+          <v-row dense class="mt-1">
+            <v-col cols="auto" class="text-caption">生效规则：{{ state.rule_count }}</v-col>
+            <v-col cols="auto" class="text-caption">批次：{{ state.batches }}</v-col>
+            <v-col cols="auto" class="text-caption">扫描：{{ state.scanned_rows }}</v-col>
+            <v-col cols="auto" class="text-caption">迁移：{{ state.moved_rows }}</v-col>
+            <v-col cols="auto" class="text-caption">冲突：{{ state.conflict_rows }}</v-col>
+            <v-col cols="auto" class="text-caption">删除：{{ state.deleted_rows }}</v-col>
+            <v-col v-if="state.current_batch" cols="auto" class="text-caption">
+              当前批 ts：{{ state.current_batch }}
+            </v-col>
+          </v-row>
+          <v-alert v-if="state.error" type="error" density="compact" variant="tonal" class="mt-2">
+            {{ state.error }}
+          </v-alert>
+        </v-card-text>
+        <v-divider />
+        <v-card-text class="pa-0">
+          <div id="usc-patch-log" class="log-box">
+            <div v-if="state.logs.length === 0" class="text-medium-emphasis">暂无日志（尚未执行过补丁）</div>
+            <div v-for="e in state.logs" :key="e.seq" :class="logClass(e.level)">
+              <span class="log-time">{{ logTime(e.time) }}</span>
+              <span class="log-level">[{{ e.level }}]</span>
+              <span>{{ e.message }}</span>
+            </div>
+          </div>
+        </v-card-text>
+      </v-card>
 
       <v-data-table
         :headers="[
@@ -401,3 +571,30 @@ onMounted(() => {
     </v-dialog>
   </v-card>
 </template>
+
+<style scoped>
+.log-box {
+  height: 220px;
+  overflow-y: auto;
+  padding: 8px 12px;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.log-time {
+  color: #888;
+  margin-right: 8px;
+}
+.log-level {
+  margin-right: 8px;
+}
+.log-info {
+  color: inherit;
+}
+.log-warn {
+  color: #d9822b;
+}
+.log-error {
+  color: #d33;
+}
+</style>

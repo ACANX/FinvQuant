@@ -51,6 +51,12 @@ type UscPatchStats struct {
 	DeletedRows  int64 `json:"deleted_rows"`  // 删除的旧 usc 行数
 	FromTs       int64 `json:"from_ts"`
 	ToTs         int64 `json:"to_ts"`
+
+	// 最近一批的明细，供执行器逐批输出日志（不参与汇总）。
+	LastBatchFrom int64 `json:"last_batch_from"`
+	LastBatchTo   int64 `json:"last_batch_to"`
+	LastBatchRows int64 `json:"last_batch_rows"`
+	LastBatchMs   int64 `json:"last_batch_ms"`
 }
 
 // Enabled 判断规则是否生效。
@@ -251,6 +257,7 @@ SELECT COALESCE(min(t.ts), 0), COALESCE(max(t.ts), 0), count(*)
 			break
 		}
 
+		batchStarted := time.Now()
 		var scanned, moved, conflicts, deleted int64
 		// 一条语句完成「写入新 usc → 删除旧 usc」：
 		//   · DISTINCT ON 避免同一 ts 多条映射时触发 ON CONFLICT 二次影响同一行的错误；
@@ -308,6 +315,10 @@ SELECT (SELECT count(*) FROM src),
 		}
 
 		stats.Batches++
+		stats.LastBatchFrom = batchFrom
+		stats.LastBatchTo = batchTo
+		stats.LastBatchRows = scanned
+		stats.LastBatchMs = time.Since(batchStarted).Milliseconds()
 		stats.ScannedRows += scanned
 		stats.MovedRows += moved
 		stats.ConflictRows += conflicts

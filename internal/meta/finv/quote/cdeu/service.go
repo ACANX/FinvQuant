@@ -60,6 +60,9 @@ type Service struct {
 	mu      sync.Mutex
 	running map[string]time.Time
 
+	// uscPatchRunner 过时 USC 补丁执行器（内存状态 + 日志），供手动与定时触发共用。
+	uscPatchRunner *UscPatchRunner
+
 	// 低峰窗口统一从 sys.sys_config 20006 读取（syscfg.Store 自带 30s TTL 缓存），
 	// 不再在内存里单独缓存，避免与数据库配置双写不一致。
 }
@@ -236,6 +239,16 @@ func (s *Service) SetWindow(ctx context.Context, start, end int) error {
 
 // Store 返回数据访问层。
 func (s *Service) Store() *Store { return s.store }
+
+// UscPatchRunner 返回 USC 补丁执行器（惰性创建，首次访问时构造）。
+func (s *Service) UscPatchRunner() *UscPatchRunner {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.uscPatchRunner == nil {
+		s.uscPatchRunner = NewUscPatchRunner(s.store)
+	}
+	return s.uscPatchRunner
+}
 
 // Uploader 返回上传适配器。
 func (s *Service) Uploader() Uploader { return s.uploader }

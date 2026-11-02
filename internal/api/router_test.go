@@ -75,6 +75,7 @@ func TestExportArchiveRoutesRegistered(t *testing.T) {
 		"POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Delete",
 		"GET /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Preview",
 		"POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Run",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Status",
 		"POST /API/V1/Meta/Finv/Quote/DeDup/Job/Run",
 	}
 	for _, route := range expected {

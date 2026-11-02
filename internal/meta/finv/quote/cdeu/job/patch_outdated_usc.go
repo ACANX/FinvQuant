@@ -9,6 +9,12 @@ import (
 
 func init() {
 	cdeu.RegisterJobExecutor(cdeu.JobPatchOutdatedUsc, func(ctx context.Context, svc *cdeu.Service, result *cdeu.Result) error {
+		// 防重（需求 10932）：同一时刻只允许一个补丁实例，手动触发与工作流触发共用该判断。
+		if svc.UscPatchRunner().Busy() {
+			log.Printf("[cdeu] %s 跳过：已有补丁实例在运行", cdeu.JobPatchOutdatedUsc)
+			result.Message = "跳过：已有补丁实例在运行"
+			return nil
+		}
 		svc.ReportJobProgress(ctx, "PATCH", 0, "读取生效补丁规则")
 		stats, err := svc.Store().PatchOutdatedUsc(ctx, 5000, func(s cdeu.UscPatchStats) {
 			svc.ReportJobProgress(ctx, "PATCH", 0,

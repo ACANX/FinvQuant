@@ -85,6 +85,12 @@
 
 请求体：`{ "batch_size": 5000 }`（可选，默认 5000）
 
+**异步执行**：立即返回运行快照（`status=running`），前端按 `sinceSeq` 轮询 §6.1 的接口获取增量日志，交互与 BRS 手动备份（`/Meta/BRS/Backup/Finv/Run`）一致。已有实例在运行时返回 HTTP 409、`code=2009`。
+
+### 6.1 查询执行状态与日志
+
+`GET /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Status?sinceSeq=`
+
 响应 `data`：
 
 | 字段 | 说明 |
@@ -97,8 +103,19 @@
 | `deleted_rows` | 删除的旧 usc 行数 |
 | `from_ts` | 处理区间下界 |
 | `to_ts` | 处理区间上界 |
+| `current_batch` | 当前批次的时间区间（可读格式） |
+| `logs` | 增量日志：`seq`、`time`、`level`、`message` |
+| `last_seq` | 日志序号，下次轮询作为 `sinceSeq` 传入 |
 
-定时任务 `PATCH_OUTDATED_USC` 每日 05:00 执行同一逻辑。
+日志样例（每批一行）：
+
+```
+[info] 开始执行过时 USC 补丁（run_id=20261102-083949，触发=manual）
+[info] 第 1 批 2026-10-09 09:30 ~ 2026-10-09 15:00：本批扫描 300 行；累计迁移 300 行、冲突 0 行、删除 300 行；本批耗时 58 ms
+[info] 运行结束（成功）：3 批，扫描 700 行，迁移 700 行，冲突 0 行，删除 700 行，耗时 252 ms
+```
+
+定时任务 `PATCH_OUTDATED_USC` 每日 05:00 执行同一逻辑，并与手动触发共用单实例约束（`status=running` 时定时触发跳过）。
 
 ## 7. 注意事项
 

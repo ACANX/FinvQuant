@@ -259,6 +259,15 @@
 
 ### 新增
 
+- **USC 补丁执行改为异步并展示逐批日志（需求 10933）**
+  - 新增 `UscPatchRunner`：内存状态 + 增量日志 + 单实例约束，手动与定时共用，模式与 `brs.Runner` 一致。
+  - `POST .../Usc/Patch/Run` 改为异步触发，立即返回 `running` 快照；新增 `GET .../Usc/Patch/Status?sinceSeq=` 返回状态与增量日志；已有实例运行时返回 HTTP 409、`code=2009`。
+  - 逐批日志含可读时间区间、本批扫描行数与累计迁移/冲突/删除行数、本批耗时；结束时输出汇总。
+  - 前端页面与 BRS 手动备份同构：状态卡（状态、run_id、触发来源、耗时、统计）+ 日志框（1 秒轮询、自动滚动），执行按钮在运行中禁用。
+  - 定时 JOB `PATCH_OUTDATED_USC` 执行前检查 runner 是否在跑，在跑则跳过并写日志。
+
+### 新增
+
 - **USC 补丁 JOB 纳入 CDEU 工作流去重阶段（需求 10932，待实现）**
   - `PATCH_OUTDATED_USC` 除了每日 05:00 独立定时外，还作为「历史行情去重」（`PHASE_DEDUP`）阶段的阶段内 JOB 运行。
   - 计划新增流程 `PROCESS_USC_PATCH`（排在收口冻结 `PROCESS_SEAL` 之前）、JOB 登记 `JOB_PATCH_OUTDATED_USC`、步骤 `STEP_PATCH_OUTDATED_USC`。
