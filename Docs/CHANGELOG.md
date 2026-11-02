@@ -71,6 +71,14 @@
 
 ### 新增
 
+- **CC 区域新增 CTP（加密货币交易对）分类并把交易对归位（需求 10948）**
+  - 背景：CC 区域此前只有一个 `market=FTC`，现货币（`BTC`/`ETH`/`XRP`…）与交易对（`BTC/USDC`、`AAVE/USD`…）混用同一分类，在 `{region}_{market}` 目录段与导出文件名里无法区分。
+  - 变更：迁移 `V300113`——① `finv_market` 新增 `CTP`：`market_code=10016`、`market_flag='CRYPTO_CTP'`、`market_abbr='CRYPTO'`、`market_name='加密货币交易对'`、`en_security_type='TradePair.CC'`、`base_currency='USD'`、`exchange_code=10001`、`market_symbol='CTP'`、`flag_enable='1'`；② `public.finv_security` 中交易所 10001 下 `type_secu_sub='TradePair.CC'` 的 172 行，加上 12 个已登记但历史种子未写 `type_secu_sub` 的交易对（`BCHUSDC`/`BTCHKD`/`BTCUSD`/`BTCUSDC`/`BTCUSDT`/`ETHBTC`/`ETHUSDC`/`PAXGUSD`/`SOLBTC`/`USDCUSD`/`USDCUSDT`/`USDTUSD`），共 184 行改到 `10016` 并补 `type_secu_sub`；③ 登记表这 12 行 `market` 由 `FTC` 改 `CTP`（`region` 仍 `CC`）；④ 模板补 `CC / CTP / Crypto = 1440`；⑤ 校验 184/12/9 与模板，不符整事务回滚。
+  - 现货币不变：`BTC`/`DOGE`/`ETH`/`PAXG`/`SOL`/`UNI`/`USDC`/`USDT`/`XRP` 仍为 `FTC`。只改分类与归属，不动行情数据。
+  - 验证：本机执行「finv_security 交易对归位 184 行；登记表 market 改 CTP 12 行；CTP 模板已就绪」，复跑「归位 0 行；改 CTP 0 行」；`SELECT m.market_symbol, count(*) … WHERE s.exchange_code=10001` 为 `CTP=184`、`FTC=9`；登记表 `region='CC'` 为 `CTP=12`、`FTC=9`。
+
+### 新增
+
 - **登记待办：「当日累计均价」字段名调整（需求 10886）**
   - 现状三处不一致：库列名 `paocd`（`cdeu.finv_quote_secu_kline_min` / `cdeu.finv_quote_secu_kline_min_export` / `quote.finv_quote_secu_kline_min`）、对外 API 字段名 `pacd`（`kline/model.go`、`request.go`）、导出 `.mvsv` V2 头部字段名 `paocd`；库注释「当日实时累计均价」，API 文档「当日累计均价」。
   - 待确认：① 调整范围（API / 库列 / 导出字段 / 中文名）；② 目标名称；③ 兼容策略（旧名是否保留、历史 `.mvsv` 是否兼容、`quote.` 表是否同步）。
