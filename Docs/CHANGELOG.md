@@ -54,6 +54,13 @@
   - 修复：迁移 `V300111`——① 整行备份 `BSE50I`/`000985` 到 `archive.finv_security_purge_20261102`，把 `BSE50I.security_code` 改为 `BSE50I` 释放唯一键（不删行、不并表）；② 插入 6 只证券初始数据（`899050`→13/1130/StockIndex，`AMAT`/`MRVL`/`PLTR`/`SMCI`→30/1315/Stock，`NOW`→30/1316/Stock，`flag_enable='1'`，上市日用需求 10925 已固化的公开日期，中文名无上游来源时用英文全称）；③ `000985` 逐字段纠正为「大庆华科 / `CN` / `SZ` / `Stock`」；④ 登记表同步：`000985` 改回个股，`SH0985`（中证全指）补登记为 `CN`/`SH`/`StockIndex`；⑤ 校验 6 只证券与 `000985`/`SH0985` 归属，不符整事务回滚。
   - 验证：本机执行「备份 2 行；补发证券 6 行；`000985` 纠正 0 行；`SH0985` 登记已就绪」，复跑「备份 0 行；补发证券 0 行」；构造 Prod 错位样例（`000985` 写成 `StockIndex`/`1110`/`11` 并删掉 `SH0985` 登记行）演练后 `000985` 为「大庆华科 / Stock / 1120 / 12」、登记表 `CN`/`SZ`/`Stock`，`SH0985` 为 `CN`/`SH`/`StockIndex`。
 
+### 修复
+
+- **补发 `XRP` 的证券主数据（需求 10946）**
+  - 现象：`XRP` 与 899050/AMAT/MRVL/NOW/PLTR/SMCI 同属「仅本地有」清单，但需求 10945 只发了后 6 只，`XRP` 仍无 `public.finv_security` 记录——主数据页面查不到，也无法参与 `RefreshSecurityMetadata` 与 `BackfillUscDefaults`。
+  - 修复：迁移 `V300112` 按登记表现值口径插入一行——`exchange_code=10001`、`market_code=10001`（`CRYPTO_10001` → `market_symbol=FTC`）、`security_type='Crypto'`、`type_secu_sub='Crypto.CC'`、`currency_type='USD'`、`tz='+00:00'`/`timezone='UTC'`、`init_date=20000000`、`provider='FTMM'`、`flag_enable='1'`；末尾校验主数据与登记表 `CC`/`FTC`/`Crypto` 口径一致，不符整事务回滚。
+  - 验证：执行输出「完成：XRP 主数据已就绪（CC/FTC/Crypto/UTC/USD），登记表口径一致」，复跑 `INSERT 0 0`；`SELECT exchange_code, market_code, security_type, type_secu_sub, currency_type, tz, timezone, flag_enable FROM public.finv_security WHERE usc='XRP'` 为 `10001 / 10001 / Crypto / Crypto.CC / USD / +00:00 / UTC / 1`。
+
 ### 新增
 
 - **登记待办：「当日累计均价」字段名调整（需求 10886）**
