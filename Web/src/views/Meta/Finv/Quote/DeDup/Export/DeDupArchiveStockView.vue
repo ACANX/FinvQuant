@@ -69,7 +69,12 @@ const bizMonthItems = computed(() => bizMonthOptions())
 const bizMonth = ref(String((new Date().getFullYear()) * 100 + new Date().getMonth() + 1))
 const uscKeyword = ref('')
 const page = ref(1)
-const pageSize = ref(500)
+// 本页走 Export/Stock/Page，其分页上限是 **1000**（Service 侧 >1000 收敛为 1000，
+// Store 侧缺省 500），与 Usc/Patch/List 的 200 上限不同——两端上限别混用，
+// 否则「每页 500/1000」会被服务端截断而前端仍按原值算页数，导致漏数据。
+const PAGE_SIZE_OPTIONS = [100, 200, 500, 1000]
+const MAX_PAGE_SIZE = 1000
+const pageSize = ref(Math.min(500, MAX_PAGE_SIZE))
 const loading = ref(false)
 const error = ref('')
 const data = ref<StockPageData | null>(null)
@@ -147,7 +152,7 @@ onMounted(() => void load())
         <v-col cols="auto">
           <v-select
             v-model="pageSize"
-            :items="[100, 200, 500, 1000]"
+            :items="PAGE_SIZE_OPTIONS"
             label="每页"
             density="compact"
             hide-details
