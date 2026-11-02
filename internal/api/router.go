@@ -145,6 +145,15 @@ func NewRouter(deps *Deps) *gin.Engine {
 			group.GET("/File/List", archive.FileList)
 			group.POST("/Job/Retry", archive.JobRetry)
 			group.POST("/File/Retry", archive.FileRetry)
+
+			// USC 补丁规则（需求 10931）：新接口前缀统一用 /Quote/Cdeu，不再使用 /Quote/DeDup。
+			patch := apiGroup.Group("/Meta/Finv/Quote/Cdeu/Usc/Patch")
+			patch.GET("/List", archive.UscPatchRuleList)
+			patch.POST("/Save", archive.UscPatchRuleSave)
+			patch.POST("/Enable", archive.UscPatchRuleEnable)
+			patch.POST("/Delete", archive.UscPatchRuleDelete)
+			patch.GET("/Preview", archive.UscPatchPreview)
+			patch.POST("/Run", archive.UscPatchRun)
 			group.POST("/Job/Run", archive.JobRun)
 			group.POST("/Job/Dynamic/Run", archive.DynamicJobRun)
 

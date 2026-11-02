@@ -72,3 +72,4 @@ Docs/Proposal/202612-0003-CdeuUscAliasRule.md
 | 编号 | 文档 | 状态 | 主题 |
 |------|------|------|------|
 | 0001 | [202611-0001-DataBaselineSyncProposal.md](202611-0001-DataBaselineSyncProposal.md) | 决策已定，待执行 | 本地修正回流 Prod：先补缺失字段，再减少差异，最后处理冲突（D1 至 D7 已定） |
+| 0002 | [202611-0002-UscPatchSchemeProposal.md](202611-0002-UscPatchSchemeProposal.md) | 待评审 | USC 补丁机制：规则表 + upsert 分批迁移 + 菜单手动执行（P1 至 P6 待确认） |

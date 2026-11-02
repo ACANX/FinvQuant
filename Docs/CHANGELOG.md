@@ -257,6 +257,17 @@
   - 新增 `kline/vwap_compat_test.go`（7 个用例）：vwap 优先 / pacd 兼容 / vwap=null 回退 / 两列皆空 / 增量补丁列名 / 短名 vwa / `/Page` 输出。
   - 本机 API 实测：`pacd` 入参落库 `vwap=3.56`；`vwap=9.99` 与 `pacd=3.56` 同传取 9.99；`/Page`、`/PageUni` 第 13 项为 `vwa`；`/Add`、`/Query` 输出 `vwap` 且无 `pacd`。
 
+### 新增
+
+- **USC 补丁机制（需求 10931）**
+  - 新增规则表 `cdeu.finv_quote_cdeu_usc_patch_rule`（`V300103`），字段 `usc_old`、`usc_new`、`match_mode`、`flag_enable`、`priority`、`note`，带列注释与 `gmt_update` 触发器；部分唯一索引保证同一 `usc_old` 只有一条生效规则，`CHECK` 禁止自指。
+  - 执行器 `Store.PatchOutdatedUsc`：按 `ts` 区间分批（默认 5000 行），`INSERT ... ON CONFLICT (ts, usc) DO UPDATE` 规避主键冲突、冲突时按 `gmt_update` 较新者胜，写入与删除旧行在同一语句内完成；`DISTINCT ON` 防止同批多映射触发二次冲突。
+  - 六个接口挂在 `/API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/`（新接口前缀统一用 `Cdeu`，不再用 `DeDup`）：`List`、`Save`、`Enable`、`Delete`、`Preview`、`Run`。
+  - 前端新增「USC 补丁规则」页面（`/Meta/Finv/Quote/Cdeu/Usc/Patch`）：规则维护、试算、手动执行、执行统计。
+  - 定时 JOB `PATCH_OUTDATED_USC` 每日 05:00 执行（方案决策 P6）。
+  - 初始 25 条规则以停用状态入库，逐条评估后启用。
+  - 实测：`List` 返回 25 条；启用 `SH000008` → `SH0008` 后试算命中 1205 行、冲突 241 行（20261026 两边都有数据），停用后恢复。
+
 ### 变更
 
 - **证券主数据错位记录修正与字段互校（需求 10928）**

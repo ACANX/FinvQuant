@@ -69,6 +69,12 @@ func TestExportArchiveRoutesRegistered(t *testing.T) {
 		"GET /API/V1/Meta/Finv/Quote/DeDup/File/List",
 		"POST /API/V1/Meta/Finv/Quote/DeDup/Job/Retry",
 		"POST /API/V1/Meta/Finv/Quote/DeDup/File/Retry",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/List",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Save",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Enable",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Delete",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Preview",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Run",
 		"POST /API/V1/Meta/Finv/Quote/DeDup/Job/Run",
 	}
 	for _, route := range expected {

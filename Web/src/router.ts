@@ -10,6 +10,7 @@ import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/DeDupE
 import DeDupArchiveStockView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveStockView.vue'
 import DeDupArchiveChainView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue'
 import DeDupCDEUView from './views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue'
+import CdeuUscPatchView from './views/Meta/Finv/Quote/Cdeu/UscPatchView.vue'
 import DeDupCDEUWorkflowView from './views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue'
 import DeDupExportJobView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportJobView.vue'
 import DeDupExportFileView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue'
@@ -89,6 +90,12 @@ const router = createRouter({
       name: 'dedup-export-cdeu',
       component: DeDupCDEUView,
       meta: { title: 'CDEU 工作流控制面板' },
+    },
+    {
+      path: '/Meta/Finv/Quote/Cdeu/Usc/Patch',
+      name: 'cdeu-usc-patch',
+      component: CdeuUscPatchView,
+      meta: { title: 'USC 补丁规则' },
     },
     {
       path: '/Meta/Finv/Quote/Cdeu/CdeuWorkflow',

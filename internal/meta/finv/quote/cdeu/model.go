@@ -35,6 +35,8 @@ const (
 	JobUploadPendingExportFiles = "UPLOAD_PENDING_EXPORT_FILES"
 	// JobScanPostSealPatches 每日：扫描收口后到达的数据，生成 L1/L2/L3 补丁。
 	JobScanPostSealPatches = "SCAN_POST_SEAL_PATCHES"
+	// JobPatchOutdatedUsc 每日 05:00：按补丁规则把过时 usc 的行情迁移到新 usc（需求 10931）。
+	JobPatchOutdatedUsc = "PATCH_OUTDATED_USC"
 	// JobCleanExpiredExportArtifacts 每日：清理超期中转残留、过期本地文件与主表旧数据。
 	//
 	// Deprecated（需求 10717）：自 V300048 起已拆为 JobCleanExportStorage（存储）、
