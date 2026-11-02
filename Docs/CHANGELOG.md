@@ -28,6 +28,32 @@
   - 修复（安装前置校验）：`Install.sh` 在「目标库已有业务表但缺 `public.schema_version`」时由原来的 `warn` 后继续改为 `die` 中止（此前会装出一个必然崩溃、由 systemd 反复重启的服务），并给出三种处置（换独立库 / 换实例 / 备份后手工重建库）；`--skip-db` 仍可跳过本步。
   - 验证：`bash -n Install.sh Upgrade.sh` 通过；隔离函数用构造目录实测（混存 2 个旧文件 → 隔离到 `Backup/`、目标目录不再重号、重复调用幂等、源目录为空不误移）；冲突检测用同一构造样例验证输出（3 组重名全部列出），真实仓库目录 174 个迁移无重号；`go build ./...`、`go vet ./internal/database`、`gofmt -l` 均通过。
 
+### 修复
+
+- **USC 映射规则启用状态与 `GDRnext` 映射未发放（需求 10943）**
+  - 现象：生产环境「过时USC映射到新USC」列表查不到 `SH000888`、`SH000903`、`SH000922`、`SH000980` 四条规则。
+  - 根因①：`V300103` 建表时把这 25 条规则全部以 `flag_enable='0'` 写入，四条只是在本机（LocalDocker）通过接口手工启用，启用状态没有落到任何迁移脚本，换库上生产后回到停用。
+  - 根因②：富途把黄金下月期货 symbol 写成小写 `GDRnext`（`futu.finv_futu_mapping_security`、`futu.finv_futu_quote_collect` 均为 `('71009930','GDRnext','GDRNext')`），若该 symbol 被当 usc 写入 `cdeu.finv_quote_secu_kline_min`，需要映射到大写形态 `GDRNext`；规则表里此前没有这条记录。
+  - 修复：新增迁移 `V300109`——已存在的规则校正 `usc_new`／`match_mode='exact'`／`priority=100` 并置 `flag_enable='1'`（同一 `usc_old` 多行时只更新「已启用优先、idn 最小」一行，避开部分唯一索引 `uq_..._usc_old`），不存在的规则补插（含 `GDRnext → GDRNext`）；目标 usc 登记兜底（SH 系列从旧 usc 复制元数据，`GDRNext` 用登记表现值口径显式兜底，均 `ON CONFLICT (usc) DO NOTHING` 只补不覆盖）；末尾校验 5 条规则生效且 5 个目标 usc 已登记，不符 `RAISE EXCEPTION` 回滚。脚本只改规则与登记表，不迁移任何行情。
+  - 验证：本机执行输出「更新规则 0 行，新增规则 1 行」（新增 `GDRnext`），重复执行输出「更新规则 0 行，新增规则 0 行」；构造「四条停用 + `GDRnext` 缺失」样例输出「更新规则 4 行，新增规则 1 行」、构造「四条规则缺失」样例输出「更新规则 0 行，新增规则 5 行」，两者均以 `ROLLBACK` 演练、校验通过；`SELECT count(*) FROM cdeu.finv_quote_cdeu_usc_patch_rule WHERE usc_old IN ('SH000888','SH000903','SH000922','SH000980','GDRnext') AND flag_enable='1'` = 5；`SELECT usc_new, match_mode, priority FROM cdeu.finv_quote_cdeu_usc_patch_rule WHERE usc_old='GDRnext'` 为 `GDRNext / exact / 100`。
+
+### 修复
+
+- **行情证券登记表 `region`/`market` 口径纠正为 `market_symbol`（需求 10944）**
+  - 现象：生产「历史月份存量数据清点」页面与导出文件名出现 `CN_SSE-A_…`、`US_US-ARCA_…`、`FX_FX_BTC_…`、`UNKNOWN_UNKNOWN_GDRnext_…` 等不成立的段。
+  - 根因：`cdeu.finv_quote_cdeu_usc.market` 存的是 `public.finv_market.market_flag`（`SSE-A`/`SZSE-A`/`SSE-STAR`/`HKEX-H`/`US-I`/`US-II`/`US-ARCA`/`US-NYSE`/`FX`），而 `{region}_{market}` 目录段与 `naming.go` 的文件名契约要求 `market` 取 `market_symbol`（`SH`/`SZ`/`HK`/`US`/`ARCA`/`NY`/`CER`/`FTC`）；另外期货的 `finv_security.market_code` 被误填成美股市场码（`1OZMain` 等 14 条），加密货币对的 `region` 记成了 `FX`。
+  - 修复：迁移 `V300110`——① `finv_market` 新增 `CBOE`（`market_code=1323`、`market_symbol='CBOE'`、`exchange_code=34`，原字典只有交换所有 CBOE 而无对应 market）；② 期货 `finv_security.market_code` 按品种修正（COMEX 9 条、CME 2 条、CBOT 1 条、NYMEX 3 条、CBOE 1 条）；③ 按 `finv_security.market_code → finv_market.market_symbol` + `finv_exchange.region` 纠正登记表，**只在现值不是合法 `market_symbol` 时生效**，已正确的 `symbol` 值（如生产上正确的 `US/COMEX`）不动；④ 主数据查不到时退回 `market_flag → market_symbol` 唯一映射（`US-ARCA→ARCA`、`US-NYSE→NY`、`US-I/US-II→US`、`SSE-A/SSE-STAR→SH`、`SZSE-A→SZ`、`HKEX-H→HK`）；⑤ 显式清单：期货 16 条强制对齐、`NOW` 的 `NYSE→NY`、`GDRnext` 登记（`HK/HK`，补丁规则迁移前不再产生 `UNKNOWN_UNKNOWN` 文件名）、`SH0680` 名称纠正为「科创综指」；⑥ 校验期货落点与「登记表无非 `market_symbol` 值」，不符 `RAISE EXCEPTION` 回滚。
+  - 验证：本机执行输出「期货 market_code 修正 14 行；按主数据纠正 0 行，按 market_flag 映射 0 行，显式清单 16 行」，复跑输出「期货 market_code 修正 0 行……显式清单 0 行」；构造生产值样例（`AIQ=US/US-ARCA`、`SH0008=CN/SSE-A`、`688050=CN/SSE-STAR`、`000510=CN/SZSE-A`、`BK1191=HK/HKEX-H`、`BTC/EURUSD/USDIndex/XAUUSD=FX/FX`、`NOW=US/NYSE`、期货 5 条 `US/COMEX`）演练后依次为 `US/US`、`CN/SH`、`CN/SH`、`CN/SZ`、`HK/HK`、`CC/FTC`、`FX/CER`、`FX/CIX`、`FX/CFD`、`US/NY`、`COMEX`/`CME`/`NYMEX`/`CBOT`/`CBOE`；`SELECT count(*) FROM cdeu.finv_quote_cdeu_usc u WHERE NOT EXISTS (SELECT 1 FROM public.finv_market m WHERE m.market_symbol=u.market)` = 0。
+  - 待办：`000985` 同时是深市个股「大庆华科」与中证指数「中证全指」，usc 冲突未裁决，本迁移未动该行。
+
+### 修复
+
+- **本地独有证券补发主数据 + Prod `000985` 错位纠正（需求 10945）**
+  - 现象①：`899050`、`AMAT`、`MRVL`、`NOW`、`PLTR`、`SMCI` 只有 `cdeu.finv_quote_cdeu_usc` 登记行，`public.finv_security` 在本地和 Prod 都查不到，无法参与主数据维护与元数据刷新。`899050` 其实在 `V300062` 种子里有行，被唯一约束 `uq_finv_security_exchange_code` 挡掉——旧别名 `BSE50I` 已占用 `(13,'899050')`。
+  - 现象②：Prod `000985` 是错位记录（`V300100` 的 M5 挂账未处理），内容写成中证全指（`StockIndex`/`SH`），而 `000985` 实际是深市个股「大庆华科」，中证全指的 usc 是 `SH0985`。
+  - 修复：迁移 `V300111`——① 整行备份 `BSE50I`/`000985` 到 `archive.finv_security_purge_20261102`，把 `BSE50I.security_code` 改为 `BSE50I` 释放唯一键（不删行、不并表）；② 插入 6 只证券初始数据（`899050`→13/1130/StockIndex，`AMAT`/`MRVL`/`PLTR`/`SMCI`→30/1315/Stock，`NOW`→30/1316/Stock，`flag_enable='1'`，上市日用需求 10925 已固化的公开日期，中文名无上游来源时用英文全称）；③ `000985` 逐字段纠正为「大庆华科 / `CN` / `SZ` / `Stock`」；④ 登记表同步：`000985` 改回个股，`SH0985`（中证全指）补登记为 `CN`/`SH`/`StockIndex`；⑤ 校验 6 只证券与 `000985`/`SH0985` 归属，不符整事务回滚。
+  - 验证：本机执行「备份 2 行；补发证券 6 行；`000985` 纠正 0 行；`SH0985` 登记已就绪」，复跑「备份 0 行；补发证券 0 行」；构造 Prod 错位样例（`000985` 写成 `StockIndex`/`1110`/`11` 并删掉 `SH0985` 登记行）演练后 `000985` 为「大庆华科 / Stock / 1120 / 12」、登记表 `CN`/`SZ`/`Stock`，`SH0985` 为 `CN`/`SH`/`StockIndex`。
+
 ### 新增
 
 - **登记待办：「当日累计均价」字段名调整（需求 10886）**
