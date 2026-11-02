@@ -300,8 +300,14 @@ type StockRow struct {
 	StockDays int `json:"stock_days"`
 	DateFrom  int `json:"date_from"`
 	DateTo    int `json:"date_to"`
-	// ExpectedRows / ActualRows 来自成熟度表，主表被清理后仍能看到该月规模。
+	// ExpectedRows 月应有行数：DayExpectRows × ExpectedDays，把「日」口径乘成「月」口径，
+	// 才能与本行的实际行数（整月累计）比较（需求 10949）。
+	// 证券主数据缺 day_expect_rows 时回退成熟度表的月累计（ExpectedDays=0）。
 	ExpectedRows int64 `json:"expected_rows"`
+	// DayExpectRows 每日应有行数（cdeu.finv_quote_cdeu_usc.day_expect_rows）。
+	DayExpectRows int64 `json:"day_expect_rows"`
+	// ExpectedDays 参与折算的交易日数：优先主表覆盖天数，主表已清理时用成熟度记录天数。
+	ExpectedDays int   `json:"expected_days"`
 	ActualRows   int64 `json:"actual_rows"`
 	// MaturityStatus 成熟度汇总：COMPLETE / FROZEN / PARTIAL / IMMATURE；无记录为空串。
 	MaturityStatus string `json:"maturity_status"`
@@ -417,6 +423,7 @@ WITH main AS (
      GROUP BY usc
 ), mat AS (
     SELECT usc,
+           count(*) AS days,
            COALESCE(sum(expected_rows), 0)::bigint AS expected_rows,
            COALESCE(sum(actual_rows), 0)::bigint   AS actual_rows,
            count(*) FILTER (WHERE maturity_status NOT IN ('COMPLETE', 'FROZEN')) AS unmature_days,
@@ -444,7 +451,15 @@ SELECT all_usc.usc,
        COALESCE(main.days, 0),
        COALESCE(main.date_from, 0),
        COALESCE(main.date_to, 0),
-       COALESCE(mat.expected_rows, 0),
+       -- 日/月口径对齐：有 day_expect_rows 时按「日应有 × 交易日」折算月应有，
+       -- 交易日优先取主表覆盖天数，主表已清理时退回成熟度记录天数。
+       COALESCE(u.day_expect_rows, 0),
+       CASE WHEN COALESCE(u.day_expect_rows, 0) > 0
+            THEN GREATEST(COALESCE(main.days, 0), COALESCE(mat.days, 0))
+            ELSE 0 END,
+       CASE WHEN COALESCE(u.day_expect_rows, 0) > 0
+            THEN u.day_expect_rows::bigint * GREATEST(COALESCE(main.days, 0), COALESCE(mat.days, 0))
+            ELSE COALESCE(mat.expected_rows, 0) END,
        COALESCE(mat.actual_rows, 0),
        CASE WHEN mat.usc IS NULL THEN ''
             WHEN mat.all_mature AND mat.any_frozen THEN 'FROZEN'
@@ -475,7 +490,8 @@ SELECT all_usc.usc,
 		item.BizMonth = filter.BizMonth
 		if err := rows.Scan(&item.Usc, &item.Name, &item.Region, &item.Market,
 			&item.StockRows, &item.StockDays, &item.DateFrom, &item.DateTo,
-			&item.ExpectedRows, &item.ActualRows, &item.MaturityStatus, &item.UnmatureDays,
+			&item.DayExpectRows, &item.ExpectedDays, &item.ExpectedRows, &item.ActualRows,
+			&item.MaturityStatus, &item.UnmatureDays,
 			&item.ExportStatus, &item.JobID, &item.FileName); err != nil {
 			return page, err
 		}

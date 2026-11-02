@@ -22,6 +22,8 @@ interface StockRow {
   stock_days: number
   date_from: number
   date_to: number
+  day_expect_rows: number
+  expected_days: number
   expected_rows: number
   actual_rows: number
   maturity_status: string
@@ -230,7 +232,19 @@ onMounted(() => void load())
               <span v-if="row.date_from">{{ row.date_from }} ~ {{ row.date_to }}</span>
               <span v-else class="text-medium-emphasis">-</span>
             </td>
-            <td class="text-right">{{ fmtNum(row.expected_rows) }} / {{ fmtNum(row.actual_rows) }}</td>
+            <td class="text-right">
+              {{ fmtNum(row.expected_rows) }} / {{ fmtNum(row.actual_rows) }}
+              <!-- 日/月口径：应有 = 每日应有 × 交易日，避免拿「日」和「月」直接比（需求 10949） -->
+              <div
+                v-if="row.day_expect_rows > 0 && row.expected_days > 0"
+                class="text-caption text-medium-emphasis"
+              >
+                每日 {{ fmtNum(row.day_expect_rows) }} × {{ row.expected_days }} 交易日
+              </div>
+              <div v-else-if="row.expected_rows > 0" class="text-caption text-medium-emphasis">
+                成熟度月累计
+              </div>
+            </td>
             <td>
               <v-chip
                 v-if="row.maturity_status"
