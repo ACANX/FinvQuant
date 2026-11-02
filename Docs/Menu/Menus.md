@@ -20,6 +20,7 @@
 │     ├─ 归档监控总览（/Meta/Finv/Quote/DeDup/Export/Overview）
 │     ├─ 端到端链路（/Meta/Finv/Quote/DeDup/Export/Chain）
 │     ├─ 工作流控制与监控（/Meta/Finv/Quote/Cdeu/CdeuOverview）
+│     ├─ 日K线数据同步（/Meta/Finv/Quote/Cdeu/DayKline/Sync，需求 10952）
 │     ├─ 导出任务（/Meta/Finv/Quote/DeDup/Export/Job）
 │     ├─ 文件与上传（/Meta/Finv/Quote/DeDup/Export/File）
 │     ├─ 归档统计与预算（/Meta/Finv/Quote/DeDup/Export/Stats）
@@ -99,6 +100,7 @@
 | 37 | 实盘交易 | 金融投资 | 二级叶子 | `live-trading` | `mdi-cash-register` | `/Meta/Finv/Quant/LiveTrading` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中） | [Backtest/LiveTrading.md](Backtest/LiveTrading.md) |
 | 38 | 内容管理 | 内容管理 | 一级系统 | `cms` | `mdi-laptop` | `/Meta/CMS` | — | — | — |
 | 39 | 内容管理控制台 | 内容管理 | 二级叶子 | `cms-home` | `mdi-view-dashboard-outline` | `/Meta/CMS` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中，系统占位） | [CMS/CMSHome.md](CMS/CMSHome.md) |
+| 40 | 日K线数据同步 | 金融投资 | 四级叶子 | `cdeu-daykline-sync` | `mdi-chart-candlestick` | `/Meta/Finv/Quote/Cdeu/DayKline/Sync` | `Web/src/views/Meta/Finv/Quote/Cdeu/DayKlineSyncView.vue` | `POST /API/V1/Meta/Finv/Quote/Cdeu/DayKline/Sync`、`GET .../DayKline/Stat`、`GET .../DayKline/UscList` | [Quote/Cdeu/DayKlineSync.md](Quote/Cdeu/DayKlineSync.md) |
 
 ## 说明
 

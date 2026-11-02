@@ -48,7 +48,7 @@ func TestLiveGCMainDayKline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("查询存量统计失败: %v", err)
 	}
-	if stats.Rows == 0 || stats.Providers != DayKlineProviderMoomoo {
+	if stats.Rows == 0 || stats.Providers != DayKlineProviderFTMM {
 		t.Fatalf("落库统计不符：%+v", stats)
 	}
 }

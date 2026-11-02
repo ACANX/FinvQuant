@@ -101,9 +101,19 @@
   - 背景：后续要在 cdeu 菜单里选 usc 拉日K并落库，先把「取数」和「落库」拆成可复用能力。
   - 新包 `internal/meta/finv/quote/moomoo`：`Sign`/`SignParams`/`SignInput`/`SignedQuery` 复现 `quote-token`（HMAC-SHA512 → hex 前 10 → SHA-256 → hex 前 10，密钥 `quote_web`，空输入降级 `quote`），`Client.Kline` 调 `GET /quote-api/quote-v2/get-kline`，响应字段用 `flexNum` 兼容「字符串/数字」混用，`-403` 用 `ErrTokenRejected` 识别。
   - 请求参数取自 `futu.finv_futu_quote_collect`（`Store.CollectQuoteParams`，仅 `flag_enable='1'`），五个定位参数原样透传（同一编号在不同接口含义不同，不做语义换算）。
-  - `Service.SyncDayKlineFromMoomoo`：拉全量历史 → 按 `cdeu.finv_quote_cdeu_usc.timezone` 换算市场本地日期 → `from`/`to` 过滤 → 每 2000 行一批 upsert 到 `cdeu.finv_quote_secu_kline_day`（`provider='FTMoomoo'`）；`change_ratio` 不用接口 `r`（样本恒 null、口径未验证），改按 `change_price / last_close × 100` 与存量分钟线口径一致。
+  - `Service.SyncDayKlineFromMoomoo`：拉全量历史 → 按 `cdeu.finv_quote_cdeu_usc.timezone` 换算市场本地日期 → `from`/`to` 过滤 → 每 2000 行一批 upsert 到 `cdeu.finv_quote_secu_kline_day`（`provider='FTMM'`）；`change_ratio` 不用接口 `r`（样本恒 null、口径未验证），改按 `change_price / last_close × 100` 与存量分钟线口径一致。
   - `Store.UpsertDayKlines`：`jsonb_to_recordset` 整批写入，`ON CONFLICT (date, usc)` 时 `COALESCE(EXCLUDED.x, t.x)` 只覆盖本次有值的列（不抹掉其它来源回填的 `open_interest`/`pe_ratio`），`xmax = 0` 区分新增/更新；另加 `Store.DayKlineStats`。
   - 验证：签名 6 组文档复现向量、httptest 请求装配/解析/`-403` 全通过；两个集成测试（插入幂等 + 端到端时区/区间/透传/涨跌幅口径）通过；真实接口测试 `TestLiveGCMainDayKline` 受网络限制未执行——本机 `curl -4/-6` 到 `www.moomoo.com` 均 `000`（DNS 正常），容器内 `wget` TLS 被 RST，需在可访问环境以 `FINV_MOOMOO_LIVE=1` 执行。
+
+### 新增
+
+- **日K线数据同步菜单与接口（需求 10952）**
+  - 后端：新增 `POST /API/V1/Meta/Finv/Quote/Cdeu/DayKline/Sync`（拉 moomoo 全量日K → `(date, usc)` upsert 到 `cdeu.finv_quote_secu_kline_day`）、`GET .../DayKline/Stat`（单 usc 存量）、`GET .../DayKline/UscList`（`futu.finv_futu_quote_collect` 中 `flag_enable='1'` 的候选 usc，新增 `Store.ListCollectUsc`）。
+  - 排障日志：同步链路每步一条 KV 日志，统一前缀 `[cdeu][daykline]`（`api sync begin/end/failed`、`params`、`fetch start/done`、`filter`、`upsert batch`、`sync done/failed step=...`），线上 `docker logs 容器 2>&1 | grep '\[cdeu\]\[daykline\]'` 即可取全链路。
+  - 前端：新增菜单「日K线数据同步」（`cdeu-daykline-sync`，路由 `/Meta/Finv/Quote/Cdeu/DayKline/Sync`，视图 `DayKlineSyncView.vue`）——usc 下拉可手输、可选日期区间、同步/查询存量、结果卡片、原始响应折叠面板（便于整体复制排障）。
+  - `Web/src/api.ts`：`apiPost` 增加可选 `timeoutMs`，同步请求放宽到 180s（默认 30s 覆盖不了全量拉取 + 写库，且超时会误报失败）。
+  - 文档：`Docs/API/Cdeu/DayKlineSync.md|DayKlineStat.md|DayKlineUscList.md`、`Docs/Menu/Quote/Cdeu/DayKlineSync.md`，并登记 `Docs/API/README.md`、`Docs/API/APIs.md`、`Docs/Menu/Menus.md`。
+  - 验证：`go build ./...`、`go test ./internal/api/`、`vue-tsc --noEmit`、`npm run build` 全部通过；真实拉取仍需在可访问 `www.moomoo.com` 的环境验证。
 
 ### 新增
 

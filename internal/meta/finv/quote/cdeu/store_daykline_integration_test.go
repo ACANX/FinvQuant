@@ -107,8 +107,8 @@ func TestUpsertDayKlinesIntegration(t *testing.T) {
 	open, closePrice := "10.5", "11"
 	lastClose, volume := "10.2", "1000"
 	stat, err := store.UpsertDayKlines(context.Background(), usc, []DayKlineRow{
-		{Date: 20261001, Open: &open, Close: &closePrice, LastClose: &lastClose, Volume: &volume, Provider: DayKlineProviderMoomoo},
-		{Date: 20261002, Close: &closePrice, Provider: DayKlineProviderMoomoo},
+		{Date: 20261001, Open: &open, Close: &closePrice, LastClose: &lastClose, Volume: &volume, Provider: DayKlineProviderFTMM},
+		{Date: 20261002, Close: &closePrice, Provider: DayKlineProviderFTMM},
 	})
 	if err != nil {
 		t.Fatalf("首次 upsert 失败: %v", err)
@@ -125,7 +125,7 @@ UPDATE `+tableDay+` SET open_interest = 500, pe_ratio = 12.5
 	}
 	newClose := "11.8"
 	stat, err = store.UpsertDayKlines(context.Background(), usc, []DayKlineRow{
-		{Date: 20261001, Close: &newClose, Provider: DayKlineProviderMoomoo},
+		{Date: 20261001, Close: &newClose, Provider: DayKlineProviderFTMM},
 	})
 	if err != nil {
 		t.Fatalf("覆盖 upsert 失败: %v", err)
@@ -218,7 +218,7 @@ VALUES ($1, 'Futures', 'US', 'COMEX', 'FTMM', '日K同步测试', 'America/New_Y
 	if result.DateFrom != 20261001 || result.DateTo != 20261005 {
 		t.Fatalf("日期范围不符：%+v", result)
 	}
-	if result.Timezone != "America/New_York" || result.Provider != DayKlineProviderMoomoo {
+	if result.Timezone != "America/New_York" || result.Provider != DayKlineProviderFTMM {
 		t.Fatalf("时区/来源不符：%+v", result)
 	}
 

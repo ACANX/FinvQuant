@@ -129,6 +129,9 @@
 | 105 | GET | `/API/V1/Meta/BRS/Backup/Finv/Slice/Plan` | 查询单个登记的分片明细（`ruleId`；已备份/待备份） | [BRS/Slice.md](BRS/Slice.md) | 大表增量备份（同上） |
 | 106 | POST | `/API/V1/Meta/BRS/Backup/Finv/Slice/Run/Manual` | 手动触发一轮分片备份（异步；并发 409） | [BRS/Slice.md](BRS/Slice.md) | 大表增量备份（同上） |
 | 107 | GET | `/API/V1/Meta/BRS/Backup/Finv/Slice/Run/Status` | 查询分片备份运行状态与日志（`sinceSeq` 增量） | [BRS/Slice.md](BRS/Slice.md) | 大表增量备份（同上） |
+| 108 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/DayKline/Sync` | 拉取 moomoo 全量日K并按 `(date, usc)` upsert 到 `cdeu.finv_quote_secu_kline_day` | [Cdeu/DayKlineSync.md](Cdeu/DayKlineSync.md) | 日K线数据同步（[Menu/Quote/Cdeu/DayKlineSync.md](../Menu/Quote/Cdeu/DayKlineSync.md)） |
+| 109 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/DayKline/Stat` | 查询单 usc 的日K存量（行数 / 日期范围 / 来源） | [Cdeu/DayKlineStat.md](Cdeu/DayKlineStat.md) | 日K线数据同步（同上） |
+| 110 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/DayKline/UscList` | 候选 usc 列表（`futu.finv_futu_quote_collect` 中 `flag_enable='1'`） | [Cdeu/DayKlineUscList.md](Cdeu/DayKlineUscList.md) | 日K线数据同步（同上） |
 
 ## 说明
 

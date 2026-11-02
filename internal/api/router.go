@@ -155,6 +155,12 @@ func NewRouter(deps *Deps) *gin.Engine {
 			patch.GET("/Preview", archive.UscPatchPreview)
 			patch.POST("/Run", archive.UscPatchRun)
 			patch.GET("/Status", archive.UscPatchStatus)
+
+			// 日K线数据同步（需求 10952）：拉取 moomoo 日K 并 upsert 到 cdeu.finv_quote_secu_kline_day。
+			dayKline := apiGroup.Group("/Meta/Finv/Quote/Cdeu/DayKline")
+			dayKline.POST("/Sync", archive.DayKlineSync)
+			dayKline.GET("/Stat", archive.DayKlineStat)
+			dayKline.GET("/UscList", archive.DayKlineUscList)
 			group.POST("/Job/Run", archive.JobRun)
 			group.POST("/Job/Dynamic/Run", archive.DynamicJobRun)
 

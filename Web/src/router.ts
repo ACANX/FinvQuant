@@ -11,6 +11,7 @@ import DeDupArchiveStockView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArc
 import DeDupArchiveChainView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue'
 import DeDupCDEUView from './views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue'
 import CdeuUscPatchView from './views/Meta/Finv/Quote/Cdeu/UscPatchView.vue'
+import CdeuDayKlineSyncView from './views/Meta/Finv/Quote/Cdeu/DayKlineSyncView.vue'
 import DeDupCDEUWorkflowView from './views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue'
 import DeDupExportJobView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportJobView.vue'
 import DeDupExportFileView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue'
@@ -96,6 +97,12 @@ const router = createRouter({
       name: 'cdeu-usc-patch',
       component: CdeuUscPatchView,
       meta: { title: '过时USC映射到新USC' },
+    },
+    {
+      path: '/Meta/Finv/Quote/Cdeu/DayKline/Sync',
+      name: 'cdeu-daykline-sync',
+      component: CdeuDayKlineSyncView,
+      meta: { title: '日K线数据同步' },
     },
     {
       path: '/Meta/Finv/Quote/Cdeu/CdeuWorkflow',

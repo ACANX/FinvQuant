@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -172,6 +173,51 @@ SELECT count(*) FILTER (WHERE inserted)::bigint,
 		return stat, fmt.Errorf("UpsertDayKlines：写入日K失败: %w", err)
 	}
 	return stat, nil
+}
+
+// FutuCollectRow futu 采集表里可拉取日K的证券（供页面下拉选择）。
+type FutuCollectRow struct {
+	USC         string `json:"usc"`
+	FutuSymbol  string `json:"futu_symbol"`
+	QuoteMarket string `json:"quote_market"`
+	TypeSymbol  string `json:"type_symbol"`
+}
+
+// ListCollectUsc 列出 futu 采集表中已启用（flag_enable='1'）的证券，
+// 供「日K线数据同步」页面做 usc 候选下拉。
+//
+// keyword 匹配 usc / futu_symbol（ILIKE），limit<=0 取默认 200、上限 2000。
+func (s *Store) ListCollectUsc(ctx context.Context, keyword string, limit int) ([]FutuCollectRow, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	if limit > 2000 {
+		limit = 2000
+	}
+	pattern := ""
+	if trimmed := strings.TrimSpace(keyword); trimmed != "" {
+		pattern = "%" + trimmed + "%"
+	}
+	rows, err := s.pool.Query(ctx, `
+SELECT usc, futu_symbol, quote_market, type_symbol
+  FROM `+tableFutuQuote+`
+ WHERE flag_enable = '1'
+   AND ($1 = '' OR usc ILIKE $1 OR futu_symbol ILIKE $1)
+ ORDER BY usc
+ LIMIT $2`, pattern, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]FutuCollectRow, 0, 32)
+	for rows.Next() {
+		var item FutuCollectRow
+		if err := rows.Scan(&item.USC, &item.FutuSymbol, &item.QuoteMarket, &item.TypeSymbol); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
 }
 
 // DayKlineStat 某 usc 的日 K 存量统计（供页面/校验使用）。

@@ -76,6 +76,10 @@ Authorization: Bearer <token>
   - [`BRS/Schedule.md`](BRS/Schedule.md) — `GET/POST /API/V1/Meta/BRS/Backup/Finv/Schedule/*`（备份调度配置：sys_config 39001 的 6 段 cron + 未来执行时间预览）
   - [`BRS/Run.md`](BRS/Run.md) — `POST .../Run/Manual`、`GET .../Run/Status`（小表全量备份：手动触发 + 实时进度与增量日志）
   - [`BRS/Slice.md`](BRS/Slice.md) — `GET/POST .../Slice/Rule/*`、`.../Slice/Plan`、`.../Slice/Run/{Manual,Status}`（大表增量备份：按分片切分、只补缺失分片）
+  - 日K线数据同步（`/API/V1/Meta/Finv/Quote/Cdeu/DayKline/*`，**一个接口一个文档**）：
+    - [`Cdeu/DayKlineSync.md`](Cdeu/DayKlineSync.md) — `POST .../DayKline/Sync`（拉取 moomoo 全量日K并 upsert 到 `cdeu.finv_quote_secu_kline_day`）
+    - [`Cdeu/DayKlineStat.md`](Cdeu/DayKlineStat.md) — `GET .../DayKline/Stat`（单 usc 日K存量：行数/日期范围/来源）
+    - [`Cdeu/DayKlineUscList.md`](Cdeu/DayKlineUscList.md) — `GET .../DayKline/UscList`（候选 usc，取自 `futu.finv_futu_quote_collect`）
   - 证券行情月归档导出与上传（`/API/V1/Meta/Finv/Quote/DeDup/*`，**一个接口一个文档**）：
     - [`QuoteDeDup/Status.md`](QuoteDeDup/Status.md) — `GET .../DeDup/Status`（归档链路指标、运行参数与调度表）
     - [`QuoteDeDup/JobRuntime.md`](QuoteDeDup/JobRuntime.md) — `GET .../DeDup/Job/Runtime`（10 个 Job 运行快照：阶段 / 进度 / 心跳 / 最近结果）

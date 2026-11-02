@@ -3,6 +3,7 @@ package cdeu
 import (
 	"context"
 	"fmt"
+	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -11,9 +12,9 @@ import (
 	"github.com/acanx/finvquant/internal/meta/finv/quote/moomoo"
 )
 
-// DayKlineProviderMoomoo 通过 moomoo 网页接口拉取的日 K 数据写入 provider 列的取值。
-// 与存量分钟线的 FTMM（MVSV 数据源）区分，便于排查数据来源。
-const DayKlineProviderMoomoo = "FTMoomoo"
+// DayKlineProviderFTMM 日 K 数据写入 provider 列的取值。
+// 与存量分钟线保持一致（FTMM 为本平台统一的行情供应商标识），不因取数通道不同而另起名字。
+const DayKlineProviderFTMM = "FTMM"
 
 // dayKlineUpsertBatch 单批 upsert 行数（控制 jsonb 体积，避免一次请求过大）。
 const dayKlineUpsertBatch = 2000
@@ -70,8 +71,10 @@ type DayKlineSyncResult struct {
 // 涨跌幅：接口 r 字段样本恒为 null，且口径未验证，这里不写 r，改用
 // change_price / last_close * 100 计算百分数，与存量分钟线 change_ratio 口径一致。
 func (s *Service) SyncDayKlineFromMoomoo(ctx context.Context, req DayKlineSyncRequest) (DayKlineSyncResult, error) {
-	result := DayKlineSyncResult{Provider: DayKlineProviderMoomoo}
+	started := time.Now()
+	result := DayKlineSyncResult{Provider: DayKlineProviderFTMM}
 	usc := strings.TrimSpace(req.USC)
+	log.Printf("[cdeu][daykline] sync start usc=%q from=%d to=%d", usc, req.From, req.To)
 	if usc == "" {
 		return result, fmt.Errorf("SyncDayKlineFromMoomoo：usc 不能为空")
 	}
@@ -82,9 +85,14 @@ func (s *Service) SyncDayKlineFromMoomoo(ctx context.Context, req DayKlineSyncRe
 
 	params, err := s.store.CollectQuoteParams(ctx, usc)
 	if err != nil {
+		log.Printf("[cdeu][daykline] sync failed usc=%s step=collect_params err=%v elapsed_ms=%d",
+			usc, err, time.Since(started).Milliseconds())
 		return result, fmt.Errorf("读取 futu 采集参数失败（usc=%s）: %w", usc, err)
 	}
 	result.Params = *params
+	log.Printf("[cdeu][daykline] params usc=%s futu_symbol=%s stock_id=%d market_type=%d market_code=%d instrument_type=%d sub_instrument_type=%d quote_market=%s type_symbol=%s",
+		usc, params.FutuSymbol, params.StockID, params.MarketType, params.MarketCode,
+		params.InstrumentType, params.SubInstrumentType, params.QuoteMarket, params.TypeSymbol)
 
 	location, tzName := s.dayKlineLocation(ctx, usc)
 	result.Timezone = tzName
@@ -93,18 +101,26 @@ func (s *Service) SyncDayKlineFromMoomoo(ctx context.Context, req DayKlineSyncRe
 	if fetcher == nil {
 		fetcher = moomoo.New(moomoo.Config{})
 	}
-	bars, err := fetcher.Kline(ctx, moomoo.KlineRequest{
+	klineReq := moomoo.KlineRequest{
 		StockID:           strconv.FormatInt(params.StockID, 10),
 		MarketType:        strconv.Itoa(params.MarketType),
 		KlineType:         moomoo.KlineTypeDay,
 		MarketCode:        strconv.Itoa(params.MarketCode),
 		InstrumentType:    strconv.Itoa(params.InstrumentType),
 		SubInstrumentType: strconv.Itoa(params.SubInstrumentType),
-	})
+	}
+	log.Printf("[cdeu][daykline] fetch start usc=%s stockId=%s marketType=%s type=%s marketCode=%s instrumentType=%s subInstrumentType=%s tz=%s",
+		usc, klineReq.StockID, klineReq.MarketType, klineReq.KlineType, klineReq.MarketCode,
+		klineReq.InstrumentType, klineReq.SubInstrumentType, result.Timezone)
+	fetchStarted := time.Now()
+	bars, err := fetcher.Kline(ctx, klineReq)
 	if err != nil {
+		log.Printf("[cdeu][daykline] sync failed usc=%s step=fetch err=%v elapsed_ms=%d",
+			usc, err, time.Since(started).Milliseconds())
 		return result, fmt.Errorf("拉取 moomoo 日K失败（usc=%s）: %w", usc, err)
 	}
 	result.Total = len(bars)
+	log.Printf("[cdeu][daykline] fetch done usc=%s bars=%d fetch_elapsed_ms=%d", usc, len(bars), time.Since(fetchStarted).Milliseconds())
 
 	rows := make([]DayKlineRow, 0, len(bars))
 	for _, bar := range bars {
@@ -130,7 +146,7 @@ func (s *Service) SyncDayKlineFromMoomoo(ctx context.Context, req DayKlineSyncRe
 			ChangePrice: optionalNumeric(bar.ChangePrice),
 			Volume:      optionalFloat(bar.Volume),
 			Turnover:    optionalFloat(bar.Turnover),
-			Provider:    DayKlineProviderMoomoo,
+			Provider:    DayKlineProviderFTMM,
 		}
 		row.ChangeRatio = dayKlineChangeRatio(bar)
 		rows = append(rows, row)
@@ -142,6 +158,8 @@ func (s *Service) SyncDayKlineFromMoomoo(ctx context.Context, req DayKlineSyncRe
 		}
 	}
 	result.InRange = len(rows)
+	log.Printf("[cdeu][daykline] filter usc=%s total=%d in_range=%d date_from=%d date_to=%d tz=%s",
+		usc, result.Total, result.InRange, result.DateFrom, result.DateTo, result.Timezone)
 
 	for start := 0; start < len(rows); start += dayKlineUpsertBatch {
 		end := start + dayKlineUpsertBatch
@@ -150,11 +168,18 @@ func (s *Service) SyncDayKlineFromMoomoo(ctx context.Context, req DayKlineSyncRe
 		}
 		stat, err := s.store.UpsertDayKlines(ctx, usc, rows[start:end])
 		if err != nil {
+			log.Printf("[cdeu][daykline] sync failed usc=%s step=upsert offset=%d size=%d err=%v elapsed_ms=%d",
+				usc, start, end-start, err, time.Since(started).Milliseconds())
 			return result, err
 		}
 		result.Inserted += stat.Inserted
 		result.Updated += stat.Updated
+		log.Printf("[cdeu][daykline] upsert batch usc=%s offset=%d size=%d inserted=%d updated=%d",
+			usc, start, end-start, stat.Inserted, stat.Updated)
 	}
+	log.Printf("[cdeu][daykline] sync done usc=%s total=%d in_range=%d inserted=%d updated=%d date_from=%d date_to=%d provider=%s elapsed_ms=%d",
+		usc, result.Total, result.InRange, result.Inserted, result.Updated,
+		result.DateFrom, result.DateTo, result.Provider, time.Since(started).Milliseconds())
 	return result, nil
 }
 
