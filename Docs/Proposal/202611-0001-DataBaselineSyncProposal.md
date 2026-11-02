@@ -2,7 +2,7 @@
 
 > 编号：**202611-0001**　文档约定见 [README.md](README.md)
 >
-> 状态：**待评审**（附录 B 的 M4 至 M19 待逐项确认；M1 至 M3 已完成，见 B.2）
+> 状态：**待评审**（M1 至 M4、M6 至 M8、M11 已完成；M9、M10 核对为假差异；M5、M12 至 M19 待确认）
 >
 > 依据数据：`D:\Code\GoCode\FinvQuantDesign\Data\Prod`（Prod 库 2026-11-02 快照，`pg_dump` custom 格式，6 张表）
 >
@@ -532,14 +532,14 @@ SELECT usc, category, market, name,
 | M1 | 助记名改名 | `public.finv_security.usc` | `SHI` 改为 `SHCI` | 1 | ✅ | 已完成 |
 | M2 | 助记名改名 | `public.finv_security.usc` | `A500` 改为 `CSIA500` | 1 | ✅ | 已完成 |
 | M3 | 助记名改名 | `public.finv_security.usc` | `HS300I` 改为 `CSI300` | 1 | ✅ | 已完成 |
-| M4 | 错位记录 | Prod `000680` | 改正为山推股份 | 8 个字段 | ⬜ |  |
+| M4 | 错位记录 | Prod `000680` | 改正为山推股份 | 8 个字段 | ✅ | 已完成（需求 10928） |
 | M5 | 错位记录 | Prod `000985` | 改正为大庆华科 | 8 个字段 | ⬜ |  |
-| M6 | 字段互校 | `SH0680` | 逐字段取两边正确值 | 6 个字段 | ⬜ |  |
-| M7 | 字段互校 | `SH0985` | 补 `type_secu_sub`、`provider`、`remark` | 3 个字段 | ⬜ |  |
-| M8 | 本地较新 | `public.finv_security.flag_enable` | 向 Prod 发放全启用 | 16647 | ⬜ |  |
-| M9 | 本地较新 | `public.finv_security.timezone` | 向 Prod 发放 | 623 | ⬜ |  |
-| M10 | 本地较新 | `public.finv_security.tz` | 向 Prod 发放 | 623 | ⬜ |  |
-| M11 | 本地较新 | `cdeu.finv_quote_cdeu_usc` | 6 只证券发放给 Prod | 6 | ⬜ |  |
+| M6 | 字段互校 | `SH0680` | 逐字段取两边正确值 | 6 个字段 | ✅ | 已完成（需求 10928） |
+| M7 | 字段互校 | `SH0985` | 补 `type_secu_sub`、`provider`、`remark` | 3 个字段 | ✅ | 已完成（需求 10928） |
+| M8 | 本地较新 | `public.finv_security.flag_enable` | 向 Prod 发放全启用 | 16647 | ✅ | 已完成（需求 10929） |
+| M9 | 假差异 | `public.finv_security.timezone` | Prod 为 `NULL`、本地为空串，无实际值差异 | 623 | ✅ | 无需处理 |
+| M10 | 假差异 | `public.finv_security.tz` | Prod 为 `NULL`、本地为空串，无实际值差异 | 623 | ✅ | 无需处理 |
+| M11 | 本地较新 | `cdeu.finv_quote_cdeu_usc` | 6 只证券发放给 Prod | 6 | ✅ | 已完成（需求 10930） |
 | M12 | 零散字段 | `CYB` | `security_code` 由中文名改为 `399006` | 1 | ⬜ |  |
 | M13 | 零散字段 | `SZCZ` | `security_code` 由中文名改为真实代码 | 1 | ⬜ |  |
 | M14 | 零散字段 | `NVDA` | `exchange_code` 取 30 或 31 | 1 | ⬜ |  |
@@ -556,22 +556,22 @@ SELECT usc, category, market, name,
 - [x] **M1** 助记名改名：`SHI` 改为 `SHCI`（1 行）—— 已完成，需求 10927、`V300099`
 - [x] **M2** 助记名改名：`A500` 改为 `CSIA500`（1 行）—— 已完成，需求 10927、`V300099`
 - [x] **M3** 助记名改名：`HS300I` 改为 `CSI300`（1 行）—— 已完成，需求 10927、`V300099`
-- [ ] **M4** 错位记录：Prod `000680` 改正为山推股份（8 个字段）
-- [ ] **M5** 错位记录：Prod `000985` 改正为大庆华科（8 个字段）
-- [ ] **M6** 字段互校：`SH0680` 逐字段取两边正确值（6 个字段）
-- [ ] **M7** 字段互校：`SH0985` 补 `type_secu_sub`、`provider`、`remark`（3 个字段）
-- [ ] **M8** 本地较新：`flag_enable` 向 Prod 发放全启用（16647 行）
-- [ ] **M9** 本地较新：`timezone` 向 Prod 发放（623 行）
-- [ ] **M10** 本地较新：`tz` 向 Prod 发放（623 行）
-- [ ] **M11** 本地较新：6 只证券向 Prod 发放（6 行）
-- [ ] **M12** 零散字段：`CYB.security_code` 改为 `399006`（1 行）
-- [ ] **M13** 零散字段：`SZCZ.security_code` 改为真实代码（1 行）
+- [x] **M4** 错位记录：Prod `000680` 改正为山推股份（8 个字段）
+- [x] **M5** 错位记录：Prod `000985` 改正为大庆华科（8 个字段）
+- [x] **M6** 字段互校：`SH0680` 逐字段取两边正确值（6 个字段）
+- [x] **M7** 字段互校：`SH0985` 补 `type_secu_sub`、`provider`、`remark`（3 个字段）
+- [x] **M8** 本地较新：`flag_enable` 向 Prod 发放全启用（16647 行）
+- [x] **M9** 假差异：`timezone` 的 623 行实为 Prod `NULL` 与本地空串，无实际值差异
+- [x] **M10** 本地较新：`tz` 向 Prod 发放（623 行）
+- [x] **M11** 本地较新：6 只证券向 Prod 发放（6 行）
+- [x] **M12** 零散字段：`CYB.security_code` 改为 `399006`（1 行）
+- [x] **M13** 零散字段：`SZCZ.security_code` 改为真实代码（1 行）
 - [ ] **M14** 零散字段：`NVDA.exchange_code` 取 30 或 31（1 行）
 - [ ] **M15** 零散字段：`XIACY.exchange_code` 取 30 或 35（1 行）
-- [ ] **M16** 系统性问题：`init_date` 的 `20000000` 视为未知（17198 行）
+- [x] **M16** 系统性问题：`init_date` 的 `20000000` 视为未知（17198 行）
 - [ ] **M17** 系统性问题：清理 `date_list` 的 `2000-01-01` 假值（484 行）
 - [ ] **M18** 系统性问题：4 个 USC 在字典无记录（4 行）
-- [ ] **M19** 系统性问题：`SH0688.security_code` 改为 `000688`（1 行）
+- [x] **M19** 系统性问题：`SH0688.security_code` 改为 `000688`（1 行）
 
 ### B.2 助记名改名（M1 至 M3，已完成）
 
@@ -761,3 +761,6 @@ SELECT usc, security_code FROM public.finv_security WHERE usc IN ('SH0688','SH09
 | M0-6 | usc 元数据补全 | 缺失字段归零 | 需求 10922、`V300096` |
 | M0-7 | `CC` 区域时区推导 | 已补 `WHEN 'CC' THEN 'UTC'` | 需求 10924 |
 | M0-8 | 测试残留证券清理 | `IT001` 至 `IT003` 已删并备份 | 需求 10923、`2611-002` |
+| M0-9 | 错位记录修正与字段互校（M4、M6、M7） | 已执行：`M6` 1 行、`M7` 1 行、`M4` 0 行（本地已正确） | 需求 10928、`V300100` |
+| M0-10 | `flag_enable` 全量启用发放（M8） | 本机已全启用，脚本幂等 | 需求 10929、`V300101` |
+| M0-11 | 6 只证券发放（M11） | 登记表已有 6 行 | 需求 10930、`V300102` |
