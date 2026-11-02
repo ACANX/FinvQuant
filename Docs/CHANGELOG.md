@@ -33,6 +33,12 @@
   - 上游模块未被 sum.golang.org 收录，首次 `go get` 需 `GOSUMDB=off`；`go.sum` 已落定，CI 无需额外配置。
   - 验证：`go build ./...`、`go vet ./internal/meta/...` 退出码 0；`go test ./internal/meta/finv/quote/cdeu/` 除既有 Windows 平台用例 `TestDirUploader` 外通过；真实接口实测 `GCMain` 12819 根、二次同步 0 新增／12819 更新。
 
+- **依赖上游 MetaExt 升级到 v0.1.1（需求 10955）**
+  - `go.mod` 的 `github.com/acnxo/MetaExt` 由 `v0.1.0` 升至 `v0.1.1`，`go.sum` 同步替换两行（`go mod tidy` 未改动其它条目）。
+  - 上游 v0.1.1 未改动本仓库依赖的 `component/quote/moomoo/quoteapiv2`，变更集中在新增 `base/version`（版本号由 `VERSION` 声明）、新增 `component/quote/sina/finance/cnatradecalendar`（原 `sdk/sina/tradecalendar` 移除）与文档/CI 扩充；模块仍零第三方依赖，本仓库代码、对外 HTTP 接口与落库行为零改动。
+  - 验证：`go list -m github.com/acnxo/MetaExt` 输出 `v0.1.1`；`go build ./...`、`go vet ./...` 退出码 0；`go test ./internal/meta/...` 除既有 Windows 平台用例 `TestDirUploader` 外通过；真实接口实测（2026-11-03）`GCMain` 返回 12819 根日K（19750102~20261102），签名与解析链路正常。
+  - 环境备注：本机 WSL 内无 Go，构建使用 `D:\Dev\Go\SDK\Go1.25.5\bin\go.exe`；该模块仍未被 sum.golang.org 收录，跨调 Windows 进程需带 `WSLENV=GOSUMDB GOSUMDB=off`。
+
 ### 修复
 
 - **部署侧迁移号段混存与迁移错误定位（需求 10881 收尾）**
