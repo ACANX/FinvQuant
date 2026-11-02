@@ -834,7 +834,11 @@ SELECT jsr.step_id, jsr.status, jsr.attempt, jsr.started_at, jsr.finished_at,
 			phase.TotalCount > 0 && phase.SuccessCount == phase.TotalCount {
 			phase.Status = CDEUStatusSuccess
 		}
-		deriveCDEURunning(phase)
+		if !blocked {
+			// 需求 10941：前置阶段未成功时不做运行中派生，避免历史脏数据（早先被
+			// TouchCDEUHierarchy 写入的 started_at）让后续阶段显示成「执行中」。
+			deriveCDEURunning(phase)
+		}
 		if phase.Status != CDEUStatusSuccess {
 			blocked = true
 		}

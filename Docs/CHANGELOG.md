@@ -287,6 +287,16 @@
 
 ### 修复
 
+- **CDEU 阶段顺序门禁补全：未完成前置时不得推进后续阶段（需求 10941）**
+  - 现象：月度行情上传还在执行，归档复核阶段却显示「成功」或「已跳过」，且每次运维 JOB 跑一次就被改写一次。
+  - 根因：**三条写入路径都没有校验前置阶段**——① `TouchCDEUHierarchy` 无条件把阶段置 RUNNING；② `EvaluateCDEUPhase` 门禁命中时仍写 PENDING/SKIPPED；③ `SeedCDEUProcessRuns` 在「子流程全部 SUCCESS/SKIPPED」时批量把阶段标 SKIPPED。而归档复核阶段下的清理 JOB 都是独立定时任务，不等月度上传完成就执行。
+  - 修复：三处统一加前置门禁。清理 JOB 本身照常执行，只是不再推进工作流阶段状态。
+  - 展示层同步（承接需求 10940）：前置未成功时不派生 RUNNING。
+  - 修正 run 86 的历史脏状态（`PHASE_REVIEW` 由 SKIPPED 改回 PENDING）。
+  - 验证：连续触发两次 `CHECK_EXPORT_JOB_HEALTH` 后，`PHASE_UPLOAD=RUNNING`、`PHASE_REVIEW=PENDING` 保持不变。
+
+### 修复
+
 - **CDEU 工作流阶段状态顺序倒挂（需求 10940）**
   - 现象：`PHASE_UPLOAD`（月度行情上传）还在执行中，`PHASE_REVIEW`（归档复核）却显示「成功」。
   - 根因：`attachCDEURun` 末尾把 PENDING 阶段在「子流程全部成功」时无条件回填为 SUCCESS。归档复核阶段的子流程是 `RECOVER_TIMEOUT_EXPORT_JOBS`、`PURGE_*`、`CLEAN_EXPORT_STORAGE` 这类日级 JOB，由调度器独立触发，不等月度上传完成就全跑完了，于是被回填成成功。

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -375,7 +376,21 @@ UPDATE cdeu.finv_quote_cdeu_phase_run phr
  WHERE phr.phase_run_id = sub.phase_run_id
    AND phr.status = 'PENDING'
    AND sub.total > 0
-   AND sub.total = sub.done`, runID)
+   AND sub.total = sub.done
+   -- 需求 10941：前序阶段还没完成时不得把本阶段标为已跳过。
+   -- 归档复核阶段的子流程全是独立定时的清理 JOB，会在月度上传未完成时就全部成功，
+   -- 若无此门禁，每轮运维 JOB 触发都会把该阶段从 PENDING 改成 SKIPPED。
+   AND NOT EXISTS (
+       SELECT 1
+         FROM cdeu.finv_quote_cdeu_phase ph2
+         JOIN cdeu.finv_quote_cdeu_phase_run pr2
+           ON pr2.workflow_run_id = $1 AND pr2.phase_id = ph2.phase_id
+        WHERE ph2.workflow_id = phr.workflow_id
+          AND ph2.enabled
+          AND ph2.affects_completion
+          AND ph2.seq_no < phr.seq_no
+          AND pr2.status NOT IN ('SUCCESS', 'SKIPPED')
+   )`, runID)
 	return err
 }
 
@@ -548,7 +563,26 @@ UPDATE cdeu.finv_quote_cdeu_job_step_run
 }
 
 // TouchCDEUHierarchy 把工作流/阶段/Process 置为 RUNNING（不覆盖已终态）。
+//
+// 阶段顺序门禁（需求 10941）：若本阶段的前序阶段（affects_completion=true 且
+// seq_no 更小）尚未成功，则**不推进阶段状态**。归档复核这类阶段下的 JOB 都是
+// 独立定时的清理任务（超时回收、PURGE、STORAGE_CLEAN、RETENTION），它们不等
+// 月度上传完成就会开跑；若无条件 Touch，就会出现「上传执行中、归档复核已开始」
+// 的顺序倒挂——清理照常执行，但不再污染工作流阶段语义。
 func (s *Store) TouchCDEUHierarchy(ctx context.Context, runID, phaseID, phaseRunID, processID int64) error {
+	var workflowID int64
+	var seqNo int
+	if err := s.pool.QueryRow(ctx, `
+SELECT workflow_id, seq_no FROM cdeu.finv_quote_cdeu_phase WHERE phase_id = $1`, phaseID).
+		Scan(&workflowID, &seqNo); err != nil {
+		return err
+	}
+	if prev, blocked, err := s.cdeuPhasePredecessorState(ctx, runID, workflowID, seqNo); err != nil {
+		return err
+	} else if blocked {
+		log.Printf("[cdeu] 阶段 %d 的前序阶段仍为 %s，跳过层级状态推进（run_id=%d）", phaseID, prev, runID)
+		return nil
+	}
 	// 允许从终态 SUCCESS/SKIPPED 回退为 RUNNING：
 	// 子级从定义表取之后，已完成父级仍可能被拉到 RUNNING（例如同一 JOB 的后续阶段在当前
 	// Process 下继续执行）。仍不允许覆盖 FAILED/PARTIAL/CANCELLED，保留失败语义。
@@ -1085,6 +1119,13 @@ SELECT pr.status, pr.completion_rule_snapshot::text, pr.workflow_run_id, pr.phas
 	if prevStatus, blocked, gateErr := s.cdeuPhasePredecessorState(ctx, runID, workflowID, seqNo); gateErr != nil {
 		return gateErr
 	} else if blocked {
+		// 需求 10941：前序阶段**还没轮到**（PENDING/READY/RUNNING）时直接返回，状态一律不动。
+		// 早期实现会把本阶段写成 PENDING / SKIPPED，配合归档复核阶段那批独立定时的清理
+		// JOB 评估，就会出现「上传执行中、归档复核成功或已跳过」的顺序倒挂。
+		switch prevStatus {
+		case CDEUStatusPending, CDEUStatusReady, CDEUStatusRunning:
+			return nil
+		}
 		next := CDEUStatusPending
 		switch prevStatus {
 		case CDEUStatusFailed, CDEUStatusPartial, CDEUStatusCancelled:
