@@ -2,13 +2,13 @@
 
 > 编号：**202611-0001**　文档约定见 [README.md](README.md)
 >
-> 状态：**待评审**（未实施）
+> 状态：**待评审**（附录 B 的 M4 至 M19 待逐项确认；M1 至 M3 已完成，见 B.2）
 >
 > 依据数据：`D:\Code\GoCode\FinvQuantDesign\Data\Prod`（Prod 库 2026-11-02 快照，`pg_dump` custom 格式，6 张表）
 >
 > 对账对象：本机 LocalDocker 环境（`fq-postgres`，库 `finv`）
 >
-> 关联需求：10920、10921、10922、10923、10925（`finv_quote_cdeu_usc` 行序与元数据治理）
+> 关联需求：10920、10921、10922、10923、10925、10926、10927（`finv_quote_cdeu_usc` 行序与元数据治理、助记名规范）
 
 ## 1. 问题陈述
 
@@ -513,3 +513,251 @@ SELECT usc, category, market, name,
 - 清单 E 的双形态数据暂不动；存量从 6 位形态转换到 4 位形态需要改主表行情 `usc` 并重刷归档，另行评估。
 - 旧形态（`SH000680`、`SH000688`、`SH000888` 等）在存量转换完成前继续保留，转换后统一移除。
 - 新发现同类组合时，直接追加到本附录对应小节，并在提案 P3-2 批次一并处理。
+## 附录 B：待确认修改清单
+
+> 用途：逐项手动确认。每项给出对象、现状、拟改、影响行数与核对命令，确认后即可独立交付。
+>
+> 现状数据取自 2026-11-02 LocalDocker 库与 Prod 快照；已完成的项标注结果，不再重复确认。
+>
+> 用法：勾选即批准执行，不勾选即不执行。
+>
+> 表格里的 `⬜` 与 `✅` 是**字符标记**，用于一眼看出进度，不能点击；需要点击勾选时用 B.1.1 的任务列表，`[ ]` 与 `[x]` 在 GitHub、VS Code 预览中会渲染成可点击复选框。Markdown 的复选框语法只在列表项中生效，写进表格单元格只会显示成方括号文本，因此表格用 emoji 表意、列表负责点击。
+>
+> `备注` 栏用于填写条件、取值依据、分批方式等批注，可直接修改。
+
+### B.1 汇总
+
+| 编号 | 类别 | 对象 | 拟改 | 影响行数 | 确认 | 备注 |
+|------|------|------|------|----------|:----:|------|
+| M1 | 助记名改名 | `public.finv_security.usc` | `SHI` 改为 `SHCI` | 1 | ✅ | 已完成 |
+| M2 | 助记名改名 | `public.finv_security.usc` | `A500` 改为 `CSIA500` | 1 | ✅ | 已完成 |
+| M3 | 助记名改名 | `public.finv_security.usc` | `HS300I` 改为 `CSI300` | 1 | ✅ | 已完成 |
+| M4 | 错位记录 | Prod `000680` | 改正为山推股份 | 8 个字段 | ⬜ |  |
+| M5 | 错位记录 | Prod `000985` | 改正为大庆华科 | 8 个字段 | ⬜ |  |
+| M6 | 字段互校 | `SH0680` | 逐字段取两边正确值 | 6 个字段 | ⬜ |  |
+| M7 | 字段互校 | `SH0985` | 补 `type_secu_sub`、`provider`、`remark` | 3 个字段 | ⬜ |  |
+| M8 | 本地较新 | `public.finv_security.flag_enable` | 向 Prod 发放全启用 | 16647 | ⬜ |  |
+| M9 | 本地较新 | `public.finv_security.timezone` | 向 Prod 发放 | 623 | ⬜ |  |
+| M10 | 本地较新 | `public.finv_security.tz` | 向 Prod 发放 | 623 | ⬜ |  |
+| M11 | 本地较新 | `cdeu.finv_quote_cdeu_usc` | 6 只证券发放给 Prod | 6 | ⬜ |  |
+| M12 | 零散字段 | `CYB` | `security_code` 由中文名改为 `399006` | 1 | ⬜ |  |
+| M13 | 零散字段 | `SZCZ` | `security_code` 由中文名改为真实代码 | 1 | ⬜ |  |
+| M14 | 零散字段 | `NVDA` | `exchange_code` 取 30 或 31 | 1 | ⬜ |  |
+| M15 | 零散字段 | `XIACY` | `exchange_code` 取 30 或 35 | 1 | ⬜ |  |
+| M16 | 系统性问题 | `public.finv_security.init_date` | `20000000` 视为未知 | 17198 | ⬜ |  |
+| M17 | 系统性问题 | `cdeu.finv_quote_cdeu_usc.date_list` | 清理 `2000-01-01` 假值 | 484 | ⬜ |  |
+| M18 | 系统性问题 | `cdeu.finv_quote_cdeu_usc` | 4 个 USC 在字典无记录 | 4 | ⬜ |  |
+| M19 | 系统性问题 | `SH0688` | `security_code` 由 `SH0688` 改为 `000688` | 1 | ⬜ |  |
+
+### B.1.1 勾选确认
+
+勾选即批准，未勾选即不执行。备注直接写在条目后面。此处的勾选会同步反映到 B.1 表格的 `确认` 列（人工改成 `✅` 即可）。
+
+- [x] **M1** 助记名改名：`SHI` 改为 `SHCI`（1 行）—— 已完成，需求 10927、`V300099`
+- [x] **M2** 助记名改名：`A500` 改为 `CSIA500`（1 行）—— 已完成，需求 10927、`V300099`
+- [x] **M3** 助记名改名：`HS300I` 改为 `CSI300`（1 行）—— 已完成，需求 10927、`V300099`
+- [ ] **M4** 错位记录：Prod `000680` 改正为山推股份（8 个字段）
+- [ ] **M5** 错位记录：Prod `000985` 改正为大庆华科（8 个字段）
+- [ ] **M6** 字段互校：`SH0680` 逐字段取两边正确值（6 个字段）
+- [ ] **M7** 字段互校：`SH0985` 补 `type_secu_sub`、`provider`、`remark`（3 个字段）
+- [ ] **M8** 本地较新：`flag_enable` 向 Prod 发放全启用（16647 行）
+- [ ] **M9** 本地较新：`timezone` 向 Prod 发放（623 行）
+- [ ] **M10** 本地较新：`tz` 向 Prod 发放（623 行）
+- [ ] **M11** 本地较新：6 只证券向 Prod 发放（6 行）
+- [ ] **M12** 零散字段：`CYB.security_code` 改为 `399006`（1 行）
+- [ ] **M13** 零散字段：`SZCZ.security_code` 改为真实代码（1 行）
+- [ ] **M14** 零散字段：`NVDA.exchange_code` 取 30 或 31（1 行）
+- [ ] **M15** 零散字段：`XIACY.exchange_code` 取 30 或 35（1 行）
+- [ ] **M16** 系统性问题：`init_date` 的 `20000000` 视为未知（17198 行）
+- [ ] **M17** 系统性问题：清理 `date_list` 的 `2000-01-01` 假值（484 行）
+- [ ] **M18** 系统性问题：4 个 USC 在字典无记录（4 行）
+- [ ] **M19** 系统性问题：`SH0688.security_code` 改为 `000688`（1 行）
+
+### B.2 助记名改名（M1 至 M3，已完成）
+
+三项都是 `public.finv_security` 主键改名，与 `KC50` 改为 `STAR50`（需求 10926、`V300098`）同一批规范，已于 2026-11-02 由 `V300099` 执行完毕（需求 10927）。
+
+| 编号 | 原 usc | 现 usc | `security_code` | `market_code` | 名称 | 状态 |
+|------|--------|--------|-----------------|---------------|------|------|
+| M1 | `SHI` | `SHCI` | `000001` | 1110 | 上证综指数 | 已完成 |
+| M2 | `A500` | `CSIA500` | `000510` | 1110 | 中证A500指数 | 已完成 |
+| M3 | `HS300I` | `CSI300` | `000300` | 1110 | 沪深300指数 | 已完成 |
+
+核对命令：
+
+```sql
+SELECT usc, security_code, market_code, security_type, security_name_cn
+  FROM public.finv_security WHERE usc IN ('SHCI','CSIA500','CSI300') ORDER BY usc;
+-- 应为 3 行，旧 usc 已不存在
+SELECT count(*) FROM public.finv_security WHERE usc IN ('SHI','A500','HS300I');
+-- 应为 0
+```
+
+### B.3 错位记录修正（M4 至 M5）
+
+Prod 上这两条记录的 `usc` 与内容不匹配，本地是正确的，属于 2026-10-30 一次批量导入的错位（`remark` 均为「20261030-SupabasePG-finv_quote_collect_futu_view批量导入」）。
+
+M4：Prod `000680` 现值与本地 `000680` 现值对比
+
+| 字段 | Prod 现值 | 本地现值（拟采用） |
+|------|-----------|--------------------|
+| `exchange_code` | 11 | 12 |
+| `security_type` | StockIndex | Stock |
+| `security_name` | `SSE Science and Technology Innovation Board Composite Index` | 山推股份 |
+| `security_name_cn` | 科创综指 | 山推股份 |
+| `security_name_full` | 科创综指 | 山推股份 |
+| `type_secu_sub` | 空 | `Stock.SZ` |
+| `provider` | 空 | `FTMM` |
+| `remark` | 空 | 20261030 批量导入 |
+
+M5：Prod `000985` 现值与本地 `000985` 现值对比
+
+| 字段 | Prod 现值 | 本地现值（拟采用） |
+|------|-----------|--------------------|
+| `exchange_code` | 11 | 12 |
+| `security_type` | StockIndex | Stock |
+| `security_name` | 中证全指 | 大庆华科 |
+| `security_name_cn` | 中证全指 | 大庆华科 |
+| `security_name_full` | 中证全指 | 大庆华科 |
+| `type_secu_sub` | 空 | `Stock.SZ` |
+| `provider` | 空 | `FTMM` |
+| `remark` | 空 | 20261030 批量导入 |
+
+核对命令：
+
+```sql
+-- 本地取值（拟作为 Prod 的修正来源）
+SELECT usc, exchange_code, security_type, security_name, security_name_cn,
+       security_name_full, type_secu_sub, provider, remark
+  FROM public.finv_security WHERE usc IN ('000680','000985');
+-- 确认这两只指数的正确 usc：科创综指为 SH0680，中证全指为 SH0985
+SELECT usc, security_code, market_code, security_name_cn
+  FROM public.finv_security WHERE usc IN ('SH0680','SH0985');
+```
+
+### B.4 字段互校（M6 至 M7）
+
+这两行两边各有正确字段，需要逐字段取长补短，不能整行覆盖。
+
+M6：`SH0680`（科创综指）
+
+| 字段 | Prod 值 | 本地值 | 拟采用 | 依据 |
+|------|---------|--------|--------|------|
+| `security_code` | `SH0680` | `000680` | 本地 | 证券代码应为纯数字 |
+| `market_code` | 1110 | 1112 | 本地 | 科创综指属上交所科创板 |
+| `security_name` | 科创综指 | `SSE Science and Technology Innovation Board Composite Index` | Prod | 主名称用中文 |
+| `type_secu_sub` | `StockIndex.SH` | 空 | Prod | 本地缺 |
+| `provider` | `FTMM` | 空 | Prod | 本地缺 |
+| `remark` | 20261030 批量导入 | 空 | Prod | 本地缺 |
+
+M7：`SH0985`（中证全指）
+
+| 字段 | Prod 值 | 本地值 | 拟采用 | 依据 |
+|------|---------|--------|--------|------|
+| `type_secu_sub` | `StockIndex.SH` | 空 | Prod | 本地缺 |
+| `provider` | `FTMM` | 空 | Prod | 本地缺 |
+| `remark` | 20261030 批量导入 | 空 | Prod | 本地缺 |
+
+核对命令：
+
+```sql
+SELECT usc, security_code, market_code, security_name, security_name_cn,
+       type_secu_sub, provider, remark
+  FROM public.finv_security WHERE usc IN ('SH0680','SH0985');
+```
+
+### B.5 本地较新项向 Prod 发放（M8 至 M11）
+
+| 编号 | 字段 | 差异形态 | 行数 | 前置条件 |
+|------|------|----------|------|----------|
+| M8 | `flag_enable` | Prod 为 `0`，本地为 `1` | 16647 | 按 `region` 分批，每批 1000 行 |
+| M9 | `timezone` | 值不同 | 623 | 必须先按 §7.1 用历史行情复核 |
+| M10 | `tz` | 值不同 | 623 | 与 M9 同批执行，保持两列一致 |
+| M11 | 6 只证券 | Prod 无、本地有 | 6 | 本地 `flag_auto_discover` 均为 `t`，来源可自证 |
+
+M11 明细：
+
+| usc | `category` | `region` | `market` | `name` | `currency` | `day_expect_rows` | 主表行情行数 |
+|-----|------------|----------|----------|--------|------------|-------------------|--------------|
+| `AMAT` | Stock | US | NSDQ | Applied Materials, Inc. | USD | 390 | 390 |
+| `MRVL` | Stock | US | NSDQ | Marvell Technology, Inc. | USD | 390 | 390 |
+| `NOW` | Stock | US | NYSE | ServiceNow, Inc. | USD | 390 | 390 |
+| `PLTR` | Stock | US | NSDQ | Palantir Technologies Inc. | USD | 390 | 390 |
+| `SMCI` | Stock | US | NSDQ | Super Micro Computer, Inc. | USD | 390 | 390 |
+| `XRP` | Crypto | CC | FTC | XRP | USD | 1440 | 1019 |
+
+M8 核对命令：
+
+```sql
+-- LocalDocker 的启用分布
+SELECT flag_enable, count(*) FROM public.finv_security GROUP BY 1;
+-- 按 region 分批的行数预估
+SELECT e.region, count(*) FROM public.finv_security s
+  JOIN public.finv_exchange e ON e.exchange_code = s.exchange_code
+ GROUP BY e.region ORDER BY 2 DESC;
+```
+
+M9 核对命令（按 §7.1）：
+
+```sql
+SELECT usc, date, time, ts,
+       to_char(to_timestamp(ts) AT TIME ZONE 'Asia/Shanghai', 'YYYYMMDD HH24MISS') AS local_ts
+  FROM cdeu.finv_quote_secu_kline_min
+ WHERE usc = '000001' AND date = 20261023 LIMIT 5;
+```
+
+### B.6 零散字段（M12 至 M15）
+
+| 编号 | 对象 | Prod 值 | 本地值 | 问题 | 拟改 |
+|------|------|---------|--------|------|------|
+| M12 | `CYB.security_code` | 创业板指数 | `CYB` | 两边都不是真实代码，创业板指应为 `399006` | 统一为 `399006` |
+| M13 | `SZCZ.security_code` | 深证成交指数 | `SZCZ` | 两边都不是真实代码 | 待给出真实代码后统一 |
+| M14 | `NVDA.exchange_code` | 30 | 31 | 美股交易所编码不一致 | 需确认真实值后统一 |
+| M15 | `XIACY.exchange_code` | 30 | 35 | 美股 ADR 交易所编码不一致 | 需确认真实值后统一 |
+
+核对命令：
+
+```sql
+SELECT usc, security_code, exchange_code, market_code, security_name_cn
+  FROM public.finv_security WHERE usc IN ('CYB','SZCZ','NVDA','XIACY');
+-- 交易所编码对照
+SELECT exchange_code, exchange_name, region FROM public.finv_exchange
+ WHERE exchange_code IN ('30','31','35');
+```
+
+### B.7 系统性问题（M16 至 M19）
+
+| 编号 | 对象 | 现状 | 影响 | 拟改 |
+|------|------|------|------|------|
+| M16 | `public.finv_security.init_date` | `20000000`（2000 年 00 月 00 日，无效日期），17198 行 | 按 `init_date` 派生的 `date_list` 全部变成 `2000-01-01` 假值 | 视为未知，统一置 `NULL`；是否改用主表最早交易日另行决定 |
+| M17 | `cdeu.finv_quote_cdeu_usc.date_list` | `2000-01-01` 共 484 行 | 页面上显示的上市日期是假的 | 随 M16 处理，改为 `NULL` 或按主表最早交易日回填 |
+| M18 | `cdeu.finv_quote_cdeu_usc` | `SH000680`、`SH000688`、`SH000888`、`899050` 在 `public.finv_security` 查不到 | 无法回填时区、币种、上市日期，只能靠推导 | 在字典补建 4 条记录，或确认走推导兜底 |
+| M19 | `SH0688.security_code` | 填成 `SH0688`，应为 `000688` | 按证券代码检索查不到 | 改为 `000688` |
+
+核对命令：
+
+```sql
+-- M16
+SELECT count(*) FROM public.finv_security WHERE init_date = 20000000;
+-- M17
+SELECT count(*) FROM cdeu.finv_quote_cdeu_usc WHERE date_list = '2000-01-01';
+-- M18
+SELECT u.usc FROM cdeu.finv_quote_cdeu_usc u
+  LEFT JOIN public.finv_security s ON s.usc = u.usc
+ WHERE s.usc IS NULL AND u.region = 'CN';
+-- M19
+SELECT usc, security_code FROM public.finv_security WHERE usc IN ('SH0688','SH0985','SH0680');
+```
+
+### B.8 已完成项（不需再确认）
+
+| 编号 | 内容 | 结果 | 交付 |
+|------|------|------|------|
+| M0-1 | `KC50` 改名为 `STAR50` | 已执行，备份 1 行、改名 1 行 | 需求 10926、`V300098` |
+| M0-2 | `SHI` 改名为 `SHCI` | 已执行，备份 1 行、改名 1 行 | 需求 10927、`V300099` |
+| M0-3 | `A500` 改名为 `CSIA500` | 已执行，备份 1 行、改名 1 行 | 需求 10927、`V300099` |
+| M0-4 | `HS300I` 改名为 `CSI300` | 已执行，备份 1 行、改名 1 行 | 需求 10927、`V300099` |
+| M0-5 | `date_list` 补全 | `date_list IS NULL` 归零 | 需求 10925、`V300097` |
+| M0-6 | usc 元数据补全 | 缺失字段归零 | 需求 10922、`V300096` |
+| M0-7 | `CC` 区域时区推导 | 已补 `WHEN 'CC' THEN 'UTC'` | 需求 10924 |
+| M0-8 | 测试残留证券清理 | `IT001` 至 `IT003` 已删并备份 | 需求 10923、`2611-002` |
