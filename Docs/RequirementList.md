@@ -2676,6 +2676,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10933 | USC 补丁执行改为异步并展示逐批日志：新增 `UscPatchRunner`（内存状态 + 增量日志 + 单实例约束，模式同 `brs.Runner`）；`POST .../Usc/Patch/Run` 改为异步触发并立即返回 `running` 快照，新增 `GET .../Usc/Patch/Status?sinceSeq=` 返回状态与增量日志，已有实例运行时返回 HTTP 409；逐批日志包含可读时间区间、本批扫描行数、累计迁移/冲突/删除行数与本批耗时；前端页面按 BRS 手动备份的形态展示状态卡与日志框（1 秒轮询、自动滚动）；定时 JOB 执行前检查 runner 是否在跑，在跑则跳过。 | `POST .../Usc/Patch/Run` 返回 `code=0` 且 `data.status=running`；连续两次触发第二次返回 HTTP 409、`code=2009`；`GET .../Usc/Patch/Status` 返回 `logs` 数组且每批一行、`last_seq` 递增；插入 700 行测试行情并把 `batch_size` 设为 300 后执行，`Status` 日志出现 3 条批次记录（300/300/100 行）且结束行统计为 `3 批，扫描 700 行`；测试数据已清理（`SELECT count(*) FROM cdeu.finv_quote_secu_kline_min WHERE usc LIKE 'TEST.%'` = 0）；`go test ./internal/api -run TestExportArchiveRoutesRegistered` 通过 | √ |
 | 10934 | 修复全局轻提示（Toast）不自动消失、关闭按钮无效的问题：原实现依赖 `v-snackbar` 的 `timeout`，队列切换到下一条时组件不会重新起表，导致第二条及之后的提示永久停留（跨页面也一直显示）。改为**每条消息在 `showToast` 时独立计时**（`setTimeout` 到期调用 `dismissToast(id)`），`v-snackbar` 固定 `timeout=-1` 只负责展示，关闭按钮同样走 `dismissToast`。 | `grep -n 'setTimeout(() => dismissToast(id)' Web/src/ui/toast.ts` 命中 1 处；`grep -n '":timeout="-1"' Web/src/components/AppToast.vue` 命中 1 处；连续点击「启用」多次（页面 `/Meta/Finv/Quote/Cdeu/Usc/Patch` 或任一使用 showToast 的页面），每条提示均在 5 秒内自动消失；点提示右侧 × 立即消失且队列继续播放；`npx vue-tsc -b` 与 `npx vite build` 通过 | √ |
 | 10935 | USC 补丁启用前自动登记目标 usc：启用规则（`SetUscPatchRuleEnable(true)`）时把 `usc_new` 从 `usc_old` 复制登记到 `cdeu.finv_quote_cdeu_usc`（`ON CONFLICT DO NOTHING`，只补不覆盖），`PatchOutdatedUsc` 执行前再兜底同步一次并在日志输出「补齐目标 usc 登记 N 行」；一次性存量修正由迁移 `V300104` 完成，覆盖**全部规则**（含停用规则，便于将来启用时不出空档）。 | `SELECT count(*) FROM cdeu.finv_quote_cdeu_usc WHERE usc IN ('SH0888','SH0903','SH0922','SH0980')` = 4；执行 `V300104` 输出 `完成：旧 usc 已登记但目标 usc 未登记的数量 = 0`；调用 `POST .../Usc/Patch/Enable {idn:21,enable:true}` 后 `SELECT count(*) FROM cdeu.finv_quote_cdeu_usc WHERE usc='SH0888'` = 1；`SELECT version FROM public.schema_version ORDER BY version DESC LIMIT 1` = 300104 | √ |
+| 10936 | USC 补丁联动成熟度表：`PatchOutdatedUsc` 在主表迁移完成后，把 `cdeu.finv_quote_cdeu_quote_maturity_mon` 里旧 usc 的月度统计合并到新 usc（同一 `trade_date` 取 `actual_rows` 较大者，状态跟随较大者），并删除旧 usc 记录；删除前整行备份到 `archive.finv_quote_cdeu_quote_maturity_mon_purge_20261102`（迁移 `V300105` 建表，带 `src_schema`/`reason`/`backup_at`）。执行统计新增 `maturity_moved`、`maturity_deleted` 并在日志输出。 | `SELECT count(*) FROM cdeu.finv_quote_cdeu_quote_maturity_mon WHERE usc IN ('SH000888','SH000903','SH000922','SH000980') AND biz_month=202610` = 0；`SELECT usc, count(*) FROM cdeu.finv_quote_cdeu_quote_maturity_mon WHERE usc IN ('SH0888','SH0903','SH0922','SH0980') AND biz_month=202610 GROUP BY usc` 各 5 天、合计 1205 行；`SELECT count(*) FROM archive.finv_quote_cdeu_quote_maturity_mon_purge_20261102` = 120；`GET /API/V1/Meta/Finv/Quote/DeDup/Export/Stock/Page?bizMonth=202610` 的 items 中不再出现 `SH000888` 等 6 位旧形态 usc，且出现 `SH0888`、`SH0903`、`SH0922`、`SH0980`；`SELECT version FROM public.schema_version ORDER BY version DESC LIMIT 1` = 300105 | √ |
 
 
 ## 汇总
@@ -2919,7 +2920,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | CDEU「JOB 进度」标题去掉重复计数 | 10885 | 1 |
 | 「当日累计均价」字段名调整（待办） | 10886 | 1 |
 | CDEU 指标卡片顺序调整（运行时长移到最左） | 10887 | 1 |
-| **合计** | **10001–10935** | **934** |
+| **合计** | **10001–10936** | **935** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

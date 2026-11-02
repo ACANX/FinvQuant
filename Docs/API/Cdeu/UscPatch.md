@@ -81,6 +81,8 @@
 
 启用规则时（`Enable` 且 `enable=true`）后端会自动把目标 usc 登记到 `cdeu.finv_quote_cdeu_usc`（从旧 usc 复制元数据，只补不覆盖），执行时再兜底同步一次，避免「主表有行情、登记表没有」的空档。
 
+主表迁移完成后，同一轮执行会把 `cdeu.finv_quote_cdeu_quote_maturity_mon` 里旧 usc 的月度统计合并到新 usc（同一 `trade_date` 取实际行数较大者）并删除旧记录，删除前整行备份到 `archive.finv_quote_cdeu_quote_maturity_mon_purge_20261102`。这样「历史月份存量数据清点」页面不会再列出已迁移的旧 usc。
+
 ## 6. 手动执行
 
 `POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Run`
@@ -104,6 +106,8 @@
 | `conflict_rows` | 其中与目标 usc 冲突、按较新者胜覆盖的行数 |
 | `deleted_rows` | 删除的旧 usc 行数 |
 | `registered_rows` | 本轮为补丁目标 usc 补齐的登记行数（主表出现新 usc 但登记表没有时自动复制，需求 10935） |
+| `maturity_moved` | 本轮迁移到新 usc 的成熟度行数（需求 10936） |
+| `maturity_deleted` | 本轮删除的旧 usc 成熟度行数（需求 10936） |
 | `from_ts` | 处理区间下界 |
 | `to_ts` | 处理区间上界 |
 | `current_batch` | 当前批次的时间区间（可读格式） |

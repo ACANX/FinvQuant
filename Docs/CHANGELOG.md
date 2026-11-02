@@ -259,6 +259,14 @@
 
 ### 修复
 
+- **USC 补丁联动成熟度表（需求 10936）**
+  - 现象：主表 usc 迁移后，「历史月份存量数据清点」页面仍列出旧 usc（如 `SH000888`），因为该页面取「主表 ∪ 成熟度表」，成熟度表里旧 usc 的月度统计没跟着迁。
+  - 修复：`PatchOutdatedUsc` 在主表迁移完成后把旧 usc 的成熟度记录合并到新 usc（同一 `trade_date` 取 `actual_rows` 较大者，状态跟随），再删除旧记录；删除前整行备份到 `archive.finv_quote_cdeu_quote_maturity_mon_purge_20261102`（`V300105` 建表）。
+  - 执行统计新增 `maturity_moved`、`maturity_deleted`，日志输出迁移与删除行数。
+  - 实测：启用 `SH000888`、`SH000903`、`SH000922`、`SH000980` 四条规则后执行，主表迁移 4820 行、成熟度迁移 120 行并删除 120 行，备份 120 行；页面接口不再返回这 4 个旧 usc，改为返回 `SH0888`、`SH0903`、`SH0922`、`SH0980`。
+
+### 修复
+
 - **全局轻提示（Toast）不消失、关闭无效（需求 10934）**
   - 原实现把计时交给 `v-snackbar` 的 `timeout`，队列切到下一条时组件不会重新起表，第二条及之后的提示会永久停留，跨页面也一直显示。
   - 改为每条消息在 `showToast` 时用 `setTimeout` 独立计时，到期调用 `dismissToast`；`v-snackbar` 固定 `timeout=-1` 只负责展示，关闭按钮同样走 `dismissToast`。

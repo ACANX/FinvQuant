@@ -60,6 +60,11 @@ type UscPatchStats struct {
 
 	// RegisteredRows 本轮为补丁目标 usc 补齐的登记行数（需求 10935）。
 	RegisteredRows int64 `json:"registered_rows"`
+
+	// MaturityMoved 本轮迁移的成熟度行数（需求 10936）。
+	MaturityMoved int64 `json:"maturity_moved"`
+	// MaturityDeleted 本轮删除的旧 usc 成熟度行数（需求 10936）。
+	MaturityDeleted int64 `json:"maturity_deleted"`
 }
 
 // Enabled 判断规则是否生效。
@@ -381,5 +386,75 @@ SELECT (SELECT count(*) FROM src),
 		}
 		cursor = batchTo
 	}
+
+	// 主表迁移完成后同步成熟度表（需求 10936），否则「存量清点」页面仍显示旧 usc。
+	if moved, deleted, matErr := s.migratePatchMaturity(ctx); matErr == nil {
+		stats.MaturityMoved = moved
+		stats.MaturityDeleted = deleted
+	}
 	return stats, nil
+}
+
+// maturityPurgeArchive 成熟度表迁移前的备份表（DbSchemaSpec §0.7）。
+const maturityPurgeArchive = "archive.finv_quote_cdeu_quote_maturity_mon_purge_20261102"
+
+// migratePatchMaturity 把生效规则涉及的成熟度记录迁移到新 usc。
+//
+// 做法：先整行备份旧 usc 记录 → 按新 usc upsert（同一 trade_date 取实际行数较大者）
+// → 删除旧 usc 记录。返回迁移行数与删除行数。
+func (s *Store) migratePatchMaturity(ctx context.Context) (int64, int64, error) {
+	// 1. 备份
+	if _, err := s.pool.Exec(ctx, `
+INSERT INTO `+maturityPurgeArchive+`
+    (usc, trade_date, biz_month, expected_rows, actual_rows, maturity_status,
+     gmt_first_seen, gmt_last_arrival, gmt_seale, gmt_update, src_schema, reason)
+SELECT m.usc, m.trade_date, m.biz_month, m.expected_rows, m.actual_rows, m.maturity_status,
+       m.gmt_first_seen, m.gmt_last_arrival, m.gmt_seale, m.gmt_update,
+       'cdeu', '需求 10936：USC 补丁迁移成熟度记录'
+  FROM `+tableMaturity+` m
+  JOIN `+tableUscPatchRule+` p ON p.usc_old = m.usc AND p.flag_enable = '1'
+ON CONFLICT (usc, trade_date, src_schema) DO NOTHING`); err != nil {
+		return 0, 0, err
+	}
+
+	// 2. 合并到新 usc（同 trade_date 冲突时取实际行数较大者，状态跟随较大者）
+	var moved int64
+	rows, err := s.pool.Query(ctx, `
+INSERT INTO `+tableMaturity+`
+    (usc, trade_date, biz_month, expected_rows, actual_rows, maturity_status,
+     gmt_first_seen, gmt_last_arrival, gmt_seale, gmt_update)
+SELECT p.usc_new, m.trade_date, m.biz_month, m.expected_rows, m.actual_rows, m.maturity_status,
+       m.gmt_first_seen, m.gmt_last_arrival, m.gmt_seale, now()
+  FROM `+tableMaturity+` m
+  JOIN `+tableUscPatchRule+` p ON p.usc_old = m.usc AND p.flag_enable = '1'
+    ON CONFLICT (usc, trade_date) DO UPDATE
+   SET actual_rows     = GREATEST(`+tableMaturity+`.actual_rows, EXCLUDED.actual_rows),
+       expected_rows   = GREATEST(`+tableMaturity+`.expected_rows, EXCLUDED.expected_rows),
+       maturity_status = CASE WHEN EXCLUDED.actual_rows > `+tableMaturity+`.actual_rows
+                              THEN EXCLUDED.maturity_status
+                              ELSE `+tableMaturity+`.maturity_status END,
+       gmt_last_arrival = GREATEST(COALESCE(`+tableMaturity+`.gmt_last_arrival, to_timestamp(0)),
+                                   COALESCE(EXCLUDED.gmt_last_arrival, to_timestamp(0))),
+       gmt_update = now()
+    RETURNING 1`)
+	if err != nil {
+		return 0, 0, err
+	}
+	for rows.Next() {
+		moved++
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, 0, err
+	}
+
+	// 3. 删除旧 usc 记录
+	tag, err := s.pool.Exec(ctx, `
+DELETE FROM `+tableMaturity+` m
+ USING `+tableUscPatchRule+` p
+ WHERE m.usc = p.usc_old AND p.flag_enable = '1'`)
+	if err != nil {
+		return moved, 0, err
+	}
+	return moved, tag.RowsAffected(), nil
 }

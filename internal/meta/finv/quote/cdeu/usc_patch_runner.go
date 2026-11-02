@@ -190,6 +190,10 @@ func (r *UscPatchRunner) run(ctx context.Context, triggerType string, batchSize 
 		r.appendLog("error", fmt.Sprintf("运行结束（失败）：%v", err))
 		return
 	}
+	if stats.MaturityMoved > 0 || stats.MaturityDeleted > 0 {
+		r.appendLog("info", fmt.Sprintf("成熟度记录迁移 %d 行、删除旧 usc 记录 %d 行",
+			stats.MaturityMoved, stats.MaturityDeleted))
+	}
 	if stats.RegisteredRows > 0 {
 		r.appendLog("info", fmt.Sprintf("补齐目标 usc 登记 %d 行", stats.RegisteredRows))
 	}
