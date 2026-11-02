@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	jobdef "github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/jobmeta"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/moomoo"
 	"github.com/acanx/finvquant/internal/meta/finv/sys"
 )
 
@@ -65,6 +66,9 @@ type Service struct {
 
 	// 低峰窗口统一从 sys.sys_config 20006 读取（syscfg.Store 自带 30s TTL 缓存），
 	// 不再在内存里单独缓存，避免与数据库配置双写不一致。
+
+	// klineFetcher 日K拉取实现（默认 moomoo 客户端；单测可通过 SetKlineFetcher 注入）。
+	klineFetcher KlineFetcher
 }
 
 // NewService 创建归档服务。
@@ -85,11 +89,12 @@ func NewService(pool *pgxpool.Pool, options Options) (*Service, error) {
 		cfgStore = syscfg.NewStore(pool)
 	}
 	return &Service{
-		store:    NewStore(pool),
-		uploader: uploader,
-		options:  options,
-		cfg:      cfgStore,
-		running:  map[string]time.Time{},
+		store:        NewStore(pool),
+		uploader:     uploader,
+		options:      options,
+		cfg:          cfgStore,
+		running:      map[string]time.Time{},
+		klineFetcher: moomoo.New(moomoo.Config{}),
 	}, nil
 }
 
