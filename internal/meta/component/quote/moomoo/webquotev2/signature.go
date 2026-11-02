@@ -1,8 +1,8 @@
-// Package quotev2web 封装 moomoo（富途）网页行情接口 /quote-api/quote-v2/*。
+// Package webquotev2 封装 moomoo（富途）网页行情接口 /quote-api/quote-v2/*。
 //
 // 协议口径见 Docs（厂商文档）：1108-Kline.md 与 MoomooQuoteV2WebSignature.md。
 // 本包只做「协议 → 统一结构」的转换，不碰数据库；落库由调用方（cdeu 侧）负责。
-package quotev2web
+package webquotev2
 
 import (
 	"crypto/hmac"

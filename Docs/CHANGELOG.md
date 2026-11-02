@@ -99,7 +99,7 @@
 
 - **moomoo 日K公共抓取工具 + cdeu 日K同步方法（需求 10951）**
   - 背景：后续要在 cdeu 菜单里选 usc 拉日K并落库，先把「取数」和「落库」拆成可复用能力。
-  - 新包 `internal/meta/component/quote/moomoo/quotev2web`：`Sign`/`SignParams`/`SignInput`/`SignedQuery` 复现 `quote-token`（HMAC-SHA512 → hex 前 10 → SHA-256 → hex 前 10，密钥 `quote_web`，空输入降级 `quote`），`Client.Kline` 调 `GET /quote-api/quote-v2/get-kline`，响应字段用 `flexNum` 兼容「字符串/数字」混用，`-403` 用 `ErrTokenRejected` 识别。
+  - 新包 `internal/meta/component/quote/moomoo/webquotev2`：`Sign`/`SignParams`/`SignInput`/`SignedQuery` 复现 `quote-token`（HMAC-SHA512 → hex 前 10 → SHA-256 → hex 前 10，密钥 `quote_web`，空输入降级 `quote`），`Client.Kline` 调 `GET /quote-api/quote-v2/get-kline`，响应字段用 `flexNum` 兼容「字符串/数字」混用，`-403` 用 `ErrTokenRejected` 识别。
   - 请求参数取自 `futu.finv_futu_quote_collect`（`Store.CollectQuoteParams`，仅 `flag_enable='1'`），五个定位参数原样透传（同一编号在不同接口含义不同，不做语义换算）。
   - `Service.SyncDayKlineFromMoomoo`：拉全量历史 → 按 `cdeu.finv_quote_cdeu_usc.timezone` 换算市场本地日期 → `from`/`to` 过滤 → 每 2000 行一批 upsert 到 `cdeu.finv_quote_secu_kline_day`（`provider='FTMM'`）；`change_ratio` 不用接口 `r`（样本恒 null、口径未验证），改按 `change_price / last_close × 100` 与存量分钟线口径一致。
   - `Store.UpsertDayKlines`：`jsonb_to_recordset` 整批写入，`ON CONFLICT (date, usc)` 时 `COALESCE(EXCLUDED.x, t.x)` 只覆盖本次有值的列（不抹掉其它来源回填的 `open_interest`/`pe_ratio`），`xmax = 0` 区分新增/更新；另加 `Store.DayKlineStats`。

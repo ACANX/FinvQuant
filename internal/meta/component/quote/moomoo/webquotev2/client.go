@@ -1,4 +1,4 @@
-package quotev2web
+package webquotev2
 
 import (
 	"context"
