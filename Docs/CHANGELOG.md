@@ -287,6 +287,15 @@
 
 ### 修复
 
+- **月度上传阶段卡死、剩余任务无法执行（需求 10942）**
+  - 现象：`PHASE_UPLOAD` 长期停在执行中（201/224），21 个文件待上传，既等不到自动上传、面板上也点不到手动执行，后续阶段进不去。
+  - 根因①：`sys_config` 20005（CDEU 工作流运行模式）为 `Manual`，进程内调度器整体不触发，所有 JOB 都不会自动跑。
+  - 根因②：`JOB_UPLOAD_FILES` 的 `ui_visible=false`，工作流面板根本不显示这个 JOB，也就没有手动入口。
+  - 修复：迁移 `V300108` 把 `ui_visible` 置为 true；清理 3 条历史残留的 `RUNNING` 上传日志（进程重启未收口）。
+  - 验证：手动触发上传后 21 个文件全部传完（`UPLOADED` 436、无 `PENDING_UPLOAD`），`PHASE_UPLOAD` 自动推进为 `SUCCESS`。
+
+### 修复
+
 - **CDEU 阶段顺序门禁补全：未完成前置时不得推进后续阶段（需求 10941）**
   - 现象：月度行情上传还在执行，归档复核阶段却显示「成功」或「已跳过」，且每次运维 JOB 跑一次就被改写一次。
   - 根因：**三条写入路径都没有校验前置阶段**——① `TouchCDEUHierarchy` 无条件把阶段置 RUNNING；② `EvaluateCDEUPhase` 门禁命中时仍写 PENDING/SKIPPED；③ `SeedCDEUProcessRuns` 在「子流程全部 SUCCESS/SKIPPED」时批量把阶段标 SKIPPED。而归档复核阶段下的清理 JOB 都是独立定时任务，不等月度上传完成就执行。
