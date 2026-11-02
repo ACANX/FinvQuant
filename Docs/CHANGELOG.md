@@ -257,6 +257,14 @@
   - 新增 `kline/vwap_compat_test.go`（7 个用例）：vwap 优先 / pacd 兼容 / vwap=null 回退 / 两列皆空 / 增量补丁列名 / 短名 vwa / `/Page` 输出。
   - 本机 API 实测：`pacd` 入参落库 `vwap=3.56`；`vwap=9.99` 与 `pacd=3.56` 同传取 9.99；`/Page`、`/PageUni` 第 13 项为 `vwa`；`/Add`、`/Query` 输出 `vwap` 且无 `pacd`。
 
+### 变更
+
+- **证券主数据 usc 改名 `KC50` → `STAR50`（需求 10926）**
+  - 科创50 的助记名原为 `KC50`，按 2026-11-02 定稿的助记名规范统一为 `STAR50`，与 `SHCI`（上证综指）、`CSIA500`（中证A500）、`CSI300`（沪深300）同一批。
+  - 新增迁移 `V300098`：按 `DbSchemaSpec` §0.7 整行备份到 `archive.finv_security_purge_20261102`，单事务「备份 → 改名 → 校验」，校验不符 `RAISE EXCEPTION` 回滚；幂等。
+  - 执行前核对：`cdeu.finv_quote_cdeu_usc`、`cdeu.finv_quote_secu_kline_min`、`cdeu.finv_quote_cdeu_quote_maturity_mon` 均无 `KC50` 行，无外键引用 `public.finv_security`。
+  - 执行结果：备份 1 行、改名 1 行，`STAR50` 现为 `security_code=000688`、`market_code=1110`、`StockIndex`。`SH0688`（4 位形态）与 `SH000688`（行情登记表在用）保持不变。
+
 ### 修复
 
 - **补全 `finv_quote_cdeu_usc.date_list`（需求 10925）**
