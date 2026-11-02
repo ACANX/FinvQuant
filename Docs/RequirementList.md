@@ -2677,6 +2677,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10934 | 修复全局轻提示（Toast）不自动消失、关闭按钮无效的问题：原实现依赖 `v-snackbar` 的 `timeout`，队列切换到下一条时组件不会重新起表，导致第二条及之后的提示永久停留（跨页面也一直显示）。改为**每条消息在 `showToast` 时独立计时**（`setTimeout` 到期调用 `dismissToast(id)`），`v-snackbar` 固定 `timeout=-1` 只负责展示，关闭按钮同样走 `dismissToast`。 | `grep -n 'setTimeout(() => dismissToast(id)' Web/src/ui/toast.ts` 命中 1 处；`grep -n '":timeout="-1"' Web/src/components/AppToast.vue` 命中 1 处；连续点击「启用」多次（页面 `/Meta/Finv/Quote/Cdeu/Usc/Patch` 或任一使用 showToast 的页面），每条提示均在 5 秒内自动消失；点提示右侧 × 立即消失且队列继续播放；`npx vue-tsc -b` 与 `npx vite build` 通过 | √ |
 | 10935 | USC 补丁启用前自动登记目标 usc：启用规则（`SetUscPatchRuleEnable(true)`）时把 `usc_new` 从 `usc_old` 复制登记到 `cdeu.finv_quote_cdeu_usc`（`ON CONFLICT DO NOTHING`，只补不覆盖），`PatchOutdatedUsc` 执行前再兜底同步一次并在日志输出「补齐目标 usc 登记 N 行」；一次性存量修正由迁移 `V300104` 完成，覆盖**全部规则**（含停用规则，便于将来启用时不出空档）。 | `SELECT count(*) FROM cdeu.finv_quote_cdeu_usc WHERE usc IN ('SH0888','SH0903','SH0922','SH0980')` = 4；执行 `V300104` 输出 `完成：旧 usc 已登记但目标 usc 未登记的数量 = 0`；调用 `POST .../Usc/Patch/Enable {idn:21,enable:true}` 后 `SELECT count(*) FROM cdeu.finv_quote_cdeu_usc WHERE usc='SH0888'` = 1；`SELECT version FROM public.schema_version ORDER BY version DESC LIMIT 1` = 300104 | √ |
 | 10936 | USC 补丁联动成熟度表：`PatchOutdatedUsc` 在主表迁移完成后，把 `cdeu.finv_quote_cdeu_quote_maturity_mon` 里旧 usc 的月度统计合并到新 usc（同一 `trade_date` 取 `actual_rows` 较大者，状态跟随较大者），并删除旧 usc 记录；删除前整行备份到 `archive.finv_quote_cdeu_quote_maturity_mon_purge_20261102`（迁移 `V300105` 建表，带 `src_schema`/`reason`/`backup_at`）。执行统计新增 `maturity_moved`、`maturity_deleted` 并在日志输出。 | `SELECT count(*) FROM cdeu.finv_quote_cdeu_quote_maturity_mon WHERE usc IN ('SH000888','SH000903','SH000922','SH000980') AND biz_month=202610` = 0；`SELECT usc, count(*) FROM cdeu.finv_quote_cdeu_quote_maturity_mon WHERE usc IN ('SH0888','SH0903','SH0922','SH0980') AND biz_month=202610 GROUP BY usc` 各 5 天、合计 1205 行；`SELECT count(*) FROM archive.finv_quote_cdeu_quote_maturity_mon_purge_20261102` = 120；`GET /API/V1/Meta/Finv/Quote/DeDup/Export/Stock/Page?bizMonth=202610` 的 items 中不再出现 `SH000888` 等 6 位旧形态 usc，且出现 `SH0888`、`SH0903`、`SH0922`、`SH0980`；`SELECT version FROM public.schema_version ORDER BY version DESC LIMIT 1` = 300105 | √ |
+| 10937 | 清理成熟度表中的测试残留：`cdeu.finv_quote_cdeu_quote_maturity_mon` 里仍留着 `TEST.USC.9999`（1 行）与 `TEST.DATE.0001`（2 行），是需求 10920、10925 联调时插入的测试证券——当时只清了主表与证券登记表，漏了成熟度表。按 `DbSchemaSpec` §0.7 先整行备份到 `archive.finv_quote_cdeu_quote_maturity_mon_purge_20261102`（`reason` 标注测试残留清理），单事务「备份 → 删除 → 校验」，校验不符 `RAISE EXCEPTION` 回滚。 | `SELECT count(*) FROM cdeu.finv_quote_cdeu_quote_maturity_mon WHERE usc LIKE 'TEST.%'` = 0；`SELECT count(*) FROM archive.finv_quote_cdeu_quote_maturity_mon_purge_20261102 WHERE reason LIKE '测试残留%'` = 3；主表、`cdeu.finv_quote_cdeu_usc`、`public.finv_security` 中 `usc LIKE 'TEST.%'` 均为 0；注意 `09999` 是港股网易的合法代码，不属测试数据 | √ |
 
 
 ## 汇总
@@ -2920,7 +2921,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | CDEU「JOB 进度」标题去掉重复计数 | 10885 | 1 |
 | 「当日累计均价」字段名调整（待办） | 10886 | 1 |
 | CDEU 指标卡片顺序调整（运行时长移到最左） | 10887 | 1 |
-| **合计** | **10001–10936** | **935** |
+| **合计** | **10001–10937** | **936** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

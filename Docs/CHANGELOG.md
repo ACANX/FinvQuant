@@ -257,6 +257,13 @@
   - 新增 `kline/vwap_compat_test.go`（7 个用例）：vwap 优先 / pacd 兼容 / vwap=null 回退 / 两列皆空 / 增量补丁列名 / 短名 vwa / `/Page` 输出。
   - 本机 API 实测：`pacd` 入参落库 `vwap=3.56`；`vwap=9.99` 与 `pacd=3.56` 同传取 9.99；`/Page`、`/PageUni` 第 13 项为 `vwa`；`/Add`、`/Query` 输出 `vwap` 且无 `pacd`。
 
+### 变更
+
+- **清理成熟度表的测试残留（需求 10937）**
+  - `cdeu.finv_quote_cdeu_quote_maturity_mon` 里还留着 `TEST.USC.9999`（1 行）与 `TEST.DATE.0001`（2 行）——需求 10920、10925 联调时插入的测试证券，当时只清了主表与证券登记表，漏了成熟度表。
+  - 先整行备份到 `archive.finv_quote_cdeu_quote_maturity_mon_purge_20261102`，再删除，单事务校验残留为 0。
+  - 主表、`cdeu.finv_quote_cdeu_usc`、`public.finv_security` 三处已无 `TEST.` 前缀残留；`09999` 是港股网易的合法代码，不属测试数据。
+
 ### 修复
 
 - **USC 补丁联动成熟度表（需求 10936）**
