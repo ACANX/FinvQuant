@@ -87,6 +87,16 @@
 
 ### 新增
 
+- **新建证券日 K 线表 `cdeu.finv_quote_secu_kline_day`（需求 10950）**
+  - 背景：只有分钟线 `cdeu.finv_quote_secu_kline_min`（一天多行，主键 `ts+usc`），日线没有落库表，回测/统计只能临时聚合。按用户要求先在 `cdeu` schema 建本表，结构稳定后再按同结构扩展到 `quote`（届时另起迁移，不移动本表）。
+  - 结构：一天一行，主键 **`(date, usc)`**；`ts` 保留为普通列（日 K 线时间戳，通常为收盘时刻），不参与主键——否则同一天写两次不同 `ts` 会产生重复日线；去掉分钟线的 `time`。
+  - 字段：价格量额沿用分钟线同名同义（`open`/`high`/`low`/`close`/`last_close`/`change_price`/`change_ratio`/`vwap`/`volume`/`turnover`）；新增 `trade_count`、`turnover_rate`、`amplitude`、`adj_factor`、`suspend_flag`、`limit_up`、`limit_down`；新增 4 个指标 `open_interest`（持仓量）、`hist_volatility`（历史波动率，小数、20 日窗口按 252 日年化）、`implied_volatility`（隐含波动率，小数）、`pe_ratio`（市盈率 TTM，可为负）。共 29 列，全部带中文注释写入口径。
+  - 索引与触发器：`PRIMARY KEY (date, usc)`、`idx_finv_quote_secu_kline_day_usc_date (usc, date)`、`gmt_update` 复用 `public.vq_set_gmt_update()`。写入策略与分钟线一致（`INSERT ... ON CONFLICT (date, usc) DO UPDATE` 字段覆盖）。
+  - 迁移 `V300114` 幂等（表/索引/触发器/注释可重复执行），末尾校验列清单/主键/索引/触发器/注释数量，不符整事务回滚。
+  - 验证：执行输出「V300114 校验通过：29 列 / 主键(date,usc) / 索引 / 触发器 / 列注释齐全」，复跑仅 skipping 提示；冒烟——同 `(date, usc)` 第二行 `unique_violation`、负 `volume` `check_violation`、跨事务 UPDATE 后 `gmt_update > gmt_create`（同一事务内 `now()` 相同属 PG 语义，非触发器失效）。
+
+### 新增
+
 - **登记待办：「当日累计均价」字段名调整（需求 10886）**
   - 现状三处不一致：库列名 `paocd`（`cdeu.finv_quote_secu_kline_min` / `cdeu.finv_quote_secu_kline_min_export` / `quote.finv_quote_secu_kline_min`）、对外 API 字段名 `pacd`（`kline/model.go`、`request.go`）、导出 `.mvsv` V2 头部字段名 `paocd`；库注释「当日实时累计均价」，API 文档「当日累计均价」。
   - 待确认：① 调整范围（API / 库列 / 导出字段 / 中文名）；② 目标名称；③ 兼容策略（旧名是否保留、历史 `.mvsv` 是否兼容、`quote.` 表是否同步）。
