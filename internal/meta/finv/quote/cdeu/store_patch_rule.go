@@ -57,6 +57,9 @@ type UscPatchStats struct {
 	LastBatchTo   int64 `json:"last_batch_to"`
 	LastBatchRows int64 `json:"last_batch_rows"`
 	LastBatchMs   int64 `json:"last_batch_ms"`
+
+	// RegisteredRows 本轮为补丁目标 usc 补齐的登记行数（需求 10935）。
+	RegisteredRows int64 `json:"registered_rows"`
 }
 
 // Enabled 判断规则是否生效。
@@ -128,6 +131,9 @@ RETURNING idn`, uscOld, uscNew, mode, rule.FlagEnable, rule.Priority, note).Scan
 }
 
 // SetUscPatchRuleEnable 启用或停用规则；停用不删除，便于追溯。
+//
+// 启用时同步把目标 usc 登记到 cdeu.finv_quote_cdeu_usc（需求 10935）：
+// 规则启用后主表会出现新 usc 的行情，如果登记表没有它，页面看不到、导出缺元数据。
 func (s *Store) SetUscPatchRuleEnable(ctx context.Context, idn int64, enable bool) error {
 	flag := "0"
 	if enable {
@@ -141,7 +147,49 @@ UPDATE `+tableUscPatchRule+` SET flag_enable = $2, gmt_update = now() WHERE idn 
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("规则不存在: idn=%d", idn)
 	}
+	if enable {
+		if err := s.registerPatchTargetUsc(ctx, idn); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// registerPatchTargetUsc 为单条规则补齐目标 usc 的登记（旧 usc 已登记时才复制）。
+func (s *Store) registerPatchTargetUsc(ctx context.Context, idn int64) error {
+	_, err := s.pool.Exec(ctx, `
+INSERT INTO `+tableUsc+`
+    (usc, category, day_expect_rows, date_list, date_delist,
+     flag_auto_discover, region, market, provider, name, timezone, currency)
+SELECT p.usc_new, u.category, u.day_expect_rows, u.date_list, u.date_delist,
+       false, u.region, u.market, u.provider, u.name, u.timezone, u.currency
+  FROM `+tableUscPatchRule+` p
+  JOIN `+tableUsc+` u ON u.usc = p.usc_old
+ WHERE p.idn = $1
+   AND NOT EXISTS (SELECT 1 FROM `+tableUsc+` n WHERE n.usc = p.usc_new)
+ON CONFLICT (usc) DO NOTHING`, idn)
+	return err
+}
+
+// syncPatchTargetUscs 为全部生效规则补齐目标 usc 的登记（只补不覆盖）。
+func (s *Store) syncPatchTargetUscs(ctx context.Context) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `
+INSERT INTO `+tableUsc+`
+    (usc, category, day_expect_rows, date_list, date_delist,
+     flag_auto_discover, region, market, provider, name, timezone, currency)
+SELECT DISTINCT ON (p.usc_new)
+       p.usc_new, u.category, u.day_expect_rows, u.date_list, u.date_delist,
+       false, u.region, u.market, u.provider, u.name, u.timezone, u.currency
+  FROM `+tableUscPatchRule+` p
+  JOIN `+tableUsc+` u ON u.usc = p.usc_old
+ WHERE p.flag_enable = '1'
+   AND NOT EXISTS (SELECT 1 FROM `+tableUsc+` n WHERE n.usc = p.usc_new)
+ ORDER BY p.usc_new, p.priority
+ON CONFLICT (usc) DO NOTHING`)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }
 
 // DeleteUscPatchRule 删除规则（建议优先停用，保留追溯）。
@@ -219,6 +267,11 @@ func (s *Store) PatchOutdatedUsc(ctx context.Context, batchSize int, progress fu
 	stats.RuleCount = ruleCount
 	if ruleCount == 0 {
 		return stats, nil
+	}
+
+	// 执行前补齐目标 usc 登记（需求 10935）：旧 usc 已登记、新 usc 未登记时复制一份。
+	if registered, regErr := s.syncPatchTargetUscs(ctx); regErr == nil {
+		stats.RegisteredRows = registered
 	}
 
 	// 待处理区间：只统计能命中生效规则的旧 usc

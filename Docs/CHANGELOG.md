@@ -257,6 +257,19 @@
   - 新增 `kline/vwap_compat_test.go`（7 个用例）：vwap 优先 / pacd 兼容 / vwap=null 回退 / 两列皆空 / 增量补丁列名 / 短名 vwa / `/Page` 输出。
   - 本机 API 实测：`pacd` 入参落库 `vwap=3.56`；`vwap=9.99` 与 `pacd=3.56` 同传取 9.99；`/Page`、`/PageUni` 第 13 项为 `vwa`；`/Add`、`/Query` 输出 `vwap` 且无 `pacd`。
 
+### 修复
+
+- **全局轻提示（Toast）不消失、关闭无效（需求 10934）**
+  - 原实现把计时交给 `v-snackbar` 的 `timeout`，队列切到下一条时组件不会重新起表，第二条及之后的提示会永久停留，跨页面也一直显示。
+  - 改为每条消息在 `showToast` 时用 `setTimeout` 独立计时，到期调用 `dismissToast`；`v-snackbar` 固定 `timeout=-1` 只负责展示，关闭按钮同样走 `dismissToast`。
+
+### 修复
+
+- **USC 补丁目标 usc 自动登记（需求 10935）**
+  - 启用规则后主表会出现新 usc 的行情（如 `SH000888` → `SH0888`），若登记表没有它，页面看不到、导出缺元数据。
+  - `SetUscPatchRuleEnable(true)` 时从旧 usc 复制登记新 usc；`PatchOutdatedUsc` 执行前再兜底同步一次，日志输出「补齐目标 usc 登记 N 行」。
+  - 迁移 `V300104` 做一次性存量修正，覆盖全部规则（含停用规则）：本机补出 `SH0888`、`SH0903`、`SH0922` 三条（`SH0980` 原已存在），登记表 495 → 510 行。
+
 ### 新增
 
 - **USC 补丁执行改为异步并展示逐批日志（需求 10933）**

@@ -17,28 +17,24 @@ const iconOf: Record<ToastType, string> = {
 }
 
 const current = computed(() => currentToast.value)
-const visible = computed({
-  get: () => Boolean(current.value),
-  set: (value: boolean) => {
-    if (!value) dismissToast()
-  },
-})
 
-function onTimeout(): void {
-  dismissToast()
+// 关闭由 showToast 的独立计时器或关闭按钮触发；这里只把 v-snackbar 的关闭动作转成出队。
+function onVisibleChange(value: boolean): void {
+  if (!value) dismissToast()
 }
 </script>
 
 <template>
   <v-snackbar
-    v-model="visible"
-    :timeout="current?.timeout ?? 5000"
+    :key="current?.id ?? 0"
+    :model-value="Boolean(current)"
+    :timeout="-1"
     :color="current?.type ?? 'success'"
     location="top"
     rounded="lg"
     elevation="8"
     class="finv-toast"
-    @timeout="onTimeout"
+    @update:model-value="onVisibleChange"
   >
     <div class="d-flex align-center">
       <v-icon :icon="iconOf[current?.type ?? 'success']" class="mr-2" />

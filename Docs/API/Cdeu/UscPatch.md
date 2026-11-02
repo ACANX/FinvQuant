@@ -79,6 +79,8 @@
 
 启用规则前必须先看试算结果，确认 `conflict_rows` 符合预期。
 
+启用规则时（`Enable` 且 `enable=true`）后端会自动把目标 usc 登记到 `cdeu.finv_quote_cdeu_usc`（从旧 usc 复制元数据，只补不覆盖），执行时再兜底同步一次，避免「主表有行情、登记表没有」的空档。
+
 ## 6. 手动执行
 
 `POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Run`
@@ -101,6 +103,7 @@
 | `moved_rows` | 写入目标 usc 的行数 |
 | `conflict_rows` | 其中与目标 usc 冲突、按较新者胜覆盖的行数 |
 | `deleted_rows` | 删除的旧 usc 行数 |
+| `registered_rows` | 本轮为补丁目标 usc 补齐的登记行数（主表出现新 usc 但登记表没有时自动复制，需求 10935） |
 | `from_ts` | 处理区间下界 |
 | `to_ts` | 处理区间上界 |
 | `current_batch` | 当前批次的时间区间（可读格式） |

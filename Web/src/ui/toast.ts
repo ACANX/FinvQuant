@@ -39,7 +39,13 @@ export function showToast(text: string, type: ToastType = 'success', timeout = T
   const trimmed = (text ?? '').toString().trim()
   if (!trimmed) return 0
   const id = ++seq
-  state.queue.push({ id, text: trimmed, type, timeout: timeout < 0 ? 0 : timeout })
+  const duration = timeout < 0 ? 0 : timeout
+  state.queue.push({ id, text: trimmed, type, timeout: duration })
+  // 每条消息独立计时：排队等待时也在倒计时，展示出来就一定会在 duration 后消失。
+  // 不依赖 v-snackbar 的 timeout——组件在队列切换时不会重新起表，会卡住不退。
+  if (duration > 0) {
+    setTimeout(() => dismissToast(id), duration)
+  }
   return id
 }
 

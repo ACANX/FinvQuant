@@ -190,6 +190,9 @@ func (r *UscPatchRunner) run(ctx context.Context, triggerType string, batchSize 
 		r.appendLog("error", fmt.Sprintf("运行结束（失败）：%v", err))
 		return
 	}
+	if stats.RegisteredRows > 0 {
+		r.appendLog("info", fmt.Sprintf("补齐目标 usc 登记 %d 行", stats.RegisteredRows))
+	}
 	r.appendLog("info", fmt.Sprintf(
 		"运行结束（成功）：%d 批，扫描 %d 行，迁移 %d 行，冲突 %d 行，删除 %d 行，耗时 %d ms",
 		stats.Batches, stats.ScannedRows, stats.MovedRows, stats.ConflictRows,
