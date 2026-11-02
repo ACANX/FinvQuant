@@ -87,6 +87,7 @@ func AllJobKinds() []string {
 		JobCalcDailyIngestStats,
 		JobCalcDailyExportBudget,
 		JobRefreshQuoteMaturity,
+		JobPatchOutdatedUsc,
 		JobMarkSealedJobsFrozen,
 		JobRunDueExportJobs,
 		JobUploadPendingExportFiles,
