@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	jobdef "github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/jobmeta"
-	"github.com/acanx/finvquant/internal/meta/finv/quote/moomoo"
+	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/quotev2web"
 	"github.com/acanx/finvquant/internal/meta/finv/sys"
 )
 
@@ -94,7 +94,7 @@ func NewService(pool *pgxpool.Pool, options Options) (*Service, error) {
 		options:      options,
 		cfg:          cfgStore,
 		running:      map[string]time.Time{},
-		klineFetcher: moomoo.New(moomoo.Config{}),
+		klineFetcher: quotev2web.New(quotev2web.Config{}),
 	}, nil
 }
 

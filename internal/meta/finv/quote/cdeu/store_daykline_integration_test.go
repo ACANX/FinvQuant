@@ -9,18 +9,18 @@ import (
 	"time"
 
 	"github.com/acanx/finvquant/internal/database"
-	"github.com/acanx/finvquant/internal/meta/finv/quote/moomoo"
+	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/quotev2web"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // stubFetcher 固定返回若干根 K 线（避免测试依赖外网）。
 type stubFetcher struct {
-	bars []moomoo.Bar
+	bars []quotev2web.Bar
 	err  error
-	got  moomoo.KlineRequest
+	got  quotev2web.KlineRequest
 }
 
-func (f *stubFetcher) Kline(_ context.Context, req moomoo.KlineRequest) ([]moomoo.Bar, error) {
+func (f *stubFetcher) Kline(_ context.Context, req quotev2web.KlineRequest) ([]quotev2web.Bar, error) {
 	f.got = req
 	if f.err != nil {
 		return nil, f.err
@@ -59,14 +59,14 @@ func TestDayKlineDate(t *testing.T) {
 func TestDayKlineChangeRatio(t *testing.T) {
 	cases := []struct {
 		name string
-		bar  moomoo.Bar
+		bar  quotev2web.Bar
 		want string
 	}{
-		{"正常", moomoo.Bar{LastClose: 100, ChangePrice: "2.5"}, "2.500000"},
-		{"下跌", moomoo.Bar{LastClose: 200, ChangePrice: "-3"}, "-1.500000"},
-		{"前收缺失", moomoo.Bar{LastClose: 0, ChangePrice: "1"}, ""},
-		{"涨跌额缺失", moomoo.Bar{LastClose: 100}, ""},
-		{"涨跌额非法", moomoo.Bar{LastClose: 100, ChangePrice: "abc"}, ""},
+		{"正常", quotev2web.Bar{LastClose: 100, ChangePrice: "2.5"}, "2.500000"},
+		{"下跌", quotev2web.Bar{LastClose: 200, ChangePrice: "-3"}, "-1.500000"},
+		{"前收缺失", quotev2web.Bar{LastClose: 0, ChangePrice: "1"}, ""},
+		{"涨跌额缺失", quotev2web.Bar{LastClose: 100}, ""},
+		{"涨跌额非法", quotev2web.Bar{LastClose: 100, ChangePrice: "abc"}, ""},
 	}
 	for _, tc := range cases {
 		got := dayKlineChangeRatio(tc.bar)
@@ -196,7 +196,7 @@ VALUES ($1, 'Futures', 'US', 'COMEX', 'FTMM', '日K同步测试', 'America/New_Y
 	if err != nil {
 		t.Fatalf("加载时区失败: %v", err)
 	}
-	fetcher := &stubFetcher{bars: []moomoo.Bar{
+	fetcher := &stubFetcher{bars: []quotev2web.Bar{
 		{Time: time.Date(2026, 10, 1, 16, 0, 0, 0, ny).Unix(), Open: "10", High: "11", Low: "9", Close: "10.5", LastClose: 10.2, ChangePrice: "0.3", Volume: 100, Turnover: 1050},
 		{Time: time.Date(2026, 10, 2, 16, 0, 0, 0, ny).Unix(), Open: "10.5", High: "12", Low: "10", Close: "11.5", LastClose: 10.5, ChangePrice: "1", Volume: 200, Turnover: 2200},
 		{Time: time.Date(2026, 10, 5, 16, 0, 0, 0, ny).Unix(), Open: "11.5", High: "12", Low: "11", Close: "11.8", LastClose: 11.5, ChangePrice: "0.3", Volume: 150, Turnover: 1750},
@@ -209,7 +209,7 @@ VALUES ($1, 'Futures', 'US', 'COMEX', 'FTMM', '日K同步测试', 'America/New_Y
 	}
 	if fetcher.got.StockID != "70000294" || fetcher.got.MarketCode != "9001" ||
 		fetcher.got.InstrumentType != "9" || fetcher.got.SubInstrumentType != "9008" ||
-		fetcher.got.KlineType != moomoo.KlineTypeDay {
+		fetcher.got.KlineType != quotev2web.KlineTypeDay {
 		t.Fatalf("请求参数应原样透传 futu 表取值，实际 %+v", fetcher.got)
 	}
 	if result.Total != 3 || result.InRange != 3 || result.Inserted != 3 || result.Updated != 0 {

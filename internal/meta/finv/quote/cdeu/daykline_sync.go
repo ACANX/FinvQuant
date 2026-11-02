@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/acanx/finvquant/internal/meta/finv/quote/moomoo"
+	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/quotev2web"
 )
 
 // DayKlineProviderFTMM 日 K 数据写入 provider 列的取值。
@@ -19,15 +19,15 @@ const DayKlineProviderFTMM = "FTMM"
 // dayKlineUpsertBatch 单批 upsert 行数（控制 jsonb 体积，避免一次请求过大）。
 const dayKlineUpsertBatch = 2000
 
-// KlineFetcher K 线拉取能力（由 moomoo.Client 实现；测试可注入假实现）。
+// KlineFetcher K 线拉取能力（由 quotev2web.Client 实现；测试可注入假实现）。
 type KlineFetcher interface {
-	Kline(ctx context.Context, req moomoo.KlineRequest) ([]moomoo.Bar, error)
+	Kline(ctx context.Context, req quotev2web.KlineRequest) ([]quotev2web.Bar, error)
 }
 
 // SetKlineFetcher 替换 K 线拉取实现（单测注入用）；传 nil 恢复默认 moomoo 客户端。
 func (s *Service) SetKlineFetcher(fetcher KlineFetcher) {
 	if fetcher == nil {
-		fetcher = moomoo.New(moomoo.Config{})
+		fetcher = quotev2web.New(quotev2web.Config{})
 	}
 	s.klineFetcher = fetcher
 }
@@ -99,12 +99,12 @@ func (s *Service) SyncDayKlineFromMoomoo(ctx context.Context, req DayKlineSyncRe
 
 	fetcher := s.klineFetcher
 	if fetcher == nil {
-		fetcher = moomoo.New(moomoo.Config{})
+		fetcher = quotev2web.New(quotev2web.Config{})
 	}
-	klineReq := moomoo.KlineRequest{
+	klineReq := quotev2web.KlineRequest{
 		StockID:           strconv.FormatInt(params.StockID, 10),
 		MarketType:        strconv.Itoa(params.MarketType),
-		KlineType:         moomoo.KlineTypeDay,
+		KlineType:         quotev2web.KlineTypeDay,
 		MarketCode:        strconv.Itoa(params.MarketCode),
 		InstrumentType:    strconv.Itoa(params.InstrumentType),
 		SubInstrumentType: strconv.Itoa(params.SubInstrumentType),
@@ -211,7 +211,7 @@ func dayKlineDate(ts int64, location *time.Location) int {
 
 // dayKlineChangeRatio 按 change_price / last_close * 100 计算涨跌幅（百分数，6 位小数），
 // 与存量分钟线 change_ratio 的口径一致；last_close 缺失或为 0 时不写。
-func dayKlineChangeRatio(bar moomoo.Bar) *string {
+func dayKlineChangeRatio(bar quotev2web.Bar) *string {
 	if bar.LastClose == 0 || strings.TrimSpace(bar.ChangePrice) == "" {
 		return nil
 	}
