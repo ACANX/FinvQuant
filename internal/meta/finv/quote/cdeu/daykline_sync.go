@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/quoteapiv2"
+	"github.com/acnxo/MetaExt/component/quote/moomoo/quoteapiv2"
 )
 
 // DayKlineProviderFTMM 日 K 数据写入 provider 列的取值。

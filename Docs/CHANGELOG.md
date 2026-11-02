@@ -27,6 +27,12 @@
   - 验证：`go build ./...`、`go vet ./internal/meta/...` 退出码 0；`go test ./internal/meta/component/quote/moomoo/quoteapiv2/` 与 `cdeu` 日K相关用例 PASS；`kline.go`／`kline_test.go` 与上游逐字一致。
   - 真实接口实测（2026-11-03）：`GCMain` 日K返回 12819 根（19750102~20261102），最新一根与接口原始响应一致；经 `SyncDayKlineFromMoomoo` 落库 12819 行耗时 4.7s，二次同步 0 新增／12819 更新；`change_ratio` 与 `change_price/last_close*100` 全表偏差为 0。
 
+- **moomoo 行情客户端改为直接依赖上游模块 MetaExt（需求 10954）**
+  - 删除仓库内副本 `internal/meta/component/quote/moomoo/quoteapiv2`（5 个文件），`go.mod` 增加 `github.com/acnxo/MetaExt v0.1.0`（上游模块零第三方依赖）；`cdeu` 侧 4 处 import 改指 `github.com/acnxo/MetaExt/component/quote/moomoo/quoteapiv2`。
+  - 上游 `v0.1.0` 的 `kline.go`／`client.go` 与 `main` 逐字一致，调用方使用的符号（`GetKLine`／`GetKLineRequest`／`KLineBar`／`KLineTypeDay`／`IsTokenRejected`／`Config.KLinePath`）无需适配层；后续接口变更随依赖升级获得，不再手工同步。
+  - 上游模块未被 sum.golang.org 收录，首次 `go get` 需 `GOSUMDB=off`；`go.sum` 已落定，CI 无需额外配置。
+  - 验证：`go build ./...`、`go vet ./internal/meta/...` 退出码 0；`go test ./internal/meta/finv/quote/cdeu/` 除既有 Windows 平台用例 `TestDirUploader` 外通过；真实接口实测 `GCMain` 12819 根、二次同步 0 新增／12819 更新。
+
 ### 修复
 
 - **部署侧迁移号段混存与迁移错误定位（需求 10881 收尾）**

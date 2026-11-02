@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/quoteapiv2"
+	"github.com/acnxo/MetaExt/component/quote/moomoo/quoteapiv2"
 )
 
 // TestLiveGCMainDayKline 真实拉取 GCMain 日 K 并 upsert（需要可访问 www.quoteapiv2.com 的网络）。

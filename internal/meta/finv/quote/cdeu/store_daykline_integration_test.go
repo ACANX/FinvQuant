@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/acanx/finvquant/internal/database"
-	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/quoteapiv2"
+	"github.com/acnxo/MetaExt/component/quote/moomoo/quoteapiv2"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
