@@ -1,15 +1,74 @@
 package quoteapiv2
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
-	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 )
+
+// fixedNow 固定时钟，便于断言时间戳与签名。
+func fixedNow() time.Time { return time.UnixMilli(1780507278122) }
+
+// newTestClient 创建一个指向测试服务器的客户端。
+func newTestClient(t *testing.T, server *httptest.Server, mutate func(*Config)) *Client {
+	t.Helper()
+	cfg := Config{BaseURL: server.URL, CSRF: "abcdef0123", Now: fixedNow}
+	if mutate != nil {
+		mutate(&cfg)
+	}
+	return New(cfg)
+}
+
+// splitQuery 按出现顺序拆分查询串，返回键序与键值表。
+func splitQuery(raw string) ([]string, map[string]string) {
+	order := make([]string, 0, 8)
+	values := make(map[string]string, 8)
+	for _, pair := range strings.Split(raw, "&") {
+		kv := strings.SplitN(pair, "=", 2)
+		order = append(order, kv[0])
+		if len(kv) == 2 {
+			values[kv[0]] = kv[1]
+		}
+	}
+	return order, values
+}
+
+// TestConfigDefaults 零值配置应补齐为协议默认值，并规整 URL 与路径。
+func TestConfigDefaults(t *testing.T) {
+	cfg := New(Config{}).Config()
+	if cfg.BaseURL != DefaultBaseURL {
+		t.Fatalf("BaseURL 期望 %s，实际 %s", DefaultBaseURL, cfg.BaseURL)
+	}
+	if cfg.KLinePath != DefaultKLinePath {
+		t.Fatalf("KLinePath 期望 %s，实际 %s", DefaultKLinePath, cfg.KLinePath)
+	}
+	if cfg.Locale != DefaultLocale {
+		t.Fatalf("Locale 期望 %s，实际 %s", DefaultLocale, cfg.Locale)
+	}
+	if cfg.Timeout != DefaultTimeout {
+		t.Fatalf("Timeout 期望 %s，实际 %s", DefaultTimeout, cfg.Timeout)
+	}
+	if cfg.CSRF == "" {
+		t.Fatal("CSRF 应有占位值")
+	}
+	if cfg.Now == nil {
+		t.Fatal("Now 应有默认值")
+	}
+
+	// 自定义路径缺前导斜杠应补上，BaseURL 结尾斜杠应去掉。
+	custom := New(Config{
+		BaseURL:   "https://example.com/",
+		KLinePath: "quote-api/quote-v2/get-kline",
+	}).Config()
+	if custom.BaseURL != "https://example.com" {
+		t.Fatalf("BaseURL 结尾斜杠未去掉：%s", custom.BaseURL)
+	}
+	if custom.KLinePath != "/quote-api/quote-v2/get-kline" {
+		t.Fatalf("KLinePath 前导斜杠未补上：%s", custom.KLinePath)
+	}
+}
 
 // TestSignVectors 复现 MoomooQuoteV2WebSignature.md §6 的公开向量。
 func TestSignVectors(t *testing.T) {
@@ -85,145 +144,60 @@ func TestSignParams(t *testing.T) {
 	}
 }
 
-// klineSample 1108-Kline.md §3 文档样本（含 o/c/h/l 为字符串、v/t/lc 为数值的类型混用）。
-const klineSample = `{
-    "code": 0,
-    "message": "成功",
-    "data": {
-        "list": [
-            {"k": 157870800, "o": "187.5", "c": "178.2", "h": "187.5", "l": "176",
-             "v": 0, "t": 0, "r": null, "lc": 187.5, "cp": "-9.3"}
-        ]
-    }
-}`
-
-// TestKlineRequestAndParse 校验请求装配（路径/键序/token/请求头）与响应解析。
-func TestKlineRequestAndParse(t *testing.T) {
-	var gotQuery map[string]string
-	var gotOrder []string
-	var gotHeaders http.Header
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != DefaultKlinePath {
-			t.Errorf("路径期望 %s，实际 %s", DefaultKlinePath, r.URL.Path)
-		}
-		gotHeaders = r.Header.Clone()
-		gotOrder = nil
-		gotQuery = map[string]string{}
-		for _, pair := range strings.Split(r.URL.RawQuery, "&") {
-			kv := strings.SplitN(pair, "=", 2)
-			gotOrder = append(gotOrder, kv[0])
-			gotQuery[kv[0]] = kv[1]
-		}
-		// 服务端校验 token：用请求里出现的键序重算，应一致（等价于真实网关的校验）。
-		params := make([]Param, 0, len(gotOrder))
-		for _, name := range gotOrder {
-			params = append(params, Param{Name: name, Value: gotQuery[name]})
-		}
-		if want := SignParams(params); r.Header.Get("quote-token") != want {
-			t.Errorf("quote-token 不符：期望 %s，实际 %s", want, r.Header.Get("quote-token"))
-		}
-		w.Header().Set("content-type", "application/json")
-		_, _ = w.Write([]byte(klineSample))
-	}))
-	defer server.Close()
-
-	client := New(Config{
-		BaseURL: server.URL,
-		CSRF:    "abcdef0123",
-		Now:     func() time.Time { return time.UnixMilli(1780507278122) },
-	})
-	bars, err := client.Kline(context.Background(), KlineRequest{
-		StockID:           "70000294",
-		MarketType:        "2",
-		MarketCode:        "70",
-		InstrumentType:    "9",
-		SubInstrumentType: "9008",
-	})
-	if err != nil {
-		t.Fatalf("拉取失败: %v", err)
+// TestAPIErrorError 三类失败都应带上可读描述。
+func TestAPIErrorError(t *testing.T) {
+	business := &APIError{Path: "/p", URL: "http://x/p", Code: -1, Message: "系统繁忙"}
+	if got := business.Error(); !strings.Contains(got, "code=-1") || !strings.Contains(got, "系统繁忙") {
+		t.Fatalf("业务码错误描述不符：%s", got)
 	}
-
-	// 键序：stockId, marketType, type, marketCode, instrumentType, subInstrumentType, _
-	wantOrder := []string{"stockId", "marketType", "type", "marketCode", "instrumentType", "subInstrumentType", "_"}
-	if strings.Join(gotOrder, ",") != strings.Join(wantOrder, ",") {
-		t.Fatalf("查询键序不符：期望 %v，实际 %v", wantOrder, gotOrder)
+	httpErr := &APIError{Path: "/p", URL: "http://x/p", HTTPStatus: 502}
+	if got := httpErr.Error(); !strings.Contains(got, "HTTP 错误：502") {
+		t.Fatalf("HTTP 错误描述不符：%s", got)
 	}
-	if gotQuery["type"] != KlineTypeDay {
-		t.Fatalf("type 期望 %s，实际 %s", KlineTypeDay, gotQuery["type"])
-	}
-	if gotQuery["_"] != "1780507278122" {
-		t.Fatalf("时间戳未按注入时钟生成：%s", gotQuery["_"])
-	}
-	if gotQuery["type"] != "2" || gotQuery["subInstrumentType"] != "9008" {
-		t.Fatalf("参数值不符：%v", gotQuery)
-	}
-	// token 必须等于文档复现向量（同一组参数 + 时间戳）。
-	if got := gotHeaders.Get("quote-token"); got != "45671b44c1" {
-		t.Fatalf("quote-token 期望 45671b44c1，实际 %s", got)
-	}
-	if got := gotHeaders.Get("futu-x-csrf-token"); got != "abcdef0123" {
-		t.Fatalf("csrf 头不符：%s", got)
-	}
-	if cookie := gotHeaders.Get("cookie"); !strings.Contains(cookie, "csrfToken=abcdef0123") ||
-		!strings.Contains(cookie, "locale=zh-cn") {
-		t.Fatalf("cookie 不符：%s", cookie)
-	}
-
-	if len(bars) != 1 {
-		t.Fatalf("解析根数期望 1，实际 %d", len(bars))
-	}
-	bar := bars[0]
-	if bar.Time != 157870800 || bar.Open != "187.5" || bar.Close != "178.2" ||
-		bar.High != "187.5" || bar.Low != "176" {
-		t.Fatalf("OHLC 解析不符：%+v", bar)
-	}
-	if bar.LastClose != 187.5 || bar.ChangePrice != "-9.3" || bar.Volume != 0 || bar.Turnover != 0 {
-		t.Fatalf("数值字段解析不符：%+v", bar)
-	}
-	if bar.ChangeRatio != nil {
-		t.Fatalf("r=null 时应保持 nil，实际 %v", *bar.ChangeRatio)
+	plain := &APIError{Path: "/p", URL: "http://x/p", Message: "解析失败"}
+	if got := plain.Error(); !strings.Contains(got, "请求失败：解析失败") {
+		t.Fatalf("普通错误描述应带上原因：%s", got)
 	}
 }
 
-// TestKlineTokenRejected 业务码非 0 应返回带 code 的错误。
-func TestKlineTokenRejected(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"code":-403,"message":"非法请求","data":null}`))
-	}))
-	defer server.Close()
-
-	client := New(Config{BaseURL: server.URL})
-	_, err := client.Kline(context.Background(), KlineRequest{StockID: "70000294"})
-	if err == nil {
-		t.Fatal("应返回错误")
-	}
-	if !ErrTokenRejected(err) {
-		t.Fatalf("应识别为 token 被拒（-403），实际 %v", err)
-	}
-	var apiErr *APIError
-	if !errors.As(err, &apiErr) || apiErr.Code != CodeTokenInvalid {
-		t.Fatalf("错误类型不符：%v", err)
-	}
-}
-
-// TestKlineEmptyStockID 缺少 stockId 时本地直接报错（不发请求）。
-func TestKlineEmptyStockID(t *testing.T) {
-	client := New(Config{BaseURL: "http://127.0.0.1:1"})
-	if _, err := client.Kline(context.Background(), KlineRequest{}); err == nil {
-		t.Fatal("stockId 为空应报错")
-	}
-}
-
-// TestFlexNum JSON 数字与字符串混用都应解析成功。
+// TestFlexNum JSON 数字、字符串与 null 都应正确解析。
 func TestFlexNum(t *testing.T) {
 	var payload klinePayload
-	body := `{"code":0,"data":{"list":[{"k":1,"o":187.5,"c":"178.2","v":"12.5","lc":187.5,"cp":-9.3}]}}`
+	body := `{"code":0,"data":{"list":[{"k":1,"o":187.5,"c":"178.2","v":"12.5","r":0.03,"lc":187.5,"cp":-9.3}]}}`
 	if err := json.Unmarshal([]byte(body), &payload); err != nil {
 		t.Fatalf("解析失败: %v", err)
 	}
 	bars := payload.Data.Bars()
-	if len(bars) != 1 || bars[0].Open != "187.5" || bars[0].Close != "178.2" ||
-		bars[0].Volume != 12.5 || bars[0].ChangePrice != "-9.3" {
-		t.Fatalf("混用类型解析不符：%+v", bars)
+	if len(bars) != 1 {
+		t.Fatalf("期望 1 根，实际 %d", len(bars))
+	}
+	bar := bars[0]
+	if bar.Open != "187.5" || bar.Close != "178.2" || bar.Volume != 12.5 ||
+		bar.ChangePrice != "-9.3" || bar.LastClose != 187.5 {
+		t.Fatalf("混用类型解析不符：%+v", bar)
+	}
+	if bar.ChangeRatio == nil || *bar.ChangeRatio != 0.03 {
+		t.Fatalf("涨跌幅解析不符：%+v", bar.ChangeRatio)
+	}
+
+	var empty FlexNum
+	if err := json.Unmarshal([]byte("null"), &empty); err != nil {
+		t.Fatalf("null 解析失败: %v", err)
+	}
+	if empty.String() != "" || empty.Float() != 0 {
+		t.Fatalf("null 应解析为空串且数值为 0，实际 %q / %v", empty.String(), empty.Float())
+	}
+	if got := FlexNum("not-a-number").Float(); got != 0 {
+		t.Fatalf("非法数值应退回 0，实际 %v", got)
+	}
+}
+
+// TestTruncate 超长响应体应被截断，避免错误信息膨胀。
+func TestTruncate(t *testing.T) {
+	if got := truncate("abcdef", 3); got != "abc..." {
+		t.Fatalf("截断结果不符：%s", got)
+	}
+	if got := truncate("abc", 3); got != "abc" {
+		t.Fatalf("未超长时不应改变内容：%s", got)
 	}
 }

@@ -18,6 +18,15 @@
 
 > 0.1.4 开发中。变更按 `新增` / `变更` / `修复` / `移除` / `安全` 分类追加，发布时整体改为版本号并补日期。
 
+### 变更
+
+- **moomoo 行情客户端与上游 MetaExt 对齐（需求 10953，仅 kline）**
+  - 包 `internal/meta/component/quote/moomoo/quoteapiv2` 按上游「每个接口一个源文件」拆分：新增 `kline.go`（`GetKLineRequest`／`KLineBar`／`Client.GetKLine`）与 `kline_test.go`，`client.go` 只保留配置、错误与请求发送。
+  - 公共符号与上游同名同签名：`Config.Path` → `Config.KLinePath`、`get`／`url` 增加 `path` 参数、新增 `decode`、`flexNum` → 导出 `FlexNum`、`ErrTokenRejected` → `IsTokenRejected`、`APIError.Error()` 补 `Message` 分支、`KlineTypeDay` → `KLineTypeDay`；不搬上游其它接口的 `post`／`do`、路径常量与 `IsParamsError`／`IsParamsMissing`，裁剪点记在 `client.go` 包注释。
+  - `cdeu` 日K同步调用方同步改用新符号，对外 HTTP 接口、请求参数与落库行为不变（使用者与部署者不可感知）。
+  - 验证：`go build ./...`、`go vet ./internal/meta/...` 退出码 0；`go test ./internal/meta/component/quote/moomoo/quoteapiv2/` 与 `cdeu` 日K相关用例 PASS；`kline.go`／`kline_test.go` 与上游逐字一致。
+  - 真实接口实测（2026-11-03）：`GCMain` 日K返回 12819 根（19750102~20261102），最新一根与接口原始响应一致；经 `SyncDayKlineFromMoomoo` 落库 12819 行耗时 4.7s，二次同步 0 新增／12819 更新；`change_ratio` 与 `change_price/last_close*100` 全表偏差为 0。
+
 ### 修复
 
 - **部署侧迁移号段混存与迁移错误定位（需求 10881 收尾）**

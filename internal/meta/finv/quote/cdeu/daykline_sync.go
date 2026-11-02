@@ -21,7 +21,7 @@ const dayKlineUpsertBatch = 2000
 
 // KlineFetcher K 线拉取能力（由 quoteapiv2.Client 实现；测试可注入假实现）。
 type KlineFetcher interface {
-	Kline(ctx context.Context, req quoteapiv2.KlineRequest) ([]quoteapiv2.Bar, error)
+	GetKLine(ctx context.Context, req quoteapiv2.GetKLineRequest) ([]quoteapiv2.KLineBar, error)
 }
 
 // SetKlineFetcher 替换 K 线拉取实现（单测注入用）；传 nil 恢复默认 moomoo 客户端。
@@ -101,19 +101,19 @@ func (s *Service) SyncDayKlineFromMoomoo(ctx context.Context, req DayKlineSyncRe
 	if fetcher == nil {
 		fetcher = quoteapiv2.New(quoteapiv2.Config{})
 	}
-	klineReq := quoteapiv2.KlineRequest{
+	klineReq := quoteapiv2.GetKLineRequest{
 		StockID:           strconv.FormatInt(params.StockID, 10),
 		MarketType:        strconv.Itoa(params.MarketType),
-		KlineType:         quoteapiv2.KlineTypeDay,
+		KLineType:         quoteapiv2.KLineTypeDay,
 		MarketCode:        strconv.Itoa(params.MarketCode),
 		InstrumentType:    strconv.Itoa(params.InstrumentType),
 		SubInstrumentType: strconv.Itoa(params.SubInstrumentType),
 	}
 	log.Printf("[cdeu][daykline] fetch start usc=%s stockId=%s marketType=%s type=%s marketCode=%s instrumentType=%s subInstrumentType=%s tz=%s",
-		usc, klineReq.StockID, klineReq.MarketType, klineReq.KlineType, klineReq.MarketCode,
+		usc, klineReq.StockID, klineReq.MarketType, klineReq.KLineType, klineReq.MarketCode,
 		klineReq.InstrumentType, klineReq.SubInstrumentType, result.Timezone)
 	fetchStarted := time.Now()
-	bars, err := fetcher.Kline(ctx, klineReq)
+	bars, err := fetcher.GetKLine(ctx, klineReq)
 	if err != nil {
 		log.Printf("[cdeu][daykline] sync failed usc=%s step=fetch err=%v elapsed_ms=%d",
 			usc, err, time.Since(started).Milliseconds())
@@ -211,7 +211,7 @@ func dayKlineDate(ts int64, location *time.Location) int {
 
 // dayKlineChangeRatio 按 change_price / last_close * 100 计算涨跌幅（百分数，6 位小数），
 // 与存量分钟线 change_ratio 的口径一致；last_close 缺失或为 0 时不写。
-func dayKlineChangeRatio(bar quoteapiv2.Bar) *string {
+func dayKlineChangeRatio(bar quoteapiv2.KLineBar) *string {
 	if bar.LastClose == 0 || strings.TrimSpace(bar.ChangePrice) == "" {
 		return nil
 	}

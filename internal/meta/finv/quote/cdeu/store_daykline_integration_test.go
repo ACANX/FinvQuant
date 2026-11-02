@@ -15,12 +15,12 @@ import (
 
 // stubFetcher 固定返回若干根 K 线（避免测试依赖外网）。
 type stubFetcher struct {
-	bars []quoteapiv2.Bar
+	bars []quoteapiv2.KLineBar
 	err  error
-	got  quoteapiv2.KlineRequest
+	got  quoteapiv2.GetKLineRequest
 }
 
-func (f *stubFetcher) Kline(_ context.Context, req quoteapiv2.KlineRequest) ([]quoteapiv2.Bar, error) {
+func (f *stubFetcher) GetKLine(_ context.Context, req quoteapiv2.GetKLineRequest) ([]quoteapiv2.KLineBar, error) {
 	f.got = req
 	if f.err != nil {
 		return nil, f.err
@@ -59,14 +59,14 @@ func TestDayKlineDate(t *testing.T) {
 func TestDayKlineChangeRatio(t *testing.T) {
 	cases := []struct {
 		name string
-		bar  quoteapiv2.Bar
+		bar  quoteapiv2.KLineBar
 		want string
 	}{
-		{"正常", quoteapiv2.Bar{LastClose: 100, ChangePrice: "2.5"}, "2.500000"},
-		{"下跌", quoteapiv2.Bar{LastClose: 200, ChangePrice: "-3"}, "-1.500000"},
-		{"前收缺失", quoteapiv2.Bar{LastClose: 0, ChangePrice: "1"}, ""},
-		{"涨跌额缺失", quoteapiv2.Bar{LastClose: 100}, ""},
-		{"涨跌额非法", quoteapiv2.Bar{LastClose: 100, ChangePrice: "abc"}, ""},
+		{"正常", quoteapiv2.KLineBar{LastClose: 100, ChangePrice: "2.5"}, "2.500000"},
+		{"下跌", quoteapiv2.KLineBar{LastClose: 200, ChangePrice: "-3"}, "-1.500000"},
+		{"前收缺失", quoteapiv2.KLineBar{LastClose: 0, ChangePrice: "1"}, ""},
+		{"涨跌额缺失", quoteapiv2.KLineBar{LastClose: 100}, ""},
+		{"涨跌额非法", quoteapiv2.KLineBar{LastClose: 100, ChangePrice: "abc"}, ""},
 	}
 	for _, tc := range cases {
 		got := dayKlineChangeRatio(tc.bar)
@@ -196,7 +196,7 @@ VALUES ($1, 'Futures', 'US', 'COMEX', 'FTMM', '日K同步测试', 'America/New_Y
 	if err != nil {
 		t.Fatalf("加载时区失败: %v", err)
 	}
-	fetcher := &stubFetcher{bars: []quoteapiv2.Bar{
+	fetcher := &stubFetcher{bars: []quoteapiv2.KLineBar{
 		{Time: time.Date(2026, 10, 1, 16, 0, 0, 0, ny).Unix(), Open: "10", High: "11", Low: "9", Close: "10.5", LastClose: 10.2, ChangePrice: "0.3", Volume: 100, Turnover: 1050},
 		{Time: time.Date(2026, 10, 2, 16, 0, 0, 0, ny).Unix(), Open: "10.5", High: "12", Low: "10", Close: "11.5", LastClose: 10.5, ChangePrice: "1", Volume: 200, Turnover: 2200},
 		{Time: time.Date(2026, 10, 5, 16, 0, 0, 0, ny).Unix(), Open: "11.5", High: "12", Low: "11", Close: "11.8", LastClose: 11.5, ChangePrice: "0.3", Volume: 150, Turnover: 1750},
@@ -209,7 +209,7 @@ VALUES ($1, 'Futures', 'US', 'COMEX', 'FTMM', '日K同步测试', 'America/New_Y
 	}
 	if fetcher.got.StockID != "70000294" || fetcher.got.MarketCode != "9001" ||
 		fetcher.got.InstrumentType != "9" || fetcher.got.SubInstrumentType != "9008" ||
-		fetcher.got.KlineType != quoteapiv2.KlineTypeDay {
+		fetcher.got.KLineType != quoteapiv2.KLineTypeDay {
 		t.Fatalf("请求参数应原样透传 futu 表取值，实际 %+v", fetcher.got)
 	}
 	if result.Total != 3 || result.InRange != 3 || result.Inserted != 3 || result.Updated != 0 {
