@@ -285,6 +285,14 @@
   - `SetUscPatchRuleEnable(true)` 时从旧 usc 复制登记新 usc；`PatchOutdatedUsc` 执行前再兜底同步一次，日志输出「补齐目标 usc 登记 N 行」。
   - 迁移 `V300104` 做一次性存量修正，覆盖全部规则（含停用规则）：本机补出 `SH0888`、`SH0903`、`SH0922` 三条（`SH0980` 原已存在），登记表 495 → 510 行。
 
+### 修复
+
+- **`PATCH_OUTDATED_USC` 手动执行报「未知 Job」（需求 10939）**
+  - 根因：`jobmeta/patch_outdated_usc.go` 定义写好了，但没加入 `jobmeta.All()`，`JobRuntimes()` 里没有它——手动触发在 `TriggerWithOptions` 的 known 校验处就被拒，调度器也不会按 05:00 调度。
+  - 修复：把 `PatchOutdatedUsc` 加入 `All()`，排在收口冻结之前。
+  - 新增单测 `TestJobRuntimesCoverAllMeta`：`jobmeta.All()` 的每一项都必须出现在 `JobRuntimes()`，防止同类遗漏重犯。
+  - 验证：`Job/Runtime` 返回含该项，`Job/Run` 返回 `code=202` 与 `run_log_id`，日志出现 `PATCH_OUTDATED_USC 完成 rules=24`。
+
 ### 变更
 
 - **USC 补丁相关名称统一为「过时USC映射到新USC」（需求 10938）**

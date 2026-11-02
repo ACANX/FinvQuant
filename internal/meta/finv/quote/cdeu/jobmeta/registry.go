@@ -6,6 +6,8 @@ func All() []Runtime {
 		CalcDailyIngestStats,
 		CalcDailyExportBudget,
 		RefreshQuoteMaturity,
+		// 需求 10932：过时 USC 映射到新 USC，属 PHASE_DEDUP，排在收口冻结之前。
+		PatchOutdatedUsc,
 		MarkSealedJobsFrozen,
 		CheckIngestReadiness,
 		RunDueExportJobs,
