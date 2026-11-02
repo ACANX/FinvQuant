@@ -10,7 +10,7 @@ import (
 	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
 )
 
-// 本文件实现 USC 补丁规则接口（需求 10931，方案见 Docs/Proposal/202611-0002）。
+// 本文件实现「过时USC映射到新USC」规则接口（需求 10931，方案见 Docs/Proposal/202611-0002）。
 // 路径前缀 /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/。
 // 约定：URL 查询参数小驼峰，JSON 体字段 snake_case（ApiSpec §3）。
 
@@ -36,7 +36,7 @@ func (h *ExportArchive) UscPatchRuleSave(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 2007, "message": "保存补丁规则失败: " + err.Error()})
 		return
 	}
-	h.audit(c, "保存 USC 补丁规则 idn="+strconv.FormatInt(idn, 10)+
+	h.audit(c, "保存过时USC映射规则 idn="+strconv.FormatInt(idn, 10)+
 		" "+req.UscOld+"→"+req.UscNew+" flag_enable="+req.FlagEnable)
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "保存成功", "data": gin.H{"idn": idn}})
 }
@@ -59,7 +59,7 @@ func (h *ExportArchive) UscPatchRuleEnable(c *gin.Context) {
 	if req.Enable {
 		state = "启用"
 	}
-	h.audit(c, state+" USC 补丁规则 idn="+strconv.FormatInt(req.Idn, 10))
+	h.audit(c, state+" 过时USC映射规则 idn="+strconv.FormatInt(req.Idn, 10))
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": state + "成功"})
 }
 
@@ -76,7 +76,7 @@ func (h *ExportArchive) UscPatchRuleDelete(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 2007, "message": "删除规则失败: " + err.Error()})
 		return
 	}
-	h.audit(c, "删除 USC 补丁规则 idn="+strconv.FormatInt(req.Idn, 10))
+	h.audit(c, "删除过时USC映射规则 idn="+strconv.FormatInt(req.Idn, 10))
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
 }
 

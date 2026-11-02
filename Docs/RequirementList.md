@@ -2678,6 +2678,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10935 | USC 补丁启用前自动登记目标 usc：启用规则（`SetUscPatchRuleEnable(true)`）时把 `usc_new` 从 `usc_old` 复制登记到 `cdeu.finv_quote_cdeu_usc`（`ON CONFLICT DO NOTHING`，只补不覆盖），`PatchOutdatedUsc` 执行前再兜底同步一次并在日志输出「补齐目标 usc 登记 N 行」；一次性存量修正由迁移 `V300104` 完成，覆盖**全部规则**（含停用规则，便于将来启用时不出空档）。 | `SELECT count(*) FROM cdeu.finv_quote_cdeu_usc WHERE usc IN ('SH0888','SH0903','SH0922','SH0980')` = 4；执行 `V300104` 输出 `完成：旧 usc 已登记但目标 usc 未登记的数量 = 0`；调用 `POST .../Usc/Patch/Enable {idn:21,enable:true}` 后 `SELECT count(*) FROM cdeu.finv_quote_cdeu_usc WHERE usc='SH0888'` = 1；`SELECT version FROM public.schema_version ORDER BY version DESC LIMIT 1` = 300104 | √ |
 | 10936 | USC 补丁联动成熟度表：`PatchOutdatedUsc` 在主表迁移完成后，把 `cdeu.finv_quote_cdeu_quote_maturity_mon` 里旧 usc 的月度统计合并到新 usc（同一 `trade_date` 取 `actual_rows` 较大者，状态跟随较大者），并删除旧 usc 记录；删除前整行备份到 `archive.finv_quote_cdeu_quote_maturity_mon_purge_20261102`（迁移 `V300105` 建表，带 `src_schema`/`reason`/`backup_at`）。执行统计新增 `maturity_moved`、`maturity_deleted` 并在日志输出。 | `SELECT count(*) FROM cdeu.finv_quote_cdeu_quote_maturity_mon WHERE usc IN ('SH000888','SH000903','SH000922','SH000980') AND biz_month=202610` = 0；`SELECT usc, count(*) FROM cdeu.finv_quote_cdeu_quote_maturity_mon WHERE usc IN ('SH0888','SH0903','SH0922','SH0980') AND biz_month=202610 GROUP BY usc` 各 5 天、合计 1205 行；`SELECT count(*) FROM archive.finv_quote_cdeu_quote_maturity_mon_purge_20261102` = 120；`GET /API/V1/Meta/Finv/Quote/DeDup/Export/Stock/Page?bizMonth=202610` 的 items 中不再出现 `SH000888` 等 6 位旧形态 usc，且出现 `SH0888`、`SH0903`、`SH0922`、`SH0980`；`SELECT version FROM public.schema_version ORDER BY version DESC LIMIT 1` = 300105 | √ |
 | 10937 | 清理成熟度表中的测试残留：`cdeu.finv_quote_cdeu_quote_maturity_mon` 里仍留着 `TEST.USC.9999`（1 行）与 `TEST.DATE.0001`（2 行），是需求 10920、10925 联调时插入的测试证券——当时只清了主表与证券登记表，漏了成熟度表。按 `DbSchemaSpec` §0.7 先整行备份到 `archive.finv_quote_cdeu_quote_maturity_mon_purge_20261102`（`reason` 标注测试残留清理），单事务「备份 → 删除 → 校验」，校验不符 `RAISE EXCEPTION` 回滚。 | `SELECT count(*) FROM cdeu.finv_quote_cdeu_quote_maturity_mon WHERE usc LIKE 'TEST.%'` = 0；`SELECT count(*) FROM archive.finv_quote_cdeu_quote_maturity_mon_purge_20261102 WHERE reason LIKE '测试残留%'` = 3；主表、`cdeu.finv_quote_cdeu_usc`、`public.finv_security` 中 `usc LIKE 'TEST.%'` 均为 0；注意 `09999` 是港股网易的合法代码，不属测试数据 | √ |
+| 10938 | 统一 USC 补丁相关名称：工作流流程、JOB、步骤名称与前端菜单名由「过时 USC 补丁」「USC 补丁规则」统一改为「过时USC映射到新USC」，与功能语义一致（不是打补丁，而是把过时 usc 的行情映射到新 usc）。迁移 `V300107` 更新 `finv_quote_cdeu_process.name`、`finv_quote_cdeu_job.name`、`finv_quote_cdeu_job_step.name`；代码侧同步 `jobmeta` 的 `Name`、前端 `menuConfig` 菜单标题、路由 `meta.title`、页面标题。只改显示名称，接口路径与 `job_kind`、`job_code` 均不变。 | `SELECT count(*) FROM cdeu.finv_quote_cdeu_process WHERE name='过时USC映射到新USC'` = 1；`SELECT count(*) FROM cdeu.finv_quote_cdeu_job WHERE name='过时USC映射到新USC'` = 1；`SELECT count(*) FROM cdeu.finv_quote_cdeu_job_step WHERE name='过时USC映射到新USC'` = 1；`grep -c '过时USC映射到新USC' Web/src/config/menuConfig.ts` = 1；`GET /API/V1/Meta/Finv/Quote/DeDup/CDEU/Overview` 中该 JOB 的 `name` 为「过时USC映射到新USC」 | √ |
 
 
 ## 汇总
@@ -2921,7 +2922,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | CDEU「JOB 进度」标题去掉重复计数 | 10885 | 1 |
 | 「当日累计均价」字段名调整（待办） | 10886 | 1 |
 | CDEU 指标卡片顺序调整（运行时长移到最左） | 10887 | 1 |
-| **合计** | **10001–10937** | **936** |
+| **合计** | **10001–10938** | **937** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

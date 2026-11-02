@@ -1,6 +1,6 @@
-# USC 补丁规则 API
+# 过时USC映射到新USC API
 
-> 所属：行情 → 收剔导传ETL → USC 补丁规则
+> 所属：行情 → 收剔导传ETL → 过时USC映射到新USC
 > 路径前缀：`/API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch`
 > 数据表：`cdeu.finv_quote_cdeu_usc_patch_rule`
 > 关联需求：10931

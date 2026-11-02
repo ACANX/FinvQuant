@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// USC 补丁规则维护（cdeu.finv_quote_cdeu_usc_patch_rule，需求 10931）
+// 过时USC映射到新USC：规则维护与执行（cdeu.finv_quote_cdeu_usc_patch_rule，需求 10931）
 // 接口前缀：/Meta/Finv/Quote/Cdeu/Usc/Patch
 //   GET  /List     查询参数小驼峰 page/pageSize/keyword/status
 //   POST /Save     idn=0 新增，否则更新
@@ -339,7 +339,7 @@ onBeforeUnmount(() => {
   <v-card>
     <v-card-title>
       <v-icon icon="mdi-swap-horizontal-bold" class="mr-2" />
-      USC 补丁规则
+      过时USC映射到新USC
     </v-card-title>
     <v-card-subtitle>
       cdeu.finv_quote_cdeu_usc_patch_rule：把过时 usc 的行情迁移到最新定义的 usc（主键冲突按 gmt_update 较新者胜）

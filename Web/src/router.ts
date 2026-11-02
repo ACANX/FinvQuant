@@ -95,7 +95,7 @@ const router = createRouter({
       path: '/Meta/Finv/Quote/Cdeu/Usc/Patch',
       name: 'cdeu-usc-patch',
       component: CdeuUscPatchView,
-      meta: { title: 'USC 补丁规则' },
+      meta: { title: '过时USC映射到新USC' },
     },
     {
       path: '/Meta/Finv/Quote/Cdeu/CdeuWorkflow',
