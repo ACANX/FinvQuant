@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/webquoteapiv2"
+	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/quoteapiv2"
 )
 
-// TestLiveGCMainDayKline 真实拉取 GCMain 日 K 并 upsert（需要可访问 www.webquoteapiv2.com 的网络）。
+// TestLiveGCMainDayKline 真实拉取 GCMain 日 K 并 upsert（需要可访问 www.quoteapiv2.com 的网络）。
 //
-// 默认跳过：本机（宿主与容器）到 webquoteapiv2.com 的 TLS 握手被重置，无法在开发环境验证。
+// 默认跳过：本机（宿主与容器）到 quoteapiv2.com 的 TLS 握手被重置，无法在开发环境验证。
 // 在可访问环境执行：
 //
 //	FINV_MOOMOO_LIVE=1 FINV_TEST_PG_DSN=... go test -run TestLiveGCMainDayKline -v ./internal/meta/finv/quote/cdeu/
@@ -25,7 +25,7 @@ func TestLiveGCMainDayKline(t *testing.T) {
 	pool := testPool(t)
 	service := &Service{
 		store:        NewStore(pool),
-		klineFetcher: webquoteapiv2.New(webquoteapiv2.Config{}),
+		klineFetcher: quoteapiv2.New(quoteapiv2.Config{}),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
