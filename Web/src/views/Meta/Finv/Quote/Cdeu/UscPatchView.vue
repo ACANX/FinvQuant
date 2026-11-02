@@ -72,7 +72,9 @@ const POLL_IDLE_MS = 5000
 const rows = ref<PatchRuleRow[]>([])
 const total = ref(0)
 const page = ref(1)
-const pageSize = ref(20)
+// 规则表是小字典表（几十行），默认一页取到后端上限 200，避免出现
+// 「表里 26 条、页面只显示 20 条」的困惑；需要翻页时可切小每页条数。
+const pageSize = ref(200)
 const keyword = ref('')
 const status = ref('')
 const loading = ref(false)
@@ -376,6 +378,17 @@ onBeforeUnmount(() => {
         </v-col>
         <v-col cols="auto">
           <v-btn color="primary" prepend-icon="mdi-magnify" @click="search">查询</v-btn>
+        </v-col>
+        <v-col cols="auto">
+          <v-select
+            v-model="pageSize"
+            :items="[20, 50, 100, 200]"
+            label="每页"
+            density="compact"
+            hide-details
+            style="max-width: 110px"
+            @update:model-value="search"
+          />
         </v-col>
         <v-col cols="auto">
           <v-btn color="secondary" prepend-icon="mdi-eye-outline" :loading="previewLoading" @click="preview">

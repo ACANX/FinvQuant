@@ -61,6 +61,14 @@
   - 修复：迁移 `V300112` 按登记表现值口径插入一行——`exchange_code=10001`、`market_code=10001`（`CRYPTO_10001` → `market_symbol=FTC`）、`security_type='Crypto'`、`type_secu_sub='Crypto.CC'`、`currency_type='USD'`、`tz='+00:00'`/`timezone='UTC'`、`init_date=20000000`、`provider='FTMM'`、`flag_enable='1'`；末尾校验主数据与登记表 `CC`/`FTC`/`Crypto` 口径一致，不符整事务回滚。
   - 验证：执行输出「完成：XRP 主数据已就绪（CC/FTC/Crypto/UTC/USD），登记表口径一致」，复跑 `INSERT 0 0`；`SELECT exchange_code, market_code, security_type, type_secu_sub, currency_type, tz, timezone, flag_enable FROM public.finv_security WHERE usc='XRP'` 为 `10001 / 10001 / Crypto / Crypto.CC / USD / +00:00 / UTC / 1`。
 
+### 修复
+
+- **「过时USC映射到新USC」菜单默认只显示 20 条（需求 10947）**
+  - 现象：规则表已有 26 条，页面只列出前 20 条，看不到 `SH000888` 之后的规则，容易误判为「加载不全」。
+  - 根因：`UscPatchView.vue` 把 `pageSize` 写死为 20，且页面上没有「每页条数」选择器；服务端 `normalizePageSize` 上限为 200、`<=0` 回退 20，所以不传参也只能拿到 20 条。
+  - 修复：前端增加「每页」下拉（20/50/100/200），默认取服务端上限 200（该表是小字典表，一页即可看全），切换时回到第 1 页重新查询；`Docs/API/Cdeu/UscPatch.md` 的 `pageSize` 说明同步为「默认 200、上限 200、`<=0` 回退 20」。
+  - 验证：`Web/` 下 `npx vue-tsc --noEmit -p tsconfig.app.json` 退出码 0；打开菜单显示「共 26 条」并一次列出 26 行。
+
 ### 新增
 
 - **登记待办：「当日累计均价」字段名调整（需求 10886）**
