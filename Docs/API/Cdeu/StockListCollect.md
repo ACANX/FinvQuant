@@ -128,13 +128,23 @@ moomoo 列表接口**不返回币种**，`usc` 也不在响应里。早期实现
 
 | 顺序 | 字段 | 来源 |
 |------|------|------|
-| 1 | `usc` | `futu.finv_futu_quote_collect`（按 `stock_id`；最准，带柜台口径）；查不到回落 `stock_code` |
-| 2 | `currency` | `cdeu.finv_quote_cdeu_usc.currency`（按 usc） |
+| 1 | `usc` | `futu.finv_futu_quote_collect`（按 `stock_id`；最准，带柜台口径）。**查不到保持 NULL** |
+| 2 | `currency` | `cdeu.finv_quote_cdeu_usc.currency`（按 usc，仅当第 1 步取到 usc） |
 | 3 | `currency` | `public.finv_security.currency_type`（按 `security_code`，覆盖面更广） |
-| 4 | `currency` | 规则兜底：港股 8 开头 5 位代码（人民币柜台）→ `CNY`，其余 → `HKD`；美股 → `USD`；沪深 → `CNY` |
+| 4 | `currency` | 规则兜底（按 `market_label` + 代码）：见下表 |
+
+**`usc` 不允许用 `stock_code` 顶替**：两者并非等价，直接挪用会把不同市场的同码证券映射错
+（例如 `000001` 在 SZ 与 SH 都存在），缺失时宁可留 NULL 由人工补。
+
+规则兜底依据 `market_label`（采集响应直接给出，不看 `marketType`，避免两套口径打架）：
+
+| `market_label` | 规则 |
+|----------------|------|
+| `HK` | 8 开头的 5 位代码（80000–89999，人民币柜台 / R 股）→ `CNY`，其余 → `HKD` |
+| `US` | `USD` |
+| `SH` / `SZ` / `BJ` | `CNY`（历史数据中的 `CN` 亦按 `CNY`） |
 
 规则依据：库内 2203 条港股快照中，8 开头代码全部为 `CNY`、其余全部为 `HKD`，零例外。
-补齐覆盖率（对 1206 行空值实测）：`usc` 100%、`currency` 100%。
 
 ### 分页与 referer 口径（需求 10992）
 

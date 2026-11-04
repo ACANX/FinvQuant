@@ -2733,6 +2733,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10990 | 「行情快照手动同步」页在服务刚重启、内存无运行记录时误报「该品种暂无启用的采集配置」：`GET .../FTStockQuoteSnapshotSync/Run` 的「暂无运行记录」分支原先直接 return，**不返回 `configs`**，前端拿不到启用配置列表；修复为两个分支都查询并返回 `configs`（与 `data.error`），前端在 `data.error` 非空时提示读取配置失败。 | 重启服务后（内存运行记录为空）调用 `GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run`，响应 `data.configs` 为数组且条数等于 `SELECT count(*) FROM cdeu.finv_cdeu_secu_realtime_sync_config WHERE flag_enable = '1'`；页面不再出现「该品种暂无启用的采集配置」，配置表正常渲染 | √ |
 | 10992 | 列表采集补齐三处请求口径，修复「采不到 00700 等头部证券、名称为英文」：① **页码改 0-based**（`StockListDefaultPageStart = 0`），并绕开 MetaExt `GetStockList` 硬编码的 page 下限 1（`intParam(req.Page, \"page\", 1)`，报错「moomoo page 不能小于 1，实际 0」属客户端本地校验），改用本文件内 `StockListDirectFetcher` 自行请求、只复用 `quoteapiv2` 的签名与响应结构体；② **referer 按 marketType 指定为中文站市值排行页**（`/hans/quote/{hk,us,cn}/stock-list/.../top-market-cap`），替代 MetaExt 硬编码的站点首页（后者返回英文降级数据，且 `accept-language` 单独设置无效）；③ 请求固定携带 `_` 毫秒时间戳（参与 `quote-token` 签名）。 | 港股 `count_plan=2600` 跑完后 `SELECT count(*) FILTER (WHERE page IS NOT NULL) FROM cdeu.finv_cdeu_secu_realtime_stock WHERE market_type='1'` 等于接口 `pagination.total`（实测 3337）；`SELECT page FROM ... WHERE market_type='1' AND stock_code='00700'` 非空且为 1；首页日志 `[cdeu][stocklist] 首页采样` 样本为中文名中文单位（如 `00700\|腾讯控股\|3.65万亿`） | √ |
 | 10993 | 列表采集自动补齐 `usc` 与 `currency`：接口不返回币种、`usc` 也不在响应里，落库前按 ① `stock_id` → `futu.finv_futu_quote_collect.usc`（缺失回落 `stock_code`）② `usc` → `cdeu.finv_quote_cdeu_usc.currency` ③ `security_code` → `public.finv_security.currency_type` ④ 规则兜底（港股 8 开头 5 位代码=人民币柜台 → `CNY`，其余 → `HKD`；美股 → `USD`；沪深 → `CNY`）顺序补值，每页批量查表。 | 对 `page IS NOT NULL AND (usc IS NULL OR currency IS NULL)` 的存量行（实测 1206 行）按上述顺序模拟补齐，`count(new_usc)` 与 `count(new_currency)` 均等于 1206；`go test -run 'TestStockListFallbackCurrency' -run 'TestStockListHKCurrency' ./internal/meta/finv/quote/cdeu/` 通过；采集一轮后 `SELECT count(*) FROM cdeu.finv_cdeu_secu_realtime_stock WHERE page IS NOT NULL AND (usc IS NULL OR currency IS NULL)` 为 0 | √ |
+| 10994 | 收紧 10993 的补齐口径：① `usc` **只**取自 `futu.finv_futu_quote_collect`（按 `stock_id`），查不到保持 NULL，**禁止用 `stock_code` 兜底**（同码证券跨市场会映射错，如 SZ/SH 均有 000001）；② 币种规则兜底改为**只看 `market_label`**：`HK` 按 8 开头 5 位代码判人民币柜台（`CNY`）否则 `HKD`、`US` → `USD`、`SH`/`SZ`/`BJ` → `CNY`（兼容历史 `CN`），不再依赖 `marketType`。 | `grep -c 'stock_code' internal/meta/finv/quote/cdeu/store_stocklist.go` 在 `loadStockListSecurityMeta` 内不出现 usc 兜底赋值；`go test -run 'TestStockListFallbackCurrency' ./internal/meta/finv/quote/cdeu/` 通过（含 SH/SZ/BJ 与 HK R 柜台的柜面用例）；14 组用例真实 Go 运行全通过 | √ |
 
 
 ## 汇总
@@ -3016,7 +3017,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 无运行记录时接口也返回采集配置 | 10990 | 1 |
 | 列表采集修正页码基准与 referer | 10992 | 1 |
 | 列表采集自动补齐 usc 与币种 | 10993 | 1 |
-| **合计** | **10001–10993** | **991** |
+| 收紧 usc 与币种的补齐口径 | 10994 | 1 |
+| **合计** | **10001–10994** | **992** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

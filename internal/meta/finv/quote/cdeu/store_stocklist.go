@@ -38,15 +38,17 @@ type stockListSecurityMeta struct {
 
 // loadStockListSecurityMeta 批量补齐 usc 与币种（需求 10993）。
 //
-// 关联顺序（只查表，不猜值；查不到保持空，由人工补）：
-//  1. stock_id → usc：futu.finv_futu_quote_collect（最准确，带柜台口径）；
-//  2. usc（缺失时用 stock_code）→ currency：先查 cdeu.finv_quote_cdeu_usc（主数据），
-//     再查 public.finv_security.currency_type（覆盖面更广）；
-//  3. 仍查不到时按「市场 + 柜台」规则推导（见 stockListFallbackCurrency）。
+// 关联顺序：
+//  1. usc：只认 stock_id → futu.finv_futu_quote_collect.usc（最准确，带柜台口径）。
+//     **查不到就保持 NULL，不允许用 stock_code 冒充 usc**——两者并非等价，
+//     直接挪用会把不同市场的同码证券映射错（如 SZ/SH 均有 000001）。
+//  2. currency：有 usc 时先查 cdeu.finv_quote_cdeu_usc（主数据），
+//     再查 public.finv_security.currency_type（覆盖面更广）。
+//  3. 仍查不到时按 market_label + 代码规则推导（见 stockListFallbackCurrency）。
 //
 // 背景：moomoo 列表接口不返回币种，usc 也不在响应里，早期实现只写行情字段，
 // 导致采集新增的证券 usc / currency 长期为空（生产环境实测约 17% 行为空）。
-func (s *Store) loadStockListSecurityMeta(ctx context.Context, marketType string, items []quoteapiv2.StockListItem) (map[int64]stockListSecurityMeta, error) {
+func (s *Store) loadStockListSecurityMeta(ctx context.Context, items []quoteapiv2.StockListItem) (map[int64]stockListSecurityMeta, error) {
 	metas := make(map[int64]stockListSecurityMeta, len(items))
 	if len(items) == 0 {
 		return metas, nil
@@ -82,14 +84,10 @@ SELECT stock_id, usc
 		}
 	}
 
-	// 收集待查币种的 usc 集合：优先用映射到的 usc，缺失时退回 stock_code。
+	// 收集待查币种的 usc 集合：只用真正映射到的 usc（不拿 stock_code 顶替）。
 	uscSet := make(map[string]struct{}, len(items))
 	for _, item := range items {
-		code := uscByID[item.StockID]
-		if code == "" {
-			code = strings.TrimSpace(item.StockCode)
-		}
-		if code != "" {
+		if code := uscByID[item.StockID]; code != "" {
 			uscSet[code] = struct{}{}
 		}
 	}
@@ -149,45 +147,38 @@ SELECT DISTINCT security_code, currency_type
 	}
 
 	for _, item := range items {
+		// usc 只认 futu 采集表；查不到就是空（NULL），不做 stock_code 兜底。
 		code := uscByID[item.StockID]
-		if code == "" {
-			code = strings.TrimSpace(item.StockCode)
+		currency := ""
+		if code != "" {
+			currency = currencyByUSC[code]
+			if currency == "" {
+				currency = currencyByCode[code]
+			}
 		}
-		currency := currencyByUSC[code]
 		if currency == "" {
-			currency = currencyByCode[code]
-		}
-		if currency == "" {
-			currency = stockListFallbackCurrency(marketType, item.MarketLabel, code)
+			currency = stockListFallbackCurrency(item.MarketLabel, item.StockCode)
 		}
 		metas[item.StockID] = stockListSecurityMeta{USC: code, Currency: currency}
 	}
 	return metas, nil
 }
 
-// stockListFallbackCurrency 按「市场 + 柜台」推导币种，只在主数据表都查不到时使用。
+// stockListFallbackCurrency 按 market_label + 代码推导币种，只在主数据表都查不到时使用。
 //
 // 依据（实测 2026-11-05，库内港股快照零例外）：
-//   - 港股 5 位代码中 8 开头（80000–89999）为人民币柜台（R 股）→ CNY，其余 → HKD；
-//   - 美股 → USD；
-//   - 沪深 → CNY。
+//   - HK：5 位代码中 8 开头（80000–89999）为人民币柜台（R 股）→ CNY，其余 → HKD；
+//   - US：→ USD；
+//   - SH / SZ / BJ（沪深京）：→ CNY（兼容历史数据里的 CN）。
 //
-// 说明：这些是交易所的稳定规则，不是猜测；港股 R 柜台与正股共用同一发行人的 HKD/CNY 双柜台。
-func stockListFallbackCurrency(marketType, marketLabel, stockCode string) string {
+// 只看 market_label（采集响应直接给出），不依赖 marketType，避免两套口径打架。
+func stockListFallbackCurrency(marketLabel, stockCode string) string {
 	switch strings.ToUpper(strings.TrimSpace(marketLabel)) {
 	case "HK":
 		return stockListHKCurrency(stockCode)
 	case "US":
 		return "USD"
-	case "CN", "SZ", "SH":
-		return "CNY"
-	}
-	switch strings.TrimSpace(marketType) {
-	case "1":
-		return stockListHKCurrency(stockCode)
-	case "2":
-		return "USD"
-	case "4":
+	case "SH", "SZ", "BJ", "CN":
 		return "CNY"
 	}
 	return ""
@@ -265,7 +256,7 @@ func (s *Store) SaveStockListPage(ctx context.Context, cfg StockListCollectConfi
 	}
 	now := time.Now().UnixMilli()
 	// 补齐 usc 与币种：接口不返回币种、usc 也不在响应里，必须按 stock_id/stock_code 关联主数据表。
-	securityMeta, err := s.loadStockListSecurityMeta(ctx, cfg.MarketType, items)
+	securityMeta, err := s.loadStockListSecurityMeta(ctx, items)
 	if err != nil {
 		return nil, err
 	}

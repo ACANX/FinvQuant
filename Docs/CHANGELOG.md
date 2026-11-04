@@ -65,6 +65,10 @@
 
 ### 变更
 
+- **收紧 usc 与币种的补齐口径（需求 10994）**
+  - `usc` 只取自 `futu.finv_futu_quote_collect`（按 `stock_id`），查不到保持 NULL；**取消 `stock_code` 兜底**，避免跨市场同码证券被错误映射（如 `000001` 在 SZ 与 SH 同时存在）。
+  - 币种规则兜底改为只看 `market_label`：`HK` 按 8 开头 5 位代码判人民币柜台（CNY）否则 HKD、`US` → USD、`SH`/`SZ`/`BJ` → CNY（兼容历史 `CN`），不再依赖 `marketType`。
+
 - **列表采集自动补齐 usc 与币种（需求 10993）**
   - 现象：采集写入的行 `usc` / `currency` 为空（港股实测 1206 行，约占 17%）。moomoo 列表接口不返回币种，`usc` 也不在响应里。
   - 修复：`SaveStockListPage` 落库前每页批量补值——`stock_id` → `futu.finv_futu_quote_collect.usc`（回落 `stock_code`）、`usc` → `cdeu.finv_quote_cdeu_usc.currency`、`security_code` → `public.finv_security.currency_type`、规则兜底（港股 8 开头 5 位=人民币柜台 → CNY，其余 HKD；美股 USD；沪深 CNY）。
