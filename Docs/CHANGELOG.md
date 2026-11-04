@@ -65,6 +65,11 @@
 
 ### 变更
 
+- **新增提案：MetaExt `quoteapiv2` 支持自定义请求头（`Docs/Proposal/202611-0003-MetaExtCustomHeaderSupport.md`）**
+  - 现状：MetaExt `Config` 无 header 字段，`client.go:do()` 硬编码请求头且缺 `accept-language`，导致海外 IP 部署时 moomoo 返回英文口径（名称英文、单位 `T/B/M/K`），FinvQuant 只能包 `RoundTripper` 规避。
+  - 建议：新增 `Config.Header map[string]string`（内置头之后应用、同名覆盖、零值保持行为不变），并给出参考实现与验收用例。
+  - 提案状态：待评审（D1–D4 待确认）；已在 `Docs/Proposal/README.md` 清单登记为 0003。
+
 - **列表采集支持英文单位口径并锁定语言（需求 10989）**
   - `stockListAmount` 补 `T`(1e12)、`K`(1e3)，与 `万亿/亿/万/B/M` 并存：海外 IP 返回 `4.07T` 时不再解析失败。
   - 列表采集 HTTP 客户端固定带 `accept-language: zh-CN,zh;q=0.9,en;q=0.8`（经 `quoteapiv2.Config.HTTPClient` 注入，不改外部包）。

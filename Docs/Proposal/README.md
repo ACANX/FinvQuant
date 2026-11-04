@@ -73,3 +73,4 @@ Docs/Proposal/202612-0003-CdeuUscAliasRule.md
 |------|------|------|------|
 | 0001 | [202611-0001-DataBaselineSyncProposal.md](202611-0001-DataBaselineSyncProposal.md) | 决策已定，待执行 | 本地修正回流 Prod：先补缺失字段，再减少差异，最后处理冲突（D1 至 D7 已定） |
 | 0002 | [202611-0002-UscPatchSchemeProposal.md](202611-0002-UscPatchSchemeProposal.md) | 待评审 | USC 补丁机制：规则表 + upsert 分批迁移 + 菜单手动执行（P1 至 P6 待确认） |
+| 0003 | [202611-0003-MetaExtCustomHeaderSupport.md](202611-0003-MetaExtCustomHeaderSupport.md) | 待评审（待上游 MetaExt 采纳） | 建议 MetaExt `quoteapiv2.Config` 支持自定义请求头（accept-language 等），替代 FinvQuant 的 `HTTPClient`+`RoundTripper` 规避（D1 至 D4 待确认） |
