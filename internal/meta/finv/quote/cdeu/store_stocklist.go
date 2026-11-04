@@ -34,7 +34,9 @@ type stockListSecurityMeta struct {
 	//
 	// 空值语义（刻意保留，勿"修复"）：表示该证券尚未录入证券主数据
 	//（`futu.finv_futu_quote_collect` 里没有），通常是新上市或未纳入采集范围。
-	// 落库后 usc 为 NULL 的行就是「待录入清单」，作为后续补录的观测依据；
+	// 落库后 usc 为 NULL 的行就是「待录入清单」，是后续补录三张表的依据：
+	// public.finv_security（证券主数据）+ futu.finv_futu_quote_collect（采集配置）
+	// + cdeu.finv_quote_cdeu_usc（usc 主数据）；
 	// 禁止用 stock_code 回填，否则这份信号会被抹掉且可能跨市场映射错。
 	USC string
 	// Currency 结算币种（HK 正股 HKD、R 柜台 CNY、美股 USD、A 股 CNY）。
@@ -50,7 +52,8 @@ type stockListSecurityMeta struct {
 //
 //     这个 NULL 是**业务信号，不是缺陷**：采集会把所有在售证券都写进来，
 //     usc 为 NULL 的那些就是「新上市 / 尚未录入证券主数据」的证券。
-//     它是后续补录 `futu.finv_futu_quote_collect` + `cdeu.finv_quote_cdeu_usc` 的依据，
+//     它是后续补录 `public.finv_security` + `futu.finv_futu_quote_collect`
+//     + `cdeu.finv_quote_cdeu_usc` 三张表的依据，
 //     因此不得回填、不得兜底、不得在写入链路里自动建主数据（需求 10994 的刻意约束）。
 //  2. currency：有 usc 时先查 cdeu.finv_quote_cdeu_usc（主数据），
 //     再查 public.finv_security.currency_type（覆盖面更广）。
