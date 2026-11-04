@@ -55,3 +55,8 @@ Deploy/Docker/.env.bak
 Deploy/Docker/pgdata/
 # 升级脚本生成的数据库备份（Docker / Native 两种方式共用）
 Deploy/Backup/
+
+# ---- 文档：面向上游/第三方的 Issue 正文 ----
+# Docs/Issue/ 目录本身入库（含 README 与已外发的 Issue）；
+# Outside/ 子目录放未外发/本地草稿，不入库。
+Docs/Issue/Outside/
