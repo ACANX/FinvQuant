@@ -241,7 +241,13 @@ func stockListPlainNumber(raw string) (string, bool) {
 }
 
 // stockListAmount 把带单位的金额/股数/成交量换算成基准单位（元/股）：
-// 万亿=1e12、亿=1e8、万=1e4、B=1e9、M=1e6；无单位则原样返回。
+//
+// 中文口径：万亿=1e12、亿=1e8、万=1e4；
+// 英文口径：T=1e12、B=1e9、M=1e6、K=1e3（大小写均可）；无单位则原样返回。
+//
+// 英文后缀是必须支持的：同一接口在未锁定语言（Accept-Language / IP 地区）时
+// 返回英文单位（如 `4.07T`、`895.92B`），只认中文口径会把万亿级证券整条丢掉。
+// 解析失败返回 false，调用方按「字段缺失」处理（不猜值）。
 func stockListAmount(raw string) (string, bool) {
 	text := strings.TrimSpace(raw)
 	if text == "" {
@@ -257,10 +263,14 @@ func stockListAmount(raw string) (string, bool) {
 		pow, text = 8, strings.TrimSuffix(text, "亿")
 	case strings.HasSuffix(text, "万"):
 		pow, text = 4, strings.TrimSuffix(text, "万")
+	case strings.HasSuffix(text, "T"), strings.HasSuffix(text, "t"):
+		pow, text = 12, text[:len(text)-1]
 	case strings.HasSuffix(text, "B"), strings.HasSuffix(text, "b"):
 		pow, text = 9, text[:len(text)-1]
 	case strings.HasSuffix(text, "M"), strings.HasSuffix(text, "m"):
 		pow, text = 6, text[:len(text)-1]
+	case strings.HasSuffix(text, "K"), strings.HasSuffix(text, "k"):
+		pow, text = 3, text[:len(text)-1]
 	}
 
 	plain, ok := stockListPlainNumber(text)

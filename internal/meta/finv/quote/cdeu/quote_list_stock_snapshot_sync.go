@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -56,7 +57,7 @@ const (
 // 日志明细排版：每行 10 个证券、每格固定显示宽度（中文按 2 列计），便于对齐阅读。
 const (
 	stockListDetailPerLine   = 10
-	stockListDetailCellWidth = 22
+	stockListDetailCellWidth = 11
 )
 
 // StockListCollectConfig 一份采集范围配置（对应配置表一行）。
@@ -394,6 +395,24 @@ func (c *StockListCollector) CollectOne(ctx context.Context, cfg StockListCollec
 			progress.PagesTotal = pagesNeeded
 			c.logger.Printf("[cdeu][stocklist] 开始采集 cfg=%s total=%d pageCount=%d plan=%d pages=%d",
 				cfg, total, pageCount, result.TotalAvailable, pagesNeeded)
+			// 首页采样：打印服务端原始口径（代码/名称/市值原文），用于确认语言与单位。
+			// 中文口径为「4.07万亿」，英文口径为「4.07T」；两者必须在 stockListAmount 里都能解析。
+			c.logger.Printf("[cdeu][stocklist] 首页采样 cfg=%s 样本=%s",
+				cfg, stockListSampleItems(items, stockListSampleSize))
+			// 口径漂移告警：total 与配置表记录的上次值差异过大时提示。
+			// 同一接口按出口 IP / 请求语言可能返回不同集合（不只是单位），差异过大基本就是口径变了。
+			if cfg.CountExists > 0 && total > 0 {
+				ratio := float64(total) / float64(cfg.CountExists)
+				if ratio < 0.5 || ratio > 2 {
+					message := fmt.Sprintf("本轮市场总数 %d 与上次记录 %d 差异过大，可能被按 IP/语言返回了不同口径", total, cfg.CountExists)
+					c.logger.Printf("[cdeu][stocklist] 警告 cfg=%s %s", cfg, message)
+					c.emit(StockListCollectEvent{
+						Stage:   "warn",
+						Config:  cfg,
+						Message: message,
+					})
+				}
+			}
 			c.emit(StockListCollectEvent{
 				Stage:  "begin",
 				Config: cfg,
@@ -598,7 +617,7 @@ func (r StockListCollectResult) MarshalJSON() ([]byte, error) {
 
 // stockListFormatDetail 把一页的落库行排成「每行 N 个、各列对齐」的文本块。
 //
-// 每格形如 `[I] 00005 HSBC HOLDINGS`：I=新增、U=更新；
+// 每格形如 `[I] 00005`：I=新增、U=更新（只展示代码，不含名称）；
 // 宽度按显示列计算（CJK 字符占 2 列），超出截断、不足补空格，保证多行之间严格对齐。
 func stockListFormatDetail(rows []StockListSavedRow) string {
 	if len(rows) == 0 {
@@ -625,7 +644,8 @@ func stockListDetailCell(row StockListSavedRow) string {
 	if row.Inserted {
 		mark = "[I]"
 	}
-	body := strings.TrimSpace(strings.TrimSpace(row.StockCode) + " " + strings.TrimSpace(row.Name))
+	// 只展示证券代码（名称在列表页可查，日志里省略以缩短单行长度）；代码缺失时退回 stock_id。
+	body := strings.TrimSpace(row.StockCode)
 	if body == "" {
 		body = strconv.FormatInt(row.StockID, 10)
 	}
@@ -682,4 +702,68 @@ func stockListWideRune(r rune) bool {
 		return true
 	}
 	return false
+}
+
+// stockListSampleSize 首页采样条数。
+const stockListSampleSize = 3
+
+// stockListSampleItems 拼出一页前 n 条证券的「代码|名称|总市值原文」，用于确认服务端返回口径。
+//
+// 该日志是排查「采不到大市值证券」的关键证据：
+//   - 中文口径：名称是中文（腾讯控股），市值带「万亿/亿/万」后缀；
+//   - 英文口径：名称是英文（TENCENT），市值带「T/B/M/K」后缀（4.07T）。
+//
+// 两种口径的数值都必须能被 stockListAmount 解析，否则对应字段落 NULL。
+func stockListSampleItems(items []quoteapiv2.StockListItem, n int) string {
+	if n <= 0 || len(items) == 0 {
+		return "（空）"
+	}
+	if n > len(items) {
+		n = len(items)
+	}
+	parts := make([]string, 0, n)
+	for _, it := range items[:n] {
+		name := strings.TrimSpace(it.Name)
+		if stockListDisplayWidth(name) > stockListSampleNameWidth {
+			name = stockListTruncateDisplay(name, stockListSampleNameWidth)
+		}
+		parts = append(parts, fmt.Sprintf("%s|%s|%s",
+			strings.TrimSpace(it.StockCode), name, strings.TrimSpace(it.MarketValue)))
+	}
+	return strings.Join(parts, " ")
+}
+
+// stockListSampleNameWidth 采样时名称的最大显示宽度（超宽截断，避免日志过长）。
+const stockListSampleNameWidth = 18
+
+// StockListAcceptLanguage 列表采集固定的语言声明。
+//
+// 原因：moomoo 会根据出口 IP 与请求语言决定返回中文还是英文口径，
+// 两者单位后缀不同（万亿/亿/万 vs T/B/M/K），且**名称也会随之变化**。
+// 显式声明中文可让行为与本地已验证的 Python 采集程序保持一致（它带 `accept-language: zh-CN,zh;q=0.9`）。
+const StockListAcceptLanguage = "zh-CN,zh;q=0.9,en;q=0.8"
+
+// stockListHTTPClient 返回带浏览器化请求头的 HTTP 客户端（供 quoteapiv2.Config.HTTPClient 注入）。
+func stockListHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: stockListHeaderTransport{base: http.DefaultTransport},
+	}
+}
+
+// stockListHeaderTransport 在请求上补齐 accept-language（不覆盖调用方已设置的值）。
+type stockListHeaderTransport struct {
+	base http.RoundTripper
+}
+
+// RoundTrip 实现 http.RoundTripper。
+func (t stockListHeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Header.Get("accept-language") == "" {
+		req.Header.Set("accept-language", StockListAcceptLanguage)
+	}
+	base := t.base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	return base.RoundTrip(req)
 }

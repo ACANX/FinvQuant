@@ -22,7 +22,7 @@ func (s *Service) CollectStockList(ctx context.Context, opts StockListCollectOpt
 // SetStockListFetcher 替换列表拉取实现（单测注入用）；传 nil 恢复默认 moomoo 客户端。
 func (s *Service) SetStockListFetcher(fetcher StockListFetcher) {
 	if fetcher == nil {
-		fetcher = quoteapiv2.New(quoteapiv2.Config{})
+		fetcher = quoteapiv2.New(quoteapiv2.Config{HTTPClient: stockListHTTPClient()})
 	}
 	s.stockListFetcher = fetcher
 }

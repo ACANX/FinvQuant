@@ -69,7 +69,7 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
       "logs": [
         {"time":"18:03:50","level":"INFO","market":"","page":0,"message":"任务已启动：每页 20 条、页间间隔 300ms、重试 2 次"},
         {"time":"18:03:53","level":"INFO","market":"stock/1","page":0,"message":"开始采集：市场总数 3337，本轮计划 60，按每页 20 共 3 页"},
-        {"time":"18:03:53","level":"INFO","market":"stock/1","page":1,"message":"第 1/3 页：20 条（累计 新增 0 / 覆盖 20）\n[U] 02328 PICC P&C     [U] 00267 CITIC        [U] 02259 ZIJIN GOLD I [U] 06160 BEONE MEDICI [U] 01276 HENGRUI PHAR [U] 06030 CITIC SEC    [U] 00016 SHK PPT      [U] 09618 JD-SW        [U] 80016 SHK PPT-R    [U] 01919 COSCO SHIP H\n[U] 03993 CMOC         ..."},
+        {"time":"18:03:53","level":"INFO","market":"stock/1","page":1,"message":"第 1/3 页：20 条（累计 新增 0 / 覆盖 20）\n[U] 02328   [U] 00267   [U] 02259   [U] 06160   [U] 01276   [U] 06030   [U] 00016   [U] 09618   [U] 80016   [U] 01919\n[U] 03993   ..."},
         {"time":"18:03:54","level":"INFO","market":"stock/1","page":2,"message":"第 2/3 页：20 条（累计 新增 1 / 覆盖 39）"},
         {"time":"18:03:55","level":"INFO","market":"stock/1","page":3,"message":"第 3/3 页：20 条（累计 新增 1 / 覆盖 59）"},
         {"time":"18:03:55","level":"INFO","market":"stock/1","page":3,"message":"采集结束：3 页、收到 60 条、新增 1、覆盖 59"}
@@ -96,7 +96,7 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 |---|---|---|
 | 任务启动 | INFO | 含每页条数、间隔、重试次数 |
 | 市场开始 | INFO | 含市场总数、本轮计划、总页数 |
-| 单页完成 | INFO | 首行为页码/条数/累计新增覆盖；其后为**逐页明细**：每行 10 个证券、每页最多 5 行，`[I]`=新增、`[U]`=更新，每格 22 显示列对齐 |
+| 单页完成 | INFO | 首行为页码/条数/累计新增覆盖；其后为**逐页明细**：每行 10 个证券、每页最多 5 行，只展示代码，`[I]`=新增、`[U]`=更新，每格 11 显示列对齐 |
 | 单页重试 | WARN | 含重试次数与失败原因 |
 | 市场结束 | INFO / ERROR | 成功为 INFO 汇总，失败为 ERROR |
 
