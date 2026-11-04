@@ -8,7 +8,7 @@
 | 目录 | 是否入库 | 放什么 |
 |------|----------|--------|
 | `Docs/Issue/` | ✅ 跟踪 | 已提交/已外发的 Issue 正文，命名形如 `ISSUE-O-0001-MetaExtCustomHeaderSupport.md` |
-| `Docs/Issue/Outside/` | ❌ 不跟踪（见 `.gitignore`） | 未外发、本地草稿或涉及内部环境信息的 Issue 草稿；目录内另有本地 `README.md` 说明草稿规范（同样不入库） |
+| `Docs/Issue/Outside/` | ⚠️ 仅 `README.md` 入库（草稿一律忽略，见 `.gitignore`） | 未外发、本地草稿或涉及内部环境信息的 Issue 草稿；`README.md` 为草稿规范说明，作为白名单例外入库 |
 
 ## 2. 文件命名与编号
 

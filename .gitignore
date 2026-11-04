@@ -58,5 +58,7 @@ Deploy/Backup/
 
 # ---- 文档：面向上游/第三方的 Issue 正文 ----
 # Docs/Issue/ 目录本身入库（含 README 与已外发的 Issue）；
-# Outside/ 子目录放未外发/本地草稿，不入库。
-Docs/Issue/Outside/
+# Outside/ 子目录放未外发/本地草稿，一律不入库；仅规范说明 README.md 例外入库。
+# 注意：必须先忽略目录内容（Outside/*）再用 ! 放行，直接忽略目录本身会导致白名单失效。
+Docs/Issue/Outside/*
+!Docs/Issue/Outside/README.md
