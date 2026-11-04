@@ -24,7 +24,7 @@ import (
 // DayKlineSync POST /Meta/Finv/Quote/Cdeu/DayKline/Sync。
 //
 // 请求体：{"usc":"GCMain","from":0,"to":0}（from/to 为 yyyyMMdd，0 表示不限）。
-// 响应 data：cdeu.DayKlineSyncResult（total / in_range / inserted / updated / date_from / date_to 等）。
+// 响应 data：cdeu.DayKlineSyncResult（total / in_range / insert / update / date_from / date_to 等）。
 func (h *ExportArchive) DayKlineSync(c *gin.Context) {
 	var req cdeu.DayKlineSyncRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

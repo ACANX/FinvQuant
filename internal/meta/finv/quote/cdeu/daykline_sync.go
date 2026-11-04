@@ -49,9 +49,9 @@ type DayKlineSyncResult struct {
 	Total int `json:"total"`
 	// InRange 落在 [From, To] 区间内的根数（实际 upsert 的行数）。
 	InRange int `json:"in_range"`
-	// Inserted / Updated upsert 统计（以 date+usc 为键）。
-	Inserted int64 `json:"inserted"`
-	Updated  int64 `json:"updated"`
+	// Inserted / Updated upsert 统计（以 date+usc 为键）；wire 字段为 insert / update。
+	Inserted int64 `json:"insert"`
+	Updated  int64 `json:"update"`
 	// DateFrom / DateTo 本次写入数据的日期范围（yyyyMMdd；无数据为 0）。
 	DateFrom int `json:"date_from"`
 	DateTo   int `json:"date_to"`

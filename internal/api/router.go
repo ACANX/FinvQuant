@@ -161,6 +161,19 @@ func NewRouter(deps *Deps) *gin.Engine {
 			dayKline.POST("/Sync", archive.DayKlineSync)
 			dayKline.GET("/Stat", archive.DayKlineStat)
 			dayKline.GET("/UscList", archive.DayKlineUscList)
+
+			// 证券实时行情快照批量 Upsert（需求 10957）：写入 cdeu.finv_cdeu_secu_realtime_stock。
+			// 内部路径需登录；对外 OpenAPI 路径复用同一 handler，响应经 WrapOpenAPIResponse
+			// 包成 {code,data,message}（当前 OpenAPI 组公开访问、暂不鉴权，同 Min/Upsert 先例）。
+			realtime := apiGroup.Group("/Meta/Finv/Quote/Cdeu/Realtime")
+			realtime.POST("/FTStockUpsert", archive.RealtimeStockUpsert)
+			// 证券列表采集（需求 10976/10977）：读配置表分页拉取列表并落库。
+			realtime.POST("/FTStockQuoteSnapshotSync", archive.RealtimeStockListCollect)
+			// 网页「行情快照手动同步」：异步启动 + 轮询进度/逐页日志（需求 10982）。
+			realtime.POST("/FTStockQuoteSnapshotSync/Run", archive.RealtimeStockListRunStart)
+			realtime.GET("/FTStockQuoteSnapshotSync/Run", archive.RealtimeStockListRunStatus)
+			realtime.GET("/Stock/Page", archive.RealtimeStockPage)
+			openGroup.POST("/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert", archive.RealtimeStockUpsert)
 			group.POST("/Job/Run", archive.JobRun)
 			group.POST("/Job/Dynamic/Run", archive.DynamicJobRun)
 

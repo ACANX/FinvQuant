@@ -18,7 +18,164 @@
 
 > 0.1.4 开发中。变更按 `新增` / `变更` / `修复` / `移除` / `安全` 分类追加，发布时整体改为版本号并补日期。
 
+### 新增
+
+- **前端新增「行情 → 实时行情」菜单与分页查询接口（需求 10962）**
+  - 菜单：在「历史行情」之后新增三级分组「实时行情」，叶子「实时行情」路由 `/Meta/Finv/Quote/Realtime/Stock`，视图 `Web/src/views/Meta/Finv/Quote/Realtime/RealtimeStockView.vue`（只读）。
+  - 接口：`GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Page`——关键字（`usc`/`stock_code`/`name`）、`marketLabel`、`currency` 筛选，`orderBy` 白名单（总市值/流通市值/成交额/成交量/涨跌幅/涨跌额/AUM/量比/更新时间/证券编号）+ `order`，`page`/`pageSize`（1–500）；NULL 一律 `NULLS LAST` 并以 `stock_id` 兜底；数值列 `::text` 输出保住 `NUMERIC(24,6)` 精度。
+  - 页面：23 列固定表头 + 横向滚动、分页与总数、查询/刷新/重置；大额数值万/亿/万亿折算、涨跌红绿着色、空值显示 `—`。
+  - 文档：`Docs/API/Cdeu/RealtimeStockPage.md` + `.yml`、`Docs/Menu/Quote/Realtime/RealtimeStock.md`，并登记 `Docs/API/README.md`、`Docs/API/APIs.md`（113）、`Docs/Menu/Menus.md`（41）。
+  - 实现细节：排序列写成 `t.<列>`（表别名）——输出列里有同名别名（`market_value::text AS market_value`），不限定表别名时 `ORDER BY` 会解析到 text 输出列、退化成字符串排序（实测 `9.99e9` 排到 `5.06e12` 之前），已修正。
+  - 验证：`npm run build`（含 `vue-tsc -b`）通过；接口实测 `orderBy=market_value&order=desc` 首行 `stock_id=202597`（英伟达，`5.06e12`）、`keyword=汇丰&marketLabel=HK` 只返回汇丰系 2 行、`orderBy=bogus` 与 `pageSize=501` 均 400；未登录返回 401。
+
+- **证券实时行情快照增加 `price_direct` / `leverage`（需求 10961）**
+  - 迁移 `V300119` 追加两列（表尾第 24、25 列）：`price_direct CHAR(1)`（源 `up`→`+`、`down`→`-`、`flat`→`0`）、`leverage NUMERIC(20,6)`（可为负）。
+  - API：`RealtimeStockItem` 增加 `PriceDirect *string`、`Leverage *json.Number`，写入 SQL 的列清单与 `COALESCE(EXCLUDED.x, t.x)` 同步；内部/对外文档与 OpenAPI 契约同步（`price_direct` 用 `enum: ['+','-','0',null]`）。
+  - 同步脚本：新增 `to_direct`（up→+、down→-、flat→0，未知值不发送）与 `leverage` 数值解析（源空值不发送）。
+  - 验证：迁移后两列类型/列位置/注释数校验通过、`schema_version = 300119`；脚本全量 13045 行后 `price_direct` 分布 `+` 6058 / `-` 6001 / `0` 986、`leverage` 2386 行非空（`min/max = -3 / 4`）；抽样 `stock_id=2` 为 `+ / NULL`（源 `up` / 空）。
+
+- **证券实时行情快照增加 `change_price`（涨跌额，需求 10960）**
+  - 迁移 `V300118` 以 `NUMERIC(20,6)` 追加 `change_price`，对应上游 `secu_realtime_quote.change`（文本 `+0.750` / `-1.240`）；PostgreSQL `ADD COLUMN` 只能追加表尾，故为第 23 列；幂等并校验类型、列位置、注释数（23）。
+  - API：`RealtimeStockItem` 增加 `ChangePrice *json.Number`，写入 SQL 的列清单与 `COALESCE(EXCLUDED.x, t.x)` 同步；内部/对外文档与 OpenAPI 契约同步为 `type: [number,'null']`。
+  - 同步脚本 `SyncRealtimeStock.py` 增加 `change -> change_price` 映射（去正号后发送）。
+  - 验证：迁移后 `change_price` 为 `numeric` 第 23 列、注释 23、`schema_version = 300118`；脚本全量 13045 行后 `count(change_price)=13045`、`min/max = -248.04 / 1511.154`，抽样 `stock_id=2` 为 `0.750000`。
+
+- **证券实时行情快照增加 7 个结构化数值列（需求 10959）**
+  - 背景：上游 `secu_realtime_quote` 的 `change_ratio` / `trust_aum` / `trade_changeraio` / `price_amplitude` / `volumn_ratio` / `buysell_ratio` / `price_nominal` 是展示文本（含 `+/-`、`%`、万/亿/万亿），无法直接统计排序。
+  - 迁移 `V300117`：`ADD COLUMN IF NOT EXISTS` 新增 `price_nominal`/`change_ratio`/`trust_aum`/`trade_change_ratio`/`price_amplitude`/`volumn_ratio`/`buysell_ratio`（`price_nominal` 按用户要求排新增列首位），末尾校验列数、类型、列序与注释数（22），不符回滚。口径：百分数列存**百分点数值**（`1.03` = 1.03%）、`trust_aum` 存**元**（万/亿/万亿换算）、上游拼写 `trade_changeraio` 规范化为 `trade_change_ratio`。
+  - API：`RealtimeStockItem` 增加 7 个 `*json.Number` 字段，写入 SQL 的列清单与 `COALESCE(EXCLUDED.x, t.x)` 同步（缺字段保留旧值）；内部/对外文档与 OpenAPI 契约同步为 `type: [number,'null']` 并标注口径。
+  - 同步脚本 `SyncRealtimeStock.py` 增加解析：去 `+`/`%`、`万/亿/万亿 → 元`、纯十进制直取；非法/空值不发送。
+  - 验证：迁移应用后 `schema_version = 300117`、新增列序为 `price_nominal,change_ratio,trust_aum,trade_change_ratio,price_amplitude,volumn_ratio,buysell_ratio`、列注释 22；脚本全量 13045 行后 7 列填充率均 13045，`usc=8674`/`currency=8671` 未被清空；抽样 `stock_id=2` 为 `73.7 / 1.03 / 0 / 0.12 / 1.3 / 1.15 / 0`；`max(trust_aum)=18446740000000000`（源 `18446.74万亿`，上游脏值原样换算，未做清洗）。
+
+- **新建证券实时行情快照表 `cdeu.finv_cdeu_secu_realtime_stock`（需求 10956）**
+  - 背景：证券市值/股本/当日累计成交等实时快照此前没有落库表，采集侧只能每次全量重取；本表按「一行一证券」保存最新一张快照，历史序列仍走 `cdeu.finv_quote_secu_kline_min` / `cdeu.finv_quote_secu_kline_day`。
+  - 结构：15 列，主键 `stock_id`（约束名 `finv_cdeu_secu_realtime_stock_pk`）——`usc`、`stock_id`、`name`、`stock_code`、`market_type`、`market_label`、`instrument_type`、`currency`、`market_value`、`total_shares`、`circulation_total_shares`、`trade_trunover`、`trade_volumn`、`circulation_market_value`、`dt_update`。
+  - 口径：`currency` 为 ISO 4217 三位字母货币代码（`ISO 4217:2015`，如 `CNY`/`USD`/`HKD`）；`dt_update` 为 Unix 毫秒时间戳；`trade_trunover`/`trade_volumn` 保留上游拼写，列注释标注实际含义为 turnover（成交额）/ volume（成交量）。
+  - 命名：表名沿用用户给定的 `finv_cdeu_` 前缀（`cdeu` 域常规前缀为 `finv_quote_cdeu_`），已在 `DbSchemaSpec` §1 登记为刻意例外。
+  - 严格贴合给定 DDL：不新增 `gmt_create`/`gmt_update`、不建触发器、不加二级索引；表注释与 15 个列注释均为中文。
+  - 迁移 `V300115` 幂等（表/约束/注释可重复执行），末尾校验列清单、主键名与主键列、列注释数量与表注释，任一不符整事务回滚。
+  - 验证：本机无可用 PostgreSQL（Docker Desktop 未运行、WSL 内无 `psql`），未在库上执行；静态核对 `test -f Deploy/Migrations/V300115__cdeu_create_finv_cdeu_secu_realtime_stock.sql`、`file` 为 UTF-8/LF 通过。部署后按需求 10956 的核对命令验收。
+- **证券实时行情快照批量 Upsert 接口（需求 10957）**
+  - 路由：内部 `POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/StockUpsert`（需登录）+ 对外 OpenAPI `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/StockUpsert`（复用同一 handler，`/OpenAPI/V1` 暂不鉴权，响应经 `WrapOpenAPIResponse` 包成 `{code,data,message}`）。
+  - 写入语义：`ON CONFLICT (stock_id) DO UPDATE`，除主键外 14 列均为 `COALESCE(EXCLUDED.x, t.x)`——**源端缺字段不清空旧值**、空串等同未提供（与 `UpsertDayKlines` 口径一致）；`dt_update` 例外，省略或 `null` 时按本次写入时刻刷新为 Unix 毫秒。
+  - 入参：`{"items":[...]}`（snake_case，严格解码），1 ≤ 条数 ≤ 500（`MaxRealtimeStockBatchRows`）；`stock_id` 必填、1..2147483647、批内唯一（重复 400 并指出位置）；`dt_update` 不得为负；整批单条 `INSERT ... ON CONFLICT` 语句，失败整批回滚，成功返回 `{total,inserted,updated}`（`xmax = 0` 区分新增/更新）。
+  - 精度与错误映射：数值以 `json.Number` 原文→text→`NUMERIC(24,6)`，不经 `float64`；PG 数据类错误码 `22003`/`22P02`/`22007`/`22008` 映射 400，其余写库错误 `2006`；日志前缀 `[cdeu][realtimestock]`。
+  - 文档与索引：新增内部 `Docs/API/Cdeu/RealtimeStockUpsert.md` + `.yml`、对外 `Docs/OpenAPI/Quote/Cdeu/Realtime/StockUpsert.md` + `.yml`（OpenAPI 3.1，各自自包含，按 ApiSpec §7.7），并登记 `Docs/API/README.md`、`Docs/API/APIs.md`（编号 111/112）；`internal/database/schema_qualify_test.go` 增 `finv_cdeu_` → `cdeu.` 前缀映射。
+  - 验证：本机无 Go 工具链、无可用 PostgreSQL，未编译也未连库执行；静态核对——两份 `.yml` 经 YAML 解析通过（`openapi: 3.1.0`、路径正确、`maxItems: 500`），`router.go` 注册内部与 OpenAPI 两条路由且与 `router_test.go` 期望路由一致。部署后按需求 10957 的核对命令验收（含「只传 `market_value` 时 `usc` 不被清空」与对外信封断言）。
+
 ### 变更
+
+- **「行情快照手动同步」改为按证券品种分 Tab（需求 10986）**
+  - Tab 列表由 `cdeu.finv_cdeu_secu_realtime_sync_config.instrument_symbol` 去重生成；当前只有 `stock`，已为 `etf`/`future`/`forex`/`option`/`crypto` 备好显示名与图标，插入配置行即自动出现新 Tab，无需改前端。
+  - 每个 Tab 独立展示：配置表、市场下拉（由该品种配置生成）、结果表、汇总与日志（日志按 `market` 前缀过滤，任务级日志常显）；「开始同步」请求体带 `instrument_symbol`，只采当前品种。
+  - 文档：`Docs/Menu/Quote/Realtime/SnapshotSync.md` 新增 §2.0 Tab 说明。
+
+- **采集配置表更名为 `cdeu.finv_cdeu_secu_realtime_sync_config`（需求 10985）**
+  - 迁移 `V300122__cdeu_rename_realtime_sync_config_to_secu.sql`：`ALTER TABLE ... RENAME TO` + 两个约束改名（`..._pk`、`..._enable_chk`）；9 列结构、3 行配置数据、表/列注释保持不变。授权来源：用户会话中明确点名改名（DbSchemaSpec §0）。
+  - 代码：`tableRealtimeSyncConfig` 常量改为新表名；`V300121` 保留原表名（历史迁移），全新部署由 `V300122` 承接改名。
+  - 文档：`DbSchemaSpec`、`StockListCollect.md|.yml`、`SnapshotSync.md`、前端视图注释同步。
+  - 验证：旧表不存在、新表存在且 9 列/3 行/约束名与注释齐全；`GET .../FTStockQuoteSnapshotSync/Run` 仍返回 3 行 configs（代码已读新表）。
+
+- **采集每页输出证券明细日志，标注新增/更新并分列对齐（需求 10984）**
+  - 每页落库后打印 `[I]/[U] 代码 名称`，**每行 10 个**（50 条/页即 5 行），每格 22 显示列（CJK 按 2 列计）对齐；同时写入容器日志与异步任务日志流（前端日志面板按 `pre-wrap` 换行展示）。
+  - `StockListSink.SaveStockListPage` 改为返回逐行标记（先用 `stock_id = ANY(...)` 一次查询确定已存在集合，再执行 upsert），采集侧据此统计 `insert`/`update`。
+  - 实测：HK 前 50 条全 `[U]`；HK 前 200 条出现 5 个 `[I]`（如 `[I] 00668 ANKER`、`[I] 03228 KINWONG`），与库中实际新增一致。
+  - 文档：`Docs/Menu/Quote/Realtime/SnapshotSync.md`、`Docs/API/Cdeu/StockSnapshotSyncRun.md`、`Docs/API/Cdeu/StockListCollect.md`。
+
+- **实测确认 moomoo `get-stock-list` 的 `page` 从 1 开始（需求 10983）**
+  - 实测（marketType=1、pageSize=5）：`page=0` → 服务端报错「moomoo page 不能小于 1，实际 0」；`page=1` → 港股第一条 HSBC HOLDINGS（`pagination{page:1, pageCount:668, total:3337}`）；`page=2/3` 依次为后续页。
+  - 结论：采集侧 `StockListDefaultPageStart = 1` 正确；早期 Python 版 `page-1`（0 起）为错误实现，不得沿用。
+  - 固化位置：常量注释、`stocklist_pagebase_live_test.go`（live 测试保留实测数据）、`StockListCollect.md|.yml`、`StockSnapshotSyncRun.md|.yml`、`SnapshotSync.md`。
+
+- **新增「行情快照手动同步」菜单与异步采集任务（需求 10982）**
+  - 前端：行情 → 实时行情 → 行情快照手动同步（`/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync`），视图 `StockSnapshotSyncView.vue`：展示配置表、动态设置市场/计划数量/每页/间隔/重试/退避/页数上限，展示状态、汇总、各市场结果与**逐页日志**（自动滚动、按级别着色）。
+  - 后端：`POST .../FTStockQuoteSnapshotSync/Run`（异步启动，返回 `run_id`，同一时间仅一个运行中任务）、`GET .../FTStockQuoteSnapshotSync/Run`（轮询状态 + 日志 + 配置）；采集单文件新增 `StockListCollectHook` 事件回调（`begin`/`page`/`retry`/`done`），运行状态由 `stocklist_run.go` 在内存持有（最近 10 次 × 500 行）。
+  - 修复：配置读取对 `count_exists` / `total_available` 的 NULL 用 `COALESCE(...,0)`，避免首轮采集前 scan 失败。
+  - 实测：HK 前 60 只（3 页 × 20，间隔 300ms）→ `SUCCESS`，日志逐页输出，`insert=1`/`update=59`。
+  - 文档：`Docs/API/Cdeu/StockSnapshotSyncRun.md|.yml`、`Docs/Menu/Quote/Realtime/SnapshotSync.md`、`Docs/Menu/Menus.md`（索引 42）、`Docs/API/APIs.md`（#115/#116）、`Docs/API/README.md`。
+
+- **登记待办：存量统计字段按 `ApiSpec` §1.1 迁移（需求 10981，未实施）**
+  - 清单已落库到需求条目，分三组：① 接口响应顶层（`kline.go` 的 `inserted`/`updated`/`deleted`、历史行情导入的 `Inserted`/`Updated` + 前端消费点）；② Job 运行详情（`skipped`、`deleted_rows`、`maturity_deleted`、`staging_deleted`、`manifests_skipped`、`deleted_counts`、`deleted`）；③ 豁免项（`updated_at`/`deleted_at`/`deleted_by` 属时间与操作者字段，不在规范范围）。
+  - 每条都带可执行核对命令，结果列留空表示未验收；本次只登记，未改代码。
+
+- **统计字段统一为动词原形，并固化到 ApiSpec（需求 10979、10980）**
+  - `Docs/DevSpec/ApiSpec.md` 新增 §1.1「统计与动作类字段命名（强制）」：统计字段用 `insert`/`update`/`receive`/`delete`/`skip`，禁止 `inserted`/`updated`/`received`/`deleted`/`skipped`；行数类统一 `rows_` 前缀；规则覆盖 `.md`、`.yml`、前端 TS。
+  - 行情列表股票快照同步接口：`rows_received` → `rows_receive`（`StockListCollectResult` tag、handler 汇总键、`.md` 示例与字段表、`.yml` `properties`/`required`）。
+  - 存量待迁移字段仍在需求 10975 待办中。
+
+- **行情列表股票快照同步端点改名 `FTStockQuoteSnapshotSync`（需求 10978）**
+  - 端点：`POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/StockListCollect` → `POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync`；handler、请求体、采集逻辑、响应均不变，旧路径不再注册（404）。
+  - 同步：`router.go`、`router_test.go` 期望路由、handler 注释、`Docs/API/Cdeu/StockListCollect.md|.yml`、`Docs/API/APIs.md`（#114）、`Docs/API/README.md`。
+
+- **新增行情列表股票快照同步服务与接口（需求 10977）**
+  - 采集逻辑集中在单文件 `internal/meta/finv/quote/cdeu/quote_list_stock_snapshot_sync.go`：只依赖标准库与 `quoteapiv2`，落库与配置读写通过 `StockListSink` / `StockListConfigStore` 接口注入，便于后续整体迁往 MetaExt 第三方包。
+  - 采集范围与采集控制参数全部运行时传入：市场/品种过滤、`count_plan` 覆盖、`page_size`、`page_start`、`interval_ms`（限速）、`max_retries` + `retry_backoff_ms`（重试）、`request_timeout_ms`、`max_pages`、`continue_on_error`，并预留 `extra` 透传位。
+  - 接口 `POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/StockListCollect`（需登录）；结果写 `cdeu.finv_cdeu_secu_realtime_stock`（`page` 记来源页码），每页回写进度、每轮回写 `count_exists` / `total_available`。
+  - 本项目侧实现：`store_stocklist.go`（配置读写 + 逐页落库 + 万/亿/万亿/B/M 换算、百分号去除、`up/down/flat` 转符号）、`service_stocklist.go`（Service 薄封装）。
+  - 实测：`{"market_type":"1","count_plan":100,"page_size":50,"interval_ms":300,"max_pages":2}` → `code=0`、`rows_received=100`、`insert=4`、`update=96`、`count_exists=3338`。
+  - 文档：`Docs/API/Cdeu/StockListCollect.md|.yml`、`Docs/API/APIs.md`（#114）、`Docs/API/README.md`。
+
+- **新建采集配置表 `cdeu.finv_cdeu_realtime_sync_config`（需求 10976）**
+  - 迁移 `V300121__cdeu_create_realtime_sync_config.sql`：9 列，主键 `(market_type, instrument_symbol)`，一行=一个「市场 + 证券品种」；初始 3 行 `stock` × marketType `1`/`2`/`4`（计划 2500/6000/4500，对齐旧 `Stat.json` 的 targets）。
+  - 作用：替代 Python 采集脚本常量与 `Stat.json`；网页菜单读配置分页采集 moomoo get-stock-list，结果写 `cdeu.finv_cdeu_secu_realtime_stock`；采集成功后回写 `count_exists`（接口 `pagination.total`）与 `total_available`（= min(count_plan, count_exists)）。
+  - 与既有表的关系：不新增结果表；`instrument_symbol` 预留 `etf`/`future` 扩展，插行即可，无需改表结构。
+
+- **登记待办需求：余下两个接口的统计字段统一为 `insert` / `update`（需求 10975，未实施）**
+  - 涉及 `POST /Meta/Finv/Quote/Cdeu/Min/KLineBatchInsert`（`{"inserted": n}`）与历史行情导入上传接口（`inserted`/`updated`，前端 `HistoryQuoteImportView.vue` 在用）。
+  - 与需求 10973（实时行情快照 Upsert）、10974（日K 同步）口径对齐；本次仅登记需求与核对方式，未改代码，`RequirementList` 结果列留空表示未验收。
+
+- **日K 同步接口响应统计字段改名 `insert` / `update`（需求 10974）**
+  - `DayKlineSyncResult` 与 `DayKlineUpsertStat` 的 `inserted`/`updated` JSON tag 改为 `insert`/`update`，与实时行情快照接口（需求 10973）口径一致；`total`/`in_range`/`date_from`/`date_to` 不变。
+  - 同步：handler 注释、`Docs/API/Cdeu/DayKlineSync.md` 响应示例与字段表、前端 `DayKlineSyncView.vue`（类型定义、完成提示、结果表格）。Go 字段名、日志文案与 SQL 别名未变。
+
+- **实时行情快照 Upsert 响应统计字段改名 `insert` / `update`（需求 10973）**
+  - 响应由 `{"data":{"total":1,"inserted":0,"updated":1}}` 改为 `{"data":{"total":1,"insert":0,"update":1}}`（`total` 不变）。
+  - 同步：`RealtimeStockUpsertStat` JSON tag、handler 注释、内外 4 份文档（`.md` 示例与字段表、`.yml` schema 与示例与 `required`）、采集脚本 `SyncRealtimeStock.py` 取值/打印。
+  - 日K 同步接口的 `inserted`/`updated` 字段不受影响（本次只改实时行情快照接口）。
+
+- **证券实时行情快照 Upsert 端点改名为 `FTStockUpsert`（需求 10972）**
+  - 内部：`POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/StockUpsert` → `/Realtime/FTStockUpsert`（需登录）。
+  - 外部：`POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/StockUpsert` → `/Realtime/FTStockUpsert`（同一 handler，仍暂不鉴权）。
+  - 同步：`router.go` 注册、`router_test.go` 期望路由、handler 注释、内外 4 份接口文档（`.md`+`.yml`）、`Docs/API/APIs.md`/`README.md`、菜单文档、采集脚本 `SyncRealtimeStock.py` 默认 URL。handler 名、请求/响应体与 `Stock/Page` 列表端点均未变；旧路径不再注册（404）。
+
+- **实时行情快照表增加 `page`（来源页码），Upsert 接口支持全部 26 字段（需求 10971）**
+  - 迁移 `V300120__cdeu_realtime_stock_add_page.sql`：`cdeu.finv_cdeu_secu_realtime_stock` 增加第 26 列 `page INTEGER`（可空，记录该证券快照来自市值排行接口的第几页，从 1 开始）+ `page_chk` 约束（拒绝 ≤ 0，NULL 合法）；历史 13045 行保持 NULL，不做推测性回填。
+  - `RealtimeStockItem` 增加 `Page *int64`；`UpsertRealtimeStocks` 的 payload / `jsonb_to_recordset` / INSERT 列 / `ON CONFLICT ... COALESCE` 全部补齐 `page`；`ValidateRealtimeStockItems` 校验 `1 ≤ page ≤ 2147483647`；PG `23514`（check 违反）纳入 400 映射。
+  - 文档：内外两套 `.md` + `.yml` 补 `page` 字段与错误码，`DbSchemaSpec` 中该表列数由 15 改为 26 并补 `page` 说明。
+
+- **「证券行情排行」分页条数控件补齐「每页 … 条」文案（需求 10970）**
+  - 原先 `v-select` 用浮动 `label="每页"`，在 88–110px 宽度下被截断成「每…」；改为控件两侧独立文本「每页」「条」，底部显示 `每页 [50] 条`。
+
+- **「证券行情排行」表格列宽优化（需求 10969）**
+  - 所有单元格强制单行（`white-space: nowrap`），列宽随内容撑开；compact 密度下左右内边距放宽到 12px；指标列（带 `num` class）最小宽度 96px；列数超出视口时整体横向滚动。修复数值/单位（如「2.51 万亿」）被挤到第二行的问题。
+
+- **「证券行情排行」表格取消内部纵向滚动（需求 10968）**
+  - 去掉 `v-table` 的 `fixed-header` 与 `height="60vh"`：表格按内容自然展开，由页面整体滚动，不再挤在固定高度区域内；横向滚动保留。
+
+- **「证券行情排行」跌的整行颜色改为亮绿 `#00E676`（需求 10967）**
+  - 原先沿用 Vuetify `success` 主题绿（`#4CAF50`），现改为亮绿 `#00E676`，与正红 `#FF0000` 对称；判定逻辑不变。
+
+- **「证券行情排行」涨的整行颜色改为正红 `#FF0000`（需求 10966）**
+  - 原先用 Vuetify `error` 主题色（偏暗红 `#B00020`），视觉上不像「红涨」；现改为正红。跌的整行仍用 success 主题绿，判定逻辑（`price_direct` 为 `+`/`-`）不变。
+
+- **「证券行情排行」筛选行与底部分页布局调整（需求 10965）**
+  - 筛选区由 `v-row` 栅格改为 flex 换行布局：关键字/市场/币种/排序字段/方向与「查询」「刷新」「重置」同处一行，按钮紧跟筛选控件之后，窄屏才换行（此前「重置」会被挤到第二行）。
+  - 每页条数选择器从筛选行移到底部，固定显示在页码控件左侧；底部左侧保留「共 X 条，第 x / y 页」。
+
+- **「实时行情」叶子菜单更名为「证券行情排行」（需求 10964）**
+  - 仅改显示名称：`menuConfig.ts` 的 `title`、`router.ts` 的 `meta.title`、页面卡片标题、菜单文档与 `Menus.md` 索引同步为「证券行情排行」。
+  - 不变项：路由 `/Meta/Finv/Quote/Realtime/FTStockRank`、菜单 `key` `quote-realtime-ftstockrank`、视图 `RealtimeStockView.vue`、父分组名「实时行情」。
+
+- **「实时行情」菜单路由改为 `FTStockRank`，列表取消证券编号/方向列并改为红涨绿跌（需求 10963）**
+  - 路由：`/Meta/Finv/Quote/Realtime/Stock` → `/Meta/Finv/Quote/Realtime/FTStockRank`，`router.ts` 的 `path`/`name` 与 `menuConfig.ts` 叶子的 `key`/`path` 同步；菜单文档、`Menus.md`、API 文档「已使用位置」一并更新。
+  - 表格：删除「证券编号」列（仍保留为排序字段下拉项）与「方向」列（原 `price_direct` chip）。
+  - 着色：改用整行颜色表达涨跌——`price_direct = +` 整行红色、`-` 整行绿色（`0`/空为默认色），即红涨绿跌；原单元格级涨跌着色随之取消。
+  - 验证：`npm run build` 通过；部署后 `/Meta/Finv/Quote/Realtime/FTStockRank` 可访问，旧路径不再作为菜单入口，表格列数与行着色符合预期。
+
+- **证券实时行情快照 `stock_id` 由 `INTEGER` 扩为 `BIGINT`（需求 10958）**
+  - 问题：`V300115` 按给定 DDL 把 `stock_id` 建成 `INTEGER`（PostgreSQL int4，上限 2147483647），而该列承载上游富途的 64 位 stockId（实测最大 `148739012639708`）；用 `RTQuote.db` 的 13045 行实测，9561 行被 API 的 int32 校验挡掉，只有 3484 行能写入。
+  - 改动：新增迁移 `V300116` 执行 `ALTER COLUMN stock_id TYPE BIGINT`（仅放宽值域，不动数据 / 表名 / schema 归属 / 其它列，主键索引随类型重建；幂等 + 末尾校验类型、主键、注释数）；API 校验由 `math.MaxInt32` 放宽为 `stock_id > 0`（上限交给 int64 与数据库），`*int64` 字段本身不变；`store_realtime_stock.go` 中 `x.stock_id::integer` 的显式 int4 转型去掉（否则 BIGINT 值仍在 SQL 层被截断报 `22003`）；内部 `.md/.yml` 与对外 `.md/.yml` 同步为 `format: int64`、`maximum: 9223372036854775807`。
+  - 验证：重建镜像并重启后 `schema_version = 300116`、`stock_id` 的 `data_type = bigint`；用 `SyncRealtimeStock.py` 全量导入 `RTQuote.db`——发送 13045 行（inserted 9561 / updated 3484，1.1 s），复跑 inserted 0 / updated 13045；库内 `count(*) = 13045`、`min/max(stock_id) = 2 / 148739012639708`，按市场分布与源库一致（US 5995 / HK 2550 / SZ 2396 / SH 2031 / BJ 73）。
 
 - **moomoo 行情客户端与上游 MetaExt 对齐（需求 10953，仅 kline）**
   - 包 `internal/meta/component/quote/moomoo/quoteapiv2` 按上游「每个接口一个源文件」拆分：新增 `kline.go`（`GetKLineRequest`／`KLineBar`／`Client.GetKLine`）与 `kline_test.go`，`client.go` 只保留配置、错误与请求发送。

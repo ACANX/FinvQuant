@@ -1,0 +1,163 @@
+# FinvQuant — 实时行情分页查询（OpenAPI 3.1 契约）
+#
+# 与同目录 RealtimeStockPage.md 成对维护，任一侧变更须同步更新另一侧。
+#
+openapi: 3.1.0
+info:
+  title: FinvQuant — 实时行情分页查询
+  version: 1.0.0
+  description: |
+    分页查询 cdeu.finv_cdeu_secu_realtime_stock（一行一证券，主键 stock_id）。
+    数值列以文本返回以保住 NUMERIC(24,6) 精度，展示折算由前端负责。
+servers:
+  - url: http://127.0.0.1:16001
+    description: 本机直连（生产经 Nginx 反代时替换为 https://<域名>）
+tags:
+  - name: Quote/Cdeu/Realtime
+    description: 证券实时行情快照（CDEU）
+security:
+  - bearerAuth: []
+paths:
+  /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Page:
+    get:
+      operationId: pageCdeuRealtimeStock
+      tags: [Quote/Cdeu/Realtime]
+      summary: 分页查询实时行情快照
+      parameters:
+        - name: keyword
+          in: query
+          required: false
+          description: 模糊匹配 usc / stock_code / name（ILIKE）。
+          schema: { type: string }
+        - name: marketLabel
+          in: query
+          required: false
+          description: 市场；空或 all 表示不限。
+          schema:
+            type: string
+            enum: ['', all, HK, SH, SZ, BJ, US]
+        - name: currency
+          in: query
+          required: false
+          description: 币种；空或 all 表示不限。
+          schema:
+            type: string
+            enum: ['', all, CNY, HKD, USD]
+        - name: orderBy
+          in: query
+          required: false
+          schema:
+            type: string
+            default: market_value
+            enum: [market_value, circulation_market_value, trade_trunover, trade_volumn,
+                   change_ratio, change_price, trust_aum, volumn_ratio, dt_update, stock_id]
+          description: 排序字段（白名单，NULL 一律排最后，stock_id 作稳定次序）。
+        - name: order
+          in: query
+          required: false
+          schema:
+            type: string
+            default: desc
+            enum: [desc, asc]
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 500, default: 50 }
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    BadRequest:
+      description: 参数非法（page/pageSize 越界、order 非 asc/desc、orderBy 不在白名单）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: 未登录或令牌失效。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: 数据库查询失败（可重试）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    PageResponse:
+      type: object
+      required: [code, message, data]
+      additionalProperties: false
+      properties:
+        code: { type: integer, const: 0 }
+        message: { type: string }
+        data:
+          type: object
+          required: [total, page, pageSize, list]
+          additionalProperties: false
+          properties:
+            total: { type: integer, format: int64 }
+            page: { type: integer }
+            pageSize: { type: integer }
+            list:
+              type: array
+              items:
+                $ref: '#/components/schemas/RealtimeStockRow'
+    RealtimeStockRow:
+      type: object
+      additionalProperties: false
+      properties:
+        stock_id: { type: integer, format: int64, description: 证券编号（主键，富途 64 位 ID） }
+        usc: { type: string }
+        name: { type: string }
+        stock_code: { type: string }
+        market_type: { type: string }
+        market_label: { type: string }
+        instrument_type: { type: string }
+        currency: { type: string }
+        price_nominal: { type: string, description: 名义价格/单价（十进制文本） }
+        change_price: { type: string, description: 涨跌额（十进制文本） }
+        change_ratio: { type: string, description: 涨跌幅，百分点数值（1.03 = 1.03%） }
+        price_direct: { type: string, enum: ['+', '-', '0', ''] }
+        market_value: { type: string }
+        total_shares: { type: string }
+        circulation_total_shares: { type: string }
+        trade_trunover: { type: string }
+        trade_volumn: { type: string }
+        circulation_market_value: { type: string }
+        trust_aum: { type: string, description: 信托/基金资产规模（元） }
+        trade_change_ratio: { type: string }
+        price_amplitude: { type: string }
+        volumn_ratio: { type: string }
+        buysell_ratio: { type: string }
+        leverage: { type: string }
+        dt_update: { type: integer, format: int64, description: 快照更新时间（Unix 毫秒，无值 0） }
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      additionalProperties: false
+      properties:
+        code: { type: integer }
+        message: { type: string }

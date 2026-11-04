@@ -83,8 +83,8 @@ docker logs <容器名> 2>&1 | grep '\[cdeu\]\[daykline\]'
     "timezone": "America/New_York",
     "total": 12789,
     "in_range": 12789,
-    "inserted": 12000,
-    "updated": 789,
+    "insert": 12000,
+    "update": 789,
     "date_from": 20000104,
     "date_to": 20261102,
     "provider": "FTMM",
@@ -111,8 +111,8 @@ docker logs <容器名> 2>&1 | grep '\[cdeu\]\[daykline\]'
 |------|------|------|
 | `total` | int | 上游返回的日K根数（全量历史） |
 | `in_range` | int | 落在 `[from, to]` 区间内的根数（实际 upsert 行数） |
-| `inserted` | int | 新增行数 |
-| `updated` | int | 更新行数 |
+| `insert` | int | 新增行数 |
+| `update` | int | 更新行数 |
 | `date_from` / `date_to` | int | 本次写入数据的日期范围（`yyyyMMdd`，无数据为 0） |
 | `timezone` | string | 日期换算使用的市场时区 |
 | `provider` | string | 写入 `provider` 列的值（固定 `FTMM`） |

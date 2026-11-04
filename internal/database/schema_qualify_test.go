@@ -18,6 +18,9 @@ var domainTablePrefixes = map[string]string{
 	// CDEU 工作流域（V200078 建表、V200079 统一前缀、V200080 迁入数据）：
 	// finv_quote_cdeu_* 必须写 cdeu. 前缀，不得落到 quote.finv_quote_cdeu_*（不存在）或无限定。
 	"finv_quote_cdeu_": "cdeu.",
+	// 证券实时行情快照（V300115）：表名沿用用户给定的 finv_cdeu_ 前缀
+	// （属刻意例外，见 DbSchemaSpec §1），同样必须写 cdeu. 前缀。
+	"finv_cdeu_":       "cdeu.",
 	"finv_quote_":      "quote.",
 	"finv_quant_":      "quant.",
 	"finv_futu_":       "futu.",

@@ -4,6 +4,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from './views/DashboardView.vue'
 import QuoteQueryView from './views/Meta/Finv/Quote/History/HistoryQuoteQueryView.vue'
 import QuoteImportView from './views/Meta/Finv/Quote/History/HistoryQuoteImportView.vue'
+import RealtimeStockView from './views/Meta/Finv/Quote/Realtime/RealtimeStockView.vue'
+import StockSnapshotSyncView from './views/Meta/Finv/Quote/Realtime/StockSnapshotSyncView.vue'
 import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue'
 import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue'
 import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue'
@@ -54,6 +56,21 @@ const router = createRouter({
     { path: '/Meta/Finv', redirect: '/Dashboard' },
     // 历史行情 → 历史行情查询
     { path: '/Meta/Finv/Quote/History/HistoryQuoteQuery', name: 'quote-query', component: QuoteQueryView, meta: { title: '历史行情查询' } },
+    // 行情 → 实时行情 → 实时行情（需求 10962，路由 10963 改为 FTStockRank）
+    // 读 cdeu.finv_cdeu_secu_realtime_stock
+    {
+      path: '/Meta/Finv/Quote/Realtime/FTStockRank',
+      name: 'quote-realtime-ftstockrank',
+      component: RealtimeStockView,
+      meta: { title: '证券行情排行' },
+    },
+    // 行情 → 实时行情 → 行情快照手动同步（需求 10982）：异步采集 + 逐页日志
+    {
+      path: '/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync',
+      name: 'quote-realtime-snapshot-sync',
+      component: StockSnapshotSyncView,
+      meta: { title: '行情快照手动同步' },
+    },
     // 行情数据归档 → K线数据查询 / 统计（需求 10856/10857 改名并移入「收剔导传ETL」）
     {
       path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query',

@@ -110,6 +110,28 @@ const finvQuantMenu: MenuNode[] = [
           { key: 'meta-import', title: '历史行情数据导入', icon: 'mdi-database-import', path: '/meta/import' },
         ],
       },
+      {
+        // 需求 10962：紧随「历史行情」之后，展示证券最新一张行情快照
+        // （cdeu.finv_cdeu_secu_realtime_stock，一行一证券）。
+        key: 'quote-realtime',
+        title: '实时行情',
+        icon: 'mdi-access-point',
+        children: [
+          {
+            key: 'quote-realtime-ftstockrank',
+            title: '证券行情排行',
+            icon: 'mdi-chart-timeline-variant',
+            path: '/Meta/Finv/Quote/Realtime/FTStockRank',
+          },
+          // 需求 10982：紧跟「证券行情排行」，手动触发列表采集并查看逐页日志。
+          {
+            key: 'quote-realtime-snapshot-sync',
+            title: '行情快照手动同步',
+            icon: 'mdi-cloud-sync-outline',
+            path: '/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync',
+          },
+        ],
+      },
       // 需求 10860：从「数据采集」移入，作为「行情」下第三个三级分组（原「数据采集」随之删除）。
       {
         key: 'quote-archive',

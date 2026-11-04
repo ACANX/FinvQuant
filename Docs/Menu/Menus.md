@@ -28,6 +28,9 @@
 │     └─ 归档日志与补丁（/Meta/Finv/Quote/DeDup/Export/Log）
 ├─ 历史行情（二级分组）
 │  └─ 历史行情查询（三级叶子，/Meta/Finv/Quote/History/HistoryQuoteQuery）
+├─ 实时行情（二级分组）
+│  └─ 证券行情排行（三级叶子，/Meta/Finv/Quote/Realtime/FTStockRank，需求 10962/10963/10964）
+│  └─ 行情快照手动同步（三级叶子，/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync，需求 10982）
 ├─ 元数据管理（二级分组）
 │  └─ 业务元数据维护（三级分组）
 │     ├─ 交易所信息维护（/meta/exchange）
@@ -101,6 +104,8 @@
 | 38 | 内容管理 | 内容管理 | 一级系统 | `cms` | `mdi-laptop` | `/Meta/CMS` | — | — | — |
 | 39 | 内容管理控制台 | 内容管理 | 二级叶子 | `cms-home` | `mdi-view-dashboard-outline` | `/Meta/CMS` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中，系统占位） | [CMS/CMSHome.md](CMS/CMSHome.md) |
 | 40 | 日K线数据同步 | 金融投资 | 四级叶子 | `cdeu-daykline-sync` | `mdi-chart-candlestick` | `/Meta/Finv/Quote/Cdeu/DayKline/Sync` | `Web/src/views/Meta/Finv/Quote/Cdeu/DayKlineSyncView.vue` | `POST /API/V1/Meta/Finv/Quote/Cdeu/DayKline/Sync`、`GET .../DayKline/Stat`、`GET .../DayKline/UscList` | [Quote/Cdeu/DayKlineSync.md](Quote/Cdeu/DayKlineSync.md) |
+| 41 | 证券行情排行 | 金融投资 | 四级叶子 | `quote-realtime-ftstockrank` | `mdi-chart-timeline-variant` | `/Meta/Finv/Quote/Realtime/FTStockRank` | `Web/src/views/Meta/Finv/Quote/Realtime/RealtimeStockView.vue` | `GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Page` | [Quote/Realtime/RealtimeStock.md](Quote/Realtime/RealtimeStock.md) |
+| 42 | 行情快照手动同步 | 金融投资 | 四级叶子 | `quote-realtime-snapshot-sync` | `mdi-cloud-sync-outline` | `/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync` |
 
 ## 说明
 

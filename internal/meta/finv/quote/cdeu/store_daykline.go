@@ -76,8 +76,8 @@ type DayKlineRow struct {
 
 // DayKlineUpsertStat upsert 统计。
 type DayKlineUpsertStat struct {
-	Inserted int64 `json:"inserted"`
-	Updated  int64 `json:"updated"`
+	Inserted int64 `json:"insert"`
+	Updated  int64 `json:"update"`
 }
 
 // Total 处理行数。

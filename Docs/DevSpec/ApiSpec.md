@@ -9,6 +9,15 @@
 - 所有 REST JSON 响应顶层固定输出数值 `code` 和文本 `message`；`data`、`error`、`details`、`request_id`、`trace_id` 均为按语义可选字段。
 - 所有 wire 字段（JSON 请求/响应体）使用 **snake_case**。
 
+### 1.1 统计与动作类字段命名（强制）
+
+- 响应体中表示「本次动作结果数量」的统计字段一律使用**动词原形**，禁止过去式/动名词：
+  - 允许：`insert`、`update`、`receive`、`delete`、`skip`；
+  - 禁止：`inserted`、`updated`、`received`、`deleted`、`skipped`。
+- 行数类字段统一 `rows_` 前缀（`rows_insert` / `rows_update` / `rows_receive`），总量字段用 `total`。
+- 规则同时覆盖：`.md` 文档的响应示例与字段表、`.yml` 契约的 `properties` 与 `required`、前端 TS 类型定义。
+- 存量不合规字段按需求条目逐条迁移（`Docs/RequirementList.md` 10973/10974/10975/10979），新增字段一律按本节执行。
+
 ## 2. API 路径
 
 - 服务端 API 路径统一使用大写 `/API/V1/` 前缀（例如 `GET /API/V1/Health/Live`），不使用 `/api/v1/`。

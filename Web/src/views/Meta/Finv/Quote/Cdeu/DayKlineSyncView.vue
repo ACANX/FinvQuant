@@ -27,8 +27,8 @@ interface DayKlineSyncResult {
   timezone: string
   total: number
   in_range: number
-  inserted: number
-  updated: number
+  insert: number
+  update: number
   date_from: number
   date_to: number
   provider: string
@@ -142,7 +142,7 @@ async function sync() {
     rawResponse.value = JSON.stringify(data, null, 2)
     lastSyncAt.value = new Date().toLocaleString('zh-CN', { hour12: false })
     showToast(
-      `同步完成：拉取 ${data.total} 根，区间内 ${data.in_range}，新增 ${data.inserted}，更新 ${data.updated}`,
+      `同步完成：拉取 ${data.total} 根，区间内 ${data.in_range}，新增 ${data.insert}，更新 ${data.update}`,
       'success',
     )
     await loadStat()
@@ -257,7 +257,7 @@ onMounted(async () => {
                     </tr>
                     <tr>
                       <td class="text-medium-emphasis">区间内 / 新增 / 更新</td>
-                      <td>{{ result.in_range }} / {{ result.inserted }} / {{ result.updated }}</td>
+                      <td>{{ result.in_range }} / {{ result.insert }} / {{ result.update }}</td>
                     </tr>
                     <tr>
                       <td class="text-medium-emphasis">日期范围</td>

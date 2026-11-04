@@ -69,6 +69,12 @@ type Service struct {
 
 	// klineFetcher 日K拉取实现（默认 moomoo 客户端；单测可通过 SetKlineFetcher 注入）。
 	klineFetcher KlineFetcher
+
+	// stockListFetcher 证券列表拉取实现（默认 moomoo 客户端；单测可通过 SetStockListFetcher 注入）。
+	stockListFetcher StockListFetcher
+
+	// stockListRunner 采集运行持有者（内存；进程重启即清空）。
+	stockListRunner *StockListRunner
 }
 
 // NewService 创建归档服务。
@@ -93,8 +99,10 @@ func NewService(pool *pgxpool.Pool, options Options) (*Service, error) {
 		uploader:     uploader,
 		options:      options,
 		cfg:          cfgStore,
-		running:      map[string]time.Time{},
-		klineFetcher: quoteapiv2.New(quoteapiv2.Config{}),
+		running:          map[string]time.Time{},
+		klineFetcher:     quoteapiv2.New(quoteapiv2.Config{}),
+		stockListFetcher: quoteapiv2.New(quoteapiv2.Config{}),
+		stockListRunner:  newStockListRunner(),
 	}, nil
 }
 

@@ -66,6 +66,7 @@ Authorization: Bearer <token>
   - **外部 OpenAPI**（`/OpenAPI/V1/*`，当前公开访问、暂不鉴权；API Key 后续支持）：
     - [`OpenAPI/Quote/Cdeu/Min/Upsert.md`](../OpenAPI/Quote/Cdeu/Min/Upsert.md) — `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`（批量 upsert；成功码默认 0；契约 [.yml](../OpenAPI/Quote/Cdeu/Min/Upsert.yml)）
     - [`OpenAPI/Quote/Cdeu/Min/PageUni.md`](../OpenAPI/Quote/Cdeu/Min/PageUni.md) — `GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni`（分页，column/row；成功码默认 0；契约 [.yml](../OpenAPI/Quote/Cdeu/Min/PageUni.yml)）
+    - [`OpenAPI/Quote/Cdeu/Realtime/StockUpsert.md`](../OpenAPI/Quote/Cdeu/Realtime/StockUpsert.md) — `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert`（证券实时行情快照批量 upsert；成功码默认 0；契约 [.yml](../OpenAPI/Quote/Cdeu/Realtime/StockUpsert.yml)）
   - [`HistoryQuote/ImportsUpload.md`](HistoryQuote/ImportsUpload.md) — `POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload`（MVSV 历史行情导入）
   - [`HistoryQuote/HistoryQuote.md`](HistoryQuote/HistoryQuote.md) — `GET /API/V1/Meta/Finv/Quant/Quote/History/QuoteQuery`（历史行情查询）
   - [`Meta/MetaExchange.md`](Meta/MetaExchange.md) — `GET/POST /API/V1/Meta/Finv/Quant/Metadata/Exchange/*`（交易所信息维护）
@@ -80,6 +81,11 @@ Authorization: Bearer <token>
     - [`Cdeu/DayKlineSync.md`](Cdeu/DayKlineSync.md) — `POST .../DayKline/Sync`（拉取 moomoo 全量日K并 upsert 到 `cdeu.finv_quote_secu_kline_day`）
     - [`Cdeu/DayKlineStat.md`](Cdeu/DayKlineStat.md) — `GET .../DayKline/Stat`（单 usc 日K存量：行数/日期范围/来源）
     - [`Cdeu/DayKlineUscList.md`](Cdeu/DayKlineUscList.md) — `GET .../DayKline/UscList`（候选 usc，取自 `futu.finv_futu_quote_collect`）
+  - 证券实时行情快照（`/API/V1/Meta/Finv/Quote/Cdeu/Realtime/*`，**一个接口一个文档**）：
+    - [`Cdeu/RealtimeStockUpsert.md`](Cdeu/RealtimeStockUpsert.md) — `POST .../Realtime/FTStockUpsert`（批量 upsert 到 `cdeu.finv_cdeu_secu_realtime_stock`；契约 [.yml](Cdeu/RealtimeStockUpsert.yml)）
+    - [`Cdeu/RealtimeStockPage.md`](Cdeu/RealtimeStockPage.md) — `GET .../Realtime/Stock/Page`（实时行情分页查询：关键字/市场/币种筛选 + 白名单排序；契约 [.yml](Cdeu/RealtimeStockPage.yml)）
+    - [`Cdeu/StockListCollect.md`](Cdeu/StockListCollect.md) — `POST .../Realtime/FTStockQuoteSnapshotSync`（行情列表股票快照同步：读配置表分市场分页采集、逐页落库并回写 `count_exists`/`total_available`；契约 [.yml](Cdeu/StockListCollect.yml)）
+    - [`Cdeu/StockSnapshotSyncRun.md`](Cdeu/StockSnapshotSyncRun.md) — `POST/GET .../Realtime/FTStockQuoteSnapshotSync/Run`（异步启动采集 + 轮询运行状态与逐页日志；契约 [.yml](Cdeu/StockSnapshotSyncRun.yml)）
   - 证券行情月归档导出与上传（`/API/V1/Meta/Finv/Quote/DeDup/*`，**一个接口一个文档**）：
     - [`QuoteDeDup/Status.md`](QuoteDeDup/Status.md) — `GET .../DeDup/Status`（归档链路指标、运行参数与调度表）
     - [`QuoteDeDup/JobRuntime.md`](QuoteDeDup/JobRuntime.md) — `GET .../DeDup/Job/Runtime`（10 个 Job 运行快照：阶段 / 进度 / 心跳 / 最近结果）

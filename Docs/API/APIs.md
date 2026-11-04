@@ -132,6 +132,12 @@
 | 108 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/DayKline/Sync` | 拉取 moomoo 全量日K并按 `(date, usc)` upsert 到 `cdeu.finv_quote_secu_kline_day` | [Cdeu/DayKlineSync.md](Cdeu/DayKlineSync.md) | 日K线数据同步（[Menu/Quote/Cdeu/DayKlineSync.md](../Menu/Quote/Cdeu/DayKlineSync.md)） |
 | 109 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/DayKline/Stat` | 查询单 usc 的日K存量（行数 / 日期范围 / 来源） | [Cdeu/DayKlineStat.md](Cdeu/DayKlineStat.md) | 日K线数据同步（同上） |
 | 110 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/DayKline/UscList` | 候选 usc 列表（`futu.finv_futu_quote_collect` 中 `flag_enable='1'`） | [Cdeu/DayKlineUscList.md](Cdeu/DayKlineUscList.md) | 日K线数据同步（同上） |
+| 111 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert` | 证券实时行情快照批量 upsert（`cdeu.finv_cdeu_secu_realtime_stock`，`ON CONFLICT (stock_id)` 只覆盖本次有值列，上限 500 条） | [Cdeu/RealtimeStockUpsert.md](Cdeu/RealtimeStockUpsert.md)（契约 [.yml](Cdeu/RealtimeStockUpsert.yml)） | 采集端（仓库外同步脚本） |
+| 112 | POST | `/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert` | 外部 OpenAPI：证券实时行情快照批量 upsert（同一 handler，当前公开访问、暂不鉴权；成功响应 `{code,data,message}`，code 默认 0） | [../OpenAPI/Quote/Cdeu/Realtime/StockUpsert.md](../OpenAPI/Quote/Cdeu/Realtime/StockUpsert.md) | 外部 HOOK / 采集端 |
+| 113 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Page` | 实时行情分页查询（关键字/市场/币种筛选 + 白名单排序，数值列以文本返回） | [Cdeu/RealtimeStockPage.md](Cdeu/RealtimeStockPage.md)（契约 [.yml](Cdeu/RealtimeStockPage.yml)） | 实时行情（[Menu/Quote/Realtime/RealtimeStock.md](../Menu/Quote/Realtime/RealtimeStock.md)） |
+| 114 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync` | 行情列表股票快照同步：读配置表分市场分页拉取 moomoo get-stock-list，逐页 upsert 到 `cdeu.finv_cdeu_secu_realtime_stock` 并回写 `count_exists`/`total_available`（需登录） | [Cdeu/StockListCollect.md](Cdeu/StockListCollect.md) | 需求 10976/10977 |
+| 115 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run` | 异步启动一次行情快照同步（返回 run_id，同一时间仅允许一个运行中任务） | [Cdeu/StockSnapshotSyncRun.md](Cdeu/StockSnapshotSyncRun.md) | 需求 10982 |
+| 116 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run` | 轮询采集运行状态、逐页日志与采集配置（runId 省略取最近一次） | [Cdeu/StockSnapshotSyncRun.md](Cdeu/StockSnapshotSyncRun.md) | 需求 10982 |
 
 ## 说明
 

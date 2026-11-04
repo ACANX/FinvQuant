@@ -1,0 +1,281 @@
+# FinvQuant — 行情快照手动同步（OpenAPI 3.1 契约）
+#
+# 与同目录 StockSnapshotSyncRun.md 成对维护，任一侧变更须同步更新另一侧。
+#
+openapi: 3.1.0
+info:
+  title: FinvQuant — 行情快照手动同步（异步启动 + 进度轮询）
+  version: 1.0.0
+  description: |
+    网页「行情快照手动同步」使用的两个端点：
+    启动一次列表采集（后台执行，立即返回 run_id），以及轮询运行状态与逐页日志。
+    采集逻辑在 internal/meta/finv/quote/cdeu/quote_list_stock_snapshot_sync.go（可迁移单文件），
+    运行状态与日志由 internal/meta/finv/quote/cdeu/stocklist_run.go 保存在内存（进程重启即清空）。
+servers:
+  - url: http://127.0.0.1:16001
+    description: 本机直连（生产经 Nginx 反代时替换为 https://<域名>）
+tags:
+  - name: Quote/Cdeu/Realtime
+    description: 证券实时行情快照（CDEU）
+security:
+  - bearerAuth: []
+paths:
+  /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run:
+    post:
+      operationId: startCdeuRealtimeStockListRun
+      tags: [Quote/Cdeu/Realtime]
+      summary: 异步启动一次行情快照同步
+      description: |
+        立即返回 run_id，采集在后台执行；同一时间只允许一个运行中的任务（重复启动返回 400）。
+        请求体字段与同步接口一致，全部可选。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CollectRequest'
+      responses:
+        '200':
+          description: 任务已启动，返回运行快照（status=RUNNING）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunStartResponse'
+        '400':
+          description: 请求体非法 / 已有任务在运行
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未登录或 token 失效
+    get:
+      operationId: getCdeuRealtimeStockListRun
+      tags: [Quote/Cdeu/Realtime]
+      summary: 轮询运行状态与逐页日志
+      parameters:
+        - name: runId
+          in: query
+          required: false
+          description: 运行编号；缺省返回最近一次运行。
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 运行快照 + 采集配置（无运行记录时 status=IDLE）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunStatusResponse'
+        '401':
+          description: 未登录或 token 失效
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    CollectRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        instrument_symbol:
+          type: string
+          description: 只采集该品种（stock/etf/future）；空=全部。
+        market_type:
+          type: string
+          description: 只采集该市场（1=HK 2=US 4=CN）；空=全部。
+        count_plan:
+          type: integer
+          minimum: 1
+          description: 覆盖配置表中的计划采集数量。
+        plate_type:
+          type: string
+          default: '1'
+          description: 接口 plateType。
+        rank_type:
+          type: string
+          default: '3'
+          description: 接口 rankType（3=市值排行）。
+        page_size:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 50
+          description: 每页条数。
+        page_start:
+          type: integer
+          description: 页码起始值，默认 `1`（已实测 page=0 被服务端拒绝）。
+        interval_ms:
+          type: integer
+          minimum: 0
+          default: 6000
+          description: 页间间隔（毫秒）。
+        max_retries:
+          type: integer
+          minimum: 0
+          default: 2
+          description: 单页失败重试次数。
+        retry_backoff_ms:
+          type: integer
+          minimum: 0
+          default: 2000
+          description: 重试退避基数。
+        request_timeout_ms:
+          type: integer
+          minimum: 0
+          default: 20000
+          description: 单次请求超时。
+        max_pages:
+          type: integer
+          minimum: 0
+          default: 0
+          description: 页数上限，0=不限。
+        continue_on_error:
+          type: boolean
+          default: true
+          description: 单市场失败后是否继续后续市场。
+        extra:
+          type: object
+          additionalProperties:
+            type: string
+          description: 预留扩展参数。
+
+    Config:
+      type: object
+      required: [instrument_symbol, market_type, count_exists, total_available]
+      properties:
+        instrument_symbol:
+          type: string
+        market_type:
+          type: string
+        count_plan:
+          type: [integer, 'null']
+        count_exists:
+          type: integer
+          description: 该市场当前证券总数（配置表回写值）。
+        total_available:
+          type: integer
+          description: 最近一轮实际可采集数量（配置表回写值）。
+
+    RunResult:
+      type: object
+      required: [instrument_symbol, market_type, pages, rows_receive, insert, update, elapsed_ms]
+      properties:
+        instrument_symbol:
+          type: string
+        market_type:
+          type: string
+        pages:
+          type: integer
+        rows_receive:
+          type: integer
+          format: int64
+        insert:
+          type: integer
+          format: int64
+        update:
+          type: integer
+          format: int64
+        count_exists:
+          type: integer
+        total_available:
+          type: integer
+        elapsed_ms:
+          type: integer
+          format: int64
+        error:
+          type: string
+
+    RunLog:
+      type: object
+      required: [time, level, message]
+      properties:
+        time:
+          type: string
+          description: HH:mm:ss。
+        level:
+          type: string
+          enum: [INFO, WARN, ERROR]
+        market:
+          type: string
+          description: 品种/市场（如 stock/1）；任务级日志为空。
+        page:
+          type: integer
+          description: 相关页码，0 表示与具体页无关。
+        message:
+          type: string
+
+    Run:
+      type: object
+      required: [run_id, status, started_at, elapsed_ms, results, logs]
+      properties:
+        run_id:
+          type: string
+        status:
+          type: string
+          enum: [RUNNING, SUCCESS, PARTIAL, FAILED]
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: [string, 'null']
+          format: date-time
+        elapsed_ms:
+          type: integer
+          format: int64
+        params:
+          type: object
+          description: 本次采集参数快照。
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunResult'
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunLog'
+        error:
+          type: string
+
+    RunStartResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/Run'
+
+    RunStatusResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+        data:
+          type: object
+          required: [run, configs]
+          properties:
+            run:
+              $ref: '#/components/schemas/Run'
+            configs:
+              type: array
+              items:
+                $ref: '#/components/schemas/Config'
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
