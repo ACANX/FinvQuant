@@ -7,14 +7,37 @@
 
 | 目录 | 是否入库 | 放什么 |
 |------|----------|--------|
-| `Docs/Issue/` | ✅ 跟踪 | 已提交/已外发的 Issue 正文，命名用描述性大驼峰，如 `MetaExtCustomHeaderSupport.md` |
+| `Docs/Issue/` | ✅ 跟踪 | 已提交/已外发的 Issue 正文，命名形如 `0001-MetaExtCustomHeaderSupport.md` |
 | `Docs/Issue/Outside/` | ❌ 不跟踪（见 `.gitignore`） | 未外发、本地草稿或涉及内部环境信息的 Issue 草稿 |
 
-## 2. 文件命名
+## 2. 文件命名与编号
 
-- 使用**描述性大驼峰**（PascalCase）英文名，主题 + 对象清晰可辨：
-  `MetaExtCustomHeaderSupport.md`、`RedisClusterTimeoutBehavior.md`。
-- 不使用中文文件名，不使用日期编号前缀（编号规则只适用于 `Docs/Proposal/` 与 `Docs/Refactor/`）。
+格式：**`NNNN-大驼峰标题.md`**
+
+| 段 | 规则 |
+|----|------|
+| `NNNN` | **本目录内**四位顺序号，从 `0001` 起，不足四位**左补 0**（`0001`、`0042`、`1234`）；只增不减、不得重号、**不得复用**（即使原文件被删除或改名） |
+| `大驼峰标题` | 英文 PascalCase，主题 + 对象清晰可辨，如 `MetaExtCustomHeaderSupport` |
+
+示例：
+
+```
+Docs/Issue/0001-MetaExtCustomHeaderSupport.md
+Docs/Issue/0002-RedisClusterTimeoutBehavior.md
+Docs/Issue/Outside/0003-LocalDraftIssue.md
+```
+
+规则要点：
+
+- 编号在 `Docs/Issue/` 与其 `Outside/` 子目录**共用一套计数**：外发后从 `Outside/` 移到 `Docs/Issue/` 时**编号保持不变**，不重新编号。
+- 新增前先核对已用编号（`Outside/` 也要算），以下命令应输出空：
+
+  ```bash
+  ls Docs/Issue Docs/Issue/Outside 2>/dev/null | grep -E '^[0-9]{4}-' | cut -d- -f1 | sort | uniq -d
+  ```
+
+- 下一个可用编号 = 现有最大编号 + 1；当前已用：`0001`。
+- 不使用中文文件名；编号与 `Docs/Proposal/`（`yyyyMM-NNNN-`）、`Docs/Refactor/`（`yyMM-NNN-`）三套编号互相独立、互不干扰。
 
 ## 3. 文档必备内容
 
