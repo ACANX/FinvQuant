@@ -132,7 +132,7 @@
 | 10 | `t` | `turnover` | string（数值） | 是 | 成交金额 |
 | 11 | `cr` | `change_ratio` | string（两位小数） | 是 | 涨跌幅 |
 | 12 | `cp` | `change_price` | string（数值） | 是 | 涨跌额 |
-| 13 | `pa` | `pacd`（库列 `paocd`） | string（数值） | 是 | 当日累计均价 |
+| 13 | `vwa` | `vwap`（库列 `vwap`） | string（数值） | 是 | 成交量加权平均价（VWAP） |
 | 14 | `pv` | `provider` | string | 是 | 数据来源 |
 | 15 | `ext` | `ext_field` | string | 是 | 预留扩展字段 |
 

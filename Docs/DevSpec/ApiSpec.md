@@ -9,6 +9,15 @@
 - 所有 REST JSON 响应顶层固定输出数值 `code` 和文本 `message`；`data`、`error`、`details`、`request_id`、`trace_id` 均为按语义可选字段。
 - 所有 wire 字段（JSON 请求/响应体）使用 **snake_case**。
 
+### 1.1 统计与动作类字段命名（强制）
+
+- 响应体中表示「本次动作结果数量」的统计字段一律使用**动词原形**，禁止过去式/动名词：
+  - 允许：`insert`、`update`、`receive`、`delete`、`skip`；
+  - 禁止：`inserted`、`updated`、`received`、`deleted`、`skipped`。
+- 行数类字段统一 `rows_` 前缀（`rows_insert` / `rows_update` / `rows_receive`），总量字段用 `total`。
+- 规则同时覆盖：`.md` 文档的响应示例与字段表、`.yml` 契约的 `properties` 与 `required`、前端 TS 类型定义。
+- 存量不合规字段按需求条目逐条迁移（`Docs/RequirementList.md` 10973/10974/10975/10979），新增字段一律按本节执行。
+
 ## 2. API 路径
 
 - 服务端 API 路径统一使用大写 `/API/V1/` 前缀（例如 `GET /API/V1/Health/Live`），不使用 `/api/v1/`。
@@ -73,6 +82,7 @@ API 契约测试必须覆盖：
 
 - **运维根端点**：`GET /Health`、`GET /healthz` 不挂在业务前缀下（探针/脚本使用），不属于前缀违规。
 - **URL 查询参数双读**：`dateFrom/dateTo/tsFrom/tsTo/onConflict`（小驼峰，规范名）与 `date_from/date_to/ts_from/ts_to/on_conflict`（旧下划线名）同时接受；文档以规范名为准。
+- **迁移期兼容参数双读（2026-11-01 登记）**：`pageSize`（兼容 `page_size`）、`flagEnable`（兼容 `flag_enable`）用于元数据字典接口；`secuName`（兼容 `secu_name`）、`startTs/endTs`（兼容 `start_ts/end_ts`）用于历史行情查询。规范名为主路径，旧名仅兜底，**新接口不得照此新增**；`internal/api/handler/queryparam_naming_test.go` 静态校验：出现未登记的下划线查询参数即测试失败。
 - **列表信封沿用旧契约**：`GET /Page`、`GET /PageUni` 成功响应为 `{"code":1,"data":{...},"message":"OK"}`（成功码 `1` 属成功码集合，允许）。
 - **错误体为超集**：`{code,message,detail,request_id,error}`，保留旧客户端依赖的 `detail` 字段；`code` 见 `ErrorCodeSpec` §1.1。
 - **运维端点无 `/API/V1` 前缀**：`GET /Health`（旧 `/healthz` 过渡别名）、`GET /` 服务标识。

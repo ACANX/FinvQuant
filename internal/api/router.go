@@ -10,13 +10,14 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/acanx/finvquant/internal/api/handler"
-	"github.com/acanx/finvquant/internal/backtest"
 	"github.com/acanx/finvquant/internal/config"
-	"github.com/acanx/finvquant/internal/kline"
 	"github.com/acanx/finvquant/internal/meta"
 	"github.com/acanx/finvquant/internal/meta/finv/auth"
-	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
-	"github.com/acanx/finvquant/internal/quote"
+	"github.com/acanx/finvquant/internal/meta/finv/brs"
+	"github.com/acanx/finvquant/internal/meta/finv/quant/backtest"
+	"github.com/acanx/finvquant/internal/meta/finv/quote"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
 )
 
 // Deps 路由依赖。
@@ -27,10 +28,14 @@ type Deps struct {
 	Commit        string
 	Server        string
 	Config        *config.Config
-	ExportArchive *dedup.Service
+	ExportArchive *cdeu.Service
 	// Auth 登录认证服务；为 nil 时不启用登录校验（仅供单元测试构造）。
 	// 生产环境由 cmd/server 注入，任何业务请求都必须携带有效令牌。
 	Auth *auth.Service
+	// BRSRunner 小表全量备份运行器（手动触发 + 运行状态）；为 nil 时不注册相关路由（仅供单元测试构造）。
+	BRSRunner *brs.Runner
+	// BRSSliceRunner 大表分片备份运行器（手动触发 + 运行状态）；为 nil 时不注册相关路由。
+	BRSSliceRunner *brs.SliceRunner
 }
 
 // NewRouter 构建 Gin 路由（默认监听端口 16001）。
@@ -140,6 +145,37 @@ func NewRouter(deps *Deps) *gin.Engine {
 			group.GET("/File/List", archive.FileList)
 			group.POST("/Job/Retry", archive.JobRetry)
 			group.POST("/File/Retry", archive.FileRetry)
+
+			// USC 补丁规则（需求 10931）：新接口前缀统一用 /Quote/Cdeu，不再使用 /Quote/DeDup。
+			patch := apiGroup.Group("/Meta/Finv/Quote/Cdeu/Usc/Patch")
+			patch.GET("/List", archive.UscPatchRuleList)
+			patch.POST("/Save", archive.UscPatchRuleSave)
+			patch.POST("/Enable", archive.UscPatchRuleEnable)
+			patch.POST("/Delete", archive.UscPatchRuleDelete)
+			patch.GET("/Preview", archive.UscPatchPreview)
+			patch.POST("/Run", archive.UscPatchRun)
+			patch.GET("/Status", archive.UscPatchStatus)
+
+			// 日K线数据同步（需求 10952）：拉取 moomoo 日K 并 upsert 到 cdeu.finv_quote_secu_kline_day。
+			dayKline := apiGroup.Group("/Meta/Finv/Quote/Cdeu/DayKline")
+			dayKline.POST("/Sync", archive.DayKlineSync)
+			dayKline.GET("/Stat", archive.DayKlineStat)
+			dayKline.GET("/UscList", archive.DayKlineUscList)
+
+			// 证券实时行情快照批量 Upsert（需求 10957）：写入 cdeu.finv_cdeu_secu_realtime_stock。
+			// 内部路径需登录；对外 OpenAPI 路径复用同一 handler，响应经 WrapOpenAPIResponse
+			// 包成 {code,data,message}（当前 OpenAPI 组公开访问、暂不鉴权，同 Min/Upsert 先例）。
+			realtime := apiGroup.Group("/Meta/Finv/Quote/Cdeu/Realtime")
+			realtime.POST("/FTStockUpsert", archive.RealtimeStockUpsert)
+			// 证券列表采集（需求 10976/10977）：读配置表分页拉取列表并落库。
+			realtime.POST("/FTStockQuoteSnapshotSync", archive.RealtimeStockListCollect)
+			// 网页「行情快照手动同步」：异步启动 + 轮询进度/逐页日志（需求 10982）。
+			realtime.POST("/FTStockQuoteSnapshotSync/Run", archive.RealtimeStockListRunStart)
+			realtime.GET("/FTStockQuoteSnapshotSync/Run", archive.RealtimeStockListRunStatus)
+			realtime.GET("/Stock/Page", archive.RealtimeStockPage)
+			// 需求 10995：待录入证券（usc 为空，作为补录主数据的依据），先只提供查询。
+			realtime.GET("/Stock/Pending", archive.RealtimeStockPendingPage)
+			openGroup.POST("/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert", archive.RealtimeStockUpsert)
 			group.POST("/Job/Run", archive.JobRun)
 			group.POST("/Job/Dynamic/Run", archive.DynamicJobRun)
 
@@ -149,6 +185,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 			group.GET("/Calendar/Page", archive.CalendarPage)
 			group.GET("/Maturity/Page", archive.MaturityPage)
 			group.GET("/Stats/Page", archive.StatsPage)
+			group.GET("/Export/Stock/Page", archive.StockPage)
 			group.GET("/Budget/Page", archive.BudgetPage)
 			group.GET("/Watermark/List", archive.WatermarkList)
 			group.GET("/RunLog/Page", archive.RunLogPage)
@@ -168,6 +205,45 @@ func NewRouter(deps *Deps) *gin.Engine {
 			group.POST("/Job/Pause", archive.JobPause)
 			group.POST("/Job/Cancel", archive.JobCancel)
 			group.POST("/Maturity/Refresh", archive.MaturityRefresh)
+		}
+
+		// BRS 备份登记维护（brs.brs_bak_rdb_table_full）：查询 / 新增编辑 / 启用禁用。
+		// 前端路由 /Meta/BRS/Backup/Finv/Table 与接口前缀保持一致。
+		brsBackupTable := handler.NewBrsBackupTable(brs.NewRegistry(deps.Pool))
+		brsTable := apiGroup.Group("/Meta/BRS/Backup/Finv/Table")
+		brsTable.GET("/List", brsBackupTable.List)
+		brsTable.POST("/Save", brsBackupTable.Save)
+		brsTable.POST("/Toggle", brsBackupTable.Toggle)
+
+		// BRS 对象存储配置（sys.sys_config 39002 的 JSON 可视化配置）
+		brsOss := apiGroup.Group("/Meta/BRS/Backup/Finv/OSSConfig")
+		brsOss.GET("/Get", brsBackupTable.GetOSSConfig)
+		brsOss.POST("/Save", brsBackupTable.SaveOSSConfig)
+
+		// BRS 备份执行：调度配置（39001）+ 手动触发 + 实时运行状态与日志。
+		// Runner 缺失时不注册（单元测试构造的 Deps 可省略）。
+		if deps.BRSRunner != nil {
+			brsRun := handler.NewBrsRun(deps.BRSRunner)
+			schedule := apiGroup.Group("/Meta/BRS/Backup/Finv/Schedule")
+			schedule.GET("/Get", brsRun.GetSchedule)
+			schedule.POST("/Save", brsRun.SaveSchedule)
+			run := apiGroup.Group("/Meta/BRS/Backup/Finv/Run")
+			run.POST("/Manual", brsRun.TriggerManual)
+			run.GET("/Status", brsRun.Status)
+		}
+
+		// BRS 大表增量（分片）备份：登记维护 + 分片计划 + 手动触发 + 运行状态。
+		// 与小表全量备份完全独立（各自一套登记、执行链与运行状态）。
+		if deps.BRSSliceRunner != nil {
+			brsSlice := handler.NewBrsSlice(deps.BRSSliceRunner)
+			sliceRule := apiGroup.Group("/Meta/BRS/Backup/Finv/Slice/Rule")
+			sliceRule.GET("/List", brsSlice.ListRules)
+			sliceRule.POST("/Save", brsSlice.SaveRule)
+			sliceRule.POST("/Toggle", brsSlice.ToggleRule)
+			apiGroup.GET("/Meta/BRS/Backup/Finv/Slice/Plan", brsSlice.Plan)
+			sliceRun := apiGroup.Group("/Meta/BRS/Backup/Finv/Slice/Run")
+			sliceRun.POST("/Manual", brsSlice.TriggerManual)
+			sliceRun.GET("/Status", brsSlice.Status)
 		}
 
 		// 元数据管理：交易所 / 市场 / 证券字典维护

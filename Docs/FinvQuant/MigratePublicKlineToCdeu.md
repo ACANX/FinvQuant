@@ -1,9 +1,9 @@
 # 一次性数据迁移：`public.finv_quote_secu_kline_min` → `cdeu.finv_quote_secu_kline_min`
 
-> 所属：FinvQuant 部署文档 · 脚本：`Deploy/Script/MigratePublicKlineToCdeu.sql`
+> 所属：FinvQuant 部署文档 · 脚本：`Deploy/Upgrade/2610-004-MigratePublicKlineToCdeu.sql`
 > 性质：**一次性任务**，不进入 `Deploy/Migrations/` 迁移链；上线验证通过后可注释/删除。
 > 分发：随快照包/构建包/正式包一起发布（`PackSnapshot.sh`），`Install.sh` 安装后位于
-> `<PREFIX>/Deploy/Script/MigratePublicKlineToCdeu.sql`。
+> `<PREFIX>/Deploy/Upgrade/2610-004-MigratePublicKlineToCdeu.sql`。
 
 ## 1. 背景
 
@@ -13,6 +13,13 @@
 因此需要把这段历史数据一次性搬入 `cdeu`。
 
 脚本对源表**只读**（仅 `SELECT`），不改名、不删除、不 `TRUNCATE`，源表保持原样。
+
+> 数据搬完后源表的清理分两步：
+> 1. 迁移 `V300086` 把该表加入 BRS 备份登记（仅当表存在时登记），等 BRS 把产物备份到对象存储；
+> 2. 确认 R2 上已有 `<prefix>/<env>/Full/<yyyyMMdd>/finv.public.finv_quote_secu_kline_min.dump` 后，执行 `Deploy/Upgrade/2610-003-DropPublicKlineMin.sql` 手工删除（脚本会再次校验差集，为 0 才删，并同步移除备份登记）。
+>
+> 迁移 `V300085` 只做校验与提示（`NOTICE`），**不删表**——删除动作由上述第 2 步的手工脚本执行（需求 10900）。
+> 数据已备份到对象存储并确认可以解析后即放行删除：执行 `2610-003-DropPublicKlineMin.sql` 会同时移除 `brs.brs_bak_rdb_table` 中的该表登记。
 
 ## 2. 表结构与列映射
 
@@ -37,7 +44,7 @@
 
 ## 3. 前置条件
 
-1. **已完成数据库迁移**：`cdeu.finv_quote_secu_kline_min` 已存在（迁移 `V100001–V100080` 跑完）：
+1. **已完成数据库迁移**：`cdeu.finv_quote_secu_kline_min` 已存在（迁移 `V200001–V200080` 跑完）：
 
    ```bash
    sudo -u postgres psql -d finv -tAc "select to_regclass('cdeu.finv_quote_secu_kline_min')"
@@ -57,7 +64,7 @@
 # 脚本随安装包位于 <PREFIX>/Deploy/Script/
 psql -h 127.0.0.1 -p 5432 -U finv -d finv \
      -v ON_ERROR_STOP=1 \
-     -f /data/App/FinvQuant/Deploy/Script/MigratePublicKlineToCdeu.sql
+     -f /data/App/FinvQuant/Deploy/Upgrade/2610-004-MigratePublicKlineToCdeu.sql
 ```
 
 典型输出：

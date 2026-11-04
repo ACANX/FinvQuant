@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { apiGet, apiPost } from '../../../../../api'
+import { showToast } from '../../../../../ui/toast'
 
 // 模板行
 interface TemplateRow {
@@ -23,7 +24,6 @@ const tmplTypeFilter = ref('')
 const tmplLoading = ref(false)
 
 const error = ref('')
-const message = ref('')
 
 const tmplDialog = ref(false)
 const tmplEditing = ref(false)
@@ -63,7 +63,7 @@ async function openTmplEdit(row: TemplateRow) {
     const detail = await apiGet<TemplateRow>(`/Meta/Finv/Quant/Backtest/Template/Get?templateId=${row.template_id}`)
     tmplForm.value = { ...(detail ?? row), content: JSON.parse(JSON.stringify((detail ?? row).content ?? {})) }
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
     tmplForm.value = { ...row, content: JSON.parse(JSON.stringify(row.content ?? {})) }
   }
   tmplContentText.value = JSON.stringify(tmplForm.value.content ?? {}, null, 2)
@@ -74,16 +74,16 @@ async function saveTmpl() {
   try {
     tmplForm.value.content = JSON.parse(tmplContentText.value)
   } catch (e) {
-    error.value = '模板内容 JSON 格式错误：' + (e as Error).message
+    showToast('模板内容 JSON 格式错误：' + (e as Error).message, 'error')
     return
   }
   try {
     await apiPost('/Meta/Finv/Quant/Backtest/Template/Save', tmplForm.value)
-    message.value = '模板保存成功'
+    showToast('模板保存成功')
     tmplDialog.value = false
     await loadTemplates()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
@@ -91,10 +91,10 @@ async function removeTmpl(row: TemplateRow) {
   if (!confirm(`确认删除模板「${row.template_name}」？`)) return
   try {
     await apiPost('/Meta/Finv/Quant/Backtest/Template/Delete', { template_id: row.template_id })
-    message.value = '模板删除成功'
+    showToast('模板删除成功')
     await loadTemplates()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
@@ -110,7 +110,6 @@ onMounted(() => {
 <template>
   <v-container fluid>
     <v-alert v-if="error" type="error" dismissible class="mb-3">{{ error }}</v-alert>
-    <v-alert v-if="message" type="success" dismissible class="mb-3">{{ message }}</v-alert>
 
     <!-- 模板管理 -->
     <v-card>

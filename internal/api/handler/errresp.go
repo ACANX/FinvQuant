@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/acanx/finvquant/internal/config"
-	"github.com/acanx/finvquant/internal/kline"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
 )
 
 // ctxRequestID 请求追踪 ID 的上下文键（同一请求的成功/错误响应用同一个值）。

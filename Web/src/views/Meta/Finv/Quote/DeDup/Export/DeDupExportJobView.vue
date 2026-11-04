@@ -1,10 +1,11 @@
 <script setup lang="ts">
-// 月归档导出任务：分页查询 cdeu.finv_quote_cdeu_export_job，支持状态/证券/业务月过滤与人工重试
+// 文件导出：分页查询 cdeu.finv_quote_cdeu_export_job，支持状态/证券/业务月过滤与人工重试
 // 后端接口：GET /Meta/Finv/Quote/DeDup/Job/List、POST /Meta/Finv/Quote/DeDup/Job/Retry
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 import { apiGet, apiPost } from '../../../../../../api'
-import { fmtISO, fmtMonth, fmtNum } from '../../../../../../utils'
+import { showToast } from '../../../../../../ui/toast'
+import { bizMonthOptions, fmtISO, fmtMonth, fmtNum } from '../../../../../../utils'
 
 interface JobRow {
   job_id: number
@@ -60,14 +61,14 @@ const statusItems = Object.keys(JOB_STATUS_NAME).map((value) => ({ title: `${val
 const status = ref<string | null>(null)
 const usc = ref('')
 const bizMonth = ref('')
+/** 业务月份是确定的枚举值：默认最近 10 年（yyyymm），最新在前 */
+const bizMonthItems = computed(() => bizMonthOptions())
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 const rows = ref<JobRow[]>([])
 const loading = ref(false)
 const error = ref('')
-const toast = ref(false)
-const toastText = ref('')
 const retrying = ref<number | null>(null)
 
 const headers = [
@@ -147,8 +148,7 @@ async function retry(row: JobRow) {
   retrying.value = row.job_id
   try {
     await apiPost<{ job_id: number }>('/Meta/Finv/Quote/DeDup/Job/Retry', { job_id: row.job_id })
-    toastText.value = `任务 ${row.job_id} 已重置为 WAITING`
-    toast.value = true
+    showToast(`任务 ${row.job_id} 已重置为 WAITING`)
     await load()
   } catch (e) {
     error.value = (e as Error).message
@@ -166,7 +166,7 @@ onMounted(load)
   <v-card>
     <v-card-title>
       <v-icon icon="mdi-clipboard-list-outline" class="mr-2" />
-      月归档导出任务
+      文件导出
     </v-card-title>
 
     <v-card-text>
@@ -185,7 +185,8 @@ onMounted(load)
           <v-text-field v-model="usc" label="证券[USC]" placeholder="如 GCMain" density="compact" hide-details clearable />
         </v-col>
         <v-col cols="12" sm="6" md="2">
-          <v-text-field v-model="bizMonth" label="业务月份" placeholder="如 202610" density="compact" hide-details clearable />
+          <v-select v-model="bizMonth" :items="bizMonthItems"
+                    label="业务月份" density="compact" hide-details clearable />
         </v-col>
         <v-col cols="auto">
           <v-btn color="primary" prepend-icon="mdi-magnify" :loading="loading" @click="search">查询</v-btn>
@@ -262,6 +263,5 @@ onMounted(load)
       </v-card>
     </v-card-text>
 
-    <v-snackbar v-model="toast" :timeout="3000" color="success">{{ toastText }}</v-snackbar>
   </v-card>
 </template>

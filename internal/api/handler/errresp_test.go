@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/acanx/finvquant/internal/config"
-	"github.com/acanx/finvquant/internal/kline"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
 )
 
 func init() { gin.SetMode(gin.TestMode) }

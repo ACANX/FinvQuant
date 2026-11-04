@@ -18,7 +18,7 @@
 | `21xxxx`（自 `211xxx` 起） | 需要向调用方区分具体错误类型的业务错误 | **启用**；子段：`2110xx` 校验、`2111xx` 资源/冲突、`2112xx` 容量、`2113xx` 存储/依赖 |
 | `>3000` 旧业务号（`4001/4004/4009`） | 历史号段 | **停用**，分别收敛为 `400`/`404`/`211104` |
 
-- 具体错误一律使用 `211xxx`（目录见 `Docs/API/KLine/*.md` 与实现 `internal/kline/apierr.go`），编号全局唯一、语义不复用。
+- 具体错误一律使用 `211xxx`（目录见 `Docs/API/KLine/*.md` 与实现 `internal/meta/finv/quote/cdeu/kline/apierr.go`），编号全局唯一、语义不复用。
 - 无法归类到具体码的错误，`code` 回退为 HTTP 状态码（`500` 沿用 `2006`）。
 - 新增/调整具体码必须同步：实现目录、接口文档、契约测试（号段 + HTTP 映射 + 唯一性）。
 - **错误详情分级**：默认只输出安全文案（`safe`）；`FINV_ERROR_DETAIL_MODE=admin` 且携带有效 `X-Debug-Token` 或来自 `FINV_ERROR_DETAIL_ALLOWED_CIDRS` 时，才输出白名单 `debug` 字段；DSN、完整 SQL、堆栈、令牌、内部主机名等永不进入响应。

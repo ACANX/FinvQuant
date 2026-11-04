@@ -4,7 +4,7 @@
 
 低峰窗口保存在系统配置表 `sys.sys_config`（`config_no = 20006`），**精确到秒**，格式 `HH:MM:SS|HH:MM:SS`（半角竖线分隔起止）。读取带 30 秒 TTL 缓存，保存后立即失效缓存，**无需重启服务**。
 
-> 历史沿革：窗口曾保存在 `dedup.finv_dedup_runtime_setting`（键值表，`V43` 创建）。该表仅为承载两个时间而建，已于 `V100041` 删除，配置迁入 `sys.sys_config 20006`；环境变量 `FINV_QUOTE_DEDUB_WINDOW_START/_END` 同时废弃、不再读取。
+> 历史沿革：窗口曾保存在 `dedup.finv_dedup_runtime_setting`（键值表，`V43` 创建）。该表仅为承载两个时间而建，已于 `V200041` 删除，配置迁入 `sys.sys_config 20006`；环境变量 `FINV_QUOTE_DEDUB_WINDOW_START/_END` 同时废弃、不再读取。
 
 ## GET /Settings（查询）
 

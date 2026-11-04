@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { apiGet, apiPost } from '../../../../../api'
+import { showToast } from '../../../../../ui/toast'
 import { fmtDate, statusColor } from '../../../../../utils'
 
 interface DelTaskRow {
@@ -52,7 +53,6 @@ const statusFilter = ref('')
 const runIdFilter = ref('')
 const loading = ref(false)
 const error = ref('')
-const message = ref('')
 
 const logDialog = ref(false)
 const logLoading = ref(false)
@@ -162,7 +162,7 @@ async function viewLogs(task: DelTaskRow) {
     const data = await apiGet<{ list: DelLogRow[] }>(`/Meta/Finv/Quant/Backtest/Run/DeleteTask/Logs?delTaskId=${task.del_task_id}`)
     logs.value = data.list ?? []
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   } finally {
     logLoading.value = false
   }
@@ -172,10 +172,10 @@ async function retry(task: DelTaskRow) {
   if (!confirm(`确认重试删除任务 ${task.del_task_id.slice(0, 8)}...？将重新提交删除该回测任务。`)) return
   try {
     const res = await apiPost<{ del_task_id: string }>('/Meta/Finv/Quant/Backtest/Run/DeleteTask/Retry', { del_task_id: task.del_task_id })
-    message.value = `已重新提交删除任务（${res.del_task_id}）`
+    showToast(`已重新提交删除任务（${res.del_task_id}）`)
     await load()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
@@ -205,7 +205,6 @@ onBeforeUnmount(() => {
       </v-card-title>
 
       <v-alert v-if="error" type="error" dismissible class="mx-4 mb-2">{{ error }}</v-alert>
-      <v-alert v-if="message" type="success" dismissible class="mx-4 mb-2">{{ message }}</v-alert>
 
       <v-card-text class="pt-0">
         <v-row>

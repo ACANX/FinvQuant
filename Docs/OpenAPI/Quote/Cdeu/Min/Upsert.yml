@@ -75,7 +75,7 @@ paths:
                       turnover: 3560.00
                       change_price: 0.10
                       change_ratio: 2.857143
-                      pacd: 3.56
+                      vwap: 3.56
                       ext_field: null
                       remark: null
                       provider: FT
@@ -181,9 +181,9 @@ components:
         change_ratio:
           type: [number, 'null']
           description: 涨跌幅。与 `change_price` 均未提供时由服务端自动计算。
-        pacd:
+        vwap:
           type: [number, 'null']
-          description: 当日累计均价（库列名 `paocd`）。
+          description: 成交量加权平均价（VWAP）（库列名 `vwap`）；旧字段名 `pacd` 兼容接收且 `vwap` 优先。
         ext_field:
           type: [string, 'null']
           description: 预留扩展字段。

@@ -5,8 +5,8 @@
 > [`KLinePageUni.yml`](KLinePageUni.yml)。契约变更时两者须同时更新。
 >
 > - 变更记录：需求 10781（迁移到 CDEU 前缀）、10782（全量统一 CDEU）、10785（按样板重写并拆分 .yml）
-> - 实现：`internal/api/handler/kline.go`（`PageUni`）、`internal/kline/service.go`（`Page`）
-> - 错误目录：`internal/kline/apierr.go`
+> - 实现：`internal/api/handler/kline.go`（`PageUni`）、`internal/meta/finv/quote/cdeu/kline/service.go`（`Page`）
+> - 错误目录：`internal/meta/finv/quote/cdeu/kline/apierr.go`
 
 ## 1. 概述
 
@@ -79,7 +79,7 @@
 | 10 | `t` | `turnover` | string（数值） | 是 | 成交金额 |
 | 11 | `cr` | `change_ratio` | string（两位小数） | 是 | 涨跌幅 |
 | 12 | `cp` | `change_price` | string（数值） | 是 | 涨跌额 |
-| 13 | `pa` | `pacd`（库列 `paocd`） | string（数值） | 是 | 当日累计均价 |
+| 13 | `vwa` | `vwap`（库列 `vwap`） | string（数值） | 是 | 成交量加权平均价（VWAP） |
 | 14 | `pv` | `provider` | string | 是 | 数据来源 |
 | 15 | `ext` | `ext_field` | string | 是 | 预留扩展字段 |
 

@@ -122,8 +122,8 @@ onMounted(async () => {
   // 加载交易所/市场字典（含禁用，供数字后中文名称展示）
   try {
     const [ex, mk] = await Promise.all([
-      apiGet<{ list: ExchangeDict[] }>('/Meta/FinvQuant/Metadata/Exchange/List?page=1&page_size=500'),
-      apiGet<{ list: MarketDict[] }>('/Meta/FinvQuant/Metadata/Market/List?page=1&page_size=500'),
+      apiGet<{ list: ExchangeDict[] }>('/Meta/FinvQuant/Metadata/Exchange/List?page=1&pageSize=500'),
+      apiGet<{ list: MarketDict[] }>('/Meta/FinvQuant/Metadata/Market/List?page=1&pageSize=500'),
     ])
     exchangeDict.value = new Map((ex.list ?? []).map((e) => [e.exchange_code, e]))
     marketDict.value = new Map((mk.list ?? []).map((m) => [m.market_code, m]))

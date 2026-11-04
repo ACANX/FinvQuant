@@ -4,11 +4,17 @@ import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from './views/DashboardView.vue'
 import QuoteQueryView from './views/Meta/Finv/Quote/History/HistoryQuoteQueryView.vue'
 import QuoteImportView from './views/Meta/Finv/Quote/History/HistoryQuoteImportView.vue'
+import RealtimeStockView from './views/Meta/Finv/Quote/Realtime/RealtimeStockView.vue'
+import StockSnapshotSyncView from './views/Meta/Finv/Quote/Realtime/StockSnapshotSyncView.vue'
+import PendingSecuView from './views/Meta/Finv/Quote/Realtime/PendingSecuView.vue'
 import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue'
 import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue'
 import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue'
+import DeDupArchiveStockView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveStockView.vue'
 import DeDupArchiveChainView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue'
 import DeDupCDEUView from './views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue'
+import CdeuUscPatchView from './views/Meta/Finv/Quote/Cdeu/UscPatchView.vue'
+import CdeuDayKlineSyncView from './views/Meta/Finv/Quote/Cdeu/DayKlineSyncView.vue'
 import DeDupCDEUWorkflowView from './views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue'
 import DeDupExportJobView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportJobView.vue'
 import DeDupExportFileView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue'
@@ -30,6 +36,11 @@ import RunDeleteTasksView from './views/Meta/Finv/Quant/Backtest/RunDeleteTasksV
 import ConfigManageView from './views/Meta/Finv/Quant/Backtest/ConfigManageView.vue'
 import EnvironmentView from './views/Meta/Finv/Quant/Backtest/EnvironmentView.vue'
 import TemplateView from './views/Meta/Finv/Quant/Backtest/TemplateView.vue'
+import BrsBackupTableView from './views/Meta/BRS/Backup/Finv/BrsBackupTableView.vue'
+import BrsOssConfigView from './views/Meta/BRS/Backup/Finv/BrsOssConfigView.vue'
+import BrsScheduleView from './views/Meta/BRS/Backup/Finv/BrsScheduleView.vue'
+import BrsRunView from './views/Meta/BRS/Backup/Finv/BrsRunView.vue'
+import BrsSliceView from './views/Meta/BRS/Backup/Finv/BrsSliceView.vue'
 import PlaceholderView from './views/Common/PlaceholderView.vue'
 import LoginView from './views/Common/LoginView.vue'
 
@@ -46,20 +57,42 @@ const router = createRouter({
     { path: '/Meta/Finv', redirect: '/Dashboard' },
     // 历史行情 → 历史行情查询
     { path: '/Meta/Finv/Quote/History/HistoryQuoteQuery', name: 'quote-query', component: QuoteQueryView, meta: { title: '历史行情查询' } },
-    // 去重行情 → 去重分钟行情查询 / 统计
+    // 行情 → 实时行情 → 实时行情（需求 10962，路由 10963 改为 FTStockRank）
+    // 读 cdeu.finv_cdeu_secu_realtime_stock
+    {
+      path: '/Meta/Finv/Quote/Realtime/FTStockRank',
+      name: 'quote-realtime-ftstockrank',
+      component: RealtimeStockView,
+      meta: { title: '证券行情排行' },
+    },
+    // 行情 → 实时行情 → 行情快照手动同步（需求 10982）：异步采集 + 逐页日志
+    {
+      path: '/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync',
+      name: 'quote-realtime-snapshot-sync',
+      component: StockSnapshotSyncView,
+      meta: { title: '行情快照手动同步' },
+    },
+    // 行情 → 实时行情 → 待录入证券（需求 10995）：usc 为空的快照行，先只读查询
+    {
+      path: '/Meta/Finv/Quote/Realtime/PendingSecu',
+      name: 'quote-realtime-pending-secu',
+      component: PendingSecuView,
+      meta: { title: '待录入证券' },
+    },
+    // 行情数据归档 → K线数据查询 / 统计（需求 10856/10857 改名并移入「收剔导传ETL」）
     {
       path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query',
       name: 'dedup-kline-query',
       component: DeDupKLineQueryView,
-      meta: { title: '去重分钟行情查询' },
+      meta: { title: 'K线数据查询' },
     },
     {
       path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats',
       name: 'dedup-kline-stats',
       component: DeDupKLineStatsView,
-      meta: { title: '去重分钟行情统计' },
+      meta: { title: 'K线数据统计' },
     },
-    // 去重行情 → 月归档导出（监控总览 / 导出任务 / 文件与上传）
+    // 行情 → 收剔导传ETL（文件导出 / 文件上传等，需求 10862 改名）
     {
       path: '/Meta/Finv/Quote/DeDup/Export/Overview',
       name: 'dedup-export-overview',
@@ -73,13 +106,31 @@ const router = createRouter({
       meta: { title: '端到端链路' },
     },
     {
-      path: '/Meta/Finv/Quote/DeDup/CDEU',
-      name: 'dedup-export-cdeu',
-      component: DeDupCDEUView,
-      meta: { title: '工作流控制与监控' },
+      path: '/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat',
+      name: 'cdeu-his-month-exist-secu-stat',
+      component: DeDupArchiveStockView,
+      meta: { title: '历史月份存量数据清点' },
     },
     {
-      path: '/Meta/Finv/Quote/DeDup/CDEUWorkflow',
+      path: '/Meta/Finv/Quote/Cdeu/CdeuOverview',
+      name: 'dedup-export-cdeu',
+      component: DeDupCDEUView,
+      meta: { title: 'CDEU 工作流控制面板' },
+    },
+    {
+      path: '/Meta/Finv/Quote/Cdeu/Usc/Patch',
+      name: 'cdeu-usc-patch',
+      component: CdeuUscPatchView,
+      meta: { title: '过时USC映射到新USC' },
+    },
+    {
+      path: '/Meta/Finv/Quote/Cdeu/DayKline/Sync',
+      name: 'cdeu-daykline-sync',
+      component: CdeuDayKlineSyncView,
+      meta: { title: '日K线数据同步' },
+    },
+    {
+      path: '/Meta/Finv/Quote/Cdeu/CdeuWorkflow',
       name: 'dedup-export-cdeu-workflow',
       component: DeDupCDEUWorkflowView,
       meta: { title: '全流程拓扑' },
@@ -88,13 +139,13 @@ const router = createRouter({
       path: '/Meta/Finv/Quote/DeDup/Export/Job',
       name: 'dedup-export-job',
       component: DeDupExportJobView,
-      meta: { title: '月归档导出任务' },
+      meta: { title: '文件导出' },
     },
     {
       path: '/Meta/Finv/Quote/DeDup/Export/File',
       name: 'dedup-export-file',
       component: DeDupExportFileView,
-      meta: { title: '月归档导出文件与上传' },
+      meta: { title: '文件上传' },
     },
     {
       path: '/Meta/Finv/Quote/DeDup/Export/Stats',
@@ -114,13 +165,13 @@ const router = createRouter({
       component: DeDupArchiveLogView,
       meta: { title: '归档日志与补丁' },
     },
-    // 元数据管理 → 业务元数据维护 → 四个子菜单
-    { path: '/meta/exchange', name: 'meta-exchange', component: MetaExchangeView, meta: { title: '交易所信息维护' } },
-    { path: '/meta/market', name: 'meta-market', component: MetaMarketView, meta: { title: '交易所下设市场信息维护' } },
-    { path: '/meta/security', name: 'meta-security', component: MetaSecurityView, meta: { title: '规范证券信息维护' } },
+    // 元数据 → Finv业务元数据 → 子菜单
+    { path: '/meta/exchange', name: 'meta-exchange', component: MetaExchangeView, meta: { title: '交易所信息管理' } },
+    { path: '/meta/market', name: 'meta-market', component: MetaMarketView, meta: { title: '市场信息管理' } },
+    { path: '/meta/security', name: 'meta-security', component: MetaSecurityView, meta: { title: '规范证券信息管理' } },
     { path: '/meta/import', name: 'meta-import', component: QuoteImportView, meta: { title: '历史行情数据导入' } },
-    // 配置管理 / 环境管理 / 模板管理（元数据管理之后、量化策略验证之前）
-    { path: '/Meta/Finv/Quant/Config', name: 'config-manage', component: ConfigManageView, meta: { title: '配置管理' } },
+    // 系统配置（需求 10859 改名；环境/模板管理等已迁入「量化 → MVP配置」）
+    { path: '/Meta/Finv/Quant/Config', name: 'config-manage', component: ConfigManageView, meta: { title: '系统配置' } },
     { path: '/Meta/Finv/Quant/Environment', name: 'environment', component: EnvironmentView, meta: { title: '环境管理' } },
     { path: '/Meta/Finv/Quant/Template', name: 'template', component: TemplateView, meta: { title: '模板管理' } },
     // 账户管理 / 资金管理 / 持仓管理（配置/环境/模板之后、量化策略验证之前）
@@ -152,6 +203,16 @@ const router = createRouter({
       meta: { title: '投资策略回测收益分析报告' },
     },
     // 仿真数据验证 / 模拟盘验证 / 实盘仿真验证 / 实盘交易（规划占位）
+    // CDEU 域占位页（需求 10865）：CDEU自动化
+    { path: '/Meta/Finv/Quote/Cdeu/Automation', name: 'cdeu-automation', component: PlaceholderView, meta: { title: 'CDEU自动化' } },
+    // BRS 备份与恢复域（需求 10872 / 10883）：备份登记维护已接后端 API，其余仍为占位页
+    { path: '/Meta/BRS/Backup/Finv/Table', name: 'brs-table', component: BrsBackupTableView, meta: { title: '备份登记维护' } },
+    { path: '/Meta/BRS/Backup/Finv/Record', name: 'brs-record', component: PlaceholderView, meta: { title: '备份记录与产物' } },
+    { path: '/Meta/BRS/Backup/Finv/OSSConfig', name: 'brs-storage', component: BrsOssConfigView, meta: { title: '对象存储配置' } },
+    { path: '/Meta/BRS/Backup/Finv/Schedule', name: 'brs-schedule', component: BrsScheduleView, meta: { title: '备份调度配置' } },
+    { path: '/Meta/BRS/Backup/Finv/Run', name: 'brs-run', component: BrsRunView, meta: { title: '小表全量备份' } },
+    { path: '/Meta/BRS/Backup/Finv/Slice', name: 'brs-slice', component: BrsSliceView, meta: { title: '大表增量备份' } },
+    { path: '/Meta/Finv/Brs/Restore/Run', name: 'brs-restore-run', component: PlaceholderView, meta: { title: '数据恢复' } },
     { path: '/Meta/Finv/Quant/Simulation/Data', name: 'simulation-data', component: PlaceholderView, meta: { title: '仿真数据验证' } },
     { path: '/Meta/Finv/Quant/Simulation/Paper', name: 'simulation-paper', component: PlaceholderView, meta: { title: '模拟盘验证' } },
     { path: '/Meta/Finv/Quant/Simulation/LiveSim', name: 'simulation-live-sim', component: PlaceholderView, meta: { title: '实盘仿真验证' } },
@@ -200,7 +261,7 @@ window.addEventListener(UNAUTHORIZED_EVENT, () => {
 
 router.afterEach((to) => {
   const title = (to.meta.title as string) ?? ''
-  document.title = title ? `${title} · FinvQuant` : 'FinvQuant 量化策略交易平台'
+  document.title = title ? `${title} · FinvQuant` : 'FinvQuant策略回测量化交易'
 })
 
 export default router

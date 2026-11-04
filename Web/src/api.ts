@@ -26,12 +26,16 @@ export async function apiGet<T>(path: string): Promise<T> {
 }
 
 /** POST JSON 请求并解析响应信封；业务码非 0 时抛出 Error(message) */
-export async function apiPost<T>(path: string, body: unknown): Promise<T> {
-  return apiRequest<T>(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+export async function apiPost<T>(path: string, body: unknown, timeoutMs?: number): Promise<T> {
+  return apiRequest<T>(
+    path,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+    timeoutMs,
+  )
 }
 
 /** PUT JSON 请求并解析响应信封；业务码非 0 时抛出 Error(message) */
@@ -48,9 +52,11 @@ export async function apiDelete<T>(path: string): Promise<T> {
   return apiRequest<T>(path, { method: 'DELETE' })
 }
 
-async function apiRequest<T>(path: string, init: RequestInit): Promise<T> {
+async function apiRequest<T>(path: string, init: RequestInit, timeoutMs?: number): Promise<T> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  // 默认 30s；长任务（如拉取全量日K并 upsert）由调用方显式传入更长的超时。
+  const effectiveTimeout = timeoutMs && timeoutMs > 0 ? timeoutMs : REQUEST_TIMEOUT_MS
+  const timer = setTimeout(() => controller.abort(), effectiveTimeout)
   // 附加登录令牌（公开接口没有 token 时为空，不发送该头）
   const token = currentToken()
   const headers = new Headers(init.headers)
@@ -62,7 +68,7 @@ async function apiRequest<T>(path: string, init: RequestInit): Promise<T> {
     response = await fetch(`/API/V1${path}`, { ...init, headers, signal: controller.signal })
   } catch (e) {
     if ((e as Error).name === 'AbortError') {
-      throw new Error(`请求超时（${REQUEST_TIMEOUT_MS / 1000}s），请稍后重试`)
+      throw new Error(`请求超时（${Math.round(effectiveTimeout / 1000)}s），请稍后重试`)
     }
     throw new Error('网络错误：无法连接服务端')
   } finally {

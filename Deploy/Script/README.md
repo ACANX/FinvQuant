@@ -13,10 +13,13 @@
 | `PackSnapshot.cmd` | Windows 薄封装：只负责找到 Git Bash 的 `bash.exe` 并转调 `PackSnapshot.sh`，**不含任何打包逻辑** |
 | `Download.sh` | **一键下载逻辑的唯一实现**：检测 OS/架构 → 选版本（正式版/快照）→ 下载 + SHA256 校验 → 安全解压到指定目录（见 §13） |
 | `Download.cmd` | Windows 薄封装：定位 Git Bash 后转调 `Download.sh`，不含下载逻辑 |
-| `MigratePublicKlineToCdeu.sql` | **一次性**数据迁移：`public.finv_quote_secu_kline_min` → `cdeu.finv_quote_secu_kline_min`（只读源表、幂等、列名映射）；说明见 [`../../Docs/FinvQuant/MigratePublicKlineToCdeu.md`](../../Docs/FinvQuant/MigratePublicKlineToCdeu.md) |
 
-> `*.sql` 会随**快照包 / 构建包 / 正式包**一起分发（`PackSnapshot.sh`），
-> 并在 `Install.sh` 安装后留存到 `<PREFIX>/Deploy/Script/`。
+> 本目录只放**构建 / 打包 / 下载**脚本，不放 SQL。运维类 SQL 已按职责分到两个目录：
+> - [`../Init/`](../Init/)：部署前一次性初始化（如建库 `2610-001-CreateDatabase.sql`）；
+> - [`../Upgrade/`](../Upgrade/)：升级期一次性维护（历史数据搬迁 [`2610-004-MigratePublicKlineToCdeu.sql`](../Upgrade/2610-004-MigratePublicKlineToCdeu.sql)）。
+>
+> 两个目录的 `*.sql` 都会随**快照包 / 构建包 / 正式包**一起分发（`PackSnapshot.sh`），
+> 并在 `Install.sh` 安装后分别留存到 `<PREFIX>/Deploy/Init/` 与 `<PREFIX>/Deploy/Upgrade/`；
 > 它们**不进入** `Deploy/Migrations/` 迁移链，不参与 `schema_version` 版本化。
 
 ```
@@ -100,6 +103,8 @@ FinvQuant-v0.1.1.00123.2610241530-ubuntu-arm64/
 ├── finvquant                 # 静态链接、stripped；amd64 或 aarch64（按包名）
 ├── Deploy/
 │   ├── Migrations/           # 迁移脚本（与仓库结构一致，安装后即 FINV_MIGRATIONS_DIR）
+│   ├── Init/                 # 初始化 SQL（建库等，部署前手工执行）
+│   ├── Upgrade/              # 升级维护 SQL（号段平移、历史数据搬迁）
 │   ├── Native/               # 宿主直装全套：Install/Upgrade/Uninstall.sh、
 │   │                         #   FinvQuant.service、FinvQuant.env.example、
 │   │                         #   Nginx.conf.example、README/Install/Upgrade.md
@@ -118,6 +123,8 @@ FinvQuant-v0.1.1.00123.2610241530-windows-amd64/
 ├── finvquant.exe
 ├── Deploy/
 │   ├── Migrations/           # 迁移脚本（与仓库结构一致）
+│   ├── Init/                 # 初始化 SQL（建库等）
+│   ├── Upgrade/              # 升级维护 SQL
 │   ├── Docker/               # compose + .env.example + 三个 .cmd + 文档
 │   │                         #   注意：不含 Dockerfile（其 build.context 指向仓库根，
 │   │                         #   包内无源码；Windows 侧直接 docker compose 拉 GHCR 镜像）
@@ -281,7 +288,27 @@ REM Windows（Git Bash 透传，默认解压到 .\FinvQuant）
 Deploy\Script\Download.cmd -d D:\FinvQuant
 ```
 
-### 13.2 版本渠道（`-c/--channel`）
+### 13.2 包内提交号（commit）
+
+版本号 tag 只含**基础版本 + PR 号 + 时间戳**（如 `v0.1.3.00360.2610301200`），**不含 commit**。
+脚本会从包内 `FinvQuant-<版本>-<os>-<arch>/BUILD-INFO.txt` 读取「提交」行并回显，因此
+「这个包是哪个提交构建的」不用再去翻 CI：
+
+```
+[OK] 包内提交：eaa58b6
+...
+下载完成
+  版本  ：v0.1.3.00360.2610301200（快照包）
+  提交  ：eaa58b6
+  平台  ：linux/amd64
+```
+
+- `--no-extract`（只下载）同样会打印，因为它直接从压缩包里读，不需要解压；
+- 包内没有 `BUILD-INFO.txt`（旧包或非标准包）时只打一行 `[WARN]`，不中断；
+- 同一 commit 也可从运行中的服务核对：`GET /API/V1/Version`（二进制用
+  `-ldflags -X main.commit=` 内嵌了同一值）。
+
+### 13.3 版本渠道（`-c/--channel`）
 
 | 渠道 | 选中条件 | 典型 tag | 稳定性 |
 |---|---|---|---|
@@ -292,7 +319,7 @@ Deploy\Script\Download.cmd -d D:\FinvQuant
 
 > 当前仓库尚无正式版 release 时，`-c release` 会明确报错并提示先用 `--list` 查看。
 
-### 13.3 平台匹配
+### 13.4 平台匹配
 
 | `uname -s` / `uname -m` | 选中资产 | 备注 |
 |---|---|---|
@@ -301,7 +328,7 @@ Deploy\Script\Download.cmd -d D:\FinvQuant
 | Windows（MINGW/MSYS/CYGWIN）+ `x86_64` | `...-windows-amd64.zip` | 包内为 Docker 部署编排 |
 | macOS / 其它架构 | — | 明确报错（官方暂未发布），需从源码构建 |
 
-### 13.4 校验与解压行为
+### 13.5 校验与解压行为
 
 1. **资产级校验**：下载 `<资产>.sha256` 后用 `sha256sum -c` 校验压缩包（`--no-verify` 可跳过）。
 2. **包内校验**：解压后校验 `SHA256SUMS`（包内每个文件的 sha256）。
@@ -309,7 +336,7 @@ Deploy\Script\Download.cmd -d D:\FinvQuant
 4. **落盘方式**：默认**铺平**（包内顶层目录内容直接进目标目录，与仓库结构的 `finvquant` + `Deploy/` 一致）；`--keep-top` 保留 `FinvQuant-<版本>-<os>-<arch>/`。
 5. **不误覆盖**：目标目录非空时报错退出；`--force` 才继续（同名文件覆盖、同名目录合并，**不删除**目标里已有的多余文件）。
 
-### 13.5 常用参数
+### 13.6 常用参数
 
 | 参数 | 说明 |
 |---|---|
@@ -325,7 +352,7 @@ Deploy\Script\Download.cmd -d D:\FinvQuant
 
 > 无 token 时走公开 `releases.atom`（近 10 条，含 prerelease）；有 token 时走 Releases API（近 100 条，排除 draft）。
 
-### 13.6 下载后直接安装（Linux）
+### 13.7 下载后直接安装（Linux）
 
 ```bash
 sudo bash Deploy/Script/Download.sh -d /data/App/FinvQuant
@@ -335,7 +362,7 @@ sudo bash /data/App/FinvQuant/Deploy/Native/Install.sh
 
 包内已含 `finvquant`、`Deploy/Migrations`、`Deploy/Native` 全套脚本，`Install.sh` 会补齐用户/目录/数据库/Redis/systemd 并启动服务（见 [`../Native/Install.md`](../Native/Install.md)）。
 
-### 13.7 与 PackSnapshot 的关系
+### 13.8 与 PackSnapshot 的关系
 
 | 维度 | `PackSnapshot.sh` | `Download.sh` |
 |---|---|---|
@@ -346,7 +373,7 @@ sudo bash /data/App/FinvQuant/Deploy/Native/Install.sh
 
 > 命名规则变更时**两处都要同步**：`PackSnapshot.sh` 的装配段负责产出，`Download.sh` 的 `ASSET` / `TOP_DIR` 负责取用。
 
-### 13.8 常见问题
+### 13.9 常见问题
 
 | 现象 | 处理 |
 |---|---|

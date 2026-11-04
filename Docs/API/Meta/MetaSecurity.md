@@ -14,9 +14,9 @@ finv_security 证券代码字典维护接口：分页查询、新增/修改、�
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `keyword` | string | 可选 | 关键字，匹配 usc / security_code / security_name / security_name_cn（任一包含即命中） |
-| `flag_enable` | string | 可选 | 按启用状态过滤：`0`（禁用）/ `1`（启用） |
+| `flagEnable` | string | 可选 | 按启用状态过滤：`0`（禁用）/ `1`（启用）；兼容旧名 `flag_enable` |
 | `page` | int | 可选 | 页码（从 1 开始，默认 1） |
-| `page_size` | int | 可选 | 每页条数（默认 20，上限 500） |
+| `pageSize` | int | 可选 | 每页条数（默认 20，上限 500）；兼容旧名 `page_size` |
 
 ### 响应（成功 HTTP 200）
 
@@ -58,7 +58,7 @@ finv_security 证券代码字典维护接口：分页查询、新增/修改、�
 |------|------|------|------|
 | `usc` | string | ✅ | 统一证券代码（全局唯一）；**已存在则 UPDATE，不存在则 INSERT** |
 | `exchange_code` | int | ✅ | 交易所代码（对齐 finv_exchange，正整数） |
-| `market_code` | int | 可选 | 交易市场代码（对齐 finv_market，缺省 0；V100019 新增；前端下拉数据来自 `Market/List`） |
+| `market_code` | int | 可选 | 交易市场代码（对齐 finv_market，缺省 0；V200019 新增；前端下拉数据来自 `Market/List`） |
 | `security_type` | string | ✅ | 证券类型（如 Futures / StockIndex / Stock / ETF） |
 | `security_code` | string | ✅ | 源证券代码（交易所原始代码） |
 | `security_name` | string | ✅ | 源证券名称 |

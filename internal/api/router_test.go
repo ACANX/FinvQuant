@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/acanx/finvquant/internal/config"
-	"github.com/acanx/finvquant/internal/kline"
-	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
 )
 
 func newTestRouter(t *testing.T) *gin.Engine {
@@ -34,7 +34,7 @@ func newTestRouterWithConfig(t *testing.T, cfg *config.Config) *gin.Engine {
 		t.Fatalf("创建测试连接池失败: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	archiveService, err := dedup.NewService(pool, dedup.Options{UploadMode: dedup.UploadModeNone})
+	archiveService, err := cdeu.NewService(pool, cdeu.Options{UploadMode: cdeu.UploadModeNone})
 	if err != nil {
 		t.Fatalf("创建归档服务失败: %v", err)
 	}
@@ -69,6 +69,22 @@ func TestExportArchiveRoutesRegistered(t *testing.T) {
 		"GET /API/V1/Meta/Finv/Quote/DeDup/File/List",
 		"POST /API/V1/Meta/Finv/Quote/DeDup/Job/Retry",
 		"POST /API/V1/Meta/Finv/Quote/DeDup/File/Retry",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/List",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Save",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Enable",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Delete",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Preview",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Run",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Status",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/DayKline/Sync",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/DayKline/Stat",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/DayKline/UscList",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Page",
+		"POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert",
 		"POST /API/V1/Meta/Finv/Quote/DeDup/Job/Run",
 	}
 	for _, route := range expected {

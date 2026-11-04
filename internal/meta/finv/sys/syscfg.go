@@ -21,7 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// sys_config 中与「月归档上传 Git 仓库」相关的配置编号（见 V100034/V100035 种子迁移）。
+// sys_config 中与「月归档上传 Git 仓库」相关的配置编号（见 V200034/V200035 种子迁移）。
 const (
 	// KeyArchiveUpload 启用月归档数据自动上传 Git 仓库标志：'0'-关闭（默认） '1'-启用。
 	KeyArchiveUpload = 20002
@@ -39,7 +39,7 @@ const (
 	// KeyPurgeAfterExport 导出成功后是否立即删除主表行情数据（char_value：'1' 删除 / '0' 保留）。
 	KeyPurgeAfterExport = 20007
 	// KeyDynamicJobRetentionDays 历史运行动态 JOB 实例的保留天数（int_value，默认 30）。
-	// 自 V200045 起 cdeu_job_dynamic 每次运行各一条，超过该天数的历史实例由
+	// 自 V300045 起 cdeu_job_dynamic 每次运行各一条，超过该天数的历史实例由
 	// PURGE_STALE_DYNAMIC（归档复核阶段）清理。
 	KeyDynamicJobRetentionDays = 20008
 	// KeyHistoryPurgePolicy 历史流程运行数据的清理策略（str_value）：

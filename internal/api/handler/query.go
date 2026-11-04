@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/acanx/finvquant/internal/quote"
+	"github.com/acanx/finvquant/internal/meta/finv/quote"
 )
 
 // QuoteQuery 历史行情查询处理器。

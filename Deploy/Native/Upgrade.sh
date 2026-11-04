@@ -60,12 +60,17 @@ set_prefix() {
   BIN_DIR="${PREFIX}/bin"
   MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"
   DEPLOY_DIR="${PREFIX}/Deploy"
-  BACKUP_DIR="${PREFIX}/Backup"
+  BACKUP_DIR="${PREFIX}/Backup"          # 数据库逻辑备份
+  BRS_DIR="${PREFIX}/BRS"                # BRS 备份产物（需求 10907，独立于 Backup）
   ENV_FILE="${PREFIX}/finvquant.env"
   BINARY="${BIN_DIR}/finvquant"
   BINARY_PREV="${BIN_DIR}/finvquant.prev"
-  QMIO_BINARY="${BIN_DIR}/qmio"
-  QMIO_PREV="${BIN_DIR}/qmio.prev"
+  QIOM_BINARY="${BIN_DIR}/qiom"
+  QIOM_PREV="${BIN_DIR}/qiom.prev"
+  # 旧名 qmio 的残留路径（需求 10904 改名前的版本），升级时清理
+  QMIO_LEGACY_BINARY="${BIN_DIR}/qmio"
+  QMIO_LEGACY_PREV="${BIN_DIR}/qmio.prev"
+  QMIO_LEGACY_LINK="/usr/local/bin/qmio"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -92,6 +97,28 @@ if [[ ! -f "${ENV_FILE}" && -f "${LEGACY_ENV_FILE}" ]]; then
   ok "已迁移旧配置 ${LEGACY_ENV_FILE} → ${ENV_FILE}"
 fi
 [[ -f "${ENV_FILE}" ]] || die "未找到 ${ENV_FILE}，请先执行 Install.sh（或用 --prefix 指定安装根目录）"
+
+# BRS 备份目录：目录预先创建 + 旧配置补齐 FINV_BRS_BACKUP_DIR（不覆盖已有值）。
+# 老版本 env 没有该键时二进制会用默认值，可能落在不可写路径导致首次备份失败。
+install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
+# BRS 备份根目录独立于 Backup（需求 10907）：运行用户可写，表级与分片产物都在这里
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}"
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}/Full"
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}/Incr"
+
+# 旧目录（<PREFIX>/Backup/BRS）迁移提示：不自动搬动历史产物，只给出可复制命令
+if [[ -d "${BACKUP_DIR}/BRS" ]] && [[ -n "$(ls -A "${BACKUP_DIR}/BRS" 2>/dev/null || true)" ]]; then
+  warn "检测到旧 BRS 目录 ${BACKUP_DIR}/BRS（含历史产物）；新目录为 ${BRS_DIR}。"
+  warn "如需保留历史产物： sudo cp -a ${BACKUP_DIR}/BRS/. ${BRS_DIR}/ && sudo chown -R ${APP_USER}:${APP_GROUP} ${BRS_DIR}"
+fi
+if ! grep -q '^FINV_BRS_BACKUP_DIR=' "${ENV_FILE}"; then
+  printf '\n# BRS 备份目录（升级脚本自动补齐）\nFINV_BRS_BACKUP_DIR=%s\n' "${BRS_DIR}" >> "${ENV_FILE}"
+  ok "已补齐 FINV_BRS_BACKUP_DIR=${BRS_DIR}"
+elif [[ "$(grep -E '^FINV_BRS_BACKUP_DIR=' "${ENV_FILE}" | cut -d= -f2-)" == "${BACKUP_DIR}/BRS" ]]; then
+  # 需求 10907 之前的旧默认值：自动纠正为新的独立目录（自定义的其它路径不动）
+  sed -i "s|^FINV_BRS_BACKUP_DIR=.*|FINV_BRS_BACKUP_DIR=${BRS_DIR}|" "${ENV_FILE}"
+  ok "已更新 FINV_BRS_BACKUP_DIR：${BACKUP_DIR}/BRS → ${BRS_DIR}"
+fi
 ok "安装根目录：${PREFIX}"
 
 # ---------------------------------------------------------------------
@@ -102,10 +129,10 @@ if [[ "${ROLLBACK}" -eq 1 ]]; then
   [[ -f "${BINARY_PREV}" ]] || die "未找到备份二进制 ${BINARY_PREV}，无法回滚"
   systemctl stop "${SERVICE}"
   install -o root -g root -m 0755 "${BINARY_PREV}" "${BINARY}"
-  if [[ -f "${QMIO_PREV}" ]]; then
-    install -o root -g root -m 0755 "${QMIO_PREV}" "${QMIO_BINARY}"
-    ln -sfn "${QMIO_BINARY}" "/usr/local/bin/qmio"
-    ok "qmio 已回滚：${QMIO_BINARY}"
+  if [[ -f "${QIOM_PREV}" ]]; then
+    install -o root -g root -m 0755 "${QIOM_PREV}" "${QIOM_BINARY}"
+    ln -sfn "${QIOM_BINARY}" "/usr/local/bin/qiom"
+    ok "qiom 已回滚：${QIOM_BINARY}"
   fi
   systemctl start "${SERVICE}"
   ok "已回滚并启动；请执行 journalctl -u ${SERVICE} -n 50 确认"
@@ -180,21 +207,53 @@ install -o root -g root -m 0755 "${BINARY_SRC}" "${BINARY}"
 ln -sfn "${BINARY}" "${BINARY_LINK}"
 ok "二进制已替换：${BINARY}"
 
-# qmio：与 finvquant 同目录；源为升级包同目录的 qmio（可选）
-QMIO_SRC="$(dirname "${BINARY_SRC}")/qmio"
-if [[ -f "${QMIO_SRC}" ]]; then
-  if [[ -f "${QMIO_BINARY}" ]]; then
-    install -o root -g root -m 0755 "${QMIO_BINARY}" "${QMIO_PREV}"
+# qiom：与 finvquant 同目录；源为升级包同目录的 qiom（可选）
+QIOM_SRC="$(dirname "${BINARY_SRC}")/qiom"
+if [[ -f "${QIOM_SRC}" ]]; then
+  if [[ -f "${QIOM_BINARY}" ]]; then
+    install -o root -g root -m 0755 "${QIOM_BINARY}" "${QIOM_PREV}"
   fi
-  install -o root -g root -m 0755 "${QMIO_SRC}" "${QMIO_BINARY}"
-  ln -sfn "${QMIO_BINARY}" "/usr/local/bin/qmio"
-  ok "qmio 已替换：${QMIO_BINARY}"
+  install -o root -g root -m 0755 "${QIOM_SRC}" "${QIOM_BINARY}"
+  ln -sfn "${QIOM_BINARY}" "/usr/local/bin/qiom"
+  ok "qiom 已替换：${QIOM_BINARY}"
+fi
+# 清理旧名残留（qmio → qiom 改名，需求 10904）
+if [[ -e "${QMIO_LEGACY_BINARY}" || -L "${QMIO_LEGACY_LINK}" ]]; then
+  rm -f "${QMIO_LEGACY_LINK}" "${QMIO_LEGACY_BINARY}" "${QMIO_LEGACY_PREV}"
+  ok "已清理旧名残留：${QMIO_LEGACY_BINARY} / ${QMIO_LEGACY_LINK}"
 fi
 install -d -o root -g "${APP_GROUP}" -m 0755 "${MIGRATIONS_DIR}"
 if [[ "$(readlink -f "${MIGRATIONS_SRC}")" == "$(readlink -f "${MIGRATIONS_DIR}" 2>/dev/null || echo -)" ]]; then
   ok "迁移目录即安装目录，无需同步：${MIGRATIONS_DIR}"
+  # 源与目标同一目录时没有参照集，无法自动隔离；至少把同版本重名（新旧号段混存）挑出来
+  dup="$(ls -1 "${MIGRATIONS_DIR}"/V*__*.sql 2>/dev/null | sed -E 's#.*/V([0-9]+)__.*#\1#' | sort -n | uniq -d | head -5)"
+  [[ -z "${dup}" ]] || die "迁移目录存在同版本重名脚本（版本号：${dup//$'\n'/、}），迁移器会拒绝启动；请先清理非当前发行包的文件（建议移到 ${BACKUP_DIR}/Migrations.old.<时间戳>/）后重跑；服务当前保持停止，可用 $0 --rollback 换回旧二进制"
 else
   cp -f "${MIGRATIONS_SRC}"/*.sql "${MIGRATIONS_DIR}/"
+  # `cp -f` 只增不删：号段重排（需求 10881）后，旧号段脚本（如 V100003__finv_market.sql）
+  # 会与新号段脚本撞同一版本号，迁移器会拒绝启动；这里对「源目录不存在」的文件做隔离，不删除。
+  migrate_isolate_stale() {
+    local src="$1" dst="$2"
+    local src_cnt stale=() f base
+    src_cnt="$(find "${src}" -maxdepth 1 -type f -name 'V*__*.sql' | wc -l)"
+    if [[ "${src_cnt:-0}" -eq 0 ]]; then
+      warn "源迁移目录无脚本，跳过旧文件隔离：${src}"
+      return 0
+    fi
+    while IFS= read -r f; do
+      base="${f##*/}"
+      [[ -f "${src}/${base}" ]] || stale+=("${f}")
+    done < <(find "${dst}" -maxdepth 1 -type f -name 'V*__*.sql' -print 2>/dev/null)
+    [[ ${#stale[@]} -gt 0 ]] || return 0
+    install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
+    local keep
+    keep="$(mktemp -d "${BACKUP_DIR}/Migrations.old.$(date +%Y%m%d_%H%M%S).XXXXXX")"
+    chown root:root "${keep}"
+    chmod 0750 "${keep}"
+    for f in "${stale[@]}"; do mv -f "${f}" "${keep}/"; done
+    warn "迁移目录有 ${#stale[@]} 个非当前发行包的文件，已隔离到 ${keep}（未删除，请人工核对后处理）"
+  }
+  migrate_isolate_stale "${MIGRATIONS_SRC}" "${MIGRATIONS_DIR}"
   ok "迁移脚本已同步（$(ls -1 "${MIGRATIONS_DIR}"/*.sql | wc -l) 个）"
 fi
 chown -R root:"${APP_GROUP}" "${MIGRATIONS_DIR}"

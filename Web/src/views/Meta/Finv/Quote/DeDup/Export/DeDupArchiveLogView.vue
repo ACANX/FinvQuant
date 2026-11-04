@@ -4,6 +4,7 @@
 import { onMounted, ref, watch } from 'vue'
 
 import { apiGet, apiPost } from '../../../../../../api'
+import { showToast } from '../../../../../../ui/toast'
 import { fmtBytes, fmtISO, fmtMonth, fmtNum } from '../../../../../../utils'
 
 interface PageData<T> {
@@ -70,8 +71,6 @@ const PATCH_LEVEL_NAME: Record<string, string> = { L1_HOT: 'L1 热', L2_WARM: 'L
 
 const tab = ref('runlog')
 const error = ref('')
-const toast = ref(false)
-const toastText = ref('')
 
 // ---- 运行日志 ----
 const runLogs = ref<PageData<RunLogRow>>({ total: 0, list: [] })
@@ -213,8 +212,7 @@ async function retryPatch(row: PatchRow) {
   error.value = ''
   try {
     await apiPost<{ patch_id: number }>('/Meta/Finv/Quote/DeDup/Patch/Retry', { patch_id: row.patch_id })
-    toastText.value = `补丁 ${row.patch_id} 已重置为 PENDING`
-    toast.value = true
+    showToast(`补丁 ${row.patch_id} 已重置为 PENDING`)
     await loadPatches()
   } catch (e) {
     error.value = (e as Error).message
@@ -440,7 +438,6 @@ onMounted(async () => {
       </v-card>
     </v-card-text>
 
-    <v-snackbar v-model="toast" :timeout="3000" color="success">{{ toastText }}</v-snackbar>
   </v-card>
 </template>
 

@@ -1,6 +1,6 @@
 # 证券行情月归档导出与上传（落地说明）
 
-> 归属：FinvQuant · 实施：`internal/meta/finv/quote/dedup`（Go）+ `Deploy/Migrations/V100041__finv_dedup_export_archive_tables.sql`
+> 归属：FinvQuant · 实施：`internal/meta/finv/quote/dedup`（Go）+ `Deploy/Migrations/V200041__finv_dedup_export_archive_tables.sql`
 > 方案稿：`2610-002-SecuritiesQuoteExportUploadSchemeDesign.md` v5.0（设计版），本文为**落地版**，逐条说明实现方式、配置与运维要点。
 > 关联规范：[`../DevSpec/DbSchemaSpec.md`](../DevSpec/DbSchemaSpec.md)、[`../DevSpec/ApiSpec.md`](../DevSpec/ApiSpec.md)、[`../DevSpec/ErrorCodeSpec.md`](../DevSpec/ErrorCodeSpec.md)
 

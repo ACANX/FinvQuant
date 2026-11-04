@@ -4,6 +4,7 @@ import { useTheme } from 'vuetify'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 
 import { apiGet } from '../../../../../api'
+import { showToast } from '../../../../../ui/toast'
 
 interface QuoteBar {
   date: number
@@ -96,12 +97,6 @@ function groupAllShown(names: string[]): boolean {
 let resizeObserver: ResizeObserver | null = null
 function resizeChart() {
   chart?.resize()
-}
-
-// 查询结果提示（snackbar 吐司，3 秒自动消失，替代常驻 alert）
-const toast = ref<{ text: string; visible: boolean }>({ text: '', visible: false })
-function showToast(text: string) {
-  toast.value = { text, visible: true }
 }
 
 let chart: echarts.ECharts | null = null
@@ -401,7 +396,7 @@ async function query() {
         ? `${String(bars[0].date).slice(4)}-${String(bars[bars.length - 1].date).slice(4)}`
         : date.value
     const namePart = secuName.value.trim() ? `（${secuName.value.trim()}）` : ''
-    showToast(`${data.usc ?? '?'}${namePart} ${rangeText} ${data.period ?? 'Min'} · ${days.value}日 · 共 ${total.value} 根`)
+    showToast(`${data.usc ?? '?'}${namePart} ${rangeText} ${data.period ?? 'Min'} · ${days.value}日 · 共 ${total.value} 根`, 'info')
     await nextTick()
     if (bars.length) {
       renderChart(bars)
@@ -732,12 +727,4 @@ function renderChart(bars: QuoteBar[], preserveZoom = false) {
     </v-card-text>
   </v-card>
 
-  <!-- 查询结果提示：3 秒自动消失 -->
-  <v-snackbar v-model="toast.visible" :timeout="3000" color="info" location="top" rounded="lg">
-    <v-icon icon="mdi-information-outline" class="mr-2" />
-    {{ toast.text }}
-    <template #actions>
-      <v-btn variant="text" icon="mdi-close" @click="toast.visible = false" />
-    </template>
-  </v-snackbar>
 </template>

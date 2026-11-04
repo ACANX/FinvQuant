@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 去重分钟行情统计：汇总指标 + 空值完整性 + ECharts 可视化
+// K线数据统计：汇总指标 + 空值完整性 + ECharts 可视化
 import * as echarts from 'echarts'
 import { useTheme } from 'vuetify'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -545,7 +545,7 @@ onBeforeUnmount(() => {
   <v-card>
     <v-card-title>
       <v-icon icon="mdi-chart-box-outline" class="mr-2" />
-      去重分钟行情统计
+      K线数据统计
     </v-card-title>
 
     <v-card-text>

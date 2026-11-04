@@ -5,6 +5,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { apiGet, apiPut } from '../../../../../../api'
+import { showToast } from '../../../../../../ui/toast'
 import { fmtISO, fmtPct } from '../../../../../../utils'
 
 interface Alert {
@@ -209,9 +210,6 @@ const windowStart = ref('00:30:00')
 const windowEnd = ref('06:30:00')
 const savingWindow = ref(false)
 const settingsError = ref('')
-const toast = ref(false)
-const toastText = ref('')
-const toastColor = ref('success')
 
 let statusTimer: ReturnType<typeof setInterval> | null = null
 let runtimeTimer: ReturnType<typeof setInterval> | null = null
@@ -1087,11 +1085,6 @@ async function saveWindow() {
   }
 }
 
-function showToast(text: string, color = 'success') {
-  toastText.value = text
-  toastColor.value = color
-  toast.value = true
-}
 
 function setupTimers() {
   clearTimers()
@@ -1632,7 +1625,6 @@ onBeforeUnmount(clearTimers)
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="toast" :timeout="4000" :color="toastColor">{{ toastText }}</v-snackbar>
   </v-card>
 </template>
 

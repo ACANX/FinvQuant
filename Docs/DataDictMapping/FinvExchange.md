@@ -1,7 +1,7 @@
 # FinvExchange — 交易所/市场字典映射
 
 > 所属：FinvQuant 数据字典映射 · 存放：`Docs/DataDictMapping/FinvExchange.md`
-> 数据表：`finv_exchange`（表结构：[`Deploy/Migrations/V100002__finv_exchange.sql`](../../Deploy/Migrations/V100002__finv_exchange.sql)；初始数据：[`Deploy/Migrations/V200000__finv_exchange_seed.sql`](../../Deploy/Migrations/V200000__finv_exchange_seed.sql)；全量替换：[`Deploy/Migrations/V200010__finv_exchange_seed_full.sql`](../../Deploy/Migrations/V200010__finv_exchange_seed_full.sql) / [`Deploy/Migrations/V200016__finv_exchange_seed_full.sql`](../../Deploy/Migrations/V200016__finv_exchange_seed_full.sql)）
+> 数据表：`finv_exchange`（表结构：[`Deploy/Migrations/V200002__finv_exchange.sql`](../../Deploy/Migrations/V200002__finv_exchange.sql)；初始数据：[`Deploy/Migrations/V300000__finv_exchange_seed.sql`](../../Deploy/Migrations/V300000__finv_exchange_seed.sql)；全量替换：[`Deploy/Migrations/V300010__finv_exchange_seed_full.sql`](../../Deploy/Migrations/V300010__finv_exchange_seed_full.sql) / [`Deploy/Migrations/V300016__finv_exchange_seed_full.sql`](../../Deploy/Migrations/V300016__finv_exchange_seed_full.sql)）
 > 用途：交易所/市场编码字典（单一事实来源），覆盖证券 / 期货 / 黄金及贵金属 / 场外 / 期权 / 外汇市场。
 
 ## 1. 表结构
@@ -17,7 +17,7 @@
 | `region` | TEXT | NOT NULL | 地区编码（如 `CN` / `HK` / `USA` / `JP`） |
 | `base_currency` | TEXT | NOT NULL | 基础计价货币（如 `CNY` / `USD` / `HKD`） |
 | `ft_list_exchange_code` | TEXT | 可空 | FT 行情源列表交易所编码（映射预留，暂空，后续补充） |
-| `flag_enable` | CHAR(1) | NOT NULL DEFAULT '0' | 启用标志（'0'=禁用，'1'=启用；V100018 新增，供元数据维护菜单切换） |
+| `flag_enable` | CHAR(1) | NOT NULL DEFAULT '0' | 启用标志（'0'=禁用，'1'=启用；V200018 新增，供元数据维护菜单切换） |
 | `gmt_create` | TIMESTAMPTZ | NOT NULL DEFAULT now() | 首次插入时间 |
 | `gmt_update` | TIMESTAMPTZ | NOT NULL DEFAULT now() | 最后更新时间（触发器维护） |
 
@@ -28,7 +28,7 @@
 
 ## 2. 数据清单（44 条）
 
-> V100016 再次全量替换 V100010（先 DELETE 存量，再 INSERT 全量 44 条）；相对 V100010 仅 1 处调整：code 101 FX-CFD 的 `exchange_name`/`exchange_abbr_cn` 互换（exchange_name='FX-CFD'，exchange_abbr_cn='外汇-差价合约'），其余 43 条一致；`ft_list_exchange_code` 列暂为空。
+> V200016 再次全量替换 V200010（先 DELETE 存量，再 INSERT 全量 44 条）；相对 V200010 仅 1 处调整：code 101 FX-CFD 的 `exchange_name`/`exchange_abbr_cn` 互换（exchange_name='FX-CFD'，exchange_abbr_cn='外汇-差价合约'），其余 43 条一致；`ft_list_exchange_code` 列暂为空。
 
 | exchange_code | exchange_flag | exchange_abbr | exchange_name | exchange_abbr_cn | en_market_type | region | base_currency | ft_list_exchange_code |
 |--------------:|---------------|---------------|---------------|------------------|----------------|--------|---------------|-----------------------|
@@ -79,11 +79,11 @@
 
 ## 3. 说明
 
-- **迁移拆分**：表结构（`V100002__finv_exchange.sql`）与初始数据（`V200000__finv_exchange_seed.sql`）分文件存放；数据种子统一使用 **V200000+ 段位**，确保在所有表结构脚本（V100001~V199999）之后执行，后续新增表结构/变更脚本不受影响。
-- **全量替换（V100010/V100016）**：V200000 已发布不可修改，V100010 先 `DELETE FROM finv_exchange` 清空存量再 INSERT 全量 44 条；V100016（ACANX 2026-08-05 二次定版）再次全量替换，仅 code 101 名称字段互换；均单事务失败回滚、重复执行幂等。
+- **迁移拆分**：表结构（`V200002__finv_exchange.sql`）与初始数据（`V300000__finv_exchange_seed.sql`）分文件存放；数据种子统一使用 **V300000+ 段位**，确保在所有表结构脚本（V200001~V299999）之后执行，后续新增表结构/变更脚本不受影响。
+- **全量替换（V200010/V200016）**：V300000 已发布不可修改，V200010 先 `DELETE FROM finv_exchange` 清空存量再 INSERT 全量 44 条；V200016（ACANX 2026-08-05 二次定版）再次全量替换，仅 code 101 名称字段互换；均单事务失败回滚、重复执行幂等。
 - **exchange_code 段位**：1~999 常规市场（证券/期货/外汇等），9001+ 富途结构化产品/测试环境，10000+ 加密货币交易所；`exchange_flag` / `exchange_abbr` 均唯一。
 - **数据来源**：FT 交易所清单；原始数据中 `exchange_code=19` 存在 `OTC` / `CNOTC` 两条冲突记录，经 ACANX 确认**仅保留 `19 CNOTC 中国场外交易`**。
-- **映射表依赖**：`futu.finv_futu_mapping_cs_market.finv_exchange_code`（V100008）引用的 `-1`（无对应）项，可在本表扩充后由后续迁移 UPDATE 补齐（如 HKFE/ASX/KR/CA/CRYPTO/BD/FD 等）。
+- **映射表依赖**：`futu.finv_futu_mapping_cs_market.finv_exchange_code`（V200008）引用的 `-1`（无对应）项，可在本表扩充后由后续迁移 UPDATE 补齐（如 HKFE/ASX/KR/CA/CRYPTO/BD/FD 等）。
 - **映射预留**：`ft_list_exchange_code` 字段已建列、当前留空，待 FT 行情源列表编码映射确定后补充（`UPDATE finv_exchange SET ft_list_exchange_code = ... WHERE exchange_code = ...`）。
 - **幂等插入**：初始数据使用 `INSERT ... ON CONFLICT (exchange_code) DO NOTHING`，重复执行不产生重复记录。
 - **审计字段**：`gmt_create` / `gmt_update` 与既有表规范一致，`gmt_update` 由 `vq_set_gmt_update()` 触发器自动维护。

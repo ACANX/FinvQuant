@@ -25,7 +25,7 @@
 | `turnover` | number | — | 成交金额，≥0 |
 | `change_price` | number | — | 涨跌额 |
 | `change_ratio` | number | — | 涨跌幅 |
-| `pacd` | number | — | 当日累计均价（库列 `paocd`） |
+| `vwap` | number | — | 成交量加权平均价（VWAP）（库列 `vwap`；旧字段名 `pacd` 仍兼容接收） |
 | `ext_field` | string | — | 扩展字段 |
 | `remark` | string | — | 备注 |
 | `provider` | string | — | 数据来源，≤255 |
@@ -51,7 +51,7 @@
 {"usc":"000001","ts":1792373400,"date":20261019,"time":93000,
  "open":11.5,"high":11.6,"low":11.4,"close":11.48,
  "volume":392600,"turnover":4507048,"change_price":-0.02,
- "change_ratio":-0.17,"pacd":null,"ext_field":null,"remark":null,"provider":"FTMM"}
+ "change_ratio":-0.17,"vwap":null,"ext_field":null,"remark":null,"provider":"FTMM"}
 ```
 
 ### 错误

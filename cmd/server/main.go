@@ -20,13 +20,13 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/acanx/finvquant/internal/api"
-	"github.com/acanx/finvquant/internal/brs"
 	"github.com/acanx/finvquant/internal/config"
 	"github.com/acanx/finvquant/internal/database"
 	"github.com/acanx/finvquant/internal/logging"
 	"github.com/acanx/finvquant/internal/meta/finv/auth"
-	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
-	_ "github.com/acanx/finvquant/internal/meta/finv/quote/dedup/job"
+	"github.com/acanx/finvquant/internal/meta/finv/brs"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
+	_ "github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/job"
 	"github.com/acanx/finvquant/internal/meta/finv/sys"
 	"github.com/acanx/finvquant/internal/redisclient"
 	"github.com/acanx/finvquant/internal/static"
@@ -66,7 +66,7 @@ func main() {
 
 	// 应用数据库迁移（启动时幂等；quote.finv_quote_secu_kline_min 等域表建表）
 	//
-	// 超时给到 10 分钟：迁移里可能包含存量数据回填（如 V100076 恢复 quote 隔离副本需
+	// 超时给到 10 分钟：迁移里可能包含存量数据回填（如 V200076 恢复 quote 隔离副本需
 	// 搬运数百万行，实测 280 万行耗时约 4 分钟；慢盘/低配环境更久），
 	// 30 秒会在大表上超时，导致服务启动失败。
 	migrateCtx, migrateCancel := context.WithTimeout(ctx, 10*time.Minute)
@@ -83,26 +83,43 @@ func main() {
 	}
 	defer rdb.Close()
 
-	// BRS 每日备份（首期：pg_dump 表级备份，cron 读 sys_config 39001）
-	go brs.Start(ctx, pool, brs.Options{
-		BackupDir: cfg.BrsBackupDir,
-		Host:      cfg.PgHost,
-		Port:      cfg.PgPort,
-		User:      cfg.PgUser,
-		Password:  cfg.PgPassword,
-		Database:  cfg.PgDatabase,
+	// BRS 备份运行器（首期：pg_dump 表级备份，cron 读 sys_config 39001）。
+	// 自动调度与前端手动触发共用同一个 Runner，页面能看到同一份运行状态与日志。
+	brsRunner := brs.NewRunner(pool, brs.Options{
+		BackupDir:     cfg.BrsBackupDir,
+		LocalKeepDays: cfg.BrsLocalKeepDays,
+		DiskMinFreeGB: cfg.BrsDiskMinFreeGB,
+		Host:          cfg.PgHost,
+		Port:          cfg.PgPort,
+		User:          cfg.PgUser,
+		Password:      cfg.PgPassword,
+		Database:      cfg.PgDatabase,
+	})
+	go brsRunner.Start(ctx)
+
+	// BRS 大表增量（分片）备份运行器：只做手动触发（需求 10905），
+	// 与小表全量备份各自独立的状态与执行链，互不阻塞。
+	brsSliceRunner := brs.NewSliceRunner(pool, brs.Options{
+		BackupDir:     cfg.BrsBackupDir,
+		LocalKeepDays: cfg.BrsLocalKeepDays,
+		DiskMinFreeGB: cfg.BrsDiskMinFreeGB,
+		Host:          cfg.PgHost,
+		Port:          cfg.PgPort,
+		User:          cfg.PgUser,
+		Password:      cfg.PgPassword,
+		Database:      cfg.PgDatabase,
 	})
 
 	// 证券行情月归档导出与上传：服务始终创建（运维接口可用），
 	// 自动化调度受 FINV_QUOTE_DEDUB_ENABLED 功能开关控制（M-10）。
-	archiveService, err := dedup.NewService(pool, dedup.OptionsFromConfig(cfg))
+	archiveService, err := cdeu.NewService(pool, cdeu.OptionsFromConfig(cfg))
 	if err != nil {
 		log.Fatalf("[finvquant] 初始化导出归档服务失败: %v", err)
 	}
 	// 低峰窗口与 CDEU 运行模式不再在启动时加载到内存：两者统一从 sys.sys_config
 	// （20006 / 20005）读取，由 syscfg.Store 的 30s TTL 缓存保证在线修改即时生效。
 	if cfg.QuoteDeDupEnabled {
-		go dedup.NewScheduler(archiveService).Run(ctx)
+		go cdeu.NewScheduler(archiveService).Run(ctx)
 		log.Printf("[finvquant] 导出归档调度已启用（上传模式 %s）", archiveService.Uploader().Mode())
 	} else {
 		log.Printf("[finvquant] 导出归档调度未启用（FINV_QUOTE_DEDUB_ENABLED=false），仅提供运维接口")
@@ -114,7 +131,7 @@ func main() {
 	// 16001：API 服务
 	apiServer := &http.Server{
 		Addr:              cfg.ListenAddr(),
-		Handler:           api.NewRouter(&api.Deps{Pool: pool, Redis: rdb, Version: version, Commit: commit, Server: "finvquant", Config: cfg, ExportArchive: archiveService, Auth: authService}),
+		Handler:           api.NewRouter(&api.Deps{Pool: pool, Redis: rdb, Version: version, Commit: commit, Server: "finvquant", Config: cfg, ExportArchive: archiveService, Auth: authService, BRSRunner: brsRunner, BRSSliceRunner: brsSliceRunner}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

@@ -114,6 +114,31 @@
 | 90 | GET | `/API/V1/Meta/Finv/Quote/DeDup/RunLog/Detail` | 查询单次 Job 运行汇总与详细日志行 | [QuoteDeDup/RunLog.md](QuoteDeDup/RunLog.md) | 归档日志与补丁 / 工作流控制与监控 |
 | 91 | POST | `/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert` | 外部 OpenAPI 示例：批量 upsert（当前公开访问，暂不鉴权；成功响应 `{code,data,message}`，code 默认 0） | [../OpenAPI/Quote/Cdeu/Min/Upsert.md](../OpenAPI/Quote/Cdeu/Min/Upsert.md) | 外部 HOOK / 采集端 |
 | 92 | GET | `/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni` | 外部 OpenAPI：条件分页查询（column/row；成功响应 `{code,data,message}`，code 默认 0） | [../OpenAPI/Quote/Cdeu/Min/PageUni.md](../OpenAPI/Quote/Cdeu/Min/PageUni.md) | 外部 HOOK / 核对工具 |
+| 93 | GET | `/API/V1/Meta/BRS/Backup/Finv/Table/List` | 分页查询 BRS 备份登记（brs.brs_bak_rdb_table_full；keyword/flagEnable 过滤，priority 倒序） | [BRS/BackupTable.md](BRS/BackupTable.md) | 备份登记维护（`BrsBackupTableView.vue`） |
+| 94 | POST | `/API/V1/Meta/BRS/Backup/Finv/Table/Save` | 新增或修改备份登记（idn=0 新增；表唯一、priority 唯一） | [BRS/BackupTable.md](BRS/BackupTable.md) | 备份登记维护（同上） |
+| 95 | POST | `/API/V1/Meta/BRS/Backup/Finv/Table/Toggle` | 启用/禁用备份登记（flag_enable） | [BRS/BackupTable.md](BRS/BackupTable.md) | 备份登记维护（同上） |
+| 96 | GET | `/API/V1/Meta/BRS/Backup/Finv/OSSConfig/Get` | 读取 BRS 对象存储配置（sys.sys_config 39002；不返回 secret_key 明文，返回 secret_key_set） | [BRS/OSSConfig.md](BRS/OSSConfig.md) | 对象存储配置（`BrsOssConfigView.vue`） |
+| 97 | POST | `/API/V1/Meta/BRS/Backup/Finv/OSSConfig/Save` | 保存对象存储配置（secret_key 留空表示不修改；下一轮备份生效） | [BRS/OSSConfig.md](BRS/OSSConfig.md) | 对象存储配置（同上） |
+| 98 | GET | `/API/V1/Meta/BRS/Backup/Finv/Schedule/Get` | 读取备份调度配置（sys.sys_config 39001，6 段 cron）+ 未来 5 次执行时间 | [BRS/Schedule.md](BRS/Schedule.md) | 备份调度配置（`BrsScheduleView.vue`） |
+| 99 | POST | `/API/V1/Meta/BRS/Backup/Finv/Schedule/Save` | 保存备份调度配置（校验 6 段；最多 1 分钟生效） | [BRS/Schedule.md](BRS/Schedule.md) | 备份调度配置（同上） |
+| 100 | POST | `/API/V1/Meta/BRS/Backup/Finv/Run/Manual` | 手动触发一轮备份（异步，返回运行快照；并发时 409） | [BRS/Run.md](BRS/Run.md) | 小表全量备份（`BrsRunView.vue`） |
+| 101 | GET | `/API/V1/Meta/BRS/Backup/Finv/Run/Status` | 查询运行状态与日志（`sinceSeq` 增量） | [BRS/Run.md](BRS/Run.md) | 小表全量备份（同上） |
+| 102 | GET | `/API/V1/Meta/BRS/Backup/Finv/Slice/Rule/List` | 大表分片备份登记列表 + 每张表的分片完成度 | [BRS/Slice.md](BRS/Slice.md) | 大表增量备份（`BrsSliceView.vue`） |
+| 103 | POST | `/API/V1/Meta/BRS/Backup/Finv/Slice/Rule/Save` | 新增/编辑大表分片备份登记（校验模式、条件模板、分片上限） | [BRS/Slice.md](BRS/Slice.md) | 大表增量备份（同上） |
+| 104 | POST | `/API/V1/Meta/BRS/Backup/Finv/Slice/Rule/Toggle` | 启用/停用大表分片备份登记 | [BRS/Slice.md](BRS/Slice.md) | 大表增量备份（同上） |
+| 105 | GET | `/API/V1/Meta/BRS/Backup/Finv/Slice/Plan` | 查询单个登记的分片明细（`ruleId`；已备份/待备份） | [BRS/Slice.md](BRS/Slice.md) | 大表增量备份（同上） |
+| 106 | POST | `/API/V1/Meta/BRS/Backup/Finv/Slice/Run/Manual` | 手动触发一轮分片备份（异步；并发 409） | [BRS/Slice.md](BRS/Slice.md) | 大表增量备份（同上） |
+| 107 | GET | `/API/V1/Meta/BRS/Backup/Finv/Slice/Run/Status` | 查询分片备份运行状态与日志（`sinceSeq` 增量） | [BRS/Slice.md](BRS/Slice.md) | 大表增量备份（同上） |
+| 108 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/DayKline/Sync` | 拉取 moomoo 全量日K并按 `(date, usc)` upsert 到 `cdeu.finv_quote_secu_kline_day` | [Cdeu/DayKlineSync.md](Cdeu/DayKlineSync.md) | 日K线数据同步（[Menu/Quote/Cdeu/DayKlineSync.md](../Menu/Quote/Cdeu/DayKlineSync.md)） |
+| 109 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/DayKline/Stat` | 查询单 usc 的日K存量（行数 / 日期范围 / 来源） | [Cdeu/DayKlineStat.md](Cdeu/DayKlineStat.md) | 日K线数据同步（同上） |
+| 110 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/DayKline/UscList` | 候选 usc 列表（`futu.finv_futu_quote_collect` 中 `flag_enable='1'`） | [Cdeu/DayKlineUscList.md](Cdeu/DayKlineUscList.md) | 日K线数据同步（同上） |
+| 111 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert` | 证券实时行情快照批量 upsert（`cdeu.finv_cdeu_secu_realtime_stock`，`ON CONFLICT (stock_id)` 只覆盖本次有值列，上限 500 条） | [Cdeu/RealtimeStockUpsert.md](Cdeu/RealtimeStockUpsert.md)（契约 [.yml](Cdeu/RealtimeStockUpsert.yml)） | 采集端（仓库外同步脚本） |
+| 112 | POST | `/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert` | 外部 OpenAPI：证券实时行情快照批量 upsert（同一 handler，当前公开访问、暂不鉴权；成功响应 `{code,data,message}`，code 默认 0） | [../OpenAPI/Quote/Cdeu/Realtime/StockUpsert.md](../OpenAPI/Quote/Cdeu/Realtime/StockUpsert.md) | 外部 HOOK / 采集端 |
+| 113 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Page` | 实时行情分页查询（关键字/市场/币种筛选 + 白名单排序，数值列以文本返回） | [Cdeu/RealtimeStockPage.md](Cdeu/RealtimeStockPage.md)（契约 [.yml](Cdeu/RealtimeStockPage.yml)） | 实时行情（[Menu/Quote/Realtime/RealtimeStock.md](../Menu/Quote/Realtime/RealtimeStock.md)） |
+| 114 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync` | 行情列表股票快照同步：读配置表分市场分页拉取 moomoo get-stock-list，逐页 upsert 到 `cdeu.finv_cdeu_secu_realtime_stock` 并回写 `count_exists`/`total_available`（需登录） | [Cdeu/StockListCollect.md](Cdeu/StockListCollect.md) | 需求 10976/10977 |
+| 115 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run` | 异步启动一次行情快照同步（返回 run_id，同一时间仅允许一个运行中任务） | [Cdeu/StockSnapshotSyncRun.md](Cdeu/StockSnapshotSyncRun.md) | 需求 10982 |
+| 116 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run` | 轮询采集运行状态、逐页日志与采集配置（runId 省略取最近一次） | [Cdeu/StockSnapshotSyncRun.md](Cdeu/StockSnapshotSyncRun.md) | 需求 10982 |
+| 117 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending` | 待录入证券分页查询：`usc` 为空的快照行（未录入证券主数据，作为补录 public.finv_security + futu.finv_futu_quote_collect + cdeu.finv_quote_cdeu_usc 的依据） | [Cdeu/RealtimeStockPendingPage.md](Cdeu/RealtimeStockPendingPage.md)（契约 [.yml](Cdeu/RealtimeStockPendingPage.yml)） | 需求 10995（[Menu/Quote/Realtime/PendingSecu.md](../Menu/Quote/Realtime/PendingSecu.md)） |
 
 ## 说明
 

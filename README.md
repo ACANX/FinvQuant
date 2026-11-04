@@ -52,11 +52,10 @@ cd Web && npm install && npm run dev
 │   ├── Migrations/       # 数据库迁移（共用）
 │   ├── Backup/           # 数据库备份（共用，不入库）
 │   └── README.md         # 部署目录总览
-├── Docs/                 # 文档（变更日志、需求清单、开发规范、改造清单、API/菜单/数据字典）
+├── Docs/                 # 文档（变更日志、需求清单、开发规范、改造清单、API/菜单/数据字典、FinvQuant/V1/Prompt.md 需求基线）
 ├── Archive/              # 仓库级历史归档（含 VeritasQuant 历史子项目，不参与构建）
 ├── .github/workflows/    # CI/CD（构建 + 推送 GHCR）
 ├── AGENTS.md             # 仓库级协作指南
-├── Prompt.md             # 结构化需求文档（持续更新）
 └── VERSION               # 版本号（与 CHANGELOG、Git tag 对应）
 ```
 
@@ -64,7 +63,7 @@ cd Web && npm install && npm run dev
 
 - [Docs/CHANGELOG.md](Docs/CHANGELOG.md) — 版本变更日志（与 Git tag、`VERSION` 对应，文件名全大写）
 - [Docs/RequirementList.md](Docs/RequirementList.md) — 需求清单（自 2026-10-24 起的新增需求与核对方式）
-- [Prompt.md](Prompt.md) — 项目需求与技术基线（结构化，持续更新）
+- [Docs/FinvQuant/V1/Prompt.md](Docs/FinvQuant/V1/Prompt.md) — 项目需求与技术基线（结构化，持续更新）
 - [Deploy/Docker/Win11DockerDeploy.md](Deploy/Docker/Win11DockerDeploy.md) — Windows 11 Docker 部署文档
 - [Deploy/Docker/Win11DockerUpgrade.md](Deploy/Docker/Win11DockerUpgrade.md) — Windows 11 Docker 增量升级文档
 - [Deploy/README.md](Deploy/README.md) — 部署目录总览（Docker / Native 两种方式与共用迁移、备份）
