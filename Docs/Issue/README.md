@@ -7,25 +7,25 @@
 
 | 目录 | 是否入库 | 放什么 |
 |------|----------|--------|
-| `Docs/Issue/` | ✅ 跟踪 | 已提交/已外发的 Issue 正文，命名形如 `Issue-O-0001-MetaExtCustomHeaderSupport.md` |
+| `Docs/Issue/` | ✅ 跟踪 | 已提交/已外发的 Issue 正文，命名形如 `ISSUE-O-0001-MetaExtCustomHeaderSupport.md` |
 | `Docs/Issue/Outside/` | ❌ 不跟踪（见 `.gitignore`） | 未外发、本地草稿或涉及内部环境信息的 Issue 草稿 |
 
 ## 2. 文件命名与编号
 
-格式：**`Issue-O-NNNN-大驼峰标题.md`**
+格式：**`ISSUE-O-NNNN-大驼峰标题.md`**
 
 | 段 | 规则 |
 |----|------|
-| `Issue-O-` | **固定前缀**，所有 Issue 文档一律带（含 `Outside/` 草稿），不做变动 |
+| `ISSUE-O-` | **固定前缀**（全大写），所有 Issue 文档一律带（含 `Outside/` 草稿），不做变动 |
 | `NNNN` | **本目录内**四位顺序号，从 `0001` 起，不足四位**左补 0**（`0001`、`0042`、`1234`）；只增不减、不得重号、**不得复用**（即使原文件被删除或改名） |
 | `大驼峰标题` | 英文 PascalCase，主题 + 对象清晰可辨，如 `MetaExtCustomHeaderSupport` |
 
 示例：
 
 ```
-Docs/Issue/Issue-O-0001-MetaExtCustomHeaderSupport.md
-Docs/Issue/Issue-O-0002-RedisClusterTimeoutBehavior.md
-Docs/Issue/Outside/Issue-O-0003-LocalDraftIssue.md
+Docs/Issue/ISSUE-O-0001-MetaExtCustomHeaderSupport.md
+Docs/Issue/ISSUE-O-0002-RedisClusterTimeoutBehavior.md
+Docs/Issue/Outside/ISSUE-O-0003-LocalDraftIssue.md
 ```
 
 规则要点：
@@ -34,7 +34,7 @@ Docs/Issue/Outside/Issue-O-0003-LocalDraftIssue.md
 - 新增前先核对已用编号（`Outside/` 也要算），以下命令应输出空：
 
   ```bash
-  ls Docs/Issue Docs/Issue/Outside 2>/dev/null | grep -E '^Issue-O-[0-9]{4}-' | cut -d- -f3 | sort | uniq -d
+  ls Docs/Issue Docs/Issue/Outside 2>/dev/null | grep -E '^ISSUE-O-[0-9]{4}-' | cut -d- -f3 | sort | uniq -d
   ```
 
 - 下一个可用编号 = 现有最大编号 + 1；当前已用：`0001`。
