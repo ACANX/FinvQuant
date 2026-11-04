@@ -161,6 +161,8 @@ type RealtimeStockListFilter struct {
 	Currency    string // 空或 all 表示不限
 	OrderBy     string // 见 RealtimeStockOrderColumns，空默认 market_value
 	Desc        bool   // true 降序（默认），false 升序
+	// USCMissing 为 true 时只查 usc 为空的行，即「待录入证券」（需求 10995）。
+	USCMissing bool
 	Limit       int
 	Offset      int
 }

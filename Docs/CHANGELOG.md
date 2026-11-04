@@ -65,6 +65,12 @@
 
 ### 变更
 
+- **新增「行情 → 实时行情 → 待录入证券」菜单与查询接口（需求 10995）**
+  - 数据：`cdeu.finv_cdeu_secu_realtime_stock` 中 `usc` 为空的快照行（尚未录入证券主数据的证券），是后续补录 `public.finv_security` + `futu.finv_futu_quote_collect` + `cdeu.finv_quote_cdeu_usc` 的依据。
+  - 接口：`GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending`（分页 + keyword + marketLabel + 白名单排序，固定 `usc IS NULL`）。
+  - 前端：新增 `PendingSecuView.vue`、路由 `/Meta/Finv/Quote/Realtime/PendingSecu`、菜单 `quote-realtime-pending-secu`；页面含说明区、筛选、列表与分页，「一键录入」按钮为 disabled 的规划占位。
+  - 文档：`API/Cdeu/RealtimeStockPendingPage.md|.yml`、`Menu/Quote/Realtime/PendingSecu.md`、`Menus.md`、`APIs.md`。
+
 - **收紧 usc 与币种的补齐口径（需求 10994）**
   - `usc` 只取自 `futu.finv_futu_quote_collect`（按 `stock_id`），查不到保持 NULL；**取消 `stock_code` 兜底**，避免跨市场同码证券被错误映射（如 `000001` 在 SZ 与 SH 同时存在）。
   - 币种规则兜底改为只看 `market_label`：`HK` 按 8 开头 5 位代码判人民币柜台（CNY）否则 HKD、`US` → USD、`SH`/`SZ`/`BJ` → CNY（兼容历史 `CN`），不再依赖 `marketType`。

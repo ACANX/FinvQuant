@@ -106,6 +106,7 @@
 | 40 | 日K线数据同步 | 金融投资 | 四级叶子 | `cdeu-daykline-sync` | `mdi-candle` | `/Meta/Finv/Quote/Cdeu/DayKline/Sync` | `Web/src/views/Meta/Finv/Quote/Cdeu/DayKlineSyncView.vue` | `POST /API/V1/Meta/Finv/Quote/Cdeu/DayKline/Sync`、`GET .../DayKline/Stat`、`GET .../DayKline/UscList` | [Quote/Cdeu/DayKlineSync.md](Quote/Cdeu/DayKlineSync.md) |
 | 41 | 证券行情排行 | 金融投资 | 四级叶子 | `quote-realtime-ftstockrank` | `mdi-chart-timeline-variant` | `/Meta/Finv/Quote/Realtime/FTStockRank` | `Web/src/views/Meta/Finv/Quote/Realtime/RealtimeStockView.vue` | `GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Page` | [Quote/Realtime/RealtimeStock.md](Quote/Realtime/RealtimeStock.md) |
 | 42 | 行情快照手动同步 | 金融投资 | 四级叶子 | `quote-realtime-snapshot-sync` | `mdi-cloud-sync-outline` | `/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync` | `Web/src/views/Meta/Finv/Quote/Realtime/StockSnapshotSyncView.vue` | `POST/GET .../Realtime/FTStockQuoteSnapshotSync/Run` | [Quote/Realtime/SnapshotSync.md](Quote/Realtime/SnapshotSync.md) |
+| 43 | 待录入证券 | 金融投资 | 四级叶子 | `quote-realtime-pending-secu` | `mdi-database-plus-outline` | `/Meta/Finv/Quote/Realtime/PendingSecu` | `Web/src/views/Meta/Finv/Quote/Realtime/PendingSecuView.vue` | `GET .../Realtime/Stock/Pending` | [Quote/Realtime/PendingSecu.md](Quote/Realtime/PendingSecu.md) |
 
 ## 说明
 

@@ -138,6 +138,7 @@
 | 114 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync` | 行情列表股票快照同步：读配置表分市场分页拉取 moomoo get-stock-list，逐页 upsert 到 `cdeu.finv_cdeu_secu_realtime_stock` 并回写 `count_exists`/`total_available`（需登录） | [Cdeu/StockListCollect.md](Cdeu/StockListCollect.md) | 需求 10976/10977 |
 | 115 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run` | 异步启动一次行情快照同步（返回 run_id，同一时间仅允许一个运行中任务） | [Cdeu/StockSnapshotSyncRun.md](Cdeu/StockSnapshotSyncRun.md) | 需求 10982 |
 | 116 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run` | 轮询采集运行状态、逐页日志与采集配置（runId 省略取最近一次） | [Cdeu/StockSnapshotSyncRun.md](Cdeu/StockSnapshotSyncRun.md) | 需求 10982 |
+| 117 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending` | 待录入证券分页查询：`usc` 为空的快照行（未录入证券主数据，作为补录 public.finv_security + futu.finv_futu_quote_collect + cdeu.finv_quote_cdeu_usc 的依据） | [Cdeu/RealtimeStockPendingPage.md](Cdeu/RealtimeStockPendingPage.md)（契约 [.yml](Cdeu/RealtimeStockPendingPage.yml)） | 需求 10995（[Menu/Quote/Realtime/PendingSecu.md](../Menu/Quote/Realtime/PendingSecu.md)） |
 
 ## 说明
 

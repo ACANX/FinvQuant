@@ -173,6 +173,8 @@ func NewRouter(deps *Deps) *gin.Engine {
 			realtime.POST("/FTStockQuoteSnapshotSync/Run", archive.RealtimeStockListRunStart)
 			realtime.GET("/FTStockQuoteSnapshotSync/Run", archive.RealtimeStockListRunStatus)
 			realtime.GET("/Stock/Page", archive.RealtimeStockPage)
+			// 需求 10995：待录入证券（usc 为空，作为补录主数据的依据），先只提供查询。
+			realtime.GET("/Stock/Pending", archive.RealtimeStockPendingPage)
 			openGroup.POST("/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert", archive.RealtimeStockUpsert)
 			group.POST("/Job/Run", archive.JobRun)
 			group.POST("/Job/Dynamic/Run", archive.DynamicJobRun)

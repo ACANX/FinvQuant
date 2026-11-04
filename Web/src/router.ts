@@ -6,6 +6,7 @@ import QuoteQueryView from './views/Meta/Finv/Quote/History/HistoryQuoteQueryVie
 import QuoteImportView from './views/Meta/Finv/Quote/History/HistoryQuoteImportView.vue'
 import RealtimeStockView from './views/Meta/Finv/Quote/Realtime/RealtimeStockView.vue'
 import StockSnapshotSyncView from './views/Meta/Finv/Quote/Realtime/StockSnapshotSyncView.vue'
+import PendingSecuView from './views/Meta/Finv/Quote/Realtime/PendingSecuView.vue'
 import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue'
 import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue'
 import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue'
@@ -70,6 +71,13 @@ const router = createRouter({
       name: 'quote-realtime-snapshot-sync',
       component: StockSnapshotSyncView,
       meta: { title: '行情快照手动同步' },
+    },
+    // 行情 → 实时行情 → 待录入证券（需求 10995）：usc 为空的快照行，先只读查询
+    {
+      path: '/Meta/Finv/Quote/Realtime/PendingSecu',
+      name: 'quote-realtime-pending-secu',
+      component: PendingSecuView,
+      meta: { title: '待录入证券' },
     },
     // 行情数据归档 → K线数据查询 / 统计（需求 10856/10857 改名并移入「收剔导传ETL」）
     {

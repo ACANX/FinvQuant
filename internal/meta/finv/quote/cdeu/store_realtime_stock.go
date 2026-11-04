@@ -245,6 +245,10 @@ func (s *Store) ListRealtimeStocks(ctx context.Context, f RealtimeStockListFilte
 		args = append(args, currency)
 		conds = append(conds, fmt.Sprintf("currency = $%d", len(args)))
 	}
+	// usc 为空 = 尚未录入证券主数据（新上市/未纳入采集），是补录三张表的依据（需求 10995）。
+	if f.USCMissing {
+		conds = append(conds, "usc IS NULL")
+	}
 	where := ""
 	if len(conds) > 0 {
 		where = " WHERE " + strings.Join(conds, " AND ")

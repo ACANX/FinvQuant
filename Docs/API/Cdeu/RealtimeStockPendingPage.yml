@@ -1,0 +1,99 @@
+openapi: 3.1.0
+info:
+  title: 待录入证券分页查询
+  version: 1.0.0
+  description: |
+    查询 cdeu.finv_cdeu_secu_realtime_stock 中 usc 为空的快照行（尚未录入证券主数据的证券），
+    作为后续补录 public.finv_security + futu.finv_futu_quote_collect + cdeu.finv_quote_cdeu_usc 的依据。
+    需求 10995。目前只提供查询，一键录入为规划功能。
+servers:
+  - url: /API/V1
+paths:
+  /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending:
+    get:
+      summary: 待录入证券分页查询（usc IS NULL）
+      operationId: realtimeStockPendingPage
+      tags: [Cdeu]
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+          description: 页码，从 1 开始
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 50 }
+          description: 每页条数
+        - name: keyword
+          in: query
+          schema: { type: string }
+          description: 匹配 stock_code / name（ILIKE）
+        - name: marketLabel
+          in: query
+          schema: { type: string, enum: [HK, SH, SZ, BJ, US, all] }
+          description: 市场；空或 all 表示不限
+        - name: orderBy
+          in: query
+          schema:
+            type: string
+            enum:
+              - stock_id
+              - market_value
+              - circulation_market_value
+              - trade_trunover
+              - trade_volumn
+              - change_ratio
+              - change_price
+              - trust_aum
+              - volumn_ratio
+              - dt_update
+              - page
+            default: market_value
+          description: 排序字段白名单
+        - name: order
+          in: query
+          schema: { type: string, enum: [desc, asc], default: desc }
+          description: 排序方向
+      responses:
+        '200':
+          description: 查询完成
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string, example: 查询完成 }
+                  data:
+                    type: object
+                    required: [total, page, pageSize, list]
+                    properties:
+                      total: { type: integer, example: 1151 }
+                      page: { type: integer, example: 1 }
+                      pageSize: { type: integer, example: 50 }
+                      list:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            stock_id: { type: integer, format: int64 }
+                            usc: { type: [string, 'null'], description: 本接口恒为空 }
+                            name: { type: string }
+                            stock_code: { type: string }
+                            market_type: { type: string }
+                            market_label: { type: string }
+                            instrument_type: { type: string }
+                            currency: { type: [string, 'null'] }
+                            price_nominal: { type: [string, 'null'] }
+                            change_price: { type: [string, 'null'] }
+                            change_ratio: { type: [string, 'null'] }
+                            price_direct: { type: [string, 'null'] }
+                            market_value: { type: [string, 'null'] }
+                            trade_trunover: { type: [string, 'null'] }
+                            trade_volumn: { type: [string, 'null'] }
+                            page: { type: [integer, 'null'] }
+                            dt_update: { type: integer, format: int64, description: Unix 毫秒 }
+        '400':
+          description: 参数非法（page/pageSize/order 越界，或 orderBy 不在白名单）
+        '401':
+          description: 未登录

@@ -130,6 +130,13 @@ const finvQuantMenu: MenuNode[] = [
             icon: 'mdi-cloud-sync-outline',
             path: '/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync',
           },
+          // 需求 10995：usc 为空的快照行（未录入证券主数据），先只提供查询，后续支持一键录入。
+          {
+            key: 'quote-realtime-pending-secu',
+            title: '待录入证券',
+            icon: 'mdi-database-plus-outline',
+            path: '/Meta/Finv/Quote/Realtime/PendingSecu',
+          },
         ],
       },
       // 需求 10860：从「数据采集」移入，作为「行情」下第三个三级分组（原「数据采集」随之删除）。

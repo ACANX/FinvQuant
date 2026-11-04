@@ -278,6 +278,70 @@ func (h *ExportArchive) RealtimeStockPage(c *gin.Context) {
 	})
 }
 
+// RealtimeStockPendingPage GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending。
+//
+// 待录入证券：`cdeu.finv_cdeu_secu_realtime_stock` 里 `usc` 为空的行。
+// 采集会把所有在售证券写入快照表，`usc` 为空即该证券尚未录入
+// `public.finv_security` + `futu.finv_futu_quote_collect` + `cdeu.finv_quote_cdeu_usc`，
+// 本接口只做查询，后续再挂「一键录入」（需求 10995）。
+func (h *ExportArchive) RealtimeStockPendingPage(c *gin.Context) {
+	page, err := realtimeStockQueryInt(c, "page", 1, 1, 1_000_000)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	pageSize, err := realtimeStockQueryInt(c, "pageSize", 50, 1, 500)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	desc := true
+	switch strings.ToLower(strings.TrimSpace(c.Query("order"))) {
+	case "", "desc":
+		desc = true
+	case "asc":
+		desc = false
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "order 只能为 asc 或 desc"})
+		return
+	}
+
+	filter := cdeu.RealtimeStockListFilter{
+		Keyword:     strings.TrimSpace(c.Query("keyword")),
+		MarketLabel: strings.TrimSpace(c.Query("marketLabel")),
+		OrderBy:     strings.TrimSpace(c.Query("orderBy")),
+		Desc:        desc,
+		Limit:       pageSize,
+		Offset:      (page - 1) * pageSize,
+		USCMissing:  true,
+	}
+
+	started := time.Now()
+	total, list, err := h.service.Store().ListRealtimeStocks(c.Request.Context(), filter)
+	if err != nil {
+		status, code := http.StatusInternalServerError, 2006
+		if errors.Is(err, cdeu.ErrRealtimeStockInvalid) {
+			status, code = http.StatusBadRequest, 400
+		}
+		log.Printf("[cdeu][realtimestock] api pending failed keyword=%q orderBy=%q err=%v",
+			filter.Keyword, filter.OrderBy, err)
+		c.JSON(status, gin.H{"code": code, "message": err.Error()})
+		return
+	}
+	log.Printf("[cdeu][realtimestock] api pending end page=%d pageSize=%d total=%d returned=%d elapsed_ms=%d",
+		page, pageSize, total, len(list), time.Since(started).Milliseconds())
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "查询完成",
+		"data": gin.H{
+			"total":    total,
+			"page":     page,
+			"pageSize": pageSize,
+			"list":     list,
+		},
+	})
+}
+
 // realtimeStockQueryInt 解析整数型查询参数：缺省用 def，越界或非整数返回错误。
 func realtimeStockQueryInt(c *gin.Context, name string, def, min, max int) (int, error) {
 	raw := strings.TrimSpace(c.Query(name))
