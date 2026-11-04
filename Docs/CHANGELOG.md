@@ -65,6 +65,10 @@
 
 ### 变更
 
+- **修复「行情快照手动同步」无运行记录时误报无配置（需求 10990）**
+  - `GET .../FTStockQuoteSnapshotSync/Run` 的「暂无运行记录」分支原先提前 return，响应里没有 `configs`，服务重启后（内存运行表为空）前端只能显示「该品种暂无启用的采集配置」，与数据库实际存在配置矛盾。
+  - 修复：配置查询提到分支判断之前，两个分支都返回 `configs` 与 `data.error`；前端在 `data.error` 非空时提示「读取采集配置失败」。
+
 - **列表采集支持英文单位口径并锁定语言（需求 10989）**
   - `stockListAmount` 补 `T`(1e12)、`K`(1e3)，与 `万亿/亿/万/B/M` 并存：海外 IP 返回 `4.07T` 时不再解析失败。
   - 列表采集 HTTP 客户端固定带 `accept-language: zh-CN,zh;q=0.9,en;q=0.8`（经 `quoteapiv2.Config.HTTPClient` 注入，不改外部包）。

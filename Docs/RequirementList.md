@@ -2730,6 +2730,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10987 | 「日K线数据同步」菜单补图标并优化页面展示：① 图标 `mdi-chart-candlestick` 在 `@mdi/font@7.4.47` 中不存在（渲染为空白），统一替换为存在的 `mdi-candle`（`menuConfig.ts`、页面标题、`Menus.md` 索引）；② 操作栏改为单行 flex（usc 组合框 + 起止日 + 同步/查询存量/重置），窄屏自动换行；③ 同步过程增加已耗时秒数与不确定进度条提示；④ 同步结果与存量统计改为**指标卡 + 明细表**两栏布局（返回根数/区间内/新增/更新、行数/起止日）；⑤ 请求参数透传、原始响应与日志命令合并进默认收起的「排障信息」折叠面板，不再占用主版面；⑥ 新增「重置」按钮。 | `grep -c 'mdi-candle' Web/src/config/menuConfig.ts Web/src/views/Meta/Finv/Quote/Cdeu/DayKlineSyncView.vue` 各 ≥ 1；`grep -rc 'mdi-chart-candlestick' Web/src Docs/Menu/Menus.md` 均为 0；`grep -c '排障信息' Web/src/views/Meta/Finv/Quote/Cdeu/DayKlineSyncView.vue` = 1；`grep -c '已耗时' Web/src/views/Meta/Finv/Quote/Cdeu/DayKlineSyncView.vue` = 1；`cd Web && npm run build` 通过；部署后菜单与页面标题图标显示为蜡烛图，页面无「docker logs」提示条占用首屏 | √ |
 | 10988 | 采集逐页明细日志改为**只展示证券代码、不展示名称**：每格由 `[标记] 代码 名称` 简化为 `[标记] 代码`，格子宽度由 22 显示列收到 11 列（仍每行 10 个）；代码缺失时退回 `stock_id`。同步更新 `Docs/Menu/Quote/Realtime/SnapshotSync.md`、`Docs/API/Cdeu/StockSnapshotSyncRun.md`、`Docs/API/Cdeu/StockListCollect.md` 的示例与规则。 | `grep -c 'stockListDetailCellWidth = 11' internal/meta/finv/quote/cdeu/quote_list_stock_snapshot_sync.go` = 1；`grep -c 'row.Name' internal/meta/finv/quote/cdeu/quote_list_stock_snapshot_sync.go` = 0（明细不再拼接名称）；触发一次同步后 `docker logs finvquant 2>&1 \| grep -E '^\[[IU]\]' \| head -1` 每行只有 `[I]/[U]` + 代码；`go build ./...` 通过 | √ |
 | 10989 | 列表采集支持英文单位口径并锁定语言：① `stockListAmount` 在原有 `万亿/亿/万/B/M` 基础上补充 `T`(1e12)、`K`(1e3)（大小写均可），保证海外 IP 返回的 `4.07T` 这类万亿级市值也能正确换算；② 列表采集的 HTTP 客户端固定携带 `accept-language: zh-CN,zh;q=0.9,en;q=0.8`（通过 `quoteapiv2.Config.HTTPClient` 注入，不改外部包），避免按出口 IP 返回英文口径；③ 每轮首页打印 `首页采样` 日志（代码\|名称\|市值原文），用于现场确认服务端语言与单位。 | `grep -c 'StockListAcceptLanguage' internal/meta/finv/quote/cdeu/quote_list_stock_snapshot_sync.go` ≥ 1；`go test -run 'TestStockList.*' ./internal/meta/finv/quote/cdeu/` 通过（含单位换算/采样串/语言头三个用例）；对 `4.07T` 调用 `stockListAmount` 返回 `4070000000000`；采集日志出现 `首页采样` 且样本里能看出返回口径（`4.07万亿` 或 `4.07T`） | √ |
+| 10990 | 「行情快照手动同步」页在服务刚重启、内存无运行记录时误报「该品种暂无启用的采集配置」：`GET .../FTStockQuoteSnapshotSync/Run` 的「暂无运行记录」分支原先直接 return，**不返回 `configs`**，前端拿不到启用配置列表；修复为两个分支都查询并返回 `configs`（与 `data.error`），前端在 `data.error` 非空时提示读取配置失败。 | 重启服务后（内存运行记录为空）调用 `GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run`，响应 `data.configs` 为数组且条数等于 `SELECT count(*) FROM cdeu.finv_cdeu_secu_realtime_sync_config WHERE flag_enable = '1'`；页面不再出现「该品种暂无启用的采集配置」，配置表正常渲染 | √ |
 
 
 ## 汇总
@@ -3010,7 +3011,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 日K同步菜单补图标与页面展示优化 | 10987 | 1 |
 | 采集明细日志只展示证券代码 | 10988 | 1 |
 | 采集支持英文单位口径并锁定语言 | 10989 | 1 |
-| **合计** | **10001–10989** | **988** |
+| 无运行记录时接口也返回采集配置 | 10990 | 1 |
+| **合计** | **10001–10990** | **989** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

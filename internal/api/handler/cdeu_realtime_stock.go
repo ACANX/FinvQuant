@@ -63,6 +63,13 @@ func (h *ExportArchive) RealtimeStockListRunStatus(c *gin.Context) {
 		runID = h.service.LatestStockListRun()
 	}
 
+	// 配置先查：即使没有任何运行记录（服务刚重启、内存运行表为空）也必须把 configs 带回，
+	// 否则前端拿不到「启用配置」列表，会误报「该品种暂无启用的采集配置」（需求 10990）。
+	configs, cfgErr := h.service.StockListConfigs(c.Request.Context())
+	if cfgErr != nil {
+		log.Printf("[cdeu][stocklist] api run status configs failed err=%v", cfgErr)
+	}
+
 	var run cdeu.StockListRun
 	found := false
 	if runID != "" {
@@ -72,14 +79,18 @@ func (h *ExportArchive) RealtimeStockListRunStatus(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"code":    0,
 			"message": "暂无运行记录",
-			"data":    gin.H{"run_id": "", "status": "IDLE", "logs": []any{}, "results": []any{}},
+			// run_id/status/logs/results 保持原有空值形态；额外带上 configs 与 error，
+			// 让前端在没有运行记录时也能渲染品种 Tab 与配置表。
+			"data": gin.H{
+				"run_id":  "",
+				"status":  "IDLE",
+				"logs":    []any{},
+				"results": []any{},
+				"configs": configs,
+				"error":   cfgErr,
+			},
 		})
 		return
-	}
-
-	configs, err := h.service.StockListConfigs(c.Request.Context())
-	if err != nil {
-		log.Printf("[cdeu][stocklist] api run status configs failed err=%v", err)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -88,7 +99,7 @@ func (h *ExportArchive) RealtimeStockListRunStatus(c *gin.Context) {
 		"data": gin.H{
 			"run":     run,
 			"configs": configs,
-			"error":   err,
+			"error":   cfgErr,
 		},
 	})
 }

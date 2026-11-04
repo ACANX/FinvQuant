@@ -87,8 +87,18 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 | `data.run.status` | `RUNNING` / `SUCCESS` / `PARTIAL` / `FAILED` |
 | `data.run.results[]` | 每个市场的结果（失败时带 `error`） |
 | `data.run.logs[]` | 逐页日志：`begin` / `page` / `retry` / `done`，`level` 为 `INFO`/`WARN`/`ERROR` |
-| `data.configs[]` | 配置表当前内容（含回写的 `count_exists` / `total_available`） |
-| 无运行记录 | `run.status = IDLE`、`run_id` 空串 |
+| `data.configs[]` | 配置表当前内容（含回写的 `count_exists` / `total_available`）；**任何分支都会返回**，含"暂无运行记录" |
+| `data.error` | 读取配置失败的原因（正常为 `null`）；前端据此提示，避免只显示"暂无启用的采集配置" |
+| 无运行记录 | 响应为**扁平结构**（不是 `data.run`）：`run_id` 空串、`status = IDLE`、`logs`/`results` 空数组，且同样带 `configs` 与 `error` |
+
+> 注意：服务刚重启时内存中的运行记录为空，此时若 `configs` 不返回，前端会误判为"该品种暂无启用的采集配置"（需求 10990）。
+> 因此本接口在「有运行记录」与「无运行记录」两个分支都必须返回 `configs`。
+
+```json
+{"code":0,"message":"暂无运行记录","data":{"run_id":"","status":"IDLE","logs":[],"results":[],
+ "configs":[{"instrument_symbol":"stock","market_type":"1","count_plan":2500,"count_exists":3337,"total_available":200}],
+ "error":null}}
+```
 
 ## 4. 日志级别规则
 

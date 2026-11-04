@@ -83,6 +83,8 @@ const MARKET_LABELS: Record<string, string> = { '1': 'HK 港股', '2': 'US 美�
 
 const run = ref<StockListRun | null>(null)
 const configs = ref<SyncConfig[]>([])
+// 上一次已提示过的「读取配置失败」原因，避免轮询期间重复弹 Toast
+let lastConfigError = ''
 const activeSymbol = ref('stock')
 const starting = ref(false)
 const logBox = ref<HTMLElement | null>(null)
@@ -183,7 +185,16 @@ async function scrollLogs() {
 async function loadStatus(runId = '') {
   try {
     const query = runId ? `?runId=${encodeURIComponent(runId)}` : ''
-    const payload = await apiGet<{ run: StockListRun; configs: SyncConfig[] }>(`${STATUS_API}${query}`)
+    const payload = await apiGet<{ run: StockListRun; configs: SyncConfig[]; error?: string }>(
+      `${STATUS_API}${query}`,
+    )
+    // 后端读取配置失败时（配置表不存在/无权限等）会把原因放在 data.error；
+    // 不提示的话页面只会显示「暂无启用的采集配置」，无法定位（需求 10990）。
+    const cfgError = payload?.error ? String(payload.error) : ''
+    if (cfgError && cfgError !== lastConfigError) {
+      lastConfigError = cfgError
+      showToast(`读取采集配置失败：${cfgError}`, 'error')
+    }
     if (payload?.configs) {
       configs.value = payload.configs
       // 首次加载后确保当前 Tab 有效
