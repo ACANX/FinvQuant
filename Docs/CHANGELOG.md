@@ -65,6 +65,11 @@
 
 ### 变更
 
+- **列表采集自动补齐 usc 与币种（需求 10993）**
+  - 现象：采集写入的行 `usc` / `currency` 为空（港股实测 1206 行，约占 17%）。moomoo 列表接口不返回币种，`usc` 也不在响应里。
+  - 修复：`SaveStockListPage` 落库前每页批量补值——`stock_id` → `futu.finv_futu_quote_collect.usc`（回落 `stock_code`）、`usc` → `cdeu.finv_quote_cdeu_usc.currency`、`security_code` → `public.finv_security.currency_type`、规则兜底（港股 8 开头 5 位=人民币柜台 → CNY，其余 HKD；美股 USD；沪深 CNY）。
+  - 覆盖率：对 1206 行空值实测 `usc` 100%、`currency` 100%；新增单测覆盖柜台边界。
+
 - **修复列表采集拿不到头部证券、名称为英文（需求 10992）**
   - 页码改 0-based：`page=0` 才是第一页。此前传 `page=1` 整体跳过第一页（前 50 名，含 00700 腾讯），全量 67 页跑完仍缺 20 只万亿级证券。
   - 绕开上游限制：MetaExt `GetStockList` 把 page 下限硬编码为 1（`intParam(req.Page, "page", 1)`），传 0 报「moomoo page 不能小于 1，实际 0」——属客户端本地校验；改用 `StockListDirectFetcher` 自行请求，只复用 `quoteapiv2` 的签名函数与响应结构体。

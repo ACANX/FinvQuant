@@ -21,6 +21,187 @@ import (
 // tableRealtimeSyncConfig 列表采集配置表（V300121 创建，V300122 更名为 finv_cdeu_secu_realtime_sync_config）。
 const tableRealtimeSyncConfig = "cdeu.finv_cdeu_secu_realtime_sync_config"
 
+const (
+	// tableFutuQuoteCollect futu 采集配置表：stock_id ↔ usc 的权威映射（含柜台口径）。
+	tableFutuQuoteCollect = "futu.finv_futu_quote_collect"
+	// tableSecuUsc 证券主数据表：usc → currency / market / timezone。
+	tableSecuUsc = "cdeu.finv_quote_cdeu_usc"
+)
+
+// stockListSecurityMeta 采集行需要补齐的证券主数据。
+type stockListSecurityMeta struct {
+	// USC 统一证券代码（港股 5 位、A 股 6 位、美股字母代码）。
+	USC string
+	// Currency 结算币种（HK 正股 HKD、R 柜台 CNY、美股 USD、A 股 CNY）。
+	Currency string
+}
+
+// loadStockListSecurityMeta 批量补齐 usc 与币种（需求 10993）。
+//
+// 关联顺序（只查表，不猜值；查不到保持空，由人工补）：
+//  1. stock_id → usc：futu.finv_futu_quote_collect（最准确，带柜台口径）；
+//  2. usc（缺失时用 stock_code）→ currency：先查 cdeu.finv_quote_cdeu_usc（主数据），
+//     再查 public.finv_security.currency_type（覆盖面更广）；
+//  3. 仍查不到时按「市场 + 柜台」规则推导（见 stockListFallbackCurrency）。
+//
+// 背景：moomoo 列表接口不返回币种，usc 也不在响应里，早期实现只写行情字段，
+// 导致采集新增的证券 usc / currency 长期为空（生产环境实测约 17% 行为空）。
+func (s *Store) loadStockListSecurityMeta(ctx context.Context, marketType string, items []quoteapiv2.StockListItem) (map[int64]stockListSecurityMeta, error) {
+	metas := make(map[int64]stockListSecurityMeta, len(items))
+	if len(items) == 0 {
+		return metas, nil
+	}
+
+	ids := make([]int64, 0, len(items))
+	uscByID := make(map[int64]string, len(items))
+	for _, item := range items {
+		if item.StockID > 0 {
+			ids = append(ids, item.StockID)
+		}
+	}
+	if len(ids) > 0 {
+		rows, err := s.pool.Query(ctx, `
+SELECT stock_id, usc
+  FROM `+tableFutuQuoteCollect+`
+ WHERE stock_id = ANY($1::bigint[]) AND usc IS NOT NULL AND usc <> ''`, ids)
+		if err != nil {
+			return nil, fmt.Errorf("查询 stock_id→usc 映射失败（page 数据可能缺 usc）: %w", err)
+		}
+		for rows.Next() {
+			var stockID int64
+			var code string
+			if err := rows.Scan(&stockID, &code); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("解析 stock_id→usc 映射失败: %w", err)
+			}
+			uscByID[stockID] = strings.TrimSpace(code)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("查询 stock_id→usc 映射失败: %w", err)
+		}
+	}
+
+	// 收集待查币种的 usc 集合：优先用映射到的 usc，缺失时退回 stock_code。
+	uscSet := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		code := uscByID[item.StockID]
+		if code == "" {
+			code = strings.TrimSpace(item.StockCode)
+		}
+		if code != "" {
+			uscSet[code] = struct{}{}
+		}
+	}
+	currencyByUSC := make(map[string]string, len(uscSet))
+	if len(uscSet) > 0 {
+		uscs := make([]string, 0, len(uscSet))
+		for code := range uscSet {
+			uscs = append(uscs, code)
+		}
+		rows, err := s.pool.Query(ctx, `
+SELECT usc, currency
+  FROM `+tableSecuUsc+`
+ WHERE usc = ANY($1::text[]) AND currency IS NOT NULL AND currency <> ''`, uscs)
+		if err != nil {
+			return nil, fmt.Errorf("查询 usc→currency 映射失败: %w", err)
+		}
+		for rows.Next() {
+			var code, currency string
+			if err := rows.Scan(&code, &currency); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("解析 usc→currency 映射失败: %w", err)
+			}
+			currencyByUSC[code] = strings.TrimSpace(currency)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("查询 usc→currency 映射失败: %w", err)
+		}
+	}
+
+	// 第二数据源：public.finv_security（security_code → currency_type），覆盖 usc 主数据未收录的证券。
+	currencyByCode := make(map[string]string, len(uscSet))
+	if len(uscSet) > 0 {
+		codes := make([]string, 0, len(uscSet))
+		for code := range uscSet {
+			codes = append(codes, code)
+		}
+		rows, err := s.pool.Query(ctx, `
+SELECT DISTINCT security_code, currency_type
+  FROM public.finv_security
+ WHERE security_code = ANY($1::text[]) AND currency_type IS NOT NULL AND currency_type <> ''`, codes)
+		if err != nil {
+			return nil, fmt.Errorf("查询 security_code→currency_type 映射失败: %w", err)
+		}
+		for rows.Next() {
+			var code, currency string
+			if err := rows.Scan(&code, &currency); err != nil {
+				rows.Close()
+				return nil, fmt.Errorf("解析 security_code→currency_type 映射失败: %w", err)
+			}
+			currencyByCode[code] = strings.TrimSpace(currency)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("查询 security_code→currency_type 映射失败: %w", err)
+		}
+	}
+
+	for _, item := range items {
+		code := uscByID[item.StockID]
+		if code == "" {
+			code = strings.TrimSpace(item.StockCode)
+		}
+		currency := currencyByUSC[code]
+		if currency == "" {
+			currency = currencyByCode[code]
+		}
+		if currency == "" {
+			currency = stockListFallbackCurrency(marketType, item.MarketLabel, code)
+		}
+		metas[item.StockID] = stockListSecurityMeta{USC: code, Currency: currency}
+	}
+	return metas, nil
+}
+
+// stockListFallbackCurrency 按「市场 + 柜台」推导币种，只在主数据表都查不到时使用。
+//
+// 依据（实测 2026-11-05，库内港股快照零例外）：
+//   - 港股 5 位代码中 8 开头（80000–89999）为人民币柜台（R 股）→ CNY，其余 → HKD；
+//   - 美股 → USD；
+//   - 沪深 → CNY。
+//
+// 说明：这些是交易所的稳定规则，不是猜测；港股 R 柜台与正股共用同一发行人的 HKD/CNY 双柜台。
+func stockListFallbackCurrency(marketType, marketLabel, stockCode string) string {
+	switch strings.ToUpper(strings.TrimSpace(marketLabel)) {
+	case "HK":
+		return stockListHKCurrency(stockCode)
+	case "US":
+		return "USD"
+	case "CN", "SZ", "SH":
+		return "CNY"
+	}
+	switch strings.TrimSpace(marketType) {
+	case "1":
+		return stockListHKCurrency(stockCode)
+	case "2":
+		return "USD"
+	case "4":
+		return "CNY"
+	}
+	return ""
+}
+
+// stockListHKCurrency 港股币种：8 开头的 5 位代码是人民币柜台（R 股），其余为港币。
+func stockListHKCurrency(stockCode string) string {
+	code := strings.TrimSpace(stockCode)
+	if len(code) == 5 && strings.HasPrefix(code, "8") {
+		return "CNY"
+	}
+	return "HKD"
+}
+
 // LoadStockListConfigs 读取启用中的采集配置，按市场类型、品种排序（决定采集顺序）。
 func (s *Store) LoadStockListConfigs(ctx context.Context) ([]StockListCollectConfig, error) {
 	rows, err := s.pool.Query(ctx, `
@@ -83,6 +264,11 @@ func (s *Store) SaveStockListPage(ctx context.Context, cfg StockListCollectConfi
 		return nil, nil
 	}
 	now := time.Now().UnixMilli()
+	// 补齐 usc 与币种：接口不返回币种、usc 也不在响应里，必须按 stock_id/stock_code 关联主数据表。
+	securityMeta, err := s.loadStockListSecurityMeta(ctx, cfg.MarketType, items)
+	if err != nil {
+		return nil, err
+	}
 	batch := make([]RealtimeStockItem, 0, len(items))
 	meta := make([]StockListSavedRow, 0, len(items))
 	for _, it := range items {
@@ -96,13 +282,16 @@ func (s *Store) SaveStockListPage(ctx context.Context, cfg StockListCollectConfi
 		marketLabel := it.MarketLabel
 		instrumentType := strconv.Itoa(it.InstrumentType)
 
+		secuMeta := securityMeta[stockID]
 		batch = append(batch, RealtimeStockItem{
+			USC:                    stockListText(secuMeta.USC),
 			StockID:                &stockID,
 			Name:                   stockListText(it.Name),
 			StockCode:              stockListText(it.StockCode),
 			MarketType:             stockListText(marketType),
 			MarketLabel:            stockListText(marketLabel),
 			InstrumentType:         stockListText(instrumentType),
+			Currency:               stockListText(secuMeta.Currency),
 			MarketValue:            stockListNumberText(stockListAmount(it.MarketValue)),
 			TotalShares:            stockListNumberText(stockListAmount(it.TotalShares)),
 			CirculationTotalShares: stockListNumberText(stockListAmount(it.CirculationTotalShares)),

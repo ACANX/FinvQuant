@@ -119,6 +119,23 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 | `cdeu.finv_cdeu_secu_realtime_sync_config` | 采集配置（市场 + 品种、计划数量、`count_exists`、`total_available`） |
 | `cdeu.finv_cdeu_secu_realtime_stock` | 采集结果（一行一证券，`page` 记录来源页码） |
 
+### usc 与币种自动补齐（需求 10993）
+
+moomoo 列表接口**不返回币种**，`usc` 也不在响应里。早期实现只写行情字段，
+导致采集新增的证券 `usc` / `currency` 长期为空（实测港股 1206 行、约占 17%）。
+
+落库前按以下顺序补齐（每页批量查表，只查表不猜；仍未命中才用规则）：
+
+| 顺序 | 字段 | 来源 |
+|------|------|------|
+| 1 | `usc` | `futu.finv_futu_quote_collect`（按 `stock_id`；最准，带柜台口径）；查不到回落 `stock_code` |
+| 2 | `currency` | `cdeu.finv_quote_cdeu_usc.currency`（按 usc） |
+| 3 | `currency` | `public.finv_security.currency_type`（按 `security_code`，覆盖面更广） |
+| 4 | `currency` | 规则兜底：港股 8 开头 5 位代码（人民币柜台）→ `CNY`，其余 → `HKD`；美股 → `USD`；沪深 → `CNY` |
+
+规则依据：库内 2203 条港股快照中，8 开头代码全部为 `CNY`、其余全部为 `HKD`，零例外。
+补齐覆盖率（对 1206 行空值实测）：`usc` 100%、`currency` 100%。
+
 ### 分页与 referer 口径（需求 10992）
 
 **页码 0-based**：`page=0` 才是第一页（市值排行首位，含 00700 腾讯）。传 `page=1` 会整体跳过第一页，
