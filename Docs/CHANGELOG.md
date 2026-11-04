@@ -65,6 +65,13 @@
 
 ### 变更
 
+- **修复列表采集拿不到头部证券、名称为英文（需求 10992）**
+  - 页码改 0-based：`page=0` 才是第一页。此前传 `page=1` 整体跳过第一页（前 50 名，含 00700 腾讯），全量 67 页跑完仍缺 20 只万亿级证券。
+  - 绕开上游限制：MetaExt `GetStockList` 把 page 下限硬编码为 1（`intParam(req.Page, "page", 1)`），传 0 报「moomoo page 不能小于 1，实际 0」——属客户端本地校验；改用 `StockListDirectFetcher` 自行请求，只复用 `quoteapiv2` 的签名函数与响应结构体。
+  - referer 按 marketType 指向中文站市值排行页（`/hans/.../top-market-cap`），替代 MetaExt 硬编码的站点首页：后者返回英文降级数据，`accept-language` 单独设置无效。
+  - 请求固定携带 `_` 毫秒时间戳（参与 `quote-token` 签名）。
+  - 验证：港股全量 `collected=3337`（= total）、市值 ≥1 万亿 17 只全部入库、`00700 腾讯控股 page=1`。
+
 - **修复「行情快照手动同步」无运行记录时误报无配置（需求 10990）**
   - `GET .../FTStockQuoteSnapshotSync/Run` 的「暂无运行记录」分支原先提前 return，响应里没有 `configs`，服务重启后（内存运行表为空）前端只能显示「该品种暂无启用的采集配置」，与数据库实际存在配置矛盾。
   - 修复：配置查询提到分支判断之前，两个分支都返回 `configs` 与 `data.error`；前端在 `data.error` 非空时提示「读取采集配置失败」。

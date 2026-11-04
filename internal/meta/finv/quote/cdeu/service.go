@@ -101,7 +101,7 @@ func NewService(pool *pgxpool.Pool, options Options) (*Service, error) {
 		cfg:          cfgStore,
 		running:          map[string]time.Time{},
 		klineFetcher:     quoteapiv2.New(quoteapiv2.Config{}),
-		stockListFetcher: quoteapiv2.New(quoteapiv2.Config{HTTPClient: stockListHTTPClient()}),
+		stockListFetcher: NewStockListDirectFetcher(),
 		stockListRunner:  newStockListRunner(),
 	}, nil
 }

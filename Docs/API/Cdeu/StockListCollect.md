@@ -31,7 +31,7 @@
 | `plate_type` | string | `1` | 接口 `plateType` |
 | `rank_type` | string | `3` | 接口 `rankType`（3=市值排行） |
 | `page_size` | integer | `50` | 每页条数（1–500） |
-| `page_start` | integer | `1` | 页码起始值，默认 `1`（已实测：page=0 时服务端报「page 不能小于 1」） |
+| `page_start` | integer | `0` | 页码起始值，默认 `0`（本接口 **0-based**，第一页就是 `page=0`；负数回落 0） |
 | `interval_ms` | integer | `6000` | 页间间隔，避免被服务端限流 |
 | `max_retries` | integer | `2` | 单页失败重试次数 |
 | `retry_backoff_ms` | integer | `2000` | 重试退避基数（第 n 次等待 n×该值） |
@@ -118,6 +118,31 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 |---|---|
 | `cdeu.finv_cdeu_secu_realtime_sync_config` | 采集配置（市场 + 品种、计划数量、`count_exists`、`total_available`） |
 | `cdeu.finv_cdeu_secu_realtime_stock` | 采集结果（一行一证券，`page` 记录来源页码） |
+
+### 分页与 referer 口径（需求 10992）
+
+**页码 0-based**：`page=0` 才是第一页（市值排行首位，含 00700 腾讯）。传 `page=1` 会整体跳过第一页，
+表现为"采了 2500 个却没有 00700"。
+
+> 坑：MetaExt `quoteapiv2` 的 `GetStockList` 把 page 下限硬编码成 1
+>（`client.go`：`intParam(req.Page, "page", 1)`），传 0 会返回
+>「moomoo page 不能小于 1，实际 0」——**这是客户端本地校验，不是服务端错误**。
+> 因此采集器改用 `StockListDirectFetcher` 自行请求（只复用 `quoteapiv2` 的签名函数与响应结构体），
+> 把该下限绕开；上游修复后可整体退回 `quoteapiv2.Client`。
+
+**referer 按市场指定**（决定返回语言与数据口径）：
+
+| marketType | referer |
+|------------|---------|
+| `1`（港股） | `https://www.moomoo.com/hans/quote/hk/stock-list/all-hk-stocks/top-market-cap` |
+| `2`（美股） | `https://www.moomoo.com/hans/quote/us/stock-list/all-us-stocks/top-market-cap` |
+| `4`（沪深） | `https://www.moomoo.com/hans/quote/cn/stock-list/all-cn-stocks/top-market-cap` |
+
+> MetaExt 默认 referer 是站点首页 `https://www.moomoo.com/`，实测会拿到**英文降级数据**
+>（名称为 `TENCENT` 而非 `腾讯控股`），而 `accept-language` 单独设置无效——referer 才是语言开关。
+
+**`_` 毫秒时间戳必须带**：它参与 `quote-token` 签名（签名输入含该键），
+缺失会让 token 与浏览器/Python 采集程序不一致。
 
 ### 单位与语言口径（需求 10989）
 

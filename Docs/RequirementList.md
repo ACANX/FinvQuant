@@ -2731,6 +2731,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10988 | 采集逐页明细日志改为**只展示证券代码、不展示名称**：每格由 `[标记] 代码 名称` 简化为 `[标记] 代码`，格子宽度由 22 显示列收到 11 列（仍每行 10 个）；代码缺失时退回 `stock_id`。同步更新 `Docs/Menu/Quote/Realtime/SnapshotSync.md`、`Docs/API/Cdeu/StockSnapshotSyncRun.md`、`Docs/API/Cdeu/StockListCollect.md` 的示例与规则。 | `grep -c 'stockListDetailCellWidth = 11' internal/meta/finv/quote/cdeu/quote_list_stock_snapshot_sync.go` = 1；`grep -c 'row.Name' internal/meta/finv/quote/cdeu/quote_list_stock_snapshot_sync.go` = 0（明细不再拼接名称）；触发一次同步后 `docker logs finvquant 2>&1 \| grep -E '^\[[IU]\]' \| head -1` 每行只有 `[I]/[U]` + 代码；`go build ./...` 通过 | √ |
 | 10989 | 列表采集支持英文单位口径并锁定语言：① `stockListAmount` 在原有 `万亿/亿/万/B/M` 基础上补充 `T`(1e12)、`K`(1e3)（大小写均可），保证海外 IP 返回的 `4.07T` 这类万亿级市值也能正确换算；② 列表采集的 HTTP 客户端固定携带 `accept-language: zh-CN,zh;q=0.9,en;q=0.8`（通过 `quoteapiv2.Config.HTTPClient` 注入，不改外部包），避免按出口 IP 返回英文口径；③ 每轮首页打印 `首页采样` 日志（代码\|名称\|市值原文），用于现场确认服务端语言与单位。 | `grep -c 'StockListAcceptLanguage' internal/meta/finv/quote/cdeu/quote_list_stock_snapshot_sync.go` ≥ 1；`go test -run 'TestStockList.*' ./internal/meta/finv/quote/cdeu/` 通过（含单位换算/采样串/语言头三个用例）；对 `4.07T` 调用 `stockListAmount` 返回 `4070000000000`；采集日志出现 `首页采样` 且样本里能看出返回口径（`4.07万亿` 或 `4.07T`） | √ |
 | 10990 | 「行情快照手动同步」页在服务刚重启、内存无运行记录时误报「该品种暂无启用的采集配置」：`GET .../FTStockQuoteSnapshotSync/Run` 的「暂无运行记录」分支原先直接 return，**不返回 `configs`**，前端拿不到启用配置列表；修复为两个分支都查询并返回 `configs`（与 `data.error`），前端在 `data.error` 非空时提示读取配置失败。 | 重启服务后（内存运行记录为空）调用 `GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run`，响应 `data.configs` 为数组且条数等于 `SELECT count(*) FROM cdeu.finv_cdeu_secu_realtime_sync_config WHERE flag_enable = '1'`；页面不再出现「该品种暂无启用的采集配置」，配置表正常渲染 | √ |
+| 10992 | 列表采集补齐三处请求口径，修复「采不到 00700 等头部证券、名称为英文」：① **页码改 0-based**（`StockListDefaultPageStart = 0`），并绕开 MetaExt `GetStockList` 硬编码的 page 下限 1（`intParam(req.Page, \"page\", 1)`，报错「moomoo page 不能小于 1，实际 0」属客户端本地校验），改用本文件内 `StockListDirectFetcher` 自行请求、只复用 `quoteapiv2` 的签名与响应结构体；② **referer 按 marketType 指定为中文站市值排行页**（`/hans/quote/{hk,us,cn}/stock-list/.../top-market-cap`），替代 MetaExt 硬编码的站点首页（后者返回英文降级数据，且 `accept-language` 单独设置无效）；③ 请求固定携带 `_` 毫秒时间戳（参与 `quote-token` 签名）。 | 港股 `count_plan=2600` 跑完后 `SELECT count(*) FILTER (WHERE page IS NOT NULL) FROM cdeu.finv_cdeu_secu_realtime_stock WHERE market_type='1'` 等于接口 `pagination.total`（实测 3337）；`SELECT page FROM ... WHERE market_type='1' AND stock_code='00700'` 非空且为 1；首页日志 `[cdeu][stocklist] 首页采样` 样本为中文名中文单位（如 `00700\|腾讯控股\|3.65万亿`） | √ |
 
 
 ## 汇总
@@ -3012,7 +3013,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 采集明细日志只展示证券代码 | 10988 | 1 |
 | 采集支持英文单位口径并锁定语言 | 10989 | 1 |
 | 无运行记录时接口也返回采集配置 | 10990 | 1 |
-| **合计** | **10001–10990** | **989** |
+| 列表采集修正页码基准与 referer | 10992 | 1 |
+| **合计** | **10001–10992** | **990** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

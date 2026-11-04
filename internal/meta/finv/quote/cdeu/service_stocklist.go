@@ -3,8 +3,6 @@ package cdeu
 import (
 	"context"
 	"log"
-
-	"github.com/acnxo/MetaExt/component/quote/moomoo/quoteapiv2"
 )
 
 // 本文件是「实时行情列表采集」在 Service 层的薄封装：只做依赖装配，
@@ -22,7 +20,7 @@ func (s *Service) CollectStockList(ctx context.Context, opts StockListCollectOpt
 // SetStockListFetcher 替换列表拉取实现（单测注入用）；传 nil 恢复默认 moomoo 客户端。
 func (s *Service) SetStockListFetcher(fetcher StockListFetcher) {
 	if fetcher == nil {
-		fetcher = quoteapiv2.New(quoteapiv2.Config{HTTPClient: stockListHTTPClient()})
+		fetcher = NewStockListDirectFetcher()
 	}
 	s.stockListFetcher = fetcher
 }
