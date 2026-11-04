@@ -65,6 +65,10 @@
 
 ### 变更
 
+- **「日K线数据同步」补图标并优化页面展示（需求 10987）**
+  - 图标：`mdi-chart-candlestick` 在 `@mdi/font@7.4.47` 中不存在（菜单/标题渲染空白），统一改为 `mdi-candle`；`Menus.md` 索引同步。
+  - 展示：操作栏改单行 flex（usc + 起止日 + 同步/查询存量/重置）；同步中显示已耗时与不确定进度条；结果与存量改「指标卡 + 明细表」两栏；请求参数、原始响应、日志命令收进默认折叠的「排障信息」面板。
+
 - **「行情快照手动同步」改为按证券品种分 Tab（需求 10986）**
   - Tab 列表由 `cdeu.finv_cdeu_secu_realtime_sync_config.instrument_symbol` 去重生成；当前只有 `stock`，已为 `etf`/`future`/`forex`/`option`/`crypto` 备好显示名与图标，插入配置行即自动出现新 Tab，无需改前端。
   - 每个 Tab 独立展示：配置表、市场下拉（由该品种配置生成）、结果表、汇总与日志（日志按 `market` 前缀过滤，任务级日志常显）；「开始同步」请求体带 `instrument_symbol`，只采当前品种。

@@ -94,7 +94,7 @@ const finvQuantMenu: MenuNode[] = [
           { key: 'dedup-export-config', title: '归档主数据与规则', icon: 'mdi-tune-variant', path: '/Meta/Finv/Quote/DeDup/Export/Config' },
           { key: 'cdeu-usc-patch', title: '过时USC映射到新USC', icon: 'mdi-swap-horizontal-bold', path: '/Meta/Finv/Quote/Cdeu/Usc/Patch' },
           // 需求 10952：日K线数据同步（moomoo → cdeu.finv_quote_secu_kline_day）
-          { key: 'cdeu-daykline-sync', title: '日K线数据同步', icon: 'mdi-chart-candlestick', path: '/Meta/Finv/Quote/Cdeu/DayKline/Sync' },
+          { key: 'cdeu-daykline-sync', title: '日K线数据同步', icon: 'mdi-candle', path: '/Meta/Finv/Quote/Cdeu/DayKline/Sync' },
           { key: 'dedup-export-log', title: '归档日志与补丁', icon: 'mdi-text-box-search-outline', path: '/Meta/Finv/Quote/DeDup/Export/Log' },
           // CDEU自动化（需求 10864 新增，10865 由占位分组改为叶子，指向占位页路由）。
           { key: 'cdeu-automation', title: 'CDEU自动化', icon: 'mdi-robot-happy-outline', path: '/Meta/Finv/Quote/Cdeu/Automation' },
