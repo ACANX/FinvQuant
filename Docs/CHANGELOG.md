@@ -65,6 +65,13 @@
 
 ### 变更
 
+- **待录入证券新增「录入」对话框（需求 10996）**
+  - 列表在「快照时间」后新增「操作」列，行内「录入」按钮打开对话框。
+  - 对话框按三张表分区展示登记字段：`public.finv_security`（7 个必填）、`futu.finv_futu_quote_collect`（9 个必填）、`cdeu.finv_quote_cdeu_usc`（1 个必填）；`usc` 三表共用、顶部填一次；必填 = NOT NULL 且无 DEFAULT。
+  - 全部必填有值才启用「录入」按钮，否则禁用并列出缺失项；预填只用快照同名字段直传，不做推断。
+  - 三表写入与字段推断本轮未实现：点击「录入」提示接口待接入；列表顶部批量按钮仍为 disabled。
+  - 文档：`Menu/Quote/Realtime/PendingSecu.md` 补 §3 与 6 个待确认决策点。
+
 - **新增「行情 → 实时行情 → 待录入证券」菜单与查询接口（需求 10995）**
   - 数据：`cdeu.finv_cdeu_secu_realtime_stock` 中 `usc` 为空的快照行（尚未录入证券主数据的证券），是后续补录 `public.finv_security` + `futu.finv_futu_quote_collect` + `cdeu.finv_quote_cdeu_usc` 的依据。
   - 接口：`GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending`（分页 + keyword + marketLabel + 白名单排序，固定 `usc IS NULL`）。

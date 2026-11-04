@@ -11,6 +11,7 @@
 import { computed, onMounted, ref } from 'vue'
 
 import { apiGet } from '../../../../../api'
+import PendingSecuEnrollDialog from './PendingSecuEnrollDialog.vue'
 
 // 列表行（wire 字段 snake_case，数值列为文本，保住 NUMERIC(24,6) 精度）
 interface PendingSecuRow {
@@ -45,6 +46,9 @@ const orderBy = ref('market_value')
 const order = ref<'desc' | 'asc'>('desc')
 const loading = ref(false)
 const error = ref('')
+// 录入对话框（需求 10996）：当前只做字段登记与必填校验，写入接口待接入
+const enrollOpen = ref(false)
+const enrollRow = ref<PendingSecuRow | null>(null)
 
 const ORDER_OPTIONS = [
   { title: '总市值', value: 'market_value' },
@@ -154,6 +158,11 @@ function rowClass(direct: string): string {
   return ''
 }
 
+function openEnroll(row: PendingSecuRow) {
+  enrollRow.value = row
+  enrollOpen.value = true
+}
+
 onMounted(load)
 </script>
 
@@ -163,7 +172,7 @@ onMounted(load)
       <v-icon icon="mdi-database-plus-outline" class="mr-2" />
       待录入证券
       <v-spacer />
-      <v-tooltip text="规划功能：对待录入证券批量写入 public.finv_security + futu.finv_futu_quote_collect + cdeu.finv_quote_cdeu_usc" location="bottom">
+      <v-tooltip text="规划功能：批量录入（当前请用列表行内的「录入」按钮逐只登记）" location="bottom">
         <template #activator="{ props }">
           <span v-bind="props">
             <v-btn variant="tonal" prepend-icon="mdi-playlist-plus" disabled>一键录入（规划中）</v-btn>
@@ -259,6 +268,7 @@ onMounted(load)
             <th class="text-no-wrap text-right">成交额</th>
             <th class="text-no-wrap text-right">来源页码</th>
             <th class="text-no-wrap">快照时间</th>
+            <th class="text-no-wrap">操作</th>
           </tr>
         </thead>
         <tbody>
@@ -276,14 +286,22 @@ onMounted(load)
             <td class="text-right num">{{ compact(row.trade_trunover) }}</td>
             <td class="text-right num">{{ row.page ?? '—' }}</td>
             <td class="text-no-wrap">{{ timeText(row.dt_update) }}</td>
+            <td class="text-no-wrap">
+              <v-btn size="x-small" variant="tonal" color="primary" prepend-icon="mdi-database-plus-outline" @click="openEnroll(row)">
+                录入
+              </v-btn>
+            </td>
           </tr>
           <tr v-if="!rows.length && !loading">
-            <td colspan="13" class="text-center text-medium-emphasis py-6">
+            <td colspan="14" class="text-center text-medium-emphasis py-6">
               没有待录入证券（所有快照行的 usc 都已关联证券主数据）
             </td>
           </tr>
         </tbody>
       </v-table>
+
+      <!-- 录入对话框：三张表字段登记 + 必填校验（需求 10996） -->
+      <PendingSecuEnrollDialog v-model="enrollOpen" :row="enrollRow" />
 
       <div class="d-flex flex-wrap align-center justify-space-between ga-2 mt-3">
         <span class="text-caption text-medium-emphasis">

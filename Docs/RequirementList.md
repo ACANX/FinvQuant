@@ -2735,6 +2735,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 10993 | 列表采集自动补齐 `usc` 与 `currency`：接口不返回币种、`usc` 也不在响应里，落库前按 ① `stock_id` → `futu.finv_futu_quote_collect.usc`（缺失回落 `stock_code`）② `usc` → `cdeu.finv_quote_cdeu_usc.currency` ③ `security_code` → `public.finv_security.currency_type` ④ 规则兜底（港股 8 开头 5 位代码=人民币柜台 → `CNY`，其余 → `HKD`；美股 → `USD`；沪深 → `CNY`）顺序补值，每页批量查表。 | 对 `page IS NOT NULL AND (usc IS NULL OR currency IS NULL)` 的存量行（实测 1206 行）按上述顺序模拟补齐，`count(new_usc)` 与 `count(new_currency)` 均等于 1206；`go test -run 'TestStockListFallbackCurrency' -run 'TestStockListHKCurrency' ./internal/meta/finv/quote/cdeu/` 通过；采集一轮后 `SELECT count(*) FROM cdeu.finv_cdeu_secu_realtime_stock WHERE page IS NOT NULL AND (usc IS NULL OR currency IS NULL)` 为 0 | √ |
 | 10994 | 收紧 10993 的补齐口径：① `usc` **只**取自 `futu.finv_futu_quote_collect`（按 `stock_id`），查不到保持 NULL，**禁止用 `stock_code` 兜底**（同码证券跨市场会映射错，如 SZ/SH 均有 000001）；② 币种规则兜底改为**只看 `market_label`**：`HK` 按 8 开头 5 位代码判人民币柜台（`CNY`）否则 `HKD`、`US` → `USD`、`SH`/`SZ`/`BJ` → `CNY`（兼容历史 `CN`），不再依赖 `marketType`。 | `grep -c 'stock_code' internal/meta/finv/quote/cdeu/store_stocklist.go` 在 `loadStockListSecurityMeta` 内不出现 usc 兜底赋值；`go test -run 'TestStockListFallbackCurrency' ./internal/meta/finv/quote/cdeu/` 通过（含 SH/SZ/BJ 与 HK R 柜台的柜面用例）；14 组用例真实 Go 运行全通过 | √ |
 | 10995 | 「实时行情」菜单下新增「待录入证券」页，列出 `cdeu.finv_cdeu_secu_realtime_stock` 中 **`usc` 为空**的快照行（尚未录入证券主数据的证券，作为后续补录 `public.finv_security` + `futu.finv_futu_quote_collect` + `cdeu.finv_quote_cdeu_usc` 的依据）：新增接口 `GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending`（分页 + 关键字 + 市场 + 白名单排序，固定 `usc IS NULL`）、路由 `/Meta/Finv/Quote/Realtime/PendingSecu`、菜单 `quote-realtime-pending-secu`（图标 `mdi-database-plus-outline`）；页面含说明区、筛选、列表与分页，「一键录入」为规划功能（按钮 disabled + 提示，后端无写入接口）。 | `curl -H 'Authorization: Bearer <token>' '.../Realtime/Stock/Pending?page=1&pageSize=3'` 返回 `data.total > 0` 且每行 `usc` 为空；`SELECT count(*) FROM cdeu.finv_cdeu_secu_realtime_stock WHERE usc IS NULL` 与接口 `data.total`（不带筛选时）一致；菜单「行情 → 实时行情 → 待录入证券」可打开且表格有数据；`cd Web && npm run build` 通过 | √ |
+| 10996 | 「待录入证券」列表在「快照时间」后新增「操作」列与「录入」按钮；点击弹出录入对话框，按 `public.finv_security` / `futu.finv_futu_quote_collect` / `cdeu.finv_quote_cdeu_usc` 三张表分区展示各自的登记字段（含每表 NOT NULL 且无 DEFAULT 的必填项标记），`usc` 三表共用、在顶部填一次；仅当全部必填都有值时才启用对话框的「录入」按钮，否则禁用并列出缺失项；字段预填只做快照同名字段直传，**不做推断**；三表写入接口与推断逻辑本轮**不实现**（点击仅提示待接入）。 | 列表页存在「操作」列且每行有「录入」按钮；点击弹出对话框，三张表字段均可见、必填项带 `*`；清空任一必填项后「录入」按钮为 disabled 且出现「必填未齐」提示；填齐后按钮启用；`grep -c 'PendingSecuEnrollDialog' Web/src/views/Meta/Finv/Quote/Realtime/PendingSecuView.vue` = 1；`cd Web && npm run build` 通过 | √ |
 
 
 ## 汇总
@@ -3020,7 +3021,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 列表采集自动补齐 usc 与币种 | 10993 | 1 |
 | 收紧 usc 与币种的补齐口径 | 10994 | 1 |
 | 新增「待录入证券」菜单与查询接口 | 10995 | 1 |
-| **合计** | **10001–10995** | **993** |
+| 待录入证券增加录入对话框（字段登记） | 10996 | 1 |
+| **合计** | **10001–10996** | **994** |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
