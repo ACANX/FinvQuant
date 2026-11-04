@@ -3,7 +3,7 @@
 > 状态：待评审（待上游 MetaExt 采纳）
 > 依据数据：2026-11-04 采集结果与 `cdeu.finv_cdeu_secu_realtime_stock` 3950 行统计；MetaExt v0.1.0/v0.1.1 源码核对
 > 关联需求编号：待上游采纳并在 FinvQuant 落地后登记（当前用 10989 的规避实现顶替）
-> 用途：本文前半部分为提交给上游仓库 `github.com/acnxo/MetaExt` 的 Issue 正文，可直接复制粘贴
+> 用途：提交给上游仓库 `github.com/acnxo/MetaExt` 的 Issue 正文（可直接复制粘贴），落地后回填结论
 > 提出方：FinvQuant（`github.com/ACANX/FinvQuant`） · 目标版本：MetaExt v0.1.1（当前依赖版本）
 > 类型：功能增强（向后兼容） · 优先级：中高（影响行情采集正确性）
 
