@@ -20,6 +20,13 @@
 
 ### 变更
 
+- **`futu.finv_futu_quote_collect` 列改名：`type_symbol` → `instrument`、`quote_market` → `market_label`（需求 11039，迁移 `V300140`）**
+  - 仅改名，类型 / NOT NULL / 21,161 行数据不变；命名与键表 `finv_quote_secu_key.instrument`、上游 `finv_quote_secu_meta` 及 `cdeu.*.market_label` 对齐。历史迁移按惯例不回改（均在本迁移之前执行）。
+  - 业务代码同步：Go 结构体 `FutuQuoteParams` / `FutuCollectRow` 字段与 SQL、日K同步日志、usc 回填兜底 SQL、两个集成测试；前端 `DayKlineSyncView.vue` 与 `PendingSecuEnrollDialog.vue`；文档 5 篇；仓库外生成器 `BuildFutuQuoteCollect.py` / `BuildSecuInitFromCdeu.py` 与 README。
+  - 验证：表列与数据核对通过；`go build`/`go vet`/`npm run build` 通过；`GET .../DayKline/UscList` 返回新字段名；`POST .../DayKline/Sync` 正常读参数（仅上游网络 EOF）；`schema_version=300140`。
+
+### 变更
+
 - **`futu.finv_quote_secu_key` 补 status 取值约束与 `stock_id` / `usc` 列（需求 11037、11038，迁移 `V300138`/`V300139`）**
   - `status` 取值固定为 `PENDING` / `QUEUED` / `DONE` / `FAILED` / `SKIP`（CHECK 约束 `finv_quote_secu_key_status_check`），默认仍为 `PENDING`；
   - 追加 `stock_id BIGINT` 与 `usc TEXT`，**均可空、无默认值（NULL=尚未解析到）**，分别对应 `finv_futu_quote_collect.stock_id` 与 `finv_security.usc`，供同步任务回填；列数 10→12。
