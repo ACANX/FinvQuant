@@ -144,6 +144,14 @@ const finvQuantMenu: MenuNode[] = [
             icon: 'mdi-cash-sync',
             path: '/Meta/Finv/Quote/Realtime/FXCEROverview',
           },
+          // 需求 11042/11043/11044：紧跟「缺省汇率」，把 Supabase 证券键表分批增量同步到
+          // futu.finv_futu_secu_key；只由本页按钮手动触发，源表名可配（系统配置 20014）。
+          {
+            key: 'quote-realtime-secu-param-sync',
+            title: '证券参数同步',
+            icon: 'mdi-database-sync-outline',
+            path: '/Meta/Finv/Quote/Realtime/SecuParamSync',
+          },
         ],
       },
       // 需求 10860：从「数据采集」移入，作为「行情」下第三个三级分组（原「数据采集」随之删除）。

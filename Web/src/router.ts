@@ -8,6 +8,7 @@ import RealtimeStockView from './views/Meta/Finv/Quote/Realtime/RealtimeStockVie
 import StockSnapshotSyncView from './views/Meta/Finv/Quote/Realtime/StockSnapshotSyncView.vue'
 import PendingSecuView from './views/Meta/Finv/Quote/Realtime/PendingSecuView.vue'
 import FxCerView from './views/Meta/Finv/Quote/Realtime/FxCerView.vue'
+import SecuParamSyncView from './views/Meta/Finv/Quote/Realtime/SecuParamSyncView.vue'
 import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue'
 import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue'
 import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue'
@@ -86,6 +87,13 @@ const router = createRouter({
       name: 'quote-realtime-fxcer-overview',
       component: FxCerView,
       meta: { title: '缺省汇率' },
+    },
+    // 行情 → 实时行情 → 证券参数同步（需求 11042）：Supabase 证券键表 → futu.finv_futu_secu_key，按钮手动触发
+    {
+      path: '/Meta/Finv/Quote/Realtime/SecuParamSync',
+      name: 'quote-realtime-secu-param-sync',
+      component: SecuParamSyncView,
+      meta: { title: '证券参数同步' },
     },
     // 行情数据归档 → K线数据查询 / 统计（需求 10856/10857 改名并移入「收剔导传ETL」）
     {

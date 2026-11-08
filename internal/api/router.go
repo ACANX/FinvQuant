@@ -18,6 +18,7 @@ import (
 	"github.com/acanx/finvquant/internal/meta/finv/quote"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/secukey"
 )
 
 // Deps 路由依赖。
@@ -131,6 +132,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 		// 证券行情月归档导出与上传（运维：状态 / 任务 / 文件 / 重试 / 手动触发）
 		if deps.ExportArchive != nil {
 			archive := handler.NewExportArchive(deps.ExportArchive)
+			secuKeyHandler := handler.NewSecuKey(secukey.NewService(deps.Pool))
 			group := apiGroup.Group("/Meta/Finv/Quote/DeDup")
 			group.GET("/Status", archive.Status)
 			group.GET("/Settings", archive.Settings)
@@ -183,6 +185,13 @@ func NewRouter(deps *Deps) *gin.Engine {
 			fx := apiGroup.Group("/Meta/Finv/Quote/Cdeu/Fx")
 			fx.POST("/CerSync", archive.FxCERSync)
 			fx.GET("/Cer", archive.FxCERList)
+
+			// 证券参数同步（需求 11042/11043）：Supabase 证券键表 → 本地 futu.finv_futu_secu_key，
+			// 只由前端按钮手动触发，分批增量 upsert；源表名可配（系统配置 20014，默认 finv_quote_secu_key）。
+			secuKeyGroup := apiGroup.Group("/Meta/Finv/Quote/Cdeu/SecuKey")
+			secuKeyGroup.GET("/Status", secuKeyHandler.Status)
+			secuKeyGroup.POST("/Config", secuKeyHandler.SaveConfig)
+			secuKeyGroup.POST("/Sync", secuKeyHandler.Sync)
 			group.POST("/Job/Run", archive.JobRun)
 			group.POST("/Job/Dynamic/Run", archive.DynamicJobRun)
 
