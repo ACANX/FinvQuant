@@ -20,6 +20,13 @@
 
 ### 新增
 
+- **Tab 2「证券指标数据同步」落地：上游 `public.finv_quote_secu_meta` 一条记录写三张本地表（需求 11050/11051）**
+  - ① `cdeu.finv_quote_secu_indicator` 131 列同名同步（`dt_update` 由触发器维护，不写入不比对）；② `futu.finv_futu_quote_collect` 身份字段同名同步，`futu_symbol` 由 `ftmm_symbol` 去市场前缀派生，唯一键 `(market_code, futu_symbol)` 撞车时跳过；③ `futu.finv_futu_secu_key` 只补 `url`（源 `secu_url`）与 `stock_id`。
+  - 源 `usc` 为空时用 `ftmm_symbol` 占位（上游 3,673 行）；**`flag_enable` 按占位与否推导（占位 `'0'` / 真实 `'1'`），插入与更新均覆盖**。
+  - 接口：`GET .../SecuKey/Indicator/Status`、`POST .../SecuKey/Indicator/Sync/Run`（异步，409 防并发）、`GET .../SecuKey/Indicator/Sync/Run?runId=`（进度 + 逐批实时日志，未知 runId 404）；Tab 2 页面与 Tab 1 同款交互。
+  - 修复（需求 11052）：Tab 1 的 upsert 改为 `url = COALESCE(EXCLUDED.url, t.url)`——源键表 `url` 全为 NULL，原实现会把 Tab 2 刚补好的 10,910 行 `url` 清空（实测 `update=10910`）。
+  - 验证：首跑 10,910 行 / 3 批 / `ind_insert=10910` / `qc_insert=3257` + `qc_skip=419` / `key_update=10910`；复跑全 0（`ind_unchanged=10910`）；`price` 漂移后复跑 `ind_update=1`；`flag_enable` 双向反例修复 `qc_update=2`；Tab 1 复跑 `update=0 unchanged=73212` 且 `url` 不被清空；`go build`/`go vet`/`go test`/`npm run build` 通过。
+
 - **新建证券指标表 `cdeu.finv_quote_secu_meta`（需求 11048，迁移 `V300144`）**
   - 结构按上游 Supabase `public.finv_quote_secu_meta` 建表脚本同构：**131 列**（`numeric(30,10)` 80 列、`smallint` 12、`integer` 7、`bigint` 5、`text` 24、`timestamptz` 3），主键 `usc`，`ftmm_symbol` NOT NULL，索引 `(ts)` 与 `(dt_update)`，触发器 `finv_quote_secu_meta_set_dt_update` 在 UPDATE 时刷新 `dt_update`。
   - 落在 `cdeu` 域；触发器函数建在 `cdeu`（不复用 `public.vq_set_gmt_update()`：列名是 `dt_update` 不是 `gmt_update`）；`dt_collect`/`dt_create`/`dt_update` 保持上游口径（可空、无默认值）；补表/关键列注释。
