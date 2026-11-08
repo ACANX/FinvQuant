@@ -8,7 +8,11 @@ info:
     连接配置 {PROJECT_ID}|{APIKEY} 取系统配置 20013，源表名取系统配置 20014（默认 finv_quote_secu_key）。
     只由前端「证券参数同步」页按钮手动触发，无定时任务；单向只读上游，不删除本地行。
     需求 11042（菜单与页面）、11043（同步实现）、11044（源表名可配）、11045（页面拆两个 Tab）、
-    11046（异步运行 + 实时日志）；连接配置 20013（需求 11041）。
+    11046（异步运行 + 实时日志）、11050（Tab 2 指标同步）、11051（flag_enable 规则）、
+    11052（Tab 1 不清空 Tab 2 补的 url）；连接配置 20013（需求 11041）。
+    Tab 2 来源固定 public.finv_quote_secu_meta，一条记录写三张表：
+    cdeu.finv_quote_secu_indicator（131 列同名）/ futu.finv_futu_quote_collect（身份字段同名）/
+    futu.finv_futu_secu_key（只补 url ← secu_url 与 stock_id）。
   license:
     name: MIT
     identifier: MIT
@@ -315,8 +319,200 @@ paths:
           description: 未登录或登录已过期
         '404':
           description: 没有找到运行记录（从未运行，或 runId 不匹配）
+
+  /Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Status:
+    get:
+      summary: 指标同步状态快照（三张目标表行数）
+      operationId: indicatorSyncStatus
+      tags: [Cdeu]
+      description: |
+        只读本地：读系统配置 20013 并统计三张目标表行数，不访问 Supabase。
+        来源表固定 public.finv_quote_secu_meta。
+      responses:
+        '200':
+          description: 状态快照
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    const: 0
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      configured:
+                        type: boolean
+                      project_id:
+                        type: string
+                      api_key_masked:
+                        type: string
+                      config_error:
+                        type: string
+                      source_table:
+                        type: string
+                        const: public.finv_quote_secu_meta
+                      targets:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            table:
+                              type: string
+                            rows:
+                              type: integer
+                      batch_size_default:
+                        type: integer
+        '401':
+          description: 未登录或登录已过期
+        '500':
+          description: 读取配置或统计目标表失败（code=2006）
+  /Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run:
+    post:
+      summary: 异步启动指标同步（返回 run_id）
+      operationId: indicatorStartSyncRun
+      tags: [Cdeu]
+      description: |
+        立刻返回启动瞬间快照，同步在后台按 ftmm_symbol 升序分批执行；前端轮询 GET 同名路径读取进度与逐批日志。
+        一条上游记录写三张表（指标表 131 列同名 / 采集属性表身份字段同名 / 键表补 url 与 stock_id）；
+        usc 为空时用 ftmm_symbol 占位；采集属性表 flag_enable 由 usc 是否占位推导（占位 '0' / 真实 '1'）。
+        已有指标同步在运行时返回 409（不排队、不覆盖）；状态只存内存，整体超时 60 分钟。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                batch_size:
+                  type: integer
+                  description: 每批行数，收敛到 100~5000
+                  default: 1000
+            examples:
+              default:
+                value: {}
+      responses:
+        '202':
+          description: 任务已启动（data 为启动瞬间快照）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IndicatorSyncRun'
+        '400':
+          description: 请求体非法
+        '401':
+          description: 未登录或登录已过期
+        '409':
+          description: 已有指标同步任务在运行（message 带正在运行的 run_id）
+    get:
+      summary: 指标同步运行快照（进度 + 逐批实时日志）
+      operationId: indicatorSyncRunStatus
+      tags: [Cdeu]
+      description: runId 省略时返回最近一次运行；不匹配或从未运行过返回 404。
+      parameters:
+        - name: runId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 运行快照
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IndicatorSyncRun'
+        '401':
+          description: 未登录或登录已过期
+        '404':
+          description: 没有找到指标同步运行记录
+
 components:
   schemas:
+    IndicatorSyncRun:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+          const: 0
+        message:
+          type: string
+        data:
+          type: object
+          required: [run_id, kind, status, progress, batches, logs]
+          properties:
+            run_id:
+              type: string
+            kind:
+              type: string
+              const: indicator
+            status:
+              type: string
+              enum: [RUNNING, DONE, FAILED]
+            source_table:
+              type: string
+              const: public.finv_quote_secu_meta
+            batch_size:
+              type: integer
+            rows_total:
+              type: integer
+            rows_receive:
+              type: integer
+            ind_insert:
+              type: integer
+              description: 指标表新增
+            ind_update:
+              type: integer
+              description: 指标表更新（字段确有变化）
+            ind_unchanged:
+              type: integer
+              description: 指标表未变
+            qc_insert:
+              type: integer
+              description: 采集属性表（futu.finv_futu_quote_collect）新增
+            qc_update:
+              type: integer
+              description: 采集属性表更新
+            qc_skip:
+              type: integer
+              description: 采集属性表因 (market_code, futu_symbol) 被别的 usc 占用而跳过
+            key_update:
+              type: integer
+              description: 证券键表补全 url / stock_id 的行数
+            batches:
+              type: integer
+            progress:
+              type: number
+            started_at:
+              type: string
+            finished_at:
+              type: string
+            elapsed_ms:
+              type: integer
+            error:
+              type: string
+            logs:
+              type: array
+              items:
+                type: object
+                properties:
+                  seq:
+                    type: integer
+                  time:
+                    type: string
+                  level:
+                    type: string
+                    enum: [INFO, ERROR]
+                  text:
+                    type: string
+                  batch:
+                    type: integer
+                  offset:
+                    type: integer
     SyncRun:
       type: object
       required: [code, message, data]

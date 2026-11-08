@@ -5,7 +5,8 @@
 > 所属：导航「行情 → 实时行情 → 证券参数同步」（紧跟「缺省汇率」之后）
 > 视图：`Web/src/views/Meta/Finv/Quote/Realtime/SecuParamSyncView.vue`
 > 关联需求：11042（菜单与页面）、11043（同步实现）、11044（源表名可配 20014）、11045（拆两个 Tab）、
-> 11046（异步运行 + 实时日志）、11047（Tab 2「证券指标数据同步」待确认口径，暂为占位）
+> 11046（异步运行 + 实时日志）、11047（Tab 2 口径确认）、11050（Tab 2 指标同步实现）、
+> 11051（`flag_enable` 规则）、11052（Tab 1 不清空 Tab 2 补的 `url`）
 > 关联接口：[`API/Cdeu/SecuParamSync.md`](../../../API/Cdeu/SecuParamSync.md)
 > 关联数据表：目标 `futu.finv_futu_secu_key`（V300137 建表 / V300139 补 `stock_id`+`usc` / V300141 改名）；
 > 源 Supabase `public.finv_quote_secu_key`（表名可配，默认与上游同名）
@@ -19,7 +20,7 @@
 | Tab | 状态 | 内容 |
 |-----|------|------|
 | **FT证券基础参数同步** | 已实现 | Supabase 证券键表（默认 `public.finv_quote_secu_key`）→ 本地 `futu.finv_futu_secu_key` |
-| **证券指标数据同步** | 占位（待确认口径） | 价格/成交量/成交额/PE/PB/市值等指标的同步；来源表、目标表、字段映射、增量键四项待定 |
+| **证券指标数据同步** | 已实现（需求 11050） | 上游 `public.finv_quote_secu_meta` → 指标表 + 采集属性表 + 证券键表（一条记录写三张表） |
 
 - 只由本页**按钮手动触发**，没有定时任务；
 - 单向只读上游 → 写本地：不删除本地行，不清空本地专有列 `stock_id` / `usc`；
@@ -79,21 +80,56 @@
 失败时最后一行是 `ERROR 同步失败：<可读原因>`（如上游 `PGRST205`、鉴权失败、20013 未配置），
 同时弹 error toast，`status` chip 变红。
 
-### 2.3 Tab 2：证券指标数据同步（占位）
+### 2.3 Tab 2：证券指标数据同步（需求 11050）
 
-| 元素 | 说明 |
+#### 2.3.1 连接与目标表（第一张卡片）
+
+| 区块 | 展示 |
 |------|------|
-| 状态 chip | `待接入`（warning） |
-| 说明 | 明确「同步口径尚未确认，功能未接入」，按钮置灰防止误写 |
-| 上游探测结论 | info 提示已探测到候选表 `public.finv_quote_secu_meta`（10,910 行，含 `price`/`volume`/`turnover`/`pe_ttm`/`pb_ratio`/`total_market_cap`/`price_highest_week52` 等指标字段，主键 `ftmm_symbol`，另有 `stock_id`/`usc`） |
-| 待确认四项 | ① 来源表名 ② 目标表（是否新建；现有 `cdeu.finv_cdeu_secu_realtime_stock` 只覆盖部分行情字段）③ 字段映射与类型精度 ④ 增量键与判据列 |
-| 立即同步 | 置灰 |
+| Supabase 连接（20013） | 同 Tab 1：`已配置` / `未配置` + 项目 ID + 脱敏 key 前缀 |
+| 上游源表（固定） | `public.finv_quote_secu_meta`（不可改） |
+| 本地目标表（一次同步写三张） | 三个 chip：`cdeu.finv_quote_secu_indicator` / `futu.finv_futu_quote_collect` / `futu.finv_futu_secu_key`，各带当前行数 |
+
+#### 2.3.2 同步参数（第二张卡片）
+
+| 控件 | 说明 |
+|------|------|
+| 每批行数 | 下拉 `500 / 1000 / 2000 / 5000`，默认 1000 |
+| 立即同步 | `POST .../SecuKey/Indicator/Sync/Run` 异步启动；20013 未配置或运行中时禁用 |
+
+#### 2.3.3 同步进度与日志（第三张卡片）
+
+与 Tab 1 同款（状态 chip / 累计 chip / 进度条 / 独立滚动日志区 + 自动滚底 + `ERROR` 标红 + 「等待下一批…」），
+只是累计 chip 换成三张表的口径：
+
+`拉取 · 指标 新增/更新/未变 · 采集属性 新增/更新/跳过 · 键表补全 · N 批 · 耗时`
+
+日志形态（每批一行，含本批差值）：
+
+```
+22:55:29 指标同步任务已启动
+22:55:35 第 1 批：offset=0，拉取 5000，指标 新增 0 / 更新 1 / 未变 4999，采集属性 新增 0 / 更新 2 / 跳过 2，键表补全 0（本批 6075 ms）
+22:55:49 指标同步完成：源表 public.finv_quote_secu_meta 共 10910 行，3 批；……；键表补全 10910；耗时 14275 ms
+```
+
+#### 2.3.4 字段口径（页面「说明」里同步展示）
+
+| 目标表 | 写入内容 |
+|--------|----------|
+| `cdeu.finv_quote_secu_indicator` | 131 列同名同步（`dt_update` 由触发器维护，不写入不比對） |
+| `futu.finv_futu_quote_collect` | 身份字段同名同步（`stock_id`/`market_type`/`market_code`/`instrument_type`/`sub_instrument_type`/`market_label`/`instrument`），`futu_symbol` 由 `ftmm_symbol` 去市场前缀派生 |
+| `futu.finv_futu_secu_key` | 只补 `url`（源 `secu_url`）与 `stock_id`，按 `ftmm_symbol` 对齐 |
+
+- 主键均为 `usc`；源 `usc` 为空时用 `ftmm_symbol` 占位（上游 3,673 行）；
+- **`flag_enable`（需求 11051）**：占位 `usc` → `'0'`（禁用采集），真实 `usc` → `'1'`；插入与更新都会按此覆盖；
+- 采集属性表唯一键 `(market_code, futu_symbol)` 撞车（被别的 `usc` 占用）时跳过该行并计入「跳过」。
 
 ### 2.4 说明卡片（页面最底部唯一「说明」卡片，ExplainCardSpec）
 
 四段：**表口径**（FT证券基础参数同步）、**增量口径与进度**（缺则插入、变了才更新、未变不改写 + 轮询/实时日志）、
 **配置与安全**（20013 格式与脱敏、20014 需保存才生效、`status` 非法归一为 `PENDING`）、
-**证券指标数据同步（待接入）**（口径确认后再实现，实现方式与 Tab 1 一致）。
+**证券指标数据同步**（来源固定 `public.finv_quote_secu_meta`，一次写三张表；`flag_enable` 按 `usc` 是否占位推导：
+占位 `'0'`、真实 `'1'`，每次同步覆盖；Tab 1 不再清空 Tab 2 补的 `url`）。
 
 ## 3. 交互细节
 

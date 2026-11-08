@@ -18,6 +18,7 @@ import (
 	"github.com/acanx/finvquant/internal/meta/finv/quote"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/indicator"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/secukey"
 )
 
@@ -132,7 +133,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 		// 证券行情月归档导出与上传（运维：状态 / 任务 / 文件 / 重试 / 手动触发）
 		if deps.ExportArchive != nil {
 			archive := handler.NewExportArchive(deps.ExportArchive)
-			secuKeyHandler := handler.NewSecuKey(secukey.NewService(deps.Pool))
+			secuKeyHandler := handler.NewSecuKey(secukey.NewService(deps.Pool), indicator.NewService(deps.Pool))
 			group := apiGroup.Group("/Meta/Finv/Quote/DeDup")
 			group.GET("/Status", archive.Status)
 			group.GET("/Settings", archive.Settings)
@@ -195,6 +196,10 @@ func NewRouter(deps *Deps) *gin.Engine {
 			// 异步运行（需求 11046）：启动后立刻返回 run_id，前端轮询状态拿进度与逐批实时日志。
 			secuKeyGroup.POST("/Sync/Run", secuKeyHandler.StartSyncRun)
 			secuKeyGroup.GET("/Sync/Run", secuKeyHandler.SyncRunStatus)
+			// 证券指标数据同步（需求 11050）：上游 public.finv_quote_secu_meta → 指标表 + 采集属性表 + 键表。
+			secuKeyGroup.GET("/Indicator/Status", secuKeyHandler.IndicatorStatus)
+			secuKeyGroup.POST("/Indicator/Sync/Run", secuKeyHandler.StartIndicatorSyncRun)
+			secuKeyGroup.GET("/Indicator/Sync/Run", secuKeyHandler.IndicatorSyncRunStatus)
 			group.POST("/Job/Run", archive.JobRun)
 			group.POST("/Job/Dynamic/Run", archive.DynamicJobRun)
 

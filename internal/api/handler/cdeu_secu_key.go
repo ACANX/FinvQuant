@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/acanx/finvquant/internal/meta/finv/quote/indicator"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/secukey"
 )
 
@@ -18,20 +19,35 @@ import (
 //	POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run 异步启动（返回 run_id，需求 11046）
 //	GET  /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run 运行时快照（进度 + 逐批实时日志，前端轮询）
 //
+// 同一处理器还承载「证券指标数据同步」Tab（需求 11050）：
+//
+//	GET  /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Status      只读快照（三张目标表行数）
+//	POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run    异步启动（返回 run_id）
+//	GET  /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run    运行时快照（进度 + 逐批日志）
+//
 // 数据表：源 = Supabase 的 public.finv_quote_secu_key（表名可配），
 // 目标 = 本地 futu.finv_futu_secu_key。
 // 约定：JSON 体字段 snake_case、统计字段用动词原形（ApiSpec §1.1/§3）；
 // 日志前缀 `[cdeu][secukey]`。API Key 属敏感信息，响应里只出现项目 ID 与脱敏前缀。
 
-// SecuKey 证券参数同步处理器。
+// SecuKey 证券参数同步处理器（两个 Tab：基础参数同步 / 指标数据同步）。
 type SecuKey struct {
 	service *secukey.Service
 	runner  *secukey.Runner
+
+	// indicator 指标数据同步服务与运行器（Tab 2，需求 11050）。
+	indicator       *indicator.Service
+	indicatorRunner *indicator.Runner
 }
 
 // NewSecuKey 创建处理器（异步运行器随处理器创建：状态只存内存）。
-func NewSecuKey(service *secukey.Service) *SecuKey {
-	return &SecuKey{service: service, runner: secukey.NewRunner(service)}
+func NewSecuKey(service *secukey.Service, indicatorService *indicator.Service) *SecuKey {
+	return &SecuKey{
+		service:         service,
+		runner:          secukey.NewRunner(service),
+		indicator:       indicatorService,
+		indicatorRunner: indicator.NewRunner(indicatorService),
+	}
 }
 
 // secuKeyConfigRequest 保存源表名的请求体。
@@ -149,6 +165,56 @@ func (h *SecuKey) SyncRunStatus(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{
 			"code":    404,
 			"message": "没有找到同步运行记录（runId=" + runID + "），请先点击「立即同步」",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": run})
+}
+
+// IndicatorStatus GET /Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Status。
+//
+// 只读本地：读系统配置 20013 并统计三张目标表行数（指标表 / 采集属性表 / 证券键表），
+// 不访问 Supabase；源表行数在同步结果的 rows_total 里给出。
+func (h *SecuKey) IndicatorStatus(c *gin.Context) {
+	snapshot, err := h.indicator.Status(c.Request.Context())
+	if err != nil {
+		log.Printf("[cdeu][indicator] api status failed err=%v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "读取指标同步状态失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": snapshot})
+}
+
+// StartIndicatorSyncRun POST /Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run。
+//
+// 异步启动指标同步：立刻返回 run_id，前端轮询 IndicatorSyncRunStatus 取进度与逐批日志。
+// 已有运行在执行时返回 409。
+func (h *SecuKey) StartIndicatorSyncRun(c *gin.Context) {
+	var req secuKeySyncRequest
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&req); err != nil && !strings.Contains(err.Error(), "EOF") {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体非法: " + err.Error()})
+			return
+		}
+	}
+	run, err := h.indicatorRunner.Start(indicator.Request{BatchSize: req.BatchSize})
+	if err != nil {
+		log.Printf("[cdeu][indicator] api run start rejected: %v", err)
+		c.JSON(http.StatusConflict, gin.H{"code": 409, "message": err.Error()})
+		return
+	}
+	log.Printf("[cdeu][indicator] api run started run_id=%s", run.RunID)
+	c.JSON(http.StatusAccepted, gin.H{"code": 0, "message": "指标同步任务已启动", "data": run})
+}
+
+// IndicatorSyncRunStatus GET /Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run?runId=。
+func (h *SecuKey) IndicatorSyncRunStatus(c *gin.Context) {
+	runID := strings.TrimSpace(c.Query("runId"))
+	run, ok := h.indicatorRunner.Status(runID)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{
+			"code":    404,
+			"message": "没有找到指标同步运行记录（runId=" + runID + "），请先点击「立即同步」",
 		})
 		return
 	}

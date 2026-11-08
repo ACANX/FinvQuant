@@ -6,8 +6,14 @@
 > - `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync` —— 手动触发同步（同步执行，返回逐批日志；脚本用）
 > - `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run` —— 异步启动同步（返回 `run_id`，需求 11046）
 > - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run` —— 运行时快照（`progress` + 逐批实时日志，页面轮询）
+>
+> Tab 2「证券指标数据同步」（需求 11050）：
+> - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Status` —— 三张目标表行数
+> - `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run` —— 异步启动
+> - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run` —— 运行时快照（进度 + 逐批实时日志）
 > 需求：11042（菜单与页面）、11043（同步实现）、11044（源表名可配 20014）、11045（页面拆两个 Tab）、
-> 11046（异步运行 + 实时日志）；连接配置 20013（需求 11041）
+> 11046（异步运行 + 实时日志）、11050（Tab 2 指标同步）、11051（`flag_enable` 规则）、
+> 11052（Tab 1 不清空 Tab 2 补的 `url`）；连接配置 20013（需求 11041）
 > 权限：需登录（内部接口，不对外暴露 OpenAPI）
 > 关联表：目标 `futu.finv_futu_secu_key`（迁移 `V300137` 建表、`V300139` 补 `stock_id`/`usc`、`V300141` 改名）；
 > 源 Supabase `public.finv_quote_secu_key`（表名可配，默认与上游同名）
@@ -194,7 +200,85 @@
 - 每批一行，含**本批差值**（新增/更新/未变/跳过）与本批耗时；失败时最后一行是 `ERROR 同步失败：<原因>`；
 - 日志上限 2000 行（按批一行，7 万行/1000 批约 74 行，余量充足），超限保留最近 2000 条。
 
-## 6. 实现要点
+## 6. 证券指标数据同步（Tab 2，需求 11050）
+
+来源固定为上游 `public.finv_quote_secu_meta`（10,910 行、145 列），**一条上游记录一次写三张本地表**。
+
+### 6.1 字段分配
+
+| 目标表 | 写入内容 |
+|--------|----------|
+| `cdeu.finv_quote_secu_indicator` | **131 列同名同步**（列结构与上游同构，见 `DbSchemaSpec`）；`dt_update` 由触发器维护，**不写入、不参与比对** |
+| `futu.finv_futu_quote_collect` | 身份字段同名同步：`stock_id`、`market_type`、`market_code`、`instrument_type`、`sub_instrument_type`、`market_label`、`instrument`；`futu_symbol` 由 `ftmm_symbol` 去掉市场前缀派生（`US.AAPL → AAPL`）；`flag_enable` 见 §6.2；不写 `req_section` / `remark` |
+| `futu.finv_futu_secu_key` | 只补 `url`（源 `secu_url`）与 `stock_id`，按 `ftmm_symbol` 对齐；`url` / `stock_id` 无变化时不改写 |
+
+- **主键口径**：指标表与采集属性表主键都是 `usc`；源记录 `usc` 为空（上游 3,673 行）时用 `ftmm_symbol` 占位。
+- **不落库的上游列**：`name_en`、`flag_option`、`flag_futures`、`flag_plate`、`flag_etf_theme` 等本地无对应列。
+- **唯一键防撞**：`futu.finv_futu_quote_collect` 有唯一约束 `(market_code, futu_symbol)`；若该组合已被**别的 `usc`** 占用，
+  该行跳过并计入 `qc_skip`（不报错、不覆盖别人的 `usc`）。
+
+### 6.2 `flag_enable` 规则（需求 11051）
+
+`flag_enable` 由同步按「`usc` 是否占位」推导，**插入与更新都覆盖**：
+
+| 情况 | `flag_enable` |
+|------|---------------|
+| `usc` 用的就是 `ftmm_symbol`（源 `usc` 为 NULL/空，占位） | `'0'`（禁用采集） |
+| `usc` 为上游真实值 | `'1'`（启用采集） |
+
+> 即 `flag_enable` 是同步派生列，不视为人工开关：人工改成其它值会在下次同步被改回。
+> 若需要长期人工禁用某证券采集，请走其它机制（不要依赖该列），这一点在页面「说明」里也有写。
+
+### 6.3 接口
+
+#### `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Status`
+
+只读本地，`data` 字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `configured` / `project_id` / `api_key_masked` / `config_error` | — | 同 §3（20013 状态，key 脱敏） |
+| `source_table` | string | 固定 `public.finv_quote_secu_meta` |
+| `targets[]` | array | 三张目标表的 `{table, rows}`：指标表 / 采集属性表 / 证券键表 |
+| `batch_size_default` | int | 默认批量 1000 |
+
+#### `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run`
+
+请求体：`{"batch_size": 1000}`（可省略，收敛到 100~5000）。
+
+- `202`：`data` 为启动快照（`run_id` / `status=RUNNING` / `logs[0]`）；
+- `409`：已有指标同步在运行（不排队、不覆盖）；
+- 400：请求体非法。
+
+#### `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run?runId=`
+
+`data` 字段：`run_id`、`kind="indicator"`、`status`、`progress`（0~100）、`rows_total`、`rows_receive`、
+`ind_insert` / `ind_update` / `ind_unchanged`、`qc_insert` / `qc_update` / `qc_skip`、`key_update`、
+`batches`、`elapsed_ms`、`error`、`logs[]`；`runId` 省略取最近一次，不匹配返回 404。
+
+日志形态（一次 3 批运行的实测输出）：
+
+```
+1  INFO 指标同步任务已启动
+2  INFO 第 1 批：offset=0，拉取 5000，指标 新增 0 / 更新 1 / 未变 4999，采集属性 新增 0 / 更新 2 / 跳过 2，键表补全 0（本批 6075 ms）
+...
+6  INFO 指标同步完成：源表 public.finv_quote_secu_meta 共 10910 行，3 批；指标表 新增 0 / 更新 0 / 未变 10910；
+       采集属性表 新增 0 / 更新 0 / 跳过 419；键表补全 10910；耗时 14275 ms
+```
+
+### 6.4 验收实测（2026-11-09）
+
+| 场景 | 结果 |
+|------|------|
+| 首次全量同步（`batch_size=5000`） | `rows_total=10910`、3 批、指标表 `insert=10910`、采集属性表 `insert=3257`、`qc_skip=419`、键表 `key_update=10910` |
+| 复跑 | `ind_insert=0 / ind_update=0 / ind_unchanged=10910`、`qc_* = 0`、`key_update=0` |
+| 占位 `usc` 统计 | 指标表 `usc = ftmm_symbol` 共 3,673 行；采集属性表占位行 `flag_enable` 全为 `'0'`（反例 0 行） |
+| `flag_enable` 规则验证 | 把占位行 `CC.AAVE` 改为 `'1'`、真实 usc 行 `00010` 改为 `'0'` → 同步后 `qc_update=2`，两者分别恢复 `'0'` / `'1'` |
+| 增量更新验证 | 把 `00010` 的 `price` 改为 999 → 同步后 `ind_update=1`，`price` 恢复为上游值 |
+| 键表补全 | `url` 与 `stock_id` 各 10,910 行写回（`futu.finv_futu_secu_key` 共 73,212 行） |
+| Tab 1 与 Tab 2 共存（需求 11052） | Tab 2 补完 `url` 后再跑 Tab 1：`update=0`、`unchanged=73212`，`url` 未被清空（源键表 `url` 全为 NULL，Tab 1 改为 `COALESCE(EXCLUDED.url, t.url)`） |
+
+## 7. 实现要点
 
 - 代码：`internal/meta/finv/quote/secukey/`（`client.go` 上游读取、`store.go` 批量写入、`service.go` 编排与归一化、
   `runner.go` 异步运行与实时日志），处理器 `internal/api/handler/cdeu_secu_key.go`；
@@ -205,7 +289,10 @@
 - 同批内 `ftmm_symbol` 重复时保留最后一条（PostgreSQL 不允许同批同键写入两次）；
 - 增量判据：`ON CONFLICT (ftmm_symbol) DO UPDATE … WHERE (目标列) IS DISTINCT FROM (EXCLUDED 列)`，
   未变化的行不产生 WAL、不触发 `gmt_update`；
-- 日志前缀 `[cdeu][secukey]`：`docker logs <容器> 2>&1 | grep '\[cdeu\]\[secukey\]'`。
+- 日志前缀：Tab 1 `[cdeu][secukey]`、Tab 2 `[cdeu][indicator]`；
+  `docker logs <容器> 2>&1 | grep -E '\[cdeu\]\[(secukey|indicator)\]'`；
+- Tab 2 的 SQL 由建表列序生成（`internal/meta/finv/quote/indicator/sql.go`）：`cdeu.finv_quote_secu_indicator`
+  增删列/改列名后必须重新生成，否则插入与比对会漏列。
 
 ## 7. 验收实测（2026-11-09）
 

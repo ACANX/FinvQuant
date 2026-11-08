@@ -57,11 +57,13 @@ WITH src AS (
            flag_enable = EXCLUDED.flag_enable,
            priority    = EXCLUDED.priority,
            status      = EXCLUDED.status,
-           url         = EXCLUDED.url
+           -- 源 url 为 NULL 时保留本地已有值：url 由「证券指标数据同步」（源 secu_url）补全，
+           -- 源键表的 url 全为空，若直接覆盖会把指标同步刚补好的 url 清掉。
+           url         = COALESCE(EXCLUDED.url, t.url)
      WHERE (t.instrument, t.market, t.code, t.flag_enable, t.priority, t.status, t.url)
            IS DISTINCT FROM
            (EXCLUDED.instrument, EXCLUDED.market, EXCLUDED.code, EXCLUDED.flag_enable,
-            EXCLUDED.priority, EXCLUDED.status, EXCLUDED.url)
+            EXCLUDED.priority, EXCLUDED.status, COALESCE(EXCLUDED.url, t.url))
     RETURNING (xmax = 0) AS inserted
 )
 SELECT COALESCE(count(*) FILTER (WHERE inserted), 0)::int          AS inserted,

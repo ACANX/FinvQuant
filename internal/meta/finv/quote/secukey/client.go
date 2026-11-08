@@ -105,8 +105,62 @@ func (c *Client) FetchBatch(ctx context.Context, table string, offset, limit int
 	return nil, 0, fmt.Errorf("拉取 Supabase 源表失败（offset=%d, limit=%d）: %w", offset, limit, lastErr)
 }
 
-// fetchOnce 发起一次请求；retryable 表示该错误值得重试（网络/429/5xx）。
+// FetchRawBatch 拉取一批**原始 JSON 行**（供「证券指标数据同步」按列透传给数据库）。
+//
+// selectCols 为 PostgREST 的 select 表达式（如 "*" 或 "a,b,c"）；表名需已通过
+// syscfg.NormalizeSupabaseTableName 校验；排序固定 ftmm_symbol.asc（上游唯一且 NOT NULL，
+// 保证分页稳定）。返回本批原始行与源表总行数。
+func (c *Client) FetchRawBatch(ctx context.Context, table, selectCols string, offset, limit int) ([]json.RawMessage, int64, error) {
+	if strings.TrimSpace(selectCols) == "" {
+		selectCols = "*"
+	}
+	schema, name := splitTable(table)
+	url := c.baseURL + "/rest/v1/" + name + "?" + strings.Join([]string{
+		"select=" + selectCols,
+		"order=ftmm_symbol.asc",
+		"limit=" + strconv.Itoa(limit),
+		"offset=" + strconv.Itoa(offset),
+	}, "&")
+
+	var lastErr error
+	for attempt := 1; attempt <= c.maxAttempts; attempt++ {
+		body, total, retryable, err := c.doGet(ctx, url, schema)
+		if err == nil {
+			var rows []json.RawMessage
+			if err := json.Unmarshal(body, &rows); err != nil {
+				return nil, 0, fmt.Errorf("解析 Supabase 响应失败: %w", err)
+			}
+			return rows, total, nil
+		}
+		lastErr = err
+		if !retryable || attempt == c.maxAttempts {
+			break
+		}
+		backoff := c.retryBackoff * time.Duration(attempt)
+		log.Printf("[cdeu][secukey] raw fetch retry %d/%d after %s: %v", attempt, c.maxAttempts, backoff, err)
+		select {
+		case <-ctx.Done():
+			return nil, 0, ctx.Err()
+		case <-time.After(backoff):
+		}
+	}
+	return nil, 0, fmt.Errorf("拉取 Supabase 源表失败（offset=%d, limit=%d）: %w", offset, limit, lastErr)
+}
+
+// fetchOnce 发起一次请求并解析成结构化行；retryable 表示该错误值得重试（网络/429/5xx）。
 func (c *Client) fetchOnce(ctx context.Context, url, schema string) (rows []SourceRow, total int64, retryable bool, err error) {
+	body, total, retryable, err := c.doGet(ctx, url, schema)
+	if err != nil {
+		return nil, 0, retryable, err
+	}
+	if err := json.Unmarshal(body, &rows); err != nil {
+		return nil, 0, false, fmt.Errorf("解析 Supabase 响应失败: %w", err)
+	}
+	return rows, total, false, nil
+}
+
+// doGet 执行一次 GET 并返回响应体与源表总行数；retryable 表示该错误值得重试。
+func (c *Client) doGet(ctx context.Context, url, schema string) (body []byte, total int64, retryable bool, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, 0, false, fmt.Errorf("构造请求失败: %w", err)
@@ -148,10 +202,7 @@ func (c *Client) fetchOnce(ctx context.Context, url, schema string) (rows []Sour
 		return nil, 0, retryable, fmt.Errorf("Supabase 返回 HTTP %d: %s", resp.StatusCode, message)
 	}
 
-	if err := json.Unmarshal(body, &rows); err != nil {
-		return nil, 0, false, fmt.Errorf("解析 Supabase 响应失败: %w", err)
-	}
-	return rows, parseContentRangeTotal(resp.Header.Get("Content-Range")), false, nil
+	return body, parseContentRangeTotal(resp.Header.Get("Content-Range")), false, nil
 }
 
 // parseContentRangeTotal 从 `Content-Range: 0-999/73212` 解析总行数；`*` 或缺失时返回 0。

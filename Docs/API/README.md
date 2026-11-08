@@ -90,7 +90,10 @@ Authorization: Bearer <token>
   - 缺省汇率（`/API/V1/Meta/Finv/Quote/Cdeu/Fx/*`，一个文档覆盖两个接口）：
     - [`Cdeu/FxCer.md`](Cdeu/FxCer.md) — `POST .../Fx/CerSync?source=overview|rateList` 手动更新 + `GET .../Fx/Cer` 整表查询（`public.finv_fxcer`，主键 `usc`，含 `name`/`rate`/`ts_quote`/`source`；两来源互补、只保最新；契约 [.yml](Cdeu/FxCer.yml)）
   - 证券参数同步（`/API/V1/Meta/Finv/Quote/Cdeu/SecuKey/*`，一个文档覆盖三个接口）：
-    - [`Cdeu/SecuParamSync.md`](Cdeu/SecuParamSync.md) — `GET .../SecuKey/Status` 状态快照 + `POST .../SecuKey/Config` 保存源表名（系统配置 20014）+ `POST .../SecuKey/Sync` 手动同步（Supabase 证券键表 → `futu.finv_futu_secu_key`，按 `ftmm_symbol` 分批增量 upsert；连接配置 20013；契约 [.yml](Cdeu/SecuParamSync.yml)）
+    - [`Cdeu/SecuParamSync.md`](Cdeu/SecuParamSync.md) — `GET .../SecuKey/Status` 状态快照 + `POST .../SecuKey/Config` 保存源表名（系统配置 20014）+ `POST .../SecuKey/Sync`（同步执行）/ `POST|GET .../SecuKey/Sync/Run`（异步 + 实时日志）手动同步
+（Supabase 证券键表 → `futu.finv_futu_secu_key`，按 `ftmm_symbol` 分批增量 upsert）；
+另含 Tab 2 指标同步三支：`GET .../SecuKey/Indicator/Status`、`POST|GET .../SecuKey/Indicator/Sync/Run`
+（上游 `public.finv_quote_secu_meta` → `cdeu.finv_quote_secu_indicator` + `futu.finv_futu_quote_collect` + `futu.finv_futu_secu_key`）；连接配置 20013；契约 [.yml](Cdeu/SecuParamSync.yml)）
   - 证券行情月归档导出与上传（`/API/V1/Meta/Finv/Quote/DeDup/*`，**一个接口一个文档**）：
     - [`QuoteDeDup/Status.md`](QuoteDeDup/Status.md) — `GET .../DeDup/Status`（归档链路指标、运行参数与调度表）
     - [`QuoteDeDup/JobRuntime.md`](QuoteDeDup/JobRuntime.md) — `GET .../DeDup/Job/Runtime`（10 个 Job 运行快照：阶段 / 进度 / 心跳 / 最近结果）
