@@ -20,6 +20,13 @@
 
 ### 新增
 
+- **线上缺失剩余的 9 个证券改为按 `stock_id` 从 cdeu 快照就地派生（需求 11033，迁移 `V300134`）**
+  - 这 9 个（8 个外部来源全无 + `87660282761853` 的 `usc` 撞车 `XRP`）无法靠外部数据补齐，改用`INSERT ... SELECT FROM cdeu.finv_cdeu_secu_realtime_stock` 按 `stock_id` 派生两表记录：线上 cdeu 有则补出，无则 0 行。
+  - `market_code` 只能置 `0`（cdeu 无交易所码），`exchange_code`/`market_type`/`currency_type`/时区按 `market_label` 换算；两条 INSERT 均带 usc 全局占用守卫，`XRP` 这类同名不同标的自动跳过并在 NOTICE 中列出原因。
+  - 验证：本地执行 0 行（cdeu 无这批行 / XRP 被守卫跳过）、9 条 NOTICE 原因齐备；假行事务测试字段映射通过后回滚；`schema_version=300134`，容器 `healthy`。
+
+### 新增
+
 - **20261109 批次与线上缺失证券的初始数据改以迁移脚本发放（需求 11031、11032）**
   - 新增迁移 `V300130` / `V300131`：20261109 US 批次 `finv_security` 3603 行、`futu.finv_futu_quote_collect` 3603 行（映射命中部分，415 行映射缺失与 1 行 usc 撞车不发）。
   - 新增迁移 `V300132` / `V300133`：线上扫描缺失的 428 个 `stock_id` 中可补的 417 个（映射 CSV 261 + 本地 cdeu 快照 156），两表各 417 行；排除 3 个 `usc` 撞车（`XRP` / `BFLY` / `DJT`）与 8 个本地无来源项。
