@@ -20,6 +20,13 @@
 
 ### 新增
 
+- **Bitwise XRP ETF 分配独立 `usc = ETFXRP`，解除与加密币 `XRP` 的撞车（需求 11034，迁移 `V300135`）**
+  - `cdeu.finv_cdeu_secu_realtime_stock`（`stock_id=87660282761853`）的 `usc` 由 `XRP` 更正为 `ETFXRP`；两表插入 `ETFXRP` 记录（`finv_security`：ETF / `security_code='XRP'` / `market_code=0` / `flag_enable='0'`；`futu` 侧：`futu_symbol='XRP'`、`market_code=12`、`instrument_type=4`、`type_symbol='etfs'`）。
+  - 加密币 `XRP`（`Crypto` / `market_code=10001`，需求 10946）保持原样；迁移带防串校验，`ETFXRP` 被占用即报错回滚，重跑 0 变更。
+  - 验证：三处落库结果与预期一致，复跑 `UPDATE 0` + `INSERT 0 0`。
+
+### 新增
+
 - **线上缺失剩余的 9 个证券改为按 `stock_id` 从 cdeu 快照就地派生（需求 11033，迁移 `V300134`）**
   - 这 9 个（8 个外部来源全无 + `87660282761853` 的 `usc` 撞车 `XRP`）无法靠外部数据补齐，改用`INSERT ... SELECT FROM cdeu.finv_cdeu_secu_realtime_stock` 按 `stock_id` 派生两表记录：线上 cdeu 有则补出，无则 0 行。
   - `market_code` 只能置 `0`（cdeu 无交易所码），`exchange_code`/`market_type`/`currency_type`/时区按 `market_label` 换算；两条 INSERT 均带 usc 全局占用守卫，`XRP` 这类同名不同标的自动跳过并在 NOTICE 中列出原因。
