@@ -30,8 +30,8 @@
   "data": {
     "total": 2,
     "list": [
-      {"usc": "GCMain", "futu_symbol": "GCmain", "quote_market": "US", "type_symbol": "futures"},
-      {"usc": "MGCMain", "futu_symbol": "MGCmain", "quote_market": "US", "type_symbol": "futures"}
+      {"usc": "GCMain", "futu_symbol": "GCmain", "market_label": "US", "instrument": "futures"},
+      {"usc": "MGCMain", "futu_symbol": "MGCmain", "market_label": "US", "instrument": "futures"}
     ]
   }
 }

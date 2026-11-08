@@ -58,7 +58,7 @@
 | 分区 | 表 | 必填字段（NOT NULL 且无 DEFAULT） |
 |------|----|-----------------------------------|
 | 1 | `public.finv_security` | `usc`、`exchange_code`、`security_type`、`security_code`、`security_name`、`security_name_cn`、`currency_type` |
-| 2 | `futu.finv_futu_quote_collect` | `usc`、`stock_id`、`futu_symbol`、`market_type`、`market_code`、`instrument_type`、`sub_instrument_type`、`quote_market`、`type_symbol` |
+| 2 | `futu.finv_futu_quote_collect` | `usc`、`stock_id`、`futu_symbol`、`market_type`、`market_code`、`instrument_type`、`sub_instrument_type`、`market_label`、`instrument` |
 | 3 | `cdeu.finv_quote_cdeu_usc` | `usc` |
 
 - `usc` 三表共用，在对话框顶部单独填写一次；
@@ -73,7 +73,7 @@
 | 项 | 状态 |
 |----|------|
 | 三张表字段展示 + 必填校验 | ✅ 已实现 |
-| 字段推断（usc / futu_symbol / quote_market / exchange_code 等） | ⏳ 未实现，规则待定 |
+| 字段推断（usc / futu_symbol / market_label / exchange_code 等） | ⏳ 未实现，规则待定 |
 | 一键写入三张表 | ⏳ 未实现；点击「录入」只提示「接口尚未接入」 |
 | 批量录入（列表顶部按钮） | ⏳ 规划中，按钮保持 disabled |
 
@@ -82,7 +82,7 @@
 | 编号 | 待确认 |
 |------|--------|
 | P1 | `usc` 生成规则（观测值等于 `stock_code`，但需确认是否所有市场都如此） |
-| P2 | `futu_futu_quote_collect` 各字段的来源（`quote_market` / `type_symbol` / `sub_instrument_type`） |
+| P2 | `futu_futu_quote_collect` 各字段的来源（`market_label` / `instrument` / `sub_instrument_type`） |
 | P3 | `market_code` / `exchange_code` 的市场映射表（HK=21、SZ=12、SH=11 是否全覆盖） |
 | P4 | 三张表的写入顺序与失败回滚策略（建议同事务，`public.finv_security` → `futu` → `cdeu`） |
 | P5 | 是否需要人工复核（先落草稿表再审） |

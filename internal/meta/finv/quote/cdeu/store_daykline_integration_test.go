@@ -181,7 +181,7 @@ func TestSyncDayKlineFromMoomooIntegration(t *testing.T) {
 	if _, err := pool.Exec(context.Background(), `
 INSERT INTO futu.finv_futu_quote_collect
   (usc, stock_id, futu_symbol, market_type, market_code, instrument_type,
-   sub_instrument_type, req_section, quote_market, type_symbol, flag_enable)
+   sub_instrument_type, req_section, market_label, instrument, flag_enable)
 VALUES ($1, 70000294, 'ITSTKDAY', 2, 9001, 9, 9008, '', 'US', 'futures', '1')`, usc); err != nil {
 		t.Fatalf("插入 futu 参数失败: %v", err)
 	}

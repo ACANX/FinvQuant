@@ -19,8 +19,8 @@ import { showToast } from '../../../../../ui/toast'
 interface UscOption {
   usc: string
   futu_symbol: string
-  quote_market: string
-  type_symbol: string
+  market_label: string
+  instrument: string
   title: string
   subtitle: string
 }
@@ -44,8 +44,8 @@ interface DayKlineSyncResult {
     market_code: number
     instrument_type: number
     sub_instrument_type: number
-    quote_market: string
-    type_symbol: string
+    market_label: string
+    instrument: string
   }
 }
 
@@ -128,12 +128,12 @@ async function loadOptions() {
   try {
     const data = await apiGet<{
       total: number
-      list: { usc: string; futu_symbol: string; quote_market: string; type_symbol: string }[]
+      list: { usc: string; futu_symbol: string; market_label: string; instrument: string }[]
     }>(`${API_PREFIX}/UscList?limit=500`)
     options.value = (data.list ?? []).map((item) => ({
       ...item,
       title: item.usc,
-      subtitle: `${item.futu_symbol} · ${item.quote_market} · ${item.type_symbol}`,
+      subtitle: `${item.futu_symbol} · ${item.market_label} · ${item.instrument}`,
     }))
   } catch (err) {
     // 候选加载失败不阻塞手输 usc
@@ -389,8 +389,8 @@ onBeforeUnmount(stopElapsed)
             <v-table v-if="result" density="compact" class="text-caption mb-3">
               <tbody>
                 <tr>
-                  <td class="text-medium-emphasis">quote_market / type_symbol</td>
-                  <td>{{ result.params.quote_market }} / {{ result.params.type_symbol }}</td>
+                  <td class="text-medium-emphasis">market_label / instrument</td>
+                  <td>{{ result.params.market_label }} / {{ result.params.instrument }}</td>
                 </tr>
                 <tr>
                   <td class="text-medium-emphasis">stock_id / futu_symbol</td>

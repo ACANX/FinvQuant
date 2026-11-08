@@ -104,7 +104,7 @@ INSERT INTO cdeu.finv_quote_cdeu_usc (usc, flag_auto_discover) VALUES ($1, true)
 	if _, err := pool.Exec(ctx, `
 INSERT INTO futu.finv_futu_quote_collect
   (usc, stock_id, futu_symbol, market_type, market_code, instrument_type, sub_instrument_type,
-   quote_market, type_symbol, flag_enable, remark)
+   market_label, instrument, flag_enable, remark)
 VALUES ($1, 1, $1, 1, 1, 3, 3002, 'HK', 'stock', '1', 'it')`, backfillUscFutu); err != nil {
 		t.Fatalf("插入富途镜像行失败: %v", err)
 	}
@@ -228,7 +228,7 @@ SELECT expected_rows, maturity_status FROM cdeu.finv_quote_cdeu_quote_maturity_m
 			backfillUscFutu, futuRow.region, futuRow.market)
 	}
 	if futuRow.category == nil || *futuRow.category != "Stock" {
-		t.Fatalf("%s 的 category 应由 type_symbol 映射为 Stock，实际 %v", backfillUscFutu, futuRow.category)
+		t.Fatalf("%s 的 category 应由 instrument 映射为 Stock，实际 %v", backfillUscFutu, futuRow.category)
 	}
 	if futuRow.dayExpect == nil || *futuRow.dayExpect != 331 {
 		t.Fatalf("%s 的 day_expect_rows 应为 331，实际 %v", backfillUscFutu, futuRow.dayExpect)

@@ -588,8 +588,8 @@ type UscBackfillStat struct {
 //     finv_market.market_symbol（为空则留给第 2 步，不用历史 market_flag 充数，
 //     否则会污染 {region}_{market} 目录与模板匹配）。
 //  2. 从 futu.finv_futu_quote_collect（富途原始属性镜像）兜底：
-//     quote_market（SH/SZ/BJ/HK/US/FX/CC）→ region / market，
-//     type_symbol（stock/etfs/index/futures/sectors/crypto/currency）→ category。
+//     market_label（SH/SZ/BJ/HK/US/FX/CC）→ region / market，
+//     instrument（stock/etfs/index/futures/sectors/crypto/currency）→ category。
 //     这一步覆盖「上游有证但 finv_security 未收录」的证券（如富途板块、主连、外汇对）。
 //  3. 按 region 推导 timezone / currency（富途镜像表不带这两列）：
 //     CN→Asia/Shanghai + CNY，HK→Asia/Hong_Kong + HKD，US→America/New_York + USD，
@@ -669,17 +669,17 @@ UPDATE `+tableUsc+` u
 	tag, err = s.pool.Exec(ctx, `
 WITH src AS (
     SELECT f.usc,
-           CASE upper(f.quote_market)
+           CASE upper(f.market_label)
                 WHEN 'SH' THEN 'CN' WHEN 'SZ' THEN 'CN' WHEN 'BJ' THEN 'CN'
                 WHEN 'HK' THEN 'HK' WHEN 'US' THEN 'US'
                 WHEN 'FX' THEN 'FX' WHEN 'CC' THEN 'GLOBAL'
            END AS region,
-           CASE upper(f.quote_market)
+           CASE upper(f.market_label)
                 WHEN 'FX' THEN 'CFD'
                 WHEN 'CC' THEN 'CRYPTO'
-                ELSE NULLIF(upper(f.quote_market), '')
+                ELSE NULLIF(upper(f.market_label), '')
            END AS market,
-           CASE lower(f.type_symbol)
+           CASE lower(f.instrument)
                 WHEN 'stock'   THEN 'Stock'
                 WHEN 'etfs'    THEN 'ETF'
                 WHEN 'index'   THEN 'StockIndex'

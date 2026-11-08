@@ -90,9 +90,9 @@ func (s *Service) SyncDayKlineFromMoomoo(ctx context.Context, req DayKlineSyncRe
 		return result, fmt.Errorf("读取 futu 采集参数失败（usc=%s）: %w", usc, err)
 	}
 	result.Params = *params
-	log.Printf("[cdeu][daykline] params usc=%s futu_symbol=%s stock_id=%d market_type=%d market_code=%d instrument_type=%d sub_instrument_type=%d quote_market=%s type_symbol=%s",
+	log.Printf("[cdeu][daykline] params usc=%s futu_symbol=%s stock_id=%d market_type=%d market_code=%d instrument_type=%d sub_instrument_type=%d market_label=%s instrument=%s",
 		usc, params.FutuSymbol, params.StockID, params.MarketType, params.MarketCode,
-		params.InstrumentType, params.SubInstrumentType, params.QuoteMarket, params.TypeSymbol)
+		params.InstrumentType, params.SubInstrumentType, params.MarketLabel, params.Instrument)
 
 	location, tzName := s.dayKlineLocation(ctx, usc)
 	result.Timezone = tzName

@@ -29,8 +29,8 @@ type FutuQuoteParams struct {
 	InstrumentType    int    `json:"instrument_type"`
 	SubInstrumentType int    `json:"sub_instrument_type"`
 	ReqSection        string `json:"req_section"`
-	QuoteMarket       string `json:"quote_market"`
-	TypeSymbol        string `json:"type_symbol"`
+	MarketLabel       string `json:"market_label"`
+	Instrument        string `json:"instrument"`
 	FlagEnable        string `json:"flag_enable"`
 }
 
@@ -40,13 +40,13 @@ func (s *Store) CollectQuoteParams(ctx context.Context, usc string) (*FutuQuoteP
 	var p FutuQuoteParams
 	err := s.pool.QueryRow(ctx, `
 SELECT usc, stock_id, futu_symbol, market_type, market_code, instrument_type,
-       sub_instrument_type, COALESCE(req_section, ''), quote_market, type_symbol,
+       sub_instrument_type, COALESCE(req_section, ''), market_label, instrument,
        flag_enable::text
   FROM `+tableFutuQuote+`
  WHERE usc = $1 AND flag_enable = '1'`, usc).
 		Scan(&p.USC, &p.StockID, &p.FutuSymbol, &p.MarketType, &p.MarketCode,
-			&p.InstrumentType, &p.SubInstrumentType, &p.ReqSection, &p.QuoteMarket,
-			&p.TypeSymbol, &p.FlagEnable)
+			&p.InstrumentType, &p.SubInstrumentType, &p.ReqSection, &p.MarketLabel,
+			&p.Instrument, &p.FlagEnable)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrCollectParamsNotFound
 	}
@@ -179,8 +179,8 @@ SELECT count(*) FILTER (WHERE inserted)::bigint,
 type FutuCollectRow struct {
 	USC         string `json:"usc"`
 	FutuSymbol  string `json:"futu_symbol"`
-	QuoteMarket string `json:"quote_market"`
-	TypeSymbol  string `json:"type_symbol"`
+	MarketLabel string `json:"market_label"`
+	Instrument  string `json:"instrument"`
 }
 
 // ListCollectUsc 列出 futu 采集表中已启用（flag_enable='1'）的证券，
@@ -199,7 +199,7 @@ func (s *Store) ListCollectUsc(ctx context.Context, keyword string, limit int) (
 		pattern = "%" + trimmed + "%"
 	}
 	rows, err := s.pool.Query(ctx, `
-SELECT usc, futu_symbol, quote_market, type_symbol
+SELECT usc, futu_symbol, market_label, instrument
   FROM `+tableFutuQuote+`
  WHERE flag_enable = '1'
    AND ($1 = '' OR usc ILIKE $1 OR futu_symbol ILIKE $1)
@@ -212,7 +212,7 @@ SELECT usc, futu_symbol, quote_market, type_symbol
 	items := make([]FutuCollectRow, 0, 32)
 	for rows.Next() {
 		var item FutuCollectRow
-		if err := rows.Scan(&item.USC, &item.FutuSymbol, &item.QuoteMarket, &item.TypeSymbol); err != nil {
+		if err := rows.Scan(&item.USC, &item.FutuSymbol, &item.MarketLabel, &item.Instrument); err != nil {
 			return nil, err
 		}
 		items = append(items, item)

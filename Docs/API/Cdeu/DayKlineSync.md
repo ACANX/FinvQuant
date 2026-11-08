@@ -55,7 +55,7 @@
 
 ```
 [cdeu][daykline] api sync begin usc="GCMain" from=0 to=0 client=...
-[cdeu][daykline] params usc=GCMain futu_symbol=GCmain stock_id=70000294 market_type=2 market_code=70 instrument_type=9 sub_instrument_type=9008 quote_market=US type_symbol=futures
+[cdeu][daykline] params usc=GCMain futu_symbol=GCmain stock_id=70000294 market_type=2 market_code=70 instrument_type=9 sub_instrument_type=9008 market_label=US instrument=futures
 [cdeu][daykline] fetch start usc=GCMain stockId=70000294 marketType=2 type=2 marketCode=70 instrumentType=9 subInstrumentType=9008 tz=America/New_York
 [cdeu][daykline] fetch done usc=GCMain bars=12789 fetch_elapsed_ms=...
 [cdeu][daykline] filter usc=GCMain total=12789 in_range=12789 date_from=... date_to=... tz=America/New_York
@@ -97,8 +97,8 @@ docker logs <容器名> 2>&1 | grep '\[cdeu\]\[daykline\]'
       "instrument_type": 9,
       "sub_instrument_type": 9008,
       "req_section": "",
-      "quote_market": "US",
-      "type_symbol": "futures",
+      "market_label": "US",
+      "instrument": "futures",
       "flag_enable": "1"
     }
   }

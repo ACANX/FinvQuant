@@ -65,7 +65,7 @@ const SECURITY_FIELDS: Field[] = [
 ]
 
 /** futu.finv_futu_quote_collect：必填 usc / stock_id / futu_symbol / market_type /
- *  market_code / instrument_type / sub_instrument_type / quote_market / type_symbol */
+ *  market_code / instrument_type / sub_instrument_type / market_label / instrument */
 const FUTU_FIELDS: Field[] = [
   { key: 'stock_id', label: 'stock_id 证券编号', required: true, type: 'number', hint: '来自快照，一般直接沿用' },
   { key: 'futu_symbol', label: 'futu_symbol futu 代码', required: true, hint: '如 00700、NVDA.US' },
@@ -73,8 +73,8 @@ const FUTU_FIELDS: Field[] = [
   { key: 'market_code', label: 'market_code 市场代码', required: true, type: 'number' },
   { key: 'instrument_type', label: 'instrument_type 品种类型', required: true, type: 'number', hint: '来自快照 instrument_type' },
   { key: 'sub_instrument_type', label: 'sub_instrument_type 子品种类型', required: true, type: 'number' },
-  { key: 'quote_market', label: 'quote_market 行情市场', required: true, hint: '如 HK / US / CN' },
-  { key: 'type_symbol', label: 'type_symbol 代码类型符号', required: true },
+  { key: 'market_label', label: 'market_label 行情市场', required: true, hint: '如 HK / US / CN' },
+  { key: 'instrument', label: 'instrument 证券类型标识', required: true, hint: '如 stock / etfs / index' },
   { key: 'req_section', label: 'req_section 请求分段' },
   { key: 'flag_enable', label: 'flag_enable 是否启用', hint: "默认 '0'；录入后通常置 '1'" },
   { key: 'remark', label: 'remark 备注' },
@@ -127,7 +127,7 @@ function resetByRow(row: PendingSecuRow | null) {
   futuForm.value.stock_id = row.stock_id ? String(row.stock_id) : ''
   futuForm.value.market_type = row.market_type ?? ''
   futuForm.value.instrument_type = row.instrument_type ?? ''
-  futuForm.value.quote_market = row.market_label ?? ''
+  futuForm.value.market_label = row.market_label ?? ''
 
   uscForm.value.market = row.market_label ?? ''
   uscForm.value.name = row.name ?? ''
