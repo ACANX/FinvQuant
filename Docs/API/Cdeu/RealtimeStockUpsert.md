@@ -14,6 +14,11 @@
 
 - 主键不存在 → 插入；已存在 → **只覆盖本次有值的列**（`COALESCE(EXCLUDED.x, t.x)`），
   源端缺字段不会清空已有值（与日K `UpsertDayKlines` 一致）；
+- 审计时间列（`gmt_create` / `gmt_update`，需求 11029，`V300128` 新增）**不接受本接口写入**：
+  新增行由 `DEFAULT now()` 取当前时间，此后每次 UPDATE 由触发器 `public.vq_set_gmt_update()` 自动刷新 `gmt_update`；
+
+  `rmb_trade_trunover` / `rmb_price_nominal`，需求 11023，`V300126` 新增）**暂不支持本接口写入**：
+  请求体里的同名字段不存在，落库为 NULL（表示「尚未补全」，不是 0）；补全任务后续实现；
 - 本表是快照表，只保留最新状态、不保留历史；历史序列看
   `cdeu.finv_quote_secu_kline_min`（分钟线）与 `cdeu.finv_quote_secu_kline_day`（日线）；
 - 整批在**一条 SQL 语句**内完成（`jsonb_to_recordset` 展开 + 单次 `INSERT`），
@@ -55,6 +60,7 @@
 | `total_shares` | number | 是 | 否 | `NUMERIC(24,6)` 可表示范围 | 是 | 总股本（股） |
 | `circulation_total_shares` | number | 是 | 否 | `NUMERIC(24,6)` 可表示范围 | 是 | 流通股本（股） |
 | `trade_trunover` | number | 是 | 否 | `NUMERIC(24,6)` 可表示范围 | 是 | 成交额（当日累计）；列名沿用上游拼写 `trunover` |
+| `remark` | string | 是 | 否 | 无（`TEXT`） | 是 | 备注（需求 11028）：人工标注或采集端说明，不参与换算/排序；空串视同未提供，**未提供不会清空已有备注** |
 | `trade_volumn` | number | 是 | 否 | `NUMERIC(24,6)` 可表示范围 | 是 | 成交量（当日累计）；列名沿用上游拼写 `volumn` |
 | `circulation_market_value` | number | 是 | 否 | `NUMERIC(24,6)` 可表示范围 | 是 | 流通市值 |
 | `dt_update` | integer(int64) | 是 | 否 | ≥ 0（Unix **毫秒**） | 是 | 快照更新时间；省略或 `null` 时服务端填当前 Unix 毫秒 |
