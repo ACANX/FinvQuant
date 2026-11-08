@@ -50,6 +50,11 @@
 
 ### 变更
 
+- **证券指标表改名：`cdeu.finv_quote_secu_meta` → `cdeu.finv_quote_secu_indicator`（需求 11049，迁移 `V300145`）**
+  - 列（131 列）/ 类型 / 可空性 / 数据不变；派生对象一并改名：主键 `finv_quote_secu_indicator_pkey`、索引 `idx_finv_quote_secu_indicator_ts` / `idx_finv_quote_secu_indicator_dt_update`、触发器 `finv_quote_secu_indicator_set_dt_update` 与同名函数，以及 PG18 的 NOT NULL 约束名。
+  - 历史迁移 `V300144` 不回改（仍按旧名建表，空库按 144→145 顺序执行后同为现名）；表/列注释按新名重写；`DbSchemaSpec` 已更新。
+  - 验证：旧表名/旧函数已不存在、新表 131 列、主键与 2 索引、触发器与函数均新名、无旧名残留；UPDATE 后 `dt_update` 前进且 `dt_create` 不变；重跑迁移幂等；`schema_version=300145`。
+
 - **证券键表改名：`futu.finv_quote_secu_key` → `futu.finv_futu_secu_key`（需求 11040，迁移 `V300141`）**
   - 前缀与同域 `finv_futu_mapping_*` / `finv_futu_quote_collect` 对齐；派生对象一并改名（主键、2 个 CHECK、索引 `idx_finvfutusecukey_market`、触发器 `trg_finv_futu_secu_key_gmt_update`，及 PG18 的 NOT NULL 约束名）。
   - 表结构（12 列）/ 注释 / 数据不变；历史迁移 `V300137`–`V300139` 不回改；`DbSchemaSpec` 表清单已更新。
