@@ -20,6 +20,14 @@
 
 ### 新增
 
+- **新增「证券参数同步」：Supabase 证券键表 → 本地 `futu.finv_futu_secu_key` 分批增量同步（需求 11042–11044）**
+  - 菜单：紧跟「缺省汇率」新增四级叶子「证券参数同步」（`quote-realtime-secu-param-sync`、`/Meta/Finv/Quote/Realtime/SecuParamSync`）；页面四块——连接与目标表 / 同步参数 / 同步结果 / 说明（ExplainCardSpec）。
+  - 后端：新增 `internal/meta/finv/quote/secukey/`（PostgREST 只读客户端 + 批量增量 upsert + 编排）与处理器 `internal/api/handler/cdeu_secu_key.go`，注册三个接口 `GET .../SecuKey/Status`、`POST .../SecuKey/Config`、`POST .../SecuKey/Sync`。
+  - 同步口径：按 `ftmm_symbol` 升序 `limit`/`offset` 分批（100~5000，默认 1000），`ON CONFLICT (ftmm_symbol) DO UPDATE … WHERE 目标列 IS DISTINCT FROM EXCLUDED`——缺则插入、变了才更新、未变不改写（不推动 `gmt_update`）；单向只读上游、不删本地行、不清空本地 `stock_id`/`usc`；`status` 非法归一为 `PENDING`，关键字段空则跳过。
+  - schema 走 `Accept-Profile` 头（`/rest/v1/public.<表>` 会被 PostgREST 当成 `public.public.<表>` 报 `PGRST205`，实测踩坑后修正）。
+  - 新增系统配置 **20014「Supabase 证券键源表名」**（迁移 `V300143`，默认 `finv_quote_secu_key`，不覆盖用户已配置值）；页面可改并保存，接口亦接受本次覆盖参数。
+  - 验证：首次同步 73,212 行 / 15 批 / `elapsed_ms≈13148`；复跑 `insert=0 update=0 unchanged=73212` 且 `max(gmt_update)` 不变；本地造漂移后复跑 `update=1` 且 `stock_id`/`usc` 保留；`public.` 前缀经 `Accept-Profile` 正常；非法表名 400；20013 清空时 `configured=false` 且同步返回 500 可读原因；`go build`/`go vet`/`go test`/`npm run build` 通过；`schema_version=300143`。
+
 - **新增系统配置 20013「Supabase 数据库连接配置」（需求 11041，迁移 `V300142`）**
   - `data_type='3'`，取值存 `str_value`，格式 `{PROJECT_ID}|{APIKEY}`（半角竖线分隔；PROJECT_ID 即 `https://<PROJECT_ID>.supabase.co` 的子域）；初始值为空 = 未配置（不连接），由运维在系统配置里填写。
   - `remark` 写明格式、留空与非法值语义、以及「敏感信息请勿在日志/前端明文回显」；`create_by='finv'`。
