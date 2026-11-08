@@ -137,6 +137,13 @@ const finvQuantMenu: MenuNode[] = [
             icon: 'mdi-database-plus-outline',
             path: '/Meta/Finv/Quote/Realtime/PendingSecu',
           },
+          // 需求 10999/11000/11002：public.finv_fxcer 缺省汇率（矩阵/表格双模式 + 中文名称，手动更新）。
+          {
+            key: 'quote-realtime-fxcer-overview',
+            title: '缺省汇率',
+            icon: 'mdi-cash-sync',
+            path: '/Meta/Finv/Quote/Realtime/FXCEROverview',
+          },
         ],
       },
       // 需求 10860：从「数据采集」移入，作为「行情」下第三个三级分组（原「数据采集」随之删除）。

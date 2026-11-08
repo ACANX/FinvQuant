@@ -173,9 +173,16 @@ func NewRouter(deps *Deps) *gin.Engine {
 			realtime.POST("/FTStockQuoteSnapshotSync/Run", archive.RealtimeStockListRunStart)
 			realtime.GET("/FTStockQuoteSnapshotSync/Run", archive.RealtimeStockListRunStatus)
 			realtime.GET("/Stock/Page", archive.RealtimeStockPage)
+			// 人民币计价指标手动补全（需求 11024）：先补 rmb_exchange_rate，再补 rmb_ 金额字段。
+			realtime.POST("/Stock/RmbSync", archive.RealtimeStockRmbSync)
 			// 需求 10995：待录入证券（usc 为空，作为补录主数据的依据），先只提供查询。
 			realtime.GET("/Stock/Pending", archive.RealtimeStockPendingPage)
 			openGroup.POST("/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert", archive.RealtimeStockUpsert)
+
+			// 缺省汇率（需求 10999/11002）：public.finv_fxcer，手动触发 get-fx-overview / get-fx-rate-list 全量更新 + 整表查询。
+			fx := apiGroup.Group("/Meta/Finv/Quote/Cdeu/Fx")
+			fx.POST("/CerSync", archive.FxCERSync)
+			fx.GET("/Cer", archive.FxCERList)
 			group.POST("/Job/Run", archive.JobRun)
 			group.POST("/Job/Dynamic/Run", archive.DynamicJobRun)
 

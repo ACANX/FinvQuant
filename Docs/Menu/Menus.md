@@ -31,6 +31,7 @@
 ├─ 实时行情（二级分组）
 │  └─ 证券行情排行（三级叶子，/Meta/Finv/Quote/Realtime/FTStockRank，需求 10962/10963/10964）
 │  └─ 行情快照手动同步（三级叶子，/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync，需求 10982）
+│  └─ 缺省汇率（三级叶子，/Meta/Finv/Quote/Realtime/FXCEROverview，需求 10999/11000）
 ├─ 元数据管理（二级分组）
 │  └─ 业务元数据维护（三级分组）
 │     ├─ 交易所信息维护（/meta/exchange）
@@ -107,6 +108,7 @@
 | 41 | 证券行情排行 | 金融投资 | 四级叶子 | `quote-realtime-ftstockrank` | `mdi-chart-timeline-variant` | `/Meta/Finv/Quote/Realtime/FTStockRank` | `Web/src/views/Meta/Finv/Quote/Realtime/RealtimeStockView.vue` | `GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Page` | [Quote/Realtime/RealtimeStock.md](Quote/Realtime/RealtimeStock.md) |
 | 42 | 行情快照手动同步 | 金融投资 | 四级叶子 | `quote-realtime-snapshot-sync` | `mdi-cloud-sync-outline` | `/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync` | `Web/src/views/Meta/Finv/Quote/Realtime/StockSnapshotSyncView.vue` | `POST/GET .../Realtime/FTStockQuoteSnapshotSync/Run` | [Quote/Realtime/SnapshotSync.md](Quote/Realtime/SnapshotSync.md) |
 | 43 | 待录入证券 | 金融投资 | 四级叶子 | `quote-realtime-pending-secu` | `mdi-database-plus-outline` | `/Meta/Finv/Quote/Realtime/PendingSecu` | `Web/src/views/Meta/Finv/Quote/Realtime/PendingSecuView.vue` | `GET .../Realtime/Stock/Pending` | [Quote/Realtime/PendingSecu.md](Quote/Realtime/PendingSecu.md) |
+| 44 | 缺省汇率 | 金融投资 | 四级叶子 | `quote-realtime-fxcer-overview` | `mdi-cash-sync` | `/Meta/Finv/Quote/Realtime/FXCEROverview` | `Web/src/views/Meta/Finv/Quote/Realtime/FxCerView.vue` | `POST .../Fx/CerSync`、`GET .../Fx/Cer` | [Quote/Realtime/FxCer.md](Quote/Realtime/FxCer.md) |
 
 ## 说明
 

@@ -7,6 +7,7 @@ import QuoteImportView from './views/Meta/Finv/Quote/History/HistoryQuoteImportV
 import RealtimeStockView from './views/Meta/Finv/Quote/Realtime/RealtimeStockView.vue'
 import StockSnapshotSyncView from './views/Meta/Finv/Quote/Realtime/StockSnapshotSyncView.vue'
 import PendingSecuView from './views/Meta/Finv/Quote/Realtime/PendingSecuView.vue'
+import FxCerView from './views/Meta/Finv/Quote/Realtime/FxCerView.vue'
 import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue'
 import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue'
 import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue'
@@ -78,6 +79,13 @@ const router = createRouter({
       name: 'quote-realtime-pending-secu',
       component: PendingSecuView,
       meta: { title: '待录入证券' },
+    },
+    // 行情 → 实时行情 → 缺省汇率（需求 10999/11000）：矩阵/表格双模式 + 中文名称，手动更新
+    {
+      path: '/Meta/Finv/Quote/Realtime/FXCEROverview',
+      name: 'quote-realtime-fxcer-overview',
+      component: FxCerView,
+      meta: { title: '缺省汇率' },
     },
     // 行情数据归档 → K线数据查询 / 统计（需求 10856/10857 改名并移入「收剔导传ETL」）
     {
