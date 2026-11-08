@@ -57,6 +57,11 @@
 
 ### 变更
 
+- **`cdeu.finv_quote_secu_indicator` 全部 131 列补齐中文注释（需求 11053，迁移 `V300146`）**
+  - 列说明取自上游采集脚本 `FtmmSecuMetaFetch/sql/schema.pg.sql`（14 个身份/标记列不在本表，无需注释）；本表专有 10 列（`usc`/`ftmm_symbol`/`ts`/`secu_url`/`source_channel`/`dt_collect`/`dt_create`/`dt_update`/`count_update`/`json_unmapped`）用本地措辞覆盖，如 `usc` 注明占位规则、`dt_update` 注明由触发器刷新、`secu_url` 注明同步到 `futu.finv_futu_secu_key.url`。
+  - 仅改注释：不动列结构、不动数据；迁移幂等（重复执行只覆盖同值）。
+  - 验证：131 列全部有非空注释（`col_description` 计数 = 131）、`\d+` 每列 Description 非空、重跑 NOTICE 输出「全部 131 列已有中文注释」。
+
 - **证券指标表改名：`cdeu.finv_quote_secu_meta` → `cdeu.finv_quote_secu_indicator`（需求 11049，迁移 `V300145`）**
   - 列（131 列）/ 类型 / 可空性 / 数据不变；派生对象一并改名：主键 `finv_quote_secu_indicator_pkey`、索引 `idx_finv_quote_secu_indicator_ts` / `idx_finv_quote_secu_indicator_dt_update`、触发器 `finv_quote_secu_indicator_set_dt_update` 与同名函数，以及 PG18 的 NOT NULL 约束名。
   - 历史迁移 `V300144` 不回改（仍按旧名建表，空库按 144→145 顺序执行后同为现名）；表/列注释按新名重写；`DbSchemaSpec` 已更新。
