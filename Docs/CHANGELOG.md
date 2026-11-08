@@ -20,6 +20,13 @@
 
 ### 新增
 
+- **新建证券键表 `futu.finv_quote_secu_key`（需求 11036，迁移 `V300137`）**
+  - 按用户提供的 Supabase DDL 落地：`instrument` / `market` / `code` / `ftmm_symbol`（主键）/ `flag_enable`（SMALLINT 默认 1）/ `priority`（1~1000000，默认 10）/ `status`（默认 `PENDING`）/ `url` / `gmt_create` / `gmt_update`，索引 `(instrument, market)`。
+  - 适配仓库约定：索引落在 `futu` schema、`gmt_update` 复用 `public.vq_set_gmt_update()`、触发器名 `trg_finv_quote_secu_key_gmt_update`、补齐表/列注释；`DbSchemaSpec` 的 `futu` 域表清单同步。
+  - 验证：列数 10、主键/索引/触发器齐备；`priority` 越界与主键重复均按约束报错；`UPDATE` 后 `gmt_update` 自动刷新；`schema_version=300137`。
+
+### 新增
+
 - **按指定 usc 更正 5 个证券并发放两表初始数据（需求 11035，迁移 `V300136`）**
   - `BFLY`→`BFLYN`（Butterfly Network）、`DJT`→`DJTG`（特朗普媒体科技集团）、`USBTC`→`BTCMT`（Grayscale Bitcoin Mini Trust）、`USETH`→`LETH`（Grayscale Ethereum Mini Trust）、`XRP`→`ETFXRP`（V300135 已完成）；cdeu 侧 `usc` 同步更正。
   - 两表把上批别名行改名为新 usc（改名条件限定 `security_name` / `futu_symbol` 与清单一致，**不会误改同名指数行**），并把 `security_code` 由占位值改回交易所真码（`BTC` / `ETH`）；`BFLYN` / `DJTG` 为首次发放。
