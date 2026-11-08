@@ -20,6 +20,12 @@
 
 ### 新增
 
+- **Tab 3 上游 usc 回填扩展为「写两张上游表」（需求 11056/11057）**
+  - ① `public.finv_quote_secu_meta.usc`（原口径，按 `stock_id`）；② 新增 `public.finv_quote_secu_key` 的 `usc` + `stock_id`（按 `ftmm_symbol`）。
+  - 键表关联口径：本地用 `market_label || '.' || futu_symbol` 重建 `ftmm_symbol`（上游为 `{market}.{code}`），覆盖 24,162 / 73,212 行；按 `stock_id` 关联只有 10,910 行且是其子集，因此不作主路径。其余 49,050 行本地无依据跳过。
+  - 页面/接口：`Status` 增加 `key_table`/`key_columns`/`key_local_rows`/`key_resolvable`/`key_unresolved`；运行快照增加 `phase`（meta/key）与 `key_fill`/`key_overwrite`/`key_unchanged`/`key_ambiguous`/`key_no_target`/`key_batches`；Tab 3 增加键表 chips。
+  - 实测：键表首次 `key_fill=13252`（此前按 `stock_id` 已填 10,910）+ `key_unchanged=10910`，上游 `usc`/`stock_id` 非空均由 0 增至 **24,162**（两者同行同数）；`key_ambiguous=0`、`key_no_target=0`；复跑 `key_fill=0 key_overwrite=0 key_unchanged=24162`（幂等）；抽样 `US.AAPL → AAPL/205189`、`HK.00700 → 00700/54047868453564`。
+
 - **新增「证券参数同步 → Tab 3 上游 usc 回填」（需求 11054/11055）**
   - 方向相反：把本地 `futu.finv_futu_quote_collect.usc`（24,418 行）**按 `stock_id` 关联**写回上游 `public.finv_quote_secu_meta.usc`（上游原有 3,673 行为 NULL）；关联键是 `stock_id`，不是 `usc`。
   - 口径：上游已一致 → 「未变」不发请求；为空 → 「填入」；不同 → 「覆盖」；本地有、上游无 → 「无对应」；同一 `stock_id` 多条 `usc` 时取等于上游 `ftmm_symbol` 的那条，都不等计入「歧义」跳过。
