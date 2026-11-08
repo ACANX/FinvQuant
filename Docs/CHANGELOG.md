@@ -20,6 +20,12 @@
 
 ### 新增
 
+- **新增「证券参数同步 → Tab 3 上游 usc 回填」（需求 11054/11055）**
+  - 方向相反：把本地 `futu.finv_futu_quote_collect.usc`（24,418 行）**按 `stock_id` 关联**写回上游 `public.finv_quote_secu_meta.usc`（上游原有 3,673 行为 NULL）；关联键是 `stock_id`，不是 `usc`。
+  - 口径：上游已一致 → 「未变」不发请求；为空 → 「填入」；不同 → 「覆盖」；本地有、上游无 → 「无对应」；同一 `stock_id` 多条 `usc` 时取等于上游 `ftmm_symbol` 的那条，都不等计入「歧义」跳过。
+  - 写入：逐行 PATCH（并发 8），`Prefer: return=minimal, count=exact` 并校验受影响行数 = 1，RLS 拒绝会报错而不是静默成功。接口三支 `GET .../UscBackfill/Status`、`POST|GET .../UscBackfill/Sync/Run`（异步，409 防并发）。
+  - 实测：首跑 49 批 118.7s → `fill=3673`、`overwrite=3`、`unchanged=7234`、`ambiguous=0`、`no_target=13438`（合计 24,348）；上游 `usc IS NULL` 由 3,673 降为 0；复跑 24.0s 全为「未变」（幂等）；并发 409 / 未知 runId 404 均符合预期。
+
 - **Tab 2「证券指标数据同步」落地：上游 `public.finv_quote_secu_meta` 一条记录写三张本地表（需求 11050/11051）**
   - ① `cdeu.finv_quote_secu_indicator` 131 列同名同步（`dt_update` 由触发器维护，不写入不比对）；② `futu.finv_futu_quote_collect` 身份字段同名同步，`futu_symbol` 由 `ftmm_symbol` 去市场前缀派生，唯一键 `(market_code, futu_symbol)` 撞车时跳过；③ `futu.finv_futu_secu_key` 只补 `url`（源 `secu_url`）与 `stock_id`。
   - 源 `usc` 为空时用 `ftmm_symbol` 占位（上游 3,673 行）；**`flag_enable` 按占位与否推导（占位 `'0'` / 真实 `'1'`），插入与更新均覆盖**。
