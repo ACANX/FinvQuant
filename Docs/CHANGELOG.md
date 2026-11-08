@@ -20,6 +20,14 @@
 
 ### 新增
 
+- **按指定 usc 更正 5 个证券并发放两表初始数据（需求 11035，迁移 `V300136`）**
+  - `BFLY`→`BFLYN`（Butterfly Network）、`DJT`→`DJTG`（特朗普媒体科技集团）、`USBTC`→`BTCMT`（Grayscale Bitcoin Mini Trust）、`USETH`→`LETH`（Grayscale Ethereum Mini Trust）、`XRP`→`ETFXRP`（V300135 已完成）；cdeu 侧 `usc` 同步更正。
+  - 两表把上批别名行改名为新 usc（改名条件限定 `security_name` / `futu_symbol` 与清单一致，**不会误改同名指数行**），并把 `security_code` 由占位值改回交易所真码（`BTC` / `ETH`）；`BFLYN` / `DJTG` 为首次发放。
+  - 验证：5 条两表记录齐备、同名标的 `BFLY`（StockIndex）/`DJT`（StockIndex）/`XRP`（Crypto）均未被改动、`USBTC`/`USETH` 行已不存在；复跑全 0 变更；`schema_version=300136`。
+  - 过程记录：首版迁移的改名条件过宽，误改了两条同名指数行，已在本地回滚（备份 `Data/Secu/Backup/before_fix_v300136_*.csv`）并修正脚本后重跑通过。
+
+### 新增
+
 - **Bitwise XRP ETF 分配独立 `usc = ETFXRP`，解除与加密币 `XRP` 的撞车（需求 11034，迁移 `V300135`）**
   - `cdeu.finv_cdeu_secu_realtime_stock`（`stock_id=87660282761853`）的 `usc` 由 `XRP` 更正为 `ETFXRP`；两表插入 `ETFXRP` 记录（`finv_security`：ETF / `security_code='XRP'` / `market_code=0` / `flag_enable='0'`；`futu` 侧：`futu_symbol='XRP'`、`market_code=12`、`instrument_type=4`、`type_symbol='etfs'`）。
   - 加密币 `XRP`（`Crypto` / `market_code=10001`，需求 10946）保持原样；迁移带防串校验，`ETFXRP` 被占用即报错回滚，重跑 0 变更。
