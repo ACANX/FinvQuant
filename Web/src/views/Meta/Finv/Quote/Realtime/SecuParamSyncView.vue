@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 证券参数同步（需求 11042–11050）
+// 证券参数同步（需求 11042–11055）
 // Tab 1「FT证券基础参数同步」：
 //   GET  /Meta/Finv/Quote/Cdeu/SecuKey/Status          只读快照（20013 状态 + 源表名 + 目标表行数）
 //   POST /Meta/Finv/Quote/Cdeu/SecuKey/Config          保存源表名（写系统配置 20014）
@@ -10,7 +10,12 @@
 //   POST /Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run        异步启动
 //   GET  /Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run        运行时快照
 //
-// 两个 Tab 都是「异步启动 + 800ms 轮询 + 独立滚动日志区」，实现共享 useAsyncRun。
+// Tab 3「上游 usc 回填」（需求 11054，方向相反：本地 → 上游）：
+//   GET  /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Status         本地源表行数 / 待处理 stock_id
+//   POST /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run       异步启动
+//   GET  /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run       运行时快照
+//
+// 三个 Tab 都是「异步启动 + 800ms 轮询 + 独立滚动日志区」，实现共享 useAsyncRun。
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, type ComputedRef, type Ref } from 'vue'
 
 import { apiGet, apiPost } from '../../../../../api'
@@ -88,18 +93,53 @@ interface IndicatorStatus {
   batch_size_default: number
 }
 
+// Tab 3 运行快照（上游 usc 回填）
+interface BackfillRun extends RunBase {
+  kind: string
+  upstream_table: string
+  local_table: string
+  key_column: string
+  rows_done: number
+  fill: number
+  overwrite: number
+  unchanged: number
+  ambiguous: number
+  no_target: number
+}
+
+// Tab 3 状态快照
+interface BackfillStatus {
+  configured: boolean
+  project_id: string
+  api_key_masked: string
+  config_error?: string
+  upstream_table: string
+  upstream_column: string
+  local_table: string
+  key_column: string
+  local_rows: number
+  local_stock_ids: number
+  local_usc_placeholder: number
+  batch_size_default: number
+}
+
 const STATUS_API = '/Meta/Finv/Quote/Cdeu/SecuKey/Status'
 const CONFIG_API = '/Meta/Finv/Quote/Cdeu/SecuKey/Config'
 const SYNC_RUN_API = '/Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run'
 const IND_STATUS_API = '/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Status'
 const IND_RUN_API = '/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run'
+const BACKFILL_STATUS_API = '/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Status'
+const BACKFILL_RUN_API = '/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run'
 
 const BATCH_OPTIONS = [500, 1000, 2000, 5000]
 const DEFAULT_SOURCE_TABLE = 'finv_quote_secu_key'
 const START_TIMEOUT_MS = 60 * 1000
 const POLL_INTERVAL_MS = 800
 
-const tab = ref<'basic' | 'indicator'>('basic')
+// Tab 3 的批量档位更小：逐行走 PATCH，批量大只会让单批耗时变长、日志更粗
+const BACKFILL_BATCH_OPTIONS = [200, 500, 1000, 2000]
+
+const tab = ref<'basic' | 'indicator' | 'backfill'>('basic')
 
 // ---------- 通用工具 ----------
 function num(value: number | undefined | null): string {
@@ -311,14 +351,54 @@ async function runIndicatorSync() {
   await loadIndicatorStatus()
 }
 
+// ---------- Tab 3：上游 usc 回填 ----------
+const bfStatus = ref<BackfillStatus | null>(null)
+const bfStatusLoading = ref(false)
+const bfBatchSize = ref(500)
+const logBoxBackfill = ref<HTMLElement | null>(null)
+
+const bfConfigured = computed(() => bfStatus.value?.configured === true)
+
+const bf = useAsyncRun<BackfillRun>(
+  BACKFILL_RUN_API,
+  () => ({ batch_size: bfBatchSize.value }),
+  logBoxBackfill,
+)
+
+async function loadBackfillStatus() {
+  bfStatusLoading.value = true
+  try {
+    const data = await apiGet<BackfillStatus>(BACKFILL_STATUS_API)
+    bfStatus.value = data
+    if (data.batch_size_default > 0) {
+      bfBatchSize.value = BACKFILL_BATCH_OPTIONS.includes(data.batch_size_default) ? data.batch_size_default : 500
+    }
+  } catch (err) {
+    showToast(errorText(err), 'error')
+  } finally {
+    bfStatusLoading.value = false
+  }
+}
+
+async function runBackfill() {
+  if (!bfConfigured.value) {
+    showToast('系统配置 20013（Supabase 连接配置）未配置，请先填写 {PROJECT_ID}|{APIKEY}', 'warning')
+    return
+  }
+  await bf.start('上游 usc 回填')
+  await loadBackfillStatus()
+}
+
 onMounted(async () => {
   await loadStatus()
   await loadIndicatorStatus()
+  await loadBackfillStatus()
 })
 
 onBeforeUnmount(() => {
   basic.stop()
   ind.stop()
+  bf.stop()
 })
 </script>
 
@@ -332,14 +412,15 @@ onBeforeUnmount(() => {
         variant="text"
         size="small"
         prepend-icon="mdi-refresh"
-        :loading="statusLoading || indStatusLoading"
-        @click="loadStatus(); loadIndicatorStatus()"
+        :loading="statusLoading || indStatusLoading || bfStatusLoading"
+        @click="loadStatus(); loadIndicatorStatus(); loadBackfillStatus()"
       >
         刷新状态
       </v-btn>
     </div>
     <div class="text-caption text-medium-emphasis mb-2">
-      从 Supabase 上游按主键分批增量同步：只在上游有变化时写入，不变的行不改写。
+      Tab 1/2 从 Supabase 上游按主键分批增量同步到本地；Tab 3 反向把本地 <code>usc</code> 按
+      <code>stock_id</code> 回填到上游。不变的行都不改写。
     </div>
 
     <v-tabs v-model="tab" density="comfortable" color="primary">
@@ -350,6 +431,10 @@ onBeforeUnmount(() => {
       <v-tab value="indicator">
         <v-icon icon="mdi-chart-box-outline" class="mr-2" />
         证券指标数据同步
+      </v-tab>
+      <v-tab value="backfill">
+        <v-icon icon="mdi-upload-outline" class="mr-2" />
+        上游 usc 回填
       </v-tab>
     </v-tabs>
 
@@ -513,7 +598,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- ============ Tab 2：证券指标数据同步 ============ -->
-    <div v-else>
+    <div v-else-if="tab === 'indicator'">
       <v-card class="mt-3">
         <v-card-title class="d-flex align-center">
           <v-icon icon="mdi-cloud-check-outline" class="mr-2" />
@@ -668,6 +753,168 @@ onBeforeUnmount(() => {
       </v-card>
     </div>
 
+    <!-- ============ Tab 3：上游 usc 回填 ============ -->
+    <div v-else>
+      <v-card class="mt-3">
+        <v-card-title class="d-flex align-center">
+          <v-icon icon="mdi-cloud-upload-outline" class="mr-2" />
+          连接与源表
+        </v-card-title>
+        <v-card-text>
+          <v-row dense>
+            <v-col cols="12" md="6">
+              <div class="text-caption text-medium-emphasis">Supabase 连接（系统配置 20013）</div>
+              <div class="d-flex align-center flex-wrap ga-2 mt-1">
+                <v-chip
+                  v-if="bfConfigured"
+                  size="small"
+                  color="success"
+                  variant="tonal"
+                  prepend-icon="mdi-check-circle-outline"
+                >
+                  已配置
+                </v-chip>
+                <v-chip v-else size="small" color="warning" variant="tonal" prepend-icon="mdi-alert-outline">
+                  未配置
+                </v-chip>
+                <code v-if="bfConfigured" class="text-body-2">{{ bfStatus?.project_id }}</code>
+                <span v-if="bfConfigured" class="text-caption text-medium-emphasis">
+                  APIKEY {{ bfStatus?.api_key_masked }}（已脱敏）
+                </span>
+              </div>
+              <div v-if="bfStatus?.config_error" class="text-caption text-warning mt-1">{{ bfStatus.config_error }}</div>
+            </v-col>
+            <v-col cols="12" md="6">
+              <div class="text-caption text-medium-emphasis">本地源表（usc 来源）</div>
+              <div class="d-flex align-center flex-wrap ga-2 mt-1">
+                <code class="text-body-2">{{ bfStatus?.local_table || 'futu.finv_futu_quote_collect' }}</code>
+                <v-chip size="small" variant="tonal" color="primary">共 {{ num(bfStatus?.local_rows) }} 行</v-chip>
+                <v-chip size="small" variant="tonal" color="info">
+                  待处理 {{ num(bfStatus?.local_stock_ids) }} 个 {{ bfStatus?.key_column || 'stock_id' }}
+                </v-chip>
+              </div>
+            </v-col>
+          </v-row>
+
+          <v-divider class="my-3" />
+
+          <div class="text-caption text-medium-emphasis mb-1">上游被回填的表与列</div>
+          <div class="d-flex align-center flex-wrap ga-2">
+            <v-chip size="small" variant="tonal" color="secondary">
+              <code class="mr-1">{{ bfStatus?.upstream_table || 'public.finv_quote_secu_meta' }}</code>
+              .{{ bfStatus?.upstream_column || 'usc' }}
+            </v-chip>
+            <v-chip size="small" variant="text">
+              关联键 <code class="ml-1">{{ bfStatus?.key_column || 'stock_id' }}</code>
+            </v-chip>
+            <v-chip size="small" variant="tonal" color="warning">
+              占位 usc {{ num(bfStatus?.local_usc_placeholder) }} 行
+            </v-chip>
+          </div>
+        </v-card-text>
+      </v-card>
+
+      <v-card class="mt-4">
+        <v-card-title class="d-flex align-center">
+          <v-icon icon="mdi-tune-variant" class="mr-2" />
+          回填参数
+        </v-card-title>
+        <v-card-text>
+          <v-row dense align="start">
+            <v-col cols="12" md="3">
+              <v-select
+                v-model="bfBatchSize"
+                :items="BACKFILL_BATCH_OPTIONS"
+                label="每批 stock_id 数"
+                density="compact"
+                variant="outlined"
+                hide-details
+              />
+            </v-col>
+            <v-col cols="12" md="9" class="d-flex align-center">
+              <v-btn
+                color="primary"
+                prepend-icon="mdi-play-circle-outline"
+                :loading="bf.starting.value && bf.running.value"
+                :disabled="!bfConfigured || bf.running.value"
+                @click="runBackfill"
+              >
+                {{ bf.running.value ? '回填中…' : '立即回填' }}
+              </v-btn>
+            </v-col>
+          </v-row>
+        </v-card-text>
+      </v-card>
+
+      <v-alert v-if="bf.error.value" type="error" variant="tonal" class="mt-4" density="compact">
+        {{ bf.error.value }}
+      </v-alert>
+
+      <v-card v-if="bf.run.value" class="mt-4">
+        <v-card-title class="d-flex align-center">
+          <v-icon icon="mdi-progress-clock" class="mr-2" />
+          回填进度与日志
+          <v-spacer />
+          <v-chip
+            size="small"
+            variant="tonal"
+            :color="bf.run.value.status === 'RUNNING' ? 'info' : bf.run.value.status === 'DONE' ? 'success' : 'error'"
+          >
+            {{ bf.run.value.status === 'RUNNING' ? '运行中' : bf.run.value.status === 'DONE' ? '已完成' : '失败' }}
+          </v-chip>
+        </v-card-title>
+        <v-card-text>
+          <div class="d-flex flex-wrap ga-2 mb-2">
+            <v-chip size="small" variant="tonal" color="info">
+              处理 {{ num(bf.run.value.rows_done) }} / {{ num(bf.run.value.rows_total) }}
+            </v-chip>
+            <v-chip size="small" variant="tonal" color="success">填入 {{ num(bf.run.value.fill) }}</v-chip>
+            <v-chip size="small" variant="tonal" color="primary">覆盖 {{ num(bf.run.value.overwrite) }}</v-chip>
+            <v-chip size="small" variant="tonal">未变 {{ num(bf.run.value.unchanged) }}</v-chip>
+            <v-chip v-if="bf.run.value.ambiguous" size="small" variant="tonal" color="warning">
+              歧义 {{ num(bf.run.value.ambiguous) }}
+            </v-chip>
+            <v-chip v-if="bf.run.value.no_target" size="small" variant="tonal" color="warning">
+              无对应 {{ num(bf.run.value.no_target) }}
+            </v-chip>
+            <v-chip size="small" variant="text">
+              {{ bf.run.value.batches }} 批 · {{ elapsedText(bf.run.value.elapsed_ms) }}
+            </v-chip>
+          </div>
+
+          <v-progress-linear
+            :model-value="clampProgress(bf.run.value.progress)"
+            :indeterminate="bf.running.value && clampProgress(bf.run.value.progress) === 0"
+            height="8"
+            rounded
+            class="mb-1"
+          />
+          <div class="text-caption text-medium-emphasis mb-2">
+            进度 {{ clampProgress(bf.run.value.progress).toFixed(1) }}%（{{ num(bf.run.value.rows_done) }} /
+            {{ num(bf.run.value.rows_total) }} 个 stock_id）· 上游
+            <code>{{ bf.run.value.upstream_table }}.{{ bfStatus?.upstream_column || 'usc' }}</code>
+            · run_id <code>{{ bf.run.value.run_id }}</code>
+          </div>
+
+          <div ref="logBoxBackfill" class="finv-secukey-logbox">
+            <div
+              v-for="log in bf.run.value.logs"
+              :key="log.seq"
+              class="finv-secukey-logline"
+              :class="{ 'finv-secukey-logline-error': log.level === 'ERROR' }"
+            >
+              <span class="finv-secukey-logtime">{{ clockText(log.time) }}</span>
+              <span class="finv-secukey-logtext">{{ log.text }}</span>
+            </div>
+            <div v-if="bf.running.value" class="finv-secukey-logline finv-secukey-logline-wait">
+              <span class="finv-secukey-logtime">……</span>
+              <span class="finv-secukey-logtext">等待下一批…</span>
+            </div>
+          </div>
+        </v-card-text>
+      </v-card>
+    </div>
+
     <!-- 说明卡片（ExplainCardSpec：页面最底部唯一「说明」卡片） -->
     <v-card class="mt-4">
       <v-card-title class="d-flex align-center">
@@ -706,9 +953,24 @@ onBeforeUnmount(() => {
         <v-divider class="my-3" />
 
         <div class="finv-secukey-note">
+          <div class="finv-secukey-note-title">上游 usc 回填（方向相反：本地 → 上游）</div>
+          <div class="text-body-2 finv-secukey-note-body">
+            把本地 <code>futu.finv_futu_quote_collect</code> 的 <code>usc</code> 按 <code>stock_id</code> 关联写回上游
+            <code>public.finv_quote_secu_meta.usc</code>（上游该列有 3,673 行为 NULL）。关联键是
+            <code>stock_id</code>，不是 <code>usc</code>；上游 <code>usc</code> 已等于本地值时不发请求（「未变」）。
+            本地同一个 <code>stock_id</code> 有多条 <code>usc</code> 时（如实测 70 组 <code>CC.DASHTRY.FTUS</code> /
+            <code>DASHTRY</code>），取<b>等于上游 <code>ftmm_symbol</code></b> 的那条；都不等则跳过并计入「歧义」，
+            本地有、上游没有的 <code>stock_id</code>（期货/加密 FTUS 等 futu 独有）计入「无对应」。
+            本 Tab 会<b>写入线上 Supabase</b>：逐行 PATCH，每行都校验「受影响行数 = 1」，被 RLS 拒绝会直接报错。
+          </div>
+        </div>
+
+        <v-divider class="my-3" />
+
+        <div class="finv-secukey-note">
           <div class="finv-secukey-note-title">增量口径与进度</div>
           <div class="text-body-2 finv-secukey-note-body">
-            两个 Tab 都是分批拉取（按主键 / <code>ftmm_symbol</code> 升序）：主键不存在则插入；已存在且字段与源不同才更新；
+            Tab 1/2 是分批拉取（按主键 / <code>ftmm_symbol</code> 升序），Tab 3 是分批按 <code>stock_id</code> 升序：主键不存在则插入；已存在且字段与源不同才更新；
             完全一致的行不改写。点「立即同步」后任务在后台运行，页面每 800 ms 轮询一次，日志逐批实时追加在
             「同步进度与日志」区域，无需等结束；同一时刻每个 Tab 只允许一个运行。
           </div>

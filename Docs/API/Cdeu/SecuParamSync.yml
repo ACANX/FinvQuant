@@ -9,7 +9,8 @@ info:
     只由前端「证券参数同步」页按钮手动触发，无定时任务；单向只读上游，不删除本地行。
     需求 11042（菜单与页面）、11043（同步实现）、11044（源表名可配）、11045（页面拆两个 Tab）、
     11046（异步运行 + 实时日志）、11050（Tab 2 指标同步）、11051（flag_enable 规则）、
-    11052（Tab 1 不清空 Tab 2 补的 url）；连接配置 20013（需求 11041）。
+    11052（Tab 1 不清空 Tab 2 补的 url）、11054（Tab 3 上游 usc 回填，方向为本地 → 上游）、
+    11055（本地同一 stock_id 多条 usc 时取等于上游 ftmm_symbol 的那条）；连接配置 20013（需求 11041）。
     Tab 2 来源固定 public.finv_quote_secu_meta，一条记录写三张表：
     cdeu.finv_quote_secu_indicator（131 列同名）/ futu.finv_futu_quote_collect（身份字段同名）/
     futu.finv_futu_secu_key（只补 url ← secu_url 与 stock_id）。
@@ -430,8 +431,146 @@ paths:
         '404':
           description: 没有找到指标同步运行记录
 
+  /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Status:
+    get:
+      summary: 上游 usc 回填状态快照（本地源表行数 / 待处理 stock_id 数）
+      operationId: uscBackfillStatus
+      tags: [Cdeu]
+      description: |
+        只读本地：读系统配置 20013 并统计 futu.finv_futu_quote_collect 的行数、
+        去重 stock_id 数（= 一次回填的待处理量）与占位行数，不访问 Supabase。
+      responses:
+        '200':
+          description: 状态快照
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: {type: integer, const: 0}
+                  message: {type: string}
+                  data:
+                    type: object
+                    properties:
+                      configured: {type: boolean}
+                      project_id: {type: string}
+                      api_key_masked: {type: string}
+                      config_error: {type: string}
+                      upstream_table: {type: string, const: public.finv_quote_secu_meta}
+                      upstream_column: {type: string, const: usc}
+                      local_table: {type: string, const: futu.finv_futu_quote_collect}
+                      key_column: {type: string, const: stock_id}
+                      local_rows: {type: integer}
+                      local_stock_ids: {type: integer}
+                      local_usc_placeholder: {type: integer}
+                      batch_size_default: {type: integer}
+        '401':
+          description: 未登录或登录已过期
+        '500':
+          description: 读取配置或统计本地源表失败（code=2006）
+  /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run:
+    post:
+      summary: 异步启动上游 usc 回填（返回 run_id）
+      operationId: uscBackfillStartRun
+      tags: [Cdeu]
+      description: |
+        把本地 futu.finv_futu_quote_collect.usc 按 stock_id 关联写回上游
+        public.finv_quote_secu_meta.usc。**该接口会写入线上 Supabase**（逐行 PATCH）。
+        上游 usc 已等于目标值时不发请求（未变）；本地同一 stock_id 有多条 usc 时取等于上游
+        ftmm_symbol 的那条，都不等则计入「歧义」并跳过；本地有、上游没有的 stock_id 计入「无对应」。
+        每行写入都校验受影响行数 = 1（RLS 拒绝会直接报错，不会静默成功）。
+        已有回填在运行时返回 409；状态只存内存，整体超时 60 分钟。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                batch_size:
+                  type: integer
+                  description: 每批处理的 stock_id 个数，收敛到 100~5000
+                  default: 500
+      responses:
+        '202':
+          description: 任务已启动（data 为启动瞬间快照）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UscBackfillRun'
+        '400':
+          description: 请求体非法
+        '401':
+          description: 未登录或登录已过期
+        '409':
+          description: 已有回填任务在运行（message 带正在运行的 run_id）
+    get:
+      summary: 上游 usc 回填运行快照（进度 + 逐批实时日志）
+      operationId: uscBackfillRunStatus
+      tags: [Cdeu]
+      description: runId 省略时返回最近一次运行；不匹配或从未运行过返回 404。
+      parameters:
+        - name: runId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 运行快照
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UscBackfillRun'
+        '401':
+          description: 未登录或登录已过期
+        '404':
+          description: 没有找到 usc 回填运行记录
+
 components:
   schemas:
+    UscBackfillRun:
+      type: object
+      required: [code, message, data]
+      properties:
+        code: {type: integer, const: 0}
+        message: {type: string}
+        data:
+          type: object
+          required: [run_id, kind, status, progress, batches, logs]
+          properties:
+            run_id: {type: string}
+            kind: {type: string, const: uscbackfill}
+            status: {type: string, enum: [RUNNING, DONE, FAILED]}
+            upstream_table: {type: string, const: public.finv_quote_secu_meta}
+            local_table: {type: string, const: futu.finv_futu_quote_collect}
+            key_column: {type: string, const: stock_id}
+            batch_size: {type: integer}
+            rows_total: {type: integer, description: 待处理 stock_id 总数}
+            local_rows: {type: integer, description: 本地源表行数}
+            rows_done: {type: integer, description: 已处理 stock_id 数}
+            fill: {type: integer, description: 上游为空 → 填入}
+            overwrite: {type: integer, description: 上游有值但与本地不同 → 覆盖}
+            unchanged: {type: integer, description: 上游已等于目标值 → 未变（不发请求）}
+            ambiguous: {type: integer, description: 本地多条 usc 且都不等于 ftmm_symbol → 跳过}
+            no_target: {type: integer, description: 上游没有该 stock_id → 跳过}
+            batches: {type: integer}
+            progress: {type: number}
+            started_at: {type: string}
+            finished_at: {type: string}
+            elapsed_ms: {type: integer}
+            error: {type: string}
+            logs:
+              type: array
+              items:
+                type: object
+                properties:
+                  seq: {type: integer}
+                  time: {type: string}
+                  level: {type: string, enum: [INFO, ERROR]}
+                  text: {type: string}
+                  batch: {type: integer}
+                  offset: {type: integer}
     IndicatorSyncRun:
       type: object
       required: [code, message, data]

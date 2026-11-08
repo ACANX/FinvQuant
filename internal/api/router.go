@@ -20,6 +20,7 @@ import (
 	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/indicator"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/secukey"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/uscbackfill"
 )
 
 // Deps 路由依赖。
@@ -133,7 +134,11 @@ func NewRouter(deps *Deps) *gin.Engine {
 		// 证券行情月归档导出与上传（运维：状态 / 任务 / 文件 / 重试 / 手动触发）
 		if deps.ExportArchive != nil {
 			archive := handler.NewExportArchive(deps.ExportArchive)
-			secuKeyHandler := handler.NewSecuKey(secukey.NewService(deps.Pool), indicator.NewService(deps.Pool))
+			secuKeyHandler := handler.NewSecuKey(
+				secukey.NewService(deps.Pool),
+				indicator.NewService(deps.Pool),
+				uscbackfill.NewService(deps.Pool),
+			)
 			group := apiGroup.Group("/Meta/Finv/Quote/DeDup")
 			group.GET("/Status", archive.Status)
 			group.GET("/Settings", archive.Settings)
@@ -200,6 +205,11 @@ func NewRouter(deps *Deps) *gin.Engine {
 			secuKeyGroup.GET("/Indicator/Status", secuKeyHandler.IndicatorStatus)
 			secuKeyGroup.POST("/Indicator/Sync/Run", secuKeyHandler.StartIndicatorSyncRun)
 			secuKeyGroup.GET("/Indicator/Sync/Run", secuKeyHandler.IndicatorSyncRunStatus)
+
+			// Tab 3「上游 usc 回填」（需求 11054）：本地 futu.finv_futu_quote_collect → 上游 public.finv_quote_secu_meta
+			secuKeyGroup.GET("/UscBackfill/Status", secuKeyHandler.UscBackfillStatus)
+			secuKeyGroup.POST("/UscBackfill/Sync/Run", secuKeyHandler.StartUscBackfillRun)
+			secuKeyGroup.GET("/UscBackfill/Sync/Run", secuKeyHandler.UscBackfillRunStatus)
 			group.POST("/Job/Run", archive.JobRun)
 			group.POST("/Job/Dynamic/Run", archive.DynamicJobRun)
 

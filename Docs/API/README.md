@@ -93,7 +93,10 @@ Authorization: Bearer <token>
     - [`Cdeu/SecuParamSync.md`](Cdeu/SecuParamSync.md) — `GET .../SecuKey/Status` 状态快照 + `POST .../SecuKey/Config` 保存源表名（系统配置 20014）+ `POST .../SecuKey/Sync`（同步执行）/ `POST|GET .../SecuKey/Sync/Run`（异步 + 实时日志）手动同步
 （Supabase 证券键表 → `futu.finv_futu_secu_key`，按 `ftmm_symbol` 分批增量 upsert）；
 另含 Tab 2 指标同步三支：`GET .../SecuKey/Indicator/Status`、`POST|GET .../SecuKey/Indicator/Sync/Run`
-（上游 `public.finv_quote_secu_meta` → `cdeu.finv_quote_secu_indicator` + `futu.finv_futu_quote_collect` + `futu.finv_futu_secu_key`）；连接配置 20013；契约 [.yml](Cdeu/SecuParamSync.yml)）
+（上游 `public.finv_quote_secu_meta` → `cdeu.finv_quote_secu_indicator` + `futu.finv_futu_quote_collect` + `futu.finv_futu_secu_key`）；
+以及 Tab 3 上游 usc 回填三支：`GET .../SecuKey/UscBackfill/Status`、`POST|GET .../SecuKey/UscBackfill/Sync/Run`
+（**反向**：本地 `futu.finv_futu_quote_collect.usc` 按 `stock_id` 写回上游 `public.finv_quote_secu_meta.usc`）；
+连接配置 20013；契约 [.yml](Cdeu/SecuParamSync.yml)）
   - 证券行情月归档导出与上传（`/API/V1/Meta/Finv/Quote/DeDup/*`，**一个接口一个文档**）：
     - [`QuoteDeDup/Status.md`](QuoteDeDup/Status.md) — `GET .../DeDup/Status`（归档链路指标、运行参数与调度表）
     - [`QuoteDeDup/JobRuntime.md`](QuoteDeDup/JobRuntime.md) — `GET .../DeDup/Job/Runtime`（10 个 Job 运行快照：阶段 / 进度 / 心跳 / 最近结果）

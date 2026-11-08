@@ -11,9 +11,15 @@
 > - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Status` —— 三张目标表行数
 > - `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run` —— 异步启动
 > - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run` —— 运行时快照（进度 + 逐批实时日志）
+>
+> Tab 3「上游 usc 回填」（需求 11054，方向相反：本地 → 上游）：
+> - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Status` —— 本地源表行数 / 待处理 `stock_id` 数
+> - `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run` —— 异步启动
+> - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run` —— 运行时快照（进度 + 逐批实时日志）
 > 需求：11042（菜单与页面）、11043（同步实现）、11044（源表名可配 20014）、11045（页面拆两个 Tab）、
 > 11046（异步运行 + 实时日志）、11050（Tab 2 指标同步）、11051（`flag_enable` 规则）、
-> 11052（Tab 1 不清空 Tab 2 补的 `url`）；连接配置 20013（需求 11041）
+> 11052（Tab 1 不清空 Tab 2 补的 `url`）、11054（Tab 3 上游 usc 回填）、
+> 11055（多条 `usc` 的取值规则）；连接配置 20013（需求 11041）
 > 权限：需登录（内部接口，不对外暴露 OpenAPI）
 > 关联表：目标 `futu.finv_futu_secu_key`（迁移 `V300137` 建表、`V300139` 补 `stock_id`/`usc`、`V300141` 改名）；
 > 源 Supabase `public.finv_quote_secu_key`（表名可配，默认与上游同名）
@@ -278,7 +284,82 @@
 | 键表补全 | `url` 与 `stock_id` 各 10,910 行写回（`futu.finv_futu_secu_key` 共 73,212 行） |
 | Tab 1 与 Tab 2 共存（需求 11052） | Tab 2 补完 `url` 后再跑 Tab 1：`update=0`、`unchanged=73212`，`url` 未被清空（源键表 `url` 全为 NULL，Tab 1 改为 `COALESCE(EXCLUDED.url, t.url)`） |
 
-## 7. 实现要点
+## 7. 上游 usc 回填（Tab 3，需求 11054）
+
+**方向相反**：把本地 `futu.finv_futu_quote_collect.usc` **按 `stock_id` 关联**写回上游
+`public.finv_quote_secu_meta.usc`（上游该列原有 3,673 行为 NULL）。
+
+### 7.1 口径
+
+| 环节 | 规则 |
+|------|------|
+| 关联键 | `stock_id`（两表都有、上游唯一且 NOT NULL）——**不是** `usc`，也不是「只更新 `usc IS NULL` 的行」 |
+| 待处理量 | 本地按 `stock_id` 去重（24,418 行 → 24,348 个 `stock_id`），按 `stock_id` 升序分批 |
+| 取值 | 本地该 `stock_id` 只有一条 → 取它；有多条 → 取**等于上游 `ftmm_symbol`** 的那条（需求 11055），都不等则跳过并计「歧义」 |
+| 写不写 | 上游 `usc` 已等于目标值 → 「未变」，**不发请求**；为空 → 「填入」；有值但不同 → 「覆盖」 |
+| 上游无该行 | 本地有、上游没有的 `stock_id`（期货/加密 FTUS 等 futu 独有）→ 「无对应」，不报错 |
+| 写入方式 | 逐行 `PATCH /rest/v1/<表>?stock_id=eq.<X>`，body `{"usc":"<值>"}`，并发 8 |
+| 写入校验 | `Prefer: return=minimal, count=exact` + 校验 `Content-Range` 受影响行数 **= 1**；RLS 拒绝（204 但 0 行）会直接报错，不会静默成功 |
+| 幂等 | 复跑时全部落「未变」（实测 `fill=0 overwrite=0 unchanged=10910`） |
+
+### 7.2 接口
+
+#### `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Status`
+
+只读本地，`data`：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `configured` / `project_id` / `api_key_masked` / `config_error` | — | 20013 状态（key 脱敏） |
+| `upstream_table` / `upstream_column` | string | `public.finv_quote_secu_meta` / `usc` |
+| `local_table` / `key_column` | string | `futu.finv_futu_quote_collect` / `stock_id` |
+| `local_rows` | int | 本地源表行数（24,418） |
+| `local_stock_ids` | int | 去重 `stock_id` 数（= 一次回填的待处理量，24,348） |
+| `local_usc_placeholder` | int | `usc = futu_symbol` 的占位行数（仅提示） |
+| `batch_size_default` | int | 默认批量 500 |
+
+#### `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run`
+
+请求体 `{"batch_size": 500}`（`stock_id` 个数，收敛 100~5000，默认 500）。
+`202` 返回启动快照；`409` 已有回填在运行；`400` 请求体非法。
+
+> ⚠️ 本接口**写入线上 Supabase**（PATCH `usc` 列），不是本地写。
+
+#### `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run?runId=`
+
+`data` 字段：`run_id`（前缀 `sk-ub-`）、`kind="uscbackfill"`、`status`、`progress`、
+`rows_total` / `rows_done`（按 `stock_id` 计）、`local_rows`、`fill` / `overwrite` / `unchanged` /
+`ambiguous` / `no_target`、`batches`、`elapsed_ms`、`error`、`logs[]`；`runId` 省略取最近一次，不匹配 404。
+
+日志形态（首次全量实测）：
+
+```
+23:17:51 回填任务已启动：本地 futu.finv_futu_quote_collect → 上游 public.finv_quote_secu_meta.usc（按 stock_id 关联）
+23:17:56 第 1 批：offset=0，处理 500 个 stock_id，写入 106（填入 105 / 覆盖 1），未变 240，歧义 0，无对应 154（本批 4321 ms）
+……
+23:19:49 回填完成：futu.finv_futu_quote_collect 共 24418 行（24348 个 stock_id），49 批；
+         写入上游 3676（填入 3673 / 覆盖 3），未变 7234，歧义 0，无对应 13438，耗时 118669 ms
+```
+
+### 7.3 验收实测（2026-11-09）
+
+| 场景 | 结果 |
+|------|------|
+| 首跑（`batch_size=500`，49 批） | `rows_total=24348`、`fill=3673`、`overwrite=3`、`unchanged=7234`、`ambiguous=0`、`no_target=13438`，合计 24,348 ✅；耗时 118,669 ms |
+| 上游落库 | 全表 10,910 行；`usc IS NULL` **3,673 → 0**，`usc` 非空 **7,237 → 10,910** |
+| 70 组多值 `stock_id` | 全部按 `ftmm_symbol` 定值（如 `12002553 → CC.DASHTRY.FTUS`），`ambiguous=0` |
+| 3 条覆盖 | `203520 → BRK.B`、`85577223574361 → LETH`、`85611583331825 → BTCMT`（上游原值 `BRK-B` / `USETH` / `USBTC`；如需保留上游命名，需人工改回） |
+| 复跑（`batch_size=1000`，25 批） | `fill=0`、`overwrite=0`、`unchanged=10910`、`no_target=13438`，24,031 ms → 幂等 |
+| 并发保护 | 运行中再次 POST → `409`，message 带正在运行的 `run_id` |
+| 未知 runId | `404`「没有找到 usc 回填运行记录（runId=…）」 |
+
+### 7.4 与 Tab 2 的连锁影响（待确认）
+
+回填后上游这 3,673 行不再是「`usc` 为空」，因此**下次 Tab 2 指标同步会把对应的
+`futu.finv_futu_quote_collect.flag_enable` 从 `'0'` 改成 `'1'`（需求 11051 的推导规则）**，
+即这些证券会被开启采集。若希望它们保持禁用，需另一条口径（不要依赖 `flag_enable` 的占位推导）。
+
+## 8. 实现要点
 
 - 代码：`internal/meta/finv/quote/secukey/`（`client.go` 上游读取、`store.go` 批量写入、`service.go` 编排与归一化、
   `runner.go` 异步运行与实时日志），处理器 `internal/api/handler/cdeu_secu_key.go`；
@@ -289,8 +370,8 @@
 - 同批内 `ftmm_symbol` 重复时保留最后一条（PostgreSQL 不允许同批同键写入两次）；
 - 增量判据：`ON CONFLICT (ftmm_symbol) DO UPDATE … WHERE (目标列) IS DISTINCT FROM (EXCLUDED 列)`，
   未变化的行不产生 WAL、不触发 `gmt_update`；
-- 日志前缀：Tab 1 `[cdeu][secukey]`、Tab 2 `[cdeu][indicator]`；
-  `docker logs <容器> 2>&1 | grep -E '\[cdeu\]\[(secukey|indicator)\]'`；
+- 日志前缀：Tab 1 `[cdeu][secukey]`、Tab 2 `[cdeu][indicator]`、Tab 3 `[cdeu][uscbackfill]`；
+  `docker logs <容器> 2>&1 | grep -E '\[cdeu\]\[(secukey|indicator|uscbackfill)\]'`；
 - Tab 2 的 SQL 由建表列序生成（`internal/meta/finv/quote/indicator/sql.go`）：`cdeu.finv_quote_secu_indicator`
   增删列/改列名后必须重新生成，否则插入与比对会漏列。
 
