@@ -18,7 +18,50 @@
 
 > 0.1.4 开发中。变更按 `新增` / `变更` / `修复` / `移除` / `安全` 分类追加，发布时整体改为版本号并补日期。
 
+### 变更
+
+- **修正 3 条美股宽基股的 `finv_security.market_code`（需求 11030，迁移 `V300129`）**
+  - `V300068` 当年把无富途采集记录的 `BRK.B` / `EA` / `MTBLY` 统一回填为 `1312`（`finv_market` 语义为「美股指数（道琼斯系列）」，对个股错位）；现按交易所专码修正：`BRK.B` → `1316`（NYSE，依据富途原码 `market_code=10`）、`EA` → `1315`（NSDAQ）、`MTBLY` → `1316`（NYSE，按公司沿革推断，发放前需业务确认）。
+  - 迁移只改 `market_code`，`exchange_code`（均已是 30）与 `type_secu_sub` / `provider` 不动；幂等且带前置校验与收敛校验，复跑 `UPDATE 0`。
+  - 验证：三条现值 `BRK.B=1316`、`EA=1315`、`MTBLY=1316`；`gmt_update` 由触发器刷新；本地库执行通过。
+
 ### 新增
+
+- **新增区域字典 `Meta/Dict/FinvRegion.md`（需求 11009）**
+  - 参照 `Meta/Dict/Currency.md` 的体例：键 = `public.finv_region.region` 区域简写，值 = `name` 规范中文名，固定「键 / 值 / 备注」三列，覆盖库内全部 27 条记录，按 `idx` 升序。
+  - 备注标注 `idx` 值、富途自选股 region 原值，以及口径变更：`FX`（`V300077` 新增）、`CC`（`V300077` 以 `CRYPTO` 引入，`V300078` 改简写）、`USA`→`US`（`V300077` 统一）。
+  - 附 `idx` 编码规则与维护约定：走迁移改数据、改 `region` 简写须跨表联动（`finv_exchange.region` 等）、业务判断以 `region` 为准。
+  - 验证：字典 27 行、每行 3 列；键集合与该表 `region` 完全一致，值与 `name` 逐条相同（27/27 零差异）；文件 UTF-8/LF。
+
+- **新增货币字典 `Meta/Dict/Currency.md`（需求 11008）**
+  - 覆盖缺省汇率页「表格模式」`源币种`／`目标币种`两列出现的 36 个代码（以 `public.finv_fxcer` 实际数据为准），表格固定「键 / 值 / 备注」三列：键为三位大写字母、值为规范中文名。
+  - 备注写明特殊口径：`CNY` 由 `CNH` 同价派生、`CNH` 与 `CNY` 存在基差不可混用、`XAU`/`XAG` 为贵金属现货（非货币，按需求保留）、`HKD`/`SGD` 等口语简称。
+  - 排序：先按缺省汇率矩阵展示顺序，其余按字母序；并给出维护约定（以库内代码为准、派生行不引入新代码）。
+  - 验证：字典 36 行、每行 3 列；代码集合与 `public.finv_fxcer` 去重集合完全一致（实测 36 个，零缺零多）；文件 UTF-8/LF。
+
+- **新增前端开发规范：说明卡片（需求 11007）**
+  - 新增 `Docs/DevSpec/ExplainCardSpec.md`：把「静态文字说明统一收进页面最底部唯一一张『说明』卡片」定为本项目默认风格，不再默认放在标题下方、表格前后或页面主体内容前后。
+  - 规范覆盖：静态说明与运行时状态的边界（失败/空表/过期提示、toast、指标卡仍留在主体内容区）、位置与数量（最底部、每页唯一）、标题（`mdi-information-outline` + 「说明」）、标准结构片段、分节样式 token（0.875rem/500/primary + 3px 色条 + `text-body-2` 0.85 + `v-divider`）、反例清单、存量页面迁移原则（改造时顺手迁移、文本不变）与核对命令。
+  - 参考实现：`Web/src/views/Meta/Finv/Quote/Realtime/FxCerView.vue`（需求 11005/11006）。
+
+- **缺省汇率手动触发接口与前端菜单（需求 10999）**
+  - 接口（均需登录）：
+    - `POST /API/V1/Meta/Finv/Quote/Cdeu/Fx/CerSync` —— 同步执行一次 moomoo `get-fx-overview`（72 个货币对），校验键/价格/报价时间后按 `CNH` 派生 16 条 `CNY` 行（`src='derive:CNH'`、`flag_derive='1'`，同批次已有 CNY 直采行则不派生），单事务全量 upsert 到 `public.finv_cer`；返回 `rows_receive` / `derive` / `insert` / `update` / `dt_quote_max` / `elapsed_ms`。
+    - `GET /API/V1/Meta/Finv/Quote/Cdeu/Fx/Cer` —— 整表查询（88 行量级、不分页），`cer` 以 `::text` 输出保精度，附 `gmt_update`；`total=0` 表示从未更新。
+  - 写入语义：upsert 保留「旧报价不覆盖新报价」（`EXCLUDED.dt_quote >= dt_quote`）与「派生行不覆盖直采行」（上游将来直供 CNY 时自动升级为直采）；统计只计本次实际写入行（`RETURNING (xmax = 0)`），因此 `insert + update` 可能小于 `rows_receive`。
+  - 前端：新增菜单「行情 → 实时行情 → 缺省汇率」（key `quote-realtime-fx-cer`、路由 `/Meta/Finv/Quote/Realtime/FxCer`、图标 `mdi-cash-sync`）；页面含「立即更新」（60 s 超时上限）/「刷新」、表为空与报价 ≥ 24 小时的告警、直采/派生/最新报价/最近更新四个汇总 chip、88 行明细表（直采与派生用 chip 区分、汇率按量级调精度、时间本地化）。
+  - 实现：采集口径在 `internal/meta/finv/quote/cdeu/fx_cer_sync.go`（纯函数 `BuildFxCERRows` 可单测）、写入与查询在 `store_fx_cer.go`、Service 薄封装在 `service_fx_cer.go`、HTTP 层在 `internal/api/handler/cdeu_fx_cer.go`。
+  - 文档：新增 `Docs/API/Cdeu/FxCer.md` + `.yml`、`Docs/Menu/Quote/Realtime/FxCer.md`，并登记 `Docs/API/APIs.md`（118/119）、`Docs/API/README.md`、`Docs/Menu/Menus.md`（44）。
+  - 验证：`go build ./...`、`go vet ./...` 退出码 0；`go test ./internal/meta/finv/quote/cdeu/ -run TestBuildFxCER` PASS（72 对 → 88 行、CNY 直采优先、非法键/价格/时间拒绝、`price` 回落）；`FINV_MOOMOO_LIVE=1 go test -run TestLiveFxCEROverview` PASS（真实接口 2026-11-08：72 对 → 88 行，`USDCNH = 6.67333`，`AUDCNY` 为派生行）；`go test ./internal/api/` PASS（含期望路由清单 +2）；`cd Web && npm run build` 通过。本机无可用 PostgreSQL/Redis，未连库跑接口，部署后按需求 10999 的核对命令验收。
+
+- **新建缺省汇率表 `public.finv_cer`（需求 10998）**
+  - 背景：多货币环境下要把证券市值、成交额等金额统一到同一计价货币；既有 `public.finv_currency.exchange_rate_cny` 是 2022 年的静态种子、从未更新，不能作为换算依据。
+  - 迁移 `V300123__public_create_finv_cer.sql`：9 列 —— `currency_src`／`currency_dest`（`TEXT`，`CHECK ^[A-Z]{3}$`）、`cer`（`NUMERIC(24,10)`，`CHECK > 0`，语义「1 单位 `currency_src` = N `currency_dest`」）、`dt_quote`（Unix 毫秒，上游行级报价时间）、`src`、`flag_derive`（`0`=直采／`1`=派生）、`remark`、`gmt_create`／`gmt_update`（`public.vq_set_gmt_update()` 触发器维护）；主键 `finv_cer_pk (currency_src, currency_dest)` + `CHECK currency_src <> currency_dest`，无物理外键；表/列注释齐全，迁移幂等并在末尾校验列清单/主键/CHECK 数/触发器/注释数。
+  - 数据口径（实测 moomoo `get-fx-overview`，2026-11-08，HTTP 200）：`data` 为货币对 → 最新价对象，72 条 = 9 币种两两组合（`CNH`/`USD`/`HKD`/`EUR`/`GBP`/`AUD`/`SGD`/`CAD`/`JPY`），键语义 `AB` = 1 A = N B；正反两向都落库（实测两向乘积偏差最大 `5.6e-4`，不能靠倒数推导）；`price`／`priceNominal` 实测恒等，只落一列 `cer`。
+  - 人民币口径：上游只有 `CNH`，证券侧 `currency` 为 `CNY`，写入时按 `CNH` 对派生 16 条 `CNY` 行（`src='derive:CNH'`、`flag_derive='1'`），**派生行不得覆盖直采行**（上游将来直供 `CNY` 时自动升级为直采）。总计 88 行。
+  - 更新策略：只保最新、**不建历史表**；本轮仅提供手动触发（定期更新后续实现），upsert 条件为 `EXCLUDED.dt_quote >= finv_cer.dt_quote AND (EXCLUDED.flag_derive='0' OR 现有行 flag_derive='1')`，即旧报价不覆盖新报价、派生不覆盖直采；迁移不写种子数据，采集前表为空。
+  - 文档：新增 `Docs/DataDictMapping/FinvCer.md`（表结构、上游数据形态、换算三级回退、写入语义），并在 `Docs/DevSpec/DbSchemaSpec.md` §1 的 `public` 行登记本表与职责。
+  - 验证：本机无可用 PostgreSQL（Docker Desktop 未运行、WSL 内无 `psql`），未连库执行；静态核对——迁移文件 UTF-8/LF、`CREATE TABLE IF NOT EXISTS public.finv_cer` 唯一、`COMMENT` 覆盖表 + 9 列、校验块列清单/主键/6 个 CHECK/触发器/注释数与 DDL 一致。部署后按需求 10998 的核对命令验收。
 
 - **前端新增「行情 → 实时行情」菜单与分页查询接口（需求 10962）**
   - 菜单：在「历史行情」之后新增三级分组「实时行情」，叶子「实时行情」路由 `/Meta/Finv/Quote/Realtime/Stock`，视图 `Web/src/views/Meta/Finv/Quote/Realtime/RealtimeStockView.vue`（只读）。
@@ -63,7 +106,214 @@
   - 文档与索引：新增内部 `Docs/API/Cdeu/RealtimeStockUpsert.md` + `.yml`、对外 `Docs/OpenAPI/Quote/Cdeu/Realtime/StockUpsert.md` + `.yml`（OpenAPI 3.1，各自自包含，按 ApiSpec §7.7），并登记 `Docs/API/README.md`、`Docs/API/APIs.md`（编号 111/112）；`internal/database/schema_qualify_test.go` 增 `finv_cdeu_` → `cdeu.` 前缀映射。
   - 验证：本机无 Go 工具链、无可用 PostgreSQL，未编译也未连库执行；静态核对——两份 `.yml` 经 YAML 解析通过（`openapi: 3.1.0`、路径正确、`maxItems: 500`），`router.go` 注册内部与 OpenAPI 两条路由且与 `router_test.go` 期望路由一致。部署后按需求 10957 的核对命令验收（含「只传 `market_value` 时 `usc` 不被清空」与对外信封断言）。
 
+### 新增
+
+- **实时快照表增加 `gmt_create` / `gmt_update` 审计时间（需求 11029）**
+  - 迁移 `V300128__cdeu_realtime_stock_add_gmt_columns.sql`：`cdeu.finv_cdeu_secu_realtime_stock` 追加 `gmt_create TIMESTAMPTZ NOT NULL DEFAULT now()`（入库时刻，不再变化）与 `gmt_update TIMESTAMPTZ NOT NULL DEFAULT now()`，并建触发器 `trg_finv_cdeu_secu_realtime_stock_gmt_update`（`BEFORE UPDATE` → `public.vq_set_gmt_update()`，复用既有函数）。
+  - 存量行的 `gmt_create` 由 `ADD COLUMN` 默认值回填为迁移执行时刻（历史入库时间不可追溯，已在迁移与注释中说明）。
+  - 写入接口不接受这两列（新增走 DEFAULT、更新走触发器）；`GET .../Realtime/Stock/Page` 每行返回两列（RFC 3339）。
+  - 同步 `Docs/API/Cdeu/RealtimeStockPage.md`/`.yml`、`Docs/API/Cdeu/RealtimeStockUpsert.md`、`Docs/DevSpec/DbSchemaSpec.md`（列数 32→34）。
+  - 验证：`schema_version=300128`、列数 34、类型/可空性/默认值均符合、触发器存在；实测 `UPDATE` 与 `POST .../FTStockUpsert` 都只前进 `gmt_update`、`gmt_create` 不变；接口返回两列；容器 `healthy`。
+
+### 新增
+
+- **实时快照表增加 `remark` 备注列（需求 11028）**
+  - 迁移 `V300127__cdeu_realtime_stock_add_remark.sql`：`cdeu.finv_cdeu_secu_realtime_stock` 追加 `remark TEXT`（可空，第 32 列），列注释写明「人工标注/采集端说明，不参与换算/过滤/排序」；迁移幂等并校验列存在/类型/列序/列总数/注释。
+  - `POST .../Realtime/FTStockUpsert` 请求体新增可选 `remark`，落库 `COALESCE(EXCLUDED.remark, t.remark)`——未提供不清空已有备注；`GET .../Realtime/Stock/Page` 每行返回 `remark`（空串=无备注）。
+  - 同步 `Docs/API/Cdeu/RealtimeStockUpsert.md`、`Docs/API/Cdeu/RealtimeStockPage.md`/`.yml`、`Docs/DevSpec/DbSchemaSpec.md`（列数 31→32）。
+  - 验证：`schema_version=300127`、列数 32、类型 `text`；upsert 写入备注后接口可读；再次 upsert 不带备注时保留原值；容器 `healthy`。
+
 ### 变更
+
+- **排序白名单移除 `rmb_exchange_rate`（需求 11027）**
+  - `rmb_exchange_rate` 是「本币 → CNY」的换算参数、不是排行指标，不应参与排序：后端 `RealtimeStockOrderColumns`、前端排序下拉、API 文档枚举与菜单文档说明均已移除（该列仍作为展示列保留）。
+  - `orderBy=rmb_exchange_rate` 现按白名单校验返回 400；其余四个人民币指标（`rmb_market_value` / `rmb_circulation_market_value` / `rmb_trade_trunover` / `rmb_price_nominal`）排序不受影响。
+  - 验证：`go build`、`npm run build` 通过；构建产物无「人民币汇率」排序项；YAML 解析通过。
+
+### 新增
+
+- **证券行情排行按人民币口径展示与排行，默认按人民币总市值（需求 11025）**
+  - `GET .../Realtime/Stock/Page` 响应每行新增 `rmb_exchange_rate` / `rmb_market_value` / `rmb_circulation_market_value` / `rmb_trade_trunover` / `rmb_price_nominal`（十进制文本，空串=未补全）；排序白名单增加这 5 个字段，**默认 `orderBy` 改为 `rmb_market_value`**（handler 与 store 两处同步，NULL 仍排最后）。
+  - 前端表格在「流通市值」后新增人民币计价分组列（汇率按量级给 2~8 位小数，市值/成交额按万/亿/万亿折算，未补全显示 `—`）；排序下拉新增 5 个人民币口径选项并置于最前，默认「人民币总市值」，重置恢复该默认。
+  - 同步 `Docs/API/Cdeu/RealtimeStockPage.md` + `.yml`（响应字段、白名单、默认值、示例）与 `Docs/Menu/Quote/Realtime/RealtimeStock.md`（列与排序说明）。
+  - 验证：`go build`/`go vet`/`npm run build` 通过；不传 `orderBy` 返回按人民币总市值降序（首行 NVDA `33780560000000`）；`orderBy=rmb_trade_trunover`/`rmb_price_nominal` 生效；末页为未补全行（字段空串）；容器 `healthy`。
+
+- **登记待办：空币种行的币种回填口径（需求 11026，仅登记不实现）**
+  - 快照表有 5235 行 `currency` 为空，无法换算人民币计价指标；候选口径（`market_label` 推断 / `usc` 前缀推断 / `public.finv_security.currency` 回填）待确认后再实现，本轮不改代码、不改数据。
+
+### 新增
+
+- **证券行情排行新增「人民币计价指标更新」按钮与补全接口（需求 11024）**
+  - 后端新增 `POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/RmbSync?step=all|rate|amount`：第一步按 `currency` 从 `public.finv_fxcer` 求「本币 → CNY」汇率写 `rmb_exchange_rate`（`CNY` 恒为 1；回退顺序：直采 → 反向取倒数 → 经 USD 交叉），第二步按该汇率换算 `rmb_market_value` / `rmb_circulation_market_value` / `rmb_trade_trunover` / `rmb_price_nominal`。
+  - 汇率用 `math/big.Rat` 计算、10 位小数落库（不经 `float64`）；缺汇率币种不写值并在响应列出；本币值为 NULL 时 `rmb_` 保持 NULL；两步均为差异更新，重复点击 `rate_update`/`amount_update` 为 0。
+  - 前端在「重置」后新增「人民币计价指标更新」按钮（`mdi-currency-cny`、次级色、带说明悬浮），toast 提示汇率/金额行数与耗时、无币种行与缺汇率币种，随后自动刷新。
+  - 新增 `Docs/API/Cdeu/RealtimeStockRmbSync.md` + `.yml`，登记 `Docs/API/APIs.md`（120）与 `Docs/API/README.md`，更新 `Docs/Menu/Quote/Realtime/RealtimeStock.md`（按钮说明与关联需求）。
+  - 验证：`go build`/`go vet`/两个新单测通过；`npm run build` 通过；实测 `step=all` → `rate_update=8671`、`amount_update=8671`、`rows_total=13906`、`rows_currency_missing=5235`、`missing_currencies=[]`；重复调用为 0；`step=bogus` → 400；换算正确性抽样 `round(market_value*rmb_exchange_rate,6) = rmb_market_value` 全为 `t`。
+
+### 新增
+
+- **实时快照表增加 5 个人民币计价字段（需求 11023）**
+  - 迁移 `V300126__cdeu_realtime_stock_add_rmb_metrics.sql`：`cdeu.finv_cdeu_secu_realtime_stock` 追加 `rmb_exchange_rate NUMERIC(24,10)`（人民币转换汇率）、`rmb_market_value` / `rmb_circulation_market_value` / `rmb_trade_trunover`（`NUMERIC(24,6)`）与 `rmb_price_nominal NUMERIC(20,6)`，列序按指定顺序追加在原 26 列之后（共 31 列）。
+  - 全部可空：`NULL` 表示「尚未补全」而不是 0；换算口径 `rmb_* = 本币值 × rmb_exchange_rate`，写进列注释；并加 `CHECK (rmb_exchange_rate IS NULL OR > 0)`。
+  - 迁移幂等，末尾校验列清单/类型/列序/列总数（31）/CHECK/注释数；本轮只加字段，`RealtimeStockUpsert` 暂不写这些列，补全与排行后续实现。
+  - 同步 `Docs/DevSpec/DbSchemaSpec.md`（列数 26 → 31）与 `Docs/API/Cdeu/RealtimeStockUpsert.md`（说明新列暂不支持接口写入）。
+  - 验证：`schema_version=300126`；新增 5 列类型/列序/可空性/CHECK/注释全部符合；表行数 13906 迁移前后不变；容器 `healthy`。
+
+### 修复
+
+- **全新空库执行迁移链失败（需求 11022）**
+  - `V200090`（`brs.brs_bak_rdb_table` 加 `db` 列）版本号早于建表脚本 `V300060`，空库跑到这里表还不存在 → `42P01`。改为 `DO` 块内 `to_regclass(...) IS NULL` 时 `NOTICE` 跳过；存量库行为不变（早已执行完）。
+  - `V300060` 建表即带 `db` 列与四列唯一约束 `(rdb_type, db, schema_name, table_name)`，种子 `INSERT` 补 `db` 值与匹配的 `ON CONFLICT` 目标，空库一次建成与存量库一致的结构。
+  - `V300111`：`000985` / `SH0985` 属生产库既有行，空库没有 → 两行都不存在时跳过校验并 `NOTICE`；`000985` 的 cdeu 登记校验改为「存在即必须是纠正后口径」。
+  - `V300113`：把 184/12/9 这类按生产数据条数的硬校验改为不变量校验（交易对不得留在非 `10016`、已登记交易对不得离开 `CC/CTP`、现货币不得离开 `CC/FTC`），无加密证券数据时 `NOTICE` 跳过。
+  - 验证：空库全量跑 228 个迁移文件零失败；用容器对空库启动：迁移无错误、`/Health/Ready` ok、`schema_version=300125`、55 张表、`public.finv_fxcer` 13 列、`public.finv_cer` 不再创建、`brs_bak_rdb_table_full.db` 存在、`000985` 纠正为 `Stock/1120`、`CTP` 市场已建。
+  - 存量库未受影响：容器重建后 `healthy`，`schema_version`、`finv_fxcer`（280 行）、`finv_cer`（280 行）均未变。
+
+### 变更
+
+- **从项目中清理 `finv_cer`（v1）的建表脚本、表结构与相关描述（需求 11021）**
+  - 删除迁移脚本 `Deploy/Migrations/V300123__public_create_finv_cer.sql`；删除数据字典文档 `Docs/DataDictMapping/FinvCer.md`。
+  - `Docs/DataDictMapping/FinvFxcer.md` 去掉「前身」引用与「与 v1 的差异」整节（后续章节号前移），标题去掉「v2」字样。
+  - 代码注释（`store_fx_cer.go`）与 `V300124` 迁移头注释去掉 v1 说明，改为「该表唯一来源」。
+  - `Docs/Menu/Quote/Realtime/FxCer.md`、`Docs/API/Cdeu/FxCer.md` 中指向 `FinvCer.md` 的链接改指 `FinvFxcer.md`。
+  - `Docs/DevSpec/DbSchemaSpec.md` 的 `public` 域表清单移除 `finv_cer`；同时纠正 `finv_fxcer` 描述里过时的「CNY 由 CNH 同价派生」（需求 11020 已取消）并补上 `change_price`／`change_ratio` 两列（需求 11016）。
+  - **数据库未改动**：存量库 `public.finv_cer` 及其 280 行历史数据原样保留（删表需另行明确授权），`schema_version` 的 300123 记录作为历史留存；`Docs/CHANGELOG.md` 与 `Docs/RequirementList.md` 中 10998/10999/11001/11002 的历史条目按「只增不改」保留。
+  - 验证：`go build ./...`、`go vet ./...`、`go test -run TestBuildFxCERRows` 通过；容器重建后 `healthy`、`/Health/Ready` = `ok`；全仓 `finv_cer` 仅剩历史变更记录与 `V300124` 的说明性注释；库内 v1 表与行数不变。
+  - 附带发现（未修，非本次引入）：本机用全新空库跑迁移会在 `V200090`（`brs.brs_bak_rdb_table` 不存在）失败——该表由版本号更大的 `V300060` 创建，属于既有问题，需另行修复或改为按依赖顺序执行。
+
+- **取消按 `CNH` 同价派生 `CNY` 汇率（需求 11020）**
+  - 背景：`get-fx-overview` 只提供离岸 `CNH`，早期为让证券主数据用的 `CNY` 也有值，按同价派生了一份 `CNY` 行；表格模式的 `get-fx-rate-list` 现已直接提供 `CNY` 各货币对，派生值（等于离岸价、不等于在岸真实价）与真实数据混在一张表里会污染换算与回测口径。
+  - 后端：删除 `appendDerivedCNY` 与 `FxCERSrcDeriveCNH`，`BuildFxCERRows` / `BuildFxCERRowsFromRateList` 只返回直采行（统一用 `sortFxCERRows` 排序）；`flag_derive` / `derive` 字段保留但只会是 `'0'` / `0`（接口向后兼容）。
+  - 单测：overview 由 88 行改为 72 行且断言不含任何 `CNY` 行；rateList 用例去掉派生期望；`TestBuildFxCERRowsDirectCNYWins` → `TestBuildFxCERRowsDirectCNYPassthrough`。
+  - 前端：说明卡片数据源段改为「`CNY` 由 `get-fx-rate-list` 直采、不再按 `CNH` 同价派生」；矩阵读法与表格「类型」列把 `*` / 「派生」标为历史标记；采集 toast 与统计 chip 标注「（已停用）」。
+  - 文档：`DataDictMapping/FinvFxcer.md`（来源表、列说明、换算口径）、`API/Cdeu/FxCer.{md,yml}`、`API/APIs.md`、`Menu/Quote/Realtime/FxCer.md`。
+  - 验证：`go build`、`go vet`、`go test -run TestBuildFxCERRows` 全通过；实测 overview 采集 `rows_receive=72, derive=0`、rateList `rows_receive=280, derive=0`；库内 `flag_derive='1'` 与 `source='derive:CNH'` 均为 0 行（本机原本已被直采行覆盖，无残留历史派生行）；`npm run build` 通过，容器重建后 `healthy`。
+  - 说明：库内实现无需删数据即可生效；若其它环境仍有 `flag_derive='1'` 的旧派生行，需要单独授权后再清理（本次未做删除）。
+
+- **撤销矩阵悬浮提示的涨跌着色（需求 11019）**
+  - 需求 11018 只在提示框里加涨跌额/涨跌幅文本，**未要求着色**；此前擅自给该行加了红涨绿跌，现予撤销。
+  - `cellTooltipLines` 恢复返回 `string[]`，删除 `FxCERTipLine`（`text`/`tone`）与模板里的 `line.tone` 判断，提示框 5 行文本统一使用默认文字色。
+  - 矩阵数值、表格涨跌列的涨跌配色（需求 11017）保持不变。
+  - 验证：`npm run build` 通过；源码与产物均无 `FxCERTipLine` / `tone`；容器重建后 `healthy`。
+
+- **矩阵悬浮提示增加涨跌额/涨跌幅（需求 11018）**
+  - `cellTooltipLines` 返回结构改为 `FxCERTipLine[]`（`{ text, tone?: 'up'|'down' }`），提示内容变为 5 行：币种对 → 汇率 → **涨跌额 · 涨跌幅** → 报价时间 → 类型·来源。
+  - 涨跌行按 `change_ratio` 正负着色（`#ff0000` / `#00e676`，与矩阵数值、表格涨跌列同一套）；无涨跌数据时显示「涨跌额 — · 涨跌幅 —（表格模式采集后才有）」且不着色，避免被误读为 0。
+  - 说明卡片「矩阵读法」同步补充提示内容；`Docs/Menu/Quote/Realtime/FxCer.md` 同步。
+  - 验证：`npm run build` 通过；产物 JS 含三段新文案、`tone` 三态判断与新行结构；容器重建后 `healthy`。
+
+- **矩阵模式按涨跌幅给汇率数值着色（需求 11017）**
+  - 矩阵单元格的汇率文本按 `change_ratio` 着色：涨 `#ff0000`、跌 `#00e676`、0/无数据保持默认色；色值与「证券待录入」（`PendingSecuView.vue`）红涨绿跌完全一致。
+  - 表格模式的涨跌两列配色同步由 `--v-theme-error` / `--v-theme-success` 换成上述色值，两个模式观感统一。
+  - 说明卡片「矩阵读法」补着色规则说明。
+  - 同步 `Docs/Menu/Quote/Realtime/FxCer.md`（矩阵着色 + 表格涨跌配色）。
+  - 验证：`npm run build` 通过；产物 CSS 为 `.finv-fxcer-up{color:red}` / `.finv-fxcer-down{color:#00e676}`，产物 JS 矩阵单元格绑定 `changeClass(change_ratio)`；库内已由一次成功的 `rateList` 采集补齐涨跌数据（280/280 有值：涨 143、跌 131、平 6）。
+
+- **缺省汇率表增涨跌额/涨跌幅两列并在表格模式采集落库（需求 11016）**
+  - 迁移 `V300125__public_finv_fxcer_add_change_columns.sql`：`public.finv_fxcer` 追加 `change_price NUMERIC(24,10)`（涨跌额）与 `change_ratio NUMERIC(12,6)`（涨跌幅），可空、幂等，含列注释与结构校验（列清单/类型/CHECK 数/注释数）。
+  - 采集：`BuildFxCERRowsFromRateList` 解析上游 `changeAmount` / `changePercent`（去千分位/空白/`%`），非法或缺失归一化为空（落库 NULL），不因单条涨跌字段异常丢弃整条汇率；派生 `CNY` 行与源行汇率相同，涨跌两列一并继承。
+  - 写入：`UpsertFxCER` 冲突更新对两列用 `COALESCE(EXCLUDED.change_*, 现有值)`——`get-fx-overview` 不提供涨跌字段，矩阵模式采集不会清空表格模式此前采到的数据；`LoadFxCER` 以 `COALESCE(change_*::text,'')` 返回。
+  - 前端：表格模式「缺省汇率」后新增「涨跌额」「涨跌幅」两列，涨跌额按量级调精度、涨跌幅补 `%` 保留两位，**红涨绿跌**，0/空值不着色、空值显示 `—`。
+  - 同步 `Docs/DataDictMapping/FinvFxcer.md`（表结构 13 列 + upsert 语句）、`Docs/API/Cdeu/FxCer.{md,yml}`（响应字段）、`Docs/Menu/Quote/Realtime/FxCer.md`（表格列与口径）。
+  - 验证：迁移跑通（`schema_version=300125`，两列类型正确）；`go build ./...`、`go vet`、新单测全通过；SQL 模拟验证「带值 upsert 写入 / 空值 upsert 保留」；`npm run build` 通过。
+  - 说明：本轮 moomoo `get-fx-rate-list` 从容器与宿主均返回 EOF（网络不可达），**未完成真实数据落库验证**，待网络恢复后点一次表格模式的「立即更新」即可补齐涨跌数据。
+
+- **缺省汇率矩阵悬浮时列首同步高亮（需求 11015）**
+  - 新增 `hoverSrc` / `hoverDest` 状态：单元格 `mouseenter` 记录行/列币种，`mouseleave` 与矩阵容器 `mouseleave` 清除。
+  - 行首与列首 `th` 共用 `.finv-fxcer-axis-hover` 样式（底色 `primary` 10%、描边 35%、文字转 `primary`、字重 600），替代原先只能靠 `tbody tr:hover th` 实现的「仅行首高亮」，列方向不再无反馈。
+  - 鼠标直接悬停在行首/列首上时也分别高亮对应维度。
+  - 验证：`npm run build` 通过；产物 JS 含 `finv-fxcer-axis-hover`（13 处 `mouseenter` 绑定）、CSS 含 `th.finv-fxcer-axis-hover` 规则，旧 `tbody tr:hover th` 规则已移除；容器重建后 `healthy`。
+
+- **缺省汇率矩阵改直角矩形实线分割，并修复悬浮提示换行（需求 11014）**
+  - 单元格去掉 6px 圆角与 3px 间隙：改 `border-collapse: collapse` + `border-spacing: 0`，相邻单元格共用 1px 实线边框（不透明度 0.10→0.18），行列两个方向均为实线分割。
+  - 悬浮反馈保持不变（主色底/描边、抬升阴影、文字变主色加粗、同行行首联动、0.15s 过渡）。
+  - 悬浮提示由单行文本改为**逐行渲染**：`cellTooltipLines()` 返回行数组，模板用 `v-tooltip` 默认插槽 + `v-for` 输出多个 `div`；`v-tooltip :text` 会把 `\n` 折叠成空格，故弃用；新增 `.finv-fxcer-tip`（行高 1.5、数字等宽）。
+  - 无该货币对的提示拆为两行：结论 + 原因。
+  - 验证：`npm run build` 通过；产物 CSS 含 `border-collapse:collapse`、矩阵无 `border-radius`、含 `.finv-fxcer-tip`；产物 JS 已无 `\n` 单行提示残留；容器重建后 `healthy`。
+
+- **缺省汇率矩阵单元格卡片化，补列分割线与悬浮反馈（需求 11013）**
+  - 表格改 `border-collapse: separate` + `border-spacing: 3px`，每个单元格 1px 边框 + 6px 圆角，**行、列两个方向都有分割线**（原样式只有行线）。
+  - 表头行 / 行首列底色加深（`surface-variant` 70%），单元格 30%，呈现卡片标题栏与内容区层次。
+  - 悬浮：背景 `primary` 16%、描边 `primary` 55%、`0 2px 10px` 抬升阴影、文字转 `primary` 加粗并浮起（`z-index:1`）；同行行首同步浅高亮；进入/离开均有 0.15s 过渡。
+  - 派生单元格底色提高到 secondary 16%，卡片底色下仍可分辨；选择器加 `.v-table__wrapper > table` 前缀覆盖 Vuetify 默认单元格样式。
+  - 同步 `Docs/Menu/Quote/Realtime/FxCer.md` §2.5「矩阵单元格样式」。
+  - 验证：`npm run build` 通过；产物 CSS 含 `border-spacing:3px`、`td:hover` 主色底/描边/阴影、四项 0.15s 过渡等 10 项检查全通过；容器重建后 `healthy`。
+
+- **缺省汇率矩阵角单元格改为对角线拆分「源 / 目标」（需求 11012）**
+  - 原纯文本「源 \ 目标」角单元格改为一条「左上角 → 右下角」的对角线（内联 SVG，1px、`non-scaling-stroke`），把单元格拆成右上三角（「目标」，列方向）与左下三角（「源」，行方向）。
+  - 角单元格固定 66×40 垂直居中；新增悬浮提示「行 = 源币种，列 = 目标币种」。
+  - 同步 `Docs/Menu/Quote/Realtime/FxCer.md` §2.5 矩阵模式说明。
+  - 验证：`npm run build` 通过；产物 JS 中原「源 \ 目标」文本消失、四个新样式类与 SVG 线条均存在；CSS 资产含 `.finv-fxcer-corner*` 规则；容器重建后 `healthy`。
+
+- **`Meta/Dict/FinvRegion.md` 字典表新增独立 `IDX` 列（需求 11011）**
+  - 表头由「键 / 值 / 备注」改为「键 / 值 / IDX / 备注」，`IDX` 右对齐，记录对应地区编号（表字段 `idx`）。
+  - 原先写在备注里的 `idx=N` 前缀移入 `IDX` 列，备注只保留口径与来源说明。
+  - §1 补 `IDX` 列语义并说明排序依据为 `IDX`。
+  - 验证：27 行、每行 4 列；`IDX`/`键`/`值` 与 `public.finv_region` 逐条一致（零差异），备注无 `idx=` 残留。
+
+- **`Docs/DataDictMapping/FinvRegion.md` 同步到库内实际 27 条（需求 11010）**
+  - 清单「25 条」→「27 条」；补 `FX`（idx=2）与 `CC`（idx=3）两行；103 行 `USA`→`US`，并注明 `V300077` 统一、`V300078` 改简写。
+  - 表结构 `region` 示例与 §3 关联参考中的 `USA` 改为 `US`（`USA` 标注为历史值）；idx 段位改为「0~1 保留 / 2~3 非地域类别 / 101~123 正式区域 / 4~100 预留」。
+  - 头部补 `V300077` / `V300078` 迁移链接，并交叉引用取值字典 `Meta/Dict/FinvRegion.md`。
+  - 验证：清单 idx 集合与 `public.finv_region` 完全一致（27/27），每行 `region`/`name` 与该表逐条相同（零差异）。
+
+- **缺省汇率「说明」卡片加标题并优化分段样式（需求 11006）**
+  - 卡片新增标题「说明」（`mdi-information-outline`）。
+  - 三段文本改为「分节标题 + 正文」：表口径 / 数据源与互补 / 矩阵读法；分节标题 0.875rem、500 字重、primary 色，正文 `text-body-2`（不透明度 0.85、行高 1.6），左侧 3px primary 色条，段间 `v-divider` 分隔。
+  - 文本内容不变，「矩阵读法」仍仅在矩阵模式显示。
+  - 同步 `Docs/Menu/Quote/Realtime/FxCer.md` §2.3。
+  - 验证：`npm run build` 通过；容器重建后说明卡片显示标题与三个分节标题、段间有分隔线。
+
+- **缺省汇率页三段说明文本统一移到表格下方独立卡片（需求 11005）**
+  - 移动的三段：表口径（原标题下方副标题）、数据源（原表格上方 info 提示）、矩阵读法（原矩阵表格下方小字）。
+  - 三段样式保持不变（副标题 / info 提示 / 小字说明），仅位置改为正文内容下方的独立卡片；矩阵读法仍只在矩阵模式显示。
+  - 顺带修正副标题里的旧列名：`cer` → `rate`（表已改为 `rate`，原文未同步）。
+  - 验证：`npm run build` 通过；容器重建后页面顶部只剩标题与按钮，说明卡片出现在表格下方。
+
+- **矩阵币种顺序微调：`GBP` 前移到 `AUD` 之前、`CHF` 前移到 `PHP` 之前（需求 11004）**
+  - 顺序变为 `USD`、`CNY`、`CNH`、`HKD`、`EUR`、`JPY`、`SGD`、`GBP`、`AUD`、`CAD`、`NZD`、`CHF`、`PHP`、`IDR`、`ZAR`、`RUB`、`THB`、`TWD`、`XAU`、`XAG`，未列入的币种仍按字母序追加。
+  - 同步 `Docs/Menu/Quote/Realtime/FxCer.md` 与 `Docs/DataDictMapping/FinvFxcer.md` 的顺序说明。
+  - 验证：`npm run build` 通过，容器重建后产物顺序字面量含 `SGD`,`GBP`,`AUD` 与 `NZD`,`CHF`,`PHP`。
+
+- **人民币名称规范为「人民币」，矩阵币种顺序按业务口径调整（需求 11003）**
+  - 中文名：`CNY` 由「在岸人民币」改为「人民币」；`CNH` 仍为「离岸人民币」，两者继续靠币种代码区分（存在基差，不混用）。
+  - 矩阵模式行列顺序改为 `USD`、`CNY`、`CNH`、`HKD`、`EUR`、`JPY`、`SGD`、`AUD`、`CAD`、`NZD`、`PHP`、`CHF`、`IDR`、`ZAR`、`RUB`、`THB`、`TWD`、`XAU`、`XAG`，未列入的币种按字母序追加到末尾（保持原有相对顺序）。
+  - `XAU`/`XAG`（黄金/白银）来自 `listId=1`，虽非货币但**保留不过滤**（带中文名「黄金」「白银」）。
+  - 文档：`Docs/Menu/Quote/Realtime/FxCer.md`（矩阵顺序与 CNY 名称）、`Docs/DataDictMapping/FinvFxcer.md`（名称口径与保留贵金属）、`Docs/API/Cdeu/FxCer.md`（`currency_names` 示例）。
+  - 验证：`go build ./...`、`npm run build` 通过；重建容器后 `GET .../Fx/Cer` 的 `currency_names.CNY=人民币`、`.CNH=离岸人民币`，矩阵首列/首行为 `USD` 且按新顺序排列，表格中 `XAU`/`XAG` 行仍在。
+
+- **缺省汇率改写入新表 `public.finv_fxcer`（v2，需求 11002）**
+  - 迁移 `V300124__public_create_finv_fxcer.sql`：11 列、主键 `usc`；新增 `usc`（上游 `stockCode`／`get-fx-overview` 的 map key，派生行取「源+目标」）与 `name`（简体中文展示名）；`dt_quote`→`ts_quote`、`cer`→`rate`、`src`→`source`；其余列与约束语义不变（仍禁用同币对自身、禁止派生覆盖直采）。
+  - 代码：`store_fx_cer.go` 写入/查询切到 `public.finv_fxcer`，upsert 冲突键改为 `(usc)`；`BuildFxCERRows*` 补 `usc`／`name`（概览按币种中文名合成、列表用上游 `name`）；`GET .../Fx/Cer` 行字段与 `ts_quote_max` 同步改名，`currency_names` 由行内 `name` 反推补齐长尾币种（此前 26 个币种无中文名的问题因此解决）。
+  - 前端：表格新增「代码（`usc`）」列，名称列直接用行内 `name`；字段引用统一改为 `rate`／`ts_quote`／`source`。
+  - 旧表 `public.finv_cer`（v1，V300123）**保留在库、不再写入**，未执行任何 DROP/RENAME（需明确授权才能处理）；`Docs/DataDictMapping/FinvCer.md` 已标注被 v2 取代，新增 `Docs/DataDictMapping/FinvFxcer.md` 描述 v2。
+  - 文档：`Docs/DevSpec/DbSchemaSpec.md`（public 行登记两表）、`Docs/API/Cdeu/FxCer.md|.yml`（字段与示例）、`Docs/API/APIs.md`、`Docs/Menu/Quote/Realtime/FxCer.md`。
+  - 验证：`go build ./...`、`go vet ./...` 通过；`go test ./internal/meta/finv/quote/cdeu/ -run TestBuildFxCER` PASS；`npm run build` 通过；容器重建后 `schema_version=300124`，`public.finv_fxcer` 11 列/主键 `usc`/7 个 CHECK/触发器/11 条列注释齐全；`overview` 与 `rateList` 两次同步均 `code=0`，`GET .../Fx/Cer` 返回 `usc`／`name`／`rate`／`ts_quote`／`source`。
+
+- **缺省汇率「立即更新」按展示模式分流到两个上游接口（需求 11001）**
+  - 矩阵模式 → `POST /Meta/Finv/Quote/Cdeu/Fx/CerSync?source=overview`：`GetFxOverview`，9 币种两两矩阵 72 对 + 16 条 CNY 派生。
+  - 表格模式 → 同一接口 `?source=rateList`：`GetFxRateList`（`listId=1`、`page=0`、`pageSize=500`，不传 `_` 时间戳），条目币种更多，用于补齐概览缺失的货币对。
+  - 两来源写同一张表、互不删除：**同一来源内**按「新 `dt_quote` 覆盖旧」，**跨来源以最后一次采集为准**（`overview` 的 `dt_quote` 是上游时间、`rateList` 的是采集时刻，两个时钟不可比；实测只比时间会让先跑的 `rateList` 永久压住 `overview`），因此可先跑矩阵铺满、再跑表格补长尾，也可反过来；`rateList` 上游不返回报价时间，其 `dt_quote` 取本次采集时刻。
+  - 降级分页：`rateList` 先按 `pageSize=500` 单页请求；实测上游对大 `pageSize`（300/500）返回 `code=500`（`spreadTableCode`）且 `data` 为数组（MetaExt v0.1.2 在解析阶段即报错），此时自动降级为 `pageSize=50` 逐页拉取（≤20 页、页间 300ms、按货币对去重、中途失败用已取部分），响应新增 `data.pages`（实际请求页数）与 `data.skipped`（被跳过的条目数）；列表混有的指数序列（`USDindex`/`EURindex`）与缺价条目逐条跳过，不再让整批失败；前端 toast 显示「（分 N 页）」。
+  - 响应新增 `data.source`；`source` 非法返回 400；前端 toast 与按钮悬浮提示按模式显示所调用的上游接口。
+  - 文档：`Docs/API/Cdeu/FxCer.md`/`.yml`（`source` 参数与字段）、`Docs/API/APIs.md`（118）、`Docs/Menu/Quote/Realtime/FxCer.md`（按钮分流与互补说明）。
+  - 验证：`go build ./...`、`go vet ./...` 通过；`go test ./internal/meta/finv/quote/cdeu/ -run TestBuildFxCER` 全 PASS（新增 rateList 组装与拒绝路径用例）；`cd Web && npm run build` 通过；容器重建后 `POST .../Fx/CerSync?source=overview` 返回 `source=overview`、`rows_receive=88`，`?source=bogus` 返回 400；`?source=rateList` 在上游拒绝大 pageSize 时自动降级分页并成功返回 `source=rateList`、`pages=6`、`rows_receive=474`（282 直采 + 192 派生）。
+
+- **缺省汇率页面改为矩阵/表格双模式，补齐币种中文名，路由改为 `FXCEROverview`（需求 11000）**
+  - 路由：`/Meta/Finv/Quote/Realtime/FxCer` → `/Meta/Finv/Quote/Realtime/FXCEROverview`，菜单 key 与路由 name 同步为 `quote-realtime-fxcer-overview`（菜单标题「行情 → 实时行情 → 缺省汇率」不变）。
+  - 矩阵模式（**默认**）：行=源币种、列=目标币种，单元格 = 「1 行首币种 = N 列首币种」；对角线 `—`；派生单元格带 `*` 且底色略深；悬浮显示币种全名/汇率/报价时间/来源；矩阵下方给出读法与图例。行列顺序固定 `CNY`、`CNH`、`USD`、`HKD`、`EUR`、`GBP`、`AUD`、`SGD`、`CAD`、`JPY`，未登记币种按字母序追加。
+  - 表格模式：新增「币种名称」列并置于**第一列**（形如 `美元/离岸人民币`，源/目标中文名以斜杠连接），报价时间/更新时间仍为最后两列。
+  - 中文名来源：后端新增 `cdeu.FxCERCurrencyNames` + `FxCurrencyName`，经 `GET .../Fx/Cer` 的 `data.currency_names` 下发。**不取** `public.finv_currency.currency_name`——该字典只有 7 条静态种子、缺 `CNH`/`EUR`/`GBP`/`AUD`/`CAD`，且不区分在岸/离岸；本表刻意标注 `CNY`=在岸人民币、`CNH`=离岸人民币（两者存在基差，换算不可混用），未登记币种回落为代码。
+  - 文档：`Docs/Menu/Quote/Realtime/FxCer.md` 重写展示模式章节、`Docs/Menu/Menus.md` 更新路由与 key、`Docs/API/Cdeu/FxCer.md` + `.yml` 补 `currency_names` 字段与口径说明。
+  - 验证：`go build ./...`、`go vet ./...` 通过；`cd Web && npm run build` 通过；容器重建后从产物中校验到 `FXCEROverview`、`矩阵模式`、`表格模式`、`币种名称（中文）`，旧路由 `/Realtime/FxCer` 已不存在；`GET .../Fx/Cer` 实测返回 `currency_names.CNY=在岸人民币`、`.CNH=离岸人民币`。
+
+- **依赖上游 MetaExt 升级到 v0.1.2，移除列表采集的本地临时规避（需求 10997）**
+  - `go.mod` 的 `github.com/acnxo/MetaExt` 由 `v0.1.1` 升至 `v0.1.2`（`go.sum` 两行随之替换，`go mod tidy` 未动其它条目）。
+  - 上游本版已修复合集 `Docs/Issue/Outside/ISSUE-O-0001` 的三处口径：`Config.Header` 支持任意请求头（同名覆盖内置值）；`DefaultReferer` 改为简体中文站首页并新增 `DefaultReferers`（按 `marketType` 取各市场中文站市值排行页），`GetStockList` 改走 `getList` 自动选择；`GetStockList` 的 page 下限由 `1` 改为 `0`（该接口 0-based）。
+  - 本仓库随之删除 `internal/meta/finv/quote/cdeu/quote_list_stock_snapshot_sync.go` 里为绕开上述限制而写的整套自建请求链路：`StockListDirectFetcher`／`NewStockListDirectFetcher`／`StockListEndpoint`／`StockListUserAgent`／`StockListCSRF`、按市场覆盖 referer 的 `stockListReferer` 与 `StockListRefererHK/US/CN`、`StockListAcceptLanguage`、`stockListHTTPClient`／`stockListHeaderTransport`，以及只服务于该 transport 的单测 `TestStockListHeaderTransport`（约 190 行）。采集侧改为 `NewStockListFetcher()` → `quoteapiv2.New(quoteapiv2.Config{})`，不再注入 referer、`accept-language` 或自定义 transport；需求 10992 的 ②③ 规避随之退场（10992 原文与历史日志不改）。
+  - 验证（2026-11-08）：`go list -m github.com/acnxo/MetaExt` 输出 `v0.1.2`；`go build ./...`、`go vet ./...` 退出码 0；`go test ./internal/meta/...` 除既有 Windows 平台用例 `TestDirUploader` 外通过（HEAD 版本同一用例同样失败，非本次回归）；全部使用上游默认值时真实接口首条即为中文名与中文单位——港股 `腾讯控股 3.82万亿`、美股 `苹果 4.98万亿`、沪深 `建设银行 3.12万亿`，`page=0` 为第一页（`00700` 腾讯控股）、`page=1` 首条为 `汇丰控股`。
+  - 单测：新增 live 用例 `TestLiveStockListChineseDefault`（`FINV_MOOMOO_LIVE=1` 才跑），把「默认返回中文名称与中文单位」固化为断言；`TestLiveStockListPageBase` 的结论注释更新为 page 0-based。
+  - 文档：`Docs/Issue/Outside/ISSUE-O-0001` 状态改为「已由上游 v0.1.2 修复」并补处理结果；`Docs/API/Cdeu/StockListCollect.md` 的分页/referer/语言口径章节改写为「上游默认值即满足」；`Docs/API/Cdeu/StockSnapshotSyncRun.md` 的 `page_start` 默认值由 `1` 更正为 `0`。
 
 - **待录入证券新增「录入」对话框（需求 10996）**
   - 列表在「快照时间」后新增「操作」列，行内「录入」按钮打开对话框。
