@@ -5,10 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -44,11 +41,8 @@ const (
 	//   - 采集器传 page=1 时首条是 02328 中国财险（3803 亿，约第 60 名），
 	//     全量 67 页跑完仍拿不到腾讯等前 20 名 —— 等于整轮跳过第一页。
 	//
-	// 另一处坑（重要）：MetaExt 的 GetStockList 把 page 下限硬编码成 1
-	//（client.go 的 intParam(req.Page, "page", 1)），传 0 会得到
-	//「moomoo page 不能小于 1，实际 0」——**这是客户端本地校验，不是服务端错误**。
-	// 因此本文件用 StockListDirectFetcher 自行请求（只复用 quoteapiv2 的签名与结构体），
-	// 不再经过该下限校验（该限制建议上游改为按接口区分，见 Docs/Issue/ 下的 Issue 文档）。
+	// 上游 MetaExt v0.1.2 已把 GetStockList 的 page 下限改为 0，本值可原样透传，
+	// 不再需要本地自建请求绕过（历史自建请求实现已删除，见需求 10997）。
 	StockListDefaultPageStart = 0
 	// StockListDefaultInterval 页间间隔默认值（避免触发服务端限流）。
 	StockListDefaultInterval = 6 * time.Second
@@ -715,99 +709,6 @@ func stockListWideRune(r rune) bool {
 	return false
 }
 
-// StockListEndpoint 列表接口地址（与 quoteapiv2 内部使用的一致）。
-const StockListEndpoint = "https://www.moomoo.com/quote-api/quote-v2/get-stock-list"
-
-// StockListUserAgent 列表采集使用的浏览器 UA（站点对非浏览器 UA 可能直接拒绝）。
-const StockListUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
-
-// StockListCSRF furu-x-csrf-token 与 cookie 中的 csrfToken 占位值（该接口实测不校验，但必须存在）。
-const StockListCSRF = "0000000000"
-
-// StockListDirectFetcher 直接请求 moomoo 列表接口的实现（默认注入 Service）。
-//
-// 为什么不直接用 quoteapiv2.Client.GetStockList：
-//   - 上游把 page 下限硬编码为 1（client.go: intParam(req.Page, "page", 1)），
-//     而本接口 page 是 0-based，传 0 会被客户端本地拒绝，导致**永远取不到第一页**；
-//   - 需要按市场覆盖 referer（上游硬编码为站点首页，会返回英文降级数据）。
-//
-// 因此这里只复用 quoteapiv2 的签名函数（Sign/SignInput/Params）与响应结构体，
-// 请求本身由本文件构造。上游修好后可整体退回 quoteapiv2.Client（见 Docs/Issue）。
-type StockListDirectFetcher struct {
-	client *http.Client
-}
-
-// NewStockListDirectFetcher 创建默认列表拉取实现。
-func NewStockListDirectFetcher() *StockListDirectFetcher {
-	return &StockListDirectFetcher{client: stockListHTTPClient()}
-}
-
-// GetStockList 拉取一页列表。req.Page 允许为 "0"（第一页）。
-func (f *StockListDirectFetcher) GetStockList(ctx context.Context, req quoteapiv2.GetStockListRequest) (quoteapiv2.StockListPage, error) {
-	params := quoteapiv2.Params(
-		"marketType", req.MarketType,
-		"plateType", req.PlateType,
-		"rankType", req.RankType,
-		"page", req.Page,
-		"pageSize", req.PageSize,
-	)
-	if ts := strings.TrimSpace(req.TimestampMillis); ts != "" {
-		params = append(params, quoteapiv2.Param{Name: "_", Value: ts})
-	}
-	token := quoteapiv2.Sign(quoteapiv2.SignInput(params))
-
-	// 按参数顺序拼接查询串（与签名输入顺序保持一致，避免服务端重算签名时错位）。
-	pairs := make([]string, 0, len(params))
-	for _, item := range params {
-		pairs = append(pairs, url.QueryEscape(item.Name)+"="+url.QueryEscape(item.Value))
-	}
-	target := StockListEndpoint + "?" + strings.Join(pairs, "&")
-
-	reqCtx := ctx
-	httpReq, err := http.NewRequestWithContext(reqCtx, http.MethodGet, target, nil)
-	if err != nil {
-		return quoteapiv2.StockListPage{}, fmt.Errorf("构造列表请求失败: %w", err)
-	}
-	marketType := req.MarketType
-	httpReq.Header.Set("quote-token", token)
-	httpReq.Header.Set("futu-x-csrf-token", StockListCSRF)
-	httpReq.Header.Set("cookie", fmt.Sprintf("csrfToken=%s; locale=zh-cn", StockListCSRF))
-	httpReq.Header.Set("accept", "application/json, text/plain, */*")
-	httpReq.Header.Set("accept-language", StockListAcceptLanguage)
-	httpReq.Header.Set("referer", stockListReferer(marketType))
-	httpReq.Header.Set("user-agent", StockListUserAgent)
-	httpReq.Header.Set("cache-control", "no-cache")
-
-	resp, err := f.client.Do(httpReq)
-	if err != nil {
-		return quoteapiv2.StockListPage{}, fmt.Errorf("列表请求失败: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
-	if err != nil {
-		return quoteapiv2.StockListPage{}, fmt.Errorf("读取列表响应失败: %w", err)
-	}
-	var payload struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-		Data    struct {
-			Pagination quoteapiv2.Pagination       `json:"pagination"`
-			List       []quoteapiv2.StockListItem  `json:"list"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return quoteapiv2.StockListPage{}, fmt.Errorf("解析列表响应失败（HTTP %d）: %w", resp.StatusCode, err)
-	}
-	if payload.Code != 0 {
-		return quoteapiv2.StockListPage{}, fmt.Errorf("列表接口返回 code=%d message=%s", payload.Code, payload.Message)
-	}
-	return quoteapiv2.StockListPage{
-		Pagination: payload.Data.Pagination,
-		Items:      payload.Data.List,
-	}, nil
-}
-
 // stockListSampleSize 首页采样条数。
 const stockListSampleSize = 3
 
@@ -840,67 +741,15 @@ func stockListSampleItems(items []quoteapiv2.StockListItem, n int) string {
 // stockListSampleNameWidth 采样时名称的最大显示宽度（超宽截断，避免日志过长）。
 const stockListSampleNameWidth = 18
 
-// 列表采集固定 referer：必须指向「中文站点 + 对应市场的市值排行页」。
+// NewStockListFetcher 创建列表拉取实现（直接用上游 quoteapiv2.Client，不加本地绕过）。
 //
-// moomoo 依据 referer 所在站点决定返回口径（`/hans/` 为简体中文站），
-// 而 MetaExt 的 DefaultReferer 是站点首页（`https://www.moomoo.com/`），
-// 实测用它只会拿到英文降级数据（名称为英文、缺少头部证券）。
-// 取值与本地 Python 采集程序的 REFERER_MAP 完全一致（需求 10992）。
-const (
-	// StockListRefererHK 港股（marketType=1）市值排行页。
-	StockListRefererHK = "https://www.moomoo.com/hans/quote/hk/stock-list/all-hk-stocks/top-market-cap"
-	// StockListRefererUS 美股（marketType=2）市值排行页。
-	StockListRefererUS = "https://www.moomoo.com/hans/quote/us/stock-list/all-us-stocks/top-market-cap"
-	// StockListRefererCN 沪深（marketType=4）市值排行页。
-	StockListRefererCN = "https://www.moomoo.com/hans/quote/cn/stock-list/all-cn-stocks/top-market-cap"
-)
-
-// stockListReferer 按市场类型返回 referer；未知市场回落到美股（与 Python 版默认一致）。
-func stockListReferer(marketType string) string {
-	switch strings.TrimSpace(marketType) {
-	case "1":
-		return StockListRefererHK
-	case "4":
-		return StockListRefererCN
-	default:
-		return StockListRefererUS
-	}
-}
-
-// StockListAcceptLanguage 列表采集固定的语言声明。
+// 上游 MetaExt v0.1.2 已修正本接口的三处请求口径（见 Docs/Issue/Outside/ISSUE-O-0001）：
+//   - page 下限改为 0（`intParam(req.Page, "page", 0)`），StockListDefaultPageStart=0 可直接透传；
+//   - GetStockList 走 getList，按 marketType 命中 DefaultReferers（各市场中文站市值排行页），
+//     默认即返回中文名称与「万亿/亿/万」单位；
+//   - Config.Referer / Config.Referers / Config.Header 可按需覆盖。
 //
-// 原因：moomoo 会根据出口 IP 与请求语言决定返回中文还是英文口径，
-// 两者单位后缀不同（万亿/亿/万 vs T/B/M/K），且**名称也会随之变化**。
-// 显式声明中文可让行为与本地已验证的 Python 采集程序保持一致（它带 `accept-language: zh-CN,zh;q=0.9`）。
-const StockListAcceptLanguage = "zh-CN,zh;q=0.9,en;q=0.8"
-
-// stockListHTTPClient 返回带浏览器化请求头的 HTTP 客户端（供 quoteapiv2.Config.HTTPClient 注入）。
-func stockListHTTPClient() *http.Client {
-	return &http.Client{
-		Timeout:   30 * time.Second,
-		Transport: stockListHeaderTransport{base: http.DefaultTransport},
-	}
-}
-
-// stockListHeaderTransport 在请求上补齐 accept-language（不覆盖调用方已设置的值）。
-type stockListHeaderTransport struct {
-	base http.RoundTripper
-}
-
-// RoundTrip 实现 http.RoundTripper。
-func (t stockListHeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if req.Header.Get("accept-language") == "" {
-		req.Header.Set("accept-language", StockListAcceptLanguage)
-	}
-	// 列表接口按 marketType 覆盖 referer（MetaExt 硬编码为站点首页，会拿到英文降级数据）。
-	if req.URL != nil && strings.Contains(req.URL.Path, "get-stock-list") {
-		if market := req.URL.Query().Get("marketType"); market != "" {
-			req.Header.Set("referer", stockListReferer(market))
-		}
-	}
-	base := t.base
-	if base == nil {
-		base = http.DefaultTransport
-	}
-	return base.RoundTrip(req)
+// 本采集场景的默认值已满足要求，故这里不再注入自定义 transport、referer 或请求头。
+func NewStockListFetcher() StockListFetcher {
+	return quoteapiv2.New(quoteapiv2.Config{})
 }

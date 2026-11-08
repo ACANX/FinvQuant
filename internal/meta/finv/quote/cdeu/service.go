@@ -10,8 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	jobdef "github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/jobmeta"
-	"github.com/acnxo/MetaExt/component/quote/moomoo/quoteapiv2"
 	"github.com/acanx/finvquant/internal/meta/finv/sys"
+	"github.com/acnxo/MetaExt/component/quote/moomoo/quoteapiv2"
 )
 
 // Result 一次 Job 执行的结果（同时写入 finv_quote_cdeu_job_run_log_export_file）。
@@ -75,6 +75,12 @@ type Service struct {
 
 	// stockListRunner 采集运行持有者（内存；进程重启即清空）。
 	stockListRunner *StockListRunner
+
+	// fxCerFetcher 汇率概览拉取实现（默认 moomoo 客户端；单测可通过 SetFxCERFetcher 注入）。
+	fxCerFetcher FxCERFetcher
+
+	// fxCerRateListFetcher 汇率列表拉取实现（默认 moomoo 客户端；单测可通过 SetFxCERRateListFetcher 注入）。
+	fxCerRateListFetcher FxCERRateListFetcher
 }
 
 // NewService 创建归档服务。
@@ -95,14 +101,16 @@ func NewService(pool *pgxpool.Pool, options Options) (*Service, error) {
 		cfgStore = syscfg.NewStore(pool)
 	}
 	return &Service{
-		store:        NewStore(pool),
-		uploader:     uploader,
-		options:      options,
-		cfg:          cfgStore,
-		running:          map[string]time.Time{},
-		klineFetcher:     quoteapiv2.New(quoteapiv2.Config{}),
-		stockListFetcher: NewStockListDirectFetcher(),
-		stockListRunner:  newStockListRunner(),
+		store:                NewStore(pool),
+		uploader:             uploader,
+		options:              options,
+		cfg:                  cfgStore,
+		running:              map[string]time.Time{},
+		klineFetcher:         quoteapiv2.New(quoteapiv2.Config{}),
+		stockListFetcher:     NewStockListFetcher(),
+		stockListRunner:      newStockListRunner(),
+		fxCerFetcher:         NewFxCERFetcher(),
+		fxCerRateListFetcher: NewFxCERFetcher(),
 	}, nil
 }
 

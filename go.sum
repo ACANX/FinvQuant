@@ -1,5 +1,5 @@
-github.com/acnxo/MetaExt v0.1.1 h1:QsDykRoaWlUgugVT/VtoV0TZvKF4P5C/yvDv/tRzOT0=
-github.com/acnxo/MetaExt v0.1.1/go.mod h1:PFY+Yxeha3YQJ6EWYBqsEfs5nz6Pu9ClnNHvPg3lOXo=
+github.com/acnxo/MetaExt v0.1.2 h1:lN68p98edzpEEmzWNaZSlT0quHMY9rbm0VrnQV689Dk=
+github.com/acnxo/MetaExt v0.1.2/go.mod h1:PFY+Yxeha3YQJ6EWYBqsEfs5nz6Pu9ClnNHvPg3lOXo=
 github.com/aws/aws-sdk-go-v2 v1.47.5 h1:5yA+A+BiXbDq1ZLbYwPViwhEGDMdR0MEhL8Jh2LnLS4=
 github.com/aws/aws-sdk-go-v2 v1.47.5/go.mod h1:iNIkogrRvFwm+1OQIUOP2lPBtlXZboOIUWiCa+pHEMw=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.25 h1:MW0Iql1SOTgQPj8mCxrU/eH/K/AIDWi08ItOsXaWRLU=

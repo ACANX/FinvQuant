@@ -107,7 +107,7 @@ components:
           description: 每页条数。
         page_start:
           type: integer
-          description: 页码起始值，默认 `1`。已实测 page=0 会被服务端拒绝（「page 不能小于 1，实际 0」），故不得传 0。
+          description: 页码起始值，默认 `0`（本接口 0-based，`0` 即第一页；MetaExt v0.1.2 起上游 page 下限即为 0）。
         interval_ms:
           type: integer
           minimum: 0

@@ -1,7 +1,6 @@
 package cdeu
 
 import (
-	"net/http"
 	"testing"
 
 	"github.com/acnxo/MetaExt/component/quote/moomoo/quoteapiv2"
@@ -67,37 +66,3 @@ func TestStockListSampleItems(t *testing.T) {
 		t.Errorf("截断后采样仍过长: %q", got)
 	}
 }
-
-// TestStockListHeaderTransport 校验 accept-language 注入（语言锁定）。
-func TestStockListHeaderTransport(t *testing.T) {
-	var seen string
-	base := roundTripFunc(func(req *http.Request) (*http.Response, error) {
-		seen = req.Header.Get("accept-language")
-		return &http.Response{StatusCode: 200, Body: http.NoBody, Header: http.Header{}}, nil
-	})
-	req, err := http.NewRequest(http.MethodGet, "https://example.com/x", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := (stockListHeaderTransport{base: base}).RoundTrip(req); err != nil {
-		t.Fatal(err)
-	}
-	if seen != StockListAcceptLanguage {
-		t.Errorf("accept-language = %q，期望 %q", seen, StockListAcceptLanguage)
-	}
-
-	// 调用方已设置时不覆盖
-	req2, _ := http.NewRequest(http.MethodGet, "https://example.com/x", nil)
-	req2.Header.Set("accept-language", "en-US")
-	if _, err := (stockListHeaderTransport{base: base}).RoundTrip(req2); err != nil {
-		t.Fatal(err)
-	}
-	if seen != "en-US" {
-		t.Errorf("已设置的语言被覆盖为 %q", seen)
-	}
-}
-
-// roundTripFunc 让测试注入轻量 RoundTripper。
-type roundTripFunc func(*http.Request) (*http.Response, error)
-
-func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }

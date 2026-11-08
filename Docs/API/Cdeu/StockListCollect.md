@@ -146,32 +146,34 @@ moomoo 列表接口**不返回币种**，`usc` 也不在响应里。早期实现
 
 规则依据：库内 2203 条港股快照中，8 开头代码全部为 `CNY`、其余全部为 `HKD`，零例外。
 
-### 分页与 referer 口径（需求 10992）
+### 分页与 referer 口径（需求 10992 / 10997）
 
 **页码 0-based**：`page=0` 才是第一页（市值排行首位，含 00700 腾讯）。传 `page=1` 会整体跳过第一页，
 表现为"采了 2500 个却没有 00700"。
 
-> 坑：MetaExt `quoteapiv2` 的 `GetStockList` 把 page 下限硬编码成 1
->（`client.go`：`intParam(req.Page, "page", 1)`），传 0 会返回
->「moomoo page 不能小于 1，实际 0」——**这是客户端本地校验，不是服务端错误**。
-> 因此采集器改用 `StockListDirectFetcher` 自行请求（只复用 `quoteapiv2` 的签名函数与响应结构体），
-> 把该下限绕开；上游修复后可整体退回 `quoteapiv2.Client`。
+> 上游 MetaExt **v0.1.2 起** `GetStockList` 的 page 下限已改为 0（`intParam(req.Page, "page", 0)`），
+> 采集侧的 `StockListDefaultPageStart = 0` 直接透传即可，不再需要本地自建请求绕过。
+>（v0.1.1 及以前该下限硬编码为 1、传 0 会返回「moomoo page 不能小于 1，实际 0」，属客户端本地校验；
+> 当时的 `StockListDirectFetcher` 规避已随需求 10997 删除，历史记录见 `Docs/Issue/Outside/ISSUE-O-0001`。）
 
-**referer 按市场指定**（决定返回语言与数据口径）：
+**referer 由上游按市场自动选择**（决定返回语言与数据口径），采集侧无需配置：
 
-| marketType | referer |
-|------------|---------|
+| marketType | 上游默认 referer |
+|------------|------------------|
 | `1`（港股） | `https://www.moomoo.com/hans/quote/hk/stock-list/all-hk-stocks/top-market-cap` |
 | `2`（美股） | `https://www.moomoo.com/hans/quote/us/stock-list/all-us-stocks/top-market-cap` |
 | `4`（沪深） | `https://www.moomoo.com/hans/quote/cn/stock-list/all-cn-stocks/top-market-cap` |
 
-> MetaExt 默认 referer 是站点首页 `https://www.moomoo.com/`，实测会拿到**英文降级数据**
->（名称为 `TENCENT` 而非 `腾讯控股`），而 `accept-language` 单独设置无效——referer 才是语言开关。
+> 取值来源：MetaExt v0.1.2 的 `DefaultReferers`（`GetStockList` 走 `getList`，按参数里的 `marketType` 命中）；
+> 未命中的市场回落 `DefaultReferer` = `https://www.moomoo.com/hans/`（简体中文站首页）。
+> v0.1.1 的默认 referer 是站点首页 `https://www.moomoo.com/`，会拿到**英文降级数据**
+>（名称为 `TENCENT` 而非 `腾讯控股`，单位为 `T/B/M/K`），而 `accept-language` 单独设置无效——referer 才是语言开关。
+> 如需覆盖，v0.1.2 起可用 `Config.Referer` / `Config.Referers` / `Config.Header`（本仓库当前**不使用**，保持上游默认）。
 
 **`_` 毫秒时间戳必须带**：它参与 `quote-token` 签名（签名输入含该键），
-缺失会让 token 与浏览器/Python 采集程序不一致。
+缺失会让 token 与浏览器/Python 采集程序不一致；采集侧经 `GetStockListRequest.TimestampMillis` 透传。
 
-### 单位与语言口径（需求 10989）
+### 单位与语言口径（需求 10989 / 10997）
 
 moomoo 同一接口会按**出口 IP + 请求语言**返回中文或英文口径，两者字段格式不同：
 
@@ -180,9 +182,11 @@ moomoo 同一接口会按**出口 IP + 请求语言**返回中文或英文口径
 | 中文 | `腾讯控股` | `4.07万亿` | `万亿` / `亿` / `万` |
 | 英文 | `TENCENT` | `4.07T` | `T`(1e12) / `B`(1e9) / `M`(1e6) / `K`(1e3) |
 
-采集器两层保障：
+口径保障：
 
-1. **锁语言**：列表采集的 HTTP 客户端固定携带 `accept-language: zh-CN,zh;q=0.9,en;q=0.8`（与本地 Python 采集程序一致），避免依赖出口 IP；
-2. **双口径解析**：`stockListAmount` 同时支持 `万亿/亿/万` 与 `T/B/M/K`（大小写均可），换算到「元/股」基准单位。
+1. **默认即中文**：MetaExt v0.1.2 的 referer 默认指向简体中文站（见上表），采集侧不再注入 `accept-language` 或自定义 transport；
+2. **双口径解析**：`stockListAmount` 同时支持 `万亿/亿/万` 与 `T/B/M/K`（大小写均可），换算到「元/股」基准单位——出口 IP 落在海外或上游默认值再次变动时不会整批丢数据。
 
-> 历史问题：早期只支持中文口径与 `B/M`，在海外 IP 且未锁语言时，`4.07T` 这类万亿级市值解析失败，导致市值 ≥ 1 万亿的证券（腾讯、汇丰、阿里、茅台等）整批异常。首页日志 `[cdeu][stocklist] 首页采样` 会打印服务端原始口径，便于现场核对。
+> 实测（2026-11-08，`quoteapiv2.New(quoteapiv2.Config{})` 默认值）：港股 `腾讯控股 3.82万亿`、美股 `苹果 4.98万亿`、
+> 沪深 `建设银行 3.12万亿`，均由 `FINV_MOOMOO_LIVE=1 go test -run TestLiveStockListChineseDefault` 断言。
+> 首页日志 `[cdeu][stocklist] 首页采样` 会打印服务端原始口径（代码|名称|市值原文），便于现场核对。

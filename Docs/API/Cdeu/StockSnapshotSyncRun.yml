@@ -108,7 +108,7 @@ components:
           description: 每页条数。
         page_start:
           type: integer
-          description: 页码起始值，默认 `1`（已实测 page=0 被服务端拒绝）。
+          description: 页码起始值，默认 `0`（本接口 0-based，`0` 即第一页）。
         interval_ms:
           type: integer
           minimum: 0

@@ -26,7 +26,7 @@
 | `market_type` | string | 全部 | 只采集该市场（`1`=HK、`2`=US、`4`=CN） |
 | `count_plan` | integer | 配置值 | 覆盖计划采集数量 |
 | `page_size` | integer | `50` | 每页条数（1–500） |
-| `page_start` | integer | `1` | 页码起始值（已实测 page=0 报错，不得传 0） |
+| `page_start` | integer | `0` | 页码起始值（本接口 **0-based**，`0` 即第一页；直接透传上游 `GetStockList`） |
 | `interval_ms` | integer | `6000` | 页间间隔（限速） |
 | `max_retries` | integer | `2` | 单页失败重试次数 |
 | `retry_backoff_ms` | integer | `2000` | 重试退避基数 |
