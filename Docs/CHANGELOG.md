@@ -18,6 +18,14 @@
 
 > 0.1.4 开发中。变更按 `新增` / `变更` / `修复` / `移除` / `安全` 分类追加，发布时整体改为版本号并补日期。
 
+### 新增
+
+- **新增系统配置 20013「Supabase 数据库连接配置」（需求 11041，迁移 `V300142`）**
+  - `data_type='3'`，取值存 `str_value`，格式 `{PROJECT_ID}|{APIKEY}`（半角竖线分隔；PROJECT_ID 即 `https://<PROJECT_ID>.supabase.co` 的子域）；初始值为空 = 未配置（不连接），由运维在系统配置里填写。
+  - `remark` 写明格式、留空与非法值语义、以及「敏感信息请勿在日志/前端明文回显」；`create_by='finv'`。
+  - 幂等且不覆盖：仅 `INSERT ... ON CONFLICT (config_no) DO NOTHING`，实测用户已配置值重跑迁移不被覆盖。
+  - 验证：`data_type=3`、`str_value=''`（交付态）、`remark` 含格式说明；`schema_version=300142`。
+
 ### 变更
 
 - **证券键表改名：`futu.finv_quote_secu_key` → `futu.finv_futu_secu_key`（需求 11040，迁移 `V300141`）**
