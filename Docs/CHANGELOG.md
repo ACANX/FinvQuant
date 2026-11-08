@@ -18,6 +18,14 @@
 
 > 0.1.4 开发中。变更按 `新增` / `变更` / `修复` / `移除` / `安全` 分类追加，发布时整体改为版本号并补日期。
 
+### 变更
+
+- **`futu.finv_quote_secu_key` 补 status 取值约束与 `stock_id` / `usc` 列（需求 11037、11038，迁移 `V300138`/`V300139`）**
+  - `status` 取值固定为 `PENDING` / `QUEUED` / `DONE` / `FAILED` / `SKIP`（CHECK 约束 `finv_quote_secu_key_status_check`），默认仍为 `PENDING`；
+  - 追加 `stock_id BIGINT` 与 `usc TEXT`，**均可空、无默认值（NULL=尚未解析到）**，分别对应 `finv_futu_quote_collect.stock_id` 与 `finv_security.usc`，供同步任务回填；列数 10→12。
+  - 按要求不写入任何初始数据（后续走同步）；`DbSchemaSpec` 的 `futu` 域说明同步。
+  - 验证：5 个合法状态值均可插入、非法值按 CHECK 报错；两列只写前 10 列时为 NULL、写入后可读；`schema_version=300139`。
+
 ### 新增
 
 - **新建证券键表 `futu.finv_quote_secu_key`（需求 11036，迁移 `V300137`）**
