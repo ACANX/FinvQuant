@@ -14,11 +14,11 @@ import (
 	"time"
 )
 
-// 本文件实现 Supabase PostgREST 的**按主键取值 + 单列回写**两个通用动作
-// （需求 11054「上游 usc 回填」用；Tab 1/2 都是只读上游，不会用到这些方法）：
+// 本文件实现 Supabase PostgREST 的**按主键取值 + 按主键回写**通用动作
+// （需求 11054/11056「上游 usc 回填」用；Tab 1/2 都是只读上游，不会用到这些方法）：
 //
-//	GET   /rest/v1/<表>?select=<列>&<键列>=in.(1,2,3)   批量取上游若干主键行
-//	PATCH /rest/v1/<表>?<键列>=eq.<值>                 把一行的一个文本列改成指定值
+//	GET   /rest/v1/<表>?select=<列>&<键列>=in.(k1,k2,...)   批量取上游若干主键行
+//	PATCH /rest/v1/<表>?<键列>=eq.<值>                     把一行的若干列改成指定值
 //
 // 与只读客户端一致的两点：
 //   - schema 只能走 `Accept-Profile`（读）/ `Content-Profile`（写）头，路径里不放 schema；
@@ -32,31 +32,40 @@ import (
 // URL 长度限制来自上游网关（实测 500 个 bigint 约 8KB 仍可通过，取 200 更稳）。
 const maxIDsPerRequest = 200
 
-// patchConcurrency 回写时的并发度（逐行走 PATCH，串行太慢）。
-const patchConcurrency = 8
-
 // FetchByIntIDs 按整型主键批量取上游行（原始 JSON），返回的列由 columns 指定。
 //
-// ids 超过 maxIDsPerRequest 时自动拆分多次请求并合并结果；排序固定按键列升序，
-// 保证同一批请求的顺序稳定（便于日志核对）。
+// ids 超过 maxIDsPerRequest 时自动拆分多次请求并合并结果。
 func (c *Client) FetchByIntIDs(ctx context.Context, table, columns, keyColumn string, ids []int64) ([]json.RawMessage, error) {
-	if len(ids) == 0 {
+	keys := make([]string, 0, len(ids))
+	for _, id := range ids {
+		keys = append(keys, strconv.FormatInt(id, 10))
+	}
+	return c.fetchByKeys(ctx, table, columns, keyColumn, keys)
+}
+
+// FetchByTextKeys 按文本主键（如 ftmm_symbol）批量取上游行（原始 JSON）。
+func (c *Client) FetchByTextKeys(ctx context.Context, table, columns, keyColumn string, keys []string) ([]json.RawMessage, error) {
+	return c.fetchByKeys(ctx, table, columns, keyColumn, keys)
+}
+
+// fetchByKeys 按主键列表分批取上游行；排序固定按键列升序，保证同一批请求顺序稳定。
+func (c *Client) fetchByKeys(ctx context.Context, table, columns, keyColumn string, keys []string) ([]json.RawMessage, error) {
+	if len(keys) == 0 {
 		return nil, nil
 	}
 	schema, name := splitTable(table)
 	if strings.TrimSpace(columns) == "" {
 		columns = "*"
 	}
-	rows := make([]json.RawMessage, 0, len(ids))
-	for start := 0; start < len(ids); start += maxIDsPerRequest {
+	rows := make([]json.RawMessage, 0, len(keys))
+	for start := 0; start < len(keys); start += maxIDsPerRequest {
 		end := start + maxIDsPerRequest
-		if end > len(ids) {
-			end = len(ids)
+		if end > len(keys) {
+			end = len(keys)
 		}
-		chunk := ids[start:end]
-		parts := make([]string, 0, len(chunk))
-		for _, id := range chunk {
-			parts = append(parts, strconv.FormatInt(id, 10))
+		parts := make([]string, 0, end-start)
+		for _, key := range keys[start:end] {
+			parts = append(parts, quotePostgRESTValue(key))
 		}
 		requestURL := c.baseURL + "/rest/v1/" + name + "?" + strings.Join([]string{
 			"select=" + columns,
@@ -76,7 +85,7 @@ func (c *Client) FetchByIntIDs(ctx context.Context, table, columns, keyColumn st
 			}
 			lastErr = err
 			if !retryable || attempt == c.maxAttempts {
-				return nil, fmt.Errorf("按 %s 取上游行失败（%d 个键）: %w", keyColumn, len(chunk), lastErr)
+				return nil, fmt.Errorf("按 %s 取上游行失败（%d 个键）: %w", keyColumn, end-start, lastErr)
 			}
 			backoff := c.retryBackoff * time.Duration(attempt)
 			log.Printf("[cdeu][uscbackfill] fetch retry %d/%d after %s: %v", attempt, c.maxAttempts, backoff, err)
@@ -91,32 +100,31 @@ func (c *Client) FetchByIntIDs(ctx context.Context, table, columns, keyColumn st
 	return rows, nil
 }
 
-// PatchTextColumn 把键列等于 id 的那一行的 column 改成 value。
+// PatchColumns 把键列等于 keyValue 的那一行的若干列改成 values。
 //
 // 用 `Prefer: return=minimal, count=exact` 校验受影响行数：必须正好 1 行，
 // 否则返回可读错误（0 行多为 RLS 拒绝或该行已不存在）。
-func (c *Client) PatchTextColumn(ctx context.Context, table, keyColumn string, id int64, column, value string) error {
+func (c *Client) PatchColumns(ctx context.Context, table, keyColumn, keyValue string, values map[string]any) error {
 	schema, name := splitTable(table)
-	payload, err := json.Marshal(map[string]string{column: value})
+	payload, err := json.Marshal(values)
 	if err != nil {
 		return fmt.Errorf("序列化回写内容失败: %w", err)
 	}
-	endpoint := c.baseURL + "/rest/v1/" + name + "?" + keyColumn + "=eq." +
-		url.QueryEscape(strconv.FormatInt(id, 10))
+	endpoint := c.baseURL + "/rest/v1/" + name + "?" + keyColumn + "=eq." + url.QueryEscape(keyValue)
 
 	var lastErr error
 	for attempt := 1; attempt <= c.maxAttempts; attempt++ {
 		affected, retryable, err := c.patchOnce(ctx, endpoint, schema, payload)
 		if err == nil {
 			if affected != 1 {
-				return fmt.Errorf("上游 %s.%s 未按预期更新：%s=%d 受影响 %d 行（多为 RLS 拒绝或该行不存在）",
-					name, column, keyColumn, id, affected)
+				return fmt.Errorf("上游 %s 未按预期更新：%s=%s 受影响 %d 行（多为 RLS 拒绝或该行不存在）",
+					name, keyColumn, keyValue, affected)
 			}
 			return nil
 		}
 		lastErr = err
 		if !retryable || attempt == c.maxAttempts {
-			return fmt.Errorf("回写上游 %s.%s 失败（%s=%d）: %w", name, column, keyColumn, id, lastErr)
+			return fmt.Errorf("回写上游 %s 失败（%s=%s）: %w", name, keyColumn, keyValue, lastErr)
 		}
 		backoff := c.retryBackoff * time.Duration(attempt)
 		log.Printf("[cdeu][uscbackfill] patch retry %d/%d after %s: %v", attempt, c.maxAttempts, backoff, err)
@@ -167,6 +175,19 @@ func (c *Client) patchOnce(ctx context.Context, endpoint, schema string, payload
 		}
 		return 0, retryable, fmt.Errorf("Supabase 返回 HTTP %d: %s", resp.StatusCode, message)
 	}
-	// PATCH 的 count 形如 `Content-Range: */3676`；缺失时按 1 行处理（200 + representation 场景）。
+	// 写操作的 count 形如 `*/3676` 或 `0-0/1`（无返回体时）。
 	return parseContentRangeTotal(resp.Header.Get("Content-Range")), false, nil
+}
+
+// quotePostgRESTValue 把主键值转成 PostgREST `in.(...)` 里的写法。
+//
+// 只在该值含有 PostgREST 语法字符（逗号、括号、引号、反斜杠、空白）时才加双引号并转义；
+// 纯数字/字母/点号的键保持原样，避免多引号影响 bigint 的隐式转换。
+func quotePostgRESTValue(value string) string {
+	if !strings.ContainsAny(value, `,()"\\ \t`+"\n") {
+		return value
+	}
+	escaped := strings.ReplaceAll(value, `\\`, `\\\\`)
+	escaped = strings.ReplaceAll(escaped, `"`, `\\"`)
+	return `"` + escaped + `"`
 }

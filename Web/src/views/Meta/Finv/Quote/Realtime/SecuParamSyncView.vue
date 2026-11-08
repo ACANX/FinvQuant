@@ -93,18 +93,32 @@ interface IndicatorStatus {
   batch_size_default: number
 }
 
-// Tab 3 运行快照（上游 usc 回填）
+// Tab 3 运行快照（上游 usc 回填：① meta 表 usc / ② key 表 usc + stock_id）
 interface BackfillRun extends RunBase {
   kind: string
-  upstream_table: string
+  phase: string
+  meta_table: string
+  meta_column: string
+  meta_key: string
   local_table: string
-  key_column: string
   rows_done: number
   fill: number
   overwrite: number
   unchanged: number
   ambiguous: number
   no_target: number
+  key_table: string
+  key_columns: string
+  key_key: string
+  key_local_rows: number
+  key_resolvable: number
+  key_unresolved: number
+  key_fill: number
+  key_overwrite: number
+  key_unchanged: number
+  key_ambiguous: number
+  key_no_target: number
+  key_batches: number
 }
 
 // Tab 3 状态快照
@@ -113,13 +127,19 @@ interface BackfillStatus {
   project_id: string
   api_key_masked: string
   config_error?: string
-  upstream_table: string
-  upstream_column: string
+  meta_table: string
+  meta_column: string
+  meta_key: string
   local_table: string
-  key_column: string
   local_rows: number
   local_stock_ids: number
   local_usc_placeholder: number
+  key_table: string
+  key_columns: string
+  key_key: string
+  key_local_rows: number
+  key_resolvable: number
+  key_unresolved: number
   batch_size_default: number
 }
 
@@ -419,8 +439,8 @@ onBeforeUnmount(() => {
       </v-btn>
     </div>
     <div class="text-caption text-medium-emphasis mb-2">
-      Tab 1/2 从 Supabase 上游按主键分批增量同步到本地；Tab 3 反向把本地 <code>usc</code> 按
-      <code>stock_id</code> 回填到上游。不变的行都不改写。
+      Tab 1/2 从 Supabase 上游按主键分批增量同步到本地；Tab 3 反向把本地 <code>usc</code> /
+      <code>stock_id</code> 回填到上游两张表（按 <code>stock_id</code> / <code>ftmm_symbol</code> 关联）。不变的行都不改写。
     </div>
 
     <v-tabs v-model="tab" density="comfortable" color="primary">
@@ -785,31 +805,56 @@ onBeforeUnmount(() => {
               <div v-if="bfStatus?.config_error" class="text-caption text-warning mt-1">{{ bfStatus.config_error }}</div>
             </v-col>
             <v-col cols="12" md="6">
-              <div class="text-caption text-medium-emphasis">本地源表（usc 来源）</div>
+              <div class="text-caption text-medium-emphasis">本地来源</div>
               <div class="d-flex align-center flex-wrap ga-2 mt-1">
                 <code class="text-body-2">{{ bfStatus?.local_table || 'futu.finv_futu_quote_collect' }}</code>
                 <v-chip size="small" variant="tonal" color="primary">共 {{ num(bfStatus?.local_rows) }} 行</v-chip>
                 <v-chip size="small" variant="tonal" color="info">
-                  待处理 {{ num(bfStatus?.local_stock_ids) }} 个 {{ bfStatus?.key_column || 'stock_id' }}
+                  待处理 {{ num(bfStatus?.local_stock_ids) }} 个 {{ bfStatus?.meta_key || 'stock_id' }}
                 </v-chip>
+              </div>
+              <div class="text-caption text-medium-emphasis mt-1">
+                另用 <code>futu.finv_futu_secu_key</code>（{{ num(bfStatus?.key_local_rows) }} 行）关联出
+                <code>ftmm_symbol</code>
               </div>
             </v-col>
           </v-row>
 
           <v-divider class="my-3" />
 
-          <div class="text-caption text-medium-emphasis mb-1">上游被回填的表与列</div>
-          <div class="d-flex align-center flex-wrap ga-2">
-            <v-chip size="small" variant="tonal" color="secondary">
-              <code class="mr-1">{{ bfStatus?.upstream_table || 'public.finv_quote_secu_meta' }}</code>
-              .{{ bfStatus?.upstream_column || 'usc' }}
-            </v-chip>
-            <v-chip size="small" variant="text">
-              关联键 <code class="ml-1">{{ bfStatus?.key_column || 'stock_id' }}</code>
-            </v-chip>
-            <v-chip size="small" variant="tonal" color="warning">
-              占位 usc {{ num(bfStatus?.local_usc_placeholder) }} 行
-            </v-chip>
+          <div class="text-caption text-medium-emphasis mb-1">
+            上游被回填的两张表（一次运行依次写：① 再 ②）
+          </div>
+          <div class="d-flex flex-column ga-2">
+            <div class="d-flex align-center flex-wrap ga-2">
+              <v-chip size="small" variant="tonal" color="secondary">①</v-chip>
+              <v-chip size="small" variant="tonal" color="secondary">
+                <code class="mr-1">{{ bfStatus?.meta_table || 'public.finv_quote_secu_meta' }}</code>
+                .{{ bfStatus?.meta_column || 'usc' }}
+              </v-chip>
+              <span class="text-caption text-medium-emphasis">
+                按 <code>{{ bfStatus?.meta_key || 'stock_id' }}</code> 关联
+              </span>
+              <v-chip size="small" variant="tonal" color="warning">
+                占位 usc {{ num(bfStatus?.local_usc_placeholder) }} 行
+              </v-chip>
+            </div>
+            <div class="d-flex align-center flex-wrap ga-2">
+              <v-chip size="small" variant="tonal" color="info">②</v-chip>
+              <v-chip size="small" variant="tonal" color="info">
+                <code class="mr-1">{{ bfStatus?.key_table || 'public.finv_quote_secu_key' }}</code>
+                {{ bfStatus?.key_columns || 'usc + stock_id' }}
+              </v-chip>
+              <span class="text-caption text-medium-emphasis">
+                按 <code>{{ bfStatus?.key_key || 'ftmm_symbol' }}</code> 关联
+              </span>
+              <v-chip size="small" variant="tonal" color="success">
+                可回填 {{ num(bfStatus?.key_resolvable) }} 行
+              </v-chip>
+              <v-chip size="small" variant="text">
+                本地无依据 {{ num(bfStatus?.key_unresolved) }} 行
+              </v-chip>
+            </div>
           </div>
         </v-card-text>
       </v-card>
@@ -878,7 +923,23 @@ onBeforeUnmount(() => {
               无对应 {{ num(bf.run.value.no_target) }}
             </v-chip>
             <v-chip size="small" variant="text">
-              {{ bf.run.value.batches }} 批 · {{ elapsedText(bf.run.value.elapsed_ms) }}
+              {{ bf.run.value.batches }} + {{ bf.run.value.key_batches }} 批 · {{ elapsedText(bf.run.value.elapsed_ms) }}
+            </v-chip>
+          </div>
+
+          <div class="text-caption text-medium-emphasis mb-1">② 键表（<code>usc + stock_id</code>，按 ftmm_symbol）</div>
+          <div class="d-flex flex-wrap ga-2 mb-2">
+            <v-chip size="small" variant="tonal" color="info">
+              可回填 {{ num(bf.run.value.key_resolvable) }} / 本地 {{ num(bf.run.value.key_local_rows) }}
+            </v-chip>
+            <v-chip size="small" variant="tonal" color="success">填入 {{ num(bf.run.value.key_fill) }}</v-chip>
+            <v-chip size="small" variant="tonal" color="primary">覆盖 {{ num(bf.run.value.key_overwrite) }}</v-chip>
+            <v-chip size="small" variant="tonal">未变 {{ num(bf.run.value.key_unchanged) }}</v-chip>
+            <v-chip v-if="bf.run.value.key_ambiguous" size="small" variant="tonal" color="warning">
+              歧义 {{ num(bf.run.value.key_ambiguous) }}
+            </v-chip>
+            <v-chip v-if="bf.run.value.key_no_target" size="small" variant="tonal" color="warning">
+              无对应 {{ num(bf.run.value.key_no_target) }}
             </v-chip>
           </div>
 
@@ -891,8 +952,8 @@ onBeforeUnmount(() => {
           />
           <div class="text-caption text-medium-emphasis mb-2">
             进度 {{ clampProgress(bf.run.value.progress).toFixed(1) }}%（{{ num(bf.run.value.rows_done) }} /
-            {{ num(bf.run.value.rows_total) }} 个 stock_id）· 上游
-            <code>{{ bf.run.value.upstream_table }}.{{ bfStatus?.upstream_column || 'usc' }}</code>
+            {{ num(bf.run.value.rows_total) }} 个键，① + ②）· 当前阶段
+            <code>{{ bf.run.value.phase === 'key' ? '② key 表' : '① meta 表' }}</code>
             · run_id <code>{{ bf.run.value.run_id }}</code>
           </div>
 
@@ -953,14 +1014,17 @@ onBeforeUnmount(() => {
         <v-divider class="my-3" />
 
         <div class="finv-secukey-note">
-          <div class="finv-secukey-note-title">上游 usc 回填（方向相反：本地 → 上游）</div>
+          <div class="finv-secukey-note-title">上游 usc 回填（方向相反：本地 → 上游，写两张表）</div>
           <div class="text-body-2 finv-secukey-note-body">
-            把本地 <code>futu.finv_futu_quote_collect</code> 的 <code>usc</code> 按 <code>stock_id</code> 关联写回上游
-            <code>public.finv_quote_secu_meta.usc</code>（上游该列有 3,673 行为 NULL）。关联键是
-            <code>stock_id</code>，不是 <code>usc</code>；上游 <code>usc</code> 已等于本地值时不发请求（「未变」）。
-            本地同一个 <code>stock_id</code> 有多条 <code>usc</code> 时（如实测 70 组 <code>CC.DASHTRY.FTUS</code> /
-            <code>DASHTRY</code>），取<b>等于上游 <code>ftmm_symbol</code></b> 的那条；都不等则跳过并计入「歧义」，
-            本地有、上游没有的 <code>stock_id</code>（期货/加密 FTUS 等 futu 独有）计入「无对应」。
+            <b>① <code>public.finv_quote_secu_meta.usc</code></b>：按本地
+            <code>futu.finv_futu_quote_collect.usc</code> 与上游 <code>stock_id</code> 关联回填（该列原有 3,673 行为 NULL）。<br />
+            <b>② <code>public.finv_quote_secu_key</code> 的 <code>usc</code> + <code>stock_id</code></b>：按
+            <code>ftmm_symbol</code> 关联；来源为本键表的 <code>ftmm_symbol</code> + <code>stock_id</code>，配
+            <code>futu.finv_futu_quote_collect</code> 里同 <code>stock_id</code> 的 <code>usc</code>（实测可回填 10,910 行，
+            其余 62,302 行本地无依据，计入「无依据」跳过）。<br />
+            两条链路都不是「只写 NULL 行」：上游值已一致 → 「未变」且不发请求（幂等）；为空 → 「填入」；有值但不同 → 「覆盖」。
+            本地同一键有多条 <code>usc</code> 时（如实测 70 组 <code>CC.DASHTRY.FTUS</code> / <code>DASHTRY</code>），
+            取<b>等于 <code>ftmm_symbol</code></b> 的那条；都不等则跳过并计入「歧义」。
             本 Tab 会<b>写入线上 Supabase</b>：逐行 PATCH，每行都校验「受影响行数 = 1」，被 RLS 拒绝会直接报错。
           </div>
         </div>

@@ -7,7 +7,8 @@
 > 关联需求：11042（菜单与页面）、11043（同步实现）、11044（源表名可配 20014）、11045（拆两个 Tab）、
 > 11046（异步运行 + 实时日志）、11047（Tab 2 口径确认）、11050（Tab 2 指标同步实现）、
 > 11051（`flag_enable` 规则）、11052（Tab 1 不清空 Tab 2 补的 `url`）、
-> 11054（Tab 3 上游 usc 回填）、11055（多条 `usc` 取值规则）
+> 11054（Tab 3 上游 usc 回填）、11055（多条 `usc` 取值规则）、
+> 11056（Tab 3 同时回填 `finv_quote_secu_key` 的 `usc` + `stock_id`）、11057（键表关联口径）
 > 关联接口：[`API/Cdeu/SecuParamSync.md`](../../../API/Cdeu/SecuParamSync.md)
 > 关联数据表：目标 `futu.finv_futu_secu_key`（V300137 建表 / V300139 补 `stock_id`+`usc` / V300141 改名）；
 > 源 Supabase `public.finv_quote_secu_key`（表名可配，默认与上游同名）
@@ -22,7 +23,7 @@
 |-----|------|------|
 | **FT证券基础参数同步** | 已实现 | Supabase 证券键表（默认 `public.finv_quote_secu_key`）→ 本地 `futu.finv_futu_secu_key` |
 | **证券指标数据同步** | 已实现（需求 11050） | 上游 `public.finv_quote_secu_meta` → 指标表 + 采集属性表 + 证券键表（一条记录写三张表） |
-| **上游 usc 回填** | 已实现（需求 11054） | 方向相反：本地 `futu.finv_futu_quote_collect.usc` 按 `stock_id` 关联写回上游 `public.finv_quote_secu_meta.usc` |
+| **上游 usc 回填** | 已实现（需求 11054/11056） | 方向相反：一次运行写两张上游表（`finv_quote_secu_meta.usc` 按 `stock_id`；`finv_quote_secu_key.usc + stock_id` 按 `ftmm_symbol`） |
 
 - 只由本页**按钮手动触发**，没有定时任务；
 - 单向只读上游 → 写本地：不删除本地行，不清空本地专有列 `stock_id` / `usc`；
@@ -133,8 +134,8 @@
 | 区块 | 展示 |
 |------|------|
 | Supabase 连接（20013） | 同 Tab 1/2：`已配置` / `未配置` + 项目 ID + 脱敏 key 前缀 |
-| 本地源表（`usc` 来源） | `futu.finv_futu_quote_collect`、`共 N 行`、`待处理 N 个 stock_id` |
-| 上游被回填的表与列 | chip `public.finv_quote_secu_meta.usc`、`关联键 stock_id`、`占位 usc N 行` |
+| 本地来源 | `futu.finv_futu_quote_collect`、`共 N 行`、`待处理 N 个 stock_id`；另注明用 `futu.finv_futu_secu_key`（N 行）关联出 `ftmm_symbol` |
+| 上游被回填的两张表 | ① chip `public.finv_quote_secu_meta.usc` + `按 stock_id 关联` + `占位 usc N 行`；② chip `public.finv_quote_secu_key usc + stock_id` + `按 ftmm_symbol 关联` + `可回填 N 行` + `本地无依据 N 行` |
 
 #### 2.4.2 回填参数（第二张卡片）
 
@@ -148,7 +149,8 @@
 与 Tab 1/2 同款（状态 chip / 累计 chip / 进度条 / 独立滚动日志区 + 自动滚底 + `ERROR` 标红 + 「等待下一批…」），
 累计 chip 换成回填口径：
 
-`处理 a / b 个 stock_id · 填入 · 覆盖 · 未变 · 歧义 · 无对应 · N 批 · 耗时`
+`处理 a / b 个 stock_id · 填入 · 覆盖 · 未变 · 歧义 · 无对应 · N 批 · 耗时`，
+下面再一行「② 键表（`usc + stock_id`，按 ftmm_symbol）」的 chips：`可回填 a / 本地 b · 填入 · 覆盖 · 未变 · 歧义 · 无对应`
 
 日志形态（首次全量实测，49 批）：
 
@@ -160,7 +162,10 @@
 
 #### 2.4.4 口径（页面「说明」里同步展示）
 
-- 关联键 **`stock_id`**（不是 `usc`，也不是「只更新上游 `usc IS NULL` 的行」）；
+- 阶段 ① 关联键 **`stock_id`**（不是 `usc`，也不是「只更新上游 `usc IS NULL` 的行」）；
+- 阶段 ② 关联键 **`ftmm_symbol`**：本地用 `market_label || '.' || futu_symbol` 还原（如 `US.AAPL`、
+  `CC.DASHTRY.FTUS`、`HK.00700`），覆盖 24,162 / 73,212 行（按 `stock_id` 的 10,910 行是其子集），
+  写入 `usc` + `stock_id` 两列；其余 49,050 行本地无依据，跳过；
 - 本地同一 `stock_id` 有多条 `usc`（实测 70 组）时取**等于上游 `ftmm_symbol`** 的那条，都不等则计入「歧义」跳过；
 - 本地有、上游没有的 `stock_id`（13,438 个，期货/加密 FTUS 等 futu 独有）计入「无对应」；
 - 上游 `usc` 已等于目标值 → 「未变」，**不发请求**（复跑幂等）；

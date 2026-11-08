@@ -81,16 +81,16 @@ func TestGroupByStockID(t *testing.T) {
 	}
 }
 
-// TestIndexUpstream 校验上游行解析（usc 为 NULL 时留空串，不报错）。
+// TestIndexMetaUpstream 校验上游表 ① 行解析（usc 为 NULL 时留空串，不报错）。
 func TestIndexUpstream(t *testing.T) {
 	raw := []json.RawMessage{
 		json.RawMessage(`{"stock_id":203520,"usc":"BRK-B","ftmm_symbol":"US.BRK.B"}`),
 		json.RawMessage(`{"stock_id":12001500,"usc":null,"ftmm_symbol":"CC.AAVE"}`),
 		json.RawMessage(`{"stock_id":null,"usc":"x","ftmm_symbol":"y"}`),
 	}
-	rows, err := indexUpstream(raw)
+	rows, err := indexMetaUpstream(raw)
 	if err != nil {
-		t.Fatalf("indexUpstream 失败: %v", err)
+		t.Fatalf("indexMetaUpstream 失败: %v", err)
 	}
 	if len(rows) != 2 {
 		t.Fatalf("解析出 %d 行，期望 2 行（stock_id 为 NULL 的行被跳过）", len(rows))
@@ -110,5 +110,48 @@ func TestNormalizeBatchSize(t *testing.T) {
 		if got := NormalizeBatchSize(input); got != want {
 			t.Fatalf("NormalizeBatchSize(%d) = %d，期望 %d", input, got, want)
 		}
+	}
+}
+
+// TestIndexKeyUpstream 校验上游表 ② 行解析（stock_id 为 NULL 时保持 nil，与 0 区分）。
+func TestIndexKeyUpstream(t *testing.T) {
+	raw := []json.RawMessage{
+		json.RawMessage(`{"ftmm_symbol":"US.AAPL","usc":"US.AAPL","stock_id":2049}`),
+		json.RawMessage(`{"ftmm_symbol":"AU..XFL","usc":null,"stock_id":null}`),
+		json.RawMessage(`{"ftmm_symbol":null,"usc":"x","stock_id":1}`),
+	}
+	rows, err := indexKeyUpstream(raw)
+	if err != nil {
+		t.Fatalf("indexKeyUpstream 失败: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("解析出 %d 行，期望 2 行（ftmm_symbol 为空的行被跳过）", len(rows))
+	}
+	if rows["US.AAPL"].USC != "US.AAPL" || rows["US.AAPL"].StockID == nil || *rows["US.AAPL"].StockID != 2049 {
+		t.Fatalf("rows[US.AAPL] = %+v", rows["US.AAPL"])
+	}
+	if rows["AU..XFL"].USC != "" || rows["AU..XFL"].StockID != nil {
+		t.Fatalf("rows[AU..XFL] = %+v", rows["AU..XFL"])
+	}
+}
+
+// TestGroupByFtmmSymbol 校验按 ftmm_symbol 归并与升序（阶段 ② 的分批依据）。
+func TestGroupByFtmmSymbol(t *testing.T) {
+	rows := []LocalKeyRow{
+		{FtmmSymbol: "US.ZZZ", USC: "ZZZ", StockID: 3},
+		{FtmmSymbol: "US.AAA", USC: "AAA", StockID: 1},
+		{FtmmSymbol: "US.AAA", USC: "US.AAA", StockID: 1},
+	}
+	groups, order := groupByFtmmSymbol(rows)
+	if len(order) != 2 || order[0] != "US.AAA" || order[1] != "US.ZZZ" {
+		t.Fatalf("order = %v，期望 [US.AAA US.ZZZ]", order)
+	}
+	if len(groups["US.AAA"]) != 2 {
+		t.Fatalf("groups[US.AAA] 应有 2 条，实际 %v", groups["US.AAA"])
+	}
+	// 多条时取等于 ftmm_symbol 的那条
+	picked, ok := pickUSC(groups["US.AAA"], "US.AAA")
+	if !ok || picked != "US.AAA" {
+		t.Fatalf("pickUSC = (%q, %v)，期望 (US.AAA, true)", picked, ok)
 	}
 }
