@@ -20,6 +20,14 @@
 
 ### 新增
 
+- **「证券参数同步」拆成两个 Tab，并改为异步运行 + 页面实时日志（需求 11045/11046）**
+  - Tab 1「FT证券基础参数同步」：沿用原同步逻辑（Supabase 证券键表 → `futu.finv_futu_secu_key`），功能不变。
+  - Tab 2「证券指标数据同步」：占位页（`待接入`），列出已探测到的上游候选表 `public.finv_quote_secu_meta` 与待确认四项口径（来源表 / 目标表 / 字段映射 / 增量键），按钮置灰；口径见需求 11047（待办，本轮不实现、不建表）。
+  - 同步改异步：新增 `POST .../SecuKey/Sync/Run`（立刻返回 `run_id`，已有运行返回 409）与 `GET .../SecuKey/Sync/Run?runId=`（`status`/`progress`/累计计数/`logs[]`）；服务端 `secukey.Runner` 内存持有单次运行、每批写一条日志、日志上限 2000 行、整体超时 60 分钟；原同步接口 `POST .../SecuKey/Sync` 保留。
+  - 页面新增「同步进度与日志」卡片：进度条 + 累计 chip + **独立滚动日志区**（等宽字体、自动滚到底、`ERROR` 行标红、运行中显示「等待下一批…」），每 800 ms 轮询一次，边跑边看，不必等同步结束。
+  - 修复：运行日志首行 `offset` 少算一个批量（回调在 `seen` 自增前触发，误写成 `seen - len(rows)`），已改为 `seen`。
+  - 验证：202 启动 + 409 并发拒绝 + 404 未知 runId；`progress` 13.66%→27.32%→…→100%、`logs` 3→5→…→17；完成后 `status=DONE`、15 批、`unchanged=73212`、`elapsed_ms≈7854`；失败路径 `status=FAILED` + `ERROR` 日志；`go build`/`go test`/`npm run build` 通过，产物含两个 Tab 名与「待接入」。
+
 - **新增「证券参数同步」：Supabase 证券键表 → 本地 `futu.finv_futu_secu_key` 分批增量同步（需求 11042–11044）**
   - 菜单：紧跟「缺省汇率」新增四级叶子「证券参数同步」（`quote-realtime-secu-param-sync`、`/Meta/Finv/Quote/Realtime/SecuParamSync`）；页面四块——连接与目标表 / 同步参数 / 同步结果 / 说明（ExplainCardSpec）。
   - 后端：新增 `internal/meta/finv/quote/secukey/`（PostgREST 只读客户端 + 批量增量 upsert + 编排）与处理器 `internal/api/handler/cdeu_secu_key.go`，注册三个接口 `GET .../SecuKey/Status`、`POST .../SecuKey/Config`、`POST .../SecuKey/Sync`。
