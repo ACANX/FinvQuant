@@ -164,6 +164,23 @@ type BatchLog struct {
 	ElapsedM int64 `json:"elapsed_ms"`
 }
 
+// Progress 一批完成时的进度快照（供异步运行写入实时日志）。
+//
+// 各计数字段与 SyncResult 同口径：Insert/Update 只统计**实际改动**的行。
+type Progress struct {
+	Batch       int   // 当前批次号（从 1 开始）
+	Offset      int   // 本批起始 offset
+	Fetched     int   // 本批拉取行数
+	RowsTotal   int64 // 源表总行数（取不到为 0）
+	RowsReceive int   // 累计拉取行数
+	Insert      int   // 累计新增
+	Update      int   // 累计更新
+	Unchanged   int   // 累计未变
+	Skipped     int   // 累计跳过
+	StatusReset int   // 累计 status 归一
+	ElapsedMs   int64 // 本批耗时
+}
+
 // SyncRequest 一次同步的入参。
 type SyncRequest struct {
 	// SourceTable 源表名（可留空：留空取系统配置 20014，仍为空则用默认 finv_quote_secu_key）。
@@ -284,11 +301,19 @@ func (s *Service) SetSourceTable(ctx context.Context, raw string) (string, error
 	return table, nil
 }
 
-// Sync 执行一次同步：按 ftmm_symbol 升序逐批拉取源表并增量写入目标表。
+// Sync 执行一次同步（无进度回调）；见 SyncWithProgress。
+func (s *Service) Sync(ctx context.Context, req SyncRequest) (SyncResult, error) {
+	return s.SyncWithProgress(ctx, req, nil)
+}
+
+// SyncWithProgress 执行一次同步：按 ftmm_symbol 升序逐批拉取源表并增量写入目标表。
+//
+// 每批写入完成后回调 onProgress（可为 nil），异步运行（Runner）据此把进度写进实时日志，
+// 让前端在同步过程中就能看到批次推进，而不是等全部结束。
 //
 // 任一批次失败即返回错误（已写入的批次不回滚：增量写入本身就是可重入的，
 // 重跑只补齐剩余部分，不会重复插入或清空已有 row）。
-func (s *Service) Sync(ctx context.Context, req SyncRequest) (SyncResult, error) {
+func (s *Service) SyncWithProgress(ctx context.Context, req SyncRequest, onProgress func(Progress)) (SyncResult, error) {
 	started := s.now()
 	result := SyncResult{}
 
@@ -362,6 +387,22 @@ func (s *Service) Sync(ctx context.Context, req SyncRequest) (SyncResult, error)
 		})
 		log.Printf("[cdeu][secukey] batch=%d offset=%d fetched=%d insert=%d update=%d unchanged=%d skipped=%d elapsed_ms=%d",
 			batch, seen, len(rows), stat.Insert, stat.Update, unchanged, skipped, s.now().Sub(batchStart).Milliseconds())
+
+		if onProgress != nil {
+			onProgress(Progress{
+				Batch:       batch,
+				Offset:      seen, // 回调在 seen 自增之前触发，这里就是本批起始 offset
+				Fetched:     len(rows),
+				RowsTotal:   total,
+				RowsReceive: result.RowsReceive,
+				Insert:      result.Insert,
+				Update:      result.Update,
+				Unchanged:   result.Unchanged,
+				Skipped:     result.Skipped,
+				StatusReset: result.StatusReset,
+				ElapsedMs:   s.now().Sub(batchStart).Milliseconds(),
+			})
+		}
 
 		seen += len(rows)
 		if len(rows) < batchSize {

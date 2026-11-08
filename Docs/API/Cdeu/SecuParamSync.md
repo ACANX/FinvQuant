@@ -3,8 +3,11 @@
 > 接口：
 > - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Status` —— 只读快照（连接配置状态 + 源表名 + 目标表行数）
 > - `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Config` —— 保存 Supabase 源表名（系统配置 20014）
-> - `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync` —— 手动触发同步（同步执行，返回逐批日志）
-> 需求：11042（菜单与页面）、11043（同步实现）、11044（源表名可配 20014）；连接配置 20013（需求 11041）
+> - `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync` —— 手动触发同步（同步执行，返回逐批日志；脚本用）
+> - `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run` —— 异步启动同步（返回 `run_id`，需求 11046）
+> - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run` —— 运行时快照（`progress` + 逐批实时日志，页面轮询）
+> 需求：11042（菜单与页面）、11043（同步实现）、11044（源表名可配 20014）、11045（页面拆两个 Tab）、
+> 11046（异步运行 + 实时日志）；连接配置 20013（需求 11041）
 > 权限：需登录（内部接口，不对外暴露 OpenAPI）
 > 关联表：目标 `futu.finv_futu_secu_key`（迁移 `V300137` 建表、`V300139` 补 `stock_id`/`usc`、`V300141` 改名）；
 > 源 Supabase `public.finv_quote_secu_key`（表名可配，默认与上游同名）
@@ -140,10 +143,61 @@
 
 失败**不回滚已写入的批次**：增量写入可重入，重跑只补齐剩余部分。
 
+### 5.4 异步运行（页面实际使用，需求 11046）
+
+页面不再用上面的同步接口（要等全部批次结束才有响应），而是「异步启动 + 轮询」：
+启动拿到 `run_id` 与首条日志，之后每 800 ms 拉一次运行快照，**日志区逐批追加**，边跑边看进度。
+
+#### 启动：`POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run`
+
+请求体同 §5.1（`source_table` / `batch_size` 均可省略，允许空体 `{}`）。
+
+| 场景 | HTTP | 说明 |
+|------|------|------|
+| 启动成功 | **202** | `data` 为启动瞬间的快照：`run_id`、`status=RUNNING`、`logs[0]="同步任务已启动"` |
+| 已有运行在执行 | **409** | `message` 带正在运行的 `run_id`；同一时刻只允许一个运行（不排队、不覆盖） |
+| 请求体非法 | 400 | `code=400` |
+
+> 运行状态只存内存：进程重启即丢失，重新点按钮即可。整体超时 60 分钟。
+
+#### 轮询：`GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run?runId=<id>`
+
+`runId` 省略时返回最近一次运行；`runId` 不匹配或从未运行过返回 **404**（不返回别的运行，避免张冠李戴）。
+
+`data` 字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `run_id` | string | 运行 ID（`sk-<yyyyMMdd-HHmmss.微秒>`） |
+| `status` | string | `RUNNING` / `DONE` / `FAILED` |
+| `progress` | number | 0~100，按「已拉取行数 / 源表总行数」计算（总行数未知时为 0） |
+| `rows_total` / `rows_receive` | int | 源表总行数（首批后才知道）/ 累计拉取 |
+| `insert` / `update` / `unchanged` / `skipped` / `status_reset` | int | 累计计数，口径同 §5.2 |
+| `batches` | int | 已完成批次数 |
+| `batch_size` | int | 本次使用的批量 |
+| `started_at` / `finished_at` | string | RFC3339 |
+| `elapsed_ms` | int | 运行中为「至今耗时」，结束后为总耗时 |
+| `error` | string | `FAILED` 时的可读原因（与同步接口 500 的 `message` 同源） |
+| `logs[]` | array | 实时日志：`seq`（自增）、`time`（RFC3339）、`level`（`INFO`/`ERROR`）、`text`、`batch`、`offset` |
+
+日志形态（一次 15 批运行的实测输出）：
+
+```
+1  INFO 同步任务已启动
+2  INFO 第 1 批：offset=0，拉取 5000，新增 0，更新 0，未变 5000，跳过 0（本批 807 ms）
+3  INFO 第 2 批：offset=5000，拉取 5000，新增 0，更新 0，未变 5000，跳过 0（本批 428 ms）
+...
+16 INFO 第 15 批：offset=70000，拉取 3212，新增 0，更新 0，未变 3212，跳过 0（本批 316 ms）
+17 INFO 同步完成：源表 finv_quote_secu_key 共 73212 行，15 批，新增 0，更新 0，未变 73212，跳过 0，耗时 7854 ms
+```
+
+- 每批一行，含**本批差值**（新增/更新/未变/跳过）与本批耗时；失败时最后一行是 `ERROR 同步失败：<原因>`；
+- 日志上限 2000 行（按批一行，7 万行/1000 批约 74 行，余量充足），超限保留最近 2000 条。
+
 ## 6. 实现要点
 
-- 代码：`internal/meta/finv/quote/secukey/`（`client.go` 上游读取、`store.go` 批量写入、`service.go` 编排与归一化），
-  处理器 `internal/api/handler/cdeu_secu_key.go`；
+- 代码：`internal/meta/finv/quote/secukey/`（`client.go` 上游读取、`store.go` 批量写入、`service.go` 编排与归一化、
+  `runner.go` 异步运行与实时日志），处理器 `internal/api/handler/cdeu_secu_key.go`；
 - 上游 URL：`https://<PROJECT_ID>.supabase.co/rest/v1/<表名>?select=…&order=ftmm_symbol.asc&limit=&offset=`，
   头部 `apikey` + `Authorization: Bearer <key>` + `Prefer: count=exact` + `Accept-Profile: <schema>`；
 - **schema 只能走 `Accept-Profile` 头**：写成 `/rest/v1/public.<表>` 会被 PostgREST 当成
@@ -164,3 +218,8 @@
 | 源表名保存 `finv;drop table x` | HTTP 400，提示只允许字母/数字/下划线 |
 | 20013 清空后 | `Status.configured=false` + 可读 `config_error`；`Sync` → HTTP 500 `Supabase 连接不可用` |
 | 不存在的源表 | HTTP 500 + `PGRST205` 原文与排查提示 |
+| 异步启动 `POST .../Sync/Run` | HTTP 202 + `run_id` + `logs[0]`；运行中再次启动 → HTTP 409（带正在运行的 run_id） |
+| 异步轮询（`batch_size=5000`） | `progress` 依次 13.66% → 27.32% → … → 100%，`batches` 与 `logs` 同步增长（2/4/5/7/9/11 → 15） |
+| 异步完成 | `status=DONE`、17 行日志（启动 + 15 批 + 完成）、`unchanged=73212`、`elapsed_ms≈7854` |
+| 异步失败 | 不存在的源表 → `status=FAILED` + `error` 与最后一行 `ERROR` 日志 |
+| `runId` 不存在 | HTTP 404「没有找到同步运行记录」 |

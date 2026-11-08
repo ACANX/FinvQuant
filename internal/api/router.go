@@ -192,6 +192,9 @@ func NewRouter(deps *Deps) *gin.Engine {
 			secuKeyGroup.GET("/Status", secuKeyHandler.Status)
 			secuKeyGroup.POST("/Config", secuKeyHandler.SaveConfig)
 			secuKeyGroup.POST("/Sync", secuKeyHandler.Sync)
+			// 异步运行（需求 11046）：启动后立刻返回 run_id，前端轮询状态拿进度与逐批实时日志。
+			secuKeyGroup.POST("/Sync/Run", secuKeyHandler.StartSyncRun)
+			secuKeyGroup.GET("/Sync/Run", secuKeyHandler.SyncRunStatus)
 			group.POST("/Job/Run", archive.JobRun)
 			group.POST("/Job/Dynamic/Run", archive.DynamicJobRun)
 

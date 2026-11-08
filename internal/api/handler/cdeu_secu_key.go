@@ -14,7 +14,9 @@ import (
 //
 //	GET  /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Status   只读快照（20013 是否配置 + 源表名 + 目标表行数）
 //	POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Config   保存源表名（写系统配置 20014）
-//	POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync     手动触发同步（同步执行，返回逐批日志）
+//	POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync     手动触发同步（同步执行，返回逐批日志；脚本/接口用）
+//	POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run 异步启动（返回 run_id，需求 11046）
+//	GET  /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run 运行时快照（进度 + 逐批实时日志，前端轮询）
 //
 // 数据表：源 = Supabase 的 public.finv_quote_secu_key（表名可配），
 // 目标 = 本地 futu.finv_futu_secu_key。
@@ -24,11 +26,12 @@ import (
 // SecuKey 证券参数同步处理器。
 type SecuKey struct {
 	service *secukey.Service
+	runner  *secukey.Runner
 }
 
-// NewSecuKey 创建处理器。
+// NewSecuKey 创建处理器（异步运行器随处理器创建：状态只存内存）。
 func NewSecuKey(service *secukey.Service) *SecuKey {
-	return &SecuKey{service: service}
+	return &SecuKey{service: service, runner: secukey.NewRunner(service)}
 }
 
 // secuKeyConfigRequest 保存源表名的请求体。
@@ -104,4 +107,50 @@ func (h *SecuKey) Sync(c *gin.Context) {
 		result.SourceTable, result.RowsTotal, result.RowsReceive, result.Insert, result.Update,
 		result.Unchanged, result.Skipped, result.Batches, result.ElapsedMs)
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "证券参数已同步", "data": result})
+}
+
+// StartSyncRun POST /Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run。
+//
+// 异步启动：立刻返回 run_id，前端随后轮询 SyncRunStatus 取进度与逐批实时日志，
+// 不必等整次同步结束（需求 11046）。已有运行在执行时返回 409。
+func (h *SecuKey) StartSyncRun(c *gin.Context) {
+	var req secuKeySyncRequest
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&req); err != nil && !strings.Contains(err.Error(), "EOF") {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体非法: " + err.Error()})
+			return
+		}
+	}
+	run, err := h.runner.Start(secukey.SyncRequest{
+		SourceTable: req.SourceTable,
+		BatchSize:   req.BatchSize,
+	})
+	if err != nil {
+		log.Printf("[cdeu][secukey] api run start rejected: %v", err)
+		c.JSON(http.StatusConflict, gin.H{"code": 409, "message": err.Error()})
+		return
+	}
+	log.Printf("[cdeu][secukey] api run started run_id=%s", run.RunID)
+	c.JSON(http.StatusAccepted, gin.H{
+		"code":    0,
+		"message": "同步任务已启动",
+		"data":    run,
+	})
+}
+
+// SyncRunStatus GET /Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run?runId=。
+//
+// 返回运行时快照：status（RUNNING/DONE/FAILED）、progress（0~100）、累计计数与 logs（逐批实时日志）。
+// runId 省略时返回最近一次运行；从未运行过返回 404。
+func (h *SecuKey) SyncRunStatus(c *gin.Context) {
+	runID := strings.TrimSpace(c.Query("runId"))
+	run, ok := h.runner.Status(runID)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{
+			"code":    404,
+			"message": "没有找到同步运行记录（runId=" + runID + "），请先点击「立即同步」",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": run})
 }

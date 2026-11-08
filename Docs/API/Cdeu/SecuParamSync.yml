@@ -7,7 +7,8 @@ info:
     futu.finv_futu_secu_key：主键不存在则插入；已存在且字段有变化才更新；完全一致的行不改写。
     连接配置 {PROJECT_ID}|{APIKEY} 取系统配置 20013，源表名取系统配置 20014（默认 finv_quote_secu_key）。
     只由前端「证券参数同步」页按钮手动触发，无定时任务；单向只读上游，不删除本地行。
-    需求 11042（菜单与页面）、11043（同步实现）、11044（源表名可配）；连接配置 20041 → 20013（需求 11041）。
+    需求 11042（菜单与页面）、11043（同步实现）、11044（源表名可配）、11045（页面拆两个 Tab）、
+    11046（异步运行 + 实时日志）；连接配置 20013（需求 11041）。
   license:
     name: MIT
     identifier: MIT
@@ -249,3 +250,150 @@ paths:
           description: |
             同步失败（code=2006）：20013 未配置/非法、源表名非法、源表不存在（HTTP 404 / PGRST205）、
             鉴权失败（401/403）、或网络错误重试 3 次后仍失败。
+  /Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run:
+    post:
+      summary: 异步启动同步（返回 run_id，页面实际使用）
+      operationId: secuKeyStartSyncRun
+      tags: [Cdeu]
+      description: |
+        立刻返回启动瞬间的快照（status=RUNNING + 首条日志），同步在后台按批执行；
+        前端随后轮询 GET 同名路径读取 progress 与逐批实时日志，无需等整次同步结束。
+        同一时刻只允许一个运行（不排队、不覆盖），已有运行在执行时返回 409。
+        运行状态只存内存，进程重启即丢失；整体超时 60 分钟。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                source_table:
+                  type: string
+                  description: 本次使用的源表名（不写库，仅覆盖本次）；留空取系统配置 20014
+                batch_size:
+                  type: integer
+                  description: 每批行数，收敛到 100~5000
+                  default: 1000
+            examples:
+              default:
+                value: {}
+      responses:
+        '202':
+          description: 任务已启动（data 为启动瞬间快照，含 run_id 与 logs[0]）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncRun'
+        '400':
+          description: 请求体非法
+        '401':
+          description: 未登录或登录已过期
+        '409':
+          description: 已有同步任务在运行（message 带正在运行的 run_id）
+    get:
+      summary: 异步运行快照（进度 + 逐批实时日志）
+      operationId: secuKeySyncRunStatus
+      tags: [Cdeu]
+      description: |
+        runId 省略时返回最近一次运行；runId 不匹配或从未运行过返回 404（不返回别的运行）。
+        status=RUNNING 时由前端每 800 ms 轮询一次，日志按 seq 追加到页面日志区。
+      parameters:
+        - name: runId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 启动接口返回的 run_id；省略取最近一次运行
+      responses:
+        '200':
+          description: 运行快照
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncRun'
+        '401':
+          description: 未登录或登录已过期
+        '404':
+          description: 没有找到运行记录（从未运行，或 runId 不匹配）
+components:
+  schemas:
+    SyncRun:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+          const: 0
+        message:
+          type: string
+        data:
+          type: object
+          required: [run_id, status, progress, batches, logs]
+          properties:
+            run_id:
+              type: string
+              description: 运行 ID（sk-<yyyyMMdd-HHmmss.微秒>）
+            status:
+              type: string
+              enum: [RUNNING, DONE, FAILED]
+            source_table:
+              type: string
+              description: 本次使用的源表名（首批之后回填）
+            batch_size:
+              type: integer
+            rows_total:
+              type: integer
+              description: 源表总行数（首批之后才知道，之前为 0）
+            rows_receive:
+              type: integer
+            insert:
+              type: integer
+            update:
+              type: integer
+            unchanged:
+              type: integer
+            skipped:
+              type: integer
+            status_reset:
+              type: integer
+            batches:
+              type: integer
+            progress:
+              type: number
+              description: 0~100，按已拉取行数 / 源表总行数
+            started_at:
+              type: string
+              description: RFC3339
+            finished_at:
+              type: string
+              description: RFC3339（运行中缺省）
+            elapsed_ms:
+              type: integer
+              description: 运行中为至今耗时，结束后为总耗时
+            error:
+              type: string
+              description: FAILED 时的可读原因
+            logs:
+              type: array
+              description: 实时日志（上限 2000 行，超限保留最近部分）
+              items:
+                type: object
+                required: [seq, time, level, text]
+                properties:
+                  seq:
+                    type: integer
+                    description: 自增序号
+                  time:
+                    type: string
+                    description: RFC3339
+                  level:
+                    type: string
+                    enum: [INFO, ERROR]
+                  text:
+                    type: string
+                  batch:
+                    type: integer
+                    description: 关联批次号（起止日志为 0/缺省）
+                  offset:
+                    type: integer
+                    description: 该批起始 offset
