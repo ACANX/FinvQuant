@@ -27,6 +27,8 @@
 --      FTC、模板行；任一项不符整事务回滚。
 --
 -- 幂等：全部带 IS DISTINCT FROM / NOT EXISTS，重复执行影响 0 行。
+-- 【全新库容忍（需求 11022）】5.2~5.4 按生产库既有行数（184/12/9）校验，全新空库无加密
+--   证券数据，故先判「本库有无加密证券/登记行」，无数据则 NOTICE 跳过（5.1/5.5 结构校验照旧）。
 -- 本迁移只改分类与 market 归属，不动任何行情数据。
 -- =====================================================================
 
@@ -111,39 +113,52 @@ BEGIN
         RAISE EXCEPTION 'CTP 市场未按预期登记，回滚';
     END IF;
 
-    -- 5.2 交易所 10001 下所有交易对必须落在 10016
-    SELECT count(*) INTO v_cnt
-      FROM public.finv_security
-     WHERE exchange_code = 10001
-       AND type_secu_sub = 'TradePair.CC'
-       AND market_code = 10016;
-    IF v_cnt <> 184 THEN
-        RAISE EXCEPTION '交易对应为 184 条落在 CTP（172 条 TradePair.CC + 12 个已登记交易对），实际 %，回滚', v_cnt;
-    END IF;
+    -- 5.2 ~ 5.4 均为「按生产库既有行数」的严格校验（184 / 12 / 9 条），
+    --   而加密货币证券与交易对登记数据来自导入，全新空库里是 0 条 —— 没有数据可校验，
+    --   故先判断「本库是否存在加密证券或加密登记行」：一条都没有则跳过并打印 NOTICE，
+    --   有任何数据就按原严格口径校验（需求 11022）。
+    IF EXISTS (SELECT 1 FROM public.finv_security WHERE exchange_code = 10001)
+       OR EXISTS (SELECT 1 FROM cdeu.finv_quote_cdeu_usc
+                   WHERE usc = ANY (c_coin) OR usc = ANY (c_tp_scu)) THEN
 
-    -- 5.3 现货币必须保持 FTC（10001 或 10011 等 symbol=FTC 的码）
-    SELECT string_agg(s.usc || '=' || s.market_code::text, ', ' ORDER BY s.usc) INTO v_bad
-      FROM public.finv_security s
-      JOIN public.finv_market m ON m.market_code = s.market_code
-     WHERE s.exchange_code = 10001
-       AND s.usc = ANY (c_coin)
-       AND m.market_symbol IS DISTINCT FROM 'FTC';
-    IF v_bad IS NOT NULL THEN
-        RAISE EXCEPTION '现货币被误改到非 FTC：%，回滚', v_bad;
-    END IF;
+        -- 5.2 交易所 10001 下的交易对不得再留在非 CTP 市场（不校验条数：条数取决于导入数据，
+        --     全新库种子只有 172 条、生产库 184 条 —— 这里校验的是「归位是否彻底」，需求 11022）
+        SELECT count(*) INTO v_cnt
+          FROM public.finv_security
+         WHERE exchange_code = 10001
+           AND type_secu_sub = 'TradePair.CC'
+           AND market_code IS DISTINCT FROM 10016;
+        IF v_cnt <> 0 THEN
+            RAISE EXCEPTION '仍有 % 条交易对未归位到 CTP（10016），回滚', v_cnt;
+        END IF;
 
-    -- 5.4 登记表：12 个交易对为 CTP、现货币仍为 FTC
-    SELECT count(*) INTO v_cnt
-      FROM cdeu.finv_quote_cdeu_usc
-     WHERE usc = ANY (c_tp_scu) AND region = 'CC' AND market = 'CTP';
-    IF v_cnt <> 12 THEN
-        RAISE EXCEPTION '登记表交易对应为 12 行 CTP，实际 %，回滚', v_cnt;
-    END IF;
-    SELECT count(*) INTO v_cnt
-      FROM cdeu.finv_quote_cdeu_usc
-     WHERE usc = ANY (c_coin) AND region = 'CC' AND market = 'FTC';
-    IF v_cnt <> 9 THEN
-        RAISE EXCEPTION '登记表现货币应为 9 行 FTC，实际 %，回滚', v_cnt;
+        -- 5.3 现货币必须保持 FTC（10001 或 10011 等 symbol=FTC 的码）
+        SELECT string_agg(s.usc || '=' || s.market_code::text, ', ' ORDER BY s.usc) INTO v_bad
+          FROM public.finv_security s
+          JOIN public.finv_market m ON m.market_code = s.market_code
+         WHERE s.exchange_code = 10001
+           AND s.usc = ANY (c_coin)
+           AND m.market_symbol IS DISTINCT FROM 'FTC';
+        IF v_bad IS NOT NULL THEN
+            RAISE EXCEPTION '现货币被误改到非 FTC：%，回滚', v_bad;
+        END IF;
+
+        -- 5.4 登记表：已登记的交易对必须归位到 CTP、现货币必须仍在 FTC
+        --     （同样按「归位彻底性」而不是条数校验：全新库种子只登记了 1 个 CC 行，需求 11022）
+        SELECT count(*) INTO v_cnt
+          FROM cdeu.finv_quote_cdeu_usc
+         WHERE usc = ANY (c_tp_scu) AND (region IS DISTINCT FROM 'CC' OR market IS DISTINCT FROM 'CTP');
+        IF v_cnt <> 0 THEN
+            RAISE EXCEPTION '登记表仍有 % 行交易对未归位到 CC/CTP，回滚', v_cnt;
+        END IF;
+        SELECT count(*) INTO v_cnt
+          FROM cdeu.finv_quote_cdeu_usc
+         WHERE usc = ANY (c_coin) AND (region IS DISTINCT FROM 'CC' OR market IS DISTINCT FROM 'FTC');
+        IF v_cnt <> 0 THEN
+            RAISE EXCEPTION '登记表有 % 行现货币被改离 CC/FTC，回滚', v_cnt;
+        END IF;
+    ELSE
+        RAISE NOTICE '全新库：无加密货币证券/登记行，跳过 5.2~5.4 数据校验（需求 11022）';
     END IF;
 
     -- 5.5 模板必须存在

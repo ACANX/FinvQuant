@@ -166,23 +166,34 @@ BEGIN
     END IF;
 
     -- 5.2 000985 必须是深市个股，SH0985 必须是中证全指且在登记表里
-    IF NOT EXISTS (SELECT 1 FROM public.finv_security
-                    WHERE usc = '000985' AND security_type = 'Stock' AND market_code = 1120) THEN
-        RAISE EXCEPTION '000985 未纠正为深市个股，回滚';
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM public.finv_security
-                    WHERE usc = 'SH0985' AND security_type = 'StockIndex') THEN
-        RAISE EXCEPTION 'SH0985 主数据缺失，回滚';
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM cdeu.finv_quote_cdeu_usc
-                    WHERE usc = 'SH0985' AND region = 'CN' AND market = 'SH'
-                      AND category = 'StockIndex') THEN
-        RAISE EXCEPTION 'SH0985 未按 CN/SH/StockIndex 登记，回滚';
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM cdeu.finv_quote_cdeu_usc
-                    WHERE usc = '000985' AND region = 'CN' AND market = 'SZ'
-                      AND category = 'Stock' AND name = '大庆华科') THEN
-        RAISE EXCEPTION '000985 登记行未纠正为 大庆华科/CN/SZ/Stock，回滚';
+    --     【全新库容忍（需求 11022）】这两行来自生产库既有数据（C 步骤只做 UPDATE），
+    --     全新空库里本就没有 000985/SH0985 记录，无从纠正也无从校验，故跳过；
+    --     只要库里出现过这两行（存量库），校验照旧严格。
+    IF EXISTS (SELECT 1 FROM public.finv_security WHERE usc IN ('000985', 'SH0985'))
+       OR EXISTS (SELECT 1 FROM cdeu.finv_quote_cdeu_usc WHERE usc IN ('000985', 'SH0985')) THEN
+        IF NOT EXISTS (SELECT 1 FROM public.finv_security
+                        WHERE usc = '000985' AND security_type = 'Stock' AND market_code = 1120) THEN
+            RAISE EXCEPTION '000985 未纠正为深市个股，回滚';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM public.finv_security
+                        WHERE usc = 'SH0985' AND security_type = 'StockIndex') THEN
+            RAISE EXCEPTION 'SH0985 主数据缺失，回滚';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM cdeu.finv_quote_cdeu_usc
+                        WHERE usc = 'SH0985' AND region = 'CN' AND market = 'SH'
+                          AND category = 'StockIndex') THEN
+            RAISE EXCEPTION 'SH0985 未按 CN/SH/StockIndex 登记，回滚';
+        END IF;
+        -- 登记行允许「不存在」（全新库的 cdeu 种子没有 000985，本脚本只做纠正不做补登记），
+        -- 但一旦存在就必须是纠正后的口径（需求 11022）
+        IF EXISTS (SELECT 1 FROM cdeu.finv_quote_cdeu_usc
+                    WHERE usc = '000985'
+                      AND NOT (region = 'CN' AND market = 'SZ'
+                               AND category = 'Stock' AND name = '大庆华科')) THEN
+            RAISE EXCEPTION '000985 登记行未纠正为 大庆华科/CN/SZ/Stock，回滚';
+        END IF;
+    ELSE
+        RAISE NOTICE '全新库：无 000985 / SH0985 历史行，跳过 M5 纠正校验（需求 11022）';
     END IF;
 
     RAISE NOTICE '完成：备份 % 行；补发证券 % 行；000985 纠正 % 行；SH0985 登记已就绪',

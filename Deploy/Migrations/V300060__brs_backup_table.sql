@@ -6,6 +6,11 @@
 --   · brs.brs_bak_rdb_table 登记需要备份的表（priority 唯一，越大越先）；
 --   · sys.sys_config 39001 保存每日备份 cron（6 段：秒 分 时 日 月 周）；
 --   · 预置系统表与 CDEU 配置表种子（不含 cdeu.finv_quote_secu_kline_min）。
+--
+-- 【全新库对齐（需求 11022）】`db` 列原本由版本号更小的 V200090 添加，但 V200090
+--   执行时本表还不存在（表在本脚本才创建），全新空库会直接失败。现在本脚本建表即带上
+--   `db` 列与四列唯一约束（(rdb_type, db, schema_name, table_name)），与存量库结构一致；
+--   存量库因 CREATE TABLE IF NOT EXISTS 为空转，V200090 早已补齐过同样的结构。
 -- =====================================================================
 
 BEGIN;
@@ -17,6 +22,7 @@ CREATE TABLE IF NOT EXISTS brs.brs_bak_rdb_table (
     rdb_type       varchar(32)  NOT NULL DEFAULT 'postgresql',                -- 数据库类型（首期 postgresql）
     schema_name    varchar(64)  NOT NULL,                                     -- schema 名（避开保留字 schema）
     table_name     varchar(128) NOT NULL,                                     -- 表名
+    db             varchar(64)  NOT NULL DEFAULT 'finv',                      -- 数据库名（登记归属库）
     flag_enable    char(1)      NOT NULL DEFAULT '1',                         -- 备份开关：1 启用 / 0 停用
     priority       integer      NOT NULL,                                     -- 执行优先级，越大越先（值唯一）
     bak_scope      varchar(16)  NOT NULL DEFAULT 'both',                      -- 备份范围：both / schema / data
@@ -27,7 +33,7 @@ CREATE TABLE IF NOT EXISTS brs.brs_bak_rdb_table (
     creator        varchar(32),                                               -- 创建人（sys_user.uid）
     gmt_create     timestamptz  NOT NULL DEFAULT now(),                       -- 创建时间
     gmt_update     timestamptz  NOT NULL DEFAULT now(),                       -- 修改时间（触发器维护）
-    CONSTRAINT uq_brs_bak_rdb_table UNIQUE (rdb_type, schema_name, table_name), -- 同一库内表唯一
+    CONSTRAINT uq_brs_bak_rdb_table UNIQUE (rdb_type, db, schema_name, table_name), -- 同一库内 schema+表唯一（需求 10889 起含 db）
     CONSTRAINT uq_brs_bak_rdb_table_priority UNIQUE (priority),                 -- 优先级值唯一
     CONSTRAINT ck_brs_bak_rdb_table_flag CHECK (flag_enable IN ('0', '1')),     -- 开关取值
     CONSTRAINT ck_brs_bak_rdb_table_priority CHECK (priority >= 0),             -- 优先级非负
@@ -41,6 +47,7 @@ COMMENT ON COLUMN brs.brs_bak_rdb_table.idn IS '主键';
 COMMENT ON COLUMN brs.brs_bak_rdb_table.rdb_type IS '数据库类型（首期 postgresql）';
 COMMENT ON COLUMN brs.brs_bak_rdb_table.schema_name IS 'schema 名';
 COMMENT ON COLUMN brs.brs_bak_rdb_table.table_name IS '表名';
+COMMENT ON COLUMN brs.brs_bak_rdb_table.db IS '数据库名（登记归属库；本次备份执行仍连当前库）';
 COMMENT ON COLUMN brs.brs_bak_rdb_table.flag_enable IS '备份开关：1 启用 / 0 停用';
 COMMENT ON COLUMN brs.brs_bak_rdb_table.priority IS '执行优先级，越大越先（值唯一）';
 COMMENT ON COLUMN brs.brs_bak_rdb_table.bak_scope IS '备份范围：both/schema/data';
@@ -75,20 +82,20 @@ ON CONFLICT (config_no) DO NOTHING;
 
 -- 预置登记：系统表 + CDEU 配置表（不含 cdeu.finv_quote_secu_kline_min）
 INSERT INTO brs.brs_bak_rdb_table
-    (rdb_type, schema_name, table_name, flag_enable, priority, bak_scope, bak_method, compression, creator, remark)
+    (rdb_type, db, schema_name, table_name, flag_enable, priority, bak_scope, bak_method, compression, creator, remark)
 VALUES
-    ('postgresql', 'sys',  'sys_user',                      '1', 1000, 'both', 'pg_dump', 'zstd', 'system', '用户与权限'),
-    ('postgresql', 'sys',  'sys_config',                    '1',  990, 'both', 'pg_dump', 'zstd', 'system', '系统配置（含 39001）'),
-    ('postgresql', 'sys',  'sys_dict',                      '1',  980, 'both', 'pg_dump', 'zstd', 'system', '字典'),
-    ('postgresql', 'sys',  'sys_dict_sub',                  '1',  970, 'both', 'pg_dump', 'zstd', 'system', '字典子项'),
-    ('postgresql', 'cdeu', 'finv_quote_cdeu_workflow',      '1',  900, 'both', 'pg_dump', 'zstd', 'system', 'CDEU 工作流定义'),
-    ('postgresql', 'cdeu', 'finv_quote_cdeu_phase',         '1',  890, 'both', 'pg_dump', 'zstd', 'system', 'CDEU 阶段定义'),
-    ('postgresql', 'cdeu', 'finv_quote_cdeu_process',       '1',  880, 'both', 'pg_dump', 'zstd', 'system', 'CDEU 过程定义'),
-    ('postgresql', 'cdeu', 'finv_quote_cdeu_job',           '1',  870, 'both', 'pg_dump', 'zstd', 'system', 'CDEU 作业定义'),
-    ('postgresql', 'cdeu', 'finv_quote_cdeu_job_step',      '1',  860, 'both', 'pg_dump', 'zstd', 'system', 'CDEU 步骤定义'),
-    ('postgresql', 'cdeu', 'finv_quote_cdeu_usc',           '1',  850, 'both', 'pg_dump', 'zstd', 'system', '证券主数据'),
-    ('postgresql', 'cdeu', 'finv_quote_cdeu_trade_calendar','1',  840, 'both', 'pg_dump', 'zstd', 'system', '交易日历'),
-    ('postgresql', 'cdeu', 'finv_quote_cdeu_daily_budget',  '1',  830, 'both', 'pg_dump', 'zstd', 'system', '每日导出预算')
-ON CONFLICT (rdb_type, schema_name, table_name) DO NOTHING;
+    ('postgresql', 'finv', 'sys',  'sys_user',                      '1', 1000, 'both', 'pg_dump', 'zstd', 'system', '用户与权限'),
+    ('postgresql', 'finv', 'sys',  'sys_config',                    '1',  990, 'both', 'pg_dump', 'zstd', 'system', '系统配置（含 39001）'),
+    ('postgresql', 'finv', 'sys',  'sys_dict',                      '1',  980, 'both', 'pg_dump', 'zstd', 'system', '字典'),
+    ('postgresql', 'finv', 'sys',  'sys_dict_sub',                  '1',  970, 'both', 'pg_dump', 'zstd', 'system', '字典子项'),
+    ('postgresql', 'finv', 'cdeu', 'finv_quote_cdeu_workflow',      '1',  900, 'both', 'pg_dump', 'zstd', 'system', 'CDEU 工作流定义'),
+    ('postgresql', 'finv', 'cdeu', 'finv_quote_cdeu_phase',         '1',  890, 'both', 'pg_dump', 'zstd', 'system', 'CDEU 阶段定义'),
+    ('postgresql', 'finv', 'cdeu', 'finv_quote_cdeu_process',       '1',  880, 'both', 'pg_dump', 'zstd', 'system', 'CDEU 过程定义'),
+    ('postgresql', 'finv', 'cdeu', 'finv_quote_cdeu_job',           '1',  870, 'both', 'pg_dump', 'zstd', 'system', 'CDEU 作业定义'),
+    ('postgresql', 'finv', 'cdeu', 'finv_quote_cdeu_job_step',      '1',  860, 'both', 'pg_dump', 'zstd', 'system', 'CDEU 步骤定义'),
+    ('postgresql', 'finv', 'cdeu', 'finv_quote_cdeu_usc',           '1',  850, 'both', 'pg_dump', 'zstd', 'system', '证券主数据'),
+    ('postgresql', 'finv', 'cdeu', 'finv_quote_cdeu_trade_calendar','1',  840, 'both', 'pg_dump', 'zstd', 'system', '交易日历'),
+    ('postgresql', 'finv', 'cdeu', 'finv_quote_cdeu_daily_budget',  '1',  830, 'both', 'pg_dump', 'zstd', 'system', '每日导出预算')
+ON CONFLICT (rdb_type, db, schema_name, table_name) DO NOTHING;
 
 COMMIT;

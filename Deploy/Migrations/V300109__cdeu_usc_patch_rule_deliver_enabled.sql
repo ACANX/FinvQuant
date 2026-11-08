@@ -25,6 +25,11 @@
 --   4) 校验：5 条规则必须生效、5 个目标 usc 必须已登记，否则 RAISE EXCEPTION 回滚。
 --
 -- 幂等：重复执行时更新 0 行、新增 0 行（差异判断 + NOT EXISTS + DO NOTHING）。
+--
+-- 【全新库容忍（需求 11022）】目标 usc 登记依赖行情主数据（cdeu.finv_quote_cdeu_usc）
+--   里已存在 SH000888 等源 usc，而全新空库没有任何证券数据（主数据靠导入而非迁移）。
+--   因此 §4 校验改为：源 usc 一条都没有 → 只打 NOTICE（全新库，待导入后再校验）；
+--   源 usc 存在但目标未登记（复制失败/被删）→ 仍然 RAISE EXCEPTION 回滚。
 -- 本迁移只改规则与登记表，不迁移任何行情；行情迁移仍由 PATCH_OUTDATED_USC 执行。
 -- =====================================================================
 
@@ -36,6 +41,7 @@ DECLARE
     v_ins     bigint := 0;
     v_enabled bigint;
     v_missing text;
+    v_sources bigint;
 BEGIN
     -- -----------------------------------------------------------------
     -- 1. 已存在的规则：启用 + 校正
@@ -126,7 +132,15 @@ BEGIN
       FROM (VALUES ('SH0888'), ('SH0903'), ('SH0922'), ('SH0980'), ('GDRNext')) AS w(usc_new)
      WHERE NOT EXISTS (SELECT 1 FROM cdeu.finv_quote_cdeu_usc u WHERE u.usc = w.usc_new);
     IF v_missing IS NOT NULL THEN
-        RAISE EXCEPTION '目标 usc 未登记：%', v_missing;
+        -- 源 usc 是否存在决定这是「全新库缺数据」还是「复制失效」
+        SELECT count(*) INTO v_sources
+          FROM cdeu.finv_quote_cdeu_usc
+         WHERE usc IN ('SH000888', 'SH000903', 'SH000922', 'SH000980');
+        IF v_sources = 0 THEN
+            RAISE NOTICE '目标 usc 未登记（%）：主数据尚未导入，全新库跳过该校验（需求 11022）', v_missing;
+        ELSE
+            RAISE EXCEPTION '目标 usc 未登记：%', v_missing;
+        END IF;
     END IF;
 
     RAISE NOTICE '完成：更新规则 % 行，新增规则 % 行；5 条规则已生效且目标 usc 均已登记（重复执行应各为 0）',
