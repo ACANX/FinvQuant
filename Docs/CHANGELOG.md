@@ -20,6 +20,13 @@
 
 ### 变更
 
+- **证券键表改名：`futu.finv_quote_secu_key` → `futu.finv_futu_secu_key`（需求 11040，迁移 `V300141`）**
+  - 前缀与同域 `finv_futu_mapping_*` / `finv_futu_quote_collect` 对齐；派生对象一并改名（主键、2 个 CHECK、索引 `idx_finvfutusecukey_market`、触发器 `trg_finv_futu_secu_key_gmt_update`，及 PG18 的 NOT NULL 约束名）。
+  - 表结构（12 列）/ 注释 / 数据不变；历史迁移 `V300137`–`V300139` 不回改；`DbSchemaSpec` 表清单已更新。
+  - 验证：旧表名已不存在、新表 12 列、无旧名约束残留、约束与触发器行为正常、重跑迁移 no-op；`schema_version=300141`。
+
+### 变更
+
 - **`futu.finv_futu_quote_collect` 列改名：`type_symbol` → `instrument`、`quote_market` → `market_label`（需求 11039，迁移 `V300140`）**
   - 仅改名，类型 / NOT NULL / 21,161 行数据不变；命名与键表 `finv_quote_secu_key.instrument`、上游 `finv_quote_secu_meta` 及 `cdeu.*.market_label` 对齐。历史迁移按惯例不回改（均在本迁移之前执行）。
   - 业务代码同步：Go 结构体 `FutuQuoteParams` / `FutuCollectRow` 字段与 SQL、日K同步日志、usc 回填兜底 SQL、两个集成测试；前端 `DayKlineSyncView.vue` 与 `PendingSecuEnrollDialog.vue`；文档 5 篇；仓库外生成器 `BuildFutuQuoteCollect.py` / `BuildSecuInitFromCdeu.py` 与 README。
