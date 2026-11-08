@@ -48,10 +48,15 @@ paths:
           required: false
           schema:
             type: string
-            default: market_value
-            enum: [market_value, circulation_market_value, trade_trunover, trade_volumn,
+            default: rmb_market_value
+            enum: [rmb_market_value, rmb_circulation_market_value, rmb_trade_trunover,
+                   rmb_price_nominal,
+                   market_value, circulation_market_value, trade_trunover, trade_volumn,
                    change_ratio, change_price, trust_aum, volumn_ratio, dt_update, stock_id]
-          description: 排序字段（白名单，NULL 一律排最后，stock_id 作稳定次序）。
+          description: |
+            排序字段（白名单，NULL 一律排最后，stock_id 作稳定次序）。
+            默认 rmb_market_value = 按人民币总市值排行（需求 11025）；人民币字段未补全的行排在最后。
+            白名单只含指标列：rmb_exchange_rate 是换算参数，不作为排序字段（需求 11027）。
         - name: order
           in: query
           required: false
@@ -153,7 +158,33 @@ components:
         volumn_ratio: { type: string }
         buysell_ratio: { type: string }
         leverage: { type: string }
-        dt_update: { type: integer, format: int64, description: 快照更新时间（Unix 毫秒，无值 0） }
+        rmb_exchange_rate:
+          type: string
+          description: 人民币汇率（1 单位本币 = N 人民币）；空串=尚未补全（库内 NULL），不是 0
+        rmb_market_value:
+          type: string
+          description: 人民币计价总市值（元）= market_value × rmb_exchange_rate；空串=未补全
+        rmb_circulation_market_value:
+          type: string
+          description: 人民币计价流通市值（元）
+        rmb_trade_trunover:
+          type: string
+          description: 人民币计价成交额（元）
+        rmb_price_nominal:
+          type: string
+          description: 人民币计价单价（元/股）
+        remark:
+          type: string
+          description: 备注（人工标注/采集端说明，不参与换算与排序）；空串表示无备注
+        gmt_create:
+          type: string
+          format: date-time
+          description: 记录创建时间（入库时刻，此后不变；V300128 之前的存量行为迁移执行时刻）
+        gmt_update:
+          type: string
+          format: date-time
+          description: 记录更新时间（触发器 public.vq_set_gmt_update() 在每次 UPDATE 前自动置为 now()）
+        dt_update: { type: integer, format: int64, description: 快照更新时间（Unix 毫秒,无值 0） }
     ErrorResponse:
       type: object
       required: [code, message]

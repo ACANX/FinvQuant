@@ -59,6 +59,7 @@ func (s *Store) UpsertRealtimeStocks(ctx context.Context, items []RealtimeStockI
 			"change_price":             realtimeStockNumber(item.ChangePrice),
 			"price_direct":             realtimeStockText(item.PriceDirect),
 			"leverage":                 realtimeStockNumber(item.Leverage),
+			"remark":                   realtimeStockText(item.Remark),
 			"page":                     realtimeStockInt(item.Page),
 		})
 	}
@@ -96,7 +97,8 @@ WITH src AS (
            nullif(x.change_price, '')::numeric(20,6)              AS change_price,
            nullif(btrim(x.price_direct), '')                      AS price_direct,
            nullif(x.leverage, '')::numeric(20,6)                  AS leverage,
-           (x.page)::integer                                      AS page
+           (x.page)::integer                                      AS page,
+           nullif(btrim(x.remark), '')                            AS remark
       FROM jsonb_to_recordset($1::jsonb) AS x(
              stock_id bigint, usc text, name text, stock_code text, market_type text,
              market_label text, instrument_type text, currency text,
@@ -107,7 +109,7 @@ WITH src AS (
              trade_change_ratio text, price_amplitude text, volumn_ratio text,
              buysell_ratio text, change_price text,
              price_direct text, leverage text,
-             page bigint)
+             page bigint, remark text)
 ), upserted AS (
     INSERT INTO `+tableRealtimeStock+` AS t
         (usc, stock_id, name, stock_code, market_type, market_label, instrument_type,
@@ -115,17 +117,18 @@ WITH src AS (
          trade_trunover, trade_volumn, circulation_market_value, dt_update,
          price_nominal, change_ratio, trust_aum, trade_change_ratio,
          price_amplitude, volumn_ratio, buysell_ratio, change_price,
-         price_direct, leverage, page)
+         price_direct, leverage, page, remark)
     SELECT src.usc, src.stock_id, src.name, src.stock_code, src.market_type,
            src.market_label, src.instrument_type, src.currency, src.market_value,
            src.total_shares, src.circulation_total_shares, src.trade_trunover,
            src.trade_volumn, src.circulation_market_value, src.dt_update,
            src.price_nominal, src.change_ratio, src.trust_aum, src.trade_change_ratio,
            src.price_amplitude, src.volumn_ratio, src.buysell_ratio, src.change_price,
-           src.price_direct, src.leverage, src.page
+           src.price_direct, src.leverage, src.page, src.remark
       FROM src
     ON CONFLICT (stock_id) DO UPDATE SET
         usc                      = COALESCE(EXCLUDED.usc, t.usc),
+        remark                   = COALESCE(EXCLUDED.remark, t.remark),
         name                     = COALESCE(EXCLUDED.name, t.name),
         stock_code               = COALESCE(EXCLUDED.stock_code, t.stock_code),
         market_type              = COALESCE(EXCLUDED.market_type, t.market_type),
@@ -213,6 +216,14 @@ const realtimeStockListColumns = `
        COALESCE(volumn_ratio::text, '')             AS volumn_ratio,
        COALESCE(buysell_ratio::text, '')            AS buysell_ratio,
        COALESCE(leverage::text, '')                 AS leverage,
+       COALESCE(rmb_exchange_rate::text, '')            AS rmb_exchange_rate,
+       COALESCE(rmb_market_value::text, '')             AS rmb_market_value,
+       COALESCE(rmb_circulation_market_value::text, '') AS rmb_circulation_market_value,
+       COALESCE(rmb_trade_trunover::text, '')           AS rmb_trade_trunover,
+       COALESCE(rmb_price_nominal::text, '')            AS rmb_price_nominal,
+       COALESCE(remark, '')                         AS remark,
+       gmt_create,
+       gmt_update,
        COALESCE(dt_update, 0)                       AS dt_update`
 
 // ListRealtimeStocks 分页查询实时行情快照：关键字（usc / 代码 / 名称）、市场、币种筛选，
@@ -221,9 +232,11 @@ func (s *Store) ListRealtimeStocks(ctx context.Context, f RealtimeStockListFilte
 	if f.Limit <= 0 {
 		f.Limit = 50
 	}
+	// 默认按人民币总市值排行（需求 11025）：未补全的行（NULL）由 "NULLS LAST" 排到最后；
+	// 人民币字段缺失时前端会提示先点「人民币计价指标更新」。
 	orderBy := f.OrderBy
 	if orderBy == "" {
-		orderBy = "market_value"
+		orderBy = "rmb_market_value"
 	}
 	if !RealtimeStockOrderColumns[orderBy] {
 		return 0, nil, fmt.Errorf("%w: orderBy 非法（%s）", ErrRealtimeStockInvalid, orderBy)
@@ -290,7 +303,10 @@ func (s *Store) ListRealtimeStocks(ctx context.Context, f RealtimeStockListFilte
 			&row.TotalShares, &row.CirculationTotalShares, &row.TradeTrunover,
 			&row.TradeVolumn, &row.CirculationMarketValue, &row.TrustAum,
 			&row.TradeChangeRatio, &row.PriceAmplitude, &row.VolumnRatio,
-			&row.BuysellRatio, &row.Leverage, &row.DtUpdate,
+			&row.BuysellRatio, &row.Leverage,
+			&row.RmbExchangeRate, &row.RmbMarketValue, &row.RmbCirculationMarketValue,
+			&row.RmbTradeTrunover, &row.RmbPriceNominal, &row.Remark,
+			&row.GmtCreate, &row.GmtUpdate, &row.DtUpdate,
 		); err != nil {
 			return 0, nil, fmt.Errorf("ListRealtimeStocks：扫描失败: %w", err)
 		}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 )
 
 // 本文件是「证券实时行情快照批量 Upsert」的领域模型与入参校验（需求 10957）。
@@ -58,7 +59,9 @@ type RealtimeStockItem struct {
 	ChangePrice            *json.Number `json:"change_price"`
 	PriceDirect            *string      `json:"price_direct"`
 	Leverage               *json.Number `json:"leverage"`
-	Page                   *int64       `json:"page"`
+	// Remark 备注（需求 11028）：人工标注或采集端说明，不参与换算/排序；缺省不清空已有值。
+	Remark *string `json:"remark"`
+	Page   *int64  `json:"page"`
 }
 
 // RealtimeStockUpsertRequest 批量 upsert 请求体。
@@ -159,12 +162,12 @@ type RealtimeStockListFilter struct {
 	Keyword     string // 匹配 usc / stock_code / name（ILIKE）
 	MarketLabel string // 空或 all 表示不限
 	Currency    string // 空或 all 表示不限
-	OrderBy     string // 见 RealtimeStockOrderColumns，空默认 market_value
+	OrderBy     string // 见 RealtimeStockOrderColumns，空默认 rmb_market_value（需求 11025）
 	Desc        bool   // true 降序（默认），false 升序
 	// USCMissing 为 true 时只查 usc 为空的行，即「待录入证券」（需求 10995）。
 	USCMissing bool
-	Limit       int
-	Offset      int
+	Limit      int
+	Offset     int
 }
 
 // RealtimeStockOrderColumns 允许排序的列白名单（列名直接拼进 SQL，必须先校验）。
@@ -179,6 +182,13 @@ var RealtimeStockOrderColumns = map[string]bool{
 	"trade_volumn":             true,
 	"volumn_ratio":             true,
 	"dt_update":                true,
+	// 人民币计价口径（需求 11025，11027 去掉汇率）：只开放「指标」列参与排行；
+	// rmb_exchange_rate 是换算参数而非指标，不作为排序字段（仍随行返回用于展示）。
+	// 未补全的行（NULL）按既有规则排在最后。
+	"rmb_market_value":             true,
+	"rmb_circulation_market_value": true,
+	"rmb_trade_trunover":           true,
+	"rmb_price_nominal":            true,
 }
 
 // RealtimeStockListRow 列表行（wire 字段 snake_case）。
@@ -210,5 +220,18 @@ type RealtimeStockListRow struct {
 	VolumnRatio            string `json:"volumn_ratio"`
 	BuysellRatio           string `json:"buysell_ratio"`
 	Leverage               string `json:"leverage"`
-	DtUpdate               int64  `json:"dt_update"`
+	// 人民币计价字段（V300126 / 需求 11023，由「人民币计价指标更新」补全，需求 11024/11025）：
+	// 空串表示尚未补全（库里为 NULL），不是 0。
+	RmbExchangeRate           string `json:"rmb_exchange_rate"`
+	RmbMarketValue            string `json:"rmb_market_value"`
+	RmbCirculationMarketValue string `json:"rmb_circulation_market_value"`
+	RmbTradeTrunover          string `json:"rmb_trade_trunover"`
+	RmbPriceNominal           string `json:"rmb_price_nominal"`
+	// Remark 备注（需求 11028）：空串表示无备注。
+	Remark string `json:"remark"`
+	// GmtCreate / GmtUpdate 库侧审计时间（需求 11029，RFC 3339）：
+	// 前者入库时刻（不再变化），后者由触发器自动刷新。
+	GmtCreate time.Time `json:"gmt_create"`
+	GmtUpdate time.Time `json:"gmt_update"`
+	DtUpdate  int64     `json:"dt_update"`
 }
