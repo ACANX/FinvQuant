@@ -213,6 +213,41 @@ func (h *ExportArchive) RealtimeStockUpsert(c *gin.Context) {
 	})
 }
 
+// RealtimeStockRmbSync POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/RmbSync?step=all|rate|amount。
+//
+// 手动补全快照表的人民币计价指标（需求 11024）：先把各行的 rmb_exchange_rate 按
+// public.finv_fxcer 补齐（currency → CNY，CNY 自身为 1），再用该汇率换算
+// rmb_market_value / rmb_circulation_market_value / rmb_trade_trunover / rmb_price_nominal。
+//
+// step 缺省 all（先 rate 后 amount，前端一个按钮的默认行为）；rate/amount 可单独执行。
+// 幂等：值未变化的行不计入 update 统计，可反复点击。
+func (h *ExportArchive) RealtimeStockRmbSync(c *gin.Context) {
+	step, err := cdeu.NormalizeRMBMetricsStep(c.Query("step"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+
+	started := time.Now()
+	log.Printf("[cdeu][realtimestock] api rmb sync begin step=%s client=%s", step, c.ClientIP())
+	result, err := h.service.Store().SyncRMBMetrics(c.Request.Context(), step)
+	if err != nil {
+		log.Printf("[cdeu][realtimestock] api rmb sync failed step=%s err=%v elapsed_ms=%d",
+			step, err, time.Since(started).Milliseconds())
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "人民币计价指标更新失败: " + err.Error()})
+		return
+	}
+	log.Printf("[cdeu][realtimestock] api rmb sync end step=%s rows=%d rate_update=%d amount_update=%d "+
+		"rate_rows=%d amount_rows=%d missing=%d elapsed_ms=%d",
+		result.Step, result.RowsTotal, result.RateUpdate, result.AmountUpdate,
+		result.RateRows, result.AmountRows, len(result.MissingCurrencies), result.ElapsedMs)
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "人民币计价指标已更新",
+		"data":    result,
+	})
+}
+
 // RealtimeStockPage GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Page。
 //
 // 查询参数（小驼峰，ApiSpec §3）：keyword / marketLabel / currency /

@@ -86,6 +86,9 @@ Authorization: Bearer <token>
     - [`Cdeu/RealtimeStockPage.md`](Cdeu/RealtimeStockPage.md) — `GET .../Realtime/Stock/Page`（实时行情分页查询：关键字/市场/币种筛选 + 白名单排序；契约 [.yml](Cdeu/RealtimeStockPage.yml)）
     - [`Cdeu/StockListCollect.md`](Cdeu/StockListCollect.md) — `POST .../Realtime/FTStockQuoteSnapshotSync`（行情列表股票快照同步：读配置表分市场分页采集、逐页落库并回写 `count_exists`/`total_available`；契约 [.yml](Cdeu/StockListCollect.yml)）
     - [`Cdeu/StockSnapshotSyncRun.md`](Cdeu/StockSnapshotSyncRun.md) — `POST/GET .../Realtime/FTStockQuoteSnapshotSync/Run`（异步启动采集 + 轮询运行状态与逐页日志；契约 [.yml](Cdeu/StockSnapshotSyncRun.yml)）
+    - [`Cdeu/RealtimeStockRmbSync.md`](Cdeu/RealtimeStockRmbSync.md) — `POST .../Realtime/Stock/RmbSync`（人民币计价指标手动补全：先补 `rmb_exchange_rate`、再补 `rmb_` 金额/价格字段；契约 [.yml](Cdeu/RealtimeStockRmbSync.yml)）
+  - 缺省汇率（`/API/V1/Meta/Finv/Quote/Cdeu/Fx/*`，一个文档覆盖两个接口）：
+    - [`Cdeu/FxCer.md`](Cdeu/FxCer.md) — `POST .../Fx/CerSync?source=overview|rateList` 手动更新 + `GET .../Fx/Cer` 整表查询（`public.finv_fxcer`，主键 `usc`，含 `name`/`rate`/`ts_quote`/`source`；两来源互补、只保最新；契约 [.yml](Cdeu/FxCer.yml)）
   - 证券行情月归档导出与上传（`/API/V1/Meta/Finv/Quote/DeDup/*`，**一个接口一个文档**）：
     - [`QuoteDeDup/Status.md`](QuoteDeDup/Status.md) — `GET .../DeDup/Status`（归档链路指标、运行参数与调度表）
     - [`QuoteDeDup/JobRuntime.md`](QuoteDeDup/JobRuntime.md) — `GET .../DeDup/Job/Runtime`（10 个 Job 运行快照：阶段 / 进度 / 心跳 / 最近结果）
