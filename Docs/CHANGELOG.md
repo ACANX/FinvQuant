@@ -20,6 +20,12 @@
 
 ### 新增
 
+- **新建证券指标表 `cdeu.finv_quote_secu_meta`（需求 11048，迁移 `V300144`）**
+  - 结构按上游 Supabase `public.finv_quote_secu_meta` 建表脚本同构：**131 列**（`numeric(30,10)` 80 列、`smallint` 12、`integer` 7、`bigint` 5、`text` 24、`timestamptz` 3），主键 `usc`，`ftmm_symbol` NOT NULL，索引 `(ts)` 与 `(dt_update)`，触发器 `finv_quote_secu_meta_set_dt_update` 在 UPDATE 时刷新 `dt_update`。
+  - 落在 `cdeu` 域；触发器函数建在 `cdeu`（不复用 `public.vq_set_gmt_update()`：列名是 `dt_update` 不是 `gmt_update`）；`dt_collect`/`dt_create`/`dt_update` 保持上游口径（可空、无默认值）；补表/关键列注释。
+  - 与上游的 14 列差异（`instrument`/`market`/`stock_code`/`stock_id`/`instrument_type`/`sub_instrument_type`/`market_code`/`market_type`/`market_label`/`name_en`/`flag_option`/`flag_futures`/`flag_plate`/`flag_etf_theme`）不在本表——本表只存指标，身份列以 `usc` + `ftmm_symbol` 关联 `futu.finv_futu_secu_key`（已记入 `DbSchemaSpec`）。
+  - 仅建表：**不写入任何数据、不改其他表**；迁移幂等（重跑 `relation already exists, skipping`），含触发器行为自检（UPDATE 后 `dt_update` 前进、`dt_create` 不变）；`schema_version=300144`。
+
 - **「证券参数同步」拆成两个 Tab，并改为异步运行 + 页面实时日志（需求 11045/11046）**
   - Tab 1「FT证券基础参数同步」：沿用原同步逻辑（Supabase 证券键表 → `futu.finv_futu_secu_key`），功能不变。
   - Tab 2「证券指标数据同步」：占位页（`待接入`），列出已探测到的上游候选表 `public.finv_quote_secu_meta` 与待确认四项口径（来源表 / 目标表 / 字段映射 / 增量键），按钮置灰；口径见需求 11047（待办，本轮不实现、不建表）。
