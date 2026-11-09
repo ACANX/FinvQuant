@@ -69,6 +69,11 @@
 
 ### 变更
 
+- **`cdeu.finv_quote_secu_indicator` 补回 `stock_id`，Tab 2 同步 131 → 132 列（需求 11061，迁移 `V300148`）**
+  - 上游 `public.finv_quote_secu_meta.stock_id` 已有值，本地建表时被排除；现加 `stock_id bigint`（可空，NULL = 尚未同步到）+ 中文注释 + 索引 `idx_finv_quote_secu_indicator_stock_id`，并在迁移内按本地映射先回填（键表按 `ftmm_symbol`、采集属性表按生成列 `ftmm_symbol`，均 `IS DISTINCT FROM` 守卫）。
+  - `internal/meta/finv/quote/indicator/sql.go` 同步：`stock_id` 加入 INSERT / SELECT / SET 与「变了才更新」比对元组，`dt_update` 仍由触发器维护、不参与比对。
+  - 实测：迁移回填 11,339/11,339 行；跑 Tab 2 后指标表 20,242 行、`stock_id` 非空 20,242（0 空洞），与 `futu.finv_futu_secu_key` 按 `ftmm_symbol` 比对不一致 0 行；复跑 `ind_update=0`。
+
 - **`futu.finv_futu_quote_collect` 增加生成列 `ftmm_symbol`（需求 11060，迁移 `V300147`）**
   - 上游 `finv_quote_secu_key` / `finv_quote_secu_meta` 的键口径是 `ftmm_symbol = {market}.{code}`，本表此前拆成 `market_label` + `futu_symbol` 两列，跨表关联要现拼 `market_label || '.' || futu_symbol`；现加生成列 `GENERATED ALWAYS AS (market_label || '.' || futu_symbol) STORED NOT NULL` + 普通索引 `idx_finv_futu_quote_collect_ftmm_symbol`，由 PG 自动维护（无触发器、无回填脚本，24,418 行随 `ALTER` 一次算完）。
   - **非唯一**：`market_label` 与 `market_code` 非 1:1，75 组（150 行）重建后撞名（如 `CC.AAVEUSD` 来自 market_code 360 与 413），故不建唯一约束。
