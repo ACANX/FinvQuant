@@ -79,7 +79,6 @@ interface IndicatorRun extends RunBase {
   qc_insert: number
   qc_update: number
   qc_skip: number
-  key_update: number
 }
 
 // Tab 2 状态快照
@@ -735,7 +734,6 @@ onBeforeUnmount(() => {
             <v-chip v-if="ind.run.value.qc_skip" size="small" variant="tonal" color="warning">
               采集属性 跳过 {{ num(ind.run.value.qc_skip) }}
             </v-chip>
-            <v-chip size="small" variant="tonal" color="secondary">键表补全 {{ num(ind.run.value.key_update) }}</v-chip>
             <v-chip size="small" variant="text">
               {{ ind.run.value.batches }} 批 · {{ elapsedText(ind.run.value.elapsed_ms) }}
             </v-chip>
@@ -999,14 +997,21 @@ onBeforeUnmount(() => {
         <div class="finv-secukey-note">
           <div class="finv-secukey-note-title">FT证券指标数据同步</div>
           <div class="text-body-2 finv-secukey-note-body">
-            源 <code>public.finv_quote_secu_meta</code>（固定）的每条记录<b>一次写三张表</b>：
-            ① <code>cdeu.finv_quote_secu_indicator</code>：131 列同名同步（<code>dt_update</code> 由触发器维护，不参与写入与比对）；
-            ② <code>futu.finv_futu_quote_collect</code>：身份字段同名同步（<code>stock_id</code>、<code>market_type</code>、
-            <code>market_code</code>、<code>instrument_type</code>、<code>sub_instrument_type</code>、<code>market_label</code>、
-            <code>instrument</code>；<code>futu_symbol</code> 由 <code>ftmm_symbol</code> 去掉市场前缀派生，
-            <code>flag_enable</code> 保持表默认值不覆盖）；
-            ③ <code>futu.finv_futu_secu_key</code>：只补 <code>url</code>（源 <code>secu_url</code>）与 <code>stock_id</code>，按
-            <code>ftmm_symbol</code> 对齐。
+            源 <code>public.finv_quote_secu_meta</code>（固定）的每条记录<b>一次写两张表</b>（均为 upsert 增量）：
+            <br />
+            ① <b>upsert 增量同步到 <code>cdeu.finv_quote_secu_indicator</code></b>：132 列同名同步
+            （<code>dt_update</code> 由触发器维护，不参与写入与比对），<b>通过 <code>usc</code> 主键关联</b>；
+            <br />
+            ② <b>upsert 增量同步到 <code>futu.finv_futu_quote_collect</code></b>：身份字段同名同步
+            （<code>stock_id</code>、<code>market_type</code>、<code>market_code</code>、<code>instrument_type</code>、
+            <code>sub_instrument_type</code>、<code>market_label</code>、<code>instrument</code>；
+            <code>futu_symbol</code> 由 <code>public.finv_quote_secu_meta.stock_code</code>（缺失时用
+            <code>ftmm_symbol</code>）去掉市场前缀派生；<code>flag_enable</code> 保持表默认值不覆盖），
+            <b>通过 <code>usc</code> 主键关联</b>；
+            <br />
+            ③ <code>futu.finv_futu_secu_key</code>：<b>不再同步</b>——上游已支持 <code>url</code>（源
+            <code>secu_url</code>）与 <code>stock_id</code> 的回填（本页 Tab 1 / Tab 3 即可完成）。
+            <br />
             两表主键均为 <code>usc</code>，<b>源记录 <code>usc</code> 为空时用 <code>ftmm_symbol</code> 占位</b>。
             采集属性表有唯一约束 <code>(market_code, futu_symbol)</code>：若该组合已被别的 <code>usc</code> 占用，该行跳过并计入「跳过」。
           </div>

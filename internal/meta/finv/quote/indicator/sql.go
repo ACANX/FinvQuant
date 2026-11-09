@@ -143,10 +143,12 @@ var indicatorColumns = []string{
 	"stock_id",
 }
 
-// upsertBatchSQL 一批写三张表（指标表 / 富途采集属性表 / 证券键表），一条语句、一次往返。
+// upsertBatchSQL 一批写两张表（指标表 / 富途采集属性表），一条语句、一次往返。
 //
 // 入参 $1：本批源行的 JSON 数组（原样来自 Supabase PostgREST）。
-// 返回：指标表 insert/update、采集属性表 insert/update/skip、证券键表 update（只统计**实际改动**的行）。
+// 返回：指标表 insert/update、采集属性表 insert/update/skip（只统计**实际改动**的行）。
+//
+// 需求 11063 起不再写 futu.finv_futu_secu_key：上游已自行回补 url / stock_id（见 Tab 1 与 Tab 3）。
 const upsertBatchSQL = `
 WITH elems AS (
     SELECT e
@@ -165,10 +167,10 @@ WITH elems AS (
            COALESCE(NULLIF(e->>'instrument_type', '')::int, 0) AS instrument_type,
            COALESCE(NULLIF(e->>'sub_instrument_type', '')::int, 0) AS sub_instrument_type,
            COALESCE(NULLIF(e->>'stock_id', '')::bigint, 0) AS stock_id,
-           NULLIF(btrim(e->>'secu_url'), '') AS secu_url,
-           NULLIF(substring(btrim(e->>'ftmm_symbol') FROM strpos(btrim(e->>'ftmm_symbol'), '.') + 1), '') AS futu_symbol,
-           -- usc 占位标志：源 usc 为 NULL/空 → 用 ftmm_symbol 占位（此类行在采集属性表里禁用采集）
-           (NULLIF(btrim(e->>'usc'), '') IS NULL) AS usc_placeholder
+           -- 采集属性表的 futu_symbol：优先取上游 stock_code；缺失时用 ftmm_symbol 去掉市场前缀派生（需求 11063）
+           COALESCE(NULLIF(btrim(e->>'stock_code'), ''),
+                    NULLIF(substring(btrim(e->>'ftmm_symbol') FROM strpos(btrim(e->>'ftmm_symbol'), '.') + 1), '')
+           ) AS futu_symbol
       FROM elems
 ), valid AS (
     SELECT * FROM src
@@ -575,15 +577,14 @@ WITH elems AS (
      WHERE (t.usc, t.ftmm_symbol, t.name, t.lot_size, t.spread_code, t.ex_type, t.price_accuracy, t.volume_precision, t.order_volume_precision, t.price, t.change_price, t.change_ratio, t.price_direct, t.price_open, t.price_highest, t.price_lowest, t.price_last_close, t.price_nominal, t.hight_direct, t.open_direct, t.low_direct, t.volume, t.turnover, t.ratio_volume, t.ratio_turnover, t.amplitude_price, t.price_average, t.change_speed_price, t.ratio_bid_ask, t.total_shares, t.total_market_cap, t.outstanding_shares, t.outstanding_market_cap, t.price_highest_week52, t.price_lowest_week52, t.price_highest_history, t.price_lowest_history, t.price_bid, t.price_ask, t.volume_bid, t.volume_ask, t.volume_sold, t.volume_bought, t.price_limit_up, t.price_limit_down, t.kcb_static_volume, t.kcb_static_turnover, t.pe_ttm, t.pe_lyr, t.pb_ratio, t.eps_ttm, t.eps_lyr, t.ps_ttm, t.ps_lyr, t.dividend, t.dividend_ratio, t.dividend_lfy, t.dividend_lfy_ratio, t.ts, t.market_status, t.market_status_text, t.delay_time, t.delay_seconds, t.ts_exchange_dt, t.ts_server_send_to_client, t.ts_server_recv_from_exchange, t.before_open_status, t.before_open_exchange_time, t.before_open_price, t.before_open_change, t.before_open_change_ratio, t.before_open_price_direct, t.trust_dividend_yield, t.trust_aum, t.trust_outstanding_units, t.trust_net_asset_value, t.trust_premium, t.trust_asset_class, t.trust_asset_class_sc, t.trust_asset_class_tc, t.trust_asset_class_en, t.future_last_settlement_price, t.future_hold_vol, t.future_diff_hold_vol, t.future_main_flag, t.future_distance_due_date, t.future_price_limit_up, t.future_price_limit_down, t.underlying_stock_id, t.underlying_stock_code, t.underlying_name, t.underlying_market_label, t.underlying_instrument_type, t.underlying_price, t.underlying_change, t.underlying_change_ratio, t.underlying_price_direct, t.underlying_price_nominal, t.pod_text, t.pod_value, t.pod_direct, t.hp_multiplier, t.last_trade_date, t.timezone, t.index_count_all, t.index_count_raise, t.index_count_fall, t.index_count_equal, t.stat_h24_price_highest, t.stat_h24_price_lowest, t.stat_h24_volume, t.stat_h24_turnover, t.stat_h24_price_change, t.stat_h24_ratio_price_change, t.difference, t.bid_price_lowest, t.ask_price_highest, t.change_d005, t.change_d010, t.change_d020, t.change_d060, t.change_d120, t.change_d250, t.change_year, t.secu_url, t.source_channel, t.dt_collect, t.dt_create, t.count_update, t.json_unmapped, t.stock_id) IS DISTINCT FROM (EXCLUDED.usc, EXCLUDED.ftmm_symbol, EXCLUDED.name, EXCLUDED.lot_size, EXCLUDED.spread_code, EXCLUDED.ex_type, EXCLUDED.price_accuracy, EXCLUDED.volume_precision, EXCLUDED.order_volume_precision, EXCLUDED.price, EXCLUDED.change_price, EXCLUDED.change_ratio, EXCLUDED.price_direct, EXCLUDED.price_open, EXCLUDED.price_highest, EXCLUDED.price_lowest, EXCLUDED.price_last_close, EXCLUDED.price_nominal, EXCLUDED.hight_direct, EXCLUDED.open_direct, EXCLUDED.low_direct, EXCLUDED.volume, EXCLUDED.turnover, EXCLUDED.ratio_volume, EXCLUDED.ratio_turnover, EXCLUDED.amplitude_price, EXCLUDED.price_average, EXCLUDED.change_speed_price, EXCLUDED.ratio_bid_ask, EXCLUDED.total_shares, EXCLUDED.total_market_cap, EXCLUDED.outstanding_shares, EXCLUDED.outstanding_market_cap, EXCLUDED.price_highest_week52, EXCLUDED.price_lowest_week52, EXCLUDED.price_highest_history, EXCLUDED.price_lowest_history, EXCLUDED.price_bid, EXCLUDED.price_ask, EXCLUDED.volume_bid, EXCLUDED.volume_ask, EXCLUDED.volume_sold, EXCLUDED.volume_bought, EXCLUDED.price_limit_up, EXCLUDED.price_limit_down, EXCLUDED.kcb_static_volume, EXCLUDED.kcb_static_turnover, EXCLUDED.pe_ttm, EXCLUDED.pe_lyr, EXCLUDED.pb_ratio, EXCLUDED.eps_ttm, EXCLUDED.eps_lyr, EXCLUDED.ps_ttm, EXCLUDED.ps_lyr, EXCLUDED.dividend, EXCLUDED.dividend_ratio, EXCLUDED.dividend_lfy, EXCLUDED.dividend_lfy_ratio, EXCLUDED.ts, EXCLUDED.market_status, EXCLUDED.market_status_text, EXCLUDED.delay_time, EXCLUDED.delay_seconds, EXCLUDED.ts_exchange_dt, EXCLUDED.ts_server_send_to_client, EXCLUDED.ts_server_recv_from_exchange, EXCLUDED.before_open_status, EXCLUDED.before_open_exchange_time, EXCLUDED.before_open_price, EXCLUDED.before_open_change, EXCLUDED.before_open_change_ratio, EXCLUDED.before_open_price_direct, EXCLUDED.trust_dividend_yield, EXCLUDED.trust_aum, EXCLUDED.trust_outstanding_units, EXCLUDED.trust_net_asset_value, EXCLUDED.trust_premium, EXCLUDED.trust_asset_class, EXCLUDED.trust_asset_class_sc, EXCLUDED.trust_asset_class_tc, EXCLUDED.trust_asset_class_en, EXCLUDED.future_last_settlement_price, EXCLUDED.future_hold_vol, EXCLUDED.future_diff_hold_vol, EXCLUDED.future_main_flag, EXCLUDED.future_distance_due_date, EXCLUDED.future_price_limit_up, EXCLUDED.future_price_limit_down, EXCLUDED.underlying_stock_id, EXCLUDED.underlying_stock_code, EXCLUDED.underlying_name, EXCLUDED.underlying_market_label, EXCLUDED.underlying_instrument_type, EXCLUDED.underlying_price, EXCLUDED.underlying_change, EXCLUDED.underlying_change_ratio, EXCLUDED.underlying_price_direct, EXCLUDED.underlying_price_nominal, EXCLUDED.pod_text, EXCLUDED.pod_value, EXCLUDED.pod_direct, EXCLUDED.hp_multiplier, EXCLUDED.last_trade_date, EXCLUDED.timezone, EXCLUDED.index_count_all, EXCLUDED.index_count_raise, EXCLUDED.index_count_fall, EXCLUDED.index_count_equal, EXCLUDED.stat_h24_price_highest, EXCLUDED.stat_h24_price_lowest, EXCLUDED.stat_h24_volume, EXCLUDED.stat_h24_turnover, EXCLUDED.stat_h24_price_change, EXCLUDED.stat_h24_ratio_price_change, EXCLUDED.difference, EXCLUDED.bid_price_lowest, EXCLUDED.ask_price_highest, EXCLUDED.change_d005, EXCLUDED.change_d010, EXCLUDED.change_d020, EXCLUDED.change_d060, EXCLUDED.change_d120, EXCLUDED.change_d250, EXCLUDED.change_year, EXCLUDED.secu_url, EXCLUDED.source_channel, EXCLUDED.dt_collect, EXCLUDED.dt_create, EXCLUDED.count_update, EXCLUDED.json_unmapped, EXCLUDED.stock_id)
     RETURNING (xmax = 0) AS inserted
 ), ins_qc AS (
-    -- 2) 富途采集属性表：身份字段同名同步；usc 同上占位；futu_symbol 由 ftmm_symbol 去掉市场前缀派生
+    -- 2) 富途采集属性表：身份字段同名同步（按 usc 主键 upsert）；futu_symbol 由 stock_code 优先、
+    --    缺失时用 ftmm_symbol 去掉市场前缀派生；flag_enable 一律不写（新增行取表默认 '0'，已有行保持原值）
     INSERT INTO futu.finv_futu_quote_collect AS t
           (usc, stock_id, futu_symbol, market_type, market_code, instrument_type,
-           sub_instrument_type, market_label, instrument, flag_enable)
+           sub_instrument_type, market_label, instrument)
     SELECT usc_key, stock_id, futu_symbol,
            market_type, market_code, instrument_type,
-           sub_instrument_type, market_label, instrument,
-           -- usc 为 ftmm_symbol 占位 → 禁用采集（'0'）；真实 usc → 默认启用（'1'）
-           CASE WHEN usc_placeholder THEN '0' ELSE '1' END
+           sub_instrument_type, market_label, instrument
       FROM valid s
      WHERE instrument IS NOT NULL AND market_label IS NOT NULL AND futu_symbol IS NOT NULL
        -- 防撞：同 (market_code, futu_symbol) 已被别的 usc 占用（quote_collect 上有唯一约束）时跳过该行
@@ -600,15 +601,13 @@ WITH elems AS (
            instrument_type = EXCLUDED.instrument_type,
            sub_instrument_type = EXCLUDED.sub_instrument_type,
            market_label = EXCLUDED.market_label,
-           instrument = EXCLUDED.instrument,
-           flag_enable = EXCLUDED.flag_enable
-     -- flag_enable 由同步按「usc 是否占位」推导并覆盖（占位 '0' / 真实 usc '1'）
+           instrument = EXCLUDED.instrument
+     -- flag_enable 不在 SET / 比对里：它是人工/默认开关，同步不覆盖（需求 11063）
      WHERE (t.stock_id, t.futu_symbol, t.market_type, t.market_code, t.instrument_type,
-            t.sub_instrument_type, t.market_label, t.instrument, t.flag_enable)
+            t.sub_instrument_type, t.market_label, t.instrument)
            IS DISTINCT FROM
            (EXCLUDED.stock_id, EXCLUDED.futu_symbol, EXCLUDED.market_type, EXCLUDED.market_code,
-            EXCLUDED.instrument_type, EXCLUDED.sub_instrument_type, EXCLUDED.market_label, EXCLUDED.instrument,
-            EXCLUDED.flag_enable)
+            EXCLUDED.instrument_type, EXCLUDED.sub_instrument_type, EXCLUDED.market_label, EXCLUDED.instrument)
     RETURNING (xmax = 0) AS inserted
 ), qc_skip AS (
     -- 3) 上述防撞被跳过的行数（只做统计，不写库）
@@ -620,19 +619,9 @@ WITH elems AS (
               WHERE q.market_code = s.market_code
                 AND q.futu_symbol = s.futu_symbol
                 AND q.usc <> s.usc_key)
-), upd_key AS (
-    -- 4) 证券键表：只补 url（来源 secu_url）与 stock_id，按 ftmm_symbol 对齐
-    UPDATE futu.finv_futu_secu_key k
-       SET url = s.secu_url,
-           stock_id = s.stock_id
-      FROM valid s
-     WHERE k.ftmm_symbol = s.ftmm_symbol
-       AND (k.url, k.stock_id) IS DISTINCT FROM (s.secu_url, s.stock_id)
-    RETURNING 1 AS updated
 )
 SELECT (SELECT count(*) FROM ins_ind WHERE inserted)     AS ind_insert,
        (SELECT count(*) FROM ins_ind WHERE NOT inserted) AS ind_update,
        (SELECT count(*) FROM ins_qc WHERE inserted)      AS qc_insert,
        (SELECT count(*) FROM ins_qc WHERE NOT inserted)  AS qc_update,
-       (SELECT skipped FROM qc_skip)                     AS qc_skip,
-       (SELECT count(*) FROM upd_key)                    AS key_update`
+       (SELECT skipped FROM qc_skip)                     AS qc_skip`

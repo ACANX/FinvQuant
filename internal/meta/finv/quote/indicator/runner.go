@@ -56,7 +56,6 @@ type Run struct {
 	QcInsert     int      `json:"qc_insert"`
 	QcUpdate     int      `json:"qc_update"`
 	QcSkip       int      `json:"qc_skip"`
-	KeyUpdate    int      `json:"key_update"`
 	Batches      int      `json:"batches"`
 	Progress     float64  `json:"progress"`
 	StartedAt    string   `json:"started_at"`
@@ -147,7 +146,6 @@ func (r *Runner) execute(state *runnerState, req Request) {
 		deltaQcInsert := progress.QcInsert - state.run.QcInsert
 		deltaQcUpdate := progress.QcUpdate - state.run.QcUpdate
 		deltaQcSkip := progress.QcSkip - state.run.QcSkip
-		deltaKeyUpdate := progress.KeyUpdate - state.run.KeyUpdate
 
 		if progress.RowsTotal > 0 {
 			state.run.RowsTotal = progress.RowsTotal
@@ -159,15 +157,14 @@ func (r *Runner) execute(state *runnerState, req Request) {
 		state.run.QcInsert = progress.QcInsert
 		state.run.QcUpdate = progress.QcUpdate
 		state.run.QcSkip = progress.QcSkip
-		state.run.KeyUpdate = progress.KeyUpdate
 		state.run.Batches = progress.Batch
 		state.run.Progress = progressPercent(progress.RowsReceive, state.run.RowsTotal)
 
 		r.appendLogLocked(state, RunLogLevelInfo, fmt.Sprintf(
-			"第 %d 批：offset=%d，拉取 %d，指标 新增 %d / 更新 %d / 未变 %d，采集属性 新增 %d / 更新 %d / 跳过 %d，键表补全 %d（本批 %d ms）",
+			"第 %d 批：offset=%d，拉取 %d，指标 新增 %d / 更新 %d / 未变 %d，采集属性 新增 %d / 更新 %d / 跳过 %d（本批 %d ms）",
 			progress.Batch, progress.Offset, progress.Fetched,
 			deltaIndInsert, deltaIndUpdate, deltaIndUnchanged,
-			deltaQcInsert, deltaQcUpdate, deltaQcSkip, deltaKeyUpdate, progress.ElapsedMs),
+			deltaQcInsert, deltaQcUpdate, deltaQcSkip, progress.ElapsedMs),
 			progress.Batch, progress.Offset)
 	})
 
@@ -191,18 +188,17 @@ func (r *Runner) execute(state *runnerState, req Request) {
 	state.run.QcInsert = result.QcInsert
 	state.run.QcUpdate = result.QcUpdate
 	state.run.QcSkip = result.QcSkip
-	state.run.KeyUpdate = result.KeyUpdate
 	state.run.Batches = result.Batches
 	state.run.Progress = 100
 	state.run.FinishedAt = r.now().Format(time.RFC3339)
 	r.appendLogLocked(state, RunLogLevelInfo, fmt.Sprintf(
-		"指标同步完成：源表 %s 共 %d 行，%d 批；指标表 新增 %d / 更新 %d / 未变 %d；采集属性表 新增 %d / 更新 %d / 跳过 %d；键表补全 %d；耗时 %d ms",
+		"指标同步完成：源表 %s 共 %d 行，%d 批；指标表 新增 %d / 更新 %d / 未变 %d；采集属性表 新增 %d / 更新 %d / 跳过 %d；耗时 %d ms",
 		SourceTable, result.RowsTotal, result.Batches,
 		result.IndInsert, result.IndUpdate, result.IndUnchanged,
-		result.QcInsert, result.QcUpdate, result.QcSkip, result.KeyUpdate, result.ElapsedMs), 0, 0)
-	log.Printf("[cdeu][indicator] run=%s done source=%s total=%d ind_insert=%d ind_update=%d qc_insert=%d qc_update=%d key_update=%d elapsed_ms=%d",
+		result.QcInsert, result.QcUpdate, result.QcSkip, result.ElapsedMs), 0, 0)
+	log.Printf("[cdeu][indicator] run=%s done source=%s total=%d ind_insert=%d ind_update=%d qc_insert=%d qc_update=%d elapsed_ms=%d",
 		state.run.RunID, SourceTable, result.RowsTotal, result.IndInsert, result.IndUpdate,
-		result.QcInsert, result.QcUpdate, result.KeyUpdate, result.ElapsedMs)
+		result.QcInsert, result.QcUpdate, result.ElapsedMs)
 }
 
 // progressPercent 按已拉取行数 / 源表总行数算进度（总行数未知时为 0）。

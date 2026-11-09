@@ -8,13 +8,13 @@ info:
     连接配置 {PROJECT_ID}|{APIKEY} 取系统配置 20013，源表名取系统配置 20014（默认 finv_quote_secu_key）。
     只由前端「证券参数同步」页按钮手动触发，无定时任务；单向只读上游，不删除本地行。
     需求 11042（菜单与页面）、11043（同步实现）、11044（源表名可配）、11045（页面拆两个 Tab）、
-    11046（异步运行 + 实时日志）、11050（Tab 2 指标同步）、11051（flag_enable 规则）、
+    11046（异步运行 + 实时日志）、11050（Tab 2 指标同步）、11051（flag_enable 规则，被 11063 取代）、
     11052（Tab 1 不清空 Tab 2 补的 url）、11054（Tab 3 上游主键参数回填，方向为本地 → 上游）、
     11055（本地同一 stock_id 多条 usc 时取等于上游 ftmm_symbol 的那条）、
     11056（Tab 3 同时回填 public.finv_quote_secu_key 的 usc + stock_id）、
     11057（键表关联口径：按 ftmm_symbol 关联，不用 stock_id），11060（采集属性表增加生成列 ftmm_symbol）；
     连接配置 20013（需求 11041）。
-    Tab 2 来源固定 public.finv_quote_secu_meta，一条记录写三张表：
+    Tab 2 来源固定 public.finv_quote_secu_meta，一条记录写两张表（需求 11063 起不再写键表）：
     cdeu.finv_quote_secu_indicator（132 列同名，含 stock_id）/ futu.finv_futu_quote_collect（身份字段同名）/
     futu.finv_futu_secu_key（只补 url ← secu_url 与 stock_id）。
   license:
@@ -382,7 +382,7 @@ paths:
       tags: [Cdeu]
       description: |
         立刻返回启动瞬间快照，同步在后台按 ftmm_symbol 升序分批执行；前端轮询 GET 同名路径读取进度与逐批日志。
-        一条上游记录写三张表（指标表 132 列同名，含 stock_id / 采集属性表身份字段同名 / 键表补 url 与 stock_id）；
+        一条上游记录写两张表（指标表 132 列同名，含 stock_id / 采集属性表身份字段同名）；不再写 futu.finv_futu_secu_key；
         usc 为空时用 ftmm_symbol 占位；采集属性表 flag_enable 由 usc 是否占位推导（占位 '0' / 真实 '1'）。
         已有指标同步在运行时返回 409（不排队、不覆盖）；状态只存内存，整体超时 60 分钟。
       requestBody:
@@ -649,7 +649,8 @@ components:
               description: 采集属性表因 (market_code, futu_symbol) 被别的 usc 占用而跳过
             key_update:
               type: integer
-              description: 证券键表补全 url / stock_id 的行数
+              deprecated: true
+              description: 已废弃（需求 11063 起不再写证券键表；字段保留仅为兼容旧版前端）
             batches:
               type: integer
             progress:

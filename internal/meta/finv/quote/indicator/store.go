@@ -7,7 +7,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Store 三张本地目标表的批量写入与统计（一次往返写三张表，SQL 见 sql.go）。
+// Store 两张本地目标表的批量写入与统计（一次往返写两张表，SQL 见 sql.go）。
+//
+// 需求 11063 起不再写 futu.finv_futu_secu_key（键表由 Tab 1 从上游同步、url/stock_id 由上游回补）。
 type Store struct {
 	pool *pgxpool.Pool
 }
@@ -24,7 +26,6 @@ type UpsertStat struct {
 	QcInsert  int // 采集属性表新增
 	QcUpdate  int // 采集属性表更新
 	QcSkip    int // 采集属性表因 (market_code, futu_symbol) 被别的 usc 占用而跳过
-	KeyUpdate int // 证券键表补全 url / stock_id 的行数
 }
 
 // UpsertBatch 写入一批源行（payload 为上游原始 JSON 数组）。
@@ -39,16 +40,15 @@ func (s *Store) UpsertBatch(ctx context.Context, payload []byte) (UpsertStat, er
 	err := s.pool.QueryRow(ctx, upsertBatchSQL, string(payload)).Scan(
 		&stat.IndInsert, &stat.IndUpdate,
 		&stat.QcInsert, &stat.QcUpdate, &stat.QcSkip,
-		&stat.KeyUpdate,
 	)
 	if err != nil {
-		return UpsertStat{}, fmt.Errorf("写入 %s / %s / %s 失败: %w",
-			IndicatorTable, QuoteCollectTable, SecuKeyTable, err)
+		return UpsertStat{}, fmt.Errorf("写入 %s / %s 失败: %w",
+			IndicatorTable, QuoteCollectTable, err)
 	}
 	return stat, nil
 }
 
-// TableStats 三张目标表的当前行数（状态卡片用）。
+// TableStats 目标表的当前行数（状态卡片用）。键表仍展示（它由 Tab 1 维护），但本同步不写它。
 func (s *Store) TableStats(ctx context.Context) ([]TableStat, error) {
 	stats := make([]TableStat, 0, 3)
 	for _, table := range []string{IndicatorTable, QuoteCollectTable, SecuKeyTable} {

@@ -6,7 +6,7 @@
 > 视图：`Web/src/views/Meta/Finv/Quote/Realtime/SecuParamSyncView.vue`
 > 关联需求：11042（菜单与页面）、11043（同步实现）、11044（源表名可配 20014）、11045（拆两个 Tab）、
 > 11046（异步运行 + 实时日志）、11047（Tab 2 口径确认）、11050（Tab 2 指标同步实现）、
-> 11051（`flag_enable` 规则）、11052（Tab 1 不清空 Tab 2 补的 `url`）、
+> 11051（`flag_enable` 规则，已被 11063 取代）、11052（Tab 1 不清空 Tab 2 补的 `url`）、
 > 11054（Tab 3 上游主键参数回填）、11055（多条 `usc` 取值规则）、
 > 11056（Tab 3 同时回填 `finv_quote_secu_key` 的 `usc` + `stock_id`）、11057（键表关联口径）、
 > 11060（采集属性表增加生成列 `ftmm_symbol`）
@@ -23,7 +23,7 @@
 | Tab | 状态 | 内容 |
 |-----|------|------|
 | **FT证券基础参数同步** | 已实现 | Supabase 证券键表（默认 `public.finv_quote_secu_key`）→ 本地 `futu.finv_futu_secu_key` |
-| **FT证券指标数据同步** | 已实现（需求 11050） | 上游 `public.finv_quote_secu_meta` → 指标表 + 采集属性表 + 证券键表（一条记录写三张表） |
+| **FT证券指标数据同步** | 已实现（需求 11050/11063） | 上游 `public.finv_quote_secu_meta` → 指标表 + 采集属性表（一条记录写两张表，均按 `usc` 主键 upsert）；不再写证券键表 |
 | **上游主键参数回填** | 已实现（需求 11054/11056） | 方向相反：一次运行写两张上游表（`finv_quote_secu_meta.usc` 按 `stock_id`；`finv_quote_secu_key.usc + stock_id` 按 `ftmm_symbol`） |
 
 - 只由本页**按钮手动触发**，没有定时任务；
@@ -104,9 +104,9 @@
 #### 2.3.3 同步进度与日志（第三张卡片）
 
 与 Tab 1 同款（状态 chip / 累计 chip / 进度条 / 独立滚动日志区 + 自动滚底 + `ERROR` 标红 + 「等待下一批…」），
-只是累计 chip 换成三张表的口径：
+只是累计 chip 换成两张表的口径：
 
-`拉取 · 指标 新增/更新/未变 · 采集属性 新增/更新/跳过 · 键表补全 · N 批 · 耗时`
+`拉取 · 指标 新增/更新/未变 · 采集属性 新增/更新/跳过 · N 批 · 耗时`
 
 日志形态（每批一行，含本批差值）：
 
@@ -121,11 +121,11 @@
 | 目标表 | 写入内容 |
 |--------|----------|
 | `cdeu.finv_quote_secu_indicator` | 132 列同名同步（`dt_update` 由触发器维护，不参与比对；`stock_id` 需求 11061） |
-| `futu.finv_futu_quote_collect` | 身份字段同名同步（`stock_id`/`market_type`/`market_code`/`instrument_type`/`sub_instrument_type`/`market_label`/`instrument`），`futu_symbol` 由 `ftmm_symbol` 去市场前缀派生 |
-| `futu.finv_futu_secu_key` | 只补 `url`（源 `secu_url`）与 `stock_id`，按 `ftmm_symbol` 对齐 |
+| `futu.finv_futu_quote_collect` | 身份字段同名同步（`stock_id`/`market_type`/`market_code`/`instrument_type`/`sub_instrument_type`/`market_label`/`instrument`），`futu_symbol` 由 `public.finv_quote_secu_meta.stock_code`（缺失时用 `ftmm_symbol`）去市场前缀派生 |
+| ~~`futu.finv_futu_secu_key`~~ | **不再同步**（需求 11063）：上游已自行回填 `url`（源 `secu_url`）与 `stock_id` |
 
-- 主键均为 `usc`；源 `usc` 为空时用 `ftmm_symbol` 占位（上游 3,673 行）；
-- **`flag_enable`（需求 11051）**：占位 `usc` → `'0'`（禁用采集），真实 `usc` → `'1'`；插入与更新都会按此覆盖；
+- 两表主键均为 `usc`，upsert 增量；源 `usc` 为空时用 `ftmm_symbol` 占位；
+- **`flag_enable`（需求 11063，取代 11051）**：同步**不写**该列——新增行取表默认 `'0'`，已有行保持原值；
 - 采集属性表唯一键 `(market_code, futu_symbol)` 撞车（被别的 `usc` 占用）时跳过该行并计入「跳过」。
 
 ### 2.4 Tab 3：上游主键参数回填（需求 11054）
@@ -177,8 +177,8 @@
 
 四段：**表口径**（FT证券基础参数同步）、**增量口径与进度**（缺则插入、变了才更新、未变不改写 + 轮询/实时日志）、
 **配置与安全**（20013 格式与脱敏、20014 需保存才生效、`status` 非法归一为 `PENDING`）、
-**FT证券指标数据同步**（来源固定 `public.finv_quote_secu_meta`，一次写三张表；`flag_enable` 按 `usc` 是否占位推导：
-占位 `'0'`、真实 `'1'`，每次同步覆盖；Tab 1 不再清空 Tab 2 补的 `url`）。
+**FT证券指标数据同步**（来源固定 `public.finv_quote_secu_meta`，一次按 `usc` 主键 upsert 两张表；
+`futu_symbol` 优先取 `stock_code`；`flag_enable` 不覆盖、保持表默认值与原值；不再写证券键表）。
 
 **上游主键参数回填**（方向相反：本地 → 上游，按 `stock_id` 关联；会写入线上 Supabase；
 上游 `usc` 已一致时不发请求；本地同一 `stock_id` 多条 `usc` 取等于上游 `ftmm_symbol` 的那条）。

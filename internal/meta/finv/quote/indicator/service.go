@@ -7,7 +7,7 @@
 //	② futu.finv_futu_quote_collect：身份字段同名同步
 //	   （stock_id / market_type / market_code / instrument_type / sub_instrument_type /
 //	     market_label / instrument；futu_symbol 由 ftmm_symbol 去掉市场前缀派生）
-//	③ futu.finv_futu_secu_key：只补 url（来源 secu_url）与 stock_id，按 ftmm_symbol 对齐
+//	③ futu.finv_futu_secu_key：**不再写**（需求 11063——上游已自行回补 url / stock_id，本地由 Tab 1 同步）
 //
 // 上游剩余字段（flag_option / flag_futures / flag_plate / flag_etf_theme / name_en /
 // market_type 之外的 market 等）本地无对应列，不落库。
@@ -18,7 +18,8 @@
 //   - 增量：主键不存在则插入；已存在且字段与源不同才更新；一致的行不改写；
 //   - 采集属性表有唯一约束 (market_code, futu_symbol)：若该对已被**别的 usc** 占用，
 //     该行跳过并计入 qc_skip（不报错、不覆盖别人的 usc）；
-//   - 采集属性表不写 flag_enable（新增行取表默认 '0'），避免同步顺手把所有证券开启采集。
+//   - 采集属性表不写 flag_enable（新增行取表默认 '0'，已有行保持原值），避免同步顺手开关采集（需求 11063）；
+//   - 采集属性表的 futu_symbol 优先取上游 stock_code，缺失时用 ftmm_symbol 去掉市场前缀派生。
 package indicator
 
 import (
@@ -94,7 +95,6 @@ type Progress struct {
 	QcInsert     int   // 采集属性表累计新增
 	QcUpdate     int   // 采集属性表累计更新
 	QcSkip       int   // 采集属性表因唯一键撞车累计跳过
-	KeyUpdate    int   // 证券键表累计补全（url / stock_id）
 	ElapsedMs    int64 // 本批耗时
 }
 
@@ -110,7 +110,6 @@ type Result struct {
 	QcInsert     int    `json:"qc_insert"`
 	QcUpdate     int    `json:"qc_update"`
 	QcSkip       int    `json:"qc_skip"`
-	KeyUpdate    int    `json:"key_update"`
 	ElapsedMs    int64  `json:"elapsed_ms"`
 }
 
@@ -257,12 +256,11 @@ func (s *Service) SyncWithProgress(ctx context.Context, req Request, onProgress 
 		result.QcInsert += stat.QcInsert
 		result.QcUpdate += stat.QcUpdate
 		result.QcSkip += stat.QcSkip
-		result.KeyUpdate += stat.KeyUpdate
 
 		batchElapsed := s.now().Sub(batchStart).Milliseconds()
-		log.Printf("[cdeu][indicator] batch=%d offset=%d fetched=%d ind_insert=%d ind_update=%d qc_insert=%d qc_update=%d qc_skip=%d key_update=%d elapsed_ms=%d",
+		log.Printf("[cdeu][indicator] batch=%d offset=%d fetched=%d ind_insert=%d ind_update=%d qc_insert=%d qc_update=%d qc_skip=%d elapsed_ms=%d",
 			batch, seen, len(rows), stat.IndInsert, stat.IndUpdate, stat.QcInsert, stat.QcUpdate,
-			stat.QcSkip, stat.KeyUpdate, batchElapsed)
+			stat.QcSkip, batchElapsed)
 
 		if onProgress != nil {
 			onProgress(Progress{
@@ -277,7 +275,6 @@ func (s *Service) SyncWithProgress(ctx context.Context, req Request, onProgress 
 				QcInsert:     result.QcInsert,
 				QcUpdate:     result.QcUpdate,
 				QcSkip:       result.QcSkip,
-				KeyUpdate:    result.KeyUpdate,
 				ElapsedMs:    batchElapsed,
 			})
 		}
@@ -292,9 +289,9 @@ func (s *Service) SyncWithProgress(ctx context.Context, req Request, onProgress 
 	}
 
 	result.ElapsedMs = s.now().Sub(started).Milliseconds()
-	log.Printf("[cdeu][indicator] sync done source=%s rows_total=%d received=%d ind_insert=%d ind_update=%d ind_unchanged=%d qc_insert=%d qc_update=%d qc_skip=%d key_update=%d batches=%d elapsed_ms=%d",
+	log.Printf("[cdeu][indicator] sync done source=%s rows_total=%d received=%d ind_insert=%d ind_update=%d ind_unchanged=%d qc_insert=%d qc_update=%d qc_skip=%d batches=%d elapsed_ms=%d",
 		SourceTable, result.RowsTotal, result.RowsReceive, result.IndInsert, result.IndUpdate,
-		result.IndUnchanged, result.QcInsert, result.QcUpdate, result.QcSkip, result.KeyUpdate,
+		result.IndUnchanged, result.QcInsert, result.QcUpdate, result.QcSkip,
 		result.Batches, result.ElapsedMs)
 	return result, nil
 }
