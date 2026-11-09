@@ -69,6 +69,12 @@
 
 ### 变更
 
+- **`HK.800700` 的 usc 统一为 `HTI`（需求 11071，迁移 `V300155` / `V300156`）**
+  - `public.finv_security` 归并为 1 行（`usc='HTI'` + `security_code='800700'`），删掉 `security_code='HTI'` 的空壳行；`cdeu.finv_quote_secu_indicator` 删掉 `usc='800700'` 的孤儿行；两张表删前整行备份到 `archive.finv_security_purge_20261110` / `archive.finv_quote_secu_indicator_purge_20261110`（带 `src_table` / `reason` / `backup_at`）。
+  - 修正：首版 `V300155` 误改 `futu.finv_futu_secu_key` 的 `US.HSTI`（美股，按规则 usc 应为 `HSTI`），`V300156` 已恢复；`V300155` 收口为只改 `market='HK'`。
+  - 不动：`SH` 指数 149 行裸 code（生产数据双份，下月自然收敛）；`CA.LETH` 本就符合规则（CA 市场统一 `ftmm_symbol`）。
+  - 实测：三表状态符合预期、键表仍 73,212 行、`schema_version=300156`。
+
 - **按 `finv_futu_query_stat-2.json` 补录 `finv_security` 268 行（需求 11070，迁移 `V300154`）**
   - 来源 489 行中 210 个 usc 已存在、11 个仅大小写不同（HK 指数 HSI/HSTI + HK 期货主连 9 条）跳过，实际补 268 行（Futures 183 / ETF 67 / Stock 18）；
   - 来源无名称与币种：名称取上游 `public.finv_quote_secu_meta`（按 usc + ftmm_symbol 匹配），币种按市场（HK HKD / SZ·SH·BJ CNY / US USD）；
