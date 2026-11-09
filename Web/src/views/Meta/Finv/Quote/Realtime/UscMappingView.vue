@@ -1021,6 +1021,12 @@ onBeforeUnmount(stopPolling)
       </p>
       <v-divider class="my-2" />
       <p class="usc-note">
+        <strong>指数去前导点：</strong>指数代码带的前导点（如 <code>.SPX</code>、<code>.XFL</code>）由前处理规则
+        P16 统一去掉；去点后若与本市场同码的股票/ETF 撞名，指数侧改用 <code>IDX.{code}</code>
+        （如 <code>IDX.BFLY</code>），股票侧保持裸码。
+      </p>
+      <v-divider class="my-2" />
+      <p class="usc-note">
         <strong>应用前必须先预演：</strong>预演返回 <code>preview_token</code>，应用时后端比对；预演之后规则或键表变了，
         令牌失效需要重新预演。冲突升级（候选与其它证券撞名时改用 <code>ftmm_symbol</code>）后仍冲突则整次拒绝。
       </p>

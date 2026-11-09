@@ -43,9 +43,13 @@ DROP TABLE IF EXISTS _usc_cand, _usc_dup, _usc_final, _usc_diff, _usc_retire, _u
 
 CREATE TEMP TABLE _usc_cand AS
 WITH c AS (
-    SELECT * FROM futu.f_finv_futu_usc_calc(current_setting('finv.usc_env'))
+    SELECT k.ftmm_symbol, k.market, k.code, k.instrument, k.canon_code, k.canon_cnt,
+           -- 指数代码去前导点后，富途全码会出现双点（AU..XFL）：折叠成单点（AU.XFL）。
+           regexp_replace(k.ftmm_symbol, '^([^.]+)\.\.', '\1.') AS ftmm_collapsed
+      FROM futu.f_finv_futu_usc_calc(current_setting('finv.usc_env')) k
 )
 SELECT c.ftmm_symbol, c.market, c.code, c.instrument, c.canon_code, c.canon_cnt,
+       c.ftmm_collapsed,
        CASE WHEN c.canon_cnt = 1 THEN 'P10' ELSE COALESCE(m.rule_no, 'P60') END AS rule_no,
        CASE WHEN c.canon_cnt = 1 THEN c.canon_code
             ELSE COALESCE(
@@ -53,8 +57,8 @@ SELECT c.ftmm_symbol, c.market, c.code, c.instrument, c.canon_code, c.canon_cnt,
                         WHEN 'CODE'    THEN c.canon_code
                         WHEN 'LITERAL' THEN m.usc_literal
                         WHEN 'SH4'     THEN 'SH' || right(c.code, 4)
-                        ELSE c.ftmm_symbol
-                   END, c.ftmm_symbol)
+                        ELSE c.ftmm_collapsed
+                   END, c.ftmm_collapsed)
        END AS usc_cand,
        CASE WHEN c.canon_cnt = 1 THEN '天然唯一（P10 闸门命中）' ELSE COALESCE(m.item_desc, '') END AS basis
   FROM c
@@ -90,7 +94,7 @@ CREATE UNIQUE INDEX ON _usc_dup (k);
 
 CREATE TEMP TABLE _usc_final AS
 SELECT c.ftmm_symbol, c.market, c.code, c.instrument,
-       CASE WHEN d.k IS NULL THEN c.usc_cand ELSE c.ftmm_symbol END AS usc,
+       CASE WHEN d.k IS NULL THEN c.usc_cand ELSE c.ftmm_collapsed END AS usc,
        CASE WHEN d.k IS NULL THEN c.rule_no ELSE 'ESCALATE' END AS rule_no,
        CASE WHEN d.k IS NULL THEN c.basis
             ELSE '冲突升级：候选 usc 与其它证券撞名，改用 ftmm_symbol' END AS basis
