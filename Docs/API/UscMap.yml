@@ -1,0 +1,189 @@
+openapi: 3.1.0
+info:
+  title: USC 映射规则（规则/条目维护 + 预演 + 应用 + 审计日志）
+  version: 1.0.0
+  description: |
+    futu.finv_futu_usc_rule（规则层 9 条）+ futu.finv_futu_usc_rule_item（条目层 689 条）
+    → futu.finv_futu_usc_map（结果表）→ 回写 futu.finv_futu_secu_key.usc。
+    usc 允许退市后复用；复用时先归档下游历史行到 archive.finv_usc_reuse_snapshot。
+    需求 11072（建表与后端）、11073（页面与菜单）。迁移 V300157（建表）、V300158（默认关闭定时同步）。
+servers:
+  - url: /API/V1
+paths:
+  /Meta/Finv/Quote/UscMap/Status:
+    get:
+      summary: 只读快照
+      operationId: uscMapStatus
+      tags: [UscMap]
+      parameters:
+        - name: env
+          in: query
+          required: false
+          schema: { type: string, default: '*' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code: { type: integer, const: 0 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      env: { type: string }
+                      rule_version: { type: string }
+                      rule_count: { type: integer }
+                      item_count: { type: integer }
+                      item_active: { type: integer }
+                      map_active: { type: integer }
+                      map_retired: { type: integer }
+                      map_reused: { type: integer }
+                      key_total: { type: integer }
+                      key_matched: { type: integer }
+                      key_mismatch: { type: integer }
+                      last_computed_at: { type: string }
+                      archived_rows: { type: integer }
+                      cron_expr: { type: string, description: '空串 = 自动同步关闭' }
+                      cron_next_run: { type: string }
+  /Meta/Finv/Quote/UscMap/Rule/List:
+    get:
+      summary: 规则层列表
+      operationId: uscMapRuleList
+      tags: [UscMap]
+      responses:
+        '200': { description: ok }
+  /Meta/Finv/Quote/UscMap/Item/List:
+    get:
+      summary: 条目分页
+      operationId: uscMapItemList
+      tags: [UscMap]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, default: 20, maximum: 200 } }
+        - { name: ruleNo, in: query, schema: { type: string } }
+        - { name: market, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string, enum: [ACTIVE, PENDING, RETIRED] } }
+        - { name: keyword, in: query, schema: { type: string } }
+      responses:
+        '200': { description: ok }
+  /Meta/Finv/Quote/UscMap/Item/Save:
+    post:
+      summary: 新增或编辑条目（idn=0 新增）
+      operationId: uscMapItemSave
+      tags: [UscMap]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rule_no, item_desc]
+              properties:
+                idn: { type: integer, default: 0 }
+                rule_no: { type: string }
+                market: { type: [string, 'null'] }
+                instrument: { type: [string, 'null'] }
+                code: { type: [string, 'null'] }
+                code_regex: { type: [string, 'null'] }
+                action: { type: [string, 'null'], enum: [CODE, FTMM, LITERAL, REWRITE, SH4, null] }
+                usc_literal: { type: [string, 'null'] }
+                rewrite_tpl: { type: [string, 'null'] }
+                status: { type: string, enum: [ACTIVE, PENDING, RETIRED] }
+                effective_from: { type: [string, 'null'], format: date }
+                effective_to: { type: [string, 'null'], format: date }
+                priority: { type: integer, default: 100 }
+                scope_env: { type: string, default: '*' }
+                item_desc: { type: string, description: 必填，说明为什么这么映射 }
+                source_ref: { type: string }
+                remark: { type: string }
+      responses:
+        '200': { description: 保存成功 }
+        '400': { description: 校验失败 }
+  /Meta/Finv/Quote/UscMap/Item/Retire:
+    post:
+      summary: 停用条目（保留行）
+      operationId: uscMapItemRetire
+      tags: [UscMap]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [idn]
+              properties:
+                idn: { type: integer }
+                reason: { type: string }
+      responses:
+        '200': { description: 已停用 }
+  /Meta/Finv/Quote/UscMap/Diff/Preview:
+    get:
+      summary: 预演差异（不落库）
+      operationId: uscMapPreview
+      tags: [UscMap]
+      parameters:
+        - { name: env, in: query, schema: { type: string, default: '*' } }
+      responses:
+        '200':
+          description: 预演结果（含 preview_token，应用时回传）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, const: 0 }
+                  data:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      added: { type: integer }
+                      changed: { type: integer }
+                      removed: { type: integer }
+                      reused: { type: integer }
+                      unchanged: { type: integer }
+                      escalated: { type: integer }
+                      preview_token: { type: string }
+                      samples: { type: array, items: { type: object } }
+                      conflicts: { type: array, items: { type: string } }
+        '500': { description: 预演失败（含无法消解的 usc 冲突） }
+  /Meta/Finv/Quote/UscMap/Sync/Run:
+    post:
+      summary: 异步应用（带预演令牌）
+      operationId: uscMapSyncStart
+      tags: [UscMap]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                env: { type: string, default: '*' }
+                preview_token: { type: string }
+                reason: { type: string }
+      responses:
+        '202': { description: 已启动，返回 run_id 快照 }
+        '409': { description: 已有运行在执行，或预演令牌过期 }
+    get:
+      summary: 运行时快照
+      operationId: uscMapSyncStatus
+      tags: [UscMap]
+      parameters:
+        - { name: runId, in: query, schema: { type: string } }
+      responses:
+        '200': { description: ok（status ∈ RUNNING/DONE/FAILED，含 logs） }
+        '404': { description: 运行不存在或已过期 }
+  /Meta/Finv/Quote/UscMap/Log/List:
+    get:
+      summary: 审计日志分页
+      operationId: uscMapLogList
+      tags: [UscMap]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, default: 20 } }
+      responses:
+        '200': { description: ok }

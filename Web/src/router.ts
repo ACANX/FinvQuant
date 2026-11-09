@@ -9,6 +9,7 @@ import StockSnapshotSyncView from './views/Meta/Finv/Quote/Realtime/StockSnapsho
 import PendingSecuView from './views/Meta/Finv/Quote/Realtime/PendingSecuView.vue'
 import FxCerView from './views/Meta/Finv/Quote/Realtime/FxCerView.vue'
 import SecuParamSyncView from './views/Meta/Finv/Quote/Realtime/SecuParamSyncView.vue'
+import UscMappingView from './views/Meta/Finv/Quote/Realtime/UscMappingView.vue'
 import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue'
 import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue'
 import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue'
@@ -94,6 +95,13 @@ const router = createRouter({
       name: 'quote-realtime-secu-param-sync',
       component: SecuParamSyncView,
       meta: { title: '证券参数同步' },
+    },
+    // 行情 → 实时行情 → USC 映射规则（需求 11072）：规则/条目维护 + 预演 diff + 异步应用 + 审计日志
+    {
+      path: '/Meta/Finv/Quote/Realtime/UscMapping',
+      name: 'quote-realtime-usc-mapping',
+      component: UscMappingView,
+      meta: { title: 'USC 映射规则' },
     },
     // 行情数据归档 → K线数据查询 / 统计（需求 10856/10857 改名并移入「收剔导传ETL」）
     {

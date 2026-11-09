@@ -1,0 +1,982 @@
+<script setup lang="ts">
+// USC 映射规则维护（需求 11072）
+//
+// 三张表（迁移 V300157）：
+//   futu.finv_futu_usc_rule       规则层（9 条，只读展示）
+//   futu.finv_futu_usc_rule_item  条目层（689 条，可新增/编辑/停用）
+//   futu.finv_futu_usc_map        结果表（ftmm_symbol → usc；退市行允许 usc 复用）
+// 另有审计日志 futu.finv_futu_usc_rule_log 与复用归档 archive.finv_usc_reuse_snapshot。
+//
+// 接口（前缀 /Meta/Finv/Quote/UscMap）：
+//   GET  /Status          只读快照（规则/条目/结果表/键表匹配率/cron）
+//   GET  /Rule/List       规则列表（含条目数）
+//   GET  /Item/List       条目分页
+//   POST /Item/Save       新增或编辑条目（item_desc 必填）
+//   POST /Item/Retire     停用条目
+//   GET  /Diff/Preview    预演差异（不落库，返回 preview_token）
+//   POST /Sync/Run        异步应用（带预演令牌）
+//   GET  /Sync/Run        运行时快照（进度 + 日志）
+//   GET  /Log/List        审计日志分页
+//
+// 交互约束：应用前必须先预演（后端校验 preview_token）；停用/应用都要填原因。
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+
+import { apiGet, apiPost } from '../../../../../api'
+import { showToast } from '../../../../../ui/toast'
+
+const BASE = '/Meta/Finv/Quote/UscMap'
+
+// ---------- 类型 ----------
+interface Rule {
+  rule_no: string
+  rule_name: string
+  rule_type: string
+  priority: number
+  match_scope: string
+  default_action?: string | null
+  flag_enable: string
+  rule_desc: string
+  remark: string
+  item_count: number
+  gmt_update: string
+}
+
+interface Item {
+  idn: number
+  rule_no: string
+  market?: string | null
+  instrument?: string | null
+  code?: string | null
+  code_regex?: string | null
+  action?: string | null
+  usc_literal?: string | null
+  rewrite_tpl?: string | null
+  status: string
+  effective_from?: string | null
+  effective_to?: string | null
+  priority: number
+  scope_env: string
+  item_desc: string
+  source_ref: string
+  remark: string
+  gmt_update: string
+}
+
+interface DiffRow {
+  ftmm_symbol: string
+  market: string
+  code: string
+  instrument: string
+  current_usc?: string | null
+  new_usc?: string | null
+  rule_no: string
+  basis: string
+  diff: string
+  reuse_of_ftmm?: string | null
+}
+
+interface Preview {
+  env: string
+  rule_version: string
+  computed_at: string
+  total: number
+  added: number
+  changed: number
+  removed: number
+  reused: number
+  unchanged: number
+  escalated: number
+  preview_token: string
+  samples: DiffRow[]
+  conflicts: string[]
+}
+
+interface RunLog {
+  seq: number
+  time: string
+  level: string
+  text: string
+}
+
+interface Run {
+  run_id: string
+  status: string
+  trigger: string
+  env: string
+  operator: string
+  rule_version: string
+  added: number
+  changed: number
+  removed: number
+  reused: number
+  unchanged: number
+  escalated: number
+  archived: number
+  key_updated: number
+  started_at: string
+  finished_at?: string
+  elapsed_ms: number
+  error?: string
+  logs: RunLog[]
+}
+
+interface Status {
+  env: string
+  rule_version: string
+  rule_count: number
+  item_count: number
+  item_active: number
+  map_active: number
+  map_retired: number
+  map_reused: number
+  key_total: number
+  key_matched: number
+  key_mismatch: number
+  last_computed_at: string
+  archived_rows: number
+  cron_expr: string
+  cron_next_run: string
+  target_tables: string[]
+}
+
+interface AuditLog {
+  idn: number
+  src_table: string
+  action: string
+  key_text: string
+  before_json?: string | null
+  after_json?: string | null
+  operator: string
+  reason: string
+  gmt_create: string
+}
+
+// ---------- 状态 ----------
+const tab = ref<'rules' | 'diff' | 'logs'>('rules')
+const loading = ref(false)
+const status = ref<Status | null>(null)
+
+const rules = ref<Rule[]>([])
+const selectedRule = ref<string>('')
+const items = ref<Item[]>([])
+const itemTotal = ref(0)
+const itemPage = ref(1)
+const itemPageSize = ref(20)
+const filterMarket = ref('')
+const filterStatus = ref('')
+const filterKeyword = ref('')
+
+const preview = ref<Preview | null>(null)
+const previewing = ref(false)
+const run = ref<Run | null>(null)
+const starting = ref(false)
+let pollTimer: number | null = null
+
+const logs = ref<AuditLog[]>([])
+const logTotal = ref(0)
+const logPage = ref(1)
+
+// 编辑对话框
+const editOpen = ref(false)
+const editSaving = ref(false)
+const editForm = ref<Item>(emptyItem())
+const editIsNew = ref(true)
+
+// 停用对话框
+const retireOpen = ref(false)
+const retireReason = ref('')
+const retireTarget = ref<Item | null>(null)
+
+// 应用对话框
+const applyOpen = ref(false)
+const applyReason = ref('')
+
+function emptyItem(): Item {
+  return {
+    idn: 0,
+    rule_no: selectedRule.value || 'P50',
+    market: null,
+    instrument: null,
+    code: null,
+    code_regex: null,
+    action: null,
+    usc_literal: null,
+    rewrite_tpl: null,
+    status: 'ACTIVE',
+    effective_from: null,
+    effective_to: null,
+    priority: 100,
+    scope_env: '*',
+    item_desc: '',
+    source_ref: '',
+    remark: '',
+    gmt_update: '',
+  }
+}
+
+const cronText = computed(() => {
+  if (!status.value) return ''
+  if (!status.value.cron_expr) return '已关闭（空）'
+  return status.value.cron_expr
+})
+
+const matchRate = computed(() => {
+  if (!status.value || status.value.key_total === 0) return 0
+  return Math.round((status.value.key_matched / status.value.key_total) * 1000) / 10
+})
+
+const hasDiff = computed(() => {
+  if (!preview.value) return false
+  return preview.value.added + preview.value.changed + preview.value.removed + preview.value.reused > 0
+})
+
+// ---------- 读取 ----------
+async function loadStatus() {
+  try {
+    status.value = await apiGet<Status>(`${BASE}/Status`)
+  } catch (err) {
+    showToast(`读取状态失败：${(err as Error).message}`, 'error')
+  }
+}
+
+async function loadRules() {
+  try {
+    const data = await apiGet<{ list: Rule[] }>(`${BASE}/Rule/List`)
+    rules.value = data.list ?? []
+    if (!selectedRule.value && rules.value.length > 0) {
+      selectedRule.value = rules.value[0].rule_no
+    }
+  } catch (err) {
+    showToast(`读取规则失败：${(err as Error).message}`, 'error')
+  }
+}
+
+async function loadItems() {
+  const query = new URLSearchParams({
+    page: String(itemPage.value),
+    pageSize: String(itemPageSize.value),
+  })
+  if (selectedRule.value) query.set('ruleNo', selectedRule.value)
+  if (filterMarket.value.trim()) query.set('market', filterMarket.value.trim())
+  if (filterStatus.value) query.set('status', filterStatus.value)
+  if (filterKeyword.value.trim()) query.set('keyword', filterKeyword.value.trim())
+  try {
+    const data = await apiGet<{ list: Item[]; total: number }>(`${BASE}/Item/List?${query.toString()}`)
+    items.value = data.list ?? []
+    itemTotal.value = data.total ?? 0
+  } catch (err) {
+    showToast(`读取条目失败：${(err as Error).message}`, 'error')
+  }
+}
+
+async function loadLogs() {
+  try {
+    const data = await apiGet<{ list: AuditLog[]; total: number }>(
+      `${BASE}/Log/List?page=${logPage.value}&pageSize=20`,
+    )
+    logs.value = data.list ?? []
+    logTotal.value = data.total ?? 0
+  } catch (err) {
+    showToast(`读取审计日志失败：${(err as Error).message}`, 'error')
+  }
+}
+
+async function loadAll() {
+  loading.value = true
+  try {
+    await Promise.all([loadStatus(), loadRules(), loadItems(), loadLogs()])
+  } finally {
+    loading.value = false
+  }
+}
+
+function selectRule(ruleNo: string) {
+  selectedRule.value = ruleNo
+  itemPage.value = 1
+  void loadItems()
+}
+
+// ---------- 条目编辑 ----------
+function openCreate() {
+  editIsNew.value = true
+  editForm.value = emptyItem()
+  editOpen.value = true
+}
+
+function openEdit(item: Item) {
+  editIsNew.value = false
+  editForm.value = { ...item }
+  editOpen.value = true
+}
+
+async function saveItem() {
+  const form = editForm.value
+  if (!form.item_desc.trim()) {
+    showToast('条目说明（item_desc）不能为空', 'warning')
+    return
+  }
+  if (form.action === 'LITERAL' && !(form.usc_literal ?? '').trim()) {
+    showToast('action=LITERAL 时 usc_literal 不能为空', 'warning')
+    return
+  }
+  if (form.action === 'REWRITE' && (!(form.code_regex ?? '').trim() || !(form.rewrite_tpl ?? '').trim())) {
+    showToast('action=REWRITE 时 code_regex 与 rewrite_tpl 都不能为空', 'warning')
+    return
+  }
+  editSaving.value = true
+  try {
+    const payload = {
+      ...form,
+      idn: editIsNew.value ? 0 : form.idn,
+      market: nullable(form.market),
+      instrument: nullable(form.instrument),
+      code: nullable(form.code),
+      code_regex: nullable(form.code_regex),
+      action: nullable(form.action),
+      usc_literal: nullable(form.usc_literal),
+      rewrite_tpl: nullable(form.rewrite_tpl),
+      effective_from: nullable(form.effective_from),
+      effective_to: nullable(form.effective_to),
+    }
+    await apiPost(`${BASE}/Item/Save`, payload)
+    showToast(editIsNew.value ? '条目已新增' : '条目已保存', 'success')
+    editOpen.value = false
+    await Promise.all([loadItems(), loadRules()])
+  } catch (err) {
+    showToast(`保存失败：${(err as Error).message}`, 'error')
+  } finally {
+    editSaving.value = false
+  }
+}
+
+function openRetire(item: Item) {
+  retireTarget.value = item
+  retireReason.value = ''
+  retireOpen.value = true
+}
+
+async function confirmRetire() {
+  if (!retireTarget.value) return
+  if (!retireReason.value.trim()) {
+    showToast('请填写停用原因', 'warning')
+    return
+  }
+  try {
+    await apiPost(`${BASE}/Item/Retire`, {
+      idn: retireTarget.value.idn,
+      reason: retireReason.value.trim(),
+    })
+    showToast('条目已停用（保留痕迹）', 'success')
+    retireOpen.value = false
+    await Promise.all([loadItems(), loadRules()])
+  } catch (err) {
+    showToast(`停用失败：${(err as Error).message}`, 'error')
+  }
+}
+
+// ---------- 预演与应用 ----------
+async function doPreview() {
+  previewing.value = true
+  try {
+    preview.value = await apiGet<Preview>(`${BASE}/Diff/Preview`)
+    if (preview.value.conflicts.length > 0) {
+      showToast('预演发现 usc 冲突，应用会被拒绝', 'error')
+    } else {
+      showToast(
+        `预演完成：新增 ${preview.value.added}、更新 ${preview.value.changed}、退市 ${preview.value.removed}、复用 ${preview.value.reused}`,
+        'success',
+      )
+    }
+  } catch (err) {
+    showToast(`预演失败：${(err as Error).message}`, 'error')
+  } finally {
+    previewing.value = false
+  }
+}
+
+function openApply() {
+  if (!preview.value) {
+    showToast('请先预演', 'warning')
+    return
+  }
+  applyReason.value = ''
+  applyOpen.value = true
+}
+
+async function confirmApply() {
+  if (!preview.value) return
+  starting.value = true
+  try {
+    const started = await apiPost<Run>(`${BASE}/Sync/Run`, {
+      preview_token: preview.value.preview_token,
+      reason: applyReason.value.trim(),
+    })
+    run.value = started
+    applyOpen.value = false
+    startPolling(started.run_id)
+  } catch (err) {
+    showToast(`启动失败：${(err as Error).message}`, 'error')
+    starting.value = false
+  }
+}
+
+function startPolling(runId: string) {
+  stopPolling()
+  pollTimer = window.setInterval(async () => {
+    try {
+      const snapshot = await apiGet<Run>(`${BASE}/Sync/Run?runId=${encodeURIComponent(runId)}`)
+      run.value = snapshot
+      if (snapshot.status !== 'RUNNING') {
+        stopPolling()
+        starting.value = false
+        if (snapshot.status === 'DONE') {
+          showToast(
+            `应用完成：新增 ${snapshot.added}、更新 ${snapshot.changed}、退市 ${snapshot.removed}、复用 ${snapshot.reused}、回写键表 ${snapshot.key_updated}`,
+            'success',
+          )
+          preview.value = null
+          await Promise.all([loadStatus(), loadLogs(), loadItems()])
+        } else {
+          showToast(`应用失败：${snapshot.error ?? '未知错误'}`, 'error')
+        }
+      }
+    } catch (err) {
+      stopPolling()
+      starting.value = false
+      showToast(`读取运行状态失败：${(err as Error).message}`, 'error')
+    }
+  }, 800)
+}
+
+function stopPolling() {
+  if (pollTimer !== null) {
+    window.clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
+// ---------- 工具 ----------
+function nullable(value?: string | null): string | null {
+  if (value === undefined || value === null) return null
+  const text = String(value).trim()
+  return text === '' ? null : text
+}
+
+function diffColor(diff: string): string {
+  switch (diff) {
+    case 'added':
+      return 'success'
+    case 'changed':
+      return 'warning'
+    case 'removed':
+      return 'error'
+    case 'unchanged':
+      return 'grey'
+    default:
+      return 'primary'
+  }
+}
+
+function actionText(action?: string | null): string {
+  if (!action) return '（规则默认）'
+  return action
+}
+
+function statusColor(value: string): string {
+  if (value === 'ACTIVE') return 'success'
+  if (value === 'PENDING') return 'warning'
+  return 'grey'
+}
+
+onMounted(loadAll)
+onBeforeUnmount(stopPolling)
+</script>
+
+<template>
+  <v-card>
+    <v-card-title class="d-flex align-center flex-wrap ga-2">
+      <v-icon icon="mdi-transit-connection-variant" class="mr-2" />
+      USC 映射规则
+      <v-chip v-if="status" size="small" variant="tonal" prepend-icon="mdi-source-branch">
+        规则版本 {{ status.rule_version }}
+      </v-chip>
+      <v-chip v-if="status" size="small" variant="tonal" prepend-icon="mdi-format-list-numbered">
+        条目 {{ status.item_active }} / {{ status.item_count }}
+      </v-chip>
+      <v-chip v-if="status" size="small" variant="tonal" prepend-icon="mdi-check-decagram-outline">
+        键表匹配 {{ matchRate }}%
+      </v-chip>
+      <v-chip v-if="status" size="small" variant="tonal" prepend-icon="mdi-timer-outline">
+        定时同步 {{ cronText }}
+      </v-chip>
+      <v-spacer />
+      <v-btn variant="text" prepend-icon="mdi-refresh" :loading="loading" @click="loadAll">刷新</v-btn>
+    </v-card-title>
+
+    <v-tabs v-model="tab" density="compact" color="primary">
+      <v-tab value="rules">规则与条目</v-tab>
+      <v-tab value="diff">预演与应用</v-tab>
+      <v-tab value="logs">审计日志</v-tab>
+    </v-tabs>
+
+    <v-card-text>
+      <!-- Tab 1：规则 + 条目 -->
+      <v-window v-model="tab">
+        <v-window-item value="rules">
+          <v-row dense>
+            <v-col cols="12" md="4">
+              <v-card variant="tonal">
+                <v-card-title class="text-subtitle-1">规则层（{{ rules.length }}）</v-card-title>
+                <v-list density="compact" nav>
+                  <v-list-item
+                    v-for="rule in rules"
+                    :key="rule.rule_no"
+                    :active="rule.rule_no === selectedRule"
+                    @click="selectRule(rule.rule_no)"
+                  >
+                    <v-list-item-title class="d-flex align-center ga-2">
+                      <v-chip size="x-small" variant="flat">{{ rule.rule_no }}</v-chip>
+                      {{ rule.rule_name }}
+                      <v-spacer />
+                      <v-chip size="x-small" variant="text">{{ rule.item_count }}</v-chip>
+                    </v-list-item-title>
+                    <v-list-item-subtitle class="text-caption">
+                      {{ rule.rule_type }} · priority {{ rule.priority }} · {{ rule.match_scope }}
+                      <template v-if="rule.default_action"> · {{ rule.default_action }}</template>
+                      <template v-if="rule.flag_enable !== '1'"> · 已停用</template>
+                    </v-list-item-subtitle>
+                    <v-list-item-subtitle v-if="rule.rule_desc" class="text-caption text-wrap">
+                      {{ rule.rule_desc }}
+                    </v-list-item-subtitle>
+                  </v-list-item>
+                </v-list>
+              </v-card>
+            </v-col>
+
+            <v-col cols="12" md="8">
+              <div class="d-flex flex-wrap align-center ga-2 mb-2">
+                <v-text-field
+                  v-model="filterMarket"
+                  label="市场"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  style="max-width: 120px"
+                  @keyup.enter="itemPage = 1; loadItems()"
+                />
+                <v-select
+                  v-model="filterStatus"
+                  :items="[
+                    { title: '全部状态', value: '' },
+                    { title: '生效', value: 'ACTIVE' },
+                    { title: '待生效', value: 'PENDING' },
+                    { title: '已停用', value: 'RETIRED' },
+                  ]"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  style="max-width: 150px"
+                  @update:model-value="itemPage = 1; loadItems()"
+                />
+                <v-text-field
+                  v-model="filterKeyword"
+                  label="代码/说明"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  style="max-width: 180px"
+                  @keyup.enter="itemPage = 1; loadItems()"
+                />
+                <v-btn size="small" variant="tonal" @click="itemPage = 1; loadItems()">查询</v-btn>
+                <v-spacer />
+                <v-btn size="small" color="primary" prepend-icon="mdi-plus" @click="openCreate">
+                  新增条目
+                </v-btn>
+              </div>
+
+              <v-table density="compact" class="usc-table">
+                <thead>
+                  <tr>
+                    <th>规则</th>
+                    <th>市场</th>
+                    <th>品种</th>
+                    <th>代码</th>
+                    <th>正则</th>
+                    <th>动作</th>
+                    <th>取值</th>
+                    <th>状态</th>
+                    <th>说明</th>
+                    <th class="text-right">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in items" :key="item.idn">
+                    <td>{{ item.rule_no }}</td>
+                    <td>{{ item.market ?? '—' }}</td>
+                    <td>{{ item.instrument ?? '—' }}</td>
+                    <td>{{ item.code ?? '—' }}</td>
+                    <td>{{ item.code_regex ?? '—' }}</td>
+                    <td>{{ actionText(item.action) }}</td>
+                    <td>{{ item.usc_literal ?? item.rewrite_tpl ?? '—' }}</td>
+                    <td>
+                      <v-chip :color="statusColor(item.status)" size="x-small" variant="tonal">
+                        {{ item.status }}
+                      </v-chip>
+                    </td>
+                    <td class="text-caption">
+                      <div>{{ item.item_desc }}</div>
+                      <div v-if="item.source_ref" class="text-disabled">{{ item.source_ref }}</div>
+                    </td>
+                    <td class="text-right text-no-wrap">
+                      <v-btn size="x-small" variant="text" @click="openEdit(item)">编辑</v-btn>
+                      <v-btn
+                        size="x-small"
+                        variant="text"
+                        color="error"
+                        :disabled="item.status === 'RETIRED'"
+                        @click="openRetire(item)"
+                      >
+                        停用
+                      </v-btn>
+                    </td>
+                  </tr>
+                  <tr v-if="items.length === 0">
+                    <td colspan="10" class="text-center text-medium-emphasis">没有符合条件的条目</td>
+                  </tr>
+                </tbody>
+              </v-table>
+
+              <div class="d-flex align-center justify-end mt-2 ga-2">
+                <span class="text-caption text-medium-emphasis">共 {{ itemTotal }} 条</span>
+                <v-pagination
+                  v-model="itemPage"
+                  :length="Math.max(1, Math.ceil(itemTotal / itemPageSize))"
+                  density="compact"
+                  total-visible="5"
+                  @update:model-value="loadItems"
+                />
+              </div>
+            </v-col>
+          </v-row>
+        </v-window-item>
+
+        <!-- Tab 2：预演与应用 -->
+        <v-window-item value="diff">
+          <div class="d-flex flex-wrap align-center ga-2 mb-3">
+            <v-btn color="primary" prepend-icon="mdi-diff" :loading="previewing" @click="doPreview">
+              预演差异
+            </v-btn>
+            <v-btn
+              color="success"
+              prepend-icon="mdi-check-bold"
+              :disabled="!hasDiff || starting"
+              @click="openApply"
+            >
+              立即应用
+            </v-btn>
+            <v-chip v-if="preview" variant="tonal" prepend-icon="mdi-counter">
+              总 {{ preview.total }}
+            </v-chip>
+            <v-chip v-if="preview" color="success" variant="tonal">新增 {{ preview.added }}</v-chip>
+            <v-chip v-if="preview" color="warning" variant="tonal">更新 {{ preview.changed }}</v-chip>
+            <v-chip v-if="preview" color="error" variant="tonal">退市 {{ preview.removed }}</v-chip>
+            <v-chip v-if="preview" color="info" variant="tonal">复用 {{ preview.reused }}</v-chip>
+            <v-chip v-if="preview" variant="tonal">未变 {{ preview.unchanged }}</v-chip>
+            <v-chip v-if="preview && preview.escalated > 0" color="deep-purple" variant="tonal">
+              冲突升级 {{ preview.escalated }}
+            </v-chip>
+          </div>
+
+          <v-alert v-if="!hasDiff" type="info" density="compact" variant="tonal" class="mb-3">
+            预演结果为空（规则算出的映射与结果表一致）。首次上线时这里会显示「新增 73212」，表示结果表尚未建立。
+          </v-alert>
+
+          <v-alert
+            v-if="preview && preview.conflicts.length > 0"
+            type="error"
+            density="compact"
+            variant="tonal"
+            class="mb-3"
+          >
+            存在无法自动消解的 usc 冲突，应用会被拒绝：{{ preview.conflicts.join('；') }}
+          </v-alert>
+
+          <v-table v-if="preview" density="compact" class="usc-table mb-3">
+            <thead>
+              <tr>
+                <th>类别</th>
+                <th>ftmm_symbol</th>
+                <th>市场</th>
+                <th>代码</th>
+                <th>当前 usc</th>
+                <th>新 usc</th>
+                <th>依据</th>
+                <th>复用来源</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in preview.samples" :key="`${row.diff}-${row.ftmm_symbol}`">
+                <td>
+                  <v-chip :color="diffColor(row.diff)" size="x-small" variant="tonal">
+                    {{ row.diff }}
+                  </v-chip>
+                </td>
+                <td>{{ row.ftmm_symbol }}</td>
+                <td>{{ row.market }}</td>
+                <td>{{ row.code }}</td>
+                <td>{{ row.current_usc ?? '—' }}</td>
+                <td>{{ row.new_usc ?? '—' }}</td>
+                <td class="text-caption">{{ row.rule_no }} · {{ row.basis }}</td>
+                <td class="text-caption">{{ row.reuse_of_ftmm ?? '—' }}</td>
+              </tr>
+            </tbody>
+          </v-table>
+
+          <v-card v-if="run" variant="tonal" class="mt-2">
+            <v-card-title class="text-subtitle-1 d-flex align-center ga-2">
+              运行 {{ run.run_id }}
+              <v-chip
+                :color="run.status === 'DONE' ? 'success' : run.status === 'FAILED' ? 'error' : 'info'"
+                size="small"
+                variant="tonal"
+              >
+                {{ run.status }}
+              </v-chip>
+              <v-chip size="small" variant="text">触发 {{ run.trigger }}</v-chip>
+              <v-chip size="small" variant="text">{{ run.elapsed_ms }} ms</v-chip>
+            </v-card-title>
+            <v-card-text>
+              <div class="d-flex flex-wrap ga-2 mb-2">
+                <v-chip size="small" variant="tonal">新增 {{ run.added }}</v-chip>
+                <v-chip size="small" variant="tonal">更新 {{ run.changed }}</v-chip>
+                <v-chip size="small" variant="tonal">退市 {{ run.removed }}</v-chip>
+                <v-chip size="small" variant="tonal">复用 {{ run.reused }}</v-chip>
+                <v-chip size="small" variant="tonal">归档 {{ run.archived }}</v-chip>
+                <v-chip size="small" variant="tonal">回写键表 {{ run.key_updated }}</v-chip>
+              </div>
+              <pre class="usc-log">{{ run.logs.map((l) => `[${l.time}] ${l.level} ${l.text}`).join('\n') }}</pre>
+            </v-card-text>
+          </v-card>
+        </v-window-item>
+
+        <!-- Tab 3：审计日志 -->
+        <v-window-item value="logs">
+          <v-table density="compact" class="usc-table">
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>对象</th>
+                <th>动作</th>
+                <th>主键</th>
+                <th>操作人</th>
+                <th>原因</th>
+                <th>变更</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in logs" :key="row.idn">
+                <td class="text-no-wrap">{{ row.gmt_create }}</td>
+                <td>{{ row.src_table }}</td>
+                <td>{{ row.action }}</td>
+                <td>{{ row.key_text }}</td>
+                <td>{{ row.operator || '—' }}</td>
+                <td class="text-caption">{{ row.reason }}</td>
+                <td class="text-caption text-truncate" style="max-width: 380px">
+                  {{ row.after_json ?? row.before_json ?? '—' }}
+                </td>
+              </tr>
+              <tr v-if="logs.length === 0">
+                <td colspan="7" class="text-center text-medium-emphasis">暂无审计记录</td>
+              </tr>
+            </tbody>
+          </v-table>
+          <div class="d-flex align-center justify-end mt-2 ga-2">
+            <span class="text-caption text-medium-emphasis">共 {{ logTotal }} 条</span>
+            <v-pagination
+              v-model="logPage"
+              :length="Math.max(1, Math.ceil(logTotal / 20))"
+              density="compact"
+              total-visible="5"
+              @update:model-value="loadLogs"
+            />
+          </div>
+        </v-window-item>
+      </v-window>
+    </v-card-text>
+
+    <!-- 编辑条目 -->
+    <v-dialog v-model="editOpen" max-width="720">
+      <v-card>
+        <v-card-title>{{ editIsNew ? '新增条目' : `编辑条目 #${editForm.idn}` }}</v-card-title>
+        <v-card-text>
+          <v-row dense>
+            <v-col cols="12" md="6">
+              <v-select
+                v-model="editForm.rule_no"
+                :items="rules.map((r) => ({ title: `${r.rule_no} ${r.rule_name}`, value: r.rule_no }))"
+                label="规则 *"
+                density="compact"
+                variant="outlined"
+              />
+            </v-col>
+            <v-col cols="12" md="3">
+              <v-text-field v-model="editForm.market" label="市场" density="compact" variant="outlined" />
+            </v-col>
+            <v-col cols="12" md="3">
+              <v-text-field v-model="editForm.instrument" label="品种" density="compact" variant="outlined" />
+            </v-col>
+            <v-col cols="12" md="6">
+              <v-text-field v-model="editForm.code" label="代码（精确匹配）" density="compact" variant="outlined" />
+            </v-col>
+            <v-col cols="12" md="6">
+              <v-text-field v-model="editForm.code_regex" label="正则（与代码二选一）" density="compact" variant="outlined" />
+            </v-col>
+            <v-col cols="12" md="4">
+              <v-select
+                v-model="editForm.action"
+                :items="['CODE', 'FTMM', 'LITERAL', 'REWRITE', 'SH4']"
+                label="动作（空=规则默认）"
+                density="compact"
+                variant="outlined"
+                clearable
+              />
+            </v-col>
+            <v-col cols="12" md="4">
+              <v-text-field v-model="editForm.usc_literal" label="LITERAL 取值" density="compact" variant="outlined" />
+            </v-col>
+            <v-col cols="12" md="4">
+              <v-text-field v-model="editForm.rewrite_tpl" label="REWRITE 替换串" density="compact" variant="outlined" />
+            </v-col>
+            <v-col cols="12" md="4">
+              <v-select
+                v-model="editForm.status"
+                :items="['ACTIVE', 'PENDING', 'RETIRED']"
+                label="状态"
+                density="compact"
+                variant="outlined"
+              />
+            </v-col>
+            <v-col cols="12" md="4">
+              <v-text-field v-model="editForm.scope_env" label="环境范围" density="compact" variant="outlined" />
+            </v-col>
+            <v-col cols="12" md="4">
+              <v-text-field v-model.number="editForm.priority" type="number" label="同层顺序" density="compact" variant="outlined" />
+            </v-col>
+            <v-col cols="12">
+              <v-text-field
+                v-model="editForm.item_desc"
+                label="条目说明 *（为什么这么映射）"
+                density="compact"
+                variant="outlined"
+              />
+            </v-col>
+            <v-col cols="12">
+              <v-text-field v-model="editForm.source_ref" label="出处（如 USCMappingRule.md 附录 B）" density="compact" variant="outlined" />
+            </v-col>
+            <v-col cols="12">
+              <v-text-field v-model="editForm.remark" label="备注" density="compact" variant="outlined" />
+            </v-col>
+          </v-row>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="editOpen = false">取消</v-btn>
+          <v-btn color="primary" :loading="editSaving" @click="saveItem">保存</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 停用条目 -->
+    <v-dialog v-model="retireOpen" max-width="520">
+      <v-card>
+        <v-card-title>停用条目</v-card-title>
+        <v-card-text>
+          <div class="mb-3">
+            将把
+            <strong>{{ retireTarget?.rule_no }}</strong>
+            {{ retireTarget?.market ?? '*' }} / {{ retireTarget?.code ?? retireTarget?.code_regex ?? '*' }}
+            置为 RETIRED，并记录失效日期。条目行保留（不删除），可随时改回 ACTIVE。
+          </div>
+          <v-textarea v-model="retireReason" label="停用原因 *" rows="2" density="compact" variant="outlined" />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="retireOpen = false">取消</v-btn>
+          <v-btn color="error" @click="confirmRetire">确认停用</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 应用 -->
+    <v-dialog v-model="applyOpen" max-width="620">
+      <v-card>
+        <v-card-title>应用 USC 映射</v-card-title>
+        <v-card-text>
+          <v-alert type="warning" density="compact" variant="tonal" class="mb-3">
+            将按预演结果写入 <code>futu.finv_futu_usc_map</code>、回写
+            <code>futu.finv_futu_secu_key.usc</code>；usc 被复用时会先把下游历史行归档到
+            <code>archive.finv_usc_reuse_snapshot</code>。
+          </v-alert>
+          <div class="mb-2">
+            新增 {{ preview?.added }} · 更新 {{ preview?.changed }} · 退市 {{ preview?.removed }} · 复用
+            {{ preview?.reused }}
+          </div>
+          <v-textarea v-model="applyReason" label="应用原因（写入审计日志）" rows="2" density="compact" variant="outlined" />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="applyOpen = false">取消</v-btn>
+          <v-btn color="success" :loading="starting" @click="confirmApply">确认应用</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+  </v-card>
+
+  <!-- 说明（页面最底部唯一说明卡片） -->
+  <v-card variant="tonal" class="mt-3">
+    <v-card-title class="text-subtitle-1">说明</v-card-title>
+    <v-card-text class="text-body-2">
+      <p class="usc-note">
+        <strong>规则分层：</strong>P10 是闸门（前处理后大小写不敏感计数为 1 即定稿），P12/P14 是前处理（指数别名、
+        期货合约后缀），P20–P22 是市场默认，P40/P50 是例外，P60 兜底。命中靠前的规则后不再看后面的规则。
+      </p>
+      <v-divider class="my-2" />
+      <p class="usc-note">
+        <strong>应用前必须先预演：</strong>预演返回 <code>preview_token</code>，应用时后端比对；预演之后规则或键表变了，
+        令牌失效需要重新预演。冲突升级（候选与其它证券撞名时改用 <code>ftmm_symbol</code>）后仍冲突则整次拒绝。
+      </p>
+      <v-divider class="my-2" />
+      <p class="usc-note">
+        <strong>退市与复用：</strong>键表里已不存在的证券会被置为 <code>RETIRED</code>（保留历史行，<code>usc</code> 释放）；
+        <code>usc</code> 允许被新证券复用，但复用时会先归档下游各表历史行，并在结果表写入 <code>reuse_of_ftmm</code> 留痕。
+      </p>
+      <v-divider class="my-2" />
+      <p class="usc-note">
+        <strong>定时同步：</strong>当前 <code>sys_config 20015</code> 为空 = 自动同步关闭（按规则首次应用会改写约 1.68 万行存量
+        <code>usc</code>，需先确认存量对齐方案）。运维在系统配置里填回 cron（如 <code>0 30 3 * * *</code>）即可恢复每日同步。
+      </p>
+    </v-card-text>
+  </v-card>
+</template>
+
+<style scoped>
+.usc-table {
+  font-variant-numeric: tabular-nums;
+}
+
+.usc-log {
+  max-height: 260px;
+  overflow: auto;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  background: rgba(var(--v-theme-surface-variant), 0.4);
+  padding: 8px 10px;
+  border-radius: 4px;
+}
+
+.usc-note {
+  margin: 0;
+  border-left: 3px solid rgba(var(--v-theme-primary), 0.6);
+  padding-left: 10px;
+}
+</style>

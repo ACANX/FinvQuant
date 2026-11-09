@@ -20,6 +20,17 @@
 
 ### 新增
 
+- **USC 映射规则维护页与预演/应用（需求 11073，迁移 `V300158`）**
+  - 新菜单「行情 → 实时行情 → USC 映射规则」（`/Meta/Finv/Quote/Realtime/UscMapping`），三个 Tab：
+    规则与条目（左规则、右条目，可新增/编辑/停用，`item_desc` 必填）、预演与应用（预演 diff + 立即应用 + 运行日志）、审计日志。
+  - 接口 `GET|POST /API/V1/Meta/Finv/Quote/UscMap/*`（Status / Rule.List / Item.List / Item.Save / Item.Retire /
+    Diff.Preview / Sync.Run / Log.List），文档 `Docs/API/UscMap.md` + `UscMap.yml`，菜单文档 `Docs/Menu/Quote/Realtime/UscMapping.md`。
+  - 应用为异步运行（同一时刻一个），带预演令牌校验；`usc` 复用时先归档下游历史行再让位。
+  - **`V300158` 默认关闭每日同步**（`sys.sys_config 20015` 置空）：按当前规则首次应用会改写约 1.68 万行
+    `futu.finv_futu_secu_key.usc`，属跨表主键级变更，需先确认存量对齐方案；手动「预演 → 应用」仍可用。
+  - 实测：只读预演 73,212 行（added 73,212、escalated 434、冲突 0、令牌生成）；事务内落库预演（ROLLBACK）
+    写结果表 73,212 行、回写键表 16,848 行；`20015` 置空后复跑迁移 `UPDATE 0`（幂等）。
+
 - **USC 映射规则结构化建表（需求 11072，迁移 `V300157`）**
   - 把「USC 映射规则」从仓库外文档/手写 SQL 固化为数据库对象，支撑新增上市、退市/过期、周期品种与环境差异：
     `futu.finv_futu_usc_rule`（规则层，9 条）、`futu.finv_futu_usc_rule_item`（条目层，689 条）、

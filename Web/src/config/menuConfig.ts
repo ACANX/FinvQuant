@@ -152,6 +152,14 @@ const finvQuantMenu: MenuNode[] = [
             icon: 'mdi-database-sync-outline',
             path: '/Meta/Finv/Quote/Realtime/SecuParamSync',
           },
+          // 需求 11072：USC 映射规则（规则层/条目层维护 + 预演 diff + 异步应用 + 审计日志）。
+          // 结果表 futu.finv_futu_usc_map 由本页「预演 → 应用」写入，键表 usc 随之回写。
+          {
+            key: 'quote-realtime-usc-mapping',
+            title: 'USC 映射规则',
+            icon: 'mdi-transit-connection-variant',
+            path: '/Meta/Finv/Quote/Realtime/UscMapping',
+          },
         ],
       },
       // 需求 10860：从「数据采集」移入，作为「行情」下第三个三级分组（原「数据采集」随之删除）。
