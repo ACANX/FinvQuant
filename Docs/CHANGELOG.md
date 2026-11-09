@@ -69,6 +69,12 @@
 
 ### 变更
 
+- **`futu.finv_futu_quote_collect` 增加生成列 `ftmm_symbol`（需求 11060，迁移 `V300147`）**
+  - 上游 `finv_quote_secu_key` / `finv_quote_secu_meta` 的键口径是 `ftmm_symbol = {market}.{code}`，本表此前拆成 `market_label` + `futu_symbol` 两列，跨表关联要现拼 `market_label || '.' || futu_symbol`；现加生成列 `GENERATED ALWAYS AS (market_label || '.' || futu_symbol) STORED NOT NULL` + 普通索引 `idx_finv_futu_quote_collect_ftmm_symbol`，由 PG 自动维护（无触发器、无回填脚本，24,418 行随 `ALTER` 一次算完）。
+  - **非唯一**：`market_label` 与 `market_code` 非 1:1，75 组（150 行）重建后撞名（如 `CC.AAVEUSD` 来自 market_code 360 与 413），故不建唯一约束。
+  - 写入约束：INSERT/UPDATE 不得显式赋值该列；仓库内所有写入都是显式列清单且不含它，兼容。
+  - Tab 3 阶段 ②（上游 `finv_quote_secu_key` 回填）的关联由现拼表达式改为直接引用该列。
+
 - **「证券参数同步」Tab 3 改名「上游主键参数回填」（需求 11059）**
   - 原名「上游 usc 回填」只体现了 `usc`，实际回填的是两张上游表的主键参数：`finv_quote_secu_meta.usc` 与 `finv_quote_secu_key.usc` + `stock_id`；改名后与真实语义一致。
   - 只改展示文案（Tab 标签 / Toast 任务名 / 启动接口 message / 说明卡片小标题）与代码注释，接口路径 `.../SecuKey/UscBackfill/*`、字段名、口径与行为均未变。
