@@ -33,7 +33,9 @@
 
 ```
 ① 前处理 futu.f_finv_futu_usc_calc(env)
-     P12 指数别名/特殊指数（LITERAL）→ P14 期货后缀（REWRITE）→ P22 SH 000* 指数（SH4）→ canon_code
+     P12 指数别名/特殊指数（LITERAL）→ P14 期货后缀（REWRITE）→ P16 指数代码去前导点（REWRITE）
+     → P22 SH 000* 指数（SH4）→ canon_code
+     另：富途全码里的双点会被折叠成单点（`AU..XFL` → `AU.XFL`），最终 usc 不带前导点。
 ② P10 闸门：lower(canon_code) 在键表里计数 = 1 → usc = canon_code，定稿
 ③ 否则**先分层**（精确 code → 市场+品种正则 → 市场默认 → 兜底 P60）、**同层内**按 ru.priority 取第一条命中条目
      动作：CODE=canon_code / FTMM=ftmm_symbol / LITERAL=usc_literal
