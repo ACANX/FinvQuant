@@ -32,10 +32,11 @@
 
 ```
 ① 前处理 futu.f_finv_futu_usc_calc(env)
-     P12 指数别名/特殊指数（LITERAL）→ P14 期货后缀（REWRITE）→ canon_code
+     P12 指数别名/特殊指数（LITERAL）→ P14 期货后缀（REWRITE）→ P22 SH 000* 指数（SH4）→ canon_code
 ② P10 闸门：lower(canon_code) 在键表里计数 = 1 → usc = canon_code，定稿
-③ 否则按「精确 code → 市场+品种正则 → 市场默认 → 兜底 P60」取 ru.priority 最小的一条命中条目
-     动作：CODE=canon_code / FTMM=ftmm_symbol / LITERAL=usc_literal / SH4='SH'+code 后四位
+③ 否则**先分层**（精确 code → 市场+品种正则 → 市场默认 → 兜底 P60）、**同层内**按 ru.priority 取第一条命中条目
+     动作：CODE=canon_code / FTMM=ftmm_symbol / LITERAL=usc_literal
+     （分层不能省：只按 ru.priority 排会让市场默认 P20=20 压过例外 P40=40/P50=50，实测 660 条例外里 658 条被抢走）
 ④ 冲突升级：候选与其它行 lower() 撞名 → 改用 ftmm_symbol（结果表 rule_no 记 ESCALATE）
 ⑤ 升级后仍撞名 → 本次拒绝（HTTP 500 / 运行 FAILED），人工修规则
 ```
