@@ -8,7 +8,8 @@
 > 11046（异步运行 + 实时日志）、11047（Tab 2 口径确认）、11050（Tab 2 指标同步实现）、
 > 11051（`flag_enable` 规则）、11052（Tab 1 不清空 Tab 2 补的 `url`）、
 > 11054（Tab 3 上游主键参数回填）、11055（多条 `usc` 取值规则）、
-> 11056（Tab 3 同时回填 `finv_quote_secu_key` 的 `usc` + `stock_id`）、11057（键表关联口径）
+> 11056（Tab 3 同时回填 `finv_quote_secu_key` 的 `usc` + `stock_id`）、11057（键表关联口径）、
+> 11060（采集属性表增加生成列 `ftmm_symbol`）
 > 关联接口：[`API/Cdeu/SecuParamSync.md`](../../../API/Cdeu/SecuParamSync.md)
 > 关联数据表：目标 `futu.finv_futu_secu_key`（V300137 建表 / V300139 补 `stock_id`+`usc` / V300141 改名）；
 > 源 Supabase `public.finv_quote_secu_key`（表名可配，默认与上游同名）
@@ -163,9 +164,10 @@
 #### 2.4.4 口径（页面「说明」里同步展示）
 
 - 阶段 ① 关联键 **`stock_id`**（不是 `usc`，也不是「只更新上游 `usc IS NULL` 的行」）；
-- 阶段 ② 关联键 **`ftmm_symbol`**：本地用 `market_label || '.' || futu_symbol` 还原（如 `US.AAPL`、
-  `CC.DASHTRY.FTUS`、`HK.00700`），覆盖 24,162 / 73,212 行（按 `stock_id` 的 10,910 行是其子集），
-  写入 `usc` + `stock_id` 两列；其余 49,050 行本地无依据，跳过；
+- 阶段 ② 关联键 **`ftmm_symbol`**：本地采集属性表 `V300147` 起有**生成列 `ftmm_symbol`**
+  （= `market_label || '.' || futu_symbol`），据此等值关联（如 `US.AAPL`、`CC.DASHTRY.FTUS`、`HK.00700`），
+  覆盖 24,162 / 73,212 行（按 `stock_id` 的 10,910 行是其子集），写入 `usc` + `stock_id` 两列；
+  其余 49,050 行本地无依据，跳过；
 - 本地同一 `stock_id` 有多条 `usc`（实测 70 组）时取**等于上游 `ftmm_symbol`** 的那条，都不等则计入「歧义」跳过；
 - 本地有、上游没有的 `stock_id`（13,438 个，期货/加密 FTUS 等 futu 独有）计入「无对应」；
 - 上游 `usc` 已等于目标值 → 「未变」，**不发请求**（复跑幂等）；

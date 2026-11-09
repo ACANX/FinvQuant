@@ -12,7 +12,7 @@ info:
     11052（Tab 1 不清空 Tab 2 补的 url）、11054（Tab 3 上游主键参数回填，方向为本地 → 上游）、
     11055（本地同一 stock_id 多条 usc 时取等于上游 ftmm_symbol 的那条）、
     11056（Tab 3 同时回填 public.finv_quote_secu_key 的 usc + stock_id）、
-    11057（键表关联口径：market_label || '.' || futu_symbol 重建 ftmm_symbol）；
+    11057（键表关联口径：按 ftmm_symbol 关联，不用 stock_id），11060（采集属性表增加生成列 ftmm_symbol）；
     连接配置 20013（需求 11041）。
     Tab 2 来源固定 public.finv_quote_secu_meta，一条记录写三张表：
     cdeu.finv_quote_secu_indicator（131 列同名）/ futu.finv_futu_quote_collect（身份字段同名）/
@@ -487,7 +487,7 @@ paths:
         一次运行依次写两张上游表。**该接口会写入线上 Supabase**（逐行 PATCH）。
         ① public.finv_quote_secu_meta.usc：按 stock_id 关联，来源 futu.finv_futu_quote_collect；
         ② public.finv_quote_secu_key 的 usc + stock_id：按 ftmm_symbol 关联，本地用
-           market_label || '.' || futu_symbol 还原该符号（覆盖 24,162 / 73,212 行，
+           生成列 ftmm_symbol（= market_label || '.' || futu_symbol，V300147）关联（覆盖 24,162 / 73,212 行，
            按 stock_id 关联的 10,910 行是其子集）。
         上游值与目标一致时不发请求（未变，幂等）；为空 → 填入；有值但不同 → 覆盖；
         本地同一键有多条 usc 时取等于 ftmm_symbol 的那条，都不等则计入「歧义」并跳过；

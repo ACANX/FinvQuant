@@ -91,12 +91,13 @@ func (s *Store) ReadLocalRows(ctx context.Context) ([]LocalRow, error) {
 	return result, nil
 }
 
-// KeySymbolExpr 由本地采集属性表重建 ftmm_symbol 的表达式（需求 11057）。
+// KeySymbolExpr 采集属性表侧与上游 ftmm_symbol 对齐的表达式（需求 11057/11060）。
 //
 // 上游键表的 ftmm_symbol = `{market}.{code}`，本地采集属性表把它拆成 market_label + futu_symbol
-// （如 US.AAPL → market_label=US、futu_symbol=AAPL；CC.DASHTRY.FTUS → CC + DASHTRY.FTUS），
-// 二者用 `market_label || '.' || futu_symbol` 可精确还原（实测命中 24,162 / 73,212 个键）。
-const KeySymbolExpr = "q.market_label || '.' || q.futu_symbol"
+// （如 US.AAPL → market_label=US、futu_symbol=AAPL；CC.DASHTRY.FTUS → CC + DASHTRY.FTUS）。
+// `V300147` 起该表带生成列 `ftmm_symbol`（= market_label || '.' || futu_symbol，STORED，带索引），
+// 这里直接引用它做等值关联（比每次现拼表达式更快、也不会写错分隔符）。
+const KeySymbolExpr = "q.ftmm_symbol"
 
 // ReadLocalKeyRows 读出表 ② 来源：本地键表（决定候选键集）⋈ 采集属性表（提供 usc + stock_id）。
 //

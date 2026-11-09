@@ -299,7 +299,7 @@
 | 环节 | 规则 |
 |------|------|
 | 阶段 ① 关联键 | `stock_id`（两表都有、上游唯一且 NOT NULL）——**不是** `usc`，也不是「只更新 `usc IS NULL` 的行」 |
-| 阶段 ② 关联键（需求 11057） | `ftmm_symbol`（上游主键）；本地把它拆成 `market_label` + `futu_symbol`，用 **`market_label \|\| '.' \|\| futu_symbol`** 精确还原（如 `US.AAPL`、`CC.DASHTRY.FTUS`、`HK.00700`）。按 `stock_id` 关联只能覆盖 10,910 行，是这条路径的<u>子集</u>，因此不作为主路径 |
+| 阶段 ② 关联键（需求 11057/11060） | `ftmm_symbol`（上游主键）；本地采集属性表 `V300147` 起带**生成列 `ftmm_symbol`**（= `market_label \|\| '.' \|\| futu_symbol`，STORED + 索引），用它等值关联（如 `US.AAPL`、`CC.DASHTRY.FTUS`、`HK.00700`）。按 `stock_id` 关联只能覆盖 10,910 行，是这条路径的<u>子集</u>，因此不作为主路径 |
 | 阶段 ② 写入值 | `usc` = 本地采集属性表该符号的 `usc`；`stock_id` = 同一行的 `stock_id` |
 | 待处理量 | 阶段 ①：本地按 `stock_id` 去重（24,418 行 → 24,348 个），升序分批；阶段 ②：本地键表 73,212 行 → 可回填 24,162 个 `ftmm_symbol`（无依据 49,050），升序分批 |
 | 取值 | 本地该 `stock_id` 只有一条 → 取它；有多条 → 取**等于上游 `ftmm_symbol`** 的那条（需求 11055），都不等则跳过并计「歧义」 |
