@@ -6,7 +6,7 @@
 //   POST /Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run        异步启动（返回 run_id）
 //   GET  /Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run        运行时快照（进度 + 逐批实时日志）
 // Tab 2「FT证券指标数据同步」（需求 11050，来源表固定 public.finv_quote_secu_meta）：
-//   GET  /Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Status          三张目标表行数
+//   GET  /Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Status          两张目标表行数
 //   POST /Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run        异步启动
 //   GET  /Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run        运行时快照
 //
@@ -655,7 +655,7 @@ onBeforeUnmount(() => {
 
           <v-divider class="my-3" />
 
-          <div class="text-caption text-medium-emphasis mb-1">本地目标表（一次同步写三张）</div>
+          <div class="text-caption text-medium-emphasis mb-1">本地目标表（一次同步写两张）</div>
           <div class="d-flex flex-wrap ga-2">
             <v-chip
               v-for="item in indStatus?.targets || []"
@@ -1008,9 +1008,6 @@ onBeforeUnmount(() => {
             <code>futu_symbol</code> 由 <code>public.finv_quote_secu_meta.stock_code</code>（缺失时用
             <code>ftmm_symbol</code>）去掉市场前缀派生；<code>flag_enable</code> 保持表默认值不覆盖），
             <b>通过 <code>usc</code> 主键关联</b>；
-            <br />
-            ③ <code>futu.finv_futu_secu_key</code>：<b>不再同步</b>——上游已支持 <code>url</code>（源
-            <code>secu_url</code>）与 <code>stock_id</code> 的回填（本页 Tab 1 / Tab 3 即可完成）。
             <br />
             两表主键均为 <code>usc</code>，<b>源记录 <code>usc</code> 为空时用 <code>ftmm_symbol</code> 占位</b>。
             采集属性表有唯一约束 <code>(market_code, futu_symbol)</code>：若该组合已被别的 <code>usc</code> 占用，该行跳过并计入「跳过」。

@@ -8,7 +8,7 @@
 > - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run` —— 运行时快照（`progress` + 逐批实时日志，页面轮询）
 >
 > Tab 2「FT证券指标数据同步」（需求 11050）：
-> - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Status` —— 三张目标表行数
+> - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Status` —— 两张目标表行数
 > - `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run` —— 异步启动
 > - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run` —— 运行时快照（进度 + 逐批实时日志）
 >
@@ -248,7 +248,7 @@
 |------|------|------|
 | `configured` / `project_id` / `api_key_masked` / `config_error` | — | 同 §3（20013 状态，key 脱敏） |
 | `source_table` | string | 固定 `public.finv_quote_secu_meta` |
-| `targets[]` | array | 目标表的 `{table, rows}`：指标表 / 采集属性表 / 证券键表（键表仍展示，但它由 Tab 1 维护，本同步不写） |
+| `targets[]` | array | **本同步真正写入的两张目标表**的 `{table, rows}`：指标表 / 采集属性表（不再含证券键表，需求 11064） |
 | `batch_size_default` | int | 默认批量 1000 |
 
 #### `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run`

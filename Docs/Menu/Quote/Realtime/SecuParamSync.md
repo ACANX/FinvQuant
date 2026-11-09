@@ -92,7 +92,7 @@
 |------|------|
 | Supabase 连接（20013） | 同 Tab 1：`已配置` / `未配置` + 项目 ID + 脱敏 key 前缀 |
 | 上游源表（固定） | `public.finv_quote_secu_meta`（不可改） |
-| 本地目标表（一次同步写三张） | 三个 chip：`cdeu.finv_quote_secu_indicator` / `futu.finv_futu_quote_collect` / `futu.finv_futu_secu_key`，各带当前行数 |
+| 本地目标表（一次同步写两张） | 两个 chip：`cdeu.finv_quote_secu_indicator` / `futu.finv_futu_quote_collect`，各带当前行数（**不再展示** `futu.finv_futu_secu_key`——它不在本 Tab 同步，需求 11064） |
 
 #### 2.3.2 同步参数（第二张卡片）
 

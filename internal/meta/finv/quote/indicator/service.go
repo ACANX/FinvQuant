@@ -1,5 +1,5 @@
 // Package indicator 实现「FT证券指标数据同步」（需求 11050）：把上游 Supabase
-// public.finv_quote_secu_meta 的每一条记录**一次写三张本地表**。
+// public.finv_quote_secu_meta 的每一条记录**一次写两张本地表**（需求 11063 起不再写证券键表）。
 //
 // 字段分配（对应「证券参数同步 → FT证券指标数据同步」Tab 2）：
 //
@@ -51,7 +51,7 @@ const (
 	IndicatorTable = "cdeu.finv_quote_secu_indicator"
 	// QuoteCollectTable 富途采集属性表。
 	QuoteCollectTable = "futu.finv_futu_quote_collect"
-	// SecuKeyTable 证券键表。
+	// SecuKeyTable 证券键表（本同步**不写**，仅文档/日志回指用；需求 11063）。
 	SecuKeyTable = "futu.finv_futu_secu_key"
 )
 
@@ -131,7 +131,7 @@ type StatusSnapshot struct {
 	ConfigError string `json:"config_error,omitempty"`
 	// SourceTable 上游源表（固定 public.finv_quote_secu_meta）。
 	SourceTable string `json:"source_table"`
-	// Targets 三张本地目标表的行数。
+	// Targets 本同步真正写入的两张目标表行数（指标表 / 采集属性表）。
 	Targets []TableStat `json:"targets"`
 	// BatchSizeDefault 默认批量。
 	BatchSizeDefault int `json:"batch_size_default"`
@@ -158,7 +158,7 @@ func NewService(pool *pgxpool.Pool) *Service {
 	return service
 }
 
-// Status 返回状态快照：只读本地（配置 + 三张目标表行数）。
+// Status 返回状态快照：只读本地（配置 + 两张目标表行数）。
 func (s *Service) Status(ctx context.Context) (StatusSnapshot, error) {
 	snapshot := StatusSnapshot{
 		SourceTable:      SourceTable,
@@ -191,7 +191,7 @@ func (s *Service) Sync(ctx context.Context, req Request) (Result, error) {
 	return s.SyncWithProgress(ctx, req, nil)
 }
 
-// SyncWithProgress 执行一次同步：按 ftmm_symbol 升序分批拉取上游并写三张本地表。
+// SyncWithProgress 执行一次同步：按 ftmm_symbol 升序分批拉取上游并写两张本地表。
 //
 // 每批写入完成后回调 onProgress（可为 nil），供异步运行写实时日志。
 // 任一批失败即返回错误；已写入的批次不回滚（增量写入可重入）。
@@ -212,8 +212,8 @@ func (s *Service) SyncWithProgress(ctx context.Context, req Request, onProgress 
 
 	batchSize := NormalizeBatchSize(req.BatchSize)
 	client := s.newClient(values.SupabaseConn)
-	log.Printf("[cdeu][indicator] sync start source=%s targets=%s,%s,%s batch_size=%d project=%s",
-		SourceTable, IndicatorTable, QuoteCollectTable, SecuKeyTable, batchSize, values.SupabaseConn.ProjectID)
+	log.Printf("[cdeu][indicator] sync start source=%s targets=%s,%s batch_size=%d project=%s",
+		SourceTable, IndicatorTable, QuoteCollectTable, batchSize, values.SupabaseConn.ProjectID)
 
 	seen := 0
 	for batch := 1; ; batch++ {
