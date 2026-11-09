@@ -75,7 +75,13 @@ SELECT c.ftmm_symbol, c.market, c.code, c.instrument, c.canon_code, c.canon_cnt,
            AND ( (i.code IS NOT NULL AND lower(i.code) = lower(c.canon_code))
               OR (i.code IS NULL AND i.code_regex IS NOT NULL AND c.code ~* i.code_regex)
               OR (i.code IS NULL AND i.code_regex IS NULL) )
-         ORDER BY ru.priority, i.priority
+         -- 先分层再比规则优先级：精确 code（P40/P50）→ 正则（市场内特例）→ 市场默认（P20/P21）→ 兜底（P60）。
+         -- 只按 ru.priority 排会让市场默认（P20=20）压过例外（P40=40/P50=50），实测 660 条例外里 658 条被抢走。
+         ORDER BY CASE WHEN i.code IS NOT NULL THEN 1
+                       WHEN i.code_regex IS NOT NULL THEN 2
+                       WHEN i.market IS NOT NULL THEN 3
+                       ELSE 4 END,
+                  ru.priority, i.priority
          LIMIT 1) m ON true;
 
 CREATE TEMP TABLE _usc_dup AS
