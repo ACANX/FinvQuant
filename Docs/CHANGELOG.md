@@ -69,6 +69,12 @@
 
 ### 变更
 
+- **按 `finv_futu_query_stat.json` 补录证券初始数据（需求 11069，迁移 `V300153`）**
+  - `public.finv_security` 补 480 行、`futu.finv_futu_quote_collect` 补 252 行（来源共 480 个 usc）；
+  - 口径以 `public.finv_quote_secu_meta` 为主（按 usc 命中 226 行），其余按本地既有主导写法派生（市场码/交易所码/板块子类/币种/时区）；
+  - 222 个「占位 usc = `{market_label}.{futu_symbol}`」的已有行未改动（唯一键冲突，usc 归一化另案）；
+  - 实测：`finv_security` 21,223 → 21,703、`quote_collect` 25,401 → 25,653，`schema_version=300153`，复跑零新增。
+
 - **brs schema 自身的 3 张表纳入全量备份（需求 11068，迁移 `V300152`）**
   - 新增登记 `brs.brs_bak_rdb_table_full`(600)、`brs.brs_bak_rdb_table_incr`(450)、`brs.brs_bak_rdb_datasource`(440)；
   - 补齐备份链自指缺口：恢复时可直接从产物得知备份范围、分片规则与数据源；cron/OSS 配置存于已登记的 `sys.sys_config`；
