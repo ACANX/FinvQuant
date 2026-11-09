@@ -27,6 +27,7 @@ import (
 	"github.com/acanx/finvquant/internal/meta/finv/brs"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
 	_ "github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/job"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/uscrule"
 	"github.com/acanx/finvquant/internal/meta/finv/sys"
 	"github.com/acanx/finvquant/internal/redisclient"
 	"github.com/acanx/finvquant/internal/static"
@@ -97,6 +98,12 @@ func main() {
 	})
 	go brsRunner.Start(ctx)
 
+	// USC 映射规则同步（需求 11072）：手动触发与每日 cron 共用同一个运行器；
+	// cron 表达式读 sys.sys_config 20015（默认每天 03:30 一次），不挂 cdeu workflow。
+	uscService := uscrule.NewService(pool)
+	uscRunner := uscrule.NewRunner(uscService)
+	go uscRunner.StartCron(ctx, uscrule.DefaultEnv)
+
 	// BRS 大表增量（分片）备份运行器：只做手动触发（需求 10905），
 	// 与小表全量备份各自独立的状态与执行链，互不阻塞。
 	brsSliceRunner := brs.NewSliceRunner(pool, brs.Options{
@@ -131,7 +138,7 @@ func main() {
 	// 16001：API 服务
 	apiServer := &http.Server{
 		Addr:              cfg.ListenAddr(),
-		Handler:           api.NewRouter(&api.Deps{Pool: pool, Redis: rdb, Version: version, Commit: commit, Server: "finvquant", Config: cfg, ExportArchive: archiveService, Auth: authService, BRSRunner: brsRunner, BRSSliceRunner: brsSliceRunner}),
+		Handler:           api.NewRouter(&api.Deps{Pool: pool, Redis: rdb, Version: version, Commit: commit, Server: "finvquant", Config: cfg, ExportArchive: archiveService, Auth: authService, BRSRunner: brsRunner, BRSSliceRunner: brsSliceRunner, USCSync: uscService, USCRunner: uscRunner}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

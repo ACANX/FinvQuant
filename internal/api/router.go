@@ -21,6 +21,7 @@ import (
 	"github.com/acanx/finvquant/internal/meta/finv/quote/indicator"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/secukey"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/uscbackfill"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/uscrule"
 )
 
 // Deps 路由依赖。
@@ -39,6 +40,10 @@ type Deps struct {
 	BRSRunner *brs.Runner
 	// BRSSliceRunner 大表分片备份运行器（手动触发 + 运行状态）；为 nil 时不注册相关路由。
 	BRSSliceRunner *brs.SliceRunner
+	// USCSync USC 映射规则服务（需求 11072）；为 nil 时不注册相关路由（仅供单元测试构造）。
+	USCSync *uscrule.Service
+	// USCRunner USC 映射同步运行器（手动触发 + 每日 cron 共用）；为 nil 时不注册相关路由。
+	USCRunner *uscrule.Runner
 }
 
 // NewRouter 构建 Gin 路由（默认监听端口 16001）。
@@ -239,6 +244,22 @@ func NewRouter(deps *Deps) *gin.Engine {
 			group.POST("/Job/Pause", archive.JobPause)
 			group.POST("/Job/Cancel", archive.JobCancel)
 			group.POST("/Maturity/Refresh", archive.MaturityRefresh)
+		}
+
+		// USC 映射规则维护（需求 11072）：规则/条目维护 + 预演 diff + 异步应用 + 审计日志。
+		// 前缀按用户指定为 /Meta/Finv/Quote/UscMap（不带 Cdeu 段）。
+		if deps.USCSync != nil && deps.USCRunner != nil {
+			uscMap := handler.NewUscMap(deps.USCSync, deps.USCRunner)
+			uscGroup := apiGroup.Group("/Meta/Finv/Quote/UscMap")
+			uscGroup.GET("/Status", uscMap.Status)
+			uscGroup.GET("/Rule/List", uscMap.RuleList)
+			uscGroup.GET("/Item/List", uscMap.ItemList)
+			uscGroup.POST("/Item/Save", uscMap.ItemSave)
+			uscGroup.POST("/Item/Retire", uscMap.ItemRetire)
+			uscGroup.GET("/Diff/Preview", uscMap.DiffPreview)
+			uscGroup.POST("/Sync/Run", uscMap.StartSyncRun)
+			uscGroup.GET("/Sync/Run", uscMap.SyncRunStatus)
+			uscGroup.GET("/Log/List", uscMap.LogList)
 		}
 
 		// BRS 备份登记维护（brs.brs_bak_rdb_table_full）：查询 / 新增编辑 / 启用禁用。
