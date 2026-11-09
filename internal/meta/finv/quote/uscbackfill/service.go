@@ -1,4 +1,4 @@
-// Package uscbackfill 实现「上游 usc 回填」（需求 11054/11056）：
+// Package uscbackfill 实现「上游主键参数回填」（需求 11054/11056）：
 // **方向与 Tab 1/2 相反（本地 → 上游）**，一次运行写两张上游表：
 //
 //	① public.finv_quote_secu_meta.usc          按 stock_id 关联（需求 11054）

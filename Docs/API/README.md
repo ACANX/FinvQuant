@@ -94,7 +94,7 @@ Authorization: Bearer <token>
 （Supabase 证券键表 → `futu.finv_futu_secu_key`，按 `ftmm_symbol` 分批增量 upsert）；
 另含 Tab 2 指标同步三支：`GET .../SecuKey/Indicator/Status`、`POST|GET .../SecuKey/Indicator/Sync/Run`
 （上游 `public.finv_quote_secu_meta` → `cdeu.finv_quote_secu_indicator` + `futu.finv_futu_quote_collect` + `futu.finv_futu_secu_key`）；
-以及 Tab 3 上游 usc 回填三支：`GET .../SecuKey/UscBackfill/Status`、`POST|GET .../SecuKey/UscBackfill/Sync/Run`
+以及 Tab 3 上游主键参数回填三支：`GET .../SecuKey/UscBackfill/Status`、`POST|GET .../SecuKey/UscBackfill/Sync/Run`
 （**反向**，一次写两张上游表：`public.finv_quote_secu_meta.usc` 按 `stock_id`；
 `public.finv_quote_secu_key.usc + stock_id` 按 `ftmm_symbol`）；
 连接配置 20013；契约 [.yml](Cdeu/SecuParamSync.yml)）

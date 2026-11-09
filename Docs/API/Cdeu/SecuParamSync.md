@@ -7,18 +7,18 @@
 > - `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run` —— 异步启动同步（返回 `run_id`，需求 11046）
 > - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run` —— 运行时快照（`progress` + 逐批实时日志，页面轮询）
 >
-> Tab 2「证券指标数据同步」（需求 11050）：
+> Tab 2「FT证券指标数据同步」（需求 11050）：
 > - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Status` —— 三张目标表行数
 > - `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run` —— 异步启动
 > - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run` —— 运行时快照（进度 + 逐批实时日志）
 >
-> Tab 3「上游 usc 回填」（需求 11054/11056，方向相反：本地 → 上游，**一次运行写两张表**）：
+> Tab 3「上游主键参数回填」（需求 11054/11056，方向相反：本地 → 上游，**一次运行写两张表**）：
 > - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Status` —— 两张来源表的行数与可回填量
 > - `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run` —— 异步启动
 > - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run` —— 运行时快照（进度 + 逐批实时日志）
 > 需求：11042（菜单与页面）、11043（同步实现）、11044（源表名可配 20014）、11045（页面拆两个 Tab）、
 > 11046（异步运行 + 实时日志）、11050（Tab 2 指标同步）、11051（`flag_enable` 规则）、
-> 11052（Tab 1 不清空 Tab 2 补的 `url`）、11054（Tab 3 上游 usc 回填）、
+> 11052（Tab 1 不清空 Tab 2 补的 `url`）、11054（Tab 3 上游主键参数回填）、
 > 11055（多条 `usc` 的取值规则）、11056（Tab 3 同时回填 `finv_quote_secu_key` 的 `usc` + `stock_id`）、
 > 11057（键表关联口径：用 `market_label || '.' || futu_symbol` 重建 `ftmm_symbol`）；连接配置 20013（需求 11041）
 > 权限：需登录（内部接口，不对外暴露 OpenAPI）
@@ -207,7 +207,7 @@
 - 每批一行，含**本批差值**（新增/更新/未变/跳过）与本批耗时；失败时最后一行是 `ERROR 同步失败：<原因>`；
 - 日志上限 2000 行（按批一行，7 万行/1000 批约 74 行，余量充足），超限保留最近 2000 条。
 
-## 6. 证券指标数据同步（Tab 2，需求 11050）
+## 6. FT证券指标数据同步（Tab 2，需求 11050）
 
 来源固定为上游 `public.finv_quote_secu_meta`（10,910 行、145 列），**一条上游记录一次写三张本地表**。
 
@@ -285,7 +285,7 @@
 | 键表补全 | `url` 与 `stock_id` 各 10,910 行写回（`futu.finv_futu_secu_key` 共 73,212 行） |
 | Tab 1 与 Tab 2 共存（需求 11052） | Tab 2 补完 `url` 后再跑 Tab 1：`update=0`、`unchanged=73212`，`url` 未被清空（源键表 `url` 全为 NULL，Tab 1 改为 `COALESCE(EXCLUDED.url, t.url)`） |
 
-## 7. 上游 usc 回填（Tab 3，需求 11054/11056/11057）
+## 7. 上游主键参数回填（Tab 3，需求 11054/11056/11057）
 
 **方向相反（本地 → 上游）**，一次运行依次写两张上游表：
 

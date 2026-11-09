@@ -1,7 +1,7 @@
-// Package indicator 实现「证券指标数据同步」（需求 11050）：把上游 Supabase
+// Package indicator 实现「FT证券指标数据同步」（需求 11050）：把上游 Supabase
 // public.finv_quote_secu_meta 的每一条记录**一次写三张本地表**。
 //
-// 字段分配（对应「证券参数同步 → 证券指标数据同步」Tab 2）：
+// 字段分配（对应「证券参数同步 → FT证券指标数据同步」Tab 2）：
 //
 //	① cdeu.finv_quote_secu_indicator：131 列同名同步（dt_update 由触发器维护，不参与写入/比对）
 //	② futu.finv_futu_quote_collect：身份字段同名同步

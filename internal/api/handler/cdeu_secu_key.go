@@ -20,13 +20,13 @@ import (
 //	POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run 异步启动（返回 run_id，需求 11046）
 //	GET  /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run 运行时快照（进度 + 逐批实时日志，前端轮询）
 //
-// 同一处理器还承载「证券指标数据同步」Tab（需求 11050）：
+// 同一处理器还承载「FT证券指标数据同步」Tab（需求 11050）：
 //
 //	GET  /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Status      只读快照（三张目标表行数）
 //	POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run    异步启动（返回 run_id）
 //	GET  /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run    运行时快照（进度 + 逐批日志）
 //
-// 以及「上游 usc 回填」Tab（需求 11054，方向相反：本地 → 上游）：
+// 以及「上游主键参数回填」Tab（需求 11054，方向相反：本地 → 上游）：
 //
 //	GET  /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Status     只读快照（本地源表行数 / 待处理 stock_id）
 //	POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run   异步启动（返回 run_id）
@@ -37,7 +37,7 @@ import (
 // 约定：JSON 体字段 snake_case、统计字段用动词原形（ApiSpec §1.1/§3）；
 // 日志前缀 `[cdeu][secukey]`。API Key 属敏感信息，响应里只出现项目 ID 与脱敏前缀。
 
-// SecuKey 证券参数同步处理器（三个 Tab：基础参数同步 / 指标数据同步 / 上游 usc 回填）。
+// SecuKey 证券参数同步处理器（三个 Tab：基础参数同步 / 指标数据同步 / 上游主键参数回填）。
 type SecuKey struct {
 	service *secukey.Service
 	runner  *secukey.Runner
@@ -46,7 +46,7 @@ type SecuKey struct {
 	indicator       *indicator.Service
 	indicatorRunner *indicator.Runner
 
-	// backfill 上游 usc 回填服务与运行器（Tab 3，需求 11054）。
+	// backfill 上游主键参数回填服务与运行器（Tab 3，需求 11054）。
 	backfill       *uscbackfill.Service
 	backfillRunner *uscbackfill.Runner
 }
@@ -252,7 +252,7 @@ func (h *SecuKey) UscBackfillStatus(c *gin.Context) {
 
 // StartUscBackfillRun POST /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run。
 //
-// 异步启动上游 usc 回填：立刻返回 run_id，前端轮询 UscBackfillRunStatus 取进度与逐批日志。
+// 异步启动上游主键参数回填：立刻返回 run_id，前端轮询 UscBackfillRunStatus 取进度与逐批日志。
 // 已有运行在执行时返回 409。注意本接口会**写入线上 Supabase**（PATCH usc 列）。
 func (h *SecuKey) StartUscBackfillRun(c *gin.Context) {
 	var req secuKeySyncRequest
@@ -269,7 +269,7 @@ func (h *SecuKey) StartUscBackfillRun(c *gin.Context) {
 		return
 	}
 	log.Printf("[cdeu][uscbackfill] api run started run_id=%s", run.RunID)
-	c.JSON(http.StatusAccepted, gin.H{"code": 0, "message": "上游 usc 回填任务已启动", "data": run})
+	c.JSON(http.StatusAccepted, gin.H{"code": 0, "message": "上游主键参数回填任务已启动", "data": run})
 }
 
 // UscBackfillRunStatus GET /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run?runId=。

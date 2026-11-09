@@ -105,7 +105,7 @@ func (c *Client) FetchBatch(ctx context.Context, table string, offset, limit int
 	return nil, 0, fmt.Errorf("拉取 Supabase 源表失败（offset=%d, limit=%d）: %w", offset, limit, lastErr)
 }
 
-// FetchRawBatch 拉取一批**原始 JSON 行**（供「证券指标数据同步」按列透传给数据库）。
+// FetchRawBatch 拉取一批**原始 JSON 行**（供「FT证券指标数据同步」按列透传给数据库）。
 //
 // selectCols 为 PostgREST 的 select 表达式（如 "*" 或 "a,b,c"）；表名需已通过
 // syscfg.NormalizeSupabaseTableName 校验；排序固定 ftmm_symbol.asc（上游唯一且 NOT NULL，

@@ -5,12 +5,12 @@
 //   POST /Meta/Finv/Quote/Cdeu/SecuKey/Config          保存源表名（写系统配置 20014）
 //   POST /Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run        异步启动（返回 run_id）
 //   GET  /Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run        运行时快照（进度 + 逐批实时日志）
-// Tab 2「证券指标数据同步」（需求 11050，来源表固定 public.finv_quote_secu_meta）：
+// Tab 2「FT证券指标数据同步」（需求 11050，来源表固定 public.finv_quote_secu_meta）：
 //   GET  /Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Status          三张目标表行数
 //   POST /Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run        异步启动
 //   GET  /Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run        运行时快照
 //
-// Tab 3「上游 usc 回填」（需求 11054，方向相反：本地 → 上游）：
+// Tab 3「上游主键参数回填」（需求 11054，方向相反：本地 → 上游）：
 //   GET  /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Status         本地源表行数 / 待处理 stock_id
 //   POST /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run       异步启动
 //   GET  /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run       运行时快照
@@ -93,7 +93,7 @@ interface IndicatorStatus {
   batch_size_default: number
 }
 
-// Tab 3 运行快照（上游 usc 回填：① meta 表 usc / ② key 表 usc + stock_id）
+// Tab 3 运行快照（上游主键参数回填：① meta 表 usc / ② key 表 usc + stock_id）
 interface BackfillRun extends RunBase {
   kind: string
   phase: string
@@ -333,7 +333,7 @@ async function runBasicSync() {
   await loadStatus()
 }
 
-// ---------- Tab 2：证券指标数据同步 ----------
+// ---------- Tab 2：FT证券指标数据同步 ----------
 const indStatus = ref<IndicatorStatus | null>(null)
 const indStatusLoading = ref(false)
 const indBatchSize = ref(1000)
@@ -371,7 +371,7 @@ async function runIndicatorSync() {
   await loadIndicatorStatus()
 }
 
-// ---------- Tab 3：上游 usc 回填 ----------
+// ---------- Tab 3：上游主键参数回填 ----------
 const bfStatus = ref<BackfillStatus | null>(null)
 const bfStatusLoading = ref(false)
 const bfBatchSize = ref(500)
@@ -405,7 +405,7 @@ async function runBackfill() {
     showToast('系统配置 20013（Supabase 连接配置）未配置，请先填写 {PROJECT_ID}|{APIKEY}', 'warning')
     return
   }
-  await bf.start('上游 usc 回填')
+  await bf.start('上游主键参数回填')
   await loadBackfillStatus()
 }
 
@@ -450,11 +450,11 @@ onBeforeUnmount(() => {
       </v-tab>
       <v-tab value="indicator">
         <v-icon icon="mdi-chart-box-outline" class="mr-2" />
-        证券指标数据同步
+        FT证券指标数据同步
       </v-tab>
       <v-tab value="backfill">
         <v-icon icon="mdi-upload-outline" class="mr-2" />
-        上游 usc 回填
+        上游主键参数回填
       </v-tab>
     </v-tabs>
 
@@ -617,7 +617,7 @@ onBeforeUnmount(() => {
       </v-card>
     </div>
 
-    <!-- ============ Tab 2：证券指标数据同步 ============ -->
+    <!-- ============ Tab 2：FT证券指标数据同步 ============ -->
     <div v-else-if="tab === 'indicator'">
       <v-card class="mt-3">
         <v-card-title class="d-flex align-center">
@@ -773,7 +773,7 @@ onBeforeUnmount(() => {
       </v-card>
     </div>
 
-    <!-- ============ Tab 3：上游 usc 回填 ============ -->
+    <!-- ============ Tab 3：上游主键参数回填 ============ -->
     <div v-else>
       <v-card class="mt-3">
         <v-card-title class="d-flex align-center">
@@ -996,7 +996,7 @@ onBeforeUnmount(() => {
         <v-divider class="my-3" />
 
         <div class="finv-secukey-note">
-          <div class="finv-secukey-note-title">证券指标数据同步</div>
+          <div class="finv-secukey-note-title">FT证券指标数据同步</div>
           <div class="text-body-2 finv-secukey-note-body">
             源 <code>public.finv_quote_secu_meta</code>（固定）的每条记录<b>一次写三张表</b>：
             ① <code>cdeu.finv_quote_secu_indicator</code>：131 列同名同步（<code>dt_update</code> 由触发器维护，不参与写入与比对）；
@@ -1014,7 +1014,7 @@ onBeforeUnmount(() => {
         <v-divider class="my-3" />
 
         <div class="finv-secukey-note">
-          <div class="finv-secukey-note-title">上游 usc 回填（方向相反：本地 → 上游，写两张表）</div>
+          <div class="finv-secukey-note-title">上游主键参数回填（方向相反：本地 → 上游，写两张表）</div>
           <div class="text-body-2 finv-secukey-note-body">
             <b>① <code>public.finv_quote_secu_meta.usc</code></b>：按本地
             <code>futu.finv_futu_quote_collect.usc</code> 与上游 <code>stock_id</code> 关联回填（该列原有 3,673 行为 NULL）。<br />

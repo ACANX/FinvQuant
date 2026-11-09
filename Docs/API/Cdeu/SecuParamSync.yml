@@ -9,7 +9,7 @@ info:
     只由前端「证券参数同步」页按钮手动触发，无定时任务；单向只读上游，不删除本地行。
     需求 11042（菜单与页面）、11043（同步实现）、11044（源表名可配）、11045（页面拆两个 Tab）、
     11046（异步运行 + 实时日志）、11050（Tab 2 指标同步）、11051（flag_enable 规则）、
-    11052（Tab 1 不清空 Tab 2 补的 url）、11054（Tab 3 上游 usc 回填，方向为本地 → 上游）、
+    11052（Tab 1 不清空 Tab 2 补的 url）、11054（Tab 3 上游主键参数回填，方向为本地 → 上游）、
     11055（本地同一 stock_id 多条 usc 时取等于上游 ftmm_symbol 的那条）、
     11056（Tab 3 同时回填 public.finv_quote_secu_key 的 usc + stock_id）、
     11057（键表关联口径：market_label || '.' || futu_symbol 重建 ftmm_symbol）；
@@ -436,7 +436,7 @@ paths:
 
   /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Status:
     get:
-      summary: 上游 usc 回填状态快照（两张来源表的行数与可回填量）
+      summary: 上游主键参数回填状态快照（两张来源表的行数与可回填量）
       operationId: uscBackfillStatus
       tags: [Cdeu]
       description: |
@@ -480,7 +480,7 @@ paths:
           description: 读取配置或统计本地源表失败（code=2006）
   /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run:
     post:
-      summary: 异步启动上游 usc 回填（返回 run_id，写两张上游表）
+      summary: 异步启动上游主键参数回填（返回 run_id，写两张上游表）
       operationId: uscBackfillStartRun
       tags: [Cdeu]
       description: |
@@ -518,7 +518,7 @@ paths:
         '409':
           description: 已有回填任务在运行（message 带正在运行的 run_id）
     get:
-      summary: 上游 usc 回填运行快照（进度 + 逐批实时日志）
+      summary: 上游主键参数回填运行快照（进度 + 逐批实时日志）
       operationId: uscBackfillRunStatus
       tags: [Cdeu]
       description: runId 省略时返回最近一次运行；不匹配或从未运行过返回 404。

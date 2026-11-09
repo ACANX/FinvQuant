@@ -201,12 +201,12 @@ func NewRouter(deps *Deps) *gin.Engine {
 			// 异步运行（需求 11046）：启动后立刻返回 run_id，前端轮询状态拿进度与逐批实时日志。
 			secuKeyGroup.POST("/Sync/Run", secuKeyHandler.StartSyncRun)
 			secuKeyGroup.GET("/Sync/Run", secuKeyHandler.SyncRunStatus)
-			// 证券指标数据同步（需求 11050）：上游 public.finv_quote_secu_meta → 指标表 + 采集属性表 + 键表。
+			// FT证券指标数据同步（需求 11050）：上游 public.finv_quote_secu_meta → 指标表 + 采集属性表 + 键表。
 			secuKeyGroup.GET("/Indicator/Status", secuKeyHandler.IndicatorStatus)
 			secuKeyGroup.POST("/Indicator/Sync/Run", secuKeyHandler.StartIndicatorSyncRun)
 			secuKeyGroup.GET("/Indicator/Sync/Run", secuKeyHandler.IndicatorSyncRunStatus)
 
-			// Tab 3「上游 usc 回填」（需求 11054）：本地 futu.finv_futu_quote_collect → 上游 public.finv_quote_secu_meta
+			// Tab 3「上游主键参数回填」（需求 11054）：本地 futu.finv_futu_quote_collect → 上游 public.finv_quote_secu_meta
 			secuKeyGroup.GET("/UscBackfill/Status", secuKeyHandler.UscBackfillStatus)
 			secuKeyGroup.POST("/UscBackfill/Sync/Run", secuKeyHandler.StartUscBackfillRun)
 			secuKeyGroup.GET("/UscBackfill/Sync/Run", secuKeyHandler.UscBackfillRunStatus)
