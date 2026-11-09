@@ -69,6 +69,11 @@
 
 ### 变更
 
+- **BRS 全量备份登记补录第二批：cdeu 4 张（需求 11066，迁移 `V300150`）**
+  - 新增登记 `cdeu.finv_quote_cdeu_export_batch`(490)、`cdeu.finv_quote_cdeu_export_job`(480)、`cdeu.finv_quote_cdeu_usc_day_incr_row_tpl`(470)、`cdeu.finv_quote_cdeu_ingest_stats`(460)。
+  - cdeu 下其余 15 张历史遗漏表经确认暂不备份，保持不登记。
+  - 实测：登记表 41 → 45 行；手动全量备份 `total=45 / done=45 / failed=0`，4 张 `.dump` 均落地，未登记表未产生产物。
+
 - **BRS 全量备份登记补录第一批（17 张表，需求 11065，迁移 `V300149`）**
   - 最近新增/改名的 8 张：`cdeu.finv_quote_secu_indicator`、`futu.finv_futu_secu_key`、`cdeu.finv_cdeu_secu_realtime_stock`、`cdeu.finv_cdeu_secu_realtime_sync_config`、`cdeu.finv_quote_secu_kline_day`、`cdeu.finv_quote_cdeu_usc_patch_rule`、`public.finv_fxcer`、`public.finv_cer`。
   - quant 体积可控的 9 张：`finv_quant_backtest_account` / `_del_log` / `_del_task` / `_run` / `_run_archive` / `_strategy` / `_trade`、`finv_quant_environment`、`finv_quant_template`（`event_trace` / `position_log` / `equity` / `cashflow` 留第二批）。
