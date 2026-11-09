@@ -69,6 +69,10 @@
 
 ### 变更
 
+- **Tab 2「本地目标表」卡片只展示真正写入的两张表（需求 11064）**
+  - 去掉 `futu.finv_futu_secu_key` 的 chip 与行数（该表已不在本 Tab 同步），标题改为「本地目标表（一次同步写两张）」；
+  - `GET .../SecuKey/Indicator/Status` 的 `targets[]` 由 3 项降为 2 项；页面「说明」卡片里对应的「③ 不再同步」一行也删除。
+
 - **Tab 2「FT证券指标数据同步」改为一次写两张表（需求 11063）**
   - ① 指标表 `cdeu.finv_quote_secu_indicator`：按 `usc` 主键 upsert 增量同步 132 列（`dt_update` 仍由触发器维护、不参与比对）。
   - ② 采集属性表 `futu.finv_futu_quote_collect`：按 `usc` 主键 upsert 身份字段；`futu_symbol` 改由上游 `stock_code`（缺失时用 `ftmm_symbol`）去掉市场前缀派生；**`flag_enable` 不再写入、不再覆盖**（取代需求 11051 的占位推导口径）。
