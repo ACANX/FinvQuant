@@ -15,7 +15,7 @@ info:
     11057（键表关联口径：按 ftmm_symbol 关联，不用 stock_id），11060（采集属性表增加生成列 ftmm_symbol）；
     连接配置 20013（需求 11041）。
     Tab 2 来源固定 public.finv_quote_secu_meta，一条记录写三张表：
-    cdeu.finv_quote_secu_indicator（131 列同名）/ futu.finv_futu_quote_collect（身份字段同名）/
+    cdeu.finv_quote_secu_indicator（132 列同名，含 stock_id）/ futu.finv_futu_quote_collect（身份字段同名）/
     futu.finv_futu_secu_key（只补 url ← secu_url 与 stock_id）。
   license:
     name: MIT
@@ -381,7 +381,7 @@ paths:
       tags: [Cdeu]
       description: |
         立刻返回启动瞬间快照，同步在后台按 ftmm_symbol 升序分批执行；前端轮询 GET 同名路径读取进度与逐批日志。
-        一条上游记录写三张表（指标表 131 列同名 / 采集属性表身份字段同名 / 键表补 url 与 stock_id）；
+        一条上游记录写三张表（指标表 132 列同名，含 stock_id / 采集属性表身份字段同名 / 键表补 url 与 stock_id）；
         usc 为空时用 ftmm_symbol 占位；采集属性表 flag_enable 由 usc 是否占位推导（占位 '0' / 真实 '1'）。
         已有指标同步在运行时返回 409（不排队、不覆盖）；状态只存内存，整体超时 60 分钟。
       requestBody:

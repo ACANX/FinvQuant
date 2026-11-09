@@ -215,7 +215,7 @@
 
 | 目标表 | 写入内容 |
 |--------|----------|
-| `cdeu.finv_quote_secu_indicator` | **131 列同名同步**（列结构与上游同构，见 `DbSchemaSpec`）；`dt_update` 由触发器维护，**不写入、不参与比对** |
+| `cdeu.finv_quote_secu_indicator` | **132 列同名同步**（列结构与上游同构，见 `DbSchemaSpec`）；`dt_update` 由触发器维护，**不参与比对**；`stock_id`（`bigint`，需求 11061）随上游一起写入 |
 | `futu.finv_futu_quote_collect` | 身份字段同名同步：`stock_id`、`market_type`、`market_code`、`instrument_type`、`sub_instrument_type`、`market_label`、`instrument`；`futu_symbol` 由 `ftmm_symbol` 去掉市场前缀派生（`US.AAPL → AAPL`）；`flag_enable` 见 §6.2；不写 `req_section` / `remark` |
 | `futu.finv_futu_secu_key` | 只补 `url`（源 `secu_url`）与 `stock_id`，按 `ftmm_symbol` 对齐；`url` / `stock_id` 无变化时不改写 |
 
