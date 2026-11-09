@@ -168,6 +168,16 @@ const filterKeyword = ref('')
 
 const preview = ref<Preview | null>(null)
 const previewing = ref(false)
+
+// 预演明细分页：预演只回前 200 行，完整明细由后端缓存（30 分钟 / 重新预演失效），
+// 页面通过 /Diff/Page 分页浏览，避免「说有 7 万条却只能看到一页」。
+const diffRows = ref<DiffRow[]>([])
+const diffTotal = ref(0)
+const diffPage = ref(1)
+const diffPageSize = ref(50)
+const diffFilter = ref('')
+const diffLoading = ref(false)
+const diffHint = ref('')
 const run = ref<Run | null>(null)
 const starting = ref(false)
 let pollTimer: number | null = null
@@ -387,10 +397,36 @@ async function doPreview() {
         'success',
       )
     }
+    diffFilter.value = ''
+    diffPage.value = 1
+    await loadDiffPage()
   } catch (err) {
     showToast(`预演失败：${(err as Error).message}`, 'error')
   } finally {
     previewing.value = false
+  }
+}
+
+async function loadDiffPage() {
+  if (!preview.value) return
+  const query = new URLSearchParams({
+    page: String(diffPage.value),
+    pageSize: String(diffPageSize.value),
+    token: preview.value.preview_token,
+  })
+  if (diffFilter.value) query.set('diff', diffFilter.value)
+  diffLoading.value = true
+  try {
+    const data = await apiGet<{ list: DiffRow[]; total: number }>(`${BASE}/Diff/Page?${query.toString()}`)
+    diffRows.value = data.list ?? []
+    diffTotal.value = data.total ?? 0
+    diffHint.value = ''
+  } catch (err) {
+    diffRows.value = []
+    diffTotal.value = 0
+    diffHint.value = (err as Error).message
+  } finally {
+    diffLoading.value = false
   }
 }
 
@@ -701,6 +737,34 @@ onBeforeUnmount(stopPolling)
             存在无法自动消解的 usc 冲突，应用会被拒绝：{{ preview.conflicts.join('；') }}
           </v-alert>
 
+          <div v-if="preview" class="d-flex flex-wrap align-center ga-2 mb-2">
+            <v-select
+              v-model="diffFilter"
+              :items="[
+                { title: '全部类别', value: '' },
+                { title: '新增 added', value: 'added' },
+                { title: '更新 changed', value: 'changed' },
+                { title: '退市 removed', value: 'removed' },
+              ]"
+              density="compact"
+              variant="outlined"
+              hide-details
+              style="max-width: 170px"
+              @update:model-value="diffPage = 1; loadDiffPage()"
+            />
+            <v-chip variant="tonal" prepend-icon="mdi-format-list-bulleted">
+              明细共 {{ diffTotal }} 条
+            </v-chip>
+            <v-chip variant="text" size="small">每页 {{ diffPageSize }} 条（完整明细缓存在服务端，重新预演会重置）</v-chip>
+            <v-progress-circular v-if="diffLoading" size="18" indeterminate />
+            <v-spacer />
+            <v-btn size="small" variant="text" prepend-icon="mdi-refresh" @click="loadDiffPage">刷新明细</v-btn>
+          </div>
+
+          <v-alert v-if="diffHint" type="warning" density="compact" variant="tonal" class="mb-2">
+            {{ diffHint }}
+          </v-alert>
+
           <v-table v-if="preview" density="compact" class="usc-table mb-3">
             <thead>
               <tr>
@@ -715,7 +779,7 @@ onBeforeUnmount(stopPolling)
               </tr>
             </thead>
             <tbody>
-              <tr v-for="row in preview.samples" :key="`${row.diff}-${row.ftmm_symbol}`">
+              <tr v-for="row in diffRows" :key="`${row.diff}-${row.ftmm_symbol}`">
                 <td>
                   <v-chip :color="diffColor(row.diff)" size="x-small" variant="tonal">
                     {{ row.diff }}
@@ -729,8 +793,23 @@ onBeforeUnmount(stopPolling)
                 <td class="text-caption">{{ row.rule_no }} · {{ row.basis }}</td>
                 <td class="text-caption">{{ row.reuse_of_ftmm ?? '—' }}</td>
               </tr>
+              <tr v-if="diffRows.length === 0">
+                <td colspan="8" class="text-center text-medium-emphasis">
+                  {{ diffLoading ? '加载中…' : '没有符合条件的明细' }}
+                </td>
+              </tr>
             </tbody>
           </v-table>
+
+          <div v-if="preview && diffTotal > 0" class="d-flex align-center justify-end ga-2 mb-3">
+            <v-pagination
+              v-model="diffPage"
+              :length="Math.max(1, Math.ceil(diffTotal / diffPageSize))"
+              :total-visible="7"
+              density="compact"
+              @update:model-value="loadDiffPage"
+            />
+          </div>
 
           <v-card v-if="run" variant="tonal" class="mt-2">
             <v-card-title class="text-subtitle-1 d-flex align-center ga-2">

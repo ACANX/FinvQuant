@@ -150,8 +150,11 @@ SELECT COALESCE(count(*) FILTER (WHERE diff = 'added'), 0)::bigint     AS added,
 // tokenSQL 预演令牌：最终结果的整体指纹，应用时校验「预演之后规则/数据是否变过」。
 const tokenSQL = `SELECT md5(string_agg(ftmm_symbol || ':' || usc, ',' ORDER BY ftmm_symbol)) FROM _usc_final`
 
-// samplesSQL 预演明细（变更 + 退市，最多 MaxPreviewSamples 行）。
-const samplesSQL = `
+// diffRowsSQL 预演明细全量（变更 + 退市，按类别与 ftmm_symbol 排序）。
+//
+// 预演响应只回前 MaxPreviewSamples 行；完整明细由 Service 缓存在内存，页面通过
+// `Diff/Page` 分页浏览（重新预演会重置缓存）。
+const diffRowsSQL = `
 SELECT d.ftmm_symbol, d.market, d.code, d.instrument, d.current_usc, d.new_usc,
        d.rule_no, d.basis, d.diff, r.from_ftmm
   FROM _usc_diff d
@@ -161,8 +164,7 @@ SELECT d.ftmm_symbol, d.market, d.code, d.instrument, d.current_usc, d.new_usc,
 SELECT t.ftmm_symbol, t.market, t.code, t.instrument, t.usc, NULL,
        'RETIRE', '键表中已不存在该证券，标记退市（usc 释放，允许后续复用）', 'removed', NULL
   FROM _usc_retire t
- ORDER BY 9, 1
- LIMIT ` + "200" + ``
+ ORDER BY 9, 1`
 
 // reuseStatSQL 复用行（供应用结果与日志使用）。
 const reuseSQL = `
@@ -243,35 +245,42 @@ func (s *Store) prepare(ctx context.Context, tx pgx.Tx, env string) error {
 }
 
 // Preview 预演：算差异后整体回滚，不写任何表。
-func (s *Store) Preview(ctx context.Context, env string) (Preview, error) {
+//
+// 第二个返回值是**全量**差异明细（不含 unchanged），供 Service 缓存后分页展示。
+func (s *Store) Preview(ctx context.Context, env string) (Preview, []DiffRow, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return Preview{}, fmt.Errorf("开启事务失败: %w", err)
+		return Preview{}, nil, fmt.Errorf("开启事务失败: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	if err := s.prepare(ctx, tx, env); err != nil {
-		return Preview{}, err
+		return Preview{}, nil, err
 	}
 
 	preview := Preview{Env: normalizeEnv(env), ComputedAt: time.Now().Format(time.RFC3339)}
 	if err := tx.QueryRow(ctx, summarySQL).Scan(&preview.Added, &preview.Changed, &preview.Unchanged,
 		&preview.Removed, &preview.Reused, &preview.Total, &preview.Escalated); err != nil {
-		return Preview{}, fmt.Errorf("统计差异失败: %w", err)
+		return Preview{}, nil, fmt.Errorf("统计差异失败: %w", err)
 	}
 	if err := tx.QueryRow(ctx, tokenSQL).Scan(&preview.PreviewToken); err != nil {
-		return Preview{}, fmt.Errorf("计算预演令牌失败: %w", err)
+		return Preview{}, nil, fmt.Errorf("计算预演令牌失败: %w", err)
 	}
 	if preview.RuleVersion, err = s.RuleVersion(ctx); err != nil {
-		return Preview{}, err
+		return Preview{}, nil, err
 	}
-	samples, err := s.queryDiffRows(ctx, tx, samplesSQL)
+	rows, err := s.queryDiffRows(ctx, tx, diffRowsSQL)
 	if err != nil {
-		return Preview{}, err
+		return Preview{}, nil, err
 	}
-	preview.Samples = samples
+	// 响应只带前若干行，避免 7 万行 JSON 拖慢页面；完整明细随 Service 缓存返回。
+	if len(rows) > MaxPreviewSamples {
+		preview.Samples = rows[:MaxPreviewSamples]
+	} else {
+		preview.Samples = rows
+	}
 	preview.Conflicts = []string{}
-	return preview, nil
+	return preview, rows, nil
 }
 
 // queryDiffRows 执行差异查询（列顺序固定）。

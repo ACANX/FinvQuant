@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,9 +12,20 @@ import (
 	"github.com/acanx/finvquant/internal/meta/base/cron"
 )
 
+// previewCacheTTL 预演明细缓存有效期（超过后 Diff/Page 提示重新预演）。
+const previewCacheTTL = 30 * time.Minute
+
 // Service USC 映射规则业务层：页面查询、预演、应用与调度配置读取。
 type Service struct {
 	store *Store
+
+	// 最近一次预演的完整明细（内存缓存，供 Diff/Page 分页浏览）。
+	// 预演本身不落库，明细也没法从库里再查，所以缓存一次；重新预演会整体替换。
+	mu       sync.Mutex
+	cached   []DiffRow
+	cacheAt  time.Time
+	cacheEnv string
+	cacheTok string
 }
 
 // NewService 创建服务。
@@ -29,9 +41,61 @@ func (s *Service) Status(ctx context.Context, env string) (Status, error) {
 	return s.store.Status(ctx, env)
 }
 
-// Preview 预演（不落库）。
+// Preview 预演（不落库），并把完整明细缓存在内存里供分页浏览。
 func (s *Service) Preview(ctx context.Context, env string) (Preview, error) {
-	return s.store.Preview(ctx, env)
+	preview, rows, err := s.store.Preview(ctx, env)
+	if err != nil {
+		return Preview{}, err
+	}
+	s.mu.Lock()
+	s.cached = rows
+	s.cacheAt = time.Now()
+	s.cacheEnv = preview.Env
+	s.cacheTok = preview.PreviewToken
+	s.mu.Unlock()
+	return preview, nil
+}
+
+// DiffPage 分页读取最近一次预演的明细。
+//
+// diff 为空表示全部（不含 unchanged）；token 非空时必须与缓存令牌一致，避免「预演 → 改了规则 → 还在看旧明细」。
+func (s *Service) DiffPage(token, diff string, page, pageSize int) ([]DiffRow, int, string, error) {
+	s.mu.Lock()
+	rows := s.cached
+	at := s.cacheAt
+	tok := s.cacheTok
+	s.mu.Unlock()
+
+	if rows == nil || at.IsZero() {
+		return nil, 0, "", fmt.Errorf("还没有预演结果，请先点「预演差异」")
+	}
+	if time.Since(at) > previewCacheTTL {
+		return nil, 0, "", fmt.Errorf("预演明细已超过 %d 分钟，请重新预演", int(previewCacheTTL.Minutes()))
+	}
+	if token != "" && token != tok {
+		return nil, 0, "", fmt.Errorf("预演令牌不匹配（可能是重新预演或服务重启），请刷新后重试")
+	}
+
+	filtered := rows
+	if diff != "" {
+		filtered = make([]DiffRow, 0, len(rows))
+		for _, row := range rows {
+			if row.Diff == diff {
+				filtered = append(filtered, row)
+			}
+		}
+	}
+	page, pageSize = normalizePager(page, pageSize)
+	total := len(filtered)
+	start := (page - 1) * pageSize
+	if start >= total {
+		return []DiffRow{}, total, tok, nil
+	}
+	end := start + pageSize
+	if end > total {
+		end = total
+	}
+	return filtered[start:end], total, tok, nil
 }
 
 // Apply 应用一次映射（落库 + 归档 + 回写键表 + 记账）。

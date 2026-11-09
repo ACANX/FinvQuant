@@ -147,6 +147,27 @@ func (h *UscMap) DiffPreview(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "预演完成", "data": preview})
 }
 
+// DiffPage GET /Meta/Finv/Quote/UscMap/Diff/Page。
+//
+// 分页浏览最近一次预演的完整明细（预演不落库，明细缓存在内存，30 分钟或重新预演后失效）。
+// 参数：token（预演令牌，可选）、diff（added/changed/removed/reused，空=全部）、page、pageSize。
+func (h *UscMap) DiffPage(c *gin.Context) {
+	page, pageSize := parseCamelPager(c)
+	rows, total, token, err := h.service.DiffPage(c.Query("token"), c.Query("diff"), page, pageSize)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "查询完成",
+		"data": gin.H{
+			"total": total, "page": page, "pageSize": pageSize,
+			"preview_token": token, "list": rows,
+		},
+	})
+}
+
 // StartSyncRun POST /Meta/Finv/Quote/UscMap/Sync/Run。
 //
 // 请求体：{"env":"*","preview_token":"...","operator":"web","reason":"..."}（都可省略）。

@@ -119,4 +119,41 @@ func TestPreviewLive(t *testing.T) {
 	if preview.RuleVersion == "" {
 		t.Error("规则版本为空")
 	}
+
+	// 完整明细分页：预演只回前 200 行，Diff/Page 必须能看到后面的行。
+	rows, total, token, err := service.DiffPage("", "", 1, 50)
+	if err != nil {
+		t.Fatalf("读取预演明细分页失败: %v", err)
+	}
+	if token != preview.PreviewToken {
+		t.Errorf("分页令牌 %q 与预演令牌 %q 不一致", token, preview.PreviewToken)
+	}
+	expectTotal := int(preview.Added + preview.Changed + preview.Removed + preview.Reused)
+	if total != expectTotal {
+		t.Errorf("明细分页 total=%d，期望 %d（新增+更新+退市+复用）", total, expectTotal)
+	}
+	if len(rows) != 50 && total >= 50 {
+		t.Errorf("第 1 页应返回 50 行，实际 %d", len(rows))
+	}
+
+	// 第 2 页必须与第 1 页不重复（证明能翻到 200 行之后）
+	rows2, _, _, err := service.DiffPage("", "", 2, 50)
+	if err != nil {
+		t.Fatalf("读取第 2 页失败: %v", err)
+	}
+	if len(rows2) > 0 && len(rows) > 0 && rows[0].FtmmSymbol == rows2[0].FtmmSymbol {
+		t.Errorf("第 2 页首行与第 1 页相同（%s），分页没生效", rows2[0].FtmmSymbol)
+	}
+
+	// 末页：翻过 200 行（预演响应上限）之外仍应有数据
+	lastPage := (total + 199) / 200
+	rowsLast, _, _, err := service.DiffPage("", "", lastPage, 200)
+	if err != nil {
+		t.Fatalf("读取末页失败: %v", err)
+	}
+	if total > MaxPreviewSamples && len(rowsLast) == 0 {
+		t.Errorf("末页（第 %d 页）无数据，说明明细只缓存了前 %d 行", lastPage, MaxPreviewSamples)
+	}
+	t.Logf("明细分页：total=%d，第 1 页 %d 行，第 2 页 %d 行，末页(%d) %d 行",
+		total, len(rows), len(rows2), lastPage, len(rowsLast))
 }
