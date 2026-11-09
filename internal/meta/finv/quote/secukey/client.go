@@ -31,7 +31,8 @@ const (
 	// defaultRetryBackoff 首次重试的退避时长（之后翻倍）。
 	defaultRetryBackoff = 500 * time.Millisecond
 	// sourceSelect 只取需要同步的列，避免把 note/count_collect 等大字段拉回来。
-	sourceSelect = "ftmm_symbol,market,code,instrument,enable,url,priority,status"
+	// stock_id / usc 自上游补齐后也纳入同步（需求 11062）；上游为 NULL 时保留本地值，不清空。
+	sourceSelect = "ftmm_symbol,market,code,instrument,enable,url,priority,status,stock_id,usc"
 )
 
 // Client Supabase PostgREST 客户端（只读，线程安全，可复用）。

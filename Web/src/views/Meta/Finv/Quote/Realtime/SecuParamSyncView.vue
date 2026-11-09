@@ -989,7 +989,8 @@ onBeforeUnmount(() => {
             源 <code>public.finv_quote_secu_key</code>（表名可改，见「同步参数」）→ 目标
             <code>futu.finv_futu_secu_key</code>（主键 <code>ftmm_symbol</code>）。同步列：<code>instrument</code>、
             <code>market</code>、<code>code</code>、<code>flag_enable</code>（源 <code>enable</code>）、<code>priority</code>、
-            <code>status</code>、<code>url</code>；本地专有列 <code>stock_id</code> / <code>usc</code> 不参与同步，也不会被清空。
+            <code>status</code>、<code>url</code>、<code>stock_id</code>、<code>usc</code>——上游补齐这两列后它们不再是本地专有列，
+            现在也参与同步；但三者（含 <code>url</code>）都按 <b>COALESCE(源, 本地)</b> 取值，<b>上游为 NULL 时保留本地值、不会清空</b>。
           </div>
         </div>
 

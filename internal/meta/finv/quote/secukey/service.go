@@ -133,6 +133,10 @@ type SourceRow struct {
 	URL        *string `json:"url"`
 	Priority   *int    `json:"priority"`
 	Status     *string `json:"status"`
+	// StockID 富途证券内部 ID（上游补列后纳入同步，需求 11062；NULL 时保留本地值）。
+	StockID *int64 `json:"stock_id"`
+	// USC 证券统一编码（上游补列后纳入同步，需求 11062；NULL 时保留本地值）。
+	USC *string `json:"usc"`
 }
 
 // KeyRow 归一化后的待写入行（已通过校验，可直接进 SQL）。
@@ -145,6 +149,9 @@ type KeyRow struct {
 	Priority   int
 	Status     string
 	URL        *string
+	// StockID / USC 与源同口径；为 nil 表示源为 NULL（本地保留原值，不清空）。
+	StockID *int64
+	USC     *string
 }
 
 // UpsertStat 一批写入的统计（只统计**实际改动**的行）。
@@ -449,6 +456,8 @@ func prepareRows(rows []SourceRow) (prepared []KeyRow, skipped int, statusReset 
 			Priority:   NormalizePriority(row.Priority),
 			Status:     status,
 			URL:        trimPtr(row.URL),
+			StockID:    row.StockID,
+			USC:        trimPtr(row.USC),
 		}
 		if pos, ok := indexBySymbol[symbol]; ok {
 			prepared[pos] = item

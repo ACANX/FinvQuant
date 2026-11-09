@@ -13,11 +13,13 @@ import (
 //
 // 增量口径：
 //   - ftmm_symbol（主键）不存在 → INSERT；
-//   - 已存在且 7 个同步列中任一与源不同 → UPDATE；
+//   - 已存在且 9 个同步列中任一与源不同 → UPDATE；
 //   - 已存在且完全一致 → 不改写（DO UPDATE 的 WHERE 条件为假，不返回该行，
 //     因此不会触发 gmt_update 的 BEFORE UPDATE 触发器）。
 //
-// 本地专有列 stock_id / usc 不在 SET 列表里，同步永远不会清空它们。
+// stock_id / usc 自上游补列后也纳入同步（需求 11062），但取 COALESCE(源, 本地) 语义：
+// 上游这两列仍大量为空，直接覆盖会把本地已有的值清掉；`url` 出于同样原因也用 COALESCE
+//（url 主要由「FT证券指标数据同步」从 secu_url 补全）。
 
 // Store futu.finv_futu_secu_key 的写入与统计。
 type Store struct {
@@ -41,14 +43,19 @@ WITH src AS (
            x.flag_enable::smallint AS flag_enable,
            x.priority::int         AS priority,
            btrim(x.status)      AS status,
-           nullif(btrim(x.url), '') AS url
+           nullif(btrim(x.url), '') AS url,
+           x.stock_id::bigint   AS stock_id,
+           nullif(btrim(x.usc), '') AS usc
       FROM jsonb_to_recordset($1::jsonb) AS x(
              ftmm_symbol text, market text, code text, instrument text,
-             flag_enable int, priority int, status text, url text)
+             flag_enable int, priority int, status text, url text,
+             stock_id bigint, usc text)
 ), ins AS (
     INSERT INTO futu.finv_futu_secu_key AS t
-          (instrument, market, code, ftmm_symbol, flag_enable, priority, status, url)
-    SELECT instrument, market, code, ftmm_symbol, flag_enable, priority, status, url
+          (instrument, market, code, ftmm_symbol, flag_enable, priority, status, url,
+           stock_id, usc)
+    SELECT instrument, market, code, ftmm_symbol, flag_enable, priority, status, url,
+           stock_id, usc
       FROM src
     ON CONFLICT (ftmm_symbol) DO UPDATE
        SET instrument  = EXCLUDED.instrument,
@@ -59,11 +66,16 @@ WITH src AS (
            status      = EXCLUDED.status,
            -- 源 url 为 NULL 时保留本地已有值：url 由「FT证券指标数据同步」（源 secu_url）补全，
            -- 源键表的 url 全为空，若直接覆盖会把指标同步刚补好的 url 清掉。
-           url         = COALESCE(EXCLUDED.url, t.url)
-     WHERE (t.instrument, t.market, t.code, t.flag_enable, t.priority, t.status, t.url)
+           url         = COALESCE(EXCLUDED.url, t.url),
+           -- 同上：源为 NULL 时保留本地值（上游这两列仍有大量空值）
+           stock_id    = COALESCE(EXCLUDED.stock_id, t.stock_id),
+           usc         = COALESCE(EXCLUDED.usc, t.usc)
+     WHERE (t.instrument, t.market, t.code, t.flag_enable, t.priority, t.status, t.url,
+            t.stock_id, t.usc)
            IS DISTINCT FROM
            (EXCLUDED.instrument, EXCLUDED.market, EXCLUDED.code, EXCLUDED.flag_enable,
-            EXCLUDED.priority, EXCLUDED.status, COALESCE(EXCLUDED.url, t.url))
+            EXCLUDED.priority, EXCLUDED.status, COALESCE(EXCLUDED.url, t.url),
+            COALESCE(EXCLUDED.stock_id, t.stock_id), COALESCE(EXCLUDED.usc, t.usc))
     RETURNING (xmax = 0) AS inserted
 )
 SELECT COALESCE(count(*) FILTER (WHERE inserted), 0)::int          AS inserted,
@@ -90,6 +102,12 @@ func (s *Store) UpsertBatch(ctx context.Context, rows []KeyRow) (UpsertStat, err
 		}
 		if row.URL != nil {
 			item["url"] = *row.URL
+		}
+		if row.StockID != nil {
+			item["stock_id"] = *row.StockID
+		}
+		if row.USC != nil {
+			item["usc"] = *row.USC
 		}
 		payload = append(payload, item)
 	}

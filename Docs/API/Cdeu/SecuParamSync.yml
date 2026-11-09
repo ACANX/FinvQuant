@@ -150,7 +150,8 @@ paths:
         按 ftmm_symbol 升序分批拉取源表并增量写入 futu.finv_futu_secu_key，全部批次结束后一次性返回。
         增量判据：ON CONFLICT (ftmm_symbol) DO UPDATE … WHERE 目标列 IS DISTINCT FROM EXCLUDED 列，
         未变化的行不产生 WAL、不触发 gmt_update。
-        本地专有列 stock_id / usc 不参与同步，也不会被清空。
+        同步列：instrument / market / code / flag_enable(←enable) / priority / status / url / stock_id / usc；
+        url、stock_id、usc 都按 COALESCE(源, 本地) 取值——上游为 NULL 时保留本地值，不清空（需求 11062）。
         失败不回滚已写入批次（可重入，重跑只补齐剩余部分）。
         前端超时需放宽：7 万行量级实测约 13 s（batch_size=5000）。
       requestBody:

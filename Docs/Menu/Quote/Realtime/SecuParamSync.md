@@ -27,7 +27,7 @@
 | **上游主键参数回填** | 已实现（需求 11054/11056） | 方向相反：一次运行写两张上游表（`finv_quote_secu_meta.usc` 按 `stock_id`；`finv_quote_secu_key.usc + stock_id` 按 `ftmm_symbol`） |
 
 - 只由本页**按钮手动触发**，没有定时任务；
-- 单向只读上游 → 写本地：不删除本地行，不清空本地专有列 `stock_id` / `usc`；
+- 单向只读上游 → 写本地：不删除本地行；`url` / `stock_id` / `usc` 按 `COALESCE(源, 本地)` 取值，上游为 NULL 时保留本地值、不清空（`stock_id` / `usc` 自上游补列后已纳入同步，需求 11062）；
 - 连接配置（`PROJECT_ID|APIKEY`）在系统配置 **20013** 里维护，本页只展示状态，不回显完整 key；
 - 源表名存系统配置 **20014**，默认 `finv_quote_secu_key`，在本页可直接改。
 

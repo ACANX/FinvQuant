@@ -49,8 +49,9 @@
 | `enable` | `flag_enable` | `NULL` 或非 0 → 1；`0` → 0 |
 | `priority` | `priority` | `NULL` → 10；越界收敛到 1~1000000 |
 | `status` | `status` | 空或非法 → `PENDING`（计入 `status_reset`）；合法值 `PENDING/QUEUED/DONE/FAILED/SKIP` |
-| `url` | `url` | 空白按 `NULL` 落库 |
-| — | `stock_id`、`usc` | **不同步**（源表无此列），同步也不清空 |
+| `url` | `url` | 空白按 `NULL` 落库；**源为 `NULL` 时保留本地值**（`COALESCE`） |
+| `stock_id` | `stock_id` | 上游补列后纳入同步（需求 11062）；**源为 `NULL` 时保留本地值**（`COALESCE`） |
+| `usc` | `usc` | 上游补列后纳入同步（需求 11062）；**源为 `NULL` 时保留本地值**（`COALESCE`） |
 
 源表其余列（`note`、`count_collect`、`gmt_last_collect`、`last_status`、`last_error`、`gmt_create`、`gmt_update`）
 不参与同步；目标的 `gmt_create`/`gmt_update` 由本地默认值与 `trg_finv_futu_secu_key_gmt_update` 触发器维护。
