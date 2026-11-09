@@ -69,6 +69,11 @@
 
 ### 变更
 
+- **撤销 `public.finv_cer` 的 BRS 全量备份登记（需求 11067，迁移 `V300151`）**
+  - 该表为缺省汇率 v1，已被 `public.finv_fxcer` 取代、建表脚本 V300123 已删除、无代码引用；
+  - 只删登记行（`db='finv'` + `public.finv_cer`），不动表本身与 280 行数据；其余 44 条登记保留（含 `futu.finv_futu_mapping_*` 5 张）；
+  - 实测：登记 45 → 44 行；手动全量备份 `total=44 / done=44 / failed=0`，产物无 `finv.public.finv_cer.dump`，`finv.public.finv_fxcer.dump` 仍在。
+
 - **BRS 全量备份登记补录第二批：cdeu 4 张（需求 11066，迁移 `V300150`）**
   - 新增登记 `cdeu.finv_quote_cdeu_export_batch`(490)、`cdeu.finv_quote_cdeu_export_job`(480)、`cdeu.finv_quote_cdeu_usc_day_incr_row_tpl`(470)、`cdeu.finv_quote_cdeu_ingest_stats`(460)。
   - cdeu 下其余 15 张历史遗漏表经确认暂不备份，保持不登记。
