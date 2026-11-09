@@ -69,6 +69,12 @@
 
 ### 变更
 
+- **Tab 2「FT证券指标数据同步」改为一次写两张表（需求 11063）**
+  - ① 指标表 `cdeu.finv_quote_secu_indicator`：按 `usc` 主键 upsert 增量同步 132 列（`dt_update` 仍由触发器维护、不参与比对）。
+  - ② 采集属性表 `futu.finv_futu_quote_collect`：按 `usc` 主键 upsert 身份字段；`futu_symbol` 改由上游 `stock_code`（缺失时用 `ftmm_symbol`）去掉市场前缀派生；**`flag_enable` 不再写入、不再覆盖**（取代需求 11051 的占位推导口径）。
+  - ③ **不再同步 `futu.finv_futu_secu_key`**：上游已支持 `url` ← `secu_url`、`stock_id` 回填；SQL 删除 `upd_key` 段，`key_update` 从 `UpsertStat` / `Progress` / `Result` / `Run` 与前端 chips 移除（yml 标记 deprecated）。
+  - 实测：键表同步前后完全不变；`flag_enable='1'` 行数 24,610 → 24,610（未被覆盖），`'0'` 行数仅随新增 203 行增加（456 → 659）；指标表 20,242 → 20,447；`futu_symbol` 与 `ftmm_symbol` 后缀一致性反例 0 行。
+
 - **Tab 1「FT证券基础参数同步」把 `stock_id`、`usc` 纳入同步（需求 11062）**
   - 上游 `public.finv_quote_secu_key` 已补齐这两列，不再是本地专有列；同步列 7 → **9**：`instrument` / `market` / `code` / `flag_enable`(←`enable`) / `priority` / `status` / `url` / `stock_id` / `usc`。
   - 取值语义：`url` / `stock_id` / `usc` 均为 `COALESCE(源, 本地)`——上游为 NULL 时保留本地值、不清空（上游 `stock_id` 仅约 1.6 万行非空，直接覆盖会清掉本地 2.2 万行）。
