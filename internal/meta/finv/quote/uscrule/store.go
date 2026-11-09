@@ -712,7 +712,10 @@ func (s *Store) Status(ctx context.Context, env string) (Status, error) {
 	err := s.pool.QueryRow(ctx, `
 SELECT (SELECT count(*) FROM futu.finv_futu_usc_rule),
        (SELECT count(*) FROM futu.finv_futu_usc_rule_item),
-       (SELECT count(*) FROM futu.finv_futu_usc_rule_item WHERE status = 'ACTIVE'),
+       -- 只统计「所在规则层启用」的生效条目：P50 停层后条目仍为 ACTIVE，但已不参与计算
+       (SELECT count(*) FROM futu.finv_futu_usc_rule_item i
+          JOIN futu.finv_futu_usc_rule r ON r.rule_no = i.rule_no
+         WHERE i.status = 'ACTIVE' AND r.flag_enable = '1'),
        (SELECT count(*) FROM futu.finv_futu_usc_map WHERE status = 'ACTIVE'),
        (SELECT count(*) FROM futu.finv_futu_usc_map WHERE status = 'RETIRED'),
        (SELECT count(*) FROM futu.finv_futu_usc_map WHERE reuse_of_ftmm IS NOT NULL),
