@@ -69,6 +69,11 @@
 
 ### 变更
 
+- **brs schema 自身的 3 张表纳入全量备份（需求 11068，迁移 `V300152`）**
+  - 新增登记 `brs.brs_bak_rdb_table_full`(600)、`brs.brs_bak_rdb_table_incr`(450)、`brs.brs_bak_rdb_datasource`(440)；
+  - 补齐备份链自指缺口：恢复时可直接从产物得知备份范围、分片规则与数据源；cron/OSS 配置存于已登记的 `sys.sys_config`；
+  - 实测：登记 44 → 47 行；手动全量备份 `total=47 / done=47 / failed=0`，3 个 `finv.brs.*.dump` 均落地且 `pg_restore -l` 可读。
+
 - **撤销 `public.finv_cer` 的 BRS 全量备份登记（需求 11067，迁移 `V300151`）**
   - 该表为缺省汇率 v1，已被 `public.finv_fxcer` 取代、建表脚本 V300123 已删除、无代码引用；
   - 只删登记行（`db='finv'` + `public.finv_cer`），不动表本身与 280 行数据；其余 44 条登记保留（含 `futu.finv_futu_mapping_*` 5 张）；
