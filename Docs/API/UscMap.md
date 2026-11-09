@@ -7,6 +7,7 @@
 > - `POST /Item/Save` —— 新增或编辑条目（`item_desc` 必填）
 > - `POST /Item/Retire` —— 停用条目（保留行，可再改回 ACTIVE）
 > - `GET /Diff/Preview` —— 预演差异（不落库，返回 `preview_token`）
+> - `GET /Diff/Page` —— 分页浏览最近一次预演的**完整明细**（`token` / `diff` / `page` / `pageSize`）
 > - `POST /Sync/Run` —— 异步应用（需带预演令牌，返回 `run_id`）
 > - `GET /Sync/Run` —— 运行时快照（进度 + 日志，页面 800ms 轮询）
 > - `GET /Log/List` —— 审计日志分页
@@ -68,6 +69,19 @@
 
 不写任何表：算完差异整体回滚，返回四类分类计数、前 200 行明细、冲突清单与 `preview_token`
 （= `md5(全部最终映射)`）。首次上线（结果表为空）时 `added` 等于键表行数。
+
+### 3.3.1 `GET /Diff/Page`
+
+预演不落库，明细也没法从库里再查：`/Diff/Preview` 只回前 **200** 行，完整明细（通常 1.6 万～7 万行）
+由服务端缓存在内存，用本接口分页浏览。
+
+| 参数 | 说明 |
+|------|------|
+| `token` | 预演令牌；与缓存不一致（重新预演过 / 服务重启）返回 400，提示重新预演 |
+| `diff` | `added` / `changed` / `removed`；空 = 全部（`unchanged` 不返回） |
+| `page` / `pageSize` | 分页，页大小上限 200 |
+
+缓存有效期 **30 分钟**，重新预演会整体替换；服务重启后失效。返回体含 `total`（该类别总数）与 `preview_token`。
 
 ### 3.4 `POST /Sync/Run`
 

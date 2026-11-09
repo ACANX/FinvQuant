@@ -150,6 +150,38 @@ paths:
                       samples: { type: array, items: { type: object } }
                       conflicts: { type: array, items: { type: string } }
         '500': { description: 预演失败（含无法消解的 usc 冲突） }
+  /Meta/Finv/Quote/UscMap/Diff/Page:
+    get:
+      summary: 分页浏览最近一次预演的完整明细
+      operationId: uscMapDiffPage
+      tags: [UscMap]
+      description: |
+        /Diff/Preview 只回前 200 行；完整明细（含 removed）缓存在服务端内存，30 分钟或重新预演后失效。
+        token 必须与最近一次预演一致（否则 400，提示重新预演）。
+      parameters:
+        - { name: token, in: query, schema: { type: string } }
+        - { name: diff, in: query, schema: { type: string, enum: [added, changed, removed] } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, default: 20, maximum: 200 } }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, const: 0 }
+                  data:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      preview_token: { type: string }
+                      list: { type: array, items: { type: object } }
+        '400': { description: 无预演缓存 / 缓存过期 / 令牌不匹配 }
+
   /Meta/Finv/Quote/UscMap/Sync/Run:
     post:
       summary: 异步应用（带预演令牌）
