@@ -69,6 +69,11 @@
 
 ### 变更
 
+- **Tab 1「FT证券基础参数同步」把 `stock_id`、`usc` 纳入同步（需求 11062）**
+  - 上游 `public.finv_quote_secu_key` 已补齐这两列，不再是本地专有列；同步列 7 → **9**：`instrument` / `market` / `code` / `flag_enable`(←`enable`) / `priority` / `status` / `url` / `stock_id` / `usc`。
+  - 取值语义：`url` / `stock_id` / `usc` 均为 `COALESCE(源, 本地)`——上游为 NULL 时保留本地值、不清空（上游 `stock_id` 仅约 1.6 万行非空，直接覆盖会清掉本地 2.2 万行）。
+  - 实测：同步后总行数 73,212 不变、`url` 16,591 不减少、`stock_id` 22,393 → 22,437、`usc` 16,712 → 73,212（上游 usc 已全量非空）；复跑 `insert=0`、`unchanged≈73,212`。
+
 - **`cdeu.finv_quote_secu_indicator` 补回 `stock_id`，Tab 2 同步 131 → 132 列（需求 11061，迁移 `V300148`）**
   - 上游 `public.finv_quote_secu_meta.stock_id` 已有值，本地建表时被排除；现加 `stock_id bigint`（可空，NULL = 尚未同步到）+ 中文注释 + 索引 `idx_finv_quote_secu_indicator_stock_id`，并在迁移内按本地映射先回填（键表按 `ftmm_symbol`、采集属性表按生成列 `ftmm_symbol`，均 `IS DISTINCT FROM` 守卫）。
   - `internal/meta/finv/quote/indicator/sql.go` 同步：`stock_id` 加入 INSERT / SELECT / SET 与「变了才更新」比对元组，`dt_update` 仍由触发器维护、不参与比对。
