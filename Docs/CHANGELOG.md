@@ -69,6 +69,13 @@
 
 ### 变更
 
+- **「证券参数同步」Tab 3 改名「上游主键参数回填」（需求 11059）**
+  - 原名「上游 usc 回填」只体现了 `usc`，实际回填的是两张上游表的主键参数：`finv_quote_secu_meta.usc` 与 `finv_quote_secu_key.usc` + `stock_id`；改名后与真实语义一致。
+  - 只改展示文案（Tab 标签 / Toast 任务名 / 启动接口 message / 说明卡片小标题）与代码注释，接口路径 `.../SecuKey/UscBackfill/*`、字段名、口径与行为均未变。
+
+- **「证券参数同步」Tab 2 改名「FT证券指标数据同步」（需求 11058）**
+  - 与 Tab 1「FT证券基础参数同步」命名对齐；只改展示文案（Tab 标签 / Toast 任务名 / 说明卡片小标题），接口路径 `.../SecuKey/Indicator/*`、口径与行为均未变。
+
 - **`cdeu.finv_quote_secu_indicator` 全部 131 列补齐中文注释（需求 11053，迁移 `V300146`）**
   - 列说明取自上游采集脚本 `FtmmSecuMetaFetch/sql/schema.pg.sql`（14 个身份/标记列不在本表，无需注释）；本表专有 10 列（`usc`/`ftmm_symbol`/`ts`/`secu_url`/`source_channel`/`dt_collect`/`dt_create`/`dt_update`/`count_update`/`json_unmapped`）用本地措辞覆盖，如 `usc` 注明占位规则、`dt_update` 注明由触发器刷新、`secu_url` 注明同步到 `futu.finv_futu_secu_key.url`。
   - 仅改注释：不动列结构、不动数据；迁移幂等（重复执行只覆盖同值）。

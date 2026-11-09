@@ -2797,6 +2797,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 11055 | **本地同一 `stock_id` 对应多条 `usc` 时的取值规则**（上游 usc 回填用）：取**等于上游 `ftmm_symbol`** 的那条（上游行的身份标识）；都不相等（或上游 `ftmm_symbol` 为空）则**不写**该行并计入「歧义」，不做猜测性取第一条。背景：本地 70 组 `stock_id` 各有两条 usc（如 `12002553` → `CC.DASHTRY.FTUS` 与 `DASHTRY`），上游对应 `ftmm_symbol` 为 `CC.DASHTRY.FTUS`。| `SELECT count(*) FROM (SELECT stock_id FROM futu.finv_futu_quote_collect GROUP BY stock_id HAVING count(DISTINCT usc) > 1) t` = 70；上游回填运行 `ambiguous = 0` 且这 70 组上游 `usc` 均等于其 `ftmm_symbol`（如 `stock_id=12002553` → `CC.DASHTRY.FTUS`）；单测 `TestPickUSC` 覆盖「单条 / 多条命中 / 多条不命中 / 空输入」4 类分支 | √ |
 | 11056 | **Tab 3「上游 usc 回填」同时回填 `public.finv_quote_secu_key` 的 `usc` 与 `stock_id`**（一次运行依次写两张上游表，阶段标识 `phase=meta/key`）：① 维持原口径 `public.finv_quote_secu_meta.usc`（按 `stock_id`）；② 新增 `public.finv_quote_secu_key`（上游主键 `ftmm_symbol`）的 `usc` + `stock_id` 两列，来源为本地 `futu.finv_futu_secu_key`（候选键集）⋈ `futu.finv_futu_quote_collect`（提供 `usc` + `stock_id`）；上游两列都为空 → 「填入」，任一已有且不同 → 「覆盖」，两列都已一致 → 「未变」不发请求（幂等）；本地无依据的键（无对应 `usc`/`stock_id`）在 `Status` 里给 `key_unresolved` 计数并跳过。接口与页面沿用 Tab 3 三支，`Status` 增加 `key_table`/`key_columns`/`key_key`/`key_local_rows`/`key_resolvable`/`key_unresolved`，运行快照增加 `phase` 与 `key_*` 一组计数，页面「回填进度与日志」增加键表 chips。| `GET .../UscBackfill/Status` 返回 `key_local_rows=73212`、`key_resolvable` > 0、`key_unresolved + key_resolvable = 73212`；运行完成后上游 `public.finv_quote_secu_key`：`usc` 非空行数 = `stock_id` 非空行数 = `key_fill + key_overwrite + key_unchanged`；抽样 `US.AAPL` 行 `usc=AAPL`、`stock_id=205189`，本地不存在对应品种的键（如 `AU..XFL`）仍保持 NULL；复跑 `key_fill=0 key_overwrite=0`，`key_unchanged` 等于可回填键数 | √ |
 | 11057 | **键表回填的关联口径**：用本地 `market_label || '.' || futu_symbol` **重建** `ftmm_symbol` 与上游键表关联（上游 `ftmm_symbol = {market}.{code}`，本地把它拆成 `market_label` + `futu_symbol`），而**不是**只按 `stock_id` 关联。理由：按 `stock_id` 只能覆盖 10,910 行（本地键表 `stock_id` 仅由 Tab 2 从 meta 补到 1 万余行），按符号重建可覆盖 24,162 / 73,212 行，且按 `stock_id` 命中的集合是其**子集**（实测 `by_symbol=24162`、`union=24162`、`symbol_only=13252`）。| `SELECT count(DISTINCT k.ftmm_symbol) FROM futu.finv_futu_secu_key k JOIN futu.finv_futu_quote_collect q ON k.ftmm_symbol = q.market_label || '.' || q.futu_symbol` = 24162（与 `Status.key_resolvable` 一致）；同一表达式按 `stock_id` 关联的结果为 10910 且为其子集；运行后上游 `finv_quote_secu_key` 中 `usc`/`stock_id` 非空均为 24,162 行，`key_ambiguous=0`、`key_no_target=0` | √ |
+| 11058 | **「证券参数同步」页面 Tab 2 名称由「证券指标数据同步」改为「FT证券指标数据同步」**（与 Tab 1「FT证券基础参数同步」命名一致；只改展示名称，接口路径、口径、行为均不变，三处外观同步：Tab 标签、日志/提示中的任务名（`同步任务已启动` 前的 label 与 Toast）、页面底部说明卡片的小标题）。| 浏览器打开 `/Meta/Finv/Quote/Realtime/SecuParamSync` 切到第二个 Tab：标签文字为「FT证券指标数据同步」；点「立即同步」后 Toast 文案为「FT证券指标数据同步完成：…」；说明卡片对应段落标题为「FT证券指标数据同步」；`grep -rn '证券指标数据同步' Web/src Docs internal | grep -v 'FT证券指标数据同步' | grep -v CHANGELOG` 无输出 | √ |
+| 11059 | **「证券参数同步」页面 Tab 3 名称由「上游 usc 回填」改为「上游主键参数回填」**（该 Tab 实际回填的是上游两张表的**主键类参数**：`finv_quote_secu_meta.usc` 与 `finv_quote_secu_key.usc` + `stock_id`，不只是 `usc`，故按主键参数命名；只改展示名称与启动提示文案，接口路径 `.../SecuKey/UscBackfill/*`、请求/响应字段名、口径与行为均不变）。| 浏览器打开 `/Meta/Finv/Quote/Realtime/SecuParamSync` 切到第三个 Tab：标签文字为「上游主键参数回填」；点「立即回填」后 Toast 文案为「上游主键参数回填完成：…」，接口返回的 `message` 为「上游主键参数回填任务已启动」；说明卡片对应段落标题为「上游主键参数回填（方向相反：本地 → 上游，写两张表）」，且该段仍写明回填 `usc` 与 `stock_id` 两列；`grep -rn '上游 usc 回填' Web/src Docs internal | grep -v CHANGELOG | grep -v RequirementList` 无输出 | √ |
 
 
 ## 汇总
@@ -3144,7 +3146,9 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 多条 usc 取等于 ftmm_symbol 的那条 | 11055 | 1 |
 | Tab 3 追加回填 finv_quote_secu_key 的 usc+stock_id | 11056 | 1 |
 | 键表按 market_label.futu_symbol 重建 ftmm_symbol 关联 | 11057 | 1 |
-| **合计** | **10001–11057** | **1053**（含 2 条待办） |
+| Tab 2 改名「FT证券指标数据同步」 | 11058 | 1 |
+| Tab 3 改名「上游主键参数回填」 | 11059 | 1 |
+| **合计** | **10001–11059** | **1055**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
