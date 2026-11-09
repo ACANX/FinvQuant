@@ -69,6 +69,12 @@
 
 ### 变更
 
+- **BRS 全量备份登记补录第一批（17 张表，需求 11065，迁移 `V300149`）**
+  - 最近新增/改名的 8 张：`cdeu.finv_quote_secu_indicator`、`futu.finv_futu_secu_key`、`cdeu.finv_cdeu_secu_realtime_stock`、`cdeu.finv_cdeu_secu_realtime_sync_config`、`cdeu.finv_quote_secu_kline_day`、`cdeu.finv_quote_cdeu_usc_patch_rule`、`public.finv_fxcer`、`public.finv_cer`。
+  - quant 体积可控的 9 张：`finv_quant_backtest_account` / `_del_log` / `_del_task` / `_run` / `_run_archive` / `_strategy` / `_trade`、`finv_quant_environment`、`finv_quant_template`（`event_trace` / `position_log` / `equity` / `cashflow` 留第二批）。
+  - 登记口径：`both` + `pg_dump` + `zstd` + 上传 `'1'`；priority 690 以下跳 660 取空档；每行 `to_regclass` 守卫（缺表不登记）；迁移幂等并带收敛校验。
+  - 实测：登记表 24 → 41 行；手动全量备份 `total=41 / done=41 / failed=0`，17 张新表 `.dump` 全部落地且 `pg_restore -l` 可读。
+
 - **Tab 2「本地目标表」卡片只展示真正写入的两张表（需求 11064）**
   - 去掉 `futu.finv_futu_secu_key` 的 chip 与行数（该表已不在本 Tab 同步），标题改为「本地目标表（一次同步写两张）」；
   - `GET .../SecuKey/Indicator/Status` 的 `targets[]` 由 3 项降为 2 项；页面「说明」卡片里对应的「③ 不再同步」一行也删除。
