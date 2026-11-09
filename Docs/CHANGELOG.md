@@ -20,6 +20,13 @@
 
 ### 新增
 
+- **P40 补 US/XRP → ETFXRP（需求 11075，迁移 `V300160`）**
+  - 修复后仅剩 `US.XRP` 一处语义级差异：美股 XRP ETF 现有 `usc=ETFXRP`，按 P20 会算成裸 `XRP`，
+    而加密币 XRP 在 P40 里已被指到 `CC.XRP`，裸 `XRP` 落到 ETF 上语义颠倒。
+  - 新增 P40 条目 `market=US, code=XRP, action=LITERAL, usc_literal=ETFXRP`（tier=1 精确 code，优先于市场默认）。
+  - 实测：`US.XRP → ETFXRP`、`CC.XRP → CC.XRP`、`CA.XRP → CA.XRP`；语义级差异由 150 行降为 **149 行**
+    （全部是方案 A 下的 SH 指数 `裸码→SH####`）；首次应用改写键表 `usc` 由 16,031 行降为 **16,030 行**。
+
 - **修复 USC 候选匹配分层 + P22 提为前处理（需求 11074，迁移 `V300159`）**
   - **缺陷**：候选只按 `ru.priority` 排序，丢掉了「精确 code → 市场+品种正则 → 市场默认 → 兜底」的分层，
     导致市场默认（P20=20）压过例外（P40=40 / P50=50）——实测 660 条例外条目里 **658 条被抢走**，
