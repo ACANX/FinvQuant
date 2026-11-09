@@ -69,6 +69,11 @@
 
 ### 变更
 
+- **按 `finv_futu_query_stat-2.json` 补录 `finv_security` 268 行（需求 11070，迁移 `V300154`）**
+  - 来源 489 行中 210 个 usc 已存在、11 个仅大小写不同（HK 指数 HSI/HSTI + HK 期货主连 9 条）跳过，实际补 268 行（Futures 183 / ETF 67 / Stock 18）；
+  - 来源无名称与币种：名称取上游 `public.finv_quote_secu_meta`（按 usc + ftmm_symbol 匹配），币种按市场（HK HKD / SZ·SH·BJ CNY / US USD）；
+  - 实测：`finv_security` 21,703 → 21,971，`schema_version=300154`，空名称 0 行。
+
 - **按 `finv_futu_query_stat.json` 补录证券初始数据（需求 11069，迁移 `V300153`）**
   - `public.finv_security` 补 480 行、`futu.finv_futu_quote_collect` 补 252 行（来源共 480 个 usc）；
   - 口径以 `public.finv_quote_secu_meta` 为主（按 usc 命中 226 行），其余按本地既有主导写法派生（市场码/交易所码/板块子类/币种/时区）；
