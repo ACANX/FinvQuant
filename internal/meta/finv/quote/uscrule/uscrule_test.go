@@ -157,3 +157,112 @@ func TestPreviewLive(t *testing.T) {
 	t.Logf("明细分页：total=%d，第 1 页 %d 行，第 2 页 %d 行，末页(%d) %d 行",
 		total, len(rows), len(rows2), lastPage, len(rowsLast))
 }
+
+// TestApplyOnClone 在**克隆库**上端到端跑一次应用（真实写结果表 + 回写键表 + 记账）。
+//
+// 不连生产库：用 `pg_dump -n futu -n archive` 克隆到临时库后执行。
+//
+//	FINV_USC_APPLY_DSN="postgres://finv:finvquant@127.0.0.1:5432/finv_usctest?sslmode=disable" \
+//	  go test ./internal/meta/finv/quote/uscrule -run TestApplyOnClone -v
+//
+// 覆盖点：预演 → 应用（令牌校验）→ 结果表行数、键表与结果表一致、抽样口径、二次应用幂等。
+func TestApplyOnClone(t *testing.T) {
+	dsn := os.Getenv("FINV_USC_APPLY_DSN")
+	if dsn == "" {
+		t.Skip("未设置 FINV_USC_APPLY_DSN，跳过应用集成测试（会写库，必须指向克隆库）")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("连接数据库失败: %v", err)
+	}
+	defer pool.Close()
+
+	var keyRows int64
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM futu.finv_futu_secu_key`).Scan(&keyRows); err != nil {
+		t.Fatalf("统计键表失败: %v", err)
+	}
+	service := NewService(pool)
+
+	preview, err := service.Preview(ctx, DefaultEnv)
+	if err != nil {
+		t.Fatalf("预演失败: %v", err)
+	}
+	t.Logf("预演：total=%d added=%d changed=%d removed=%d escalated=%d",
+		preview.Total, preview.Added, preview.Changed, preview.Removed, preview.Escalated)
+
+	// 令牌错误必须被拒绝
+	if _, err := service.Apply(ctx, DefaultEnv, "bogus-token", "test", "错误令牌应被拒绝"); err == nil {
+		t.Fatal("应用应拒绝错误的预演令牌")
+	}
+
+	result, err := service.Apply(ctx, DefaultEnv, preview.PreviewToken, "test", "集成测试应用")
+	if err != nil {
+		t.Fatalf("应用失败: %v", err)
+	}
+	t.Logf("应用：added=%d changed=%d removed=%d reused=%d unchanged=%d escalated=%d key_updated=%d archived=%d elapsed=%dms",
+		result.Added, result.Changed, result.Removed, result.Reused, result.Unchanged,
+		result.Escalated, result.KeyUpdated, result.Archived, result.ElapsedMs)
+
+	if result.Added != preview.Added || result.Changed != preview.Changed || result.Removed != preview.Removed {
+		t.Errorf("应用统计与预演不一致：应用(added %d/changed %d/removed %d) vs 预演(%d/%d/%d)",
+			result.Added, result.Changed, result.Removed, preview.Added, preview.Changed, preview.Removed)
+	}
+
+	var mapRows int64
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM futu.finv_futu_usc_map WHERE status = 'ACTIVE'`).Scan(&mapRows); err != nil {
+		t.Fatalf("统计结果表失败: %v", err)
+	}
+	if mapRows != keyRows {
+		t.Errorf("结果表在册行数 %d 与键表行数 %d 不一致", mapRows, keyRows)
+	}
+
+	// 键表 usc 必须与结果表完全一致
+	var mismatch int64
+	if err := pool.QueryRow(ctx, `
+SELECT count(*) FROM futu.finv_futu_secu_key k
+  JOIN futu.finv_futu_usc_map m ON m.ftmm_symbol = k.ftmm_symbol AND m.status = 'ACTIVE'
+ WHERE lower(k.usc) IS DISTINCT FROM m.usc_lower`).Scan(&mismatch); err != nil {
+		t.Fatalf("校验键表与结果表一致性失败: %v", err)
+	}
+	if mismatch != 0 {
+		t.Errorf("键表 usc 与结果表不一致 %d 行", mismatch)
+	}
+
+	// 抽样口径
+	samples := map[string]string{
+		"US.AESG":   "AESG",    // P50 已停用 → 裸码
+		"SH.000300": "SH0300",  // P22 前处理
+		"US.XRP":    "ETFXRP",  // P40 单点例外
+		"US..BFLY":  "IDX.BFLY", // P40 指数撞名例外
+		"AU..XFL":   "XFL",     // P16 去前导点
+	}
+	for ftmm, want := range samples {
+		var got string
+		if err := pool.QueryRow(ctx, `SELECT usc FROM futu.finv_futu_usc_map WHERE ftmm_symbol = $1`, ftmm).Scan(&got); err != nil {
+			t.Logf("抽样 %s 未在结果表中：%v", ftmm, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("抽样 %s 的 usc=%q，期望 %q", ftmm, got, want)
+		}
+	}
+
+	// 二次应用必须幂等：全部 unchanged、不再回写键表
+	preview2, err := service.Preview(ctx, DefaultEnv)
+	if err != nil {
+		t.Fatalf("二次预演失败: %v", err)
+	}
+	if preview2.Added != 0 || preview2.Changed != 0 {
+		t.Errorf("二次预演应无变化，实际 added=%d changed=%d", preview2.Added, preview2.Changed)
+	}
+	result2, err := service.Apply(ctx, DefaultEnv, preview2.PreviewToken, "test", "幂等复跑")
+	if err != nil {
+		t.Fatalf("二次应用失败: %v", err)
+	}
+	if result2.Added != 0 || result2.Changed != 0 || result2.KeyUpdated != 0 {
+		t.Errorf("二次应用应幂等，实际 added=%d changed=%d key_updated=%d",
+			result2.Added, result2.Changed, result2.KeyUpdated)
+	}
+}

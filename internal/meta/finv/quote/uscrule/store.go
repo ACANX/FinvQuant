@@ -151,6 +151,29 @@ SELECT COALESCE(count(*) FILTER (WHERE diff = 'added'), 0)::bigint     AS added,
        (SELECT count(*) FROM _usc_final WHERE rule_no = 'ESCALATE')::bigint AS escalated
   FROM _usc_diff`
 
+// diffSummary summarySQL 的扫描目标。
+//
+// 预演与应用共用同一份统计 SQL：**列序与目标字段必须一一对应**，
+// 因此统一走 scanSummary，禁止在调用处各自写 Scan（曾因应用侧少扫 `total` 一列而报
+// 「number of field descriptions must equal number of destinations, got 7 and 6」）。
+type diffSummary struct {
+	Added     int64
+	Changed   int64
+	Unchanged int64
+	Removed   int64
+	Reused    int64
+	Total     int64
+	Escalated int64
+}
+
+// scanSummary 按 summarySQL 的固定列序扫描。
+func scanSummary(row pgx.Row) (diffSummary, error) {
+	var sum diffSummary
+	err := row.Scan(&sum.Added, &sum.Changed, &sum.Unchanged, &sum.Removed,
+		&sum.Reused, &sum.Total, &sum.Escalated)
+	return sum, err
+}
+
 // tokenSQL 预演令牌：最终结果的整体指纹，应用时校验「预演之后规则/数据是否变过」。
 const tokenSQL = `SELECT md5(string_agg(ftmm_symbol || ':' || usc, ',' ORDER BY ftmm_symbol)) FROM _usc_final`
 
@@ -263,10 +286,13 @@ func (s *Store) Preview(ctx context.Context, env string) (Preview, []DiffRow, er
 	}
 
 	preview := Preview{Env: normalizeEnv(env), ComputedAt: time.Now().Format(time.RFC3339)}
-	if err := tx.QueryRow(ctx, summarySQL).Scan(&preview.Added, &preview.Changed, &preview.Unchanged,
-		&preview.Removed, &preview.Reused, &preview.Total, &preview.Escalated); err != nil {
+	sum, err := scanSummary(tx.QueryRow(ctx, summarySQL))
+	if err != nil {
 		return Preview{}, nil, fmt.Errorf("统计差异失败: %w", err)
 	}
+	preview.Added, preview.Changed, preview.Unchanged = sum.Added, sum.Changed, sum.Unchanged
+	preview.Removed, preview.Reused, preview.Total, preview.Escalated =
+		sum.Removed, sum.Reused, sum.Total, sum.Escalated
 	if err := tx.QueryRow(ctx, tokenSQL).Scan(&preview.PreviewToken); err != nil {
 		return Preview{}, nil, fmt.Errorf("计算预演令牌失败: %w", err)
 	}
@@ -339,11 +365,13 @@ func (s *Store) Apply(ctx context.Context, env, previewToken, operator, reason s
 	}
 	result.PreviewAt = time.Now().Format(time.RFC3339)
 
-	// 统计（与预演同口径）。
-	if err := tx.QueryRow(ctx, summarySQL).Scan(&result.Added, &result.Changed, &result.Unchanged,
-		&result.Removed, &result.Reused, &result.Escalated); err != nil {
+	// 统计（与预演同口径，共用 scanSummary）。
+	sum, err := scanSummary(tx.QueryRow(ctx, summarySQL))
+	if err != nil {
 		return result, fmt.Errorf("统计差异失败: %w", err)
 	}
+	result.Added, result.Changed, result.Unchanged = sum.Added, sum.Changed, sum.Unchanged
+	result.Removed, result.Reused, result.Escalated = sum.Removed, sum.Reused, sum.Escalated
 
 	if err := s.archiveReused(ctx, tx, &result); err != nil {
 		return result, err

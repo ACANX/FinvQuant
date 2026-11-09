@@ -157,6 +157,15 @@
 
 ### 变更
 
+- **修复 USC 应用失败「统计差异失败: number of field descriptions must equal number of destinations, got 7 and 6」（需求 11072 修复）**
+  - 缺陷：`summarySQL` 输出 7 列（added/changed/unchanged/removed/reused/total/escalated），预演侧扫 7 个目标正确，
+    但**应用侧只扫了 6 个**（漏了 `total`），点「立即应用」必失败；事务整体回滚，未污染数据（结果表 0 行、键表 usc 未变）。
+  - 修复：抽出 `diffSummary` + `scanSummary()` 统一按固定列序扫描，预演与应用共用同一处，杜绝两处 Scan 列数再次不一致。
+  - 验证：新增集成测试 `TestApplyOnClone`（`FINV_USC_APPLY_DSN` 指向 `pg_dump -n futu -n archive` 克隆库），
+    实测 `added=73,212 / key_updated=17,203 / elapsed≈16.4s`，键表 `usc` 与结果表 **0 行不一致**；
+    抽样 `US.AESG→AESG`（P50 停用）、`SH.000300→SH0300`（P22）、`US.XRP→ETFXRP`（P40）、
+    `US..BFLY→IDX.BFLY`（指数撞名例外）、`AU..XFL→XFL`（P16）；二次应用 `added=0 changed=0 key_updated=0`（幂等）。
+
 - **`HK.800700` 的 usc 统一为 `HTI`（需求 11071，迁移 `V300155` / `V300156`）**
   - `public.finv_security` 归并为 1 行（`usc='HTI'` + `security_code='800700'`），删掉 `security_code='HTI'` 的空壳行；`cdeu.finv_quote_secu_indicator` 删掉 `usc='800700'` 的孤儿行；两张表删前整行备份到 `archive.finv_security_purge_20261110` / `archive.finv_quote_secu_indicator_purge_20261110`（带 `src_table` / `reason` / `backup_at`）。
   - 修正：首版 `V300155` 误改 `futu.finv_futu_secu_key` 的 `US.HSTI`（美股，按规则 usc 应为 `HSTI`），`V300156` 已恢复；`V300155` 收口为只改 `market='HK'`。
