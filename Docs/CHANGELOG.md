@@ -20,6 +20,22 @@
 
 ### 新增
 
+- **USC 映射规则结构化建表（需求 11072，迁移 `V300157`）**
+  - 把「USC 映射规则」从仓库外文档/手写 SQL 固化为数据库对象，支撑新增上市、退市/过期、周期品种与环境差异：
+    `futu.finv_futu_usc_rule`（规则层，9 条）、`futu.finv_futu_usc_rule_item`（条目层，689 条）、
+    `futu.finv_futu_usc_map`（结果表，`ftmm_symbol → usc`）、`futu.finv_futu_usc_rule_log`（审计）、
+    `archive.finv_usc_reuse_snapshot`（复用归档），以及引擎函数 `futu.f_finv_futu_usc_calc(env)` + 视图 `futu.finv_futu_usc_calc_view`。
+  - 唯一性：结果表 `usc_lower` 生成列 + **部分唯一索引仅约束 `status='ACTIVE'`**；按决策「退市后 `usc` 允许复用」，
+    退市行保留为 `RETIRED`（`retired_at` 必填）不再占位，复用行须写 `reuse_of_ftmm` 并先做下游归档。
+  - 条目唯一键用 `UNIQUE NULLS NOT DISTINCT (rule_no, scope_env, market, instrument, code, code_regex)`，
+    解决通配维度大量为 NULL 时普通唯一键挡不住重复灌数的问题。
+  - 新增系统配置 `20015`「USC 映射规则每日同步cron（6段）」，默认 `0 30 3 * * *`（每天 03:30 一次；
+    `20014` 已被「Supabase 证券键源表名」占用）。
+  - 实测：规则 9 条 / 条目 689 条（P12 5、P14 3、P20 11、P21 5、P22 1、P40 23、P50 641）；
+    引擎视图在 73,212 行键表上输出 73,212 行、`canon_cnt=1` 66,531 行、空值 0；
+    抽样 `HK.800000→HSI`、`HK.AACMAIN→AACMain`、`FX.USDINDEX→USDIndex`、`CA.HSI→HSI(cnt=2)`；
+    迁移重跑 `INSERT 0 0`（幂等），`gmt_update` 触发器与「ACTIVE 撞名被拒 / RETIRED 可共存」均实测通过。
+
 - **Tab 3 上游 usc 回填扩展为「写两张上游表」（需求 11056/11057）**
   - ① `public.finv_quote_secu_meta.usc`（原口径，按 `stock_id`）；② 新增 `public.finv_quote_secu_key` 的 `usc` + `stock_id`（按 `ftmm_symbol`）。
   - 键表关联口径：本地用 `market_label || '.' || futu_symbol` 重建 `ftmm_symbol`（上游为 `{market}.{code}`），覆盖 24,162 / 73,212 行；按 `stock_id` 关联只有 10,910 行且是其子集，因此不作主路径。其余 49,050 行本地无依据跳过。
