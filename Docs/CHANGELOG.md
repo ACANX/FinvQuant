@@ -20,6 +20,16 @@
 
 ### 新增
 
+- **P50 条目逐条停用（需求 11079，迁移 `V300164`）**
+  - 修正 `V300163` 的不足：上次只把 `P50.flag_enable` 置 0，引擎已不再命中（实测 `US.AESG → AESG`、
+    `CC.AMPL → CC.AMPL`），但条目行 `status` 仍是 `ACTIVE`，「规则与条目」页面看不出停用。
+  - 本次把 `P50` 的 **640 条** `ACTIVE` 条目统一置 `RETIRED`（`effective_to` 不写日期——是临时停用，不是退市），
+    并在 `remark` 标注 `需求 11079 停用`；层开关 `flag_enable` 同时保持 `0`。
+  - 现状：`P50` 条目 641 条全部 `RETIRED`（含此前界面手工停用的 1 条），全库生效条目 705 → **63**。
+  - 恢复（两处都要还原）：
+    `UPDATE futu.finv_futu_usc_rule_item SET status='ACTIVE' WHERE rule_no='P50' AND remark LIKE '%需求 11079 停用%';`
+    `UPDATE futu.finv_futu_usc_rule SET flag_enable='1' WHERE rule_no='P50';`
+
 - **临时停用 P50 批量例外整层（需求 11078，迁移 `V300163`）**
   - 按用户要求把规则 `P50` 的 `flag_enable` 置 `0`：640 条批量例外条目保留 `ACTIVE` 但不参与计算，
     恢复只需 `UPDATE futu.finv_futu_usc_rule SET flag_enable='1' WHERE rule_no='P50';`。
