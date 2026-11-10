@@ -20,6 +20,15 @@
 
 ### 新增
 
+- **USC 定时同步支持页面配置与「立即执行一次」（需求 11081）**
+  - 新增 `GET/POST /API/V1/Meta/Finv/Quote/UscMap/Schedule`：读取/保存 `sys.sys_config 20015` 的 cron，
+    返回 `enable` 与未来 5 次执行时间；保存时校验 6 段表达式，传空串=关闭自动同步。
+  - Tab 2 顶部新增「定时同步」卡片：当前状态（已启用/已关闭）、下次执行时间、cron 输入框、保存、关闭自动同步；
+    另加 **「立即执行一次」** 按钮——与定时任务走同一条链路（先预演拿令牌、弹确认后异步应用），
+    不必等到设定时间，也不需要手动分两步点。
+  - 实测：`GET /Schedule` 返回 `cron_expr="" / enable=false`；保存 `0 30 3 * * *` 后 `enable=true` 且给出下次执行时间，
+    再保存空串恢复关闭；`go build` / `vue-tsc` / `npm run build` 通过。
+
 - **P50 条目逐条停用（需求 11079，迁移 `V300164`）**
   - 修正 `V300163` 的不足：上次只把 `P50.flag_enable` 置 0，引擎已不再命中（实测 `US.AESG → AESG`、
     `CC.AMPL → CC.AMPL`），但条目行 `status` 仍是 `ACTIVE`，「规则与条目」页面看不出停用。

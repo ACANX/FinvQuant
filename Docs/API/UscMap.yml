@@ -209,6 +209,44 @@ paths:
       responses:
         '200': { description: ok（status ∈ RUNNING/DONE/FAILED，含 logs） }
         '404': { description: 运行不存在或已过期 }
+  /Meta/Finv/Quote/UscMap/Schedule:
+    get:
+      summary: 读取每日同步 cron 配置（20015）
+      operationId: uscMapScheduleGet
+      tags: [UscMap]
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, const: 0 }
+                  data:
+                    type: object
+                    properties:
+                      cron_expr: { type: string, description: '空串 = 关闭自动同步' }
+                      enable: { type: boolean }
+                      remark: { type: string }
+                      gmt_modify: { type: [string, 'null'] }
+                      next_run: { type: array, items: { type: string }, description: 未来 5 次执行时间 }
+    post:
+      summary: 保存每日同步 cron（空串=关闭自动同步）
+      operationId: uscMapScheduleSave
+      tags: [UscMap]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cron_expr: { type: string, description: '6 段：秒 分 时 日 月 周；如 0 30 3 * * *' }
+      responses:
+        '200': { description: 已保存（返回最新配置与 next_run） }
+        '400': { description: cron 表达式非法 }
+
   /Meta/Finv/Quote/UscMap/Log/List:
     get:
       summary: 审计日志分页
