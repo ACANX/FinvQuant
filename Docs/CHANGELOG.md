@@ -202,6 +202,15 @@
 
 ### 变更
 
+- **删除 `finv_security` 的重复垃圾行 `USDindex`（需求 11092，迁移 `V300176`）**
+  - `USDindex`（小写 i）：`name='USD'`、`type_secu_sub` 为空、`provider`/`remark` 均空，
+    与权威写法 `USDIndex`（大写 I，`Forex`/`CIX`/market 1253/美元指数）重复。
+  - 删前核查**全库零引用**（键表 / 采集表 / 指标表 / `finv_fxcer` / K 线 / 实时行情 / `cdeu.usc` 均 0 行），
+    迁移里也把「仍有引用则中止」写成硬校验。
+  - 删前整行写入既有 `archive.finv_security_purge_20261110`
+    （`reason='需求 11092 删除：与 USDIndex 重复的历史垃圾行…'`）。
+  - 实测：`finv_security` 23,525 → **23,524** 行；`USDIndex` 保留；幂等复跑删除 0 行。
+
 - **清理无键表依据的证券（需求 11089，迁移 `V300173`）**
   - `public.finv_security` 删除 **126 行**（这些 `usc` 在 `futu.finv_futu_secu_key` 里不存在，
     且 `quote_collect` 里的同名行也没有键表依据）；删前整行写入既有

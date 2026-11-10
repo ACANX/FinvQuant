@@ -3192,7 +3192,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 清理无键表依据的证券（V300173）：public.finv_security 删 126 行并归档、quote_collect 删 126 行、indicator 删 1 行（EURindex），两表无依据行归零 | 11089 | 1 |
 | 按「有数据才建」重建 public.finv_security（V300174）：stock/etf/index 且 US/SH/SZ/HK 的 1,676 个证券补登记（31 个撞唯一键跳过）；crypto 2,974 / futures 108 / forex 4 按口径未纳入 | 11090 | 1 |
 | 纳入外汇/货币指数证券（V300175）：补 EURIndex（Forex/CIX/1253）+ 4 个有数据的外汇对（MYRKRW/NZDTHB/THBNZD/XNGUSD，Forex/CER/1251）；USDIndex 本已在册 | 11091 | 1 |
-| **合计** | **10001–11091** | **1087**（含 2 条待办） |
+| 删除 finv_security 的重复垃圾行 USDindex（小写 i，零引用，已归档；V300176） | 11092 | 1 |
+| **合计** | **10001–11092** | **1088**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
