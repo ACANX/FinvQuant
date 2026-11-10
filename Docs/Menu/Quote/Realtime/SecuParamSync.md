@@ -147,7 +147,7 @@
 #### 2.4.3 回推进度与日志（第三张卡片）
 
 与 Tab 1/2 同款（状态 chip / 累计 chip / 进度条 / 独立滚动日志区 + 自动滚底 + `ERROR` 标红 + 「等待下一批…」），
-累计 chip：`处理 a / b · 填入 · 覆盖 · 未变 · 上游无对应 · N 批 · 耗时`。
+累计 chip：`处理 a / b · 填入 · 覆盖 · 未变 · 上游新增 · 无法插入 · N 批 · 耗时`。
 
 日志形态：
 
@@ -156,7 +156,7 @@
 第 1 批：offset=0，处理 500 个 ftmm_symbol，写入 12（填入 0 / 覆盖 12），未变 488，无对应 0（本批 3210 ms）
 ……
 回推完成：本地 futu.finv_futu_secu_key 共 73212 行（usc 有值 73212，为空跳过 0），147 批；
-         写入 N（填入 a / 覆盖 b），未变 c，上游无对应 0；耗时 … ms
+         写入 N（填入 a / 覆盖 b），未变 c，上游新增 d（无法插入 e）；耗时 … ms
 ```
 
 #### 2.4.4 口径（页面「说明」里同步展示）
@@ -166,7 +166,7 @@
   不写 `stock_id`、不写 `meta` 表；判定口径：两列都一致 → 未变（不发请求）；任一列为空 → 填入；
   都不为空但有差异（含只有 `priority` 不同）→ 覆盖；
 - 上游 `usc` 已等于本地值 → 「未变」，**不发请求**（复跑幂等）；为空 → 「填入」；有值不同 → 「覆盖」；
-- 上游没有该 `ftmm_symbol` → 「上游无对应」，只计数、**不插入**；本地 `usc` 为空的行直接跳过；
+- 上游没有该 `ftmm_symbol` → **插入新记录**（需求 11157，「上游新增」）：按本地 `instrument` / `market` / `code` / `usc` / `priority` / `stock_id` / `status` / `flag_enable`（上游列名 `enable`）组一行，`on_conflict=ftmm_symbol` + `resolution=merge-duplicates` 批量 upsert，`note` 写 `[AUTO-FILL]` 标记；本地缺 `instrument` / `market` / `code` 的行无法插入，计「无法插入」；本地 `usc` 为空的行直接跳过；
 - 本 Tab **写入线上 Supabase**：逐行 PATCH，每行校验受影响行数 = 1，RLS 拒绝直接报错。
 
 ### 2.5 说明卡片（页面最底部唯一「说明」卡片，ExplainCardSpec）
@@ -177,7 +177,7 @@
 `futu_symbol` 优先取 `stock_code`；`flag_enable` 不覆盖、保持表默认值与原值；不再写证券键表）。
 
 **本地 usc 回推上游**（方向相反：本地 → 上游，按 `ftmm_symbol` 关联，回推 `usc` + `priority` 两列；会写入线上 Supabase；
-上游 `usc` 已一致时不发请求；上游无对应行只计数、不插入）。
+上游 `usc` 已一致时不发请求；上游缺记录则插入新行，不是「只计数」）。
 
 ## 3. 交互细节
 

@@ -46,7 +46,13 @@ func (s *Store) KeyLocalStat(ctx context.Context) (KeyLocalStat, error) {
 // 便于日志与复跑比对。ftmm_symbol 是该表主键，天然唯一，无需归并去重。
 func (s *Store) ReadLocalUSC(ctx context.Context) ([]LocalKeyRow, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT ftmm_symbol, usc, priority
+		SELECT ftmm_symbol, usc, priority,
+		       COALESCE(btrim(instrument), ''),
+		       COALESCE(btrim(market), ''),
+		       COALESCE(btrim(code), ''),
+		       stock_id,
+		       COALESCE(btrim(status), ''),
+		       flag_enable
 		  FROM `+LocalKeyTable+`
 		 WHERE COALESCE(btrim(usc), '') <> ''
 		 ORDER BY ftmm_symbol`)
@@ -58,7 +64,8 @@ func (s *Store) ReadLocalUSC(ctx context.Context) ([]LocalKeyRow, error) {
 	result := make([]LocalKeyRow, 0, 65536)
 	for rows.Next() {
 		var row LocalKeyRow
-		if err := rows.Scan(&row.FtmmSymbol, &row.USC, &row.Priority); err != nil {
+		if err := rows.Scan(&row.FtmmSymbol, &row.USC, &row.Priority,
+			&row.Instrument, &row.Market, &row.Code, &row.StockID, &row.Status, &row.FlagEnable); err != nil {
 			return nil, fmt.Errorf("解析 %s 行失败: %w", LocalKeyTable, err)
 		}
 		result = append(result, row)

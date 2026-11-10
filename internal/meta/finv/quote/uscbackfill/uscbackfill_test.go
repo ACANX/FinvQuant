@@ -3,6 +3,7 @@ package uscbackfill
 import (
 	"encoding/json"
 	"testing"
+	"time"
 )
 
 // TestIndexKeyUpstream 校验上游 finv_quote_secu_key 行解析（usc 为 NULL 时留空串，键为空跳过）。
@@ -117,5 +118,64 @@ func TestBuildTarget(t *testing.T) {
 	}
 	if _, exists := target["US.AAA"]; exists {
 		t.Fatalf("usc 为空的行不应进入目标集：%v", target)
+	}
+}
+
+// TestBuildInsertRow 上游缺记录时的插入行组装（需求 11157）。
+func TestBuildInsertRow(t *testing.T) {
+	at := time.Date(2026, 1, 15, 10, 20, 30, 0, time.FixedZone("CST", 8*3600))
+	stockID := int64(89184996156542)
+	want := keyTarget{
+		USC: "US.TXCP", Priority: 26, Instrument: "stock",
+		Market: "US", Code: "TXCP", StockID: &stockID, Status: "PENDING", FlagEnable: 1,
+	}
+	row, ok := buildInsertRow("US.TXCP", want, at)
+	if !ok {
+		t.Fatalf("字段齐全时应返回 ok=true")
+	}
+	expect := map[string]any{
+		"ftmm_symbol": "US.TXCP",
+		"market":      "US",
+		"code":        "TXCP",
+		"instrument":  "stock",
+		"usc":         "US.TXCP",
+		"priority":    26,
+		"status":      "PENDING",
+		"enable":      1,
+		"stock_id":    stockID,
+		"note":        "[AUTO-FILL] 本地回推上游插入 2026-01-15T10:20:30+08:00",
+	}
+	for key, value := range expect {
+		if row[key] != value {
+			t.Fatalf("列 %s = %v，期望 %v", key, row[key], value)
+		}
+	}
+	if _, exists := row["flag_enable"]; exists {
+		t.Fatalf("上游列名是 enable，不应写 flag_enable")
+	}
+
+	// 本地缺身份列时不能插入
+	for _, broken := range []keyTarget{
+		{USC: "X", Instrument: "", Market: "US", Code: "TXCP"},
+		{USC: "X", Instrument: "stock", Market: "", Code: "TXCP"},
+		{USC: "X", Instrument: "stock", Market: "US", Code: ""},
+	} {
+		if _, ok := buildInsertRow("US.X", broken, at); ok {
+			t.Fatalf("缺 instrument/market/code 时应 ok=false: %+v", broken)
+		}
+	}
+
+	// stock_id 为空 / status 为空时不写这两列（上游有默认值）
+	sparse, ok := buildInsertRow("HK.09999", keyTarget{
+		USC: "HK.09999", Priority: 10, Instrument: "stock", Market: "HK", Code: "09999",
+	}, at)
+	if !ok {
+		t.Fatalf("stock_id / status 缺失不应影响插入")
+	}
+	if _, exists := sparse["stock_id"]; exists {
+		t.Fatalf("stock_id 为空时不应写入该列")
+	}
+	if _, exists := sparse["status"]; exists {
+		t.Fatalf("status 为空时不应写入该列")
 	}
 }

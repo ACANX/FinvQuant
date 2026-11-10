@@ -296,7 +296,7 @@
 | `public.finv_quote_secu_key` | `priority` | `ftmm_symbol` | `futu.finv_futu_secu_key.priority` | 同上（同一行一次 PATCH） |
 
 判定口径（两列都参与）：`usc` 与 `priority` **都一致** → `keep` 不发请求；任一列为空 → `fill`；
-都不为空但有差异（含只有 `priority` 不同）→ `overwrite`；上游无该 `ftmm_symbol` → `missing` 只计数不插入。
+都不为空但有差异（含只有 `priority` 不同）→ `overwrite`；上游无该 `ftmm_symbol` → **插入新记录**（`insert`，需求 11157）。
 
 > 历史逻辑已整体删除（需求 11084）：曾按 `stock_id` 回填 `public.finv_quote_secu_meta.usc`，
 > 并同时回写 `finv_quote_secu_key.stock_id`，还用 `futu.finv_futu_quote_collect` 拼 `usc`、
@@ -310,7 +310,7 @@
 | 关联键 | `ftmm_symbol`（本地主键 = 上游主键），一对一，不再按 `stock_id` 关联 |
 | 写入值 | 本地 `futu.finv_futu_secu_key.usc` 原样写入（不做大小写/格式转换） |
 | 写不写 | 上游 `usc` 已等于本地值 → 「未变」，**不发请求**；上游为空 → 「填入」；有值但不同 → 「覆盖」 |
-| 上游无该行 | 「上游无对应」跳过，**不插入**（本地多出来的键留给人工确认） |
+| 上游无该行 | **插入新记录**：按本地 `instrument`/`market`/`code`/`usc`/`priority`/`stock_id`/`status`/`flag_enable`（上游列名 `enable`）组一行，`on_conflict=ftmm_symbol` + `resolution=merge-duplicates` upsert，`note` 写 `[AUTO-FILL]` 标记（需求 11157）；本地缺 `instrument`/`market`/`code` → 计 `insert_skipped` 不插入 |
 | 本地 `usc` 为空 | 直接跳过，计入 `local_empty_usc`（实测 0 行） |
 | 待处理量 | 本地键表 73,212 行（`usc` 非空），按 `ftmm_symbol` 升序分批 |
 | 写入方式 | 逐行 `PATCH /rest/v1/finv_quote_secu_key?ftmm_symbol=eq.<X>`，body `{"usc":"<值>"}`，并发 8 |
@@ -345,7 +345,7 @@
 `data` 字段：`run_id`（前缀 `sk-ub-`）、`kind="uscbackfill"`、`status`、
 `key_table` / `key_column` / `key_key` / `local_table`、
 `local_rows` / `rows_total` / `local_empty_usc`、
-`fill` / `overwrite` / `keep` / `missing` / `batches`、
+`fill` / `overwrite` / `keep` / `missing`（上游无该键的条数）/ `insert`（已插入）/ `insert_skipped`（无法插入）/ `batches`、
 `rows_done` / `progress` / `batch_size` / `start_at` / `finish_at` / `duration_ms` / `error` / `logs[]`；
 `runId` 省略取最近一次，不匹配 404。
 
@@ -356,7 +356,7 @@
 第 1 批：offset=0，处理 500 个 ftmm_symbol，写入 12（填入 0 / 覆盖 12），未变 488，无对应 0（本批 3210 ms）
 ……
 回推完成：本地 futu.finv_futu_secu_key 共 73212 行（usc 有值 73212，为空跳过 0），147 批，
-         写入 N（填入 a / 覆盖 b），未变 c，上游无对应 0；耗时 … ms
+         写入 N（填入 a / 覆盖 b），未变 c，上游新增 d（无法插入 e）；耗时 … ms
 ```
 
 ### 7.3 验收实测（2026-11-10）

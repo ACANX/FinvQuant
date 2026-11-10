@@ -219,6 +219,27 @@
 
 ### 变更
 
+- **Tab 3 本地回推上游改为 upsert：上游缺记录就插入（需求 11157）**
+  - 现象：本地有、上游 `public.finv_quote_secu_key` 没有的键，回推后被判「上游无对应」直接跳过，
+    结果那几条永远进不了上游表。
+  - 改动：`classMissing` 从「跳过」改为「插入」——
+    - 行内容：`ftmm_symbol` / `market` / `code` / `instrument` / `usc` / `priority` /
+      `stock_id`（有值时）/ `status` / `enable`（本地列名是 `flag_enable`，上游是 `enable`）/
+      `note`（写 `[AUTO-FILL] 本地回推上游插入 <RFC3339>`，便于溯源）；
+    - 写法：新增 `Client.UpsertRows`，`POST /rest/v1/<表>?on_conflict=ftmm_symbol` +
+      `Prefer: return=minimal, resolution=merge-duplicates, count=exact`，**每批一次请求**（≤500 行），
+      冲突即合并 → 并发/重跑都幂等；已有行仍走原来的逐行 PATCH（每行校验受影响行数 = 1）。
+    - 本地缺 `instrument` / `market` / `code` 的行（上游身份列，不能编造）跳过，新增计数 `insert_skipped`。
+  - 计数与界面：`Result` / `Progress` 新增 `insert`、`insert_skipped`；Tab 3 结果 chips 由「上游无对应」
+    改为「上游新增」+「无法插入」，说明卡片同步改写；`Docs/API/Cdeu/SecuParamSync.md`、
+    `Docs/Menu/Quote/Realtime/SecuParamSync.md` 同步。
+  - 单测：`TestBuildInsertRow`（列名映射 `flag_enable`→`enable`、`note` 前缀、缺身份列不插入、
+    `stock_id`/`status` 为空不写该列）、`TestUpsertRowsRequestShape`（httptest 断言方法/路径/`on_conflict`/
+    `Prefer`/行数组/`Content-Range` 解析）、`TestUpsertRowsErrorSurfaced`（4xx 消息透出）。
+  - **踩坑记录**：上游探针验证时发现——用 20013 的 publishable key 能 INSERT/UPDATE，但 **DELETE 受 RLS 限制
+    （`Prefer: return=representation` 返回空数组，行未删）**，因此「插入后自清理」的线上探针测试不可行，
+    已改为 httptest 假服务端验证请求形态，不再往生产表写测试数据；
+
 - **入队改为「探测 → 场景化按钮 → 提交」，键字段可手工改（需求 11155 / 11156）**
   - 新增探测接口 `POST .../Stock/Pending/Enqueue/Probe`（只读）：按 `market` + `code`（可覆盖快照派生值）
     算 `ftmm_symbol` 并查键表，返回 `planned` / `existed` / `current` / `hint`。

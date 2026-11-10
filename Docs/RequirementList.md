@@ -3257,7 +3257,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 「入队」必须两步走：点按钮只打开确认对话框（预检只读），人工核对并可改正 `instrument` 后，再点对话框里的「确认入队」才写库；不得一键直接提交 | 11154 | 1 |
 | 入队新增探测接口 `POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue/Probe`（只读，返回 `planned`/`existed`/`current`/`hint`），并按场景区分按钮：键不存在显示可点击的「确认入队」、已存在显示「更新键」（`POST .../Enqueue/Update` 改非主键字段）；未探测或键字段改动后按钮禁用，每次提交前服务端再验证一次存在性 | 11155 | 1 |
 | 入队对话框写入 `futu.finv_futu_secu_key` 的字段支持手工修改：`market`/`code`/`stock_id`/`instrument`/`status`/`flag_enable`/`priority`，主键 `ftmm_symbol` 由 `market`+`code` 派生只读；携带词表与范围校验（`instrument`、`status` 词表，`flag_enable` 0/1，`priority` 1..1000000） | 11156 | 1 |
-| **合计** | **10001–11156** | **1152**（含 2 条待办） |
+| 「证券参数同步」Tab 3（本地 usc 回推上游）改为 upsert：本地有、上游 `public.finv_quote_secu_key` 没有的键要**插入新记录**（按本地 `instrument`/`market`/`code`/`usc`/`priority`/`stock_id`/`status`/`flag_enable`（上游列名 `enable`）组行，`on_conflict=ftmm_symbol` + `resolution=merge-duplicates`），`note` 写 `[AUTO-FILL]` 标记便于溯源；已有行仍按 usc+priority 两列 PATCH；本地缺 `instrument`/`market`/`code` 的行计「无法插入」不插入 | 11157 | 1 |
+| **合计** | **10001–11157** | **1153**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

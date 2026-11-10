@@ -105,6 +105,10 @@ interface BackfillRun extends RunBase {
   overwrite: number
   keep: number
   missing: number
+  // 上游缺记录 → 已插入（upsert，需求 11157）
+  insert: number
+  // 上游缺记录但本地缺 instrument/market/code → 未插入
+  insert_skipped: number
   local_empty_usc: number
   // Tab 3 的运行时间字段按去 -ed 口径命名（Tab 1/2 仍为 started_at/elapsed_ms，后续统一）
   start_at: string
@@ -881,8 +885,11 @@ onBeforeUnmount(() => {
             <v-chip size="small" variant="tonal" color="success">填入 {{ num(bf.run.value.fill) }}</v-chip>
             <v-chip size="small" variant="tonal" color="primary">覆盖 {{ num(bf.run.value.overwrite) }}</v-chip>
             <v-chip size="small" variant="tonal">未变 {{ num(bf.run.value.keep) }}</v-chip>
-            <v-chip v-if="bf.run.value.missing" size="small" variant="tonal" color="warning">
-              上游无对应 {{ num(bf.run.value.missing) }}
+            <v-chip v-if="bf.run.value.insert" size="small" variant="tonal" color="success">
+              上游新增 {{ num(bf.run.value.insert) }}
+            </v-chip>
+            <v-chip v-if="bf.run.value.insert_skipped" size="small" variant="tonal" color="warning">
+              无法插入 {{ num(bf.run.value.insert_skipped) }}
             </v-chip>
             <v-chip size="small" variant="text">
               {{ bf.run.value.batches }} 批 · {{ elapsedText(bf.run.value.duration_ms) }}
@@ -973,8 +980,13 @@ onBeforeUnmount(() => {
             <b>两列同一行一次写入</b>（需求 11142 起 priority 跟随 usc 一起同步）。<br />
             口径不是「只写 NULL 行」：usc 与 priority <b>两列都一致</b> → 「未变」且不发请求（幂等，重跑收敛）；
             任一列为空 → 「填入」；都不为空但有差异 → 「覆盖」；
-            上游没有该 <code>ftmm_symbol</code> → 「上游无对应」跳过（不做插入）。本地 <code>usc</code> 为空的行直接跳过。<br />
-            本 Tab 会<b>写入线上 Supabase</b>：逐行 PATCH，每行都校验「受影响行数 = 1」，被 RLS 拒绝会直接报错。
+            <b>上游没有该 <code>ftmm_symbol</code> → 插入新记录</b>（需求 11157，记「上游新增」）：
+            按本地行的 <code>instrument</code> / <code>market</code> / <code>code</code> / <code>usc</code> /
+            <code>priority</code> / <code>stock_id</code> / <code>status</code> / <code>flag_enable</code>（上游列名 <code>enable</code>）组一行，
+            以 <code>on_conflict=ftmm_symbol</code> + <code>resolution=merge-duplicates</code> 的方式 upsert，
+            <code>note</code> 列写 <code>[AUTO-FILL]</code> 标记便于溯源；本地缺 <code>instrument</code> / <code>market</code> / <code>code</code>
+            的行无法插入，计入「无法插入」。本地 <code>usc</code> 为空的行直接跳过。<br />
+            本 Tab 会<b>写入线上 Supabase</b>：已有行走 PATCH（每行校验「受影响行数 = 1」），缺失行走批量 upsert；被 RLS 拒绝会直接报错。
             历史逻辑（写 <code>public.finv_quote_secu_meta.usc</code>、回写 <code>stock_id</code>、按 <code>stock_id</code> 定值/歧义裁决）
             已随需求 11084 整体删除。
           </div>

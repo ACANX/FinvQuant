@@ -115,6 +115,90 @@ func (c *Client) fetchByKeys(ctx context.Context, table, columns, keyColumn stri
 	return rows, nil
 }
 
+// UpsertRows 批量写入若干行：按 conflictColumns 冲突则合并更新，否则插入（需求 11157）。
+//
+// 用于「本地回推上游」时补写上游缺失的记录：
+//   - `Prefer: resolution=merge-duplicates` → 冲突时按主键合并（幂等，重跑不会重复插入）；
+//   - `Prefer: return=minimal` → 不要回显整行，只靠 `count=exact` 取受影响行数；
+//   - `on_conflict=<列>` → 明确冲突列（上游主键 ftmm_symbol）。
+//
+// 返回写入（插入 + 合并）的行数；行数不符由调用方判断。
+func (c *Client) UpsertRows(ctx context.Context, table, conflictColumns string, rows []map[string]any) (int, error) {
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	schema, name := splitTable(table)
+	payload, err := json.Marshal(rows)
+	if err != nil {
+		return 0, fmt.Errorf("序列化写入内容失败: %w", err)
+	}
+	endpoint := c.baseURL + "/rest/v1/" + name
+	if columns := strings.TrimSpace(conflictColumns); columns != "" {
+		endpoint += "?on_conflict=" + url.QueryEscape(columns)
+	}
+
+	var lastErr error
+	for attempt := 1; attempt <= c.maxAttempts; attempt++ {
+		affected, retryable, err := c.upsertOnce(ctx, endpoint, schema, payload)
+		if err == nil {
+			return int(affected), nil
+		}
+		lastErr = err
+		if !retryable || attempt == c.maxAttempts {
+			return 0, fmt.Errorf("写入上游 %s 失败（%d 行）: %w", name, len(rows), lastErr)
+		}
+		backoff := c.retryBackoff * time.Duration(attempt)
+		log.Printf("[cdeu][uscbackfill] upsert retry %d/%d after %s: %v", attempt, c.maxAttempts, backoff, err)
+		select {
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		case <-time.After(backoff):
+		}
+	}
+	return 0, fmt.Errorf("写入上游 %s 失败（%d 行）: %w", name, len(rows), lastErr)
+}
+
+// upsertOnce 发一次 POST（upsert 语义），返回受影响行数；retryable 表示该错误值得重试。
+func (c *Client) upsertOnce(ctx context.Context, endpoint, schema string, payload []byte) (affected int64, retryable bool, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
+	if err != nil {
+		return 0, false, fmt.Errorf("构造请求失败: %w", err)
+	}
+	req.Header.Set("apikey", c.apiKey)
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Prefer", "return=minimal, resolution=merge-duplicates, count=exact")
+	if schema != "" {
+		req.Header.Set("Accept-Profile", schema)
+		req.Header.Set("Content-Profile", schema)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0, true, fmt.Errorf("请求 Supabase 失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if readErr != nil {
+		return 0, true, fmt.Errorf("读取 Supabase 响应失败: %w", readErr)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		message := strings.TrimSpace(string(body))
+		if len(message) > 300 {
+			message = message[:300] + "…"
+		}
+		retryable = resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500
+		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+			return 0, false, fmt.Errorf("Supabase 鉴权失败（HTTP %d），请检查 20013 的 APIKEY: %s",
+				resp.StatusCode, message)
+		}
+		return 0, retryable, fmt.Errorf("Supabase 返回 HTTP %d: %s", resp.StatusCode, message)
+	}
+	return parseContentRangeTotal(resp.Header.Get("Content-Range")), false, nil
+}
+
 // PatchColumns 把键列等于 keyValue 的那一行的若干列改成 values。
 //
 // 用 `Prefer: return=minimal, count=exact` 校验受影响行数：必须正好 1 行，

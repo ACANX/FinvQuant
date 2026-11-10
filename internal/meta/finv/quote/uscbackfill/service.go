@@ -6,7 +6,12 @@
 // 回推 **usc 与 priority 两列**（需求 11142 起 priority 一起同步），关联键是 ftmm_symbol
 // （上游主键、本地主键，双边唯一）；两列任一不同即按同一行一次 PATCH 写回。
 // 上游值已等于本地值 → 记「未变」且不发请求（幂等，重跑收敛）；为空 → 「填入」；
-// 有值但不同 → 「覆盖」。上游没有该 ftmm_symbol → 「无对应」，跳过。
+// 有值但不同 → 「覆盖」。
+//
+// **上游没有该 ftmm_symbol → 插入新记录**（需求 11157）：按本地行的
+// instrument / market / code / usc / priority / stock_id / status / flag_enable 组一行，
+// 以 `on_conflict=ftmm_symbol` + `resolution=merge-duplicates` 的方式 upsert 上游，
+// note 列写 `[AUTO-FILL]` 标记便于溯源；本地缺 market / code / instrument 的行无法插入，跳过并计数。
 //
 // 历史逻辑（已废弃，需求 11084）：一次运行写两张上游表——① public.finv_quote_secu_meta.usc
 // 按 stock_id 关联、② public.finv_quote_secu_key 的 usc + stock_id 按 ftmm_symbol 关联，
@@ -94,7 +99,9 @@ type Progress struct {
 	Fill       int   // 上游为空 → 填入
 	Overwrite  int   // 上游已有且不同 → 覆盖
 	Keep       int   // 上游已一致 → 未变
-	Missing    int   // 上游无该 ftmm_symbol → 跳过
+	Missing    int   // 上游无该 ftmm_symbol 的条数
+	Insert     int   // 上游缺记录 → 已插入（含 upsert 合并）
+	InsertSkip int   // 上游缺记录但本地缺 instrument/market/code → 无法插入
 	SkipEmpty  int   // 本地 usc 为空 → 跳过
 	DurationMs int64
 }
@@ -113,7 +120,9 @@ type Result struct {
 	Fill       int    `json:"fill"`
 	Overwrite  int    `json:"overwrite"`
 	Keep       int    `json:"keep"`
-	Missing    int    `json:"missing"`
+	Missing    int    `json:"missing"`        // 上游无该键的条数
+	Insert     int    `json:"insert"`         // 上游缺记录 → 已插入（upsert）
+	InsertSkip int    `json:"insert_skipped"` // 上游缺记录但本地字段不全 → 未插入
 	DurationMs int64  `json:"duration_ms"`
 }
 
@@ -145,17 +154,34 @@ type StatusSnapshot struct {
 	BatchSizeDefault int `json:"batch_size_default"`
 }
 
-// LocalKeyRow 本地证券键表的一行（ftmm_symbol 主键 + usc + priority）。
+// LocalKeyRow 本地证券键表的一行。
+//
+// 除要回推的 usc / priority 外，还带上「上游缺记录时需要插入」的字段（需求 11157）：
+// 上游 public.finv_quote_secu_key 的主键与必填列（instrument / market / code）、
+// stock_id、status、flag_enable（上游列名 enable）。url / note 由服务端拼。
 type LocalKeyRow struct {
 	FtmmSymbol string
 	USC        string
 	Priority   int
+	Instrument string
+	Market     string
+	Code       string
+	StockID    *int64
+	Status     string
+	FlagEnable int16
 }
 
-// keyTarget 一个 ftmm_symbol 要回推到的目标值（usc + priority 一起回推）。
+// keyTarget 一个 ftmm_symbol 要回推到的目标值（usc + priority 一起回推），
+// 以及上游缺该键时插入所需的其余列（需求 11157）。
 type keyTarget struct {
-	USC      string
-	Priority int
+	USC        string
+	Priority   int
+	Instrument string
+	Market     string
+	Code       string
+	StockID    *int64
+	Status     string
+	FlagEnable int16
 }
 
 // Service usc 回推服务（无状态）。
@@ -284,6 +310,7 @@ func (s *Service) SyncWithProgress(ctx context.Context, req Request, onProgress 
 		}
 
 		jobs := make([]patchJob, 0, len(batchKeys))
+		insertRows := make([]map[string]any, 0)
 		batchFill, batchOverwrite, batchKeep, batchMissing := 0, 0, 0, 0
 		for _, symbol := range batchKeys {
 			up, ok := current[symbol]
@@ -291,6 +318,14 @@ func (s *Service) SyncWithProgress(ctx context.Context, req Request, onProgress 
 			switch classify(up, ok, want) {
 			case classMissing:
 				batchMissing++
+				// 上游没有该键 → 插入新记录（需求 11157）；本地字段不全则跳过
+				row, ok := buildInsertRow(symbol, want, s.now())
+				if !ok {
+					result.InsertSkip++
+					log.Printf("[cdeu][uscbackfill] insert skipped ftmm=%s（本地缺 instrument/market/code）", symbol)
+					continue
+				}
+				insertRows = append(insertRows, row)
 				continue
 			case classKeep:
 				batchKeep++
@@ -309,6 +344,17 @@ func (s *Service) SyncWithProgress(ctx context.Context, req Request, onProgress 
 			})
 		}
 
+		// 先插入上游缺的记录（upsert，幂等），再 PATCH 已有行；任一失败即中止本轮
+		inserted, err := client.UpsertRows(ctx, KeyTable, KeyKeyColumn, insertRows)
+		if err != nil {
+			return result, err
+		}
+		if len(insertRows) > 0 && inserted != len(insertRows) {
+			log.Printf("[cdeu][uscbackfill] insert count mismatch want=%d got=%d（继续，重跑可收敛）",
+				len(insertRows), inserted)
+		}
+		result.Insert += inserted
+
 		affected, err := patchAll(ctx, client, KeyTable, KeyKeyColumn, jobs)
 		if err != nil {
 			return result, err
@@ -322,9 +368,10 @@ func (s *Service) SyncWithProgress(ctx context.Context, req Request, onProgress 
 		result.Missing += batchMissing
 
 		batchElapsed := s.now().Sub(batchStart).Milliseconds()
-		log.Printf("[cdeu][uscbackfill] batch=%d offset=%d keys=%d upstream_hit=%d fill=%d overwrite=%d keep=%d missing=%d patched=%d duration_ms=%d",
+		log.Printf("[cdeu][uscbackfill] batch=%d offset=%d keys=%d upstream_hit=%d fill=%d overwrite=%d keep=%d "+
+			"missing=%d insert=%d insert_skipped=%d patched=%d duration_ms=%d",
 			batch+1, seen, len(batchKeys), len(batchKeys)-batchMissing, batchFill, batchOverwrite,
-			batchKeep, batchMissing, affected, batchElapsed)
+			batchKeep, batchMissing, inserted, result.InsertSkip, affected, batchElapsed)
 
 		if onProgress != nil {
 			onProgress(Progress{
@@ -337,6 +384,8 @@ func (s *Service) SyncWithProgress(ctx context.Context, req Request, onProgress 
 				Overwrite:  result.Overwrite,
 				Keep:       result.Keep,
 				Missing:    result.Missing,
+				Insert:     result.Insert,
+				InsertSkip: result.InsertSkip,
 				SkipEmpty:  int(result.SkipEmpty),
 				DurationMs: batchElapsed,
 			})
@@ -345,9 +394,10 @@ func (s *Service) SyncWithProgress(ctx context.Context, req Request, onProgress 
 	}
 
 	result.DurationMs = s.now().Sub(started).Milliseconds()
-	log.Printf("[cdeu][uscbackfill] writeback done target=%s.%s keys=%d fill=%d overwrite=%d keep=%d missing=%d batches=%d duration_ms=%d",
+	log.Printf("[cdeu][uscbackfill] writeback done target=%s.%s keys=%d fill=%d overwrite=%d keep=%d "+
+		"missing=%d insert=%d insert_skipped=%d batches=%d duration_ms=%d",
 		KeyTable, KeyUSCColumn, result.RowsTotal, result.Fill, result.Overwrite, result.Keep,
-		result.Missing, result.Batches, result.DurationMs)
+		result.Missing, result.Insert, result.InsertSkip, result.Batches, result.DurationMs)
 	return result, nil
 }
 
@@ -458,10 +508,61 @@ func buildTarget(rows []LocalKeyRow) ([]string, map[string]keyTarget) {
 		if _, exists := target[symbol]; !exists {
 			order = append(order, symbol)
 		}
-		target[symbol] = keyTarget{USC: value, Priority: row.Priority}
+		target[symbol] = keyTarget{
+			USC:        value,
+			Priority:   row.Priority,
+			Instrument: strings.TrimSpace(row.Instrument),
+			Market:     strings.TrimSpace(row.Market),
+			Code:       strings.TrimSpace(row.Code),
+			StockID:    row.StockID,
+			Status:     strings.TrimSpace(row.Status),
+			FlagEnable: row.FlagEnable,
+		}
 	}
 	sort.Strings(order)
 	return order, target
+}
+
+// 上游列名（与本地列名不同的那两个）。
+const (
+	// keyInsertEnableColumn 上游「启用标志」列名是 enable（本地叫 flag_enable）。
+	keyInsertEnableColumn = "enable"
+	// keyInsertNoteColumn 上游备注列名。
+	keyInsertNoteColumn = "note"
+	// keyInsertAutoNotePrefix 补写行的 note 前缀，便于追溯是本地回推插入的。
+	keyInsertAutoNotePrefix = "[AUTO-FILL]"
+)
+
+// buildInsertRow 把本地目标值组装成上游新记录（需求 11157）。
+//
+// 只写上游确实存在的列：ftmm_symbol / market / code / instrument / usc / priority /
+// stock_id（有值时）/ status / enable（本地 flag_enable）/ note（带 [AUTO-FILL] 标记）。
+// 本地缺 instrument / market / code 时返回 ok=false —— 这三列是上游记录的身份列，不能编造。
+func buildInsertRow(symbol string, want keyTarget, at time.Time) (map[string]any, bool) {
+	instrument := strings.TrimSpace(want.Instrument)
+	market := strings.TrimSpace(want.Market)
+	code := strings.TrimSpace(want.Code)
+	if instrument == "" || market == "" || code == "" {
+		return nil, false
+	}
+	row := map[string]any{
+		"ftmm_symbol":         symbol,
+		"market":              market,
+		"code":                code,
+		"instrument":          instrument,
+		KeyUSCColumn:          want.USC,
+		KeyPriorityColumn:     want.Priority,
+		keyInsertEnableColumn: int(want.FlagEnable),
+		keyInsertNoteColumn: fmt.Sprintf("%s 本地回推上游插入 %s",
+			keyInsertAutoNotePrefix, at.Format(time.RFC3339)),
+	}
+	if status := strings.TrimSpace(want.Status); status != "" {
+		row["status"] = status
+	}
+	if want.StockID != nil && *want.StockID > 0 {
+		row["stock_id"] = *want.StockID
+	}
+	return row, true
 }
 
 // keyUpstreamRow 上游表（finv_quote_secu_key）一行的现值。
