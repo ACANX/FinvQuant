@@ -45,6 +45,12 @@
 ⑤ 升级后仍撞名 → 本次拒绝（HTTP 500 / 运行 FAILED），人工修规则
 ```
 
+**口径示例（XRP 家族）**：同一个 `code=XRP` 在三个市场各有归属，靠分层与例外区分 ——
+加密现货 `CC.XRP` 占住主读法 `XRP`（P40 精确例外，`LITERAL XRP`）、美股 ETF `US.XRP` 让位为
+`ETFXRP`（P40 精确例外）、加拿大 ETF `CA.XRP` 走市场默认全码 `CA.XRP`（P21）。
+`CC.XRP` 早期按「同名时加密侧用全码」写成了 `FTMM` 条目并已停用，需求 11096 起改由
+`P40 / CC / XRP → LITERAL XRP` 固化，不再依赖 P20 市场默认顺带得出。
+
 ## 3. 接口要点
 
 ### 3.1 `GET /Status`

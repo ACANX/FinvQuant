@@ -202,6 +202,19 @@
 
 ### 变更
 
+- **把 `CC.XRP → XRP` 的判定固化进 USC 规则表（需求 11096，迁移 `V300178`）**
+  - 现状问题：`CC.XRP`（加密 XRP 现货）算成 `XRP` 其实只是 **P20 市场默认**「CC 市场天然唯一率高，
+    usc 直接用交易所代码」的顺带结果；规则表里 `P40/P50` 关于 `CC/XRP` 的两条历史条目都是
+    `action=FTMM`（usc = 全码 `CC.XRP`）且都已 `RETIRED`。市场默认一旦调整或冒出同 code 的
+    第二个 CC 证券，`XRP` 这个读法就会漂回去 —— 需求 11085 的一次性对齐只改了数据，没改规则。
+  - `V300178`：把 `P40 / market=CC / code=XRP` 条目校正为 `action=LITERAL / usc_literal=XRP /
+    status=ACTIVE`（原FTMM 全码口径作废），`item_desc` 写明「加密 XRP 现货占住主读法 XRP」；
+    `P50` 的同名条目保持 `RETIRED`（P50 整层已停用）；结果表 `CC.XRP` 的 `rule_no` 由 `P20` 校正为 `P40`。
+  - 引擎分层是「精确 code（P40/P50）→ 正则 → 市场默认（P20/P21）→ 兜底」，因此该条目稳定压过 P20。
+  - 实测（克隆库删掉 `CC.XRP` 结果行后重算）：`insert=1 / update=0 / retire=0 / keep=73211`，
+    重建出的行 `usc=XRP rule_no=P40`；P40 命中数 36 → 37；`US.XRP→ETFXRP`、`CA.XRP→CA.XRP` 不变。
+    空库全量迁移 `TestMigrateIntegration` 亦 PASS。
+
 - **修复「本地 usc 回推上游」在含 `&` 的证券键上整批失败（需求 11095）**
   - 现象：`SecuParamSync` Tab 3「立即执行一次」跑到第 13 批报
     `回推失败：按 ftmm_symbol 取上游行失败（200 个键）: Supabase 返回 HTTP 400:
