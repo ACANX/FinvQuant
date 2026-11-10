@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -586,6 +587,10 @@ SELECT idn, rule_no, market, instrument, code, code_regex, action, usc_literal, 
 	return out, total, rows.Err()
 }
 
+// ErrItemExists 条目自然键（rule_no + scope_env + market + instrument + code + code_regex）
+// 已被占用。保存路径据此返回 409 与可读提示，而不是把 23505 原始报错抛给前端。
+var ErrItemExists = errors.New("条目已存在")
+
 // SaveItem 新增或更新条目（idn=0 新增），返回 idn。
 //
 // 校验口径与迁移里的 CHECK 一致：LITERAL 必须有 usc_literal、REWRITE 必须有 code_regex+rewrite_tpl、
@@ -639,39 +644,94 @@ func (s *Store) SaveItem(ctx context.Context, item Item, operator string) (int64
 		before = &snapshot
 	} else {
 		item.IDN = 0
+		// 自然键唯一约束 finv_futu_usc_rule_item_key 是 (rule_no, scope_env, market,
+		// instrument, code, code_regex) NULLS NOT DISTINCT —— 与主键 idn 无关。
+		// 新增前先查重，命中就给出「改编辑哪个条目」的提示，避免抛裸的 23505。
+		var existIDN int64
+		var existStatus, existDesc string
+		err := tx.QueryRow(ctx, `
+SELECT idn, status, item_desc FROM futu.finv_futu_usc_rule_item
+ WHERE rule_no = $1
+   AND scope_env IS NOT DISTINCT FROM $2
+   AND market IS NOT DISTINCT FROM $3
+   AND instrument IS NOT DISTINCT FROM $4
+   AND code IS NOT DISTINCT FROM $5
+   AND code_regex IS NOT DISTINCT FROM $6`,
+			item.RuleNo, item.ScopeEnv, item.Market, item.Instrument, item.Code, item.CodeRegex).
+			Scan(&existIDN, &existStatus, &existDesc)
+		switch {
+		case err == nil:
+			return 0, fmt.Errorf("%w：%s（idn=%d，状态 %s，说明「%s」）。请直接编辑该条目，或先把它停用后再新增同键条目",
+				ErrItemExists, itemKeyText(item), existIDN, existStatus, existDesc)
+		case !errors.Is(err, pgx.ErrNoRows):
+			return 0, fmt.Errorf("检查条目是否已存在失败: %w", err)
+		}
 	}
 
+	// 编辑与新增走两条语句。
+	//
+	// 历史实现是「一条 INSERT ... ON CONFLICT (idn) DO UPDATE」——但 INSERT 的列里**没有 idn**，
+	// 冲突目标 idn 永远命不中，编辑因此必然落到自然键唯一约束 `finv_futu_usc_rule_item_key`
+	// 上爆 23505（表现为「保存条目失败: duplicate key value violates unique constraint」）。
+	// 现在 idn>0 走 UPDATE（改键也算编辑），idn=0 走 INSERT。
 	var idn int64
-	query := `
+	if item.IDN > 0 {
+		tag, err := tx.Exec(ctx, `
+UPDATE futu.finv_futu_usc_rule_item
+   SET rule_no        = $2,
+       market         = $3,
+       instrument     = $4,
+       code           = $5,
+       code_regex     = $6,
+       action         = $7,
+       usc_literal    = $8,
+       rewrite_tpl    = $9,
+       status         = $10,
+       effective_from = $11::date,
+       effective_to   = $12::date,
+       priority       = $13,
+       scope_env      = $14,
+       item_desc      = $15,
+       source_ref     = $16,
+       remark         = $17
+ WHERE idn = $1`,
+			item.IDN, item.RuleNo, item.Market, item.Instrument, item.Code, item.CodeRegex,
+			item.Action, item.USCLiteral, item.RewriteTpl, item.Status, item.EffectiveFrom, item.EffectiveTo,
+			item.Priority, item.ScopeEnv, item.ItemDesc, item.SourceRef, item.Remark)
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" &&
+				pgErr.ConstraintName == "finv_futu_usc_rule_item_key" {
+				return 0, fmt.Errorf("%w：%s。该键已被另一条目占用，请改回原键或先停用占用条目",
+					ErrItemExists, itemKeyText(item))
+			}
+			return 0, fmt.Errorf("保存条目失败: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return 0, fmt.Errorf("条目不存在: idn=%d", item.IDN)
+		}
+		idn = item.IDN
+	} else {
+		err = tx.QueryRow(ctx, `
 INSERT INTO futu.finv_futu_usc_rule_item
       (rule_no, market, instrument, code, code_regex, action, usc_literal, rewrite_tpl,
        status, effective_from, effective_to, priority, scope_env, item_desc, source_ref,
        remark, creator)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::date, $11::date, $12, $13, $14, $15, $16, $17)
-ON CONFLICT (idn) DO UPDATE
-   SET rule_no        = EXCLUDED.rule_no,
-       market         = EXCLUDED.market,
-       instrument     = EXCLUDED.instrument,
-       code           = EXCLUDED.code,
-       code_regex     = EXCLUDED.code_regex,
-       action         = EXCLUDED.action,
-       usc_literal    = EXCLUDED.usc_literal,
-       rewrite_tpl    = EXCLUDED.rewrite_tpl,
-       status         = EXCLUDED.status,
-       effective_from = EXCLUDED.effective_from,
-       effective_to   = EXCLUDED.effective_to,
-       priority       = EXCLUDED.priority,
-       scope_env      = EXCLUDED.scope_env,
-       item_desc      = EXCLUDED.item_desc,
-       source_ref     = EXCLUDED.source_ref,
-       remark         = EXCLUDED.remark
-RETURNING idn`
-	err = tx.QueryRow(ctx, query, item.RuleNo, item.Market, item.Instrument, item.Code, item.CodeRegex,
-		item.Action, item.USCLiteral, item.RewriteTpl, item.Status, item.EffectiveFrom, item.EffectiveTo,
-		item.Priority, item.ScopeEnv, item.ItemDesc, item.SourceRef, item.Remark,
-		nonEmpty(operator, "finv")).Scan(&idn)
-	if err != nil {
-		return 0, fmt.Errorf("保存条目失败: %w", err)
+RETURNING idn`,
+			item.RuleNo, item.Market, item.Instrument, item.Code, item.CodeRegex,
+			item.Action, item.USCLiteral, item.RewriteTpl, item.Status, item.EffectiveFrom, item.EffectiveTo,
+			item.Priority, item.ScopeEnv, item.ItemDesc, item.SourceRef, item.Remark,
+			nonEmpty(operator, "finv")).Scan(&idn)
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" &&
+				pgErr.ConstraintName == "finv_futu_usc_rule_item_key" {
+				return 0, fmt.Errorf("%w：%s。请直接编辑已存在的该条目，或先停用后再新增同键条目",
+					ErrItemExists, itemKeyText(item))
+			}
+			return 0, fmt.Errorf("保存条目失败: %w", err)
+		}
 	}
 
 	var after string
@@ -690,6 +750,35 @@ VALUES ('rule_item', $1, $2, $3::jsonb, $4::jsonb, $5, $6)`,
 		return 0, fmt.Errorf("提交失败: %w", err)
 	}
 	return idn, nil
+}
+
+// itemKeyText 把条目的自然键拼成人可读的一段（用于冲突提示）。
+//
+// 形如 `P40 / market=CC / code=XRP`，空字段显示 `*`（表示不限定）。
+func itemKeyText(item Item) string {
+	dash := func(p *string) string {
+		if p == nil || strings.TrimSpace(*p) == "" {
+			return "*"
+		}
+		return strings.TrimSpace(*p)
+	}
+	parts := []string{item.RuleNo}
+	if item.Market != nil && strings.TrimSpace(*item.Market) != "" {
+		parts = append(parts, "market="+dash(item.Market))
+	}
+	if item.Instrument != nil && strings.TrimSpace(*item.Instrument) != "" {
+		parts = append(parts, "instrument="+dash(item.Instrument))
+	}
+	if item.Code != nil && strings.TrimSpace(*item.Code) != "" {
+		parts = append(parts, "code="+dash(item.Code))
+	}
+	if item.CodeRegex != nil && strings.TrimSpace(*item.CodeRegex) != "" {
+		parts = append(parts, "code_regex="+dash(item.CodeRegex))
+	}
+	if item.ScopeEnv != "" && item.ScopeEnv != DefaultEnv {
+		parts = append(parts, "scope_env="+item.ScopeEnv)
+	}
+	return strings.Join(parts, " / ")
 }
 
 // RetireItem 停用条目（status=RETIRED + 记失效日），保留痕迹。

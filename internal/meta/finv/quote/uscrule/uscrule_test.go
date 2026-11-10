@@ -2,7 +2,10 @@ package uscrule
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -266,3 +269,103 @@ SELECT count(*) FROM futu.finv_futu_secu_key k
 			result2.Insert, result2.Update, result2.KeyUpdate)
 	}
 }
+
+// TestItemKeyText 校验冲突提示里的键描述（纯函数，不连库）。
+func TestItemKeyText(t *testing.T) {
+	str := func(s string) *string { return &s }
+	item := Item{
+		RuleNo:    "P40",
+		Market:    str("CC"),
+		Code:      str("XRP"),
+		ScopeEnv:  DefaultEnv,
+		Instrument: nil,
+	}
+	if got, want := itemKeyText(item), "P40 / market=CC / code=XRP"; got != want {
+		t.Fatalf("itemKeyText = %q, want %q", got, want)
+	}
+	item2 := Item{RuleNo: "P60", ScopeEnv: "dev", CodeRegex: str("^0")}
+	if got, want := itemKeyText(item2), "P60 / code_regex=^0 / scope_env=dev"; got != want {
+		t.Fatalf("itemKeyText = %q, want %q", got, want)
+	}
+}
+
+// TestSaveItemConflictOnClone 校验「自然键重复」返回可读的 ErrItemExists，而不是裸的 23505。
+//
+// 需要克隆库（会写条目表，但用例结束会删除自建行）：
+//
+//	FINV_USC_APPLY_DSN="postgres://finv:finvquant@127.0.0.1:5432/finv_usctest?sslmode=disable" \
+//	  go test -run TestSaveItemConflictOnClone -v ./internal/meta/finv/quote/uscrule/
+func TestSaveItemConflictOnClone(t *testing.T) {
+	dsn := os.Getenv("FINV_USC_APPLY_DSN")
+	if dsn == "" {
+		t.Skip("未设置 FINV_USC_APPLY_DSN，跳过条目保存冲突用例（会写库，必须指向克隆库）")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("连接数据库失败: %v", err)
+	}
+	defer pool.Close()
+
+	service := NewService(pool)
+	count := func(ruleNo string) int64 {
+		var n int64
+		if err := pool.QueryRow(ctx,
+			`SELECT count(*) FROM futu.finv_futu_usc_rule_item WHERE rule_no = $1 AND market = 'ZZ'
+			   AND code = 'TSTCONFLICT'`, ruleNo).Scan(&n); err != nil {
+			t.Fatalf("统计条目失败: %v", err)
+		}
+		return n
+	}
+	cleanup := func() {
+		if _, err := pool.Exec(ctx,
+			`DELETE FROM futu.finv_futu_usc_rule_item WHERE market = 'ZZ' AND code = 'TSTCONFLICT'`); err != nil {
+			t.Fatalf("清理测试条目失败: %v", err)
+		}
+	}
+	cleanup()
+	defer cleanup()
+
+	market, code, literal := "ZZ", "TSTCONFLICT", "ZZTEST"
+	desc := "冲突用例：自然键重复必须返回可读错误"
+	first, err := service.SaveItem(ctx, Item{
+		RuleNo: "P40", Market: &market, Code: &code, Action: strPtr(ActionLiteral),
+		USCLiteral: &literal, ItemDesc: desc,
+	}, "test")
+	if err != nil {
+		t.Fatalf("首次保存应成功: %v", err)
+	}
+	if count("P40") != 1 {
+		t.Fatalf("首次保存后条目数应为 1")
+	}
+
+	// 同自然键再新增（idn=0）：必须判为「条目已存在」，并且提示里带上已有 idn
+	_, err = service.SaveItem(ctx, Item{
+		RuleNo: "P40", Market: &market, Code: &code, Action: strPtr(ActionLiteral),
+		USCLiteral: &literal, ItemDesc: desc,
+	}, "test")
+	if err == nil {
+		t.Fatal("重复自然键应报错")
+	}
+	if !errors.Is(err, ErrItemExists) {
+		t.Fatalf("期望 ErrItemExists，实际: %v", err)
+	}
+	if !strings.Contains(err.Error(), fmt.Sprintf("idn=%d", first)) {
+		t.Fatalf("提示里应包含已有条目 idn=%d，实际: %v", first, err)
+	}
+	if count("P40") != 1 {
+		t.Fatalf("冲突不应写入新行，条目数应仍为 1")
+	}
+
+	// 改走编辑（带 idn）应成功
+	updated := "冲突用例：按 idn 编辑应成功"
+	if _, err := service.SaveItem(ctx, Item{
+		IDN: first, RuleNo: "P40", Market: &market, Code: &code,
+		Action: strPtr(ActionLiteral), USCLiteral: &literal, ItemDesc: updated,
+	}, "test"); err != nil {
+		t.Fatalf("按 idn 编辑应成功: %v", err)
+	}
+}
+
+func strPtr(s string) *string { return &s }

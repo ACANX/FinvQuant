@@ -202,6 +202,22 @@
 
 ### 变更
 
+- **修复 USC 条目「保存失败：duplicate key value violates unique constraint」（需求 11098）**
+  - 现象：维护页新增/编辑条目保存时报
+    `保存条目失败: ERROR: duplicate key value violates unique constraint "finv_futu_usc_rule_item_key"`。
+  - 根因：`SaveItem` 用一条 `INSERT ... ON CONFLICT (idn) DO UPDATE`，但 INSERT 的列里**没有 `idn`**，
+    冲突目标永远命不中；而条目的自然键 `(rule_no, scope_env, market, instrument, code, code_regex)`
+    另有唯一约束（`NULLS NOT DISTINCT`）。结果是「编辑」必然撞自然键、新增同键条目直接爆 23505，
+    原始数据库报错透传到前端。
+  - 修订（`uscrule/store.go`）：按 `idn` 拆成两条语句 —— `idn>0` 走 `UPDATE ... WHERE idn`
+    （改键也算编辑，条目不存在时报错），`idn=0` 走 `INSERT ... RETURNING idn`；
+    新增前先按自然键查重，命中返回哨兵错误 `ErrItemExists`（含已有 `idn`/状态/说明），
+    并兜底识别并发下的 23505（约束名精确匹配）。
+  - 接口（`api/handler/usc_map.go`）：`ErrItemExists` 映射为 **409**（复用原 HTTP 码，符合 `ErrorCodeSpec`），
+    其余业务校验仍 400。文档 `Docs/API/UscMap.md` §3.2 与 `UscMap.yml` 已补 409 与编辑语义。
+  - 验证：新增 `TestItemKeyText`（键描述）、`TestSaveItemConflictOnClone`（克隆库：首次新增成功 →
+    同键新增返回 `ErrItemExists` 且提示含已有 `idn` → 按 `idn` 编辑成功）。修复前该用例在「按 idn 编辑」一步失败。
+
 - **`V300178` / `V300179` 加固：不再假设「环境里已经对齐过」（需求 11096/11097）**
   - 事故：ARM 主机升级后 `V300178` 报
     `校验失败：结果表 CC.XRP 应为 usc=XRP/rule_no=P40，实际 CC.XRP / P40` 并进重启循环。

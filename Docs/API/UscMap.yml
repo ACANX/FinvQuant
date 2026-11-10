@@ -72,7 +72,7 @@ paths:
         '200': { description: ok }
   /Meta/Finv/Quote/UscMap/Item/Save:
     post:
-      summary: 新增或编辑条目（idn=0 新增）
+      summary: 新增或编辑条目（idn=0 新增；idn>0 走 UPDATE，改键也算编辑）
       operationId: uscMapItemSave
       tags: [UscMap]
       requestBody:
@@ -103,6 +103,8 @@ paths:
       responses:
         '200': { description: 保存成功 }
         '400': { description: 校验失败 }
+        '409':
+          description: 条目自然键重复（rule_no + scope_env + market + instrument + code + code_regex，NULLS NOT DISTINCT）；message 给出已有条目的 idn / 状态 / 说明
   /Meta/Finv/Quote/UscMap/Item/Retire:
     post:
       summary: 停用条目（保留行）

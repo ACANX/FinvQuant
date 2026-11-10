@@ -20,6 +20,7 @@
 package handler
 
 import (
+	"errors"
 	"log"
 	"net/http"
 
@@ -101,6 +102,12 @@ func (h *UscMap) ItemSave(c *gin.Context) {
 	idn, err := h.service.SaveItem(c.Request.Context(), item, operator)
 	if err != nil {
 		log.Printf("[usc] api item save failed idn=%d rule=%s err=%v", item.IDN, item.RuleNo, err)
+		// 自然键（rule_no + scope_env + market + instrument + code + code_regex）冲突是「条目已存在」，
+		// 属可预期的用户操作，按 409 回（与 ErrorCodeSpec「复用原 HTTP 错误码」一致）。
+		if errors.Is(err, uscrule.ErrItemExists) {
+			c.JSON(http.StatusConflict, gin.H{"code": 409, "message": err.Error()})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
 	}
