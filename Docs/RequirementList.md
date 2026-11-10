@@ -3215,7 +3215,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 新增开发规范 `Docs/CheckList/PreMergeCommitCheckListSpec.md`：PR 合并前的校验复核与功能验收清单（M1–M6：需求/代码/迁移/文档一致性/功能验收证据/合并动作 + 打回准则 + PR 模板） | 11112 | 1 |
 | 两份清单补入「高频事故防守表（`R1…R16`，逐条挂真实事故与判据）」与「按变更类型取最小必查集」路由（提交侧 `C`/`R` 编号，合并侧复核范围与必验判据）；不拆前后端两份清单 | 11113 | 1 |
 | 检查清单文档统一存放 `Docs/CheckList/` 并以 `Pre` 前缀命名：`PreCommitCheckListSpec.md`、`PreMergeCommitCheckListSpec.md`（原 `Docs/DevSpec/CommitCheckListSpec.md`、`MergeCheckListSpec.md`） | 11114 | 1 |
-| 新增 `Docs/CheckList/PreFrontendCheckListSpec.md`：前端改动专项清单（FE1–FE15，含枚举口径、长文本、三态、产物一致性与本类高频失手） | 11115 | 1 |
+| 新增 `Docs/CheckList/PreFrontendCommitCheckListSpec.md`：前端改动专项清单（FE1–FE15，含枚举口径、长文本、三态、产物一致性与本类高频失手） | 11115 | 1 |
 | 新增 `Docs/CheckList/PreBackendCommitCheckListSpec.md`：后端改动专项清单（BE1–BE16，含错误映射、URL 编码与分片、幂等、资源释放、性能证据） | 11116 | 1 |
 | 新增 `Docs/CheckList/PreDbChangeCommitCheckListSpec.md`：数据库修改专项清单（DB1–DB20：授权、脚本写法、空库/真实库验证、回滚、事故对照） | 11117 | 1 |
 | 新增 `Docs/CheckList/ProposalDocCheckListSpec.md`：提案设计清单（十章骨架 + PP1–PP10 + 批准/打回/待定判定 + 存放命名） | 11118 | 1 |
@@ -3230,7 +3230,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 合并前清单文件名由 `PreMergeCheckListSpec.md` 改为 `PreMergeCommitCheckListSpec.md`（取代需求 11122 中的 `PreMerge` 命名） | 11127 | 1 |
 | 技术方案设计清单文件名由 `PreTechDesignCheckListSpec.md` 改为 `TechDesignDocCommitCheckListSpec.md`（取代需求 11122 中的 `PreTechDesign` 命名） | 11128 | 1 |
 | 数据库修改清单文件名由 `PreDbChangeCheckListSpec.md` 改为 `PreDbChangeCommitCheckListSpec.md`（取代需求 11122 中的 `PreDbChange` 命名） | 11129 | 1 |
-| **合计** | **10001–11129** | **1125**（含 2 条待办） |
+| 前端清单文件名由 `PreFrontendCheckListSpec.md` 改为 `PreFrontendCommitCheckListSpec.md`（取代需求 11122 中的 `PreFrontend` 命名） | 11130 | 1 |
+| **合计** | **10001–11130** | **1126**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

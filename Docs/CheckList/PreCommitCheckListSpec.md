@@ -66,7 +66,7 @@ git status --short && git diff --stat
 
 | 变更类型 | 专项清单 | 另需的通用条目 |
 |----------|----------|----------------|
-| 前端页面/组件/样式 | [`PreFrontendCheckListSpec.md`](PreFrontendCheckListSpec.md) | C1–C3、C8、C20 |
+| 前端页面/组件/样式 | [`PreFrontendCommitCheckListSpec.md`](PreFrontendCommitCheckListSpec.md) | C1–C3、C8、C20 |
 | 后端逻辑/定时任务/外部客户端 | [`PreBackendCommitCheckListSpec.md`](PreBackendCommitCheckListSpec.md) | C1–C3、C6–C10 |
 | 表结构/数据/迁移 | [`PreDbChangeCommitCheckListSpec.md`](PreDbChangeCommitCheckListSpec.md) | C1–C3、C9–C10 |
 | 动手前的方案/选型（要拍板） | [`ProposalDocCheckListSpec.md`](ProposalDocCheckListSpec.md) | C1–C5、C20 |

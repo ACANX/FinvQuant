@@ -202,6 +202,12 @@
 
 ### 变更
 
+- **前端清单改名 `PreFrontendCommitCheckListSpec.md`（需求 11130）**
+  - `Docs/CheckList/PreFrontendCheckListSpec.md` → `Docs/CheckList/PreFrontendCommitCheckListSpec.md`（`git mv` 保留历史），
+    取代需求 11122 中的 `PreFrontend` 命名。
+  - 同步：文件内标题、`PreCommitCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径、
+    `Docs/CHANGELOG.md` 引用。
+
 - **数据库修改清单改名 `PreDbChangeCommitCheckListSpec.md`（需求 11129）**
   - `Docs/CheckList/PreDbChangeCheckListSpec.md` → `Docs/CheckList/PreDbChangeCommitCheckListSpec.md`（`git mv` 保留历史），
     取代需求 11122 中的 `PreDbChange` 命名。
@@ -252,7 +258,7 @@
 
 - **检查清单按工作类型拆分为六份专项清单（需求 11115–11121）**
   - 原先所有条目挤在 `PreCommitCheckListSpec` 里，改前端和后端要翻同一份长清单。现按工作类型各一份，存于 `Docs/CheckList/`：
-    - [`PreFrontendCheckListSpec.md`](CheckList/PreFrontendCheckListSpec.md) —— 前端（FE1–FE15）：枚举分层口径、单元格不读下拉 `title`、
+    - [`PreFrontendCommitCheckListSpec.md`](CheckList/PreFrontendCommitCheckListSpec.md) —— 前端（FE1–FE15）：枚举分层口径、单元格不读下拉 `title`、
       长文本 ⓘ、三态、筛选与分页联动、提交值不翻译、产物哈希一致、千行表格性能。
     - [`PreBackendCommitCheckListSpec.md`](CheckList/PreBackendCommitCheckListSpec.md) —— 后端（BE1–BE16）：错误映射与 `SQLSTATE` 不外泄、
       `ctx` 与超时、URL 编码与字符预算分片、`ON CONFLICT` 目标列、幂等、资源释放、日志脱敏、`EXPLAIN` 证据。
