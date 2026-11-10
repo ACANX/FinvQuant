@@ -249,6 +249,10 @@ interface AuditLog {
   src_table: string
   action: string
   key_text: string
+  // 审计对象的键（后端已拆好，页面分「主键 / 所属规则」两列展示；需求 11137）
+  src_idn: string | null
+  src_rule_no: string | null
+  src_ftmm: string | null
   before_json?: string | null
   after_json?: string | null
   operator: string
@@ -485,6 +489,60 @@ async function loadRules() {
     rules.value = data.list ?? []
   } catch (err) {
     showToast(`读取规则失败：${(err as Error).message}`, 'error')
+  }
+}
+
+// ---------- 规则层编辑（启用开关 / 默认动作 / 说明 / 备注） ----------
+// 规则号、类型、同层顺序、作用域决定引擎分层与层序，页面不给改（改错整层结果漂移），需要时走迁移。
+const ruleEditOpen = ref(false)
+const ruleSaving = ref('')
+const ruleForm = ref<Rule | null>(null)
+
+function openRuleEdit(rule: Rule) {
+  ruleForm.value = { ...rule }
+  ruleEditOpen.value = true
+}
+
+function rulePayload(rule: Rule) {
+  return {
+    rule_no: rule.rule_no,
+    flag_enable: rule.flag_enable,
+    default_action: nullable(rule.default_action),
+    rule_desc: (rule.rule_desc ?? '').trim(),
+    remark: (rule.remark ?? '').trim(),
+  }
+}
+
+async function toggleRule(rule: Rule, enabled: boolean) {
+  ruleSaving.value = rule.rule_no
+  try {
+    await apiPost(`${BASE}/Rule/Save`, {
+      ...rulePayload(rule),
+      flag_enable: enabled ? '1' : '0',
+      reason: enabled ? 'Web 维护页启用该层' : 'Web 维护页停用该层',
+    })
+    showToast(enabled ? `已启用 ${rule.rule_no}` : `已停用 ${rule.rule_no}`, 'success')
+  } catch (err) {
+    showToast(`切换失败：${(err as Error).message}`, 'error')
+  } finally {
+    ruleSaving.value = ''
+    await Promise.all([loadRules(), loadStatus()])
+  }
+}
+
+async function saveRule() {
+  const rule = ruleForm.value
+  if (!rule) return
+  ruleSaving.value = rule.rule_no
+  try {
+    await apiPost(`${BASE}/Rule/Save`, { ...rulePayload(rule), reason: 'Web 维护页编辑规则' })
+    showToast(`规则 ${rule.rule_no} 已保存`, 'success')
+    ruleEditOpen.value = false
+    await Promise.all([loadRules(), loadStatus()])
+  } catch (err) {
+    showToast(`保存失败：${(err as Error).message}`, 'error')
+  } finally {
+    ruleSaving.value = ''
   }
 }
 
@@ -812,6 +870,20 @@ function prettyJSON(raw?: string | null): string {
 }
 
 // changeSummary 列表里显示的简短摘要：字段名列表 + 关键值，避免整串 JSON 塞进表格。
+// 审计日志「主键」：条目行 = idn，结果表行 = ftmm_symbol，规则行 = rule_no（需求 11137 拆列）
+function logPrimaryKey(row: AuditLog): string {
+  if (row.src_idn) return row.src_idn
+  if (row.src_ftmm) return row.src_ftmm
+  if (row.src_rule_no) return row.src_rule_no
+  return row.key_text || '—'
+}
+
+// 审计日志「所属规则」：规则行自身就是规则，不重复显示
+function logRuleNo(row: AuditLog): string {
+  if (row.src_table === 'rule') return '—'
+  return row.src_rule_no || '—'
+}
+
 function changeSummary(row: AuditLog): string {
   const parts: string[] = []
   for (const [label, raw] of [
@@ -969,18 +1041,14 @@ onBeforeUnmount(stopPolling)
                 <th>作用域</th>
                 <th>默认动作</th>
                 <th>启用</th>
-                <th>条目数（生效/全部）</th>
+                <th class="text-right">生效条目数</th>
+                <th class="text-right">全部条目数</th>
                 <th>说明</th>
                 <th class="text-right">操作</th>
               </tr>
             </thead>
             <tbody>
-              <tr
-                v-for="rule in rules"
-                :key="rule.rule_no"
-                style="cursor: pointer"
-                @click="selectRule(rule.rule_no)"
-              >
+              <tr v-for="rule in rules" :key="rule.rule_no">
                 <td>
                   <v-chip size="x-small" variant="flat">{{ rule.rule_no }}</v-chip>
                 </td>
@@ -989,18 +1057,24 @@ onBeforeUnmount(stopPolling)
                 <td>{{ rule.priority }}</td>
                 <td>{{ rule.match_scope }}</td>
                 <td>{{ actionText(rule.default_action) }}</td>
-                <td>
-                  <v-chip
-                    :color="rule.flag_enable === '1' ? 'success' : 'grey'"
-                    size="x-small"
-                    variant="tonal"
-                  >
-                    {{ rule.flag_enable === '1' ? '启用' : '停用' }}
-                  </v-chip>
-                </td>
                 <td class="text-no-wrap">
-                  <strong>{{ rule.item_active }}</strong> / {{ rule.item_count }}
+                  <v-tooltip location="top" max-width="360" open-delay="120">
+                    <template #activator="{ props }">
+                      <v-switch
+                        v-bind="props"
+                        :model-value="rule.flag_enable === '1'"
+                        :color="rule.flag_enable === '1' ? 'green' : 'grey'"
+                        :loading="ruleSaving === rule.rule_no"
+                        density="compact"
+                        hide-details
+                        @update:model-value="(v: unknown) => toggleRule(rule, Boolean(v))"
+                      />
+                    </template>
+                    {{ rule.flag_enable === '1' ? '点击停用该层（条目不变，只是不再参与计算）' : '点击启用该层' }}
+                  </v-tooltip>
                 </td>
+                <td class="text-right text-no-wrap">{{ rule.item_active }}</td>
+                <td class="text-right text-no-wrap">{{ rule.item_count }}</td>
                 <td>
                   <!-- 说明/备注是长文本：改用图标 + 悬浮提示，避免把表格撑高变形 -->
                   <v-tooltip location="top" max-width="560" open-delay="120">
@@ -1022,11 +1096,12 @@ onBeforeUnmount(stopPolling)
                   </v-tooltip>
                 </td>
                 <td class="text-right text-no-wrap">
-                  <v-btn size="x-small" variant="text" @click.stop="selectRule(rule.rule_no)">查看条目</v-btn>
+                  <v-btn size="x-small" variant="text" prepend-icon="mdi-pencil" @click="openRuleEdit(rule)">编辑</v-btn>
+                  <v-btn size="x-small" variant="text" @click="selectRule(rule.rule_no)">查看条目</v-btn>
                 </td>
               </tr>
               <tr v-if="rules.length === 0">
-                <td colspan="10" class="text-center text-medium-emphasis">加载中…</td>
+                <td colspan="11" class="text-center text-medium-emphasis">加载中…</td>
               </tr>
             </tbody>
           </v-table>
@@ -1514,6 +1589,7 @@ onBeforeUnmount(stopPolling)
                 <th>对象</th>
                 <th>动作</th>
                 <th>主键</th>
+                <th>所属规则</th>
                 <th>操作人</th>
                 <th>原因</th>
                 <th>变更摘要</th>
@@ -1525,7 +1601,8 @@ onBeforeUnmount(stopPolling)
                 <td class="text-no-wrap">{{ row.gmt_create }}</td>
                 <td>{{ row.src_table }}</td>
                 <td>{{ row.action }}</td>
-                <td>{{ row.key_text }}</td>
+                <td class="text-no-wrap">{{ logPrimaryKey(row) }}</td>
+                <td class="text-no-wrap">{{ logRuleNo(row) }}</td>
                 <td>{{ row.operator || '—' }}</td>
                 <td class="text-caption">{{ row.reason }}</td>
                 <td class="text-caption">{{ changeSummary(row) }}</td>
@@ -1536,7 +1613,7 @@ onBeforeUnmount(stopPolling)
                 </td>
               </tr>
               <tr v-if="logs.length === 0">
-                <td colspan="8" class="text-center text-medium-emphasis">暂无审计记录</td>
+                <td colspan="9" class="text-center text-medium-emphasis">暂无审计记录</td>
               </tr>
             </tbody>
           </v-table>
@@ -1553,6 +1630,74 @@ onBeforeUnmount(stopPolling)
         </v-window-item>
       </v-window>
     </v-card-text>
+
+    <!-- 编辑规则（启用开关 / 默认动作 / 说明 / 备注） -->
+    <v-dialog v-model="ruleEditOpen" max-width="680">
+      <v-card v-if="ruleForm">
+        <v-card-title>
+          编辑规则 {{ ruleForm.rule_no }} · {{ ruleForm.rule_name }}
+        </v-card-title>
+        <v-card-text>
+          <v-row dense>
+            <v-col cols="12" md="4">
+              <v-switch
+                v-model="ruleForm.flag_enable"
+                true-value="1"
+                false-value="0"
+                :color="ruleForm.flag_enable === '1' ? 'green' : 'grey'"
+                density="compact"
+                hide-details
+                label="启用该层"
+              />
+            </v-col>
+            <v-col cols="12" md="8">
+              <v-select
+                v-model="ruleForm.default_action"
+                :items="ACTION_OPTIONS"
+                item-title="title"
+                item-value="value"
+                label="默认动作（空=该层不指定动作）"
+                density="compact"
+                variant="outlined"
+                clearable
+                hide-details="auto"
+              />
+            </v-col>
+            <v-col cols="12">
+              <v-textarea
+                v-model="ruleForm.rule_desc"
+                label="规则说明"
+                rows="3"
+                auto-grow
+                density="compact"
+                variant="outlined"
+                hide-details="auto"
+              />
+            </v-col>
+            <v-col cols="12">
+              <v-text-field
+                v-model="ruleForm.remark"
+                label="备注（变更原因、评审单号）"
+                density="compact"
+                variant="outlined"
+                hide-details="auto"
+              />
+            </v-col>
+            <v-col cols="12">
+              <v-alert density="compact" variant="tonal" type="info" class="text-caption py-2">
+                规则号、类型、同层顺序、作用域决定引擎的分层与先后顺序（P10 闸门 → 前处理 → 市场默认 → 例外 → 兜底），
+                页面不允许改；确需调整请走数据库迁移。停用整层只影响「是否参与计算」，条目本身保持原状态。
+              </v-alert>
+            </v-col>
+          </v-row>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="ruleEditOpen = false">取消</v-btn>
+          <v-btn color="primary" :loading="ruleSaving === ruleForm.rule_no" @click="saveRule">保存</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <!-- 编辑条目 -->
     <v-dialog v-model="editOpen" max-width="720">
@@ -1763,7 +1908,9 @@ onBeforeUnmount(stopPolling)
         <v-chip size="small" variant="text">{{ logDetail.gmt_create }}</v-chip>
       </v-card-title>
       <v-card-subtitle>
-        对象 {{ logDetail.key_text }} · 操作人 {{ logDetail.operator || '—' }} · 原因 {{ logDetail.reason }}
+        对象 {{ logDetail.src_table }} · 主键 {{ logPrimaryKey(logDetail) }}
+        <template v-if="logDetail.src_table !== 'rule'"> · 所属规则 {{ logRuleNo(logDetail) }}</template>
+        · 操作人 {{ logDetail.operator || '—' }} · 原因 {{ logDetail.reason }}
       </v-card-subtitle>
       <v-card-text>
         <v-row dense>

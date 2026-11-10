@@ -56,6 +56,28 @@ paths:
       tags: [UscMap]
       responses:
         '200': { description: ok }
+  /Meta/Finv/Quote/UscMap/Rule/Save:
+    post:
+      summary: 保存规则层可改字段（启用开关 / 默认动作 / 说明 / 备注）
+      operationId: uscMapRuleSave
+      tags: [UscMap]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rule_no, flag_enable]
+              properties:
+                rule_no: { type: string, description: 规则编号（必须已存在） }
+                flag_enable: { type: string, enum: ['0', '1'], description: '1=启用该层，0=停用' }
+                default_action: { type: string, nullable: true, enum: [CODE, FTMM, LITERAL, REWRITE, SH4] }
+                rule_desc: { type: string }
+                remark: { type: string }
+                reason: { type: string, description: 审计日志原因 }
+      responses:
+        '200': { description: 保存成功 }
+        '400': { description: 规则不存在或取值非法 }
   /Meta/Finv/Quote/UscMap/Item/List:
     get:
       summary: 条目分页
@@ -284,6 +306,9 @@ paths:
   /Meta/Finv/Quote/UscMap/Log/List:
     get:
       summary: 审计日志分页
+      description: |
+        每行除 `key_text` 外，另返回从快照解析出的 `src_idn`（条目主键）、
+        `src_rule_no`（所属规则）、`src_ftmm`（结果表键），页面据此分「主键 / 所属规则」两列展示。
       operationId: uscMapLogList
       tags: [UscMap]
       parameters:

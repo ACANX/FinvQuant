@@ -494,3 +494,85 @@ func TestKeyDriftOnClone(t *testing.T) {
 		t.Fatalf("键表未回写：got=%q want=%q", got, expect)
 	}
 }
+
+// TestSaveRuleOnClone 规则层保存（启用开关 / 默认动作 / 说明 / 备注）会落库并写审计日志。
+//
+// 会写库，必须指向克隆库：
+//
+//	FINV_USC_APPLY_DSN="postgres://finv:finvquant@127.0.0.1:5432/finv_usctest?sslmode=disable" \
+//	  go test -run TestSaveRuleOnClone -v ./internal/meta/finv/quote/uscrule/
+//
+// 覆盖点：改 flag_enable/default_action/rule_desc/remark → 落库一致；审计日志出现 src_table='rule' 的一行；
+// 非法 default_action 被拒；不存在的 rule_no 被拒；用例结束把 P50 恢复为原值。
+func TestSaveRuleOnClone(t *testing.T) {
+	dsn := os.Getenv("FINV_USC_APPLY_DSN")
+	if dsn == "" {
+		t.Skip("未设置 FINV_USC_APPLY_DSN，跳过规则保存用例（会写库，必须指向克隆库）")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("连接数据库失败: %v", err)
+	}
+	defer pool.Close()
+	service := NewService(pool)
+
+	// 记下原值，结束时还原（克隆库也要保持干净）
+	var origFlag, origAction, origDesc, origRemark string
+	if err := pool.QueryRow(ctx, `
+SELECT flag_enable, COALESCE(default_action, ''), rule_desc, remark
+  FROM futu.finv_futu_usc_rule WHERE rule_no = 'P50'`).Scan(&origFlag, &origAction, &origDesc, &origRemark); err != nil {
+		t.Fatalf("读取 P50 原值失败: %v", err)
+	}
+	t.Cleanup(func() {
+		var action *string
+		if origAction != "" {
+			action = &origAction
+		}
+		_ = service.SaveRule(context.Background(), RuleUpdate{
+			RuleNo: "P50", FlagEnable: origFlag, DefaultAction: action,
+			RuleDesc: origDesc, Remark: origRemark, Reason: "用例还原",
+		}, "test")
+	})
+
+	flip := "0"
+	if origFlag == "0" {
+		flip = "1"
+	}
+	action := "FTMM"
+	if err := service.SaveRule(ctx, RuleUpdate{
+		RuleNo: "P50", FlagEnable: flip, DefaultAction: &action,
+		RuleDesc: "用例：规则层可改", Remark: "用例：备注可改", Reason: "TestSaveRuleOnClone",
+	}, "test"); err != nil {
+		t.Fatalf("保存规则失败: %v", err)
+	}
+
+	var gotFlag, gotAction, gotDesc, gotRemark string
+	if err := pool.QueryRow(ctx, `
+SELECT flag_enable, COALESCE(default_action, ''), rule_desc, remark
+  FROM futu.finv_futu_usc_rule WHERE rule_no = 'P50'`).Scan(&gotFlag, &gotAction, &gotDesc, &gotRemark); err != nil {
+		t.Fatalf("读取保存后的规则失败: %v", err)
+	}
+	if gotFlag != flip || gotAction != action || gotDesc != "用例：规则层可改" || gotRemark != "用例：备注可改" {
+		t.Fatalf("落库不一致：flag=%q action=%q desc=%q remark=%q", gotFlag, gotAction, gotDesc, gotRemark)
+	}
+
+	var logs int64
+	if err := pool.QueryRow(ctx, `
+SELECT count(*) FROM futu.finv_futu_usc_rule_log
+ WHERE src_table = 'rule' AND key_text = 'P50' AND operator = 'test'`).Scan(&logs); err != nil {
+		t.Fatalf("统计审计日志失败: %v", err)
+	}
+	if logs < 1 {
+		t.Fatalf("规则保存未写审计日志（src_table='rule'）")
+	}
+
+	bad := "NOT_AN_ACTION"
+	if err := service.SaveRule(ctx, RuleUpdate{RuleNo: "P50", FlagEnable: "1", DefaultAction: &bad}, "test"); err == nil {
+		t.Fatalf("非法 default_action 应被拒绝")
+	}
+	if err := service.SaveRule(ctx, RuleUpdate{RuleNo: "P99", FlagEnable: "1"}, "test"); err == nil {
+		t.Fatalf("不存在的 rule_no 应被拒绝")
+	}
+}

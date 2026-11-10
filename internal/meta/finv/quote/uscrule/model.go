@@ -74,6 +74,19 @@ type Rule struct {
 	GmtUpdate     string  `json:"gmt_update"`
 }
 
+// RuleUpdate 规则层可改字段。
+//
+// 只开放「启用开关 / 默认动作 / 说明 / 备注」：rule_no、rule_type、priority、match_scope
+// 决定引擎的分层与先后顺序（P10 闸门、P40/P50 例外层序），改错会让整层计算结果漂移，只能走迁移。
+type RuleUpdate struct {
+	RuleNo        string  `json:"rule_no"`
+	FlagEnable    string  `json:"flag_enable"`    // '1' 启用 / '0' 停用
+	DefaultAction *string `json:"default_action"` // 空=该层不指定动作（GATE 规则即如此）
+	RuleDesc      string  `json:"rule_desc"`
+	Remark        string  `json:"remark"`
+	Reason        string  `json:"reason"`
+}
+
 // Item 条目层一行（JSON 字段与库列名一致）。
 type Item struct {
 	IDN           int64   `json:"idn"`
@@ -217,6 +230,10 @@ type LogRow struct {
 	SrcTable  string  `json:"src_table"`
 	Action    string  `json:"action"`
 	KeyText   string  `json:"key_text"`
+	// 审计对象的键拆成独立字段返回，页面按「主键 / 所属规则」两列展示，不再拼成一段文本（需求 11137）。
+	SrcIDN    *string `json:"src_idn"`     // 条目主键（rule_item 行来自快照 idn）
+	SrcRuleNo *string `json:"src_rule_no"` // 所属规则（条目/结果行来自快照 rule_no）
+	SrcFtmm   *string `json:"src_ftmm"`    // 结果表键（map 行来自快照 ftmm_symbol）
 	Before    *string `json:"before_json"`
 	After     *string `json:"after_json"`
 	Operator  string  `json:"operator"`

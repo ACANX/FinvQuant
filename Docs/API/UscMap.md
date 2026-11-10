@@ -65,7 +65,27 @@
 | `cron_expr` / `cron_next_run` | 系统配置 `20015` 的表达式与下次执行时间（**空 = 自动同步关闭**） |
 | `archive_rows` | 复用归档表行数 |
 
-### 3.2 `POST /Item/Save`
+### 3.2 `POST /Rule/Save`
+
+保存规则层**可改字段**：`flag_enable`（`'1'` 启用 / `'0'` 停用）、`default_action`（空=该层不指定动作）、
+`rule_desc`、`remark`。可选 `reason`（审计原因，缺省「Web 维护页保存规则」）。
+
+不允许通过接口改 `rule_no`、`rule_type`、`priority`、`match_scope`：它们决定引擎分层与先后顺序
+（P10 闸门 → 前处理 → 市场默认 → 例外 → 兜底），改错会让整层计算结果漂移，只能走数据库迁移。
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `rule_no` | string | 是 | 规则编号，必须已存在 |
+| `flag_enable` | string | 是 | `'1'` / `'0'`，其它值 400 |
+| `default_action` | string | 否 | `CODE` / `FTMM` / `LITERAL` / `REWRITE` / `SH4`；空=不指定 |
+| `rule_desc` | string | 否 | 规则说明 |
+| `remark` | string | 否 | 备注 |
+| `reason` | string | 否 | 审计日志原因 |
+
+响应 `{"code":0,"message":"保存成功","data":{"rule_no":"P50"}}`；每次保存写一条 `src_table='rule'` 的审计日志
+（`action='UPDATE'`，含 before/after 快照）。规则不存在或取值非法返回 400。
+
+### 3.3 `POST /Item/Save`
 
 请求体为条目字段的 snake_case JSON（`idn=0` 表示新增）。服务端校验：
 
@@ -80,7 +100,7 @@
 （`NULLS NOT DISTINCT`）唯一：新增时若该键已存在，返回 **409** 并提示已有条目的 `idn`/状态，
 让用户改去编辑那条（不再把数据库的 23505 原始报错抛给前端）。
 
-### 3.3 `GET /Diff/Preview`
+### 3.4 `GET /Diff/Preview`
 
 不写任何表：算完差异整体回滚，返回分类计数、前 200 行明细、冲突清单与 `preview_token`
 （= `md5(全部最终映射)`）。首次上线（结果表为空）时 `insert` 等于键表行数。
@@ -97,7 +117,7 @@
 | `escalate` | 候选 `usc` 撞名后改用 `ftmm_symbol` |
 | `key_update` | **键表漂移**：`futu.finv_futu_secu_key.usc` 与规则结果不一致（手工改值 / 外部同步覆盖），应用时回写；这类行结果表本身没变，所以单独计数，不计入 `update` |
 
-### 3.3.1 `GET /Diff/Page`
+### 3.4.1 `GET /Diff/Page`
 
 预演不落库，明细也没法从库里再查：`/Diff/Preview` 只回前 **200** 行，完整明细（通常 1.6 万～7 万行）
 由服务端缓存在内存，用本接口分页浏览。
@@ -111,7 +131,7 @@
 
 缓存有效期 **30 分钟**，重新预演会整体替换；服务重启后失效。返回体含 `total`（该类别总数）与 `preview_token`。
 
-### 3.3.2 `GET /Map/Page`
+### 3.4.2 `GET /Map/Page`
 
 **结果表随时查询**，与预演无关（不需要先预演、也不受预演缓存的 30 分钟有效期限制）：
 直接分页读 `futu.finv_futu_usc_map`（预演与应用写入的在册映射）。
@@ -126,7 +146,7 @@
 返回 `total` + `list`（`ftmm_symbol` / `market` / `code` / `instrument` / `usc` / `rule_no` / `basis` /
 `status` / `scope_env` / `rule_version` / `dt_compute` / `dt_retire` / `reuse_of_ftmm`）。
 
-### 3.4 `POST /Sync/Run`
+### 3.5 `POST /Sync/Run`
 
 请求体：`{"preview_token":"...","reason":"...","env":"*"}`（`operator` 取登录账号）。
 服务端校验令牌：预演之后规则或键表变了 → `400/409` 拒绝（`预演结果已过期`），必须重新预演。
@@ -143,7 +163,7 @@
 
 > 归档表时间列名为 `dt_snapshot`（`V300167` 起），与结果表的 `dt_retire` / `dt_compute` / `dt_first_assign` 同为 `dt_` 口径。
 
-### 3.5 `GET /Sync/Run`
+### 3.6 `GET /Sync/Run`
 
 `runId` 为空时返回最近一次运行。`status` ∈ `RUNNING` / `DONE` / `FAILED`；`logs` 最多保留 500 条。
 同一时刻只允许一个运行，重复启动返回 `409`。

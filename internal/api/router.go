@@ -253,6 +253,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 			uscGroup := apiGroup.Group("/Meta/Finv/Quote/UscMap")
 			uscGroup.GET("/Status", uscMap.Status)
 			uscGroup.GET("/Rule/List", uscMap.RuleList)
+			uscGroup.POST("/Rule/Save", uscMap.RuleSave)
 			uscGroup.GET("/Item/List", uscMap.ItemList)
 			uscGroup.POST("/Item/Save", uscMap.ItemSave)
 			uscGroup.POST("/Item/Retire", uscMap.ItemRetire)

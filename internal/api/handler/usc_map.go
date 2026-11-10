@@ -88,6 +88,29 @@ func (h *UscMap) ItemList(c *gin.Context) {
 	})
 }
 
+// RuleSave POST /Meta/Finv/Quote/UscMap/Rule/Save。
+//
+// 只开放「启用开关 / 默认动作 / 说明 / 备注」；规则号、类型、同层顺序、作用域决定引擎分层，
+// 页面不允许改（改错整层计算结果漂移），需要时走迁移。
+func (h *UscMap) RuleSave(c *gin.Context) {
+	var req uscrule.RuleUpdate
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
+		return
+	}
+	operator := ""
+	if session, ok := SessionFrom(c); ok && session != nil {
+		operator = session.UID
+	}
+	if err := h.service.SaveRule(c.Request.Context(), req, operator); err != nil {
+		log.Printf("[usc] api rule save failed rule=%s err=%v", req.RuleNo, err)
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	log.Printf("[usc] api rule save ok rule=%s flag=%s operator=%s", req.RuleNo, req.FlagEnable, operator)
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "保存成功", "data": gin.H{"rule_no": req.RuleNo}})
+}
+
 // ItemSave POST /Meta/Finv/Quote/UscMap/Item/Save。
 func (h *UscMap) ItemSave(c *gin.Context) {
 	var item uscrule.Item

@@ -202,6 +202,25 @@
 
 ### 变更
 
+- **规则层改为可维护 + 审计日志与条目数拆列（需求 11137 / 11138 / 11139）**
+  - **审计日志拆列（11137）**：原「主键」列显示 `idn=689 P50`（条目主键 + 所属规则挤在一格）。
+    `ListLogs` 现从 before/after 快照解析并额外返回 `src_idn` / `src_rule_no` / `src_ftmm`，
+    页面拆成「主键」与「所属规则」两列；详情弹窗抬头同步拆开（规则行不重复显示所属规则）。
+  - **规则层可改（11138）**：新增 `POST /Meta/Finv/Quote/UscMap/Rule/Save`，只开放
+    `flag_enable`（启用/停用该层）、`default_action`、`rule_desc`、`remark`，每次保存写一条
+    `src_table='rule'` 的审计日志（含 before/after 快照）；`rule_no` / `rule_type` / `priority` /
+    `match_scope` 属引擎身份（决定分层与层序），页面与接口都不允许改，需要时走迁移。
+    前端「启用」由只读 chip 改为 `v-switch`（绿/灰，点击即切层，带 loading 与悬浮说明），
+    行操作新增「编辑」弹窗（默认动作 / 规则说明 / 备注）；**点行不再跳转到「条目」页**，
+    跳转只由「查看条目」按钮触发。此前 P50 只读、停用后无法在页面恢复，正是这个缺口。
+  - **条目数拆列（11139）**：规则表「条目数（生效/全部）」拆成「生效条目数」与「全部条目数」两列右对齐显示。
+  - 校验：`TestSaveRuleOnClone`（克隆库）覆盖落库一致、审计日志、非法 `default_action` 与不存在的 `rule_no`
+    被拒、用例结束还原原值；`go build` / `go vet` / `go test ./internal/docs` / 前端 `vue-tsc` + `build` 全绿；
+    镜像已重建部署。
+  - 文档：`Docs/API/UscMap.md` 新增 §3.2 `POST /Rule/Save`（字段与不可改范围说明），
+    `UscMap.yml` 补端点与 `Log/List` 的 `src_idn` / `src_rule_no` / `src_ftmm` 说明，
+    `Docs/Menu/Quote/Realtime/UscMapping.md` 规则页签整段重写。
+
 - **USC 条目说明改为默认自动生成、可手动改写（需求 11136）**
   - 现象：新增条目必须手填「条目说明」，否则后端 400（`item_desc` 必填）；字段是空文本框，
     用户要为「美股 指数 代码 SPTSX 取富途全码」这类信息手敲一遍自然语言。

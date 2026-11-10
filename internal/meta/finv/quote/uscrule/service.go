@@ -143,6 +143,11 @@ func (s *Service) ListItems(ctx context.Context, filter ItemFilter) ([]Item, int
 	return s.store.ListItems(ctx, filter)
 }
 
+// SaveRule 保存规则层可改字段（启用开关 / 默认动作 / 说明 / 备注）。
+func (s *Service) SaveRule(ctx context.Context, u RuleUpdate, operator string) error {
+	return s.store.SaveRule(ctx, u, operator)
+}
+
 // SaveItem 保存条目。
 func (s *Service) SaveItem(ctx context.Context, item Item, operator string) (int64, error) {
 	return s.store.SaveItem(ctx, item, operator)

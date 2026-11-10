@@ -951,6 +951,72 @@ SELECT (SELECT count(*) FROM futu.finv_futu_usc_rule),
 	return status, nil
 }
 
+// SaveRule 保存规则层可改字段（启用开关 / 默认动作 / 说明 / 备注），并写一条审计日志。
+//
+// 幂等：带目标值比较，无变化时 UPDATE 影响 0 行，仍按原值落审计（便于留痕）。
+func (s *Store) SaveRule(ctx context.Context, u RuleUpdate, operator string) error {
+	ruleNo := strings.TrimSpace(u.RuleNo)
+	if ruleNo == "" {
+		return fmt.Errorf("rule_no 不能为空")
+	}
+	flag := strings.TrimSpace(u.FlagEnable)
+	if flag != "0" && flag != "1" {
+		return fmt.Errorf("flag_enable 只能是 0 或 1，实际 %q", u.FlagEnable)
+	}
+	var action *string
+	if u.DefaultAction != nil {
+		val := strings.TrimSpace(*u.DefaultAction)
+		if val != "" {
+			switch val {
+			case "CODE", "FTMM", "LITERAL", "REWRITE", "SH4":
+				action = &val
+			default:
+				return fmt.Errorf("default_action 只能是 CODE/FTMM/LITERAL/REWRITE/SH4，实际 %q", val)
+			}
+		}
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("开启事务失败: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var before string
+	if err := tx.QueryRow(ctx,
+		`SELECT to_jsonb(t)::text FROM futu.finv_futu_usc_rule t WHERE rule_no = $1`, ruleNo).Scan(&before); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("规则不存在: %s", ruleNo)
+		}
+		return fmt.Errorf("读取规则失败: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+UPDATE futu.finv_futu_usc_rule
+   SET flag_enable    = $2,
+       default_action = $3,
+       rule_desc      = $4,
+       remark         = $5
+ WHERE rule_no = $1`, ruleNo, flag, action, strings.TrimSpace(u.RuleDesc), strings.TrimSpace(u.Remark)); err != nil {
+		return fmt.Errorf("保存规则失败: %w", err)
+	}
+	var after string
+	if err := tx.QueryRow(ctx,
+		`SELECT to_jsonb(t)::text FROM futu.finv_futu_usc_rule t WHERE rule_no = $1`, ruleNo).Scan(&after); err != nil {
+		return fmt.Errorf("读取新规则失败: %w", err)
+	}
+	reason := strings.TrimSpace(u.Reason)
+	if reason == "" {
+		reason = "Web 维护页保存规则"
+	}
+	if _, err := tx.Exec(ctx, `
+INSERT INTO futu.finv_futu_usc_rule_log (src_table, action, key_text, before_json, after_json, operator, reason)
+VALUES ('rule', 'UPDATE', $1, $2::jsonb, $3::jsonb, $4, $5)`,
+		ruleNo, before, after, nonEmpty(operator, "finv"), reason); err != nil {
+		return fmt.Errorf("写审计日志失败: %w", err)
+	}
+	return tx.Commit(ctx)
+}
+
 // ListLogs 审计日志分页（倒序）。
 func (s *Store) ListLogs(ctx context.Context, page, pageSize int) ([]LogRow, int64, error) {
 	page, pageSize = normalizePager(page, pageSize)
@@ -959,7 +1025,12 @@ func (s *Store) ListLogs(ctx context.Context, page, pageSize int) ([]LogRow, int
 		return nil, 0, fmt.Errorf("统计审计日志失败: %w", err)
 	}
 	rows, err := s.pool.Query(ctx, `
-SELECT idn, src_table, action, key_text, before_json::text, after_json::text,
+SELECT idn, src_table, action, key_text,
+       -- 主键与所属规则拆成两列返回（需求 11137）；历史行同样能从快照里取到
+       COALESCE(after_json->>'idn',         before_json->>'idn')         AS src_idn,
+       COALESCE(after_json->>'rule_no',     before_json->>'rule_no')     AS src_rule_no,
+       COALESCE(after_json->>'ftmm_symbol', before_json->>'ftmm_symbol') AS src_ftmm,
+       before_json::text, after_json::text,
        COALESCE(operator, ''), reason, to_char(gmt_create, 'YYYY-MM-DD HH24:MI:SS')
   FROM futu.finv_futu_usc_rule_log
  ORDER BY idn DESC
@@ -971,7 +1042,8 @@ SELECT idn, src_table, action, key_text, before_json::text, after_json::text,
 	out := make([]LogRow, 0, pageSize)
 	for rows.Next() {
 		var row LogRow
-		if err := rows.Scan(&row.IDN, &row.SrcTable, &row.Action, &row.KeyText, &row.Before,
+		if err := rows.Scan(&row.IDN, &row.SrcTable, &row.Action, &row.KeyText,
+			&row.SrcIDN, &row.SrcRuleNo, &row.SrcFtmm, &row.Before,
 			&row.After, &row.Operator, &row.Reason, &row.GmtCreate); err != nil {
 			return nil, 0, fmt.Errorf("读取审计日志失败: %w", err)
 		}
