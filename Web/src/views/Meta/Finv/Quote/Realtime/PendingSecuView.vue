@@ -15,6 +15,7 @@ import { computed, onMounted, ref } from 'vue'
 import { apiGet, apiPost } from '../../../../../api'
 import { showToast } from '../../../../../ui/toast'
 import PendingSecuEnrollDialog from './PendingSecuEnrollDialog.vue'
+import PendingSecuEnqueueDialog from './PendingSecuEnqueueDialog.vue'
 
 // 列表行（wire 字段 snake_case，数值列为文本，保住 NUMERIC(24,6) 精度）
 interface PendingSecuRow {
@@ -227,6 +228,15 @@ function openEnroll(row: PendingSecuRow) {
   enrollOpen.value = true
 }
 
+// 「入队」（需求 11153）：只打开确认对话框，提交必须人工确认（需求 11154）
+const enqueueOpen = ref(false)
+const enqueueRow = ref<PendingSecuRow | null>(null)
+
+function openEnqueue(row: PendingSecuRow) {
+  enqueueRow.value = row
+  enqueueOpen.value = true
+}
+
 onMounted(load)
 </script>
 
@@ -393,9 +403,25 @@ onMounted(load)
             <td class="text-right num">{{ row.page ?? '—' }}</td>
             <td class="text-no-wrap">{{ timeText(row.dt_update) }}</td>
             <td class="text-no-wrap">
-              <v-btn size="x-small" variant="tonal" color="primary" prepend-icon="mdi-database-plus-outline" @click="openEnroll(row)">
-                录入
-              </v-btn>
+              <div class="d-flex ga-1">
+                <v-tooltip text="把该证券的键登记进 futu.finv_futu_secu_key（status=PENDING，usc 留空等规则解析）；点击只打开确认对话框，核对后才写库" location="top" max-width="360">
+                  <template #activator="{ props: tipProps }">
+                    <v-btn
+                      v-bind="tipProps"
+                      size="x-small"
+                      variant="tonal"
+                      color="secondary"
+                      prepend-icon="mdi-tray-arrow-up"
+                      @click="openEnqueue(row)"
+                    >
+                      入队
+                    </v-btn>
+                  </template>
+                </v-tooltip>
+                <v-btn size="x-small" variant="tonal" color="primary" prepend-icon="mdi-database-plus-outline" @click="openEnroll(row)">
+                  录入
+                </v-btn>
+              </div>
             </td>
           </tr>
           <tr v-if="!rows.length && !loading">
@@ -408,6 +434,7 @@ onMounted(load)
 
       <!-- 录入对话框：三张表字段登记 + 必填校验（需求 10996） -->
       <PendingSecuEnrollDialog v-model="enrollOpen" :row="enrollRow" @done="load" />
+      <PendingSecuEnqueueDialog v-model="enqueueOpen" :row="enqueueRow" @done="load" />
 
       <div class="d-flex flex-wrap align-center justify-space-between ga-2 mt-3">
         <span class="text-caption text-medium-emphasis">

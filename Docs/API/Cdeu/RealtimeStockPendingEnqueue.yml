@@ -1,0 +1,124 @@
+openapi: 3.0.3
+info:
+  title: FinvQuant API — 待录入证券入队
+  version: 1.0.0
+  description: |
+    需求 11153/11154：把待录入证券的键登记进 futu.finv_futu_secu_key。
+    两步走：GET 预检（只读，展示将要写入的字段与键表现状）→ 人工确认 → POST 落库。
+    派生：ftmm_symbol = upper(市场标签.代码)、market = 市场标签、code = 快照代码、stock_id = 快照编号、
+    instrument 由 instrument_type（主）/ market_type（兜底）推导且允许人工覆盖；
+    固定 status=PENDING / flag_enable=1 / priority=10，usc 留空等规则解析。
+servers:
+  - url: /
+paths:
+  /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue:
+    get:
+      summary: 入队预检（只读）
+      operationId: realtimeStockPendingEnqueuePreview
+      tags: [Cdeu]
+      parameters:
+        - name: stockId
+          in: query
+          required: true
+          schema: { type: integer, format: int64 }
+          description: 快照表 cdeu.finv_cdeu_secu_realtime_stock.stock_id（正整数）
+      responses:
+        '200':
+          description: 预检成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string, example: 预检完成 }
+                  data: { $ref: '#/components/schemas/EnqueuePreview' }
+        '400':
+          description: stockId 非法或快照行不存在
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500':
+          description: 数据库侧失败
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    post:
+      summary: 确认入队（人工确认后写键表）
+      operationId: realtimeStockPendingEnqueue
+      tags: [Cdeu]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stock_id]
+              properties:
+                stock_id: { type: integer, format: int64 }
+                instrument:
+                  type: string
+                  description: 覆盖派生值（留空则用派生值）
+                  enum: [stock, etf, index, sector, futures, crypto, forex, market]
+      responses:
+        '200':
+          description: 入队完成，或键表已存在未重复入队
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string, example: 入队完成 }
+                  data:
+                    type: object
+                    required: [ftmm_symbol, market, code, instrument, stock_id, enqueued, existed, status, usc, priority, hint]
+                    properties:
+                      ftmm_symbol: { type: string, example: HK.ZZQUEUE1 }
+                      market: { type: string, example: HK }
+                      code: { type: string, example: ZZQUEUE1 }
+                      instrument: { type: string, example: stock }
+                      stock_id: { type: integer, format: int64 }
+                      enqueued: { type: boolean, description: 本次是否真的插入 }
+                      existed: { type: boolean, description: 键表已存在该 ftmm_symbol }
+                      status: { type: string, example: PENDING }
+                      usc: { type: string, description: 已存在时的现值，可能为空 }
+                      priority: { type: integer, example: 10 }
+                      hint: { type: string }
+        '400':
+          description: 请求体解析失败 / stockId 非法 / instrument 不在词表内
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500':
+          description: 数据库侧失败
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+components:
+  schemas:
+    EnqueuePreview:
+      type: object
+      required: [stock_id, ftmm_symbol, market, code, instrument, existed, writable, hint]
+      properties:
+        stock_id: { type: integer, format: int64 }
+        name: { type: string }
+        ftmm_symbol: { type: string, example: HK.ZZQUEUE1 }
+        market: { type: string, example: HK }
+        code: { type: string, example: ZZQUEUE1 }
+        instrument_type: { type: string, example: '3' }
+        market_type: { type: string, example: '1' }
+        instrument: { type: string, example: stock }
+        existed: { type: boolean }
+        status: { type: string }
+        usc: { type: string }
+        priority: { type: integer }
+        writable: { type: boolean, description: 是否允许提交（= !existed） }
+        hint: { type: string }
+    Error:
+      type: object
+      properties:
+        code: { type: integer, example: 400 }
+        message: { type: string }

@@ -219,6 +219,26 @@
 
 ### 变更
 
+- **待录入证券新增「入队」（需求 11153 / 11154）**
+  - 背景：待录入证券分两类——富途还没建键的（要把键**登记进 `futu.finv_futu_secu_key`**，采集与映射链路才有依据）、
+    键表已有键但 USC 规则解不出的（去「USC 映射规则」补规则）。此前没有第一个动作的入口。
+  - 新增 `GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue?stockId=`：只读预检，
+    返回将要写入键表的字段与键表现状（`existed` / `status` / `usc` / `priority` / `writable` / `hint`）。
+  - 新增 `POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue`：写入键表
+    `(instrument, market, code, ftmm_symbol, stock_id, status=PENDING, flag_enable=1, priority=10)`，`usc` 留空；
+    `instrument` 可由人工覆盖（非词表取值 400）；`ON CONFLICT (ftmm_symbol) DO NOTHING` + 先查在，
+    并发重复点击不会产生第二条键记录；键表已有则返回 `existed=true` 并提示去「USC 映射规则」补 USC。
+  - **两步走、人工确认（11154）**：列表「入队」按钮只打开「入队确认」对话框（预检只读），
+    人工核对字段、可改正 `instrument` 后才点「确认入队」写库；已存在时对话框不给提交，改为提示 +
+    「去『USC 映射规则』」按钮（跳转只由按钮触发）。**刻意不做一键直接入队**：键表是下游采集/映射的输入，
+    自动误写代价高（如 `instrument` 推错会让 USC 规则匹配不到）。
+  - 键表 `instrument` 词表：`stock` / `etf` / `index` / `sector` / `futures` / `crypto` / `forex` / `market`；
+    **注意板块是 `sector`（单数），采集表才是 `sectors`**，写混会让规则匹配失败（已写进推导函数注释与测试）。
+  - 演练：合成行 `HK.ZZQUEUE1` → 预检「键表已有」为空、插入成功（status=PENDING / flag_enable=1 / priority=10）、
+    重复插入 0 行；只读实测 `HK.00002` 预检正确报出 `existed=true / status=PENDING / usc=00002`。
+  - 文档：新增 `Docs/API/Cdeu/RealtimeStockPendingEnqueue.{md,yml}`，`APIs.md` 编号 124/125，
+    `Menu/Quote/Realtime/PendingSecu.md` 操作列说明 + §2.6 入队（含入队后链路）。
+
 - **待录入证券表格：品种类型字典翻译 + 列名改「唯一标识」（需求 11151 / 11152）**
   - 「品种类型」列原样显示富途数字码（`3` / `4` / `12`），现按字典显示中文：
     `3`→股票、`4`→ETF、`6`→指数、`7`→板块、`9`→期货、`11`→加密货币、`12`→股票

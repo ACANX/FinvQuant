@@ -3253,7 +3253,9 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 修复「录入证券元数据」对话框一打开就报 `预填失败：stockId 必须是 1..0 的整数`：`stockId` 改为按 int64 解析且只校验下界（bigint 主键无业务上界），不得再套 `min..max` 闭区间 | 11150 | 1 |
 | 待录入证券表格「品种类型」列按 `instrument_type` 字典翻译为中文（3/12→股票、4→ETF、6→指数、7→板块、9→期货、11→加密货币；未登记值原样、空值 `—`） | 11151 | 1 |
 | 待录入证券表格列名「派生键 ftmm_symbol」改为「唯一标识」（表头悬浮说明保留 `upper(市场标签.代码)` 推导公式） | 11152 | 1 |
-| **合计** | **10001–11152** | **1148**（含 2 条待办） |
+| 待录入证券操作列新增「入队」：按快照派生 `ftmm_symbol` / `market` / `code` / `stock_id` 与 `instrument`（`instrument_type` 主、`market_type` 兜底，词表与键表一致），新增 `GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue?stockId=` 预检、`POST .../Stock/Pending/Enqueue` 写 `futu.finv_futu_secu_key`（`status=PENDING` / `flag_enable=1` / `priority=10`，`usc` 留空）；键表已存在则不插入并提示去「USC 映射规则」补 USC | 11153 | 1 |
+| 「入队」必须两步走：点按钮只打开确认对话框（预检只读），人工核对并可改正 `instrument` 后，再点对话框里的「确认入队」才写库；不得一键直接提交 | 11154 | 1 |
+| **合计** | **10001–11154** | **1150**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

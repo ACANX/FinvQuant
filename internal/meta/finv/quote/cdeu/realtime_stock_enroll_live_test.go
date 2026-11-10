@@ -96,3 +96,85 @@ func TestBuildAutoRemark(t *testing.T) {
 		t.Fatalf("带备注 remark=%q，期望 %q", got, want)
 	}
 }
+
+// TestKeyInstrumentByInstrumentType 键表 instrument 推导规则（需求 11153）。
+//
+// 词表与采集表不同：键表里板块是 `sector`（单数），采集表是 `sectors`；
+// 这里断言推导结果一定落在键表词表内，避免写进去匹配不到的取值。
+func TestKeyInstrumentByInstrumentType(t *testing.T) {
+	cases := []struct {
+		instrumentType, marketType int
+		want                       string
+	}{
+		{3, 1, "stock"},   // HK 股票
+		{3, 2, "stock"},   // US 股票
+		{12, 2, "stock"},  // 富途 12 也是股票口径
+		{4, 2, "etf"},     // ETF
+		{6, 4, "index"},   // 指数
+		{7, 2, "sector"},  // 板块（注意不是 sectors）
+		{9, 2, "futures"}, // 期货
+		{11, 17, "crypto"},
+		// instrument_type 缺失时用 market_type 兜底
+		{0, 11, "forex"},
+		{0, 17, "crypto"},
+		{0, 1, "stock"},
+	}
+	for _, c := range cases {
+		got := keyInstrumentByInstrumentType(c.instrumentType, c.marketType)
+		if got != c.want {
+			t.Fatalf("instrument_type=%d market_type=%d → %s，期望 %s",
+				c.instrumentType, c.marketType, got, c.want)
+		}
+		if !keyInstrumentAllowed(got) {
+			t.Fatalf("推导值 %s 不在键表词表内（%v）", got, KeyInstrumentOptions)
+		}
+	}
+	if keyInstrumentAllowed("sectors") {
+		t.Fatalf("sectors 是采集表口径，键表不应接受")
+	}
+}
+
+// TestLivePendingSecuEnqueuePreview 只读校验入队预检（需求 11153）。
+//
+// 需要真实库（**只读**，不插入）：
+//
+//	FINV_TEST_PG_DSN="postgres://finv:finvquant@127.0.0.1:5432/finv?sslmode=disable" \
+//	  go test -run TestLivePendingSecuEnqueuePreview -v ./internal/meta/finv/quote/cdeu/
+func TestLivePendingSecuEnqueuePreview(t *testing.T) {
+	dsn := os.Getenv("FINV_TEST_PG_DSN")
+	if dsn == "" {
+		t.Skip("未设置 FINV_TEST_PG_DSN，跳过真实库入队预检")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("连接数据库失败: %v", err)
+	}
+	defer pool.Close()
+	store := &Store{pool: pool}
+
+	var stockID int64
+	if err := pool.QueryRow(ctx, `
+SELECT stock_id FROM cdeu.finv_cdeu_secu_realtime_stock
+ WHERE market_label = 'HK' AND stock_code IS NOT NULL
+ ORDER BY stock_id LIMIT 1`).Scan(&stockID); err != nil {
+		t.Skipf("库里没有可用的 HK 快照行，跳过: %v", err)
+	}
+
+	preview, err := store.PreviewPendingSecuEnqueue(ctx, stockID)
+	if err != nil {
+		t.Fatalf("预检失败: %v", err)
+	}
+	if preview.FtmmSymbol == "" || preview.Market != "HK" || preview.Code == "" {
+		t.Fatalf("派生字段不全: %+v", preview)
+	}
+	if !keyInstrumentAllowed(preview.Instrument) {
+		t.Fatalf("instrument=%s 不在键表词表内", preview.Instrument)
+	}
+	if preview.Existed == preview.Writable {
+		t.Fatalf("existed 与 writable 必须互斥: existed=%t writable=%t", preview.Existed, preview.Writable)
+	}
+	t.Logf("stock_id=%d ftmm=%s instrument=%s existed=%t status=%s usc=%q hint=%s",
+		stockID, preview.FtmmSymbol, preview.Instrument, preview.Existed, preview.Status, preview.USC, preview.Hint)
+}
