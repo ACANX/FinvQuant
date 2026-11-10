@@ -105,6 +105,8 @@ interface BackfillRun extends RunBase {
   overwrite: number
   keep: number
   missing: number
+  // 本次回推写的列（需求 11163）
+  fields?: FieldSelection
   // 上游缺记录 → 已插入（upsert，需求 11157）
   insert: number
   // 上游缺记录但本地缺 instrument/market/code → 未插入
@@ -361,16 +363,40 @@ async function runIndicatorSync() {
 }
 
 // ---------- Tab 3：本地 usc 回推上游 ----------
+/** 本次回推要写上游哪些列（需求 11163）；默认两个都勾 */
+interface FieldSelection {
+  usc: boolean
+  priority: boolean
+}
+
 const bfStatus = ref<BackfillStatus | null>(null)
 const bfStatusLoading = ref(false)
 const bfBatchSize = ref(500)
+// 字段勾选（需求 11163）：默认 usc + priority 都写；上游 priority 是人工设定时可只勾 usc
+const bfFields = ref<FieldSelection>({ usc: true, priority: true })
+const bfFieldsInvalid = computed(() => !bfFields.value.usc && !bfFields.value.priority)
+/** 字段选择 → 「usc+priority」可读文本（空选择显示「未选列」） */
+function fieldsText(fields: FieldSelection | undefined | null): string {
+  if (!fields) return '—'
+  const picked: string[] = []
+  if (fields.usc) picked.push('usc')
+  if (fields.priority) picked.push('priority')
+  return picked.length ? picked.join('+') : '未选列'
+}
+
+/** 本次将写哪些列（按钮与参数区展示用） */
+const bfFieldsText = computed(() => fieldsText(bfFields.value))
 const logBoxBackfill = ref<HTMLElement | null>(null)
 
 const bfConfigured = computed(() => bfStatus.value?.configured === true)
 
 const bf = useAsyncRun<BackfillRun>(
   BACKFILL_RUN_API,
-  () => ({ batch_size: bfBatchSize.value }),
+  () => ({
+    batch_size: bfBatchSize.value,
+    // 需求 11163：带上字段选择，后端只写勾选的列
+    fields: { usc: bfFields.value.usc, priority: bfFields.value.priority },
+  }),
   logBoxBackfill,
 )
 
@@ -392,6 +418,10 @@ async function loadBackfillStatus() {
 async function runBackfill() {
   if (!bfConfigured.value) {
     showToast('系统配置 20013（Supabase 连接配置）未配置，请先填写 {PROJECT_ID}|{APIKEY}', 'warning')
+    return
+  }
+  if (bfFieldsInvalid.value) {
+    showToast('同步字段至少要勾选一个（usc 或 priority）', 'warning')
     return
   }
   await bf.start('本地 usc 回推上游')
@@ -811,7 +841,9 @@ onBeforeUnmount(() => {
 
           <v-divider class="my-3" />
 
-          <div class="text-caption text-medium-emphasis mb-1">上游被回推的列（两列一起写）</div>
+          <div class="text-caption text-medium-emphasis mb-1">
+            上游可回推的列（本次写哪几列由下方「同步字段」决定）
+          </div>
           <div class="d-flex align-center flex-wrap ga-2">
             <v-chip size="small" variant="tonal" color="secondary">
               <code class="mr-1">{{ bfStatus?.key_table || 'public.finv_quote_secu_key' }}</code>
@@ -822,7 +854,8 @@ onBeforeUnmount(() => {
               .priority
             </v-chip>
             <span class="text-caption text-medium-emphasis">
-              按 <code>{{ bfStatus?.key_key || 'ftmm_symbol' }}</code> 与本地关联（双边主键，一对一），两列同一行一次写入
+              按 <code>{{ bfStatus?.key_key || 'ftmm_symbol' }}</code> 与本地关联（双边主键，一对一）；
+              勾选的列在同一行一次写入，未勾选的列不发、不改
             </span>
           </div>
         </v-card-text>
@@ -845,16 +878,41 @@ onBeforeUnmount(() => {
                 hide-details
               />
             </v-col>
-            <v-col cols="12" md="9" class="d-flex align-center">
-              <v-btn
-                color="primary"
-                prepend-icon="mdi-play-circle-outline"
-                :loading="bf.starting.value && bf.running.value"
-                :disabled="!bfConfigured || bf.running.value"
-                @click="runBackfill"
-              >
-                {{ bf.running.value ? '回推中…' : '立即回推' }}
-              </v-btn>
+            <v-col cols="12" md="9">
+              <div class="text-caption text-medium-emphasis mb-1">
+                同步字段（本次只写勾选的列，未勾的列上游保持原值）
+              </div>
+              <div class="d-flex flex-wrap align-center ga-4">
+                <v-checkbox
+                  v-model="bfFields.usc"
+                  label="usc（统一证券代码）"
+                  density="compact"
+                  hide-details
+                  :disabled="bf.running.value"
+                />
+                <v-checkbox
+                  v-model="bfFields.priority"
+                  label="priority（优先级）"
+                  density="compact"
+                  hide-details
+                  :disabled="bf.running.value"
+                />
+                <v-btn
+                  color="primary"
+                  prepend-icon="mdi-play-circle-outline"
+                  :loading="bf.starting.value && bf.running.value"
+                  :disabled="!bfConfigured || bf.running.value || bfFieldsInvalid"
+                  @click="runBackfill"
+                >
+                  {{ bf.running.value ? '回推中…' : '立即回推' }}
+                </v-btn>
+                <v-chip size="small" variant="tonal" :color="bfFieldsInvalid ? 'error' : 'secondary'">
+                  将写 {{ bfFieldsText }}
+                </v-chip>
+              </div>
+              <div v-if="bfFieldsInvalid" class="text-caption text-error mt-1">
+                至少勾选一个字段才能回推（取消 priority 可保留上游人工设定的优先级）
+              </div>
             </v-col>
           </v-row>
         </v-card-text>
@@ -890,6 +948,9 @@ onBeforeUnmount(() => {
             </v-chip>
             <v-chip v-if="bf.run.value.insert_skipped" size="small" variant="tonal" color="warning">
               无法插入 {{ num(bf.run.value.insert_skipped) }}
+            </v-chip>
+            <v-chip size="small" variant="tonal" color="secondary">
+              字段 {{ fieldsText(bf.run.value.fields) }}
             </v-chip>
             <v-chip size="small" variant="text">
               {{ bf.run.value.batches }} 批 · {{ elapsedText(bf.run.value.duration_ms) }}
@@ -977,9 +1038,13 @@ onBeforeUnmount(() => {
             源 <code>futu.finv_futu_secu_key.usc</code>（USC 映射规则 <code>futu.finv_futu_usc_map</code> 的产出，唯一权威）→
             目标 <code>public.finv_quote_secu_key.usc</code> 与 <code>.priority</code>，
             <b>按 <code>ftmm_symbol</code> 关联</b>（本地主键 = 上游主键，一对一），
-            <b>两列同一行一次写入</b>（需求 11142 起 priority 跟随 usc 一起同步）。<br />
-            口径不是「只写 NULL 行」：usc 与 priority <b>两列都一致</b> → 「未变」且不发请求（幂等，重跑收敛）；
-            任一列为空 → 「填入」；都不为空但有差异 → 「覆盖」；
+            <b>勾选的列同一行一次写入</b>（需求 11142 起 priority 跟随 usc 一起同步；11163 起可只勾一列）。<br />
+            <b>同步字段可配置</b>（需求 11163）：「回推参数」里勾 <code>usc</code> / <code>priority</code>，默认两个都勾。
+            只勾 <code>usc</code> 时上游 <code>priority</code> <b>完全不参与比对、也不会被写</b> ——
+            上游若有<b>人工设定</b>的优先级（例如 <code>BJ.899050</code> 上游 29 / 本地 26），不会被这次回推改掉；
+            反之只勾 <code>priority</code> 时上游 <code>usc</code> 保持原值。两个都不勾会被拒（400），不算「同步过了」。<br />
+            口径不是「只写 NULL 行」：<b>勾选的列都一致</b> → 「未变」且不发请求（幂等，重跑收敛）；
+            勾选的列任一为空 → 「填入」；都不为空但有差异 → 「覆盖」；
             <b>上游没有该 <code>ftmm_symbol</code> → 插入新记录</b>（需求 11157，记「上游新增」）：
             按本地行的 <code>instrument</code> / <code>market</code> / <code>code</code> / <code>usc</code> /
             <code>priority</code> / <code>stock_id</code> / <code>status</code> / <code>flag_enable</code>（上游列名 <code>enable</code>）组一行，

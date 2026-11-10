@@ -288,15 +288,27 @@
 
 ## 7. 本地 usc 回推上游（Tab 3，需求 11084 重构）
 
-**方向相反（本地 → 上游），两列一起写**：
+**方向相反（本地 → 上游），写哪几列可配置**（需求 11163，默认 `usc` + `priority` 都写）：
 
-| 上游目标 | 写入列 | 关联键 | 本地来源 | 待处理量（实测） |
+| 上游目标 | 可写列 | 关联键 | 本地来源 | 待处理量（实测） |
 |----------|--------|--------|----------|------------------|
 | `public.finv_quote_secu_key` | `usc` | `ftmm_symbol` | `futu.finv_futu_secu_key.usc` | 73,212 / 73,212 |
 | `public.finv_quote_secu_key` | `priority` | `ftmm_symbol` | `futu.finv_futu_secu_key.priority` | 同上（同一行一次 PATCH） |
 
-判定口径（两列都参与）：`usc` 与 `priority` **都一致** → `keep` 不发请求；任一列为空 → `fill`；
-都不为空但有差异（含只有 `priority` 不同）→ `overwrite`；上游无该 `ftmm_symbol` → **插入新记录**（`insert`，需求 11157）。
+判定口径（**只看勾选的列**）：勾选的列都一致 → `keep` 不发请求；勾选列任一为空 → `fill`；
+都不为空但有差异 → `overwrite`；上游无该 `ftmm_symbol` → **插入新记录**（`insert`，需求 11157）。
+
+字段选择的行为（需求 11163）：
+
+| 勾选 | 判定与写入 | 典型场景 |
+|------|------------|----------|
+| `usc` + `priority`（默认） | 两列都参与比对，同一行一次 PATCH 写两列 | 上游与本地完全对齐 |
+| 只 `usc` | 只比 `usc`、只写 `usc`；上游 `priority` **不参与比对也不算差异** | 上游 `priority` 是人工设定的，不想被本地值覆盖（如 `BJ.899050` 上游 29 / 本地 26） |
+| 只 `priority` | 只比 `priority`、只写 `priority`；上游 `usc` 保持原值 | 只补优先级，不动代码口径 |
+| 都不勾 | **拒绝（400）** | 空操作没有意义，且容易被误认为「同步过了」 |
+
+> 只勾 `priority` 时，上游缺记录的行**不插入**（`insert_skipped` 计数）：新建一行却没有 `usc`，
+> 对下游毫无意义。插入需要勾选 `usc`。
 
 > 历史逻辑已整体删除（需求 11084）：曾按 `stock_id` 回填 `public.finv_quote_secu_meta.usc`，
 > 并同时回写 `finv_quote_secu_key.stock_id`，还用 `futu.finv_futu_quote_collect` 拼 `usc`、
@@ -308,8 +320,9 @@
 | 环节 | 规则 |
 |------|------|
 | 关联键 | `ftmm_symbol`（本地主键 = 上游主键），一对一，不再按 `stock_id` 关联 |
-| 写入值 | 本地 `futu.finv_futu_secu_key.usc` 原样写入（不做大小写/格式转换） |
-| 写不写 | 上游 `usc` 已等于本地值 → 「未变」，**不发请求**；上游为空 → 「填入」；有值但不同 → 「覆盖」 |
+| 写入值 | 本地 `futu.finv_futu_secu_key.usc` / `.priority` 原样写入（不做大小写/格式转换） |
+| 写哪几列 | 请求体 `fields`：`{"usc":true,"priority":true}`；不传 = 两列都写；未勾选的列**连值都不放进 payload** |
+| 写不写 | 勾选的列都已等于本地值 → 「未变」，**不发请求**；为空 → 「填入」；有值但不同 → 「覆盖」 |
 | 上游无该行 | **插入新记录**：按本地 `instrument`/`market`/`code`/`usc`/`priority`/`stock_id`/`status`/`flag_enable`（上游列名 `enable`）组一行，`on_conflict=ftmm_symbol` + `resolution=merge-duplicates` upsert，`note` 写 `[AUTO-FILL]` 标记（需求 11157）；本地缺 `instrument`/`market`/`code` → 计 `insert_skipped` 不插入 |
 | 本地 `usc` 为空 | 直接跳过，计入 `local_empty_usc`（实测 0 行） |
 | 待处理量 | 本地键表 73,212 行（`usc` 非空），按 `ftmm_symbol` 升序分批 |
@@ -335,10 +348,22 @@
 
 #### `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run`
 
-请求体 `{"batch_size": 500}`（`ftmm_symbol` 个数，收敛 100~5000，默认 500）。
-`202` 返回启动快照；`409` 已有回推在运行；`400` 请求体非法。
+请求体：
 
-> ⚠️ 本接口**写入线上 Supabase**（PATCH `public.finv_quote_secu_key.usc`），不是本地写。
+```json
+{ "batch_size": 500, "fields": { "usc": true, "priority": true } }
+```
+
+| 字段 | 必填 | 说明 |
+|------|:----:|------|
+| `batch_size` | 否 | `ftmm_symbol` 个数，收敛 100~5000，默认 500 |
+| `fields.usc` | 否 | 是否写 `usc` 列，默认 `true` |
+| `fields.priority` | 否 | 是否写 `priority` 列，默认 `true`；**两个都 `false` → 400** |
+| `fields` | 否 | 整个对象省略 = 两列都写（保持历史行为） |
+
+`202` 返回启动快照（含 `fields` 回显）；`409` 已有回推在运行；`400` 请求体非法或两个字段都不勾。
+
+> ⚠️ 本接口**写入线上 Supabase**（PATCH `public.finv_quote_secu_key.usc` / `.priority`），不是本地写。
 
 #### `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run?runId=`
 
@@ -346,17 +371,18 @@
 `key_table` / `key_column` / `key_key` / `local_table`、
 `local_rows` / `rows_total` / `local_empty_usc`、
 `fill` / `overwrite` / `keep` / `missing`（上游无该键的条数）/ `insert`（已插入）/ `insert_skipped`（无法插入）/ `batches`、
+`fields`（本次写的列 `{usc, priority}`）、
 `rows_done` / `progress` / `batch_size` / `start_at` / `finish_at` / `duration_ms` / `error` / `logs[]`；
 `runId` 省略取最近一次，不匹配 404。
 
 日志形态：
 
 ```
-回推任务已启动：public.finv_quote_secu_key.usc/priority ← futu.finv_futu_secu_key（按 ftmm_symbol 关联，两列一起写）
+回推任务已启动：public.finv_quote_secu_key ← futu.finv_futu_secu_key（按 ftmm_symbol 关联，本次写 usc 列；未勾选的列不动）
 第 1 批：offset=0，处理 500 个 ftmm_symbol，写入 12（填入 0 / 覆盖 12），未变 488，无对应 0（本批 3210 ms）
 ……
-回推完成：本地 futu.finv_futu_secu_key 共 73212 行（usc 有值 73212，为空跳过 0），147 批，
-         写入 N（填入 a / 覆盖 b），未变 c，上游新增 d（无法插入 e）；耗时 … ms
+回推完成：字段 usc，本地 futu.finv_futu_secu_key 共 73212 行（usc 有值 73212，为空跳过 0），147 批，
+         写入 N（填入 a / 覆盖 b），未变 c，上游无对应 0，新增 d（未插入 e）；耗时 … ms
 ```
 
 ### 7.3 验收实测（2026-11-10）
@@ -366,6 +392,7 @@
 | 本地统计（`/Status`） | `local_rows=73,212`、`local_with_usc=73,212`、`local_empty_usc=0` |
 | 上游只读抽样（`FINV_USC_WRITEBACK_LIVE=1`，见 `uscbackfill_live_test.go`） | `US.AAPL` 本地=`AAPL` 上游=`AAPL` → `keep`；`SH.000300` 本地=`SH0300` 上游=`000300` → `overwrite`；`AU..XFL` 本地=`XFL` 上游=`AU..XFL` → `overwrite`；`US.XRP`、`HK.800700`、`CA.HSI` → `keep` |
 | 分类单测 | `classify` 四类（missing / fill / keep / overwrite）与大小写不同判为 `overwrite` 全部通过 |
+| 字段选择单测（需求 11163） | `TestNormalizeFields`（不传 → 两列都写；两个都不勾 → 报错）、`TestClassifyByFieldSelection`（`BJ.899050` 上游 29 / 本地 26：两列都勾 → `overwrite`；只勾 `usc` → `keep`；只勾 `priority` → `overwrite`） |
 
 ## 8. 实现要点
 

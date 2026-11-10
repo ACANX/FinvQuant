@@ -8,7 +8,7 @@
 > 11046（异步运行 + 实时日志）、11047（Tab 2 口径确认）、11050（Tab 2 指标同步实现）、
 > 11051（`flag_enable` 规则，已被 11063 取代）、11052（Tab 1 不清空 Tab 2 补的 `url`）、
 > 11084（Tab 3 重构为「本地 usc 回推上游」，只写 `usc` 一列；删除 11054/11055/11056/11057 旧逻辑）、
-> 11142（Tab 3 起同时回推 `priority`，两列同一行一次写入）
+> 11142（Tab 3 起同时回推 `priority`，两列同一行一次写入）、11163（Tab 3 同步字段可勾选，默认两列都写）
 > 关联接口：[`API/Cdeu/SecuParamSync.md`](../../../API/Cdeu/SecuParamSync.md)
 > 关联数据表：目标 `futu.finv_futu_secu_key`（V300137 建表 / V300139 补 `stock_id`+`usc` / V300141 改名）；
 > 源 Supabase `public.finv_quote_secu_key`（表名可配，默认与上游同名）
@@ -23,7 +23,7 @@
 |-----|------|------|
 | **FT证券基础参数同步** | 已实现 | Supabase 证券键表（默认 `public.finv_quote_secu_key`）→ 本地 `futu.finv_futu_secu_key` |
 | **FT证券指标数据同步** | 已实现（需求 11050/11063） | 上游 `public.finv_quote_secu_meta` → 指标表 + 采集属性表（一条记录写两张表，均按 `usc` 主键 upsert）；不再写证券键表 |
-| **本地 usc 回推上游** | 已实现（需求 11084 重构 + 11142 增列） | 方向相反：把 `futu.finv_futu_secu_key.usc` / `.priority` 按 `ftmm_symbol` 回推到 `public.finv_quote_secu_key.usc` / `.priority`，**两列同一行一次写入** |
+| **本地 usc 回推上游** | 已实现（需求 11084 重构 + 11142 增列 + 11163 可配字段） | 方向相反：把 `futu.finv_futu_secu_key.usc` / `.priority` 按 `ftmm_symbol` 回推到 `public.finv_quote_secu_key.usc` / `.priority`；**写哪几列可勾选**，默认两列同一行一次写入 |
 
 - 只由本页**按钮手动触发**，没有定时任务；
 - 单向只读上游 → 写本地：不删除本地行；`url` / `stock_id` / `usc` 按 `COALESCE(源, 本地)` 取值，上游为 NULL 时保留本地值、不清空（`stock_id` / `usc` 自上游补列后已纳入同步，需求 11062）；
@@ -135,36 +135,51 @@
 |------|------|
 | Supabase 连接（20013） | 同 Tab 1/2：`已配置` / `未配置` + 项目 ID + 脱敏 key 前缀 |
 | 本地来源 | `futu.finv_futu_secu_key`、`共 N 行`、`usc 有值 N 行`；`usc` 为空的行以灰字提示「跳过 N 行」 |
-| 上游被回推的列 | 一个 chip `public.finv_quote_secu_key.usc` + 说明「按 `ftmm_symbol` 与本地关联（双边主键，一对一）」 |
+| 上游可回推的列 | 两个 chip `public.finv_quote_secu_key.usc` / `.priority` + 说明「按 `ftmm_symbol` 与本地关联（双边主键，一对一）；本次写哪几列由「同步字段」决定」 |
 
 #### 2.4.2 回推参数（第二张卡片）
 
 | 控件 | 说明 |
 |------|------|
 | 每批 `ftmm_symbol` 数 | 下拉 `200 / 500 / 1000 / 2000`，默认 500（逐行 PATCH，批量大只是让单批更粗） |
-| 立即回推 | `POST .../UscBackfill/Sync/Run` 异步启动；20013 未配置或运行中时禁用 |
+| **同步字段**（需求 11163） | 两个复选框 `usc（统一证券代码）` / `priority（优先级）`，**默认都勾**；右侧 chip 实时显示「将写 usc+priority」 |
+| 立即回推 | `POST .../UscBackfill/Sync/Run`（body 带 `fields`）异步启动；20013 未配置、运行中、或**两个字段都不勾**时禁用 |
+
+字段勾选规则：
+
+| 勾选 | 效果 |
+|------|------|
+| 都勾（默认） | 两列都参与比对，同一行一次 PATCH 写两列 |
+| 只勾 `usc` | 只比、只写 `usc`；上游 `priority` 不参与比对也不算差异（**上游人工设定的优先级不会被改掉**） |
+| 只勾 `priority` | 只比、只写 `priority`；上游 `usc` 保持原值 |
+| 都不勾 | 按钮禁用 + 红字提示「至少勾选一个字段」 |
+
+运行中两个复选框一并禁用（运行参数不可中途改）。
 
 #### 2.4.3 回推进度与日志（第三张卡片）
 
 与 Tab 1/2 同款（状态 chip / 累计 chip / 进度条 / 独立滚动日志区 + 自动滚底 + `ERROR` 标红 + 「等待下一批…」），
-累计 chip：`处理 a / b · 填入 · 覆盖 · 未变 · 上游新增 · 无法插入 · N 批 · 耗时`。
+累计 chip：`处理 a / b · 填入 · 覆盖 · 未变 · 上游新增 · 无法插入 · 字段 usc+priority · N 批 · 耗时`
+（`字段` 取自运行快照回显，本次到底写了哪几列一目了然）。
 
 日志形态：
 
 ```
-回推任务已启动：public.finv_quote_secu_key.usc/priority ← futu.finv_futu_secu_key（按 ftmm_symbol 关联，两列一起写）
+回推任务已启动：public.finv_quote_secu_key ← futu.finv_futu_secu_key（按 ftmm_symbol 关联，本次写 usc+priority 列；未勾选的列不动）
 第 1 批：offset=0，处理 500 个 ftmm_symbol，写入 12（填入 0 / 覆盖 12），未变 488，无对应 0（本批 3210 ms）
 ……
-回推完成：本地 futu.finv_futu_secu_key 共 73212 行（usc 有值 73212，为空跳过 0），147 批；
-         写入 N（填入 a / 覆盖 b），未变 c，上游新增 d（无法插入 e）；耗时 … ms
+回推完成：字段 usc+priority，本地 futu.finv_futu_secu_key 共 73212 行（usc 有值 73212，为空跳过 0），147 批；
+         写入 N（填入 a / 覆盖 b），未变 c，上游无对应 0，新增 d（未插入 e）；耗时 … ms
 ```
 
 #### 2.4.4 口径（页面「说明」里同步展示）
 
 - 源 `futu.finv_futu_secu_key.usc`（= USC 映射规则 `futu.finv_futu_usc_map` 的产出）→ 目标 `public.finv_quote_secu_key.usc`；
-- 关联键 **`ftmm_symbol`**（本地主键 = 上游主键，一对一），**回推 `usc` + `priority` 两列**（同一行一次 PATCH），
-  不写 `stock_id`、不写 `meta` 表；判定口径：两列都一致 → 未变（不发请求）；任一列为空 → 填入；
-  都不为空但有差异（含只有 `priority` 不同）→ 覆盖；
+- 关联键 **`ftmm_symbol`**（本地主键 = 上游主键，一对一）；**写哪几列由「同步字段」决定**（需求 11163，默认都勾），
+  勾选的列同一行一次 PATCH，不写 `stock_id`、不写 `meta` 表；
+- 判定口径**只看勾选的列**：都一致 → 未变（不发请求）；任一为空 → 填入；都不为空但有差异 → 覆盖；
+  未勾选的列既不比对也不写（上游 `priority` 是人工设定值时，取消勾选即可保住它）；
+- 只勾 `priority` 时上游缺记录的行**不插入**（计「无法插入」）：新建一行却没有 `usc` 对下游没有意义；
 - 上游 `usc` 已等于本地值 → 「未变」，**不发请求**（复跑幂等）；为空 → 「填入」；有值不同 → 「覆盖」；
 - 上游没有该 `ftmm_symbol` → **插入新记录**（需求 11157，「上游新增」）：按本地 `instrument` / `market` / `code` / `usc` / `priority` / `stock_id` / `status` / `flag_enable`（上游列名 `enable`）组一行，`on_conflict=ftmm_symbol` + `resolution=merge-duplicates` 批量 upsert，`note` 写 `[AUTO-FILL]` 标记；本地缺 `instrument` / `market` / `code` 的行无法插入，计「无法插入」；本地 `usc` 为空的行直接跳过；
 - 本 Tab **写入线上 Supabase**：逐行 PATCH，每行校验受影响行数 = 1，RLS 拒绝直接报错。

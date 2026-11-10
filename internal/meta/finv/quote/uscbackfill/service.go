@@ -3,6 +3,10 @@
 //	本地 futu.finv_futu_secu_key.usc + priority（73,212 行）
 //	    ──按 ftmm_symbol 关联──▶ 上游 public.finv_quote_secu_key.usc + priority
 //
+// 回推哪些列**可配置**（需求 11163：`fields.usc` / `fields.priority` 两个勾选项，默认都勾）：
+// 只勾 usc 就只比 usc、只写 usc（上游 priority 是人工设定的值时不被动）；
+// 只勾 priority 同理；两个都不勾直接拒绝（没有意义的空操作）。
+//
 // 回推 **usc 与 priority 两列**（需求 11142 起 priority 一起同步），关联键是 ftmm_symbol
 // （上游主键、本地主键，双边唯一）；两列任一不同即按同一行一次 PATCH 写回。
 // 上游值已等于本地值 → 记「未变」且不发请求（幂等，重跑收敛）；为空 → 「填入」；
@@ -22,6 +26,7 @@ package uscbackfill
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"sort"
@@ -83,10 +88,65 @@ func NormalizeBatchSize(raw int) int {
 	return raw
 }
 
+// FieldSelection 本次回推要写上游哪些列（需求 11163）。
+//
+// 默认两个都写（零值语义由 NormalizeFields 兜底：nil 或全 false 时按「都勾」处理？不——
+// 全 false 是用户主动取消勾选，必须拒绝；只有**没传** fields 才默认都勾）。
+type FieldSelection struct {
+	// USC 是否回推 usc 列。
+	USC bool `json:"usc"`
+	// Priority 是否回推 priority 列。
+	Priority bool `json:"priority"`
+}
+
+// AllFields 两个字段都回推（默认值）。
+func AllFields() FieldSelection {
+	return FieldSelection{USC: true, Priority: true}
+}
+
+// NormalizeFields 归一字段选择：raw 为 nil（请求没传）时默认两列都勾；
+// 显式传了但一个都没勾 → 报错（空操作没有意义，且容易误以为「同步过了」）。
+func NormalizeFields(raw *FieldSelection) (FieldSelection, error) {
+	if raw == nil {
+		return AllFields(), nil
+	}
+	fields := *raw
+	if !fields.USC && !fields.Priority {
+		return FieldSelection{}, fmt.Errorf("%w: fields.usc 与 fields.priority 至少要勾选一个", ErrInvalidRequest)
+	}
+	return fields, nil
+}
+
+// Columns 返回本次要写的列名（日志与结果回显用），顺序固定 usc → priority。
+func (f FieldSelection) Columns() []string {
+	columns := make([]string, 0, 2)
+	if f.USC {
+		columns = append(columns, KeyUSCColumn)
+	}
+	if f.Priority {
+		columns = append(columns, KeyPriorityColumn)
+	}
+	return columns
+}
+
+// Text 「usc+priority」形式的可读列名（日志用）。
+func (f FieldSelection) Text() string {
+	columns := f.Columns()
+	if len(columns) == 0 {
+		return "（未选列）"
+	}
+	return strings.Join(columns, "+")
+}
+
+// ErrInvalidRequest 入参非法（handler 据此回 400）。
+var ErrInvalidRequest = errors.New("回推入参非法")
+
 // Request 一次回推的入参。
 type Request struct {
 	// BatchSize 每批处理的 ftmm_symbol 个数（留空或 <=0 取 500）。
 	BatchSize int
+	// Fields 本次要写上游哪些列（需求 11163）；nil 表示默认两列都写。
+	Fields *FieldSelection
 }
 
 // Progress 一批完成时的进度快照（计数均为**累计值**）。
@@ -124,6 +184,8 @@ type Result struct {
 	Insert     int    `json:"insert"`         // 上游缺记录 → 已插入（upsert）
 	InsertSkip int    `json:"insert_skipped"` // 上游缺记录但本地字段不全 → 未插入
 	DurationMs int64  `json:"duration_ms"`
+	// Fields 本次回推写的列（需求 11163）。
+	Fields FieldSelection `json:"fields"`
 }
 
 // StatusSnapshot 「连接与源表」卡片快照（只读本地，不访问 Supabase）。
@@ -256,6 +318,12 @@ func (s *Service) SyncWithProgress(ctx context.Context, req Request, onProgress 
 		LocalTable: LocalKeyTable,
 	}
 
+	fields, err := NormalizeFields(req.Fields)
+	if err != nil {
+		return result, err
+	}
+	result.Fields = fields
+
 	values, err := s.cfg.Load(ctx)
 	if err != nil {
 		return result, fmt.Errorf("读取系统配置失败: %w", err)
@@ -284,8 +352,9 @@ func (s *Service) SyncWithProgress(ctx context.Context, req Request, onProgress 
 
 	batchSize := NormalizeBatchSize(req.BatchSize)
 	client := s.newClient(values.SupabaseConn)
-	log.Printf("[cdeu][uscbackfill] writeback start target=%s.%s(key=%s) local=%s local_rows=%d keys=%d skip_empty=%d batch_size=%d project=%s",
-		KeyTable, KeyUSCColumn, KeyKeyColumn, LocalKeyTable, result.LocalRows, len(order),
+	log.Printf("[cdeu][uscbackfill] writeback start target=%s(key=%s) fields=%s local=%s local_rows=%d keys=%d "+
+		"skip_empty=%d batch_size=%d project=%s",
+		KeyTable, KeyKeyColumn, fields.Text(), LocalKeyTable, result.LocalRows, len(order),
 		result.SkipEmpty, batchSize, values.SupabaseConn.ProjectID)
 
 	seen := 0
@@ -315,10 +384,16 @@ func (s *Service) SyncWithProgress(ctx context.Context, req Request, onProgress 
 		for _, symbol := range batchKeys {
 			up, ok := current[symbol]
 			want := target[symbol]
-			switch classify(up, ok, want) {
+			switch classify(up, ok, want, fields) {
 			case classMissing:
 				batchMissing++
-				// 上游没有该键 → 插入新记录（需求 11157）；本地字段不全则跳过
+				// 上游没有该键 → 插入新记录（需求 11157）；本地字段不全则跳过。
+				// 只勾 priority 时不插入（需求 11163）：新建一行却没有 usc，对下游毫无意义。
+				if !fields.USC {
+					result.InsertSkip++
+					log.Printf("[cdeu][uscbackfill] insert skipped ftmm=%s（本次未勾选 usc，插新行必须有 usc）", symbol)
+					continue
+				}
 				row, ok := buildInsertRow(symbol, want, s.now())
 				if !ok {
 					result.InsertSkip++
@@ -335,13 +410,16 @@ func (s *Service) SyncWithProgress(ctx context.Context, req Request, onProgress 
 			case classOverwrite:
 				batchOverwrite++
 			}
-			jobs = append(jobs, patchJob{
-				key: symbol,
-				values: map[string]any{
-					KeyUSCColumn:      want.USC,
-					KeyPriorityColumn: want.Priority,
-				},
-			})
+			// 只写勾选的列（需求 11163）：没勾的列连值都不放进 payload，
+			// 上游那一列的人工设定值不会被任何一次回推动到。
+			values := make(map[string]any, 2)
+			if fields.USC {
+				values[KeyUSCColumn] = want.USC
+			}
+			if fields.Priority {
+				values[KeyPriorityColumn] = want.Priority
+			}
+			jobs = append(jobs, patchJob{key: symbol, values: values})
 		}
 
 		// 先插入上游缺的记录（upsert，幂等），再 PATCH 已有行；任一失败即中止本轮
@@ -368,10 +446,10 @@ func (s *Service) SyncWithProgress(ctx context.Context, req Request, onProgress 
 		result.Missing += batchMissing
 
 		batchElapsed := s.now().Sub(batchStart).Milliseconds()
-		log.Printf("[cdeu][uscbackfill] batch=%d offset=%d keys=%d upstream_hit=%d fill=%d overwrite=%d keep=%d "+
-			"missing=%d insert=%d insert_skipped=%d patched=%d duration_ms=%d",
-			batch+1, seen, len(batchKeys), len(batchKeys)-batchMissing, batchFill, batchOverwrite,
-			batchKeep, batchMissing, inserted, result.InsertSkip, affected, batchElapsed)
+		log.Printf("[cdeu][uscbackfill] batch=%d offset=%d keys=%d fields=%s upstream_hit=%d fill=%d overwrite=%d "+
+			"keep=%d missing=%d insert=%d insert_skipped=%d patched=%d duration_ms=%d",
+			batch+1, seen, len(batchKeys), fields.Text(), len(batchKeys)-batchMissing, batchFill,
+			batchOverwrite, batchKeep, batchMissing, inserted, result.InsertSkip, affected, batchElapsed)
 
 		if onProgress != nil {
 			onProgress(Progress{
@@ -394,9 +472,9 @@ func (s *Service) SyncWithProgress(ctx context.Context, req Request, onProgress 
 	}
 
 	result.DurationMs = s.now().Sub(started).Milliseconds()
-	log.Printf("[cdeu][uscbackfill] writeback done target=%s.%s keys=%d fill=%d overwrite=%d keep=%d "+
+	log.Printf("[cdeu][uscbackfill] writeback done target=%s fields=%s keys=%d fill=%d overwrite=%d keep=%d "+
 		"missing=%d insert=%d insert_skipped=%d batches=%d duration_ms=%d",
-		KeyTable, KeyUSCColumn, result.RowsTotal, result.Fill, result.Overwrite, result.Keep,
+		KeyTable, fields.Text(), result.RowsTotal, result.Fill, result.Overwrite, result.Keep,
 		result.Missing, result.Insert, result.InsertSkip, result.Batches, result.DurationMs)
 	return result, nil
 }
@@ -474,19 +552,37 @@ const (
 	classKeep      = "keep"
 )
 
-// classify 判定一个 ftmm_symbol 的回推动作（usc 与 priority 两列一起判）：
-// 上游没有该键 → missing（跳过）；任一列为空 → fill；两列都一致 → keep（不发请求）；其余 → overwrite。
-func classify(up keyUpstreamRow, exists bool, want keyTarget) string {
+// classify 判定一个 ftmm_symbol 的回推动作，**只判本次勾选的列**（需求 11163）：
+// 上游没有该键 → missing；勾选的列全部一致 → keep（不发请求）；有勾选列为空 → fill；其余 → overwrite。
+//
+// 没勾的列完全不参与判定：只勾 usc 时，上游 priority 与本地不同既不记 overwrite 也不写，
+// 「未变」的计数也只看 usc。
+func classify(up keyUpstreamRow, exists bool, want keyTarget, fields FieldSelection) string {
 	if !exists {
 		return classMissing
 	}
-	has := strings.TrimSpace(up.USC)
-	sameUSC := has == want.USC
-	samePriority := up.Priority != nil && *up.Priority == want.Priority
+	same, hasEmpty := true, false
+	if fields.USC {
+		has := strings.TrimSpace(up.USC)
+		if has != want.USC {
+			same = false
+		}
+		if has == "" {
+			hasEmpty = true
+		}
+	}
+	if fields.Priority {
+		if up.Priority == nil || *up.Priority != want.Priority {
+			same = false
+		}
+		if up.Priority == nil {
+			hasEmpty = true
+		}
+	}
 	switch {
-	case sameUSC && samePriority:
+	case same:
 		return classKeep
-	case has == "" || up.Priority == nil:
+	case hasEmpty:
 		return classFill
 	default:
 		return classOverwrite

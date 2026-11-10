@@ -101,7 +101,7 @@ func TestLiveReadUpstream(t *testing.T) {
 			upPriority = strconv.Itoa(*up.Priority)
 		}
 		t.Logf("%-12s 本地=%-9s/%-4d 上游=%-9s/%-4s → %s",
-			symbol, want.USC, want.Priority, up.USC, upPriority, classify(up, ok, want))
+			symbol, want.USC, want.Priority, up.USC, upPriority, classify(up, ok, want, AllFields()))
 	}
 	if len(upstream) == 0 {
 		t.Fatalf("上游未返回任何行，检查 20013 配置或 RLS")
@@ -177,7 +177,7 @@ func TestLiveFullDiff(t *testing.T) {
 		}
 		for _, row := range chunk {
 			up, ok := upstream[row.FtmmSymbol]
-			class := classify(up, ok, keyTarget{USC: row.USC, Priority: row.Priority})
+			class := classify(up, ok, keyTarget{USC: row.USC, Priority: row.Priority}, AllFields())
 			counts[class]++
 			if class != classKeep && len(samples) < 20 {
 				upPriority := "NULL"

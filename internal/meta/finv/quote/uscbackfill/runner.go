@@ -67,6 +67,8 @@ type Run struct {
 
 	// BatchSize 每批处理的 ftmm_symbol 个数。
 	BatchSize int `json:"batch_size"`
+	// Fields 本次回推写的列（需求 11163）：{usc, priority}，默认都 true。
+	Fields FieldSelection `json:"fields"`
 	// RowsDone 累计已处理键值数；Progress 为 0~100。
 	RowsDone   int      `json:"rows_done"`
 	Progress   float64  `json:"progress"`
@@ -102,6 +104,14 @@ func NewRunner(service *Service) *Runner {
 
 // Start 启动一次异步回推；已有运行在执行时返回错误（不排队、不覆盖）。
 func (r *Runner) Start(req Request) (Run, error) {
+	// 字段选择先归一：两个都不勾直接拒绝，不占用运行位
+	fields, err := NormalizeFields(req.Fields)
+	if err != nil {
+		return Run{}, err
+	}
+	normalized := req
+	normalized.Fields = &fields
+
 	r.mu.Lock()
 	if r.current != nil && r.current.run.Status == RunStatusRunning {
 		runID := r.current.run.RunID
@@ -120,18 +130,19 @@ func (r *Runner) Start(req Request) (Run, error) {
 			KeyKey:     KeyKeyColumn,
 			LocalTable: LocalKeyTable,
 			BatchSize:  NormalizeBatchSize(req.BatchSize),
+			Fields:     fields,
 			StartAt:    r.now().Format(time.RFC3339),
 		},
 	}
 	r.current = state
 	r.lastID = runID
 	r.appendLogLocked(state, RunLogLevelInfo, fmt.Sprintf(
-		"回推任务已启动：%s.%s ← %s（按 %s 关联，只写 usc 一列）",
-		KeyTable, KeyUSCColumn, LocalKeyTable, KeyKeyColumn), 0, 0)
+		"回推任务已启动：%s ← %s（按 %s 关联，本次写 %s 列；未勾选的列不动）",
+		KeyTable, LocalKeyTable, KeyKeyColumn, fields.Text()), 0, 0)
 	snapshot := r.snapshotLocked(state)
 	r.mu.Unlock()
 
-	go r.execute(state, req)
+	go r.execute(state, normalized)
 	return snapshot, nil
 }
 
@@ -214,10 +225,11 @@ func (r *Runner) execute(state *runnerState, req Request) {
 	state.run.Progress = 100
 	state.run.FinishAt = r.now().Format(time.RFC3339)
 	r.appendLogLocked(state, RunLogLevelInfo, fmt.Sprintf(
-		"回推完成：本地 %s 共 %d 行（usc 有值 %d，为空跳过 %d），%d 批，写入 %d（填入 %d / 覆盖 %d），未变 %d，上游无对应 %d；耗时 %d ms",
-		LocalKeyTable, result.LocalRows, result.RowsTotal, result.SkipEmpty, result.Batches,
-		result.Fill+result.Overwrite, result.Fill, result.Overwrite, result.Keep,
-		result.Missing, result.DurationMs), 0, 0)
+		"回推完成：字段 %s，本地 %s 共 %d 行（usc 有值 %d，为空跳过 %d），%d 批，"+
+			"写入 %d（填入 %d / 覆盖 %d），未变 %d，上游无对应 %d，新增 %d（未插入 %d）；耗时 %d ms",
+		result.Fields.Text(), LocalKeyTable, result.LocalRows, result.RowsTotal, result.SkipEmpty,
+		result.Batches, result.Fill+result.Overwrite, result.Fill, result.Overwrite, result.Keep,
+		result.Missing, result.Insert, result.InsertSkip, result.DurationMs), 0, 0)
 	log.Printf("[cdeu][uscbackfill] run=%s done fill=%d overwrite=%d keep=%d missing=%d duration_ms=%d",
 		state.run.RunID, result.Fill, result.Overwrite, result.Keep, result.Missing, result.DurationMs)
 }

@@ -219,6 +219,23 @@
 
 ### 变更
 
+- **Tab 3 回推上游的写入列可配置（需求 11163）**
+  - 背景：全量对比发现 8,826 行 `priority` 与上游不一致（如 `BJ.899050` 本地 26 / 上游 29），
+    按原逻辑会全部 `overwrite` 覆盖。上游的 29 若是人工设定，就不该被本地值冲掉。
+  - 后端：`uscbackfill.Request` 新增 `Fields *FieldSelection{usc, priority}`；
+    `NormalizeFields` 不传 → 两列都写，显式全 `false` → `ErrInvalidRequest`（handler 回 400，不再误报 409）；
+    `classify(up, exists, want, fields)` **只判勾选的列**（未勾的列既不参与 keep/overwrite 判定，也不写）；
+    PATCH payload 只放勾选的列；`Result.Fields` / `Run.Fields` 回显；日志改成
+    `fields=usc+priority` 形式。只勾 `priority` 时上游缺记录的行不插入（`insert_skipped`）——
+    新建一行却没有 `usc` 对下游没有意义。
+  - 前端：Tab 3「回推参数」卡片加 `usc` / `priority` 两个复选框（默认都勾），实时 chip 显示「将写 usc+priority」；
+    两个都不勾时按钮禁用并提示「至少勾选一个字段」；运行中复选框禁用；运行面板加「字段」chip 回显。
+  - 测试：`TestNormalizeFields`（不传 → 都写；两个都不勾 → 报错；`Text()` 渲染）、
+    `TestClassifyByFieldSelection`（`BJ.899050` 上游 29 / 本地 26：都勾 → `overwrite`，只勾 `usc` → `keep`，
+    只勾 `priority` → `overwrite`；上游 priority 为 NULL 时只勾 `usc` 也判 `keep`）。
+  - 文档：`API/Cdeu/SecuParamSync.md` §7 补字段选择行为表与请求体、日志样例、验收；
+    `Menu/Quote/Realtime/SecuParamSync.md` §2.4.2 补「同步字段」控件与四种勾选组合。
+
 - **菜单改名/排序 + 新增「证券参数补全」菜单（需求 11158 – 11162）**
   - **改名**：「行情快照手动同步」→ **行情快照同步**（11158）；「缺省汇率」→ **外汇汇率**（11159）；
     「待录入证券」→ **待采证券录入**（11160）。菜单 key、路由路径、接口路径、数据表名一律不动，

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -72,6 +73,14 @@ type secuKeyConfigRequest struct {
 type secuKeySyncRequest struct {
 	SourceTable string `json:"source_table"`
 	BatchSize   int    `json:"batch_size"`
+}
+
+// uscBackfillRunRequest 「本地 usc 回推上游」的请求体（需求 11163 起支持字段选择）。
+//
+// Fields 不传 = 两列都写（保持历史行为）；显式传 `{"usc":false,"priority":false}` 会被拒绝。
+type uscBackfillRunRequest struct {
+	BatchSize int                         `json:"batch_size"`
+	Fields    *uscbackfill.FieldSelection `json:"fields"`
 }
 
 // Status GET /Meta/Finv/Quote/Cdeu/SecuKey/Status。
@@ -256,20 +265,29 @@ func (h *SecuKey) UscBackfillStatus(c *gin.Context) {
 // 已有运行在执行时返回 409。注意本接口会**写入线上 Supabase**（PATCH public.finv_quote_secu_key.usc，
 // 按 ftmm_symbol 关联，只写 usc 一列）。
 func (h *SecuKey) StartUscBackfillRun(c *gin.Context) {
-	var req secuKeySyncRequest
+	var req uscBackfillRunRequest
 	if c.Request.ContentLength > 0 {
 		if err := c.ShouldBindJSON(&req); err != nil && !strings.Contains(err.Error(), "EOF") {
 			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体非法: " + err.Error()})
 			return
 		}
 	}
-	run, err := h.backfillRunner.Start(uscbackfill.Request{BatchSize: req.BatchSize})
+	// fields（需求 11163）：不传默认两列都写；显式全不勾由 Start 返回入参错误（400，不是 409）
+	run, err := h.backfillRunner.Start(uscbackfill.Request{
+		BatchSize: req.BatchSize,
+		Fields:    req.Fields,
+	})
 	if err != nil {
+		status, code := http.StatusConflict, 409
+		if errors.Is(err, uscbackfill.ErrInvalidRequest) {
+			status, code = http.StatusBadRequest, 400
+		}
 		log.Printf("[cdeu][uscbackfill] api run start rejected: %v", err)
-		c.JSON(http.StatusConflict, gin.H{"code": 409, "message": err.Error()})
+		c.JSON(status, gin.H{"code": code, "message": err.Error()})
 		return
 	}
-	log.Printf("[cdeu][uscbackfill] api run started run_id=%s", run.RunID)
+	log.Printf("[cdeu][uscbackfill] api run started run_id=%s fields=%s",
+		run.RunID, run.Fields.Text())
 	c.JSON(http.StatusAccepted, gin.H{"code": 0, "message": "本地 usc 回推上游任务已启动", "data": run})
 }
 

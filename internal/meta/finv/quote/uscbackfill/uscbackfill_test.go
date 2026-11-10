@@ -40,6 +40,8 @@ func TestNormalizeBatchSize(t *testing.T) {
 }
 
 // TestClassify 校验「填入 / 覆盖 / 未变 / 无对应」四类判定（需求 11084 回推口径 + 需求 11142 起带 priority）。
+//
+// 默认两列都勾选（需求 11163 的默认值），字段选择的差异见 TestClassifyByFieldSelection。
 func TestClassify(t *testing.T) {
 	twenty := 20
 	ten := 10
@@ -67,7 +69,7 @@ func TestClassify(t *testing.T) {
 	}
 	for _, item := range cases {
 		t.Run(item.name, func(t *testing.T) {
-			if got := classify(item.upstream, item.exists, item.local); got != item.want {
+			if got := classify(item.upstream, item.exists, item.local, AllFields()); got != item.want {
 				t.Fatalf("classify = %q，期望 %q", got, item.want)
 			}
 		})
@@ -93,7 +95,7 @@ func TestIndexKeyUpstreamPriority(t *testing.T) {
 		t.Fatalf("AU..XFL priority 应为 nil，实际 %d", *got)
 	}
 	// upstream 有 priority 时，与本地一致必须判 keep
-	if got := classify(rows["US.AAPL"], true, keyTarget{USC: "AAPL", Priority: 26}); got != classKeep {
+	if got := classify(rows["US.AAPL"], true, keyTarget{USC: "AAPL", Priority: 26}, AllFields()); got != classKeep {
 		t.Fatalf("classify = %q，期望 keep", got)
 	}
 }
@@ -177,5 +179,68 @@ func TestBuildInsertRow(t *testing.T) {
 	}
 	if _, exists := sparse["status"]; exists {
 		t.Fatalf("status 为空时不应写入该列")
+	}
+}
+
+// TestNormalizeFields 字段选择归一（需求 11163）：没传 → 两列都勾；显式全不勾 → 拒绝。
+func TestNormalizeFields(t *testing.T) {
+	fields, err := NormalizeFields(nil)
+	if err != nil {
+		t.Fatalf("未传 fields 不应报错: %v", err)
+	}
+	if !fields.USC || !fields.Priority {
+		t.Fatalf("未传 fields 应默认两列都勾，实际 %+v", fields)
+	}
+
+	onlyUSC, err := NormalizeFields(&FieldSelection{USC: true})
+	if err != nil {
+		t.Fatalf("只勾 usc 应通过: %v", err)
+	}
+	if !onlyUSC.USC || onlyUSC.Priority {
+		t.Fatalf("只勾 usc 归一错误: %+v", onlyUSC)
+	}
+
+	if _, err := NormalizeFields(&FieldSelection{}); err == nil {
+		t.Fatalf("两个都不勾应报错")
+	}
+
+	if got := AllFields().Text(); got != "usc+priority" {
+		t.Fatalf("AllFields().Text() = %q", got)
+	}
+	if got := (FieldSelection{Priority: true}).Text(); got != "priority" {
+		t.Fatalf("只勾 priority 的 Text() = %q", got)
+	}
+	if got := (FieldSelection{}).Columns(); len(got) != 0 {
+		t.Fatalf("空选择 Columns() 应为空，实际 %v", got)
+	}
+}
+
+// TestClassifyByFieldSelection 只勾一列时另一列完全不参与判定（需求 11163）。
+//
+// 场景来源：上游 BJ.899050 的 priority=29 是人工设定的，本地 priority=26；
+// 只勾 usc 时这条不能算 overwrite，更不能把 29 改成 26。
+func TestClassifyByFieldSelection(t *testing.T) {
+	twentySix := 26
+	twentyNine := 29
+	upstream := keyUpstreamRow{FtmmSymbol: "BJ.899050", USC: "899050", Priority: &twentyNine}
+	local := keyTarget{USC: "899050", Priority: twentySix}
+
+	if got := classify(upstream, true, local, AllFields()); got != classOverwrite {
+		t.Fatalf("两列都勾时应判 overwrite，实际 %q", got)
+	}
+	if got := classify(upstream, true, local, FieldSelection{USC: true}); got != classKeep {
+		t.Fatalf("只勾 usc、usc 一致时应判 keep（priority 差异不算差异），实际 %q", got)
+	}
+	if got := classify(upstream, true, local, FieldSelection{Priority: true}); got != classOverwrite {
+		t.Fatalf("只勾 priority、priority 不同时应判 overwrite，实际 %q", got)
+	}
+
+	// priority 为 NULL 时：只勾 usc 不应判成 fill（那一列根本不写）
+	onlyNullPriority := keyUpstreamRow{FtmmSymbol: "BJ.899050", USC: "899050"}
+	if got := classify(onlyNullPriority, true, local, FieldSelection{USC: true}); got != classKeep {
+		t.Fatalf("只勾 usc 且 usc 一致时应判 keep，实际 %q", got)
+	}
+	if got := classify(onlyNullPriority, true, local, FieldSelection{Priority: true}); got != classFill {
+		t.Fatalf("只勾 priority 且 upstream 为空时应判 fill，实际 %q", got)
 	}
 }
