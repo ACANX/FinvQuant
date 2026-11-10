@@ -3219,7 +3219,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 新增 `Docs/CheckList/PreBackendCommitCheckListSpec.md`：后端改动专项清单（BE1–BE16，含错误映射、URL 编码与分片、幂等、资源释放、性能证据） | 11116 | 1 |
 | 新增 `Docs/CheckList/PreDbChangeCheckListSpec.md`：数据库修改专项清单（DB1–DB20：授权、脚本写法、空库/真实库验证、回滚、事故对照） | 11117 | 1 |
 | 新增 `Docs/CheckList/ProposalDocCheckListSpec.md`：提案设计清单（十章骨架 + PP1–PP10 + 批准/打回/待定判定 + 存放命名） | 11118 | 1 |
-| 新增 `Docs/CheckList/PreTechDesignCheckListSpec.md`：技术方案设计清单（十二章骨架 + TD1–TD13 + 常见问题） | 11119 | 1 |
+| 新增 `Docs/CheckList/TechDesignDocCommitCheckListSpec.md`：技术方案设计清单（十二章骨架 + TD1–TD13 + 常见问题） | 11119 | 1 |
 | 新增 `Docs/CheckList/CodeRefactorCommitCheckListSpec.md`：代码重构清单（四条原则 + RF1–RF13 + 步骤清单骨架） | 11120 | 1 |
 | `PreCommitCheckListSpec.md` §4 路由表改为指向六份专项清单，本文件只保留通用 C 组与事故 R 组 | 11121 | 1 |
 | 检查清单文件名后缀统一为 `CheckListSpec.md`（原 `CheckSpec.md`）：`PreCommit` / `PreMerge` / `PreFrontend` / `PreBackend` / `PreDbChange` / `PreProposal` / `PreTechDesign` / `PreRefactor` 共 8 份 | 11122 | 1 |
@@ -3228,7 +3228,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 代码重构清单文件名由 `CodeRefactorCheckListSpec.md` 改为 `CodeRefactorCommitCheckListSpec.md`（补齐 `Commit` 段，改为需求 11123 中的 `CodeRefactor` 命名） | 11125 | 1 |
 | 后端清单文件名由 `PreBackendCheckListSpec.md` 改为 `PreBackendCommitCheckListSpec.md`（取代需求 11122 中的 `PreBackend` 命名） | 11126 | 1 |
 | 合并前清单文件名由 `PreMergeCheckListSpec.md` 改为 `PreMergeCommitCheckListSpec.md`（取代需求 11122 中的 `PreMerge` 命名） | 11127 | 1 |
-| **合计** | **10001–11127** | **1123**（含 2 条待办） |
+| 技术方案设计清单文件名由 `PreTechDesignCheckListSpec.md` 改为 `TechDesignDocCommitCheckListSpec.md`（取代需求 11122 中的 `PreTechDesign` 命名） | 11128 | 1 |
+| **合计** | **10001–11128** | **1124**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

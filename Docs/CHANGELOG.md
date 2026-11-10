@@ -202,6 +202,12 @@
 
 ### 变更
 
+- **技术方案设计清单改名 `TechDesignDocCommitCheckListSpec.md`（需求 11128）**
+  - `Docs/CheckList/PreTechDesignCheckListSpec.md` → `Docs/CheckList/TechDesignDocCommitCheckListSpec.md`（`git mv` 保留历史），
+    取代需求 11122 中的 `PreTechDesign` 命名。
+  - 同步：文件内标题、`PreCommitCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径、
+    `Docs/CHANGELOG.md` 引用。
+
 - **合并前清单改名 `PreMergeCommitCheckListSpec.md`（需求 11127）**
   - `Docs/CheckList/PreMergeCheckListSpec.md` → `Docs/CheckList/PreMergeCommitCheckListSpec.md`（`git mv` 保留历史），
     取代需求 11122 中的 `PreMerge` 命名。
@@ -249,7 +255,7 @@
       空库全量迁移 + 真实库补迁移 + 复跑幂等 + `fk=0` 验证命令、回滚路径，并附高频事故对照表。
     - [`ProposalDocCheckListSpec.md`](CheckList/ProposalDocCheckListSpec.md) —— 提案设计（PP1–PP10）：何时必须写、十章骨架
       （背景/证据/目标/非目标/候选含基线/选型/影响面/风险回滚/编号决策点/验收口径）、批准·打回·待定判定、存放命名。
-    - [`PreTechDesignCheckListSpec.md`](CheckList/PreTechDesignCheckListSpec.md) —— 技术方案设计（TD1–TD13）：十二章骨架
+    - [`TechDesignDocCommitCheckListSpec.md`](CheckList/TechDesignDocCommitCheckListSpec.md) —— 技术方案设计（TD1–TD13）：十二章骨架
       （契约/数据结构/时序/迁移/兼容切换/性能/观测/测试策略/回滚）与常见问题。
     - [`CodeRefactorCommitCheckListSpec.md`](CheckList/CodeRefactorCommitCheckListSpec.md) —— 代码重构（RF1–RF13）：行为不变证据、范围冻结、
       分步可回滚、`git mv` 保历史、格式化噪音单独提交、不留两套并行路径、覆盖不下降。
