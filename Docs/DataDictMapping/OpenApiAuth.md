@@ -158,7 +158,22 @@ signature = base64(HMAC-SHA256(SK, canonical))
 8. 授权范围（`scope_str`，→ `19009`）；
 9. 限流/配额（Redis 计数，→ `19008`）。
 
-### 6.3 预留模式
+### 6.3 实现位置与状态（需求 11168）
+
+| 环节 | 实现 |
+|---|---|
+| 中间件 | `internal/api/openapi/middleware.go`（`Middleware.Handler`，挂在 `/OpenAPI/V1` 路由组，先于 `WrapOpenAPIResponse`） |
+| 凭证读取 | `internal/api/openapi/credential.go`（`PGSource.Lookup`，一条 JOIN 查询，走 `uk_open_api_credential_access_key` 唯一索引） |
+| 配置 | `internal/api/openapi/settings.go`（19001～19006，10 秒 TTL 缓存，无需重启） |
+| 签名 | `internal/api/openapi/sign.go`（`CanonicalString` / `Sign` / `VerifySignature`） |
+| 加解密 | `internal/api/openapi/credential.go`（`EncryptSecret` / `DecryptSecret`，AES-256-GCM） |
+| nonce 与限流 | `internal/api/openapi/redis_state.go`（Redis `SET NX PX` / `INCR` + TTL） |
+| 审计 | `internal/api/openapi/audit.go`（同步写 `open.open_api_invoke_log`，1.5 秒超时，失败只记日志） |
+| 错误码 | `internal/api/openapi/errcode.go`（`19001`～`19010`，含号段/HTTP 映射/唯一性契约测试） |
+
+预留模式（`BEARER` / `MTLS` / `BASIC`）当前**一律按 `19010` 明确拒绝**，不做「看起来支持其实没验」。
+
+### 6.4 预留模式
 
 - `BEARER`：`Authorization: Bearer <JWT>`，`access_key_id` 对应 JWT `kid`，公钥放运行环境（不入表）。
 - `MTLS`：由反向代理校验客户端证书并把指纹放进请求头，服务端与 `access_key_id` 比对。

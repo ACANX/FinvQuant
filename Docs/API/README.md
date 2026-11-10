@@ -63,7 +63,7 @@ Authorization: Bearer <token>
     - [`Quote/Cdeu/Min/KLineStats.md`](Quote/Cdeu/Min/KLineStats.md) — `GET .../Min/Stats`（汇总统计与可视化数据）
     - [`Quote/Cdeu/Min/KLineBounds.md`](Quote/Cdeu/Min/KLineBounds.md) — `GET .../Min/Bounds`（交易日期边界）
     - [`Quote/Cdeu/Min/KLineHealth.md`](Quote/Cdeu/Min/KLineHealth.md) — `GET /Health`（探活，含 `/healthz` 过渡别名）
-  - **外部 OpenAPI**（`/OpenAPI/V1/*`，当前公开访问、暂不鉴权；API Key 后续支持）：
+  - **外部 OpenAPI**（`/OpenAPI/V1/*`，鉴权见 [OpenAPI/Auth.md](OpenAPI/Auth.md)：静态 API Key / AK-SK 签名，由 `sys_config` 19001 控制，默认关闭）：
     - [`OpenAPI/Quote/Cdeu/Min/Upsert.md`](../OpenAPI/Quote/Cdeu/Min/Upsert.md) — `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`（批量 upsert；成功码默认 0；契约 [.yml](../OpenAPI/Quote/Cdeu/Min/Upsert.yml)）
     - [`OpenAPI/Quote/Cdeu/Min/PageUni.md`](../OpenAPI/Quote/Cdeu/Min/PageUni.md) — `GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni`（分页，column/row；成功码默认 0；契约 [.yml](../OpenAPI/Quote/Cdeu/Min/PageUni.yml)）
     - [`OpenAPI/Quote/Cdeu/Realtime/StockUpsert.md`](../OpenAPI/Quote/Cdeu/Realtime/StockUpsert.md) — `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert`（证券实时行情快照批量 upsert；成功码默认 0；契约 [.yml](../OpenAPI/Quote/Cdeu/Realtime/StockUpsert.yml)）

@@ -14,7 +14,7 @@ info:
   description: |
     外部 OpenAPI：批量写入证券实时行情快照（表 cdeu.finv_cdeu_secu_realtime_stock，主键 stock_id）。
     主键存在则只覆盖本次有值的列（COALESCE），不存在则插入；
-    整批单条语句执行，失败整批回滚。当前版本暂不鉴权。
+    整批单条语句执行，失败整批回滚。鉴权见 Docs/API/OpenAPI/Auth.md（sys_config 19001 控制，默认关闭）。
 servers:
   - url: http://127.0.0.1:16001
     description: 本机直连（生产经 Nginx 反代时替换为 https://<域名>）
@@ -98,7 +98,8 @@ components:
       type: http
       scheme: bearer
       description: |
-        API Key 体系落地后启用；当前版本 `/OpenAPI/V1` 公开访问、暂不鉴权。
+        AK/SK 签名（Authorization: FinvAK <ak>:<signature> + X-Finv-Timestamp + X-Finv-Nonce）。
+        鉴权行为由 sys_config 19001 控制（0 关闭 / 1 启用 / 2 宽松），详见 Docs/API/OpenAPI/Auth.md。
   responses:
     BadRequest:
       description: |

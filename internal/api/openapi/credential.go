@@ -1,0 +1,317 @@
+package openapi
+
+// 凭证读取与解密（open.open_api_client / open.open_api_credential，需求 11167/11168）。
+
+import (
+	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// 认证模式（open.open_api_credential.auth_mode）。
+const (
+	AuthModeAPIKey = "API_KEY"
+	AuthModeAKSK   = "AK_SK"
+	AuthModeBearer = "BEARER"
+	AuthModeMTLS   = "MTLS"
+	AuthModeBasic  = "BASIC"
+)
+
+// Credential 一次鉴权所需的凭证 + 调用方信息。
+type Credential struct {
+	IDN           int64
+	CredentialNo  string
+	AuthMode      string
+	AccessKeyID   string
+	SecretHash    string // 静态 Key：sha256 十六进制（或 BASIC 的 argon2id PHC）
+	SecretCipher  string // AK/SK：AES-256-GCM 密文（Base64）
+	SecretCipherP string // 轮换期旧 SK 密文
+	SecretKID     string
+	SignAlgorithm string
+	Scope         []ScopeRule
+	CredentialIPs []*net.IPNet
+
+	ClientIDN    int64
+	ClientCode   string
+	ClientIPs    []*net.IPNet
+	RateLimitRPM int
+	QuotaDay     int
+
+	FlagEnable    bool
+	FlagRevoke    bool
+	CredentialExp *time.Time
+	ClientExp     *time.Time
+
+	clientEnable bool // 调用方 flag_enable（未导出，避免构造假凭证时漏填）
+}
+
+// ScopeRule 授权范围条目（scope_str 数组元素）。
+type ScopeRule struct {
+	Method string `json:"method"`
+	Path   string `json:"path"`
+}
+
+// Active 凭证与调用方当前是否可用（停用/吊销/过期）。
+//
+// 返回 false 时同时给出审计原因码：吊销 → REVOKE，其余（停用/过期/调用方停用）→ EXPIRE。
+func (c *Credential) Active(now time.Time) (bool, string) {
+	if c.FlagRevoke {
+		return false, ReasonRevoke
+	}
+	if !c.FlagEnable || !c.ClientEnable() {
+		return false, ReasonExpire
+	}
+	if c.CredentialExp != nil && !now.Before(*c.CredentialExp) {
+		return false, ReasonExpire
+	}
+	if c.ClientExp != nil && !now.Before(*c.ClientExp) {
+		return false, ReasonExpire
+	}
+	return true, ""
+}
+
+// ClientEnable 调用方是否启用（读取时由 SQL 的 flag_enable 置位）。
+func (c *Credential) ClientEnable() bool { return c.clientEnable }
+
+// AllowIP 判定来源 IP 是否通过白名单（调用方级 ∩ 凭证级；两边都为空表示不限）。
+func (c *Credential) AllowIP(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	if len(c.ClientIPs) > 0 && !matchAny(c.ClientIPs, ip) {
+		return false
+	}
+	if len(c.CredentialIPs) > 0 && !matchAny(c.CredentialIPs, ip) {
+		return false
+	}
+	return true
+}
+
+func matchAny(nets []*net.IPNet, ip net.IP) bool {
+	for _, n := range nets {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// InScope 判定接口是否在授权范围内：空数组 = 全部接口；
+// 路径支持精确匹配、尾部 `/*` 前缀匹配、以及不带通配时的「前缀 + /」匹配。
+func (c *Credential) InScope(method, path string) bool {
+	if len(c.Scope) == 0 {
+		return true
+	}
+	for _, rule := range c.Scope {
+		if rule.Method != "" && !strings.EqualFold(rule.Method, method) && rule.Method != "*" {
+			continue
+		}
+		switch {
+		case rule.Path == "" || rule.Path == "*" || rule.Path == path:
+			return true
+		case strings.HasSuffix(rule.Path, "/*"):
+			if strings.HasPrefix(path, strings.TrimSuffix(rule.Path, "*")) {
+				return true
+			}
+		case strings.HasSuffix(rule.Path, "/"):
+			if strings.HasPrefix(path, rule.Path) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// HashStaticKey 计算静态 Key 的存储哈希（sha256 十六进制，与 kdf 无关）。
+func HashStaticKey(key string) string {
+	sum := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(sum[:])
+}
+
+// MatchStaticKey 恒定时间比较静态 Key 与库内哈希。
+func MatchStaticKey(storedHash, provided string) bool {
+	if storedHash == "" || provided == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(strings.ToLower(storedHash)), []byte(HashStaticKey(provided))) == 1
+}
+
+// DecryptSecret 解密 AK/SK 的 SK 密文。
+//
+// 密文格式：Base64( nonce(12 字节) || ciphertext+tag )，算法 AES-256-GCM。
+// 空密文（未配置或已清理）返回空串与 nil 错误，由调用方按「验签必然失败」处理。
+func DecryptSecret(cipherText string, key []byte) (string, error) {
+	cipherText = strings.TrimSpace(cipherText)
+	if cipherText == "" {
+		return "", nil
+	}
+	if len(key) != 32 {
+		return "", errors.New("密钥必须是 32 字节")
+	}
+	raw, err := base64.StdEncoding.DecodeString(cipherText)
+	if err != nil {
+		return "", fmt.Errorf("密文不是合法 Base64: %w", err)
+	}
+	if len(raw) < 12+16 {
+		return "", errors.New("密文长度不足")
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	plain, err := aead.Open(nil, raw[:12], raw[12:], nil)
+	if err != nil {
+		return "", errors.New("密文解密失败（密钥或 KID 不匹配）")
+	}
+	return string(plain), nil
+}
+
+// EncryptSecret 加密 SK（供密钥录入/轮换与测试使用）。
+//
+// 非安全随机源在 crypto/rand 失败时才会触发，正常路径不会返回错误。
+func EncryptSecret(plain string, key []byte) (string, error) {
+	if len(key) != 32 {
+		return "", errors.New("密钥必须是 32 字节")
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	nonce := make([]byte, aead.NonceSize())
+	if err := fillRandom(nonce); err != nil {
+		return "", err
+	}
+	sealed := aead.Seal(nil, nonce, []byte(plain), nil)
+	return base64.StdEncoding.EncodeToString(append(nonce, sealed...)), nil
+}
+
+// CredentialSource 凭证来源抽象（便于单测注入假数据）。
+type CredentialSource interface {
+	Lookup(ctx context.Context, accessKeyID string) (*Credential, error)
+}
+
+// ErrCredentialNotFound 凭证不存在。
+var ErrCredentialNotFound = errors.New("凭证不存在")
+
+const selectCredentialSQL = `
+SELECT c.idn, c.credential_no, c.auth_mode, c.access_key_id,
+       COALESCE(c.secret_hash, ''), COALESCE(c.secret_cipher, ''), COALESCE(c.secret_cipher_prev, ''),
+       COALESCE(c.secret_kid, ''), c.sign_algorithm,
+       COALESCE(c.scope_str::text, '[]'), COALESCE(c.allow_cidr::text[], '{}'),
+       c.dt_expire, c.flag_enable, c.flag_revoke,
+       cl.idn, cl.client_code, COALESCE(cl.allow_cidr::text[], '{}'),
+       cl.rate_limit_rpm, cl.quota_day, cl.dt_expire, cl.flag_enable
+  FROM open.open_api_credential c
+  JOIN open.open_api_client cl ON cl.idn = c.client_idn
+ WHERE c.access_key_id = $1`
+
+// PGSource 从 open schema 读取凭证。
+type PGSource struct {
+	pool *pgxpool.Pool
+}
+
+// NewPGSource 创建基于 pgx 的凭证来源。
+func NewPGSource(pool *pgxpool.Pool) *PGSource { return &PGSource{pool: pool} }
+
+// Lookup 按公开标识读取凭证；不存在返回 ErrCredentialNotFound。
+func (s *PGSource) Lookup(ctx context.Context, accessKeyID string) (*Credential, error) {
+	if s.pool == nil {
+		return nil, errors.New("数据库连接池未初始化")
+	}
+	accessKeyID = strings.TrimSpace(accessKeyID)
+	if accessKeyID == "" {
+		return nil, ErrCredentialNotFound
+	}
+
+	credential := &Credential{}
+	var (
+		scopeJSON       string
+		credentialCIDRs []string
+		clientCIDRs     []string
+		credFlagEnable  string
+		credFlagRevoke  string
+		clientFlagEnab  string
+	)
+	err := s.pool.QueryRow(ctx, selectCredentialSQL, accessKeyID).Scan(
+		&credential.IDN, &credential.CredentialNo, &credential.AuthMode, &credential.AccessKeyID,
+		&credential.SecretHash, &credential.SecretCipher, &credential.SecretCipherP,
+		&credential.SecretKID, &credential.SignAlgorithm,
+		&scopeJSON, &credentialCIDRs,
+		&credential.CredentialExp, &credFlagEnable, &credFlagRevoke,
+		&credential.ClientIDN, &credential.ClientCode, &clientCIDRs,
+		&credential.RateLimitRPM, &credential.QuotaDay, &credential.ClientExp, &clientFlagEnab,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrCredentialNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	credential.FlagEnable = credFlagEnable == "1"
+	credential.FlagRevoke = credFlagRevoke == "1"
+	credential.clientEnable = clientFlagEnab == "1"
+	credential.Scope = parseScope(scopeJSON)
+	credential.CredentialIPs = parseCIDRs(credentialCIDRs)
+	credential.ClientIPs = parseCIDRs(clientCIDRs)
+	return credential, nil
+}
+
+func parseCIDRs(values []string) []*net.IPNet {
+	nets := make([]*net.IPNet, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, netValue, err := net.ParseCIDR(value); err == nil {
+			nets = append(nets, netValue)
+			continue
+		}
+		// 允许单 IP（PG 的 cidr 文本一般为 a.b.c.d/32，这里兜底手填的裸 IP）
+		if ip := net.ParseIP(value); ip != nil {
+			bits := 32
+			if ip.To4() == nil {
+				bits = 128
+			}
+			if _, netValue, err := net.ParseCIDR(fmt.Sprintf("%s/%d", ip.String(), bits)); err == nil {
+				nets = append(nets, netValue)
+			}
+		}
+	}
+	return nets
+}
+
+// parseScope 解析 scope_str：容忍空串、null 与非法 JSON（一律按「无授权范围」＝ 全部接口）。
+func parseScope(raw string) []ScopeRule {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "[]" || raw == "null" {
+		return nil
+	}
+	var rules []ScopeRule
+	if err := json.Unmarshal([]byte(raw), &rules); err != nil {
+		return nil
+	}
+	return rules
+}

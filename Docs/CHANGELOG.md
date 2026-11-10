@@ -219,6 +219,26 @@
 
 ### 变更
 
+- **外部 OpenAPI 鉴权中间件（需求 11168）**
+  - 新增 `internal/api/openapi`：`Middleware.Handler` 挂在 `/OpenAPI/V1` 路由组（先于 `WrapOpenAPIResponse`）。
+  - 两种主用模式：
+    - **静态 API Key**：`X-API-Key` 或 `Authorization: Bearer`，服务端比对 `sha256(Key)` 与库内 `secret_hash`（恒定时间）；
+    - **AK/SK 签名**：`Authorization: FinvAK <ak>:<sig>` + `X-Finv-Timestamp` + `X-Finv-Nonce`，
+      待签串 `METHOD\nPATH\nSORTED_QUERY\nBODY_SHA256\nTIMESTAMP\nNONCE`（查询串键与值均升序、RFC3986 编码），
+      签名 `Base64(HMAC-SHA256(SK, canonical))`；SK 从 `secret_cipher` 用 `sys_config` 19005 解密，轮换期旧密文也参与验签。
+  - 校验顺序：凭证定位 → 解密 SK → 状态/时效 → IP 白名单（调用方 ∩ 凭证）→ 时间窗 → nonce → 签名 → 授权范围 → 限流/配额；
+    失败返回 `190xx`（见 `ErrorCodeSpec` §1.2），响应回显 `X-Request-Id`。
+  - 开关 `sys_config` 19001：`0` 关闭（默认，行为与之前完全一致、不写审计）/ `1` 启用 / `2` 宽松（校验并写审计但仍放行）；
+    配置 10 秒 TTL 缓存，改配置不用重启。
+  - 兼容兜底：环境变量 `FINV_OPENAPI_KEY` 与 `sys_config` 19006 任一命中即放行（审计 `auth_mode='FALLBACK'`）。
+  - 审计：每次校验（含失败）同步写 `open.open_api_invoke_log`（1.5 秒超时，失败只打应用日志；只存请求体摘要）。
+  - nonce / 限流计数用 Redis（`SET NX PX`、`INCR`+TTL）；Redis 不可用时这两项放行并告警，其余检查照旧。
+  - 其它：请求体上限 64 MiB；预留模式 `BEARER`/`MTLS`/`BASIC` 明确返回 `19010`；删除需求 10787 的过渡实现 `RequireOpenAPIKey`。
+  - 测试：`internal/api/openapi` 单测（号段与 HTTP 映射契约、待签串、验签、AES-GCM 往返、scope、两种模式、超窗、
+    宽松模式、兜底密钥、19010）+ `TestLiveOpenAPIAuthEndToEnd` 端到端（真服务 + 真库 + 真 Redis，结束后恢复配置并清理数据）。
+  - 文档：新增 `Docs/API/OpenAPI/Auth.md`；`Docs/API/README.md`、`Docs/API/APIs.md`（91/112）、
+    `Docs/API/Cdeu/RealtimeStockUpsert.md`、`Docs/OpenAPI/**`（5 份 md/yml 的「暂不鉴权」口径）同步更新。
+
 - **审计表改名：`open.open_api_call_log` → `open.open_api_invoke_log`（需求 11170）**
   - 用户定稿：一次 OpenAPI 调用用「invoke」表述，与内部业务「调用日志」概念区分。
   - `V300183`（尚未推送任何环境、与本改动同属一个需求批次）直接回改为最终表名；

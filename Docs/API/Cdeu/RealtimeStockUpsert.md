@@ -25,7 +25,7 @@
   语句失败即整批回滚，不存在「部分写入成功」；
 - 请求体严格解码：出现未定义字段直接 400，不静默忽略；
 - 同时注册对外 OpenAPI 路径 `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert`
-  （同一 handler，当前暂不鉴权；对外契约见 [`Docs/OpenAPI/Quote/Cdeu/Realtime/StockUpsert.md`](../../OpenAPI/Quote/Cdeu/Realtime/StockUpsert.md)）。
+  （同一 handler；鉴权见 [OpenAPI/Auth.md](../../OpenAPI/Auth.md)；对外契约见 [`Docs/OpenAPI/Quote/Cdeu/Realtime/StockUpsert.md`](../../OpenAPI/Quote/Cdeu/Realtime/StockUpsert.md)）。
 
 ## 2. 请求参数
 
@@ -207,7 +207,7 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 | 使用方 | 说明 |
 |---|---|
 | 采集端（仓库外工具 / 上游同步脚本） | 按快照批次调用本接口写入 `cdeu.finv_cdeu_secu_realtime_stock`；当前仓库内无前端菜单调用 |
-| 外部 OpenAPI 调用方 | `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert`（暂不鉴权，见对外文档） |
+| 外部 OpenAPI 调用方 | `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert`（鉴权见 [OpenAPI/Auth.md](../../OpenAPI/Auth.md)） |
 
 ## 8. 校验与生成
 

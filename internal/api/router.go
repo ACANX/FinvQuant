@@ -10,6 +10,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/acanx/finvquant/internal/api/handler"
+	"github.com/acanx/finvquant/internal/api/openapi"
 	"github.com/acanx/finvquant/internal/config"
 	"github.com/acanx/finvquant/internal/meta"
 	"github.com/acanx/finvquant/internal/meta/finv/auth"
@@ -124,10 +125,15 @@ func NewRouter(deps *Deps) *gin.Engine {
 		group.GET("/Bounds", klineHandler.Bounds)
 
 		// 外部 OpenAPI：独立前缀 /OpenAPI/V1，业务逻辑复用内部 handler。
-		// 需求 10790：当前**暂不鉴权**（公开访问），仅统一响应信封；
-		// API Key 体系（sys.sys_open_api_key）落地后恢复：
-		//   openGroup.Use(RequireOpenAPIKey(cfg.OpenAPIKey), WrapOpenAPIResponse())
+		// 需求 11168：鉴权中间件 openapi.Middleware，支持静态 API Key 与 AK/SK 签名，
+		// 由 sys_config 19001 控制（0 关闭 / 1 启用 / 2 宽松），失败返回 190xx 错误码；
+		// 兼容期环境变量 FINV_OPENAPI_KEY 与 sys_config 19006 作为兜底静态密钥。
 		openGroup := router.Group("/OpenAPI/V1")
+		openGroup.Use(openapi.NewMiddleware(openapi.Options{
+			Pool:        deps.Pool,
+			Redis:       deps.Redis,
+			FallbackKey: cfg.OpenAPIKey,
+		}).Handler())
 		openGroup.Use(WrapOpenAPIResponse())
 		openGroup.POST("/Meta/Finv/Quote/Cdeu/Min/Upsert", klineHandler.Upsert)
 		openGroup.GET("/Meta/Finv/Quote/Cdeu/Min/PageUni", klineHandler.PageUni)
