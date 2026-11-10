@@ -51,11 +51,11 @@
 | 字段 | 说明 |
 |------|------|
 | `rule_count` / `item_count` / `item_active` | 规则数 / 条目数 / 生效条目数 |
-| `map_active` / `map_retired` / `map_reused` | 结果表在册 / 已退市 / 复用留痕行数 |
-| `key_total` / `key_matched` / `key_mismatch` | 键表行数 / 与结果表 `lower(usc)` 对上的行数 / 对不上的行数 |
-| `last_computed_at` / `rule_version` | 最近计算时间 / 规则集版本（规则与条目指纹的前 12 位） |
+| `map_active` / `map_retire` / `map_reuse` | 结果表在册 / 已退市 / 复用留痕行数 |
+| `key_total` / `key_match` / `key_miss` | 键表行数 / 与结果表 `lower(usc)` 对上的行数 / 对不上的行数 |
+| `last_compute_at` / `rule_version` | 最近计算时间 / 规则集版本（规则与条目指纹的前 12 位） |
 | `cron_expr` / `cron_next_run` | 系统配置 `20015` 的表达式与下次执行时间（**空 = 自动同步关闭**） |
-| `archived_rows` | 复用归档表行数 |
+| `archive_rows` | 复用归档表行数 |
 
 ### 3.2 `POST /Item/Save`
 
@@ -70,7 +70,7 @@
 ### 3.3 `GET /Diff/Preview`
 
 不写任何表：算完差异整体回滚，返回四类分类计数、前 200 行明细、冲突清单与 `preview_token`
-（= `md5(全部最终映射)`）。首次上线（结果表为空）时 `added` 等于键表行数。
+（= `md5(全部最终映射)`）。首次上线（结果表为空）时 `insert` 等于键表行数。
 
 ### 3.3.1 `GET /Diff/Page`
 
@@ -80,7 +80,7 @@
 | 参数 | 说明 |
 |------|------|
 | `token` | 预演令牌；与缓存不一致（重新预演过 / 服务重启）返回 400，提示重新预演 |
-| `diff` | `added` / `changed` / `removed`；空 = 全部（`unchanged` 不返回） |
+| `diff` | `insert` / `update` / `retire`；空 = 全部（`keep` 不返回） |
 | `page` / `pageSize` | 分页，页大小上限 200 |
 
 缓存有效期 **30 分钟**，重新预演会整体替换；服务重启后失效。返回体含 `total`（该类别总数）与 `preview_token`。
@@ -96,7 +96,7 @@
 |------|------|
 | ① 归档 | `usc` 被新证券接管时，把下游各表历史行整行快照进 `archive.finv_usc_reuse_snapshot`（`to_regclass` 守卫，缺表跳过） |
 | ② 退市 | 键表已不存在的在册行 + 本次要改值的行，先置 `RETIRED`（释放 `usc`，避免部分唯一索引瞬时冲突） |
-| ③ 写结果表 | `INSERT ... ON CONFLICT (ftmm_symbol) DO UPDATE`，只写 `added`/`changed` 行；`first_assigned_at` 不覆盖 |
+| ③ 写结果表 | `INSERT ... ON CONFLICT (ftmm_symbol) DO UPDATE`，只写 `insert`/`update` 行；`first_assign_at` 不覆盖 |
 | ④ 回写键表 | `UPDATE futu.finv_futu_secu_key SET usc = ...` 只写变化行 |
 | ⑤ 记账 | 一条汇总 + 每条复用一条审计日志 |
 
@@ -121,6 +121,25 @@
 | 404 | 404 | 运行不存在（`runId` 不匹配） |
 | 409 | 409 | 已有运行在执行 |
 | 500 | 2006 | 查询失败 / 预演失败（含无法消解的 usc 冲突） |
+
+## 5.5 字段命名约定
+
+统计字段一律用**动词原形**，禁止 `-ed` 形式（需求 11080）：
+
+| 旧名 | 现名 | 含义 |
+|------|------|------|
+| `added` | `insert` | 新增映射 |
+| `changed` | `update` | usc 变化 |
+| `removed` | `retire` | 键表已无该证券 → 退市 |
+| `reused` | `reuse` | usc 被新证券接管 |
+| `unchanged` | `keep` | 无变化 |
+| `escalated` | `escalate` | 冲突升级为 ftmm |
+| `archived` / `archived_rows` | `archive` / `archive_rows` | 复用归档行数 |
+| `key_updated` / `key_matched` / `key_mismatch` | `key_update` / `key_match` / `key_miss` | 键表回写/匹配/未匹配 |
+| `last_computed_at` | `last_compute_at` | 最近计算时间 |
+| `retired_at` / `computed_at` / `first_assigned_at` | `retire_at` / `compute_at` / `first_assign_at` | 结果表列 |
+| `started_at` / `finished_at` / `elapsed_ms` | `start_at` / `finish_at` / `duration_ms` | 运行时间 |
+| diff 取值 `added`/`changed`/`removed`/`unchanged` | `insert`/`update`/`retire`/`keep` | 明细分类 |
 
 ## 6. 注意事项
 

@@ -41,12 +41,12 @@ paths:
                       item_active: { type: integer }
                       map_active: { type: integer }
                       map_retired: { type: integer }
-                      map_reused: { type: integer }
+                      map_reuse: { type: integer }
                       key_total: { type: integer }
-                      key_matched: { type: integer }
-                      key_mismatch: { type: integer }
-                      last_computed_at: { type: string }
-                      archived_rows: { type: integer }
+                      key_match: { type: integer }
+                      key_miss: { type: integer }
+                      last_compute_at: { type: string }
+                      archive_rows: { type: integer }
                       cron_expr: { type: string, description: '空串 = 自动同步关闭' }
                       cron_next_run: { type: string }
   /Meta/Finv/Quote/UscMap/Rule/List:
@@ -140,12 +140,12 @@ paths:
                     type: object
                     properties:
                       total: { type: integer }
-                      added: { type: integer }
-                      changed: { type: integer }
-                      removed: { type: integer }
-                      reused: { type: integer }
-                      unchanged: { type: integer }
-                      escalated: { type: integer }
+                      insert: { type: integer }
+                      update: { type: integer }
+                      retire: { type: integer }
+                      reuse: { type: integer }
+                      keep: { type: integer }
+                      escalate: { type: integer }
                       preview_token: { type: string }
                       samples: { type: array, items: { type: object } }
                       conflicts: { type: array, items: { type: string } }
@@ -156,11 +156,11 @@ paths:
       operationId: uscMapDiffPage
       tags: [UscMap]
       description: |
-        /Diff/Preview 只回前 200 行；完整明细（含 removed）缓存在服务端内存，30 分钟或重新预演后失效。
+        /Diff/Preview 只回前 200 行；完整明细（含 retire）缓存在服务端内存，30 分钟或重新预演后失效。
         token 必须与最近一次预演一致（否则 400，提示重新预演）。
       parameters:
         - { name: token, in: query, schema: { type: string } }
-        - { name: diff, in: query, schema: { type: string, enum: [added, changed, removed] } }
+        - { name: diff, in: query, schema: { type: string, enum: [insert, update, retire] } }
         - { name: page, in: query, schema: { type: integer, default: 1 } }
         - { name: pageSize, in: query, schema: { type: integer, default: 20, maximum: 200 } }
       responses:

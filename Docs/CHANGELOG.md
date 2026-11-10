@@ -157,6 +157,19 @@
 
 ### 变更
 
+- **USC 字段名去 `-ed` 形式 + 审计日志「变更」可展开（需求 11080，迁移 `V300165`）**
+  - 字段命名：统计与状态字段一律改回动词原形——`added/changed/removed/reused/unchanged` →
+    `insert/update/retire/reuse/keep`，`escalated/archived/archived_rows` → `escalate/archive/archive_rows`，
+    `key_updated/key_matched/key_mismatch` → `key_update/key_match/key_miss`，
+    `started_at/finished_at/elapsed_ms` → `start_at/finish_at/duration_ms`，
+    `last_computed_at` → `last_compute_at`；明细分类值同步为 `insert/update/retire/keep`。
+  - 结果表列名：`retired_at/computed_at/first_assigned_at` → `retire_at/compute_at/first_assign_at`（`V300165` 改名，数据不搬）。
+  - 审计日志：原先「变更」列只是被 `text-truncate` 截断的 JSON 串、无法查看完整内容；现在列表显示
+    **字段摘要**（`前: k=v, … ｜ 后: …`），整行可点或点「查看」打开对话框，左右并排展示格式化后的
+    `before_json` / `after_json`，各带「复制」按钮。
+  - 实测：主库应用成功（结果表 73,212 行、`key` 表与结果表 0 行不一致、`usc` 无前导点）；
+    克隆库集成测试 `TestApplyOnClone` 通过（幂等复跑 `insert=0 update=0 key_update=0`）。
+
 - **修复 USC 应用失败「统计差异失败: number of field descriptions must equal number of destinations, got 7 and 6」（需求 11072 修复）**
   - 缺陷：`summarySQL` 输出 7 列（added/changed/unchanged/removed/reused/total/escalated），预演侧扫 7 个目标正确，
     但**应用侧只扫了 6 个**（漏了 `total`），点「立即应用」必失败；事务整体回滚，未污染数据（结果表 0 行、键表 usc 未变）。
