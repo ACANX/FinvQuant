@@ -181,6 +181,23 @@
 
 ### 变更
 
+- **清理 usc 孤立行（需求 11088，迁移 `V300171` + `V300172`）**
+  - 先查证再动手，分三类处理：
+    · `indicator` **826 行**：`usc` 本就在键表里，只是 `stock_id` / `ftmm_symbol` 是旧值 →
+      按 `usc` 关联键表回填 `ftmm_symbol`，`stock_id` 保留原值（键表这批为 NULL，不能用 NULL 覆盖）。
+    · `quote_collect` **64 行**：`usc` 在键表里但 `ftmm_symbol` 大小写/市场前缀不一致
+      （`HK.CNCmain`→`HK.CNCMAIN`、`HK.BK1191`→`BK.BK1191`、`FX.USDindex`→`FX.USDINDEX`）→
+      按 `usc` 回填 `market_label` / `futu_symbol`，生成列 `ftmm_symbol` 随之对齐。
+    · 真无用才删：`quote_collect` `US.SMCF`、`indicator` `USDINDEX` / `.DJUSNS` / `000117`
+      （键表无依据且 finv_security / 实时行情 / K 线 / 指标表均无引用）。
+  - 保留并留痕 **127 行**：`quote_collect` 126 行（`public.finv_security` 有记录，其中 110 行还有实时行情）、
+    `indicator` 1 行（`EURindex`，`public.finv_security` 在用）——删了会让既有页面缺属性，等人工确认。
+  - **`V300172` 是 `V300171` 的缺陷修正**：`V300171` 用 `stock_id = 键表值` 覆盖，而键表这批为 NULL，
+    导致 826 行原有 `stock_id` 被置空；从归档 `row_json` 恢复，并把对齐口径改为
+    `stock_id = COALESCE(键表值, 原值)`。
+  - 实测：`indicator` 18,023 → **18,020** 行（`stock_id` 无 NULL）、剩余无依据 1 行；
+    `quote_collect` 26,656 → **26,655** 行、剩余无依据 126 行；两表与键表差异 0、重复 0；幂等复跑 0 行。
+
 - **清理 indicator 无键表依据的重复 stock_id（需求 11087，迁移 `V300170`）**
   - `cdeu.finv_quote_secu_indicator` 剩 **503 组**（每组 2 行、共 1,006 行）重复 `stock_id`：
     这些证券不在 `futu.finv_futu_secu_key` 内（不在当前 73,212 采集清单），V300168 的对齐链路覆盖不到。
