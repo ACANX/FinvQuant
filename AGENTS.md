@@ -63,9 +63,16 @@ FinvQuant 是一个面向多资产的**严格事件驱动量化交易平台**，
 | [`Docs/DevSpec/TableTextSpec.md`](Docs/DevSpec/TableTextSpec.md) | 表格长文本展示规范（ⓘ 图标 + 悬浮提示） |
 | [`Docs/DevSpec/DictFilterSpec.md`](Docs/DevSpec/DictFilterSpec.md) | 字典筛选控件规范（选项 `中文[值]`、首项全部、触发时机） |
 | [`Docs/DevSpec/DictColumnSpec.md`](Docs/DevSpec/DictColumnSpec.md) | 字典表格列规范（只显示中文、状态色、未登记值原样） |
-| [`Docs/DevSpec/CommitCheckSpec.md`](Docs/DevSpec/CommitCheckSpec.md) | 提交前检查规范（C1–C28 自检清单 + 一键自检命令） |
-| [`Docs/DevSpec/MergeCheckSpec.md`](Docs/DevSpec/MergeCheckSpec.md) | 合并前复核规范（需求/代码/迁移/文档/功能验收/回滚） |
 | [`Docs/DevSpec/BacktestStrategySpec.md`](Docs/DevSpec/BacktestStrategySpec.md) | 回测策略规范 |
+
+### 交付检查清单（Docs/CheckList/）
+
+提交与合并两个环节的自检清单，按变更类型路由取最小必查集；配套 `R1–R16` 事故防守表（真实事故 → 判据）：
+
+| 清单文件 | 用途 |
+|----------|------|
+| [`Docs/CheckList/PreCommitCheckSpec.md`](Docs/CheckList/PreCommitCheckSpec.md) | 提交前检查规范（提交者自检，C1–C28 + 一键自检命令） |
+| [`Docs/CheckList/PreMergeCheckSpec.md`](Docs/CheckList/PreMergeCheckSpec.md) | 合并前复核规范（复核人验收，M1–M6 + 证据要求 + 打回准则） |
 
 ## 工作约定
 

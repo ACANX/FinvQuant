@@ -1,9 +1,9 @@
-# 提交前检查规范（CommitCheckSpec）
+# 提交前检查规范（PreCommitCheckSpec）
 
-> 所属：FinvQuant 开发规范 · 存放：`Docs/DevSpec/`
+> 所属：FinvQuant 开发规范 · 存放：`Docs/CheckList/`
 > 适用范围：任何进入 Git 的改动（Go、`Web/`、`Deploy/Migrations/`、`Docs/`）。
-> 关联：[`MergeCheckSpec.md`](MergeCheckSpec.md)（合并前复核）、[`GitSpec.md`](GitSpec.md)（提交信息与 CHANGELOG 联动）、[`DocSpec.md`](DocSpec.md) §4、[`DbSchemaSpec.md`](DbSchemaSpec.md) §0（改库红线）、[`FileNamingSpec.md`](FileNamingSpec.md) §4。
-> 本清单的定位：**提交者自检**。合并前由他人复核的清单见 `MergeCheckSpec.md`。
+> 关联：[`PreMergeCheckSpec.md`](PreMergeCheckSpec.md)（合并前复核）、[`GitSpec.md`](../DevSpec/GitSpec.md)（提交信息与 CHANGELOG 联动）、[`DocSpec.md`](../DevSpec/DocSpec.md) §4、[`DbSchemaSpec.md`](../DevSpec/DbSchemaSpec.md) §0（改库红线）、[`FileNamingSpec.md`](../DevSpec/FileNamingSpec.md) §4。
+> 本清单的定位：**提交者自检**。合并前由他人复核的清单见 `PreMergeCheckSpec.md`。
 
 ## 1. 用法
 
@@ -158,4 +158,4 @@ git status --short && git diff --stat
 1. **来源必须有据**：要么对应一条真实事故（写需求号或提交号），要么对应既有规范条款；不接受"感觉应该检查"。
 2. **判据必须可核对**：能被命令、`grep`、观察结果证伪。禁止"代码质量良好""注意兼容性"这类无法判定的条目。
 3. **一条只查一件事**，编号只增不改；作废的条目保留编号并标注 `（已废止：原因）`。
-4. 新增条目同步 `Docs/CHANGELOG.md`，并在 `MergeCheckSpec` 里检查对应项是否已有覆盖，避免两处重复。
+4. 新增条目同步 `Docs/CHANGELOG.md`，并在 `PreMergeCheckSpec` 里检查对应项是否已有覆盖，避免两处重复。
