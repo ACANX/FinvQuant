@@ -202,6 +202,13 @@
 
 ### 变更
 
+- **新增 `Docs/CheckList/README.md` 作为清单目录入口（需求 11133）**
+  - 内容：目录解决的问题（事故固化、按类型拆分、证据可复核）、**八份清单一览表**（管什么 / 什么时候用 / 条目编号）、
+    三步使用流程（定类型 → 过专项 → 过通用，合并前走 Merge）、命名规则（`<领域>[Doc]CommitPreCheckListSpec.md`）、
+    通用约定（编号只增不改、判据可证伪、一条一件事、来源有据、不与其它清单重复）、
+    新增或修改清单的流程与校验命令、与 `Docs/DevSpec/` / `Proposal/` / `Design/` / `Refactor/` 的关系。
+  - `AGENTS.md`「交付检查清单」索引新增该 README 行（仓库规范强制联动的同一处改动）。
+
 - **检查清单命名统一为 `<领域>[Doc]CommitPreCheckListSpec.md`（需求 11132）**
   - 8 份文件统一改名（`git mv` 保留历史），`Pre` 由前导前缀改为紧贴 `CheckListSpec`：
 

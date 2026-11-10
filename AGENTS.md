@@ -71,6 +71,7 @@ FinvQuant 是一个面向多资产的**严格事件驱动量化交易平台**，
 
 | 清单文件 | 用途 |
 |----------|------|
+| [`Docs/CheckList/README.md`](Docs/CheckList/README.md) | 目录说明（清单一览、使用流程、命名规则、维护约定） |
 | [`Docs/CheckList/CommitPreCheckListSpec.md`](Docs/CheckList/CommitPreCheckListSpec.md) | 提交前检查规范（提交者自检，C1–C28 + 一键自检命令） |
 | [`Docs/CheckList/MergeCommitPreCheckListSpec.md`](Docs/CheckList/MergeCommitPreCheckListSpec.md) | 合并前复核规范（复核人验收，M1–M6 + 证据要求 + 打回准则） |
 | [`Docs/CheckList/FrontendCommitPreCheckListSpec.md`](Docs/CheckList/FrontendCommitPreCheckListSpec.md) | 前端改动清单（枚举口径/长文本/三态/产物一致，FE1–FE15） |

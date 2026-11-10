@@ -3233,7 +3233,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 前端清单文件名由 `PreFrontendCheckListSpec.md` 改为 `FrontendCommitPreCheckListSpec.md`（取代需求 11122 中的 `PreFrontend` 命名） | 11130 | 1 |
 | 提案设计清单文件名由 `ProposalDocCheckListSpec.md` 改为 `ProposalDocCommitPreCheckListSpec.md`（统一 `Commit` 段，取代需求 11124 中的 `ProposalDoc` 命名） | 11131 | 1 |
 | 检查清单文件名统一为 `<领域>[Doc]CommitPreCheckListSpec.md`（`Pre` 由前导前缀改为置于 `CheckListSpec` 之前）：`CommitPre`、`MergeCommitPre`、`FrontendCommitPre`、`BackendCommitPre`、`DbChangeCommitPre`、`ProposalDocCommitPre`、`TechDesignDocCommitPre`、`CodeRefactorCommitPre` 共 8 份 | 11132 | 1 |
-| **合计** | **10001–11132** | **1128**（含 2 条待办） |
+| 新增 `Docs/CheckList/README.md`：清单目录说明（八份清单一览与使用时机、三步使用流程、命名规则、通用约定、新增或修改清单的流程与校验命令、与 DevSpec/Proposal/Design/Refactor 的关系） | 11133 | 1 |
+| **合计** | **10001–11133** | **1129**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
