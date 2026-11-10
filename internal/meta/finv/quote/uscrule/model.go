@@ -70,6 +70,7 @@ type Rule struct {
 	RuleDesc      string  `json:"rule_desc"`
 	Remark        string  `json:"remark"`
 	ItemCount     int     `json:"item_count"`
+	ItemActive    int     `json:"item_active"`
 	GmtUpdate     string  `json:"gmt_update"`
 }
 

@@ -529,9 +529,13 @@ func (s *Store) ListRules(ctx context.Context) ([]Rule, error) {
 SELECT r.rule_no, r.rule_name, r.rule_type, r.priority, r.match_scope, r.default_action,
        r.flag_enable, r.rule_desc, r.remark,
        to_char(r.gmt_update, 'YYYY-MM-DD HH24:MI:SS'),
-       COALESCE(i.cnt, 0)
+       COALESCE(i.cnt, 0),
+       COALESCE(i.cnt_active, 0)
   FROM futu.finv_futu_usc_rule r
-  LEFT JOIN (SELECT rule_no, count(*)::int AS cnt FROM futu.finv_futu_usc_rule_item GROUP BY 1) i
+  LEFT JOIN (SELECT rule_no,
+                    count(*)::int AS cnt,
+                    count(*) FILTER (WHERE status = 'ACTIVE')::int AS cnt_active
+               FROM futu.finv_futu_usc_rule_item GROUP BY 1) i
          ON i.rule_no = r.rule_no
  ORDER BY r.priority`)
 	if err != nil {
@@ -543,7 +547,7 @@ SELECT r.rule_no, r.rule_name, r.rule_type, r.priority, r.match_scope, r.default
 		var rule Rule
 		if err := rows.Scan(&rule.RuleNo, &rule.RuleName, &rule.RuleType, &rule.Priority,
 			&rule.MatchScope, &rule.DefaultAction, &rule.FlagEnable, &rule.RuleDesc,
-			&rule.Remark, &rule.GmtUpdate, &rule.ItemCount); err != nil {
+			&rule.Remark, &rule.GmtUpdate, &rule.ItemCount, &rule.ItemActive); err != nil {
 			return nil, fmt.Errorf("读取规则失败: %w", err)
 		}
 		out = append(out, rule)

@@ -116,6 +116,7 @@ interface Rule {
   rule_desc: string
   remark: string
   item_count: number
+  item_active: number
   gmt_update: string
 }
 
@@ -256,7 +257,7 @@ interface AuditLog {
 }
 
 // ---------- 状态 ----------
-const tab = ref<'rules' | 'diff' | 'logs'>('rules')
+const tab = ref<'rules' | 'items' | 'diff' | 'logs'>('rules')
 const loading = ref(false)
 const status = ref<Status | null>(null)
 
@@ -408,9 +409,6 @@ async function loadRules() {
   try {
     const data = await apiGet<{ list: Rule[] }>(`${BASE}/Rule/List`)
     rules.value = data.list ?? []
-    if (!selectedRule.value && rules.value.length > 0) {
-      selectedRule.value = rules.value[0].rule_no
-    }
   } catch (err) {
     showToast(`读取规则失败：${(err as Error).message}`, 'error')
   }
@@ -483,11 +481,14 @@ async function loadAll() {
   }
 }
 
+// 规则页「查看条目」：带上该规则过滤切到条目页
 function selectRule(ruleNo: string) {
   selectedRule.value = ruleNo
   itemPage.value = 1
+  tab.value = 'items'
   void loadItems()
 }
+
 
 // ---------- 条目编辑 ----------
 function openCreate() {
@@ -851,7 +852,8 @@ onBeforeUnmount(stopPolling)
     </v-card-title>
 
     <v-tabs v-model="tab" density="compact" color="primary">
-      <v-tab value="rules">规则与条目</v-tab>
+      <v-tab value="rules">规则</v-tab>
+      <v-tab value="items">条目</v-tab>
       <v-tab value="diff">预演与应用</v-tab>
       <v-tab value="logs">审计日志</v-tab>
     </v-tabs>
@@ -859,143 +861,198 @@ onBeforeUnmount(stopPolling)
     <v-card-text>
       <!-- Tab 1：规则 + 条目 -->
       <v-window v-model="tab">
+        <!-- Tab 1：规则层（只读视图 + 看条目入口） -->
         <v-window-item value="rules">
-          <v-row dense>
-            <v-col cols="12" md="4">
-              <v-card variant="tonal">
-                <v-card-title class="text-subtitle-1">规则层（{{ rules.length }}）</v-card-title>
-                <v-list density="compact" nav>
-                  <v-list-item
-                    v-for="rule in rules"
-                    :key="rule.rule_no"
-                    :active="rule.rule_no === selectedRule"
-                    @click="selectRule(rule.rule_no)"
+          <div class="d-flex flex-wrap align-center ga-2 mb-2">
+            <v-chip variant="tonal" prepend-icon="mdi-source-branch">共 {{ rules.length }} 条规则</v-chip>
+            <span class="text-caption text-medium-emphasis">
+              条目数显示「生效 / 全部」；点击规则行（或「查看条目」）会切到「条目」页并自动带上该规则过滤。
+            </span>
+            <v-spacer />
+            <v-btn size="small" variant="text" prepend-icon="mdi-refresh" @click="loadRules">刷新</v-btn>
+          </div>
+
+          <v-table density="compact" class="usc-table">
+            <thead>
+              <tr>
+                <th>规则</th>
+                <th>名称</th>
+                <th>类型</th>
+                <th>同层顺序</th>
+                <th>作用域</th>
+                <th>默认动作</th>
+                <th>启用</th>
+                <th>条目数（生效/全部）</th>
+                <th>说明</th>
+                <th class="text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="rule in rules"
+                :key="rule.rule_no"
+                style="cursor: pointer"
+                @click="selectRule(rule.rule_no)"
+              >
+                <td>
+                  <v-chip size="x-small" variant="flat">{{ rule.rule_no }}</v-chip>
+                </td>
+                <td class="text-no-wrap">{{ rule.rule_name }}</td>
+                <td>{{ rule.rule_type }}</td>
+                <td>{{ rule.priority }}</td>
+                <td>{{ rule.match_scope }}</td>
+                <td>{{ actionText(rule.default_action) }}</td>
+                <td>
+                  <v-chip
+                    :color="rule.flag_enable === '1' ? 'success' : 'grey'"
+                    size="x-small"
+                    variant="tonal"
                   >
-                    <v-list-item-title class="d-flex align-center ga-2">
-                      <v-chip size="x-small" variant="flat">{{ rule.rule_no }}</v-chip>
-                      {{ rule.rule_name }}
-                      <v-spacer />
-                      <v-chip size="x-small" variant="text">{{ rule.item_count }}</v-chip>
-                    </v-list-item-title>
-                    <v-list-item-subtitle class="text-caption">
-                      {{ rule.rule_type }} · priority {{ rule.priority }} · {{ rule.match_scope }}
-                      <template v-if="rule.default_action"> · {{ rule.default_action }}</template>
-                      <template v-if="rule.flag_enable !== '1'"> · 已停用</template>
-                    </v-list-item-subtitle>
-                    <v-list-item-subtitle v-if="rule.rule_desc" class="text-caption text-wrap">
-                      {{ rule.rule_desc }}
-                    </v-list-item-subtitle>
-                  </v-list-item>
-                </v-list>
-              </v-card>
-            </v-col>
+                    {{ rule.flag_enable === '1' ? '启用[1]' : '停用[0]' }}
+                  </v-chip>
+                </td>
+                <td class="text-no-wrap">
+                  <strong>{{ rule.item_active }}</strong> / {{ rule.item_count }}
+                </td>
+                <td class="text-caption">
+                  <div>{{ rule.rule_desc }}</div>
+                  <div v-if="rule.remark" class="text-disabled">{{ rule.remark }}</div>
+                </td>
+                <td class="text-right text-no-wrap">
+                  <v-btn size="x-small" variant="text" @click.stop="selectRule(rule.rule_no)">查看条目</v-btn>
+                </td>
+              </tr>
+              <tr v-if="rules.length === 0">
+                <td colspan="10" class="text-center text-medium-emphasis">加载中…</td>
+              </tr>
+            </tbody>
+          </v-table>
+        </v-window-item>
 
-            <v-col cols="12" md="8">
-              <div class="d-flex flex-wrap align-center ga-2 mb-2">
-                <v-select
-                  v-model="filterMarket"
-                  :items="[{ title: '全部市场', value: '' }, ...MARKET_OPTIONS]"
-                  label="市场"
-                  density="compact"
-                  variant="outlined"
-                  hide-details
-                  style="max-width: 200px"
-                  @update:model-value="itemPage = 1; loadItems()"
-                />
-                <v-select
-                  v-model="filterStatus"
-                  :items="[
-                    { title: '全部状态', value: '' },
-                    { title: '生效[ACTIVE]', value: 'ACTIVE' },
-                    { title: '待生效[PENDING]', value: 'PENDING' },
-                    { title: '已停用[RETIRED]', value: 'RETIRED' },
-                  ]"
-                  density="compact"
-                  variant="outlined"
-                  hide-details
-                  style="max-width: 150px"
-                  @update:model-value="itemPage = 1; loadItems()"
-                />
-                <v-text-field
-                  v-model="filterKeyword"
-                  label="代码/说明"
-                  density="compact"
-                  variant="outlined"
-                  hide-details
-                  style="max-width: 180px"
-                  @keyup.enter="itemPage = 1; loadItems()"
-                />
-                <v-btn size="small" variant="tonal" @click="itemPage = 1; loadItems()">查询</v-btn>
-                <v-spacer />
-                <v-btn size="small" color="primary" prepend-icon="mdi-plus" @click="openCreate">
-                  新增条目
-                </v-btn>
-              </div>
+        <!-- Tab 2：条目层（过滤 / 新增 / 编辑 / 停用） -->
+        <v-window-item value="items">
+          <div class="d-flex flex-wrap align-center ga-2 mb-2">
+            <v-select
+              v-model="selectedRule"
+              :items="[
+                { title: '全部规则', value: '' },
+                ...rules.map((r) => ({ title: `${r.rule_no} ${r.rule_name}`, value: r.rule_no })),
+              ]"
+              label="规则"
+              density="compact"
+              variant="outlined"
+              hide-details
+              style="max-width: 240px"
+              @update:model-value="itemPage = 1; loadItems()"
+            />
+            <v-select
+              v-model="filterMarket"
+              :items="[{ title: '全部市场', value: '' }, ...MARKET_OPTIONS]"
+              label="市场"
+              density="compact"
+              variant="outlined"
+              hide-details
+              style="max-width: 200px"
+              @update:model-value="itemPage = 1; loadItems()"
+            />
+            <v-select
+              v-model="filterStatus"
+              :items="[
+                { title: '全部状态', value: '' },
+                { title: '生效[ACTIVE]', value: 'ACTIVE' },
+                { title: '待生效[PENDING]', value: 'PENDING' },
+                { title: '已停用[RETIRED]', value: 'RETIRED' },
+              ]"
+              label="状态"
+              density="compact"
+              variant="outlined"
+              hide-details
+              style="max-width: 170px"
+              @update:model-value="itemPage = 1; loadItems()"
+            />
+            <v-text-field
+              v-model="filterKeyword"
+              label="代码 / 取值 / 说明"
+              density="compact"
+              variant="outlined"
+              hide-details
+              clearable
+              prepend-inner-icon="mdi-magnify"
+              style="max-width: 220px"
+              @keyup.enter="itemPage = 1; loadItems()"
+              @click:clear="itemPage = 1; loadItems()"
+            />
+            <v-btn size="small" variant="tonal" prepend-icon="mdi-magnify" @click="itemPage = 1; loadItems()">
+              查询
+            </v-btn>
+            <v-spacer />
+            <v-btn size="small" color="primary" prepend-icon="mdi-plus" @click="openCreate">
+              新增条目
+            </v-btn>
+          </div>
 
-              <v-table density="compact" class="usc-table">
-                <thead>
-                  <tr>
-                    <th>规则</th>
-                    <th>市场</th>
-                    <th>品种</th>
-                    <th>代码</th>
-                    <th>正则</th>
-                    <th>动作</th>
-                    <th>取值</th>
-                    <th>状态</th>
-                    <th>说明</th>
-                    <th class="text-right">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="item in items" :key="item.idn">
-                    <td>{{ item.rule_no }}</td>
-                    <td>{{ marketText(item.market) }}</td>
-                    <td>{{ instrumentText(item.instrument) }}</td>
-                    <td>{{ item.code ?? '—' }}</td>
-                    <td>{{ item.code_regex ?? '—' }}</td>
-                    <td>{{ actionText(item.action) }}</td>
-                    <td>{{ item.usc_literal ?? item.rewrite_tpl ?? '—' }}</td>
-                    <td>
-                      <v-chip :color="statusColor(item.status)" size="x-small" variant="tonal">
-                        {{ statusText(item.status) }}
-                      </v-chip>
-                    </td>
-                    <td class="text-caption">
-                      <div>{{ item.item_desc }}</div>
-                      <div v-if="item.source_ref" class="text-disabled">{{ item.source_ref }}</div>
-                    </td>
-                    <td class="text-right text-no-wrap">
-                      <v-btn size="x-small" variant="text" @click="openEdit(item)">编辑</v-btn>
-                      <v-btn
-                        size="x-small"
-                        variant="text"
-                        color="error"
-                        :disabled="item.status === 'RETIRED'"
-                        @click="openRetire(item)"
-                      >
-                        停用
-                      </v-btn>
-                    </td>
-                  </tr>
-                  <tr v-if="items.length === 0">
-                    <td colspan="10" class="text-center text-medium-emphasis">没有符合条件的条目</td>
-                  </tr>
-                </tbody>
-              </v-table>
+          <v-table density="compact" class="usc-table">
+            <thead>
+              <tr>
+                <th>规则</th>
+                <th>市场</th>
+                <th>品种</th>
+                <th>代码</th>
+                <th>正则</th>
+                <th>动作</th>
+                <th>取值</th>
+                <th>状态</th>
+                <th>说明</th>
+                <th class="text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in items" :key="item.idn">
+                <td>{{ item.rule_no }}</td>
+                <td>{{ marketText(item.market) }}</td>
+                <td>{{ instrumentText(item.instrument) }}</td>
+                <td>{{ item.code ?? '—' }}</td>
+                <td>{{ item.code_regex ?? '—' }}</td>
+                <td>{{ actionText(item.action) }}</td>
+                <td>{{ item.usc_literal ?? item.rewrite_tpl ?? '—' }}</td>
+                <td>
+                  <v-chip :color="statusColor(item.status)" size="x-small" variant="tonal">
+                    {{ statusText(item.status) }}
+                  </v-chip>
+                </td>
+                <td class="text-caption">
+                  <div>{{ item.item_desc }}</div>
+                  <div v-if="item.source_ref" class="text-disabled">{{ item.source_ref }}</div>
+                </td>
+                <td class="text-right text-no-wrap">
+                  <v-btn size="x-small" variant="text" @click="openEdit(item)">编辑</v-btn>
+                  <v-btn
+                    size="x-small"
+                    variant="text"
+                    color="error"
+                    :disabled="item.status === 'RETIRED'"
+                    @click="openRetire(item)"
+                  >
+                    停用
+                  </v-btn>
+                </td>
+              </tr>
+              <tr v-if="items.length === 0">
+                <td colspan="10" class="text-center text-medium-emphasis">没有符合条件的条目</td>
+              </tr>
+            </tbody>
+          </v-table>
 
-              <div class="d-flex align-center justify-end mt-2 ga-2">
-                <span class="text-caption text-medium-emphasis">共 {{ itemTotal }} 条</span>
-                <v-pagination
-                  v-model="itemPage"
-                  :length="Math.max(1, Math.ceil(itemTotal / itemPageSize))"
-                  density="compact"
-                  total-visible="5"
-                  @update:model-value="loadItems"
-                />
-              </div>
-            </v-col>
-          </v-row>
+          <div class="d-flex align-center justify-end mt-2 ga-2">
+            <span class="text-caption text-medium-emphasis">共 {{ itemTotal }} 条</span>
+            <v-pagination
+              v-model="itemPage"
+              :length="Math.max(1, Math.ceil(itemTotal / itemPageSize))"
+              density="compact"
+              total-visible="7"
+              @update:model-value="loadItems"
+            />
+          </div>
         </v-window-item>
 
         <!-- Tab 2：预演与应用 -->
