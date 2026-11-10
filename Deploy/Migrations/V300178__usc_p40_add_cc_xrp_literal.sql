@@ -64,16 +64,73 @@ UPDATE futu.finv_futu_usc_rule_item
      OR remark      IS DISTINCT FROM '2026-11-10 用户要求：把 CC.XRP 的 usc 由全码 CC.XRP 改为 XRP 写进规则表，作为后续发放依据（原先仅靠 P20 市场默认顺带得出；P50 同名条目保持 RETIRED）');
 
 -- ---------------------------------------------------------------------
--- ② 结果表口径同步：已在册的 CC.XRP 把命中规则改成 P40（只补规则与依据，不动 usc）
+-- ② 派生数据跟随规则：结果表 + 键表把 CC.XRP 落成 usc=XRP
+--
+-- 不假设「环境里已经对齐过」：有的环境（如从上游同步过来的库）结果表/键表里
+-- CC.XRP 仍是旧口径 `CC.XRP`（P40 当年是 FTMM），只补 rule_no 会留下错误值。
+-- 这里按 ftmm_symbol 直接落值，等价于引擎 apply 之后的状态。
 -- ---------------------------------------------------------------------
-UPDATE futu.finv_futu_usc_map m
-   SET rule_no    = 'P40',
-       basis      = '加密 XRP 现货固定 XRP：P40 精确例外（与美股 ETFXRP 区分，需求 11096）',
+DO $$
+DECLARE
+    v_clash TEXT;
+BEGIN
+    -- 结果表的部分唯一索引只约束 ACTIVE 行的 usc_lower，先确认目标值没被别的行占着
+    SELECT m2.ftmm_symbol INTO v_clash
+      FROM futu.finv_futu_usc_map m2
+     WHERE m2.usc_lower = 'xrp' AND m2.status = 'ACTIVE' AND m2.ftmm_symbol <> 'CC.XRP'
+     LIMIT 1;
+    IF v_clash IS NOT NULL THEN
+        RAISE EXCEPTION 'V300178 中止：usc=XRP 已被结果表在册行 % 占用，需先处理该行', v_clash;
+    END IF;
+END $$;
+
+UPDATE futu.finv_futu_usc_map
+   SET usc        = 'XRP',
+       rule_no    = 'P40',
+       basis      = '加密 XRP 现货固定 XRP：P40 精确例外（美股 XRP ETF 用富途全码 US.XRP，需求 11096/11097）',
        dt_compute = now()
- WHERE m.ftmm_symbol = 'CC.XRP'
-   AND m.usc = 'XRP'
-   AND (m.rule_no IS DISTINCT FROM 'P40'
-     OR m.basis   IS DISTINCT FROM '加密 XRP 现货固定 XRP：P40 精确例外（与美股 ETFXRP 区分，需求 11096）');
+ WHERE ftmm_symbol = 'CC.XRP'
+   AND status = 'ACTIVE'
+   AND (usc     IS DISTINCT FROM 'XRP'
+     OR rule_no IS DISTINCT FROM 'P40'
+     OR basis   IS DISTINCT FROM '加密 XRP 现货固定 XRP：P40 精确例外（美股 XRP ETF 用富途全码 US.XRP，需求 11096/11097）');
+
+-- 键表 usc 是引擎 apply 会回写的派生值，这里同步落值（幂等）
+UPDATE futu.finv_futu_secu_key
+   SET usc = 'XRP'
+ WHERE ftmm_symbol = 'CC.XRP'
+   AND usc IS DISTINCT FROM 'XRP';
+
+-- 下游「当前状态表」跟随改名：CC.XRP → XRP
+--
+-- 有的环境（结果表仍是旧全码、键表来自上游同步）在这些表里还留着 `CC.XRP`；
+-- 本地库因需求 11085 的一次性对齐早已是 `XRP`，所以这里通常改动 0 行。
+-- 先查冲突（`finv_futu_quote_collect` 以 usc 为主键，改名可能撞上已存在的同名行）。
+DO $$
+DECLARE
+    v_clash TEXT;
+BEGIN
+    SELECT 'finv_futu_quote_collect' INTO v_clash
+      FROM futu.finv_futu_quote_collect c
+     WHERE c.usc = 'XRP' AND c.ftmm_symbol <> 'CC.XRP'
+     LIMIT 1;
+    IF v_clash IS NOT NULL THEN
+        RAISE EXCEPTION 'V300178 中止：采集表已存在 usc=XRP 行（非 CC.XRP），无法改名 CC.XRP → XRP';
+    END IF;
+    SELECT 'finv_quote_secu_indicator' INTO v_clash
+      FROM cdeu.finv_quote_secu_indicator i
+     WHERE i.usc = 'XRP' AND coalesce(i.ftmm_symbol, '') <> 'CC.XRP'
+     LIMIT 1;
+    IF v_clash IS NOT NULL THEN
+        RAISE EXCEPTION 'V300178 中止：指标表已存在 usc=XRP 行（非 CC.XRP），无法改名 CC.XRP → XRP';
+    END IF;
+END $$;
+
+UPDATE futu.finv_futu_quote_collect      SET usc = 'XRP' WHERE usc = 'CC.XRP';
+UPDATE cdeu.finv_quote_secu_indicator    SET usc = 'XRP' WHERE usc = 'CC.XRP';
+UPDATE public.finv_security              SET usc = 'XRP' WHERE usc = 'CC.XRP' AND security_code = 'XRP';
+UPDATE cdeu.finv_cdeu_secu_realtime_stock SET usc = 'XRP' WHERE usc = 'CC.XRP';
+UPDATE cdeu.finv_quote_cdeu_usc          SET usc = 'XRP' WHERE usc = 'CC.XRP';
 
 -- ---------------------------------------------------------------------
 -- ③ 收敛校验
@@ -92,6 +149,7 @@ DECLARE
     v_map_usc   TEXT;
     v_map_rule  TEXT;
     v_has_key   BOOLEAN;
+    v_old_left  BIGINT;
 BEGIN
     -- ① P40/CC/XRP 条目
     SELECT count(*), min(action), min(usc_literal), min(status)
@@ -105,15 +163,21 @@ BEGIN
             v_item, v_action, v_literal, v_status;
     END IF;
 
-    -- ② 美股 XRP ETF 的例外不得被影响
-    SELECT count(*), min(usc_literal) INTO v_us_item, v_us_lit
+    -- ② 美股 XRP ETF 的例外不得被本迁移影响：
+    --    它在本迁移时点的形态取决于环境版本（可能是 `LITERAL ETFXRP`，也可能已被 V300179 改成 `FTMM`），
+    --    所以不能断言具体形态；只断言「仍然存在且生效」+「没有被塞成 LITERAL XRP」（那会和加密现货撞车）。
+    SELECT count(*) INTO v_us_item
       FROM futu.finv_futu_usc_rule_item
-     WHERE rule_no = 'P40' AND market = 'US' AND code = 'XRP'
-       AND action = 'LITERAL' AND status = 'ACTIVE';
-    IF v_us_item <> 1 OR v_us_lit IS DISTINCT FROM 'ETFXRP' THEN
-        RAISE EXCEPTION 'V300178 校验失败：P40/US/XRP 应仍为 1 条且 usc_literal=ETFXRP，实际 % 条 / %',
-            v_us_item, v_us_lit;
+     WHERE rule_no = 'P40' AND market = 'US' AND code = 'XRP' AND status = 'ACTIVE';
+    IF v_us_item <> 1 THEN
+        RAISE EXCEPTION 'V300178 校验失败：P40/US/XRP 在册条目应为 1 条，实际 %', v_us_item;
     END IF;
+    IF EXISTS (SELECT 1 FROM futu.finv_futu_usc_rule_item
+                WHERE rule_no = 'P40' AND market = 'US' AND code = 'XRP'
+                  AND action = 'LITERAL' AND usc_literal = 'XRP') THEN
+        RAISE EXCEPTION 'V300178 校验失败：P40/US/XRP 被误设成 LITERAL XRP（会与加密现货撞车）';
+    END IF;
+    v_us_lit := NULL;
 
     -- ③ P50 的同名条目保持 RETIRED（P50 整层已停用，不做启用）
     SELECT min(status) INTO v_p50
@@ -146,6 +210,17 @@ BEGIN
      LIMIT 1;
     IF v_winner IS DISTINCT FROM 'P40' THEN
         RAISE EXCEPTION 'V300178 校验失败：CC/XRP 的胜出条目应为 P40，实际 %', v_winner;
+    END IF;
+
+    -- ④b 下游当前状态表不得残留旧值 CC.XRP（历史/日志/导出/K 线表不在本次范围）
+    SELECT (SELECT count(*) FROM futu.finv_futu_quote_collect       WHERE usc = 'CC.XRP')
+         + (SELECT count(*) FROM cdeu.finv_quote_secu_indicator     WHERE usc = 'CC.XRP')
+         + (SELECT count(*) FROM public.finv_security                WHERE usc = 'CC.XRP')
+         + (SELECT count(*) FROM cdeu.finv_cdeu_secu_realtime_stock WHERE usc = 'CC.XRP')
+         + (SELECT count(*) FROM cdeu.finv_quote_cdeu_usc           WHERE usc = 'CC.XRP')
+      INTO v_old_left;
+    IF v_old_left <> 0 THEN
+        RAISE EXCEPTION 'V300178 未收敛：下游当前状态表仍有 % 行 usc=CC.XRP', v_old_left;
     END IF;
 
     -- ⑤ 存量数据（键表有 CC.XRP 时）：前处理后 canon 仍为 XRP，结果表口径一致

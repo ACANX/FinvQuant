@@ -73,19 +73,50 @@ SELECT 'finv_futu_usc_rule_item', 'UPDATE', 'P40/US/XRP',
        'migration', '需求 11097 美股 XRP ETF：usc ETFXRP → US.XRP（P40 改 FTMM）';
 
 -- ---------------------------------------------------------------------
--- ③ 存量值改名：ETFXRP → US.XRP
+-- ③ 存量值改名：把 US.XRP 的 usc 落成 US.XRP（不假设旧值一定是 ETFXRP）
+--
+-- 同理不假设环境已对齐：结果表/键表里可能是 `ETFXRP`（需求 11034 口径），也可能是上游同步来的
+-- 其它旧值。按 ftmm_symbol 直接落值，等价于引擎 apply 之后的状态。
 -- ---------------------------------------------------------------------
+DO $$
+DECLARE
+    v_clash TEXT;
+BEGIN
+    SELECT m2.ftmm_symbol INTO v_clash
+      FROM futu.finv_futu_usc_map m2
+     WHERE m2.usc_lower = 'us.xrp' AND m2.status = 'ACTIVE' AND m2.ftmm_symbol <> 'US.XRP'
+     LIMIT 1;
+    IF v_clash IS NOT NULL THEN
+        RAISE EXCEPTION 'V300179 中止：usc=US.XRP 已被结果表在册行 % 占用，需先处理该行', v_clash;
+    END IF;
+
+    -- 采集表以 usc 为主键，改名 ETFXRP → US.XRP 前确认目标值没被占用
+    IF EXISTS (SELECT 1 FROM futu.finv_futu_quote_collect
+                WHERE usc = 'US.XRP' AND ftmm_symbol <> 'US.XRP') THEN
+        RAISE EXCEPTION 'V300179 中止：采集表已有别的证券占用 usc=US.XRP，无法改名';
+    END IF;
+    IF EXISTS (SELECT 1 FROM public.finv_security WHERE usc = 'US.XRP' AND security_code <> 'XRP') THEN
+        RAISE EXCEPTION 'V300179 中止：finv_security 已存在 usc=US.XRP 且 security_code<>XRP 的行';
+    END IF;
+END $$;
+
 UPDATE futu.finv_futu_usc_map
-   SET usc = 'US.XRP',
-       rule_no = 'P40',
-       basis = '美股 XRP ETF 用富途全码 US.XRP：P40 精确例外（加密现货占住 XRP，需求 11097）',
+   SET usc        = 'US.XRP',
+       rule_no    = 'P40',
+       basis      = '美股 XRP ETF 用富途全码 US.XRP：P40 精确例外（加密现货占住 XRP，需求 11097）',
        dt_compute = now()
- WHERE ftmm_symbol = 'US.XRP' AND usc = 'ETFXRP';
+ WHERE ftmm_symbol = 'US.XRP'
+   AND status = 'ACTIVE'
+   AND (usc     IS DISTINCT FROM 'US.XRP'
+     OR rule_no IS DISTINCT FROM 'P40'
+     OR basis   IS DISTINCT FROM '美股 XRP ETF 用富途全码 US.XRP：P40 精确例外（加密现货占住 XRP，需求 11097）');
 
 UPDATE futu.finv_futu_secu_key
    SET usc = 'US.XRP'
- WHERE ftmm_symbol = 'US.XRP' AND usc = 'ETFXRP';
+ WHERE ftmm_symbol = 'US.XRP'
+   AND usc IS DISTINCT FROM 'US.XRP';
 
+-- 其余表按旧值匹配（这些表的 usc 是从键表派生出来的采集/指标/证券/实时行）
 UPDATE futu.finv_futu_quote_collect SET usc = 'US.XRP' WHERE usc = 'ETFXRP';
 
 UPDATE cdeu.finv_quote_secu_indicator SET usc = 'US.XRP' WHERE usc = 'ETFXRP';
