@@ -219,6 +219,16 @@
 
 ### 变更
 
+- **审计表改名：`open.open_api_call_log` → `open.open_api_invoke_log`（需求 11170）**
+  - 用户定稿：一次 OpenAPI 调用用「invoke」表述，与内部业务「调用日志」概念区分。
+  - `V300183`（尚未推送任何环境、与本改动同属一个需求批次）直接回改为最终表名；
+    新增 `V300184` 负责把**已经应用过旧版 V300183** 的库就地改名：表名 + 主键约束 + 4 个 CHECK 约束 + 3 个索引名
+    一并由 `*_call_log*` 改为 `*_invoke_log*`，列/数据/注释不动。
+  - 幂等口径：只在「旧表存在且新表不存在」时改名；两表并存只 `RAISE NOTICE` 交人工裁决；重跑 0 变更。
+  - 收敛校验：新表存在 + 表/索引/约束均无 `*_call_log*` 残留命名（漏改项在此暴露）。
+  - 验证：本机库改名成功（行数 0 → 0）且复跑 0 变更；`TestMigrateIntegration` 全新库重建得到 `invoke_log`、
+    `to_regclass('open.open_api_call_log')` 为空。
+
 - **外部 OpenAPI 鉴权建表（需求 11167）**
   - 新增 schema `open`（`V100013`）+ 3 张表（`V300183`），表名一律 `open_` 前缀：
     - `open.open_api_client`：调用方，一行 = 一个接入应用（`allow_cidr` 白名单、`rate_limit_rpm`/`quota_day` 配额、`flag_enable` 默认停用）；
@@ -226,7 +236,7 @@
       静态 Key 只存哈希 `secret_hash`；AK/SK 的 SK 必须能取回做 HMAC，故存 AES-256-GCM 密文 `secret_cipher`，
       两者由 `ck_open_api_credential_secret` 按 `auth_mode` 互斥；`secret_cipher_prev` + `dt_secret_rotate` 支持无感轮换；
       吊销强制留 `dt_revoke` + `reason_revoke`；
-    - `open.open_api_call_log`：调用审计，只增不改，只存 `body_sha256`/`count_body`，不存请求原文。
+    - `open.open_api_invoke_log`：调用审计，只增不改，只存 `body_sha256`/`count_body`（表名初版为 `open_api_call_log`，同一批次定稿为 `invoke_log`，见需求 11170），不存请求原文。
   - 防重放 nonce 存 Redis（`SET NX PX`），**不建 nonce 表**；授权范围先用 `scope_str jsonb` 单列，后续可扩表。
   - `sys_config` 新增 19xxx 号段 6 条：19001 鉴权模式（`0` 关闭 / `1` 启用 / `2` 宽松）、19002 签名时间窗（300s）、
     19003 调用日志保留天数（90）、19004 密钥 KID（`k1`）、19005 密钥本体（空，不预填）、19006 兼容兜底密钥（空，不预填）。

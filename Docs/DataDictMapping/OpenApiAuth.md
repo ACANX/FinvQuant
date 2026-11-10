@@ -1,7 +1,7 @@
 # OpenApiAuth — 外部 OpenAPI 鉴权（调用方 / 凭证 / 调用审计）
 
 > 所属：FinvQuant 数据字典映射 · 存放：`Docs/DataDictMapping/OpenApiAuth.md`
-> 数据表：`open.open_api_client` / `open.open_api_credential` / `open.open_api_call_log`
+> 数据表：`open.open_api_client` / `open.open_api_credential` / `open.open_api_invoke_log`
 > 建表迁移：[`Deploy/Migrations/V300183__open_create_openapi_auth_tables.sql`](../../Deploy/Migrations/V300183__open_create_openapi_auth_tables.sql)（schema 见 `V100013`）
 > 需求：11167（建表）；11168（鉴权中间件，待实现）；11169（「OpenAPI 调用方管理」菜单，待实现）
 > 用途：给 `/OpenAPI/V1/*` 加鉴权。支持**静态 API Key**、**AK/SK 签名**两种主用模式，并预留 **Bearer JWT** / **双向 TLS** / **Basic** 三种。
@@ -83,7 +83,10 @@ flag_revoke = '0' OR (dt_revoke IS NOT NULL AND NULLIF(btrim(reason_revoke),'') 
 OR (auth_mode <> 'AK_SK' AND secret_hash   IS NOT NULL)
 ```
 
-## 4. `open.open_api_call_log`（20 列，主键 `idn`，只增不改）
+## 4. `open.open_api_invoke_log`（20 列，主键 `idn`，只增不改）
+
+> 表名历史：`V300183` 初版叫 `open_api_call_log`，定稿改为 `open_api_invoke_log`（需求 11170，
+> 既有库由 `V300184` 就地改名，索引与约束名同步由 `*_call_log*` 改为 `*_invoke_log*`）。
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -170,7 +173,7 @@ signature = base64(HMAC-SHA256(SK, canonical))
 | 轮换 SK | 新 SK 写入 `secret_cipher`、旧值搬到 `secret_cipher_prev`、写 `dt_secret_rotate`；窗口结束后清 `secret_cipher_prev` |
 | 停用 | `flag_enable='0'`（可恢复） |
 | 吊销 | `flag_revoke='1'` + 必填 `dt_revoke` / `reason_revoke`（不可恢复，只能新建凭证） |
-| 排查 | 查 `open_api_call_log`（按 `credential_idn` / `flag_pass` / `reason_code` / `dt_request`） |
+| 排查 | 查 `open_api_invoke_log`（按 `credential_idn` / `flag_pass` / `reason_code` / `dt_request`） |
 
 ## 8. 说明
 
