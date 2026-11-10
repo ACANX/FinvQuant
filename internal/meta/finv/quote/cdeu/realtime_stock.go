@@ -165,9 +165,14 @@ type RealtimeStockListFilter struct {
 	OrderBy     string // 见 RealtimeStockOrderColumns，空默认 rmb_market_value（需求 11025）
 	Desc        bool   // true 降序（默认），false 升序
 	// USCMissing 为 true 时只查 usc 为空的行，即「待录入证券」（需求 10995）。
+	//
+	// 需求 11145 起：判断前先用派生 `ftmm_symbol = 市场标签 || '.' || 代码` 关联
+	// `futu.finv_futu_secu_key` 补一次 usc —— 键表里已有该证券的，就不算待录入。
 	USCMissing bool
-	Limit      int
-	Offset     int
+	// FillUSCFromKey 为 true 时按派生 ftmm_symbol 左连键表补 usc（待录入页用，需求 11145）。
+	FillUSCFromKey bool
+	Limit          int
+	Offset         int
 }
 
 // RealtimeStockOrderColumns 允许排序的列白名单（列名直接拼进 SQL，必须先校验）。
@@ -196,8 +201,11 @@ var RealtimeStockOrderColumns = map[string]bool{
 // 数值列统一以文本输出（SQL 侧 ::text），保住 NUMERIC(24,6) 的精度；
 // 展示层的万/亿折算与小数位裁剪由前端负责。
 type RealtimeStockListRow struct {
-	StockID                int64  `json:"stock_id"`
-	USC                    string `json:"usc"`
+	StockID int64  `json:"stock_id"`
+	USC     string `json:"usc"`
+	// FtmmSymbol 派生键：`upper(市场标签 || '.' || 代码)`，与
+	// `futu.finv_futu_secu_key.ftmm_symbol` 同口径（需求 11145）。
+	FtmmSymbol             string `json:"ftmm_symbol"`
 	Name                   string `json:"name"`
 	StockCode              string `json:"stock_code"`
 	MarketType             string `json:"market_type"`

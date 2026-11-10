@@ -17,6 +17,8 @@ import PendingSecuEnrollDialog from './PendingSecuEnrollDialog.vue'
 interface PendingSecuRow {
   stock_id: number
   usc: string
+  // 派生键 upper(市场标签.代码)：后端用它关联键表补 usc（需求 11145）
+  ftmm_symbol: string
   name: string
   stock_code: string
   market_type: string
@@ -181,7 +183,7 @@ onMounted(load)
       </v-tooltip>
     </v-card-title>
     <v-card-subtitle class="pb-2">
-      cdeu.finv_cdeu_secu_realtime_stock 中 <strong>usc 为空</strong>的快照：该证券尚未录入证券主数据
+      cdeu.finv_cdeu_secu_realtime_stock 中 <strong>补全后仍为空</strong>的快照：该证券尚未录入证券主数据
       （新上市 / 未纳入采集），是后续补录
       <code>public.finv_security</code> + <code>futu.finv_futu_quote_collect</code> +
       <code>cdeu.finv_quote_cdeu_usc</code> 的依据
@@ -189,7 +191,10 @@ onMounted(load)
 
     <v-card-text>
       <v-alert type="info" density="compact" variant="tonal" class="mb-3">
-        usc 为空是<strong>刻意保留的观测信号</strong>，不要用 stock_code 回填：两者并非等价，
+        列表口径：先用<strong>派生键</strong> <code>ftmm_symbol = upper(市场标签 || '.' || 代码)</code>
+        关联 <code>futu.finv_futu_secu_key</code> 补一次 <code>usc</code>（本页「派生键」列即该值），
+        <strong>补完仍为空</strong>的才列在这里 —— 键表里已登记的证券不会被当成待录入。
+        注意 usc 为空是<strong>刻意保留的观测信号</strong>，不要用 stock_code 直接回填：两者并非等价，
         直接挪用会把不同市场的同码证券映射错（如 <code>000001</code> 在 SZ 与 SH 都存在）。
       </v-alert>
 
@@ -197,7 +202,7 @@ onMounted(load)
       <div class="d-flex flex-wrap align-center ga-2 mb-3">
         <v-text-field
           v-model="keyword"
-          label="关键字（代码 / 名称）"
+          label="关键字（代码 / 名称 / 派生键）"
           placeholder="如: 06288 / FAST RETAIL"
           density="compact"
           hide-details
@@ -259,6 +264,7 @@ onMounted(load)
             <th class="text-no-wrap">代码</th>
             <th class="text-no-wrap">名称</th>
             <th class="text-no-wrap">市场</th>
+            <th class="text-no-wrap">派生键 ftmm_symbol</th>
             <th class="text-no-wrap">品种类型</th>
             <th class="text-no-wrap">币种</th>
             <th class="text-no-wrap text-right">现价</th>
@@ -277,6 +283,7 @@ onMounted(load)
             <td class="text-no-wrap">{{ row.stock_code || '—' }}</td>
             <td class="text-no-wrap">{{ row.name || '—' }}</td>
             <td class="text-no-wrap">{{ row.market_label || '—' }}</td>
+            <td class="text-no-wrap"><code>{{ row.ftmm_symbol || '—' }}</code></td>
             <td class="text-no-wrap">{{ row.instrument_type || '—' }}</td>
             <td class="text-no-wrap">{{ row.currency || '—' }}</td>
             <td class="text-right num">{{ dec(row.price_nominal) }}</td>
@@ -293,8 +300,8 @@ onMounted(load)
             </td>
           </tr>
           <tr v-if="!rows.length && !loading">
-            <td colspan="14" class="text-center text-medium-emphasis py-6">
-              没有待录入证券（所有快照行的 usc 都已关联证券主数据）
+            <td colspan="15" class="text-center text-medium-emphasis py-6">
+              没有待录入证券（快照行的 usc 都能关联到证券主数据，或已由键表补全）
             </td>
           </tr>
         </tbody>

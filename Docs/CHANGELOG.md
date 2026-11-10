@@ -219,6 +219,18 @@
 
 ### 变更
 
+- **待录入证券改为「按派生键补 usc 后仍为空」的口径（需求 11145）**
+  - 变化：`/Meta/Finv/Quote/Realtime/PendingSecu` 原来直接拿 `cdeu.finv_cdeu_secu_realtime_stock.usc IS NULL`
+    当待录入，导致**键表里其实已有该证券**的行也挂在清单上，看着像没录入。
+  - 现口径：先派生键 `ftmm_symbol = upper(market_label || '.' || stock_code)`（与键表同口径，英文字母大写），
+    `LEFT JOIN futu.finv_futu_secu_key` 取 `k.usc`；判定改为
+    `COALESCE(NULLIF(btrim(t.usc),''), NULLIF(btrim(k.usc),'')) IS NULL` —— 快照与键表都没有 usc 才算待录入。
+  - 后端：`RealtimeStockListFilter` 新增 `FillUSCFromKey`（仅待录入页开启）；`realtimeStockListColumns` 由常量改为
+    函数，统一 `t.` 限定并多输出一列派生 `ftmm_symbol`；`count` 与明细共用同一 `FROM` + 可选 `LEFT JOIN`；
+    关键字额外匹配派生键（可直接搜 `HK.06288`）。
+  - 前端：新增「派生键 `ftmm_symbol`」列、副标题与 info 提示改为新口径、空态文案与关键字 label 同步。
+  - 文档：`Docs/API/Cdeu/RealtimeStockPendingPage.md` / `.yml`、`Docs/Menu/Quote/Realtime/PendingSecu.md` 同步。
+
 - **修 V300182：数据修复不再阻断启动（回归需求 11094 的教训）**
   - 故障：远端 `instance-arm-a` 部署后进 systemd 重启循环，每分钟一次，日志
     `V300182 中止：usc=GDRNext 已被另一行占用（futu_symbol=GDRNext），需人工裁决`。

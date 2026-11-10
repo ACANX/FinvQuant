@@ -3,7 +3,9 @@ info:
   title: 待录入证券分页查询
   version: 1.0.0
   description: |
-    查询 cdeu.finv_cdeu_secu_realtime_stock 中 usc 为空的快照行（尚未录入证券主数据的证券），
+    查询 cdeu.finv_cdeu_secu_realtime_stock 中「补全后 usc 仍为空」的快照行（尚未录入证券主数据的证券）：
+    先按派生 ftmm_symbol = upper(market_label || '.' || stock_code) 左连 futu.finv_futu_secu_key 取 usc，
+    COALESCE(快照 usc, 键表 usc) 仍为空才返回；键表里已登记的证券不进清单。
     作为后续补录 public.finv_security + futu.finv_futu_quote_collect + cdeu.finv_quote_cdeu_usc 的依据。
     需求 10995。目前只提供查询，一键录入为规划功能。
 servers:
@@ -11,7 +13,7 @@ servers:
 paths:
   /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending:
     get:
-      summary: 待录入证券分页查询（usc IS NULL）
+      summary: 待录入证券分页查询（按派生键补全 usc 后仍为空）
       operationId: realtimeStockPendingPage
       tags: [Cdeu]
       parameters:
@@ -77,7 +79,8 @@ paths:
                           type: object
                           properties:
                             stock_id: { type: integer, format: int64 }
-                            usc: { type: [string, 'null'], description: 本接口恒为空 }
+                            usc: { type: [string, 'null'], description: 补全后的 usc（清单内恒为空串） }
+                            ftmm_symbol: { type: string, description: 派生键 upper(市场标签.代码)，用于与键表核对 }
                             name: { type: string }
                             stock_code: { type: string }
                             market_type: { type: string }

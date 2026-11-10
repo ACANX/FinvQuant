@@ -150,11 +150,11 @@ func (h *ExportArchive) RealtimeStockListCollect(c *gin.Context) {
 		len(results), rowsReceived, rowsInsert, rowsUpdate, time.Since(started).Milliseconds(), err)
 
 	payload := gin.H{
-		"results":       results,
+		"results":      results,
 		"rows_receive": rowsReceived,
-		"insert":        rowsInsert,
-		"update":        rowsUpdate,
-		"elapsed_ms":    time.Since(started).Milliseconds(),
+		"insert":       rowsInsert,
+		"update":       rowsUpdate,
+		"elapsed_ms":   time.Since(started).Milliseconds(),
 	}
 	if err != nil {
 		payload["error"] = err.Error()
@@ -315,7 +315,10 @@ func (h *ExportArchive) RealtimeStockPage(c *gin.Context) {
 
 // RealtimeStockPendingPage GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending。
 //
-// 待录入证券：`cdeu.finv_cdeu_secu_realtime_stock` 里 `usc` 为空的行。
+// 待录入证券：`cdeu.finv_cdeu_secu_realtime_stock` 里 **补全后仍为空** 的 `usc` 行。
+//
+// 需求 11145 起先做一次补全：按 `ftmm_symbol = upper(market_label || '.' || stock_code)`
+// 关联 `futu.finv_futu_secu_key` 取 `usc`；键表里已有的证券不算待录入，不进这份清单。
 // 采集会把所有在售证券写入快照表，`usc` 为空即该证券尚未录入
 // `public.finv_security` + `futu.finv_futu_quote_collect` + `cdeu.finv_quote_cdeu_usc`，
 // 本接口只做查询，后续再挂「一键录入」（需求 10995）。
@@ -349,6 +352,9 @@ func (h *ExportArchive) RealtimeStockPendingPage(c *gin.Context) {
 		Limit:       pageSize,
 		Offset:      (page - 1) * pageSize,
 		USCMissing:  true,
+		// 需求 11145：先用派生 ftmm_symbol 关联 futu.finv_futu_secu_key 补 usc，
+		// 补完仍为空才算是待录入证券
+		FillUSCFromKey: true,
 	}
 
 	started := time.Now()

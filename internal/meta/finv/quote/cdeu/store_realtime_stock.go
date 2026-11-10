@@ -190,41 +190,56 @@ func isRealtimeStockDataError(err error) bool {
 	return false
 }
 
+// realtimeStockKeyTable 派生键要关联的本地键表（ftmm_symbol 主键）。
+const realtimeStockKeyTable = "futu.finv_futu_secu_key"
+
+// realtimeStockFtmmExpr 派生 ftmm_symbol：`市场标签.代码`，英文字母统一大写（需求 11143/11145）。
+const realtimeStockFtmmExpr = `upper(btrim(t.market_label) || '.' || btrim(t.stock_code))`
+
 // realtimeStockListColumns 列表输出列：数值列一律 ::text，避免 NUMERIC 经 float64 丢精度。
-const realtimeStockListColumns = `
-       stock_id,
-       COALESCE(usc, '')                            AS usc,
-       COALESCE(name, '')                           AS name,
-       COALESCE(stock_code, '')                     AS stock_code,
-       COALESCE(market_type, '')                    AS market_type,
-       COALESCE(market_label, '')                   AS market_label,
-       COALESCE(instrument_type, '')                AS instrument_type,
-       COALESCE(currency, '')                       AS currency,
-       COALESCE(price_nominal::text, '')            AS price_nominal,
-       COALESCE(change_price::text, '')             AS change_price,
-       COALESCE(change_ratio::text, '')             AS change_ratio,
-       COALESCE(price_direct, '')                   AS price_direct,
-       COALESCE(market_value::text, '')             AS market_value,
-       COALESCE(total_shares::text, '')             AS total_shares,
-       COALESCE(circulation_total_shares::text, '') AS circulation_total_shares,
-       COALESCE(trade_trunover::text, '')           AS trade_trunover,
-       COALESCE(trade_volumn::text, '')             AS trade_volumn,
-       COALESCE(circulation_market_value::text, '') AS circulation_market_value,
-       COALESCE(trust_aum::text, '')                AS trust_aum,
-       COALESCE(trade_change_ratio::text, '')       AS trade_change_ratio,
-       COALESCE(price_amplitude::text, '')          AS price_amplitude,
-       COALESCE(volumn_ratio::text, '')             AS volumn_ratio,
-       COALESCE(buysell_ratio::text, '')            AS buysell_ratio,
-       COALESCE(leverage::text, '')                 AS leverage,
-       COALESCE(rmb_exchange_rate::text, '')            AS rmb_exchange_rate,
-       COALESCE(rmb_market_value::text, '')             AS rmb_market_value,
-       COALESCE(rmb_circulation_market_value::text, '') AS rmb_circulation_market_value,
-       COALESCE(rmb_trade_trunover::text, '')           AS rmb_trade_trunover,
-       COALESCE(rmb_price_nominal::text, '')            AS rmb_price_nominal,
-       COALESCE(remark, '')                         AS remark,
-       gmt_create,
-       gmt_update,
-       COALESCE(dt_update, 0)                       AS dt_update`
+//
+// fillUSC 为 true 时 usc 取「快照值优先、键表补全兜底」，此时调用方必须已 LEFT JOIN 键表别名 k。
+func realtimeStockListColumns(fillUSC bool) string {
+	uscExpr := "COALESCE(t.usc, '')"
+	if fillUSC {
+		uscExpr = "COALESCE(NULLIF(btrim(t.usc), ''), k.usc, '')"
+	}
+	return `
+       t.stock_id,
+       ` + uscExpr + `                            AS usc,
+       ` + realtimeStockFtmmExpr + ` AS ftmm_symbol,
+       COALESCE(t.name, '')                           AS name,
+       COALESCE(t.stock_code, '')                     AS stock_code,
+       COALESCE(t.market_type, '')                    AS market_type,
+       COALESCE(t.market_label, '')                   AS market_label,
+       COALESCE(t.instrument_type, '')                AS instrument_type,
+       COALESCE(t.currency, '')                       AS currency,
+       COALESCE(t.price_nominal::text, '')            AS price_nominal,
+       COALESCE(t.change_price::text, '')             AS change_price,
+       COALESCE(t.change_ratio::text, '')             AS change_ratio,
+       COALESCE(t.price_direct, '')                   AS price_direct,
+       COALESCE(t.market_value::text, '')             AS market_value,
+       COALESCE(t.total_shares::text, '')             AS total_shares,
+       COALESCE(t.circulation_total_shares::text, '') AS circulation_total_shares,
+       COALESCE(t.trade_trunover::text, '')           AS trade_trunover,
+       COALESCE(t.trade_volumn::text, '')             AS trade_volumn,
+       COALESCE(t.circulation_market_value::text, '') AS circulation_market_value,
+       COALESCE(t.trust_aum::text, '')                AS trust_aum,
+       COALESCE(t.trade_change_ratio::text, '')       AS trade_change_ratio,
+       COALESCE(t.price_amplitude::text, '')          AS price_amplitude,
+       COALESCE(t.volumn_ratio::text, '')             AS volumn_ratio,
+       COALESCE(t.buysell_ratio::text, '')            AS buysell_ratio,
+       COALESCE(t.leverage::text, '')                 AS leverage,
+       COALESCE(t.rmb_exchange_rate::text, '')            AS rmb_exchange_rate,
+       COALESCE(t.rmb_market_value::text, '')             AS rmb_market_value,
+       COALESCE(t.rmb_circulation_market_value::text, '') AS rmb_circulation_market_value,
+       COALESCE(t.rmb_trade_trunover::text, '')           AS rmb_trade_trunover,
+       COALESCE(t.rmb_price_nominal::text, '')            AS rmb_price_nominal,
+       COALESCE(t.remark, '')                         AS remark,
+       t.gmt_create,
+       t.gmt_update,
+       COALESCE(t.dt_update, 0)                       AS dt_update`
+}
 
 // ListRealtimeStocks 分页查询实时行情快照：关键字（usc / 代码 / 名称）、市场、币种筛选，
 // 白名单列排序（NULL 一律排最后），返回总数与当前页。
@@ -247,29 +262,45 @@ func (s *Store) ListRealtimeStocks(ctx context.Context, f RealtimeStockListFilte
 	if kw := strings.TrimSpace(f.Keyword); kw != "" {
 		args = append(args, "%"+kw+"%")
 		idx := len(args)
+		// 关键字连派生 ftmm_symbol 一起匹配：可以直接拿 `HK.06288` 这种键去搜（需求 11145）
 		conds = append(conds, fmt.Sprintf(
-			"(usc ILIKE $%d OR stock_code ILIKE $%d OR name ILIKE $%d)", idx, idx, idx))
+			"(t.usc ILIKE $%d OR t.stock_code ILIKE $%d OR t.name ILIKE $%d OR %s ILIKE $%d)",
+			idx, idx, idx, realtimeStockFtmmExpr, idx))
 	}
 	if market := strings.TrimSpace(f.MarketLabel); market != "" && !strings.EqualFold(market, "all") {
 		args = append(args, market)
-		conds = append(conds, fmt.Sprintf("market_label = $%d", len(args)))
+		conds = append(conds, fmt.Sprintf("t.market_label = $%d", len(args)))
 	}
 	if currency := strings.TrimSpace(f.Currency); currency != "" && !strings.EqualFold(currency, "all") {
 		args = append(args, currency)
-		conds = append(conds, fmt.Sprintf("currency = $%d", len(args)))
+		conds = append(conds, fmt.Sprintf("t.currency = $%d", len(args)))
 	}
 	// usc 为空 = 尚未录入证券主数据（新上市/未纳入采集），是补录三张表的依据（需求 10995）。
+	//
+	// 需求 11145：先用派生 ftmm_symbol 关联键表补一次 usc，**补完仍为空**才算待录入；
+	// 快照 usc 与键表 usc 都按空白串视同空值处理。
 	if f.USCMissing {
-		conds = append(conds, "usc IS NULL")
+		if f.FillUSCFromKey {
+			conds = append(conds, "COALESCE(NULLIF(btrim(t.usc), ''), NULLIF(btrim(k.usc), '')) IS NULL")
+		} else {
+			conds = append(conds, "t.usc IS NULL")
+		}
 	}
 	where := ""
 	if len(conds) > 0 {
 		where = " WHERE " + strings.Join(conds, " AND ")
 	}
 
+	// 需要键表补 usc 时先左连：派生键与键表同口径（大写），匹配不到就是真的没有
+	fromClause := tableRealtimeStock + " t"
+	if f.FillUSCFromKey {
+		fromClause += " LEFT JOIN " + realtimeStockKeyTable +
+			" k ON k.ftmm_symbol = " + realtimeStockFtmmExpr
+	}
+
 	var total int64
 	if err := s.pool.QueryRow(ctx,
-		"SELECT count(*) FROM "+tableRealtimeStock+where, args...).Scan(&total); err != nil {
+		"SELECT count(*) FROM "+fromClause+where, args...).Scan(&total); err != nil {
 		return 0, nil, fmt.Errorf("ListRealtimeStocks：统计失败: %w", err)
 	}
 	if total == 0 {
@@ -283,7 +314,7 @@ func (s *Store) ListRealtimeStocks(ctx context.Context, f RealtimeStockListFilte
 	pageArgs := append(append([]any{}, args...), f.Limit, f.Offset)
 	// 排序必须写成 t.<列>：输出列里有同名别名（market_value::text AS market_value），
 	// 不限定表别名时 ORDER BY 会解析到 text 输出列，退化成字符串排序（"9994…" > "5060…"）。
-	query := "SELECT " + realtimeStockListColumns + " FROM " + tableRealtimeStock + " t" + where +
+	query := "SELECT " + realtimeStockListColumns(f.FillUSCFromKey) + " FROM " + fromClause + where +
 		" ORDER BY t." + orderBy + " " + direction + " NULLS LAST, t.stock_id" +
 		fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
 
@@ -297,7 +328,7 @@ func (s *Store) ListRealtimeStocks(ctx context.Context, f RealtimeStockListFilte
 	for rows.Next() {
 		var row RealtimeStockListRow
 		if err := rows.Scan(
-			&row.StockID, &row.USC, &row.Name, &row.StockCode, &row.MarketType,
+			&row.StockID, &row.USC, &row.FtmmSymbol, &row.Name, &row.StockCode, &row.MarketType,
 			&row.MarketLabel, &row.InstrumentType, &row.Currency, &row.PriceNominal,
 			&row.ChangePrice, &row.ChangeRatio, &row.PriceDirect, &row.MarketValue,
 			&row.TotalShares, &row.CirculationTotalShares, &row.TradeTrunover,
