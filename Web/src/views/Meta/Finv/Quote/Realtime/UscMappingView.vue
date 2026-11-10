@@ -19,7 +19,7 @@
 //   GET  /Log/List        审计日志分页
 //
 // 交互约束：应用前必须先预演（后端校验 preview_token）；停用/应用都要填原因。
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { apiGet, apiPost } from '../../../../../api'
 import { showToast } from '../../../../../ui/toast'
@@ -289,6 +289,9 @@ const actionHint = computed(() => {
 })
 
 const filterMarket = ref('')
+
+// 条目说明（item_desc）：默认按「范围 + 匹配键 + 动作效果 + 依据规则」自动生成（需求 11136）；
+// 用户手动改过（descTouched）就不再覆盖，可用字段右侧「重新生成」恢复自动值。
 const filterStatus = ref('')
 const filterKeyword = ref('')
 
@@ -335,6 +338,77 @@ const editOpen = ref(false)
 const editSaving = ref(false)
 const editForm = ref<Item>(emptyItem())
 const editIsNew = ref(true)
+
+const descTouched = ref(false)
+
+function buildItemDesc(): string {
+  const f = editForm.value
+  const marketLabel = (f.market ? (MARKET_LABELS[f.market] ?? f.market) : '').trim()
+  const instrumentLabel = (f.instrument ? (INSTRUMENT_LABELS[f.instrument] ?? f.instrument) : '').trim()
+  // 市场与品种中文同名时（如 CC 与 crypto 都叫「加密货币」）不重复一次
+  const scopeParts = marketLabel === instrumentLabel ? [marketLabel] : [marketLabel, instrumentLabel]
+  const scope = scopeParts.filter(Boolean).join(' ') || '全部市场 / 全部品种'
+
+  const code = (f.code ?? '').trim()
+  const regex = (f.code_regex ?? '').trim()
+  const tpl = (f.rewrite_tpl ?? '').trim()
+  const literal = (f.usc_literal ?? '').trim()
+
+  let key: string
+  if (f.action === 'REWRITE') {
+    key = `代码正则 ${regex || '（未填）'} → ${tpl || '（未填）'}`
+  } else {
+    key = code ? `代码 ${code}` : '该范围下全部代码'
+  }
+
+  let effect: string
+  switch (f.action) {
+    case 'CODE':
+      effect = 'usc 取交易所代码'
+      break
+    case 'FTMM':
+      effect = `usc 取富途全码${f.market && code ? `（${f.market}.${code}）` : '（市场.代码）'}`
+      break
+    case 'LITERAL':
+      effect = `usc 固定取 ${literal || '（未填）'}`
+      break
+    case 'REWRITE':
+      effect = `usc 按正则改写${tpl ? `（${tpl}）` : ''}`
+      break
+    case 'SH4':
+      effect = 'usc 取 SH + 代码后四位'
+      break
+    default:
+      effect = '沿用规则默认动作'
+  }
+
+  const rule = rules.value.find((r) => r.rule_no === f.rule_no)
+  const basis = rule ? `依据 ${rule.rule_no} ${rule.rule_name}` : `依据 ${f.rule_no || '（未选规则）'}`
+  return `${scope}｜${key}｜${effect}｜${basis}`
+}
+
+// 表单里任一影响取值的字段变了，且用户没手改过说明，就重新生成
+watch(
+  () => [
+    editForm.value.rule_no,
+    editForm.value.market,
+    editForm.value.instrument,
+    editForm.value.code,
+    editForm.value.code_regex,
+    editForm.value.rewrite_tpl,
+    editForm.value.usc_literal,
+    editForm.value.action,
+  ],
+  () => {
+    if (editOpen.value && !descTouched.value) editForm.value.item_desc = buildItemDesc()
+  },
+)
+
+function regenerateDesc() {
+  descTouched.value = false
+  editForm.value.item_desc = buildItemDesc()
+}
+
 
 // 停用对话框
 const retireOpen = ref(false)
@@ -494,12 +568,16 @@ function selectRule(ruleNo: string) {
 function openCreate() {
   editIsNew.value = true
   editForm.value = emptyItem()
+  descTouched.value = false
+  editForm.value.item_desc = buildItemDesc()
   editOpen.value = true
 }
 
 function openEdit(item: Item) {
   editIsNew.value = false
   editForm.value = { ...item }
+  // 既有条目的说明是用户/历史数据，不覆盖；需要时点「重新生成」
+  descTouched.value = true
   editOpen.value = true
 }
 
@@ -1595,10 +1673,22 @@ onBeforeUnmount(stopPolling)
             <v-col cols="12">
               <v-text-field
                 v-model="editForm.item_desc"
-                label="条目说明 *（为什么这么映射）"
+                label="条目说明（默认自动生成，可直接改）"
                 density="compact"
                 variant="outlined"
-              />
+                hide-details="auto"
+                hint="按「市场/品种 + 匹配键 + 动作效果 + 依据规则」自动生成；手动改过就不再覆盖"
+                @update:model-value="descTouched = true"
+              >
+                <template #append-inner>
+                  <v-tooltip location="top" max-width="320" open-delay="120">
+                    <template #activator="{ props }">
+                      <v-btn v-bind="props" size="x-small" variant="text" icon="mdi-autorenew" @click="regenerateDesc" />
+                    </template>
+                    按当前选择重新生成说明（会丢掉手工修改）
+                  </v-tooltip>
+                </template>
+              </v-text-field>
             </v-col>
             <v-col cols="12">
               <v-text-field v-model="editForm.source_ref" label="出处（如 USCMappingRule.md 附录 B）" density="compact" variant="outlined" />
