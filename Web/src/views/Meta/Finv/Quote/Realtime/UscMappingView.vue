@@ -249,6 +249,27 @@ const items = ref<Item[]>([])
 const itemTotal = ref(0)
 const itemPage = ref(1)
 const itemPageSize = ref(20)
+// 动作联动：LITERAL 才填「固定取值」，REWRITE 才填「代码正则 + 替换模板」，
+// 其余动作（CODE/FTMM/SH4）由规则自己算，不需要任何取值。避免把四个输入框全摊给用户。
+const isLiteralAction = computed(() => editForm.value.action === 'LITERAL')
+const isRewriteAction = computed(() => editForm.value.action === 'REWRITE')
+const actionHint = computed(() => {
+  switch (editForm.value.action) {
+    case 'CODE':
+      return '取证券代码（前处理后的 canon_code），例如 000300 → SH0300 之外的市场直接就是代码；无需填取值。'
+    case 'FTMM':
+      return '取富途全码（market.code），例如 CC.AMPL；无需填取值。'
+    case 'LITERAL':
+      return '固定取值：不管代码是什么，usc 都写成你在下面「固定取值」里填的那串字面量。'
+    case 'REWRITE':
+      return '正则改写：用「代码正则」匹配原代码，再用「替换模板」生成新 usc（捕获组用 $1、$2 引用）。'
+    case 'SH4':
+      return '沪市指数四位码：000300 → SH0300（SH + 后四位）；无需填取值。'
+    default:
+      return '未指定动作时按所属规则的默认动作执行（P40/P50 默认是 FTMM 富途全码）。'
+  }
+})
+
 const filterMarket = ref('')
 const filterStatus = ref('')
 const filterKeyword = ref('')
@@ -461,11 +482,11 @@ async function saveItem() {
     return
   }
   if (form.action === 'LITERAL' && !(form.usc_literal ?? '').trim()) {
-    showToast('action=LITERAL 时 usc_literal 不能为空', 'warning')
+    showToast('动作为「固定取值（LITERAL）」时，「固定取值 usc」不能为空', 'warning')
     return
   }
   if (form.action === 'REWRITE' && (!(form.code_regex ?? '').trim() || !(form.rewrite_tpl ?? '').trim())) {
-    showToast('action=REWRITE 时 code_regex 与 rewrite_tpl 都不能为空', 'warning')
+    showToast('动作为「正则改写（REWRITE）」时，「代码正则」与「替换模板」都不能为空', 'warning')
     return
   }
   editSaving.value = true
@@ -475,11 +496,12 @@ async function saveItem() {
       idn: editIsNew.value ? 0 : form.idn,
       market: nullable(form.market),
       instrument: nullable(form.instrument),
-      code: nullable(form.code),
-      code_regex: nullable(form.code_regex),
+      // 按动作只提交相关取值，其余置空（切过动作的旧值不带上，避免落库后自相矛盾）
+      code: form.action === 'REWRITE' ? null : nullable(form.code),
+      code_regex: form.action === 'REWRITE' ? nullable(form.code_regex) : null,
       action: nullable(form.action),
-      usc_literal: nullable(form.usc_literal),
-      rewrite_tpl: nullable(form.rewrite_tpl),
+      usc_literal: form.action === 'LITERAL' ? nullable(form.usc_literal) : null,
+      rewrite_tpl: form.action === 'REWRITE' ? nullable(form.rewrite_tpl) : null,
       effective_from: nullable(form.effective_from),
       effective_to: nullable(form.effective_to),
     }
@@ -1199,12 +1221,6 @@ onBeforeUnmount(stopPolling)
               />
             </v-col>
             <v-col cols="12" md="6">
-              <v-text-field v-model="editForm.code" label="代码（精确匹配）" density="compact" variant="outlined" />
-            </v-col>
-            <v-col cols="12" md="6">
-              <v-text-field v-model="editForm.code_regex" label="正则（与代码二选一）" density="compact" variant="outlined" />
-            </v-col>
-            <v-col cols="12" md="4">
               <v-select
                 v-model="editForm.action"
                 :items="ACTION_OPTIONS"
@@ -1215,11 +1231,51 @@ onBeforeUnmount(stopPolling)
                 hide-details="auto"
               />
             </v-col>
-            <v-col cols="12" md="4">
-              <v-text-field v-model="editForm.usc_literal" label="LITERAL 取值" density="compact" variant="outlined" />
+            <v-col v-if="!isRewriteAction" cols="12" md="6">
+              <v-text-field
+                v-model="editForm.code"
+                label="代码（精确匹配，留空=该市场/品种下全部代码）"
+                density="compact"
+                variant="outlined"
+                hide-details="auto"
+              />
             </v-col>
-            <v-col cols="12" md="4">
-              <v-text-field v-model="editForm.rewrite_tpl" label="REWRITE 替换串" density="compact" variant="outlined" />
+            <v-col cols="12">
+              <v-alert density="compact" variant="tonal" type="info" class="text-caption py-2">
+                {{ actionHint }}
+              </v-alert>
+            </v-col>
+            <!-- 只有「固定取值」动作才需要填字面量 -->
+            <v-col v-if="isLiteralAction" cols="12" md="6">
+              <v-text-field
+                v-model="editForm.usc_literal"
+                label="固定取值 usc *（要用它替换成的那串字面量）"
+                placeholder="例如：US.XRP / ETFXRP / IDX.SPX"
+                density="compact"
+                variant="outlined"
+                hide-details="auto"
+              />
+            </v-col>
+            <!-- 只有「正则改写」动作才需要正则 + 替换模板 -->
+            <v-col v-if="isRewriteAction" cols="12" md="6">
+              <v-text-field
+                v-model="editForm.code_regex"
+                label="代码正则 *（匹配原代码）"
+                placeholder="例如：^\. 或 ^(\d{6})$"
+                density="compact"
+                variant="outlined"
+                hide-details="auto"
+              />
+            </v-col>
+            <v-col v-if="isRewriteAction" cols="12" md="6">
+              <v-text-field
+                v-model="editForm.rewrite_tpl"
+                label="替换模板 *（生成新 usc，捕获组用 $1）"
+                placeholder="例如：SH$1"
+                density="compact"
+                variant="outlined"
+                hide-details="auto"
+              />
             </v-col>
             <v-col cols="12" md="4">
               <v-select
