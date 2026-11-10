@@ -219,6 +219,22 @@
 
 ### 变更
 
+- **补全规范证券参数：时区给缺省值（需求 11165）**
+  - 现状：`timezone` / `tz` 两个字段预填一律留空（「选填，留空即为空」），实际录入时人工并不知道该填什么，
+    新行就没有时区信息。
+  - 三层推断（新增 `internal/meta/finv/quote/cdeu/pending_secu_tz.go`）：
+    1. **交易所级参考**：同 `exchange_code` 已有 `finv_security` 行 `(timezone, tz)` 的众数（来源=参考）；
+    2. **区域级参考**：同 `finv_exchange.region` 已有行的众数（来源=参考）；
+    3. **内置区域映射**：`CN→Asia/Shanghai`、`HK→Asia/Hong_Kong`、`TW/JP/KR/SG/MY/IN/AU/CA/US/CC/FX` 同理，
+       偏移按该 IANA 时区**当前时刻**的偏移推算（来源=字典）。实测 US → `-04:00 / America/New_York`、
+       HK → `+08:00 / Asia/Shanghai`（都命中库内众数）。
+    - 三层都拿不到（`region='N/A'` 等）→ 留空 + 来源=待填 + 风险提示 `时区推断不出来…需人工填写`。
+  - 偏移口径：`timezone` 存 UTC 偏移（`+08:00` / `-04:00`）、`tz` 存 IANA 标识，与 `DataDictMapping/FinvSecurity.md` 一致；
+    美国夏令时按当前时刻给 `-04:00`、冬令时 `-05:00`（库内历史数据恒为 `-04:00`，以参考值优先时保持与存量一致）。
+  - `cmd/server/main.go` 内嵌 `time/tzdata`：不依赖运行环境是否装了 zoneinfo（Windows 开发机、精简镜像都没有）。
+  - 测试：`TestInferSecurityTZ`（三层优先级、区域大小写、印度 `+05:30`、美国冬/夏令时、`N/A` 留空 + 警告、字段顺序与说明）、
+    `TestLiveSecuParamPrefillTZ`（只读：US/HK 待补行的预填时区非空且来源为参考）。
+
 - **修「证券参数补全 → 采集参数」必填校验必然失败（需求 11164）**
   - 现场：点「写入」报 `实时行情快照入参非法: 采集配置缺少必填（market_label / futu_symbol / market_code / market_type / instrument_type / instrument）`。
   - 根因（两层）：

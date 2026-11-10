@@ -249,7 +249,12 @@ SELECT t.stock_id,
        COALESCE(t.market_type, '')                                         AS market_type_raw,
        ref.market_code, ref.sub_instrument_type, ref.instrument,
        sec_conflict.usc  AS security_conflict_usc,
-       col_conflict.usc  AS collect_conflict_usc
+       col_conflict.usc  AS collect_conflict_usc,
+       tz_ex.timezone    AS exchange_tz_offset,
+       tz_ex.tz          AS exchange_tz_name,
+       tz_rg.timezone    AS region_tz_offset,
+       tz_rg.tz          AS region_tz_name,
+       COALESCE(e.region, '') AS exchange_region
   FROM ` + tableRealtimeStock + ` t
   LEFT JOIN public.finv_exchange e
          ON upper(btrim(e.exchange_flag)) = upper(btrim(t.market_label))
@@ -267,6 +272,30 @@ SELECT t.stock_id,
          ORDER BY count(*) DESC, 1
          LIMIT 1
   ) ref ON true
+  -- 时区缺省值（需求 11165）：同交易所已有行的 (timezone, tz) 众数
+  LEFT JOIN LATERAL (
+        SELECT s.timezone, s.tz
+          FROM public.finv_security s
+         WHERE s.exchange_code = e.exchange_code
+           AND NULLIF(btrim(s.timezone), '') IS NOT NULL
+           AND NULLIF(btrim(s.tz), '') IS NOT NULL
+         GROUP BY 1, 2
+         ORDER BY count(*) DESC, 1, 2
+         LIMIT 1
+  ) tz_ex ON true
+  -- 时区缺省值兜底：同区域（finv_exchange.region）已有行的众数
+  LEFT JOIN LATERAL (
+        SELECT s.timezone, s.tz
+          FROM public.finv_security s
+          JOIN public.finv_exchange se ON se.exchange_code = s.exchange_code
+         WHERE se.region = e.region
+           AND btrim(COALESCE(e.region, '')) NOT IN ('', 'N/A')
+           AND NULLIF(btrim(s.timezone), '') IS NOT NULL
+           AND NULLIF(btrim(s.tz), '') IS NOT NULL
+         GROUP BY 1, 2
+         ORDER BY count(*) DESC, 1, 2
+         LIMIT 1
+  ) tz_rg ON true
   -- 唯一约束预检：finv_security 的 (exchange_code, security_code) 已存在但 usc 不同 → 录入会 23505
   LEFT JOIN LATERAL (
         SELECT s.usc
@@ -296,12 +325,18 @@ SELECT t.stock_id,
 		securityConflictUSC, collectConflictUSC     *string
 		refMarketCode, refSubInstrumentType         *int
 		refInstrument                               *string
+		exchangeTZOffset, exchangeTZName            *string
+		regionTZOffset, regionTZName                *string
+		exchangeRegion                              string
 	)
 	if err := s.pool.QueryRow(ctx, stmt, stockID).Scan(
 		&result.StockID, &usc, &stockCode, &name, &marketLabel, &currency,
 		&exchangeCode, &baseCurrency, &instrumentTypeRaw, &marketTypeRaw,
 		&refMarketCode, &refSubInstrumentType, &refInstrument,
 		&securityConflictUSC, &collectConflictUSC,
+		&exchangeTZOffset, &exchangeTZName,
+		&regionTZOffset, &regionTZName,
+		&exchangeRegion,
 	); err != nil {
 		if err == pgx.ErrNoRows {
 			return result, fmt.Errorf("%w: stock_id=%d 不存在", ErrRealtimeStockInvalid, stockID)
@@ -351,10 +386,15 @@ SELECT t.stock_id,
 		{Key: "currency_type", Label: "currency_type 币种", Value: currency,
 			Source: sourceOf(currency != "", PrefillSourceDictionary), Required: true,
 			Note: "快照币种优先，缺失时用 finv_exchange.base_currency（" + baseCurrency + "）"},
-		{Key: "timezone", Label: "timezone 时区", Value: "", Source: PrefillSourceDefault,
-			Note: "选填，留空即为空"},
-		{Key: "tz", Label: "tz 时区缩写", Value: "", Source: PrefillSourceDefault, Note: "选填，留空即为空"},
 	}
+	// 时区：按「交易所 → 区域 → 内置区域映射」三层推断（需求 11165）
+	timezone := inferSecurityTZ(
+		stringOrEmpty(exchangeTZOffset), stringOrEmpty(exchangeTZName),
+		stringOrEmpty(regionTZOffset), stringOrEmpty(regionTZName),
+		exchangeRegion, time.Now(),
+	)
+	result.Security = append(result.Security, timezone.fields()...)
+	result.Warnings = append(result.Warnings, timezone.warnings(exchangeRegion)...)
 
 	// ---- futu.finv_futu_quote_collect ----
 	marketCode, marketCodeSource := 0, PrefillSourceManual
@@ -639,4 +679,12 @@ RETURNING true`,
 			explainUniqueViolation(err, "futu.finv_futu_quote_collect"))
 	}
 	return created, nil
+}
+
+// stringOrEmpty 解引用可空字符串（NULL → 空串），用于时区参考值等可选列。
+func stringOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }

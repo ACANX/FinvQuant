@@ -16,6 +16,9 @@ import (
 	"runtime"
 	"syscall"
 	"time"
+	// 内嵌 IANA 时区库：补全预填要按 IANA 时区推算 UTC 偏移（需求 11165），
+	// 不能依赖运行环境有没有 /usr/share/zoneinfo（Windows 开发机、精简镜像都可能没有）。
+	_ "time/tzdata"
 
 	"github.com/gin-gonic/gin"
 

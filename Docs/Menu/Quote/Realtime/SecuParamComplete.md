@@ -152,6 +152,8 @@ NOT EXISTS (
 | `sub_instrument_type` | `instrument_type * 1000 + 2`（3→3002、4→4002） |
 | `instrument` | 3→stock、4→etf、6→index、7→sectors、11→crypto |
 | `flag_enable` | 默认 `'0'`（停用），核对后再开采集 |
+| `timezone` | **三层推断**（需求 11165）：① 同 `exchange_code` 已有证券行 `(timezone, tz)` 的众数（来源=参考）；② 同 `region` 已有行的众数（来源=参考）；③ 内置「区域 → IANA 时区」映射、偏移按该时区**当前时刻**推算（来源=字典）。三层都拿不到（`region=N/A` 等）时留空、来源=待填并给风险提示。`timezone` 存 UTC 偏移（`+08:00` / `-04:00`） |
+| `tz` | 同上三层推断，存 IANA 标识（`Asia/Shanghai` / `America/New_York`） |
 
 ### 4.4 必填校验的口径（需求 11164）
 

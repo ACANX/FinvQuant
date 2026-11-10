@@ -3,6 +3,7 @@ package cdeu
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -252,4 +253,153 @@ func TestLiveSecuParamCollectComplete(t *testing.T) {
 		t.Fatalf("清理时应删除 1 行，实际 %d 行（请手工核对 usc=%s）", tag.RowsAffected(), result.USC)
 	}
 	t.Logf("已清理测试行 usc=%s", result.USC)
+}
+
+// TestInferSecurityTZ 时区缺省值三层推断（需求 11165）。
+func TestInferSecurityTZ(t *testing.T) {
+	at := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC) // 夏令时期间
+
+	// ① 交易所级参考优先：原样采用库里的 (偏移, IANA)
+	got := inferSecurityTZ("+08:00", "Asia/Shanghai", "-04:00", "America/New_York", "HK", at)
+	if got.Timezone != "+08:00" || got.TZ != "Asia/Shanghai" || got.Source != PrefillSourceReference {
+		t.Fatalf("交易所级参考未优先: %+v", got)
+	}
+	if !strings.Contains(got.Note, "同交易所") {
+		t.Fatalf("说明应指出同交易所众数: %q", got.Note)
+	}
+
+	// ② 交易所无参考 → 区域级参考
+	got = inferSecurityTZ("", "", "-04:00", "America/New_York", "US", at)
+	if got.Timezone != "-04:00" || got.TZ != "America/New_York" || got.Source != PrefillSourceReference {
+		t.Fatalf("区域级参考未生效: %+v", got)
+	}
+	if !strings.Contains(got.Note, "region=US") {
+		t.Fatalf("说明应指出 region: %q", got.Note)
+	}
+
+	// ③ 两级都没有 → 内置区域映射 + 当前时刻偏移
+	cases := []struct {
+		region   string
+		wantTZ   string
+		wantOff  string
+		wantNote string
+	}{
+		{"US", "America/New_York", "-04:00", "America/New_York"}, // 7 月夏令时
+		{"CN", "Asia/Shanghai", "+08:00", "Asia/Shanghai"},
+		{"HK", "Asia/Hong_Kong", "+08:00", "Asia/Hong_Kong"},
+		{"JP", "Asia/Tokyo", "+09:00", "Asia/Tokyo"},
+		{"CC", "Etc/UTC", "+00:00", "Etc/UTC"},
+		{"in", "Asia/Kolkata", "+05:30", "Asia/Kolkata"}, // 大小写不敏感 + 半小时偏移
+	}
+	for _, c := range cases {
+		got := inferSecurityTZ("", "", "", "", c.region, at)
+		if got.TZ != c.wantTZ || got.Timezone != c.wantOff {
+			t.Fatalf("region=%s 推断为 %s/%s，期望 %s/%s", c.region, got.TZ, got.Timezone, c.wantTZ, c.wantOff)
+		}
+		if got.Source != PrefillSourceDictionary {
+			t.Fatalf("region=%s 来源应为 dictionary，实际 %s", c.region, got.Source)
+		}
+		if !strings.Contains(got.Note, c.wantNote) {
+			t.Fatalf("region=%s 说明缺少时区名: %q", c.region, got.Note)
+		}
+	}
+
+	// 美国冬令时应给 -05:00（历史数据恒为 -04:00，这里是按 IANA 实时推算）
+	winter := time.Date(2026, 1, 15, 12, 0, 0, 0, time.UTC)
+	if got := inferSecurityTZ("", "", "", "", "US", winter); got.Timezone != "-05:00" {
+		t.Fatalf("美国冬令时偏移应为 -05:00，实际 %q", got.Timezone)
+	}
+
+	// ④ 区域也没有映射（N/A）→ 留空 + 人工填写 + 风险提示
+	got = inferSecurityTZ("", "", "", "", "N/A", at)
+	if got.Timezone != "" || got.TZ != "" {
+		t.Fatalf("N/A 区域不应推断出值: %+v", got)
+	}
+	if got.Source != PrefillSourceManual {
+		t.Fatalf("N/A 区域来源应为 manual，实际 %s", got.Source)
+	}
+	if len(got.warnings("N/A")) == 0 {
+		t.Fatalf("推断不出时区时应给风险提示")
+	}
+	if len(got.fields()) != 2 {
+		t.Fatalf("应输出 timezone + tz 两个字段")
+	}
+
+	// ⑤ 有推断结果时不该再给风险提示
+	if len(cases) > 0 {
+		if warns := inferSecurityTZ("", "", "", "", "CN", at).warnings("CN"); len(warns) != 0 {
+			t.Fatalf("推断成功时不应给风险提示: %v", warns)
+		}
+	}
+
+	// ⑥ 字段顺序与说明（timezone 存偏移、tz 存 IANA）
+	fields := inferSecurityTZ("", "", "", "", "US", at).fields()
+	if fields[0].Key != "timezone" || fields[0].Value != "-04:00" {
+		t.Fatalf("第一个字段应为 timezone=-04:00，实际 %+v", fields[0])
+	}
+	if fields[1].Key != "tz" || fields[1].Value != "America/New_York" {
+		t.Fatalf("第二个字段应为 tz=America/New_York，实际 %+v", fields[1])
+	}
+	for _, field := range fields {
+		if !strings.Contains(field.Note, "IANA") && !strings.Contains(field.Note, "UTC 偏移") {
+			t.Fatalf("字段说明应写清列口径: %q", field.Note)
+		}
+		if field.Required {
+			t.Fatalf("时区是选填列，不该标必填")
+		}
+	}
+}
+
+// TestLiveSecuParamPrefillTZ 只读核对：补全预填已带时区缺省值（需求 11165）。
+//
+//	FINV_SECU_PARAM_LIVE=1 FINV_TEST_PG_DSN=... go test -run TestLiveSecuParamPrefillTZ -v ./internal/meta/finv/quote/cdeu/
+func TestLiveSecuParamPrefillTZ(t *testing.T) {
+	if os.Getenv("FINV_SECU_PARAM_LIVE") != "1" {
+		t.Skip("未设置 FINV_SECU_PARAM_LIVE=1，跳过只读核对")
+	}
+	dsn := os.Getenv("FINV_TEST_PG_DSN")
+	if dsn == "" {
+		t.Skip("未设置 FINV_TEST_PG_DSN，跳过只读核对")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("连接数据库失败: %v", err)
+	}
+	defer pool.Close()
+	store := NewStore(pool)
+
+	// 各市场各取一条，确认推断值符合该市场的真实时区
+	markets := []string{"US", "HK", "SH", "SZ", "BJ"}
+	for _, market := range markets {
+		_, list, err := store.ListRealtimeStocks(ctx, RealtimeStockListFilter{
+			MissingTarget: SecuParamTargetSecurity, MarketLabel: market, OrderBy: "market_value",
+			Desc: true, Limit: 1,
+		})
+		if err != nil {
+			t.Fatalf("market=%s 查询清单失败: %v", market, err)
+		}
+		if len(list) == 0 {
+			t.Logf("market=%s 没有待补全的行，跳过", market)
+			continue
+		}
+		prefill, err := store.SecuParamPrefill(ctx, SecuParamTargetSecurity, list[0].StockID)
+		if err != nil {
+			t.Fatalf("market=%s 预填失败: %v", market, err)
+		}
+		values := map[string]string{}
+		sources := map[string]string{}
+		for _, field := range prefill.Fields {
+			values[field.Key] = field.Value
+			sources[field.Key] = field.Source
+		}
+		t.Logf("market=%s stock_id=%d usc=%s timezone=%q(%s) tz=%q(%s)",
+			market, list[0].StockID, prefill.USC, values["timezone"], sources["timezone"],
+			values["tz"], sources["tz"])
+		if values["timezone"] == "" || values["tz"] == "" {
+			t.Fatalf("market=%s 的时区仍为空（需求 11165 回归）：timezone=%q tz=%q",
+				market, values["timezone"], values["tz"])
+		}
+	}
 }
