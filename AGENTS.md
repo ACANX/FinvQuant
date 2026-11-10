@@ -78,7 +78,7 @@ FinvQuant 是一个面向多资产的**严格事件驱动量化交易平台**，
 | [`Docs/CheckList/PreDbChangeCheckListSpec.md`](Docs/CheckList/PreDbChangeCheckListSpec.md) | 数据库修改清单（授权/幂等/空库迁移/回滚，DB1–DB20） |
 | [`Docs/CheckList/PreProposalCheckListSpec.md`](Docs/CheckList/PreProposalCheckListSpec.md) | 提案设计清单（骨架十章 + 决策点 + 通过标准，PP1–PP10） |
 | [`Docs/CheckList/PreTechDesignCheckListSpec.md`](Docs/CheckList/PreTechDesignCheckListSpec.md) | 技术方案设计清单（契约/数据结构/回滚/观测，TD1–TD13） |
-| [`Docs/CheckList/PreRefactorCheckListSpec.md`](Docs/CheckList/PreRefactorCheckListSpec.md) | 代码重构清单（行为不变证据/分步可回滚/范围冻结，RF1–RF13） |
+| [`Docs/CheckList/CodeRefactorCheckListSpec.md`](Docs/CheckList/CodeRefactorCheckListSpec.md) | 代码重构清单（行为不变证据/分步可回滚/范围冻结，RF1–RF13） |
 
 ## 工作约定
 

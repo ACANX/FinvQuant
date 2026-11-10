@@ -3220,9 +3220,11 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 新增 `Docs/CheckList/PreDbChangeCheckListSpec.md`：数据库修改专项清单（DB1–DB20：授权、脚本写法、空库/真实库验证、回滚、事故对照） | 11117 | 1 |
 | 新增 `Docs/CheckList/PreProposalCheckListSpec.md`：提案设计清单（十章骨架 + PP1–PP10 + 批准/打回/待定判定 + 存放命名） | 11118 | 1 |
 | 新增 `Docs/CheckList/PreTechDesignCheckListSpec.md`：技术方案设计清单（十二章骨架 + TD1–TD13 + 常见问题） | 11119 | 1 |
-| 新增 `Docs/CheckList/PreRefactorCheckListSpec.md`：代码重构清单（四条原则 + RF1–RF13 + 步骤清单骨架） | 11120 | 1 |
+| 新增 `Docs/CheckList/CodeRefactorCheckListSpec.md`：代码重构清单（四条原则 + RF1–RF13 + 步骤清单骨架） | 11120 | 1 |
 | `PreCommitCheckListSpec.md` §4 路由表改为指向六份专项清单，本文件只保留通用 C 组与事故 R 组 | 11121 | 1 |
-| **合计** | **10001–11121** | **1117**（含 2 条待办） |
+| 检查清单文件名后缀统一为 `CheckListSpec.md`（原 `CheckSpec.md`）：`PreCommit` / `PreMerge` / `PreFrontend` / `PreBackend` / `PreDbChange` / `PreProposal` / `PreTechDesign` / `PreRefactor` 共 8 份 | 11122 | 1 |
+| 代码重构清单文件名由 `PreRefactorCheckListSpec.md` 改为 `CodeRefactorCheckListSpec.md`；命名口径：`Pre*` 用于环节门槛（提交前 / 合并前），`Code*` 用于代码类工作类型 | 11123 | 1 |
+| **合计** | **10001–11123** | **1119**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

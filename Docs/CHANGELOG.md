@@ -202,6 +202,18 @@
 
 ### 变更
 
+- **检查清单文件名后缀统一为 `CheckListSpec.md`（需求 11122）**
+  - `Docs/CheckList/` 下 8 份文件由 `*CheckSpec.md` 改名为 `*CheckListSpec.md`：
+    `PreCommit` / `PreMerge` / `PreFrontend` / `PreBackend` / `PreDbChange` / `PreProposal` / `PreTechDesign` / `PreRefactor`。
+  - 命名口径：`Pre`（环节）+ 主题 + `CheckListSpec.md`；用 `git mv` 保留文件历史。
+  - 同步更新：文件内标题与相互引用、`AGENTS.md`「交付检查清单」索引、`Docs/RequirementList.md`、
+    `Docs/CHANGELOG.md` 中的全部引用路径。
+- **代码重构清单改名 `CodeRefactorCheckListSpec.md`，明确 `Pre` / `Code` 两种前缀口径（需求 11123）**
+  - `Docs/CheckList/PreRefactorCheckListSpec.md` → `Docs/CheckList/CodeRefactorCheckListSpec.md`（`git mv` 保留历史）。
+  - 命名口径补全：`Pre*` 只用于**环节门槛**（提交前 `PreCommit`、合并前 `PreMerge`，将来发布前 `PreRelease`）；
+    代码类**工作类型**清单用 `Code*`（如 `CodeRefactor`），不再强行套 `Pre`。
+  - 同步：文件内标题、`PreCommitCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径。
+
 - **检查清单按工作类型拆分为六份专项清单（需求 11115–11121）**
   - 原先所有条目挤在 `PreCommitCheckListSpec` 里，改前端和后端要翻同一份长清单。现按工作类型各一份，存于 `Docs/CheckList/`：
     - [`PreFrontendCheckListSpec.md`](CheckList/PreFrontendCheckListSpec.md) —— 前端（FE1–FE15）：枚举分层口径、单元格不读下拉 `title`、
@@ -215,7 +227,7 @@
       （背景/证据/目标/非目标/候选含基线/选型/影响面/风险回滚/编号决策点/验收口径）、批准·打回·待定判定、存放命名。
     - [`PreTechDesignCheckListSpec.md`](CheckList/PreTechDesignCheckListSpec.md) —— 技术方案设计（TD1–TD13）：十二章骨架
       （契约/数据结构/时序/迁移/兼容切换/性能/观测/测试策略/回滚）与常见问题。
-    - [`PreRefactorCheckListSpec.md`](CheckList/PreRefactorCheckListSpec.md) —— 代码重构（RF1–RF13）：行为不变证据、范围冻结、
+    - [`CodeRefactorCheckListSpec.md`](CheckList/CodeRefactorCheckListSpec.md) —— 代码重构（RF1–RF13）：行为不变证据、范围冻结、
       分步可回滚、`git mv` 保历史、格式化噪音单独提交、不留两套并行路径、覆盖不下降。
   - [`PreCommitCheckListSpec.md`](CheckList/PreCommitCheckListSpec.md) §4 改为**路由表**，只指向六份专项清单；
     本文件从此只保留通用条目 `C1–C28` 与事故表 `R1–R16`，不再随类型增厚。

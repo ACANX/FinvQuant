@@ -71,7 +71,7 @@ git status --short && git diff --stat
 | 表结构/数据/迁移 | [`PreDbChangeCheckListSpec.md`](PreDbChangeCheckListSpec.md) | C1–C3、C9–C10 |
 | 动手前的方案/选型（要拍板） | [`PreProposalCheckListSpec.md`](PreProposalCheckListSpec.md) | C1–C5、C20 |
 | 已批准后的技术设计 | [`PreTechDesignCheckListSpec.md`](PreTechDesignCheckListSpec.md) | C17–C20 |
-| 不改行为的结构调整 | [`PreRefactorCheckListSpec.md`](PreRefactorCheckListSpec.md) | C1–C3、C6–C10 |
+| 不改行为的结构调整 | [`CodeRefactorCheckListSpec.md`](CodeRefactorCheckListSpec.md) | C1–C3、C6–C10 |
 | 部署/镜像/脚本 | 共用 C 组 + [`PreDbChangeCheckListSpec.md`](PreDbChangeCheckListSpec.md) 的验证段 | C8、C21、R15、R16 |
 | 混合改动 | 取涉及类型并集 | 仍要求「一次提交只装一件事」 |
 
