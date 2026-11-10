@@ -46,6 +46,7 @@ type stockListSecurityMeta struct {
 // loadStockListSecurityMeta 批量补齐 usc 与币种（需求 10993）。
 //
 // 关联顺序：
+//
 //  1. usc：只认 stock_id → futu.finv_futu_quote_collect.usc（最准确，带柜台口径）。
 //     **查不到就保持 NULL，不允许用 stock_code 冒充 usc**——两者并非等价，
 //     直接挪用会把不同市场的同码证券映射错（如 SZ/SH 均有 000001）。
@@ -55,8 +56,10 @@ type stockListSecurityMeta struct {
 //     它是后续补录 `public.finv_security` + `futu.finv_futu_quote_collect`
 //     + `cdeu.finv_quote_cdeu_usc` 三张表的依据，
 //     因此不得回填、不得兜底、不得在写入链路里自动建主数据（需求 10994 的刻意约束）。
+//
 //  2. currency：有 usc 时先查 cdeu.finv_quote_cdeu_usc（主数据），
 //     再查 public.finv_security.currency_type（覆盖面更广）。
+//
 //  3. 仍查不到时按 market_label + 代码规则推导（见 stockListFallbackCurrency）。
 //
 // 背景：moomoo 列表接口不返回币种，usc 也不在响应里，早期实现只写行情字段，

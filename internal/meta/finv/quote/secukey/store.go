@@ -36,7 +36,8 @@ func NewStore(pool *pgxpool.Pool) *Store {
 // `RETURNING (xmax = 0)` 区分本次是插入还是更新：新插入的行 xmax 为 0。
 const upsertBatchSQL = `
 WITH src AS (
-    SELECT btrim(x.ftmm_symbol) AS ftmm_symbol,
+    -- ftmm_symbol 入库统一大写（需求 11143）：此处是最后一道闸，任何调用方都过它
+    SELECT upper(btrim(x.ftmm_symbol)) AS ftmm_symbol,
            btrim(x.market)      AS market,
            btrim(x.code)        AS code,
            btrim(x.instrument)  AS instrument,

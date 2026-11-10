@@ -309,10 +309,10 @@ SELECT count(*) FROM futu.finv_futu_secu_key k
 func TestItemKeyText(t *testing.T) {
 	str := func(s string) *string { return &s }
 	item := Item{
-		RuleNo:    "P40",
-		Market:    str("CC"),
-		Code:      str("XRP"),
-		ScopeEnv:  DefaultEnv,
+		RuleNo:     "P40",
+		Market:     str("CC"),
+		Code:       str("XRP"),
+		ScopeEnv:   DefaultEnv,
 		Instrument: nil,
 	}
 	if got, want := itemKeyText(item), "P40 / market=CC / code=XRP"; got != want {

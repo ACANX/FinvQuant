@@ -158,8 +158,9 @@ WITH elems AS (
     SELECT jsonb_populate_record(NULL::cdeu.finv_quote_secu_indicator, e) AS r,
            e,
            -- 上游原值：usc 为空时用 ftmm_symbol 占位（上游 10,910 行中 3,673 行 usc 为 NULL）
-           COALESCE(NULLIF(btrim(e->>'usc'), ''), btrim(e->>'ftmm_symbol')) AS usc_key,
-           btrim(e->>'ftmm_symbol') AS ftmm_symbol,
+           -- ftmm_symbol 入库统一大写（需求 11143）：usc 占位与后续 join 都用大写形态
+           COALESCE(NULLIF(btrim(e->>'usc'), ''), upper(btrim(e->>'ftmm_symbol'))) AS usc_key,
+           upper(btrim(e->>'ftmm_symbol')) AS ftmm_symbol,
            NULLIF(btrim(e->>'instrument'), '') AS instrument,
            NULLIF(btrim(e->>'market_label'), '') AS market_label,
            COALESCE(NULLIF(e->>'market_type', '')::int, 0) AS market_type,

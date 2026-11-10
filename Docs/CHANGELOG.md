@@ -219,6 +219,22 @@
 
 ### 变更
 
+- **ftmm_symbol 入库统一大写（需求 11143）**
+  - 规则：入库存到 `ftmm_symbol` 的英文字母一律大写，非字母字符（`.` / `,` / `&` / `*` / `-`）原样保留，前后空白去掉。
+  - **写入侧覆盖全部路径**：
+    - 批量 upsert（Tab 1 证券键表同步）——`upsertBatchSQL` 的 `src` CTE 用 `upper(btrim(x.ftmm_symbol))`；
+    - 应用写结果表（USC 预演 → 应用）——`INSERT INTO futu.finv_futu_usc_map` 的 `SELECT upper(d.ftmm_symbol)`；
+    - 指标批量 upsert（FT 证券指标同步）——`src` CTE 的 `ftmm_symbol` 与 `usc` 占位都用 `upper(btrim(...))`；
+    - Go 侧新增 `internal/meta/finv/quote/symbol.Normalize`（去空白 + 大写，附 `TestNormalize`），
+      键表同步在构造 `KeyRow` 时先行归一，日志/计数与落库口径一致。
+  - **存量改写**：`V300181__ftmm_symbol_uppercase.sql` 把键表 / 结果表 / 指标表里含小写的行一次性改大写
+    （实测各 383 / 383 / 0 行），大写后若与既有键撞名先 `RAISE EXCEPTION` 中止交由人工裁决；单事务、幂等、
+    末尾收敛校验「三张表 0 行残留」。归档表 `archive.*` 为历史快照，不改。
+  - **已知取舍**：上游 `public.finv_quote_secu_key` 中 `GL.quote-...` 这类小写键不动，因此 Tab 3
+    「本地 usc 回推上游」会把这些键判成「上游无对应」而跳过（PostgREST `in.(...)` 大小写敏感）；
+    Tab 1 拉回的小写键经写入侧 `upper()` 归一到已有大写行，不会产生重复行。
+  - 已应用：`schema_version = 300181`；三表小写残留 0，行数未变（73,212 / 73,212 / 18,019）。
+
 - **「本地 usc 回推上游」同时回推 priority（需求 11142）**
   - 现象：Tab 3 只回写 `public.finv_quote_secu_key.usc`，上游 `priority` 与本地长期不一致（本地 10/20/25/26 四档，上游多为 26），
     要同步得手工改。

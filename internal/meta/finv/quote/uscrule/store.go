@@ -175,11 +175,11 @@ SELECT COALESCE(count(*) FILTER (WHERE diff = 'insert'), 0)::bigint     AS inser
 // 因此统一走 scanSummary，禁止在调用处各自写 Scan（曾因应用侧少扫 `total` 一列而报
 // 「number of field descriptions must equal number of destinations, got 7 and 6」）。
 type diffSummary struct {
-	Insert   int64
-	Update   int64
-	Keep     int64
-	Retire   int64
-	Reuse    int64
+	Insert    int64
+	Update    int64
+	Keep      int64
+	Retire    int64
+	Reuse     int64
 	Total     int64
 	Escalate  int64
 	KeyUpdate int64
@@ -417,7 +417,8 @@ UPDATE futu.finv_futu_usc_map m
 INSERT INTO futu.finv_futu_usc_map
       (ftmm_symbol, market, code, instrument, usc, rule_no, basis, status, dt_retire,
        reuse_of_ftmm, scope_env, rule_version, dt_compute, dt_first_assign)
-SELECT d.ftmm_symbol, d.market, d.code, d.instrument, d.new_usc, d.rule_no, d.basis,
+-- ftmm_symbol 入库统一大写（需求 11143）
+SELECT upper(d.ftmm_symbol), d.market, d.code, d.instrument, d.new_usc, d.rule_no, d.basis,
        'ACTIVE', NULL, r.from_ftmm,
        current_setting('finv.usc_env'), current_setting('finv.usc_rule_version'), now(), now()
   FROM _usc_diff d

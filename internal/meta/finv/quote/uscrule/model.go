@@ -137,19 +137,19 @@ type DiffRow struct {
 //
 // 与预演明细无关：不依赖预演缓存与令牌，任何时刻都能按键/代码/usc 查。
 type MapRow struct {
-	FtmmSymbol   string  `json:"ftmm_symbol"`
-	Market       string  `json:"market"`
-	Code         string  `json:"code"`
-	Instrument   string  `json:"instrument"`
-	USC          string  `json:"usc"`
-	RuleNo       string  `json:"rule_no"`
-	Basis        string  `json:"basis"`
-	Status       string  `json:"status"`
-	ScopeEnv     string  `json:"scope_env"`
-	RuleVersion  string  `json:"rule_version"`
-	DtCompute    string  `json:"dt_compute"`
-	DtRetire     *string `json:"dt_retire"`
-	ReuseOfFtmm  *string `json:"reuse_of_ftmm"`
+	FtmmSymbol  string  `json:"ftmm_symbol"`
+	Market      string  `json:"market"`
+	Code        string  `json:"code"`
+	Instrument  string  `json:"instrument"`
+	USC         string  `json:"usc"`
+	RuleNo      string  `json:"rule_no"`
+	Basis       string  `json:"basis"`
+	Status      string  `json:"status"`
+	ScopeEnv    string  `json:"scope_env"`
+	RuleVersion string  `json:"rule_version"`
+	DtCompute   string  `json:"dt_compute"`
+	DtRetire    *string `json:"dt_retire"`
+	ReuseOfFtmm *string `json:"reuse_of_ftmm"`
 }
 
 // MapFilter 结果表查询条件（关键字同时匹配 ftmm_symbol / code / usc）。
@@ -226,10 +226,10 @@ type ScheduleConfig struct {
 
 // LogRow 审计日志一行。
 type LogRow struct {
-	IDN       int64   `json:"idn"`
-	SrcTable  string  `json:"src_table"`
-	Action    string  `json:"action"`
-	KeyText   string  `json:"key_text"`
+	IDN      int64  `json:"idn"`
+	SrcTable string `json:"src_table"`
+	Action   string `json:"action"`
+	KeyText  string `json:"key_text"`
 	// 审计对象的键拆成独立字段返回，页面按「主键 / 所属规则」两列展示，不再拼成一段文本（需求 11137）。
 	SrcIDN    *string `json:"src_idn"`     // 条目主键（rule_item 行来自快照 idn）
 	SrcRuleNo *string `json:"src_rule_no"` // 所属规则（条目/结果行来自快照 rule_no）

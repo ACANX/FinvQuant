@@ -37,6 +37,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/acanx/finvquant/internal/meta/finv/sys"
+
+	symbolpkg "github.com/acanx/finvquant/internal/meta/finv/quote/symbol"
 )
 
 // 目标表（显式写 schema，避免 search_path 命中同名表）。
@@ -435,7 +437,8 @@ func prepareRows(rows []SourceRow) (prepared []KeyRow, skipped int, statusReset 
 	prepared = make([]KeyRow, 0, len(rows))
 	indexBySymbol := make(map[string]int, len(rows))
 	for _, row := range rows {
-		symbol := strings.TrimSpace(row.FtmmSymbol)
+		// ftmm_symbol 入库统一大写（需求 11143）：上游小写形态会与大写键并存成两行
+		symbol := symbolpkg.Normalize(row.FtmmSymbol)
 		market := strings.TrimSpace(row.Market)
 		code := strings.TrimSpace(row.Code)
 		instrument := strings.TrimSpace(row.Instrument)

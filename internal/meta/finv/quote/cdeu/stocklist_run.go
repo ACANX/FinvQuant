@@ -203,17 +203,17 @@ func (s *Service) StartStockListRun(opts StockListCollectOptions) (StockListRun,
 	}
 
 	params := map[string]any{
-		"instrument_symbol": normalized.FilterInstrumentSymbol,
-		"market_type":       normalized.FilterMarketType,
-		"count_plan":        normalized.OverrideCountPlan,
-		"page_size":         normalized.PageSize,
-		"page_start":        normalized.PageStart,
-		"interval_ms":       normalized.Interval.Milliseconds(),
-		"max_retries":       normalized.MaxRetries,
-		"retry_backoff_ms":  normalized.RetryBackoff.Milliseconds(),
+		"instrument_symbol":  normalized.FilterInstrumentSymbol,
+		"market_type":        normalized.FilterMarketType,
+		"count_plan":         normalized.OverrideCountPlan,
+		"page_size":          normalized.PageSize,
+		"page_start":         normalized.PageStart,
+		"interval_ms":        normalized.Interval.Milliseconds(),
+		"max_retries":        normalized.MaxRetries,
+		"retry_backoff_ms":   normalized.RetryBackoff.Milliseconds(),
 		"request_timeout_ms": normalized.RequestTimeout.Milliseconds(),
-		"max_pages":         normalized.MaxPages,
-		"continue_on_error": normalized.ContinueOnError,
+		"max_pages":          normalized.MaxPages,
+		"continue_on_error":  normalized.ContinueOnError,
 	}
 	runID, err := s.stockListRunner.begin(params)
 	if err != nil {
@@ -221,7 +221,7 @@ func (s *Service) StartStockListRun(opts StockListCollectOptions) (StockListRun,
 	}
 
 	s.stockListRunner.appendLog(runID, StockListRunLog{
-		Level:   "INFO",
+		Level: "INFO",
 		Message: fmt.Sprintf("任务已启动：每页 %d 条、页间间隔 %s、重试 %d 次",
 			normalized.PageSize, normalized.Interval, normalized.MaxRetries),
 	})
