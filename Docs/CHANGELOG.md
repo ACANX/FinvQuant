@@ -219,6 +219,27 @@
 
 ### 变更
 
+- **修 V300182：数据修复不再阻断启动（回归需求 11094 的教训）**
+  - 故障：远端 `instance-arm-a` 部署后进 systemd 重启循环，每分钟一次，日志
+    `V300182 中止：usc=GDRNext 已被另一行占用（futu_symbol=GDRNext），需人工裁决`。
+  - 根因：我在数据修复脚本里用 `RAISE EXCEPTION` 处理**先决条件冲突**（目标 `usc` 已被另一行占用）。
+    这类冲突在真实数据里完全可能出现，而迁移失败 = 服务起不来 —— 正是需求 11094 已经踩过并写进规范的错误。
+    另外那条错误信息把 `usc` 打成了 `futu_symbol`（格式化参数传错），进一步误导排错。
+  - 修订（改写 `V300182__quote_collect_fix_gdrnext_fx_index.sql`，远端此前未成功应用）：
+
+    | 情形 | 处理 |
+    |------|------|
+    | 匹配到 0 行 | `NOTICE` 本库无该行，跳过 |
+    | 匹配到 >1 行（大小写形态并存） | `NOTICE` + 打印 `stock_id/usc/symbol` 明细，跳过 |
+    | 目标 `usc` 被另一行占用 | `NOTICE` + 打印占用行明细，跳过（不强改主键） |
+    | 其余 | 改基列 + `usc`（`IS DISTINCT FROM` 幂等） |
+
+    结尾只 `NOTICE` 汇总「修正 N 条 / 跳过 M 条」，**不再有任何 `RAISE EXCEPTION`**，迁移恒成功、服务正常启动。
+  - 演练（`finv_rehearse` 复刻远端现场：`HK/gdrnext` 待修 + `GL/GDRNEXT` 已占 `usc=GDRNext`）：
+    脚本全部 `NOTICE` 通过、`fx.EURINDEX` 正常修正、`FX.USDINDEX` 因形态并存跳过并打印两行明细；复跑 0 变更。
+  - 事故登记：`CommitPreCheckListSpec` 的 **R3** 扩写为「数据修复类迁移只有脚本自己刚写的结构可以断言；
+    行数、冲突、跳过一律 `NOTICE` + 跳过，迁移退出码必须为 0」。
+
 - **修正采集属性表三条 GDR / 外汇指数键与 usc（需求 11144）**
   - 问题：直接 `UPDATE futu.finv_futu_quote_collect SET ftmm_symbol = ...` 报
     `column "ftmm_symbol" can only be updated to DEFAULT`——该列是**生成列**
