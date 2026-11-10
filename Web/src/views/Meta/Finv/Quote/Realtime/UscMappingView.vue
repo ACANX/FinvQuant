@@ -773,9 +773,9 @@ const DIFF_LABELS: Record<string, string> = {
   key_update: '键表回写',
 }
 
+// 表格单元格只显示字典的「值」（中文），不带键；`中文[值]` 只用于下拉选项。
 function diffText(diff: string): string {
-  const cn = DIFF_LABELS[diff]
-  return cn ? `${cn}[${diff}]` : diff
+  return DIFF_LABELS[diff] ?? diff
 }
 
 function diffColor(diff: string): string {
@@ -795,29 +795,26 @@ function diffColor(diff: string): string {
   }
 }
 
-// 动作 / 状态 / 品种在列表里显示「值（中文）」，未知值原样显示，避免信息丢失
+// 表格列只显示字典的「值」（中文）；键留给下拉选项与悬浮提示，不占表格空间。
+// 未登记的值原样显示，避免信息丢失。
 function actionText(action?: string | null): string {
   if (!action) return '（规则默认）'
-  const cn = ACTION_LABELS[action]
-  return cn ? `${cn}[${action}]` : action
+  return ACTION_LABELS[action] ?? action
 }
 
 function statusText(value?: string | null): string {
   if (!value) return '—'
-  const cn = STATUS_LABELS[value]
-  return cn ? `${cn}[${value}]` : value
+  return STATUS_LABELS[value] ?? value
 }
 
 function marketText(value?: string | null): string {
   if (!value) return '—'
-  const cn = MARKET_LABELS[value]
-  return cn ? `${cn}[${value}]` : value
+  return MARKET_LABELS[value] ?? value
 }
 
 function instrumentText(value?: string | null): string {
   if (!value) return '—'
-  const cn = INSTRUMENT_LABELS[value]
-  return cn ? `${cn}[${value}]` : value
+  return INSTRUMENT_LABELS[value] ?? value
 }
 
 function statusColor(value: string): string {
@@ -909,7 +906,7 @@ onBeforeUnmount(stopPolling)
                     size="x-small"
                     variant="tonal"
                   >
-                    {{ rule.flag_enable === '1' ? '启用[1]' : '停用[0]' }}
+                    {{ rule.flag_enable === '1' ? '启用' : '停用' }}
                   </v-chip>
                 </td>
                 <td class="text-no-wrap">

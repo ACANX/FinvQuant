@@ -167,12 +167,13 @@ const statusColor = computed(() => {
   }
 })
 
+// 下拉选项用 `中文[值]`；表格单元格只显示 `label`（同样的中文，不带键）
 const modeItems = [
-  { title: '按自然日[date]', value: 'date' },
-  { title: '按 ISO 周[week]', value: 'week' },
-  { title: '按自然月[month]', value: 'month' },
-  { title: '按列值[column]', value: 'column' },
-  { title: '自定义 SQL[expr]', value: 'expr' },
+  { title: '按自然日[date]', label: '按自然日', value: 'date' },
+  { title: '按 ISO 周[week]', label: '按 ISO 周', value: 'week' },
+  { title: '按自然月[month]', label: '按自然月', value: 'month' },
+  { title: '按列值[column]', label: '按列值', value: 'column' },
+  { title: '自定义 SQL[expr]', label: '自定义 SQL', value: 'expr' },
 ]
 
 function emptyRule(): SliceRule {
@@ -351,7 +352,7 @@ function logClass(level: string): string {
 
 function modeText(v: string): string {
   const hit = modeItems.find((item) => item.value === v)
-  return hit ? hit.title : v
+  return hit ? hit.label : v
 }
 
 onMounted(async () => {
