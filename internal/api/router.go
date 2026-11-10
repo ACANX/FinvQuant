@@ -258,6 +258,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 			uscGroup.POST("/Item/Retire", uscMap.ItemRetire)
 			uscGroup.GET("/Diff/Preview", uscMap.DiffPreview)
 			uscGroup.GET("/Diff/Page", uscMap.DiffPage)
+			uscGroup.GET("/Map/Page", uscMap.MapPage)
 			uscGroup.POST("/Sync/Run", uscMap.StartSyncRun)
 			uscGroup.GET("/Sync/Run", uscMap.SyncRunStatus)
 			uscGroup.GET("/Log/List", uscMap.LogList)

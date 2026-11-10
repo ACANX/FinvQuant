@@ -56,10 +56,30 @@ func (s *Service) Preview(ctx context.Context, env string) (Preview, error) {
 	return preview, nil
 }
 
+// diffRowMatch 判断预演明细行是否命中关键字（ftmm_symbol / code / 当前 usc / 新 usc）。
+func diffRowMatch(row DiffRow, kw string) bool {
+	if strings.Contains(strings.ToLower(row.FtmmSymbol), kw) ||
+		strings.Contains(strings.ToLower(row.Code), kw) {
+		return true
+	}
+	if row.CurrentUSC != nil && strings.Contains(strings.ToLower(*row.CurrentUSC), kw) {
+		return true
+	}
+	if row.NewUSC != nil && strings.Contains(strings.ToLower(*row.NewUSC), kw) {
+		return true
+	}
+	return false
+}
+
+// MapPage 分页查询结果表（与预演无关，随时可用）。
+func (s *Service) MapPage(ctx context.Context, filter MapFilter) ([]MapRow, int64, error) {
+	return s.store.ListMapRows(ctx, filter)
+}
+
 // DiffPage 分页读取最近一次预演的明细。
 //
 // diff 为空表示全部（不含 keep）；token 非空时必须与缓存令牌一致，避免「预演 → 改了规则 → 还在看旧明细」。
-func (s *Service) DiffPage(token, diff string, page, pageSize int) ([]DiffRow, int, string, error) {
+func (s *Service) DiffPage(token, diff, keyword string, page, pageSize int) ([]DiffRow, int, string, error) {
 	s.mu.Lock()
 	rows := s.cached
 	at := s.cacheAt
@@ -76,13 +96,20 @@ func (s *Service) DiffPage(token, diff string, page, pageSize int) ([]DiffRow, i
 		return nil, 0, "", fmt.Errorf("预演令牌不匹配（可能是重新预演或服务重启），请刷新后重试")
 	}
 
+	// 关键字同时匹配 ftmm_symbol / code / 当前 usc / 新 usc（大小写不敏感），
+	// 几万条明细里直接定位某一只证券，不用翻页。
+	kw := strings.ToLower(strings.TrimSpace(keyword))
 	filtered := rows
-	if diff != "" {
+	if diff != "" || kw != "" {
 		filtered = make([]DiffRow, 0, len(rows))
 		for _, row := range rows {
-			if row.Diff == diff {
-				filtered = append(filtered, row)
+			if diff != "" && row.Diff != diff {
+				continue
 			}
+			if kw != "" && !diffRowMatch(row, kw) {
+				continue
+			}
+			filtered = append(filtered, row)
 		}
 	}
 	page, pageSize = normalizePager(page, pageSize)

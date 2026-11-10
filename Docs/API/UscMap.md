@@ -106,9 +106,25 @@
 |------|------|
 | `token` | 预演令牌；与缓存不一致（重新预演过 / 服务重启）返回 400，提示重新预演 |
 | `diff` | `insert` / `update` / `retire` / `key_update`；空 = 全部（`keep` 不返回） |
+| `keyword` | 关键字，大小写不敏感地匹配 `ftmm_symbol` / `code` / 当前 usc / 新 usc（几万条里直接定位一只证券，不用翻页） |
 | `page` / `pageSize` | 分页，页大小上限 200 |
 
 缓存有效期 **30 分钟**，重新预演会整体替换；服务重启后失效。返回体含 `total`（该类别总数）与 `preview_token`。
+
+### 3.3.2 `GET /Map/Page`
+
+**结果表随时查询**，与预演无关（不需要先预演、也不受预演缓存的 30 分钟有效期限制）：
+直接分页读 `futu.finv_futu_usc_map`（预演与应用写入的在册映射）。
+
+| 参数 | 说明 |
+|------|------|
+| `keyword` | 关键字，大小写不敏感地匹配 `ftmm_symbol` / `code` / `usc`（例如 `US.XRP`、`XRP`、`ETFXRP`） |
+| `market` | 市场标签精确匹配（`US` / `SH` / `…`）；空 = 全部 |
+| `status` | `ACTIVE` / `RETIRED`；空 = 全部 |
+| `page` / `pageSize` | 分页，页大小上限 200 |
+
+返回 `total` + `list`（`ftmm_symbol` / `market` / `code` / `instrument` / `usc` / `rule_no` / `basis` /
+`status` / `scope_env` / `rule_version` / `dt_compute` / `dt_retire` / `reuse_of_ftmm`）。
 
 ### 3.4 `POST /Sync/Run`
 

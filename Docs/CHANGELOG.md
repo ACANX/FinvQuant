@@ -202,6 +202,23 @@
 
 ### 变更
 
+- **「预演与应用」支持按 ftmm_symbol / code / usc 检索，并可直接查结果表（需求 11103）**
+  - 原先只有「类别」过滤 + 翻页：7 万条差异里找一只证券要翻几百页；而且**结果表里的在册映射平时看不到**
+    （只有预演差异里有，`keep` 行根本不返回）。
+  - 后端：
+    - `GET /Diff/Page` 增加 `keyword`，大小写不敏感地匹配 `ftmm_symbol` / `code` / 当前 usc / 新 usc
+      （在服务端缓存的全量明细上过滤，命中数随 `total` 返回）。
+    - 新增 `GET /Map/Page`：分页查询 `futu.finv_futu_usc_map`，支持 `keyword`（ftmm_symbol / code / usc）、
+      `market`、`status`，**不依赖预演缓存与令牌**，任何时刻可用（`Store.ListMapRows` + `Service.MapPage` + `MapRow` 模型）。
+  - 前端：Tab 2 顶部加「本次预演明细 / 结果表查询（随时）」切换 +
+    关键字输入框（回车或「查询」触发，清空即复位）；结果表页签另有状态过滤、命中数与独立分页，
+    列含 ftmm_symbol / 市场 / 代码 / 品种 / usc / 命中规则 / 依据 / 状态 / 计算时间。
+  - 验证：`TestPreviewLive` 扩充 —— 明细关键字按 `ftmm_symbol`、`code` 各检索一次必须命中同一行；
+    `MapPage` 按 `ftmm_symbol` 查询必须至少命中 1 行（在克隆库注入漂移行后实测 `key_update=1`、
+    两次关键字检索均命中、结果表检索命中 1 行）。
+  - 文档：`Docs/API/UscMap.md` §3.3.1 补 `keyword`、新增 §3.3.2 `GET /Map/Page`；`UscMap.yml` 补该端点与
+    `diff` 枚举 `key_update`；菜单文档 Tab 2 补「查询与定位」表。
+
 - **USC 条目编辑对话框：取值输入随「动作」联动，去掉英文术语标题（需求 11102）**
   - 问题：原先四个输入框（动作 / `LITERAL 取值` / `REWRITE 替换串` / 正则）一次性全摊开，
     标题直接写 `LITERAL`、`REWRITE` 这种规则内部术语，不知道的人只能瞎填。

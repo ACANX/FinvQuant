@@ -165,7 +165,8 @@ paths:
         token 必须与最近一次预演一致（否则 400，提示重新预演）。
       parameters:
         - { name: token, in: query, schema: { type: string } }
-        - { name: diff, in: query, schema: { type: string, enum: [insert, update, retire] } }
+        - { name: diff, in: query, schema: { type: string, enum: [insert, update, retire, key_update] } }
+        - { name: keyword, in: query, schema: { type: string }, description: 同时匹配 ftmm_symbol / code / 当前 usc / 新 usc }
         - { name: page, in: query, schema: { type: integer, default: 1 } }
         - { name: pageSize, in: query, schema: { type: integer, default: 20, maximum: 200 } }
       responses:
@@ -187,6 +188,34 @@ paths:
                       list: { type: array, items: { type: object } }
         '400': { description: 无预演缓存 / 缓存过期 / 令牌不匹配 }
 
+  /Meta/Finv/Quote/UscMap/Map/Page:
+    get:
+      summary: 分页查询结果表（随时可用，不依赖预演）
+      operationId: uscMapMapPage
+      tags: [UscMap]
+      parameters:
+        - { name: keyword, in: query, schema: { type: string }, description: 同时匹配 ftmm_symbol / code / usc }
+        - { name: market, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string, enum: [ACTIVE, RETIRED] } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, default: 20 } }
+      responses:
+        '200':
+          description: 查询完成
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, const: 0 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      list: { type: array, items: { type: object } }
   /Meta/Finv/Quote/UscMap/Sync/Run:
     post:
       summary: 异步应用（带预演令牌）

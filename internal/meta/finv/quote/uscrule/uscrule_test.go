@@ -124,7 +124,7 @@ func TestPreviewLive(t *testing.T) {
 	}
 
 	// 完整明细分页：预演只回前 200 行，Diff/Page 必须能看到后面的行。
-	rows, total, token, err := service.DiffPage("", "", 1, 50)
+	rows, total, token, err := service.DiffPage("", "", "", 1, 50)
 	if err != nil {
 		t.Fatalf("读取预演明细分页失败: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestPreviewLive(t *testing.T) {
 	}
 
 	// 第 2 页必须与第 1 页不重复（证明能翻到 200 行之后）
-	rows2, _, _, err := service.DiffPage("", "", 2, 50)
+	rows2, _, _, err := service.DiffPage("", "", "", 2, 50)
 	if err != nil {
 		t.Fatalf("读取第 2 页失败: %v", err)
 	}
@@ -149,9 +149,43 @@ func TestPreviewLive(t *testing.T) {
 		t.Errorf("第 2 页首行与第 1 页相同（%s），分页没生效", rows2[0].FtmmSymbol)
 	}
 
+	// 关键字检索：按 ftmm_symbol / code / usc 都能命中同一只证券（不必翻页）
+	if total > 0 && len(rows) > 0 {
+		probe := rows[0]
+		// 结果表随时查询（不依赖预演缓存/令牌）：按 ftmm_symbol 关键字应能直接定位这一条
+		mapRows, mapTotal, err := service.MapPage(context.Background(),
+			MapFilter{Keyword: probe.FtmmSymbol, Page: 1, PageSize: 10})
+		if err != nil {
+			t.Fatalf("查询结果表失败: %v", err)
+		}
+		if mapTotal < 1 || len(mapRows) == 0 {
+			t.Errorf("结果表按 %s 查询应至少命中 1 行，实际 %d", probe.FtmmSymbol, mapTotal)
+		}
+		t.Logf("结果表检索：%s 命中 %d 行", probe.FtmmSymbol, mapTotal)
+		for _, kw := range []string{probe.FtmmSymbol, probe.Code} {
+			if kw == "" {
+				continue
+			}
+			hits, hitsTotal, _, err := service.DiffPage("", "", kw, 1, 50)
+			if err != nil {
+				t.Fatalf("关键字预演明细检索失败（%s）: %v", kw, err)
+			}
+			found := false
+			for _, row := range hits {
+				if row.FtmmSymbol == probe.FtmmSymbol {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("关键字 %q 未命中 %s（命中 %d 条 / 共 %d 条）",
+					kw, probe.FtmmSymbol, len(hits), hitsTotal)
+			}
+		}
+	}
+
 	// 末页：翻过 200 行（预演响应上限）之外仍应有数据
 	lastPage := (total + 199) / 200
-	rowsLast, _, _, err := service.DiffPage("", "", lastPage, 200)
+	rowsLast, _, _, err := service.DiffPage("", "", "", lastPage, 200)
 	if err != nil {
 		t.Fatalf("读取末页失败: %v", err)
 	}

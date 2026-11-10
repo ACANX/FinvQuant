@@ -138,6 +138,31 @@ func (h *UscMap) ItemRetire(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "已停用", "data": gin.H{"idn": req.IDN}})
 }
 
+// MapPage GET /Meta/Finv/Quote/UscMap/Map/Page。
+//
+// 随时查询结果表（`futu.finv_futu_usc_map`）在册映射，不依赖预演缓存/令牌；
+// keyword 同时匹配 ftmm_symbol / code / usc，几万条里直接定位某一只证券。
+func (h *UscMap) MapPage(c *gin.Context) {
+	page, pageSize := parseCamelPager(c)
+	rows, total, err := h.service.MapPage(c.Request.Context(), uscrule.MapFilter{
+		Keyword:  c.Query("keyword"),
+		Market:   c.Query("market"),
+		Status:   c.Query("status"),
+		Page:     page,
+		PageSize: pageSize,
+	})
+	if err != nil {
+		log.Printf("[usc] api map page failed err=%v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "查询结果表失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "查询完成",
+		"data":    gin.H{"total": total, "page": page, "pageSize": pageSize, "list": rows},
+	})
+}
+
 // DiffPreview GET /Meta/Finv/Quote/UscMap/Diff/Preview。
 //
 // 不落库：算完差异整体回滚，返回计数 + 明细（最多 200 行）+ preview_token。
@@ -195,7 +220,8 @@ func (h *UscMap) ScheduleSave(c *gin.Context) {
 // 参数：token（预演令牌，可选）、diff（insert/update/retire/reuse，空=全部）、page、pageSize。
 func (h *UscMap) DiffPage(c *gin.Context) {
 	page, pageSize := parseCamelPager(c)
-	rows, total, token, err := h.service.DiffPage(c.Query("token"), c.Query("diff"), page, pageSize)
+	rows, total, token, err := h.service.DiffPage(
+		c.Query("token"), c.Query("diff"), c.Query("keyword"), page, pageSize)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return

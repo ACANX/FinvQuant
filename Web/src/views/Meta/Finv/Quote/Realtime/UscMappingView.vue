@@ -170,6 +170,23 @@ interface Preview {
   conflicts: string[]
 }
 
+// 结果表（futu.finv_futu_usc_map）一行：随时查询在册映射，不依赖预演缓存
+interface MapRow {
+  ftmm_symbol: string
+  market: string
+  code: string
+  instrument: string
+  usc: string
+  rule_no: string
+  basis: string
+  status: string
+  scope_env: string
+  rule_version: string
+  dt_compute: string
+  dt_retire: string | null
+  reuse_of_ftmm: string | null
+}
+
 interface RunLog {
   seq: number
   time: string
@@ -281,6 +298,16 @@ const previewing = ref(false)
 // 页面通过 /Diff/Page 分页浏览，避免「说有 7 万条却只能看到一页」。
 const diffRows = ref<DiffRow[]>([])
 const diffTotal = ref(0)
+// 明细/结果表查询：关键字同时匹配 ftmm_symbol / code / usc，几万条里直接定位一只证券
+const diffKeyword = ref('')
+const diffMode = ref<'preview' | 'map'>('preview')
+const mapRows = ref<MapRow[]>([])
+const mapTotal = ref(0)
+const mapPage = ref(1)
+const mapPageSize = ref(50)
+const mapKeyword = ref('')
+const mapStatus = ref('')
+const mapLoading = ref(false)
 const diffPage = ref(1)
 const diffPageSize = ref(50)
 const diffFilter = ref('')
@@ -564,6 +591,34 @@ async function doPreview() {
   }
 }
 
+// 结果表查询：任何时刻都能用（不需要先预演）
+async function loadMapPage() {
+  mapLoading.value = true
+  try {
+    const query = new URLSearchParams({
+      page: String(mapPage.value),
+      pageSize: String(mapPageSize.value),
+    })
+    if (mapKeyword.value.trim()) query.set('keyword', mapKeyword.value.trim())
+    if (mapStatus.value) query.set('status', mapStatus.value)
+    const data = await apiGet<{ list: MapRow[]; total: number }>(`${BASE}/Map/Page?${query.toString()}`)
+    mapRows.value = data.list ?? []
+    mapTotal.value = data.total ?? 0
+  } catch (err) {
+    showToast(`查询结果表失败：${(err as Error).message}`, 'error')
+  } finally {
+    mapLoading.value = false
+  }
+}
+
+async function switchDiffMode(mode: 'preview' | 'map') {
+  diffMode.value = mode
+  if (mode === 'map' && mapRows.value.length === 0) {
+    mapPage.value = 1
+    await loadMapPage()
+  }
+}
+
 async function loadDiffPage() {
   if (!preview.value) return
   const query = new URLSearchParams({
@@ -572,6 +627,7 @@ async function loadDiffPage() {
     token: preview.value.preview_token,
   })
   if (diffFilter.value) query.set('diff', diffFilter.value)
+  if (diffKeyword.value.trim()) query.set('keyword', diffKeyword.value.trim())
   diffLoading.value = true
   try {
     const data = await apiGet<{ list: DiffRow[]; total: number }>(`${BASE}/Diff/Page?${query.toString()}`)
@@ -996,7 +1052,70 @@ onBeforeUnmount(stopPolling)
             存在无法自动消解的 usc 冲突，应用会被拒绝：{{ preview.conflicts.join('；') }}
           </v-alert>
 
-          <div v-if="preview" class="d-flex flex-wrap align-center ga-2 mb-2">
+          <div class="d-flex flex-wrap align-center ga-2 mb-2">
+            <v-btn-toggle
+              :model-value="diffMode"
+              density="compact"
+              variant="outlined"
+              divided
+              mandatory
+              @update:model-value="(v) => switchDiffMode((v as 'preview' | 'map') ?? 'preview')"
+            >
+              <v-btn value="preview" size="small" prepend-icon="mdi-diff">本次预演明细</v-btn>
+              <v-btn value="map" size="small" prepend-icon="mdi-database-search">结果表查询（随时）</v-btn>
+            </v-btn-toggle>
+            <v-text-field
+              v-if="diffMode === 'preview'"
+              v-model="diffKeyword"
+              label="按 ftmm_symbol / code / usc 查明细"
+              density="compact"
+              variant="outlined"
+              hide-details
+              clearable
+              prepend-inner-icon="mdi-magnify"
+              style="max-width: 320px"
+              @keyup.enter="diffPage = 1; loadDiffPage()"
+              @click:clear="diffPage = 1; loadDiffPage()"
+            />
+            <v-text-field
+              v-else
+              v-model="mapKeyword"
+              label="按 ftmm_symbol / code / usc 查结果表"
+              density="compact"
+              variant="outlined"
+              hide-details
+              clearable
+              prepend-inner-icon="mdi-magnify"
+              style="max-width: 320px"
+              @keyup.enter="mapPage = 1; loadMapPage()"
+              @click:clear="mapPage = 1; loadMapPage()"
+            />
+            <v-select
+              v-if="diffMode === 'map'"
+              v-model="mapStatus"
+              :items="[
+                { title: '全部状态', value: '' },
+                { title: '生效[ACTIVE]', value: 'ACTIVE' },
+                { title: '已停用[RETIRED]', value: 'RETIRED' },
+              ]"
+              density="compact"
+              variant="outlined"
+              hide-details
+              style="max-width: 170px"
+              @update:model-value="mapPage = 1; loadMapPage()"
+            />
+            <v-btn
+              size="small"
+              variant="tonal"
+              prepend-icon="mdi-magnify"
+              :loading="diffMode === 'preview' ? diffLoading : mapLoading"
+              @click="diffMode === 'preview' ? (diffPage = 1, loadDiffPage()) : (mapPage = 1, loadMapPage())"
+            >
+              查询
+            </v-btn>
+          </div>
+
+          <div v-if="preview && diffMode === 'preview'" class="d-flex flex-wrap align-center ga-2 mb-2">
             <v-select
               v-model="diffFilter"
               :items="[
@@ -1025,7 +1144,7 @@ onBeforeUnmount(stopPolling)
             {{ diffHint }}
           </v-alert>
 
-          <v-table v-if="preview" density="compact" class="usc-table mb-3">
+          <v-table v-if="preview && diffMode === 'preview'" density="compact" class="usc-table mb-3">
             <thead>
               <tr>
                 <th>类别</th>
@@ -1061,7 +1180,10 @@ onBeforeUnmount(stopPolling)
             </tbody>
           </v-table>
 
-          <div v-if="preview && diffTotal > 0" class="d-flex align-center justify-end ga-2 mb-3">
+          <div
+            v-if="preview && diffMode === 'preview' && diffTotal > 0"
+            class="d-flex align-center justify-end ga-2 mb-3"
+          >
             <v-pagination
               v-model="diffPage"
               :length="Math.max(1, Math.ceil(diffTotal / diffPageSize))"
@@ -1070,6 +1192,62 @@ onBeforeUnmount(stopPolling)
               @update:model-value="loadDiffPage"
             />
           </div>
+
+          <!-- 结果表查询：不依赖预演，任何时候都能按 ftmm_symbol / code / usc 定位一只证券 -->
+          <template v-if="diffMode === 'map'">
+            <v-alert type="info" density="compact" variant="tonal" class="mb-2 text-caption">
+              `futu.finv_futu_usc_map` 在册映射（预演与应用写入的结果）。关键字同时匹配
+              ftmm_symbol / code / usc，例如输入 <code>US.XRP</code>、<code>XRP</code> 或 <code>ETFXRP</code>。
+            </v-alert>
+            <v-table density="compact" class="usc-table mb-3">
+              <thead>
+                <tr>
+                  <th>ftmm_symbol</th>
+                  <th>市场</th>
+                  <th>代码</th>
+                  <th>品种</th>
+                  <th>usc</th>
+                  <th>命中规则</th>
+                  <th>依据</th>
+                  <th>状态</th>
+                  <th>计算时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in mapRows" :key="row.ftmm_symbol">
+                  <td>{{ row.ftmm_symbol }}</td>
+                  <td>{{ marketText(row.market) }}</td>
+                  <td>{{ row.code }}</td>
+                  <td>{{ instrumentText(row.instrument) }}</td>
+                  <td><strong>{{ row.usc }}</strong></td>
+                  <td>{{ row.rule_no }}</td>
+                  <td class="text-caption">{{ row.basis }}</td>
+                  <td>
+                    <v-chip :color="statusColor(row.status)" size="x-small" variant="tonal">
+                      {{ statusText(row.status) }}
+                    </v-chip>
+                  </td>
+                  <td class="text-caption">{{ row.dt_compute || '—' }}</td>
+                </tr>
+                <tr v-if="mapRows.length === 0">
+                  <td colspan="9" class="text-center text-medium-emphasis">
+                    {{ mapLoading ? '加载中…' : '没有符合条件的在册映射' }}
+                  </td>
+                </tr>
+              </tbody>
+            </v-table>
+            <div class="d-flex align-center justify-end ga-2 mb-3">
+              <span class="text-caption text-medium-emphasis">命中 {{ mapTotal }} 条</span>
+              <v-pagination
+                v-model="mapPage"
+                :length="Math.max(1, Math.ceil(mapTotal / mapPageSize))"
+                :total-visible="7"
+                density="compact"
+                @update:model-value="loadMapPage"
+              />
+              <v-btn size="small" variant="text" prepend-icon="mdi-refresh" @click="loadMapPage">刷新</v-btn>
+            </div>
+          </template>
 
           <v-card v-if="run" variant="tonal" class="mt-2">
             <v-card-title class="text-subtitle-1 d-flex align-center ga-2">

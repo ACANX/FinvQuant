@@ -119,6 +119,34 @@ type DiffRow struct {
 	ReuseOf    *string `json:"reuse_of_ftmm,omitempty"`
 }
 
+// MapRow 结果表（futu.finv_futu_usc_map）一行，供「预演与应用」页随时查询在册映射。
+//
+// 与预演明细无关：不依赖预演缓存与令牌，任何时刻都能按键/代码/usc 查。
+type MapRow struct {
+	FtmmSymbol   string  `json:"ftmm_symbol"`
+	Market       string  `json:"market"`
+	Code         string  `json:"code"`
+	Instrument   string  `json:"instrument"`
+	USC          string  `json:"usc"`
+	RuleNo       string  `json:"rule_no"`
+	Basis        string  `json:"basis"`
+	Status       string  `json:"status"`
+	ScopeEnv     string  `json:"scope_env"`
+	RuleVersion  string  `json:"rule_version"`
+	DtCompute    string  `json:"dt_compute"`
+	DtRetire     *string `json:"dt_retire"`
+	ReuseOfFtmm  *string `json:"reuse_of_ftmm"`
+}
+
+// MapFilter 结果表查询条件（关键字同时匹配 ftmm_symbol / code / usc）。
+type MapFilter struct {
+	Keyword  string
+	Market   string
+	Status   string
+	Page     int
+	PageSize int
+}
+
 // Preview 预演结果（不落库）。
 type Preview struct {
 	Env          string    `json:"env"`

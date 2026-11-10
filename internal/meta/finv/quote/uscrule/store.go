@@ -551,6 +551,66 @@ SELECT r.rule_no, r.rule_name, r.rule_type, r.priority, r.match_scope, r.default
 	return out, rows.Err()
 }
 
+// ListMapRows 结果表分页查询：关键字同时匹配 ftmm_symbol / code / usc（大小写不敏感）。
+//
+// 「预演与应用」页要能在几万条差异里直接定位某一只证券，不必翻页。
+func (s *Store) ListMapRows(ctx context.Context, filter MapFilter) ([]MapRow, int64, error) {
+	page, pageSize := normalizePager(filter.Page, filter.PageSize)
+	args := make([]any, 0, 4)
+	where := make([]string, 0, 4)
+	if kw := strings.TrimSpace(filter.Keyword); kw != "" {
+		args = append(args, "%"+kw+"%")
+		n := len(args)
+		where = append(where, fmt.Sprintf(
+			"(ftmm_symbol ILIKE $%d OR code ILIKE $%d OR usc ILIKE $%d)", n, n, n))
+	}
+	if v := strings.TrimSpace(filter.Market); v != "" {
+		args = append(args, v)
+		where = append(where, fmt.Sprintf("market = $%d", len(args)))
+	}
+	if v := strings.TrimSpace(filter.Status); v != "" {
+		args = append(args, v)
+		where = append(where, fmt.Sprintf("status = $%d", len(args)))
+	}
+	clause := "TRUE"
+	if len(where) > 0 {
+		clause = strings.Join(where, " AND ")
+	}
+
+	var total int64
+	if err := s.pool.QueryRow(ctx,
+		`SELECT count(*) FROM futu.finv_futu_usc_map WHERE `+clause, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("统计结果表失败: %w", err)
+	}
+
+	args = append(args, pageSize, (page-1)*pageSize)
+	rows, err := s.pool.Query(ctx, fmt.Sprintf(`
+SELECT ftmm_symbol, market, code, instrument, usc, rule_no, basis, status, scope_env, rule_version,
+       to_char(dt_compute, 'YYYY-MM-DD HH24:MI:SS'),
+       to_char(dt_retire, 'YYYY-MM-DD HH24:MI:SS'),
+       reuse_of_ftmm
+  FROM futu.finv_futu_usc_map
+ WHERE %s
+ ORDER BY ftmm_symbol
+ LIMIT $%d OFFSET $%d`, clause, len(args)-1, len(args)), args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("查询结果表失败: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]MapRow, 0, pageSize)
+	for rows.Next() {
+		var row MapRow
+		if err := rows.Scan(&row.FtmmSymbol, &row.Market, &row.Code, &row.Instrument, &row.USC,
+			&row.RuleNo, &row.Basis, &row.Status, &row.ScopeEnv, &row.RuleVersion,
+			&row.DtCompute, &row.DtRetire, &row.ReuseOfFtmm); err != nil {
+			return nil, 0, fmt.Errorf("读取结果表行失败: %w", err)
+		}
+		out = append(out, row)
+	}
+	return out, total, rows.Err()
+}
+
 // ListItems 条目分页查询。
 func (s *Store) ListItems(ctx context.Context, filter ItemFilter) ([]Item, int64, error) {
 	page, pageSize := normalizePager(filter.Page, filter.PageSize)
