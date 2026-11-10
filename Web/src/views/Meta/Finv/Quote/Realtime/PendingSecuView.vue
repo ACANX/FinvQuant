@@ -72,6 +72,25 @@ const MARKET_OPTIONS = [
   { title: 'US', value: 'US' },
 ]
 
+// 富途 instrument_type 字典（口径取自 futu.finv_futu_quote_collect 实际数据：
+// 3=stock / 4=etf / 6=index / 7=sectors / 9=futures / 11=crypto / 12=stock）。
+// 表格列只显示中文（DictColumnSpec），未登记的值原样显示，空值显示 —。
+const INSTRUMENT_TYPE_LABELS: Record<string, string> = {
+  '3': '股票',
+  '4': 'ETF',
+  '6': '指数',
+  '7': '板块',
+  '9': '期货',
+  '11': '加密货币',
+  '12': '股票',
+}
+
+function instrumentTypeText(value: string | null | undefined): string {
+  const key = String(value ?? '').trim()
+  if (!key) return '—'
+  return INSTRUMENT_TYPE_LABELS[key] ?? key
+}
+
 const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
 // ---- 手动补录 usc（需求 11146）----
@@ -235,7 +254,7 @@ onMounted(load)
     <v-card-text>
       <v-alert type="info" density="compact" variant="tonal" class="mb-3">
         列表口径：先用<strong>派生键</strong> <code>ftmm_symbol = upper(市场标签 || '.' || 代码)</code>
-        关联 <code>futu.finv_futu_secu_key</code> 补一次 <code>usc</code>（本页「派生键」列即该值），
+        关联 <code>futu.finv_futu_secu_key</code> 补一次 <code>usc</code>（本页「唯一标识」列即该值），
         <strong>补完仍为空</strong>的才列在这里 —— 键表里已登记的证券不会被当成待录入。
         上面这一步只是「查询时判定」，不写库；要把 <code>usc</code> 真正写回快照表，点<strong>「手动补录USC」</strong>。
         注意 usc 为空是<strong>刻意保留的观测信号</strong>，不要用 stock_code 直接回填：两者并非等价，
@@ -292,7 +311,7 @@ onMounted(load)
         />
         <v-btn color="primary" prepend-icon="mdi-magnify" @click="search">查询</v-btn>
         <v-tooltip
-          text="按派生键 ftmm_symbol（市场标签.代码，大写）关联 futu.finv_futu_secu_key，把 usc 为空（NULL / 空白）的快照行就地补上；键表里没有对应证券的行保持不动，仍是待录入。可反复点击（幂等）"
+          text="按唯一标识 ftmm_symbol（市场标签.代码，大写）关联 futu.finv_futu_secu_key，把 usc 为空（NULL / 空白）的快照行就地补上；键表里没有对应证券的行保持不动，仍是待录入。可反复点击（幂等）"
           location="bottom"
           max-width="420"
         >
@@ -327,7 +346,16 @@ onMounted(load)
             <th class="text-no-wrap">代码</th>
             <th class="text-no-wrap">名称</th>
             <th class="text-no-wrap">市场</th>
-            <th class="text-no-wrap">派生键 ftmm_symbol</th>
+            <th class="text-no-wrap">
+              <v-tooltip text="唯一标识 = upper(市场标签.代码)，与 futu.finv_futu_secu_key.ftmm_symbol 同口径；本页 usc 尚未补全，可据此核对补录后将写入的 usc" location="bottom" max-width="360">
+                <template #activator="{ props: tipProps }">
+                  <span v-bind="tipProps" class="d-inline-flex align-center">
+                    唯一标识
+                    <v-icon icon="mdi-information-outline" size="14" class="ml-1 text-medium-emphasis" />
+                  </span>
+                </template>
+              </v-tooltip>
+            </th>
             <th class="text-no-wrap">品种类型</th>
             <th class="text-no-wrap">币种</th>
             <th class="text-no-wrap text-right">现价</th>
@@ -344,7 +372,7 @@ onMounted(load)
           <tr v-for="row in rows" :key="row.stock_id" :class="rowClass(row.price_direct)">
             <td class="text-no-wrap">
               <template v-if="row.usc">{{ row.usc }}</template>
-              <v-tooltip v-else text="快照 usc 仍为空（本页只列补全后仍为空的证券）；补录后将写入的值见「派生键 ftmm_symbol」列" location="bottom" max-width="360">
+              <v-tooltip v-else text="快照 usc 仍为空（本页只列补全后仍为空的证券）；补录后将写入的值见「唯一标识」列" location="bottom" max-width="360">
                 <template #activator="{ props: tipProps }">
                   <span v-bind="tipProps" class="text-medium-emphasis">—</span>
                 </template>
@@ -355,7 +383,7 @@ onMounted(load)
             <td class="text-no-wrap">{{ row.name || '—' }}</td>
             <td class="text-no-wrap">{{ row.market_label || '—' }}</td>
             <td class="text-no-wrap"><code>{{ row.ftmm_symbol || '—' }}</code></td>
-            <td class="text-no-wrap">{{ row.instrument_type || '—' }}</td>
+            <td class="text-no-wrap">{{ instrumentTypeText(row.instrument_type) }}</td>
             <td class="text-no-wrap">{{ row.currency || '—' }}</td>
             <td class="text-right num">{{ dec(row.price_nominal) }}</td>
             <td class="text-right num">{{ dec(row.change_price) }}</td>
