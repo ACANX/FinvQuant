@@ -3187,7 +3187,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | SecuParamSync Tab 3 重构为「本地 usc 回推上游」（futu.finv_futu_secu_key.usc → public.finv_quote_secu_key.usc，按 ftmm_symbol，只写 usc 一列；删除 meta 表与 stock_id 回填旧逻辑） | 11084 | 1 |
 | usc 一次性对齐（V300168）：quote_collect 按 ftmm_symbol、indicator 按 stock_id 对齐到 futu.finv_futu_secu_key，改前整行归档到 archive.*_usc_align_20261110；Tab 2 落库改用键表 usc（A1） | 11085 | 1 |
 | usc 对齐收尾（V300169）：删除 indicator 3,649 行陈旧重复 + quote_collect 88 行重复 + 1 行孤立 US.LTC（占住 CC.LTC 的目标 usc），删前整行归档、删后两表与键表差异 0 | 11086 | 1 |
-| **合计** | **10001–11086** | **1082**（含 2 条待办） |
+| 清理 indicator 无键表依据的重复 stock_id（V300170）：503 组各留 1 行（以 quote_collect.usc 仲裁，保留最新行；1 组 `FX.EURindex` 改名 `EURindex`），删 503 行、改名 1 行 | 11087 | 1 |
+| **合计** | **10001–11087** | **1083**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

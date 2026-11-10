@@ -181,6 +181,17 @@
 
 ### 变更
 
+- **清理 indicator 无键表依据的重复 stock_id（需求 11087，迁移 `V300170`）**
+  - `cdeu.finv_quote_secu_indicator` 剩 **503 组**（每组 2 行、共 1,006 行）重复 `stock_id`：
+    这些证券不在 `futu.finv_futu_secu_key` 内（不在当前 73,212 采集清单），V300168 的对齐链路覆盖不到。
+  - 仲裁依据：**`futu.finv_futu_quote_collect.usc`（同 `stock_id`）** —— 该表已对齐到键表，是三表中最可信口径。
+    502 组恰好有一行与之相同，保留该行、删另一行；1 组（`stock_id 72000026` 欧元指数，
+    collect=`EURindex`，指标表为 `EURINDEX` / `FX.EURindex`）保留最新行并改名 `EURindex`。
+  - 删除行与改名行都先写入 `archive.finv_quote_secu_indicator_usc_align_20261110`
+    （复用 V300168 授权的归档表），`reason` 区分「删除 / 改名」。
+  - 实测（副本库跑通后再上主库）：删 **503** 行、改名 **1** 行，`indicator` 18,526 → **18,023** 行；
+    重复 `stock_id` **0 组**、与 `quote_collect` 差异 0、与键表差异 0；幂等复跑 `DELETE 0`。
+
 - **usc 对齐收尾：清理重复行与阻塞孤立行（需求 11086，迁移 `V300169`）**
   - 删除 `cdeu.finv_quote_secu_indicator` **3,649 行**陈旧重复（同一 `stock_id` 已有一行 `usc` 正确，
     这些是过去 Tab 2 用上游旧形态 `usc` 当主键 upsert 留下的副本）。
