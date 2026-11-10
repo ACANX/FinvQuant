@@ -166,6 +166,12 @@
 
 ### 变更
 
+- **复用归档表时间列改 `dt_` 前缀（需求 11083，迁移 `V300167`）**
+  - `archive.finv_usc_reuse_snapshot.snapshot_at` → **`dt_snapshot`**，与 `dt_retire` / `dt_compute` /
+    `dt_first_assign` 口径一致；仅改列名，类型、默认值（`now()`）、注释与数据保留。
+  - 归档语句本来不显式写该列（依赖默认值），因此无需改 SQL；`Docs/API/UscMap.md` 的归档表说明已同步。
+  - 实测：`schema_version=300167`，列名复核通过（现有 0 行）。
+
 - **USC 结果表时间列统一 `dt_` 前缀（需求 11082，迁移 `V300166`）**
   - `futu.finv_futu_usc_map`：`retire_at` / `compute_at` / `first_assign_at`
     → **`dt_retire` / `dt_compute` / `dt_first_assign`**（与 `dt_collect` / `dt_create` / `dt_update` 口径一致）。
