@@ -61,7 +61,8 @@ FinvQuant 是一个面向多资产的**严格事件驱动量化交易平台**，
 | [`Docs/DevSpec/UiSpec.md`](Docs/DevSpec/UiSpec.md) | 前端 UI 组件规范（开关配色、状态 ICON、主题、操作反馈 Toast） |
 | [`Docs/DevSpec/MenuSpec.md`](Docs/DevSpec/MenuSpec.md) | 菜单与状态列规范 |
 | [`Docs/DevSpec/TableTextSpec.md`](Docs/DevSpec/TableTextSpec.md) | 表格长文本展示规范（ⓘ 图标 + 悬浮提示） |
-| [`Docs/DevSpec/DictDisplaySpec.md`](Docs/DevSpec/DictDisplaySpec.md) | 字典值展示规范（筛选控件 `中文[值]`、表格列只显示中文） |
+| [`Docs/DevSpec/DictFilterSpec.md`](Docs/DevSpec/DictFilterSpec.md) | 字典筛选控件规范（选项 `中文[值]`、首项全部、触发时机） |
+| [`Docs/DevSpec/DictColumnSpec.md`](Docs/DevSpec/DictColumnSpec.md) | 字典表格列规范（只显示中文、状态色、未登记值原样） |
 | [`Docs/DevSpec/BacktestStrategySpec.md`](Docs/DevSpec/BacktestStrategySpec.md) | 回测策略规范 |
 
 ## 工作约定
