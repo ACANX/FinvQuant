@@ -60,6 +60,8 @@ func TestLiveReadUpstream(t *testing.T) {
 		"US.AAPL", "SH.000300", "AU..XFL", "US.XRP", "HK.800700", "CA.HSI",
 		// PostgREST 过滤器里有特殊字符的键：逗号、星号、双点（验证 in.(...) 的引号与 eq. 的转义）
 		"US.SBT,OLD", "US.SESN,CVR", "US.ASAI*", "AU..XFL",
+		// 冲突排查：加密 LTC 与美股 LTC 争同一 usc
+		"CC.LTC", "US.LTC",
 	}
 	local := make(map[string]string, len(probes))
 	rows, err := pool.Query(ctx, `

@@ -181,6 +181,21 @@
 
 ### 变更
 
+- **usc 对齐收尾：清理重复行与阻塞孤立行（需求 11086，迁移 `V300169`）**
+  - 删除 `cdeu.finv_quote_secu_indicator` **3,649 行**陈旧重复（同一 `stock_id` 已有一行 `usc` 正确，
+    这些是过去 Tab 2 用上游旧形态 `usc` 当主键 upsert 留下的副本）。
+  - 删除 `futu.finv_futu_quote_collect` **88 行**重复（75 行同 `ftmm_symbol` 双记录，保留 `stock_id`
+    与键表一致的那条；13 行同 `stock_id` 的大小写变体，保留 `usc` 已等同键表的那条）。
+  - 删除 **1 行孤立行 `US.LTC`**：键表与上游都没有该证券，但它的 `usc='LTC'` 占住了加密 `CC.LTC`
+    的目标值；删除后 `CC.LTC` 落地为 `LTC`。
+  - 删除前逐行校验归档快照（复用 `V300168` 授权的 `archive.finv_quote_*_usc_align_20261110`，
+    未新建表），归档 `reason` 区分「对齐 / 对齐后落地 / 删除」。
+  - 实测（副本库跑通后再上主库）：`quote_collect` 26,745 → **26,656** 行、`indicator` 22,175 → **18,526** 行，
+    两表相对键表的 `usc` 差异均 **0**；重复 `stock_id`（有键表依据）与重复 `ftmm_symbol` 均为 0；
+    幂等复跑 `UPDATE 0`。
+  - 仍保留（按既有决定）：`quote_collect` 191 行、`indicator` 1,333 行无键表依据的孤立行，
+    以及其中 503 组无键表依据的历史重复 `stock_id`。
+
 - **证券参数同步 Tab 3 重构为「本地 usc 回推上游」（需求 11084）**
   - 方向不变（本地 → 上游），但**范围收缩为一张表的一列**：把 `futu.finv_futu_secu_key.usc`
     按 `ftmm_symbol` 回推到 `public.finv_quote_secu_key.usc`。
