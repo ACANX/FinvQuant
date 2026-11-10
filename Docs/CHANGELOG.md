@@ -20,6 +20,21 @@
 
 ### 新增
 
+- **usc 一次性对齐 + Tab 2 改用本地权威 usc（需求 11085，迁移 `V300168`）**
+  - 新增 `V300168`：把两张下游表的 `usc` 按 `futu.finv_futu_secu_key` 对齐——
+    `futu.finv_futu_quote_collect`（按 `ftmm_symbol`，3,682 行）、
+    `cdeu.finv_quote_secu_indicator`（按 `stock_id`，440 行）；两阶段改名（`TMP§` 前缀断开链式占用），
+    改前整行快照进 `archive.finv_quote_collect_usc_align_20261110` /
+    `archive.finv_quote_secu_indicator_usc_align_20261110`，末尾 RAISE EXCEPTION 收敛校验。
+  - 跳过并留痕（不改数据）：`quote_collect` 89 行（75 行为同 `ftmm_symbol` 重复记录、14 行为目标 usc 被占用，
+    含 `CC.LTC` 与 `US.LTC` 同争 `LTC`）、`indicator` 3,649 行（全部是重复 `stock_id` 的陈旧行，
+    同一 `stock_id` 已有正确 usc 的行）。
+  - Tab 2 指标同步（A1）：落库 `usc` 改为 `COALESCE(键表.usc, 上游 usc, ftmm_symbol)`，
+    即以上游 `ftmm_symbol` 关联本地键表取权威 `usc`，避免上游旧形态（`CC.AAVE` / `.BFLY`）反复写回。
+  - 实测：迁移后 `quote_collect` 剩余差异 89 行（= 跳过数）、`indicator` 剩余 3,649 行（= 跳过数），
+    临时值残留 0；副本库先跑通再上主库；A1 的 CTE 用 3 条样例验证
+    （`CC.AAVE→AAVE`、`SH.000300→SH0300`、`US.XRP→ETFXRP`）。
+
 - **USC 定时同步支持页面配置与「立即执行一次」（需求 11081）**
   - 新增 `GET/POST /API/V1/Meta/Finv/Quote/UscMap/Schedule`：读取/保存 `sys.sys_config 20015` 的 cron，
     返回 `enable` 与未来 5 次执行时间；保存时校验 6 段表达式，传空串=关闭自动同步。

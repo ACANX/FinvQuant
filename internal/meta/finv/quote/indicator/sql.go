@@ -157,7 +157,7 @@ WITH elems AS (
     -- jsonb_populate_record 按目标表列类型逐列映射（132 列同名对齐），避免在 Go 侧逐个类型化
     SELECT jsonb_populate_record(NULL::cdeu.finv_quote_secu_indicator, e) AS r,
            e,
-           -- usc 为空时用 ftmm_symbol 占位（上游 10,910 行中 3,673 行 usc 为 NULL）
+           -- 上游原值：usc 为空时用 ftmm_symbol 占位（上游 10,910 行中 3,673 行 usc 为 NULL）
            COALESCE(NULLIF(btrim(e->>'usc'), ''), btrim(e->>'ftmm_symbol')) AS usc_key,
            btrim(e->>'ftmm_symbol') AS ftmm_symbol,
            NULLIF(btrim(e->>'instrument'), '') AS instrument,
@@ -173,8 +173,13 @@ WITH elems AS (
            ) AS futu_symbol
       FROM elems
 ), valid AS (
-    SELECT * FROM src
-     WHERE usc_key IS NOT NULL AND usc_key <> '' AND ftmm_symbol <> ''
+    -- 需求 11085（A1）：最终 usc 以本地权威 futu.finv_futu_secu_key.usc 为准（按 ftmm_symbol 关联），
+    -- 上游 public.finv_quote_secu_meta.usc 仍是旧形态（如 CC.AAVE / .BFLY），不能直接当主键用；
+    -- 键表里没有该 ftmm_symbol 时退回上游原值，保证不丢行。
+    SELECT s.*, COALESCE(k.usc, s.usc_key) AS usc_final
+      FROM src s
+      LEFT JOIN futu.finv_futu_secu_key k ON k.ftmm_symbol = s.ftmm_symbol
+     WHERE s.usc_key IS NOT NULL AND s.usc_key <> '' AND s.ftmm_symbol <> ''
 ), ins_ind AS (
     -- 1) 证券指标表：132 列写入（dt_update 由触发器维护，不参与比对；stock_id 见 V300148）
     INSERT INTO cdeu.finv_quote_secu_indicator AS t (usc,
@@ -309,7 +314,7 @@ WITH elems AS (
                count_update,
                json_unmapped,
                stock_id)
-    SELECT usc_key,
+    SELECT usc_final,
            (r).ftmm_symbol,
            (r).name,
            (r).lot_size,
@@ -582,7 +587,7 @@ WITH elems AS (
     INSERT INTO futu.finv_futu_quote_collect AS t
           (usc, stock_id, futu_symbol, market_type, market_code, instrument_type,
            sub_instrument_type, market_label, instrument)
-    SELECT usc_key, stock_id, futu_symbol,
+    SELECT usc_final AS usc_key, stock_id, futu_symbol,
            market_type, market_code, instrument_type,
            sub_instrument_type, market_label, instrument
       FROM valid s
@@ -592,7 +597,7 @@ WITH elems AS (
              SELECT 1 FROM futu.finv_futu_quote_collect q
               WHERE q.market_code = s.market_code
                 AND q.futu_symbol = s.futu_symbol
-                AND q.usc <> s.usc_key)
+                AND q.usc <> s.usc_final)
     ON CONFLICT (usc) DO UPDATE
        SET stock_id = EXCLUDED.stock_id,
            futu_symbol = EXCLUDED.futu_symbol,
@@ -618,7 +623,7 @@ WITH elems AS (
              SELECT 1 FROM futu.finv_futu_quote_collect q
               WHERE q.market_code = s.market_code
                 AND q.futu_symbol = s.futu_symbol
-                AND q.usc <> s.usc_key)
+                AND q.usc <> s.usc_final)
 )
 SELECT (SELECT count(*) FROM ins_ind WHERE inserted)     AS ind_insert,
        (SELECT count(*) FROM ins_ind WHERE NOT inserted) AS ind_update,
