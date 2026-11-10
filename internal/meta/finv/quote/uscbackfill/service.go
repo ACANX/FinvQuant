@@ -1,9 +1,10 @@
 // Package uscbackfill 实现「本地 usc 回推上游」（需求 11084 重构，方向与 Tab 1/2 相反）：
 //
-//	本地 futu.finv_futu_secu_key.usc（73,212 行）
-//	    ──按 ftmm_symbol 关联──▶ 上游 public.finv_quote_secu_key.usc
+//	本地 futu.finv_futu_secu_key.usc + priority（73,212 行）
+//	    ──按 ftmm_symbol 关联──▶ 上游 public.finv_quote_secu_key.usc + priority
 //
-// 只回推 **usc 一列**，关联键是 ftmm_symbol（上游主键、本地主键，双边唯一）。
+// 回推 **usc 与 priority 两列**（需求 11142 起 priority 一起同步），关联键是 ftmm_symbol
+// （上游主键、本地主键，双边唯一）；两列任一不同即按同一行一次 PATCH 写回。
 // 上游值已等于本地值 → 记「未变」且不发请求（幂等，重跑收敛）；为空 → 「填入」；
 // 有值但不同 → 「覆盖」。上游没有该 ftmm_symbol → 「无对应」，跳过。
 //
@@ -35,8 +36,10 @@ const (
 	KeyTable = "public.finv_quote_secu_key"
 	// KeyKeyColumn 关联键（上游主键）。
 	KeyKeyColumn = "ftmm_symbol"
-	// KeyUSCColumn 被回推的列。
+	// KeyUSCColumn 被回推的列之一：usc。
 	KeyUSCColumn = "usc"
+	// KeyPriorityColumn 被回推的列之二：priority（优先级，整数）。
+	KeyPriorityColumn = "priority"
 )
 
 // 本地来源表。
@@ -45,8 +48,8 @@ const (
 	LocalKeyTable = "futu.finv_futu_secu_key"
 )
 
-// 从上游取回的列（只要关联键与现值，用于判断填/覆盖/未变）。
-const keyUpstreamSelect = KeyKeyColumn + "," + KeyUSCColumn
+// 从上游取回的列（关联键 + 两个待回推列的现值，用于判断填/覆盖/未变）。
+const keyUpstreamSelect = KeyKeyColumn + "," + KeyUSCColumn + "," + KeyPriorityColumn
 
 // 批量大小取值（沿用其它两个 Tab 的档位）。
 const (
@@ -142,10 +145,17 @@ type StatusSnapshot struct {
 	BatchSizeDefault int `json:"batch_size_default"`
 }
 
-// LocalKeyRow 本地证券键表的一行（ftmm_symbol 主键 + usc）。
+// LocalKeyRow 本地证券键表的一行（ftmm_symbol 主键 + usc + priority）。
 type LocalKeyRow struct {
 	FtmmSymbol string
 	USC        string
+	Priority   int
+}
+
+// keyTarget 一个 ftmm_symbol 要回推到的目标值（usc + priority 一起回推）。
+type keyTarget struct {
+	USC      string
+	Priority int
 }
 
 // Service usc 回推服务（无状态）。
@@ -207,7 +217,7 @@ func (s *Service) Sync(ctx context.Context, req Request) (Result, error) {
 	return s.SyncWithProgress(ctx, req, nil)
 }
 
-// SyncWithProgress 执行一次回推：按 ftmm_symbol 分批读上游、比对、逐行 PATCH usc。
+// SyncWithProgress 执行一次回推：按 ftmm_symbol 分批读上游、比对、逐行 PATCH usc + priority。
 //
 // 每批结束回调 onProgress（可为 nil），供异步运行写实时日志。
 // 任一批写入失败即返回错误（已写入的批次不回滚——回推是幂等的，重跑即可收敛）。
@@ -291,8 +301,11 @@ func (s *Service) SyncWithProgress(ctx context.Context, req Request, onProgress 
 				batchOverwrite++
 			}
 			jobs = append(jobs, patchJob{
-				key:    symbol,
-				values: map[string]any{KeyUSCColumn: want},
+				key: symbol,
+				values: map[string]any{
+					KeyUSCColumn:      want.USC,
+					KeyPriorityColumn: want.Priority,
+				},
 			})
 		}
 
@@ -411,17 +424,19 @@ const (
 	classKeep      = "keep"
 )
 
-// classify 判定一个 ftmm_symbol 的回推动作：
-// 上游没有该键 → missing（跳过）；上游为空 → fill；一致 → keep（不发请求）；有值不同 → overwrite。
-func classify(up keyUpstreamRow, exists bool, want string) string {
+// classify 判定一个 ftmm_symbol 的回推动作（usc 与 priority 两列一起判）：
+// 上游没有该键 → missing（跳过）；任一列为空 → fill；两列都一致 → keep（不发请求）；其余 → overwrite。
+func classify(up keyUpstreamRow, exists bool, want keyTarget) string {
 	if !exists {
 		return classMissing
 	}
 	has := strings.TrimSpace(up.USC)
+	sameUSC := has == want.USC
+	samePriority := up.Priority != nil && *up.Priority == want.Priority
 	switch {
-	case has == want:
+	case sameUSC && samePriority:
 		return classKeep
-	case has == "":
+	case has == "" || up.Priority == nil:
 		return classFill
 	default:
 		return classOverwrite
@@ -431,9 +446,9 @@ func classify(up keyUpstreamRow, exists bool, want string) string {
 // buildTarget 把本地行归并成「ftmm_symbol 升序序列 + 目标 usc 映射」，跳过键或值为空的行。
 //
 // ftmm_symbol 是本地键表主键，正常不会重复；仍按「先到先得」保留首个非空值，保证重跑结果稳定。
-func buildTarget(rows []LocalKeyRow) ([]string, map[string]string) {
+func buildTarget(rows []LocalKeyRow) ([]string, map[string]keyTarget) {
 	order := make([]string, 0, len(rows))
-	target := make(map[string]string, len(rows))
+	target := make(map[string]keyTarget, len(rows))
 	for _, row := range rows {
 		symbol := strings.TrimSpace(row.FtmmSymbol)
 		value := strings.TrimSpace(row.USC)
@@ -443,16 +458,19 @@ func buildTarget(rows []LocalKeyRow) ([]string, map[string]string) {
 		if _, exists := target[symbol]; !exists {
 			order = append(order, symbol)
 		}
-		target[symbol] = value
+		target[symbol] = keyTarget{USC: value, Priority: row.Priority}
 	}
 	sort.Strings(order)
 	return order, target
 }
 
 // keyUpstreamRow 上游表（finv_quote_secu_key）一行的现值。
+//
+// Priority 用指针区分「NULL」与 0：上游优先级为空同样需要回填。
 type keyUpstreamRow struct {
 	FtmmSymbol string
 	USC        string
+	Priority   *int
 }
 
 // indexKeyUpstream 把上游原始 JSON 行解析成 ftmm_symbol → 现值（usc 为 NULL 时留空串）。
@@ -462,6 +480,7 @@ func indexKeyUpstream(raw []json.RawMessage) (map[string]keyUpstreamRow, error) 
 		var parsed struct {
 			FtmmSymbol *string `json:"ftmm_symbol"`
 			USC        *string `json:"usc"`
+			Priority   *int    `json:"priority"`
 		}
 		if err := json.Unmarshal(item, &parsed); err != nil {
 			return nil, fmt.Errorf("解析上游行失败: %w", err)
@@ -469,7 +488,7 @@ func indexKeyUpstream(raw []json.RawMessage) (map[string]keyUpstreamRow, error) 
 		if parsed.FtmmSymbol == nil || strings.TrimSpace(*parsed.FtmmSymbol) == "" {
 			continue
 		}
-		row := keyUpstreamRow{FtmmSymbol: *parsed.FtmmSymbol}
+		row := keyUpstreamRow{FtmmSymbol: *parsed.FtmmSymbol, Priority: parsed.Priority}
 		if parsed.USC != nil {
 			row.USC = *parsed.USC
 		}

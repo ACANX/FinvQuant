@@ -219,6 +219,27 @@
 
 ### 变更
 
+- **「本地 usc 回推上游」同时回推 priority（需求 11142）**
+  - 现象：Tab 3 只回写 `public.finv_quote_secu_key.usc`，上游 `priority` 与本地长期不一致（本地 10/20/25/26 四档，上游多为 26），
+    要同步得手工改。
+  - 修订（`internal/meta/finv/quote/uscbackfill`）：
+    - 本地读取改为 `SELECT ftmm_symbol, usc, priority`，`LocalKeyRow` 增加 `Priority`；
+    - 上游取回列扩为 `ftmm_symbol,usc,priority`，`keyUpstreamRow.Priority` 用指针区分「NULL」与 0；
+    - 目标值改为 `keyTarget{USC, Priority}`，两列在同一行 PATCH 里一起写；
+    - `classify` 判定改为两列一起看：**都一致 → keep**（不发请求）、**任一列为空 → fill**、
+      **都不为空但有差异（含只有 priority 不同）→ overwrite**、上游无该键 → missing。
+  - **过程中修掉一个自己引入的 bug**：首版 `indexKeyUpstream` 解析了 `priority` 却没赋给 `keyUpstreamRow`，
+    导致上线后所有行都被判 `fill`（实测探针全部 `上游=NULL → fill`）。已修复并补回归用例
+    `TestIndexKeyUpstreamPriority`（顺带断言「上游有 priority 且一致 → keep」）。
+  - 单测：`TestClassify` 扩到 8 个用例（含「只有 priority 不同 → overwrite」「priority 为空 → fill」），
+    `TestBuildTarget` 断言改为比较 `keyTarget`；只读探针与全量对比用例同步带上 `priority` 展示。
+  - 线上只读实测（`TestLiveFullDiff`，2026-11-12）：`keep=73,210 / fill=0 / overwrite=2 / missing=0`，
+    两处差异都是 `usc` 而非 `priority`（`THA..SET` 本地 `SET` vs 上游 `THA.SET`、`US..SPTSX` 本地 `SPTSX`
+    vs 上游 `US.SPTSX`）—— 即上游 `priority` 与本地已基本一致，本次改动生效后重跑即可收敛。
+  - 前端（`SecuParamSyncView.vue`）：Tab 3 顶部文案、列展示卡（两个列 chip）、说明卡片口径全部改为「两列一起写」。
+  - 文档：`Docs/API/Cdeu/SecuParamSync.md` §7 表格加 `priority` 行与判定口径，`SecuParamSync.yml` 端点描述同步，
+    `Docs/Menu/Quote/Realtime/SecuParamSync.md` 三处口径同步。
+
 - **规则层改为可维护 + 审计日志与条目数拆列（需求 11137 / 11138 / 11139）**
   - **审计日志拆列（11137）**：原「主键」列显示 `idn=689 P50`（条目主键 + 所属规则挤在一格）。
     `ListLogs` 现从 before/after 快照解析并额外返回 `src_idn` / `src_rule_no` / `src_ftmm`，

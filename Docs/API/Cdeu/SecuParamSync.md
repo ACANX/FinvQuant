@@ -12,7 +12,7 @@
 > - `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run` —— 异步启动
 > - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run` —— 运行时快照（进度 + 逐批实时日志）
 >
-> Tab 3「本地 usc 回推上游」（需求 11084 重构，方向相反：本地 → 上游，**只写 `usc` 一列**）：
+> Tab 3「本地 usc 回推上游」（需求 11084 重构，方向相反：本地 → 上游，**回推 `usc` + `priority` 两列**，需求 11142）：
 > - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Status` —— 本地键表行数与 `usc` 覆盖情况
 > - `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run` —— 异步启动
 > - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run` —— 运行时快照（进度 + 逐批实时日志）
@@ -288,11 +288,15 @@
 
 ## 7. 本地 usc 回推上游（Tab 3，需求 11084 重构）
 
-**方向相反（本地 → 上游），只写一列**：
+**方向相反（本地 → 上游），两列一起写**：
 
 | 上游目标 | 写入列 | 关联键 | 本地来源 | 待处理量（实测） |
 |----------|--------|--------|----------|------------------|
 | `public.finv_quote_secu_key` | `usc` | `ftmm_symbol` | `futu.finv_futu_secu_key.usc` | 73,212 / 73,212 |
+| `public.finv_quote_secu_key` | `priority` | `ftmm_symbol` | `futu.finv_futu_secu_key.priority` | 同上（同一行一次 PATCH） |
+
+判定口径（两列都参与）：`usc` 与 `priority` **都一致** → `keep` 不发请求；任一列为空 → `fill`；
+都不为空但有差异（含只有 `priority` 不同）→ `overwrite`；上游无该 `ftmm_symbol` → `missing` 只计数不插入。
 
 > 历史逻辑已整体删除（需求 11084）：曾按 `stock_id` 回填 `public.finv_quote_secu_meta.usc`，
 > 并同时回写 `finv_quote_secu_key.stock_id`，还用 `futu.finv_futu_quote_collect` 拼 `usc`、
@@ -348,7 +352,7 @@
 日志形态：
 
 ```
-回推任务已启动：public.finv_quote_secu_key.usc ← futu.finv_futu_secu_key（按 ftmm_symbol 关联，只写 usc 一列）
+回推任务已启动：public.finv_quote_secu_key.usc/priority ← futu.finv_futu_secu_key（按 ftmm_symbol 关联，两列一起写）
 第 1 批：offset=0，处理 500 个 ftmm_symbol，写入 12（填入 0 / 覆盖 12），未变 488，无对应 0（本批 3210 ms）
 ……
 回推完成：本地 futu.finv_futu_secu_key 共 73212 行（usc 有值 73212，为空跳过 0），147 批，

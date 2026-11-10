@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -65,19 +66,20 @@ func TestLiveReadUpstream(t *testing.T) {
 		// 冲突排查：加密 LTC 与美股 LTC 争同一 usc
 		"CC.LTC", "US.LTC",
 	}
-	local := make(map[string]string, len(probes))
+	local := make(map[string]keyTarget, len(probes))
 	rows, err := pool.Query(ctx, `
-		SELECT ftmm_symbol, usc FROM `+LocalKeyTable+`
+		SELECT ftmm_symbol, usc, priority FROM `+LocalKeyTable+`
 		 WHERE ftmm_symbol = ANY($1)`, probes)
 	if err != nil {
 		t.Fatalf("读取本地键表失败: %v", err)
 	}
 	for rows.Next() {
-		var symbol, usc string
-		if err := rows.Scan(&symbol, &usc); err != nil {
+		var symbol string
+		var want keyTarget
+		if err := rows.Scan(&symbol, &want.USC, &want.Priority); err != nil {
 			t.Fatalf("解析本地行失败: %v", err)
 		}
-		local[symbol] = usc
+		local[symbol] = want
 	}
 	rows.Close()
 
@@ -94,7 +96,12 @@ func TestLiveReadUpstream(t *testing.T) {
 	for _, symbol := range probes {
 		up, ok := upstream[symbol]
 		want := local[symbol]
-		t.Logf("%-12s 本地=%-9s 上游=%-9s → %s", symbol, want, up.USC, classify(up, ok, want))
+		upPriority := "NULL"
+		if up.Priority != nil {
+			upPriority = strconv.Itoa(*up.Priority)
+		}
+		t.Logf("%-12s 本地=%-9s/%-4d 上游=%-9s/%-4s → %s",
+			symbol, want.USC, want.Priority, up.USC, upPriority, classify(up, ok, want))
 	}
 	if len(upstream) == 0 {
 		t.Fatalf("上游未返回任何行，检查 20013 配置或 RLS")
@@ -170,11 +177,15 @@ func TestLiveFullDiff(t *testing.T) {
 		}
 		for _, row := range chunk {
 			up, ok := upstream[row.FtmmSymbol]
-			class := classify(up, ok, row.USC)
+			class := classify(up, ok, keyTarget{USC: row.USC, Priority: row.Priority})
 			counts[class]++
 			if class != classKeep && len(samples) < 20 {
-				samples = append(samples, fmt.Sprintf("%-46s 本地=%-24s 上游=%-24s → %s",
-					row.FtmmSymbol, row.USC, up.USC, class))
+				upPriority := "NULL"
+				if up.Priority != nil {
+					upPriority = strconv.Itoa(*up.Priority)
+				}
+				samples = append(samples, fmt.Sprintf("%-46s 本地=%-24s/%-6d 上游=%-24s/%-6s → %s",
+					row.FtmmSymbol, row.USC, row.Priority, up.USC, upPriority, class))
 			}
 		}
 	}
@@ -184,10 +195,10 @@ func TestLiveFullDiff(t *testing.T) {
 		t.Logf("差异样例：%s", line)
 	}
 	if counts[classFill]+counts[classOverwrite]+counts[classMissing] > 0 {
-		t.Logf("结论：上游尚未与本地完全一致（上面三类合计 %d 行）",
+		t.Logf("结论：上游 usc/priority 尚未与本地完全一致（上面三类合计 %d 行）",
 			counts[classFill]+counts[classOverwrite]+counts[classMissing])
 	} else {
-		t.Logf("结论：上游 public.%s.usc 已与本地 %s 完全一致（%d 行全部 keep）",
+		t.Logf("结论：上游 public.%s 的 usc + priority 已与本地 %s 完全一致（%d 行全部 keep）",
 			KeyTable, LocalKeyTable, len(local))
 	}
 }

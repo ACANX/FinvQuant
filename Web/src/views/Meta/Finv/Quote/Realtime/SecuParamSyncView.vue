@@ -10,8 +10,8 @@
 //   POST /Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run        异步启动
 //   GET  /Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run        运行时快照
 //
-// Tab 3「本地 usc 回推上游」（需求 11084 重构，方向相反：本地 → 上游，只写 usc 一列）：
-//   源 futu.finv_futu_secu_key.usc → 目标 public.finv_quote_secu_key.usc（按 ftmm_symbol）
+// Tab 3「本地 usc 回推上游」（需求 11084 重构，方向相反：本地 → 上游，回推 usc + priority 两列，需求 11142）：
+//   源 futu.finv_futu_secu_key.usc/priority → 目标 public.finv_quote_secu_key.usc/priority（按 ftmm_symbol）
 //   GET  /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Status         本地键表行数 / usc 有值行数
 //   POST /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run       异步启动
 //   GET  /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run       运行时快照
@@ -93,7 +93,7 @@ interface IndicatorStatus {
   batch_size_default: number
 }
 
-// Tab 3 运行快照（本地 usc 回推上游：只写 public.finv_quote_secu_key.usc）
+// Tab 3 运行快照（本地 usc 回推上游：写 public.finv_quote_secu_key 的 usc + priority 两列）
 interface BackfillRun extends RunBase {
   kind: string
   key_table: string
@@ -425,8 +425,9 @@ onBeforeUnmount(() => {
     </div>
     <div class="text-caption text-medium-emphasis mb-2">
       Tab 1/2 从 Supabase 上游按主键分批增量同步到本地；Tab 3 反向把本地
-      <code>futu.finv_futu_secu_key.usc</code> 回推上游 <code>public.finv_quote_secu_key.usc</code>
-      （按 <code>ftmm_symbol</code> 关联，只写 <code>usc</code> 一列）。值已一致的行不改写。
+      <code>futu.finv_futu_secu_key.usc</code> / <code>.priority</code> 回推上游
+      <code>public.finv_quote_secu_key.usc</code> / <code>.priority</code>
+      （按 <code>ftmm_symbol</code> 关联，两列一起写）。两列都已一致的行不改写。
     </div>
 
     <v-tabs v-model="tab" density="comfortable" color="primary">
@@ -806,14 +807,18 @@ onBeforeUnmount(() => {
 
           <v-divider class="my-3" />
 
-          <div class="text-caption text-medium-emphasis mb-1">上游被回推的列（只写一列）</div>
+          <div class="text-caption text-medium-emphasis mb-1">上游被回推的列（两列一起写）</div>
           <div class="d-flex align-center flex-wrap ga-2">
             <v-chip size="small" variant="tonal" color="secondary">
               <code class="mr-1">{{ bfStatus?.key_table || 'public.finv_quote_secu_key' }}</code>
               .{{ bfStatus?.key_column || 'usc' }}
             </v-chip>
+            <v-chip size="small" variant="tonal" color="secondary">
+              <code class="mr-1">{{ bfStatus?.key_table || 'public.finv_quote_secu_key' }}</code>
+              .priority
+            </v-chip>
             <span class="text-caption text-medium-emphasis">
-              按 <code>{{ bfStatus?.key_key || 'ftmm_symbol' }}</code> 与本地关联（双边主键，一对一）
+              按 <code>{{ bfStatus?.key_key || 'ftmm_symbol' }}</code> 与本地关联（双边主键，一对一），两列同一行一次写入
             </span>
           </div>
         </v-card-text>
@@ -960,12 +965,14 @@ onBeforeUnmount(() => {
         <v-divider class="my-3" />
 
         <div class="finv-secukey-note">
-          <div class="finv-secukey-note-title">本地 usc 回推上游（方向相反：本地 → 上游，只写一列）</div>
+          <div class="finv-secukey-note-title">本地 usc 回推上游（方向相反：本地 → 上游，回推 usc + priority 两列）</div>
           <div class="text-body-2 finv-secukey-note-body">
             源 <code>futu.finv_futu_secu_key.usc</code>（USC 映射规则 <code>futu.finv_futu_usc_map</code> 的产出，唯一权威）→
-            目标 <code>public.finv_quote_secu_key.usc</code>，<b>按 <code>ftmm_symbol</code> 关联</b>（本地主键 = 上游主键，一对一），
-            <b>只写 <code>usc</code> 一列</b>。<br />
-            口径不是「只写 NULL 行」：上游值已一致 → 「未变」且不发请求（幂等，重跑收敛）；为空 → 「填入」；有值但不同 → 「覆盖」；
+            目标 <code>public.finv_quote_secu_key.usc</code> 与 <code>.priority</code>，
+            <b>按 <code>ftmm_symbol</code> 关联</b>（本地主键 = 上游主键，一对一），
+            <b>两列同一行一次写入</b>（需求 11142 起 priority 跟随 usc 一起同步）。<br />
+            口径不是「只写 NULL 行」：usc 与 priority <b>两列都一致</b> → 「未变」且不发请求（幂等，重跑收敛）；
+            任一列为空 → 「填入」；都不为空但有差异 → 「覆盖」；
             上游没有该 <code>ftmm_symbol</code> → 「上游无对应」跳过（不做插入）。本地 <code>usc</code> 为空的行直接跳过。<br />
             本 Tab 会<b>写入线上 Supabase</b>：逐行 PATCH，每行都校验「受影响行数 = 1」，被 RLS 拒绝会直接报错。
             历史逻辑（写 <code>public.finv_quote_secu_meta.usc</code>、回写 <code>stock_id</code>、按 <code>stock_id</code> 定值/歧义裁决）

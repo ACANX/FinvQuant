@@ -475,8 +475,9 @@ paths:
       operationId: uscBackfillStart
       tags: [Cdeu]
       description: |
-        把 futu.finv_futu_secu_key.usc 按 ftmm_symbol 回推到 public.finv_quote_secu_key.usc，
-        只写 usc 一列；已一致的行不发请求；上游无对应行只计数、不插入。
+        把 futu.finv_futu_secu_key 的 usc 与 priority 按 ftmm_symbol 回推到
+        public.finv_quote_secu_key 的同名列（两列同一行一次 PATCH）；两列都一致的行不发请求；
+        任一列为空记 fill、都不为空但有差异记 overwrite；上游无对应行只计数、不插入。
       requestBody:
         required: false
         content:

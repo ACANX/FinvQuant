@@ -40,13 +40,13 @@ func (s *Store) KeyLocalStat(ctx context.Context) (KeyLocalStat, error) {
 	return stat, nil
 }
 
-// ReadLocalUSC 读出本地证券键表的 ftmm_symbol + usc（只取 usc 非空的行），按 ftmm_symbol 升序。
+// ReadLocalUSC 读出本地证券键表的 ftmm_symbol + usc + priority（只取 usc 非空的行），按 ftmm_symbol 升序。
 //
 // 实测 73,212 行（约 5 MB），一次读进内存即可；升序保证分批稳定，
 // 便于日志与复跑比对。ftmm_symbol 是该表主键，天然唯一，无需归并去重。
 func (s *Store) ReadLocalUSC(ctx context.Context) ([]LocalKeyRow, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT ftmm_symbol, usc
+		SELECT ftmm_symbol, usc, priority
 		  FROM `+LocalKeyTable+`
 		 WHERE COALESCE(btrim(usc), '') <> ''
 		 ORDER BY ftmm_symbol`)
@@ -58,7 +58,7 @@ func (s *Store) ReadLocalUSC(ctx context.Context) ([]LocalKeyRow, error) {
 	result := make([]LocalKeyRow, 0, 65536)
 	for rows.Next() {
 		var row LocalKeyRow
-		if err := rows.Scan(&row.FtmmSymbol, &row.USC); err != nil {
+		if err := rows.Scan(&row.FtmmSymbol, &row.USC, &row.Priority); err != nil {
 			return nil, fmt.Errorf("解析 %s 行失败: %w", LocalKeyTable, err)
 		}
 		result = append(result, row)
