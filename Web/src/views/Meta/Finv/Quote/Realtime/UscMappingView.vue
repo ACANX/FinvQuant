@@ -802,47 +802,6 @@ onBeforeUnmount(stopPolling)
 
         <!-- Tab 2：预演与应用 -->
         <v-window-item value="diff">
-          <v-card variant="tonal" class="mb-3">
-            <v-card-title class="text-subtitle-1 d-flex align-center flex-wrap ga-2">
-              <v-icon icon="mdi-clock-outline" size="20" />
-              定时同步
-              <v-chip size="small" :color="schedule?.enable ? 'success' : 'grey'" variant="tonal">
-                {{ schedule?.enable ? '已启用' : '已关闭' }}
-              </v-chip>
-              <v-chip v-if="schedule?.enable" size="small" variant="text">
-                下次执行 {{ schedule?.next_run?.[0] ?? '—' }}
-              </v-chip>
-              <v-spacer />
-              <v-btn
-                color="teal"
-                prepend-icon="mdi-play-circle-outline"
-                :loading="previewing || starting"
-                @click="runNow"
-              >
-                立即执行一次
-              </v-btn>
-            </v-card-title>
-            <v-card-text class="d-flex flex-wrap align-center ga-2">
-              <v-text-field
-                v-model="scheduleExpr"
-                label="cron（6 段：秒 分 时 日 月 周，留空=关闭自动同步）"
-                density="compact"
-                variant="outlined"
-                hide-details
-                style="max-width: 420px"
-                placeholder="0 30 3 * * *"
-              />
-              <v-btn color="primary" variant="tonal" :loading="scheduleSaving" @click="saveSchedule(scheduleExpr)">
-                保存
-              </v-btn>
-              <v-btn variant="text" :loading="scheduleSaving" @click="saveSchedule('')">关闭自动同步</v-btn>
-              <v-btn variant="text" prepend-icon="mdi-refresh" @click="loadSchedule">刷新</v-btn>
-              <span class="text-caption text-medium-emphasis">
-                「立即执行一次」与定时任务走同一条链路（预演 → 应用），不需要等到设定时间。
-              </span>
-            </v-card-text>
-          </v-card>
-
           <div class="d-flex flex-wrap align-center ga-2 mb-3">
             <v-btn color="primary" prepend-icon="mdi-diff" :loading="previewing" @click="doPreview">
               预演差异
@@ -854,6 +813,15 @@ onBeforeUnmount(stopPolling)
               @click="openApply"
             >
               立即应用
+            </v-btn>
+            <v-btn
+              color="teal"
+              variant="tonal"
+              prepend-icon="mdi-play-circle-outline"
+              :loading="previewing || starting"
+              @click="runNow"
+            >
+              立即执行一次
             </v-btn>
             <v-chip v-if="preview" variant="tonal" prepend-icon="mdi-counter">
               总 {{ preview.total }}
@@ -979,6 +947,42 @@ onBeforeUnmount(stopPolling)
                 <v-chip size="small" variant="tonal">回写键表 {{ run.key_update }}</v-chip>
               </div>
               <pre class="usc-log">{{ run.logs.map((l) => `[${l.time}] ${l.level} ${l.text}`).join('\n') }}</pre>
+            </v-card-text>
+          </v-card>
+          <v-card variant="tonal" class="mt-3">
+            <v-card-title class="text-subtitle-1 d-flex align-center flex-wrap ga-2">
+              <v-icon icon="mdi-clock-outline" size="20" />
+              定时自动执行
+              <v-chip size="small" :color="schedule?.enable ? 'success' : 'grey'" variant="tonal">
+                {{ schedule?.enable ? '已启用' : '已关闭' }}
+              </v-chip>
+              <v-chip v-if="schedule?.enable" size="small" variant="text">
+                下次执行 {{ schedule?.next_run?.[0] ?? '—' }}
+              </v-chip>
+              <v-spacer />
+              <v-btn variant="text" prepend-icon="mdi-refresh" @click="loadSchedule">刷新</v-btn>
+            </v-card-title>
+            <v-card-text>
+              <p class="text-body-2 mb-2">
+                这里只决定「上面那套动作多久自动跑一次」——定时执行的内容与「预演 → 应用」**完全相同**
+                （算差异 → 归档复用 → 退市 → 写结果表 → 回写键表 → 记账），不是额外的一个步骤。
+                想立刻跑一次，用上方「立即执行一次」。
+              </p>
+              <div class="d-flex flex-wrap align-center ga-2">
+                <v-text-field
+                  v-model="scheduleExpr"
+                  label="cron（6 段：秒 分 时 日 月 周；留空=关闭自动执行）"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  style="max-width: 420px"
+                  placeholder="0 30 3 * * *"
+                />
+                <v-btn color="primary" variant="tonal" :loading="scheduleSaving" @click="saveSchedule(scheduleExpr)">
+                  保存
+                </v-btn>
+                <v-btn variant="text" :loading="scheduleSaving" @click="saveSchedule('')">关闭自动执行</v-btn>
+              </div>
             </v-card-text>
           </v-card>
         </v-window-item>
