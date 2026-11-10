@@ -202,6 +202,21 @@
 
 ### 变更
 
+- **新增《表格长文本展示规范》并把「条目」页签的说明列改为 ⓘ 悬浮（需求 11106 / 11107）**
+  - 新增 [`Docs/DevSpec/TableTextSpec.md`](DevSpec/TableTextSpec.md)：表格单元格**禁止摊开长文本**，
+    一律「ⓘ 图标 + 鼠标悬浮提示」。文档给出可执行的判定口径（会换行 / 长度不定 / 阅读频率低 / 会撑列宽），
+    明确了**不该**用 ⓘ 的类型（枚举、标识符、数值时间、名称、短标签），以及图标配色
+    （有内容 `mdi-information-outline`+`primary`、无内容 `mdi-information-off-outline`+`grey`、
+    异常 `mdi-alert-circle-outline`+`error`）、悬浮内容三段式结构（对象 → 正文 → 备注）、
+    `max-width` 与 `open-delay` 约定、`white-space: pre-wrap` 保留换行、与
+    [`ExplainCardSpec.md`](DevSpec/ExplainCardSpec.md) 的分工、评审自检清单与 5 条反例，
+    并附 Vuetify 实现样例与参考实现路径。
+  - `AGENTS.md` 的 `Docs/DevSpec/` 规范索引表同步登记该规范（仓库规范强制联动的同一处改动）。
+  - 「条目」页签的说明列（原先直接铺 `item_desc` + `source_ref`）改为 ⓘ 悬浮：浮层首行给
+    `rule_no · 市场/品种/代码` 便于确认是哪一条，正文给完整 `item_desc`，其后补出处与备注；
+    无说明时图标置灰。条目页顶部同步加一句「悬浮 ⓘ 图标可看完整说明 / 出处 / 备注」。
+  - 与需求 11105（规则页签说明列）口径一致：现在两个页签的长文本列都不再撑高行、撑开列宽。
+
 - **「规则」页签的「说明」列改为图标 + 悬浮提示（需求 11105）**
   - 问题：规则说明/备注是整段文字，直接铺在表格单元格里会把行高撑起来，10 条规则的表看起来又高又散。
   - 修订：说明列只放一个 ⓘ 图标（有说明为蓝色 `mdi-information-outline`，无说明为灰色

@@ -1003,6 +1003,9 @@ onBeforeUnmount(stopPolling)
               查询
             </v-btn>
             <v-spacer />
+            <span class="text-caption text-medium-emphasis">
+              「说明」列是长文本，鼠标悬浮 ⓘ 图标可看完整说明 / 出处 / 备注
+            </span>
             <v-btn size="small" color="primary" prepend-icon="mdi-plus" @click="openCreate">
               新增条目
             </v-btn>
@@ -1037,9 +1040,39 @@ onBeforeUnmount(stopPolling)
                     {{ statusText(item.status) }}
                   </v-chip>
                 </td>
-                <td class="text-caption">
-                  <div>{{ item.item_desc }}</div>
-                  <div v-if="item.source_ref" class="text-disabled">{{ item.source_ref }}</div>
+                <td>
+                  <!-- 说明/出处是长文本：图标 + 悬浮提示（见 Docs/DevSpec/TableTextSpec.md） -->
+                  <v-tooltip location="top" max-width="560" open-delay="120">
+                    <template #activator="{ props }">
+                      <v-icon
+                        v-bind="props"
+                        :color="item.item_desc ? 'primary' : 'grey'"
+                        :icon="item.item_desc ? 'mdi-information-outline' : 'mdi-information-off-outline'"
+                        size="small"
+                      />
+                    </template>
+                    <div class="font-weight-medium mb-1">
+                      {{ item.rule_no }} · {{ item.market ?? '*' }} / {{ item.instrument ?? '*' }} /
+                      {{ item.code ?? item.code_regex ?? '*' }}
+                    </div>
+                    <div class="text-caption" style="white-space: pre-wrap">
+                      {{ item.item_desc || '（未填写条目说明）' }}
+                    </div>
+                    <div
+                      v-if="item.source_ref"
+                      class="text-caption mt-2 text-medium-emphasis"
+                      style="white-space: pre-wrap"
+                    >
+                      出处：{{ item.source_ref }}
+                    </div>
+                    <div
+                      v-if="item.remark"
+                      class="text-caption mt-1 text-medium-emphasis"
+                      style="white-space: pre-wrap"
+                    >
+                      备注：{{ item.remark }}
+                    </div>
+                  </v-tooltip>
                 </td>
                 <td class="text-right text-no-wrap">
                   <v-btn size="x-small" variant="text" @click="openEdit(item)">编辑</v-btn>
