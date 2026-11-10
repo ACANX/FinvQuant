@@ -5,101 +5,26 @@ import (
 	"testing"
 )
 
-// TestPickUSC 覆盖「本地同一 stock_id 多条 usc 时如何定值」（需求 11055）。
-func TestPickUSC(t *testing.T) {
-	cases := []struct {
-		name       string
-		rows       []LocalRow
-		ftmmSymbol string
-		want       string
-		wantOK     bool
-	}{
-		{
-			name:       "单条直接取该条",
-			rows:       []LocalRow{{USC: "US.AAPL", StockID: 1}},
-			ftmmSymbol: "US.AAPL",
-			want:       "US.AAPL",
-			wantOK:     true,
-		},
-		{
-			name:       "单条但 usc 为空白 → 不写",
-			rows:       []LocalRow{{USC: "  ", StockID: 1}},
-			ftmmSymbol: "US.AAPL",
-			wantOK:     false,
-		},
-		{
-			name:       "多条取等于 ftmm_symbol 的那条",
-			rows:       []LocalRow{{USC: "DASHTRY"}, {USC: "CC.DASHTRY.FTUS"}},
-			ftmmSymbol: "CC.DASHTRY.FTUS",
-			want:       "CC.DASHTRY.FTUS",
-			wantOK:     true,
-		},
-		{
-			name:       "多条都不等于 ftmm_symbol → 歧义（不猜）",
-			rows:       []LocalRow{{USC: "A"}, {USC: "B"}},
-			ftmmSymbol: "C",
-			wantOK:     false,
-		},
-		{
-			name:       "多条且 ftmm_symbol 为空 → 歧义",
-			rows:       []LocalRow{{USC: "A"}, {USC: "B"}},
-			ftmmSymbol: "",
-			wantOK:     false,
-		},
-		{
-			name:   "空输入 → 不写",
-			rows:   nil,
-			wantOK: false,
-		},
-	}
-	for _, item := range cases {
-		t.Run(item.name, func(t *testing.T) {
-			got, ok := pickUSC(item.rows, item.ftmmSymbol)
-			if ok != item.wantOK || got != item.want {
-				t.Fatalf("pickUSC = (%q, %v)，期望 (%q, %v)", got, ok, item.want, item.wantOK)
-			}
-		})
-	}
-}
-
-// TestGroupByStockID 校验分组与 stock_id 升序（分批顺序依赖它）。
-func TestGroupByStockID(t *testing.T) {
-	rows := []LocalRow{
-		{USC: "B", StockID: 20},
-		{USC: "A", StockID: 10},
-		{USC: "C", StockID: 10},
-	}
-	groups, order := groupByStockID(rows)
-	if len(order) != 2 || order[0] != 10 || order[1] != 20 {
-		t.Fatalf("order = %v，期望 [10 20]", order)
-	}
-	if len(groups[10]) != 2 || groups[10][0].USC != "A" || groups[10][1].USC != "C" {
-		t.Fatalf("groups[10] = %v", groups[10])
-	}
-	if len(groups[20]) != 1 {
-		t.Fatalf("groups[20] = %v", groups[20])
-	}
-}
-
-// TestIndexMetaUpstream 校验上游表 ① 行解析（usc 为 NULL 时留空串，不报错）。
-func TestIndexUpstream(t *testing.T) {
+// TestIndexKeyUpstream 校验上游 finv_quote_secu_key 行解析（usc 为 NULL 时留空串，键为空跳过）。
+func TestIndexKeyUpstream(t *testing.T) {
 	raw := []json.RawMessage{
-		json.RawMessage(`{"stock_id":203520,"usc":"BRK-B","ftmm_symbol":"US.BRK.B"}`),
-		json.RawMessage(`{"stock_id":12001500,"usc":null,"ftmm_symbol":"CC.AAVE"}`),
-		json.RawMessage(`{"stock_id":null,"usc":"x","ftmm_symbol":"y"}`),
+		json.RawMessage(`{"ftmm_symbol":"US.AAPL","usc":"US.AAPL"}`),
+		json.RawMessage(`{"ftmm_symbol":"AU..XFL","usc":null}`),
+		json.RawMessage(`{"ftmm_symbol":null,"usc":"x"}`),
+		json.RawMessage(`{"ftmm_symbol":"  ","usc":"y"}`),
 	}
-	rows, err := indexMetaUpstream(raw)
+	rows, err := indexKeyUpstream(raw)
 	if err != nil {
-		t.Fatalf("indexMetaUpstream 失败: %v", err)
+		t.Fatalf("indexKeyUpstream 失败: %v", err)
 	}
 	if len(rows) != 2 {
-		t.Fatalf("解析出 %d 行，期望 2 行（stock_id 为 NULL 的行被跳过）", len(rows))
+		t.Fatalf("解析出 %d 行，期望 2 行（ftmm_symbol 为空的行被跳过）", len(rows))
 	}
-	if rows[203520].USC != "BRK-B" || rows[203520].FtmmSymbol != "US.BRK.B" {
-		t.Fatalf("rows[203520] = %+v", rows[203520])
+	if rows["US.AAPL"].USC != "US.AAPL" {
+		t.Fatalf("rows[US.AAPL] = %+v", rows["US.AAPL"])
 	}
-	if rows[12001500].USC != "" || rows[12001500].FtmmSymbol != "CC.AAVE" {
-		t.Fatalf("rows[12001500] = %+v", rows[12001500])
+	if rows["AU..XFL"].USC != "" {
+		t.Fatalf("rows[AU..XFL] = %+v", rows["AU..XFL"])
 	}
 }
 
@@ -113,45 +38,46 @@ func TestNormalizeBatchSize(t *testing.T) {
 	}
 }
 
-// TestIndexKeyUpstream 校验上游表 ② 行解析（stock_id 为 NULL 时保持 nil，与 0 区分）。
-func TestIndexKeyUpstream(t *testing.T) {
-	raw := []json.RawMessage{
-		json.RawMessage(`{"ftmm_symbol":"US.AAPL","usc":"US.AAPL","stock_id":2049}`),
-		json.RawMessage(`{"ftmm_symbol":"AU..XFL","usc":null,"stock_id":null}`),
-		json.RawMessage(`{"ftmm_symbol":null,"usc":"x","stock_id":1}`),
+// TestClassify 校验「填入 / 覆盖 / 未变 / 无对应」四类判定（需求 11084 的回推口径）。
+func TestClassify(t *testing.T) {
+	cases := []struct {
+		name     string
+		upstream keyUpstreamRow
+		exists   bool
+		want     string
+		local    string
+	}{
+		{name: "上游无该 ftmm_symbol → missing", exists: false, local: "US.AAPL", want: "missing"},
+		{name: "上游为空 → fill", exists: true, upstream: keyUpstreamRow{FtmmSymbol: "AU..XFL"}, local: "XFL", want: "fill"},
+		{name: "上游一致 → keep", exists: true, upstream: keyUpstreamRow{FtmmSymbol: "US.AAPL", USC: "ETFAAPL"}, local: "ETFAAPL", want: "keep"},
+		{name: "上游不同 → overwrite", exists: true, upstream: keyUpstreamRow{FtmmSymbol: "SH.000300", USC: "000300"}, local: "SH0300", want: "overwrite"},
+		{name: "大小写不同 → overwrite", exists: true, upstream: keyUpstreamRow{FtmmSymbol: "US.AAPL", USC: "us.aapl"}, local: "US.AAPL", want: "overwrite"},
 	}
-	rows, err := indexKeyUpstream(raw)
-	if err != nil {
-		t.Fatalf("indexKeyUpstream 失败: %v", err)
-	}
-	if len(rows) != 2 {
-		t.Fatalf("解析出 %d 行，期望 2 行（ftmm_symbol 为空的行被跳过）", len(rows))
-	}
-	if rows["US.AAPL"].USC != "US.AAPL" || rows["US.AAPL"].StockID == nil || *rows["US.AAPL"].StockID != 2049 {
-		t.Fatalf("rows[US.AAPL] = %+v", rows["US.AAPL"])
-	}
-	if rows["AU..XFL"].USC != "" || rows["AU..XFL"].StockID != nil {
-		t.Fatalf("rows[AU..XFL] = %+v", rows["AU..XFL"])
+	for _, item := range cases {
+		t.Run(item.name, func(t *testing.T) {
+			if got := classify(item.upstream, item.exists, item.local); got != item.want {
+				t.Fatalf("classify = %q，期望 %q", got, item.want)
+			}
+		})
 	}
 }
 
-// TestGroupByFtmmSymbol 校验按 ftmm_symbol 归并与升序（阶段 ② 的分批依据）。
-func TestGroupByFtmmSymbol(t *testing.T) {
+// TestBuildTarget 校验本地行归并：按 ftmm_symbol 去重升序、跳过 usc 为空的行。
+func TestBuildTarget(t *testing.T) {
 	rows := []LocalKeyRow{
-		{FtmmSymbol: "US.ZZZ", USC: "ZZZ", StockID: 3},
-		{FtmmSymbol: "US.AAA", USC: "AAA", StockID: 1},
-		{FtmmSymbol: "US.AAA", USC: "US.AAA", StockID: 1},
+		{FtmmSymbol: "US.ZZZ", USC: "ZZZ"},
+		{FtmmSymbol: "US.AAA", USC: " "},
+		{FtmmSymbol: "AU..XFL", USC: "XFL"},
+		{FtmmSymbol: "US.ZZZ", USC: "ZZZ"},
 	}
-	groups, order := groupByFtmmSymbol(rows)
-	if len(order) != 2 || order[0] != "US.AAA" || order[1] != "US.ZZZ" {
-		t.Fatalf("order = %v，期望 [US.AAA US.ZZZ]", order)
+	order, target := buildTarget(rows)
+	if len(order) != 2 || order[0] != "AU..XFL" || order[1] != "US.ZZZ" {
+		t.Fatalf("order = %v，期望 [AU..XFL US.ZZZ]", order)
 	}
-	if len(groups["US.AAA"]) != 2 {
-		t.Fatalf("groups[US.AAA] 应有 2 条，实际 %v", groups["US.AAA"])
+	if target["US.ZZZ"] != "ZZZ" || target["AU..XFL"] != "XFL" {
+		t.Fatalf("target = %v", target)
 	}
-	// 多条时取等于 ftmm_symbol 的那条
-	picked, ok := pickUSC(groups["US.AAA"], "US.AAA")
-	if !ok || picked != "US.AAA" {
-		t.Fatalf("pickUSC = (%q, %v)，期望 (US.AAA, true)", picked, ok)
+	if _, exists := target["US.AAA"]; exists {
+		t.Fatalf("usc 为空的行不应进入目标集：%v", target)
 	}
 }

@@ -236,8 +236,8 @@ func (h *SecuKey) IndicatorSyncRunStatus(c *gin.Context) {
 
 // UscBackfillStatus GET /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Status。
 //
-// 只读本地：读系统配置 20013 + 统计本地源表 futu.finv_futu_quote_collect 的行数、
-// 去重 stock_id 数（= 一次回填的待处理量）与占位行数，不访问 Supabase。
+// 只读本地：读系统配置 20013 + 统计本地来源表 futu.finv_futu_secu_key 的行数、
+// usc 有值行数（= 一次回推的待处理量）与 usc 为空行数，不访问 Supabase。
 func (h *SecuKey) UscBackfillStatus(c *gin.Context) {
 	snapshot, err := h.backfill.Status(c.Request.Context())
 	if err != nil {
@@ -245,15 +245,16 @@ func (h *SecuKey) UscBackfillStatus(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "读取回填状态失败: " + err.Error()})
 		return
 	}
-	log.Printf("[cdeu][uscbackfill] api status configured=%v local_rows=%d stock_ids=%d",
-		snapshot.Configured, snapshot.LocalRows, snapshot.LocalStockIDs)
+	log.Printf("[cdeu][uscbackfill] api status configured=%v local_rows=%d with_usc=%d empty_usc=%d",
+		snapshot.Configured, snapshot.LocalRows, snapshot.LocalWithUSC, snapshot.LocalEmptyUSC)
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": snapshot})
 }
 
 // StartUscBackfillRun POST /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run。
 //
-// 异步启动上游主键参数回填：立刻返回 run_id，前端轮询 UscBackfillRunStatus 取进度与逐批日志。
-// 已有运行在执行时返回 409。注意本接口会**写入线上 Supabase**（PATCH usc 列）。
+// 异步启动「本地 usc 回推上游」：立刻返回 run_id，前端轮询 UscBackfillRunStatus 取进度与逐批日志。
+// 已有运行在执行时返回 409。注意本接口会**写入线上 Supabase**（PATCH public.finv_quote_secu_key.usc，
+// 按 ftmm_symbol 关联，只写 usc 一列）。
 func (h *SecuKey) StartUscBackfillRun(c *gin.Context) {
 	var req secuKeySyncRequest
 	if c.Request.ContentLength > 0 {
@@ -269,7 +270,7 @@ func (h *SecuKey) StartUscBackfillRun(c *gin.Context) {
 		return
 	}
 	log.Printf("[cdeu][uscbackfill] api run started run_id=%s", run.RunID)
-	c.JSON(http.StatusAccepted, gin.H{"code": 0, "message": "上游主键参数回填任务已启动", "data": run})
+	c.JSON(http.StatusAccepted, gin.H{"code": 0, "message": "本地 usc 回推上游任务已启动", "data": run})
 }
 
 // UscBackfillRunStatus GET /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run?runId=。
@@ -279,7 +280,7 @@ func (h *SecuKey) UscBackfillRunStatus(c *gin.Context) {
 	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{
 			"code":    404,
-			"message": "没有找到 usc 回填运行记录（runId=" + runID + "），请先点击「立即回填」",
+			"message": "没有找到 usc 回推运行记录（runId=" + runID + "），请先点击「立即回推」",
 		})
 		return
 	}
