@@ -202,6 +202,20 @@
 
 ### 变更
 
+- **P50 种子只保留 4 条单点例外，其余 637 条不再随脚本发放（需求 11134）**
+  - 背景：P50 整层已按需求 11079 停用（`flag_enable='0'`，条目全部 RETIRED），但 `V300157` 仍把
+    641 条批量例外作为 ACTIVE 种子发出去 —— 全新库会凭空灌入一堆从不参与计算的条目，`V300164`
+    再逐条改成 RETIRED，等于"先建 637 行再全部作废"。
+  - `V300157`：条目种子 **689 → 52 条**，P50 只保留当前生效的 4 条单点例外
+    （`CC.ANT` / `CC.ATOM` / `US.SPTSX` / `THA.SET`），其余 637 行删除并在种子处写明原因；
+    头部注释与结尾收敛校验（`v_item <> 689` → `52`）同步。
+  - `V300164`：停用范围排除这 4 条（`(market, instrument, ltrim(code,'.'))` 白名单，兼容 `V300161` 去点前形态），
+    校验由"P50 不得有 ACTIVE 条目"改为"**恰有 4 条** ACTIVE 单点例外"，NOTICE 打印保留/停用条数。
+  - 影响：**全新库**不再出现 637 条 RETIRED 批量例外；**存量库不受影响**（这 637 行早已 RETIRED，语义不变）。
+    `internal/meta/finv/quote/uscrule/model.go` 的条目数注释同步为 52 条。
+  - 验证（空库 `finv_migtest` 全量迁移）：`TestMigrateIntegration` PASS；`P50 = 4 条 ACTIVE、flag_enable=0`，
+    条目合计 68 条（含后续迁移新增的 P16 与 P40 条目），`schema_version=300179`，`fk=0`。
+
 - **新增 `Docs/CheckList/README.md` 作为清单目录入口（需求 11133）**
   - 内容：目录解决的问题（事故固化、按类型拆分、证据可复核）、**八份清单一览表**（管什么 / 什么时候用 / 条目编号）、
     三步使用流程（定类型 → 过专项 → 过通用，合并前走 Merge）、命名规则（`<领域>[Doc]CommitPreCheckListSpec.md`）、

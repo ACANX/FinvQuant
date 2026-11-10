@@ -3,7 +3,7 @@
 // 数据对象（迁移 V300157）：
 //
 //	futu.finv_futu_usc_rule         规则层（9 条：P10 闸门 / P12 P14 前处理 / P20-P22 市场默认 / P40 P50 例外 / P60 兜底）
-//	futu.finv_futu_usc_rule_item    条目层（689 条；新增上市、退市、规则修正只动这张表）
+//	futu.finv_futu_usc_rule_item    条目层（52 条；新增上市、退市、规则修正只动这张表）
 //	futu.finv_futu_usc_map          结果表（ftmm_symbol → usc；ACTIVE 行大小写不敏感唯一，退市行允许被复用）
 //	futu.finv_futu_usc_rule_log     审计日志
 //	archive.finv_usc_reuse_snapshot 复用归档（usc 被复用时下游各表历史行整行快照）
