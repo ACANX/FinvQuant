@@ -866,7 +866,8 @@ onBeforeUnmount(stopPolling)
           <div class="d-flex flex-wrap align-center ga-2 mb-2">
             <v-chip variant="tonal" prepend-icon="mdi-source-branch">共 {{ rules.length }} 条规则</v-chip>
             <span class="text-caption text-medium-emphasis">
-              条目数显示「生效 / 全部」；点击规则行（或「查看条目」）会切到「条目」页并自动带上该规则过滤。
+              条目数显示「生效 / 全部」；点击规则行（或「查看条目」）会切到「条目」页并自动带上该规则过滤；
+              「说明」列是长文本，鼠标悬浮 ⓘ 图标即可查看完整说明与备注。
             </span>
             <v-spacer />
             <v-btn size="small" variant="text" prepend-icon="mdi-refresh" @click="loadRules">刷新</v-btn>
@@ -914,9 +915,25 @@ onBeforeUnmount(stopPolling)
                 <td class="text-no-wrap">
                   <strong>{{ rule.item_active }}</strong> / {{ rule.item_count }}
                 </td>
-                <td class="text-caption">
-                  <div>{{ rule.rule_desc }}</div>
-                  <div v-if="rule.remark" class="text-disabled">{{ rule.remark }}</div>
+                <td>
+                  <!-- 说明/备注是长文本：改用图标 + 悬浮提示，避免把表格撑高变形 -->
+                  <v-tooltip location="top" max-width="560" open-delay="120">
+                    <template #activator="{ props }">
+                      <v-icon
+                        v-bind="props"
+                        :color="rule.rule_desc ? 'primary' : 'grey'"
+                        :icon="rule.rule_desc ? 'mdi-information-outline' : 'mdi-information-off-outline'"
+                        size="small"
+                      />
+                    </template>
+                    <div class="font-weight-medium mb-1">{{ rule.rule_no }} {{ rule.rule_name }}</div>
+                    <div class="text-caption" style="white-space: pre-wrap">
+                      {{ rule.rule_desc || '（未填写规则说明）' }}
+                    </div>
+                    <div v-if="rule.remark" class="text-caption mt-2 text-medium-emphasis" style="white-space: pre-wrap">
+                      备注：{{ rule.remark }}
+                    </div>
+                  </v-tooltip>
                 </td>
                 <td class="text-right text-no-wrap">
                   <v-btn size="x-small" variant="text" @click.stop="selectRule(rule.rule_no)">查看条目</v-btn>
