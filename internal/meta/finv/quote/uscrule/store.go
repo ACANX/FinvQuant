@@ -128,7 +128,7 @@ SELECT d.ftmm_symbol, d.new_usc, p.from_ftmm
            AND ( x.status = 'RETIRED'
                  OR x.ftmm_symbol IN (SELECT r.ftmm_symbol FROM _usc_retire r)
                  OR x.ftmm_symbol IN (SELECT c.ftmm_symbol FROM _usc_diff c WHERE c.diff = 'update') )
-         ORDER BY (x.status = 'RETIRED') DESC, x.retire_at DESC NULLS LAST
+         ORDER BY (x.status = 'RETIRED') DESC, x.dt_retire DESC NULLS LAST
          LIMIT 1) p ON true
  WHERE d.diff IN ('insert', 'update');
 `
@@ -381,7 +381,7 @@ func (s *Store) Apply(ctx context.Context, env, previewToken, operator, reason s
 	if _, err := tx.Exec(ctx, `
 UPDATE futu.finv_futu_usc_map m
    SET status = 'RETIRED',
-       retire_at = COALESCE(m.retire_at, now())
+       dt_retire = COALESCE(m.dt_retire, now())
  WHERE m.status = 'ACTIVE'
    AND ( m.ftmm_symbol IN (SELECT ftmm_symbol FROM _usc_retire)
       OR m.ftmm_symbol IN (SELECT ftmm_symbol FROM _usc_diff WHERE diff = 'update') )`); err != nil {
@@ -391,8 +391,8 @@ UPDATE futu.finv_futu_usc_map m
 	// 写结果表（新增 + 改值；未变行不动）。
 	if _, err := tx.Exec(ctx, `
 INSERT INTO futu.finv_futu_usc_map
-      (ftmm_symbol, market, code, instrument, usc, rule_no, basis, status, retire_at,
-       reuse_of_ftmm, scope_env, rule_version, compute_at, first_assign_at)
+      (ftmm_symbol, market, code, instrument, usc, rule_no, basis, status, dt_retire,
+       reuse_of_ftmm, scope_env, rule_version, dt_compute, dt_first_assign)
 SELECT d.ftmm_symbol, d.market, d.code, d.instrument, d.new_usc, d.rule_no, d.basis,
        'ACTIVE', NULL, r.from_ftmm,
        current_setting('finv.usc_env'), current_setting('finv.usc_rule_version'), now(), now()
@@ -404,21 +404,21 @@ ON CONFLICT (ftmm_symbol) DO UPDATE
        rule_no       = EXCLUDED.rule_no,
        basis         = EXCLUDED.basis,
        status        = 'ACTIVE',
-       retire_at    = NULL,
+       dt_retire    = NULL,
        reuse_of_ftmm = COALESCE(EXCLUDED.reuse_of_ftmm, futu.finv_futu_usc_map.reuse_of_ftmm),
        scope_env     = EXCLUDED.scope_env,
        rule_version  = EXCLUDED.rule_version,
        market        = EXCLUDED.market,
        code          = EXCLUDED.code,
        instrument    = EXCLUDED.instrument,
-       compute_at   = now()`); err != nil {
+       dt_compute   = now()`); err != nil {
 		return result, fmt.Errorf("写入结果表失败: %w", err)
 	}
 
 	// 在册行的计算时间统一刷新（未变行不改 usc，但整次重算时间应前移）。
 	if _, err := tx.Exec(ctx, `
 UPDATE futu.finv_futu_usc_map m
-   SET compute_at = now()
+   SET dt_compute = now()
  WHERE m.status = 'ACTIVE'
    AND m.ftmm_symbol IN (SELECT ftmm_symbol FROM _usc_final)`); err != nil {
 		return result, fmt.Errorf("刷新计算时间失败: %w", err)
@@ -753,7 +753,7 @@ SELECT (SELECT count(*) FROM futu.finv_futu_usc_rule),
        (SELECT count(*) FROM futu.finv_futu_secu_key k
          LEFT JOIN futu.finv_futu_usc_map m ON m.status = 'ACTIVE' AND m.usc_lower = lower(k.usc)
          WHERE m.ftmm_symbol IS NULL),
-       (SELECT max(compute_at) FROM futu.finv_futu_usc_map),
+       (SELECT max(dt_compute) FROM futu.finv_futu_usc_map),
        (SELECT count(*) FROM archive.finv_usc_reuse_snapshot)`).Scan(
 		&status.RuleCount, &status.ItemCount, &status.ItemActive, &status.MapActive,
 		&status.MapRetire, &status.MapReuse, &status.KeyTotal, &status.KeyMatch,

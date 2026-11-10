@@ -123,7 +123,7 @@ type DiffRow struct {
 type Preview struct {
 	Env          string    `json:"env"`
 	RuleVersion  string    `json:"rule_version"`
-	ComputeAt    string    `json:"compute_at"`
+	ComputeAt    string    `json:"dt_compute"`
 	Total        int64     `json:"total"`
 	Insert       int64     `json:"insert"`
 	Update       int64     `json:"update"`

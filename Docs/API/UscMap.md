@@ -97,7 +97,7 @@
 |------|------|
 | ① 归档 | `usc` 被新证券接管时，把下游各表历史行整行快照进 `archive.finv_usc_reuse_snapshot`（`to_regclass` 守卫，缺表跳过） |
 | ② 退市 | 键表已不存在的在册行 + 本次要改值的行，先置 `RETIRED`（释放 `usc`，避免部分唯一索引瞬时冲突） |
-| ③ 写结果表 | `INSERT ... ON CONFLICT (ftmm_symbol) DO UPDATE`，只写 `insert`/`update` 行；`first_assign_at` 不覆盖 |
+| ③ 写结果表 | `INSERT ... ON CONFLICT (ftmm_symbol) DO UPDATE`，只写 `insert`/`update` 行；`dt_first_assign` 不覆盖 |
 | ④ 回写键表 | `UPDATE futu.finv_futu_secu_key SET usc = ...` 只写变化行 |
 | ⑤ 记账 | 一条汇总 + 每条复用一条审计日志 |
 
@@ -145,7 +145,7 @@
 | `archived` / `archived_rows` | `archive` / `archive_rows` | 复用归档行数 |
 | `key_updated` / `key_matched` / `key_mismatch` | `key_update` / `key_match` / `key_miss` | 键表回写/匹配/未匹配 |
 | `last_computed_at` | `last_compute_at` | 最近计算时间 |
-| `retired_at` / `computed_at` / `first_assigned_at` | `retire_at` / `compute_at` / `first_assign_at` | 结果表列 |
+| `retired_at` / `computed_at` / `first_assigned_at` | `dt_retire` / `dt_compute` / `dt_first_assign` | 结果表列（`V300165` 去 `-ed`，`V300166` 统一 `dt_` 前缀） |
 | `started_at` / `finished_at` / `elapsed_ms` | `start_at` / `finish_at` / `duration_ms` | 运行时间 |
 | diff 取值 `added`/`changed`/`removed`/`unchanged` | `insert`/`update`/`retire`/`keep` | 明细分类 |
 

@@ -166,6 +166,12 @@
 
 ### 变更
 
+- **USC 结果表时间列统一 `dt_` 前缀（需求 11082，迁移 `V300166`）**
+  - `futu.finv_futu_usc_map`：`retire_at` / `compute_at` / `first_assign_at`
+    → **`dt_retire` / `dt_compute` / `dt_first_assign`**（与 `dt_collect` / `dt_create` / `dt_update` 口径一致）。
+  - 仅改列名：类型、默认值、注释与数据全部保留；现有 73,212 行改后 `dt_compute` 全部有值。
+  - 代码与文档同步：`uscrule/store.go` 的 SQL、`/Status` 的 `last_compute_at`、`Docs/API/UscMap.md` 字段表。
+
 - **USC 字段名去 `-ed` 形式 + 审计日志「变更」可展开（需求 11080，迁移 `V300165`）**
   - 字段命名：统计与状态字段一律改回动词原形——`added/changed/removed/reused/unchanged` →
     `insert/update/retire/reuse/keep`，`escalated/archived/archived_rows` → `escalate/archive/archive_rows`，

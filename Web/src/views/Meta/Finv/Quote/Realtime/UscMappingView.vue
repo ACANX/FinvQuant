@@ -78,7 +78,7 @@ interface DiffRow {
 interface Preview {
   env: string
   rule_version: string
-  compute_at: string
+  dt_compute: string
   total: number
   insert: number
   update: number
