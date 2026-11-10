@@ -219,6 +219,22 @@
 
 ### 变更
 
+- **修复「录入证券元数据」对话框必报 `stockId 必须是 1..0 的整数`（需求 11150）**
+  - 现象：点行内「录入」打开对话框，顶部直接红字 `预填失败：stockId 必须是 1..0 的整数`，预填永远失败。
+  - 根因：`RealtimeStockPendingPrefill` 用 `realtimeStockQueryInt(c, "stockId", 0, 1, 0)` 解析主键，
+    该函数的语义是**闭区间** `min..max`，这里 `min=1`、`max=0` → 任何合法主键都判越界。
+  - 修复：新增 `realtimeStockQueryInt64`，`stockId` 按 int64 解析、只校验 `>= 1`（主键没有业务上界，
+    且实测值已到 `7.9e13`，也不能用 int 的区间校验兜）；`realtimeStockQueryInt` 补注释说明 `min` 必须 `<= max`。
+  - 回归：新增 `internal/api/handler/cdeu_realtime_stock_query_test.go`
+    —— `1` / `86002425217944` / `79083232831247` / 带空白都通过，`空` / `0` / `-5` / `abc` / `1.5` 一律拒绝；
+    同时覆盖 `pageSize` 的正常区间行为，handler 包全量测试通过。
+
+- **待录入证券表格增加 `usc` 列（需求 11149）**
+  - 首列新增 `usc`（与「证券行情排行」同位置口径），显示快照真实 `usc` 值。
+  - 口径说明：本页只列「补全后 `usc` 仍为空」的行，所以该列按定义恒为空——空值显示 `—`，
+    悬浮说明写明「快照 usc 仍为空；补录后将写入的值见『派生键 ftmm_symbol』列」，避免被误读成前端 bug。
+  - 同步：空态 `colspan` 15 → 16；`Menu/Quote/Realtime/PendingSecu.md` §2.3 列表列、接口文档的 `usc` 语义说明。
+
 - **「录入证券元数据」改为自动预填 + 一键写入（需求 11147 / 11148）**
   - 背景：原对话框只做字段展示，`usc`、`market_code`、`exchange_code` 等十几个字段全靠手填，且点「录入」只弹
     「接口尚未接入」（需求 10996 一直没落地）；第三个分区 `cdeu.finv_quote_cdeu_usc` 本身是运行时动态生成的表，录了也没意义。

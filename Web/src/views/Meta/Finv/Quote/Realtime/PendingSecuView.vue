@@ -322,6 +322,7 @@ onMounted(load)
       <v-table density="compact" class="text-caption finv-pending-table">
         <thead>
           <tr>
+            <th class="text-no-wrap">usc</th>
             <th class="text-no-wrap">证券编号</th>
             <th class="text-no-wrap">代码</th>
             <th class="text-no-wrap">名称</th>
@@ -341,6 +342,14 @@ onMounted(load)
         </thead>
         <tbody>
           <tr v-for="row in rows" :key="row.stock_id" :class="rowClass(row.price_direct)">
+            <td class="text-no-wrap">
+              <template v-if="row.usc">{{ row.usc }}</template>
+              <v-tooltip v-else text="快照 usc 仍为空（本页只列补全后仍为空的证券）；补录后将写入的值见「派生键 ftmm_symbol」列" location="bottom" max-width="360">
+                <template #activator="{ props: tipProps }">
+                  <span v-bind="tipProps" class="text-medium-emphasis">—</span>
+                </template>
+              </v-tooltip>
+            </td>
             <td class="text-no-wrap">{{ row.stock_id }}</td>
             <td class="text-no-wrap">{{ row.stock_code || '—' }}</td>
             <td class="text-no-wrap">{{ row.name || '—' }}</td>
@@ -362,7 +371,7 @@ onMounted(load)
             </td>
           </tr>
           <tr v-if="!rows.length && !loading">
-            <td colspan="15" class="text-center text-medium-emphasis py-6">
+            <td colspan="16" class="text-center text-medium-emphasis py-6">
               没有待录入证券（快照行的 usc 都能关联到证券主数据，或已由键表补全）
             </td>
           </tr>

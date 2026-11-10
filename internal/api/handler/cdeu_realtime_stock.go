@@ -254,12 +254,14 @@ func (h *ExportArchive) RealtimeStockRmbSync(c *gin.Context) {
 // 并标注每个字段的来源（快照 / 字典 / 参考同市场 / 缺省 / 需人工），前端只需核对即可提交。
 // `cdeu.finv_quote_cdeu_usc` 不在补录范围内（该表数据由运行时采集链路动态生成）。
 func (h *ExportArchive) RealtimeStockPendingPrefill(c *gin.Context) {
-	stockID, err := realtimeStockQueryInt(c, "stockId", 0, 1, 0)
+	// stockId 是 bigint 主键（实测值已到 7.9e13），必须按 int64 解析；
+	// 也不能套 realtimeStockQueryInt 的「min..max 闭区间」——那支函数在 max 缺省传 0 时会把所有合法值判为越界。
+	stockID, err := realtimeStockQueryInt64(c, "stockId")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
 	}
-	prefill, err := h.service.Store().PendingSecuPrefill(c.Request.Context(), int64(stockID))
+	prefill, err := h.service.Store().PendingSecuPrefill(c.Request.Context(), stockID)
 	if err != nil {
 		status, code := http.StatusInternalServerError, 2006
 		if errors.Is(err, cdeu.ErrRealtimeStockInvalid) {
@@ -470,6 +472,24 @@ func (h *ExportArchive) RealtimeStockPendingPage(c *gin.Context) {
 }
 
 // realtimeStockQueryInt 解析整数型查询参数：缺省用 def，越界或非整数返回错误。
+// realtimeStockQueryInt64 解析必填的正整数查询参数（bigint 主键用，如 stockId）。
+//
+// 只校验下界，不设上界：主键值本身没有业务上界，写死 max 只会挡住合法值。
+func realtimeStockQueryInt64(c *gin.Context, name string) (int64, error) {
+	raw := strings.TrimSpace(c.Query(name))
+	if raw == "" {
+		return 0, fmt.Errorf("%s 不能为空", name)
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value < 1 {
+		return 0, fmt.Errorf("%s 必须是正整数（收到 %q）", name, raw)
+	}
+	return value, nil
+}
+
+// realtimeStockQueryInt 解析带默认值与闭区间 [min, max] 的整数查询参数。
+//
+// 注意 min 必须 <= max，否则任何值都会被判越界（历史事故：max 传 0 导致 stockId 全部被挡）。
 func realtimeStockQueryInt(c *gin.Context, name string, def, min, max int) (int, error) {
 	raw := strings.TrimSpace(c.Query(name))
 	if raw == "" {

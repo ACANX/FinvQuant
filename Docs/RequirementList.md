@@ -3249,7 +3249,9 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 待录入证券页面在「查询」按钮右侧新增「手动补录USC」按钮，调用 `POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/USCBackfill`：按派生键 `ftmm_symbol = upper(market_label \|\| '.' \|\| stock_code)` 关联 `futu.finv_futu_secu_key`，把 `usc` 为空（NULL / 空白）的 `cdeu.finv_cdeu_secu_realtime_stock` 行就地写回；键表无对应证券的行不动，幂等（只写空值行） | 11146 | 1 |
 | 「录入证券元数据」对话框改为**关联自动预填**：新增 `GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Prefill?stockId=`，按快照行 + `public.finv_exchange` 字典 + `futu.finv_futu_quote_collect` 同市场同品种参考值算出两张表字段并标注来源（快照/字典/参考/缺省/待填）；新增 `POST .../Stock/Pending/Enroll` 单事务写 `public.finv_security` + `futu.finv_futu_quote_collect` 并回写快照 `usc`（三处均幂等），两张表 `remark` 写入 `[AUTO-FILL]` 标记与时间便于溯源 | 11147 | 1 |
 | 「录入证券元数据」对话框移除 `cdeu.finv_quote_cdeu_usc` 分区：该表数据由运行时采集链路动态生成，页面不再展示、补录不再写入该表 | 11148 | 1 |
-| **合计** | **10001–11148** | **1144**（含 2 条待办） |
+| 待录入证券表格首列增加 `usc` 字段展示（快照真实值，空值显示 `—` 并在悬浮说明中指向「派生键」列，避免与本页「补全后仍为空」的口径冲突） | 11149 | 1 |
+| 修复「录入证券元数据」对话框一打开就报 `预填失败：stockId 必须是 1..0 的整数`：`stockId` 改为按 int64 解析且只校验下界（bigint 主键无业务上界），不得再套 `min..max` 闭区间 | 11150 | 1 |
+| **合计** | **10001–11150** | **1146**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
