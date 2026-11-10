@@ -59,6 +59,7 @@ git status --short && git diff --stat
 | R15 | 容器构建默认 `proxy.golang.org` 不可达，`--pull` 因镜像源 DNS 失败 | 构建加 `--build-arg GOPROXY=https://goproxy.cn,direct`；不用 `--pull` |
 | R16 | 只改代码不同步迁移目录 / 接口文档，远端版本与服务端不一致 | 发布相关改动同时同步 `Deploy/Migrations`、`Docs/API`、`Docs/Menu` |
 | R17 | `v-combobox` 默认 `return-object=true`（Vuetify 4.1），从对象型下拉选中后 `v-model` 拿到的是整个 `{title,value}` 对象；保存前 `String(obj)` 落库成 `[object Object]` | 对象型 items 的 `v-combobox` 一律写 `item-title` / `item-value` / `:return-object="false"`；提交前用「对象取 `value` 再取 `title`」的归一函数兜底，不用裸 `String(v)` |
+| R18 | 直接 `UPDATE ... SET ftmm_symbol = ...` 撞「column can only be updated to DEFAULT」——`ftmm_symbol` 是生成列（`market_label \|\| '.' \|\| futu_symbol`） | 改生成列必须改**基列**（`market_label` / `futu_symbol`），生成值自动跟随；迁移里不出现对生成列的赋值 |
 
 ## 4. 按变更类型取最小必查集
 

@@ -3244,7 +3244,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 审计日志「变更摘要」列改为两个图标按钮（「看摘要」字段级差异表 / 「看对比」前后 JSON 并排），点该行其他列默认打开「对比」视图，弹窗内可用页签切换；原「详情」列合并进该列 | 11141 | 1 |
 | `/Meta/Finv/Quote/Realtime/SecuParamSync` Tab 3「本地 usc 回推上游」同时回推 `priority`：本地读 `futu.finv_futu_secu_key.usc`/`.priority`，上游 `public.finv_quote_secu_key` 同名列同一行一次 PATCH；判定改为两列都一致才 `keep`，任一为空 `fill`，都不为空但有差异 `overwrite` | 11142 | 1 |
 | `ftmm_symbol` 入库英文字母统一大写：写入侧覆盖 批量 upsert / 应用 / 指标批量（`upper(btrim(...))`）+ 新增 `internal/meta/finv/quote/symbol.Normalize` 供 Go 侧调用；存量由 `V300181` 一次性改写（键表 / 结果表 / 指标表），撞名先中止 | 11143 | 1 |
-| **合计** | **10001–11143** | **1139**（含 2 条待办） |
+| 采集属性表三条 GDR / 外汇指数键与 usc 修正：`ftmm_symbol` 是生成列（不可 UPDATE），改为修正基列 `market_label`/`futu_symbol` + `usc`，落到 `HK.GDRNEXT`→`GDRNext`、`FX.EURINDEX`→`EURIndex`、`FX.USDINDEX`→`USDIndex`；`V300182` 按 `upper(...)` 兼容大小写变体匹配，主键/唯一键冲突先中止 | 11144 | 1 |
+| **合计** | **10001–11144** | **1140**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

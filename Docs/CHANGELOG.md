@@ -219,6 +219,28 @@
 
 ### 变更
 
+- **修正采集属性表三条 GDR / 外汇指数键与 usc（需求 11144）**
+  - 问题：直接 `UPDATE futu.finv_futu_quote_collect SET ftmm_symbol = ...` 报
+    `column "ftmm_symbol" can only be updated to DEFAULT`——该列是**生成列**
+    （`market_label || '.' || futu_symbol`），不可写。
+  - 修订：新增迁移 `V300182__quote_collect_fix_gdrnext_fx_index.sql`，改**基列**让生成值自然跟随：
+
+    | 目标 ftmm_symbol | 目标 usc | 原 usc（变体） |
+    |------------------|----------|----------------|
+    | `HK.GDRNEXT` | `GDRNext` | `GDRnext` |
+    | `FX.EURINDEX` | `EURIndex` | `FX.EURindex` |
+    | `FX.USDINDEX` | `USDIndex` | `FX.USDindex` |
+
+  - 脚本口径：按 `upper(futu_symbol)` + `upper(market_label)` 匹配，**兼容任意大小写变体**，
+    因此本地库（只有 `FX.USDINDEX` 且已正确）与含 `GDRnext`/`FX.EURindex` 的环境都能跑；
+    改 `usc`（主键）前检查是否被另一行占用、同市场是否存在符号两种形态并存，命中即 `RAISE EXCEPTION`
+    中止交人工裁决；`IS DISTINCT FROM` 保证幂等；末尾只做结构性收敛断言，行数信息 `RAISE NOTICE`。
+  - 演练（`finv_rehearse` 克隆表结构 + 三条变体行）：三条全部纠正为「大写 ftmm_symbol + 驼峰 usc」，
+    复跑 0 变更，人为制造 `usc` 占用后脚本按预期中止。
+  - 主库应用：`schema_version = 300182`；本库仅 `FX.USDINDEX` 一行且原本已正确（`usc=USDIndex`），
+    脚本按「无需修改」跳过，另两条本库不存在 → 只有 `RAISE NOTICE`，无数据改动。
+  - 事故登记：`CommitPreCheckListSpec` 新增 **R18**（生成列不能直接 UPDATE，要改基列）。
+
 - **ftmm_symbol 入库统一大写（需求 11143）**
   - 规则：入库存到 `ftmm_symbol` 的英文字母一律大写，非字母字符（`.` / `,` / `&` / `*` / `-`）原样保留，前后空白去掉。
   - **写入侧覆盖全部路径**：
