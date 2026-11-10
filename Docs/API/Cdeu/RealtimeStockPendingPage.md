@@ -18,13 +18,15 @@
 响应里 `usc` 是补全后的值（清单内恒为空串），`ftmm_symbol` 是派生键，便于核对「本该对应哪个键」。
 
 采集会把所有在售证券写入快照表，`usc` 为空表示该证券尚未录入证券主数据
-（新上市 / 未纳入采集范围）。这份清单是后续补录三张表的依据：
+（新上市 / 未纳入采集范围）。这份清单是后续补录两张主数据表的依据：
 
 | 表 | 职责 |
 |----|------|
 | `public.finv_security` | 证券主数据（含 `currency_type`、`exchange_code`） |
 | `futu.finv_futu_quote_collect` | futu 采集配置（`stock_id ↔ usc`） |
-| `cdeu.finv_quote_cdeu_usc` | usc 主数据（`market` / `currency` / `timezone`） |
+
+> `cdeu.finv_quote_cdeu_usc` **不在补录范围**（需求 11147）：该表数据由运行时采集链路动态生成，
+> 人工录入没有意义，页面也不再展示。
 
 > **`usc` 为空是刻意保留的观测信号**：不得用 `stock_code` 回填——两者并非等价，
 > 直接挪用会把不同市场的同码证券映射错（如 `000001` 在 SZ 与 SH 都存在）。

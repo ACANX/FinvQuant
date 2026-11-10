@@ -6,7 +6,7 @@
 // 都写进快照表，usc 为空表示该证券尚未录入证券主数据，是后续补录以下三张表的依据：
 //   public.finv_security（证券主数据）
 //   futu.finv_futu_quote_collect（采集配置）
-//   cdeu.finv_quote_cdeu_usc（usc 主数据）
+// 需求 11147 起 `cdeu.finv_quote_cdeu_usc` 不再录入（数据由运行时采集链路动态生成）。
 // 手动补录 usc（需求 11146）：POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/USCBackfill
 //   —— 按派生键关联 futu.finv_futu_secu_key，把 usc 为空的行就地写回快照表（幂等）。
 // 本页其余能力仍只做查询；「一键录入」为规划功能（需求登记在案，尚未实现）。
@@ -370,7 +370,7 @@ onMounted(load)
       </v-table>
 
       <!-- 录入对话框：三张表字段登记 + 必填校验（需求 10996） -->
-      <PendingSecuEnrollDialog v-model="enrollOpen" :row="enrollRow" />
+      <PendingSecuEnrollDialog v-model="enrollOpen" :row="enrollRow" @done="load" />
 
       <div class="d-flex flex-wrap align-center justify-space-between ga-2 mt-3">
         <span class="text-caption text-medium-emphasis">

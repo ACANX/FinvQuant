@@ -219,6 +219,33 @@
 
 ### 变更
 
+- **「录入证券元数据」改为自动预填 + 一键写入（需求 11147 / 11148）**
+  - 背景：原对话框只做字段展示，`usc`、`market_code`、`exchange_code` 等十几个字段全靠手填，且点「录入」只弹
+    「接口尚未接入」（需求 10996 一直没落地）；第三个分区 `cdeu.finv_quote_cdeu_usc` 本身是运行时动态生成的表，录了也没意义。
+  - 新增 `GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Prefill?stockId=`：一次算齐两张表字段并标注来源
+    `snapshot` / `dictionary` / `reference` / `default` / `manual`，同时给出风险提示（交易所标签未登记、
+    无参考 `market_code`、同 交易所+代码 或 市场细码+代码 已被**另一个 usc** 占用等）。
+  - 新增 `POST .../Stock/Pending/Enroll`：单事务写 `public.finv_security` + `futu.finv_futu_quote_collect`，
+    并把 `usc` 回写 `cdeu.finv_cdeu_secu_realtime_stock`（只填空值），该行随即离开待录入清单。
+    三处写入按主键幂等（`ON CONFLICT DO NOTHING` / `IS NULL` 判定），**不覆盖人工数据**；
+    `usc` / `stock_id` / `ftmm_symbol` 由服务端派生，不采信请求体。
+  - `remark` 溯源：两张表写入 `[AUTO-FILL] 待录入证券补录 <RFC3339>[；备注：<人工备注>]`，
+    `WHERE remark LIKE '[AUTO-FILL]%'` 可筛出全部补录程序写入的行。
+  - 派生规则：`exchange_code` ← `finv_exchange.exchange_flag`（SH=11/SZ=12/BJ=13/HK=21/US=30）；
+    `currency_type` ← 快照 `currency` 否则 `base_currency`；`security_type` ← `instrument_type`；
+    `sub_instrument_type` ← `instrument_type*1000+2`；`market_code` ← 同市场同品种已配置行众数（标记「参考」，须核对）；
+    `instrument` ← 3 stock / 4 etf / 6 index / 7 sectors / 11 crypto。
+  - 前端：重写 `PendingSecuEnrollDialog`（每个字段带来源小标签、标题「待核对 N 项」、只读派生 usc、
+    人工备注输入、单按钮「录入」），成功后 toast + 刷新清单；移除 `cdeu.finv_quote_cdeu_usc` 分区与逻辑（需求 11148）。
+  - **踩坑记录**：`public.finv_security` 有 `uq_finv_security_exchange_code (exchange_code, security_code)`，
+    老库同一 交易所+代码 还挂着**旧口径裸代码 usc**（如 `09999`），新口径 `HK.09999` 插入会撞 23505——
+    这不是 `ON CONFLICT (usc)` 能兜住的。处理方式：预填阶段提前探测并警告、提交阶段把 23505 翻译成可读提示，
+    **不自动改旧行主键**（主键变更须人工裁决）。
+  - 演练（真实库事务内造合成行后 ROLLBACK）：`HK.ZZTEST1` 三处全部写入、`ftmm_symbol` 生成列正常、
+    复跑三处均 0 行、`remark` 未被覆盖；冲突探测对 `HK.09999` 正确报出占用行 `usc=09999`。
+  - 文档：新增 `Docs/API/Cdeu/RealtimeStockPendingPrefill.{md,yml}`、`RealtimeStockPendingEnroll.{md,yml}`，
+    `APIs.md` 编号 122/123，`Menu/Quote/Realtime/PendingSecu.md` §3 全量重写（来源标注、派生规则、幂等、remark 溯源）。
+
 - **待录入证券新增「手动补录 USC」（需求 11146）**
   - 背景：上一版把清单判定改成「按派生键 JOIN 键表补一次 usc 再判空」，但那是**查询时只读**的，
     库里 `cdeu.finv_cdeu_secu_realtime_stock.usc` 仍是 NULL —— 看着清单短了，数据没动，也没有任何手动落库入口。

@@ -3247,7 +3247,9 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 采集属性表三条 GDR / 外汇指数键与 usc 修正：`ftmm_symbol` 是生成列（不可 UPDATE），改为修正基列 `market_label`/`futu_symbol` + `usc`，落到 `HK.GDRNEXT`→`GDRNext`、`FX.EURINDEX`→`EURIndex`、`FX.USDINDEX`→`USDIndex`；`V300182` 按 `upper(...)` 兼容大小写变体匹配，主键/唯一键冲突先中止 | 11144 | 1 |
 | 菜单 `/Meta/Finv/Quote/Realtime/PendingSecu` 改口径：先用派生键 `ftmm_symbol = upper(market_label \|\| '.' \|\| stock_code)` 左连 `futu.finv_futu_secu_key` 补一次 `usc`，**补完仍为空**的快照行才列出；响应新增 `ftmm_symbol`，关键字可搜派生键，页面新增「派生键」列 | 11145 | 1 |
 | 待录入证券页面在「查询」按钮右侧新增「手动补录USC」按钮，调用 `POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/USCBackfill`：按派生键 `ftmm_symbol = upper(market_label \|\| '.' \|\| stock_code)` 关联 `futu.finv_futu_secu_key`，把 `usc` 为空（NULL / 空白）的 `cdeu.finv_cdeu_secu_realtime_stock` 行就地写回；键表无对应证券的行不动，幂等（只写空值行） | 11146 | 1 |
-| **合计** | **10001–11146** | **1142**（含 2 条待办） |
+| 「录入证券元数据」对话框改为**关联自动预填**：新增 `GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Prefill?stockId=`，按快照行 + `public.finv_exchange` 字典 + `futu.finv_futu_quote_collect` 同市场同品种参考值算出两张表字段并标注来源（快照/字典/参考/缺省/待填）；新增 `POST .../Stock/Pending/Enroll` 单事务写 `public.finv_security` + `futu.finv_futu_quote_collect` 并回写快照 `usc`（三处均幂等），两张表 `remark` 写入 `[AUTO-FILL]` 标记与时间便于溯源 | 11147 | 1 |
+| 「录入证券元数据」对话框移除 `cdeu.finv_quote_cdeu_usc` 分区：该表数据由运行时采集链路动态生成，页面不再展示、补录不再写入该表 | 11148 | 1 |
+| **合计** | **10001–11148** | **1144**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

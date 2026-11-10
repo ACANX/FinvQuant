@@ -75,39 +75,73 @@
 - 结果用全局 toast 提示「本次补录 N 行 / 补录前为空 M 行 / 仍无法补全 K 行 / 耗时」，随后自动刷新列表；
 - `K > 0` 说明这些证券在 `futu.finv_futu_secu_key` 里也没有，需要走录入流程（需求 10996，尚未实现）。
 
-## 3. 录入对话框（需求 10996）
+## 3. 录入对话框（需求 10996 落地 / 11147 自动化）
 
-点击行内「录入」打开对话框，把该证券按三张表各自的字段登记一遍：
+点击行内「录入」打开对话框。打开时先调预填接口
+[`GET /Realtime/Stock/Pending/Prefill`](../../../API/Cdeu/RealtimeStockPendingPrefill.md)，
+把**能关联到的一律自动填好**并标注来源，人工只做核对；点「录入」一次性写库。
 
-| 分区 | 表 | 必填字段（NOT NULL 且无 DEFAULT） |
-|------|----|-----------------------------------|
-| 1 | `public.finv_security` | `usc`、`exchange_code`、`security_type`、`security_code`、`security_name`、`security_name_cn`、`currency_type` |
-| 2 | `futu.finv_futu_quote_collect` | `usc`、`stock_id`、`futu_symbol`、`market_type`、`market_code`、`instrument_type`、`sub_instrument_type`、`market_label`、`instrument` |
-| 3 | `cdeu.finv_quote_cdeu_usc` | `usc` |
+写入两张表（+ 回写快照）：
 
-- `usc` 三表共用，在对话框顶部单独填写一次；
-- 其余选填字段一并展示（含默认值提示），留空即用表默认值；
-- **必填全部有值**才启用对话框的「录入」按钮，否则按钮禁用并提示缺哪几项、
-  分区标题上也有「缺 N 项必填 / 必填已齐」角标；
-- 预填只用**快照同名字段直传**（`stock_code`、`name`、`market_type`、`instrument_type`、
-  `market_label`、`currency`），**不做任何推断**。
+| 顺序 | 表 | 语义 |
+|------|----|------|
+| 1 | `public.finv_security` | 证券主数据 |
+| 2 | `futu.finv_futu_quote_collect` | futu 采集配置（`ftmm_symbol` 是生成列，不写） |
+| 3 | `cdeu.finv_cdeu_secu_realtime_stock` | 只把 `usc` 回写（空值才写），该行随即离开待录入清单 |
 
-### 3.1 当前阶段边界
+> `cdeu.finv_quote_cdeu_usc` **不再录入、不再展示**（需求 11147）：该表数据由运行时采集链路动态生成。
+
+### 3.1 预填来源标注
+
+每个字段右侧一个小标签，标出这个值怎么来的：
+
+| 标签 | source | 含义 |
+|------|--------|------|
+| 快照 | `snapshot` | 快照行直接带过来（代码 / 名称 / 市场 / 品种类型 / 币种） |
+| 字典 | `dictionary` | 查 `public.finv_exchange` 等字典表得到（`exchange_code`、基准币种、品种类型映射） |
+| 参考 | `reference` | 同市场同品种已配置行的众数（`market_code` / `sub_instrument_type` / `instrument`），**必须核对** |
+| 缺省 | `default` | 表默认值或代码缺省，仅供占位（如中文名先取英文名、`flag_enable='0'`） |
+| 待填 | `manual` | 推不出来，必须人工填写 |
+
+标题右上角显示「待核对 N 项」= 来源为 `reference` / `default` / `manual` 的字段数。
+
+### 3.2 派生规则
+
+| 字段 | 规则 |
+|------|------|
+| `usc` | `upper(市场标签.代码)`，对话框里只读；服务端重新推导，不采信前端传值 |
+| `exchange_code` | `public.finv_exchange.exchange_flag = 市场标签`（SH=11 / SZ=12 / BJ=13 / HK=21 / US=30） |
+| `currency_type` | 快照 `currency` 优先，缺失用 `finv_exchange.base_currency` |
+| `security_type` | `instrument_type`：3/12→Stock、4→ETF、6→StockIndex、11→Crypto |
+| `market_type` | 快照 `market_type` 优先，缺失按市场推 HK=1 / US=2 / A股=4 |
+| `market_code` | 同市场同品种已配置行的众数（参考值） |
+| `sub_instrument_type` | `instrument_type * 1000 + 2`（3→3002、4→4002） |
+| `instrument` | 3→stock、4→etf、6→index、7→sectors、11→crypto |
+| `flag_enable` | 默认 `'0'`（停用），核对后再开采集 |
+
+### 3.3 提交与幂等
+
+- **必填全部有值**才启用「录入」（按钮禁用时提示还缺哪几项）；
+- 单事务写两张表 + 回写快照，任一步失败整体回滚；
+- 三处写入都幂等：两张表 `ON CONFLICT DO NOTHING`（已存在不覆盖人工数据）、快照只填空值；
+- 成功后 toast 报「已建/已存在 × 已回写」，并刷新清单；
+- 唯一约束冲突（`23505`，老库同代码存在旧口径 usc）会翻译成可读提示，预填阶段也会提前警告。
+
+### 3.4 `remark` 溯源
+
+两张表的 `remark` 由服务端生成：
+
+```
+[AUTO-FILL] 待录入证券补录 2026-01-15T10:20:30+08:00；备注：<人工备注>
+```
+
+对话框底部的「人工备注（选填）」只填后半段。排查时
+`WHERE remark LIKE '[AUTO-FILL]%'` 即可列出全部由补录程序写入的行。
+
+### 3.5 仍未实现
 
 | 项 | 状态 |
 |----|------|
-| 三张表字段展示 + 必填校验 | ✅ 已实现 |
-| 字段推断（usc / futu_symbol / market_label / exchange_code 等） | ⏳ 未实现，规则待定 |
-| 一键写入三张表 | ⏳ 未实现；点击「录入」只提示「接口尚未接入」 |
+| 单只录入（预填 + 写两张表 + 回写 usc） | ✅ 已实现 |
 | 批量录入（列表顶部按钮） | ⏳ 规划中，按钮保持 disabled |
-
-实现写入前需先确认的问题：
-
-| 编号 | 待确认 |
-|------|--------|
-| P1 | `usc` 生成规则（观测值等于 `stock_code`，但需确认是否所有市场都如此） |
-| P2 | `futu_futu_quote_collect` 各字段的来源（`market_label` / `instrument` / `sub_instrument_type`） |
-| P3 | `market_code` / `exchange_code` 的市场映射表（HK=21、SZ=12、SH=11 是否全覆盖） |
-| P4 | 三张表的写入顺序与失败回滚策略（建议同事务，`public.finv_security` → `futu` → `cdeu`） |
-| P5 | 是否需要人工复核（先落草稿表再审） |
-| P6 | 录入后是否自动把 `flag_enable` 置 `'1'` 并触发一次列表采集验证 |
+| 录入后自动开采集（`flag_enable='1'`）并验证 | ⏳ 未做，保持默认停用 |

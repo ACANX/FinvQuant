@@ -192,6 +192,9 @@ func NewRouter(deps *Deps) *gin.Engine {
 			realtime.GET("/Stock/Pending", archive.RealtimeStockPendingPage)
 			// 手动补录 usc：按派生键关联键表补空值（需求 11146）
 			realtime.POST("/Stock/USCBackfill", archive.RealtimeStockUSCBackfill)
+			// 待录入证券补录：预填（关联自动填）+ 录入（写两张主数据表并回写 usc，需求 11147）
+			realtime.GET("/Stock/Pending/Prefill", archive.RealtimeStockPendingPrefill)
+			realtime.POST("/Stock/Pending/Enroll", archive.RealtimeStockPendingEnroll)
 			openGroup.POST("/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert", archive.RealtimeStockUpsert)
 
 			// 缺省汇率（需求 10999/11002）：public.finv_fxcer，手动触发 get-fx-overview / get-fx-rate-list 全量更新 + 整表查询。

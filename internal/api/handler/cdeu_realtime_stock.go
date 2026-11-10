@@ -248,6 +248,66 @@ func (h *ExportArchive) RealtimeStockRmbSync(c *gin.Context) {
 	})
 }
 
+// RealtimeStockPendingPrefill GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Prefill?stockId=。
+//
+// 待录入证券的补录预填（需求 11147）：把「能关联到的一律自动填」的字段一次性算好返回，
+// 并标注每个字段的来源（快照 / 字典 / 参考同市场 / 缺省 / 需人工），前端只需核对即可提交。
+// `cdeu.finv_quote_cdeu_usc` 不在补录范围内（该表数据由运行时采集链路动态生成）。
+func (h *ExportArchive) RealtimeStockPendingPrefill(c *gin.Context) {
+	stockID, err := realtimeStockQueryInt(c, "stockId", 0, 1, 0)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	prefill, err := h.service.Store().PendingSecuPrefill(c.Request.Context(), int64(stockID))
+	if err != nil {
+		status, code := http.StatusInternalServerError, 2006
+		if errors.Is(err, cdeu.ErrRealtimeStockInvalid) {
+			status, code = http.StatusBadRequest, 400
+		}
+		log.Printf("[cdeu][realtimestock] api pending prefill failed stock_id=%d err=%v", stockID, err)
+		c.JSON(status, gin.H{"code": code, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "预填完成", "data": prefill})
+}
+
+// RealtimeStockPendingEnroll POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enroll。
+//
+// 录入待录入证券（需求 10996 / 11147）：单事务写入 `public.finv_security` +
+// `futu.finv_futu_quote_collect`，并把 `usc` 回写快照表，让该行从待录入清单消失。
+// `usc` / `stock_id` / `ftmm_symbol` 由服务端派生；两张表都按主键 `ON CONFLICT DO NOTHING`（幂等、不覆盖人工数据）。
+// `remark` 写 `[AUTO-FILL]` 标记，便于后续追踪是补录程序写入的。
+func (h *ExportArchive) RealtimeStockPendingEnroll(c *gin.Context) {
+	var req cdeu.PendingSecuEnrollRequest
+	body := http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20)
+	decoder := json.NewDecoder(body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体解析失败: " + err.Error()})
+		return
+	}
+
+	started := time.Now()
+	log.Printf("[cdeu][realtimestock] api pending enroll begin stock_id=%d client=%s", req.StockID, c.ClientIP())
+	result, err := h.service.Store().EnrollPendingSecu(c.Request.Context(), req)
+	if err != nil {
+		status, code := http.StatusInternalServerError, 2006
+		if errors.Is(err, cdeu.ErrRealtimeStockInvalid) {
+			status, code = http.StatusBadRequest, 400
+		}
+		log.Printf("[cdeu][realtimestock] api pending enroll failed stock_id=%d err=%v elapsed_ms=%d",
+			req.StockID, err, time.Since(started).Milliseconds())
+		c.JSON(status, gin.H{"code": code, "message": err.Error()})
+		return
+	}
+	log.Printf("[cdeu][realtimestock] api pending enroll end stock_id=%d usc=%s security_created=%t "+
+		"collect_created=%t snapshot_updated=%t elapsed_ms=%d",
+		req.StockID, result.USC, result.SecurityCreated, result.CollectCreated,
+		result.SnapshotUpdated, time.Since(started).Milliseconds())
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "补录完成", "data": result})
+}
+
 // RealtimeStockUSCBackfill POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/USCBackfill。
 //
 // 手动补录 usc（需求 11146）：按派生键 `ftmm_symbol = upper(market_label || '.' || stock_code)`
