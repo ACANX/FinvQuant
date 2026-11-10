@@ -2,7 +2,7 @@
 
 > 所属：FinvQuant 交付检查清单 · 存放：`Docs/CheckList/`
 > 用法：本清单**只列本类特有项**。通用项（范围授权、编译测试、提交纪律、红线）不重复，
-> 按 [`PreCommitCheckListSpec.md`](PreCommitCheckListSpec.md) §4 路由取；合并侧复核见 [`PreMergeCheckListSpec.md`](PreMergeCheckListSpec.md)。
+> 按 [`PreCommitCheckListSpec.md`](PreCommitCheckListSpec.md) §4 路由取；合并侧复核见 [`PreMergeCommitCheckListSpec.md`](PreMergeCommitCheckListSpec.md)。
 > 适用：改动 `cmd/`、`internal/`（Go 服务端、定时任务、外部客户端）。
 > 关联：[`ApiSpec.md`](../DevSpec/ApiSpec.md)（响应信封/异常映射）、[`ErrorCodeSpec.md`](../DevSpec/ErrorCodeSpec.md)（错误码号段）、[`LogSpec.md`](../DevSpec/LogSpec.md)（日志与可观测性）。
 

@@ -2,7 +2,7 @@
 
 > 所属：FinvQuant 交付检查清单 · 存放：`Docs/CheckList/`
 > 用法：本清单**只列本类特有项**。通用项（范围授权、编译测试、提交纪律、红线）不重复，
-> 按 [`PreCommitCheckListSpec.md`](PreCommitCheckListSpec.md) §4 路由取；合并侧复核见 [`PreMergeCheckListSpec.md`](PreMergeCheckListSpec.md)。
+> 按 [`PreCommitCheckListSpec.md`](PreCommitCheckListSpec.md) §4 路由取；合并侧复核见 [`PreMergeCommitCheckListSpec.md`](PreMergeCommitCheckListSpec.md)。
 > 适用：改动 `Web/`（页面、组件、样式、前端构建配置）。
 > 展示口径：[`DictFilterSpec.md`](../DevSpec/DictFilterSpec.md)（下拉 `中文[值]`）、[`DictColumnSpec.md`](../DevSpec/DictColumnSpec.md)（表格只中文）、[`TableTextSpec.md`](../DevSpec/TableTextSpec.md)（长文本 ⓘ）、[`UiSpec.md`](../DevSpec/UiSpec.md)（状态色/开关）、[`ExplainCardSpec.md`](../DevSpec/ExplainCardSpec.md)（说明卡片）。
 

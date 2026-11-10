@@ -1,4 +1,4 @@
-# 合并前复核规范（PreMergeCheckListSpec）
+# 合并前复核规范（PreMergeCommitCheckListSpec）
 
 > 所属：FinvQuant 开发规范 · 存放：`Docs/CheckList/`
 > 适用范围：把 `feat/*` 合入目标分支（`main` 或集成分支）前的最后一次复核与功能验收。

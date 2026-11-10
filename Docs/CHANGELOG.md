@@ -202,6 +202,12 @@
 
 ### 变更
 
+- **合并前清单改名 `PreMergeCommitCheckListSpec.md`（需求 11127）**
+  - `Docs/CheckList/PreMergeCheckListSpec.md` → `Docs/CheckList/PreMergeCommitCheckListSpec.md`（`git mv` 保留历史），
+    取代需求 11122 中的 `PreMerge` 命名。
+  - 同步：文件内标题、`PreCommitCheckListSpec` §4 路由表、`AGENTS.md` 索引、其余 6 份清单的交叉引用、
+    `Docs/RequirementList.md` 条目路径。
+
 - **后端清单改名 `PreBackendCommitCheckListSpec.md`（需求 11126）**
   - `Docs/CheckList/PreBackendCheckListSpec.md` → `Docs/CheckList/PreBackendCommitCheckListSpec.md`（`git mv` 保留历史），
     取代需求 11122 中的 `PreBackend` 命名。
@@ -253,7 +259,7 @@
 
 - **检查清单独立目录并按环节加 `Pre` 前缀（需求 11114）**
   - `Docs/DevSpec/CommitCheckListSpec.md` → `Docs/CheckList/PreCommitCheckListSpec.md`；
-    `Docs/DevSpec/MergeCheckListSpec.md` → `Docs/CheckList/PreMergeCheckListSpec.md`。
+    `Docs/DevSpec/MergeCheckListSpec.md` → `Docs/CheckList/PreMergeCommitCheckListSpec.md`。
   - 新建 `Docs/CheckList/` 专放「交付环节检查清单」，与 `Docs/DevSpec/`（长期规范）分开放；文件名以 `Pre` 标识所处环节
     （提交前 / 合并前），后续如加发布前清单按 `PreReleaseCheckListSpec.md` 续用同一前缀。
   - 同步更新：两份清单内的相互引用与 `../DevSpec/*` 相对链接、`AGENTS.md` 索引（改为独立小节「交付检查清单」）、
@@ -279,7 +285,7 @@
     接口与文档 C17–C20、前端 C21–C25、提交本身 C26–C28），每条都给可核对的判据；
     §4 六条红线（未授权改表、明文密钥、写生成列、靠 `t.Skip` 变绿、`--no-verify`、混入非仓库文件）；
     §5 豁免写法；§6 条目新增规则（来源必须有据、判据必须可证伪、一条只查一件事、只增不改）。
-  - [`Docs/CheckList/PreMergeCheckListSpec.md`](CheckList/PreMergeCheckListSpec.md) —— **合并前复核规范**（复核人验收）：
+  - [`Docs/CheckList/PreMergeCommitCheckListSpec.md`](CheckList/PreMergeCommitCheckListSpec.md) —— **合并前复核规范**（复核人验收）：
     §1 角色与时机（复核人非提交者，结论只有通过/打回）、§2 代码复核/一致性复核/功能验收三类不可混、
     §3 六组清单（M1 需求与范围、M2 代码、M3 迁移含空库全量迁移与幂等与回滚、M4 接口文档一致性、
     M5 功能验收证据、M6 合并动作）、§4 证据要求与 PR 描述模板、§5 八条强制打回情形、

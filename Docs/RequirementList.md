@@ -3212,9 +3212,9 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 新增开发规范 `Docs/DevSpec/DictFilterSpec.md`：字典/可枚举的**查询筛选控件**选项统一 `中文[值]`，含适用判定、首项「全部 X」空值语义、触发时机、选项来源核对、布局一致性、自检清单与反例 | 11109 | 1 |
 | 新增开发规范 `Docs/DevSpec/DictColumnSpec.md`：字典/可枚举的**表格列**只显示中文（不带键），含适用判定、空值与未登记值口径、状态列 chip 语义色、需要看键时的三处出口、自检清单与反例（与 `DictFilterSpec.md` 各自独立成篇） | 11110 | 1 |
 | 新增开发规范 `Docs/CheckList/PreCommitCheckListSpec.md`：代码递交前的检查清单（C1–C28 分组条目 + 一键自检命令 + 红线 + 豁免写法 + 条目新增规则） | 11111 | 1 |
-| 新增开发规范 `Docs/CheckList/PreMergeCheckListSpec.md`：PR 合并前的校验复核与功能验收清单（M1–M6：需求/代码/迁移/文档一致性/功能验收证据/合并动作 + 打回准则 + PR 模板） | 11112 | 1 |
+| 新增开发规范 `Docs/CheckList/PreMergeCommitCheckListSpec.md`：PR 合并前的校验复核与功能验收清单（M1–M6：需求/代码/迁移/文档一致性/功能验收证据/合并动作 + 打回准则 + PR 模板） | 11112 | 1 |
 | 两份清单补入「高频事故防守表（`R1…R16`，逐条挂真实事故与判据）」与「按变更类型取最小必查集」路由（提交侧 `C`/`R` 编号，合并侧复核范围与必验判据）；不拆前后端两份清单 | 11113 | 1 |
-| 检查清单文档统一存放 `Docs/CheckList/` 并以 `Pre` 前缀命名：`PreCommitCheckListSpec.md`、`PreMergeCheckListSpec.md`（原 `Docs/DevSpec/CommitCheckListSpec.md`、`MergeCheckListSpec.md`） | 11114 | 1 |
+| 检查清单文档统一存放 `Docs/CheckList/` 并以 `Pre` 前缀命名：`PreCommitCheckListSpec.md`、`PreMergeCommitCheckListSpec.md`（原 `Docs/DevSpec/CommitCheckListSpec.md`、`MergeCheckListSpec.md`） | 11114 | 1 |
 | 新增 `Docs/CheckList/PreFrontendCheckListSpec.md`：前端改动专项清单（FE1–FE15，含枚举口径、长文本、三态、产物一致性与本类高频失手） | 11115 | 1 |
 | 新增 `Docs/CheckList/PreBackendCommitCheckListSpec.md`：后端改动专项清单（BE1–BE16，含错误映射、URL 编码与分片、幂等、资源释放、性能证据） | 11116 | 1 |
 | 新增 `Docs/CheckList/PreDbChangeCheckListSpec.md`：数据库修改专项清单（DB1–DB20：授权、脚本写法、空库/真实库验证、回滚、事故对照） | 11117 | 1 |
@@ -3227,7 +3227,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 提案设计清单文件名由 `PreProposalCheckListSpec.md` 改为 `ProposalDocCheckListSpec.md`（`Doc` 标识「产出文档」类清单，取代需求 11122 中的 `PreProposal` 命名） | 11124 | 1 |
 | 代码重构清单文件名由 `CodeRefactorCheckListSpec.md` 改为 `CodeRefactorCommitCheckListSpec.md`（补齐 `Commit` 段，改为需求 11123 中的 `CodeRefactor` 命名） | 11125 | 1 |
 | 后端清单文件名由 `PreBackendCheckListSpec.md` 改为 `PreBackendCommitCheckListSpec.md`（取代需求 11122 中的 `PreBackend` 命名） | 11126 | 1 |
-| **合计** | **10001–11126** | **1122**（含 2 条待办） |
+| 合并前清单文件名由 `PreMergeCheckListSpec.md` 改为 `PreMergeCommitCheckListSpec.md`（取代需求 11122 中的 `PreMerge` 命名） | 11127 | 1 |
+| **合计** | **10001–11127** | **1123**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

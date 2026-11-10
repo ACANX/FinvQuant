@@ -2,7 +2,7 @@
 
 > 所属：FinvQuant 交付检查清单 · 存放：`Docs/CheckList/`
 > 用法：本清单**只列本类特有项**。通用项（范围授权、编译测试、提交纪律、红线）不重复，
-> 按 [`PreCommitCheckListSpec.md`](PreCommitCheckListSpec.md) §4 路由取；合并侧复核见 [`PreMergeCheckListSpec.md`](PreMergeCheckListSpec.md)。
+> 按 [`PreCommitCheckListSpec.md`](PreCommitCheckListSpec.md) §4 路由取；合并侧复核见 [`PreMergeCommitCheckListSpec.md`](PreMergeCommitCheckListSpec.md)。
 > 适用：提案已批准、进入实现前的**技术设计**（接口契约、数据结构、流程、兼容与回滚）。
 > 存放：`Docs/Design/<主题>Design.md`（骨架参考 [`Docs/Guide/DesignDocGuide.md`](../Guide/DesignDocGuide.md)）；落地步骤清单放 `Docs/Refactor/yyMM-NNN-*.md`。
 

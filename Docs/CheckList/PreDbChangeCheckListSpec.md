@@ -2,7 +2,7 @@
 
 > 所属：FinvQuant 交付检查清单 · 存放：`Docs/CheckList/`
 > 用法：本清单**只列本类特有项**。通用项（范围授权、编译测试、提交纪律、红线）不重复，
-> 按 [`PreCommitCheckListSpec.md`](PreCommitCheckListSpec.md) §4 路由取；合并侧复核见 [`PreMergeCheckListSpec.md`](PreMergeCheckListSpec.md)。
+> 按 [`PreCommitCheckListSpec.md`](PreCommitCheckListSpec.md) §4 路由取；合并侧复核见 [`PreMergeCommitCheckListSpec.md`](PreMergeCommitCheckListSpec.md)。
 > 适用：新增迁移、改表结构、批量改数据、清洗/删除数据。
 > 关联：[`DbSchemaSpec.md`](../DevSpec/DbSchemaSpec.md) **§0 红线**（表存在性与归属不得擅自变更）、[`DataDictMapping/`](../DataDictMapping/)、[`FileNamingSpec.md`](../DevSpec/FileNamingSpec.md)。
 
