@@ -20,6 +20,15 @@
 
 ### 新增
 
+- **纳入外汇/货币指数证券（需求 11091，迁移 `V300175`）**
+  - 补 `EURIndex`（欧元指数）：`Forex` / `CIX` / market 1253 / exchange 100 / USD，模板与既有
+    `USDIndex` 对齐（`V300173` 删掉的是写法不同的 `EURindex`，键表权威写法是 `EURIndex`）。
+  - 顺带纳入 4 个「有采集数据」的外汇/商品对：`MYRKRW`、`NZDTHB`、`THBNZD`、`XNGUSD`
+    （`Forex` / `CER` / market 1251 / exchange 100，币种取交易对左侧货币）。
+  - `USDIndex`（美元指数）检查后确认**本已在册**，未重复插入。
+  - 实测：`finv_security` 23,520 → **23,525** 行；有数据的 forex 证券 0 个未登记；幂等复跑插入 0 行。
+  - 未动：`USDindex`（小写 i、`name='USD'`、无 `provider`/`remark`）是历史垃圾行，保留待确认是否删除。
+
 - **按「有数据才建」重建 `public.finv_security`（需求 11090，迁移 `V300174`）**
   - 口径：只给「真有行情数据」的证券补登记（`futu.finv_futu_secu_key` 有、`finv_security` 缺、
     且 `futu.finv_futu_quote_collect` / `cdeu.finv_quote_secu_indicator` 有记录），不做 73,212 全量扩张。
