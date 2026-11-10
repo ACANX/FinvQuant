@@ -99,9 +99,9 @@ func TestPreviewLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("预演失败: %v", err)
 	}
-	t.Logf("预演：total=%d insert=%d update=%d retire=%d reuse=%d keep=%d escalate=%d token=%s",
+	t.Logf("预演：total=%d insert=%d update=%d retire=%d reuse=%d keep=%d escalate=%d key_update=%d token=%s",
 		preview.Total, preview.Insert, preview.Update, preview.Retire, preview.Reuse,
-		preview.Keep, preview.Escalate, preview.PreviewToken)
+		preview.Keep, preview.Escalate, preview.KeyUpdate, preview.PreviewToken)
 
 	if preview.Total != keyRows {
 		t.Errorf("预演行数 %d 与键表行数 %d 不一致", preview.Total, keyRows)
@@ -369,3 +369,93 @@ func TestSaveItemConflictOnClone(t *testing.T) {
 }
 
 func strPtr(s string) *string { return &s }
+
+// TestKeyDriftOnClone 校验「手工改键表 usc」必须能被预演看见并在应用时回写。
+//
+// 缺陷背景：`_usc_diff` 只比「结果表 vs 本次计算」，手工改 `futu.finv_futu_secu_key.usc`
+// 后结果表没变 → diff='keep' → 预演显示「无变更」，用户以为规则没生效。
+//
+//	FINV_USC_APPLY_DSN="postgres://finv:finvquant@127.0.0.1:5432/finv_usctest?sslmode=disable" \
+//	  go test -run TestKeyDriftOnClone -v ./internal/meta/finv/quote/uscrule/
+func TestKeyDriftOnClone(t *testing.T) {
+	dsn := os.Getenv("FINV_USC_APPLY_DSN")
+	if dsn == "" {
+		t.Skip("未设置 FINV_USC_APPLY_DSN，跳过键表漂移用例（会写库，必须指向克隆库）")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("连接数据库失败: %v", err)
+	}
+	defer pool.Close()
+
+	service := NewService(pool)
+
+	// 先让结果表与键表完全一致，确保后面的漂移是唯一变量
+	preview, err := service.Preview(ctx, DefaultEnv)
+	if err != nil {
+		t.Fatalf("预演失败: %v", err)
+	}
+	if _, err := service.Apply(ctx, DefaultEnv, preview.PreviewToken, "test", "键表漂移用例：先收敛"); err != nil {
+		t.Fatalf("首次应用失败: %v", err)
+	}
+
+	// 挑一行已知映射，手工把键表 usc 改歪（模拟用户手工改值）
+	const target = "US.AAPL"
+	var expect string
+	if err := pool.QueryRow(ctx,
+		`SELECT usc FROM futu.finv_futu_usc_map WHERE ftmm_symbol = $1 AND status = 'ACTIVE'`, target).Scan(&expect); err != nil {
+		t.Fatalf("读取 %s 的结果表 usc 失败: %v", target, err)
+	}
+	const drift = "ZZ_DRIFT_TMP"
+	if _, err := pool.Exec(ctx,
+		`UPDATE futu.finv_futu_secu_key SET usc = $2 WHERE ftmm_symbol = $1`, target, drift); err != nil {
+		t.Fatalf("手工改键表失败: %v", err)
+	}
+
+	// 预演必须看见这行漂移
+	preview, err = service.Preview(ctx, DefaultEnv)
+	if err != nil {
+		t.Fatalf("漂移后预演失败: %v", err)
+	}
+	if preview.KeyUpdate < 1 {
+		t.Fatalf("预演未识别键表漂移：key_update=%d（应 ≥1）", preview.KeyUpdate)
+	}
+	found := false
+	for _, row := range preview.Samples {
+		if row.FtmmSymbol == target && row.Diff == "key_update" {
+			found = true
+			gotCur, gotNew := "", ""
+			if row.CurrentUSC != nil {
+				gotCur = *row.CurrentUSC
+			}
+			if row.NewUSC != nil {
+				gotNew = *row.NewUSC
+			}
+			if gotCur != drift || gotNew != expect {
+				t.Fatalf("漂移行内容不符：current=%q new=%q（期望 %q → %q）", gotCur, gotNew, drift, expect)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("预演明细里没有 %s 的 key_update 行", target)
+	}
+
+	// 应用后键表必须被回写回规则结果
+	result, err := service.Apply(ctx, DefaultEnv, preview.PreviewToken, "test", "键表漂移用例：回写")
+	if err != nil {
+		t.Fatalf("应用失败: %v", err)
+	}
+	if result.KeyUpdate < 1 {
+		t.Fatalf("应用未回写键表：key_update=%d（应 ≥1）", result.KeyUpdate)
+	}
+	var got string
+	if err := pool.QueryRow(ctx,
+		`SELECT usc FROM futu.finv_futu_secu_key WHERE ftmm_symbol = $1`, target).Scan(&got); err != nil {
+		t.Fatalf("读取回写后的键表 usc 失败: %v", err)
+	}
+	if got != expect {
+		t.Fatalf("键表未回写：got=%q want=%q", got, expect)
+	}
+}

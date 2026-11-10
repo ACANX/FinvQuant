@@ -148,6 +148,9 @@ paths:
                       reuse: { type: integer }
                       keep: { type: integer }
                       escalate: { type: integer }
+                      key_update:
+                        type: integer
+                        description: 键表漂移行数（futu.finv_futu_secu_key.usc 与规则结果不一致，应用时回写；不计入 update）
                       preview_token: { type: string }
                       samples: { type: array, items: { type: object } }
                       conflicts: { type: array, items: { type: string } }

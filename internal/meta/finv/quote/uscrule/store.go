@@ -20,6 +20,7 @@ import (
 //	_usc_dup     候选里大小写不敏感撞名的键
 //	_usc_final   冲突升级后的最终结果（撞名改用 ftmm_symbol）
 //	_usc_diff    与结果表的差异（insert / update / keep）
+//	_usc_keysync 键表 usc 与规则结果不一致的行（手工改值 / 外部同步覆盖 → 需回写）
 //	_usc_retire  结果表在册但键表已不存在的行（retire → 标记 RETIRED）
 //	_usc_reuse   usc 被新证券接管的行（复用 → 必须先归档下游）
 //
@@ -40,7 +41,7 @@ var errConflict = errors.New("usc 冲突无法自动消解")
 
 // buildCalcSQL 计算候选、升级冲突、生成差异与复用清单（依赖 finv.usc_env 已设置）。
 const buildCalcSQL = `
-DROP TABLE IF EXISTS _usc_cand, _usc_dup, _usc_final, _usc_diff, _usc_retire, _usc_reuse;
+DROP TABLE IF EXISTS _usc_cand, _usc_dup, _usc_final, _usc_diff, _usc_retire, _usc_reuse, _usc_keysync;
 
 CREATE TEMP TABLE _usc_cand AS
 WITH c AS (
@@ -112,6 +113,21 @@ SELECT f.ftmm_symbol, f.market, f.code, f.instrument,
   LEFT JOIN futu.finv_futu_usc_map m
          ON m.ftmm_symbol = f.ftmm_symbol AND m.status = 'ACTIVE';
 
+-- 键表漂移：结果表（或本次算出的值）与该行键表 usc 不一致。
+--
+-- 关键点：_usc_diff 只比「结果表 vs 本次计算」，**看不到手工改键表**——
+-- 手工把 futu.finv_futu_secu_key.usc 改掉后，结果表没变 → diff='keep' → 预演显示「无变更」，
+-- 用户以为规则没生效。这里单独把键表漂移抓出来，预演可见、应用时回写。
+CREATE TEMP TABLE _usc_keysync AS
+SELECT f.ftmm_symbol, f.market, f.code, f.instrument,
+       k.usc AS current_usc, f.usc AS new_usc, f.rule_no, f.basis
+  FROM _usc_final f
+  JOIN futu.finv_futu_secu_key k ON k.ftmm_symbol = f.ftmm_symbol
+ WHERE k.usc IS DISTINCT FROM f.usc
+   -- 结果表本身就要改的行已在 insert/update 里列出，不重复计数
+   AND NOT EXISTS (SELECT 1 FROM _usc_diff d
+                    WHERE d.ftmm_symbol = f.ftmm_symbol AND d.diff <> 'keep');
+
 CREATE TEMP TABLE _usc_retire AS
 SELECT m.ftmm_symbol, m.market, m.code, m.instrument, m.usc
   FROM futu.finv_futu_usc_map m
@@ -149,7 +165,8 @@ SELECT COALESCE(count(*) FILTER (WHERE diff = 'insert'), 0)::bigint     AS inser
        (SELECT count(*) FROM _usc_retire)::bigint                      AS retire,
        (SELECT count(*) FROM _usc_reuse)::bigint                       AS reuse,
        (SELECT count(*) FROM _usc_cand)::bigint                        AS total,
-       (SELECT count(*) FROM _usc_final WHERE rule_no = 'ESCALATE')::bigint AS escalate
+       (SELECT count(*) FROM _usc_final WHERE rule_no = 'ESCALATE')::bigint AS escalate,
+       (SELECT count(*) FROM _usc_keysync)::bigint                     AS key_update
   FROM _usc_diff`
 
 // diffSummary summarySQL 的扫描目标。
@@ -163,15 +180,16 @@ type diffSummary struct {
 	Keep     int64
 	Retire   int64
 	Reuse    int64
-	Total    int64
-	Escalate int64
+	Total     int64
+	Escalate  int64
+	KeyUpdate int64
 }
 
 // scanSummary 按 summarySQL 的固定列序扫描。
 func scanSummary(row pgx.Row) (diffSummary, error) {
 	var sum diffSummary
 	err := row.Scan(&sum.Insert, &sum.Update, &sum.Keep, &sum.Retire,
-		&sum.Reuse, &sum.Total, &sum.Escalate)
+		&sum.Reuse, &sum.Total, &sum.Escalate, &sum.KeyUpdate)
 	return sum, err
 }
 
@@ -192,6 +210,10 @@ SELECT d.ftmm_symbol, d.market, d.code, d.instrument, d.current_usc, d.new_usc,
 SELECT t.ftmm_symbol, t.market, t.code, t.instrument, t.usc, NULL,
        'RETIRE', '键表中已不存在该证券，标记退市（usc 释放，允许后续复用）', 'retire', NULL
   FROM _usc_retire t
+ UNION ALL
+SELECT s.ftmm_symbol, s.market, s.code, s.instrument, s.current_usc, s.new_usc,
+       s.rule_no, '键表 usc 与规则结果不一致（手工改值或外部同步覆盖），应用时回写', 'key_update', NULL
+  FROM _usc_keysync s
  ORDER BY 9, 1`
 
 // reuseStatSQL 复用行（供应用结果与日志使用）。
@@ -294,6 +316,7 @@ func (s *Store) Preview(ctx context.Context, env string) (Preview, []DiffRow, er
 	preview.Insert, preview.Update, preview.Keep = sum.Insert, sum.Update, sum.Keep
 	preview.Retire, preview.Reuse, preview.Total, preview.Escalate =
 		sum.Retire, sum.Reuse, sum.Total, sum.Escalate
+	preview.KeyUpdate = sum.KeyUpdate
 	if err := tx.QueryRow(ctx, tokenSQL).Scan(&preview.PreviewToken); err != nil {
 		return Preview{}, nil, fmt.Errorf("计算预演令牌失败: %w", err)
 	}

@@ -202,6 +202,23 @@
 
 ### 变更
 
+- **修复「手工改键表 usc 后预演不显示差异」（需求 11100）**
+  - 现象：手工改了 `futu.finv_futu_secu_key.usc`（例如把 XRP 相关行改掉），再用已配置规则点「预演差异」，
+    明细里看不到任何该证券的更新记录，误以为规则没生效。
+  - 根因：引擎的差异集 `_usc_diff` 只比「结果表 `finv_futu_usc_map` vs 本次计算」，**从不看键表**。
+    键表被手工改掉时结果表没变 → 全部 `keep` → 预演显示"无变更"；虽然 `Apply` 会回写键表
+    （`WHERE k.usc IS DISTINCT FROM f.usc`），但预演把这件事藏起来了，用户没有依据去点应用。
+  - 修订（`uscrule/store.go`）：新增临时集 `_usc_keysync`（键表 `usc` ≠ 规则结果、且结果表本身无需改的行），
+    `summarySQL` 增加 `key_update` 计数（`scanSummary` 列序同步），`diffRowsSQL` 增列 `key_update` 明细，
+    `Preview` 结构补 `key_update` 字段；`Apply` 的回写逻辑不变（本就覆盖全部最终行）。
+  - 前端：统计条新增「键表回写 N」；明细类别列与筛选项新增 `键表回写[key_update]`（并按 11099 风格
+    `中文[值]`）；`hasDiff` 把 `key_update` 计入，只有键表漂移时「立即应用」也可用；空结果提示补了该口径。
+  - 验证：新增克隆库用例 `TestKeyDriftOnClone` —— 先把结果表收敛，再手工把 `US.AAPL` 的键表 usc 改成
+    `ZZ_DRIFT_TMP`；预演返回 `key_update ≥ 1` 且明细含该行（`current=ZZ_DRIFT_TMP → new=原值`），
+    应用后 `key_update ≥ 1` 且键表已回写为规则结果。
+  - 文档：`Docs/API/UscMap.md` §3.3 增加分类计数字段表（含 `key_update` 口径），§3.3.1 `diff` 取值补
+    `key_update`；`UscMap.yml` Preview schema 补该字段；菜单文档 Tab 2 计数说明同步。
+
 - **前端枚举标签统一为 `中文[值]` 风格，USC 条目补齐三个下拉（需求 11099）**
   - `UscMappingView` 编辑对话框：**动作 / 状态 / 品种** 从「动作/状态是裸英文枚举、品种是空白输入框」
     改为带中文翻译的下拉（品种用 `v-combobox`，既可选又可自由填写，兼容历史值）。

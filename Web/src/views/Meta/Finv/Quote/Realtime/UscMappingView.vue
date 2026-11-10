@@ -139,6 +139,7 @@ interface Preview {
   reuse: number
   keep: number
   escalate: number
+  key_update: number
   preview_token: string
   samples: DiffRow[]
   conflicts: string[]
@@ -306,7 +307,10 @@ const matchRate = computed(() => {
 
 const hasDiff = computed(() => {
   if (!preview.value) return false
-  return preview.value.insert + preview.value.update + preview.value.retire + preview.value.reuse > 0
+  return (
+    preview.value.insert + preview.value.update + preview.value.retire +
+    preview.value.reuse + preview.value.key_update > 0
+  )
 })
 
 // ---------- 读取 ----------
@@ -655,6 +659,21 @@ function nullable(value?: string | null): string | null {
   return text === '' ? null : text
 }
 
+// 差异类别：中文在前、英文值在方括号里（需求 11099 的统一风格）
+const DIFF_LABELS: Record<string, string> = {
+  insert: '新增',
+  update: '更新',
+  retire: '退市',
+  reuse: '复用',
+  keep: '未变',
+  key_update: '键表回写',
+}
+
+function diffText(diff: string): string {
+  const cn = DIFF_LABELS[diff]
+  return cn ? `${cn}[${diff}]` : diff
+}
+
 function diffColor(diff: string): string {
   switch (diff) {
     case 'insert':
@@ -665,6 +684,8 @@ function diffColor(diff: string): string {
       return 'error'
     case 'keep':
       return 'grey'
+    case 'key_update':
+      return 'info'
     default:
       return 'primary'
   }
@@ -897,6 +918,9 @@ onBeforeUnmount(stopPolling)
             <v-chip v-if="preview" color="warning" variant="tonal">更新 {{ preview.update }}</v-chip>
             <v-chip v-if="preview" color="error" variant="tonal">退市 {{ preview.retire }}</v-chip>
             <v-chip v-if="preview" color="info" variant="tonal">复用 {{ preview.reuse }}</v-chip>
+            <v-chip v-if="preview && preview.key_update > 0" color="blue-darken-2" variant="tonal">
+              键表回写 {{ preview.key_update }}
+            </v-chip>
             <v-chip v-if="preview" variant="tonal">未变 {{ preview.keep }}</v-chip>
             <v-chip v-if="preview && preview.escalate > 0" color="deep-purple" variant="tonal">
               冲突升级 {{ preview.escalate }}
@@ -904,7 +928,8 @@ onBeforeUnmount(stopPolling)
           </div>
 
           <v-alert v-if="!hasDiff" type="info" density="compact" variant="tonal" class="mb-3">
-            预演结果为空（规则算出的映射与结果表一致）。首次上线时这里会显示「新增 73212」，表示结果表尚未建立。
+            预演结果为空（规则算出的映射与结果表一致，且键表 usc 与规则结果一致）。首次上线时这里会显示「新增 73212」，表示结果表尚未建立；
+            若只是手工改过键表 usc，会显示「键表回写 N」，应用后即按规则回写。
           </v-alert>
 
           <v-alert
@@ -922,9 +947,10 @@ onBeforeUnmount(stopPolling)
               v-model="diffFilter"
               :items="[
                 { title: '全部类别', value: '' },
-                { title: '新增 insert', value: 'insert' },
-                { title: '更新 update', value: 'update' },
-                { title: '退市 retire', value: 'retire' },
+                { title: '新增[insert]', value: 'insert' },
+                { title: '更新[update]', value: 'update' },
+                { title: '退市[retire]', value: 'retire' },
+                { title: '键表回写[key_update]', value: 'key_update' },
               ]"
               density="compact"
               variant="outlined"
@@ -962,7 +988,7 @@ onBeforeUnmount(stopPolling)
               <tr v-for="row in diffRows" :key="`${row.diff}-${row.ftmm_symbol}`">
                 <td>
                   <v-chip :color="diffColor(row.diff)" size="x-small" variant="tonal">
-                    {{ row.diff }}
+                    {{ diffText(row.diff) }}
                   </v-chip>
                 </td>
                 <td>{{ row.ftmm_symbol }}</td>

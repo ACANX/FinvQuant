@@ -131,6 +131,7 @@ type Preview struct {
 	Reuse        int64     `json:"reuse"`
 	Keep         int64     `json:"keep"`
 	Escalate     int64     `json:"escalate"`
+	KeyUpdate    int64     `json:"key_update"`
 	PreviewToken string    `json:"preview_token"`
 	Samples      []DiffRow `json:"samples"`
 	Conflicts    []string  `json:"conflicts"`
