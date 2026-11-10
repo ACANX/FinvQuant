@@ -63,6 +63,8 @@ FinvQuant 是一个面向多资产的**严格事件驱动量化交易平台**，
 | [`Docs/DevSpec/TableTextSpec.md`](Docs/DevSpec/TableTextSpec.md) | 表格长文本展示规范（ⓘ 图标 + 悬浮提示） |
 | [`Docs/DevSpec/DictFilterSpec.md`](Docs/DevSpec/DictFilterSpec.md) | 字典筛选控件规范（选项 `中文[值]`、首项全部、触发时机） |
 | [`Docs/DevSpec/DictColumnSpec.md`](Docs/DevSpec/DictColumnSpec.md) | 字典表格列规范（只显示中文、状态色、未登记值原样） |
+| [`Docs/DevSpec/CommitCheckSpec.md`](Docs/DevSpec/CommitCheckSpec.md) | 提交前检查规范（C1–C28 自检清单 + 一键自检命令） |
+| [`Docs/DevSpec/MergeCheckSpec.md`](Docs/DevSpec/MergeCheckSpec.md) | 合并前复核规范（需求/代码/迁移/文档/功能验收/回滚） |
 | [`Docs/DevSpec/BacktestStrategySpec.md`](Docs/DevSpec/BacktestStrategySpec.md) | 回测策略规范 |
 
 ## 工作约定
