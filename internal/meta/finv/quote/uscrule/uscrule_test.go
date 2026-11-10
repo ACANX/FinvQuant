@@ -131,9 +131,10 @@ func TestPreviewLive(t *testing.T) {
 	if token != preview.PreviewToken {
 		t.Errorf("分页令牌 %q 与预演令牌 %q 不一致", token, preview.PreviewToken)
 	}
-	expectTotal := int(preview.Insert + preview.Update + preview.Retire + preview.Reuse)
+	// 明细 = 结果表要改的行（新增/更新/退市/复用）+ 键表漂移行（key_update）
+	expectTotal := int(preview.Insert + preview.Update + preview.Retire + preview.Reuse + preview.KeyUpdate)
 	if total != expectTotal {
-		t.Errorf("明细分页 total=%d，期望 %d（新增+更新+退市+复用）", total, expectTotal)
+		t.Errorf("明细分页 total=%d，期望 %d（新增+更新+退市+复用+键表回写）", total, expectTotal)
 	}
 	if len(rows) != 50 && total >= 50 {
 		t.Errorf("第 1 页应返回 50 行，实际 %d", len(rows))
