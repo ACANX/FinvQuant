@@ -32,7 +32,7 @@ func TestMigrateIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("解析测试 DSN 失败: %v", err)
 	}
-	config.ConnConfig.RuntimeParams["search_path"] = "public,quote,quant,futu,sche,cdeu,archive,sys"
+	config.ConnConfig.RuntimeParams["search_path"] = "public,quote,quant,futu,sche,cdeu,archive,sys,open"
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		t.Fatalf("连接测试库失败: %v", err)

@@ -219,6 +219,26 @@
 
 ### 变更
 
+- **外部 OpenAPI 鉴权建表（需求 11167）**
+  - 新增 schema `open`（`V100013`）+ 3 张表（`V300183`），表名一律 `open_` 前缀：
+    - `open.open_api_client`：调用方，一行 = 一个接入应用（`allow_cidr` 白名单、`rate_limit_rpm`/`quota_day` 配额、`flag_enable` 默认停用）；
+    - `open.open_api_credential`：凭证，一行 = 一种认证模式（`API_KEY`/`AK_SK`/`BEARER`/`MTLS`/`BASIC`）。
+      静态 Key 只存哈希 `secret_hash`；AK/SK 的 SK 必须能取回做 HMAC，故存 AES-256-GCM 密文 `secret_cipher`，
+      两者由 `ck_open_api_credential_secret` 按 `auth_mode` 互斥；`secret_cipher_prev` + `dt_secret_rotate` 支持无感轮换；
+      吊销强制留 `dt_revoke` + `reason_revoke`；
+    - `open.open_api_call_log`：调用审计，只增不改，只存 `body_sha256`/`count_body`，不存请求原文。
+  - 防重放 nonce 存 Redis（`SET NX PX`），**不建 nonce 表**；授权范围先用 `scope_str jsonb` 单列，后续可扩表。
+  - `sys_config` 新增 19xxx 号段 6 条：19001 鉴权模式（`0` 关闭 / `1` 启用 / `2` 宽松）、19002 签名时间窗（300s）、
+    19003 调用日志保留天数（90）、19004 密钥 KID（`k1`）、19005 密钥本体（空，不预填）、19006 兼容兜底密钥（空，不预填）。
+  - `search_path` 末尾追加 `open`（`internal/database/postgres.go` 与 `TestMigrateIntegration` 两处同步）；
+    `open` 是 PG 的 unreserved keyword，`open.open_api_client` 不加引号可用（已实测）。
+  - 错误码新增 `190xx` 子段并登记进 `ErrorCodeSpec` §1.2（`19001`～`19010`：缺凭证/凭证无效/停用吊销/白名单/签名/时间窗/
+    nonce 重放/限流/授权范围/鉴权未就绪）；`19002` 刻意合并「AK 不存在」与「SK 不匹配」，防 AK 枚举。
+  - 文档：新增 `Docs/DataDictMapping/OpenApiAuth.md`（三表逐列 + 配置项 + 错误码 + 签名协议 + 生命周期）；
+    `DbSchemaSpec` §1 登记 `open` 域并新增 §1.0 边界说明。
+  - 需求登记：11167（建表，已完成）、11168（鉴权中间件，待办）、11169（调用方管理菜单，待办）。
+  - 验证：`TestMigrateIntegration` 全新库全链 + 幂等复跑通过；本机库已应用，`open` 下 3 表、`sys_config` 19001～19006 就绪。
+
 - **补全采集参数：缺省推断补全（需求 11166）**
   - 新增 `internal/meta/finv/quote/cdeu/pending_secu_collect_defaults.go`（三个纯函数，可单测）：
     - `normalizeInstrumentType`：`12` → `3`（两者同为股票），只用于**推缺省值**；
