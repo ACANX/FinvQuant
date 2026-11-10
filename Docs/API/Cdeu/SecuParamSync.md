@@ -12,15 +12,14 @@
 > - `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run` —— 异步启动
 > - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run` —— 运行时快照（进度 + 逐批实时日志）
 >
-> Tab 3「上游主键参数回填」（需求 11054/11056，方向相反：本地 → 上游，**一次运行写两张表**）：
-> - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Status` —— 两张来源表的行数与可回填量
+> Tab 3「本地 usc 回推上游」（需求 11084 重构，方向相反：本地 → 上游，**只写 `usc` 一列**）：
+> - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Status` —— 本地键表行数与 `usc` 覆盖情况
 > - `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run` —— 异步启动
 > - `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run` —— 运行时快照（进度 + 逐批实时日志）
 > 需求：11042（菜单与页面）、11043（同步实现）、11044（源表名可配 20014）、11045（页面拆两个 Tab）、
 > 11046（异步运行 + 实时日志）、11050（Tab 2 指标同步）、11051（`flag_enable` 规则，已被 11063 取代）、
-> 11052（Tab 1 不清空 Tab 2 补的 `url`）、11054（Tab 3 上游主键参数回填）、
-> 11055（多条 `usc` 的取值规则）、11056（Tab 3 同时回填 `finv_quote_secu_key` 的 `usc` + `stock_id`）、
-> 11057（键表关联口径：用 `market_label || '.' || futu_symbol` 重建 `ftmm_symbol`）；连接配置 20013（需求 11041）
+> 11052（Tab 1 不清空 Tab 2 补的 `url`）、11084（Tab 3 重构为「本地 usc 回推上游」，只写一个 `usc` 列，
+> 删除 11054/11055/11056/11057 的旧逻辑）；连接配置 20013（需求 11041）
 > 权限：需登录（内部接口，不对外暴露 OpenAPI）
 > 关联表：目标 `futu.finv_futu_secu_key`（迁移 `V300137` 建表、`V300139` 补 `stock_id`/`usc`、`V300141` 改名）；
 > 源 Supabase `public.finv_quote_secu_key`（表名可配，默认与上游同名）
@@ -287,29 +286,32 @@
 | 键表（需求 11063 前） | 曾写回 `url` 与 `stock_id` 各 10,910 行；11063 起不再写该表 |
 | Tab 1 与 Tab 2 共存（需求 11052） | Tab 2 补完 `url` 后再跑 Tab 1：`update=0`、`unchanged=73212`，`url` 未被清空（源键表 `url` 全为 NULL，Tab 1 改为 `COALESCE(EXCLUDED.url, t.url)`） |
 
-## 7. 上游主键参数回填（Tab 3，需求 11054/11056/11057）
+## 7. 本地 usc 回推上游（Tab 3，需求 11084 重构）
 
-**方向相反（本地 → 上游）**，一次运行依次写两张上游表：
+**方向相反（本地 → 上游），只写一列**：
 
-| 阶段 | 上游目标 | 写入列 | 关联键 | 本地来源 | 可回填量（实测） |
-|------|----------|--------|--------|----------|------------------|
-| ① | `public.finv_quote_secu_meta` | `usc` | `stock_id` | `futu.finv_futu_quote_collect` | 3,673 填入（首次） |
-| ② | `public.finv_quote_secu_key` | `usc` + `stock_id` | `ftmm_symbol` | `futu.finv_futu_secu_key` ⋈ `futu.finv_futu_quote_collect` | 24,162 / 73,212 |
+| 上游目标 | 写入列 | 关联键 | 本地来源 | 待处理量（实测） |
+|----------|--------|--------|----------|------------------|
+| `public.finv_quote_secu_key` | `usc` | `ftmm_symbol` | `futu.finv_futu_secu_key.usc` | 73,212 / 73,212 |
+
+> 历史逻辑已整体删除（需求 11084）：曾按 `stock_id` 回填 `public.finv_quote_secu_meta.usc`，
+> 并同时回写 `finv_quote_secu_key.stock_id`，还用 `futu.finv_futu_quote_collect` 拼 `usc`、
+> 对同一 `stock_id` 的多条 `usc` 做「歧义」裁决。本地 `usc` 现由 USC 映射规则
+> （`futu.finv_futu_usc_map`，需求 11072）统一产出，上游只需照抄，上述分支全部移除。
 
 ### 7.1 口径
 
 | 环节 | 规则 |
 |------|------|
-| 阶段 ① 关联键 | `stock_id`（两表都有、上游唯一且 NOT NULL）——**不是** `usc`，也不是「只更新 `usc IS NULL` 的行」 |
-| 阶段 ② 关联键（需求 11057/11060） | `ftmm_symbol`（上游主键）；本地采集属性表 `V300147` 起带**生成列 `ftmm_symbol`**（= `market_label \|\| '.' \|\| futu_symbol`，STORED + 索引），用它等值关联（如 `US.AAPL`、`CC.DASHTRY.FTUS`、`HK.00700`）。按 `stock_id` 关联只能覆盖 10,910 行，是这条路径的<u>子集</u>，因此不作为主路径 |
-| 阶段 ② 写入值 | `usc` = 本地采集属性表该符号的 `usc`；`stock_id` = 同一行的 `stock_id` |
-| 待处理量 | 阶段 ①：本地按 `stock_id` 去重（24,418 行 → 24,348 个），升序分批；阶段 ②：本地键表 73,212 行 → 可回填 24,162 个 `ftmm_symbol`（无依据 49,050），升序分批 |
-| 取值 | 本地该 `stock_id` 只有一条 → 取它；有多条 → 取**等于上游 `ftmm_symbol`** 的那条（需求 11055），都不等则跳过并计「歧义」 |
-| 写不写 | 上游 `usc` 已等于目标值 → 「未变」，**不发请求**；为空 → 「填入」；有值但不同 → 「覆盖」 |
-| 上游无该行 | 阶段 ①：本地有、上游没有的 `stock_id`（期货/加密 FTUS 等 futu 独有）→ 「无对应」，不报错；阶段 ②：候选集来自本地键表，理论上都有上游行 |
-| 写入方式 | 逐行 `PATCH /rest/v1/<表>?stock_id=eq.<X>`，body `{"usc":"<值>"}`，并发 8 |
+| 关联键 | `ftmm_symbol`（本地主键 = 上游主键），一对一，不再按 `stock_id` 关联 |
+| 写入值 | 本地 `futu.finv_futu_secu_key.usc` 原样写入（不做大小写/格式转换） |
+| 写不写 | 上游 `usc` 已等于本地值 → 「未变」，**不发请求**；上游为空 → 「填入」；有值但不同 → 「覆盖」 |
+| 上游无该行 | 「上游无对应」跳过，**不插入**（本地多出来的键留给人工确认） |
+| 本地 `usc` 为空 | 直接跳过，计入 `local_empty_usc`（实测 0 行） |
+| 待处理量 | 本地键表 73,212 行（`usc` 非空），按 `ftmm_symbol` 升序分批 |
+| 写入方式 | 逐行 `PATCH /rest/v1/finv_quote_secu_key?ftmm_symbol=eq.<X>`，body `{"usc":"<值>"}`，并发 8 |
 | 写入校验 | `Prefer: return=minimal, count=exact` + 校验 `Content-Range` 受影响行数 **= 1**；RLS 拒绝（204 但 0 行）会直接报错，不会静默成功 |
-| 幂等 | 复跑时全部落「未变」（实测 `fill=0 overwrite=0 unchanged=10910`） |
+| 幂等 | 复跑时全部落「未变」（`fill=0 overwrite=0 keep=73,212`） |
 
 ### 7.2 接口
 
@@ -320,65 +322,46 @@
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `configured` / `project_id` / `api_key_masked` / `config_error` | — | 20013 状态（key 脱敏） |
-| `meta_table` / `meta_column` / `meta_key` | string | `public.finv_quote_secu_meta` / `usc` / `stock_id` |
-| `local_table` | string | 阶段 ① 来源 `futu.finv_futu_quote_collect` |
-| `local_rows` | int | 阶段 ① 来源行数（24,418） |
-| `local_stock_ids` | int | 去重 `stock_id` 数（= 阶段 ① 待处理量，24,348） |
-| `local_usc_placeholder` | int | `usc = futu_symbol` 的占位行数（仅提示） |
-| `key_table` / `key_columns` / `key_key` | string | `public.finv_quote_secu_key` / `usc + stock_id` / `ftmm_symbol` |
-| `key_local_rows` | int | 本地键表行数（73,212） |
-| `key_resolvable` | int | 能定出 `usc + stock_id` 的键数（= 阶段 ② 待处理量，24,162） |
-| `key_unresolved` | int | 本地无依据的键数（49,050） |
+| `key_table` / `key_column` / `key_key` | string | `public.finv_quote_secu_key` / `usc` / `ftmm_symbol` |
+| `local_table` | string | `futu.finv_futu_secu_key` |
+| `local_rows` | int | 本地键表总行数（73,212） |
+| `local_with_usc` | int | `usc` 非空行数（= 待处理量，73,212） |
+| `local_empty_usc` | int | `usc` 为空被跳过的行数（0） |
 | `batch_size_default` | int | 默认批量 500 |
 
 #### `POST /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run`
 
-请求体 `{"batch_size": 500}`（`stock_id` 个数，收敛 100~5000，默认 500）。
-`202` 返回启动快照；`409` 已有回填在运行；`400` 请求体非法。
+请求体 `{"batch_size": 500}`（`ftmm_symbol` 个数，收敛 100~5000，默认 500）。
+`202` 返回启动快照；`409` 已有回推在运行；`400` 请求体非法。
 
-> ⚠️ 本接口**写入线上 Supabase**（PATCH `usc` 列），不是本地写。
+> ⚠️ 本接口**写入线上 Supabase**（PATCH `public.finv_quote_secu_key.usc`），不是本地写。
 
 #### `GET /API/V1/Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run?runId=`
 
-`data` 字段：`run_id`（前缀 `sk-ub-`）、`kind="uscbackfill"`、`status`、`phase`（`meta` / `key`）、`progress`、
-`rows_total` / `rows_done`（两个阶段合计的键数）、`local_rows`、
-阶段 ① `fill` / `overwrite` / `unchanged` / `ambiguous` / `no_target` / `batches`，
-阶段 ② `key_table` / `key_columns` / `key_key` / `key_local_rows` / `key_resolvable` / `key_unresolved` /
-`key_fill` / `key_overwrite` / `key_unchanged` / `key_ambiguous` / `key_no_target` / `key_batches`，
-以及 `elapsed_ms`、`error`、`logs[]`；`runId` 省略取最近一次，不匹配 404。
+`data` 字段：`run_id`（前缀 `sk-ub-`）、`kind="uscbackfill"`、`status`、
+`key_table` / `key_column` / `key_key` / `local_table`、
+`local_rows` / `rows_total` / `local_empty_usc`、
+`fill` / `overwrite` / `keep` / `missing` / `batches`、
+`rows_done` / `progress` / `batch_size` / `start_at` / `finish_at` / `duration_ms` / `error` / `logs[]`；
+`runId` 省略取最近一次，不匹配 404。
 
-日志形态（首次全量实测）：
+日志形态：
 
 ```
-23:17:51 回填任务已启动：本地 futu.finv_futu_quote_collect → 上游 public.finv_quote_secu_meta.usc（按 stock_id 关联）
-23:17:56 第 1 批：offset=0，处理 500 个 stock_id，写入 106（填入 105 / 覆盖 1），未变 240，歧义 0，无对应 154（本批 4321 ms）
+回推任务已启动：public.finv_quote_secu_key.usc ← futu.finv_futu_secu_key（按 ftmm_symbol 关联，只写 usc 一列）
+第 1 批：offset=0，处理 500 个 ftmm_symbol，写入 12（填入 0 / 覆盖 12），未变 488，无对应 0（本批 3210 ms）
 ……
-23:19:49 回填完成：futu.finv_futu_quote_collect 共 24418 行（24348 个 stock_id），49 批；
-         写入上游 3676（填入 3673 / 覆盖 3），未变 7234，歧义 0，无对应 13438，耗时 118669 ms
+回推完成：本地 futu.finv_futu_secu_key 共 73212 行（usc 有值 73212，为空跳过 0），147 批，
+         写入 N（填入 a / 覆盖 b），未变 c，上游无对应 0；耗时 … ms
 ```
 
-### 7.3 验收实测（2026-11-09）
+### 7.3 验收实测（2026-11-10）
 
 | 场景 | 结果 |
 |------|------|
-| 阶段 ① 首跑（`batch_size=500`，49 批） | `rows_total=24348`、`fill=3673`、`overwrite=3`、`unchanged=7234`、`ambiguous=0`、`no_target=13438`，合计 24,348 ✅；耗时 118,669 ms |
-| 阶段 ② 首次（按 `stock_id` 覆盖 10,910 键） | `key_fill=10910`、`key_overwrite=0`、`key_unchanged=0`；上游 `usc`/`stock_id` 各由 0 增至 10,910 |
-| 阶段 ② 改用符号重建后首跑（`batch_size=1000`，25+25 批） | 可回填 **24,162**；`key_fill=13252`（新增部分）、`key_unchanged=10910`（已填的保持不动）、`key_ambiguous=0`、`key_no_target=0`；耗时 354,068 ms |
-| 阶段 ② 复跑（`batch_size=5000`） | `key_fill=0`、`key_overwrite=0`、`key_unchanged=24162`；阶段 ① 仍 `fill=0 / unchanged=10910` → 幂等 |
-| 阶段 ① 上游落库 | 全表 10,910 行；`usc IS NULL` **3,673 → 0**，`usc` 非空 **7,237 → 10,910** |
-| 阶段 ② 上游落库 | 全表 73,212 行；`usc` 非空 **0 → 24,162**、`stock_id` 非空 **0 → 24,162**（两者同行同数），其余 49,050 行本地无依据 |
-| 阶段 ② 抽样 | `US.AAPL` → `usc=AAPL` / `stock_id=205189`；`HK.00700` → `00700` / `54047868453564`；`CC.DASHTRY.FTUS` → `CC.DASHTRY.FTUS` / `12002553`；`AU..XFL`（本地无此品种）仍为 NULL |
-| 70 组多值 `stock_id` | 全部按 `ftmm_symbol` 定值（如 `12002553 → CC.DASHTRY.FTUS`），`ambiguous=0` |
-| 3 条覆盖 | `203520 → BRK.B`、`85577223574361 → LETH`、`85611583331825 → BTCMT`（上游原值 `BRK-B` / `USETH` / `USBTC`；如需保留上游命名，需人工改回） |
-| 复跑（`batch_size=1000`，25 批） | `fill=0`、`overwrite=0`、`unchanged=10910`、`no_target=13438`，24,031 ms → 幂等 |
-| 并发保护 | 运行中再次 POST → `409`，message 带正在运行的 `run_id` |
-| 未知 runId | `404`「没有找到 usc 回填运行记录（runId=…）」 |
-
-### 7.4 与 Tab 2 的连锁影响（待确认）
-
-回填后上游这 3,673 行不再是「`usc` 为空」，因此**下次 Tab 2 指标同步会把对应的
-`futu.finv_futu_quote_collect.flag_enable` 从 `'0'` 改成 `'1'`（需求 11051 的推导规则）**，
-即这些证券会被开启采集。若希望它们保持禁用，需另一条口径（不要依赖 `flag_enable` 的占位推导）。
+| 本地统计（`/Status`） | `local_rows=73,212`、`local_with_usc=73,212`、`local_empty_usc=0` |
+| 上游只读抽样（`FINV_USC_WRITEBACK_LIVE=1`，见 `uscbackfill_live_test.go`） | `US.AAPL` 本地=`AAPL` 上游=`AAPL` → `keep`；`SH.000300` 本地=`SH0300` 上游=`000300` → `overwrite`；`AU..XFL` 本地=`XFL` 上游=`AU..XFL` → `overwrite`；`US.XRP`、`HK.800700`、`CA.HSI` → `keep` |
+| 分类单测 | `classify` 四类（missing / fill / keep / overwrite）与大小写不同判为 `overwrite` 全部通过 |
 
 ## 8. 实现要点
 

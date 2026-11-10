@@ -3184,7 +3184,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 定时同步支持页面配置 cron 与「立即执行一次」（预演+应用一键完成，无需等定时） | 11081 | 1 |
 | finv_futu_usc_map 时间列改为 dt_ 前缀（dt_retire / dt_compute / dt_first_assign，V300166） | 11082 | 1 |
 | 复用归档表时间列改 dt_ 前缀（archive.finv_usc_reuse_snapshot.dt_snapshot，V300167） | 11083 | 1 |
-| **合计** | **10001–11083** | **1079**（含 2 条待办） |
+| SecuParamSync Tab 3 重构为「本地 usc 回推上游」（futu.finv_futu_secu_key.usc → public.finv_quote_secu_key.usc，按 ftmm_symbol，只写 usc 一列；删除 meta 表与 stock_id 回填旧逻辑） | 11084 | 1 |
+| **合计** | **10001–11084** | **1080**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

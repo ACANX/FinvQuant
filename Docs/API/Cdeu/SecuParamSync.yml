@@ -437,13 +437,12 @@ paths:
 
   /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Status:
     get:
-      summary: 上游主键参数回填状态快照（两张来源表的行数与可回填量）
+      summary: 本地 usc 回推上游的状态快照（本地键表行数与 usc 覆盖情况）
       operationId: uscBackfillStatus
       tags: [Cdeu]
       description: |
-        只读本地：读系统配置 20013 并统计两张来源表——futu.finv_futu_quote_collect 的行数 /
-        去重 stock_id 数（阶段 ① 待处理量），以及 futu.finv_futu_secu_key 的行数 /
-        可回填键数（阶段 ② 待处理量），不访问 Supabase。
+        只读本地：读系统配置 20013 并统计本地来源表 futu.finv_futu_secu_key 的行数 /
+        usc 非空行数（= 待处理量）/ usc 为空行数，不访问 Supabase。
       responses:
         '200':
           description: 状态快照
@@ -461,39 +460,23 @@ paths:
                       project_id: {type: string}
                       api_key_masked: {type: string}
                       config_error: {type: string}
-                      meta_table: {type: string, const: public.finv_quote_secu_meta}
-                      meta_column: {type: string, const: usc}
-                      meta_key: {type: string, const: stock_id}
-                      local_table: {type: string, const: futu.finv_futu_quote_collect}
-                      local_rows: {type: integer}
-                      local_stock_ids: {type: integer}
-                      local_usc_placeholder: {type: integer}
                       key_table: {type: string, const: public.finv_quote_secu_key}
-                      key_columns: {type: string, const: 'usc + stock_id'}
+                      key_column: {type: string, const: usc}
                       key_key: {type: string, const: ftmm_symbol}
-                      key_local_rows: {type: integer}
-                      key_resolvable: {type: integer, description: 能定出 usc + stock_id 的 ftmm_symbol 个数}
-                      key_unresolved: {type: integer, description: 本地无依据、跳过的键数}
-                      batch_size_default: {type: integer}
-        '401':
-          description: 未登录或登录已过期
-        '500':
-          description: 读取配置或统计本地源表失败（code=2006）
+                      local_table: {type: string, const: futu.finv_futu_secu_key}
+                      local_rows: {type: integer, description: 本地键表总行数（73,212）}
+                      local_with_usc: {type: integer, description: 'usc 非空行数 = 待处理量（73,212）'}
+                      local_empty_usc: {type: integer, description: usc 为空被跳过的行数（0）}
+                      batch_size_default: {type: integer, const: 500}
+
   /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run:
     post:
-      summary: 异步启动上游主键参数回填（返回 run_id，写两张上游表）
-      operationId: uscBackfillStartRun
+      summary: 异步启动「本地 usc 回推上游」（写线上 Supabase）
+      operationId: uscBackfillStart
       tags: [Cdeu]
       description: |
-        一次运行依次写两张上游表。**该接口会写入线上 Supabase**（逐行 PATCH）。
-        ① public.finv_quote_secu_meta.usc：按 stock_id 关联，来源 futu.finv_futu_quote_collect；
-        ② public.finv_quote_secu_key 的 usc + stock_id：按 ftmm_symbol 关联，本地用
-           生成列 ftmm_symbol（= market_label || '.' || futu_symbol，V300147）关联（覆盖 24,162 / 73,212 行，
-           按 stock_id 关联的 10,910 行是其子集）。
-        上游值与目标一致时不发请求（未变，幂等）；为空 → 填入；有值但不同 → 覆盖；
-        本地同一键有多条 usc 时取等于 ftmm_symbol 的那条，都不等则计入「歧义」并跳过；
-        本地有、上游没有的 stock_id 计入「无对应」。每行写入都校验受影响行数 = 1
-        （RLS 拒绝会直接报错，不会静默成功）。已有回填在运行时返回 409；整体超时 60 分钟。
+        把 futu.finv_futu_secu_key.usc 按 ftmm_symbol 回推到 public.finv_quote_secu_key.usc，
+        只写 usc 一列；已一致的行不发请求；上游无对应行只计数、不插入。
       requestBody:
         required: false
         content:
@@ -501,45 +484,42 @@ paths:
             schema:
               type: object
               properties:
-                batch_size:
-                  type: integer
-                  description: 每批处理的 stock_id 个数，收敛到 100~5000
-                  default: 500
+                batch_size: {type: integer, description: '每批 ftmm_symbol 数，100~5000，默认 500'}
       responses:
         '202':
-          description: 任务已启动（data 为启动瞬间快照）
+          description: 已启动（返回启动快照）
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UscBackfillRun'
-        '400':
-          description: 请求体非法
-        '401':
-          description: 未登录或登录已过期
-        '409':
-          description: 已有回填任务在运行（message 带正在运行的 run_id）
+                type: object
+                properties:
+                  code: {type: integer, const: 0}
+                  message: {type: string}
+                  data: {$ref: '#/components/schemas/UscBackfillRun'}
+        '409': {description: 已有回推在运行（message 带 run_id）}
+        '400': {description: 请求体非法}
     get:
-      summary: 上游主键参数回填运行快照（进度 + 逐批实时日志）
-      operationId: uscBackfillRunStatus
+      summary: 回推运行时快照（进度 + 逐批实时日志）
+      operationId: uscBackfillRun
       tags: [Cdeu]
-      description: runId 省略时返回最近一次运行；不匹配或从未运行过返回 404。
       parameters:
         - name: runId
           in: query
           required: false
-          schema:
-            type: string
+          schema: {type: string}
+          description: 省略取最近一次
       responses:
         '200':
           description: 运行快照
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UscBackfillRun'
-        '401':
-          description: 未登录或登录已过期
-        '404':
-          description: 没有找到 usc 回填运行记录
+                type: object
+                properties:
+                  code: {type: integer, const: 0}
+                  message: {type: string}
+                  data: {$ref: '#/components/schemas/UscBackfillRun'}
+        '404': {description: 没有该次运行的记录}
 
 components:
   schemas:
@@ -553,40 +533,27 @@ components:
           type: object
           required: [run_id, kind, status, progress, batches, logs]
           properties:
-            run_id: {type: string}
+            run_id: {type: string, description: '前缀 sk-ub-'}
             kind: {type: string, const: uscbackfill}
             status: {type: string, enum: [RUNNING, DONE, FAILED]}
-            phase: {type: string, enum: [meta, key], description: 当前阶段}
-            meta_table: {type: string, const: public.finv_quote_secu_meta}
-            meta_column: {type: string, const: usc}
-            meta_key: {type: string, const: stock_id}
-            local_table: {type: string, const: futu.finv_futu_quote_collect}
             key_table: {type: string, const: public.finv_quote_secu_key}
-            key_columns: {type: string, const: 'usc + stock_id'}
+            key_column: {type: string, const: usc}
             key_key: {type: string, const: ftmm_symbol}
-            key_local_rows: {type: integer}
-            key_resolvable: {type: integer}
-            key_unresolved: {type: integer}
-            key_fill: {type: integer, description: '② 上游 usc/stock_id 为空 → 填入'}
-            key_overwrite: {type: integer, description: '② 上游已有值且与本地不同 → 覆盖'}
-            key_unchanged: {type: integer, description: '② 上游已一致 → 未变（不发请求）'}
-            key_ambiguous: {type: integer}
-            key_no_target: {type: integer}
-            key_batches: {type: integer}
-            batch_size: {type: integer}
-            rows_total: {type: integer, description: 两个阶段合计的待处理键数}
-            local_rows: {type: integer, description: 本地源表行数}
-            rows_done: {type: integer, description: 两个阶段累计已处理键数}
+            local_table: {type: string, const: futu.finv_futu_secu_key}
+            local_rows: {type: integer, description: 本地键表总行数}
+            rows_total: {type: integer, description: 待处理（usc 非空）行数}
+            local_empty_usc: {type: integer, description: 本地 usc 为空被跳过的行数}
             fill: {type: integer, description: 上游为空 → 填入}
-            overwrite: {type: integer, description: 上游有值但与本地不同 → 覆盖}
-            unchanged: {type: integer, description: 上游已等于目标值 → 未变（不发请求）}
-            ambiguous: {type: integer, description: 本地多条 usc 且都不等于 ftmm_symbol → 跳过}
-            no_target: {type: integer, description: 上游没有该 stock_id → 跳过}
+            overwrite: {type: integer, description: 上游有值且不同 → 覆盖}
+            keep: {type: integer, description: 上游已一致 → 未变（不发请求）}
+            missing: {type: integer, description: 上游无该 ftmm_symbol → 跳过}
             batches: {type: integer}
-            progress: {type: number}
-            started_at: {type: string}
-            finished_at: {type: string}
-            elapsed_ms: {type: integer}
+            batch_size: {type: integer}
+            rows_done: {type: integer}
+            progress: {type: number, description: 0~100}
+            start_at: {type: string}
+            finish_at: {type: string}
+            duration_ms: {type: integer}
             error: {type: string}
             logs:
               type: array
@@ -599,6 +566,7 @@ components:
                   text: {type: string}
                   batch: {type: integer}
                   offset: {type: integer}
+
     IndicatorSyncRun:
       type: object
       required: [code, message, data]

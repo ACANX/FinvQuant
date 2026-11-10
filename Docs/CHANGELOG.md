@@ -166,6 +166,19 @@
 
 ### 变更
 
+- **证券参数同步 Tab 3 重构为「本地 usc 回推上游」（需求 11084）**
+  - 方向不变（本地 → 上游），但**范围收缩为一张表的一列**：把 `futu.finv_futu_secu_key.usc`
+    按 `ftmm_symbol` 回推到 `public.finv_quote_secu_key.usc`。
+  - 删除旧逻辑：① `public.finv_quote_secu_meta.usc`（按 `stock_id`）整段、② `finv_quote_secu_key.stock_id`
+    回写、③ 用 `futu.finv_futu_quote_collect` 拼 `usc`/`stock_id`、④ 多条 `usc` 的「歧义」裁决、
+    ⑤ 与之配套的 `KeySymbolExpr` 生成列关联。
+  - 计数口径改为 `fill`（上游为空→填入）/ `overwrite`（有值不同→覆盖）/ `keep`（一致→不发请求）/
+    `missing`（上游无该 `ftmm_symbol`→跳过，不插入）；`local_empty_usc` 记录本地 `usc` 为空被跳过的行。
+  - 页面：Tab 名改为「本地 usc 回推上游」，卡片与说明同步改写；接口仍是 `UscBackfill/Status|Sync/Run`。
+  - 实测：本地 73,212 行 `usc` 全部有值；上游只读抽样 `US.AAPL`/`US.XRP`/`HK.800700`/`CA.HSI` → `keep`，
+    `SH.000300`（上游 `000300`）/`AU..XFL`（上游 `AU..XFL`）→ `overwrite`；新增只读集成测试
+    `TestLiveReadUpstream`（`FINV_USC_WRITEBACK_LIVE=1`）。
+
 - **复用归档表时间列改 `dt_` 前缀（需求 11083，迁移 `V300167`）**
   - `archive.finv_usc_reuse_snapshot.snapshot_at` → **`dt_snapshot`**，与 `dt_retire` / `dt_compute` /
     `dt_first_assign` 口径一致；仅改列名，类型、默认值（`now()`）、注释与数据保留。
