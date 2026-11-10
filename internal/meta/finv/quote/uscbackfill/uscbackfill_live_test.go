@@ -56,7 +56,11 @@ func TestLiveReadUpstream(t *testing.T) {
 	}
 
 	// 抽样几个已知形态（SH 指数统一 SH####、指数去前导点、撞名例外、港股改名）
-	probes := []string{"US.AAPL", "SH.000300", "AU..XFL", "US.XRP", "HK.800700", "CA.HSI"}
+	probes := []string{
+		"US.AAPL", "SH.000300", "AU..XFL", "US.XRP", "HK.800700", "CA.HSI",
+		// PostgREST 过滤器里有特殊字符的键：逗号、星号、双点（验证 in.(...) 的引号与 eq. 的转义）
+		"US.SBT,OLD", "US.SESN,CVR", "US.ASAI*", "AU..XFL",
+	}
 	local := make(map[string]string, len(probes))
 	rows, err := pool.Query(ctx, `
 		SELECT ftmm_symbol, usc FROM `+LocalKeyTable+`
