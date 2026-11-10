@@ -310,46 +310,13 @@ func (h *ExportArchive) RealtimeStockPendingEnroll(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "补录完成", "data": result})
 }
 
-// RealtimeStockPendingEnqueuePreview GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue?stockId=。
+// RealtimeStockPendingEnqueueProbe POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue/Probe。
 //
-// 「入队」对话框的预检（需求 11153/11154）：展示将要写入 `futu.finv_futu_secu_key` 的字段
-// （`ftmm_symbol` / `market` / `code` / `stock_id` / `instrument`）与键表现状。
-// 只读；`writable=false` 表示键表已有该键，此时不能重复入队，需去「USC 映射规则」补 USC。
-func (h *ExportArchive) RealtimeStockPendingEnqueuePreview(c *gin.Context) {
-	stockID, err := realtimeStockQueryInt64(c, "stockId")
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
-		return
-	}
-	preview, err := h.service.Store().PreviewPendingSecuEnqueue(c.Request.Context(), stockID)
-	if err != nil {
-		status, code := http.StatusInternalServerError, 2006
-		if errors.Is(err, cdeu.ErrRealtimeStockInvalid) {
-			status, code = http.StatusBadRequest, 400
-		}
-		log.Printf("[cdeu][realtimestock] api enqueue preview failed stock_id=%d err=%v", stockID, err)
-		c.JSON(status, gin.H{"code": code, "message": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "预检完成", "data": preview})
-}
-
-// pendingSecuEnqueueRequest 入队提交体（需求 11153）。
-//
-// 只允许覆盖 `instrument`：`ftmm_symbol` / `market` / `code` / `stock_id` 一律由服务端按快照行派生，
-// 避免前端把不一致的键写进主键。
-type pendingSecuEnqueueRequest struct {
-	StockID    int64  `json:"stock_id"`
-	Instrument string `json:"instrument"`
-}
-
-// RealtimeStockPendingEnqueue POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue。
-//
-// 把待录入证券的键登记进 `futu.finv_futu_secu_key`（status=PENDING / flag_enable=1 / priority=10，usc 留空）。
-// 键表已有该 `ftmm_symbol` 时不插入，返回 `existed=true` 并提示去「USC 映射规则」补 USC。
-// 前端必须先在对话框里人工确认再调本接口（需求 11154：不做全自动）。
-func (h *ExportArchive) RealtimeStockPendingEnqueue(c *gin.Context) {
-	var req pendingSecuEnqueueRequest
+// 「入队」对话框的探测（需求 11155）：按当前键字段（`market` / `code` 可人工改）查键表，
+// 返回「存在 / 不存在」+ 现有行现值。前端据此把按钮在「确认入队」与「更新键」之间切换；
+// 键字段被改动后必须重新探测，按钮在此之前保持禁用。
+func (h *ExportArchive) RealtimeStockPendingEnqueueProbe(c *gin.Context) {
+	var req cdeu.PendingSecuKeyProbeRequest
 	body := http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20)
 	decoder := json.NewDecoder(body)
 	decoder.DisallowUnknownFields()
@@ -357,30 +324,91 @@ func (h *ExportArchive) RealtimeStockPendingEnqueue(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体解析失败: " + err.Error()})
 		return
 	}
-
-	started := time.Now()
-	log.Printf("[cdeu][realtimestock] api enqueue begin stock_id=%d instrument=%q client=%s",
-		req.StockID, req.Instrument, c.ClientIP())
-	result, err := h.service.Store().EnqueuePendingSecu(c.Request.Context(), req.StockID, req.Instrument)
+	probe, err := h.service.Store().ProbePendingSecuKey(c.Request.Context(), req)
 	if err != nil {
 		status, code := http.StatusInternalServerError, 2006
 		if errors.Is(err, cdeu.ErrRealtimeStockInvalid) {
 			status, code = http.StatusBadRequest, 400
 		}
-		log.Printf("[cdeu][realtimestock] api enqueue failed stock_id=%d err=%v elapsed_ms=%d",
-			req.StockID, err, time.Since(started).Milliseconds())
+		log.Printf("[cdeu][realtimestock] api enqueue probe failed stock_id=%d err=%v", req.StockID, err)
+		c.JSON(status, gin.H{"code": code, "message": err.Error()})
+		return
+	}
+	log.Printf("[cdeu][realtimestock] api enqueue probe stock_id=%d ftmm=%s existed=%t",
+		probe.StockID, probe.Planned.FtmmSymbol, probe.Existed)
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "探测完成", "data": probe})
+}
+
+// pendingSecuKeyWriteRequest 入队 / 更新键的提交体（字段即键表一行，均由前端回填对话框里的现值）。
+type pendingSecuKeyWriteRequest struct {
+	Fields cdeu.PendingSecuKeyFields `json:"fields"`
+}
+
+// RealtimeStockPendingEnqueue POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue。
+//
+// 确认入队（需求 11153/11155）：插入键表一行。写入前**再验证一次**键是否已存在
+// （需求 11155），已存在则不写并返回 `existed=true`，前端应改走「更新键」。
+func (h *ExportArchive) RealtimeStockPendingEnqueue(c *gin.Context) {
+	var req pendingSecuKeyWriteRequest
+	body := http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20)
+	decoder := json.NewDecoder(body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体解析失败: " + err.Error()})
+		return
+	}
+	started := time.Now()
+	log.Printf("[cdeu][realtimestock] api enqueue begin ftmm=%s client=%s", req.Fields.FtmmSymbol, c.ClientIP())
+	result, err := h.service.Store().InsertPendingSecuKey(c.Request.Context(), req.Fields)
+	if err != nil {
+		status, code := http.StatusInternalServerError, 2006
+		if errors.Is(err, cdeu.ErrRealtimeStockInvalid) {
+			status, code = http.StatusBadRequest, 400
+		}
+		log.Printf("[cdeu][realtimestock] api enqueue failed ftmm=%s err=%v", req.Fields.FtmmSymbol, err)
 		c.JSON(status, gin.H{"code": code, "message": err.Error()})
 		return
 	}
 	if result.Existed {
-		log.Printf("[cdeu][realtimestock] api enqueue skip(existed) stock_id=%d ftmm=%s status=%s usc=%q",
-			req.StockID, result.FtmmSymbol, result.Status, result.USC)
+		log.Printf("[cdeu][realtimestock] api enqueue skip(existed) ftmm=%s", result.FtmmSymbol)
 		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "键表已存在该记录，未重复入队", "data": result})
 		return
 	}
-	log.Printf("[cdeu][realtimestock] api enqueue end stock_id=%d ftmm=%s instrument=%s elapsed_ms=%d",
-		req.StockID, result.FtmmSymbol, result.Instrument, time.Since(started).Milliseconds())
+	log.Printf("[cdeu][realtimestock] api enqueue end ftmm=%s elapsed_ms=%d",
+		result.FtmmSymbol, time.Since(started).Milliseconds())
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "入队完成", "data": result})
+}
+
+// RealtimeStockPendingEnqueueUpdate POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue/Update。
+//
+// 更新键（需求 11155）：键表已有该键时改它的非主键字段（`stock_id` / `instrument` / `status` /
+// `flag_enable` / `priority`）；主键 `ftmm_symbol` 不可改，记录不存在时不静默插入。
+func (h *ExportArchive) RealtimeStockPendingEnqueueUpdate(c *gin.Context) {
+	var req pendingSecuKeyWriteRequest
+	body := http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20)
+	decoder := json.NewDecoder(body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体解析失败: " + err.Error()})
+		return
+	}
+	started := time.Now()
+	log.Printf("[cdeu][realtimestock] api enqueue update begin ftmm=%s client=%s",
+		req.Fields.FtmmSymbol, c.ClientIP())
+	result, err := h.service.Store().UpdatePendingSecuKey(c.Request.Context(), req.Fields)
+	if err != nil {
+		status, code := http.StatusInternalServerError, 2006
+		if errors.Is(err, cdeu.ErrRealtimeStockInvalid) {
+			status, code = http.StatusBadRequest, 400
+		}
+		log.Printf("[cdeu][realtimestock] api enqueue update failed ftmm=%s err=%v",
+			req.Fields.FtmmSymbol, err)
+		c.JSON(status, gin.H{"code": code, "message": err.Error()})
+		return
+	}
+	log.Printf("[cdeu][realtimestock] api enqueue update end ftmm=%s affected=%d elapsed_ms=%d",
+		result.FtmmSymbol, result.Affected, time.Since(started).Milliseconds())
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新键完成", "data": result})
 }
 
 // RealtimeStockUSCBackfill POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/USCBackfill。

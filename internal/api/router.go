@@ -195,9 +195,10 @@ func NewRouter(deps *Deps) *gin.Engine {
 			// 待录入证券补录：预填（关联自动填）+ 录入（写两张主数据表并回写 usc，需求 11147）
 			realtime.GET("/Stock/Pending/Prefill", archive.RealtimeStockPendingPrefill)
 			realtime.POST("/Stock/Pending/Enroll", archive.RealtimeStockPendingEnroll)
-			// 待录入证券「入队」：预检（只读）+ 人工确认后提交写键表（需求 11153/11154）
-			realtime.GET("/Stock/Pending/Enqueue", archive.RealtimeStockPendingEnqueuePreview)
+			// 待录入证券「入队」：探测（是否存在）→ 人工确认 → 入队 / 更新键（需求 11153–11156）
+			realtime.POST("/Stock/Pending/Enqueue/Probe", archive.RealtimeStockPendingEnqueueProbe)
 			realtime.POST("/Stock/Pending/Enqueue", archive.RealtimeStockPendingEnqueue)
+			realtime.POST("/Stock/Pending/Enqueue/Update", archive.RealtimeStockPendingEnqueueUpdate)
 			openGroup.POST("/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert", archive.RealtimeStockUpsert)
 
 			// 缺省汇率（需求 10999/11002）：public.finv_fxcer，手动触发 get-fx-overview / get-fx-rate-list 全量更新 + 整表查询。

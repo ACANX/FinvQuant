@@ -134,16 +134,16 @@ func TestKeyInstrumentByInstrumentType(t *testing.T) {
 	}
 }
 
-// TestLivePendingSecuEnqueuePreview 只读校验入队预检（需求 11153）。
+// TestLivePendingSecuEnqueueProbe 只读校验入队探测（需求 11155）。
 //
-// 需要真实库（**只读**，不插入）：
+// 需要真实库（**只读**，不插入/不更新）：
 //
 //	FINV_TEST_PG_DSN="postgres://finv:finvquant@127.0.0.1:5432/finv?sslmode=disable" \
-//	  go test -run TestLivePendingSecuEnqueuePreview -v ./internal/meta/finv/quote/cdeu/
-func TestLivePendingSecuEnqueuePreview(t *testing.T) {
+//	  go test -run TestLivePendingSecuEnqueueProbe -v ./internal/meta/finv/quote/cdeu/
+func TestLivePendingSecuEnqueueProbe(t *testing.T) {
 	dsn := os.Getenv("FINV_TEST_PG_DSN")
 	if dsn == "" {
-		t.Skip("未设置 FINV_TEST_PG_DSN，跳过真实库入队预检")
+		t.Skip("未设置 FINV_TEST_PG_DSN，跳过真实库入队探测")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -162,19 +162,62 @@ SELECT stock_id FROM cdeu.finv_cdeu_secu_realtime_stock
 		t.Skipf("库里没有可用的 HK 快照行，跳过: %v", err)
 	}
 
-	preview, err := store.PreviewPendingSecuEnqueue(ctx, stockID)
+	probe, err := store.ProbePendingSecuKey(ctx, PendingSecuKeyProbeRequest{StockID: stockID})
 	if err != nil {
-		t.Fatalf("预检失败: %v", err)
+		t.Fatalf("探测失败: %v", err)
 	}
-	if preview.FtmmSymbol == "" || preview.Market != "HK" || preview.Code == "" {
-		t.Fatalf("派生字段不全: %+v", preview)
+	if probe.Planned.FtmmSymbol == "" || probe.Planned.Market != "HK" || probe.Planned.Code == "" {
+		t.Fatalf("派生字段不全: %+v", probe.Planned)
 	}
-	if !keyInstrumentAllowed(preview.Instrument) {
-		t.Fatalf("instrument=%s 不在键表词表内", preview.Instrument)
+	if !keyInstrumentAllowed(probe.Planned.Instrument) {
+		t.Fatalf("instrument=%s 不在键表词表内", probe.Planned.Instrument)
 	}
-	if preview.Existed == preview.Writable {
-		t.Fatalf("existed 与 writable 必须互斥: existed=%t writable=%t", preview.Existed, preview.Writable)
+	// 探测结果与 Current 必须自洽：existed 等价于 Current 非空
+	if probe.Existed != (probe.Current != nil) {
+		t.Fatalf("existed=%t 与 current=%v 不一致", probe.Existed, probe.Current)
 	}
-	t.Logf("stock_id=%d ftmm=%s instrument=%s existed=%t status=%s usc=%q hint=%s",
-		stockID, preview.FtmmSymbol, preview.Instrument, preview.Existed, preview.Status, preview.USC, preview.Hint)
+	// 人工改 market/code 后主键应随之变化
+	renamed, err := store.ProbePendingSecuKey(ctx, PendingSecuKeyProbeRequest{
+		StockID: stockID, Market: "hk", Code: "zzrenameprobe",
+	})
+	if err != nil {
+		t.Fatalf("改名探测失败: %v", err)
+	}
+	if renamed.Planned.FtmmSymbol != "HK.ZZRENAMEPROBE" {
+		t.Fatalf("改 market/code 后 ftmm_symbol 应为 HK.ZZRENAMEPROBE，实际 %s", renamed.Planned.FtmmSymbol)
+	}
+	t.Logf("stock_id=%d ftmm=%s instrument=%s existed=%t current=%+v hint=%s",
+		stockID, probe.Planned.FtmmSymbol, probe.Planned.Instrument, probe.Existed, probe.Current, probe.Hint)
+}
+
+// TestNormalizeKeyFields 键字段归一/校验（需求 11156：字段可人工改，但取值必须合法）。
+func TestNormalizeKeyFields(t *testing.T) {
+	base := PendingSecuKeyFields{
+		Market: "us", Code: " txcp ", StockID: 89184996156542,
+		Instrument: " STOCK ", Status: "", FlagEnable: 1, Priority: 10,
+	}
+	got, err := normalizeKeyFields(base)
+	if err != nil {
+		t.Fatalf("归一失败: %v", err)
+	}
+	if got.FtmmSymbol != "US.TXCP" || got.Market != "US" || got.Code != "txcp" ||
+		got.Instrument != "stock" || got.Status != StatusPendingKey {
+		t.Fatalf("归一结果不对: %+v", got)
+	}
+
+	bad := []PendingSecuKeyFields{
+		{Market: "", Code: "X", StockID: 1, Instrument: "stock", Priority: 10},                   // market 空
+		{Market: "US", Code: "", StockID: 1, Instrument: "stock", Priority: 10},                  // code 空
+		{Market: "US", Code: "X", StockID: 1, Instrument: "sectors", Priority: 10},               // 采集表口径，不是键表口径
+		{Market: "US", Code: "X", StockID: 1, Instrument: "stock", Status: "WAIT", Priority: 10}, // 状态不在词表
+		{Market: "US", Code: "X", StockID: 1, Instrument: "stock", FlagEnable: 2, Priority: 10},  // flag 只能是 0/1
+		{Market: "US", Code: "X", StockID: 1, Instrument: "stock", Priority: 0},                  // priority 下界
+		{Market: "US", Code: "X", StockID: 1, Instrument: "stock", Priority: 1_000_001},          // priority 上界
+		{Market: "US", Code: "X", StockID: 0, Instrument: "stock", Priority: 10},                 // stock_id 非法
+	}
+	for i, fields := range bad {
+		if _, err := normalizeKeyFields(fields); err == nil {
+			t.Fatalf("第 %d 个用例应被拒绝: %+v", i+1, fields)
+		}
+	}
 }

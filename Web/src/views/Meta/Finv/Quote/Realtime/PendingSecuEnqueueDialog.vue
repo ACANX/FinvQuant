@@ -1,17 +1,19 @@
 <script setup lang="ts">
-// 待录入证券 →「入队」确认对话框（需求 11153 / 11154）
+// 待录入证券 →「入队」对话框（需求 11153 / 11154 / 11155 / 11156）
 //
-// 两步走、人工确认：
-//   1. 列表行点「入队」只打开本对话框，GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue?stockId=
-//      预检「将要写入 futu.finv_futu_secu_key 的字段」与「键表现状」（只读）；
-//   2. 人工核对（可改正 instrument）后点「确认入队」，才 POST 同一个地址真正落库。
+// 三步走，人工确认：
+//   ① 探测：POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue/Probe
+//      —— 按当前键字段查键表，返回「存在 / 不存在」与现有行现值，**不写库**；
+//   ② 核对：写入键表的字段全部可手工修改（主键 ftmm_symbol 由 market + code 派生，只读）；
+//      只要 market / code 被改动，探测结果即失效，提交按钮保持禁用，必须先重新探测；
+//   ③ 提交：不存在 → 「确认入队」（INSERT）；存在 → 「更新键」（UPDATE 非主键字段）。
+//      服务端在写入前还会再验证一次存在性（需求 11155）。
 //
-// 入队语义：把证券键登记进键表（status=PENDING / flag_enable=1 / priority=10，usc 留空）。
-// 键表已有该 ftmm_symbol 时不入队，改为提示去「USC 映射规则」补 USC —— 补好后回到本页用「手动补录USC」同步。
+// 入队语义：键表是下游采集与 USC 映射的输入，因此不做一键全自动。
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { apiGet, apiPost } from '../../../../../api'
+import { apiPost } from '../../../../../api'
 import { showToast } from '../../../../../ui/toast'
 
 interface PendingSecuRow {
@@ -39,36 +41,37 @@ const visible = computed({
   set: (value: boolean) => emit('update:modelValue', value),
 })
 
-// ---- 预检结果（与后端 PendingSecuEnqueuePreview 一致）----
+// ---- 数据结构（与后端 PendingSecuKeyFields / Probe / WriteResult 一致）----
 
-interface EnqueuePreview {
-  stock_id: number
-  name: string
+interface KeyFields {
   ftmm_symbol: string
   market: string
   code: string
-  instrument_type: string
-  market_type: string
+  stock_id: number
   instrument: string
-  existed: boolean
   status: string
-  usc: string
+  flag_enable: number
   priority: number
-  writable: boolean
-  hint: string
-}
-
-interface EnqueueResult {
-  ftmm_symbol: string
-  instrument: string
-  enqueued: boolean
-  existed: boolean
-  status: string
   usc: string
+}
+
+interface ProbeResult {
+  stock_id: number
+  planned: KeyFields
+  existed: boolean
+  current: KeyFields | null
   hint: string
 }
 
-/** 键表 instrument 词表（与后端 KeyInstrumentOptions 一致；下拉用「中文[值]」，DictFilterSpec） */
+interface WriteResult {
+  ftmm_symbol: string
+  action: string
+  affected: number
+  existed: boolean
+  hint: string
+}
+
+/** instrument 词表与键表一致；下拉用「中文[值]」（DictFilterSpec） */
 const INSTRUMENT_OPTIONS = [
   { title: '股票[stock]', value: 'stock' },
   { title: 'ETF[etf]', value: 'etf' },
@@ -80,27 +83,158 @@ const INSTRUMENT_OPTIONS = [
   { title: '大盘[market]', value: 'market' },
 ]
 
+const STATUS_OPTIONS = [
+  { title: '待处理[PENDING]', value: 'PENDING' },
+  { title: '已入队[QUEUED]', value: 'QUEUED' },
+  { title: '已完成[DONE]', value: 'DONE' },
+  { title: '失败[FAILED]', value: 'FAILED' },
+  { title: '跳过[SKIP]', value: 'SKIP' },
+]
+
+const FLAG_OPTIONS = [
+  { title: '启用[1]', value: 1 },
+  { title: '停用[0]', value: 0 },
+]
+
+const STATUS_TEXT: Record<string, string> = {
+  PENDING: '待处理',
+  QUEUED: '已入队',
+  DONE: '已完成',
+  FAILED: '失败',
+  SKIP: '跳过',
+}
+
+// ---- 表单状态（写入键表的字段，除主键外均可改）----
+
 const loading = ref(false)
+const probing = ref(false)
 const submitting = ref(false)
 const error = ref('')
-const preview = ref<EnqueuePreview | null>(null)
-const instrument = ref('')
 
-async function loadPreview() {
-  preview.value = null
-  instrument.value = ''
-  error.value = ''
+const market = ref('')
+const code = ref('')
+const stockID = ref('')
+const instrument = ref('')
+const status = ref('PENDING')
+const flagEnable = ref(1)
+const priority = ref('10')
+
+/** 最近一次探测结果（null = 还没探测过） */
+const probe = ref<ProbeResult | null>(null)
+/** 探测时用的主键；与当前派生主键不一致说明键被改过，探测失效 */
+const probedKey = ref('')
+
+/** 主键由 market + code 派生（英文字母大写），只读展示；改了 market/code 就自动变 */
+const derivedKey = computed(() => {
+  const m = market.value.trim().toUpperCase()
+  const c = code.value.trim()
+  if (!m || !c) return ''
+  return `${m}.${c}`.toUpperCase()
+})
+
+/** 键字段改动后探测失效（需求 11155：每次提交前都必须基于最新键的探测结果） */
+const probeStale = computed(
+  () => probe.value !== null && probedKey.value !== '' && probedKey.value !== derivedKey.value,
+)
+
+const probedExisted = computed(() => !probeStale.value && (probe.value?.existed ?? false))
+const probedAbsent = computed(() => !probeStale.value && probe.value !== null && !probe.value.existed)
+
+/** 按钮可用条件：探测过、键没变、必填齐全、没在提交 */
+const fieldsReady = computed(
+  () =>
+    market.value.trim() !== '' &&
+    code.value.trim() !== '' &&
+    instrument.value !== '' &&
+    stockID.value.trim() !== '' &&
+    priority.value.trim() !== '',
+)
+const canInsert = computed(
+  () => probedAbsent.value && fieldsReady.value && !submitting.value && !probing.value,
+)
+const canUpdate = computed(
+  () => probedExisted.value && fieldsReady.value && !submitting.value && !probing.value,
+)
+
+const actionHint = computed(() => {
+  if (loading.value) return '正在探测…'
+  if (!probe.value) return '先点「探测」确认该键是否存在'
+  if (probeStale.value) return '键字段已改动，请重新「探测」后再提交'
+  if (!fieldsReady.value) return '有必填字段为空，无法提交'
+  return probe.value.existed ? '键已存在：只能「更新键」，不能重复入队' : '键不存在：可以「确认入队」'
+})
+
+function fillFields(planned: KeyFields) {
+  market.value = planned.market ?? ''
+  code.value = planned.code ?? ''
+  stockID.value = String(planned.stock_id ?? '')
+  instrument.value = planned.instrument ?? ''
+  status.value = planned.status || 'PENDING'
+  flagEnable.value = planned.flag_enable ?? 1
+  priority.value = String(planned.priority ?? 10)
+}
+
+function buildFields(): KeyFields {
+  return {
+    ftmm_symbol: derivedKey.value,
+    market: market.value.trim(),
+    code: code.value.trim(),
+    stock_id: Number(stockID.value.trim() || 0),
+    instrument: instrument.value,
+    status: status.value,
+    flag_enable: flagEnable.value,
+    priority: Number(priority.value.trim() || 0),
+    usc: '',
+  }
+}
+
+/**
+ * 探测键是否存在。
+ * 首次探测（initial=true）会把服务端派生的默认值灌进表单；
+ * 之后的探测只更新「存在性 / 现值」，不覆盖人工改过的 instrument/status/priority。
+ */
+async function runProbe(initial = false) {
   const row = props.row
   if (!row?.stock_id) return
+  probing.value = true
+  error.value = ''
+  try {
+    const data = await apiPost<ProbeResult>(
+      '/Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue/Probe',
+      { stock_id: row.stock_id, market: market.value.trim(), code: code.value.trim() },
+      60000,
+    )
+    probe.value = data
+    probedKey.value = data.planned.ftmm_symbol
+    if (initial) {
+      fillFields(data.planned)
+      probedKey.value = data.planned.ftmm_symbol
+    }
+  } catch (err) {
+    error.value = `探测失败：${(err as Error).message}`
+    probe.value = null
+    probedKey.value = ''
+  } finally {
+    probing.value = false
+  }
+}
+
+/** 打开对话框：清空后自动探测一次，拿到默认字段与存在性 */
+async function reset() {
+  probe.value = null
+  probedKey.value = ''
+  error.value = ''
+  market.value = ''
+  code.value = ''
+  stockID.value = ''
+  instrument.value = ''
+  status.value = 'PENDING'
+  flagEnable.value = 1
+  priority.value = '10'
+  if (!props.row?.stock_id) return
   loading.value = true
   try {
-    const data = await apiGet<EnqueuePreview>(
-      `/Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue?stockId=${row.stock_id}`,
-    )
-    preview.value = data
-    instrument.value = data.instrument ?? ''
-  } catch (err) {
-    error.value = `预检失败：${(err as Error).message}`
+    await runProbe(true)
   } finally {
     loading.value = false
   }
@@ -109,34 +243,29 @@ async function loadPreview() {
 watch(
   () => [props.modelValue, props.row?.stock_id] as const,
   ([open]) => {
-    if (open) void loadPreview()
+    if (open) void reset()
   },
   { immediate: true },
 )
 
-const canSubmit = computed(
-  () => !!preview.value?.writable && !!instrument.value && !loading.value && !submitting.value,
-)
+// ---- 提交 ----
 
-/** 已入队（键表已有该键）时不再提供提交，改为引导去「USC 映射规则」 */
-const alreadyQueued = computed(() => preview.value !== null && !preview.value.writable)
-
-async function submit() {
-  if (!canSubmit.value || !props.row) return
+async function submitInsert() {
+  if (!canInsert.value) return
   submitting.value = true
   error.value = ''
   try {
-    const result = await apiPost<EnqueueResult>(
+    const result = await apiPost<WriteResult>(
       '/Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue',
-      { stock_id: props.row.stock_id, instrument: instrument.value },
+      { fields: buildFields() },
       60000,
     )
     if (result.existed) {
-      showToast(`键表已存在 ${result.ftmm_symbol}，未重复入队：${result.hint}`, 'warning')
-      preview.value = { ...preview.value!, existed: true, writable: false, status: result.status, usc: result.usc, hint: result.hint }
+      showToast(`${result.ftmm_symbol} 已存在，未重复入队；请改用「更新键」`, 'warning')
+      await runProbe()
       return
     }
-    showToast(`已入队 ${result.ftmm_symbol}（instrument=${result.instrument}）`, 'success')
+    showToast(`已入队 ${result.ftmm_symbol}`, 'success')
     emit('done')
     close()
   } catch (err) {
@@ -147,7 +276,33 @@ async function submit() {
   }
 }
 
-/** 去「USC 映射规则」菜单补 USC（只在用户点按钮时跳转，不自动跳） */
+async function submitUpdate() {
+  if (!canUpdate.value) return
+  submitting.value = true
+  error.value = ''
+  try {
+    const result = await apiPost<WriteResult>(
+      '/Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue/Update',
+      { fields: buildFields() },
+      60000,
+    )
+    if (result.affected === 0) {
+      showToast(`${result.ftmm_symbol} 不存在，未更新；请改用「确认入队」`, 'warning')
+      await runProbe()
+      return
+    }
+    showToast(result.hint || `已更新键 ${result.ftmm_symbol}`, 'success')
+    emit('done')
+    close()
+  } catch (err) {
+    error.value = `更新键失败：${(err as Error).message}`
+    showToast(error.value, 'error')
+  } finally {
+    submitting.value = false
+  }
+}
+
+/** 去「USC 映射规则」菜单补 USC（只由用户点按钮触发跳转） */
 function goUscMapping() {
   close()
   void router.push('/Meta/Finv/Quote/Realtime/UscMapping')
@@ -160,25 +315,42 @@ function close() {
 </script>
 
 <template>
-  <v-dialog v-model="visible" max-width="880" scrollable>
+  <v-dialog v-model="visible" max-width="960" scrollable>
     <v-card>
       <v-card-title class="d-flex align-center">
         <v-icon icon="mdi-tray-arrow-up" class="mr-2" />
-        入队确认
+        入队 / 更新键
         <v-chip v-if="row" size="small" variant="tonal" color="primary" class="ml-3">
           {{ row.stock_code }} {{ row.name }}
         </v-chip>
+        <v-spacer />
+        <v-chip
+          v-if="probeStale"
+          size="small"
+          variant="tonal"
+          color="warning"
+        >
+          键已改动，需重新探测
+        </v-chip>
+        <v-chip
+          v-else-if="probe"
+          size="small"
+          variant="tonal"
+          :color="probe.existed ? 'warning' : 'success'"
+        >
+          {{ probe.existed ? '键已存在' : '键不存在' }}
+        </v-chip>
       </v-card-title>
       <v-card-subtitle class="pb-2">
-        入队 = 把该证券的键登记进 <code>futu.finv_futu_secu_key</code>（
-        <code>status=PENDING</code>、<code>flag_enable=1</code>、<code>priority=10</code>，<code>usc</code> 留空等规则解析）。
-        <strong>本页不会自动提交</strong>：核对下面将要写入的字段，确认无误再点「确认入队」。
+        「探测」确认 <code>futu.finv_futu_secu_key</code> 里是否已有该键：
+        <strong>不存在</strong> → 「确认入队」插入；<strong>已存在</strong> → 「更新键」改它的非主键字段。
+        键字段（<code>market</code> / <code>code</code>）改动后探测失效，按钮会禁用，必须先重新探测。
       </v-card-subtitle>
 
       <v-divider />
 
       <v-card-text>
-        <v-progress-linear v-if="loading" indeterminate color="primary" class="mb-3" />
+        <v-progress-linear v-if="loading || probing" indeterminate color="primary" class="mb-3" />
 
         <v-alert v-if="error" type="error" density="compact" variant="tonal" class="mb-3">
           {{ error }}
@@ -196,116 +368,168 @@ function close() {
           </div>
         </v-sheet>
 
-        <!-- 将要写入键表的字段（服务端派生，只读）：一个字段一行，不合并展示 -->
-        <div class="text-subtitle-2 mb-1">将要写入键表的字段</div>
-        <v-table v-if="preview" density="compact" class="mb-3 finv-enqueue-fields">
-          <thead>
-            <tr>
-              <th class="text-no-wrap">字段</th>
-              <th class="text-no-wrap">取值</th>
-              <th class="text-no-wrap">来源 / 说明</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td class="text-no-wrap"><code>ftmm_symbol</code></td>
-              <td class="text-no-wrap"><code>{{ preview.ftmm_symbol }}</code></td>
-              <td>主键：<code>upper(市场标签.代码)</code>，派生后只读</td>
-            </tr>
-            <tr>
-              <td class="text-no-wrap"><code>market</code></td>
-              <td class="text-no-wrap">{{ preview.market }}</td>
-              <td>取自快照 <code>market_label</code></td>
-            </tr>
-            <tr>
-              <td class="text-no-wrap"><code>code</code></td>
-              <td class="text-no-wrap">{{ preview.code }}</td>
-              <td>取自快照 <code>stock_code</code></td>
-            </tr>
-            <tr>
-              <td class="text-no-wrap"><code>stock_id</code></td>
-              <td class="text-no-wrap">{{ preview.stock_id }}</td>
-              <td>取自快照证券编号</td>
-            </tr>
-            <tr>
-              <td class="text-no-wrap"><code>instrument</code></td>
-              <td class="text-no-wrap">{{ instrument || '—' }}</td>
-              <td>见下方下拉，可人工改正</td>
-            </tr>
-            <tr>
-              <td class="text-no-wrap"><code>status</code></td>
-              <td class="text-no-wrap">PENDING</td>
-              <td>键表固定取值（入队即待处理）</td>
-            </tr>
-            <tr>
-              <td class="text-no-wrap"><code>flag_enable</code></td>
-              <td class="text-no-wrap">1</td>
-              <td>键表固定取值（启用）</td>
-            </tr>
-            <tr>
-              <td class="text-no-wrap"><code>priority</code></td>
-              <td class="text-no-wrap">10</td>
-              <td>键表固定取值（最低优先级）</td>
-            </tr>
-            <tr>
-              <td class="text-no-wrap"><code>usc</code></td>
-              <td class="text-no-wrap text-medium-emphasis">留空</td>
-              <td>入队后由「USC 映射规则」解析</td>
-            </tr>
-          </tbody>
-        </v-table>
+        <!-- 写入键表的字段：一个字段一个控件（除主键外均可改） -->
+        <div class="text-subtitle-2 mb-1">写入键表的字段（除主键外均可手工修改）</div>
+        <v-row dense>
+          <v-col cols="12" sm="6" md="4">
+            <v-text-field
+              :model-value="derivedKey"
+              label="ftmm_symbol（主键，派生只读）"
+              hint="= upper(market + '.' + code)，随下面两个字段自动变化"
+              persistent-hint
+              density="compact"
+              readonly
+            />
+          </v-col>
+          <v-col cols="12" sm="6" md="4">
+            <v-text-field v-model="market" label="market 市场标签" hint="如 US / HK / SH，自动转大写" persistent-hint density="compact" />
+          </v-col>
+          <v-col cols="12" sm="6" md="4">
+            <v-text-field v-model="code" label="code 代码" hint="富途代码口径，字母不重复转换" persistent-hint density="compact" />
+          </v-col>
+          <v-col cols="12" sm="6" md="4">
+            <v-text-field v-model="stockID" label="stock_id 证券编号" hint="默认取快照证券编号" persistent-hint density="compact" />
+          </v-col>
+          <v-col cols="12" sm="6" md="4">
+            <v-select
+              v-model="instrument"
+              :items="INSTRUMENT_OPTIONS"
+              item-title="title"
+              item-value="value"
+              :return-object="false"
+              label="instrument 品种"
+              hint="词表与键表一致（板块是 sector，采集表才是 sectors）"
+              persistent-hint
+              density="compact"
+            />
+          </v-col>
+          <v-col cols="12" sm="6" md="4">
+            <v-select
+              v-model="status"
+              :items="STATUS_OPTIONS"
+              item-title="title"
+              item-value="value"
+              :return-object="false"
+              label="status 状态"
+              hint="入队默认 PENDING"
+              persistent-hint
+              density="compact"
+            />
+          </v-col>
+          <v-col cols="12" sm="6" md="4">
+            <v-select
+              v-model="flagEnable"
+              :items="FLAG_OPTIONS"
+              item-title="title"
+              item-value="value"
+              :return-object="false"
+              label="flag_enable 启用标志"
+              hint="入队默认启用（1）"
+              persistent-hint
+              density="compact"
+            />
+          </v-col>
+          <v-col cols="12" sm="6" md="4">
+            <v-text-field v-model="priority" label="priority 优先级" hint="1..1000000，入队默认 10" persistent-hint density="compact" />
+          </v-col>
+          <v-col cols="12" sm="6" md="4">
+            <v-text-field
+              :model-value="probe?.current?.usc || (probeStale ? '（重新探测后显示）' : '（入队后由规则解析）')"
+              label="usc（只读，不由本对话框写入）"
+              hint="由「USC 映射规则」解析，本页可用「手动补录USC」同步"
+              persistent-hint
+              density="compact"
+              readonly
+            />
+          </v-col>
+        </v-row>
 
-        <!-- instrument：唯一可人工改正的字段 -->
-        <div class="d-flex flex-wrap align-center ga-2 mb-3">
-          <v-select
-            v-model="instrument"
-            :items="INSTRUMENT_OPTIONS"
-            item-title="title"
-            item-value="value"
-            :return-object="false"
-            label="instrument（按品种码推导，可改正）"
-            :hint="`由 instrument_type=${preview?.instrument_type || '—'} / market_type=${preview?.market_type || '—'} 推导；词表与键表一致（板块是 sector，不是采集表的 sectors）`"
-            persistent-hint
-            density="compact"
-            :disabled="alreadyQueued"
-            style="min-width: 320px; max-width: 420px"
-          />
+        <div class="d-flex flex-wrap align-center ga-2 my-3">
+          <v-btn
+            color="primary"
+            variant="tonal"
+            prepend-icon="mdi-radar"
+            :loading="probing"
+            :disabled="loading || submitting || !market.trim() || !code.trim()"
+            @click="runProbe()"
+          >
+            探测
+          </v-btn>
+          <span class="text-caption text-medium-emphasis">{{ actionHint }}</span>
         </div>
 
-        <!-- 键表现状 -->
-        <v-alert v-if="alreadyQueued" type="warning" density="compact" variant="tonal" class="mb-2">
-          <div class="mb-1"><strong>键表已存在该记录</strong>（status={{ preview?.status || '—' }}、usc={{ preview?.usc || '空' }}、priority={{ preview?.priority }}），本次不能重复入队。</div>
-          <div>{{ preview?.hint }}</div>
+        <v-alert
+          v-if="probe && !probeStale"
+          :type="probe.existed ? 'warning' : 'success'"
+          density="compact"
+          variant="tonal"
+          class="mb-2"
+        >
+          {{ probe.hint }}
         </v-alert>
-        <v-alert v-else-if="preview" type="info" density="compact" variant="tonal" class="mb-2">
-          {{ preview.hint }}
+        <v-alert v-else-if="probeStale" type="warning" density="compact" variant="tonal" class="mb-2">
+          键字段改动后主键变为 <code>{{ derivedKey || '（空）' }}</code>，上次探测（<code>{{ probedKey }}</code>）已失效，请重新「探测」。
         </v-alert>
+
+        <!-- 键表现状：一个字段一行 -->
+        <template v-if="probe?.current && !probeStale">
+          <div class="text-subtitle-2 mb-1">键表现有记录（只读）</div>
+          <v-table density="compact" class="mb-2 finv-enqueue-fields">
+            <thead>
+              <tr>
+                <th class="text-no-wrap">字段</th>
+                <th class="text-no-wrap">现值</th>
+                <th class="text-no-wrap">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><code>ftmm_symbol</code></td><td>{{ probe.current.ftmm_symbol }}</td><td>主键</td></tr>
+              <tr><td><code>market</code></td><td>{{ probe.current.market }}</td><td>市场标签</td></tr>
+              <tr><td><code>code</code></td><td>{{ probe.current.code }}</td><td>富途代码</td></tr>
+              <tr><td><code>stock_id</code></td><td>{{ probe.current.stock_id || '—' }}</td><td>证券编号（0/NULL 视为未解析）</td></tr>
+              <tr><td><code>instrument</code></td><td>{{ probe.current.instrument }}</td><td>品种</td></tr>
+              <tr><td><code>status</code></td><td>{{ STATUS_TEXT[probe.current.status] ?? probe.current.status }}</td><td>{{ probe.current.status }}</td></tr>
+              <tr><td><code>flag_enable</code></td><td>{{ probe.current.flag_enable }}</td><td>{{ probe.current.flag_enable === 1 ? '启用' : '停用' }}</td></tr>
+              <tr><td><code>priority</code></td><td>{{ probe.current.priority }}</td><td>优先级</td></tr>
+              <tr><td><code>usc</code></td><td>{{ probe.current.usc || '—' }}</td><td>解析结果</td></tr>
+            </tbody>
+          </v-table>
+        </template>
       </v-card-text>
 
       <v-divider />
 
       <v-card-actions>
-        <span class="text-caption text-medium-emphasis ml-2">
-          {{ alreadyQueued ? '已有该键，需先补 USC 后才能同步本页记录' : '核对无误后才会写库' }}
-        </span>
+        <span class="text-caption text-medium-emphasis ml-2">{{ actionHint }}</span>
         <v-spacer />
         <v-btn variant="text" :disabled="submitting" @click="close">取消</v-btn>
         <v-btn
-          v-if="alreadyQueued"
+          v-if="probe && !probeStale && probe.existed"
           color="primary"
           variant="tonal"
           prepend-icon="mdi-transit-connection-variant"
+          class="mr-2"
           @click="goUscMapping"
         >
           去「USC 映射规则」
         </v-btn>
         <v-btn
+          v-if="probe && !probeStale && probe.existed"
+          color="primary"
+          prepend-icon="mdi-content-save-edit-outline"
+          :disabled="!canUpdate"
+          :loading="submitting"
+          @click="submitUpdate"
+        >
+          更新键
+        </v-btn>
+        <v-btn
           v-else
           color="primary"
           prepend-icon="mdi-tray-arrow-up"
-          :disabled="!canSubmit"
+          :disabled="!canInsert"
           :loading="submitting"
-          @click="submit"
+          @click="submitInsert"
         >
           确认入队
         </v-btn>
@@ -315,14 +539,13 @@ function close() {
 </template>
 
 <style scoped>
-/* 「将要写入键表的字段」表：字段名与取值等宽，说明列允许折行 */
+/* 字段现状表：字段名列不换行，说明列允许折行 */
 .finv-enqueue-fields :deep(td),
 .finv-enqueue-fields :deep(th) {
   padding-inline: 12px;
 }
 
-.finv-enqueue-fields :deep(td:nth-child(1)),
-.finv-enqueue-fields :deep(td:nth-child(2)) {
+.finv-enqueue-fields :deep(td:nth-child(1)) {
   white-space: nowrap;
 }
 </style>

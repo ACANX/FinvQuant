@@ -219,6 +219,25 @@
 
 ### 变更
 
+- **入队改为「探测 → 场景化按钮 → 提交」，键字段可手工改（需求 11155 / 11156）**
+  - 新增探测接口 `POST .../Stock/Pending/Enqueue/Probe`（只读）：按 `market` + `code`（可覆盖快照派生值）
+    算 `ftmm_symbol` 并查键表，返回 `planned` / `existed` / `current` / `hint`。
+  - 按钮按场景区分：**键不存在** → 「确认入队」（`POST .../Enqueue` 插入）；**键已存在** → 「更新键」
+    （新增 `POST .../Enqueue/Update`，只改 `stock_id` / `instrument` / `status` / `flag_enable` / `priority`，
+    主键不可改，命中 0 行视为不存在并提示改走入队，**不静默插入**）。
+  - **未探测 / 探测中 / 键字段改动后按钮一律禁用**：只改 `market` / `code` 会改变主键，
+    上次探测结果即失效，界面提示「键字段已改动，请重新『探测』」。
+  - **每次提交前都验证存在性**：入队先查在 + `ON CONFLICT (ftmm_symbol) DO NOTHING`；更新用主键 `WHERE` 命中行数判定。
+  - 键字段全部可手工修改（需求 11156）：`market` / `code` / `stock_id` / `instrument` / `status` /
+    `flag_enable` / `priority`；主键 `ftmm_symbol` 由 `market` + `code` 派生只读展示。
+    校验：`instrument` 词表（`sector` 单数，别写成采集表的 `sectors`）、`status` 词表（PENDING/QUEUED/DONE/FAILED/SKIP）、
+    `flag_enable` 0·1、`priority` 1..1000000、`market`/`code` 非空，越界一律 400。
+  - 对话框「键表现有记录」按「字段 / 现值 / 说明」三列逐行展示（FE17 不合并）+ 字段控件一字段一控件。
+  - 单测：`TestNormalizeKeyFields`（归一 + 8 个非法用例）、`TestKeyInstrumentByInstrumentType`；
+    只读实测 `TestLivePendingSecuEnqueueProbe`（`HK.00002` → `existed=true`、改 market/code 后主键随之为 `HK.ZZRENAMEPROBE`）。
+  - 文档：`Docs/API/Cdeu/RealtimeStockPendingEnqueue.{md,yml}` 重写为三动作，`APIs.md` 编号 124/125/126，
+    `Menu/Quote/Realtime/PendingSecu.md` §2.6 重写（按钮状态规则 + 可写字段表）。
+
 - **修「入队确认」对话框把三个字段挤成一行（同 FE17 类错误第三次）**
   - 现象：`将要写入键表的字段` 表里把 `status / flag_enable / priority` 并成一格、取值并成 `PENDING / 1 / 10`，
     同一张表又混用 tooltip 交代 `ftmm_symbol` 的来源 —— 偷懒且不可核对。

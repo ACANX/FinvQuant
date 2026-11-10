@@ -3255,7 +3255,9 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 待录入证券表格列名「派生键 ftmm_symbol」改为「唯一标识」（表头悬浮说明保留 `upper(市场标签.代码)` 推导公式） | 11152 | 1 |
 | 待录入证券操作列新增「入队」：按快照派生 `ftmm_symbol` / `market` / `code` / `stock_id` 与 `instrument`（`instrument_type` 主、`market_type` 兜底，词表与键表一致），新增 `GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue?stockId=` 预检、`POST .../Stock/Pending/Enqueue` 写 `futu.finv_futu_secu_key`（`status=PENDING` / `flag_enable=1` / `priority=10`，`usc` 留空）；键表已存在则不插入并提示去「USC 映射规则」补 USC | 11153 | 1 |
 | 「入队」必须两步走：点按钮只打开确认对话框（预检只读），人工核对并可改正 `instrument` 后，再点对话框里的「确认入队」才写库；不得一键直接提交 | 11154 | 1 |
-| **合计** | **10001–11154** | **1150**（含 2 条待办） |
+| 入队新增探测接口 `POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue/Probe`（只读，返回 `planned`/`existed`/`current`/`hint`），并按场景区分按钮：键不存在显示可点击的「确认入队」、已存在显示「更新键」（`POST .../Enqueue/Update` 改非主键字段）；未探测或键字段改动后按钮禁用，每次提交前服务端再验证一次存在性 | 11155 | 1 |
+| 入队对话框写入 `futu.finv_futu_secu_key` 的字段支持手工修改：`market`/`code`/`stock_id`/`instrument`/`status`/`flag_enable`/`priority`，主键 `ftmm_symbol` 由 `market`+`code` 派生只读；携带词表与范围校验（`instrument`、`status` 词表，`flag_enable` 0/1，`priority` 1..1000000） | 11156 | 1 |
+| **合计** | **10001–11156** | **1152**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

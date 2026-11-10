@@ -2,25 +2,22 @@ package cdeu
 
 // 待录入证券「入队」：把证券键登记进本地键表 `futu.finv_futu_secu_key`（需求 11153）。
 //
-// 背景：待录入证券（快照 `usc` 为空且键表里查不到）有两类
-//  1. 富途还没给它建键 —— 需要把键**登记进键表**，采集与后续链路才有依据（本文件负责这一步，「入队」）；
-//  2. 键表里已经有键，但 USC 映射规则还解不出来 —— 这种情况要去「USC 映射规则」菜单补规则。
+// 三步走、人工确认（需求 11154 / 11155 / 11156）：
 //
-// **两步走，人工确认**（需求 11154）：前端点「入队」只打开对话框，
-// 走 `PreviewPendingSecuEnqueue` 展示将要写入的字段与键表现状；
-// 人工核对（可改 instrument）后点对话框里的「确认入队」才真正 `EnqueuePendingSecu` 落库。
+//	① 探测   POST .../Pending/Enqueue/Probe —— 按当前（可能已人工改过的）键字段查键表，返回「存在 / 不存在」；
+//	② 核对   前端据探测结果决定按钮：不存在 → 「确认入队」；存在 → 「更新键」；键字段改动后按钮禁用，必须重新探测；
+//	③ 提交   POST .../Pending/Enqueue（插入）/ POST .../Pending/Enqueue/Update（更新），服务端再校验一次存在性。
 //
-// 入队字段来源（全部由快照行派生，不采信前端传值）：
+// 写入键表的字段（均可人工修改，只有 `ftmm_symbol` 由 `market + code` 派生后只读）：
 //
-//	ftmm_symbol ← upper(市场标签 || '.' || 代码)
-//	market      ← 市场标签
-//	code        ← 快照 stock_code
-//	stock_id    ← 快照 stock_id
-//	instrument  ← instrument_type（富途品种码）为主、market_type 兜底，见 keyInstrumentByInstrumentType
-//	              —— 人工可在对话框里覆盖（仅限词表内取值）
-//
-// 键表主键是 `ftmm_symbol`，所以「已存在」判定就是主键查询；插入用
-// `ON CONFLICT (ftmm_symbol) DO NOTHING` + `RETURNING`，并发下也不会重复入队。
+//	ftmm_symbol ← upper(market || '.' || code)   （主键，随 market/code 变化）
+//	market / code                                （可改）
+//	stock_id                                     （可改，默认快照证券编号）
+//	instrument                                   （可改，必须落在键表词表内）
+//	status                                       （可改，PENDING/QUEUED/DONE/FAILED/SKIP）
+//	flag_enable                                  （可改，0/1）
+//	priority                                     （可改，1..1000000）
+//	usc                                          （不写，留空等「USC 映射规则」解析）
 
 import (
 	"context"
@@ -45,10 +42,24 @@ const StatusPendingKey = "PENDING"
 // 键表写作 `sector`（单数）。混用会导致 USC 映射规则匹配不到。
 var KeyInstrumentOptions = []string{"stock", "etf", "index", "sector", "futures", "crypto", "forex", "market"}
 
+// KeyStatusOptions 键表 `status` 的合法词表（与 V300138 CHECK 约束一致）。
+var KeyStatusOptions = []string{"PENDING", "QUEUED", "DONE", "FAILED", "SKIP"}
+
 // keyInstrumentAllowed 判定 instrument 是否在键表词表内。
 func keyInstrumentAllowed(value string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(value))
 	for _, option := range KeyInstrumentOptions {
+		if option == normalized {
+			return true
+		}
+	}
+	return false
+}
+
+// keyStatusAllowed 判定 status 是否在键表词表内。
+func keyStatusAllowed(value string) bool {
+	normalized := strings.ToUpper(strings.TrimSpace(value))
+	for _, option := range KeyStatusOptions {
 		if option == normalized {
 			return true
 		}
@@ -86,49 +97,50 @@ func keyInstrumentByInstrumentType(instrumentType, marketType int) string {
 	}
 }
 
-// PendingSecuEnqueuePreview 「入队」对话框的预检结果（只读，供人工核对）。
-type PendingSecuEnqueuePreview struct {
-	StockID        int64  `json:"stock_id"`
-	Name           string `json:"name"`
-	FtmmSymbol     string `json:"ftmm_symbol"`
-	Market         string `json:"market"`
-	Code           string `json:"code"`
-	InstrumentType string `json:"instrument_type"`
-	MarketType     string `json:"market_type"`
-	// Instrument 按品种码推导出的键表 instrument（人工可改，词表见 KeyInstrumentOptions）。
-	Instrument string `json:"instrument"`
-	// 键表现状：Existed=true 表示已经入过队，此次不能重复插入。
-	Existed  bool   `json:"existed"`
-	Status   string `json:"status"`
-	USC      string `json:"usc"`
-	Priority int    `json:"priority"`
-	// Writable 是否允许提交入队（= !Existed）。
-	Writable bool `json:"writable"`
-	// Hint 给前端的下一步说明。
-	Hint string `json:"hint"`
-}
-
-// PendingSecuEnqueueResult 入队结果（接口返回与前端提示用）。
-type PendingSecuEnqueueResult struct {
+// PendingSecuKeyFields 键表一行可写字段（`usc` 只读返回，不写入）。
+type PendingSecuKeyFields struct {
 	FtmmSymbol string `json:"ftmm_symbol"`
 	Market     string `json:"market"`
 	Code       string `json:"code"`
-	Instrument string `json:"instrument"`
 	StockID    int64  `json:"stock_id"`
-	// Enqueued 本次是否真的插入了键表（true=入队成功）。
-	Enqueued bool `json:"enqueued"`
-	// Existed 键表里已存在该 ftmm_symbol（此时不入队，需人工补 USC）。
-	Existed  bool   `json:"existed"`
-	Status   string `json:"status"`
-	USC      string `json:"usc"`
-	Priority int    `json:"priority"`
-	Hint     string `json:"hint"`
+	Instrument string `json:"instrument"`
+	Status     string `json:"status"`
+	FlagEnable int    `json:"flag_enable"`
+	Priority   int    `json:"priority"`
+	USC        string `json:"usc"`
 }
 
-// pendingSecuKeyDraft 快照行派生出的键表待写入字段（preview 与 enqueue 共用）。
+// PendingSecuKeyProbeRequest 探测请求：只允许改 `market` / `code`（其余字段不影响「键是否存在」）。
+type PendingSecuKeyProbeRequest struct {
+	StockID int64  `json:"stock_id"`
+	Market  string `json:"market"`
+	Code    string `json:"code"`
+}
+
+// PendingSecuKeyProbe 探测结果。
+type PendingSecuKeyProbe struct {
+	StockID int64                 `json:"stock_id"`
+	Planned PendingSecuKeyFields  `json:"planned"`
+	Existed bool                  `json:"existed"`
+	Current *PendingSecuKeyFields `json:"current"`
+	Hint    string                `json:"hint"`
+}
+
+// PendingSecuKeyWriteResult 插入 / 更新结果。
+type PendingSecuKeyWriteResult struct {
+	FtmmSymbol string `json:"ftmm_symbol"`
+	// Action insert / update。
+	Action string `json:"action"`
+	// Affected 影响行数（insert=1 表示新增，update=1 表示改到）。
+	Affected int64 `json:"affected"`
+	// Existed insert 时目标键已存在（未写入，前端应改走「更新键」）。
+	Existed bool   `json:"existed"`
+	Hint    string `json:"hint"`
+}
+
+// pendingSecuKeyDraft 快照行派生出的默认写键字段。
 type pendingSecuKeyDraft struct {
 	Name           string
-	FtmmSymbol     string
 	Market         string
 	Code           string
 	StockID        int64
@@ -137,7 +149,7 @@ type pendingSecuKeyDraft struct {
 	Instrument     string
 }
 
-// derivePendingSecuKeyDraft 读取快照行并派生键表字段（不做任何写操作）。
+// derivePendingSecuKeyDraft 读取快照行并派生默认字段（不做任何写操作）。
 func (s *Store) derivePendingSecuKeyDraft(ctx context.Context, stockID int64) (pendingSecuKeyDraft, error) {
 	var draft pendingSecuKeyDraft
 	if stockID <= 0 {
@@ -168,153 +180,215 @@ SELECT COALESCE(btrim(name), ''),
 	draft.Code = stockCode
 	draft.InstrumentType = strings.TrimSpace(instrumentTypeRaw)
 	draft.MarketType = strings.TrimSpace(marketTypeRaw)
-	// 大写归一与写入链路同口径（需求 11143：ftmm_symbol 英文字母统一大写）
-	draft.FtmmSymbol = symbolpkg.Normalize(marketLabel + "." + stockCode)
 	draft.Instrument = keyInstrumentByInstrumentType(
 		parseIntOr(instrumentTypeRaw, 0), parseIntOr(marketTypeRaw, 0))
 	return draft, nil
 }
 
-// readSecuKeyState 读键表现状：exists=false 表示可以入队。
-func (s *Store) readSecuKeyState(ctx context.Context, ftmmSymbol string) (
-	exists bool, status, usc string, priority int, err error) {
+// buildFtmmSymbol 键表主键：`upper(market || '.' || code)`（需求 11143：英文字母统一大写）。
+func buildFtmmSymbol(market, code string) string {
+	return symbolpkg.Normalize(strings.TrimSpace(market) + "." + strings.TrimSpace(code))
+}
+
+// normalizeKeyFields 校验并归一化待写入字段（`ftmm_symbol` 一律由 market+code 重建，不采信传入值）。
+func normalizeKeyFields(fields PendingSecuKeyFields) (PendingSecuKeyFields, error) {
+	fields.Market = strings.ToUpper(strings.TrimSpace(fields.Market))
+	fields.Code = strings.TrimSpace(fields.Code)
+	fields.Instrument = strings.ToLower(strings.TrimSpace(fields.Instrument))
+	fields.Status = strings.ToUpper(strings.TrimSpace(fields.Status))
+	fields.USC = ""
+
+	if fields.Market == "" || fields.Code == "" {
+		return fields, fmt.Errorf("%w: market / code 不能为空", ErrRealtimeStockInvalid)
+	}
+	fields.FtmmSymbol = buildFtmmSymbol(fields.Market, fields.Code)
+	if !keyInstrumentAllowed(fields.Instrument) {
+		return fields, fmt.Errorf("%w: instrument=%q 不在键表词表内（可选 %s）",
+			ErrRealtimeStockInvalid, fields.Instrument, strings.Join(KeyInstrumentOptions, " / "))
+	}
+	if fields.Status == "" {
+		fields.Status = StatusPendingKey
+	}
+	if !keyStatusAllowed(fields.Status) {
+		return fields, fmt.Errorf("%w: status=%q 不在键表词表内（可选 %s）",
+			ErrRealtimeStockInvalid, fields.Status, strings.Join(KeyStatusOptions, " / "))
+	}
+	if fields.FlagEnable != 0 && fields.FlagEnable != 1 {
+		return fields, fmt.Errorf("%w: flag_enable 只能是 0 或 1", ErrRealtimeStockInvalid)
+	}
+	if fields.Priority < 1 || fields.Priority > 1_000_000 {
+		return fields, fmt.Errorf("%w: priority 必须在 1..1000000 之间", ErrRealtimeStockInvalid)
+	}
+	if fields.StockID <= 0 {
+		return fields, fmt.Errorf("%w: stock_id 必须为正整数", ErrRealtimeStockInvalid)
+	}
+	return fields, nil
+}
+
+// readSecuKeyFields 按主键读键表一行；不存在返回 (nil, nil)。
+func (s *Store) readSecuKeyFields(ctx context.Context, ftmmSymbol string) (*PendingSecuKeyFields, error) {
 	var (
-		statusPtr, uscPtr *string
-		priorityValue     int
+		fields  PendingSecuKeyFields
+		stockID *int64
+		usc     *string
 	)
-	queryErr := s.pool.QueryRow(ctx, `
-SELECT status, usc, priority
+	err := s.pool.QueryRow(ctx, `
+SELECT ftmm_symbol, market, code, stock_id, instrument, status, flag_enable, priority, usc
   FROM `+tableSecuKey+`
- WHERE ftmm_symbol = $1`, ftmmSymbol).Scan(&statusPtr, &uscPtr, &priorityValue)
-	switch {
-	case queryErr == nil:
-		return true, derefString(statusPtr), derefString(uscPtr), priorityValue, nil
-	case errors.Is(queryErr, pgx.ErrNoRows):
-		return false, "", "", 0, nil
-	default:
-		return false, "", "", 0, queryErr
+ WHERE ftmm_symbol = $1`, ftmmSymbol).Scan(
+		&fields.FtmmSymbol, &fields.Market, &fields.Code, &stockID, &fields.Instrument,
+		&fields.Status, &fields.FlagEnable, &fields.Priority, &usc)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
 	}
+	if err != nil {
+		return nil, err
+	}
+	if stockID != nil {
+		fields.StockID = *stockID
+	}
+	fields.USC = derefString(usc)
+	return &fields, nil
 }
 
-// PreviewPendingSecuEnqueue 「入队」对话框预检：派生字段 + 键表现状（只读，需求 11153/11154）。
-func (s *Store) PreviewPendingSecuEnqueue(ctx context.Context, stockID int64) (PendingSecuEnqueuePreview, error) {
-	var preview PendingSecuEnqueuePreview
-	draft, err := s.derivePendingSecuKeyDraft(ctx, stockID)
-	if err != nil {
-		return preview, err
-	}
-	exists, status, usc, priority, err := s.readSecuKeyState(ctx, draft.FtmmSymbol)
-	if err != nil {
-		return preview, fmt.Errorf("PreviewPendingSecuEnqueue：查询键表失败: %w", err)
-	}
-
-	preview.StockID = draft.StockID
-	preview.Name = draft.Name
-	preview.FtmmSymbol = draft.FtmmSymbol
-	preview.Market = draft.Market
-	preview.Code = draft.Code
-	preview.InstrumentType = draft.InstrumentType
-	preview.MarketType = draft.MarketType
-	preview.Instrument = draft.Instrument
-	preview.Existed = exists
-	preview.Status = status
-	preview.USC = usc
-	preview.Priority = priority
-	preview.Writable = !exists
-	if exists {
-		preview.Hint = existingKeyHit(draft.FtmmSymbol, status, usc)
-	} else {
-		preview.Hint = fmt.Sprintf("键表尚无 %s，确认后写入 status=%s / flag_enable=1 / priority=10；"+
-			"入队后到「USC 映射规则」跑一次计算即可解析出 usc", draft.FtmmSymbol, StatusPendingKey)
-	}
-	return preview, nil
-}
-
-// EnqueuePendingSecu 把一只待录入证券登记进键表（需求 11153）。
+// ProbePendingSecuKey 探测键表是否已有该键（需求 11155：每次提交前都要先探测）。
 //
-// instrument 允许人工覆盖（对话框里核对/改正派生值）；为空时用派生值，非法取值直接拒绝。
-// 返回 `Enqueued=true` 表示本次插入成功；`Existed=true` 表示键表里已有该键（未插入，
-// 需要到「USC 映射规则」菜单补 USC，之后本页可用「手动补录USC」完成同步）。
-func (s *Store) EnqueuePendingSecu(ctx context.Context, stockID int64, instrument string) (PendingSecuEnqueueResult, error) {
-	var result PendingSecuEnqueueResult
-	draft, err := s.derivePendingSecuKeyDraft(ctx, stockID)
+// `market` / `code` 可省略（用快照派生值）；改动后主键随之变化，因此探测结果只对本次键有效。
+func (s *Store) ProbePendingSecuKey(ctx context.Context, req PendingSecuKeyProbeRequest) (PendingSecuKeyProbe, error) {
+	var probe PendingSecuKeyProbe
+	draft, err := s.derivePendingSecuKeyDraft(ctx, req.StockID)
+	if err != nil {
+		return probe, err
+	}
+
+	market := strings.TrimSpace(req.Market)
+	if market == "" {
+		market = draft.Market
+	}
+	code := strings.TrimSpace(req.Code)
+	if code == "" {
+		code = draft.Code
+	}
+	planned := PendingSecuKeyFields{
+		Market:     market,
+		Code:       code,
+		StockID:    draft.StockID,
+		Instrument: draft.Instrument,
+		Status:     StatusPendingKey,
+		FlagEnable: 1,
+		Priority:   10,
+	}
+	if planned, err = normalizeKeyFields(planned); err != nil {
+		return probe, err
+	}
+
+	current, err := s.readSecuKeyFields(ctx, planned.FtmmSymbol)
+	if err != nil {
+		return probe, fmt.Errorf("ProbePendingSecuKey：查询键表失败: %w", err)
+	}
+	probe.StockID = draft.StockID
+	probe.Planned = planned
+	probe.Current = current
+	probe.Existed = current != nil
+	if probe.Existed {
+		probe.Hint = fmt.Sprintf("键表已有 %s（status=%s，usc=%s），只能用「更新键」改它，不能重复入队",
+			planned.FtmmSymbol, orPlaceholder(current.Status), orPlaceholder(current.USC))
+	} else {
+		probe.Hint = fmt.Sprintf("键表没有 %s，可以「确认入队」写入", planned.FtmmSymbol)
+	}
+	return probe, nil
+}
+
+// InsertPendingSecuKey 入队：插入键表（需求 11153）。
+//
+// 插入前**再查一次**存在性（需求 11155：每次插入前都验证），并用
+// `ON CONFLICT (ftmm_symbol) DO NOTHING` 兜住并发；已存在时返回 `Existed=true` 不写，
+// 前端应改走「更新键」。
+func (s *Store) InsertPendingSecuKey(ctx context.Context, fields PendingSecuKeyFields) (PendingSecuKeyWriteResult, error) {
+	result := PendingSecuKeyWriteResult{Action: "insert"}
+	normalized, err := normalizeKeyFields(fields)
 	if err != nil {
 		return result, err
 	}
+	result.FtmmSymbol = normalized.FtmmSymbol
 
-	instrumentValue := strings.ToLower(strings.TrimSpace(instrument))
-	if instrumentValue == "" {
-		instrumentValue = draft.Instrument
-	} else if !keyInstrumentAllowed(instrumentValue) {
-		return result, fmt.Errorf("%w: instrument=%q 不在键表词表内（可选 %s）",
-			ErrRealtimeStockInvalid, instrument, strings.Join(KeyInstrumentOptions, " / "))
-	}
-
-	result.StockID = draft.StockID
-	result.Market = draft.Market
-	result.Code = draft.Code
-	result.FtmmSymbol = draft.FtmmSymbol
-	result.Instrument = instrumentValue
-
-	// 已存在则不入队：把现状回给前端，指引去「USC 映射规则」补 USC
-	exists, status, usc, priority, err := s.readSecuKeyState(ctx, draft.FtmmSymbol)
-	if err != nil {
-		return result, fmt.Errorf("EnqueuePendingSecu：查询键表失败: %w", err)
-	}
-	if exists {
+	if existing, readErr := s.readSecuKeyFields(ctx, normalized.FtmmSymbol); readErr != nil {
+		return result, fmt.Errorf("InsertPendingSecuKey：查询键表失败: %w", readErr)
+	} else if existing != nil {
 		result.Existed = true
-		result.Status = status
-		result.USC = usc
-		result.Priority = priority
-		result.Hint = existingKeyHit(draft.FtmmSymbol, status, usc)
+		result.Hint = fmt.Sprintf("键表已有 %s（status=%s，usc=%s），未重复入队；如需改字段请用「更新键」",
+			normalized.FtmmSymbol, orPlaceholder(existing.Status), orPlaceholder(existing.USC))
 		return result, nil
 	}
 
-	// 不存在 → 插入（键表默认值正好适配入队语义：
-	//    status='PENDING' 待处理、flag_enable=1 启用、priority=10 最低优先级；usc 留空等规则引擎解析）
 	var inserted string
 	err = s.pool.QueryRow(ctx, `
 INSERT INTO `+tableSecuKey+` AS k
-       (instrument, market, code, ftmm_symbol, stock_id, status, flag_enable, priority)
-VALUES ($1, $2, $3, $4, $5, 'PENDING', 1, 10)
+       (ftmm_symbol, market, code, stock_id, instrument, status, flag_enable, priority)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (ftmm_symbol) DO NOTHING
 RETURNING k.ftmm_symbol`,
-		instrumentValue, draft.Market, draft.Code, draft.FtmmSymbol, draft.StockID,
+		normalized.FtmmSymbol, normalized.Market, normalized.Code, normalized.StockID,
+		normalized.Instrument, normalized.Status, normalized.FlagEnable, normalized.Priority,
 	).Scan(&inserted)
 	switch {
 	case err == nil:
-		result.Enqueued = true
-		result.Status = StatusPendingKey
-		result.Hint = fmt.Sprintf("已入队 %s（instrument=%s）；到「USC 映射规则」跑一次计算后，"+
-			"本页可用「手动补录USC」完成同步", result.FtmmSymbol, instrumentValue)
+		result.Affected = 1
+		result.Hint = fmt.Sprintf("已入队 %s（instrument=%s，status=%s）；到「USC 映射规则」跑一次计算后，"+
+			"本页可用「手动补录USC」完成同步", normalized.FtmmSymbol, normalized.Instrument, normalized.Status)
 		return result, nil
 	case errors.Is(err, pgx.ErrNoRows):
-		// 并发下被别人抢先插入：按「已存在」处理，不报错
-		exists2, status2, usc2, priority2, readErr := s.readSecuKeyState(ctx, draft.FtmmSymbol)
-		if readErr != nil {
-			return result, fmt.Errorf("EnqueuePendingSecu：复核键表失败: %w", readErr)
-		}
-		result.Existed = exists2
-		result.Status = status2
-		result.USC = usc2
-		result.Priority = priority2
-		result.Hint = existingKeyHit(draft.FtmmSymbol, status2, usc2)
+		// 并发下被别人抢先插入
+		result.Existed = true
+		result.Hint = fmt.Sprintf("键表已有 %s（并发写入），未重复入队；如需改字段请用「更新键」", normalized.FtmmSymbol)
 		return result, nil
 	default:
-		return result, fmt.Errorf("EnqueuePendingSecu：写入键表失败: %w",
+		return result, fmt.Errorf("InsertPendingSecuKey：写入键表失败: %w",
 			explainUniqueViolation(err, tableSecuKey))
 	}
 }
 
-// existingKeyHit 组装「键表已存在」时的提示文案。
-func existingKeyHit(ftmmSymbol, status, usc string) string {
-	parts := []string{"键表已存在该记录（" + ftmmSymbol + "，status=" + orPlaceholder(status)}
-	if usc != "" {
-		parts = append(parts, "usc="+usc)
-	} else {
-		parts = append(parts, "usc 仍为空")
+// UpdatePendingSecuKey 更新键：只改非主键字段（需求 11155「更新键」场景）。
+//
+// 主键 `ftmm_symbol` 不可改（要改 market/code 等于换一条键，那是入队场景）。
+// 不存在时返回 `Existed=false` + 提示改用入队，不静默插入。
+func (s *Store) UpdatePendingSecuKey(ctx context.Context, fields PendingSecuKeyFields) (PendingSecuKeyWriteResult, error) {
+	result := PendingSecuKeyWriteResult{Action: "update"}
+	normalized, err := normalizeKeyFields(fields)
+	if err != nil {
+		return result, err
 	}
-	return strings.Join(parts, "，") + "）；请到「USC 映射规则」菜单补全对应的 USC，之后本页可用「手动补录USC」完成同步"
+	result.FtmmSymbol = normalized.FtmmSymbol
+
+	if existing, readErr := s.readSecuKeyFields(ctx, normalized.FtmmSymbol); readErr != nil {
+		return result, fmt.Errorf("UpdatePendingSecuKey：查询键表失败: %w", readErr)
+	} else if existing == nil {
+		result.Hint = fmt.Sprintf("键表没有 %s，无法更新；请先「确认入队」", normalized.FtmmSymbol)
+		return result, nil
+	}
+
+	tag, err := s.pool.Exec(ctx, `
+UPDATE `+tableSecuKey+`
+   SET stock_id    = $2,
+       instrument  = $3,
+       status      = $4,
+       flag_enable = $5,
+       priority    = $6
+ WHERE ftmm_symbol = $1`,
+		normalized.FtmmSymbol, normalized.StockID, normalized.Instrument,
+		normalized.Status, normalized.FlagEnable, normalized.Priority)
+	if err != nil {
+		return result, fmt.Errorf("UpdatePendingSecuKey：更新键表失败: %w", err)
+	}
+	result.Affected = tag.RowsAffected()
+	if result.Affected == 0 {
+		result.Hint = fmt.Sprintf("键表没有 %s，未更新；请先「确认入队」", normalized.FtmmSymbol)
+		return result, nil
+	}
+	result.Hint = fmt.Sprintf("已更新键 %s（instrument=%s，status=%s，flag_enable=%d，priority=%d）",
+		normalized.FtmmSymbol, normalized.Instrument, normalized.Status,
+		normalized.FlagEnable, normalized.Priority)
+	return result, nil
 }
 
 func orPlaceholder(value string) string {
