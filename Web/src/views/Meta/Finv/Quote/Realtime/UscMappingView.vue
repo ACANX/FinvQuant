@@ -854,10 +854,40 @@ function stopPolling() {
 }
 
 // ---------- 工具 ----------
-function openLogDetail(row: AuditLog) {
+// 审计日志详情两种视图：摘要（字段级变更）/ 对比（整行并排）；点行默认对比（需求 11141）
+const logView = ref<'summary' | 'compare'>('compare')
+
+function openLogDetail(row: AuditLog, view: 'summary' | 'compare' = 'compare') {
   logDetail.value = row
+  logView.value = view
   logDetailOpen.value = true
 }
+
+// logDiff 把 before/after 两个 jsonb 摊成字段级差异（只留真正变化的字段）
+const logDiff = computed<{ field: string; before: string; after: string }[]>(() => {
+  const row = logDetail.value
+  if (!row) return []
+  const parse = (raw: string | null | undefined): Record<string, unknown> => {
+    if (!raw) return {}
+    try {
+      const value = JSON.parse(raw) as unknown
+      return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+    } catch {
+      return {}
+    }
+  }
+  const show = (value: unknown): string => {
+    if (value === null || value === undefined) return '（空）'
+    if (typeof value === 'object') return JSON.stringify(value)
+    return String(value)
+  }
+  const before = parse(row.before_json)
+  const after = parse(row.after_json)
+  const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)])).sort()
+  return keys
+    .map((field) => ({ field, before: show(before[field]), after: show(after[field]) }))
+    .filter((diff) => diff.before !== diff.after)
+})
 
 // prettyJSON 把库里的 jsonb 文本格式化成缩进 2 空格的多行 JSON；解析失败原样返回。
 function prettyJSON(raw?: string | null): string {
@@ -1592,12 +1622,17 @@ onBeforeUnmount(stopPolling)
                 <th>所属规则</th>
                 <th>操作人</th>
                 <th>原因</th>
-                <th>变更摘要</th>
-                <th class="text-right">详情</th>
+                <th class="text-center">变更摘要</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="row in logs" :key="row.idn" class="usc-log-row" @click="openLogDetail(row)">
+              <tr
+                v-for="row in logs"
+                :key="row.idn"
+                class="usc-log-row"
+                style="cursor: pointer"
+                @click="openLogDetail(row, 'compare')"
+              >
                 <td class="text-no-wrap">{{ row.gmt_create }}</td>
                 <td>{{ row.src_table }}</td>
                 <td>{{ row.action }}</td>
@@ -1605,15 +1640,38 @@ onBeforeUnmount(stopPolling)
                 <td class="text-no-wrap">{{ logRuleNo(row) }}</td>
                 <td>{{ row.operator || '—' }}</td>
                 <td class="text-caption">{{ row.reason }}</td>
-                <td class="text-caption">{{ changeSummary(row) }}</td>
-                <td class="text-right">
-                  <v-btn size="x-small" variant="text" prepend-icon="mdi-code-json" @click.stop="openLogDetail(row)">
-                    查看
-                  </v-btn>
+                <td class="text-center text-no-wrap">
+                  <!-- 两种看法：摘要（字段级变更列表）/ 对比（变更前后并排）；点行其他列默认走对比 -->
+                  <v-tooltip location="top" max-width="240" open-delay="120">
+                    <template #activator="{ props }">
+                      <v-btn
+                        v-bind="props"
+                        size="x-small"
+                        variant="text"
+                        icon="mdi-text-box-search-outline"
+                        color="primary"
+                        @click.stop="openLogDetail(row, 'summary')"
+                      />
+                    </template>
+                    看摘要：只列发生变化的字段与前后取值
+                  </v-tooltip>
+                  <v-tooltip location="top" max-width="240" open-delay="120">
+                    <template #activator="{ props }">
+                      <v-btn
+                        v-bind="props"
+                        size="x-small"
+                        variant="text"
+                        icon="mdi-compare-horizontal"
+                        color="primary"
+                        @click.stop="openLogDetail(row, 'compare')"
+                      />
+                    </template>
+                    看对比：变更前 / 变更后整行并排
+                  </v-tooltip>
                 </td>
               </tr>
               <tr v-if="logs.length === 0">
-                <td colspan="9" class="text-center text-medium-emphasis">暂无审计记录</td>
+                <td colspan="8" class="text-center text-medium-emphasis">暂无审计记录</td>
               </tr>
             </tbody>
           </v-table>
@@ -1912,8 +1970,40 @@ onBeforeUnmount(stopPolling)
         <template v-if="logDetail.src_table !== 'rule'"> · 所属规则 {{ logRuleNo(logDetail) }}</template>
         · 操作人 {{ logDetail.operator || '—' }} · 原因 {{ logDetail.reason }}
       </v-card-subtitle>
+      <v-tabs v-model="logView" density="compact" color="primary">
+        <v-tab value="summary" prepend-icon="mdi-text-box-search-outline">摘要</v-tab>
+        <v-tab value="compare" prepend-icon="mdi-compare-horizontal">对比</v-tab>
+      </v-tabs>
       <v-card-text>
-        <v-row dense>
+        <!-- 摘要：一句话总览 + 字段级变更列表（只留真正变化的字段） -->
+        <div v-if="logView === 'summary'">
+          <v-alert density="compact" variant="tonal" type="info" class="text-caption py-2 mb-3">
+            {{ changeSummary(logDetail) }}
+          </v-alert>
+          <v-table density="compact" class="usc-table">
+            <thead>
+              <tr>
+                <th>字段</th>
+                <th>变更前</th>
+                <th>变更后</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="diff in logDiff" :key="diff.field">
+                <td class="text-no-wrap"><code>{{ diff.field }}</code></td>
+                <td class="text-caption" style="white-space: pre-wrap; word-break: break-all">{{ diff.before }}</td>
+                <td class="text-caption" style="white-space: pre-wrap; word-break: break-all">{{ diff.after }}</td>
+              </tr>
+              <tr v-if="logDiff.length === 0">
+                <td colspan="3" class="text-center text-medium-emphasis">
+                  没有字段级差异（新增/删除记录或快照为空）
+                </td>
+              </tr>
+            </tbody>
+          </v-table>
+        </div>
+        <!-- 对比：变更前 / 变更后整行并排 -->
+        <v-row v-else dense>
           <v-col cols="12" md="6">
             <div class="d-flex align-center ga-2 mb-1">
               <strong>变更前（before_json）</strong>
