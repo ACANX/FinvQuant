@@ -153,11 +153,43 @@ watch(
 
 // ---- 校验 ----
 
+/**
+ * 数值型字段：这类字段「有值但等于 0」同样算未填 ——
+ * 后端要求 exchange_code / market_type / market_code / instrument_type 必须 > 0，
+ * 只判空串会让「0」蒙混过关，点「写入」才被后端拒（需求 11164 的踩坑点）。
+ */
+const NUMERIC_KEYS = new Set([
+  'exchange_code',
+  'market_type',
+  'market_code',
+  'instrument_type',
+  'sub_instrument_type',
+])
+
+function isBlankField(field: { key: string }, value: string | undefined): boolean {
+  const text = String(value ?? '').trim()
+  if (text === '') return true
+  if (!NUMERIC_KEYS.has(field.key)) return false
+  const parsed = Number(text)
+  return !Number.isFinite(parsed) || parsed <= 0
+}
+
 const missing = computed<string[]>(() =>
   visibleFields.value
-    .filter((field) => field.required && !String(form.value[field.key] ?? '').trim())
+    .filter((field) => field.required && isBlankField(field, form.value[field.key]))
     .map((field) => field.key),
 )
+
+/** 单字段的校验提示（模板里直接绑到 v-text-field 上，不必等提交才红） */
+function fieldError(field: { key: string, required: boolean }): string {
+  if (!field.required) return ''
+  const value = form.value[field.key]
+  if (!isBlankField(field, value)) return ''
+  if (NUMERIC_KEYS.has(field.key) && String(value ?? '').trim() !== '') {
+    return `${field.key} 必须大于 0`
+  }
+  return `${field.key} 必填`
+}
 
 /** 待人工核对的字段数（来源为缺省 / 待填 / 参考） */
 const pendingCheck = computed(
@@ -177,7 +209,10 @@ const submitTip = computed(() => {
   if (prefill.value?.exists) return `该 usc 已在 ${meta.value.table} 里存在，不重复写入`
   if (loading.value) return '正在读取预填…'
   if (missing.value.length > 0) {
-    return `还有 ${missing.value.length} 项必填未填：${missing.value.slice(0, 3).join('、')}${
+    const labels = missing.value
+      .map((key) => visibleFields.value.find((field) => field.key === key)?.label ?? key)
+      .slice(0, 3)
+    return `还有 ${missing.value.length} 项必填未填（数值项须大于 0）：${labels.join('、')}${
       missing.value.length > 3 ? ' …' : ''
     }`
   }
@@ -345,6 +380,8 @@ function close() {
               v-model="form[field.key]"
               :label="field.label + (field.required ? ' *' : '')"
               :hint="field.note"
+              :error="!!fieldError(field)"
+              :error-messages="fieldError(field) ? [fieldError(field)] : []"
               persistent-hint
               density="compact"
               hide-details="auto"
@@ -368,7 +405,11 @@ function close() {
         />
 
         <v-alert v-if="missing.length" type="warning" density="compact" variant="tonal" class="mt-3">
-          必填未齐（{{ missing.length }} 项）：{{ missing.join('、') }}
+          必填未齐（{{ missing.length }} 项）：
+          {{ missing.map((key) => visibleFields.find((f) => f.key === key)?.label ?? key).join('、') }}
+          <br />
+          数值项必须<strong>大于 0</strong>（<code>market_code</code> 等在无参考行时需人工填，
+          留空或填 0 后端都会拒绝）
         </v-alert>
       </v-card-text>
 

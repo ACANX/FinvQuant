@@ -219,6 +219,27 @@
 
 ### 变更
 
+- **修「证券参数补全 → 采集参数」必填校验必然失败（需求 11164）**
+  - 现场：点「写入」报 `实时行情快照入参非法: 采集配置缺少必填（market_label / futu_symbol / market_code / market_type / instrument_type / instrument）`。
+  - 根因（两层）：
+    1. **参考行匹配口径错**：快照 `instrument_type` 是 TEXT，且 `12` 与 `3` 都表示股票；
+       `futu.finv_futu_quote_collect` 里只有 `3`。预填用
+       `q.instrument_type::text = btrim(t.instrument_type)` 直接比对，`12` 的行永远匹配不到参考行
+       → `market_code` 取不到值（=0）。实测待补 638 行里有 120 行是 `12`。
+    2. **`0` 被当成「已填」**：预填把 `market_code` 写成 `0`，前端只判空串 → 「必填都齐了」，
+       点「写入」才被后端拒；而后端错误消息只列 6 个字段名，看不出到底要改哪个。
+  - 修复：
+    - 后端预填新增 `pendingSecuInstrumentTypeExpr`，把快照 `instrument_type` 归一到采集表整型口径
+      （`12`→`3`，其余按值映射，白名单外取 `-1`）后匹配参考行。实测 638 行待补**全部**能取到参考行。
+    - `market_code` 取不到参考值时预填返回**空串**（不再是 `0`），字段说明改为「必须人工填写（正整数）」。
+    - 前端 `SecuParamCompleteDialog` 新增 `NUMERIC_KEYS` 判空口径：数值字段空**或 ≤ 0** 都算未填，
+      逐字段 `error` + `error-messages` 标红，底部缺失清单显示中文标签，未填齐时「写入」禁用。
+    - 后端必填校验消息逐项列出字段与实际值：
+      `采集配置缺少必填 —— market_code=0（必须 >0，同市场同品种没有参考行时需人工填）`。
+  - 验证：新增 `TestLivePendingSecuCollectReference`（只读回归：`instrument_type='12'` 的行必须取到
+    `market_code > 0`）与 `TestLiveSecuParamCollectComplete`（端到端：补全 → `created=true` → 删除测试行，
+    已跑通 `usc=PLD market_code=11 instrument=stock`，清理后 `count=0`）。
+
 - **Tab 3 回推上游的写入列可配置（需求 11163）**
   - 背景：全量对比发现 8,826 行 `priority` 与上游不一致（如 `BJ.899050` 本地 26 / 上游 29），
     按原逻辑会全部 `overwrite` 覆盖。上游的 29 若是人工设定，就不该被本地值冲掉。

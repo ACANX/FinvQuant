@@ -31,6 +31,23 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+// pendingSecuInstrumentTypeExpr 把快照的 instrument_type（TEXT）归一到采集表的整型口径。
+//
+// 归一规则与 instrumentByInstrumentType 保持一致：`12` 与 `3` 都是 stock；
+// 其余按原值映射；落在白名单之外的取 -1（采集表不会有该值 → 匹配不到参考行，
+// 前端会把 market_code 标成「必须人工填写」，而不是悄悄写 0）。
+const pendingSecuInstrumentTypeExpr = `(CASE btrim(t.instrument_type)
+              WHEN '3'  THEN 3
+              WHEN '4'  THEN 4
+              WHEN '6'  THEN 6
+              WHEN '7'  THEN 7
+              WHEN '9'  THEN 9
+              WHEN '10' THEN 10
+              WHEN '11' THEN 11
+              WHEN '12' THEN 3
+              ELSE -1
+            END)`
+
 // 预填来源标记。
 const (
 	PrefillSourceSnapshot   = "snapshot"
@@ -242,7 +259,10 @@ SELECT t.stock_id,
                q.instrument
           FROM futu.finv_futu_quote_collect q
          WHERE q.market_label = btrim(t.market_label)
-           AND q.instrument_type::text = btrim(t.instrument_type)
+           -- 快照的 instrument_type 是 TEXT，且 12 与 3 都表示「股票」；
+           -- 采集表里只有 3。「12 的行」直接按 text 比对永远匹配不到参考行，
+           -- 结果 market_code 取不到值（=0）、必填校验必然失败（需求 11164 修复）。
+           AND q.instrument_type = ` + pendingSecuInstrumentTypeExpr + `
          GROUP BY 1, 2, 3
          ORDER BY count(*) DESC, 1
          LIMIT 1
@@ -350,6 +370,16 @@ SELECT t.stock_id,
 		instrument, instrumentSource = strings.TrimSpace(*refInstrument), PrefillSourceReference
 	}
 
+	// market_code 取不到参考值时**留空串**（而不是 "0"）：0 会被当成「已填」，
+	// 用户看到的是「必填都齐了」，点写入才被后端拒（需求 11164 的踩坑点）。
+	marketCodeValue := ""
+	marketCodeNote := "参考同市场同品种已配置行的众数，请核对（不同板块取值不同）"
+	if marketCode > 0 {
+		marketCodeValue = itoa(marketCode)
+	} else {
+		marketCodeNote = "同市场同品种没有可参照的采集配置行，必须人工填写（正整数）"
+	}
+
 	result.Collect = []PendingSecuPrefillField{
 		{Key: "usc", Label: "usc（与 finv_security 同键）", Value: usc, Source: PrefillSourceDictionary,
 			Required: true, Note: "派生键，与证券主数据保持一致"},
@@ -360,9 +390,8 @@ SELECT t.stock_id,
 		{Key: "market_type", Label: "market_type 市场类型", Value: itoa(marketType),
 			Source: sourceOf(snapshotMarketType != 0, PrefillSourceSnapshot), Required: true,
 			Note: "快照 market_type 优先；缺省 HK=1 / US=2 / A股=4"},
-		{Key: "market_code", Label: "market_code 市场细码", Value: itoa(marketCode),
-			Source: marketCodeSource, Required: true,
-			Note: "参考同市场同品种已配置行的众数，请核对（不同板块取值不同）"},
+		{Key: "market_code", Label: "market_code 市场细码", Value: marketCodeValue,
+			Source: marketCodeSource, Required: true, Note: marketCodeNote},
 		{Key: "instrument_type", Label: "instrument_type 品种类型", Value: itoa(instrumentType),
 			Source: PrefillSourceSnapshot, Required: true, Note: "取自快照 instrument_type"},
 		{Key: "sub_instrument_type", Label: "sub_instrument_type 子类型", Value: itoa(subType),
@@ -498,9 +527,21 @@ func normalizePendingSecuSecurity(sec *PendingSecuEnrollSecurity, stockCode stri
 	if sec.SecurityCode == "" {
 		sec.SecurityCode = stockCode
 	}
-	if sec.SecurityName == "" || sec.CurrencyType == "" || sec.SecurityType == "" || sec.ExchangeCode <= 0 {
-		return fmt.Errorf("%w: 证券主数据缺少必填（security_name / currency_type / security_type / exchange_code）",
-			ErrRealtimeStockInvalid)
+	bad := make([]string, 0, 4)
+	if sec.SecurityName == "" {
+		bad = append(bad, "security_name 为空")
+	}
+	if sec.CurrencyType == "" {
+		bad = append(bad, "currency_type 为空")
+	}
+	if sec.SecurityType == "" {
+		bad = append(bad, "security_type 为空")
+	}
+	if sec.ExchangeCode <= 0 {
+		bad = append(bad, fmt.Sprintf("exchange_code=%d（必须 >0）", sec.ExchangeCode))
+	}
+	if len(bad) > 0 {
+		return fmt.Errorf("%w: 证券主数据缺少必填 —— %s", ErrRealtimeStockInvalid, strings.Join(bad, "；"))
 	}
 	if sec.SecurityNameCN == "" {
 		sec.SecurityNameCN = sec.SecurityName
@@ -528,10 +569,28 @@ func normalizePendingSecuCollect(col *PendingSecuEnrollCollect, stockCode, marke
 	if col.FlagEnable == "" {
 		col.FlagEnable = "0"
 	}
-	if col.MarketLabel == "" || col.FutuSymbol == "" || col.MarketType <= 0 ||
-		col.InstrumentType <= 0 || col.MarketCode <= 0 || col.Instrument == "" {
-		return fmt.Errorf("%w: 采集配置缺少必填（market_label / futu_symbol / market_code / "+
-			"market_type / instrument_type / instrument）", ErrRealtimeStockInvalid)
+	// 逐项列出到底哪个字段不合格（以前只回一句「缺 6 项里的某些」，用户不知道要改哪个）
+	bad := make([]string, 0, 6)
+	if col.MarketLabel == "" {
+		bad = append(bad, "market_label 为空")
+	}
+	if col.FutuSymbol == "" {
+		bad = append(bad, "futu_symbol 为空")
+	}
+	if col.MarketType <= 0 {
+		bad = append(bad, fmt.Sprintf("market_type=%d（必须 >0）", col.MarketType))
+	}
+	if col.MarketCode <= 0 {
+		bad = append(bad, fmt.Sprintf("market_code=%d（必须 >0，同市场同品种没有参考行时需人工填）", col.MarketCode))
+	}
+	if col.InstrumentType <= 0 {
+		bad = append(bad, fmt.Sprintf("instrument_type=%d（必须 >0）", col.InstrumentType))
+	}
+	if col.Instrument == "" {
+		bad = append(bad, "instrument 为空")
+	}
+	if len(bad) > 0 {
+		return fmt.Errorf("%w: 采集配置缺少必填 —— %s", ErrRealtimeStockInvalid, strings.Join(bad, "；"))
 	}
 	return nil
 }

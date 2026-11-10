@@ -148,12 +148,24 @@ NOT EXISTS (
 | `currency_type` | 快照 `currency` 优先，缺失用 `finv_exchange.base_currency` |
 | `security_type` | `instrument_type`：3/12→Stock、4→ETF、6→StockIndex、11→Crypto |
 | `market_type` | 快照 `market_type` 优先，缺失按市场推 HK=1 / US=2 / A股=4 |
-| `market_code` | 同市场同品种已配置行的众数（参考值） |
+| `market_code` | 同市场同品种已配置行的众数（参考值）；匹配前把 `instrument_type` 归一（`12` → `3`，两者都是股票）；取不到参考值时留空串并标「必须人工填写」（不留 `0`，见 §4.6） |
 | `sub_instrument_type` | `instrument_type * 1000 + 2`（3→3002、4→4002） |
 | `instrument` | 3→stock、4→etf、6→index、7→sectors、11→crypto |
 | `flag_enable` | 默认 `'0'`（停用），核对后再开采集 |
 
-### 4.4 提交与幂等
+### 4.4 必填校验的口径（需求 11164）
+
+| 字段类型 | 判空口径 |
+|----------|----------|
+| 文本（`security_*` / `currency_type` / `market_label` / `instrument` / `futu_symbol`） | 去空格后为空 = 未填 |
+| 数值（`exchange_code` / `market_type` / `market_code` / `instrument_type` / `sub_instrument_type`） | 空 **或 ≤ 0** = 未填 |
+
+- 前端按上表逐字段标红（`v-text-field` 的 `error` + `error-messages`），未填齐时「写入」禁用，底部同时列出缺失项的**中文标签**；
+- 后端再校验一次，错误消息逐项带实际值（例：`采集配置缺少必填 —— market_code=0（必须 >0，同市场同品种没有参考行时需人工填）`），不再只回一句「缺其中某项」。
+
+> 为什么强调数值 0：需求 11164 的故障就是 `market_code` 预填成 `0`（`instrument_type='12'` 的行匹配不到参考行），前端把 `0` 当成「已填」，点写入才被后端拒，而错误消息又只列了 6 个字段名，看不出到底要改哪个。
+
+### 4.5 提交与幂等
 
 - 目标表那一组**必填全部有值**才启用「写入」（禁用时提示还缺哪几项）；
 - 单事务只写目标表，按主键 `ON CONFLICT (usc) DO NOTHING`：已存在不覆盖，返回 `created=false`，
@@ -162,7 +174,7 @@ NOT EXISTS (
 - 唯一约束冲突（`23505`，老库同代码存在旧口径 usc）会被翻译成可读提示；
 - 成功后 toast 报写入结果并刷新当前清单（该行随即从清单消失）。
 
-### 4.5 `remark` 溯源
+### 4.6 `remark` 溯源
 
 目标表的 `remark` 由服务端生成：
 

@@ -46,8 +46,8 @@
 | `target` | 是 | `security` 或 `collect`；其它值返 400 |
 | `stock_id` | 是 | 快照行主键；`usc` / `ftmm_symbol` 由服务端派生，**不采信请求体里的 usc** |
 | `remark` | 否 | 人工备注；服务端拼成 `[AUTO-FILL] 待采证券补录 <时间>[；备注：<人工备注>]` |
-| `security` | 视 target | `target=security` 时必填：`exchange_code` / `security_type` / `security_code` / `security_name` / `currency_type` |
-| `collect` | 视 target | `target=collect` 时必填：`market_label` / `futu_symbol` / `market_type` / `market_code` / `instrument_type` / `instrument` |
+| `security` | 视 target | `target=security` 时必填：`exchange_code`（**必须 >0**）/ `security_type` / `security_code` / `security_name` / `currency_type` |
+| `collect` | 视 target | `target=collect` 时必填：`market_label` / `futu_symbol` / `market_type` / `market_code` / `instrument_type` / `instrument`（数值项**必须 >0**） |
 
 **非目标表的那一组完全不看**（可传空对象 `{}`）。请求体不允许未知字段（`DisallowUnknownFields`）。
 
@@ -91,6 +91,13 @@
 | 200 | 0 | 补全完成（含「已存在未覆盖」） |
 | 400 | 400 | `target` 缺失/非法、`stock_id` 非法或不存在、必填缺失、唯一约束冲突 |
 | 500 | 2006 | 数据库侧失败 |
+
+必填校验的错误消息会**逐项列出到底哪一项不合格**（带实际值），例如：
+
+```
+实时行情快照入参非法: 采集配置缺少必填 —— market_code=0（必须 >0，同市场同品种没有参考行时需人工填）
+实时行情快照入参非法: 证券主数据缺少必填 —— exchange_code=0（必须 >0）
+```
 
 ## 6. 相关文档
 

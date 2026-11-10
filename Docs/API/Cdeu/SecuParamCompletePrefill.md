@@ -66,6 +66,7 @@
 | `exists` | 目标表里是否已有该 `usc`；`true` 时前端禁用提交（写入是 `DO NOTHING`，点了也白点） |
 | `fields[]` | 目标表的字段组；`source` 见下表 |
 | `warnings[]` | 风险提示（字典查不到交易所、缺币种、缺名称、无参考行、唯一约束预检冲突等） |
+| `fields[].value` | 参考值取不到时**返回空串**（不是 `0`）：`0` 会被前端当成「已填」，点写入才被后端拒；空串会让前端立刻标「必填未填」并禁用提交 |
 
 ### 3.1 `source` 取值
 
@@ -86,7 +87,7 @@
 | `currency_type` | 快照 `currency` 优先，缺失用 `finv_exchange.base_currency` |
 | `security_type` | `instrument_type`：3/12→Stock、4→ETF、6→StockIndex、11→Crypto |
 | `market_type` | 快照 `market_type` 优先，缺失按市场推 HK=1 / US=2 / A股=4 |
-| `market_code` | 同市场同品种已配置行的众数（参考值） |
+| `market_code` | 同市场同品种已配置行的众数（参考值）。**匹配前先把 `instrument_type` 归一**：快照里 `12` 与 `3` 都表示股票，采集表只有 `3`，不归一会导致 `12` 的行永远匹配不到参考行（`market_code` 取不到值 → 写入时必填校验失败，需求 11164 故障现场） |
 | `sub_instrument_type` | `instrument_type * 1000 + 2`（3→3002、4→4002） |
 | `instrument` | 3→stock、4→etf、6→index、7→sectors、11→crypto |
 | `flag_enable` | 默认 `'0'`（停用），核对后再开采集 |
