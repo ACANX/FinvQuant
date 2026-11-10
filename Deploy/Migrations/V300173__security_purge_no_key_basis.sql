@@ -29,7 +29,8 @@ BEGIN;
 -- ---------------------------------------------------------------------
 CREATE TEMP TABLE tmp_target ON COMMIT DROP AS
 SELECT c.usc FROM futu.finv_futu_quote_collect c
- WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.ftmm_symbol = c.ftmm_symbol)
+ WHERE EXISTS (SELECT 1 FROM futu.finv_futu_secu_key LIMIT 1)   -- 键表为空（全新库）时不做任何删除
+   AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.ftmm_symbol = c.ftmm_symbol)
    AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k2 WHERE k2.usc = c.usc)
    AND EXISTS (SELECT 1 FROM public.finv_security s WHERE s.usc = c.usc)
 UNION
@@ -101,6 +102,12 @@ DECLARE
     v_key_diff      BIGINT;
     v_collect_diff  BIGINT;
 BEGIN
+    -- 键表为空（全新库）：本次不产生变更集，跳过收敛校验（数据由运行时同步后才有依据）。
+    IF NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key LIMIT 1) THEN
+        RAISE NOTICE 'V300173：键表为空（全新库），跳过收敛校验';
+        RETURN;
+    END IF;
+
     SELECT count(*) INTO v_security_left
       FROM public.finv_security s JOIN tmp_target t ON t.usc = s.usc;
     IF v_security_left <> 0 THEN

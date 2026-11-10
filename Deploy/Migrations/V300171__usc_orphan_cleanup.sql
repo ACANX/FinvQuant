@@ -35,7 +35,9 @@ SELECT i.ctid AS row_ctid, i.usc, i.stock_id AS old_stock, i.ftmm_symbol AS old_
        k.stock_id AS new_stock, k.ftmm_symbol AS new_symbol
   FROM cdeu.finv_quote_secu_indicator i
   JOIN futu.finv_futu_secu_key k ON k.usc = i.usc
- WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k1 WHERE k1.stock_id = i.stock_id);
+ WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k1 WHERE k1.stock_id = i.stock_id)
+   -- 前提：键表非空。全新库键表为空（数据由运行时从上游同步），此时不得拿种子数据做清洗。
+   AND EXISTS (SELECT 1 FROM futu.finv_futu_secu_key LIMIT 1);
 
 -- collect：usc 在键表里但 ftmm_symbol 不在（大小写 / 市场前缀不一致）
 CREATE TEMP TABLE tmp_col_fix ON COMMIT DROP AS
@@ -44,7 +46,8 @@ SELECT c.ctid AS row_ctid, c.usc, c.ftmm_symbol AS old_symbol, k.ftmm_symbol AS 
        substring(k.ftmm_symbol FROM strpos(k.ftmm_symbol, '.') + 1) AS new_futu_symbol
   FROM futu.finv_futu_quote_collect c
   JOIN futu.finv_futu_secu_key k ON k.usc = c.usc
- WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k1 WHERE k1.ftmm_symbol = c.ftmm_symbol);
+ WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k1 WHERE k1.ftmm_symbol = c.ftmm_symbol)
+   AND EXISTS (SELECT 1 FROM futu.finv_futu_secu_key LIMIT 1);
 
 -- ---------------------------------------------------------------------
 -- ② 待删集（无键表依据 + 无任何下游引用）
@@ -52,7 +55,8 @@ SELECT c.ctid AS row_ctid, c.usc, c.ftmm_symbol AS old_symbol, k.ftmm_symbol AS 
 CREATE TEMP TABLE tmp_col_del ON COMMIT DROP AS
 SELECT c.ctid AS row_ctid, c.usc, c.ftmm_symbol, c.stock_id
   FROM futu.finv_futu_quote_collect c
- WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.ftmm_symbol = c.ftmm_symbol)
+ WHERE EXISTS (SELECT 1 FROM futu.finv_futu_secu_key LIMIT 1)
+   AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.ftmm_symbol = c.ftmm_symbol)
    AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k2 WHERE k2.usc = c.usc)
    AND NOT EXISTS (SELECT 1 FROM public.finv_security s WHERE s.usc = c.usc)
    AND NOT EXISTS (SELECT 1 FROM cdeu.finv_cdeu_secu_realtime_stock r WHERE r.usc = c.usc)
@@ -63,7 +67,8 @@ SELECT c.ctid AS row_ctid, c.usc, c.ftmm_symbol, c.stock_id
 CREATE TEMP TABLE tmp_ind_del ON COMMIT DROP AS
 SELECT i.ctid AS row_ctid, i.usc, i.stock_id, i.ftmm_symbol
   FROM cdeu.finv_quote_secu_indicator i
- WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.stock_id = i.stock_id)
+ WHERE EXISTS (SELECT 1 FROM futu.finv_futu_secu_key LIMIT 1)
+   AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.stock_id = i.stock_id)
    AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k2 WHERE k2.usc = i.usc)
    AND NOT EXISTS (SELECT 1 FROM public.finv_security s WHERE s.usc = i.usc)
    AND NOT EXISTS (SELECT 1 FROM cdeu.finv_cdeu_secu_realtime_stock r WHERE r.usc = i.usc)
@@ -151,6 +156,12 @@ DECLARE
     v_del_ind     BIGINT;
     v_del_col     BIGINT;
 BEGIN
+    -- 键表为空（全新库）：本次不产生变更集，收敛校验也无从判定，直接跳过。
+    IF NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key LIMIT 1) THEN
+        RAISE NOTICE 'V300171：键表为空（全新库），跳过收敛校验';
+        RETURN;
+    END IF;
+
     SELECT count(*) INTO v_fix_ind FROM tmp_ind_fix;
     SELECT count(*) INTO v_fix_col FROM tmp_col_fix;
     SELECT count(*) INTO v_del_ind FROM tmp_ind_del;
@@ -166,8 +177,23 @@ BEGIN
      WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.ftmm_symbol = c.ftmm_symbol)
        AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k2 WHERE k2.usc = c.usc);
 
-    IF v_ind_orphan > 1 OR v_col_orphan > 126 THEN
-        RAISE EXCEPTION 'V300171 未收敛：indicator 剩 % 行、quote_collect 剩 % 行（应分别 ≤ 1 / ≤ 126）',
+    -- 判据用「相对口径」而不是固定行数：允许留下的只能是**有下游引用**的那些行
+    -- （生产库实测 indicator 1 行 / quote_collect 126 行）；全新库里键表为空，
+    -- 这两张表若已被种子数据填充，也按同一判据校验，不能用 1/126 这类绝对阈值。
+    SELECT count(*) INTO v_ind_orphan
+      FROM cdeu.finv_quote_secu_indicator i
+     WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.stock_id = i.stock_id)
+       AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k2 WHERE k2.usc = i.usc)
+       AND NOT EXISTS (SELECT 1 FROM public.finv_security s WHERE s.usc = i.usc)
+       AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_quote_collect c WHERE c.usc = i.usc);
+    SELECT count(*) INTO v_col_orphan
+      FROM futu.finv_futu_quote_collect c
+     WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.ftmm_symbol = c.ftmm_symbol)
+       AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k2 WHERE k2.usc = c.usc)
+       AND NOT EXISTS (SELECT 1 FROM public.finv_security s WHERE s.usc = c.usc)
+       AND NOT EXISTS (SELECT 1 FROM cdeu.finv_cdeu_secu_realtime_stock r WHERE r.usc = c.usc);
+    IF v_ind_orphan <> 0 OR v_col_orphan <> 0 THEN
+        RAISE EXCEPTION 'V300171 未收敛：仍有 % 行 indicator / % 行 quote_collect 无依据行未被清理',
             v_ind_orphan, v_col_orphan;
     END IF;
 

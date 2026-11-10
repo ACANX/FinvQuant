@@ -121,11 +121,15 @@ BEGIN
             v_old_sec, v_old_key;
     END IF;
 
-    -- 指标表：HK.800700 只保留 usc='HTI' 一行
+    -- 指标表：HK.800700 只保留 usc='HTI' 一行。
+    -- 全新库（首次部署）指标表为空，这条**存量数据**断言会中止迁移链，因此仅在表内确有
+    -- 该指数行时才校验（数据由运行时从上游同步写入，迁移阶段不该假定它存在）。
     SELECT count(*) FILTER (WHERE usc = 'HTI'), count(*) FILTER (WHERE usc = '800700')
       INTO v_ind, v_ind_old
       FROM cdeu.finv_quote_secu_indicator WHERE ftmm_symbol = 'HK.800700';
-    IF v_ind <> 1 OR v_ind_old <> 0 THEN
+    IF (v_ind + v_ind_old) = 0 THEN
+        RAISE NOTICE 'V300155：指标表无 HK.800700 数据（全新库），跳过该表校验';
+    ELSIF v_ind <> 1 OR v_ind_old <> 0 THEN
         RAISE EXCEPTION 'V300155 校验失败：指标表 HK.800700 应为 usc=HTI 1 行、usc=800700 0 行，实际 % / %',
             v_ind, v_ind_old;
     END IF;

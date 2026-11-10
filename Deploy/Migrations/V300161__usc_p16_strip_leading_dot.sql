@@ -137,7 +137,13 @@ BEGIN
         RAISE EXCEPTION 'V300161 校验失败：同市场撞名例外应为 14 条，实际 %', v_exc;
     END IF;
 
-    -- 前处理抽样：点被去掉，且非指数不受影响
+    -- 前处理抽样：点被去掉，且非指数不受影响。
+    -- 全新库键表为空 → 引擎无行，抽样无从比对，跳过（规则/条目的断言在上方已覆盖）。
+    IF NOT EXISTS (SELECT 1 FROM futu.f_finv_futu_usc_calc('*') LIMIT 1) THEN
+        RAISE NOTICE 'V300161：引擎无计算行（全新库），跳过存量抽样校验';
+        RETURN;
+    END IF;
+
     SELECT canon_code INTO v_spx FROM futu.f_finv_futu_usc_calc('*') WHERE ftmm_symbol = 'US..SPX';
     SELECT canon_code INTO v_xfl FROM futu.f_finv_futu_usc_calc('*') WHERE ftmm_symbol = 'AU..XFL';
     IF v_spx IS DISTINCT FROM 'SPX' THEN

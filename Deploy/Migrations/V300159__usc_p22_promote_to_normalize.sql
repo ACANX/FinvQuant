@@ -122,6 +122,13 @@ BEGIN
         RAISE EXCEPTION 'V300159 校验失败：P22 应为 NORMALIZE/ALL，实际 % / %', v_type, v_scope;
     END IF;
 
+    -- 引擎按 futu.finv_futu_secu_key 计算，全新库键表为空 → 抽样无行。
+    -- 这些是**存量数据**抽样，没有数据就跳过（引擎口径本身已由规则/条目的断言覆盖）。
+    IF NOT EXISTS (SELECT 1 FROM futu.f_finv_futu_usc_calc('*') LIMIT 1) THEN
+        RAISE NOTICE 'V300159：引擎无计算行（全新库），跳过存量抽样校验';
+        RETURN;
+    END IF;
+
     SELECT canon_code INTO v_sh1   FROM futu.f_finv_futu_usc_calc('*') WHERE ftmm_symbol = 'SH.000001';
     SELECT canon_code INTO v_sh300 FROM futu.f_finv_futu_usc_calc('*') WHERE ftmm_symbol = 'SH.000300';
     SELECT canon_code INTO v_sz1   FROM futu.f_finv_futu_usc_calc('*') WHERE ftmm_symbol = 'SZ.000001';

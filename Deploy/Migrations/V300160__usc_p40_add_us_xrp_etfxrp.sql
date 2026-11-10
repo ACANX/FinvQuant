@@ -62,7 +62,13 @@ BEGIN
         RAISE EXCEPTION 'V300160 校验失败：item_desc 必填';
     END IF;
 
-    -- 前处理不应被这条例外影响：US.XRP 的 canon_code 仍是 XRP
+    -- 前处理不应被这条例外影响：US.XRP 的 canon_code 仍是 XRP。
+    -- 全新库键表为空 → 引擎无行，跳过该存量抽样（条目本身已在上方断言）。
+    IF NOT EXISTS (SELECT 1 FROM futu.f_finv_futu_usc_calc('*') LIMIT 1) THEN
+        RAISE NOTICE 'V300160：引擎无计算行（全新库），跳过存量抽样校验';
+        RETURN;
+    END IF;
+
     SELECT canon_code INTO v_canon FROM futu.f_finv_futu_usc_calc('*') WHERE ftmm_symbol = 'US.XRP';
     IF v_canon IS DISTINCT FROM 'XRP' THEN
         RAISE EXCEPTION 'V300160 校验失败：US.XRP 的 canon_code 应仍为 XRP，实际 %', v_canon;

@@ -30,6 +30,13 @@ BEGIN
      WHERE ftmm_symbol = 'US.HSTI' AND usc = 'HSTI';
     SELECT count(*) INTO v_hk FROM futu.finv_futu_secu_key
      WHERE ftmm_symbol = 'HK.800700' AND usc = 'HTI';
+    -- 全新库（首次部署）键表为空：本迁移是存量数据修复，没有数据就跳过校验，
+    -- 否则会让首次部署的迁移链中断（键表数据由运行时从上游同步写入）。
+    IF NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key LIMIT 1) THEN
+        RAISE NOTICE 'V300156：键表为空（全新库），跳过存量数据校验';
+        RETURN;
+    END IF;
+
     IF v_us <> 1 OR v_hk <> 1 THEN
         RAISE EXCEPTION 'V300156 校验失败：应为 US.HSTI→HSTI 1 行、HK.800700→HTI 1 行，实际 % / %', v_us, v_hk;
     END IF;
