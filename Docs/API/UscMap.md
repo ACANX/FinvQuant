@@ -96,6 +96,8 @@
 | 步骤 | 动作 |
 |------|------|
 | ① 归档 | `usc` 被新证券接管时，把下游各表历史行整行快照进 `archive.finv_usc_reuse_snapshot`（`to_regclass` 守卫，缺表跳过） |
+
+> 归档表时间列名为 `dt_snapshot`（`V300167` 起），与结果表的 `dt_retire` / `dt_compute` / `dt_first_assign` 同为 `dt_` 口径。
 | ② 退市 | 键表已不存在的在册行 + 本次要改值的行，先置 `RETIRED`（释放 `usc`，避免部分唯一索引瞬时冲突） |
 | ③ 写结果表 | `INSERT ... ON CONFLICT (ftmm_symbol) DO UPDATE`，只写 `insert`/`update` 行；`dt_first_assign` 不覆盖 |
 | ④ 回写键表 | `UPDATE futu.finv_futu_secu_key SET usc = ...` 只写变化行 |
