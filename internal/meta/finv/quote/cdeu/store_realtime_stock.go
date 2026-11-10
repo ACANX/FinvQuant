@@ -276,6 +276,21 @@ func (s *Store) ListRealtimeStocks(ctx context.Context, f RealtimeStockListFilte
 		args = append(args, currency)
 		conds = append(conds, fmt.Sprintf("t.currency = $%d", len(args)))
 	}
+	// 证券参数补全（需求 11161）：只列目标表里还没有该证券的行。
+	//
+	// 目标键优先用快照自己的 usc，快照为空时退回派生键（与补全写入同口径）：
+	//   security → public.finv_security.usc
+	//   collect  → futu.finv_futu_quote_collect.usc
+	if target := strings.TrimSpace(f.MissingTarget); target != "" {
+		table, err := secuParamCompleteTable(target)
+		if err != nil {
+			return 0, nil, err
+		}
+		conds = append(conds, fmt.Sprintf(
+			"NOT EXISTS (SELECT 1 FROM %s x WHERE %s)",
+			table, fmt.Sprintf(secuParamExistsCondFmt, secuParamTargetKeyExpr)))
+	}
+
 	// usc 为空 = 尚未录入证券主数据（新上市/未纳入采集），是补录三张表的依据（需求 10995）。
 	//
 	// 需求 11145：先用派生 ftmm_symbol 关联键表补一次 usc，**补完仍为空**才算待录入；

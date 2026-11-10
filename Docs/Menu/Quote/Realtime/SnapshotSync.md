@@ -1,8 +1,8 @@
-# 行情快照手动同步（SnapshotSync）
+# 行情快照同步（SnapshotSync）
 
 > 菜单 key：`quote-realtime-snapshot-sync`
 > 路由：`/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync`
-> 所属：导航「行情 → 实时行情 → 行情快照手动同步」
+> 所属：导航「行情 → 实时行情 → 行情快照同步」（需求 11158 由「行情快照手动同步」改名）
 > 视图：`Web/src/views/Meta/Finv/Quote/Realtime/StockSnapshotSyncView.vue`
 > 关联需求：10982（本页）、10976（配置表）、10977（同步服务）
 > 关联接口：[`API/Cdeu/StockSnapshotSyncRun.md`](../../../API/Cdeu/StockSnapshotSyncRun.md)（异步启动 + 轮询）

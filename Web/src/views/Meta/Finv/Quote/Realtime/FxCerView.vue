@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 缺省汇率（需求 10999，11000 增加矩阵模式/中文名称）
+// 外汇汇率（需求 10999，11000 增加矩阵模式/中文名称；11159 菜单由「缺省汇率」改名）
 // 接口：
 //   GET  /Meta/Finv/Quote/Cdeu/Fx/Cer        整表查询（88 行量级，不分页；含 currency_names）
 //   POST /Meta/Finv/Quote/Cdeu/Fx/CerSync    手动更新（同步执行，一次 moomoo get-fx-overview）
@@ -288,7 +288,7 @@ onMounted(load)
   <v-card>
     <v-card-title class="d-flex align-center flex-wrap ga-2">
       <v-icon icon="mdi-cash-sync" class="mr-2" />
-      缺省汇率
+      外汇汇率
       <v-spacer />
       <v-btn-toggle v-model="viewMode" density="compact" variant="outlined" mandatory divided>
         <v-btn value="matrix" prepend-icon="mdi-grid" size="small">矩阵模式</v-btn>
@@ -457,7 +457,7 @@ onMounted(load)
             <th class="text-no-wrap">币种名称</th>
             <th class="text-no-wrap">源币种</th>
             <th class="text-no-wrap">目标币种</th>
-            <th class="text-no-wrap text-right">缺省汇率</th>
+            <th class="text-no-wrap text-right">汇率</th>
             <th class="text-no-wrap text-right">涨跌额</th>
             <th class="text-no-wrap text-right">涨跌幅</th>
             <th class="text-no-wrap">类型</th>

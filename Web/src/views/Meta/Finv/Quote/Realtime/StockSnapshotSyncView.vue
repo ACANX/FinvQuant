@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 行情快照手动同步（需求 10982，10986 改为按「证券品种」分 Tab）
+// 行情快照同步（需求 10982，10986 改为按「证券品种」分 Tab，11158 菜单改名去掉「手动」）
 // 接口：
 //   POST /Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run   异步启动（返回 run_id）
 //   GET  /Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run?runId=  轮询状态 + 逐页日志 + 采集配置
@@ -294,7 +294,7 @@ onBeforeUnmount(stopPolling)
   <v-card>
     <v-card-title class="d-flex align-center">
       <v-icon icon="mdi-cloud-sync-outline" class="mr-2" />
-      行情快照手动同步
+      行情快照同步
       <v-spacer />
       <v-chip :color="statusColor" variant="flat" size="small">
         {{ statusText }}

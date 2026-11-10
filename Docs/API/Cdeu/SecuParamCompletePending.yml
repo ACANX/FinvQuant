@@ -1,0 +1,108 @@
+openapi: 3.0.3
+info:
+  title: FinvQuant API — 证券参数补全：待补清单
+  version: 1.0.0
+  description: |
+    GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Secu/Param/Complete/Pending
+    需求 11161：「证券参数补全」清单。源表 cdeu.finv_cdeu_secu_realtime_stock，
+    按目标表（security = public.finv_security / collect = futu.finv_futu_quote_collect）
+    列出「目标表里还没有该证券」的行。
+    目标键 = COALESCE(快照 usc, upper(市场标签.代码))；存在性同时接受目标键与派生键两种形态。
+servers:
+  - url: /
+paths:
+  /Meta/Finv/Quote/Cdeu/Realtime/Secu/Param/Complete/Pending:
+    get:
+      summary: 查询某个目标表的待补全证券（分页）
+      operationId: realtimeSecuParamPendingPage
+      tags: [Cdeu]
+      parameters:
+        - name: target
+          in: query
+          required: true
+          description: 目标表；security = public.finv_security，collect = futu.finv_futu_quote_collect
+          schema: { type: string, enum: [security, collect] }
+        - name: keyword
+          in: query
+          description: 关键字，匹配 usc / stock_code / name / 派生键
+          schema: { type: string }
+        - name: marketLabel
+          in: query
+          description: 市场标签（HK/SH/SZ/BJ/US），空或 all 表示不限
+          schema: { type: string }
+        - name: orderBy
+          in: query
+          description: 排序字段白名单（market_value / trade_trunover / change_ratio / stock_id / dt_update），默认 market_value
+          schema: { type: string }
+        - name: order
+          in: query
+          schema: { type: string, enum: [desc, asc], default: desc }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 50 }
+      responses:
+        '200':
+          description: 查询完成
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string, example: 查询完成 }
+                  data:
+                    type: object
+                    required: [target, total, page, pageSize, list]
+                    properties:
+                      target: { type: string, example: security }
+                      total: { type: integer, example: 635 }
+                      page: { type: integer, example: 1 }
+                      pageSize: { type: integer, example: 50 }
+                      list:
+                        type: array
+                        items: { $ref: '#/components/schemas/SecuParamRow' }
+        '400':
+          description: target 缺失或非法 / 分页参数越界 / orderBy 不在白名单
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 400 }
+                  message: { type: string }
+        '500':
+          description: 数据库侧失败
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 2006 }
+                  message: { type: string }
+components:
+  schemas:
+    SecuParamRow:
+      type: object
+      description: 快照行（数值列为文本，保住 NUMERIC(24,6) 精度）
+      required: [stock_id, usc, ftmm_symbol, name, stock_code, market_label, instrument_type, currency, market_value, dt_update]
+      properties:
+        stock_id: { type: integer, format: int64, example: 202096 }
+        usc:
+          type: string
+          description: 快照 usc（原值，可能为空；补全写入时为空则用 ftmm_symbol 兜底）
+          example: PLD
+        ftmm_symbol:
+          type: string
+          description: 派生键 upper(市场标签.代码)，大写
+          example: US.PLD
+        name: { type: string, example: 安博 }
+        stock_code: { type: string, example: PLD }
+        market_label: { type: string, example: US }
+        instrument_type: { type: string, example: '3' }
+        currency: { type: string, example: USD }
+        market_value: { type: string, example: '120034567890.000000' }
+        dt_update: { type: integer, format: int64, description: 快照时间（Unix 毫秒） }

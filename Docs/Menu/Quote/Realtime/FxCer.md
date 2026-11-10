@@ -1,8 +1,8 @@
-# 缺省汇率（FxCer）
+# 外汇汇率（FxCer）
 
 > 菜单 key：`quote-realtime-fxcer-overview`
 > 路由：`/Meta/Finv/Quote/Realtime/FXCEROverview`
-> 所属：导航「行情 → 实时行情 → 缺省汇率」
+> 所属：导航「行情 → 实时行情 → 外汇汇率」（需求 11159 由「缺省汇率」改名，并前移到「行情快照同步」之前）
 > 视图：`Web/src/views/Meta/Finv/Quote/Realtime/FxCerView.vue`
 > 关联需求：10999（本页与接口；表结构 10998）、11000（路由改名 + 矩阵/表格双模式 + 中文名称）
 > 关联接口：[`API/Cdeu/FxCer.md`](../../../API/Cdeu/FxCer.md)
@@ -10,7 +10,7 @@
 
 ## 1. 用途
 
-查看并手动更新 `public.finv_fxcer`（缺省汇率表 v2，主键 `usc`）。
+查看并手动更新 `public.finv_fxcer`（外汇汇率表 v2；菜单与页面已由「缺省汇率」统一改称「外汇汇率」，表名与数据字典键不变，主键 `usc`）。
 
 - 这张表是多货币环境下把证券市值、成交额等金额**统一到同一计价货币**时的换算来源，
   `rate` = 1 单位源币种折合的目标币种数量；每行带 `usc`（上游 `stockCode`）与中文名 `name`；
@@ -76,7 +76,7 @@
 | 代码 | **第一列**，`usc`：上游 `stockCode`（如 `USDCNH`） |
 | 币种名称 | `name`（简体中文，如 `美元/离岸人民币`）；列表来源直接用上游 `name`，概览行按币种中文名合成 |
 | 源币种 / 目标币种 | ISO 4217 代码；`CNY` = 人民币、`CNH` = 离岸人民币（两者存在基差） |
-| 缺省汇率 | `rate`，按量级调精度：≥100 保留 4 位、≥1 保留 6 位、<1 保留 8 位（`JPYUSD` 这类需要更多小数） |
+| 汇率 | `rate`，按量级调精度：≥100 保留 4 位、≥1 保留 6 位、<1 保留 8 位（`JPYUSD` 这类需要更多小数） |
 | 涨跌额 / 涨跌幅 | `change_price` / `change_ratio`（需求 11016）：只有**表格模式采集来源** `get-fx-rate-list` 提供，矩阵模式来源 `get-fx-overview` 不给这两个字段，故只有经过列表采集的行才有值，其余显示 `—`；涨跌额按同一量级调精度、涨跌幅补 `%` 保留两位；配色**红涨绿跌**（涨 `#ff0000`、跌 `#00e676`，与「证券待录入」一致），0 与空值不着色 |
 | 类型 | chip：直采（primary）/ 派生（secondary，仅历史数据；需求 11020 起采集只产生直采） |
 | 来源 | `moomoo.get-fx-overview` / `moomoo.get-fx-rate-list` / `derive:CNH` |

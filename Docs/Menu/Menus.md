@@ -29,10 +29,13 @@
 ├─ 历史行情（二级分组）
 │  └─ 历史行情查询（三级叶子，/Meta/Finv/Quote/History/HistoryQuoteQuery）
 ├─ 实时行情（二级分组）
-│  └─ 证券行情排行（三级叶子，/Meta/Finv/Quote/Realtime/FTStockRank，需求 10962/10963/10964）
-│  └─ 行情快照手动同步（三级叶子，/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync，需求 10982）
-│  ├─ 缺省汇率（四级叶子，/Meta/Finv/Quote/Realtime/FXCEROverview，需求 10999/11000）
-│  └─ 证券参数同步（四级叶子，/Meta/Finv/Quote/Realtime/SecuParamSync，需求 11042/11043/11044）
+│  ├─ 证券行情排行（/Meta/Finv/Quote/Realtime/FTStockRank，需求 10962/10963/10964）
+│  ├─ 外汇汇率（/Meta/Finv/Quote/Realtime/FXCEROverview，需求 10999/11000，11159 改名并前移）
+│  ├─ 行情快照同步（/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync，需求 10982，11158 改名）
+│  ├─ 待采证券录入（/Meta/Finv/Quote/Realtime/PendingSecu，需求 10995，11160 改名）
+│  ├─ 证券参数补全（/Meta/Finv/Quote/Realtime/SecuParamComplete，需求 11161）
+│  ├─ 证券参数同步（/Meta/Finv/Quote/Realtime/SecuParamSync，需求 11042/11043/11044）
+│  └─ USC 映射规则（/Meta/Finv/Quote/Realtime/UscMapping，需求 11072）
 ├─ 元数据管理（二级分组）
 │  └─ 业务元数据维护（三级分组）
 │     ├─ 交易所信息维护（/meta/exchange）
@@ -107,11 +110,11 @@
 | 39 | 内容管理控制台 | 内容管理 | 二级叶子 | `cms-home` | `mdi-view-dashboard-outline` | `/Meta/CMS` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中，系统占位） | [CMS/CMSHome.md](CMS/CMSHome.md) |
 | 40 | 日K线数据同步 | 金融投资 | 四级叶子 | `cdeu-daykline-sync` | `mdi-candle` | `/Meta/Finv/Quote/Cdeu/DayKline/Sync` | `Web/src/views/Meta/Finv/Quote/Cdeu/DayKlineSyncView.vue` | `POST /API/V1/Meta/Finv/Quote/Cdeu/DayKline/Sync`、`GET .../DayKline/Stat`、`GET .../DayKline/UscList` | [Quote/Cdeu/DayKlineSync.md](Quote/Cdeu/DayKlineSync.md) |
 | 41 | 证券行情排行 | 金融投资 | 四级叶子 | `quote-realtime-ftstockrank` | `mdi-chart-timeline-variant` | `/Meta/Finv/Quote/Realtime/FTStockRank` | `Web/src/views/Meta/Finv/Quote/Realtime/RealtimeStockView.vue` | `GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Page` | [Quote/Realtime/RealtimeStock.md](Quote/Realtime/RealtimeStock.md) |
-| 42 | 行情快照手动同步 | 金融投资 | 四级叶子 | `quote-realtime-snapshot-sync` | `mdi-cloud-sync-outline` | `/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync` | `Web/src/views/Meta/Finv/Quote/Realtime/StockSnapshotSyncView.vue` | `POST/GET .../Realtime/FTStockQuoteSnapshotSync/Run` | [Quote/Realtime/SnapshotSync.md](Quote/Realtime/SnapshotSync.md) |
-| 43 | 待录入证券 | 金融投资 | 四级叶子 | `quote-realtime-pending-secu` | `mdi-database-plus-outline` | `/Meta/Finv/Quote/Realtime/PendingSecu` | `Web/src/views/Meta/Finv/Quote/Realtime/PendingSecuView.vue` | `GET .../Realtime/Stock/Pending` | [Quote/Realtime/PendingSecu.md](Quote/Realtime/PendingSecu.md) |
-| 44 | 缺省汇率 | 金融投资 | 四级叶子 | `quote-realtime-fxcer-overview` | `mdi-cash-sync` | `/Meta/Finv/Quote/Realtime/FXCEROverview` | `Web/src/views/Meta/Finv/Quote/Realtime/FxCerView.vue` | `POST .../Fx/CerSync`、`GET .../Fx/Cer` | [Quote/Realtime/FxCer.md](Quote/Realtime/FxCer.md) |
+| 42 | 外汇汇率 | 金融投资 | 四级叶子 | `quote-realtime-fxcer-overview` | `mdi-cash-sync` | `/Meta/Finv/Quote/Realtime/FXCEROverview` | `Web/src/views/Meta/Finv/Quote/Realtime/FxCerView.vue` | `POST .../Fx/CerSync`、`GET .../Fx/Cer` | [Quote/Realtime/FxCer.md](Quote/Realtime/FxCer.md) |
+| 43 | 行情快照同步 | 金融投资 | 四级叶子 | `quote-realtime-snapshot-sync` | `mdi-cloud-sync-outline` | `/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync` | `Web/src/views/Meta/Finv/Quote/Realtime/StockSnapshotSyncView.vue` | `POST/GET .../Realtime/FTStockQuoteSnapshotSync/Run` | [Quote/Realtime/SnapshotSync.md](Quote/Realtime/SnapshotSync.md) |
+| 44 | 待采证券录入 | 金融投资 | 四级叶子 | `quote-realtime-pending-secu` | `mdi-database-plus-outline` | `/Meta/Finv/Quote/Realtime/PendingSecu` | `Web/src/views/Meta/Finv/Quote/Realtime/PendingSecuView.vue` | `GET .../Realtime/Stock/Pending`、`POST .../Stock/USCBackfill`、`POST .../Stock/Pending/Enqueue*` | [Quote/Realtime/PendingSecu.md](Quote/Realtime/PendingSecu.md) |
 | 45 | 证券参数同步 | 金融投资 | 四级叶子 | `quote-realtime-secu-param-sync` | `mdi-database-sync-outline` | `/Meta/Finv/Quote/Realtime/SecuParamSync` | `Web/src/views/Meta/Finv/Quote/Realtime/SecuParamSyncView.vue` | `GET .../SecuKey/Status`、`POST .../SecuKey/Config`、`POST .../SecuKey/Sync` | [Quote/Realtime/SecuParamSync.md](Quote/Realtime/SecuParamSync.md) |
-
+| 46 | 证券参数补全 | 金融投资 | 四级叶子 | `quote-realtime-secu-param-complete` | `mdi-table-cog` | `/Meta/Finv/Quote/Realtime/SecuParamComplete` | `Web/src/views/Meta/Finv/Quote/Realtime/SecuParamCompleteView.vue` | `GET .../Secu/Param/Complete/Pending`、`GET .../Secu/Param/Complete/Prefill`、`POST .../Secu/Param/Complete` | [Quote/Realtime/SecuParamComplete.md](Quote/Realtime/SecuParamComplete.md) |
 ## 说明
 
 - 菜单定义与视图组件一一对应，全部在 `Web/src/config/menuConfig.ts` 的 `menuSystems` 中登记；新增菜单时须同步更新本索引。

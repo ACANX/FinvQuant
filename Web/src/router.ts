@@ -7,6 +7,7 @@ import QuoteImportView from './views/Meta/Finv/Quote/History/HistoryQuoteImportV
 import RealtimeStockView from './views/Meta/Finv/Quote/Realtime/RealtimeStockView.vue'
 import StockSnapshotSyncView from './views/Meta/Finv/Quote/Realtime/StockSnapshotSyncView.vue'
 import PendingSecuView from './views/Meta/Finv/Quote/Realtime/PendingSecuView.vue'
+import SecuParamCompleteView from './views/Meta/Finv/Quote/Realtime/SecuParamCompleteView.vue'
 import FxCerView from './views/Meta/Finv/Quote/Realtime/FxCerView.vue'
 import SecuParamSyncView from './views/Meta/Finv/Quote/Realtime/SecuParamSyncView.vue'
 import UscMappingView from './views/Meta/Finv/Quote/Realtime/UscMappingView.vue'
@@ -68,26 +69,33 @@ const router = createRouter({
       component: RealtimeStockView,
       meta: { title: '证券行情排行' },
     },
-    // 行情 → 实时行情 → 行情快照手动同步（需求 10982）：异步采集 + 逐页日志
-    {
-      path: '/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync',
-      name: 'quote-realtime-snapshot-sync',
-      component: StockSnapshotSyncView,
-      meta: { title: '行情快照手动同步' },
-    },
-    // 行情 → 实时行情 → 待录入证券（需求 10995）：usc 为空的快照行，先只读查询
-    {
-      path: '/Meta/Finv/Quote/Realtime/PendingSecu',
-      name: 'quote-realtime-pending-secu',
-      component: PendingSecuView,
-      meta: { title: '待录入证券' },
-    },
-    // 行情 → 实时行情 → 缺省汇率（需求 10999/11000）：矩阵/表格双模式 + 中文名称，手动更新
+    // 行情 → 实时行情 → 外汇汇率（需求 10999/11000，11159 改名并把菜单前移到快照同步之前）
     {
       path: '/Meta/Finv/Quote/Realtime/FXCEROverview',
       name: 'quote-realtime-fxcer-overview',
       component: FxCerView,
-      meta: { title: '缺省汇率' },
+      meta: { title: '外汇汇率' },
+    },
+    // 行情 → 实时行情 → 行情快照同步（需求 10982，11158 改名）：异步采集 + 逐页日志
+    {
+      path: '/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync',
+      name: 'quote-realtime-snapshot-sync',
+      component: StockSnapshotSyncView,
+      meta: { title: '行情快照同步' },
+    },
+    // 行情 → 实时行情 → 待采证券录入（需求 10995，11160 改名）：usc 补全后仍为空的快照行
+    {
+      path: '/Meta/Finv/Quote/Realtime/PendingSecu',
+      name: 'quote-realtime-pending-secu',
+      component: PendingSecuView,
+      meta: { title: '待采证券录入' },
+    },
+    // 行情 → 实时行情 → 证券参数补全（需求 11161）：按目标表分别补 finv_security / quote_collect
+    {
+      path: '/Meta/Finv/Quote/Realtime/SecuParamComplete',
+      name: 'quote-realtime-secu-param-complete',
+      component: SecuParamCompleteView,
+      meta: { title: '证券参数补全' },
     },
     // 行情 → 实时行情 → 证券参数同步（需求 11042）：Supabase 证券键表 → futu.finv_futu_secu_key，按钮手动触发
     {

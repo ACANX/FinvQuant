@@ -1,16 +1,21 @@
-# 待录入证券（PendingSecu）
+# 待采证券录入（PendingSecu）
 
 > 菜单 key：`quote-realtime-pending-secu`
 > 路由：`/Meta/Finv/Quote/Realtime/PendingSecu`
-> 所属：导航「行情 → 实时行情 → 待录入证券」
+> 所属：导航「行情 → 实时行情 → 待采证券录入」（需求 11160 由「待录入证券」改名）
 > 视图：`Web/src/views/Meta/Finv/Quote/Realtime/PendingSecuView.vue`
 > 关联需求：10995（本页；一键录入为规划功能，尚未实现）、11145（按派生键先补 usc 再判断）、
-> 11146（「手动补录USC」把 usc 真正写回快照表）
+> 11146（「手动补录USC」把 usc 真正写回快照表）、11153–11156（「入队」/「更新键」）、
+> 11161（原「录入」按钮迁出到独立菜单「证券参数补全」）
 > 关联接口：[`API/Cdeu/RealtimeStockPendingPage.md`](../../../API/Cdeu/RealtimeStockPendingPage.md)
 
 ## 1. 用途
 
 列出 `cdeu.finv_cdeu_secu_realtime_stock` 中 **补全后 `usc` 仍为空** 的快照行。
+
+**本页负责把 `usc` 弄进快照表**（「入队」登记键 /「手动补录USC」回写）：
+`public.finv_security` 与 `futu.finv_futu_quote_collect` 的补全已拆到独立菜单
+[证券参数补全](SecuParamComplete.md)（需求 11161），本页不再写任何主数据表。
 
 补全口径（需求 11145）：先用派生键 `ftmm_symbol = upper(市场标签 || '.' || 代码)`（英文字母统一大写，
 与 `futu.finv_futu_secu_key.ftmm_symbol` 同口径）左连本地键表取 `usc`；
@@ -19,11 +24,11 @@
 采集会把所有在售证券都写入快照表，`usc` 为空表示该证券**尚未录入证券主数据**
 （新上市 / 未纳入采集范围）。这份清单是后续补录三张表的依据：
 
-| 表 | 职责 |
-|----|------|
-| `public.finv_security` | 证券主数据（`currency_type`、`exchange_code`） |
-| `futu.finv_futu_quote_collect` | futu 采集配置（`stock_id ↔ usc`） |
-| `cdeu.finv_quote_cdeu_usc` | usc 主数据（`market` / `currency` / `timezone`） |
+| 表 | 职责 | 补齐入口 |
+|----|------|----------|
+| `public.finv_security` | 证券主数据（`currency_type`、`exchange_code`） | [证券参数补全](SecuParamComplete.md)「规范证券参数」Tab |
+| `futu.finv_futu_quote_collect` | futu 采集配置（`stock_id ↔ usc`） | [证券参数补全](SecuParamComplete.md)「采集参数」Tab |
+| `cdeu.finv_quote_cdeu_usc` | usc 主数据（`market` / `currency` / `timezone`） | 不录（需求 11147：运行时动态生成） |
 
 > `usc` 为空是**刻意保留的观测信号**：禁止用 `stock_code` 回填。
 > 两者并非等价，直接挪用会把不同市场的同码证券映射错（如 `000001` 在 SZ 与 SH 都存在）。
@@ -65,12 +70,14 @@
 
 未登记的值原样显示，空值显示 `—`（DictColumnSpec：表格列只显示中文，不拼 `中文[值]`）。
 
-「操作」列有 <strong>入队</strong> 与 <strong>录入</strong> 两个按钮：
+「操作」列只有 <strong>入队</strong> 一个按钮：
 
 | 按钮 | 作用 | 是否写库 |
 |------|------|----------|
 | 入队（见 §2.6） | 把证券键登记进 `futu.finv_futu_secu_key` | 点按钮**不写**，对话框里确认后才写 |
-| 录入（见 §3） | 写 `public.finv_security` + `futu.finv_futu_quote_collect` 并回写快照 `usc` | 对话框里点「录入」才写 |
+
+> 需求 11161：原「录入」按钮（写两张主数据表 + 回写快照 usc）已整体迁到独立菜单
+> [证券参数补全](SecuParamComplete.md)，按目标表分两个 Tab 分别补全；本页不再出现该按钮。
 
 涨跌用整行颜色表达（红涨绿跌），与「证券行情排行」同一套配色；无数值的方向行不着色。
 
@@ -143,73 +150,26 @@
   → 该行离开待录入清单
 ```
 
-## 3. 录入对话框（需求 10996 落地 / 11147 自动化）
+## 3. 主数据补全已迁出（需求 11161）
 
-点击行内「录入」打开对话框。打开时先调预填接口
-[`GET /Realtime/Stock/Pending/Prefill`](../../../API/Cdeu/RealtimeStockPendingPrefill.md)，
-把**能关联到的一律自动填好**并标注来源，人工只做核对；点「录入」一次性写库。
+原「操作」列里的「录入」按钮会一次性写 `public.finv_security` + `futu.finv_futu_quote_collect`
+并回写快照 `usc`。实际使用中两张表的缺口并不同步（可能只缺一张），一把梭看不出到底补了哪张。
 
-写入两张表（+ 回写快照）：
+需求 11161 起该能力迁到独立菜单 **[证券参数补全](SecuParamComplete.md)**：
 
-| 顺序 | 表 | 语义 |
-|------|----|------|
-| 1 | `public.finv_security` | 证券主数据 |
-| 2 | `futu.finv_futu_quote_collect` | futu 采集配置（`ftmm_symbol` 是生成列，不写） |
-| 3 | `cdeu.finv_cdeu_secu_realtime_stock` | 只把 `usc` 回写（空值才写），该行随即离开待录入清单 |
+| Tab | 目标表 | 接口 |
+|-----|--------|------|
+| 规范证券参数 | `public.finv_security` | `GET .../Secu/Param/Complete/Pending?target=security`、`.../Prefill`、`POST .../Secu/Param/Complete` |
+| 采集参数 | `futu.finv_futu_quote_collect` | 同上，`target=collect` |
 
-> `cdeu.finv_quote_cdeu_usc` **不再录入、不再展示**（需求 11147）：该表数据由运行时采集链路动态生成。
+字段预填规则（快照 / 字典 / 参考同市场 / 缺省 / 待填 五种来源）与派生规则原样保留，
+详见新菜单文档。后端整体录入接口 `POST .../Stock/Pending/Enroll`（写两张表）仍保留，
+供脚本或批量场景调用，页面入口已不再使用。
 
-### 3.1 预填来源标注
-
-每个字段右侧一个小标签，标出这个值怎么来的：
-
-| 标签 | source | 含义 |
-|------|--------|------|
-| 快照 | `snapshot` | 快照行直接带过来（代码 / 名称 / 市场 / 品种类型 / 币种） |
-| 字典 | `dictionary` | 查 `public.finv_exchange` 等字典表得到（`exchange_code`、基准币种、品种类型映射） |
-| 参考 | `reference` | 同市场同品种已配置行的众数（`market_code` / `sub_instrument_type` / `instrument`），**必须核对** |
-| 缺省 | `default` | 表默认值或代码缺省，仅供占位（如中文名先取英文名、`flag_enable='0'`） |
-| 待填 | `manual` | 推不出来，必须人工填写 |
-
-标题右上角显示「待核对 N 项」= 来源为 `reference` / `default` / `manual` 的字段数。
-
-### 3.2 派生规则
-
-| 字段 | 规则 |
-|------|------|
-| `usc` | `upper(市场标签.代码)`，对话框里只读；服务端重新推导，不采信前端传值 |
-| `exchange_code` | `public.finv_exchange.exchange_flag = 市场标签`（SH=11 / SZ=12 / BJ=13 / HK=21 / US=30） |
-| `currency_type` | 快照 `currency` 优先，缺失用 `finv_exchange.base_currency` |
-| `security_type` | `instrument_type`：3/12→Stock、4→ETF、6→StockIndex、11→Crypto |
-| `market_type` | 快照 `market_type` 优先，缺失按市场推 HK=1 / US=2 / A股=4 |
-| `market_code` | 同市场同品种已配置行的众数（参考值） |
-| `sub_instrument_type` | `instrument_type * 1000 + 2`（3→3002、4→4002） |
-| `instrument` | 3→stock、4→etf、6→index、7→sectors、11→crypto |
-| `flag_enable` | 默认 `'0'`（停用），核对后再开采集 |
-
-### 3.3 提交与幂等
-
-- **必填全部有值**才启用「录入」（按钮禁用时提示还缺哪几项）；
-- 单事务写两张表 + 回写快照，任一步失败整体回滚；
-- 三处写入都幂等：两张表 `ON CONFLICT DO NOTHING`（已存在不覆盖人工数据）、快照只填空值；
-- 成功后 toast 报「已建/已存在 × 已回写」，并刷新清单；
-- 唯一约束冲突（`23505`，老库同代码存在旧口径 usc）会翻译成可读提示，预填阶段也会提前警告。
-
-### 3.4 `remark` 溯源
-
-两张表的 `remark` 由服务端生成：
-
-```
-[AUTO-FILL] 待录入证券补录 2026-01-15T10:20:30+08:00；备注：<人工备注>
-```
-
-对话框底部的「人工备注（选填）」只填后半段。排查时
-`WHERE remark LIKE '[AUTO-FILL]%'` 即可列出全部由补录程序写入的行。
-
-### 3.5 仍未实现
+## 4. 仍未实现
 
 | 项 | 状态 |
 |----|------|
-| 单只录入（预填 + 写两张表 + 回写 usc） | ✅ 已实现 |
+| 单只补全（预填 + 写单表） | ✅ 已实现（在「证券参数补全」菜单） |
 | 批量录入（列表顶部按钮） | ⏳ 规划中，按钮保持 disabled |
 | 录入后自动开采集（`flag_enable='1'`）并验证 | ⏳ 未做，保持默认停用 |

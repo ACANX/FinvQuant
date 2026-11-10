@@ -199,6 +199,10 @@ func NewRouter(deps *Deps) *gin.Engine {
 			realtime.POST("/Stock/Pending/Enqueue/Probe", archive.RealtimeStockPendingEnqueueProbe)
 			realtime.POST("/Stock/Pending/Enqueue", archive.RealtimeStockPendingEnqueue)
 			realtime.POST("/Stock/Pending/Enqueue/Update", archive.RealtimeStockPendingEnqueueUpdate)
+			// 需求 11161：「证券参数补全」——按目标表（security / collect）分别列缺口、预填、写入
+			realtime.GET("/Secu/Param/Complete/Pending", archive.RealtimeSecuParamPendingPage)
+			realtime.GET("/Secu/Param/Complete/Prefill", archive.RealtimeSecuParamPrefill)
+			realtime.POST("/Secu/Param/Complete", archive.RealtimeSecuParamComplete)
 			openGroup.POST("/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert", archive.RealtimeStockUpsert)
 
 			// 缺省汇率（需求 10999/11002）：public.finv_fxcer，手动触发 get-fx-overview / get-fx-rate-list 全量更新 + 整表查询。

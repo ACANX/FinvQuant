@@ -87,7 +87,11 @@ Authorization: Bearer <token>
     - [`Cdeu/StockListCollect.md`](Cdeu/StockListCollect.md) — `POST .../Realtime/FTStockQuoteSnapshotSync`（行情列表股票快照同步：读配置表分市场分页采集、逐页落库并回写 `count_exists`/`total_available`；契约 [.yml](Cdeu/StockListCollect.yml)）
     - [`Cdeu/StockSnapshotSyncRun.md`](Cdeu/StockSnapshotSyncRun.md) — `POST/GET .../Realtime/FTStockQuoteSnapshotSync/Run`（异步启动采集 + 轮询运行状态与逐页日志；契约 [.yml](Cdeu/StockSnapshotSyncRun.yml)）
     - [`Cdeu/RealtimeStockRmbSync.md`](Cdeu/RealtimeStockRmbSync.md) — `POST .../Realtime/Stock/RmbSync`（人民币计价指标手动补全：先补 `rmb_exchange_rate`、再补 `rmb_` 金额/价格字段；契约 [.yml](Cdeu/RealtimeStockRmbSync.yml)）
-  - 缺省汇率（`/API/V1/Meta/Finv/Quote/Cdeu/Fx/*`，一个文档覆盖两个接口）：
+  - 证券参数补全（`/API/V1/Meta/Finv/Quote/Cdeu/Realtime/Secu/Param/Complete/*`，需求 11161，一个接口一个文档）：
+    - [`Cdeu/SecuParamCompletePending.md`](Cdeu/SecuParamCompletePending.md) — `GET .../Secu/Param/Complete/Pending`（按 `target=security|collect` 列目标表缺口；契约 [.yml](Cdeu/SecuParamCompletePending.yml)）
+    - [`Cdeu/SecuParamCompletePrefill.md`](Cdeu/SecuParamCompletePrefill.md) — `GET .../Secu/Param/Complete/Prefill`（单表预填 + 来源标记 + `exists`；契约 [.yml](Cdeu/SecuParamCompletePrefill.yml)）
+    - [`Cdeu/SecuParamComplete.md`](Cdeu/SecuParamComplete.md) — `POST .../Secu/Param/Complete`（只写目标表，`ON CONFLICT (usc) DO NOTHING`；契约 [.yml](Cdeu/SecuParamComplete.yml)）
+  - 外汇汇率（菜单「缺省汇率」已改名，接口路径 `/API/V1/Meta/Finv/Quote/Cdeu/Fx/*` 不变，一个文档覆盖两个接口）：
     - [`Cdeu/FxCer.md`](Cdeu/FxCer.md) — `POST .../Fx/CerSync?source=overview|rateList` 手动更新 + `GET .../Fx/Cer` 整表查询（`public.finv_fxcer`，主键 `usc`，含 `name`/`rate`/`ts_quote`/`source`；两来源互补、只保最新；契约 [.yml](Cdeu/FxCer.yml)）
   - 证券参数同步（`/API/V1/Meta/Finv/Quote/Cdeu/SecuKey/*`，一个文档覆盖三个接口）：
     - [`Cdeu/SecuParamSync.md`](Cdeu/SecuParamSync.md) — `GET .../SecuKey/Status` 状态快照 + `POST .../SecuKey/Config` 保存源表名（系统配置 20014）+ `POST .../SecuKey/Sync`（同步执行）/ `POST|GET .../SecuKey/Sync/Run`（异步 + 实时日志）手动同步

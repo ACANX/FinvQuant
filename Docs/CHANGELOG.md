@@ -219,6 +219,40 @@
 
 ### 变更
 
+- **菜单改名/排序 + 新增「证券参数补全」菜单（需求 11158 – 11162）**
+  - **改名**：「行情快照手动同步」→ **行情快照同步**（11158）；「缺省汇率」→ **外汇汇率**（11159）；
+    「待录入证券」→ **待采证券录入**（11160）。菜单 key、路由路径、接口路径、数据表名一律不动，
+    历史深链接继续可用；只改菜单标题、路由 `meta.title`、页面卡片标题与文档标题。
+  - **排序**：11159 同时把「外汇汇率」前移到「行情快照同步」之前 —— 汇率是快照里人民币计价字段的前提。
+    现在「实时行情」分组顺序：证券行情排行 → 外汇汇率 → 行情快照同步 → 待采证券录入 →
+    证券参数补全 → 证券参数同步 → USC 映射规则。
+  - **新菜单「证券参数补全」**（11161，`/Meta/Finv/Quote/Realtime/SecuParamComplete`）：
+    把「待采证券录入」表格「操作」列里「录入」按钮的能力独立出来，按目标表分两个 Tab ——
+    「规范证券参数」（`public.finv_security`）与「采集参数」（`futu.finv_futu_quote_collect`）。
+    两个 Tab 各自查缺口清单、各自预填、各自写入，**补 A 表不会顺带写 B 表**。
+  - **口径**：缺口判定键 `COALESCE(快照 usc, upper(市场标签.代码))` ——
+    不能用纯派生键（`usc` 是统一证券代码，库里还有 `AAVE.FTASB`、`SHCI` 这类推不出来的取值，
+    而两张主数据表的存量口径与快照 usc 一致）；也不能只用快照 usc（快照为空的行会漏掉）。
+    存在性判定**同时接受目标键与派生键两种形态**，否则「快照裸代码 `STX` + 目标表 `US.STX`」会被当成缺失，
+    一补就撞 `(exchange_code, security_code)` / `(market_code, futu_symbol)` 唯一约束。
+    同一表达式在清单 / 预填 / 写入三处共用，保证「补完就离开清单」。实测缺口：security 635 行、collect 638 行。
+  - **后端**：`RealtimeStockListFilter` 新增 `MissingTarget`；新增
+    `GET .../Secu/Param/Complete/Pending`、`GET .../Secu/Param/Complete/Prefill`、
+    `POST .../Secu/Param/Complete`（`APIs.md` 127–129）；
+    `Store` 新增 `SecuParamPrefill` / `CompleteSecuParam` / `secuParamTargetUSC`；
+    把原 `EnrollPendingSecu` 里的归一与两条 INSERT 抽成 `normalizePendingSecuSecurity` /
+    `normalizePendingSecuCollect` / `insertSecuSecurity` / `insertSecuCollect`，两处复用（行为不变）。
+    新的单表写入**不回写快照 usc**（那是「待采证券录入」页的职责）。
+  - **前端**：新增 `SecuParamCompleteView.vue`（两个 Tab + 清单 + 底部唯一说明卡片）与
+    `SecuParamCompleteDialog.vue`（只展示目标表字段、来源标签、`exists` 时禁用提交）；
+    `PendingSecuView.vue` 去掉「录入」按钮与对话框引用，标题改「待采证券录入」；
+    `PendingSecuEnrollDialog.vue` 删除（能力迁至新对话框）。
+  - **文档**：新增 `Docs/Menu/Quote/Realtime/SecuParamComplete.md`、三份接口文档（含 `.yml` 契约）；
+    `PendingSecu.md` §3 改为「主数据补全已迁出」并指向新菜单；`FxCer.md` / `SnapshotSync.md` 标题与文案改名；
+    `Menus.md` 菜单索引同步（含新增行 46 与顺序调整）；`API/README.md` 补索引。
+  - **测试**：`TestSecuParamCompleteTable`（target 白名单，含注入式取值被拒）、
+    `TestLiveSecuParamComplete`（只读，核对两个 Tab 的缺口数、预填 `exists=false`、字段数与来源）。
+
 - **Tab 3 本地回推上游改为 upsert：上游缺记录就插入（需求 11157）**
   - 现象：本地有、上游 `public.finv_quote_secu_key` 没有的键，回推后被判「上游无对应」直接跳过，
     结果那几条永远进不了上游表。

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 待录入证券（需求 10995）
+// 待采证券录入（需求 10995；11160 菜单由「待录入证券」改名）
 // 接口：GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending?keyword=&marketLabel=&orderBy=&order=&page=&pageSize=
 //
 // 数据语义：cdeu.finv_cdeu_secu_realtime_stock 中 usc 为空的快照行 —— 采集会把所有在售证券
@@ -9,12 +9,12 @@
 // 需求 11147 起 `cdeu.finv_quote_cdeu_usc` 不再录入（数据由运行时采集链路动态生成）。
 // 手动补录 usc（需求 11146）：POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/USCBackfill
 //   —— 按派生键关联 futu.finv_futu_secu_key，把 usc 为空的行就地写回快照表（幂等）。
-// 本页其余能力仍只做查询；「一键录入」为规划功能（需求登记在案，尚未实现）。
+// 需求 11161 起：原表格「操作」列里的「录入」按钮已整体迁到独立菜单「证券参数补全」
+// （按 public.finv_security / futu.finv_futu_quote_collect 分两个 Tab 分别补全），本页不再写主数据表。
 import { computed, onMounted, ref } from 'vue'
 
 import { apiGet, apiPost } from '../../../../../api'
 import { showToast } from '../../../../../ui/toast'
-import PendingSecuEnrollDialog from './PendingSecuEnrollDialog.vue'
 import PendingSecuEnqueueDialog from './PendingSecuEnqueueDialog.vue'
 
 // 列表行（wire 字段 snake_case，数值列为文本，保住 NUMERIC(24,6) 精度）
@@ -52,9 +52,6 @@ const orderBy = ref('market_value')
 const order = ref<'desc' | 'asc'>('desc')
 const loading = ref(false)
 const error = ref('')
-// 录入对话框（需求 10996）：当前只做字段登记与必填校验，写入接口待接入
-const enrollOpen = ref(false)
-const enrollRow = ref<PendingSecuRow | null>(null)
 
 const ORDER_OPTIONS = [
   { title: '总市值', value: 'market_value' },
@@ -223,11 +220,6 @@ function rowClass(direct: string): string {
   return ''
 }
 
-function openEnroll(row: PendingSecuRow) {
-  enrollRow.value = row
-  enrollOpen.value = true
-}
-
 // 「入队」（需求 11153）：只打开确认对话框，提交必须人工确认（需求 11154）
 const enqueueOpen = ref(false)
 const enqueueRow = ref<PendingSecuRow | null>(null)
@@ -244,9 +236,13 @@ onMounted(load)
   <v-card>
     <v-card-title class="d-flex align-center">
       <v-icon icon="mdi-database-plus-outline" class="mr-2" />
-      待录入证券
+      待采证券录入
       <v-spacer />
-      <v-tooltip text="规划功能：批量录入（当前请用列表行内的「录入」按钮逐只登记）" location="bottom">
+      <v-tooltip
+        text="批量录入暂未开放：先「入队」登记键、或「手动补录USC」把 usc 写回快照，再到「证券参数补全」逐只补主数据"
+        location="bottom"
+        max-width="380"
+      >
         <template #activator="{ props }">
           <span v-bind="props">
             <v-btn variant="tonal" prepend-icon="mdi-playlist-plus" disabled>一键录入（规划中）</v-btn>
@@ -269,6 +265,8 @@ onMounted(load)
         上面这一步只是「查询时判定」，不写库；要把 <code>usc</code> 真正写回快照表，点<strong>「手动补录USC」</strong>。
         注意 usc 为空是<strong>刻意保留的观测信号</strong>，不要用 stock_code 直接回填：两者并非等价，
         直接挪用会把不同市场的同码证券映射错（如 <code>000001</code> 在 SZ 与 SH 都存在）。
+        主数据补全（<code>public.finv_security</code> / <code>futu.finv_futu_quote_collect</code>）
+        已独立到「证券参数补全」菜单，本页只负责把 <code>usc</code> 弄进快照表。
       </v-alert>
 
       <!-- 筛选与操作同处一行，窄屏自动换行 -->
@@ -418,22 +416,17 @@ onMounted(load)
                     </v-btn>
                   </template>
                 </v-tooltip>
-                <v-btn size="x-small" variant="tonal" color="primary" prepend-icon="mdi-database-plus-outline" @click="openEnroll(row)">
-                  录入
-                </v-btn>
               </div>
             </td>
           </tr>
           <tr v-if="!rows.length && !loading">
             <td colspan="16" class="text-center text-medium-emphasis py-6">
-              没有待录入证券（快照行的 usc 都能关联到证券主数据，或已由键表补全）
+              没有待采证券（快照行的 usc 都能关联到证券主数据，或已由键表补全）
             </td>
           </tr>
         </tbody>
       </v-table>
 
-      <!-- 录入对话框：三张表字段登记 + 必填校验（需求 10996） -->
-      <PendingSecuEnrollDialog v-model="enrollOpen" :row="enrollRow" @done="load" />
       <PendingSecuEnqueueDialog v-model="enqueueOpen" :row="enqueueRow" @done="load" />
 
       <div class="d-flex flex-wrap align-center justify-space-between ga-2 mt-3">

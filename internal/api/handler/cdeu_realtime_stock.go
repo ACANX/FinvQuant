@@ -572,6 +572,142 @@ func (h *ExportArchive) RealtimeStockPendingPage(c *gin.Context) {
 	})
 }
 
+// RealtimeSecuParamPendingPage GET /Meta/Finv/Quote/Cdeu/Realtime/Secu/Param/Complete/Pending。
+//
+// 「证券参数补全」清单（需求 11161）：目标主数据表里还没有该证券的快照行。
+//
+//	target=security → public.finv_security（规范证券参数）
+//	target=collect  → futu.finv_futu_quote_collect（采集参数）
+//
+// 目标键 `usc = COALESCE(NULLIF(btrim(快照.usc),”), upper(市场标签.代码))`，与写入口径一致。
+// 查询参数：target（必填）/ keyword / marketLabel / orderBy / order / page / pageSize。
+func (h *ExportArchive) RealtimeSecuParamPendingPage(c *gin.Context) {
+	target := strings.TrimSpace(c.Query("target"))
+	if target == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "target 不能为空（security 或 collect）"})
+		return
+	}
+	page, err := realtimeStockQueryInt(c, "page", 1, 1, 1_000_000)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	pageSize, err := realtimeStockQueryInt(c, "pageSize", 50, 1, 500)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	desc := true
+	switch strings.ToLower(strings.TrimSpace(c.Query("order"))) {
+	case "", "desc":
+		desc = true
+	case "asc":
+		desc = false
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "order 只能为 asc 或 desc"})
+		return
+	}
+
+	filter := cdeu.RealtimeStockListFilter{
+		Keyword:       strings.TrimSpace(c.Query("keyword")),
+		MarketLabel:   strings.TrimSpace(c.Query("marketLabel")),
+		OrderBy:       strings.TrimSpace(c.Query("orderBy")),
+		Desc:          desc,
+		MissingTarget: target,
+		Limit:         pageSize,
+		Offset:        (page - 1) * pageSize,
+	}
+
+	started := time.Now()
+	total, list, err := h.service.Store().ListRealtimeStocks(c.Request.Context(), filter)
+	if err != nil {
+		status, code := http.StatusInternalServerError, 2006
+		if errors.Is(err, cdeu.ErrRealtimeStockInvalid) {
+			status, code = http.StatusBadRequest, 400
+		}
+		log.Printf("[cdeu][secuparam] api pending failed target=%s keyword=%q err=%v",
+			target, filter.Keyword, err)
+		c.JSON(status, gin.H{"code": code, "message": err.Error()})
+		return
+	}
+	log.Printf("[cdeu][secuparam] api pending end target=%s page=%d pageSize=%d total=%d returned=%d "+
+		"elapsed_ms=%d", target, page, pageSize, total, len(list), time.Since(started).Milliseconds())
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "查询完成",
+		"data": gin.H{
+			"target":   target,
+			"total":    total,
+			"page":     page,
+			"pageSize": pageSize,
+			"list":     list,
+		},
+	})
+}
+
+// RealtimeSecuParamPrefill GET /Meta/Finv/Quote/Cdeu/Realtime/Secu/Param/Complete/Prefill。
+//
+// 单表补全的预填（需求 11161）：只返回目标表那一组字段，并标出目标表里是否已有该键
+// （`exists=true` 时前端不给提交，避免点了也白点）。
+// 查询参数：target（必填）/ stockId（必填）。
+func (h *ExportArchive) RealtimeSecuParamPrefill(c *gin.Context) {
+	target := strings.TrimSpace(c.Query("target"))
+	if target == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "target 不能为空（security 或 collect）"})
+		return
+	}
+	stockID, err := realtimeStockQueryInt64(c, "stockId")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	prefill, err := h.service.Store().SecuParamPrefill(c.Request.Context(), target, stockID)
+	if err != nil {
+		status, code := http.StatusInternalServerError, 2006
+		if errors.Is(err, cdeu.ErrRealtimeStockInvalid) {
+			status, code = http.StatusBadRequest, 400
+		}
+		log.Printf("[cdeu][secuparam] api prefill failed target=%s stock_id=%d err=%v",
+			target, stockID, err)
+		c.JSON(status, gin.H{"code": code, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "预填完成", "data": prefill})
+}
+
+// RealtimeSecuParamComplete POST /Meta/Finv/Quote/Cdeu/Realtime/Secu/Param/Complete。
+//
+// 单表补全（需求 11161）：只写 `target` 指定的那一张表，按主键 `ON CONFLICT DO NOTHING`；
+// `created=false` 表示该 usc 已存在（未覆盖人工数据）。请求体见 cdeu.SecuParamCompleteRequest。
+func (h *ExportArchive) RealtimeSecuParamComplete(c *gin.Context) {
+	var req cdeu.SecuParamCompleteRequest
+	body := http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20)
+	decoder := json.NewDecoder(body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体解析失败: " + err.Error()})
+		return
+	}
+
+	started := time.Now()
+	log.Printf("[cdeu][secuparam] api complete begin target=%s stock_id=%d client=%s",
+		req.Target, req.StockID, c.ClientIP())
+	result, err := h.service.Store().CompleteSecuParam(c.Request.Context(), req)
+	if err != nil {
+		status, code := http.StatusInternalServerError, 2006
+		if errors.Is(err, cdeu.ErrRealtimeStockInvalid) {
+			status, code = http.StatusBadRequest, 400
+		}
+		log.Printf("[cdeu][secuparam] api complete failed target=%s stock_id=%d err=%v elapsed_ms=%d",
+			req.Target, req.StockID, err, time.Since(started).Milliseconds())
+		c.JSON(status, gin.H{"code": code, "message": err.Error()})
+		return
+	}
+	log.Printf("[cdeu][secuparam] api complete end target=%s stock_id=%d usc=%s created=%t elapsed_ms=%d",
+		result.Target, req.StockID, result.USC, result.Created, time.Since(started).Milliseconds())
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "补全完成", "data": result})
+}
+
 // realtimeStockQueryInt 解析整数型查询参数：缺省用 def，越界或非整数返回错误。
 // realtimeStockQueryInt64 解析必填的正整数查询参数（bigint 主键用，如 stockId）。
 //

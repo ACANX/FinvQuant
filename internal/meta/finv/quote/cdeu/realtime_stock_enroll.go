@@ -448,71 +448,26 @@ SELECT stock_id,
 
 	sec := req.Security
 	col := req.Collect
-	// 服务端兜底：必填项为空直接拒绝，避免写进空串污染主数据。
-	if sec.SecurityCode == "" {
-		sec.SecurityCode = stockCode
+	if err := normalizePendingSecuSecurity(&sec, stockCode); err != nil {
+		return result, err
 	}
-	if sec.SecurityName == "" || sec.CurrencyType == "" || sec.SecurityType == "" || sec.ExchangeCode <= 0 {
-		return result, fmt.Errorf("%w: 证券主数据缺少必填（security_name / currency_type / security_type / exchange_code）",
-			ErrRealtimeStockInvalid)
-	}
-	if sec.SecurityNameCN == "" {
-		sec.SecurityNameCN = sec.SecurityName
-	}
-	if col.FutuSymbol == "" {
-		col.FutuSymbol = stockCode
-	}
-	if col.MarketLabel == "" {
-		col.MarketLabel = marketLabel
-	}
-	if col.Instrument == "" {
-		col.Instrument = instrumentByInstrumentType(col.InstrumentType)
-	}
-	if col.SubInstrumentType <= 0 {
-		col.SubInstrumentType = subInstrumentType(col.InstrumentType)
-	}
-	if col.FlagEnable == "" {
-		col.FlagEnable = "0"
-	}
-	if col.MarketLabel == "" || col.FutuSymbol == "" || col.MarketType <= 0 ||
-		col.InstrumentType <= 0 || col.MarketCode <= 0 || col.Instrument == "" {
-		return result, fmt.Errorf("%w: 采集配置缺少必填（market_label / futu_symbol / market_code / "+
-			"market_type / instrument_type / instrument）", ErrRealtimeStockInvalid)
+	if err := normalizePendingSecuCollect(&col, stockCode, marketLabel); err != nil {
+		return result, err
 	}
 
 	result.Remark = buildAutoRemark(req.Remark, time.Now())
 
 	// 2) public.finv_security（已存在则不覆盖）
-	var securityCreated bool
-	if err := tx.QueryRow(ctx, `
-INSERT INTO public.finv_security AS t
-       (usc, exchange_code, security_type, security_code, security_name, security_name_cn,
-        security_name_full, currency_type, timezone, tz, remark)
-VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''), $8, NULLIF($9, ''), NULLIF($10, ''), $11)
-ON CONFLICT (usc) DO NOTHING
-RETURNING true`,
-		usc, sec.ExchangeCode, sec.SecurityType, sec.SecurityCode, sec.SecurityName, sec.SecurityNameCN,
-		sec.SecurityNameFull, sec.CurrencyType, sec.Timezone, sec.Tz, result.Remark,
-	).Scan(&securityCreated); err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return result, fmt.Errorf("EnrollPendingSecu：写入 finv_security 失败: %w",
-			explainUniqueViolation(err, "public.finv_security"))
+	securityCreated, err := insertSecuSecurity(ctx, tx, usc, sec, result.Remark)
+	if err != nil {
+		return result, fmt.Errorf("EnrollPendingSecu：%w", err)
 	}
 	result.SecurityCreated = securityCreated
 
 	// 3) futu.finv_futu_quote_collect（ftmm_symbol 是生成列，不能写）
-	var collectCreated bool
-	if err := tx.QueryRow(ctx, `
-INSERT INTO futu.finv_futu_quote_collect AS t
-       (usc, stock_id, futu_symbol, market_type, market_code, instrument_type,
-        sub_instrument_type, req_section, market_label, instrument, flag_enable, remark)
-VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, ''), $9, $10, $11, $12)
-ON CONFLICT (usc) DO NOTHING
-RETURNING true`,
-		usc, stockID, col.FutuSymbol, col.MarketType, col.MarketCode, col.InstrumentType,
-		col.SubInstrumentType, col.ReqSection, col.MarketLabel, col.Instrument, col.FlagEnable, result.Remark,
-	).Scan(&collectCreated); err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return result, fmt.Errorf("EnrollPendingSecu：写入 finv_futu_quote_collect 失败: %w",
-			explainUniqueViolation(err, "futu.finv_futu_quote_collect"))
+	collectCreated, err := insertSecuCollect(ctx, tx, usc, stockID, col, result.Remark)
+	if err != nil {
+		return result, fmt.Errorf("EnrollPendingSecu：%w", err)
 	}
 	result.CollectCreated = collectCreated
 
@@ -531,4 +486,98 @@ UPDATE `+tableRealtimeStock+`
 		return result, fmt.Errorf("EnrollPendingSecu：提交事务失败: %w", err)
 	}
 	return result, nil
+}
+
+// ---- 归一与写入（需求 11161 起，供「整体录入」与「单表补全」共用）----
+
+// normalizePendingSecuSecurity 校验并补齐证券主数据的必填项。
+//
+// 服务端兜底，不采信前端传来的空值：`security_code` 缺省用快照代码，
+// `security_name_cn` 缺省用英文名占位，其余必填缺失直接拒绝（避免把空串写进主数据）。
+func normalizePendingSecuSecurity(sec *PendingSecuEnrollSecurity, stockCode string) error {
+	if sec.SecurityCode == "" {
+		sec.SecurityCode = stockCode
+	}
+	if sec.SecurityName == "" || sec.CurrencyType == "" || sec.SecurityType == "" || sec.ExchangeCode <= 0 {
+		return fmt.Errorf("%w: 证券主数据缺少必填（security_name / currency_type / security_type / exchange_code）",
+			ErrRealtimeStockInvalid)
+	}
+	if sec.SecurityNameCN == "" {
+		sec.SecurityNameCN = sec.SecurityName
+	}
+	return nil
+}
+
+// normalizePendingSecuCollect 校验并补齐采集配置的必填项与缺省值。
+//
+// 缺省口径：`futu_symbol` 用快照代码、`market_label` 用快照市场、`instrument` 由
+// `instrument_type` 映射、`sub_instrument_type` 为 `类型*1000+2`、`flag_enable` 默认停用（0）。
+func normalizePendingSecuCollect(col *PendingSecuEnrollCollect, stockCode, marketLabel string) error {
+	if col.FutuSymbol == "" {
+		col.FutuSymbol = stockCode
+	}
+	if col.MarketLabel == "" {
+		col.MarketLabel = marketLabel
+	}
+	if col.Instrument == "" {
+		col.Instrument = instrumentByInstrumentType(col.InstrumentType)
+	}
+	if col.SubInstrumentType <= 0 {
+		col.SubInstrumentType = subInstrumentType(col.InstrumentType)
+	}
+	if col.FlagEnable == "" {
+		col.FlagEnable = "0"
+	}
+	if col.MarketLabel == "" || col.FutuSymbol == "" || col.MarketType <= 0 ||
+		col.InstrumentType <= 0 || col.MarketCode <= 0 || col.Instrument == "" {
+		return fmt.Errorf("%w: 采集配置缺少必填（market_label / futu_symbol / market_code / "+
+			"market_type / instrument_type / instrument）", ErrRealtimeStockInvalid)
+	}
+	return nil
+}
+
+// insertSecuSecurity 写 `public.finv_security`，按主键 `ON CONFLICT (usc) DO NOTHING`。
+//
+// 返回是否真正插入了新行（false = 该 usc 已存在，人工数据不被覆盖）。
+// 23505 会被翻译成可读提示：老库同一 交易所+代码 可能还挂着旧口径的 usc，这种冲突需人工裁决，
+// **不自动改旧行主键**。
+func insertSecuSecurity(ctx context.Context, tx pgx.Tx, usc string,
+	sec PendingSecuEnrollSecurity, remark string) (bool, error) {
+	var created bool
+	if err := tx.QueryRow(ctx, `
+INSERT INTO public.finv_security AS t
+       (usc, exchange_code, security_type, security_code, security_name, security_name_cn,
+        security_name_full, currency_type, timezone, tz, remark)
+VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''), $8, NULLIF($9, ''), NULLIF($10, ''), $11)
+ON CONFLICT (usc) DO NOTHING
+RETURNING true`,
+		usc, sec.ExchangeCode, sec.SecurityType, sec.SecurityCode, sec.SecurityName, sec.SecurityNameCN,
+		sec.SecurityNameFull, sec.CurrencyType, sec.Timezone, sec.Tz, remark,
+	).Scan(&created); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return false, fmt.Errorf("写入 finv_security 失败: %w",
+			explainUniqueViolation(err, "public.finv_security"))
+	}
+	return created, nil
+}
+
+// insertSecuCollect 写 `futu.finv_futu_quote_collect`，按主键 `ON CONFLICT (usc) DO NOTHING`。
+//
+// `ftmm_symbol` 是生成列（market_label || '.' || futu_symbol），不能显式写入。
+func insertSecuCollect(ctx context.Context, tx pgx.Tx, usc string, stockID int64,
+	col PendingSecuEnrollCollect, remark string) (bool, error) {
+	var created bool
+	if err := tx.QueryRow(ctx, `
+INSERT INTO futu.finv_futu_quote_collect AS t
+       (usc, stock_id, futu_symbol, market_type, market_code, instrument_type,
+        sub_instrument_type, req_section, market_label, instrument, flag_enable, remark)
+VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, ''), $9, $10, $11, $12)
+ON CONFLICT (usc) DO NOTHING
+RETURNING true`,
+		usc, stockID, col.FutuSymbol, col.MarketType, col.MarketCode, col.InstrumentType,
+		col.SubInstrumentType, col.ReqSection, col.MarketLabel, col.Instrument, col.FlagEnable, remark,
+	).Scan(&created); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return false, fmt.Errorf("写入 finv_futu_quote_collect 失败: %w",
+			explainUniqueViolation(err, "futu.finv_futu_quote_collect"))
+	}
+	return created, nil
 }

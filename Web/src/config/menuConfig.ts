@@ -123,26 +123,35 @@ const finvQuantMenu: MenuNode[] = [
             icon: 'mdi-chart-timeline-variant',
             path: '/Meta/Finv/Quote/Realtime/FTStockRank',
           },
-          // 需求 10982：紧跟「证券行情排行」，手动触发列表采集并查看逐页日志。
+          // 需求 11159：外汇汇率（原「缺省汇率」）前移到「行情快照同步」之前 ——
+          // 汇率是快照里人民币计价字段的前提，排在采集类菜单前面更顺手。
+          {
+            key: 'quote-realtime-fxcer-overview',
+            title: '外汇汇率',
+            icon: 'mdi-cash-sync',
+            path: '/Meta/Finv/Quote/Realtime/FXCEROverview',
+          },
+          // 需求 10982 / 11158：手动触发列表采集并查看逐页日志（菜单名去掉「手动」）。
           {
             key: 'quote-realtime-snapshot-sync',
-            title: '行情快照手动同步',
+            title: '行情快照同步',
             icon: 'mdi-cloud-sync-outline',
             path: '/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync',
           },
-          // 需求 10995：usc 为空的快照行（未录入证券主数据），先只提供查询，后续支持一键录入。
+          // 需求 10995 / 11160：usc 补全后仍为空的快照行（待采证券），菜单改名「待采证券录入」。
           {
             key: 'quote-realtime-pending-secu',
-            title: '待录入证券',
+            title: '待采证券录入',
             icon: 'mdi-database-plus-outline',
             path: '/Meta/Finv/Quote/Realtime/PendingSecu',
           },
-          // 需求 10999/11000/11002：public.finv_fxcer 缺省汇率（矩阵/表格双模式 + 中文名称，手动更新）。
+          // 需求 11161：证券参数补全 —— 按目标表拆成「规范证券参数」/「采集参数」两个 Tab，
+          // 原「待采证券录入」页表格里的「录入」按钮整体迁到这里。
           {
-            key: 'quote-realtime-fxcer-overview',
-            title: '缺省汇率',
-            icon: 'mdi-cash-sync',
-            path: '/Meta/Finv/Quote/Realtime/FXCEROverview',
+            key: 'quote-realtime-secu-param-complete',
+            title: '证券参数补全',
+            icon: 'mdi-table-cog',
+            path: '/Meta/Finv/Quote/Realtime/SecuParamComplete',
           },
           // 需求 11042/11043/11044：紧跟「缺省汇率」，把 Supabase 证券键表分批增量同步到
           // futu.finv_futu_secu_key；只由本页按钮手动触发，源表名可配（系统配置 20014）。

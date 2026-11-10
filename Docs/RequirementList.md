@@ -3258,7 +3258,12 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 入队新增探测接口 `POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue/Probe`（只读，返回 `planned`/`existed`/`current`/`hint`），并按场景区分按钮：键不存在显示可点击的「确认入队」、已存在显示「更新键」（`POST .../Enqueue/Update` 改非主键字段）；未探测或键字段改动后按钮禁用，每次提交前服务端再验证一次存在性 | 11155 | 1 |
 | 入队对话框写入 `futu.finv_futu_secu_key` 的字段支持手工修改：`market`/`code`/`stock_id`/`instrument`/`status`/`flag_enable`/`priority`，主键 `ftmm_symbol` 由 `market`+`code` 派生只读；携带词表与范围校验（`instrument`、`status` 词表，`flag_enable` 0/1，`priority` 1..1000000） | 11156 | 1 |
 | 「证券参数同步」Tab 3（本地 usc 回推上游）改为 upsert：本地有、上游 `public.finv_quote_secu_key` 没有的键要**插入新记录**（按本地 `instrument`/`market`/`code`/`usc`/`priority`/`stock_id`/`status`/`flag_enable`（上游列名 `enable`）组行，`on_conflict=ftmm_symbol` + `resolution=merge-duplicates`），`note` 写 `[AUTO-FILL]` 标记便于溯源；已有行仍按 usc+priority 两列 PATCH；本地缺 `instrument`/`market`/`code` 的行计「无法插入」不插入 | 11157 | 1 |
-| **合计** | **10001–11157** | **1153**（含 2 条待办） |
+| 「行情快照手动同步」菜单改名为「行情快照同步」（菜单标题、路由 `meta.title`、页面卡片标题、菜单文档标题同步改；菜单 key 与路由路径不变，历史深链接继续可用） | 11158 | 1 |
+| 「缺省汇率」菜单改名为「外汇汇率」，并调整到「行情快照同步」菜单**之前**（`menuConfig.ts` 中「实时行情」分组下的顺序改为：证券行情排行 → 外汇汇率 → 行情快照同步 → 待采证券录入 → 证券参数补全 → 证券参数同步 → USC 映射规则；菜单 key / 路由 / 接口路径不变，数据表 `public.finv_fxcer` 与数据字典键不变） | 11159 | 1 |
+| 「待录入证券」菜单改名为「待采证券录入」（菜单标题、路由 `meta.title`、页面卡片标题、菜单文档标题同步改；页面空态文案与 info 提示同步改；菜单 key / 路由路径不变） | 11160 | 1 |
+| 新增菜单「证券参数补全」（`/Meta/Finv/Quote/Realtime/SecuParamComplete`，key `quote-realtime-secu-param-complete`），承接原「待录入证券」表格「操作」列「录入」按钮的能力，并按目标表分两个 Tab：「规范证券参数」（`public.finv_security`）与「采集参数」（`futu.finv_futu_quote_collect`）；每个 Tab 独立查询缺口清单、独立预填、独立写入（只写该 Tab 那一张表，按主键 `usc` 做 `ON CONFLICT DO NOTHING`，已存在返回 `created=false` 不覆盖）；缺口判定键 = `COALESCE(快照 usc, upper(市场标签.代码))`，存在性同时接受该键与派生键两种形态；写入前须在对话框中人工确认（两步走），预填字段带来源标记 | 11161 | 1 |
+| 「待采证券录入」页表格「操作」列只保留「入队」按钮，移除「录入」按钮与对应对话框组件（能力迁至「证券参数补全」）；后端整体录入接口 `POST .../Stock/Pending/Enroll` 保留供脚本调用，页面不再引用 | 11162 | 1 |
+| **合计** | **10001–11162** | **1158**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

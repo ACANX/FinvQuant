@@ -171,8 +171,14 @@ type RealtimeStockListFilter struct {
 	USCMissing bool
 	// FillUSCFromKey 为 true 时按派生 ftmm_symbol 左连键表补 usc（待录入页用，需求 11145）。
 	FillUSCFromKey bool
-	Limit          int
-	Offset         int
+	// MissingTarget 只列「目标主数据表里没有该证券」的行，取值见 SecuParamCompleteTarget*
+	// （「证券参数补全」菜单用，需求 11161）；空串表示不过滤。
+	//
+	// 目标键 = `COALESCE(NULLIF(btrim(t.usc), ''), upper(市场标签 || '.' || 代码))` ——
+	// 与补全写入时用的键同口径，快照 usc 有值就用它，没有才用派生键。
+	MissingTarget string
+	Limit         int
+	Offset        int
 }
 
 // RealtimeStockOrderColumns 允许排序的列白名单（列名直接拼进 SQL，必须先校验）。
