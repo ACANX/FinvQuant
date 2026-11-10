@@ -20,6 +20,18 @@
 
 ### 新增
 
+- **按「有数据才建」重建 `public.finv_security`（需求 11090，迁移 `V300174`）**
+  - 口径：只给「真有行情数据」的证券补登记（`futu.finv_futu_secu_key` 有、`finv_security` 缺、
+    且 `futu.finv_futu_quote_collect` / `cdeu.finv_quote_secu_indicator` 有记录），不做 73,212 全量扩张。
+  - 本次插入 **1,676 行**（stock/etf/index 且市场标签为 US/SH/SZ/HK），另有 31 个候选因
+    `uq_finv_security_exchange_code (exchange_code, security_code)` 撞既有行而跳过。
+  - 字段沿用既有数据同市场的多数写法：US 按 futu 市场码 10→1316 / 11→1315 / 12→1317 / 其余 1310、
+    exchange 30、USD、`-04:00`、`America/New_York`；SH 688 开头→1112 否则 1110；SZ 30 开头→1121 否则 1120；
+    HK 1201 / exchange 21；`type_secu_sub = {Stock|ETF|StockIndex}.{市场}`；名称取指标表 `name`。
+  - 未纳入（留待单独定口径）：`crypto` **2,974**（交易所变体如 `AAVE.FTUS`，现有仅收录 184 个精选）、
+    `futures` **108**（跨 NYMEX/COMEX/CBOT/HKFE 需细分）、`forex` **4**（货币指数 market 语义待定）。
+  - 实测：`finv_security` 21,844 → **23,520** 行；幂等复跑插入 0 行；克隆库先跑通再上主库。
+
 - **usc 一次性对齐 + Tab 2 改用本地权威 usc（需求 11085，迁移 `V300168`）**
   - 新增 `V300168`：把两张下游表的 `usc` 按 `futu.finv_futu_secu_key` 对齐——
     `futu.finv_futu_quote_collect`（按 `ftmm_symbol`，3,682 行）、
