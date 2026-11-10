@@ -202,6 +202,14 @@
 
 ### 变更
 
+- **提案设计清单改名 `ProposalDocCheckListSpec.md`（需求 11124）**
+  - `Docs/CheckList/PreProposalCheckListSpec.md` → `Docs/CheckList/ProposalDocCheckListSpec.md`（`git mv` 保留历史），
+    取代需求 11122 中登记的 `PreProposal` 命名。
+  - 命名口径再补一档：`Doc` 标识**产出文档**类清单（提案 = 产出一份 `Docs/Proposal/` 文档）；
+    连同既有两档 `Pre*`（环节门槛：提交前 / 合并前 / 发布前）、`Code*`（代码类工作类型：重构），
+    前缀按「工作对象或所处环节」取，不强行统一成一个词。
+  - 同步：文件内标题、`PreCommitCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径。
+
 - **检查清单文件名后缀统一为 `CheckListSpec.md`（需求 11122）**
   - `Docs/CheckList/` 下 8 份文件由 `*CheckSpec.md` 改名为 `*CheckListSpec.md`：
     `PreCommit` / `PreMerge` / `PreFrontend` / `PreBackend` / `PreDbChange` / `PreProposal` / `PreTechDesign` / `PreRefactor`。
@@ -223,7 +231,7 @@
     - [`PreDbChangeCheckListSpec.md`](CheckList/PreDbChangeCheckListSpec.md) —— 数据库（DB1–DB20）：**先授权再动手**、脚本命名与单事务、
       幂等、种子不覆盖、删除类非空守卫、修复按业务键落值、收敛校验只断结构性事实、无物理外键、
       空库全量迁移 + 真实库补迁移 + 复跑幂等 + `fk=0` 验证命令、回滚路径，并附高频事故对照表。
-    - [`PreProposalCheckListSpec.md`](CheckList/PreProposalCheckListSpec.md) —— 提案设计（PP1–PP10）：何时必须写、十章骨架
+    - [`ProposalDocCheckListSpec.md`](CheckList/ProposalDocCheckListSpec.md) —— 提案设计（PP1–PP10）：何时必须写、十章骨架
       （背景/证据/目标/非目标/候选含基线/选型/影响面/风险回滚/编号决策点/验收口径）、批准·打回·待定判定、存放命名。
     - [`PreTechDesignCheckListSpec.md`](CheckList/PreTechDesignCheckListSpec.md) —— 技术方案设计（TD1–TD13）：十二章骨架
       （契约/数据结构/时序/迁移/兼容切换/性能/观测/测试策略/回滚）与常见问题。
