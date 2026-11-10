@@ -219,6 +219,16 @@
 
 ### 变更
 
+- **修「入队确认」对话框把三个字段挤成一行（同 FE17 类错误第三次）**
+  - 现象：`将要写入键表的字段` 表里把 `status / flag_enable / priority` 并成一格、取值并成 `PENDING / 1 / 10`，
+    同一张表又混用 tooltip 交代 `ftmm_symbol` 的来源 —— 偷懒且不可核对。
+  - 修订：该表改成「字段 / 取值 / 来源或说明」三列，**一个字段一行**共 9 行
+    （`ftmm_symbol`、`market`、`code`、`stock_id`、`instrument`、`status`、`flag_enable`、`priority`、`usc`），
+    来源不再用 tooltip 顶替；`Menu/Quote/Realtime/PendingSecu.md` §2.6 同步拆成同样的表。
+  - 清单加固（第三次同类问题，必须进清单）：`FrontendCommitPreCheckListSpec` 新增
+    **FE17**「一个字段一行/一列，不合并展示」——判据是「把该行拆开后每个单元格只剩一个字段名或一个取值」；
+    **FE18**「只读回显表至少三列：字段 / 取值 / 来源或说明，不得用 tooltip 代替来源列」。
+
 - **待录入证券新增「入队」（需求 11153 / 11154）**
   - 背景：待录入证券分两类——富途还没建键的（要把键**登记进 `futu.finv_futu_secu_key`**，采集与映射链路才有依据）、
     键表已有键但 USC 规则解不出的（去「USC 映射规则」补规则）。此前没有第一个动作的入口。

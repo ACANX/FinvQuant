@@ -196,26 +196,62 @@ function close() {
           </div>
         </v-sheet>
 
-        <!-- 将要写入键表的字段（服务端派生，只读） -->
+        <!-- 将要写入键表的字段（服务端派生，只读）：一个字段一行，不合并展示 -->
         <div class="text-subtitle-2 mb-1">将要写入键表的字段</div>
-        <v-table v-if="preview" density="compact" class="mb-3">
+        <v-table v-if="preview" density="compact" class="mb-3 finv-enqueue-fields">
+          <thead>
+            <tr>
+              <th class="text-no-wrap">字段</th>
+              <th class="text-no-wrap">取值</th>
+              <th class="text-no-wrap">来源 / 说明</th>
+            </tr>
+          </thead>
           <tbody>
             <tr>
-              <td class="text-no-wrap" style="width: 180px">
-                ftmm_symbol
-                <v-tooltip text="主键：upper(市场标签.代码)，英文字母统一大写" location="bottom" max-width="320">
-                  <template #activator="{ props: tipProps }">
-                    <v-icon v-bind="tipProps" icon="mdi-information-outline" size="14" class="ml-1 text-medium-emphasis" />
-                  </template>
-                </v-tooltip>
-              </td>
-              <td><code>{{ preview.ftmm_symbol }}</code></td>
+              <td class="text-no-wrap"><code>ftmm_symbol</code></td>
+              <td class="text-no-wrap"><code>{{ preview.ftmm_symbol }}</code></td>
+              <td>主键：<code>upper(市场标签.代码)</code>，派生后只读</td>
             </tr>
-            <tr><td>market</td><td>{{ preview.market }}</td></tr>
-            <tr><td>code</td><td>{{ preview.code }}</td></tr>
-            <tr><td>stock_id</td><td>{{ preview.stock_id }}</td></tr>
-            <tr><td>status / flag_enable / priority</td><td>PENDING / 1 / 10（键表固定取值，只读）</td></tr>
-            <tr><td>usc</td><td class="text-medium-emphasis">留空（入队后由「USC 映射规则」解析）</td></tr>
+            <tr>
+              <td class="text-no-wrap"><code>market</code></td>
+              <td class="text-no-wrap">{{ preview.market }}</td>
+              <td>取自快照 <code>market_label</code></td>
+            </tr>
+            <tr>
+              <td class="text-no-wrap"><code>code</code></td>
+              <td class="text-no-wrap">{{ preview.code }}</td>
+              <td>取自快照 <code>stock_code</code></td>
+            </tr>
+            <tr>
+              <td class="text-no-wrap"><code>stock_id</code></td>
+              <td class="text-no-wrap">{{ preview.stock_id }}</td>
+              <td>取自快照证券编号</td>
+            </tr>
+            <tr>
+              <td class="text-no-wrap"><code>instrument</code></td>
+              <td class="text-no-wrap">{{ instrument || '—' }}</td>
+              <td>见下方下拉，可人工改正</td>
+            </tr>
+            <tr>
+              <td class="text-no-wrap"><code>status</code></td>
+              <td class="text-no-wrap">PENDING</td>
+              <td>键表固定取值（入队即待处理）</td>
+            </tr>
+            <tr>
+              <td class="text-no-wrap"><code>flag_enable</code></td>
+              <td class="text-no-wrap">1</td>
+              <td>键表固定取值（启用）</td>
+            </tr>
+            <tr>
+              <td class="text-no-wrap"><code>priority</code></td>
+              <td class="text-no-wrap">10</td>
+              <td>键表固定取值（最低优先级）</td>
+            </tr>
+            <tr>
+              <td class="text-no-wrap"><code>usc</code></td>
+              <td class="text-no-wrap text-medium-emphasis">留空</td>
+              <td>入队后由「USC 映射规则」解析</td>
+            </tr>
           </tbody>
         </v-table>
 
@@ -277,3 +313,16 @@ function close() {
     </v-card>
   </v-dialog>
 </template>
+
+<style scoped>
+/* 「将要写入键表的字段」表：字段名与取值等宽，说明列允许折行 */
+.finv-enqueue-fields :deep(td),
+.finv-enqueue-fields :deep(th) {
+  padding-inline: 12px;
+}
+
+.finv-enqueue-fields :deep(td:nth-child(1)),
+.finv-enqueue-fields :deep(td:nth-child(2)) {
+  white-space: nowrap;
+}
+</style>

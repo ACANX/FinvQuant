@@ -107,8 +107,19 @@
 
 对话框内容：
 
-- 将要写入键表的字段：`ftmm_symbol`（`upper(市场标签.代码)`，主键只读）、`market`、`code`、`stock_id`、
-  `status=PENDING` / `flag_enable=1` / `priority=10`（固定）、`usc` 留空；
+- 将要写入键表的字段，**一个字段一行**，列为「字段 / 取值 / 来源或说明」：
+
+  | 字段 | 取值 | 来源 / 说明 |
+  |------|------|-------------|
+  | `ftmm_symbol` | `upper(市场标签.代码)` 的结果 | 主键，派生后只读 |
+  | `market` | 快照 `market_label` | 快照行 |
+  | `code` | 快照 `stock_code` | 快照行 |
+  | `stock_id` | 快照证券编号 | 快照行 |
+  | `instrument` | 见下方下拉 | 按品种码推导，可人工改正 |
+  | `status` | `PENDING` | 键表固定取值（入队即待处理） |
+  | `flag_enable` | `1` | 键表固定取值（启用） |
+  | `priority` | `10` | 键表固定取值（最低优先级） |
+  | `usc` | 留空 | 入队后由「USC 映射规则」解析 |
 - `instrument`：按 `instrument_type`（主）与 `market_type`（兜底）推导，**唯一可人工改正**的字段，
   词表与键表一致（`stock` / `etf` / `index` / `sector` / `futures` / `crypto` / `forex` / `market`
   —— 注意板块是 `sector`，采集表才是 `sectors`）；
