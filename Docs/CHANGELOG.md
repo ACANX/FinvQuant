@@ -202,6 +202,25 @@
 
 ### 变更
 
+- **检查清单按工作类型拆分为六份专项清单（需求 11115–11121）**
+  - 原先所有条目挤在 `PreCommitCheckSpec` 里，改前端和后端要翻同一份长清单。现按工作类型各一份，存于 `Docs/CheckList/`：
+    - [`PreFrontendCheckSpec.md`](CheckList/PreFrontendCheckSpec.md) —— 前端（FE1–FE15）：枚举分层口径、单元格不读下拉 `title`、
+      长文本 ⓘ、三态、筛选与分页联动、提交值不翻译、产物哈希一致、千行表格性能。
+    - [`PreBackendCheckSpec.md`](CheckList/PreBackendCheckSpec.md) —— 后端（BE1–BE16）：错误映射与 `SQLSTATE` 不外泄、
+      `ctx` 与超时、URL 编码与字符预算分片、`ON CONFLICT` 目标列、幂等、资源释放、日志脱敏、`EXPLAIN` 证据。
+    - [`PreDbChangeCheckSpec.md`](CheckList/PreDbChangeCheckSpec.md) —— 数据库（DB1–DB20）：**先授权再动手**、脚本命名与单事务、
+      幂等、种子不覆盖、删除类非空守卫、修复按业务键落值、收敛校验只断结构性事实、无物理外键、
+      空库全量迁移 + 真实库补迁移 + 复跑幂等 + `fk=0` 验证命令、回滚路径，并附高频事故对照表。
+    - [`PreProposalCheckSpec.md`](CheckList/PreProposalCheckSpec.md) —— 提案设计（PP1–PP10）：何时必须写、十章骨架
+      （背景/证据/目标/非目标/候选含基线/选型/影响面/风险回滚/编号决策点/验收口径）、批准·打回·待定判定、存放命名。
+    - [`PreTechDesignCheckSpec.md`](CheckList/PreTechDesignCheckSpec.md) —— 技术方案设计（TD1–TD13）：十二章骨架
+      （契约/数据结构/时序/迁移/兼容切换/性能/观测/测试策略/回滚）与常见问题。
+    - [`PreRefactorCheckSpec.md`](CheckList/PreRefactorCheckSpec.md) —— 代码重构（RF1–RF13）：行为不变证据、范围冻结、
+      分步可回滚、`git mv` 保历史、格式化噪音单独提交、不留两套并行路径、覆盖不下降。
+  - [`PreCommitCheckSpec.md`](CheckList/PreCommitCheckSpec.md) §4 改为**路由表**，只指向六份专项清单；
+    本文件从此只保留通用条目 `C1–C28` 与事故表 `R1–R16`，不再随类型增厚。
+  - `AGENTS.md` 的「交付检查清单」小节登记六份新文件（仓库规范强制联动的同一处改动）。
+
 - **检查清单独立目录并按环节加 `Pre` 前缀（需求 11114）**
   - `Docs/DevSpec/CommitCheckSpec.md` → `Docs/CheckList/PreCommitCheckSpec.md`；
     `Docs/DevSpec/MergeCheckSpec.md` → `Docs/CheckList/PreMergeCheckSpec.md`。

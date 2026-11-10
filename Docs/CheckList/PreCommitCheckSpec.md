@@ -61,18 +61,19 @@ git status --short && git diff --stat
 
 ## 4. 按变更类型取最小必查集
 
-先看这张表：**只看自己这类要查的条目**，交叉变更取并集。
-不拆成"前端清单 / 后端清单"两份——清单按**检查点**组织、按**变更类型**路由，避免两份口径漂移，也避免交叉改动无处归属。
+先定位自己属于哪一类，再看该类专项清单；交叉变更取并集。
+**本文件只保留通用条目（C 组）与事故表（R 组）**，各类特有项各自一份清单，避免一份文件越写越厚。
 
-| 变更类型 | 必查条目 |
-|----------|----------|
-| 仅 Go 后端逻辑 | C1–C3、C6–C10、C20、R6、R7 |
-| 接口契约（新增/改动 API） | 上面全部 + C17–C20 + `ApiSpec` 信封与状态码 + 合并侧 `M4` |
-| 前端页面/交互 | C1–C3、C8、C21–C25、R10、R11；枚举与长文本分别过 `DictFilterSpec` / `DictColumnSpec` / `TableTextSpec` |
-| 数据库迁移 | C1–C3、C9–C16、R1–R8、R12、R13 + 空库全量迁移一遍 |
-| 文档/规范 | C1–C3、C9（`go test ./internal/docs`）、C19、C20、R9 |
-| 部署/镜像/脚本 | C1–C3、C8、C21、R15、R16 + 目标架构交叉编译（`GOOS`/`GOARCH`/`CGO_ENABLED=0`） |
-| 混合改动 | 取涉及类型的并集；仍要求「一次提交只装一件事」 |
+| 变更类型 | 专项清单 | 另需的通用条目 |
+|----------|----------|----------------|
+| 前端页面/组件/样式 | [`PreFrontendCheckSpec.md`](PreFrontendCheckSpec.md) | C1–C3、C8、C20 |
+| 后端逻辑/定时任务/外部客户端 | [`PreBackendCheckSpec.md`](PreBackendCheckSpec.md) | C1–C3、C6–C10 |
+| 表结构/数据/迁移 | [`PreDbChangeCheckSpec.md`](PreDbChangeCheckSpec.md) | C1–C3、C9–C10 |
+| 动手前的方案/选型（要拍板） | [`PreProposalCheckSpec.md`](PreProposalCheckSpec.md) | C1–C5、C20 |
+| 已批准后的技术设计 | [`PreTechDesignCheckSpec.md`](PreTechDesignCheckSpec.md) | C17–C20 |
+| 不改行为的结构调整 | [`PreRefactorCheckSpec.md`](PreRefactorCheckSpec.md) | C1–C3、C6–C10 |
+| 部署/镜像/脚本 | 共用 C 组 + [`PreDbChangeCheckSpec.md`](PreDbChangeCheckSpec.md) 的验证段 | C8、C21、R15、R16 |
+| 混合改动 | 取涉及类型并集 | 仍要求「一次提交只装一件事」 |
 
 ## 5. 通用检查清单
 
