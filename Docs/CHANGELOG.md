@@ -202,6 +202,11 @@
 
 ### 变更
 
+- **后端清单改名 `PreBackendCommitCheckListSpec.md`（需求 11126）**
+  - `Docs/CheckList/PreBackendCheckListSpec.md` → `Docs/CheckList/PreBackendCommitCheckListSpec.md`（`git mv` 保留历史），
+    取代需求 11122 中的 `PreBackend` 命名。
+  - 同步：文件内标题、`PreCommitCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径。
+
 - **代码重构清单改名 `CodeRefactorCommitCheckListSpec.md`（需求 11125）**
   - `Docs/CheckList/CodeRefactorCheckListSpec.md` → `Docs/CheckList/CodeRefactorCommitCheckListSpec.md`（`git mv` 保留历史），
     取代需求 11123 中的 `CodeRefactor` 命名。
@@ -231,7 +236,7 @@
   - 原先所有条目挤在 `PreCommitCheckListSpec` 里，改前端和后端要翻同一份长清单。现按工作类型各一份，存于 `Docs/CheckList/`：
     - [`PreFrontendCheckListSpec.md`](CheckList/PreFrontendCheckListSpec.md) —— 前端（FE1–FE15）：枚举分层口径、单元格不读下拉 `title`、
       长文本 ⓘ、三态、筛选与分页联动、提交值不翻译、产物哈希一致、千行表格性能。
-    - [`PreBackendCheckListSpec.md`](CheckList/PreBackendCheckListSpec.md) —— 后端（BE1–BE16）：错误映射与 `SQLSTATE` 不外泄、
+    - [`PreBackendCommitCheckListSpec.md`](CheckList/PreBackendCommitCheckListSpec.md) —— 后端（BE1–BE16）：错误映射与 `SQLSTATE` 不外泄、
       `ctx` 与超时、URL 编码与字符预算分片、`ON CONFLICT` 目标列、幂等、资源释放、日志脱敏、`EXPLAIN` 证据。
     - [`PreDbChangeCheckListSpec.md`](CheckList/PreDbChangeCheckListSpec.md) —— 数据库（DB1–DB20）：**先授权再动手**、脚本命名与单事务、
       幂等、种子不覆盖、删除类非空守卫、修复按业务键落值、收敛校验只断结构性事实、无物理外键、

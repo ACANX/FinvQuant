@@ -3216,7 +3216,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 两份清单补入「高频事故防守表（`R1…R16`，逐条挂真实事故与判据）」与「按变更类型取最小必查集」路由（提交侧 `C`/`R` 编号，合并侧复核范围与必验判据）；不拆前后端两份清单 | 11113 | 1 |
 | 检查清单文档统一存放 `Docs/CheckList/` 并以 `Pre` 前缀命名：`PreCommitCheckListSpec.md`、`PreMergeCheckListSpec.md`（原 `Docs/DevSpec/CommitCheckListSpec.md`、`MergeCheckListSpec.md`） | 11114 | 1 |
 | 新增 `Docs/CheckList/PreFrontendCheckListSpec.md`：前端改动专项清单（FE1–FE15，含枚举口径、长文本、三态、产物一致性与本类高频失手） | 11115 | 1 |
-| 新增 `Docs/CheckList/PreBackendCheckListSpec.md`：后端改动专项清单（BE1–BE16，含错误映射、URL 编码与分片、幂等、资源释放、性能证据） | 11116 | 1 |
+| 新增 `Docs/CheckList/PreBackendCommitCheckListSpec.md`：后端改动专项清单（BE1–BE16，含错误映射、URL 编码与分片、幂等、资源释放、性能证据） | 11116 | 1 |
 | 新增 `Docs/CheckList/PreDbChangeCheckListSpec.md`：数据库修改专项清单（DB1–DB20：授权、脚本写法、空库/真实库验证、回滚、事故对照） | 11117 | 1 |
 | 新增 `Docs/CheckList/ProposalDocCheckListSpec.md`：提案设计清单（十章骨架 + PP1–PP10 + 批准/打回/待定判定 + 存放命名） | 11118 | 1 |
 | 新增 `Docs/CheckList/PreTechDesignCheckListSpec.md`：技术方案设计清单（十二章骨架 + TD1–TD13 + 常见问题） | 11119 | 1 |
@@ -3226,7 +3226,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 代码重构清单文件名由 `PreRefactorCheckListSpec.md` 改为 `CodeRefactorCommitCheckListSpec.md`；命名口径：`Pre*` 用于环节门槛（提交前 / 合并前），`Code*` 用于代码类工作类型 | 11123 | 1 |
 | 提案设计清单文件名由 `PreProposalCheckListSpec.md` 改为 `ProposalDocCheckListSpec.md`（`Doc` 标识「产出文档」类清单，取代需求 11122 中的 `PreProposal` 命名） | 11124 | 1 |
 | 代码重构清单文件名由 `CodeRefactorCheckListSpec.md` 改为 `CodeRefactorCommitCheckListSpec.md`（补齐 `Commit` 段，改为需求 11123 中的 `CodeRefactor` 命名） | 11125 | 1 |
-| **合计** | **10001–11125** | **1121**（含 2 条待办） |
+| 后端清单文件名由 `PreBackendCheckListSpec.md` 改为 `PreBackendCommitCheckListSpec.md`（取代需求 11122 中的 `PreBackend` 命名） | 11126 | 1 |
+| **合计** | **10001–11126** | **1122**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
