@@ -28,7 +28,7 @@
 | RF9 | 命名与分层统一 | 命名符合 `DbSchemaSpec`/`FileNamingSpec`；不产生同名不同义的概念 |
 | RF10 | 测试覆盖不下降 | 受影响包测试通过；被删测试有等价替代 |
 | RF11 | 文档同步 | 受影响的设计文档、接口文档、菜单文档同步；失效结论删除而非留"历史说明" |
-| RF12 | 可回滚 | 步骤清单写明回滚动作；涉及数据的重构按 [`PreDbChangeCheckListSpec.md`](PreDbChangeCheckListSpec.md) 走 |
+| RF12 | 可回滚 | 步骤清单写明回滚动作；涉及数据的重构按 [`PreDbChangeCommitCheckListSpec.md`](PreDbChangeCommitCheckListSpec.md) 走 |
 | RF13 | 完成后清理 | 临时脚本、兼容开关、旧路径一次性清掉，或写明保留理由与清理时间 |
 
 ## 3. 步骤清单骨架

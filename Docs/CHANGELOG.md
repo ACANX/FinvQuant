@@ -202,6 +202,12 @@
 
 ### 变更
 
+- **数据库修改清单改名 `PreDbChangeCommitCheckListSpec.md`（需求 11129）**
+  - `Docs/CheckList/PreDbChangeCheckListSpec.md` → `Docs/CheckList/PreDbChangeCommitCheckListSpec.md`（`git mv` 保留历史），
+    取代需求 11122 中的 `PreDbChange` 命名。
+  - 同步：文件内标题、`PreCommitCheckListSpec` §4 路由表、其余清单的交叉引用、`AGENTS.md` 索引、
+    `Docs/RequirementList.md` 条目路径、`Docs/CHANGELOG.md` 引用。
+
 - **技术方案设计清单改名 `TechDesignDocCommitCheckListSpec.md`（需求 11128）**
   - `Docs/CheckList/PreTechDesignCheckListSpec.md` → `Docs/CheckList/TechDesignDocCommitCheckListSpec.md`（`git mv` 保留历史），
     取代需求 11122 中的 `PreTechDesign` 命名。
@@ -250,7 +256,7 @@
       长文本 ⓘ、三态、筛选与分页联动、提交值不翻译、产物哈希一致、千行表格性能。
     - [`PreBackendCommitCheckListSpec.md`](CheckList/PreBackendCommitCheckListSpec.md) —— 后端（BE1–BE16）：错误映射与 `SQLSTATE` 不外泄、
       `ctx` 与超时、URL 编码与字符预算分片、`ON CONFLICT` 目标列、幂等、资源释放、日志脱敏、`EXPLAIN` 证据。
-    - [`PreDbChangeCheckListSpec.md`](CheckList/PreDbChangeCheckListSpec.md) —— 数据库（DB1–DB20）：**先授权再动手**、脚本命名与单事务、
+    - [`PreDbChangeCommitCheckListSpec.md`](CheckList/PreDbChangeCommitCheckListSpec.md) —— 数据库（DB1–DB20）：**先授权再动手**、脚本命名与单事务、
       幂等、种子不覆盖、删除类非空守卫、修复按业务键落值、收敛校验只断结构性事实、无物理外键、
       空库全量迁移 + 真实库补迁移 + 复跑幂等 + `fk=0` 验证命令、回滚路径，并附高频事故对照表。
     - [`ProposalDocCheckListSpec.md`](CheckList/ProposalDocCheckListSpec.md) —— 提案设计（PP1–PP10）：何时必须写、十章骨架
