@@ -71,14 +71,14 @@ FinvQuant 是一个面向多资产的**严格事件驱动量化交易平台**，
 
 | 清单文件 | 用途 |
 |----------|------|
-| [`Docs/CheckList/PreCommitCheckSpec.md`](Docs/CheckList/PreCommitCheckSpec.md) | 提交前检查规范（提交者自检，C1–C28 + 一键自检命令） |
-| [`Docs/CheckList/PreMergeCheckSpec.md`](Docs/CheckList/PreMergeCheckSpec.md) | 合并前复核规范（复核人验收，M1–M6 + 证据要求 + 打回准则） |
-| [`Docs/CheckList/PreFrontendCheckSpec.md`](Docs/CheckList/PreFrontendCheckSpec.md) | 前端改动清单（枚举口径/长文本/三态/产物一致，FE1–FE15） |
-| [`Docs/CheckList/PreBackendCheckSpec.md`](Docs/CheckList/PreBackendCheckSpec.md) | 后端改动清单（错误映射/URL 编码/幂等/资源释放，BE1–BE16） |
-| [`Docs/CheckList/PreDbChangeCheckSpec.md`](Docs/CheckList/PreDbChangeCheckSpec.md) | 数据库修改清单（授权/幂等/空库迁移/回滚，DB1–DB20） |
-| [`Docs/CheckList/PreProposalCheckSpec.md`](Docs/CheckList/PreProposalCheckSpec.md) | 提案设计清单（骨架十章 + 决策点 + 通过标准，PP1–PP10） |
-| [`Docs/CheckList/PreTechDesignCheckSpec.md`](Docs/CheckList/PreTechDesignCheckSpec.md) | 技术方案设计清单（契约/数据结构/回滚/观测，TD1–TD13） |
-| [`Docs/CheckList/PreRefactorCheckSpec.md`](Docs/CheckList/PreRefactorCheckSpec.md) | 代码重构清单（行为不变证据/分步可回滚/范围冻结，RF1–RF13） |
+| [`Docs/CheckList/PreCommitCheckListSpec.md`](Docs/CheckList/PreCommitCheckListSpec.md) | 提交前检查规范（提交者自检，C1–C28 + 一键自检命令） |
+| [`Docs/CheckList/PreMergeCheckListSpec.md`](Docs/CheckList/PreMergeCheckListSpec.md) | 合并前复核规范（复核人验收，M1–M6 + 证据要求 + 打回准则） |
+| [`Docs/CheckList/PreFrontendCheckListSpec.md`](Docs/CheckList/PreFrontendCheckListSpec.md) | 前端改动清单（枚举口径/长文本/三态/产物一致，FE1–FE15） |
+| [`Docs/CheckList/PreBackendCheckListSpec.md`](Docs/CheckList/PreBackendCheckListSpec.md) | 后端改动清单（错误映射/URL 编码/幂等/资源释放，BE1–BE16） |
+| [`Docs/CheckList/PreDbChangeCheckListSpec.md`](Docs/CheckList/PreDbChangeCheckListSpec.md) | 数据库修改清单（授权/幂等/空库迁移/回滚，DB1–DB20） |
+| [`Docs/CheckList/PreProposalCheckListSpec.md`](Docs/CheckList/PreProposalCheckListSpec.md) | 提案设计清单（骨架十章 + 决策点 + 通过标准，PP1–PP10） |
+| [`Docs/CheckList/PreTechDesignCheckListSpec.md`](Docs/CheckList/PreTechDesignCheckListSpec.md) | 技术方案设计清单（契约/数据结构/回滚/观测，TD1–TD13） |
+| [`Docs/CheckList/PreRefactorCheckListSpec.md`](Docs/CheckList/PreRefactorCheckListSpec.md) | 代码重构清单（行为不变证据/分步可回滚/范围冻结，RF1–RF13） |
 
 ## 工作约定
 

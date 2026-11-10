@@ -203,36 +203,36 @@
 ### 变更
 
 - **检查清单按工作类型拆分为六份专项清单（需求 11115–11121）**
-  - 原先所有条目挤在 `PreCommitCheckSpec` 里，改前端和后端要翻同一份长清单。现按工作类型各一份，存于 `Docs/CheckList/`：
-    - [`PreFrontendCheckSpec.md`](CheckList/PreFrontendCheckSpec.md) —— 前端（FE1–FE15）：枚举分层口径、单元格不读下拉 `title`、
+  - 原先所有条目挤在 `PreCommitCheckListSpec` 里，改前端和后端要翻同一份长清单。现按工作类型各一份，存于 `Docs/CheckList/`：
+    - [`PreFrontendCheckListSpec.md`](CheckList/PreFrontendCheckListSpec.md) —— 前端（FE1–FE15）：枚举分层口径、单元格不读下拉 `title`、
       长文本 ⓘ、三态、筛选与分页联动、提交值不翻译、产物哈希一致、千行表格性能。
-    - [`PreBackendCheckSpec.md`](CheckList/PreBackendCheckSpec.md) —— 后端（BE1–BE16）：错误映射与 `SQLSTATE` 不外泄、
+    - [`PreBackendCheckListSpec.md`](CheckList/PreBackendCheckListSpec.md) —— 后端（BE1–BE16）：错误映射与 `SQLSTATE` 不外泄、
       `ctx` 与超时、URL 编码与字符预算分片、`ON CONFLICT` 目标列、幂等、资源释放、日志脱敏、`EXPLAIN` 证据。
-    - [`PreDbChangeCheckSpec.md`](CheckList/PreDbChangeCheckSpec.md) —— 数据库（DB1–DB20）：**先授权再动手**、脚本命名与单事务、
+    - [`PreDbChangeCheckListSpec.md`](CheckList/PreDbChangeCheckListSpec.md) —— 数据库（DB1–DB20）：**先授权再动手**、脚本命名与单事务、
       幂等、种子不覆盖、删除类非空守卫、修复按业务键落值、收敛校验只断结构性事实、无物理外键、
       空库全量迁移 + 真实库补迁移 + 复跑幂等 + `fk=0` 验证命令、回滚路径，并附高频事故对照表。
-    - [`PreProposalCheckSpec.md`](CheckList/PreProposalCheckSpec.md) —— 提案设计（PP1–PP10）：何时必须写、十章骨架
+    - [`PreProposalCheckListSpec.md`](CheckList/PreProposalCheckListSpec.md) —— 提案设计（PP1–PP10）：何时必须写、十章骨架
       （背景/证据/目标/非目标/候选含基线/选型/影响面/风险回滚/编号决策点/验收口径）、批准·打回·待定判定、存放命名。
-    - [`PreTechDesignCheckSpec.md`](CheckList/PreTechDesignCheckSpec.md) —— 技术方案设计（TD1–TD13）：十二章骨架
+    - [`PreTechDesignCheckListSpec.md`](CheckList/PreTechDesignCheckListSpec.md) —— 技术方案设计（TD1–TD13）：十二章骨架
       （契约/数据结构/时序/迁移/兼容切换/性能/观测/测试策略/回滚）与常见问题。
-    - [`PreRefactorCheckSpec.md`](CheckList/PreRefactorCheckSpec.md) —— 代码重构（RF1–RF13）：行为不变证据、范围冻结、
+    - [`PreRefactorCheckListSpec.md`](CheckList/PreRefactorCheckListSpec.md) —— 代码重构（RF1–RF13）：行为不变证据、范围冻结、
       分步可回滚、`git mv` 保历史、格式化噪音单独提交、不留两套并行路径、覆盖不下降。
-  - [`PreCommitCheckSpec.md`](CheckList/PreCommitCheckSpec.md) §4 改为**路由表**，只指向六份专项清单；
+  - [`PreCommitCheckListSpec.md`](CheckList/PreCommitCheckListSpec.md) §4 改为**路由表**，只指向六份专项清单；
     本文件从此只保留通用条目 `C1–C28` 与事故表 `R1–R16`，不再随类型增厚。
   - `AGENTS.md` 的「交付检查清单」小节登记六份新文件（仓库规范强制联动的同一处改动）。
 
 - **检查清单独立目录并按环节加 `Pre` 前缀（需求 11114）**
-  - `Docs/DevSpec/CommitCheckSpec.md` → `Docs/CheckList/PreCommitCheckSpec.md`；
-    `Docs/DevSpec/MergeCheckSpec.md` → `Docs/CheckList/PreMergeCheckSpec.md`。
+  - `Docs/DevSpec/CommitCheckListSpec.md` → `Docs/CheckList/PreCommitCheckListSpec.md`；
+    `Docs/DevSpec/MergeCheckListSpec.md` → `Docs/CheckList/PreMergeCheckListSpec.md`。
   - 新建 `Docs/CheckList/` 专放「交付环节检查清单」，与 `Docs/DevSpec/`（长期规范）分开放；文件名以 `Pre` 标识所处环节
-    （提交前 / 合并前），后续如加发布前清单按 `PreReleaseCheckSpec.md` 续用同一前缀。
+    （提交前 / 合并前），后续如加发布前清单按 `PreReleaseCheckListSpec.md` 续用同一前缀。
   - 同步更新：两份清单内的相互引用与 `../DevSpec/*` 相对链接、`AGENTS.md` 索引（改为独立小节「交付检查清单」）、
     `Docs/RequirementList.md` 的 11111 / 11112 条目路径、`Docs/CHANGELOG.md` 中的链接目标。
 
 - **两份检查清单补入高频事故防守与按变更类型的定向检查（需求 11113）**
   - 原清单只有通用最佳实践（编译过、测试绿、文档同步），而本项目实际返工集中在少数几个坑上，
     这些只散在对话记录里，换个人/换个会话就丢。
-  - `PreCommitCheckSpec` 新增 **§3 事故防守**：`R1…R16` 十六条，逐条「事故（真实发生过）→ 防守判据」——
+  - `PreCommitCheckListSpec` 新增 **§3 事故防守**：`R1…R16` 十六条，逐条「事故（真实发生过）→ 防守判据」——
     删除类迁移在空库误删种子、数据修复只改标记列就断言、收敛校验用绝对阈值导致服务重启循环、
     物理外键残留、`ON CONFLICT (idn)` 而 INSERT 不含 `idn`、外部 REST 过滤值未编码被截断、
     写生成列、种子 `DO UPDATE` 覆盖用户值、Markdown 表格竖线/空行、`中文[值]` 溢出到表格列、
@@ -243,13 +243,13 @@
   - 明确**不拆成前端/后端两份清单**：交叉改动无处归属、两份口径必然漂移；用"一份清单 + 变更类型路由"实现针对性。
 
 - **新增提交前检查规范与合并前复核规范，固化前后端开发流程（需求 11111 / 11112）**
-  - [`Docs/CheckList/PreCommitCheckSpec.md`](CheckList/PreCommitCheckSpec.md) —— **提交前检查规范**（提交者自检）：
+  - [`Docs/CheckList/PreCommitCheckListSpec.md`](CheckList/PreCommitCheckListSpec.md) —— **提交前检查规范**（提交者自检）：
     §1 用法（不适用要写原因、单条编号可在提交正文引用、一次提交一件事）、§2 一键自检命令表、
     §3 六组共 28 条清单（范围与授权 C1–C5、编译与测试 C6–C10、数据库迁移 C11–C16、
     接口与文档 C17–C20、前端 C21–C25、提交本身 C26–C28），每条都给可核对的判据；
     §4 六条红线（未授权改表、明文密钥、写生成列、靠 `t.Skip` 变绿、`--no-verify`、混入非仓库文件）；
     §5 豁免写法；§6 条目新增规则（来源必须有据、判据必须可证伪、一条只查一件事、只增不改）。
-  - [`Docs/CheckList/PreMergeCheckSpec.md`](CheckList/PreMergeCheckSpec.md) —— **合并前复核规范**（复核人验收）：
+  - [`Docs/CheckList/PreMergeCheckListSpec.md`](CheckList/PreMergeCheckListSpec.md) —— **合并前复核规范**（复核人验收）：
     §1 角色与时机（复核人非提交者，结论只有通过/打回）、§2 代码复核/一致性复核/功能验收三类不可混、
     §3 六组清单（M1 需求与范围、M2 代码、M3 迁移含空库全量迁移与幂等与回滚、M4 接口文档一致性、
     M5 功能验收证据、M6 合并动作）、§4 证据要求与 PR 描述模板、§5 八条强制打回情形、

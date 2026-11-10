@@ -3211,17 +3211,17 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 字典值展示口径：**下拉选项**用 `中文[值]`；**表格列只显示中文值**，不得带键（如显示 `生效` 而非 `生效[ACTIVE]`、`美股` 而非 `美股[US]`）；未登记值原样显示 | 11108 | 1 |
 | 新增开发规范 `Docs/DevSpec/DictFilterSpec.md`：字典/可枚举的**查询筛选控件**选项统一 `中文[值]`，含适用判定、首项「全部 X」空值语义、触发时机、选项来源核对、布局一致性、自检清单与反例 | 11109 | 1 |
 | 新增开发规范 `Docs/DevSpec/DictColumnSpec.md`：字典/可枚举的**表格列**只显示中文（不带键），含适用判定、空值与未登记值口径、状态列 chip 语义色、需要看键时的三处出口、自检清单与反例（与 `DictFilterSpec.md` 各自独立成篇） | 11110 | 1 |
-| 新增开发规范 `Docs/CheckList/PreCommitCheckSpec.md`：代码递交前的检查清单（C1–C28 分组条目 + 一键自检命令 + 红线 + 豁免写法 + 条目新增规则） | 11111 | 1 |
-| 新增开发规范 `Docs/CheckList/PreMergeCheckSpec.md`：PR 合并前的校验复核与功能验收清单（M1–M6：需求/代码/迁移/文档一致性/功能验收证据/合并动作 + 打回准则 + PR 模板） | 11112 | 1 |
+| 新增开发规范 `Docs/CheckList/PreCommitCheckListSpec.md`：代码递交前的检查清单（C1–C28 分组条目 + 一键自检命令 + 红线 + 豁免写法 + 条目新增规则） | 11111 | 1 |
+| 新增开发规范 `Docs/CheckList/PreMergeCheckListSpec.md`：PR 合并前的校验复核与功能验收清单（M1–M6：需求/代码/迁移/文档一致性/功能验收证据/合并动作 + 打回准则 + PR 模板） | 11112 | 1 |
 | 两份清单补入「高频事故防守表（`R1…R16`，逐条挂真实事故与判据）」与「按变更类型取最小必查集」路由（提交侧 `C`/`R` 编号，合并侧复核范围与必验判据）；不拆前后端两份清单 | 11113 | 1 |
-| 检查清单文档统一存放 `Docs/CheckList/` 并以 `Pre` 前缀命名：`PreCommitCheckSpec.md`、`PreMergeCheckSpec.md`（原 `Docs/DevSpec/CommitCheckSpec.md`、`MergeCheckSpec.md`） | 11114 | 1 |
-| 新增 `Docs/CheckList/PreFrontendCheckSpec.md`：前端改动专项清单（FE1–FE15，含枚举口径、长文本、三态、产物一致性与本类高频失手） | 11115 | 1 |
-| 新增 `Docs/CheckList/PreBackendCheckSpec.md`：后端改动专项清单（BE1–BE16，含错误映射、URL 编码与分片、幂等、资源释放、性能证据） | 11116 | 1 |
-| 新增 `Docs/CheckList/PreDbChangeCheckSpec.md`：数据库修改专项清单（DB1–DB20：授权、脚本写法、空库/真实库验证、回滚、事故对照） | 11117 | 1 |
-| 新增 `Docs/CheckList/PreProposalCheckSpec.md`：提案设计清单（十章骨架 + PP1–PP10 + 批准/打回/待定判定 + 存放命名） | 11118 | 1 |
-| 新增 `Docs/CheckList/PreTechDesignCheckSpec.md`：技术方案设计清单（十二章骨架 + TD1–TD13 + 常见问题） | 11119 | 1 |
-| 新增 `Docs/CheckList/PreRefactorCheckSpec.md`：代码重构清单（四条原则 + RF1–RF13 + 步骤清单骨架） | 11120 | 1 |
-| `PreCommitCheckSpec.md` §4 路由表改为指向六份专项清单，本文件只保留通用 C 组与事故 R 组 | 11121 | 1 |
+| 检查清单文档统一存放 `Docs/CheckList/` 并以 `Pre` 前缀命名：`PreCommitCheckListSpec.md`、`PreMergeCheckListSpec.md`（原 `Docs/DevSpec/CommitCheckListSpec.md`、`MergeCheckListSpec.md`） | 11114 | 1 |
+| 新增 `Docs/CheckList/PreFrontendCheckListSpec.md`：前端改动专项清单（FE1–FE15，含枚举口径、长文本、三态、产物一致性与本类高频失手） | 11115 | 1 |
+| 新增 `Docs/CheckList/PreBackendCheckListSpec.md`：后端改动专项清单（BE1–BE16，含错误映射、URL 编码与分片、幂等、资源释放、性能证据） | 11116 | 1 |
+| 新增 `Docs/CheckList/PreDbChangeCheckListSpec.md`：数据库修改专项清单（DB1–DB20：授权、脚本写法、空库/真实库验证、回滚、事故对照） | 11117 | 1 |
+| 新增 `Docs/CheckList/PreProposalCheckListSpec.md`：提案设计清单（十章骨架 + PP1–PP10 + 批准/打回/待定判定 + 存放命名） | 11118 | 1 |
+| 新增 `Docs/CheckList/PreTechDesignCheckListSpec.md`：技术方案设计清单（十二章骨架 + TD1–TD13 + 常见问题） | 11119 | 1 |
+| 新增 `Docs/CheckList/PreRefactorCheckListSpec.md`：代码重构清单（四条原则 + RF1–RF13 + 步骤清单骨架） | 11120 | 1 |
+| `PreCommitCheckListSpec.md` §4 路由表改为指向六份专项清单，本文件只保留通用 C 组与事故 R 组 | 11121 | 1 |
 | **合计** | **10001–11121** | **1117**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。

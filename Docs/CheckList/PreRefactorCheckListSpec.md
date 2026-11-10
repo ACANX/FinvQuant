@@ -1,8 +1,8 @@
-# 代码重构检查清单（PreRefactorCheckSpec）
+# 代码重构检查清单（PreRefactorCheckListSpec）
 
 > 所属：FinvQuant 交付检查清单 · 存放：`Docs/CheckList/`
 > 用法：本清单**只列本类特有项**。通用项（范围授权、编译测试、提交纪律、红线）不重复，
-> 按 [`PreCommitCheckSpec.md`](PreCommitCheckSpec.md) §4 路由取；合并侧复核见 [`PreMergeCheckSpec.md`](PreMergeCheckSpec.md)。
+> 按 [`PreCommitCheckListSpec.md`](PreCommitCheckListSpec.md) §4 路由取；合并侧复核见 [`PreMergeCheckListSpec.md`](PreMergeCheckListSpec.md)。
 > 适用：不改变外部行为的前提下调整结构（改名、拆包、抽函数、换实现、迁文件）。
 > 存放：落地步骤清单 `Docs/Refactor/yyMM-NNN-大驼峰名称.md`（编号在 `Docs/` 下全局唯一，见 [`FileNamingSpec.md`](../DevSpec/FileNamingSpec.md) §4）。
 
@@ -28,7 +28,7 @@
 | RF9 | 命名与分层统一 | 命名符合 `DbSchemaSpec`/`FileNamingSpec`；不产生同名不同义的概念 |
 | RF10 | 测试覆盖不下降 | 受影响包测试通过；被删测试有等价替代 |
 | RF11 | 文档同步 | 受影响的设计文档、接口文档、菜单文档同步；失效结论删除而非留"历史说明" |
-| RF12 | 可回滚 | 步骤清单写明回滚动作；涉及数据的重构按 [`PreDbChangeCheckSpec.md`](PreDbChangeCheckSpec.md) 走 |
+| RF12 | 可回滚 | 步骤清单写明回滚动作；涉及数据的重构按 [`PreDbChangeCheckListSpec.md`](PreDbChangeCheckListSpec.md) 走 |
 | RF13 | 完成后清理 | 临时脚本、兼容开关、旧路径一次性清掉，或写明保留理由与清理时间 |
 
 ## 3. 步骤清单骨架
@@ -52,4 +52,4 @@
 
 ## 5. 条目新增规则
 
-同 [`PreCommitCheckSpec.md`](PreCommitCheckSpec.md) §8。
+同 [`PreCommitCheckListSpec.md`](PreCommitCheckListSpec.md) §8。
