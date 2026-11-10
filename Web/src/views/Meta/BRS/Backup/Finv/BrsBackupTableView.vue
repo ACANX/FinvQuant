@@ -299,9 +299,9 @@ onMounted(load)
               <v-select
                 v-model="form.bak_scope"
                 :items="[
-                  { title: '结构+数据（both）', value: 'both' },
-                  { title: '仅结构（schema）', value: 'schema' },
-                  { title: '仅数据（data）', value: 'data' },
+                  { title: '结构+数据[both]', value: 'both' },
+                  { title: '仅结构[schema]', value: 'schema' },
+                  { title: '仅数据[data]', value: 'data' },
                 ]"
                 item-title="title"
                 item-value="value"

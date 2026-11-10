@@ -77,11 +77,11 @@ const CLEANUP_STATUS_NAME: Record<string, string> = {
 }
 
 const uploadStatusItems = Object.keys(UPLOAD_STATUS_NAME).map((value) => ({
-  title: `${value}（${UPLOAD_STATUS_NAME[value]}）`,
+  title: `${UPLOAD_STATUS_NAME[value]}[${value}]`,
   value,
 }))
 const fileTypeItems = Object.keys(FILE_TYPE_NAME).map((value) => ({
-  title: `${value}（${FILE_TYPE_NAME[value]}）`,
+  title: `${FILE_TYPE_NAME[value]}[${value}]`,
   value,
 }))
 

@@ -321,16 +321,16 @@ onBeforeUnmount(() => {
             <v-row>
               <v-col cols="6">
                 <v-select v-model="period" :items="[
-                  { title: '分钟（Min）', value: 'Min' },
-                  { title: '小时（Hour）', value: 'Hour' },
-                  { title: '日（Day）', value: 'Day' },
+                  { title: '分钟[Min]', value: 'Min' },
+                  { title: '小时[Hour]', value: 'Hour' },
+                  { title: '日[Day]', value: 'Day' },
                 ]" label="回测数据周期" />
               </v-col>
               <v-col cols="6">
                 <v-select v-model="reportPrecision" :items="[
-                  { title: '日（Day）', value: 'Day' },
-                  { title: '小时（Hour）', value: 'Hour' },
-                  { title: '分钟（Min）', value: 'Min' },
+                  { title: '日[Day]', value: 'Day' },
+                  { title: '小时[Hour]', value: 'Hour' },
+                  { title: '分钟[Min]', value: 'Min' },
                 ]" label="报告时间精度" hint="曲线数据粒度" />
               </v-col>
             </v-row>

@@ -26,6 +26,59 @@ import { showToast } from '../../../../../ui/toast'
 
 const BASE = '/Meta/Finv/Quote/UscMap'
 
+// ---------- 枚举下拉选项（值 + 中文翻译） ----------
+//
+// 取值以数据库 CHECK 约束与存量数据为准：
+//   action      → finv_futu_usc_rule_item_action_chk（CODE/FTMM/LITERAL/REWRITE/SH4）
+//   status      → finv_futu_usc_rule_item_status_chk（ACTIVE/PENDING/RETIRED）
+//   instrument  → futu.finv_futu_secu_key.instrument 实际出现过的 8 种
+const ACTION_OPTIONS = [
+  { title: '取证券代码[CODE]', value: 'CODE' },
+  { title: '取富途全码[FTMM]', value: 'FTMM' },
+  { title: '取固定字面量[LITERAL]', value: 'LITERAL' },
+  { title: '按正则替换[REWRITE]', value: 'REWRITE' },
+  { title: '沪市指数四位码[SH4]', value: 'SH4' },
+]
+const ACTION_LABELS: Record<string, string> = {
+  CODE: '取证券代码',
+  FTMM: '取富途全码',
+  LITERAL: '取固定字面量',
+  REWRITE: '按正则替换',
+  SH4: '沪市指数四位码',
+}
+
+const STATUS_OPTIONS = [
+  { title: '生效[ACTIVE]', value: 'ACTIVE' },
+  { title: '待生效[PENDING]', value: 'PENDING' },
+  { title: '已停用[RETIRED]', value: 'RETIRED' },
+]
+const STATUS_LABELS: Record<string, string> = {
+  ACTIVE: '生效',
+  PENDING: '待生效',
+  RETIRED: '已停用',
+}
+
+const INSTRUMENT_OPTIONS = [
+  { title: '股票[stock]', value: 'stock' },
+  { title: 'ETF / 交易所交易基金[etf]', value: 'etf' },
+  { title: '指数[index]', value: 'index' },
+  { title: '板块 / 行业分类[sector]', value: 'sector' },
+  { title: '大盘 / 市场整体[market]', value: 'market' },
+  { title: '加密货币[crypto]', value: 'crypto' },
+  { title: '外汇[forex]', value: 'forex' },
+  { title: '期货[futures]', value: 'futures' },
+]
+const INSTRUMENT_LABELS: Record<string, string> = {
+  stock: '股票',
+  etf: 'ETF',
+  index: '指数',
+  sector: '板块',
+  market: '大盘',
+  crypto: '加密货币',
+  forex: '外汇',
+  futures: '期货',
+}
+
 // ---------- 类型 ----------
 interface Rule {
   rule_no: string
@@ -617,9 +670,23 @@ function diffColor(diff: string): string {
   }
 }
 
+// 动作 / 状态 / 品种在列表里显示「值（中文）」，未知值原样显示，避免信息丢失
 function actionText(action?: string | null): string {
   if (!action) return '（规则默认）'
-  return action
+  const cn = ACTION_LABELS[action]
+  return cn ? `${cn}[${action}]` : action
+}
+
+function statusText(value?: string | null): string {
+  if (!value) return '—'
+  const cn = STATUS_LABELS[value]
+  return cn ? `${cn}[${value}]` : value
+}
+
+function instrumentText(value?: string | null): string {
+  if (!value) return '—'
+  const cn = INSTRUMENT_LABELS[value]
+  return cn ? `${cn}[${value}]` : value
 }
 
 function statusColor(value: string): string {
@@ -708,9 +775,9 @@ onBeforeUnmount(stopPolling)
                   v-model="filterStatus"
                   :items="[
                     { title: '全部状态', value: '' },
-                    { title: '生效', value: 'ACTIVE' },
-                    { title: '待生效', value: 'PENDING' },
-                    { title: '已停用', value: 'RETIRED' },
+                    { title: '生效[ACTIVE]', value: 'ACTIVE' },
+                    { title: '待生效[PENDING]', value: 'PENDING' },
+                    { title: '已停用[RETIRED]', value: 'RETIRED' },
                   ]"
                   density="compact"
                   variant="outlined"
@@ -753,14 +820,14 @@ onBeforeUnmount(stopPolling)
                   <tr v-for="item in items" :key="item.idn">
                     <td>{{ item.rule_no }}</td>
                     <td>{{ item.market ?? '—' }}</td>
-                    <td>{{ item.instrument ?? '—' }}</td>
+                    <td>{{ instrumentText(item.instrument) }}</td>
                     <td>{{ item.code ?? '—' }}</td>
                     <td>{{ item.code_regex ?? '—' }}</td>
                     <td>{{ actionText(item.action) }}</td>
                     <td>{{ item.usc_literal ?? item.rewrite_tpl ?? '—' }}</td>
                     <td>
                       <v-chip :color="statusColor(item.status)" size="x-small" variant="tonal">
-                        {{ item.status }}
+                        {{ statusText(item.status) }}
                       </v-chip>
                     </td>
                     <td class="text-caption">
@@ -1055,7 +1122,15 @@ onBeforeUnmount(stopPolling)
               <v-text-field v-model="editForm.market" label="市场" density="compact" variant="outlined" />
             </v-col>
             <v-col cols="12" md="3">
-              <v-text-field v-model="editForm.instrument" label="品种" density="compact" variant="outlined" />
+              <v-combobox
+                v-model="editForm.instrument"
+                :items="INSTRUMENT_OPTIONS"
+                label="品种（可选可填）"
+                density="compact"
+                variant="outlined"
+                clearable
+                hide-details="auto"
+              />
             </v-col>
             <v-col cols="12" md="6">
               <v-text-field v-model="editForm.code" label="代码（精确匹配）" density="compact" variant="outlined" />
@@ -1066,11 +1141,12 @@ onBeforeUnmount(stopPolling)
             <v-col cols="12" md="4">
               <v-select
                 v-model="editForm.action"
-                :items="['CODE', 'FTMM', 'LITERAL', 'REWRITE', 'SH4']"
+                :items="ACTION_OPTIONS"
                 label="动作（空=规则默认）"
                 density="compact"
                 variant="outlined"
                 clearable
+                hide-details="auto"
               />
             </v-col>
             <v-col cols="12" md="4">
@@ -1082,10 +1158,11 @@ onBeforeUnmount(stopPolling)
             <v-col cols="12" md="4">
               <v-select
                 v-model="editForm.status"
-                :items="['ACTIVE', 'PENDING', 'RETIRED']"
+                :items="STATUS_OPTIONS"
                 label="状态"
                 density="compact"
                 variant="outlined"
+                hide-details="auto"
               />
             </v-col>
             <v-col cols="12" md="4">

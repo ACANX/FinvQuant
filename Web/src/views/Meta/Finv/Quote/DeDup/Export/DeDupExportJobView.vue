@@ -56,7 +56,7 @@ const JOB_STATUS_COLOR: Record<string, string> = {
   FAILED: 'error',
   FROZEN: 'deep-purple',
 }
-const statusItems = Object.keys(JOB_STATUS_NAME).map((value) => ({ title: `${value}（${JOB_STATUS_NAME[value]}）`, value }))
+const statusItems = Object.keys(JOB_STATUS_NAME).map((value) => ({ title: `${JOB_STATUS_NAME[value]}[${value}]`, value }))
 
 const status = ref<string | null>(null)
 const usc = ref('')

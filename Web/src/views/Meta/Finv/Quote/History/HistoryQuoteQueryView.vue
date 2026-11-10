@@ -693,7 +693,7 @@ function renderChart(bars: QuoteBar[], preserveZoom = false) {
             <v-select
               v-model="period"
               label="周期"
-              :items="[{ title: '1分（Min）', value: 'Min' }]"
+              :items="[{ title: '1分[Min]', value: 'Min' }]"
               density="compact"
               hide-details
             />

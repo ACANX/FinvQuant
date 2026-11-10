@@ -135,7 +135,7 @@ onMounted(load)
         <v-col cols="12" sm="6">
           <v-select
             v-model="form.protocol"
-            :items="[{ title: 's3（S3 兼容协议）', value: 's3' }, { title: 'local（本地目录）', value: 'local' }]"
+            :items="[{ title: 'S3 兼容协议[s3]', value: 's3' }, { title: '本地目录[local]', value: 'local' }]"
             item-title="title"
             item-value="value"
             label="协议 protocol"

@@ -67,7 +67,7 @@ const MATURITY_COLOR: Record<string, string> = {
   COMPLETE: 'success',
   FROZEN: 'deep-purple',
 }
-const maturityStatusItems = Object.keys(MATURITY_NAME).map((value) => ({ title: `${value}（${MATURITY_NAME[value]}）`, value }))
+const maturityStatusItems = Object.keys(MATURITY_NAME).map((value) => ({ title: `${MATURITY_NAME[value]}[${value}]`, value }))
 
 const tab = ref('stats')
 const error = ref('')

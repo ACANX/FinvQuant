@@ -202,6 +202,24 @@
 
 ### 变更
 
+- **前端枚举标签统一为 `中文[值]` 风格，USC 条目补齐三个下拉（需求 11099）**
+  - `UscMappingView` 编辑对话框：**动作 / 状态 / 品种** 从「动作/状态是裸英文枚举、品种是空白输入框」
+    改为带中文翻译的下拉（品种用 `v-combobox`，既可选又可自由填写，兼容历史值）。
+    - 动作 `取证券代码[CODE]` / `取富途全码[FTMM]` /
+      `取固定字面量[LITERAL]` / `按正则替换[REWRITE]` /
+      `沪市指数四位码[SH4]`，留空 = 规则默认动作；
+    - 状态 `生效[ACTIVE]` / `待生效[PENDING]` / `已停用[RETIRED]`；
+    - 品种 `股票[stock]` / `ETF / 交易所交易基金[etf]` / `指数[index]` / `板块 / 行业分类[sector]` /
+      `大盘 / 市场整体[market]` / `加密货币[crypto]` / `外汇[forex]` / `期货[futures]`（取自
+      `futu.finv_futu_secu_key.instrument` 实际出现过的 8 种），留空 = 通配任意品种。
+  - 条目列表的品种/动作/状态列同步显示 `中文[值]`（未知值原样显示）。
+  - 同一风格横扫菜单内其他同类枚举下拉：`DeDupArchiveStatsView`（到期状态）、
+    `DeDupExportFileView`（上传状态/文件类型）、`DeDupExportJobView`（任务状态）、
+    `HistoryQuoteImportView`（覆盖模式）、`HistoryQuoteQueryView`、`BacktestGoldFuturesView`（周期）、
+    `BrsBackupTableView`（备份内容）、`BrsOssConfigView`（协议）、`BrsSliceView`（分区/压缩）。
+  - 纯注释型括注（如 `Endpoint（R2：…）`、`MA（5 周期）`、`结构由迁移创建`）不属于枚举翻译，保持原样。
+  - 文档：`Docs/Menu/Quote/Realtime/UscMapping.md` §2.2 新增三个下拉的选项表；前端 `vue-tsc` + `vite build` 通过。
+
 - **修复 USC 条目「保存失败：duplicate key value violates unique constraint」（需求 11098）**
   - 现象：维护页新增/编辑条目保存时报
     `保存条目失败: ERROR: duplicate key value violates unique constraint "finv_futu_usc_rule_item_key"`。

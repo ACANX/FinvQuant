@@ -168,11 +168,11 @@ const statusColor = computed(() => {
 })
 
 const modeItems = [
-  { title: '按自然日（date）', value: 'date' },
-  { title: '按 ISO 周（week）', value: 'week' },
-  { title: '按自然月（month）', value: 'month' },
-  { title: '按列值（column）', value: 'column' },
-  { title: '自定义 SQL（expr）', value: 'expr' },
+  { title: '按自然日[date]', value: 'date' },
+  { title: '按 ISO 周[week]', value: 'week' },
+  { title: '按自然月[month]', value: 'month' },
+  { title: '按列值[column]', value: 'column' },
+  { title: '自定义 SQL[expr]', value: 'expr' },
 ]
 
 function emptyRule(): SliceRule {
@@ -518,7 +518,7 @@ onBeforeUnmount(() => window.clearTimeout(timer))
           <v-col cols="12" sm="3">
             <v-select
               v-model="form.compression"
-              :items="[{ title: 'gzip（默认）', value: 'gzip' }, { title: '不压缩', value: 'none' }]"
+              :items="[{ title: '默认[gzip]', value: 'gzip' }, { title: '不压缩[none]', value: 'none' }]"
               item-title="title"
               item-value="value"
               label="压缩"
@@ -554,7 +554,7 @@ onBeforeUnmount(() => window.clearTimeout(timer))
           <v-col cols="12" sm="4">
             <v-select
               v-model="form.bak_scope"
-              :items="[{ title: 'data（仅数据，结构由迁移创建）', value: 'data' }]"
+              :items="[{ title: '仅数据，结构由迁移创建[data]', value: 'data' }]"
               item-title="title"
               item-value="value"
               label="备份范围"

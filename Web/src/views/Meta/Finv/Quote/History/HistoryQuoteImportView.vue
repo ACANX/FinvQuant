@@ -515,8 +515,8 @@ async function submitImport() {
           v-model="upsertMode"
           label="覆盖模式"
           :items="[
-            { title: 'FIELD（只覆盖有值的字段，推荐）', value: 'FIELD' },
-            { title: 'ROW（整行覆盖）', value: 'ROW' },
+            { title: '只覆盖有值的字段，推荐[FIELD]', value: 'FIELD' },
+            { title: '整行覆盖[ROW]', value: 'ROW' },
           ]"
         />
         <v-checkbox v-model="confirmChecked" label="我确认导入将覆盖同时刻同证券的对应字段值" />
