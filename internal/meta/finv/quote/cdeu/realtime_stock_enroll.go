@@ -250,6 +250,8 @@ SELECT t.stock_id,
        ref.market_code, ref.sub_instrument_type, ref.instrument,
        sec_conflict.usc  AS security_conflict_usc,
        col_conflict.usc  AS collect_conflict_usc,
+       ref_sec.req_section AS ref_req_section,
+       ref_mt.market_type  AS ref_market_type,
        tz_ex.timezone    AS exchange_tz_offset,
        tz_ex.tz          AS exchange_tz_name,
        tz_rg.timezone    AS region_tz_offset,
@@ -272,6 +274,25 @@ SELECT t.stock_id,
          ORDER BY count(*) DESC, 1
          LIMIT 1
   ) ref ON true
+  -- 采集参数缺省推断（需求 11166）：同市场同品种的 req_section 众数
+  LEFT JOIN LATERAL (
+        SELECT COALESCE(btrim(q.req_section), '') AS req_section
+          FROM futu.finv_futu_quote_collect q
+         WHERE q.market_label = btrim(t.market_label)
+           AND q.instrument_type = ` + pendingSecuInstrumentTypeExpr + `
+         GROUP BY 1
+         ORDER BY count(*) DESC, 1
+         LIMIT 1
+  ) ref_sec ON true
+  -- 采集参数缺省推断（需求 11166）：同市场的 market_type 众数
+  LEFT JOIN LATERAL (
+        SELECT q.market_type
+          FROM futu.finv_futu_quote_collect q
+         WHERE q.market_label = btrim(t.market_label)
+         GROUP BY 1
+         ORDER BY count(*) DESC, 1
+         LIMIT 1
+  ) ref_mt ON true
   -- 时区缺省值（需求 11165）：同交易所已有行的 (timezone, tz) 众数
   LEFT JOIN LATERAL (
         SELECT s.timezone, s.tz
@@ -328,12 +349,15 @@ SELECT t.stock_id,
 		exchangeTZOffset, exchangeTZName            *string
 		regionTZOffset, regionTZName                *string
 		exchangeRegion                              string
+		refReqSection                               *string
+		refMarketType                               *int
 	)
 	if err := s.pool.QueryRow(ctx, stmt, stockID).Scan(
 		&result.StockID, &usc, &stockCode, &name, &marketLabel, &currency,
 		&exchangeCode, &baseCurrency, &instrumentTypeRaw, &marketTypeRaw,
 		&refMarketCode, &refSubInstrumentType, &refInstrument,
 		&securityConflictUSC, &collectConflictUSC,
+		&refReqSection, &refMarketType,
 		&exchangeTZOffset, &exchangeTZName,
 		&regionTZOffset, &regionTZName,
 		&exchangeRegion,
@@ -351,18 +375,6 @@ SELECT t.stock_id,
 		snapshotMarketType = parseIntOr(*marketTypeRaw, 0)
 	}
 	instrumentType := parseIntOr(instrumentTypeRaw, 3)
-	marketType := snapshotMarketType
-	if marketType == 0 {
-		// 快照没有 market_type 时按市场标签推：HK=1、US=2、A 股（SH/SZ/BJ）=4。
-		switch marketLabel {
-		case "HK":
-			marketType = 1
-		case "US":
-			marketType = 2
-		default:
-			marketType = 4
-		}
-	}
 
 	// ---- public.finv_security ----
 	securityNameCN := name
@@ -401,10 +413,17 @@ SELECT t.stock_id,
 	if refMarketCode != nil && *refMarketCode > 0 {
 		marketCode, marketCodeSource = *refMarketCode, PrefillSourceReference
 	}
-	subType, subTypeSource := subInstrumentType(instrumentType), PrefillSourceDefault
+	// instrument_type 归一口径只用于**推缺省值**（12 与 3 同为股票；采集表存量以 3 为主）：
+	// 写库仍用快照原值，避免擅自改动下游（日K同步）实际拿到的品种码。
+	normalizedType := normalizeInstrumentType(instrumentType)
+	subType, subTypeSource := subInstrumentType(normalizedType), PrefillSourceDefault
 	if refSubInstrumentType != nil && *refSubInstrumentType > 0 {
 		subType, subTypeSource = *refSubInstrumentType, PrefillSourceReference
 	}
+	// market_type：快照优先 → 同市场已有行众数（需求 11166）→ 内置市场映射
+	marketType, marketTypeSource := deriveMarketType(snapshotMarketType, refMarketType, marketLabel)
+	// req_section：同市场同品种众数（需求 11166），没有参考行时留空（选填）
+	reqSection, reqSectionSource, reqSectionNote := deriveReqSection(refReqSection)
 	instrument, instrumentSource := instrumentByInstrumentType(instrumentType), PrefillSourceDictionary
 	if refInstrument != nil && strings.TrimSpace(*refInstrument) != "" {
 		instrument, instrumentSource = strings.TrimSpace(*refInstrument), PrefillSourceReference
@@ -428,19 +447,21 @@ SELECT t.stock_id,
 		{Key: "futu_symbol", Label: "futu_symbol 富途代码", Value: stockCode, Source: PrefillSourceSnapshot,
 			Required: true, Note: "取自快照 stock_code（非字母字符原样保留）"},
 		{Key: "market_type", Label: "market_type 市场类型", Value: itoa(marketType),
-			Source: sourceOf(snapshotMarketType != 0, PrefillSourceSnapshot), Required: true,
-			Note: "快照 market_type 优先；缺省 HK=1 / US=2 / A股=4"},
+			Source: marketTypeSource, Required: true,
+			Note: marketTypeNote(marketTypeSource, snapshotMarketType, marketLabel)},
 		{Key: "market_code", Label: "market_code 市场细码", Value: marketCodeValue,
 			Source: marketCodeSource, Required: true, Note: marketCodeNote},
 		{Key: "instrument_type", Label: "instrument_type 品种类型", Value: itoa(instrumentType),
-			Source: PrefillSourceSnapshot, Required: true, Note: "取自快照 instrument_type"},
+			Source: PrefillSourceSnapshot, Required: true,
+			Note: instrumentTypeNote(instrumentType)},
 		{Key: "sub_instrument_type", Label: "sub_instrument_type 子类型", Value: itoa(subType),
 			Source: subTypeSource, Required: true, Note: "缺省为 品种类型*1000+2"},
 		{Key: "market_label", Label: "market_label 市场标签", Value: marketLabel, Source: PrefillSourceSnapshot,
 			Required: true, Note: "与 ftmm_symbol 前缀一致"},
 		{Key: "instrument", Label: "instrument 品种名", Value: instrument, Source: instrumentSource,
 			Required: true, Note: "富途列表接口的小写字符串口径"},
-		{Key: "req_section", Label: "req_section 请求分段", Value: "", Source: PrefillSourceDefault, Note: "选填"},
+		{Key: "req_section", Label: "req_section 请求分段", Value: reqSection,
+			Source: reqSectionSource, Note: reqSectionNote},
 		{Key: "flag_enable", Label: "flag_enable 启用标志", Value: "0", Source: PrefillSourceDefault,
 			Required: true, Note: "默认停用，人工核对后再打开采集"},
 	}

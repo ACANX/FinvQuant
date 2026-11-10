@@ -219,6 +219,23 @@
 
 ### 变更
 
+- **补全采集参数：缺省推断补全（需求 11166）**
+  - 新增 `internal/meta/finv/quote/cdeu/pending_secu_collect_defaults.go`（三个纯函数，可单测）：
+    - `normalizeInstrumentType`：`12` → `3`（两者同为股票），只用于**推缺省值**；
+    - `deriveMarketType`：快照值 → 同市场已有配置行众数（参考）→ 内置映射
+      `HK=1 / US=2 / A股=4 / FX=11 / CC=17`（字典）；
+    - `deriveReqSection`：同市场同品种众数（参考）；众数为空时留空并说明「选填，多数市场不需要」。
+  - 预填 SQL 新增两个 LATERAL：`ref_sec`（同市场同品种 `req_section` 众数）、
+    `ref_mt`（同市场 `market_type` 众数）；`sub_instrument_type` 兜底改按归一后类型计算
+    （`12` 不再算出 `12002`，而是 `3002`）。
+  - `instrument_type` **不擅自改写**（仍写快照原值）：该列会被日K同步当富途品种码直接使用，
+    改口径属业务决策；只在字段说明里写清「12 与 3 同为股票、采集表存量以 3 为主，如需一致可手工改为 3」。
+  - 实测数据：`req_section` 26,529 行只有 2 行非空（`US`+`instrument_type=3` 的 `NVDA`/`SPCX` 填 `1`），
+    所以「按市场推」当下推出来是空 —— 机制保留，存量出现真实规律后会自动带出。
+  - 测试：`TestDeriveCollectDefaults`（归一、market_type 三层优先级 + 8 个市场映射、req_section 三种情形）、
+    `TestLivePendingSecuCollectDefaults`（只读：US/HK 待补行的 `market_type`/`sub_instrument_type` 有值、
+    `req_section` 来源不是「待填」）。
+
 - **补全规范证券参数：时区给缺省值（需求 11165）**
   - 现状：`timezone` / `tz` 两个字段预填一律留空（「选填，留空即为空」），实际录入时人工并不知道该填什么，
     新行就没有时区信息。

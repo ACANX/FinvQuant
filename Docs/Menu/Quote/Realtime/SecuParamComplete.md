@@ -147,9 +147,10 @@ NOT EXISTS (
 | `exchange_code` | `public.finv_exchange.exchange_flag = 市场标签`（SH=11 / SZ=12 / BJ=13 / HK=21 / US=30） |
 | `currency_type` | 快照 `currency` 优先，缺失用 `finv_exchange.base_currency` |
 | `security_type` | `instrument_type`：3/12→Stock、4→ETF、6→StockIndex、11→Crypto |
-| `market_type` | 快照 `market_type` 优先，缺失按市场推 HK=1 / US=2 / A股=4 |
+| `market_type` | 快照 `market_type` 优先 → 同市场已有配置行众数（参考）→ 内置映射 HK=1 / US=2 / A股=4 / FX=11 / CC=17（字典，需求 11166） |
+| `req_section` | 同市场同品种已有配置行的众数（参考）；众数为空时留空（选填，多数市场不需要）；没有参考行时留空 + 说明「选填，不知道就留空」（需求 11166） |
 | `market_code` | 同市场同品种已配置行的众数（参考值）；匹配前把 `instrument_type` 归一（`12` → `3`，两者都是股票）；取不到参考值时留空串并标「必须人工填写」（不留 `0`，见 §4.6） |
-| `sub_instrument_type` | `instrument_type * 1000 + 2`（3→3002、4→4002） |
+| `sub_instrument_type` | `instrument_type * 1000 + 2`（3→3002、4→4002）；`instrument_type=12` 按 **3** 计算（12 与 3 同为股票，否则会算出 12002） |
 | `instrument` | 3→stock、4→etf、6→index、7→sectors、11→crypto |
 | `flag_enable` | 默认 `'0'`（停用），核对后再开采集 |
 | `timezone` | **三层推断**（需求 11165）：① 同 `exchange_code` 已有证券行 `(timezone, tz)` 的众数（来源=参考）；② 同 `region` 已有行的众数（来源=参考）；③ 内置「区域 → IANA 时区」映射、偏移按该时区**当前时刻**推算（来源=字典）。三层都拿不到（`region=N/A` 等）时留空、来源=待填并给风险提示。`timezone` 存 UTC 偏移（`+08:00` / `-04:00`） |

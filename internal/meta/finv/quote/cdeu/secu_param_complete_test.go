@@ -403,3 +403,126 @@ func TestLiveSecuParamPrefillTZ(t *testing.T) {
 		}
 	}
 }
+
+// TestDeriveCollectDefaults 采集参数缺省推断（需求 11166）。
+func TestDeriveCollectDefaults(t *testing.T) {
+	// instrument_type 归一：12 与 3 都是股票，推缺省值时统一按 3
+	for input, want := range map[int]int{12: 3, 3: 3, 0: 3, 4: 4, 6: 6, 7: 7, 9: 9, 10: 10, 11: 11, 99: 3} {
+		if got := normalizeInstrumentType(input); got != want {
+			t.Fatalf("normalizeInstrumentType(%d) = %d，期望 %d", input, got, want)
+		}
+	}
+	// 归一后 sub_instrument_type 才是 3002 而不是 12002
+	if got := subInstrumentType(normalizeInstrumentType(12)); got != 3002 {
+		t.Fatalf("instrument_type=12 的 sub_instrument_type 应为 3002，实际 %d", got)
+	}
+
+	eleven := 11
+	two := 2
+
+	// market_type：快照优先
+	if value, source := deriveMarketType(2, &eleven, "US"); value != 2 || source != PrefillSourceSnapshot {
+		t.Fatalf("快照有值时应用快照: %d/%s", value, source)
+	}
+	// 快照缺失 → 同市场众数
+	if value, source := deriveMarketType(0, &eleven, "US"); value != 11 || source != PrefillSourceReference {
+		t.Fatalf("快照缺失应取同市场众数: %d/%s", value, source)
+	}
+	// 都没有 → 内置映射
+	cases := []struct {
+		label string
+		want  int
+	}{
+		{"HK", 1}, {"US", 2}, {"SH", 4}, {"SZ", 4}, {"BJ", 4},
+		{"FX", 11}, {"CC", 17}, {"hk", 1}, {"", 4},
+	}
+	for _, c := range cases {
+		if value, source := deriveMarketType(0, nil, c.label); value != c.want || source != PrefillSourceDictionary {
+			t.Fatalf("market_label=%q 应映射为 %d/字典，实际 %d/%s", c.label, c.want, value, source)
+		}
+	}
+	if note := marketTypeNote(PrefillSourceReference, 0, "US"); !strings.Contains(note, "同市场") {
+		t.Fatalf("参考来源说明应指出同市场: %q", note)
+	}
+
+	// req_section：众数为空 → 留空但来源标「参考」，不标「待填」
+	empty := ""
+	if value, source, note := deriveReqSection(&empty); value != "" || source != PrefillSourceReference {
+		t.Fatalf("req_section 众数为空时应留空且来源为参考: %q/%s", value, source)
+	} else if !strings.Contains(note, "选填") {
+		t.Fatalf("众数为空时说明应提「选填」: %q", note)
+	}
+	// 众数非空 → 直接带出参考值
+	one := "1"
+	if value, source, _ := deriveReqSection(&one); value != "1" || source != PrefillSourceReference {
+		t.Fatalf("req_section 众数为 1 时应带出 1: %q/%s", value, source)
+	}
+	// 没有参考行 → 留空 + 字典来源 + 说明选填
+	if value, source, note := deriveReqSection(nil); value != "" || source != PrefillSourceDictionary {
+		t.Fatalf("无参考行时应留空且来源为字典: %q/%s", value, source)
+	} else if !strings.Contains(note, "留空") {
+		t.Fatalf("无参考行说明应提「留空」: %q", note)
+	}
+	_ = two
+}
+
+// TestLivePendingSecuCollectDefaults 只读核对：采集参数预填的 market_type / req_section /
+// sub_instrument_type 都有合理缺省（需求 11166）。
+//
+//	FINV_SECU_PARAM_LIVE=1 FINV_TEST_PG_DSN=... go test -run TestLivePendingSecuCollectDefaults -v ./internal/meta/finv/quote/cdeu/
+func TestLivePendingSecuCollectDefaults(t *testing.T) {
+	if os.Getenv("FINV_SECU_PARAM_LIVE") != "1" {
+		t.Skip("未设置 FINV_SECU_PARAM_LIVE=1，跳过只读核对")
+	}
+	dsn := os.Getenv("FINV_TEST_PG_DSN")
+	if dsn == "" {
+		t.Skip("未设置 FINV_TEST_PG_DSN，跳过只读核对")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("连接数据库失败: %v", err)
+	}
+	defer pool.Close()
+	store := NewStore(pool)
+
+	for _, market := range []string{"US", "HK"} {
+		_, list, err := store.ListRealtimeStocks(ctx, RealtimeStockListFilter{
+			MissingTarget: SecuParamTargetCollect, MarketLabel: market, OrderBy: "market_value",
+			Desc: true, Limit: 1,
+		})
+		if err != nil {
+			t.Fatalf("market=%s 查询失败: %v", market, err)
+		}
+		if len(list) == 0 {
+			t.Logf("market=%s 没有待补全的行，跳过", market)
+			continue
+		}
+		prefill, err := store.SecuParamPrefill(ctx, SecuParamTargetCollect, list[0].StockID)
+		if err != nil {
+			t.Fatalf("market=%s 预填失败: %v", market, err)
+		}
+		values, sources := map[string]string{}, map[string]string{}
+		for _, field := range prefill.Fields {
+			values[field.Key] = field.Value
+			sources[field.Key] = field.Source
+		}
+		t.Logf("market=%s usc=%s market_type=%s(%s) req_section=%q(%s) sub_instrument_type=%s(%s) instrument=%s(%s)",
+			market, prefill.USC, values["market_type"], sources["market_type"],
+			values["req_section"], sources["req_section"],
+			values["sub_instrument_type"], sources["sub_instrument_type"],
+			values["instrument"], sources["instrument"])
+
+		if values["market_type"] == "" || values["market_type"] == "0" {
+			t.Fatalf("market=%s 的 market_type 未推出缺省值", market)
+		}
+		if values["sub_instrument_type"] == "" || values["sub_instrument_type"] == "0" {
+			t.Fatalf("market=%s 的 sub_instrument_type 未推出缺省值", market)
+		}
+		// req_section 是选填，允许为空，但来源必须是「参考」或「字典」（不能是「待填」）
+		if sources["req_section"] == PrefillSourceManual {
+			t.Fatalf("market=%s 的 req_section 被标成待填（选填列不该如此）", market)
+		}
+	}
+}
