@@ -79,6 +79,31 @@ const INSTRUMENT_LABELS: Record<string, string> = {
   futures: '期货',
 }
 
+// 市场（富途 market_label）：取自 futu.finv_futu_secu_key.market 实际出现过的 16 种，
+// 中文名对齐 public.finv_market.market_name / futu.finv_futu_mapping_market_code.market_name
+// （一个市场标签对应多个细分market_code，这里只保留该标签的中文口径）。
+const MARKET_OPTIONS = [
+  { title: '美股[US]', value: 'US' },
+  { title: '沪市（上交所）[SH]', value: 'SH' },
+  { title: '深市（深交所）[SZ]', value: 'SZ' },
+  { title: '北交所[BJ]', value: 'BJ' },
+  { title: '港股[HK]', value: 'HK' },
+  { title: '加拿大[CA]', value: 'CA' },
+  { title: '澳大利亚[AU]', value: 'AU' },
+  { title: '日本[JP]', value: 'JP' },
+  { title: '新加坡[SG]', value: 'SG' },
+  { title: '马来西亚[MY]', value: 'MY' },
+  { title: '泰国[THA]', value: 'THA' },
+  { title: '加密货币[CC]', value: 'CC' },
+  { title: '外汇[FX]', value: 'FX' },
+  { title: '板块[BK]', value: 'BK' },
+  { title: '债券[BMS]', value: 'BMS' },
+  { title: '全球[GL]', value: 'GL' },
+]
+const MARKET_LABELS: Record<string, string> = Object.fromEntries(
+  MARKET_OPTIONS.map((o) => [o.value, o.title.slice(0, o.title.indexOf('['))]),
+)
+
 // ---------- 类型 ----------
 interface Rule {
   rule_no: string
@@ -704,6 +729,12 @@ function statusText(value?: string | null): string {
   return cn ? `${cn}[${value}]` : value
 }
 
+function marketText(value?: string | null): string {
+  if (!value) return '—'
+  const cn = MARKET_LABELS[value]
+  return cn ? `${cn}[${value}]` : value
+}
+
 function instrumentText(value?: string | null): string {
   if (!value) return '—'
   const cn = INSTRUMENT_LABELS[value]
@@ -783,14 +814,15 @@ onBeforeUnmount(stopPolling)
 
             <v-col cols="12" md="8">
               <div class="d-flex flex-wrap align-center ga-2 mb-2">
-                <v-text-field
+                <v-select
                   v-model="filterMarket"
+                  :items="[{ title: '全部市场', value: '' }, ...MARKET_OPTIONS]"
                   label="市场"
                   density="compact"
                   variant="outlined"
                   hide-details
-                  style="max-width: 120px"
-                  @keyup.enter="itemPage = 1; loadItems()"
+                  style="max-width: 200px"
+                  @update:model-value="itemPage = 1; loadItems()"
                 />
                 <v-select
                   v-model="filterStatus"
@@ -840,7 +872,7 @@ onBeforeUnmount(stopPolling)
                 <tbody>
                   <tr v-for="item in items" :key="item.idn">
                     <td>{{ item.rule_no }}</td>
-                    <td>{{ item.market ?? '—' }}</td>
+                    <td>{{ marketText(item.market) }}</td>
                     <td>{{ instrumentText(item.instrument) }}</td>
                     <td>{{ item.code ?? '—' }}</td>
                     <td>{{ item.code_regex ?? '—' }}</td>
@@ -1145,7 +1177,15 @@ onBeforeUnmount(stopPolling)
               />
             </v-col>
             <v-col cols="12" md="3">
-              <v-text-field v-model="editForm.market" label="市场" density="compact" variant="outlined" />
+              <v-combobox
+                v-model="editForm.market"
+                :items="MARKET_OPTIONS"
+                label="市场（可选可填）"
+                density="compact"
+                variant="outlined"
+                clearable
+                hide-details="auto"
+              />
             </v-col>
             <v-col cols="12" md="3">
               <v-combobox

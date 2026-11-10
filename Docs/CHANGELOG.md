@@ -202,6 +202,16 @@
 
 ### 变更
 
+- **USC 条目维护页「市场」改为带中文的下拉（需求 11101）**
+  - 编辑对话框的市场由自由输入改为 `v-combobox`（可选可填，兼容将来新增市场），选项为
+    `美股[US]`、`沪市（上交所）[SH]`、`深市（深交所）[SZ]`、`北交所[BJ]`、`港股[HK]`、`加拿大[CA]`、
+    `澳大利亚[AU]`、`日本[JP]`、`新加坡[SG]`、`马来西亚[MY]`、`泰国[THA]`、`加密货币[CC]`、`外汇[FX]`、
+    `板块[BK]`、`债券[BMS]`、`全球[GL]`（16 种取自 `futu.finv_futu_secu_key.market`，
+    中文对齐 `public.finv_market.market_name` / `futu.finv_futu_mapping_market_code.market_name`）。
+  - 顶部筛选的市场由文本框改为同一套下拉（首项「全部市场」），支持按市场快速过滤；条目列表的市场列显示
+    `中文[值]`（未知值原样显示）。
+  - 文档：`Docs/Menu/Quote/Realtime/UscMapping.md` §2.2 选项表补「市场」一行；`vue-tsc` + `vite build` 通过。
+
 - **修复「手工改键表 usc 后预演不显示差异」（需求 11100）**
   - 现象：手工改了 `futu.finv_futu_secu_key.usc`（例如把 XRP 相关行改掉），再用已配置规则点「预演差异」，
     明细里看不到任何该证券的更新记录，误以为规则没生效。
