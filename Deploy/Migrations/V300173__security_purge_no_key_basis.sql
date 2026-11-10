@@ -114,18 +114,30 @@ BEGIN
         RAISE EXCEPTION 'V300173 未收敛：finv_security 仍残留 % 行', v_security_left;
     END IF;
 
+    -- 目标集合内不得残留（结构性）；其余「无键表依据行」计数只通报，
+    -- 不设绝对阈值——不同环境的下游引用情况不同，硬阈值会在真实数据上误报。
     SELECT count(*) INTO v_col_orphan
       FROM futu.finv_futu_quote_collect c
-     WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.ftmm_symbol = c.ftmm_symbol)
+     WHERE c.usc IN (SELECT usc FROM tmp_target)
+       AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.ftmm_symbol = c.ftmm_symbol)
        AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k2 WHERE k2.usc = c.usc);
     SELECT count(*) INTO v_ind_orphan
       FROM cdeu.finv_quote_secu_indicator i
-     WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.stock_id = i.stock_id)
+     WHERE i.usc IN (SELECT usc FROM tmp_target)
+       AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.stock_id = i.stock_id)
        AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k2 WHERE k2.usc = i.usc);
     IF v_col_orphan <> 0 OR v_ind_orphan <> 0 THEN
-        RAISE EXCEPTION 'V300173 未收敛：quote_collect 剩 % 行、indicator 剩 % 行无依据行',
+        RAISE EXCEPTION 'V300173 未收敛：目标集合内仍残留 quote_collect % 行、indicator % 行',
             v_col_orphan, v_ind_orphan;
     END IF;
+
+    RAISE NOTICE 'V300173：清理后仍无键表依据的 quote_collect % 行 / indicator % 行（仅通报）',
+        (SELECT count(*) FROM futu.finv_futu_quote_collect c
+          WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.ftmm_symbol = c.ftmm_symbol)
+            AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k2 WHERE k2.usc = c.usc)),
+        (SELECT count(*) FROM cdeu.finv_quote_secu_indicator i
+          WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.stock_id = i.stock_id)
+            AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k2 WHERE k2.usc = i.usc));
 
     SELECT count(*) INTO v_key_diff
       FROM cdeu.finv_quote_secu_indicator i

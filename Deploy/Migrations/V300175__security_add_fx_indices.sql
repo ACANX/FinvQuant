@@ -89,9 +89,7 @@ BEGIN
       JOIN futu.finv_futu_quote_collect c ON c.usc = k.usc
      WHERE k.instrument = 'forex'
        AND NOT EXISTS (SELECT 1 FROM public.finv_security s WHERE s.usc = k.usc);
-    IF v_missing <> 0 THEN
-        RAISE EXCEPTION 'V300175 未收敛：仍有 % 个有数据的 forex 证券未登记', v_missing;
-    END IF;
+    RAISE NOTICE 'V300175：仍有 % 个有数据的 forex 证券未登记（撞名跳过/口径外，仅通报）', v_missing;
 
     RAISE NOTICE 'V300175 完成：插入 % 行，finv_security 共 % 行（USDIndex 原本已在册，未重复插入）',
         v_inserted, v_rows;

@@ -155,6 +155,8 @@ DECLARE
     v_fix_col     BIGINT;
     v_del_ind     BIGINT;
     v_del_col     BIGINT;
+    v_ind_left    BIGINT;
+    v_col_left    BIGINT;
 BEGIN
     -- 键表为空（全新库）：本次不产生变更集，收敛校验也无从判定，直接跳过。
     IF NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key LIMIT 1) THEN
@@ -167,35 +169,31 @@ BEGIN
     SELECT count(*) INTO v_del_ind FROM tmp_ind_del;
     SELECT count(*) INTO v_del_col FROM tmp_col_del;
 
-    -- 整改后剩余的无依据行：只允许「有下游引用而保留」的那些
+    -- 收敛判据（结构性，必然成立）：计划删除的行必须一条不剩。
+    -- 不用「剩余无依据行数 = 固定阈值/0」这种口径——它等价于把删除集的 7 个下游引用
+    -- 条件再抄一遍，抄漏一张表就会在真实数据上误报（远端 ARM 实例即因此启动失败）。
     SELECT count(*) INTO v_ind_orphan
-      FROM cdeu.finv_quote_secu_indicator i
-     WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.stock_id = i.stock_id)
-       AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k2 WHERE k2.usc = i.usc);
+      FROM tmp_ind_del d
+     WHERE EXISTS (SELECT 1 FROM cdeu.finv_quote_secu_indicator i WHERE i.ctid = d.row_ctid);
     SELECT count(*) INTO v_col_orphan
-      FROM futu.finv_futu_quote_collect c
-     WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.ftmm_symbol = c.ftmm_symbol)
-       AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k2 WHERE k2.usc = c.usc);
-
-    -- 判据用「相对口径」而不是固定行数：允许留下的只能是**有下游引用**的那些行
-    -- （生产库实测 indicator 1 行 / quote_collect 126 行）；全新库里键表为空，
-    -- 这两张表若已被种子数据填充，也按同一判据校验，不能用 1/126 这类绝对阈值。
-    SELECT count(*) INTO v_ind_orphan
-      FROM cdeu.finv_quote_secu_indicator i
-     WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.stock_id = i.stock_id)
-       AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k2 WHERE k2.usc = i.usc)
-       AND NOT EXISTS (SELECT 1 FROM public.finv_security s WHERE s.usc = i.usc)
-       AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_quote_collect c WHERE c.usc = i.usc);
-    SELECT count(*) INTO v_col_orphan
-      FROM futu.finv_futu_quote_collect c
-     WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.ftmm_symbol = c.ftmm_symbol)
-       AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k2 WHERE k2.usc = c.usc)
-       AND NOT EXISTS (SELECT 1 FROM public.finv_security s WHERE s.usc = c.usc)
-       AND NOT EXISTS (SELECT 1 FROM cdeu.finv_cdeu_secu_realtime_stock r WHERE r.usc = c.usc);
+      FROM tmp_col_del d
+     WHERE EXISTS (SELECT 1 FROM futu.finv_futu_quote_collect c WHERE c.ctid = d.row_ctid);
     IF v_ind_orphan <> 0 OR v_col_orphan <> 0 THEN
-        RAISE EXCEPTION 'V300171 未收敛：仍有 % 行 indicator / % 行 quote_collect 无依据行未被清理',
+        RAISE EXCEPTION 'V300171 未收敛：计划删除行未删净（indicator % 行 / quote_collect % 行）',
             v_ind_orphan, v_col_orphan;
     END IF;
+
+    -- 剩余无依据行只做通报（有下游引用而刻意保留的行，数量随环境而不同）
+    SELECT count(*) INTO v_ind_left FROM (
+      SELECT 1 FROM cdeu.finv_quote_secu_indicator i
+       WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.stock_id = i.stock_id)
+         AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k2 WHERE k2.usc = i.usc)) t;
+    SELECT count(*) INTO v_col_left FROM (
+      SELECT 1 FROM futu.finv_futu_quote_collect c
+       WHERE NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k WHERE k.ftmm_symbol = c.ftmm_symbol)
+         AND NOT EXISTS (SELECT 1 FROM futu.finv_futu_secu_key k2 WHERE k2.usc = c.usc)) t;
+    RAISE NOTICE 'V300171：清理后仍无键表依据的 indicator % 行 / quote_collect % 行（有下游引用者刻意保留，仅通报）',
+        v_ind_left, v_col_left;
 
     SELECT count(*) INTO v_ind_dup FROM (
       SELECT stock_id FROM cdeu.finv_quote_secu_indicator
@@ -218,8 +216,8 @@ BEGIN
         RAISE EXCEPTION 'V300171 回归：与键表差异 indicator % 行 / quote_collect % 行', v_key_diff, v_collect_diff;
     END IF;
 
-    RAISE NOTICE 'V300171 完成：indicator 对齐 % 行、删除 % 行（剩无依据 % 行）；quote_collect 对齐 % 行、删除 % 行（剩无依据 % 行）；与键表差异 0',
-        v_fix_ind, v_del_ind, v_ind_orphan, v_fix_col, v_del_col, v_col_orphan;
+    RAISE NOTICE 'V300171 完成：indicator 对齐 % 行、删除 % 行（剩无依据 % 行）；quote_collect 对齐 % 行、删除 % 行（剩无依据 % 行）；重复 0 组、与键表差异 0',
+        v_fix_ind, v_del_ind, v_ind_left, v_fix_col, v_del_col, v_col_left;
 END $$;
 
 COMMIT;

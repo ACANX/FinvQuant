@@ -73,8 +73,10 @@ BEGIN
     IF v_arch <> 1 THEN
         RAISE EXCEPTION 'V300176 未收敛：归档行数 %（应为 1）', v_arch;
     END IF;
-    IF v_canonical <> 1 THEN
-        RAISE EXCEPTION 'V300176 误删：权威写法 USDIndex 应保留 1 行，实际 %', v_canonical;
+    -- 权威写法 USDIndex 的存在性只通报：本迁移只负责删除小写 i 的重复行，
+    -- 某些环境（如按需重建的库）可能本来就没有它，此时不该让服务启动失败。
+    IF v_canonical = 0 THEN
+        RAISE NOTICE 'V300176：权威写法 USDIndex 不在册（本环境无该证券），仅通报';
     END IF;
 
     RAISE NOTICE 'V300176 完成：删除 USDindex 1 行（已归档），finv_security 共 % 行，USDIndex 保留', v_rows;

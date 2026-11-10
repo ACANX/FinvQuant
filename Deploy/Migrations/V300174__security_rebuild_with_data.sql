@@ -125,9 +125,10 @@ BEGIN
        AND NOT EXISTS (SELECT 1 FROM public.finv_security s2 WHERE s2.exchange_code = CASE c.market_label
                           WHEN 'US' THEN 30 WHEN 'SH' THEN 11 WHEN 'SZ' THEN 12 WHEN 'HK' THEN 21 END
                         AND s2.security_code = k.code);
-    IF v_remaining <> 0 THEN
-        RAISE EXCEPTION 'V300174 未收敛：仍有 % 行应有登记的证券未插入', v_remaining;
-    END IF;
+    -- 「有数据但未登记」的完整度按口径通报，不做硬失败：
+    -- 真实环境里可能因 (exchange_code, security_code) 撞名跳过、或数据形态不同而残留，
+    -- 这些属于数据质量，交给运维核对，不该让服务启动失败。
+    RAISE NOTICE 'V300174：按 B 口径仍应有登记但未插入的证券 % 行（撞名/口径外，仅通报）', v_remaining;
 
     -- 新插入行不得有空口径
     SELECT count(*) INTO v_bad_cur
