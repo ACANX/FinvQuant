@@ -1,4 +1,4 @@
-# 提案设计检查清单（ProposalDocCheckListSpec）
+# 提案设计检查清单（ProposalDocCommitCheckListSpec）
 
 > 所属：FinvQuant 交付检查清单 · 存放：`Docs/CheckList/`
 > 用法：本清单**只列本类特有项**。通用项（范围授权、编译测试、提交纪律、红线）不重复，

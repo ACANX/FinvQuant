@@ -69,7 +69,7 @@ git status --short && git diff --stat
 | 前端页面/组件/样式 | [`PreFrontendCommitCheckListSpec.md`](PreFrontendCommitCheckListSpec.md) | C1–C3、C8、C20 |
 | 后端逻辑/定时任务/外部客户端 | [`PreBackendCommitCheckListSpec.md`](PreBackendCommitCheckListSpec.md) | C1–C3、C6–C10 |
 | 表结构/数据/迁移 | [`PreDbChangeCommitCheckListSpec.md`](PreDbChangeCommitCheckListSpec.md) | C1–C3、C9–C10 |
-| 动手前的方案/选型（要拍板） | [`ProposalDocCheckListSpec.md`](ProposalDocCheckListSpec.md) | C1–C5、C20 |
+| 动手前的方案/选型（要拍板） | [`ProposalDocCommitCheckListSpec.md`](ProposalDocCommitCheckListSpec.md) | C1–C5、C20 |
 | 已批准后的技术设计 | [`TechDesignDocCommitCheckListSpec.md`](TechDesignDocCommitCheckListSpec.md) | C17–C20 |
 | 不改行为的结构调整 | [`CodeRefactorCommitCheckListSpec.md`](CodeRefactorCommitCheckListSpec.md) | C1–C3、C6–C10 |
 | 部署/镜像/脚本 | 共用 C 组 + [`PreDbChangeCommitCheckListSpec.md`](PreDbChangeCommitCheckListSpec.md) 的验证段 | C8、C21、R15、R16 |
