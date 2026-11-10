@@ -71,14 +71,14 @@ FinvQuant 是一个面向多资产的**严格事件驱动量化交易平台**，
 
 | 清单文件 | 用途 |
 |----------|------|
-| [`Docs/CheckList/PreCommitCheckListSpec.md`](Docs/CheckList/PreCommitCheckListSpec.md) | 提交前检查规范（提交者自检，C1–C28 + 一键自检命令） |
-| [`Docs/CheckList/PreMergeCommitCheckListSpec.md`](Docs/CheckList/PreMergeCommitCheckListSpec.md) | 合并前复核规范（复核人验收，M1–M6 + 证据要求 + 打回准则） |
-| [`Docs/CheckList/PreFrontendCommitCheckListSpec.md`](Docs/CheckList/PreFrontendCommitCheckListSpec.md) | 前端改动清单（枚举口径/长文本/三态/产物一致，FE1–FE15） |
-| [`Docs/CheckList/PreBackendCommitCheckListSpec.md`](Docs/CheckList/PreBackendCommitCheckListSpec.md) | 后端改动清单（错误映射/URL 编码/幂等/资源释放，BE1–BE16） |
-| [`Docs/CheckList/PreDbChangeCommitCheckListSpec.md`](Docs/CheckList/PreDbChangeCommitCheckListSpec.md) | 数据库修改清单（授权/幂等/空库迁移/回滚，DB1–DB20） |
-| [`Docs/CheckList/ProposalDocCommitCheckListSpec.md`](Docs/CheckList/ProposalDocCommitCheckListSpec.md) | 提案设计清单（骨架十章 + 决策点 + 通过标准，PP1–PP10） |
-| [`Docs/CheckList/TechDesignDocCommitCheckListSpec.md`](Docs/CheckList/TechDesignDocCommitCheckListSpec.md) | 技术方案设计清单（契约/数据结构/回滚/观测，TD1–TD13） |
-| [`Docs/CheckList/CodeRefactorCommitCheckListSpec.md`](Docs/CheckList/CodeRefactorCommitCheckListSpec.md) | 代码重构清单（行为不变证据/分步可回滚/范围冻结，RF1–RF13） |
+| [`Docs/CheckList/CommitPreCheckListSpec.md`](Docs/CheckList/CommitPreCheckListSpec.md) | 提交前检查规范（提交者自检，C1–C28 + 一键自检命令） |
+| [`Docs/CheckList/MergeCommitPreCheckListSpec.md`](Docs/CheckList/MergeCommitPreCheckListSpec.md) | 合并前复核规范（复核人验收，M1–M6 + 证据要求 + 打回准则） |
+| [`Docs/CheckList/FrontendCommitPreCheckListSpec.md`](Docs/CheckList/FrontendCommitPreCheckListSpec.md) | 前端改动清单（枚举口径/长文本/三态/产物一致，FE1–FE15） |
+| [`Docs/CheckList/BackendCommitPreCheckListSpec.md`](Docs/CheckList/BackendCommitPreCheckListSpec.md) | 后端改动清单（错误映射/URL 编码/幂等/资源释放，BE1–BE16） |
+| [`Docs/CheckList/DbChangeCommitPreCheckListSpec.md`](Docs/CheckList/DbChangeCommitPreCheckListSpec.md) | 数据库修改清单（授权/幂等/空库迁移/回滚，DB1–DB20） |
+| [`Docs/CheckList/ProposalDocCommitPreCheckListSpec.md`](Docs/CheckList/ProposalDocCommitPreCheckListSpec.md) | 提案设计清单（骨架十章 + 决策点 + 通过标准，PP1–PP10） |
+| [`Docs/CheckList/TechDesignDocCommitPreCheckListSpec.md`](Docs/CheckList/TechDesignDocCommitPreCheckListSpec.md) | 技术方案设计清单（契约/数据结构/回滚/观测，TD1–TD13） |
+| [`Docs/CheckList/CodeRefactorCommitPreCheckListSpec.md`](Docs/CheckList/CodeRefactorCommitPreCheckListSpec.md) | 代码重构清单（行为不变证据/分步可回滚/范围冻结，RF1–RF13） |
 
 ## 工作约定
 

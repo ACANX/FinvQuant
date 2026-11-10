@@ -1,13 +1,13 @@
-# 合并前复核规范（PreMergeCommitCheckListSpec）
+# 合并前复核规范（MergeCommitPreCheckListSpec）
 
 > 所属：FinvQuant 开发规范 · 存放：`Docs/CheckList/`
 > 适用范围：把 `feat/*` 合入目标分支（`main` 或集成分支）前的最后一次复核与功能验收。
-> 关联：[`PreCommitCheckListSpec.md`](PreCommitCheckListSpec.md)（提交者自检）、[`GitSpec.md`](../DevSpec/GitSpec.md)（版本号 / tag / CI 产物）、[`ApiSpec.md`](../DevSpec/ApiSpec.md)、[`DbSchemaSpec.md`](../DevSpec/DbSchemaSpec.md) §0、[`DocSpec.md`](../DevSpec/DocSpec.md) §4。
-> 本清单的定位：**复核人验收**。提交者自检清单见 `PreCommitCheckListSpec.md`，两者不重复。
+> 关联：[`CommitPreCheckListSpec.md`](CommitPreCheckListSpec.md)（提交者自检）、[`GitSpec.md`](../DevSpec/GitSpec.md)（版本号 / tag / CI 产物）、[`ApiSpec.md`](../DevSpec/ApiSpec.md)、[`DbSchemaSpec.md`](../DevSpec/DbSchemaSpec.md) §0、[`DocSpec.md`](../DevSpec/DocSpec.md) §4。
+> 本清单的定位：**复核人验收**。提交者自检清单见 `CommitPreCheckListSpec.md`，两者不重复。
 
 ## 1. 角色与时机
 
-- 时机：`PreCommitCheckListSpec` 已全绿（提交完成）→ 合并前。
+- 时机：`CommitPreCheckListSpec` 已全绿（提交完成）→ 合并前。
 - 复核人：**不是本次提交者**。单人项目无他人时，按本清单逐条留证据（命令 + 输出），不得口头"看过了"。
 - 结论只有两种：**通过** 或 **打回**。打回必须写「打回依据 + 对应 `M` 编号」，不含"建议优化"这类无法验收的措辞。
 
@@ -24,7 +24,7 @@
 ## 3. 按变更类型定复核深度
 
 复核不是"全部条目都走一遍"，按变更类型取范围；**涉及其中的事故编号，逐条验判据，不接受口头保证**。
-事故编号 `R1…R16` 的定义见 [`PreCommitCheckListSpec.md`](PreCommitCheckListSpec.md) §3。
+事故编号 `R1…R16` 的定义见 [`CommitPreCheckListSpec.md`](CommitPreCheckListSpec.md) §3。
 
 | 变更类型 | 复核范围 | 必须验的事故判据 |
 |----------|----------|------------------|
@@ -136,6 +136,6 @@ CommitCheck：C1–C7, C12, C17–C20（C8/C9 见下）
 
 1. **来源必须有据**：真实事故（需求号/提交号）或既有规范条款；不接受凭感觉加的条目。
 2. **判据可核对**：能用命令或观察结果证伪；禁止"性能可接受""代码清晰"这类无法判定的描述。
-3. **不与 `PreCommitCheckListSpec` 重复**：提交者能自查的不进本清单；本清单只装"需他人复核或需实测"的项。
+3. **不与 `CommitPreCheckListSpec` 重复**：提交者能自查的不进本清单；本清单只装"需他人复核或需实测"的项。
 4. 编号制 `M<组>.<序>`，只增不改；作废保留并标 `（已废止：原因）`。
 5. 新增条目同步 `Docs/CHANGELOG.md`。

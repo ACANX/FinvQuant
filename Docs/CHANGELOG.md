@@ -202,55 +202,74 @@
 
 ### 变更
 
-- **提案设计清单改名 `ProposalDocCommitCheckListSpec.md`，8 份清单命名收敛完成（需求 11131）**
-  - `Docs/CheckList/ProposalDocCheckListSpec.md` → `Docs/CheckList/ProposalDocCommitCheckListSpec.md`（`git mv` 保留历史）。
+- **检查清单命名统一为 `<领域>[Doc]CommitPreCheckListSpec.md`（需求 11132）**
+  - 8 份文件统一改名（`git mv` 保留历史），`Pre` 由前导前缀改为紧贴 `CheckListSpec`：
+
+    | 改前 | 改后 |
+    |------|------|
+    | `PreCommitCheckListSpec` | `CommitPreCheckListSpec` |
+    | `PreMergeCommitCheckListSpec` | `MergeCommitPreCheckListSpec` |
+    | `PreFrontendCommitCheckListSpec` | `FrontendCommitPreCheckListSpec` |
+    | `PreBackendCommitCheckListSpec` | `BackendCommitPreCheckListSpec` |
+    | `PreDbChangeCommitCheckListSpec` | `DbChangeCommitPreCheckListSpec` |
+    | `ProposalDocCommitCheckListSpec` | `ProposalDocCommitPreCheckListSpec` |
+    | `TechDesignDocCommitCheckListSpec` | `TechDesignDocCommitPreCheckListSpec` |
+    | `CodeRefactorCommitCheckListSpec` | `CodeRefactorCommitPreCheckListSpec` |
+
+  - 命名口径（取代需求 11122 的"前导 `Pre` 前缀"）：`<领域>[Doc]Commit` + `Pre` + `CheckListSpec.md`
+    —— 领域在前便于排序与检索，`Pre` 紧贴后缀表示"检查清单（提交前/合并前）"这一文档类型。
+  - 同步：8 份文件的标题与相互引用、`CommitPreCheckListSpec` §4 路由表、`AGENTS.md` 索引、
+    `Docs/RequirementList.md` 条目路径、`Docs/CHANGELOG.md` 引用。
+
+- **提案设计清单改名 `ProposalDocCommitPreCheckListSpec.md`，8 份清单命名收敛完成（需求 11131）**
+  - `Docs/CheckList/ProposalDocCheckListSpec.md` → `Docs/CheckList/ProposalDocCommitPreCheckListSpec.md`（`git mv` 保留历史）。
   - 至此 `Docs/CheckList/` 命名口径统一为 **`<领域/环节>[Doc]CommitCheckListSpec.md`**：
     `PreCommit` / `PreMergeCommit` / `PreFrontendCommit` / `PreBackendCommit` / `PreDbChangeCommit` /
     `ProposalDocCommit` / `TechDesignDocCommit` / `CodeRefactorCommit`。
-  - 同步：文件内标题、`PreCommitCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径、
+  - 同步：文件内标题、`CommitPreCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径、
     `Docs/CHANGELOG.md` 引用。
 
-- **前端清单改名 `PreFrontendCommitCheckListSpec.md`（需求 11130）**
-  - `Docs/CheckList/PreFrontendCheckListSpec.md` → `Docs/CheckList/PreFrontendCommitCheckListSpec.md`（`git mv` 保留历史），
+- **前端清单改名 `FrontendCommitPreCheckListSpec.md`（需求 11130）**
+  - `Docs/CheckList/PreFrontendCheckListSpec.md` → `Docs/CheckList/FrontendCommitPreCheckListSpec.md`（`git mv` 保留历史），
     取代需求 11122 中的 `PreFrontend` 命名。
-  - 同步：文件内标题、`PreCommitCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径、
+  - 同步：文件内标题、`CommitPreCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径、
     `Docs/CHANGELOG.md` 引用。
 
-- **数据库修改清单改名 `PreDbChangeCommitCheckListSpec.md`（需求 11129）**
-  - `Docs/CheckList/PreDbChangeCheckListSpec.md` → `Docs/CheckList/PreDbChangeCommitCheckListSpec.md`（`git mv` 保留历史），
+- **数据库修改清单改名 `DbChangeCommitPreCheckListSpec.md`（需求 11129）**
+  - `Docs/CheckList/PreDbChangeCheckListSpec.md` → `Docs/CheckList/DbChangeCommitPreCheckListSpec.md`（`git mv` 保留历史），
     取代需求 11122 中的 `PreDbChange` 命名。
-  - 同步：文件内标题、`PreCommitCheckListSpec` §4 路由表、其余清单的交叉引用、`AGENTS.md` 索引、
+  - 同步：文件内标题、`CommitPreCheckListSpec` §4 路由表、其余清单的交叉引用、`AGENTS.md` 索引、
     `Docs/RequirementList.md` 条目路径、`Docs/CHANGELOG.md` 引用。
 
-- **技术方案设计清单改名 `TechDesignDocCommitCheckListSpec.md`（需求 11128）**
-  - `Docs/CheckList/PreTechDesignCheckListSpec.md` → `Docs/CheckList/TechDesignDocCommitCheckListSpec.md`（`git mv` 保留历史），
+- **技术方案设计清单改名 `TechDesignDocCommitPreCheckListSpec.md`（需求 11128）**
+  - `Docs/CheckList/PreTechDesignCheckListSpec.md` → `Docs/CheckList/TechDesignDocCommitPreCheckListSpec.md`（`git mv` 保留历史），
     取代需求 11122 中的 `PreTechDesign` 命名。
-  - 同步：文件内标题、`PreCommitCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径、
+  - 同步：文件内标题、`CommitPreCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径、
     `Docs/CHANGELOG.md` 引用。
 
-- **合并前清单改名 `PreMergeCommitCheckListSpec.md`（需求 11127）**
-  - `Docs/CheckList/PreMergeCheckListSpec.md` → `Docs/CheckList/PreMergeCommitCheckListSpec.md`（`git mv` 保留历史），
+- **合并前清单改名 `MergeCommitPreCheckListSpec.md`（需求 11127）**
+  - `Docs/CheckList/PreMergeCheckListSpec.md` → `Docs/CheckList/MergeCommitPreCheckListSpec.md`（`git mv` 保留历史），
     取代需求 11122 中的 `PreMerge` 命名。
-  - 同步：文件内标题、`PreCommitCheckListSpec` §4 路由表、`AGENTS.md` 索引、其余 6 份清单的交叉引用、
+  - 同步：文件内标题、`CommitPreCheckListSpec` §4 路由表、`AGENTS.md` 索引、其余 6 份清单的交叉引用、
     `Docs/RequirementList.md` 条目路径。
 
-- **后端清单改名 `PreBackendCommitCheckListSpec.md`（需求 11126）**
-  - `Docs/CheckList/PreBackendCheckListSpec.md` → `Docs/CheckList/PreBackendCommitCheckListSpec.md`（`git mv` 保留历史），
+- **后端清单改名 `BackendCommitPreCheckListSpec.md`（需求 11126）**
+  - `Docs/CheckList/PreBackendCheckListSpec.md` → `Docs/CheckList/BackendCommitPreCheckListSpec.md`（`git mv` 保留历史），
     取代需求 11122 中的 `PreBackend` 命名。
-  - 同步：文件内标题、`PreCommitCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径。
+  - 同步：文件内标题、`CommitPreCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径。
 
-- **代码重构清单改名 `CodeRefactorCommitCheckListSpec.md`（需求 11125）**
-  - `Docs/CheckList/CodeRefactorCheckListSpec.md` → `Docs/CheckList/CodeRefactorCommitCheckListSpec.md`（`git mv` 保留历史），
+- **代码重构清单改名 `CodeRefactorCommitPreCheckListSpec.md`（需求 11125）**
+  - `Docs/CheckList/CodeRefactorCheckListSpec.md` → `Docs/CheckList/CodeRefactorCommitPreCheckListSpec.md`（`git mv` 保留历史），
     取代需求 11123 中的 `CodeRefactor` 命名。
-  - 同步：文件内标题、`PreCommitCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径。
+  - 同步：文件内标题、`CommitPreCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径。
 
-- **提案设计清单改名 `ProposalDocCommitCheckListSpec.md`（需求 11124）**
-  - `Docs/CheckList/PreProposalCheckListSpec.md` → `Docs/CheckList/ProposalDocCommitCheckListSpec.md`（`git mv` 保留历史），
+- **提案设计清单改名 `ProposalDocCommitPreCheckListSpec.md`（需求 11124）**
+  - `Docs/CheckList/PreProposalCheckListSpec.md` → `Docs/CheckList/ProposalDocCommitPreCheckListSpec.md`（`git mv` 保留历史），
     取代需求 11122 中登记的 `PreProposal` 命名。
   - 命名口径再补一档：`Doc` 标识**产出文档**类清单（提案 = 产出一份 `Docs/Proposal/` 文档）；
     连同既有两档 `Pre*`（环节门槛：提交前 / 合并前 / 发布前）、`Code*`（代码类工作类型：重构），
     前缀按「工作对象或所处环节」取，不强行统一成一个词。
-  - 同步：文件内标题、`PreCommitCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径。
+  - 同步：文件内标题、`CommitPreCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径。
 
 - **检查清单文件名后缀统一为 `CheckListSpec.md`（需求 11122）**
   - `Docs/CheckList/` 下 8 份文件由 `*CheckSpec.md` 改名为 `*CheckListSpec.md`：
@@ -258,34 +277,34 @@
   - 命名口径：`Pre`（环节）+ 主题 + `CheckListSpec.md`；用 `git mv` 保留文件历史。
   - 同步更新：文件内标题与相互引用、`AGENTS.md`「交付检查清单」索引、`Docs/RequirementList.md`、
     `Docs/CHANGELOG.md` 中的全部引用路径。
-- **代码重构清单改名 `CodeRefactorCommitCheckListSpec.md`，明确 `Pre` / `Code` 两种前缀口径（需求 11123）**
-  - `Docs/CheckList/PreRefactorCheckListSpec.md` → `Docs/CheckList/CodeRefactorCommitCheckListSpec.md`（`git mv` 保留历史）。
+- **代码重构清单改名 `CodeRefactorCommitPreCheckListSpec.md`，明确 `Pre` / `Code` 两种前缀口径（需求 11123）**
+  - `Docs/CheckList/PreRefactorCheckListSpec.md` → `Docs/CheckList/CodeRefactorCommitPreCheckListSpec.md`（`git mv` 保留历史）。
   - 命名口径补全：`Pre*` 只用于**环节门槛**（提交前 `PreCommit`、合并前 `PreMerge`，将来发布前 `PreRelease`）；
     代码类**工作类型**清单用 `Code*`（如 `CodeRefactor`），不再强行套 `Pre`。
-  - 同步：文件内标题、`PreCommitCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径。
+  - 同步：文件内标题、`CommitPreCheckListSpec` §4 路由表、`AGENTS.md` 索引、`Docs/RequirementList.md` 条目路径。
 
 - **检查清单按工作类型拆分为六份专项清单（需求 11115–11121）**
-  - 原先所有条目挤在 `PreCommitCheckListSpec` 里，改前端和后端要翻同一份长清单。现按工作类型各一份，存于 `Docs/CheckList/`：
-    - [`PreFrontendCommitCheckListSpec.md`](CheckList/PreFrontendCommitCheckListSpec.md) —— 前端（FE1–FE15）：枚举分层口径、单元格不读下拉 `title`、
+  - 原先所有条目挤在 `CommitPreCheckListSpec` 里，改前端和后端要翻同一份长清单。现按工作类型各一份，存于 `Docs/CheckList/`：
+    - [`FrontendCommitPreCheckListSpec.md`](CheckList/FrontendCommitPreCheckListSpec.md) —— 前端（FE1–FE15）：枚举分层口径、单元格不读下拉 `title`、
       长文本 ⓘ、三态、筛选与分页联动、提交值不翻译、产物哈希一致、千行表格性能。
-    - [`PreBackendCommitCheckListSpec.md`](CheckList/PreBackendCommitCheckListSpec.md) —— 后端（BE1–BE16）：错误映射与 `SQLSTATE` 不外泄、
+    - [`BackendCommitPreCheckListSpec.md`](CheckList/BackendCommitPreCheckListSpec.md) —— 后端（BE1–BE16）：错误映射与 `SQLSTATE` 不外泄、
       `ctx` 与超时、URL 编码与字符预算分片、`ON CONFLICT` 目标列、幂等、资源释放、日志脱敏、`EXPLAIN` 证据。
-    - [`PreDbChangeCommitCheckListSpec.md`](CheckList/PreDbChangeCommitCheckListSpec.md) —— 数据库（DB1–DB20）：**先授权再动手**、脚本命名与单事务、
+    - [`DbChangeCommitPreCheckListSpec.md`](CheckList/DbChangeCommitPreCheckListSpec.md) —— 数据库（DB1–DB20）：**先授权再动手**、脚本命名与单事务、
       幂等、种子不覆盖、删除类非空守卫、修复按业务键落值、收敛校验只断结构性事实、无物理外键、
       空库全量迁移 + 真实库补迁移 + 复跑幂等 + `fk=0` 验证命令、回滚路径，并附高频事故对照表。
-    - [`ProposalDocCommitCheckListSpec.md`](CheckList/ProposalDocCommitCheckListSpec.md) —— 提案设计（PP1–PP10）：何时必须写、十章骨架
+    - [`ProposalDocCommitPreCheckListSpec.md`](CheckList/ProposalDocCommitPreCheckListSpec.md) —— 提案设计（PP1–PP10）：何时必须写、十章骨架
       （背景/证据/目标/非目标/候选含基线/选型/影响面/风险回滚/编号决策点/验收口径）、批准·打回·待定判定、存放命名。
-    - [`TechDesignDocCommitCheckListSpec.md`](CheckList/TechDesignDocCommitCheckListSpec.md) —— 技术方案设计（TD1–TD13）：十二章骨架
+    - [`TechDesignDocCommitPreCheckListSpec.md`](CheckList/TechDesignDocCommitPreCheckListSpec.md) —— 技术方案设计（TD1–TD13）：十二章骨架
       （契约/数据结构/时序/迁移/兼容切换/性能/观测/测试策略/回滚）与常见问题。
-    - [`CodeRefactorCommitCheckListSpec.md`](CheckList/CodeRefactorCommitCheckListSpec.md) —— 代码重构（RF1–RF13）：行为不变证据、范围冻结、
+    - [`CodeRefactorCommitPreCheckListSpec.md`](CheckList/CodeRefactorCommitPreCheckListSpec.md) —— 代码重构（RF1–RF13）：行为不变证据、范围冻结、
       分步可回滚、`git mv` 保历史、格式化噪音单独提交、不留两套并行路径、覆盖不下降。
-  - [`PreCommitCheckListSpec.md`](CheckList/PreCommitCheckListSpec.md) §4 改为**路由表**，只指向六份专项清单；
+  - [`CommitPreCheckListSpec.md`](CheckList/CommitPreCheckListSpec.md) §4 改为**路由表**，只指向六份专项清单；
     本文件从此只保留通用条目 `C1–C28` 与事故表 `R1–R16`，不再随类型增厚。
   - `AGENTS.md` 的「交付检查清单」小节登记六份新文件（仓库规范强制联动的同一处改动）。
 
 - **检查清单独立目录并按环节加 `Pre` 前缀（需求 11114）**
-  - `Docs/DevSpec/CommitCheckListSpec.md` → `Docs/CheckList/PreCommitCheckListSpec.md`；
-    `Docs/DevSpec/MergeCheckListSpec.md` → `Docs/CheckList/PreMergeCommitCheckListSpec.md`。
+  - `Docs/DevSpec/CommitCheckListSpec.md` → `Docs/CheckList/CommitPreCheckListSpec.md`；
+    `Docs/DevSpec/MergeCheckListSpec.md` → `Docs/CheckList/MergeCommitPreCheckListSpec.md`。
   - 新建 `Docs/CheckList/` 专放「交付环节检查清单」，与 `Docs/DevSpec/`（长期规范）分开放；文件名以 `Pre` 标识所处环节
     （提交前 / 合并前），后续如加发布前清单按 `PreReleaseCheckListSpec.md` 续用同一前缀。
   - 同步更新：两份清单内的相互引用与 `../DevSpec/*` 相对链接、`AGENTS.md` 索引（改为独立小节「交付检查清单」）、
@@ -294,7 +313,7 @@
 - **两份检查清单补入高频事故防守与按变更类型的定向检查（需求 11113）**
   - 原清单只有通用最佳实践（编译过、测试绿、文档同步），而本项目实际返工集中在少数几个坑上，
     这些只散在对话记录里，换个人/换个会话就丢。
-  - `PreCommitCheckListSpec` 新增 **§3 事故防守**：`R1…R16` 十六条，逐条「事故（真实发生过）→ 防守判据」——
+  - `CommitPreCheckListSpec` 新增 **§3 事故防守**：`R1…R16` 十六条，逐条「事故（真实发生过）→ 防守判据」——
     删除类迁移在空库误删种子、数据修复只改标记列就断言、收敛校验用绝对阈值导致服务重启循环、
     物理外键残留、`ON CONFLICT (idn)` 而 INSERT 不含 `idn`、外部 REST 过滤值未编码被截断、
     写生成列、种子 `DO UPDATE` 覆盖用户值、Markdown 表格竖线/空行、`中文[值]` 溢出到表格列、
@@ -305,13 +324,13 @@
   - 明确**不拆成前端/后端两份清单**：交叉改动无处归属、两份口径必然漂移；用"一份清单 + 变更类型路由"实现针对性。
 
 - **新增提交前检查规范与合并前复核规范，固化前后端开发流程（需求 11111 / 11112）**
-  - [`Docs/CheckList/PreCommitCheckListSpec.md`](CheckList/PreCommitCheckListSpec.md) —— **提交前检查规范**（提交者自检）：
+  - [`Docs/CheckList/CommitPreCheckListSpec.md`](CheckList/CommitPreCheckListSpec.md) —— **提交前检查规范**（提交者自检）：
     §1 用法（不适用要写原因、单条编号可在提交正文引用、一次提交一件事）、§2 一键自检命令表、
     §3 六组共 28 条清单（范围与授权 C1–C5、编译与测试 C6–C10、数据库迁移 C11–C16、
     接口与文档 C17–C20、前端 C21–C25、提交本身 C26–C28），每条都给可核对的判据；
     §4 六条红线（未授权改表、明文密钥、写生成列、靠 `t.Skip` 变绿、`--no-verify`、混入非仓库文件）；
     §5 豁免写法；§6 条目新增规则（来源必须有据、判据必须可证伪、一条只查一件事、只增不改）。
-  - [`Docs/CheckList/PreMergeCommitCheckListSpec.md`](CheckList/PreMergeCommitCheckListSpec.md) —— **合并前复核规范**（复核人验收）：
+  - [`Docs/CheckList/MergeCommitPreCheckListSpec.md`](CheckList/MergeCommitPreCheckListSpec.md) —— **合并前复核规范**（复核人验收）：
     §1 角色与时机（复核人非提交者，结论只有通过/打回）、§2 代码复核/一致性复核/功能验收三类不可混、
     §3 六组清单（M1 需求与范围、M2 代码、M3 迁移含空库全量迁移与幂等与回滚、M4 接口文档一致性、
     M5 功能验收证据、M6 合并动作）、§4 证据要求与 PR 描述模板、§5 八条强制打回情形、

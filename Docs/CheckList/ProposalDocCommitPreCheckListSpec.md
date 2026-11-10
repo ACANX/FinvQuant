@@ -1,8 +1,8 @@
-# 提案设计检查清单（ProposalDocCommitCheckListSpec）
+# 提案设计检查清单（ProposalDocCommitPreCheckListSpec）
 
 > 所属：FinvQuant 交付检查清单 · 存放：`Docs/CheckList/`
 > 用法：本清单**只列本类特有项**。通用项（范围授权、编译测试、提交纪律、红线）不重复，
-> 按 [`PreCommitCheckListSpec.md`](PreCommitCheckListSpec.md) §4 路由取；合并侧复核见 [`PreMergeCommitCheckListSpec.md`](PreMergeCommitCheckListSpec.md)。
+> 按 [`CommitPreCheckListSpec.md`](CommitPreCheckListSpec.md) §4 路由取；合并侧复核见 [`MergeCommitPreCheckListSpec.md`](MergeCommitPreCheckListSpec.md)。
 > 适用：**动手之前**要拍板的方案、选型、跨模块治理、影响数据/用户可见行为的改动。
 > 存放：`Docs/Proposal/yyyyMM-NNNN-大驼峰Proposal.md`（见 [`Docs/Proposal/README.md`](../Proposal/README.md)）。
 > 阶段边界：提案里有"待确认决策点"就放 `Docs/Proposal/`；决策点清零、开始动手 → 迁到 `Docs/Design/` 或 `Docs/Refactor/`。
@@ -56,4 +56,4 @@
 
 ## 5. 条目新增规则
 
-同 [`PreCommitCheckListSpec.md`](PreCommitCheckListSpec.md) §8。
+同 [`CommitPreCheckListSpec.md`](CommitPreCheckListSpec.md) §8。

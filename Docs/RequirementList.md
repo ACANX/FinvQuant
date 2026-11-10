@@ -3211,28 +3211,29 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 字典值展示口径：**下拉选项**用 `中文[值]`；**表格列只显示中文值**，不得带键（如显示 `生效` 而非 `生效[ACTIVE]`、`美股` 而非 `美股[US]`）；未登记值原样显示 | 11108 | 1 |
 | 新增开发规范 `Docs/DevSpec/DictFilterSpec.md`：字典/可枚举的**查询筛选控件**选项统一 `中文[值]`，含适用判定、首项「全部 X」空值语义、触发时机、选项来源核对、布局一致性、自检清单与反例 | 11109 | 1 |
 | 新增开发规范 `Docs/DevSpec/DictColumnSpec.md`：字典/可枚举的**表格列**只显示中文（不带键），含适用判定、空值与未登记值口径、状态列 chip 语义色、需要看键时的三处出口、自检清单与反例（与 `DictFilterSpec.md` 各自独立成篇） | 11110 | 1 |
-| 新增开发规范 `Docs/CheckList/PreCommitCheckListSpec.md`：代码递交前的检查清单（C1–C28 分组条目 + 一键自检命令 + 红线 + 豁免写法 + 条目新增规则） | 11111 | 1 |
-| 新增开发规范 `Docs/CheckList/PreMergeCommitCheckListSpec.md`：PR 合并前的校验复核与功能验收清单（M1–M6：需求/代码/迁移/文档一致性/功能验收证据/合并动作 + 打回准则 + PR 模板） | 11112 | 1 |
+| 新增开发规范 `Docs/CheckList/CommitPreCheckListSpec.md`：代码递交前的检查清单（C1–C28 分组条目 + 一键自检命令 + 红线 + 豁免写法 + 条目新增规则） | 11111 | 1 |
+| 新增开发规范 `Docs/CheckList/MergeCommitPreCheckListSpec.md`：PR 合并前的校验复核与功能验收清单（M1–M6：需求/代码/迁移/文档一致性/功能验收证据/合并动作 + 打回准则 + PR 模板） | 11112 | 1 |
 | 两份清单补入「高频事故防守表（`R1…R16`，逐条挂真实事故与判据）」与「按变更类型取最小必查集」路由（提交侧 `C`/`R` 编号，合并侧复核范围与必验判据）；不拆前后端两份清单 | 11113 | 1 |
-| 检查清单文档统一存放 `Docs/CheckList/` 并以 `Pre` 前缀命名：`PreCommitCheckListSpec.md`、`PreMergeCommitCheckListSpec.md`（原 `Docs/DevSpec/CommitCheckListSpec.md`、`MergeCheckListSpec.md`） | 11114 | 1 |
-| 新增 `Docs/CheckList/PreFrontendCommitCheckListSpec.md`：前端改动专项清单（FE1–FE15，含枚举口径、长文本、三态、产物一致性与本类高频失手） | 11115 | 1 |
-| 新增 `Docs/CheckList/PreBackendCommitCheckListSpec.md`：后端改动专项清单（BE1–BE16，含错误映射、URL 编码与分片、幂等、资源释放、性能证据） | 11116 | 1 |
-| 新增 `Docs/CheckList/PreDbChangeCommitCheckListSpec.md`：数据库修改专项清单（DB1–DB20：授权、脚本写法、空库/真实库验证、回滚、事故对照） | 11117 | 1 |
-| 新增 `Docs/CheckList/ProposalDocCommitCheckListSpec.md`：提案设计清单（十章骨架 + PP1–PP10 + 批准/打回/待定判定 + 存放命名） | 11118 | 1 |
-| 新增 `Docs/CheckList/TechDesignDocCommitCheckListSpec.md`：技术方案设计清单（十二章骨架 + TD1–TD13 + 常见问题） | 11119 | 1 |
-| 新增 `Docs/CheckList/CodeRefactorCommitCheckListSpec.md`：代码重构清单（四条原则 + RF1–RF13 + 步骤清单骨架） | 11120 | 1 |
-| `PreCommitCheckListSpec.md` §4 路由表改为指向六份专项清单，本文件只保留通用 C 组与事故 R 组 | 11121 | 1 |
+| 检查清单文档统一存放 `Docs/CheckList/` 并以 `Pre` 前缀命名：`CommitPreCheckListSpec.md`、`MergeCommitPreCheckListSpec.md`（原 `Docs/DevSpec/CommitCheckListSpec.md`、`MergeCheckListSpec.md`） | 11114 | 1 |
+| 新增 `Docs/CheckList/FrontendCommitPreCheckListSpec.md`：前端改动专项清单（FE1–FE15，含枚举口径、长文本、三态、产物一致性与本类高频失手） | 11115 | 1 |
+| 新增 `Docs/CheckList/BackendCommitPreCheckListSpec.md`：后端改动专项清单（BE1–BE16，含错误映射、URL 编码与分片、幂等、资源释放、性能证据） | 11116 | 1 |
+| 新增 `Docs/CheckList/DbChangeCommitPreCheckListSpec.md`：数据库修改专项清单（DB1–DB20：授权、脚本写法、空库/真实库验证、回滚、事故对照） | 11117 | 1 |
+| 新增 `Docs/CheckList/ProposalDocCommitPreCheckListSpec.md`：提案设计清单（十章骨架 + PP1–PP10 + 批准/打回/待定判定 + 存放命名） | 11118 | 1 |
+| 新增 `Docs/CheckList/TechDesignDocCommitPreCheckListSpec.md`：技术方案设计清单（十二章骨架 + TD1–TD13 + 常见问题） | 11119 | 1 |
+| 新增 `Docs/CheckList/CodeRefactorCommitPreCheckListSpec.md`：代码重构清单（四条原则 + RF1–RF13 + 步骤清单骨架） | 11120 | 1 |
+| `CommitPreCheckListSpec.md` §4 路由表改为指向六份专项清单，本文件只保留通用 C 组与事故 R 组 | 11121 | 1 |
 | 检查清单文件名后缀统一为 `CheckListSpec.md`（原 `CheckSpec.md`）：`PreCommit` / `PreMerge` / `PreFrontend` / `PreBackend` / `PreDbChange` / `PreProposal` / `PreTechDesign` / `PreRefactor` 共 8 份 | 11122 | 1 |
-| 代码重构清单文件名由 `PreRefactorCheckListSpec.md` 改为 `CodeRefactorCommitCheckListSpec.md`；命名口径：`Pre*` 用于环节门槛（提交前 / 合并前），`Code*` 用于代码类工作类型 | 11123 | 1 |
-| 提案设计清单文件名由 `PreProposalCheckListSpec.md` 改为 `ProposalDocCommitCheckListSpec.md`（`Doc` 标识「产出文档」类清单，取代需求 11122 中的 `PreProposal` 命名） | 11124 | 1 |
-| 代码重构清单文件名由 `CodeRefactorCheckListSpec.md` 改为 `CodeRefactorCommitCheckListSpec.md`（补齐 `Commit` 段，改为需求 11123 中的 `CodeRefactor` 命名） | 11125 | 1 |
-| 后端清单文件名由 `PreBackendCheckListSpec.md` 改为 `PreBackendCommitCheckListSpec.md`（取代需求 11122 中的 `PreBackend` 命名） | 11126 | 1 |
-| 合并前清单文件名由 `PreMergeCheckListSpec.md` 改为 `PreMergeCommitCheckListSpec.md`（取代需求 11122 中的 `PreMerge` 命名） | 11127 | 1 |
-| 技术方案设计清单文件名由 `PreTechDesignCheckListSpec.md` 改为 `TechDesignDocCommitCheckListSpec.md`（取代需求 11122 中的 `PreTechDesign` 命名） | 11128 | 1 |
-| 数据库修改清单文件名由 `PreDbChangeCheckListSpec.md` 改为 `PreDbChangeCommitCheckListSpec.md`（取代需求 11122 中的 `PreDbChange` 命名） | 11129 | 1 |
-| 前端清单文件名由 `PreFrontendCheckListSpec.md` 改为 `PreFrontendCommitCheckListSpec.md`（取代需求 11122 中的 `PreFrontend` 命名） | 11130 | 1 |
-| 提案设计清单文件名由 `ProposalDocCheckListSpec.md` 改为 `ProposalDocCommitCheckListSpec.md`（统一 `Commit` 段，取代需求 11124 中的 `ProposalDoc` 命名） | 11131 | 1 |
-| **合计** | **10001–11131** | **1127**（含 2 条待办） |
+| 代码重构清单文件名由 `PreRefactorCheckListSpec.md` 改为 `CodeRefactorCommitPreCheckListSpec.md`；命名口径：`Pre*` 用于环节门槛（提交前 / 合并前），`Code*` 用于代码类工作类型 | 11123 | 1 |
+| 提案设计清单文件名由 `PreProposalCheckListSpec.md` 改为 `ProposalDocCommitPreCheckListSpec.md`（`Doc` 标识「产出文档」类清单，取代需求 11122 中的 `PreProposal` 命名） | 11124 | 1 |
+| 代码重构清单文件名由 `CodeRefactorCheckListSpec.md` 改为 `CodeRefactorCommitPreCheckListSpec.md`（补齐 `Commit` 段，改为需求 11123 中的 `CodeRefactor` 命名） | 11125 | 1 |
+| 后端清单文件名由 `PreBackendCheckListSpec.md` 改为 `BackendCommitPreCheckListSpec.md`（取代需求 11122 中的 `PreBackend` 命名） | 11126 | 1 |
+| 合并前清单文件名由 `PreMergeCheckListSpec.md` 改为 `MergeCommitPreCheckListSpec.md`（取代需求 11122 中的 `PreMerge` 命名） | 11127 | 1 |
+| 技术方案设计清单文件名由 `PreTechDesignCheckListSpec.md` 改为 `TechDesignDocCommitPreCheckListSpec.md`（取代需求 11122 中的 `PreTechDesign` 命名） | 11128 | 1 |
+| 数据库修改清单文件名由 `PreDbChangeCheckListSpec.md` 改为 `DbChangeCommitPreCheckListSpec.md`（取代需求 11122 中的 `PreDbChange` 命名） | 11129 | 1 |
+| 前端清单文件名由 `PreFrontendCheckListSpec.md` 改为 `FrontendCommitPreCheckListSpec.md`（取代需求 11122 中的 `PreFrontend` 命名） | 11130 | 1 |
+| 提案设计清单文件名由 `ProposalDocCheckListSpec.md` 改为 `ProposalDocCommitPreCheckListSpec.md`（统一 `Commit` 段，取代需求 11124 中的 `ProposalDoc` 命名） | 11131 | 1 |
+| 检查清单文件名统一为 `<领域>[Doc]CommitPreCheckListSpec.md`（`Pre` 由前导前缀改为置于 `CheckListSpec` 之前）：`CommitPre`、`MergeCommitPre`、`FrontendCommitPre`、`BackendCommitPre`、`DbChangeCommitPre`、`ProposalDocCommitPre`、`TechDesignDocCommitPre`、`CodeRefactorCommitPre` 共 8 份 | 11132 | 1 |
+| **合计** | **10001–11132** | **1128**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

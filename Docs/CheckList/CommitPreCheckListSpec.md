@@ -1,9 +1,9 @@
-# 提交前检查规范（PreCommitCheckListSpec）
+# 提交前检查规范（CommitPreCheckListSpec）
 
 > 所属：FinvQuant 开发规范 · 存放：`Docs/CheckList/`
 > 适用范围：任何进入 Git 的改动（Go、`Web/`、`Deploy/Migrations/`、`Docs/`）。
-> 关联：[`PreMergeCommitCheckListSpec.md`](PreMergeCommitCheckListSpec.md)（合并前复核）、[`GitSpec.md`](../DevSpec/GitSpec.md)（提交信息与 CHANGELOG 联动）、[`DocSpec.md`](../DevSpec/DocSpec.md) §4、[`DbSchemaSpec.md`](../DevSpec/DbSchemaSpec.md) §0（改库红线）、[`FileNamingSpec.md`](../DevSpec/FileNamingSpec.md) §4。
-> 本清单的定位：**提交者自检**。合并前由他人复核的清单见 `PreMergeCommitCheckListSpec.md`。
+> 关联：[`MergeCommitPreCheckListSpec.md`](MergeCommitPreCheckListSpec.md)（合并前复核）、[`GitSpec.md`](../DevSpec/GitSpec.md)（提交信息与 CHANGELOG 联动）、[`DocSpec.md`](../DevSpec/DocSpec.md) §4、[`DbSchemaSpec.md`](../DevSpec/DbSchemaSpec.md) §0（改库红线）、[`FileNamingSpec.md`](../DevSpec/FileNamingSpec.md) §4。
+> 本清单的定位：**提交者自检**。合并前由他人复核的清单见 `MergeCommitPreCheckListSpec.md`。
 
 ## 1. 用法
 
@@ -66,13 +66,13 @@ git status --short && git diff --stat
 
 | 变更类型 | 专项清单 | 另需的通用条目 |
 |----------|----------|----------------|
-| 前端页面/组件/样式 | [`PreFrontendCommitCheckListSpec.md`](PreFrontendCommitCheckListSpec.md) | C1–C3、C8、C20 |
-| 后端逻辑/定时任务/外部客户端 | [`PreBackendCommitCheckListSpec.md`](PreBackendCommitCheckListSpec.md) | C1–C3、C6–C10 |
-| 表结构/数据/迁移 | [`PreDbChangeCommitCheckListSpec.md`](PreDbChangeCommitCheckListSpec.md) | C1–C3、C9–C10 |
-| 动手前的方案/选型（要拍板） | [`ProposalDocCommitCheckListSpec.md`](ProposalDocCommitCheckListSpec.md) | C1–C5、C20 |
-| 已批准后的技术设计 | [`TechDesignDocCommitCheckListSpec.md`](TechDesignDocCommitCheckListSpec.md) | C17–C20 |
-| 不改行为的结构调整 | [`CodeRefactorCommitCheckListSpec.md`](CodeRefactorCommitCheckListSpec.md) | C1–C3、C6–C10 |
-| 部署/镜像/脚本 | 共用 C 组 + [`PreDbChangeCommitCheckListSpec.md`](PreDbChangeCommitCheckListSpec.md) 的验证段 | C8、C21、R15、R16 |
+| 前端页面/组件/样式 | [`FrontendCommitPreCheckListSpec.md`](FrontendCommitPreCheckListSpec.md) | C1–C3、C8、C20 |
+| 后端逻辑/定时任务/外部客户端 | [`BackendCommitPreCheckListSpec.md`](BackendCommitPreCheckListSpec.md) | C1–C3、C6–C10 |
+| 表结构/数据/迁移 | [`DbChangeCommitPreCheckListSpec.md`](DbChangeCommitPreCheckListSpec.md) | C1–C3、C9–C10 |
+| 动手前的方案/选型（要拍板） | [`ProposalDocCommitPreCheckListSpec.md`](ProposalDocCommitPreCheckListSpec.md) | C1–C5、C20 |
+| 已批准后的技术设计 | [`TechDesignDocCommitPreCheckListSpec.md`](TechDesignDocCommitPreCheckListSpec.md) | C17–C20 |
+| 不改行为的结构调整 | [`CodeRefactorCommitPreCheckListSpec.md`](CodeRefactorCommitPreCheckListSpec.md) | C1–C3、C6–C10 |
+| 部署/镜像/脚本 | 共用 C 组 + [`DbChangeCommitPreCheckListSpec.md`](DbChangeCommitPreCheckListSpec.md) 的验证段 | C8、C21、R15、R16 |
 | 混合改动 | 取涉及类型并集 | 仍要求「一次提交只装一件事」 |
 
 ## 5. 通用检查清单
@@ -159,4 +159,4 @@ git status --short && git diff --stat
 1. **来源必须有据**：要么对应一条真实事故（写需求号或提交号），要么对应既有规范条款；不接受"感觉应该检查"。
 2. **判据必须可核对**：能被命令、`grep`、观察结果证伪。禁止"代码质量良好""注意兼容性"这类无法判定的条目。
 3. **一条只查一件事**，编号只增不改；作废的条目保留编号并标注 `（已废止：原因）`。
-4. 新增条目同步 `Docs/CHANGELOG.md`，并在 `PreMergeCommitCheckListSpec` 里检查对应项是否已有覆盖，避免两处重复。
+4. 新增条目同步 `Docs/CHANGELOG.md`，并在 `MergeCommitPreCheckListSpec` 里检查对应项是否已有覆盖，避免两处重复。

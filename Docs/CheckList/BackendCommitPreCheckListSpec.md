@@ -1,8 +1,8 @@
-# 后端改动检查清单（PreBackendCommitCheckListSpec）
+# 后端改动检查清单（BackendCommitPreCheckListSpec）
 
 > 所属：FinvQuant 交付检查清单 · 存放：`Docs/CheckList/`
 > 用法：本清单**只列本类特有项**。通用项（范围授权、编译测试、提交纪律、红线）不重复，
-> 按 [`PreCommitCheckListSpec.md`](PreCommitCheckListSpec.md) §4 路由取；合并侧复核见 [`PreMergeCommitCheckListSpec.md`](PreMergeCommitCheckListSpec.md)。
+> 按 [`CommitPreCheckListSpec.md`](CommitPreCheckListSpec.md) §4 路由取；合并侧复核见 [`MergeCommitPreCheckListSpec.md`](MergeCommitPreCheckListSpec.md)。
 > 适用：改动 `cmd/`、`internal/`（Go 服务端、定时任务、外部客户端）。
 > 关联：[`ApiSpec.md`](../DevSpec/ApiSpec.md)（响应信封/异常映射）、[`ErrorCodeSpec.md`](../DevSpec/ErrorCodeSpec.md)（错误码号段）、[`LogSpec.md`](../DevSpec/LogSpec.md)（日志与可观测性）。
 
@@ -31,7 +31,7 @@ go test ./internal/docs/ -count=1        # 改了接口/文档时
 | BE11 | 配置不硬编码 | 连接串、表名、cron 走环境变量或 `sys_config` |
 | BE12 | 日志合规 | 级别与字段符合 `LogSpec`；不打印密钥、令牌、全量请求体 |
 | BE13 | 接口文档同步 | 改了接口就同步 `Docs/API/*.md` + `*.yml`，`go test ./internal/docs/` 通过 |
-| BE14 | 结构变更联动 | 涉及表结构/数据口径的，走 [`PreDbChangeCommitCheckListSpec.md`](PreDbChangeCommitCheckListSpec.md) |
+| BE14 | 结构变更联动 | 涉及表结构/数据口径的，走 [`DbChangeCommitPreCheckListSpec.md`](DbChangeCommitPreCheckListSpec.md) |
 | BE15 | 大表查询有索引支撑 | 新增查询给出 `EXPLAIN`；不新增无索引全表扫描 |
 | BE16 | 影响面自查 | 定时任务/常驻循环改动要说明首次执行时间与错峰，避免启动即打满 |
 
@@ -45,4 +45,4 @@ go test ./internal/docs/ -count=1        # 改了接口/文档时
 
 ## 4. 条目新增规则
 
-同 [`PreCommitCheckListSpec.md`](PreCommitCheckListSpec.md) §8。
+同 [`CommitPreCheckListSpec.md`](CommitPreCheckListSpec.md) §8。
