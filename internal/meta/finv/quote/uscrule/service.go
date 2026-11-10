@@ -153,6 +153,66 @@ func ParseSchedule(expr string) *cron.Schedule {
 	return parsed
 }
 
+// MaxSchedulePreview 调度配置里展示的未来执行次数。
+const MaxSchedulePreview = 5
+
+// LoadSchedule 读取系统配置 20015 的调度配置（空串 = 自动同步关闭）。
+func (s *Service) LoadSchedule(ctx context.Context) (ScheduleConfig, error) {
+	var expr, remark string
+	var gmtModify *time.Time
+	err := s.store.pool.QueryRow(ctx, `
+SELECT COALESCE(str_value, ''), COALESCE(remark, ''), gmt_modify
+  FROM sys.sys_config WHERE config_no = $1`, ConfigCronNo).Scan(&expr, &remark, &gmtModify)
+	if err != nil {
+		return ScheduleConfig{}, fmt.Errorf("读取同步 cron 配置（%d）失败: %w", ConfigCronNo, err)
+	}
+	cfg := ScheduleConfig{CronExpr: strings.TrimSpace(expr), Remark: remark}
+	if gmtModify != nil {
+		text := gmtModify.Format(time.RFC3339)
+		cfg.GmtModify = &text
+	}
+	if schedule := ParseSchedule(cfg.CronExpr); schedule != nil {
+		cfg.Enable = true
+		cfg.NextRun = nextRunsOf(schedule, MaxSchedulePreview)
+	} else {
+		cfg.NextRun = []string{}
+	}
+	return cfg, nil
+}
+
+// SaveSchedule 保存调度配置：空串表示关闭自动同步；非空必须是合法 6 段 cron。
+func (s *Service) SaveSchedule(ctx context.Context, expr, operator string) (ScheduleConfig, error) {
+	expr = strings.TrimSpace(expr)
+	if expr != "" && ParseSchedule(expr) == nil {
+		return ScheduleConfig{}, fmt.Errorf("cron 表达式非法（需 6 段：秒 分 时 日 月 周）: %q", expr)
+	}
+	tag, err := s.store.pool.Exec(ctx, `
+UPDATE sys.sys_config
+   SET str_value = $1, gmt_modify = CURRENT_TIMESTAMP(6), modify_by = $2
+ WHERE config_no = $3`, expr, nonEmpty(operator, "finv"), ConfigCronNo)
+	if err != nil {
+		return ScheduleConfig{}, fmt.Errorf("保存同步 cron 配置失败: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ScheduleConfig{}, fmt.Errorf("系统配置 %d 不存在，请先执行迁移 V300157", ConfigCronNo)
+	}
+	return s.LoadSchedule(ctx)
+}
+
+// nextRunsOf 计算未来 n 次执行时间（本地时区 RFC3339）。
+func nextRunsOf(schedule *cron.Schedule, n int) []string {
+	out := make([]string, 0, n)
+	at := time.Now()
+	for i := 0; i < n; i++ {
+		at = schedule.Next(at)
+		if at.IsZero() {
+			break
+		}
+		out = append(out, at.Format(time.RFC3339))
+	}
+	return out
+}
+
 // CronExpr 读取系统配置 20015 的 cron 表达式。
 func (s *Service) CronExpr(ctx context.Context) (string, error) {
 	var expr *string

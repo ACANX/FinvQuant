@@ -147,6 +147,41 @@ func (h *UscMap) DiffPreview(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "预演完成", "data": preview})
 }
 
+// ScheduleGet GET /Meta/Finv/Quote/UscMap/Schedule。
+func (h *UscMap) ScheduleGet(c *gin.Context) {
+	cfg, err := h.service.LoadSchedule(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": cfg})
+}
+
+// ScheduleSave POST /Meta/Finv/Quote/UscMap/Schedule。
+//
+// 请求体：{"cron_expr":"0 30 3 * * *"}；传空串表示**关闭**自动同步（仍可手动执行）。
+func (h *UscMap) ScheduleSave(c *gin.Context) {
+	var req struct {
+		CronExpr string `json:"cron_expr"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
+		return
+	}
+	operator := ""
+	if session, ok := SessionFrom(c); ok && session != nil {
+		operator = session.UID
+	}
+	cfg, err := h.service.SaveSchedule(c.Request.Context(), req.CronExpr, operator)
+	if err != nil {
+		log.Printf("[usc] api schedule save failed expr=%q err=%v", req.CronExpr, err)
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	log.Printf("[usc] api schedule save ok expr=%q enable=%v operator=%s", cfg.CronExpr, cfg.Enable, operator)
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "已保存", "data": cfg})
+}
+
 // DiffPage GET /Meta/Finv/Quote/UscMap/Diff/Page。
 //
 // 分页浏览最近一次预演的完整明细（预演不落库，明细缓存在内存，30 分钟或重新预演后失效）。

@@ -172,6 +172,15 @@ type Status struct {
 	TargetTables []string `json:"target_tables"`
 }
 
+// ScheduleConfig 每日同步的调度配置（sys_config 20015）。
+type ScheduleConfig struct {
+	CronExpr  string   `json:"cron_expr"`
+	Enable    bool     `json:"enable"` // 表达式非空且合法
+	Remark    string   `json:"remark"`
+	GmtModify *string  `json:"gmt_modify"`
+	NextRun   []string `json:"next_run"` // 未来 5 次执行时间（本地时区）
+}
+
 // LogRow 审计日志一行。
 type LogRow struct {
 	IDN       int64   `json:"idn"`

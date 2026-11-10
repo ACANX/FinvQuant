@@ -139,6 +139,14 @@ interface Status {
   target_tables: string[]
 }
 
+interface ScheduleConfig {
+  cron_expr: string
+  enable: boolean
+  remark: string
+  gmt_modify?: string | null
+  next_run: string[]
+}
+
 interface AuditLog {
   idn: number
   src_table: string
@@ -178,6 +186,11 @@ const diffPageSize = ref(50)
 const diffFilter = ref('')
 const diffLoading = ref(false)
 const diffHint = ref('')
+
+// 定时同步（sys_config 20015）：页面可直接改 cron 或关闭自动同步；「立即执行」= 预演+应用一次，不用等定时
+const schedule = ref<ScheduleConfig | null>(null)
+const scheduleExpr = ref('')
+const scheduleSaving = ref(false)
 const run = ref<Run | null>(null)
 const starting = ref(false)
 let pollTimer: number | null = null
@@ -291,6 +304,34 @@ async function loadItems() {
   }
 }
 
+async function loadSchedule() {
+  try {
+    schedule.value = await apiGet<ScheduleConfig>(`${BASE}/Schedule`)
+    scheduleExpr.value = schedule.value.cron_expr
+  } catch (err) {
+    showToast(`读取定时同步配置失败：${(err as Error).message}`, 'error')
+  }
+}
+
+async function saveSchedule(expr: string) {
+  scheduleSaving.value = true
+  try {
+    schedule.value = await apiPost<ScheduleConfig>(`${BASE}/Schedule`, { cron_expr: expr })
+    scheduleExpr.value = schedule.value.cron_expr
+    showToast(
+      schedule.value.enable
+        ? `已启用：${schedule.value.cron_expr}（下次 ${schedule.value.next_run[0] ?? '—'}）`
+        : '已关闭自动同步（仍可随时「立即执行」）',
+      'success',
+    )
+    await loadStatus()
+  } catch (err) {
+    showToast(`保存失败：${(err as Error).message}`, 'error')
+  } finally {
+    scheduleSaving.value = false
+  }
+}
+
 async function loadLogs() {
   try {
     const data = await apiGet<{ list: AuditLog[]; total: number }>(
@@ -306,7 +347,7 @@ async function loadLogs() {
 async function loadAll() {
   loading.value = true
   try {
-    await Promise.all([loadStatus(), loadRules(), loadItems(), loadLogs()])
+    await Promise.all([loadStatus(), loadRules(), loadItems(), loadLogs(), loadSchedule()])
   } finally {
     loading.value = false
   }
@@ -440,6 +481,18 @@ async function loadDiffPage() {
   } finally {
     diffLoading.value = false
   }
+}
+
+// runNow 定时任务的「立即执行」：先预演拿到令牌（顺便把差异展示出来），再进入确认应用。
+async function runNow() {
+  if (starting.value) return
+  await doPreview()
+  if (!preview.value) return
+  if (!hasDiff.value) {
+    showToast('当前没有差异，无需应用', 'info')
+    return
+  }
+  openApply()
 }
 
 function openApply() {
@@ -749,6 +802,47 @@ onBeforeUnmount(stopPolling)
 
         <!-- Tab 2：预演与应用 -->
         <v-window-item value="diff">
+          <v-card variant="tonal" class="mb-3">
+            <v-card-title class="text-subtitle-1 d-flex align-center flex-wrap ga-2">
+              <v-icon icon="mdi-clock-outline" size="20" />
+              定时同步
+              <v-chip size="small" :color="schedule?.enable ? 'success' : 'grey'" variant="tonal">
+                {{ schedule?.enable ? '已启用' : '已关闭' }}
+              </v-chip>
+              <v-chip v-if="schedule?.enable" size="small" variant="text">
+                下次执行 {{ schedule?.next_run?.[0] ?? '—' }}
+              </v-chip>
+              <v-spacer />
+              <v-btn
+                color="teal"
+                prepend-icon="mdi-play-circle-outline"
+                :loading="previewing || starting"
+                @click="runNow"
+              >
+                立即执行一次
+              </v-btn>
+            </v-card-title>
+            <v-card-text class="d-flex flex-wrap align-center ga-2">
+              <v-text-field
+                v-model="scheduleExpr"
+                label="cron（6 段：秒 分 时 日 月 周，留空=关闭自动同步）"
+                density="compact"
+                variant="outlined"
+                hide-details
+                style="max-width: 420px"
+                placeholder="0 30 3 * * *"
+              />
+              <v-btn color="primary" variant="tonal" :loading="scheduleSaving" @click="saveSchedule(scheduleExpr)">
+                保存
+              </v-btn>
+              <v-btn variant="text" :loading="scheduleSaving" @click="saveSchedule('')">关闭自动同步</v-btn>
+              <v-btn variant="text" prepend-icon="mdi-refresh" @click="loadSchedule">刷新</v-btn>
+              <span class="text-caption text-medium-emphasis">
+                「立即执行一次」与定时任务走同一条链路（预演 → 应用），不需要等到设定时间。
+              </span>
+            </v-card-text>
+          </v-card>
+
           <div class="d-flex flex-wrap align-center ga-2 mb-3">
             <v-btn color="primary" prepend-icon="mdi-diff" :loading="previewing" @click="doPreview">
               预演差异

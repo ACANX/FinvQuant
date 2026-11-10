@@ -261,6 +261,8 @@ func NewRouter(deps *Deps) *gin.Engine {
 			uscGroup.POST("/Sync/Run", uscMap.StartSyncRun)
 			uscGroup.GET("/Sync/Run", uscMap.SyncRunStatus)
 			uscGroup.GET("/Log/List", uscMap.LogList)
+			uscGroup.GET("/Schedule", uscMap.ScheduleGet)
+			uscGroup.POST("/Schedule", uscMap.ScheduleSave)
 		}
 
 		// BRS 备份登记维护（brs.brs_bak_rdb_table_full）：查询 / 新增编辑 / 启用禁用。
