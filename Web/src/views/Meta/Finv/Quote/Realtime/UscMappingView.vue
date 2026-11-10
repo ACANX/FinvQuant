@@ -757,9 +757,20 @@ function changeSummary(row: AuditLog): string {
   return parts.length > 0 ? parts.join(' ｜ ') : '—'
 }
 
-function nullable(value?: string | null): string | null {
-  if (value === undefined || value === null) return null
-  const text = String(value).trim()
+// v-combobox 默认 `return-object=true`（Vuetify 4.1），从下拉里选中对象型选项时
+// v-model 收到的是 { title, value } 整个对象；直接 String(obj) 会落库成 "[object Object]"（需求 11135）。
+// 这里统一把「对象/字符串/空」归一成去空白的字符串，取值优先 value，其次 title。
+function textValue(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    return textValue(obj.value ?? obj.title ?? '')
+  }
+  return String(value).trim()
+}
+
+function nullable(value: unknown): string | null {
+  const text = textValue(value)
   return text === '' ? null : text
 }
 
@@ -1484,6 +1495,9 @@ onBeforeUnmount(stopPolling)
               <v-combobox
                 v-model="editForm.market"
                 :items="MARKET_OPTIONS"
+                item-title="title"
+                item-value="value"
+                :return-object="false"
                 label="市场（可选可填）"
                 density="compact"
                 variant="outlined"
@@ -1495,6 +1509,9 @@ onBeforeUnmount(stopPolling)
               <v-combobox
                 v-model="editForm.instrument"
                 :items="INSTRUMENT_OPTIONS"
+                item-title="title"
+                item-value="value"
+                :return-object="false"
                 label="品种（可选可填）"
                 density="compact"
                 variant="outlined"

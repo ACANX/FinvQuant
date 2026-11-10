@@ -202,6 +202,22 @@
 
 ### 变更
 
+- **修复 USC 条目编辑「市场」「品种」落库成 `[object Object]`（需求 11135）**
+  - 现象：`/Meta/Finv/Quote/Realtime/UscMapping` → 条目 → 新增/编辑，市场选「美股[US]」保存后，
+    表格该列显示 `[object Object]`。
+  - 根因：Vuetify 4.1 的 `v-combobox` 默认 `return-object=true`，从对象型 `items`（`{title,value}`）里选中后
+    `v-model` 收到的是**整个对象**；保存时 `nullable()` 里 `String(value).trim()` 把对象转成字面量
+    `"[object Object]"` 提交，后端照单入库存成脏值。
+  - 修订（`UscMappingView.vue`）：市场 / 品种两个 `v-combobox` 显式写 `item-title="title"`、
+    `item-value="value"`、`:return-object="false"`；`nullable()` 的入参改为 `unknown`，并拆出
+    `textValue()` 归一函数 —— 对象取 `value`，其次 `title`，再 `String()`，空值仍为 `null`。
+    这样即便以后哪个控件再退回对象，也不会把 `[object Object]` 写进库。
+  - 已核：构建产物含 `"return-object":!1` 两处（对应两个控件），镜像已重建并部署。
+  - 事故登记：`CommitPreCheckListSpec` 新增 **R17**，前端清单新增 **FE16**（对象型下拉的提交值不得是对象）。
+  - 存量脏数据：主库 `futu.finv_futu_usc_rule_item` 实测无 `[object Object]` 行；如其它环境存在，按
+    `SELECT idn, rule_no, market, instrument FROM futu.finv_futu_usc_rule_item WHERE market = '[object Object]' OR instrument = '[object Object]';`
+    定位后改回正确值。
+
 - **P50 种子只保留 4 条单点例外，其余 637 条不再随脚本发放（需求 11134）**
   - 背景：P50 整层已按需求 11079 停用（`flag_enable='0'`，条目全部 RETIRED），但 `V300157` 仍把
     641 条批量例外作为 ACTIVE 种子发出去 —— 全新库会凭空灌入一堆从不参与计算的条目，`V300164`

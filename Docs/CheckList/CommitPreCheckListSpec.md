@@ -58,6 +58,7 @@ git status --short && git diff --stat
 | R14 | 提交夹带未跟踪的调试产物（临时目录、`*.bat` 探针、临时 SQL） | `git status --short` 逐项确认来源；无关的一律不加 |
 | R15 | 容器构建默认 `proxy.golang.org` 不可达，`--pull` 因镜像源 DNS 失败 | 构建加 `--build-arg GOPROXY=https://goproxy.cn,direct`；不用 `--pull` |
 | R16 | 只改代码不同步迁移目录 / 接口文档，远端版本与服务端不一致 | 发布相关改动同时同步 `Deploy/Migrations`、`Docs/API`、`Docs/Menu` |
+| R17 | `v-combobox` 默认 `return-object=true`（Vuetify 4.1），从对象型下拉选中后 `v-model` 拿到的是整个 `{title,value}` 对象；保存前 `String(obj)` 落库成 `[object Object]` | 对象型 items 的 `v-combobox` 一律写 `item-title` / `item-value` / `:return-object="false"`；提交前用「对象取 `value` 再取 `title`」的归一函数兜底，不用裸 `String(v)` |
 
 ## 4. 按变更类型取最小必查集
 

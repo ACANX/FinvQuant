@@ -32,6 +32,7 @@ ls -t Web/dist/assets/index-*.js | head -1   # 记下产物哈希，验收要对
 | FE13 | 菜单文档同步 | `Docs/Menu/` 对应页面的列、筛选项、操作与实现一致 |
 | FE14 | 大表格性能可接受 | 千行级列表滚动/筛选无明显卡顿；逐行重计算已收敛到 `computed` |
 | FE15 | 产物与页面一致 | 部署后页面加载的 `index-*.js` 哈希等于本次构建 |
+| FE16 | 表单提交值不是对象 | 对象型 items 的下拉/可填控件：`v-combobox` 必须 `item-title` / `item-value` / `:return-object="false"`，`v-select` 默认即可；提交前过归一函数（对象取 `value` 再取 `title`），不出现 `[object Object]` |
 
 ## 3. 本类高频失手
 

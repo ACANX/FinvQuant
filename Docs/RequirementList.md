@@ -3235,7 +3235,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 检查清单文件名统一为 `<领域>[Doc]CommitPreCheckListSpec.md`（`Pre` 由前导前缀改为置于 `CheckListSpec` 之前）：`CommitPre`、`MergeCommitPre`、`FrontendCommitPre`、`BackendCommitPre`、`DbChangeCommitPre`、`ProposalDocCommitPre`、`TechDesignDocCommitPre`、`CodeRefactorCommitPre` 共 8 份 | 11132 | 1 |
 | 新增 `Docs/CheckList/README.md`：清单目录说明（八份清单一览与使用时机、三步使用流程、命名规则、通用约定、新增或修改清单的流程与校验命令、与 DevSpec/Proposal/Design/Refactor 的关系） | 11133 | 1 |
 | P50 条目只发放「当前生效的 4 条单点例外」（`CC.ANT` / `CC.ATOM` / `US.SPTSX` / `THA.SET`），其余 637 条批量例外从 `V300157` 种子中删除（需求 11079 已整层停用，不再随脚本发放；`V300164` 改为只停用批量例外、保留这 4 条 ACTIVE，校验改为「恰有 4 条 ACTIVE」） | 11134 | 1 |
-| **合计** | **10001–11134** | **1130**（含 2 条待办） |
+| 修复 `/Meta/Finv/Quote/Realtime/UscMapping` 条目编辑框「市场」「品种」保存后落库为 `[object Object]`：`v-combobox` 默认 `return-object=true` 把选项对象写回 `v-model`，`nullable()` 用 `String(obj)` 转成字符串；改为显式 `item-title`/`item-value`/`:return-object="false"`，并把 `nullable()` 换成对象取 `value`/`title` 的归一函数 | 11135 | 1 |
+| **合计** | **10001–11135** | **1131**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
