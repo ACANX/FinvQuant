@@ -202,6 +202,22 @@
 
 ### 变更
 
+- **美股 XRP ETF 的 usc 由 `ETFXRP` 改为富途全码 `US.XRP`（需求 11097，迁移 `V300179`）**
+  - 背景：`ETFXRP` 是需求 11034 自造的读法（ETF+XRP），只为解除与加密币的撞车。加密现货的口径已定
+    `CC.XRP → XRP`（需求 11096）后，用户要求美股这只 ETF 改用富途全码 `US.XRP`，与加拿大
+    `CA.XRP` 的全码风格一致。
+  - 规则层：`P40 / market=US / code=XRP` 由 `LITERAL ETFXRP` 改为 `FTMM`（= ftmm_symbol `US.XRP`），
+    说明与备注同步（需求 11034 的 `ETFXRP` 口径作废），并写入 `finv_futu_usc_rule_log` 留痕。
+  - 存量改名（改前快照入既有归档表）：`finv_futu_usc_map`、`finv_futu_secu_key`、
+    `finv_futu_quote_collect`、`finv_quote_secu_indicator`、`public.finv_security`、
+    `cdeu.finv_cdeu_secu_realtime_stock`，各 1 行；`ETFXRP` 全库归零。
+  - 顺带刷新 V300178 里已过期的文案（`CC.XRP` 条目说明与结果依据不再提 `ETFXRP`）。
+  - 实测：克隆库删掉 `US.XRP` 结果行后重算 → `insert=1 / update=0 / keep=73211`，重建行
+    `usc=US.XRP rule_no=P40 basis=…FTMM`；`CC.XRP→XRP`、`CA.XRP→CA.XRP` 不变；
+    空库全量迁移 `TestMigrateIntegration` PASS；`uscrule` 集成测试抽样期望同步更新。
+  - 上游 `public.finv_quote_secu_key` 仍为旧值（`US.XRP→ETFXRP`、`CC.XRP→CC.XRP`），
+    下次「本地 usc 回推上游」会按新规则写回。
+
 - **把 `CC.XRP → XRP` 的判定固化进 USC 规则表（需求 11096，迁移 `V300178`）**
   - 现状问题：`CC.XRP`（加密 XRP 现货）算成 `XRP` 其实只是 **P20 市场默认**「CC 市场天然唯一率高，
     usc 直接用交易所代码」的顺带结果；规则表里 `P40/P50` 关于 `CC/XRP` 的两条历史条目都是

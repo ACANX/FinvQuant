@@ -234,7 +234,7 @@ SELECT count(*) FROM futu.finv_futu_secu_key k
 	samples := map[string]string{
 		"US.AESG":   "AESG",     // P50 已停用 → 裸码
 		"SH.000300": "SH0300",   // P22 前处理
-		"US.XRP":    "ETFXRP",   // P40 单点例外
+		"US.XRP":    "US.XRP",   // P40 单点例外：美股 XRP ETF 用富途全码（需求 11097）
 		"US..BFLY":  "IDX.BFLY", // P40 指数撞名例外
 		"AU..XFL":   "XFL",      // P16 去前导点
 	}

@@ -46,8 +46,9 @@
 ```
 
 **口径示例（XRP 家族）**：同一个 `code=XRP` 在三个市场各有归属，靠分层与例外区分 ——
-加密现货 `CC.XRP` 占住主读法 `XRP`（P40 精确例外，`LITERAL XRP`）、美股 ETF `US.XRP` 让位为
-`ETFXRP`（P40 精确例外）、加拿大 ETF `CA.XRP` 走市场默认全码 `CA.XRP`（P21）。
+加密现货 `CC.XRP` 占住主读法 `XRP`（P40 精确例外，`LITERAL XRP`）、美股 ETF `US.XRP` 用富途全码
+`US.XRP`（P40 精确例外，`FTMM`；需求 11034 的 `ETFXRP` 自造读法已于需求 11097 作废）、
+加拿大 ETF `CA.XRP` 走市场默认全码 `CA.XRP`（P21）。
 `CC.XRP` 早期按「同名时加密侧用全码」写成了 `FTMM` 条目并已停用，需求 11096 起改由
 `P40 / CC / XRP → LITERAL XRP` 固化，不再依赖 P20 市场默认顺带得出。
 
