@@ -18,8 +18,8 @@ import (
 //	_usc_cand    前处理后的候选（P10 闸门短路 → 条目命中 → 动作求值）
 //	_usc_dup     候选里大小写不敏感撞名的键
 //	_usc_final   冲突升级后的最终结果（撞名改用 ftmm_symbol）
-//	_usc_diff    与结果表的差异（added / changed / unchanged）
-//	_usc_retire  结果表在册但键表已不存在的行（removed → 标记 RETIRED）
+//	_usc_diff    与结果表的差异（insert / update / keep）
+//	_usc_retire  结果表在册但键表已不存在的行（retire → 标记 RETIRED）
 //	_usc_reuse   usc 被新证券接管的行（复用 → 必须先归档下游）
 //
 // env 与规则版本通过 `set_config(..., true)` 注入（事务级），从而让多语句 DAO 不必逐条传参。
@@ -104,9 +104,9 @@ SELECT c.ftmm_symbol, c.market, c.code, c.instrument,
 CREATE TEMP TABLE _usc_diff AS
 SELECT f.ftmm_symbol, f.market, f.code, f.instrument,
        m.usc AS current_usc, f.usc AS new_usc, f.rule_no, f.basis,
-       CASE WHEN m.ftmm_symbol IS NULL THEN 'added'
-            WHEN lower(m.usc) IS DISTINCT FROM lower(f.usc) THEN 'changed'
-            ELSE 'unchanged' END AS diff
+       CASE WHEN m.ftmm_symbol IS NULL THEN 'insert'
+            WHEN lower(m.usc) IS DISTINCT FROM lower(f.usc) THEN 'update'
+            ELSE 'keep' END AS diff
   FROM _usc_final f
   LEFT JOIN futu.finv_futu_usc_map m
          ON m.ftmm_symbol = f.ftmm_symbol AND m.status = 'ACTIVE';
@@ -127,10 +127,10 @@ SELECT d.ftmm_symbol, d.new_usc, p.from_ftmm
            AND x.ftmm_symbol <> d.ftmm_symbol
            AND ( x.status = 'RETIRED'
                  OR x.ftmm_symbol IN (SELECT r.ftmm_symbol FROM _usc_retire r)
-                 OR x.ftmm_symbol IN (SELECT c.ftmm_symbol FROM _usc_diff c WHERE c.diff = 'changed') )
-         ORDER BY (x.status = 'RETIRED') DESC, x.retired_at DESC NULLS LAST
+                 OR x.ftmm_symbol IN (SELECT c.ftmm_symbol FROM _usc_diff c WHERE c.diff = 'update') )
+         ORDER BY (x.status = 'RETIRED') DESC, x.retire_at DESC NULLS LAST
          LIMIT 1) p ON true
- WHERE d.diff IN ('added', 'changed');
+ WHERE d.diff IN ('insert', 'update');
 `
 
 // conflictSQL 升级后仍撞名（说明两条规则指向同一个 usc 且都无条件前缀）。
@@ -142,13 +142,13 @@ SELECT lower(usc) || ' ×' || count(*) AS detail
 
 // summarySQL 预演统计。
 const summarySQL = `
-SELECT COALESCE(count(*) FILTER (WHERE diff = 'added'), 0)::bigint     AS added,
-       COALESCE(count(*) FILTER (WHERE diff = 'changed'), 0)::bigint   AS changed,
-       COALESCE(count(*) FILTER (WHERE diff = 'unchanged'), 0)::bigint AS unchanged,
-       (SELECT count(*) FROM _usc_retire)::bigint                      AS removed,
-       (SELECT count(*) FROM _usc_reuse)::bigint                       AS reused,
+SELECT COALESCE(count(*) FILTER (WHERE diff = 'insert'), 0)::bigint     AS insert,
+       COALESCE(count(*) FILTER (WHERE diff = 'update'), 0)::bigint   AS update,
+       COALESCE(count(*) FILTER (WHERE diff = 'keep'), 0)::bigint AS keep,
+       (SELECT count(*) FROM _usc_retire)::bigint                      AS retire,
+       (SELECT count(*) FROM _usc_reuse)::bigint                       AS reuse,
        (SELECT count(*) FROM _usc_cand)::bigint                        AS total,
-       (SELECT count(*) FROM _usc_final WHERE rule_no = 'ESCALATE')::bigint AS escalated
+       (SELECT count(*) FROM _usc_final WHERE rule_no = 'ESCALATE')::bigint AS escalate
   FROM _usc_diff`
 
 // diffSummary summarySQL 的扫描目标。
@@ -157,20 +157,20 @@ SELECT COALESCE(count(*) FILTER (WHERE diff = 'added'), 0)::bigint     AS added,
 // 因此统一走 scanSummary，禁止在调用处各自写 Scan（曾因应用侧少扫 `total` 一列而报
 // 「number of field descriptions must equal number of destinations, got 7 and 6」）。
 type diffSummary struct {
-	Added     int64
-	Changed   int64
-	Unchanged int64
-	Removed   int64
-	Reused    int64
-	Total     int64
-	Escalated int64
+	Insert   int64
+	Update   int64
+	Keep     int64
+	Retire   int64
+	Reuse    int64
+	Total    int64
+	Escalate int64
 }
 
 // scanSummary 按 summarySQL 的固定列序扫描。
 func scanSummary(row pgx.Row) (diffSummary, error) {
 	var sum diffSummary
-	err := row.Scan(&sum.Added, &sum.Changed, &sum.Unchanged, &sum.Removed,
-		&sum.Reused, &sum.Total, &sum.Escalated)
+	err := row.Scan(&sum.Insert, &sum.Update, &sum.Keep, &sum.Retire,
+		&sum.Reuse, &sum.Total, &sum.Escalate)
 	return sum, err
 }
 
@@ -186,10 +186,10 @@ SELECT d.ftmm_symbol, d.market, d.code, d.instrument, d.current_usc, d.new_usc,
        d.rule_no, d.basis, d.diff, r.from_ftmm
   FROM _usc_diff d
   LEFT JOIN _usc_reuse r ON r.ftmm_symbol = d.ftmm_symbol
- WHERE d.diff <> 'unchanged'
+ WHERE d.diff <> 'keep'
  UNION ALL
 SELECT t.ftmm_symbol, t.market, t.code, t.instrument, t.usc, NULL,
-       'RETIRE', '键表中已不存在该证券，标记退市（usc 释放，允许后续复用）', 'removed', NULL
+       'RETIRE', '键表中已不存在该证券，标记退市（usc 释放，允许后续复用）', 'retire', NULL
   FROM _usc_retire t
  ORDER BY 9, 1`
 
@@ -273,7 +273,7 @@ func (s *Store) prepare(ctx context.Context, tx pgx.Tx, env string) error {
 
 // Preview 预演：算差异后整体回滚，不写任何表。
 //
-// 第二个返回值是**全量**差异明细（不含 unchanged），供 Service 缓存后分页展示。
+// 第二个返回值是**全量**差异明细（不含 keep），供 Service 缓存后分页展示。
 func (s *Store) Preview(ctx context.Context, env string) (Preview, []DiffRow, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -285,14 +285,14 @@ func (s *Store) Preview(ctx context.Context, env string) (Preview, []DiffRow, er
 		return Preview{}, nil, err
 	}
 
-	preview := Preview{Env: normalizeEnv(env), ComputedAt: time.Now().Format(time.RFC3339)}
+	preview := Preview{Env: normalizeEnv(env), ComputeAt: time.Now().Format(time.RFC3339)}
 	sum, err := scanSummary(tx.QueryRow(ctx, summarySQL))
 	if err != nil {
 		return Preview{}, nil, fmt.Errorf("统计差异失败: %w", err)
 	}
-	preview.Added, preview.Changed, preview.Unchanged = sum.Added, sum.Changed, sum.Unchanged
-	preview.Removed, preview.Reused, preview.Total, preview.Escalated =
-		sum.Removed, sum.Reused, sum.Total, sum.Escalated
+	preview.Insert, preview.Update, preview.Keep = sum.Insert, sum.Update, sum.Keep
+	preview.Retire, preview.Reuse, preview.Total, preview.Escalate =
+		sum.Retire, sum.Reuse, sum.Total, sum.Escalate
 	if err := tx.QueryRow(ctx, tokenSQL).Scan(&preview.PreviewToken); err != nil {
 		return Preview{}, nil, fmt.Errorf("计算预演令牌失败: %w", err)
 	}
@@ -370,10 +370,10 @@ func (s *Store) Apply(ctx context.Context, env, previewToken, operator, reason s
 	if err != nil {
 		return result, fmt.Errorf("统计差异失败: %w", err)
 	}
-	result.Added, result.Changed, result.Unchanged = sum.Added, sum.Changed, sum.Unchanged
-	result.Removed, result.Reused, result.Escalated = sum.Removed, sum.Reused, sum.Escalated
+	result.Insert, result.Update, result.Keep = sum.Insert, sum.Update, sum.Keep
+	result.Retire, result.Reuse, result.Escalate = sum.Retire, sum.Reuse, sum.Escalate
 
-	if err := s.archiveReused(ctx, tx, &result); err != nil {
+	if err := s.archiveReuse(ctx, tx, &result); err != nil {
 		return result, err
 	}
 
@@ -381,44 +381,44 @@ func (s *Store) Apply(ctx context.Context, env, previewToken, operator, reason s
 	if _, err := tx.Exec(ctx, `
 UPDATE futu.finv_futu_usc_map m
    SET status = 'RETIRED',
-       retired_at = COALESCE(m.retired_at, now())
+       retire_at = COALESCE(m.retire_at, now())
  WHERE m.status = 'ACTIVE'
    AND ( m.ftmm_symbol IN (SELECT ftmm_symbol FROM _usc_retire)
-      OR m.ftmm_symbol IN (SELECT ftmm_symbol FROM _usc_diff WHERE diff = 'changed') )`); err != nil {
+      OR m.ftmm_symbol IN (SELECT ftmm_symbol FROM _usc_diff WHERE diff = 'update') )`); err != nil {
 		return result, fmt.Errorf("标记退市失败: %w", err)
 	}
 
 	// 写结果表（新增 + 改值；未变行不动）。
 	if _, err := tx.Exec(ctx, `
 INSERT INTO futu.finv_futu_usc_map
-      (ftmm_symbol, market, code, instrument, usc, rule_no, basis, status, retired_at,
-       reuse_of_ftmm, scope_env, rule_version, computed_at, first_assigned_at)
+      (ftmm_symbol, market, code, instrument, usc, rule_no, basis, status, retire_at,
+       reuse_of_ftmm, scope_env, rule_version, compute_at, first_assign_at)
 SELECT d.ftmm_symbol, d.market, d.code, d.instrument, d.new_usc, d.rule_no, d.basis,
        'ACTIVE', NULL, r.from_ftmm,
        current_setting('finv.usc_env'), current_setting('finv.usc_rule_version'), now(), now()
   FROM _usc_diff d
   LEFT JOIN _usc_reuse r ON r.ftmm_symbol = d.ftmm_symbol
- WHERE d.diff <> 'unchanged'
+ WHERE d.diff <> 'keep'
 ON CONFLICT (ftmm_symbol) DO UPDATE
    SET usc           = EXCLUDED.usc,
        rule_no       = EXCLUDED.rule_no,
        basis         = EXCLUDED.basis,
        status        = 'ACTIVE',
-       retired_at    = NULL,
+       retire_at    = NULL,
        reuse_of_ftmm = COALESCE(EXCLUDED.reuse_of_ftmm, futu.finv_futu_usc_map.reuse_of_ftmm),
        scope_env     = EXCLUDED.scope_env,
        rule_version  = EXCLUDED.rule_version,
        market        = EXCLUDED.market,
        code          = EXCLUDED.code,
        instrument    = EXCLUDED.instrument,
-       computed_at   = now()`); err != nil {
+       compute_at   = now()`); err != nil {
 		return result, fmt.Errorf("写入结果表失败: %w", err)
 	}
 
 	// 在册行的计算时间统一刷新（未变行不改 usc，但整次重算时间应前移）。
 	if _, err := tx.Exec(ctx, `
 UPDATE futu.finv_futu_usc_map m
-   SET computed_at = now()
+   SET compute_at = now()
  WHERE m.status = 'ACTIVE'
    AND m.ftmm_symbol IN (SELECT ftmm_symbol FROM _usc_final)`); err != nil {
 		return result, fmt.Errorf("刷新计算时间失败: %w", err)
@@ -434,20 +434,20 @@ UPDATE futu.finv_futu_secu_key k
 	if err != nil {
 		return result, fmt.Errorf("回写键表 usc 失败: %w", err)
 	}
-	result.KeyUpdated = tag.RowsAffected()
+	result.KeyUpdate = tag.RowsAffected()
 
 	// 记账（两次批量插入：一次汇总、一次逐条复用）。
 	if _, err := tx.Exec(ctx, `
 INSERT INTO futu.finv_futu_usc_rule_log (src_table, action, key_text, before_json, after_json, operator, reason)
 VALUES ('map', 'COMPUTE', current_setting('finv.usc_env'), NULL,
-        jsonb_build_object('added', $1::bigint, 'changed', $2::bigint, 'removed', $3::bigint,
-                           'reused', $4::bigint, 'unchanged', $5::bigint, 'escalated', $6::bigint,
-                           'archived', $7::bigint, 'key_updated', $8::bigint,
+        jsonb_build_object('insert', $1::bigint, 'update', $2::bigint, 'retire', $3::bigint,
+                           'reuse', $4::bigint, 'keep', $5::bigint, 'escalate', $6::bigint,
+                           'archive', $7::bigint, 'key_update', $8::bigint,
                            'rule_version', current_setting('finv.usc_rule_version'),
                            'preview_at', $9::text),
         current_setting('finv.usc_operator'), current_setting('finv.usc_reason'))`,
-		result.Added, result.Changed, result.Removed, result.Reused, result.Unchanged,
-		result.Escalated, result.Archived, result.KeyUpdated, result.PreviewAt); err != nil {
+		result.Insert, result.Update, result.Retire, result.Reuse, result.Keep,
+		result.Escalate, result.Archive, result.KeyUpdate, result.PreviewAt); err != nil {
 		return result, fmt.Errorf("写审计日志失败: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -464,15 +464,15 @@ SELECT 'map', 'COMPUTE', r.ftmm_symbol,
 	if err := tx.Commit(ctx); err != nil {
 		return result, fmt.Errorf("提交失败: %w", err)
 	}
-	result.ElapsedMs = time.Since(started).Milliseconds()
+	result.DurationMs = time.Since(started).Milliseconds()
 	return result, nil
 }
 
-// archiveReused 把「usc 被新证券接管」的下游历史行整行快照进 archive.finv_usc_reuse_snapshot。
+// archiveReuse 把「usc 被新证券接管」的下游历史行整行快照进 archive.finv_usc_reuse_snapshot。
 //
 // 顺序硬约束：必须先归档再让旧行让位/写新行，否则历史数据不可恢复。
 // 表可能不存在（新环境 / 历史版本），用 to_regclass 守卫并跳过。
-func (s *Store) archiveReused(ctx context.Context, tx pgx.Tx, result *Result) error {
+func (s *Store) archiveReuse(ctx context.Context, tx pgx.Tx, result *Result) error {
 	var total int64
 	for _, item := range downstreamTables {
 		var exists *string
@@ -495,7 +495,7 @@ ON CONFLICT DO NOTHING`, item.Table, item.SrcKey, item.Table)
 		}
 		total += tag.RowsAffected()
 	}
-	result.Archived = total
+	result.Archive = total
 	return nil
 }
 
@@ -753,16 +753,16 @@ SELECT (SELECT count(*) FROM futu.finv_futu_usc_rule),
        (SELECT count(*) FROM futu.finv_futu_secu_key k
          LEFT JOIN futu.finv_futu_usc_map m ON m.status = 'ACTIVE' AND m.usc_lower = lower(k.usc)
          WHERE m.ftmm_symbol IS NULL),
-       (SELECT max(computed_at) FROM futu.finv_futu_usc_map),
+       (SELECT max(compute_at) FROM futu.finv_futu_usc_map),
        (SELECT count(*) FROM archive.finv_usc_reuse_snapshot)`).Scan(
 		&status.RuleCount, &status.ItemCount, &status.ItemActive, &status.MapActive,
-		&status.MapRetired, &status.MapReused, &status.KeyTotal, &status.KeyMatched,
-		&status.KeyMismatch, &lastComputed, &status.ArchivedRows)
+		&status.MapRetire, &status.MapReuse, &status.KeyTotal, &status.KeyMatch,
+		&status.KeyMiss, &lastComputed, &status.ArchiveRows)
 	if err != nil {
 		return Status{}, fmt.Errorf("统计状态失败: %w", err)
 	}
 	if lastComputed != nil {
-		status.LastComputed = lastComputed.Format(time.RFC3339)
+		status.LastCompute = lastComputed.Format(time.RFC3339)
 	}
 	if status.RuleVersion, err = s.RuleVersion(ctx); err != nil {
 		return Status{}, err

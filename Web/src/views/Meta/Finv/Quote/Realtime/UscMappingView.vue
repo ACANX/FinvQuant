@@ -78,14 +78,14 @@ interface DiffRow {
 interface Preview {
   env: string
   rule_version: string
-  computed_at: string
+  compute_at: string
   total: number
-  added: number
-  changed: number
-  removed: number
-  reused: number
-  unchanged: number
-  escalated: number
+  insert: number
+  update: number
+  retire: number
+  reuse: number
+  keep: number
+  escalate: number
   preview_token: string
   samples: DiffRow[]
   conflicts: string[]
@@ -105,17 +105,17 @@ interface Run {
   env: string
   operator: string
   rule_version: string
-  added: number
-  changed: number
-  removed: number
-  reused: number
-  unchanged: number
-  escalated: number
-  archived: number
-  key_updated: number
-  started_at: string
-  finished_at?: string
-  elapsed_ms: number
+  insert: number
+  update: number
+  retire: number
+  reuse: number
+  keep: number
+  escalate: number
+  archive: number
+  key_update: number
+  start_at: string
+  finish_at?: string
+  duration_ms: number
   error?: string
   logs: RunLog[]
 }
@@ -127,13 +127,13 @@ interface Status {
   item_count: number
   item_active: number
   map_active: number
-  map_retired: number
-  map_reused: number
+  map_retire: number
+  map_reuse: number
   key_total: number
-  key_matched: number
-  key_mismatch: number
-  last_computed_at: string
-  archived_rows: number
+  key_match: number
+  key_miss: number
+  last_compute_at: string
+  archive_rows: number
   cron_expr: string
   cron_next_run: string
   target_tables: string[]
@@ -185,6 +185,9 @@ let pollTimer: number | null = null
 const logs = ref<AuditLog[]>([])
 const logTotal = ref(0)
 const logPage = ref(1)
+// 审计日志「变更」详情对话框：完整 before/after JSON 格式化展示（原先只显示被截断的原始串）
+const logDetailOpen = ref(false)
+const logDetail = ref<AuditLog | null>(null)
 
 // 编辑对话框
 const editOpen = ref(false)
@@ -232,15 +235,24 @@ const cronText = computed(() => {
 
 const matchRate = computed(() => {
   if (!status.value || status.value.key_total === 0) return 0
-  return Math.round((status.value.key_matched / status.value.key_total) * 1000) / 10
+  return Math.round((status.value.key_match / status.value.key_total) * 1000) / 10
 })
 
 const hasDiff = computed(() => {
   if (!preview.value) return false
-  return preview.value.added + preview.value.changed + preview.value.removed + preview.value.reused > 0
+  return preview.value.insert + preview.value.update + preview.value.retire + preview.value.reuse > 0
 })
 
 // ---------- 读取 ----------
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    showToast('已复制到剪贴板', 'success')
+  } catch {
+    showToast('复制失败，请手动选中复制', 'warning')
+  }
+}
+
 async function loadStatus() {
   try {
     status.value = await apiGet<Status>(`${BASE}/Status`)
@@ -393,7 +405,7 @@ async function doPreview() {
       showToast('预演发现 usc 冲突，应用会被拒绝', 'error')
     } else {
       showToast(
-        `预演完成：新增 ${preview.value.added}、更新 ${preview.value.changed}、退市 ${preview.value.removed}、复用 ${preview.value.reused}`,
+        `预演完成：新增 ${preview.value.insert}、更新 ${preview.value.update}、退市 ${preview.value.retire}、复用 ${preview.value.reuse}`,
         'success',
       )
     }
@@ -467,7 +479,7 @@ function startPolling(runId: string) {
         starting.value = false
         if (snapshot.status === 'DONE') {
           showToast(
-            `应用完成：新增 ${snapshot.added}、更新 ${snapshot.changed}、退市 ${snapshot.removed}、复用 ${snapshot.reused}、回写键表 ${snapshot.key_updated}`,
+            `应用完成：新增 ${snapshot.insert}、更新 ${snapshot.update}、退市 ${snapshot.retire}、复用 ${snapshot.reuse}、回写键表 ${snapshot.key_update}`,
             'success',
           )
           preview.value = null
@@ -492,6 +504,45 @@ function stopPolling() {
 }
 
 // ---------- 工具 ----------
+function openLogDetail(row: AuditLog) {
+  logDetail.value = row
+  logDetailOpen.value = true
+}
+
+// prettyJSON 把库里的 jsonb 文本格式化成缩进 2 空格的多行 JSON；解析失败原样返回。
+function prettyJSON(raw?: string | null): string {
+  if (!raw) return '（无）'
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2)
+  } catch {
+    return raw
+  }
+}
+
+// changeSummary 列表里显示的简短摘要：字段名列表 + 关键值，避免整串 JSON 塞进表格。
+function changeSummary(row: AuditLog): string {
+  const parts: string[] = []
+  for (const [label, raw] of [
+    ['前', row.before_json],
+    ['后', row.after_json],
+  ] as const) {
+    if (!raw) continue
+    try {
+      const obj = JSON.parse(raw) as Record<string, unknown>
+      const keys = Object.keys(obj)
+      const brief = keys.slice(0, 6).map((k) => {
+        const value = obj[k]
+        const text = typeof value === 'object' && value !== null ? '…' : String(value)
+        return `${k}=${text.length > 18 ? `${text.slice(0, 18)}…` : text}`
+      })
+      parts.push(`${label}: ${brief.join(', ')}${keys.length > 6 ? ` 等 ${keys.length} 个字段` : ''}`)
+    } catch {
+      parts.push(`${label}: ${raw.length > 60 ? `${raw.slice(0, 60)}…` : raw}`)
+    }
+  }
+  return parts.length > 0 ? parts.join(' ｜ ') : '—'
+}
+
 function nullable(value?: string | null): string | null {
   if (value === undefined || value === null) return null
   const text = String(value).trim()
@@ -500,13 +551,13 @@ function nullable(value?: string | null): string | null {
 
 function diffColor(diff: string): string {
   switch (diff) {
-    case 'added':
+    case 'insert':
       return 'success'
-    case 'changed':
+    case 'update':
       return 'warning'
-    case 'removed':
+    case 'retire':
       return 'error'
-    case 'unchanged':
+    case 'keep':
       return 'grey'
     default:
       return 'primary'
@@ -713,13 +764,13 @@ onBeforeUnmount(stopPolling)
             <v-chip v-if="preview" variant="tonal" prepend-icon="mdi-counter">
               总 {{ preview.total }}
             </v-chip>
-            <v-chip v-if="preview" color="success" variant="tonal">新增 {{ preview.added }}</v-chip>
-            <v-chip v-if="preview" color="warning" variant="tonal">更新 {{ preview.changed }}</v-chip>
-            <v-chip v-if="preview" color="error" variant="tonal">退市 {{ preview.removed }}</v-chip>
-            <v-chip v-if="preview" color="info" variant="tonal">复用 {{ preview.reused }}</v-chip>
-            <v-chip v-if="preview" variant="tonal">未变 {{ preview.unchanged }}</v-chip>
-            <v-chip v-if="preview && preview.escalated > 0" color="deep-purple" variant="tonal">
-              冲突升级 {{ preview.escalated }}
+            <v-chip v-if="preview" color="success" variant="tonal">新增 {{ preview.insert }}</v-chip>
+            <v-chip v-if="preview" color="warning" variant="tonal">更新 {{ preview.update }}</v-chip>
+            <v-chip v-if="preview" color="error" variant="tonal">退市 {{ preview.retire }}</v-chip>
+            <v-chip v-if="preview" color="info" variant="tonal">复用 {{ preview.reuse }}</v-chip>
+            <v-chip v-if="preview" variant="tonal">未变 {{ preview.keep }}</v-chip>
+            <v-chip v-if="preview && preview.escalate > 0" color="deep-purple" variant="tonal">
+              冲突升级 {{ preview.escalate }}
             </v-chip>
           </div>
 
@@ -742,9 +793,9 @@ onBeforeUnmount(stopPolling)
               v-model="diffFilter"
               :items="[
                 { title: '全部类别', value: '' },
-                { title: '新增 added', value: 'added' },
-                { title: '更新 changed', value: 'changed' },
-                { title: '退市 removed', value: 'removed' },
+                { title: '新增 insert', value: 'insert' },
+                { title: '更新 update', value: 'update' },
+                { title: '退市 retire', value: 'retire' },
               ]"
               density="compact"
               variant="outlined"
@@ -822,16 +873,16 @@ onBeforeUnmount(stopPolling)
                 {{ run.status }}
               </v-chip>
               <v-chip size="small" variant="text">触发 {{ run.trigger }}</v-chip>
-              <v-chip size="small" variant="text">{{ run.elapsed_ms }} ms</v-chip>
+              <v-chip size="small" variant="text">{{ run.duration_ms }} ms</v-chip>
             </v-card-title>
             <v-card-text>
               <div class="d-flex flex-wrap ga-2 mb-2">
-                <v-chip size="small" variant="tonal">新增 {{ run.added }}</v-chip>
-                <v-chip size="small" variant="tonal">更新 {{ run.changed }}</v-chip>
-                <v-chip size="small" variant="tonal">退市 {{ run.removed }}</v-chip>
-                <v-chip size="small" variant="tonal">复用 {{ run.reused }}</v-chip>
-                <v-chip size="small" variant="tonal">归档 {{ run.archived }}</v-chip>
-                <v-chip size="small" variant="tonal">回写键表 {{ run.key_updated }}</v-chip>
+                <v-chip size="small" variant="tonal">新增 {{ run.insert }}</v-chip>
+                <v-chip size="small" variant="tonal">更新 {{ run.update }}</v-chip>
+                <v-chip size="small" variant="tonal">退市 {{ run.retire }}</v-chip>
+                <v-chip size="small" variant="tonal">复用 {{ run.reuse }}</v-chip>
+                <v-chip size="small" variant="tonal">归档 {{ run.archive }}</v-chip>
+                <v-chip size="small" variant="tonal">回写键表 {{ run.key_update }}</v-chip>
               </div>
               <pre class="usc-log">{{ run.logs.map((l) => `[${l.time}] ${l.level} ${l.text}`).join('\n') }}</pre>
             </v-card-text>
@@ -849,23 +900,27 @@ onBeforeUnmount(stopPolling)
                 <th>主键</th>
                 <th>操作人</th>
                 <th>原因</th>
-                <th>变更</th>
+                <th>变更摘要</th>
+                <th class="text-right">详情</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="row in logs" :key="row.idn">
+              <tr v-for="row in logs" :key="row.idn" class="usc-log-row" @click="openLogDetail(row)">
                 <td class="text-no-wrap">{{ row.gmt_create }}</td>
                 <td>{{ row.src_table }}</td>
                 <td>{{ row.action }}</td>
                 <td>{{ row.key_text }}</td>
                 <td>{{ row.operator || '—' }}</td>
                 <td class="text-caption">{{ row.reason }}</td>
-                <td class="text-caption text-truncate" style="max-width: 380px">
-                  {{ row.after_json ?? row.before_json ?? '—' }}
+                <td class="text-caption">{{ changeSummary(row) }}</td>
+                <td class="text-right">
+                  <v-btn size="x-small" variant="text" prepend-icon="mdi-code-json" @click.stop="openLogDetail(row)">
+                    查看
+                  </v-btn>
                 </td>
               </tr>
               <tr v-if="logs.length === 0">
-                <td colspan="7" class="text-center text-medium-emphasis">暂无审计记录</td>
+                <td colspan="8" class="text-center text-medium-emphasis">暂无审计记录</td>
               </tr>
             </tbody>
           </v-table>
@@ -997,8 +1052,8 @@ onBeforeUnmount(stopPolling)
             <code>archive.finv_usc_reuse_snapshot</code>。
           </v-alert>
           <div class="mb-2">
-            新增 {{ preview?.added }} · 更新 {{ preview?.changed }} · 退市 {{ preview?.removed }} · 复用
-            {{ preview?.reused }}
+            新增 {{ preview?.insert }} · 更新 {{ preview?.update }} · 退市 {{ preview?.retire }} · 复用
+            {{ preview?.reuse }}
           </div>
           <v-textarea v-model="applyReason" label="应用原因（写入审计日志）" rows="2" density="compact" variant="outlined" />
         </v-card-text>
@@ -1010,6 +1065,48 @@ onBeforeUnmount(stopPolling)
       </v-card>
     </v-dialog>
   </v-card>
+
+  <!-- 审计日志详情：before / after 格式化 JSON -->
+  <v-dialog v-model="logDetailOpen" max-width="980" scrollable>
+    <v-card v-if="logDetail">
+      <v-card-title class="d-flex align-center ga-2">
+        审计日志 #{{ logDetail.idn }}
+        <v-chip size="small" variant="tonal">{{ logDetail.src_table }}</v-chip>
+        <v-chip size="small" variant="tonal">{{ logDetail.action }}</v-chip>
+        <v-spacer />
+        <v-chip size="small" variant="text">{{ logDetail.gmt_create }}</v-chip>
+      </v-card-title>
+      <v-card-subtitle>
+        对象 {{ logDetail.key_text }} · 操作人 {{ logDetail.operator || '—' }} · 原因 {{ logDetail.reason }}
+      </v-card-subtitle>
+      <v-card-text>
+        <v-row dense>
+          <v-col cols="12" md="6">
+            <div class="d-flex align-center ga-2 mb-1">
+              <strong>变更前（before_json）</strong>
+              <v-spacer />
+              <v-btn size="x-small" variant="text" prepend-icon="mdi-content-copy"
+                     @click="copyText(prettyJSON(logDetail.before_json))">复制</v-btn>
+            </div>
+            <pre class="usc-json">{{ prettyJSON(logDetail.before_json) }}</pre>
+          </v-col>
+          <v-col cols="12" md="6">
+            <div class="d-flex align-center ga-2 mb-1">
+              <strong>变更后（after_json）</strong>
+              <v-spacer />
+              <v-btn size="x-small" variant="text" prepend-icon="mdi-content-copy"
+                     @click="copyText(prettyJSON(logDetail.after_json))">复制</v-btn>
+            </div>
+            <pre class="usc-json">{{ prettyJSON(logDetail.after_json) }}</pre>
+          </v-col>
+        </v-row>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn variant="text" @click="logDetailOpen = false">关闭</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 
   <!-- 说明（页面最底部唯一说明卡片） -->
   <v-card variant="tonal" class="mt-3">
@@ -1057,6 +1154,26 @@ onBeforeUnmount(stopPolling)
   background: rgba(var(--v-theme-surface-variant), 0.4);
   padding: 8px 10px;
   border-radius: 4px;
+}
+
+.usc-log-row {
+  cursor: pointer;
+}
+
+.usc-log-row:hover {
+  background: rgba(var(--v-theme-primary), 0.06);
+}
+
+.usc-json {
+  max-height: 420px;
+  overflow: auto;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  background: rgba(var(--v-theme-surface-variant), 0.4);
+  padding: 10px 12px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .usc-note {

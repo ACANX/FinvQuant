@@ -96,16 +96,16 @@ func TestPreviewLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("预演失败: %v", err)
 	}
-	t.Logf("预演：total=%d added=%d changed=%d removed=%d reused=%d unchanged=%d escalated=%d token=%s",
-		preview.Total, preview.Added, preview.Changed, preview.Removed, preview.Reused,
-		preview.Unchanged, preview.Escalated, preview.PreviewToken)
+	t.Logf("预演：total=%d insert=%d update=%d retire=%d reuse=%d keep=%d escalate=%d token=%s",
+		preview.Total, preview.Insert, preview.Update, preview.Retire, preview.Reuse,
+		preview.Keep, preview.Escalate, preview.PreviewToken)
 
 	if preview.Total != keyRows {
 		t.Errorf("预演行数 %d 与键表行数 %d 不一致", preview.Total, keyRows)
 	}
-	if preview.Added+preview.Changed+preview.Unchanged != preview.Total {
+	if preview.Insert+preview.Update+preview.Keep != preview.Total {
 		t.Errorf("分类计数之和 %d 与总行数 %d 不一致",
-			preview.Added+preview.Changed+preview.Unchanged, preview.Total)
+			preview.Insert+preview.Update+preview.Keep, preview.Total)
 	}
 	if len(preview.Conflicts) != 0 {
 		t.Errorf("预演报告了 usc 冲突: %v", preview.Conflicts)
@@ -128,7 +128,7 @@ func TestPreviewLive(t *testing.T) {
 	if token != preview.PreviewToken {
 		t.Errorf("分页令牌 %q 与预演令牌 %q 不一致", token, preview.PreviewToken)
 	}
-	expectTotal := int(preview.Added + preview.Changed + preview.Removed + preview.Reused)
+	expectTotal := int(preview.Insert + preview.Update + preview.Retire + preview.Reuse)
 	if total != expectTotal {
 		t.Errorf("明细分页 total=%d，期望 %d（新增+更新+退市+复用）", total, expectTotal)
 	}
@@ -189,8 +189,8 @@ func TestApplyOnClone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("预演失败: %v", err)
 	}
-	t.Logf("预演：total=%d added=%d changed=%d removed=%d escalated=%d",
-		preview.Total, preview.Added, preview.Changed, preview.Removed, preview.Escalated)
+	t.Logf("预演：total=%d insert=%d update=%d retire=%d escalate=%d",
+		preview.Total, preview.Insert, preview.Update, preview.Retire, preview.Escalate)
 
 	// 令牌错误必须被拒绝
 	if _, err := service.Apply(ctx, DefaultEnv, "bogus-token", "test", "错误令牌应被拒绝"); err == nil {
@@ -201,13 +201,13 @@ func TestApplyOnClone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("应用失败: %v", err)
 	}
-	t.Logf("应用：added=%d changed=%d removed=%d reused=%d unchanged=%d escalated=%d key_updated=%d archived=%d elapsed=%dms",
-		result.Added, result.Changed, result.Removed, result.Reused, result.Unchanged,
-		result.Escalated, result.KeyUpdated, result.Archived, result.ElapsedMs)
+	t.Logf("应用：insert=%d update=%d retire=%d reuse=%d keep=%d escalate=%d key_update=%d archive=%d elapsed=%dms",
+		result.Insert, result.Update, result.Retire, result.Reuse, result.Keep,
+		result.Escalate, result.KeyUpdate, result.Archive, result.DurationMs)
 
-	if result.Added != preview.Added || result.Changed != preview.Changed || result.Removed != preview.Removed {
-		t.Errorf("应用统计与预演不一致：应用(added %d/changed %d/removed %d) vs 预演(%d/%d/%d)",
-			result.Added, result.Changed, result.Removed, preview.Added, preview.Changed, preview.Removed)
+	if result.Insert != preview.Insert || result.Update != preview.Update || result.Retire != preview.Retire {
+		t.Errorf("应用统计与预演不一致：应用(insert %d/update %d/retire %d) vs 预演(%d/%d/%d)",
+			result.Insert, result.Update, result.Retire, preview.Insert, preview.Update, preview.Retire)
 	}
 
 	var mapRows int64
@@ -232,11 +232,11 @@ SELECT count(*) FROM futu.finv_futu_secu_key k
 
 	// 抽样口径
 	samples := map[string]string{
-		"US.AESG":   "AESG",    // P50 已停用 → 裸码
-		"SH.000300": "SH0300",  // P22 前处理
-		"US.XRP":    "ETFXRP",  // P40 单点例外
+		"US.AESG":   "AESG",     // P50 已停用 → 裸码
+		"SH.000300": "SH0300",   // P22 前处理
+		"US.XRP":    "ETFXRP",   // P40 单点例外
 		"US..BFLY":  "IDX.BFLY", // P40 指数撞名例外
-		"AU..XFL":   "XFL",     // P16 去前导点
+		"AU..XFL":   "XFL",      // P16 去前导点
 	}
 	for ftmm, want := range samples {
 		var got string
@@ -249,20 +249,20 @@ SELECT count(*) FROM futu.finv_futu_secu_key k
 		}
 	}
 
-	// 二次应用必须幂等：全部 unchanged、不再回写键表
+	// 二次应用必须幂等：全部 keep、不再回写键表
 	preview2, err := service.Preview(ctx, DefaultEnv)
 	if err != nil {
 		t.Fatalf("二次预演失败: %v", err)
 	}
-	if preview2.Added != 0 || preview2.Changed != 0 {
-		t.Errorf("二次预演应无变化，实际 added=%d changed=%d", preview2.Added, preview2.Changed)
+	if preview2.Insert != 0 || preview2.Update != 0 {
+		t.Errorf("二次预演应无变化，实际 insert=%d update=%d", preview2.Insert, preview2.Update)
 	}
 	result2, err := service.Apply(ctx, DefaultEnv, preview2.PreviewToken, "test", "幂等复跑")
 	if err != nil {
 		t.Fatalf("二次应用失败: %v", err)
 	}
-	if result2.Added != 0 || result2.Changed != 0 || result2.KeyUpdated != 0 {
-		t.Errorf("二次应用应幂等，实际 added=%d changed=%d key_updated=%d",
-			result2.Added, result2.Changed, result2.KeyUpdated)
+	if result2.Insert != 0 || result2.Update != 0 || result2.KeyUpdate != 0 {
+		t.Errorf("二次应用应幂等，实际 insert=%d update=%d key_update=%d",
+			result2.Insert, result2.Update, result2.KeyUpdate)
 	}
 }

@@ -52,10 +52,10 @@ const (
 
 // diff 分类。
 const (
-	DiffAdded     = "added"
-	DiffChanged   = "changed"
-	DiffRemoved   = "removed"
-	DiffUnchanged = "unchanged"
+	DiffInsert = "insert"
+	DiffUpdate = "update"
+	DiffRetire = "retire"
+	DiffKeep   = "keep"
 )
 
 // Rule 规则层一行。
@@ -123,14 +123,14 @@ type DiffRow struct {
 type Preview struct {
 	Env          string    `json:"env"`
 	RuleVersion  string    `json:"rule_version"`
-	ComputedAt   string    `json:"computed_at"`
+	ComputeAt    string    `json:"compute_at"`
 	Total        int64     `json:"total"`
-	Added        int64     `json:"added"`
-	Changed      int64     `json:"changed"`
-	Removed      int64     `json:"removed"`
-	Reused       int64     `json:"reused"`
-	Unchanged    int64     `json:"unchanged"`
-	Escalated    int64     `json:"escalated"`
+	Insert       int64     `json:"insert"`
+	Update       int64     `json:"update"`
+	Retire       int64     `json:"retire"`
+	Reuse        int64     `json:"reuse"`
+	Keep         int64     `json:"keep"`
+	Escalate     int64     `json:"escalate"`
 	PreviewToken string    `json:"preview_token"`
 	Samples      []DiffRow `json:"samples"`
 	Conflicts    []string  `json:"conflicts"`
@@ -140,15 +140,15 @@ type Preview struct {
 type Result struct {
 	Env         string `json:"env"`
 	RuleVersion string `json:"rule_version"`
-	Added       int64  `json:"added"`
-	Changed     int64  `json:"changed"`
-	Removed     int64  `json:"removed"`
-	Reused      int64  `json:"reused"`
-	Unchanged   int64  `json:"unchanged"`
-	Escalated   int64  `json:"escalated"`
-	Archived    int64  `json:"archived"`
-	KeyUpdated  int64  `json:"key_updated"`
-	ElapsedMs   int64  `json:"elapsed_ms"`
+	Insert      int64  `json:"insert"`
+	Update      int64  `json:"update"`
+	Retire      int64  `json:"retire"`
+	Reuse       int64  `json:"reuse"`
+	Keep        int64  `json:"keep"`
+	Escalate    int64  `json:"escalate"`
+	Archive     int64  `json:"archive"`
+	KeyUpdate   int64  `json:"key_update"`
+	DurationMs  int64  `json:"duration_ms"`
 	PreviewAt   string `json:"preview_at"`
 }
 
@@ -160,13 +160,13 @@ type Status struct {
 	ItemCount    int64    `json:"item_count"`
 	ItemActive   int64    `json:"item_active"`
 	MapActive    int64    `json:"map_active"`
-	MapRetired   int64    `json:"map_retired"`
-	MapReused    int64    `json:"map_reused"`
+	MapRetire    int64    `json:"map_retire"`
+	MapReuse     int64    `json:"map_reuse"`
 	KeyTotal     int64    `json:"key_total"`
-	KeyMatched   int64    `json:"key_matched"`
-	KeyMismatch  int64    `json:"key_mismatch"`
-	LastComputed string   `json:"last_computed_at"`
-	ArchivedRows int64    `json:"archived_rows"`
+	KeyMatch     int64    `json:"key_match"`
+	KeyMiss      int64    `json:"key_miss"`
+	LastCompute  string   `json:"last_compute_at"`
+	ArchiveRows  int64    `json:"archive_rows"`
 	CronExpr     string   `json:"cron_expr"`
 	CronNextRun  string   `json:"cron_next_run"`
 	TargetTables []string `json:"target_tables"`

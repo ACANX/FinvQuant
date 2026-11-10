@@ -57,17 +57,17 @@ type Run struct {
 	Env         string   `json:"env"`
 	Operator    string   `json:"operator"`
 	RuleVersion string   `json:"rule_version"`
-	Added       int64    `json:"added"`
-	Changed     int64    `json:"changed"`
-	Removed     int64    `json:"removed"`
-	Reused      int64    `json:"reused"`
-	Unchanged   int64    `json:"unchanged"`
-	Escalated   int64    `json:"escalated"`
-	Archived    int64    `json:"archived"`
-	KeyUpdated  int64    `json:"key_updated"`
-	StartedAt   string   `json:"started_at"`
-	FinishedAt  string   `json:"finished_at,omitempty"`
-	ElapsedMs   int64    `json:"elapsed_ms"`
+	Insert      int64    `json:"insert"`
+	Update      int64    `json:"update"`
+	Retire      int64    `json:"retire"`
+	Reuse       int64    `json:"reuse"`
+	Keep        int64    `json:"keep"`
+	Escalate    int64    `json:"escalate"`
+	Archive     int64    `json:"archive"`
+	KeyUpdate   int64    `json:"key_update"`
+	StartAt     string   `json:"start_at"`
+	FinishAt    string   `json:"finish_at,omitempty"`
+	DurationMs  int64    `json:"duration_ms"`
 	Error       string   `json:"error,omitempty"`
 	Logs        []RunLog `json:"logs"`
 }
@@ -116,12 +116,12 @@ func (r *Runner) Start(req RunRequest) (Run, error) {
 	state := &runState{
 		started: r.now(),
 		run: Run{
-			RunID:     runID,
-			Status:    RunStatusRunning,
-			Trigger:   string(req.Trigger),
-			Env:       env,
-			Operator:  nonEmpty(req.Operator, "finv-scheduler"),
-			StartedAt: r.now().Format(time.RFC3339),
+			RunID:    runID,
+			Status:   RunStatusRunning,
+			Trigger:  string(req.Trigger),
+			Env:      env,
+			Operator: nonEmpty(req.Operator, "finv-scheduler"),
+			StartAt:  r.now().Format(time.RFC3339),
 		},
 	}
 	r.current = state
@@ -160,8 +160,8 @@ func (r *Runner) execute(state *runState, req RunRequest, env string) {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	state.run.ElapsedMs = r.now().Sub(state.started).Milliseconds()
-	state.run.FinishedAt = r.now().Format(time.RFC3339)
+	state.run.DurationMs = r.now().Sub(state.started).Milliseconds()
+	state.run.FinishAt = r.now().Format(time.RFC3339)
 	if err != nil {
 		state.run.Status = RunStatusFailed
 		state.run.Error = err.Error()
@@ -171,21 +171,21 @@ func (r *Runner) execute(state *runState, req RunRequest, env string) {
 	}
 	state.run.Status = RunStatusDone
 	state.run.RuleVersion = result.RuleVersion
-	state.run.Added = result.Added
-	state.run.Changed = result.Changed
-	state.run.Removed = result.Removed
-	state.run.Reused = result.Reused
-	state.run.Unchanged = result.Unchanged
-	state.run.Escalated = result.Escalated
-	state.run.Archived = result.Archived
-	state.run.KeyUpdated = result.KeyUpdated
+	state.run.Insert = result.Insert
+	state.run.Update = result.Update
+	state.run.Retire = result.Retire
+	state.run.Reuse = result.Reuse
+	state.run.Keep = result.Keep
+	state.run.Escalate = result.Escalate
+	state.run.Archive = result.Archive
+	state.run.KeyUpdate = result.KeyUpdate
 	r.appendLogLocked(state, RunLogLevelInfo, fmt.Sprintf(
 		"同步完成：新增 %d，更新 %d，退市 %d，复用 %d，未变 %d，升级 %d，归档 %d 行，回写键表 %d 行，耗时 %d ms",
-		result.Added, result.Changed, result.Removed, result.Reused, result.Unchanged,
-		result.Escalated, result.Archived, result.KeyUpdated, result.ElapsedMs))
-	log.Printf("[usc] run=%s done env=%s added=%d changed=%d removed=%d reused=%d escalated=%d archived=%d key_updated=%d elapsed_ms=%d",
-		state.run.RunID, env, result.Added, result.Changed, result.Removed, result.Reused,
-		result.Escalated, result.Archived, result.KeyUpdated, result.ElapsedMs)
+		result.Insert, result.Update, result.Retire, result.Reuse, result.Keep,
+		result.Escalate, result.Archive, result.KeyUpdate, result.DurationMs))
+	log.Printf("[usc] run=%s done env=%s insert=%d update=%d retire=%d reuse=%d escalate=%d archive=%d key_update=%d duration_ms=%d",
+		state.run.RunID, env, result.Insert, result.Update, result.Retire, result.Reuse,
+		result.Escalate, result.Archive, result.KeyUpdate, result.DurationMs)
 }
 
 // StartCron 启动每日调度（阻塞直到 ctx 取消）：每 30 秒检查系统配置 20015 的 cron 是否命中。
@@ -268,7 +268,7 @@ func (r *Runner) snapshotLocked(state *runState) Run {
 	snapshot.Logs = make([]RunLog, len(state.logs))
 	copy(snapshot.Logs, state.logs)
 	if snapshot.Status == RunStatusRunning {
-		snapshot.ElapsedMs = r.now().Sub(state.started).Milliseconds()
+		snapshot.DurationMs = r.now().Sub(state.started).Milliseconds()
 	}
 	return snapshot
 }

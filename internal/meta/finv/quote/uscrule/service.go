@@ -58,7 +58,7 @@ func (s *Service) Preview(ctx context.Context, env string) (Preview, error) {
 
 // DiffPage 分页读取最近一次预演的明细。
 //
-// diff 为空表示全部（不含 unchanged）；token 非空时必须与缓存令牌一致，避免「预演 → 改了规则 → 还在看旧明细」。
+// diff 为空表示全部（不含 keep）；token 非空时必须与缓存令牌一致，避免「预演 → 改了规则 → 还在看旧明细」。
 func (s *Service) DiffPage(token, diff string, page, pageSize int) ([]DiffRow, int, string, error) {
 	s.mu.Lock()
 	rows := s.cached

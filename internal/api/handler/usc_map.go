@@ -47,9 +47,9 @@ func (h *UscMap) Status(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "读取状态失败: " + err.Error()})
 		return
 	}
-	log.Printf("[usc] api status env=%s rule=%d item=%d map_active=%d key_total=%d key_mismatch=%d",
+	log.Printf("[usc] api status env=%s rule=%d item=%d map_active=%d key_total=%d key_miss=%d",
 		snapshot.Env, snapshot.RuleCount, snapshot.ItemCount, snapshot.MapActive,
-		snapshot.KeyTotal, snapshot.KeyMismatch)
+		snapshot.KeyTotal, snapshot.KeyMiss)
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok", "data": snapshot})
 }
 
@@ -141,16 +141,16 @@ func (h *UscMap) DiffPreview(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "预演失败: " + err.Error()})
 		return
 	}
-	log.Printf("[usc] api preview env=%s added=%d changed=%d removed=%d reused=%d escalated=%d token=%s",
-		preview.Env, preview.Added, preview.Changed, preview.Removed, preview.Reused,
-		preview.Escalated, preview.PreviewToken)
+	log.Printf("[usc] api preview env=%s insert=%d update=%d retire=%d reuse=%d escalate=%d token=%s",
+		preview.Env, preview.Insert, preview.Update, preview.Retire, preview.Reuse,
+		preview.Escalate, preview.PreviewToken)
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "预演完成", "data": preview})
 }
 
 // DiffPage GET /Meta/Finv/Quote/UscMap/Diff/Page。
 //
 // 分页浏览最近一次预演的完整明细（预演不落库，明细缓存在内存，30 分钟或重新预演后失效）。
-// 参数：token（预演令牌，可选）、diff（added/changed/removed/reused，空=全部）、page、pageSize。
+// 参数：token（预演令牌，可选）、diff（insert/update/retire/reuse，空=全部）、page、pageSize。
 func (h *UscMap) DiffPage(c *gin.Context) {
 	page, pageSize := parseCamelPager(c)
 	rows, total, token, err := h.service.DiffPage(c.Query("token"), c.Query("diff"), page, pageSize)
