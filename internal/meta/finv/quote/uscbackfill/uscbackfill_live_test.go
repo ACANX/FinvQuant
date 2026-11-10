@@ -58,8 +58,9 @@ func TestLiveReadUpstream(t *testing.T) {
 	// 抽样几个已知形态（SH 指数统一 SH####、指数去前导点、撞名例外、港股改名）
 	probes := []string{
 		"US.AAPL", "SH.000300", "AU..XFL", "US.XRP", "HK.800700", "CA.HSI",
-		// PostgREST 过滤器里有特殊字符的键：逗号、星号、双点（验证 in.(...) 的引号与 eq. 的转义）
-		"US.SBT,OLD", "US.SESN,CVR", "US.ASAI*", "AU..XFL",
+		// PostgREST 过滤器里有特殊字符的键：逗号、星号、双点，以及**带 & 的超长键**
+		// （`&` 未百分号编码会被 URL 层当参数分隔符，导致上游报 PGRST100 过滤器截断）
+		"US.SBT,OLD", "US.SESN,CVR", "US.ASAI*", "AU..XFL", "AU.quote-etf-au-index-etfs-s&amp",
 		// 冲突排查：加密 LTC 与美股 LTC 争同一 usc
 		"CC.LTC", "US.LTC",
 	}

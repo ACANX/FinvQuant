@@ -3,8 +3,10 @@ package secukey
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -190,6 +192,84 @@ func TestNormalizeSupabaseTableName(t *testing.T) {
 	for _, in := range bad {
 		if _, err := syscfg.NormalizeSupabaseTableName(in); err == nil {
 			t.Fatalf("NormalizeSupabaseTableName(%q) 应报错", in)
+		}
+	}
+}
+
+// TestFetchByTextKeysEncodesSpecialKeys 校验 `in.(...)` 里含 `&` / `*` / `,` / 引号 / 空格
+// 的键不会把 URL 打坏。
+//
+// 背景（实测事故）：`ftmm_symbol` 里真实存在 `AU.quote-etf-au-index-etfs-s&amp` 这类带 `&`
+// 的键。未做百分号编码时 `&` 被当成参数分隔符，上游只收到被截断的过滤器，报
+// `PGRST100 unexpected end of input expecting "," or ")"`，回推任务整批失败。
+func TestFetchByTextKeysEncodesSpecialKeys(t *testing.T) {
+	var queries []url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queries = append(queries, r.URL.Query())
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	defer server.Close()
+
+	client := NewClient(syscfg.SupabaseConn{ProjectID: "testproj", APIKey: "sb_publishable_TEST"})
+	client.baseURL = server.URL
+	client.httpClient = server.Client()
+
+	keys := []string{
+		"US.AAPL",
+		"AU.quote-etf-au-index-etfs-s&amp",
+		"US.ASAI*",
+		"US.SBT,OLD",
+		`US.ODD"Q`,
+		"US.HAS SPACE",
+	}
+	if _, err := client.FetchByTextKeys(context.Background(), "finv_quote_secu_key", "ftmm_symbol,usc", "ftmm_symbol", keys); err != nil {
+		t.Fatalf("FetchByTextKeys 失败: %v", err)
+	}
+	if len(queries) != 1 {
+		t.Fatalf("期望 1 次请求，实际 %d 次", len(queries))
+	}
+	q := queries[0]
+	// `&` 一旦没编码，这里会多出参数（filter 被截断），长度必然大于 3。
+	if len(q) != 3 {
+		t.Fatalf("查询参数个数 = %d（%v），说明过滤值里的 & 未编码", len(q), q)
+	}
+	filter := q.Get("ftmm_symbol")
+	// `*` 不是 PostgREST 语法字符（`in` 里按字面量），不做引号；`&` 必须编码，
+	// 否则 URL 层会把它当参数分隔符 —— 这两个点正是本次事故的分界线。
+	want := `in.(US.AAPL,"AU.quote-etf-au-index-etfs-s&amp",US.ASAI*,"US.SBT,OLD","US.ODD\"Q","US.HAS SPACE")`
+	if filter != want {
+		t.Fatalf("过滤器 = %q，期望 %q", filter, want)
+	}
+}
+
+// TestFetchByTextKeysSplitsByFilterLen 校验超长键按字符预算分片，避免 URL 被网关截断。
+func TestFetchByTextKeysSplitsByFilterLen(t *testing.T) {
+	var filters []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		filters = append(filters, r.URL.Query().Get("ftmm_symbol"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	defer server.Close()
+
+	client := NewClient(syscfg.SupabaseConn{ProjectID: "testproj", APIKey: "sb_publishable_TEST"})
+	client.baseURL = server.URL
+	client.httpClient = server.Client()
+
+	keys := make([]string, 0, 200)
+	for i := 0; i < 200; i++ {
+		keys = append(keys, fmt.Sprintf("AU.quote-etf-au-index-etfs-with-a-really-long-name-%03d", i))
+	}
+	if _, err := client.FetchByTextKeys(context.Background(), "finv_quote_secu_key", "ftmm_symbol,usc", "ftmm_symbol", keys); err != nil {
+		t.Fatalf("FetchByTextKeys 失败: %v", err)
+	}
+	if len(filters) < 2 {
+		t.Fatalf("超长键未分片，实际请求 %d 次", len(filters))
+	}
+	for i, f := range filters {
+		if len(f) > maxFilterLen+120 { // 允许最后一片略微超出（至少放一个键）
+			t.Fatalf("第 %d 片过滤器长度 %d 超过预算 %d", i+1, len(f), maxFilterLen)
 		}
 	}
 }

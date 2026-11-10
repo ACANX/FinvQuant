@@ -32,6 +32,13 @@ import (
 // URL 长度限制来自上游网关（实测 500 个 bigint 约 8KB 仍可通过，取 200 更稳）。
 const maxIDsPerRequest = 200
 
+// maxFilterLen 单次 in.(...) 过滤器（编码后）的字符预算。
+//
+// 证券键里存在超长形态（实测最长的 quote-etf-… 系约 60 字符），200 个这样的键会把 URL 撑到
+// 10KB 以上；上游网关按 URL 长度截断后 PostgREST 只会报「failed to parse filter」这种
+// 看不出根因的错误。这里按字符预算再分一片，与个数上限同时生效。
+const maxFilterLen = 4000
+
 // FetchByIntIDs 按整型主键批量取上游行（原始 JSON），返回的列由 columns 指定。
 //
 // ids 超过 maxIDsPerRequest 时自动拆分多次请求并合并结果。
@@ -57,16 +64,23 @@ func (c *Client) fetchByKeys(ctx context.Context, table, columns, keyColumn stri
 	if strings.TrimSpace(columns) == "" {
 		columns = "*"
 	}
+	tokens := make([]string, 0, len(keys))
+	for _, key := range keys {
+		tokens = append(tokens, encodeFilterValue(key))
+	}
+
 	rows := make([]json.RawMessage, 0, len(keys))
-	for start := 0; start < len(keys); start += maxIDsPerRequest {
-		end := start + maxIDsPerRequest
-		if end > len(keys) {
-			end = len(keys)
+	for start := 0; start < len(tokens); {
+		end, size := start, 0
+		for end < len(tokens) && end-start < maxIDsPerRequest {
+			add := len(tokens[end]) + 1 // +1 为分隔逗号
+			if end > start && size+add > maxFilterLen {
+				break
+			}
+			size += add
+			end++
 		}
-		parts := make([]string, 0, end-start)
-		for _, key := range keys[start:end] {
-			parts = append(parts, quotePostgRESTValue(key))
-		}
+		parts := tokens[start:end]
 		requestURL := c.baseURL + "/rest/v1/" + name + "?" + strings.Join([]string{
 			"select=" + columns,
 			"order=" + keyColumn + ".asc",
@@ -85,7 +99,7 @@ func (c *Client) fetchByKeys(ctx context.Context, table, columns, keyColumn stri
 			}
 			lastErr = err
 			if !retryable || attempt == c.maxAttempts {
-				return nil, fmt.Errorf("按 %s 取上游行失败（%d 个键）: %w", keyColumn, end-start, lastErr)
+				return nil, fmt.Errorf("按 %s 取上游行失败（%d 个键）: %w", keyColumn, len(parts), lastErr)
 			}
 			backoff := c.retryBackoff * time.Duration(attempt)
 			log.Printf("[cdeu][uscbackfill] fetch retry %d/%d after %s: %v", attempt, c.maxAttempts, backoff, err)
@@ -96,6 +110,7 @@ func (c *Client) fetchByKeys(ctx context.Context, table, columns, keyColumn stri
 			}
 		}
 		rows = append(rows, chunkRows...)
+		start = end
 	}
 	return rows, nil
 }
@@ -181,13 +196,39 @@ func (c *Client) patchOnce(ctx context.Context, endpoint, schema string, payload
 
 // quotePostgRESTValue 把主键值转成 PostgREST `in.(...)` 里的写法。
 //
-// 只在该值含有 PostgREST 语法字符（逗号、括号、引号、反斜杠、空白）时才加双引号并转义；
-// 纯数字/字母/点号的键保持原样，避免多引号影响 bigint 的隐式转换。
+// 值里出现 PostgREST 语法字符（逗号、括号、引号、反斜杠、空白）或**会被 URL 层吃掉**的
+// 字符（`&` `%` `+` `#` `?` `=`）时，加双引号并转义；纯数字/字母/点号的键保持原样，
+// 避免多引号影响 bigint 的隐式转换。
 func quotePostgRESTValue(value string) string {
-	if !strings.ContainsAny(value, `,()"\\ \t`+"\n") {
+	if !strings.ContainsAny(value, ",()\"\\\\ \t\n&%+?#=") {
 		return value
 	}
-	escaped := strings.ReplaceAll(value, `\\`, `\\\\`)
-	escaped = strings.ReplaceAll(escaped, `"`, `\\"`)
+	escaped := strings.ReplaceAll(value, `\`, `\\`)
+	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
 	return `"` + escaped + `"`
+}
+
+// encodeFilterValue 把主键值转成 `in.(...)` 里可直接拼进 URL 的片段。
+//
+// 两步：① 按 PostgREST 语法加引号（处理逗号/括号/引号）；② 按 RFC 3986 做百分号编码
+// （只保留字母数字与 `-._~`）。第 ② 步是必需的——`ftmm_symbol` 里真实存在 `&`
+// （如 `AU.quote-etf-au-index-etfs-s&amp`），未编码时 `&` 会被 URL 解析成参数分隔符，
+// 上游只能看到被截断的过滤器，报 `PGRST100 unexpected end of input expecting "," or ")"`。
+func encodeFilterValue(value string) string {
+	quoted := quotePostgRESTValue(value)
+	var b strings.Builder
+	b.Grow(len(quoted))
+	for i := 0; i < len(quoted); i++ {
+		ch := quoted[i]
+		switch {
+		case ch >= 'a' && ch <= 'z', ch >= 'A' && ch <= 'Z', ch >= '0' && ch <= '9',
+			ch == '-', ch == '.', ch == '_', ch == '~':
+			b.WriteByte(ch)
+		default:
+			b.WriteString("%")
+			b.WriteByte("0123456789ABCDEF"[ch>>4])
+			b.WriteByte("0123456789ABCDEF"[ch&0x0F])
+		}
+	}
+	return b.String()
 }

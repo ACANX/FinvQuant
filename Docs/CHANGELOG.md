@@ -202,6 +202,23 @@
 
 ### 变更
 
+- **修复「本地 usc 回推上游」在含 `&` 的证券键上整批失败（需求 11095）**
+  - 现象：`SecuParamSync` Tab 3「立即执行一次」跑到第 13 批报
+    `回推失败：按 ftmm_symbol 取上游行失败（200 个键）: Supabase 返回 HTTP 400:
+    {"code":"PGRST100","details":"unexpected end of input expecting \",\" or \")\"", …}`。
+  - 根因：`ftmm_symbol` 里真实存在带 `&` 的键（`AU.quote-etf-au-index-etfs-s&amp`、
+    `GL.quote-forex-Europe&amp` 等 32 个），`in.(...)` 过滤值未做百分号编码，`&` 被 URL 层
+    当成参数分隔符 → 上游收到的过滤器被截断 → PostgREST 报解析错误。
+  - 修订（`internal/meta/finv/quote/secukey/client_write.go`）：
+    新增 `encodeFilterValue`（先按 PostgREST 语法加引号，再做 RFC 3986 百分号编码，只保留
+    字母数字与 `-._~`）；`quotePostgRESTValue` 的引号触发字符补上 `& % + # ? =`；
+    `fetchByKeys` 除个数上限（200）外增加**字符预算分片**（`maxFilterLen=4000`），
+    避免超长键把 URL 撑爆被网关截断。
+  - 验证：新增 `TestFetchByTextKeysEncodesSpecialKeys`（`&`/`*`/`,`/`"`/空格）、
+    `TestFetchByTextKeysSplitsByFilterLen`（200 个 ~55 字符长键必须分片）；
+    实测上游 `curl` 旧写法 400、新写法 200 且返回两行；只读实盘探针加入该 `&` 键后
+    `TestLiveReadUpstream` PASS（该键 `→ overwrite`）。
+
 - **修复「真实数据上迁移校验误报导致服务启动失败」（需求 11094）**
   - 现象：ARM 主机（systemd 直装）升级后 `finvquant.service` 每分钟重启，日志
     `数据库迁移失败: 迁移 V300171 … ERROR: V300171 未收敛：仍有 0 行 indicator / 1 行 quote_collect 无依据行未被清理`。
