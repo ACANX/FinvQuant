@@ -181,6 +181,17 @@
 
 ### 变更
 
+- **清理无键表依据的证券（需求 11089，迁移 `V300173`）**
+  - `public.finv_security` 删除 **126 行**（这些 `usc` 在 `futu.finv_futu_secu_key` 里不存在，
+    且 `quote_collect` 里的同名行也没有键表依据）；删前整行写入既有
+    `archive.finv_security_purge_20261110`（`reason='需求 11089 …'`，未新建表）。
+  - 同步删除 `futu.finv_futu_quote_collect` **126 行**、`cdeu.finv_quote_secu_indicator` **1 行**（`EURindex`），
+    这两批行在 `V300171` 已整行归档，本次只改归档 `reason`。
+  - 实测：`finv_security` 21,970 → **21,844** 行、`quote_collect` 26,655 → **26,529** 行、
+    `indicator` 18,020 → **18,019** 行；两表「无键表依据」归零、与键表差异 0；幂等复跑 0 行。
+  - 遗留（未处理，待确认）：`cdeu.finv_cdeu_secu_realtime_stock` 110 行、
+    `cdeu.finv_quote_cdeu_usc` 5 行仍引用这 126 个 `usc`（K 线表 0 行引用）。
+
 - **清理 usc 孤立行（需求 11088，迁移 `V300171` + `V300172`）**
   - 先查证再动手，分三类处理：
     · `indicator` **826 行**：`usc` 本就在键表里，只是 `stock_id` / `ftmm_symbol` 是旧值 →
