@@ -106,6 +106,7 @@ func TestLiveOpenAPIAuthEndToEnd(t *testing.T) {
 	ctx := context.Background()
 
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	testStart := time.Now().Add(-time.Minute)
 	clientCode := "zz-oa-live-" + suffix
 	staticKey := "fk_live_live" + suffix
 	ak := "ak_live_" + suffix
@@ -122,7 +123,11 @@ func TestLiveOpenAPIAuthEndToEnd(t *testing.T) {
 		setConfig(t, pool, 19001, modeChar, modeStr)
 		setConfig(t, pool, 19004, kidChar, kidStr)
 		setConfig(t, pool, 19005, keyChar, keyStr)
-		_, _ = pool.Exec(ctx, `DELETE FROM open.open_api_invoke_log WHERE access_key_id IN ($1, $2)`, staticKey, ak)
+		// 审计清理按「本次测试时间窗 + 本测试调用方（含未识别凭证的 0）」，
+		// 因为「未携带凭证」「错 Key」这两类请求落库时没有 access_key_id，按 key 删不掉。
+		_, _ = pool.Exec(ctx,
+			`DELETE FROM open.open_api_invoke_log WHERE dt_request >= $1 AND (client_idn = $2 OR client_idn = 0)`,
+			testStart, clientIDN)
 		_, _ = pool.Exec(ctx, `DELETE FROM open.open_api_credential WHERE client_idn = $1`, clientIDN)
 		_, _ = pool.Exec(ctx, `DELETE FROM open.open_api_client WHERE idn = $1`, clientIDN)
 		t.Logf("已恢复 sys_config 19001/19004/19005 并清理测试数据")

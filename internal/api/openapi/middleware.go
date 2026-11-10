@@ -178,6 +178,9 @@ func (m *Middleware) authenticate(c *gin.Context, settings Settings, req *http.R
 		if !ok {
 			return nil, CodeKeyInvalid, "Authorization 头格式非法（应为 FinvAK <ak>:<signature>）"
 		}
+		// AK 是公开标识，即使后面定位失败也记进审计，便于排查「谁在用什么 AK 撞门」
+		invocation.AccessKeyID = accessKeyID
+		invocation.AuthMode = AuthModeAKSK
 		credential, err := m.source.Lookup(req.Context(), accessKeyID)
 		if errors.Is(err, ErrCredentialNotFound) {
 			return nil, CodeKeyInvalid, "AK 未登记"
@@ -255,6 +258,9 @@ func (m *Middleware) authenticate(c *gin.Context, settings Settings, req *http.R
 	if provided == "" {
 		return nil, CodeKeyMissing, "未携带 X-API-Key 或 Authorization"
 	}
+	// 静态 Key 本身就是密钥：审计里只记脱敏形态（前 8 后 4），绝不落明文
+	invocation.AccessKeyID = maskKey(provided)
+	invocation.AuthMode = AuthModeAPIKey
 
 	credential, err := m.source.Lookup(req.Context(), provided)
 	switch {
