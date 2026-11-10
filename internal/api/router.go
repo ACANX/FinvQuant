@@ -190,6 +190,8 @@ func NewRouter(deps *Deps) *gin.Engine {
 			realtime.POST("/Stock/RmbSync", archive.RealtimeStockRmbSync)
 			// 需求 10995：待录入证券（usc 为空，作为补录主数据的依据），先只提供查询。
 			realtime.GET("/Stock/Pending", archive.RealtimeStockPendingPage)
+			// 手动补录 usc：按派生键关联键表补空值（需求 11146）
+			realtime.POST("/Stock/USCBackfill", archive.RealtimeStockUSCBackfill)
 			openGroup.POST("/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert", archive.RealtimeStockUpsert)
 
 			// 缺省汇率（需求 10999/11002）：public.finv_fxcer，手动触发 get-fx-overview / get-fx-rate-list 全量更新 + 整表查询。

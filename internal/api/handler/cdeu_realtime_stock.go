@@ -248,6 +248,32 @@ func (h *ExportArchive) RealtimeStockRmbSync(c *gin.Context) {
 	})
 }
 
+// RealtimeStockUSCBackfill POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/USCBackfill。
+//
+// 手动补录 usc（需求 11146）：按派生键 `ftmm_symbol = upper(market_label || '.' || stock_code)`
+// 关联本地键表 `futu.finv_futu_secu_key`，把 `usc` 为空的快照行就地补上。
+// 键表里没有（或 usc 为空）的行保持不动，仍是待录入——补完刷新列表即可看到清单变短。
+//
+// 幂等：只写空值行，重复点击 `updated` 为 0。
+func (h *ExportArchive) RealtimeStockUSCBackfill(c *gin.Context) {
+	started := time.Now()
+	log.Printf("[cdeu][realtimestock] api usc backfill begin client=%s", c.ClientIP())
+	result, err := h.service.Store().BackfillRealtimeStockUSC(c.Request.Context())
+	if err != nil {
+		log.Printf("[cdeu][realtimestock] api usc backfill failed err=%v elapsed_ms=%d",
+			err, time.Since(started).Milliseconds())
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "补录 usc 失败: " + err.Error()})
+		return
+	}
+	log.Printf("[cdeu][realtimestock] api usc backfill end null_before=%d updated=%d unresolved=%d elapsed_ms=%d",
+		result.NullBefore, result.Updated, result.Unresolved, result.ElapsedMs)
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "usc 补录完成",
+		"data":    result,
+	})
+}
+
 // RealtimeStockPage GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Page。
 //
 // 查询参数（小驼峰，ApiSpec §3）：keyword / marketLabel / currency /

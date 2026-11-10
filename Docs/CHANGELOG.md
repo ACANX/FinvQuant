@@ -219,6 +219,21 @@
 
 ### 变更
 
+- **待录入证券新增「手动补录 USC」（需求 11146）**
+  - 背景：上一版把清单判定改成「按派生键 JOIN 键表补一次 usc 再判空」，但那是**查询时只读**的，
+    库里 `cdeu.finv_cdeu_secu_realtime_stock.usc` 仍是 NULL —— 看着清单短了，数据没动，也没有任何手动落库入口。
+  - 新接口 `POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/USCBackfill`：派生键
+    `ftmm_symbol = upper(btrim(market_label) || '.' || btrim(stock_code))` JOIN `futu.finv_futu_secu_key`，
+    只写「快照 usc 为空（NULL / 空白）且键表 usc 非空」的行；键表查不到或键表 usc 为空的**不动**。
+    一条 SQL 内 `src`（可补录集）+ `upd`（实际写入）完成，返回 `null_before` / `updated` / `unresolved` / `elapsed_ms`。
+  - 幂等：只更新空值行，重复点击 `updated=0`；`gmt_update` 由触发器 `vq_set_gmt_update` 自动刷新。
+  - 前端：「查询」右侧新增「手动补录USC」按钮（带悬浮说明），结果走全局 toast 并自动刷新列表；
+    info 提示补一句「清单口径只是查询时判定，不写库；要落库点这个按钮」。
+  - 文档：新增 `Docs/API/Cdeu/RealtimeStockUSCBackfill.md` + `.yml`，`APIs.md` 编号 121，
+    `Menu/Quote/Realtime/PendingSecu.md` 补 §2.5，待录入接口文档互相引用。
+  - 演练（真实库事务内造 4 行后 ROLLBACK）：`NULL` 与 `''` 两种空值各补 1 行、键表无对应的行不动、
+    已有值的行不被覆盖，`null_before=2 / updated=2`；复跑 `0 / 0`。
+
 - **待录入证券改为「按派生键补 usc 后仍为空」的口径（需求 11145）**
   - 变化：`/Meta/Finv/Quote/Realtime/PendingSecu` 原来直接拿 `cdeu.finv_cdeu_secu_realtime_stock.usc IS NULL`
     当待录入，导致**键表里其实已有该证券**的行也挂在清单上，看着像没录入。

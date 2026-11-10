@@ -3246,7 +3246,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | `ftmm_symbol` 入库英文字母统一大写：写入侧覆盖 批量 upsert / 应用 / 指标批量（`upper(btrim(...))`）+ 新增 `internal/meta/finv/quote/symbol.Normalize` 供 Go 侧调用；存量由 `V300181` 一次性改写（键表 / 结果表 / 指标表），撞名先中止 | 11143 | 1 |
 | 采集属性表三条 GDR / 外汇指数键与 usc 修正：`ftmm_symbol` 是生成列（不可 UPDATE），改为修正基列 `market_label`/`futu_symbol` + `usc`，落到 `HK.GDRNEXT`→`GDRNext`、`FX.EURINDEX`→`EURIndex`、`FX.USDINDEX`→`USDIndex`；`V300182` 按 `upper(...)` 兼容大小写变体匹配，主键/唯一键冲突先中止 | 11144 | 1 |
 | 菜单 `/Meta/Finv/Quote/Realtime/PendingSecu` 改口径：先用派生键 `ftmm_symbol = upper(market_label \|\| '.' \|\| stock_code)` 左连 `futu.finv_futu_secu_key` 补一次 `usc`，**补完仍为空**的快照行才列出；响应新增 `ftmm_symbol`，关键字可搜派生键，页面新增「派生键」列 | 11145 | 1 |
-| **合计** | **10001–11145** | **1141**（含 2 条待办） |
+| 待录入证券页面在「查询」按钮右侧新增「手动补录USC」按钮，调用 `POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/USCBackfill`：按派生键 `ftmm_symbol = upper(market_label \|\| '.' \|\| stock_code)` 关联 `futu.finv_futu_secu_key`，把 `usc` 为空（NULL / 空白）的 `cdeu.finv_cdeu_secu_realtime_stock` 行就地写回；键表无对应证券的行不动，幂等（只写空值行） | 11146 | 1 |
+| **合计** | **10001–11146** | **1142**（含 2 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

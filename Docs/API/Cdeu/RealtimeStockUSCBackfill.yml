@@ -1,0 +1,52 @@
+openapi: 3.0.3
+info:
+  title: FinvQuant API — 待录入证券手动补录 usc
+  version: 1.0.0
+  description: |
+    POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/USCBackfill
+    需求 11146：按派生键 ftmm_symbol = upper(market_label || '.' || stock_code) 关联
+    futu.finv_futu_secu_key，把 usc 为空（NULL / 空白）的快照行就地写回
+    cdeu.finv_cdeu_secu_realtime_stock。键表无对应证券的行保持不动（仍为待录入）；幂等。
+servers:
+  - url: /
+paths:
+  /Meta/Finv/Quote/Cdeu/Realtime/Stock/USCBackfill:
+    post:
+      summary: 待录入证券手动补录 usc（幂等，只写空值行）
+      operationId: realtimeStockUSCBackfill
+      tags: [Cdeu]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              description: 无需参数，传空对象即可
+      responses:
+        '200':
+          description: 补录完成（含 0 行的情形）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string, example: usc 补录完成 }
+                  data:
+                    type: object
+                    required: [null_before, updated, unresolved, elapsed_ms]
+                    properties:
+                      null_before: { type: integer, description: 补录前 usc 为空（NULL / 空白）的行数, example: 1151 }
+                      updated: { type: integer, description: 本次真正写入 usc 的行数, example: 940 }
+                      unresolved: { type: integer, description: 补录后仍为空的行数（键表无对应证券）, example: 211 }
+                      elapsed_ms: { type: integer, description: 耗时（毫秒）, example: 268 }
+        '500':
+          description: 数据库侧失败
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 2006 }
+                  message: { type: string, example: '补录 usc 失败: ...' }

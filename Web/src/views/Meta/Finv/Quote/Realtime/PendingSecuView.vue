@@ -7,10 +7,13 @@
 //   public.finv_security（证券主数据）
 //   futu.finv_futu_quote_collect（采集配置）
 //   cdeu.finv_quote_cdeu_usc（usc 主数据）
-// 本页目前只做查询；「一键录入」为规划功能（需求登记在案，尚未实现）。
+// 手动补录 usc（需求 11146）：POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/USCBackfill
+//   —— 按派生键关联 futu.finv_futu_secu_key，把 usc 为空的行就地写回快照表（幂等）。
+// 本页其余能力仍只做查询；「一键录入」为规划功能（需求登记在案，尚未实现）。
 import { computed, onMounted, ref } from 'vue'
 
-import { apiGet } from '../../../../../api'
+import { apiGet, apiPost } from '../../../../../api'
+import { showToast } from '../../../../../ui/toast'
 import PendingSecuEnrollDialog from './PendingSecuEnrollDialog.vue'
 
 // 列表行（wire 字段 snake_case，数值列为文本，保住 NUMERIC(24,6) 精度）
@@ -70,6 +73,46 @@ const MARKET_OPTIONS = [
 ]
 
 const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
+
+// ---- 手动补录 usc（需求 11146）----
+
+interface USCBackfillResult {
+  null_before: number
+  updated: number
+  unresolved: number
+  elapsed_ms: number
+}
+
+const backfilling = ref(false)
+
+/**
+ * 手动补录 usc：按派生键 `upper(市场标签.代码)` 关联本地键表，
+ * 把 usc 为空（NULL / 空白）的快照行就地补上；键表里没有的保持不动。
+ * 幂等，可反复点击；补完刷新列表。
+ */
+async function backfillUSC() {
+  backfilling.value = true
+  try {
+    // 全表一次 UPDATE，给 120s 超时；服务端无请求体，传空对象
+    const data = await apiPost<USCBackfillResult>(
+      '/Meta/Finv/Quote/Cdeu/Realtime/Stock/USCBackfill',
+      {},
+      120000,
+    )
+    const parts = [
+      `本次补录 ${data.updated} 行`,
+      `补录前为空 ${data.null_before} 行`,
+      data.unresolved > 0 ? `仍无法补全 ${data.unresolved} 行（键表里没有对应证券）` : '已全部补全',
+      `${data.elapsed_ms} ms`,
+    ]
+    showToast(`usc 补录完成：${parts.join('、')}`, data.unresolved > 0 ? 'warning' : 'success')
+    await load()
+  } catch (err) {
+    showToast(`usc 补录失败：${(err as Error).message}`, 'error')
+  } finally {
+    backfilling.value = false
+  }
+}
 
 async function load() {
   loading.value = true
@@ -194,6 +237,7 @@ onMounted(load)
         列表口径：先用<strong>派生键</strong> <code>ftmm_symbol = upper(市场标签 || '.' || 代码)</code>
         关联 <code>futu.finv_futu_secu_key</code> 补一次 <code>usc</code>（本页「派生键」列即该值），
         <strong>补完仍为空</strong>的才列在这里 —— 键表里已登记的证券不会被当成待录入。
+        上面这一步只是「查询时判定」，不写库；要把 <code>usc</code> 真正写回快照表，点<strong>「手动补录USC」</strong>。
         注意 usc 为空是<strong>刻意保留的观测信号</strong>，不要用 stock_code 直接回填：两者并非等价，
         直接挪用会把不同市场的同码证券映射错（如 <code>000001</code> 在 SZ 与 SH 都存在）。
       </v-alert>
@@ -247,6 +291,24 @@ onMounted(load)
           @update:model-value="search"
         />
         <v-btn color="primary" prepend-icon="mdi-magnify" @click="search">查询</v-btn>
+        <v-tooltip
+          text="按派生键 ftmm_symbol（市场标签.代码，大写）关联 futu.finv_futu_secu_key，把 usc 为空（NULL / 空白）的快照行就地补上；键表里没有对应证券的行保持不动，仍是待录入。可反复点击（幂等）"
+          location="bottom"
+          max-width="420"
+        >
+          <template #activator="{ props }">
+            <v-btn
+              v-bind="props"
+              color="secondary"
+              variant="tonal"
+              prepend-icon="mdi-link-variant-plus"
+              :loading="backfilling"
+              @click="backfillUSC"
+            >
+              手动补录USC
+            </v-btn>
+          </template>
+        </v-tooltip>
         <v-btn variant="text" prepend-icon="mdi-refresh" :loading="loading" @click="load">刷新</v-btn>
         <v-btn variant="text" prepend-icon="mdi-restore" @click="reset">重置</v-btn>
       </div>

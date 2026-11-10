@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -344,4 +345,54 @@ func (s *Store) ListRealtimeStocks(ctx context.Context, f RealtimeStockListFilte
 		list = append(list, row)
 	}
 	return total, list, rows.Err()
+}
+
+// RealtimeStockUSCBackfillResult 手动补录 usc 的结果（接口返回与前端提示用）。
+type RealtimeStockUSCBackfillResult struct {
+	// NullBefore 补录前 usc 为空（NULL 或空白串）的行数。
+	NullBefore int64 `json:"null_before"`
+	// Updated 本次真正写入 usc 的行数（幂等，重复点击为 0）。
+	Updated int64 `json:"updated"`
+	// Unresolved 补录后仍为空的行数 = NullBefore - Updated。
+	Unresolved int64 `json:"unresolved"`
+	// ElapsedMs 耗时（毫秒）。
+	ElapsedMs int64 `json:"elapsed_ms"`
+}
+
+// BackfillRealtimeStockUSC 把「键表里已有 usc」的快照行就地补全（需求 11146）。
+//
+// 口径与待录入清单一致：派生键 `ftmm_symbol = upper(market_label || '.' || stock_code)`
+// 关联 `futu.finv_futu_secu_key`；键表 usc 为空、或匹配不到键的行**不动**（仍算待录入）。
+// 只写 `usc` 为空（NULL / 空白）的行，可反复点击；`gmt_update` 由表上触发器
+// `vq_set_gmt_update` 自动刷新，脚本不显式赋值。
+func (s *Store) BackfillRealtimeStockUSC(ctx context.Context) (RealtimeStockUSCBackfillResult, error) {
+	started := time.Now()
+	var result RealtimeStockUSCBackfillResult
+
+	// 一次 SQL 内完成「筛 → 改 → 计数」：src 为可补录集，upd 为实际写入行。
+	// 键表以 ftmm_symbol 为主键，匹配必为一行，不会产生重复更新。
+	const stmt = `
+WITH src AS (
+    SELECT t.stock_id, btrim(k.usc) AS usc
+      FROM ` + tableRealtimeStock + ` t
+      JOIN ` + realtimeStockKeyTable + ` k ON k.ftmm_symbol = ` + realtimeStockFtmmExpr + `
+     WHERE NULLIF(btrim(t.usc), '') IS NULL
+       AND NULLIF(btrim(k.usc), '') IS NOT NULL
+), upd AS (
+    UPDATE ` + tableRealtimeStock + ` u
+       SET usc = src.usc
+      FROM src
+     WHERE u.stock_id = src.stock_id
+       AND NULLIF(btrim(u.usc), '') IS NULL
+    RETURNING u.stock_id
+)
+SELECT (SELECT count(*) FROM src)::bigint,
+       (SELECT count(*) FROM upd)::bigint`
+
+	if err := s.pool.QueryRow(ctx, stmt).Scan(&result.NullBefore, &result.Updated); err != nil {
+		return result, fmt.Errorf("BackfillRealtimeStockUSC：补录失败: %w", err)
+	}
+	result.Unresolved = result.NullBefore - result.Updated
+	result.ElapsedMs = time.Since(started).Milliseconds()
+	return result, nil
 }
