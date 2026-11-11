@@ -219,6 +219,21 @@
 
 ### 变更
 
+- **对外 OpenAPI 显式拒绝 DELETE（需求 11180）+ 联调 Demo 覆盖 GET/POST/DELETE**
+  - `DELETE` 现在注册成真实路由（3 条已注册资源路径），返回
+    `405 {"code":405,"message":"OpenAPI 不提供删除能力；如需清理数据请走内部管理接口"}`。
+    为什么不留给 404：路由组中间件只在命中路由时执行，404 分支会**绕过鉴权**——
+    那样删除类请求就成了「不需要凭证也能探测接口是否存在」的入口。
+  - 文档：`Docs/API/OpenAPI/Auth.md` 新增 §4.5「方法与删除能力」。
+  - 联调 Demo（`FinvQuantDesign/OpenAPI/demo_client.py`）重写为 9 个用例，覆盖
+    GET / POST / DELETE × 静态 Key / AK-SK：
+    GET 查询、POST 写入（body 参与签名）、同数据幂等覆盖、GET 回读验证、POST 无凭证、
+    POST **body 篡改**（`19005/SIGN_MISMATCH`）、DELETE 无凭证（`19001`）、
+    DELETE 带签名（405 且鉴权通过、数据行数不变）、无效静态 Key（`19002`）、nonce 重放（`19007`）。
+    写入用 `usc=ZZ.DEMO`，脚本结束自动清理并在日志里报告影响行数。
+  - 顺带修 Demo 里两处自身缺陷：`psql` 未指定 `-F '\t'` 导致审计字段解析错位（空列还会少字段）；
+    「nonce 重放」用例原先每次重新签名（nonce 变新），现在复用同一组头才是真重放。
+
 - **AK/SK 鉴权头改为 META1-<算法> + X-META-*（需求 11179，不兼容变更）**
   - 新格式：
     ```

@@ -2,6 +2,7 @@
 package api
 
 import (
+	"net/http"
 	"runtime"
 	"strings"
 
@@ -138,6 +139,24 @@ func NewRouter(deps *Deps) *gin.Engine {
 		openGroup.Use(WrapOpenAPIResponse())
 		openGroup.POST("/Meta/Finv/Quote/Cdeu/Min/Upsert", klineHandler.Upsert)
 		openGroup.GET("/Meta/Finv/Quote/Cdeu/Min/PageUni", klineHandler.PageUni)
+
+		// DELETE 显式拒绝（需求 11180）：对外 OpenAPI 不提供删除能力。
+		// 注册成真实路由（而不是留给 404）有两个目的：
+		//   ① 删除类请求也会先过鉴权——无凭证照旧 19001，不会因为「方法不支持」而绕过鉴权被探测；
+		//   ② 调用方拿到明确的 405 + 说明，而不是含糊的 404。
+		openAPIRejectDelete := func(c *gin.Context) {
+			c.JSON(http.StatusMethodNotAllowed, gin.H{
+				"code":    405,
+				"message": "OpenAPI 不提供删除能力；如需清理数据请走内部管理接口",
+			})
+		}
+		for _, path := range []string{
+			"/Meta/Finv/Quote/Cdeu/Min/PageUni",
+			"/Meta/Finv/Quote/Cdeu/Min/Upsert",
+			"/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert",
+		} {
+			openGroup.DELETE(path, openAPIRejectDelete)
+		}
 
 		// 历史行情：导入 / 查询（统一 /Meta/Finv/Quant/Quote/ 前缀，与前端路由对应）
 		apiGroup.POST("/Meta/Finv/Quant/Quote/Import/Upload", quoteImport.Upload)
