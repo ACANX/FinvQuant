@@ -125,6 +125,7 @@ onMounted(load)
         <v-table density="comfortable" class="openapi-table">
           <thead>
             <tr>
+              <th>idn</th>
               <th>代号</th>
               <th>名称</th>
               <th>状态</th>
@@ -139,6 +140,7 @@ onMounted(load)
           </thead>
           <tbody>
             <tr v-for="row in rows" :key="row.idn">
+              <td class="text-no-wrap text-caption">{{ row.idn }}</td>
               <td class="font-weight-medium">{{ row.client_code }}</td>
               <td>{{ row.client_name }}</td>
               <td>
@@ -163,7 +165,7 @@ onMounted(load)
               </td>
             </tr>
             <tr v-if="rows.length === 0">
-              <td colspan="10" class="text-center text-medium-emphasis py-6">
+              <td colspan="11" class="text-center text-medium-emphasis py-6">
                 {{ loading ? '加载中…' : '暂无调用方，点「新增调用方」登记第一个' }}
               </td>
             </tr>

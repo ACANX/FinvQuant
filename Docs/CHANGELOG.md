@@ -219,6 +219,10 @@
 
 ### 变更
 
+- **调用方列表增加 idn 列（需求 11203）**
+  - `/Meta/Finv/OpenAPI/Client` 表格首列显示调用方主键 `idn`，方便与凭证页、审计页里的 `client_idn` 直接对照。
+  - 文档 `Docs/Menu/OpenAPI/Client.md` 列清单同步。
+
 - **STS 临时凭据改为独立凭证行，不再寄生在 AKSK 凭证下（需求 11202）**
   - 迁移 `V300190`：`open.open_api_credential.auth_mode` 加 `STS` 取值；新增 `parent_idn`（派生来源，0=页面直发）
     与 `token_fp`（SecurityToken 指纹）；重建 secret 约束（STS 与 AKSK 同口径：有密文、无哈希）。
