@@ -219,6 +219,22 @@
 
 ### 变更
 
+- **提案 202611-0003 展开绑定流程细节**
+  - 新增 §5.0 状态机（`PENDING → PROVEN → APPROVED → ACTIVE`，含 `REJECTED` / `EXPIRED` / `UNBOUND`
+    与各状态停留上限：challenge 10 分钟、待审 24 小时、码期 10 分钟）。
+  - §5.1 `Bind/Apply`：请求字段表（含 `hardware.*`）、服务端 8 步处理、幂等与并发边界
+    （5 分钟内重试复用 `bind_id` 并刷新 challenge；`PENDING` 部分唯一索引兜底）。
+  - §5.2 `Bind/Prove`：待签串固定格式 `FINV-DEVICE-BIND || bind_id || challenge || ts`、
+    时间窗校验、验签失败 5 次即 `REJECTED`、**响应里不含码**。
+  - §5.3 人工审核：待审页显示项、批准/驳回/重发码三个动作，码用 `crypto/rand` 生成、
+    存 `sha256(bind_id + ":" + code)`、只向管理端返回一次明文。
+  - §5.4 `Bind/Confirm`：校验链、5 次尝试作废、单事务副作用（`REBIND` 自动吊销旧设备）、
+    Confirm 重试幂等（`ACTIVE` 直接返回同一 `device_id`）。
+  - §5.5 自动解绑：主动 `Bind/Unbind` + 被动检测（连续 3 次失败、间隔 ≥10 分钟去抖）。
+  - §5.6 明确本期只做"可信标记"，不校验设备签名、不拒绝未绑定请求。
+  - §6 数据模型补齐配套列：`dt_code_expire` / `count_prove_fail` / `rebind_of_device_id` /
+    `dt_prove` / `dt_active` / `dt_last_fail`。
+
 - **提案 202611-0003 改为采集设备硬件标识**
   - 按用户要求，IMEI / MAC / 序列号列为**采集项且必要**：新增 `serial` / `imei` / `mac` / `android_id` 四个字段，
     写入 `open_device` 与 `open_device_bind`；`serial` / `imei` 建部分唯一索引（`WHERE serial <> ''`）防重复绑定。

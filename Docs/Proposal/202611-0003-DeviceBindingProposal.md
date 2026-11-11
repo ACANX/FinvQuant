@@ -152,56 +152,212 @@ serial > imei > mac > android_id > install_id
 > 注意：即便是真实取到的 IMEI/MAC，root 后也能改（Xposed/改机工具），因此它们只用于**唯一性识别与人工核对**，
 > 真正不可伪造的仍然是「Keystore 私钥能签名」这件事。
 
-## 5. 流程
+## 5. 流程（详细）
+
+### 5.0 状态机
 
 ```
-Phase 0  握手（已有）   GET  /Meta/Region/AZ/Server/Hello
-Phase 1  Bind/Apply    POST …/Bind/Apply   → bind_id + challenge（Redis 600s）
-Phase 2  Bind/Prove    POST …/Bind/Prove   → 验签 → state=PROVEN（**此时不生成码**）
-Phase 3  人工审核      管理端「设备绑定」页 → 查看申请 → 批准 → 生成 6 位码，页面显示一次
-Phase 4  Bind/Confirm  POST …/Bind/Confirm → 人在设备上输入码 → 比对哈希 → 设备 ACTIVE
-（任意阶段）自动解绑    POST …/Bind/Unbind 或连续验签失败 → 吊销设备行
+                 Apply                 Prove              人工批准
+   (无) ──────────────► PENDING ──────────► PROVEN ──────────────► APPROVED
+                          │                   │                       │
+                          │ 10min 未 Prove    │ 24h 未审核             │ Confirm 成功
+                          ▼                   ▼                       ▼
+                       EXPIRED ◄────────────────────────────────── ACTIVE
+                          ▲                   │ 审批驳回              │
+                          │                   ▼                      │ Unbind / 连续验签失败
+                          └────────────── REJECTED                   ▼
+                                                                  UNBOUND
 ```
 
-### 5.1 `Bind/Apply`
+| 状态 | 含义 | 谁能推进 | 停留上限（超时后） |
+|---|---|---|---|
+| `PENDING` | 已受理申请，等设备证明 | 设备（Prove） | 10 分钟 → `EXPIRED`（challenge TTL） |
+| `PROVEN` | 设备已证明持私钥，**等人工审核** | 审批人（批准/驳回） | 24 小时 → `EXPIRED` |
+| `APPROVED` | 已批准并出码，等人在设备上输入 | 人 + 设备（Confirm） | 10 分钟 → `EXPIRED`（码期） |
+| `ACTIVE` | 绑定生效 | — | 长期，直到解绑 |
+| `REJECTED` | 审批驳回（带原因） | 终态，可重新 Apply | — |
+| `EXPIRED` | 任一环节超时/输错作废 | 终态，可重新 Apply | — |
+| `UNBOUND` | 已解绑（客户端丢钥 / 人工解绑） | 终态，可重新 Apply | — |
 
-- 认证：`AKSK` 签名（静态 Key 无法签名设备请求；STS 临时凭据 2 小时到期会让流程中断）；
-- 请求：
+一条铁律：**验证码只在 `APPROVED` 之后存在，且只经管理端（内部接口 + 登录态）返回一次，永不进入 `/OpenAPI/V1/*` 的响应。**
+
+---
+
+### 5.1 `Bind/Apply`（设备发起）
+
+```
+POST /OpenAPI/V1/Meta/Region/AZ/Server/Bind/Apply
+认证：AKSK 签名（X-META-TS / X-META-Nonce 照常）
+```
+
+**请求体**
+
+| 字段 | 必填 | 约束 | 说明 |
+|---|---|---|---|
+| `install_id` | ✅ | UUID，≤64，大写归一 | 客户端生成后存 Keystore（清数据才丢） |
+| `device_pubkey` | ✅ | Base64 SPKI，≤512，须能解出 EC P-256 | 私钥永不上传 |
+| `key_alg` | — | 默认 `ECDSA-P256-SHA256` | 白名单校验 |
+| `hardware.serial` | — | ≤64 | 取不到传空串 |
+| `hardware.imei` | — | 15 位数字，非法则置空并记缺失 | |
+| `hardware.mac` | — | 归一为 `AA:BB:CC:DD:EE:FF`；取到假值 `02:00:00:00:00:00` 视为缺失 | |
+| `hardware.android_id` | — | ≤64 | |
+| `device.model` / `os` / `os_version` / `arch` / `app_version` | — | ≤64 | 自报，仅展示 |
+
+**服务端处理顺序（8 步）**
+
+1. 中间件认证：凭证有效、未吊销、`auth_mode=AKSK`、限流通过；
+2. 入参校验（长度、字符集、公钥可解析、`key_alg` 白名单）→ 失败 `19024`；
+3. 硬件标识归一：`mac` 大写、`imei` 校验 15 位数字、空值/非法值计入 `id_missing`；
+4. 唯一性判定（顺序 `serial > imei > mac > android_id > install_id`）查 `open_device`：
+   - 命中 **ACTIVE 且公钥相同** → **幂等返回** `{already_bound:true, device_id}`，不新建申请；
+   - 命中 **ACTIVE 但公钥不同** → 按"同机换钥/重装"处理：新建申请并记 `rebind_of_device_id`（旧设备在 Confirm 成功后自动吊销，原因 `REBIND`）；
+   - 命中 **已吊销/已解绑** → 允许新建申请（旧行保留审计）；
+   - 未命中 → 新建申请；
+5. 清理同一 `(client_idn, install_id)` 下已超时的 `PENDING` / `PROVEN` / `APPROVED` 申请 → `EXPIRED`（惰性清理，无需定时任务）；
+6. 生成 `bind_id`（32 位大写十六进制）与 `challenge`（32 字节随机 → 64 位十六进制）；
+7. 写 `open_device_bind`：`state=PENDING`、快照（公钥 / 硬件标识 / 自报设备信息 / `ip` / `user_agent`）、`dt_expire=now+600s`；
+8. Redis `SET finv:openapi:bind:<bind_id> = <challenge> EX 600`。
+
+**响应**
 
 ```json
-{
-  "install_id": "6f1c3b8e-…",
-  "device_pubkey": "MFkwEwYHKoZIzj0C…",
-  "key_alg": "ECDSA-P256-SHA256",
-  "hardware": {                              // 取不到传空串，缺失项写进 id_missing
-    "serial": "R58M12ABCDE", "imei": "869123456789012",
-    "mac": "AC:1F:6B:12:34:56", "android_id": "9774d56d682e549c"
-  },
-  "device": { "model": "Pixel 8", "os": "Android", "os_version": "15", "arch": "arm64-v8a", "app_version": "1.0.0" }
-}
+{ "code": 0, "data": {
+    "bind_id": "A1B2…(32 位)",
+    "challenge": "9F3C…(64 位)",
+    "expire_seconds": 600,
+    "already_bound": false
+} }
 ```
 
-- 服务端：校验凭证/调用方状态 → 同 `(client_idn, install_id)` 且公钥相同且已 ACTIVE → 直接返回「已绑定」（幂等）；
-  否则插 `open_device_bind(state='PENDING')`，`bind_id`（32 位大写十六进制）+ `challenge`（Redis 600s），返回两者。
+**失败码**：`19024` 入参非法 / `19002`~`19008` 沿用鉴权错误码 / `19022` Redis 不可用（fail-close）。
 
-### 5.2 `Bind/Prove`
+**边界**
 
-- 请求：`{ "bind_id": "…", "signature": "Base64(ECDSA(privkey, challenge||bind_id||ts))", "ts": 1794427291 }`
-- 服务端验签 → `state='PROVEN'`，**不生成码、不返回码**，响应只给 `{"state":"PROVEN","awaiting_approval":true}`。
+| 场景 | 处理 |
+|---|---|
+| 网络超时后客户端重试 | 5 分钟内同 `install_id` 仍有 `PENDING` → 复用该 `bind_id`、**刷新** challenge 与 TTL（不新建行） |
+| 并发 Apply | `(client_idn, install_id)` 的 `PENDING` 部分唯一索引兜底，冲突方拿到现有 `bind_id` |
+| 调用方/凭证已停用 | 中间件直接拒（`19003`），不进入流程 |
 
-### 5.3 人工审核（管理端）
+---
 
-- 页面「开放平台 → 接入管理 → 设备绑定」列出 `PROVEN` 待审申请：调用方、凭证号、设备型号/OS、申请 IP、时间；
-- 审批人点「批准」→ 服务端生成 6 位码（`crypto/rand`）+ 存哈希 + 返回明文**给管理端一次** →
-  页面显示并提示「请口述给现场人员，10 分钟内有效，输错 5 次作废」；
-- 点「驳回」→ `state='REJECTED'` + 原因。
+### 5.2 `Bind/Prove`（设备证明，**不产生码**）
 
-### 5.4 `Bind/Confirm`
+```
+POST /OpenAPI/V1/Meta/Region/AZ/Server/Bind/Prove
+```
 
-- 请求：`{ "bind_id": "…", "code": "042917" }`
-- 服务端：未过期且 `count_try < 5` → 比对 `code_hash` →
-  - 成功：`open_device` 插一行（`device_id` / `pubkey` / `install_id` / 自报信息 / `dt_bind`），`bind.state='ACTIVE'`；
-  - 失败：`count_try+1`，返回 `19020`；超限 → `state='EXPIRED'`（需重新申请）。
+**请求体**：`{ "bind_id": "…", "ts": 1794427291, "signature": "Base64(ECDSA(priv, M))" }`
+
+**待签串 M（固定格式，逐行 `\n` 分隔）**
+
+```
+FINV-DEVICE-BIND
+<bind_id>
+<challenge>
+<ts>
+```
+
+**服务端处理**
+
+1. 取 `open_device_bind`：必须存在、`state=PENDING`、未过 `dt_expire`，否则 `19022`；
+2. 取 Redis challenge：缺失 → 置 `EXPIRED` 并返回 `19022`；
+3. 校验 `ts` 在 `sys_config` 19002 时间窗内（默认 ±300s），否则 `19006`；
+4. 用申请里的 `device_pubkey` 验签（ECDSA P-256 + SHA-256）；失败 → `count_prove_fail += 1` 并返回 `19021`，累计 5 次 → `state=REJECTED`（防暴力验签）；
+5. 成功：`state=PROVEN`、`dt_prove=now`、`count_prove_fail=0`，**响应里没有任何码**。
+
+**响应**
+
+```json
+{ "code": 0, "data": { "state": "PROVEN", "awaiting_approval": true, "message": "设备已证明，等待管理员审核" } }
+```
+
+**边界**
+
+| 场景 | 处理 |
+|---|---|
+| 客户端时钟偏差 | `ts` 超窗 → `19006`；客户端应先调 `/Hello` 用 `server_time.unix` 校时 |
+| Prove 重试 | 已 `PROVEN` 时重复 Prove 直接返回 `state=PROVEN`（幂等），不重复计数 |
+| challenge 被截获 | 无签名能力无法伪造 Prove（challenge 一次性且绑定 `bind_id`） |
+
+---
+
+### 5.3 人工审核（管理端，不对外）
+
+页面：**开放平台 → 接入管理 → 设备绑定**
+
+**待审列表显示**（`state=PROVEN`）：调用方 / 凭证号 / 设备型号 / OS+版本 / App 版本 / `serial`·`imei`·`mac`·`android_id`（缺失项标黄并显示 `id_missing`）/ 公钥指纹（`sha256(pubkey)` 前 16 位）/ 申请 IP / UA / `dt_prove`。
+
+**动作「批准」**（内部接口 `POST /API/V1/Meta/Finv/OpenAPI/Device/Approve`，需登录）
+
+1. 校验 `state=PROVEN` 且未过 24h；
+2. 生成 6 位数字码：`crypto/rand`，范围 `000000`~`999999`（**保留前导零，全程按字符串处理**）；
+3. 存 `code_hash = sha256(bind_id + ":" + code)`（用 `bind_id` 作盐，避免 10^6 空间被彩虹表枚举）；
+4. `state=APPROVED`、`dt_approve=now`、`approve_by=<登录账号>`、`dt_code_expire=now+600s`、`count_try=0`；
+5. **该次响应把明文码返回给管理端一次**，页面提示：*请口述给现场人员；10 分钟内有效；输错 5 次作废*。
+
+**动作「驳回」**：`state=REJECTED` + `reason_reject`（必填，≤200 字）。
+
+**动作「重发码」**：仅 `APPROVED` 且未 `ACTIVE` 可用 → 重新生成并覆盖 `code_hash`（旧码立即失效）。
+
+> 页面刷新后**看不到明文码**（库里只有哈希）；要再拿一次只能点「重发码」。
+
+---
+
+### 5.4 `Bind/Confirm`（人在设备上输入码）
+
+```
+POST /OpenAPI/V1/Meta/Region/AZ/Server/Bind/Confirm
+```
+
+**请求体**：`{ "bind_id": "…", "code": "042917" }`
+
+**服务端校验链**
+
+1. 取申请：必须 `state=APPROVED`、未过 `dt_code_expire`，否则 `19022`；
+2. `count_try >= 5` → `state=EXPIRED`，返回 `19022`；
+3. `sha256(bind_id + ":" + code)` 与 `code_hash` 不等 → `count_try += 1`，返回 `19020`；第 5 次失败即 `state=EXPIRED`（需重新 Apply）；
+4. 相等 → **单事务**：
+   a. `rebind_of_device_id` 非空 → 旧设备 `flag_revoke='1'`、`dt_revoke=now`、`reason_revoke='REBIND'`；
+   b. 写 `open_device`（`device_id` 生成、公钥、`install_id`、硬件标识、`id_missing`、自报信息、`dt_bind`、`flag_revoke='0'`）；
+   c. 申请 `state=ACTIVE`、`dt_active=now`、`code_hash=''`（码用后即焚）；
+5. 返回 `device_id` + 设备摘要。
+
+**响应**
+
+```json
+{ "code": 0, "data": { "device_id": "8F2A…(32 位)", "state": "ACTIVE", "dt_bind": "2026-11-12T03:30:00+08:00" } }
+```
+
+**边界**
+
+| 场景 | 处理 |
+|---|---|
+| Confirm 成功但响应丢了，客户端重试 | `state=ACTIVE` 时返回同一 `device_id`（幂等；`code_hash` 已清空不参与比对） |
+| 码输错但仍有次数 | 返回 `19020`，提示剩余次数 |
+| 审批人批错了 | 直接 `Bind/Unbind` 解绑后重新走流程 |
+| 现场拿不到码 | 审批人点「重发码」 |
+
+---
+
+### 5.5 自动解绑
+
+| 路径 | 触发方式 | 请求 / 条件 | 结果 |
+|---|---|---|---|
+| **主动上报** | 客户端发现本地私钥不存在（清数据/换机/Keystore 失效） | `POST .../Bind/Unbind`（AKSK 认证）`{ "device_id": "…", "reason": "CLIENT_KEY_LOST" }` | 设备行 `flag_revoke='1'` + `dt_revoke` + `reason_revoke`；关联申请 `state=UNBOUND` |
+| **被动检测** | 设备仍持公钥但签名验不过（私钥损坏/被改机） | `Prove` 或设备签名校验失败：`count_fail += 1`，且本次与 `dt_last_fail` 间隔 **≥10 分钟**才计数（去抖）；`count_fail >= 3` | 自动吊销，`reason_revoke='KEY_INVALID'`；管理页标红 |
+
+- **单次失败不解绑**（网络抖动、时钟偏差都会让签名失败一次）；
+- 任一校验成功后 `count_fail = 0`；
+- 解绑**不删行**，与凭证吊销同口径：只能新建绑定，不能复活旧行。
+
+---
+
+### 5.6 与业务的关系（本期只到"标记"，不做强制）
+
+- `ACTIVE` 设备可带 `X-Finv-Device: <device_id>` 调业务接口，服务端把它记进审计；
+- **本期不校验**设备签名，也不因"未绑定"拒绝任何业务请求；
+- 后续若某项高敏感操作需要更高安全性，再单独批准"绑定 + 设备签名校验"作为该操作的准入条件。
 
 ## 6. 数据模型（草案，未建表）
 
@@ -217,7 +373,8 @@ Phase 4  Bind/Confirm  POST …/Bind/Confirm → 人在设备上输入码 → �
 | `serial` / `imei` / `mac` / `android_id` | 硬件标识（可空）。`serial` / `imei` 各建**部分唯一索引**（`WHERE serial <> ''`），防同一台机器绑两次 |
 | `id_missing` | VARCHAR(64)：本次缺失的标识项（如 `IMEI,MAC`），审批页标黄 |
 | `device_model` / `os` / `os_version` / `arch` / `app_version` | **自报**，仅展示 |
-| `dt_bind` / `dt_last_seen` / `count_fail` | `count_fail` 用于"连续失败自动解绑" |
+| `dt_bind` / `dt_last_seen` | 绑定生效时间 / 最近一次设备请求时间 |
+| `count_fail` / `dt_last_fail` | 被动自动解绑用：连续失败计数 + 上次失败时间（去抖 ≥10 分钟） |
 | `flag_enable` / `flag_revoke` / `dt_revoke` / `reason_revoke` | 吊销留痕，原因必填（CHECK） |
 | `remark` / `create_by` / `modify_by` / `gmt_create` / `gmt_update` | 审计列 |
 
@@ -229,8 +386,11 @@ Phase 4  Bind/Confirm  POST …/Bind/Confirm → 人在设备上输入码 → �
 | `install_id` / `pubkey` / `key_alg` / 设备自报信息 | 申请时快照 |
 | `serial` / `imei` / `mac` / `android_id` / `id_missing` | 硬件标识快照（审批人据此核对） |
 | `state` | `PENDING` / `PROVEN` / `APPROVED` / `ACTIVE` / `REJECTED` / `EXPIRED` / `UNBOUND` |
-| `code_hash` / `dt_code` / `count_try` | 码哈希（不存明文）、生成时间、尝试次数 |
-| `approve_by` / `dt_approve` / `reason_reject` | 人工审核留痕 |
+| `code_hash` / `dt_code_expire` / `count_try` | 码哈希 `sha256(bind_id + ":" + code)`（不存明文）、码过期时间、已尝试次数（上限 5） |
+| `approve_by` / `dt_approve` / `reason_reject` | 人工审核留痕（批准人 / 时间 / 驳回原因） |
+| `rebind_of_device_id` | 同机换钥或重装时指向旧设备行（Confirm 成功后自动吊销旧行） |
+| `count_prove_fail` | Prove 验签失败次数（上限 5，防暴力验签） |
+| `dt_prove` / `dt_active` | 设备证明成功时间 / 绑定生效时间 |
 | `dt_expire` / `dt_create` / `ip` / `user_agent` | |
 
 ## 7. 需要你确认的（只有 3 条，其余一律暂不决策）
