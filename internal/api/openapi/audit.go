@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -25,6 +26,19 @@ INSERT INTO open.open_api_invoke_log
 VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), $6,
         $7, $8, $9, $10, $11, $12, NULLIF($13, ''),
         $14, $15, NULLIF($16, ''), $17, $18, NULLIF($19, ''), NULLIF($20, ''))`
+
+// updateCredentialUsageSQL 更新凭证「最近使用」与「累计调用」（需求 11199）。
+//
+// 只在**放行**时更新；STS 临时凭据记的是父凭证 idn，因此派生调用也累计到父凭证上。
+const updateCredentialUsageSQL = `
+UPDATE open.open_api_credential
+   SET dt_last_use = now(), count_use = count_use + 1
+ WHERE idn = $1`
+
+// countUsageOf 是否给该请求累计凭证使用次数：只算「放行 + 能定位到凭证」。
+func countUsageOf(pass bool, credentialIDN int64) bool {
+	return pass && credentialIDN > 0
+}
 
 // auditWriteTimeout 单次审计写入超时。
 const auditWriteTimeout = 1500 * time.Millisecond
@@ -91,15 +105,34 @@ func (r *Recorder) Write(ctx context.Context, item Invocation) {
 	if item.Pass {
 		pass = "1"
 	}
-	_, err := r.pool.Exec(writeCtx, insertInvokeLogSQL,
+	// 审计与「凭证使用统计」放在同一个 batch 里发，少一次往返；
+	// 统计只算放行且能定位到凭证的请求（兜底密钥 credential_idn=0 不统计）。
+	batch := &pgx.Batch{}
+	batch.Queue(insertInvokeLogSQL,
 		item.ClientIDN, item.CredentialIDN, item.AccessKeyID, item.AuthMode, item.RequestID, item.RequestAt,
 		item.Method, item.Path, truncate(item.Query, 2000), item.StatusCode, item.BizCode, pass, item.ReasonCode,
 		ipText, truncate(item.UserAgent, 512), item.BodyHash, item.BodySize, int(item.Latency/time.Millisecond),
 		item.KFP, item.TFP,
 	)
-	if err != nil {
-		r.logf("[openapi][audit] 写入 open.open_api_invoke_log 失败: %v（pass=%t reason=%s ak=%s %s %s）",
-			err, item.Pass, item.ReasonCode, item.AccessKeyID, item.Method, item.Path)
+	countUsage := countUsageOf(item.Pass, item.CredentialIDN)
+	if countUsage {
+		batch.Queue(updateCredentialUsageSQL, item.CredentialIDN)
+	}
+
+	results := r.pool.SendBatch(writeCtx, batch)
+	for index := 0; index < batch.Len(); index++ {
+		if _, err := results.Exec(); err != nil {
+			if index == 0 {
+				r.logf("[openapi][audit] 写入 open.open_api_invoke_log 失败: %v（pass=%t reason=%s ak=%s %s %s）",
+					err, item.Pass, item.ReasonCode, item.AccessKeyID, item.Method, item.Path)
+			} else {
+				// 统计失败不影响业务，只记日志（下次调用会继续累计）
+				r.logf("[openapi][audit] 更新凭证使用统计失败: %v（credential_idn=%d）", err, item.CredentialIDN)
+			}
+		}
+	}
+	if err := results.Close(); err != nil {
+		r.logf("[openapi][audit] 关闭审计 batch 失败: %v", err)
 	}
 }
 

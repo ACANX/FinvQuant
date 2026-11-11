@@ -219,6 +219,14 @@
 
 ### 变更
 
+- **修复凭证「最近使用 / 累计调用」永远是缺省值（需求 11199）**
+  - 现象：审计日志里明明有成功调用，`/Meta/Finv/OpenAPI/Credential` 页的最近使用空、累计调用 0。
+  - 根因：`dt_last_use` / `count_use` 两列**从来没有写入方**——查询与展示都有，就是没人更新。
+  - 修复：中间件放行时把 `UPDATE open.open_api_credential SET dt_last_use = now(), count_use = count_use + 1`
+    与审计 INSERT 合并进同一个 `pgx.Batch`（少一次往返，统计失败只记日志不影响业务）。
+  - 口径：只统计放行请求；STS 派生调用累计到父凭证；兜底密钥（`credential_idn=0`）不计数；轮换密钥会重置为 `NULL`/`0`。
+  - 文档：`Docs/Menu/OpenAPI/Credential.md` 列说明补更新时机。
+
 - **调用审计列表补「认证模式」「业务码」两列 + 列宽可调（需求 11198）**
   - 新增列：认证模式（`auth_mode` 中文展示，空值 `—`）、业务码（`biz_code`）；详情里的认证模式也改中文。
   - 列表列宽改为**可拖拽**：表头右边缘拖动改宽、双击按内容自适应、`重置列宽` 一键还原，
