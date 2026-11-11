@@ -499,13 +499,15 @@ UPDATE open.open_api_credential
 const selectInvokeLogSQL = `
 SELECT l.idn, l.client_idn, l.credential_idn, COALESCE(l.access_key_id, ''), COALESCE(l.kfp, ''), COALESCE(l.tfp, ''),
        COALESCE(l.auth_mode, ''), COALESCE(c.credential_no, ''),
+       COALESCE(c.parent_idn, 0), COALESCE(pc.credential_no, ''),
        COALESCE(l.request_id, ''), to_char(l.dt_request, 'YYYY-MM-DD"T"HH24:MI:SSOF'),
        COALESCE(l.method, ''), COALESCE(l.path, ''), COALESCE(l.query_str, ''),
        l.status_code, l.biz_code, l.flag_pass, COALESCE(l.reason_code, ''),
        COALESCE(host(l.ip), ''), COALESCE(l.user_agent, ''), COALESCE(l.body_sha256, ''),
        l.count_body, l.latency_ms
   FROM open.open_api_invoke_log l
-  LEFT JOIN open.open_api_credential c ON c.idn = l.credential_idn`
+  LEFT JOIN open.open_api_credential c ON c.idn = l.credential_idn
+  LEFT JOIN open.open_api_credential pc ON pc.idn = c.parent_idn`
 
 // InvokeLogPage 分页查询调用审计（时间倒序）。
 func (s *Store) InvokeLogPage(ctx context.Context, filter InvokeLogFilter) ([]InvokeLog, int, error) {
@@ -569,7 +571,7 @@ func (s *Store) InvokeLogPage(ctx context.Context, filter InvokeLogFilter) ([]In
 	for rows.Next() {
 		item := InvokeLog{}
 		if err := rows.Scan(&item.IDN, &item.ClientIDN, &item.CredentialIDN, &item.AccessKeyID, &item.KFP, &item.TFP,
-			&item.AuthMode, &item.CredentialNo,
+			&item.AuthMode, &item.CredentialNo, &item.ParentIDN, &item.ParentCredentialNo,
 			&item.RequestID, &item.DTRequest, &item.Method, &item.Path, &item.Query,
 			&item.StatusCode, &item.BizCode, &item.FlagPass, &item.ReasonCode,
 			&item.IP, &item.UserAgent, &item.BodySHA256, &item.CountBody, &item.LatencyMs); err != nil {

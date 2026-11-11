@@ -219,6 +219,18 @@
 
 ### 变更
 
+- **STS 临时凭据改为独立凭证行，不再寄生在 AKSK 凭证下（需求 11202）**
+  - 迁移 `V300190`：`open.open_api_credential.auth_mode` 加 `STS` 取值；新增 `parent_idn`（派生来源，0=页面直发）
+    与 `token_fp`（SecurityToken 指纹）；重建 secret 约束（STS 与 AKSK 同口径：有密文、无哈希）。
+  - 签发一律 INSERT 独立行：`access_key_id`=SAK、`secret_cipher`=SSK 密文、`token_fp` 只存指纹、
+    `parent_idn` 指父凭证、`dt_expire = now()+2h`；**不再用 Redis 存 STS**，鉴权改为查表。
+  - 鉴权：`PGSource.Lookup` 查 `auth_mode='STS'` 行 → 校验 token 指纹 → `parent_idn` 回查父凭证状态
+    （吊销/停用/过期即 `19003`）→ 时间窗/nonce/签名（token 参与第 7 段）。
+  - 清理：`PurgeExpired` 只删自己的过期行（保留 7 天），签发时顺带执行。
+  - 页面：凭证列表中 STS 是可见、可追溯的独立记录；审计列表把「来源凭证」拆成
+    「本次凭证」（STS 自己的凭证号）与「父凭证（STS 来源）」两列。
+  - 代码：`CredentialSource` 增加 `LookupByIDN`（STS 回查父凭证用），去掉 `StsSource` 与 Redis 存储。
+
 - **审计页可直接看出 STS 的来源凭证（需求 11201）**
   - `InvokeLog/Page` 的 SQL 改为 `LEFT JOIN open.open_api_credential`，带出 `credential_no`；
     STS 行的 `credential_idn` 是派生它的**父凭证**，页面「来源凭证」列因此能直接显示 `DEMO-AKSK` 这类凭证号。

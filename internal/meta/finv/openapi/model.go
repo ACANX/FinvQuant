@@ -161,26 +161,29 @@ type InvokeLog struct {
 	IDN           int64 `json:"idn"`
 	ClientIDN     int64 `json:"client_idn"`
 	CredentialIDN int64 `json:"credential_idn"`
-	// CredentialNo 凭证号（LEFT JOIN 得到）；STS 行是其**父凭证**的凭证号（需求 11201）。
+	// CredentialNo 本次调用的凭证号（STS 行是 STS 自己的凭证号，需求 11202）。
 	CredentialNo string `json:"credential_no"`
-	AccessKeyID  string `json:"access_key_id"`
-	KFP          string `json:"kfp"`
-	TFP          string `json:"tfp"`
-	AuthMode     string `json:"auth_mode"`
-	RequestID    string `json:"request_id"`
-	DTRequest    string `json:"dt_request"`
-	Method       string `json:"method"`
-	Path         string `json:"path"`
-	Query        string `json:"query_str"`
-	StatusCode   int    `json:"status_code"`
-	BizCode      int    `json:"biz_code"`
-	FlagPass     string `json:"flag_pass"`
-	ReasonCode   string `json:"reason_code"`
-	IP           string `json:"ip"`
-	UserAgent    string `json:"user_agent"`
-	BodySHA256   string `json:"body_sha256"`
-	CountBody    int    `json:"count_body"`
-	LatencyMs    int    `json:"latency_ms"`
+	// ParentIDN / ParentCredentialNo：仅 STS 有值，表示由哪个长期凭证派生（0/空 = 页面直发）。
+	ParentIDN          int64  `json:"parent_idn"`
+	ParentCredentialNo string `json:"parent_credential_no"`
+	AccessKeyID        string `json:"access_key_id"`
+	KFP                string `json:"kfp"`
+	TFP                string `json:"tfp"`
+	AuthMode           string `json:"auth_mode"`
+	RequestID          string `json:"request_id"`
+	DTRequest          string `json:"dt_request"`
+	Method             string `json:"method"`
+	Path               string `json:"path"`
+	Query              string `json:"query_str"`
+	StatusCode         int    `json:"status_code"`
+	BizCode            int    `json:"biz_code"`
+	FlagPass           string `json:"flag_pass"`
+	ReasonCode         string `json:"reason_code"`
+	IP                 string `json:"ip"`
+	UserAgent          string `json:"user_agent"`
+	BodySHA256         string `json:"body_sha256"`
+	CountBody          int    `json:"count_body"`
+	LatencyMs          int    `json:"latency_ms"`
 }
 
 // InvokeLogFilter 调用审计查询条件。

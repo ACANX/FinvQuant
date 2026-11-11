@@ -84,11 +84,11 @@ func (h *OpenAPIStsAdmin) Issue(c *gin.Context) {
 		return
 	}
 
-	// 没有父凭证（IDN=0 / ParentAccessKey 为空）：授权范围与限流直接取调用方与表单
+	// 页面直发：parent 只承载「调用方 + 授权范围 + 白名单 + 限流」，IDN=0 表示无父凭证
 	parent := &openapi.Credential{
 		IDN:           0,
 		ClientIDN:     client.IDN,
-		AuthMode:      openapi.AuthModeAKSK,
+		AuthMode:      openapi.AuthModeSTS,
 		SignAlgorithm: "HMAC-SHA256",
 		Scope:         toScopeRules(scope),
 		CredentialIPs: nil,
@@ -100,12 +100,14 @@ func (h *OpenAPIStsAdmin) Issue(c *gin.Context) {
 		parent.CredentialIPs = mustParseCIDR(cidrs)
 	}
 
-	issued, err := h.sts.Issue(c.Request.Context(), parent, key)
+	issued, err := h.sts.Issue(c.Request.Context(), parent, key, operatorOf(c))
 	if err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"code": openapi.CodeAuthNotReady, "message": "签发临时凭据失败: " + err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "OK", "data": gin.H{
+		"credential_idn": issued.CredentialIDN,
+		"credential_no":  issued.CredentialNo,
 		"access_key_id":  issued.AccessKeyID,
 		"secret_key":     issued.SecretKey,
 		"security_token": issued.SecurityToken,

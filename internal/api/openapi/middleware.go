@@ -47,8 +47,6 @@ type Options struct {
 	Recorder *Recorder
 	// Now 时钟注入（测试用）。
 	Now func() time.Time
-	// Sts STS 临时凭据来源（为空时按 Redis 构造 StsStore）。
-	Sts StsSource
 	// RedisFailClose Redis 故障时是否 fail-close（拒绝）：true=拒绝（FINV_OPENAPI_REDIS_FAIL_MODE=close），
 	// false=放行并告警（open）。重放/限流依赖 Redis，故障时放行等于这两项失效。
 	RedisFailClose bool
@@ -67,8 +65,6 @@ type Middleware struct {
 	logf     func(format string, args ...any)
 	// redisFailClose Redis 故障时是否拒绝请求（FINV_OPENAPI_REDIS_FAIL_MODE=close）。
 	redisFailClose bool
-	// sts STS 临时凭据存储（需求 11191）；接口化便于单测注入假实现。
-	sts StsSource
 }
 
 // NewMiddleware 构造中间件。
@@ -94,24 +90,16 @@ func NewMiddleware(opts Options) *Middleware {
 		logf = log.Printf
 	}
 	return &Middleware{
-		source:         source,
-		settings:       settings,
-		redis:          NewRedisStore(opts.Redis),
-		sts:            stsSource(opts),
+		source:   source,
+		settings: settings,
+		redis:    NewRedisStore(opts.Redis),
+
 		redisFailClose: opts.RedisFailClose,
 		recorder:       recorder,
 		envKey:         strings.TrimSpace(opts.FallbackKey),
 		now:            now,
 		logf:           logf,
 	}
-}
-
-// stsSource 取 STS 来源：优先用注入实现，否则按 Redis 构造。
-func stsSource(opts Options) StsSource {
-	if opts.Sts != nil {
-		return opts.Sts
-	}
-	return NewStsStore(opts.Redis)
 }
 
 // Handler 返回 gin 中间件。

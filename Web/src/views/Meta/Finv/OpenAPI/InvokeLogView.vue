@@ -16,6 +16,8 @@ interface InvokeLogRow {
   client_idn: number
   credential_idn: number
   credential_no: string
+  parent_idn: number
+  parent_credential_no: string
   access_key_id: string
   kfp: string
   tfp: string
@@ -74,8 +76,9 @@ function detailFields(row: InvokeLogRow): DetailField[] {
     { label: '密钥指纹 kfp', value: row.kfp || '—', hint: 'sha256(完整公开标识) 前 16 位大写十六进制；APIKEY 记静态 Key 指纹、STS 记临时 AK 指纹，可按单把密钥聚合' },
     { label: '令牌指纹 tfp', value: row.tfp || '—', hint: 'sha256(SecurityToken) 前 16 位，仅 STS 模式；可按一次临时会话聚合' },
     { label: '调用方 idn', value: String(row.client_idn), hint: '0 = 未识别到调用方' },
-    { label: '来源凭证', value: credentialSourceText(row), hint: 'STS 行显示派生它的父凭证号；页面直发的 STS 无父凭证；空 = 未识别' },
-    { label: '凭证 idn', value: String(row.credential_idn), hint: '0 = 未识别到凭证（含页面直发的 STS）' },
+    { label: '本次凭证', value: row.credential_no || (row.credential_idn > 0 ? `idn=${row.credential_idn}` : '—'), hint: '本次调用使用的凭证号（STS 行是 STS 自己的凭证号，需求 11202）' },
+    { label: '父凭证（STS 来源）', value: row.parent_credential_no || (row.auth_mode === 'STS' ? '无（页面直发）' : '—'), hint: 'STS 记录派生它的长期凭证；页面直发的 STS 没有父凭证' },
+    { label: '凭证 idn', value: String(row.credential_idn), hint: '0 = 未识别到凭证' },
     { label: '请求 ID', value: row.request_id || '—', hint: '网关生成的 32 位大写十六进制，与响应头 X-Request-Id 同值' },
     { label: '来源 IP', value: row.ip || '—', hint: '客户端出口 IP（可能被反代改写）' },
     { label: 'User-Agent', value: row.user_agent || '—', hint: '原始 UA，超过 512 字符截断入库' },
@@ -103,7 +106,8 @@ const COLUMNS: Column[] = [
   { key: 'biz_code', title: '业务码', width: 90, min: 70 },
   { key: 'latency_ms', title: '耗时（ms）', width: 100, min: 80 },
   { key: 'auth_mode', title: '认证模式', width: 130, min: 100 },
-  { key: 'credential_no', title: '来源凭证', width: 200, min: 140 },
+  { key: 'credential_no', title: '本次凭证', width: 190, min: 140 },
+  { key: 'parent_credential_no', title: '父凭证（STS 来源）', width: 200, min: 140 },
   { key: 'access_key_id', title: '公开标识', width: 320, min: 140 },
   { key: 'kfp', title: '密钥指纹', width: 160, min: 120 },
   { key: 'ip', title: '来源 IP', width: 140, min: 110 },
@@ -193,18 +197,12 @@ function cellText(row: InvokeLogRow, col: Column): string {
     case 'dt_request': return timeText(row.dt_request)
     case 'flag_pass': return passText(row.flag_pass)
     case 'auth_mode': return authModeText(row.auth_mode)
-    case 'credential_no': return credentialSourceText(row)
+    case 'credential_no': return row.credential_no || (row.credential_idn > 0 ? `idn=${row.credential_idn}` : '—')
+    case 'parent_credential_no': return row.parent_credential_no || (row.auth_mode === 'STS' ? '无（页面直发）' : '—')
     case 'reason_code': return reasonText(row.reason_code)
     case 'actions': return '详情'
     default: return String((row as unknown as Record<string, unknown>)[col.key] ?? '')
   }
-}
-
-// 来源凭证：STS 行是父凭证号；页面直发的 STS 明确标注「无（页面直发）」
-function credentialSourceText(row: InvokeLogRow): string {
-  if (row.credential_no) return row.credential_no
-  if (row.auth_mode === 'STS') return '无（页面直发）'
-  return row.credential_idn > 0 ? `idn=${row.credential_idn}` : '—'
 }
 
 async function copyValue(text: string) {
@@ -352,13 +350,14 @@ onMounted(() => {
                 <td>{{ row.latency_ms }}</td>
                 <td class="cell-nowrap">{{ authModeText(row.auth_mode) }}</td>
                 <td class="cell-ellipsis">
-                  <span>{{ credentialSourceText(row) }}</span>
+                  <span>{{ row.credential_no || (row.credential_idn > 0 ? `idn=${row.credential_idn}` : '—') }}</span>
                   <v-tooltip v-if="row.credential_no" :text="`凭证号：${row.credential_no}（idn=${row.credential_idn}）`" location="bottom" max-width="420">
                     <template #activator="{ props: tipProps }">
                       <v-icon v-bind="tipProps" icon="mdi-information-outline" size="14" class="ml-1 text-medium-emphasis" />
                     </template>
                   </v-tooltip>
                 </td>
+                <td class="cell-ellipsis">{{ row.parent_credential_no || (row.auth_mode === 'STS' ? '无（页面直发）' : '—') }}</td>
                 <td class="cell-ellipsis">
                   <span>{{ row.access_key_id || '—' }}</span>
                   <v-tooltip v-if="row.access_key_id" :text="row.access_key_id" location="bottom" max-width="520">

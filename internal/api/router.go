@@ -146,7 +146,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 		// STS 换证（需求 11191）：用长期 AK/SK 换取 2 小时有效的 AK/SK + SecurityToken。
 		// 路径由用户定稿：Meta/Auth/Credential/STS/Issue（缩写段全大写，其余 PascalCase）。
 		stsHandler := openapi.NewStsIssueHandler(
-			openapi.NewSettingsStore(deps.Pool), openapi.NewStsStore(deps.Redis))
+			openapi.NewSettingsStore(deps.Pool), openapi.NewStsStore(deps.Pool))
 		openGroup.POST("/Meta/Auth/Credential/STS/Issue", stsHandler.Issue)
 
 		// DELETE 显式拒绝（需求 11180）：对外 OpenAPI 不提供删除能力。
@@ -201,7 +201,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 			openAPIStsAdmin := handler.NewOpenAPIStsAdmin(
 				openapiSvc.NewService(openapiSvc.NewStore(deps.Pool)),
 				openapi.NewSettingsStore(deps.Pool),
-				openapi.NewStsStore(deps.Redis),
+				openapi.NewStsStore(deps.Pool),
 			)
 			openAPIGroup := apiGroup.Group("/Meta/Finv/OpenAPI")
 			openAPIGroup.GET("/Secret/Status", openAPIAdmin.SecretStatus)

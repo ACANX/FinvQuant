@@ -272,6 +272,18 @@ type fakeSource struct {
 	err   error
 }
 
+func (f *fakeSource) LookupByIDN(_ context.Context, idn int64) (*Credential, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	for _, credential := range f.byKey {
+		if credential.IDN == idn {
+			return credential, nil
+		}
+	}
+	return nil, ErrCredentialNotFound
+}
+
 func (f *fakeSource) Lookup(_ context.Context, accessKeyID string) (*Credential, error) {
 	if f.err != nil {
 		return nil, f.err
@@ -1027,19 +1039,6 @@ func TestStsParentUsable(t *testing.T) {
 	}
 }
 
-// fakeSts 假 STS 来源：直接返回预置的三要素与父凭证标识。
-type fakeSts struct {
-	credential *Credential
-	tokenFP    string
-	cipher     string
-	parentAK   string
-	err        error
-}
-
-func (f *fakeSts) Lookup(_ context.Context, _ string) (*Credential, string, string, string, error) {
-	return f.credential, f.tokenFP, f.cipher, f.parentAK, f.err
-}
-
 // TestMiddlewareStsRejectsRevokedParent 父凭证被吊销后，已签发的临时凭据立即失效（需求 11197）。
 func TestMiddlewareStsRejectsRevokedParent(t *testing.T) {
 	key := testKey()
@@ -1051,22 +1050,21 @@ func TestMiddlewareStsRejectsRevokedParent(t *testing.T) {
 	parentRevoked.FlagEnable = false
 
 	token := "SST_LIVE_ABCDEF0123456789ABCDEF0123456789"
+	// STS 现在是独立凭证行（需求 11202）：按 SAK 查表得到 auth_mode=STS + parent_idn
 	stsCred := &Credential{
-		IDN: parentRevoked.IDN, ClientIDN: 1, AuthMode: AuthModeSTS,
+		IDN: 900, ClientIDN: 1, AuthMode: AuthModeSTS, ParentIDN: parentRevoked.IDN,
 		AccessKeyID: "SAK_LIVE_TEMP", SignAlgorithm: "HMAC-SHA256",
+		TokenFP: TokenFingerprint(token), SecretCipher: "unused",
 		FlagEnable: true, clientEnable: true,
 		Scope: []ScopeRule{{Method: "*", Path: "/OpenAPI/V1/Test"}},
 	}
-	sts := &fakeSts{
-		credential: stsCred,
-		tokenFP:    TokenFingerprint(token),
-		cipher:     "unused",
-		parentAK:   "AK_LIVE_PARENT",
-	}
+	parentRevoked.IDN = 900 + 1
 	engine, hits := newTestEngine(t, Options{
-		Source: &fakeSource{byKey: map[string]*Credential{"AK_LIVE_PARENT": parentRevoked}},
-		Sts:    sts,
-		Logf:   func(string, ...any) {},
+		Source: &fakeSource{byKey: map[string]*Credential{
+			"AK_LIVE_PARENT": parentRevoked,
+			"SAK_LIVE_TEMP":  stsCred,
+		}},
+		Logf: func(string, ...any) {},
 	}, settings)
 
 	headers, body := signHeadersWithToken(t, "sk-temp", "SAK_LIVE_TEMP", "GET", "/OpenAPI/V1/Test", "", token)

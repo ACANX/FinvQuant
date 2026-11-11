@@ -37,7 +37,11 @@ type Credential struct {
 	SecretCipherP string // 轮换期旧 SK 密文
 	SecretKID     string
 	SignAlgorithm string
-	Scope         []ScopeRule
+	// TokenFP STS 的 SecurityToken 指纹（仅 auth_mode=STS）；空表示非 STS。
+	TokenFP string
+	// ParentIDN STS 的派生来源凭证 idn（0 = 页面直发，无父凭证）。
+	ParentIDN int64
+	Scope     []ScopeRule
 	// ScopeBroken 授权范围数据损坏（scope_str 不是合法的对象数组）。
 	// 解析失败时**不放行**：按「无权限」拒绝，避免坏数据把凭证悄悄放大成「全部接口」（需求 11190）。
 	ScopeBroken   bool
@@ -154,6 +158,8 @@ func EncryptSecret(plain string, key []byte) (string, error) { return secret.Enc
 // CredentialSource 凭证来源抽象（便于单测注入假数据）。
 type CredentialSource interface {
 	Lookup(ctx context.Context, accessKeyID string) (*Credential, error)
+	// LookupByIDN 按主键查询（STS 校验父凭证状态时用，需求 11197/11202）。
+	LookupByIDN(ctx context.Context, idn int64) (*Credential, error)
 }
 
 // ErrCredentialNotFound 凭证不存在。
@@ -163,6 +169,7 @@ const selectCredentialSQL = `
 SELECT c.idn, c.credential_no, c.auth_mode, c.access_key_id,
        COALESCE(c.secret_hash, ''), COALESCE(c.secret_cipher, ''), COALESCE(c.secret_cipher_prev, ''),
        COALESCE(c.secret_kid, ''), c.sign_algorithm,
+       COALESCE(c.token_fp, ''), c.parent_idn,
        COALESCE(c.scope_str::text, '[]'), COALESCE(c.allow_cidr::text[], '{}'),
        c.dt_expire, c.flag_enable, c.flag_revoke,
        cl.idn, cl.client_code, COALESCE(cl.allow_cidr::text[], '{}'),
@@ -203,8 +210,37 @@ func (s *PGSource) Lookup(ctx context.Context, accessKeyID string) (*Credential,
 	return nil, err
 }
 
+// LookupByIDN 按主键查询凭证（STS 回查父凭证状态）。
+func (s *PGSource) LookupByIDN(ctx context.Context, idn int64) (*Credential, error) {
+	if s.pool == nil {
+		return nil, errors.New("数据库连接池未初始化")
+	}
+	if idn <= 0 {
+		return nil, ErrCredentialNotFound
+	}
+	return s.queryOne(ctx, selectCredentialByIDNSQL, idn)
+}
+
+const selectCredentialByIDNSQL = `
+SELECT c.idn, c.credential_no, c.auth_mode, c.access_key_id,
+       COALESCE(c.secret_hash, ''), COALESCE(c.secret_cipher, ''), COALESCE(c.secret_cipher_prev, ''),
+       COALESCE(c.secret_kid, ''), c.sign_algorithm,
+       COALESCE(c.token_fp, ''), c.parent_idn,
+       COALESCE(c.scope_str::text, '[]'), COALESCE(c.allow_cidr::text[], '{}'),
+       c.dt_expire, c.flag_enable, c.flag_revoke,
+       cl.idn, cl.client_code, COALESCE(cl.allow_cidr::text[], '{}'),
+       cl.rate_limit_rpm, cl.quota_day, cl.dt_expire, cl.flag_enable
+  FROM open.open_api_credential c
+  JOIN open.open_api_client cl ON cl.idn = c.client_idn
+ WHERE c.idn = $1`
+
 // lookupExact 按给定标识精确查询。
 func (s *PGSource) lookupExact(ctx context.Context, accessKeyID string) (*Credential, error) {
+	return s.queryOne(ctx, selectCredentialSQL, accessKeyID)
+}
+
+// queryOne 执行凭证查询并映射成 Credential。
+func (s *PGSource) queryOne(ctx context.Context, query string, arg any) (*Credential, error) {
 	credential := &Credential{}
 	var (
 		scopeJSON       string
@@ -214,10 +250,11 @@ func (s *PGSource) lookupExact(ctx context.Context, accessKeyID string) (*Creden
 		credFlagRevoke  string
 		clientFlagEnab  string
 	)
-	err := s.pool.QueryRow(ctx, selectCredentialSQL, accessKeyID).Scan(
+	err := s.pool.QueryRow(ctx, query, arg).Scan(
 		&credential.IDN, &credential.CredentialNo, &credential.AuthMode, &credential.AccessKeyID,
 		&credential.SecretHash, &credential.SecretCipher, &credential.SecretCipherP,
 		&credential.SecretKID, &credential.SignAlgorithm,
+		&credential.TokenFP, &credential.ParentIDN,
 		&scopeJSON, &credentialCIDRs,
 		&credential.CredentialExp, &credFlagEnable, &credFlagRevoke,
 		&credential.ClientIDN, &credential.ClientCode, &clientCIDRs,

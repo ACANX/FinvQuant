@@ -50,7 +50,8 @@ func (h *StsIssueHandler) Issue(c *gin.Context) {
 		return
 	}
 
-	issued, err := h.sts.Issue(c.Request.Context(), parent, key)
+	// 外部换证没有登录会话，签发人记空（审计仍能通过 parent_idn 追溯到调用方）
+	issued, err := h.sts.Issue(c.Request.Context(), parent, key, "")
 	if err != nil {
 		code := CodeAuthNotReady
 		if errors.Is(err, ErrCredentialNotFound) {
@@ -60,6 +61,8 @@ func (h *StsIssueHandler) Issue(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "OK", "data": gin.H{
+		"credential_idn": issued.CredentialIDN,
+		"credential_no":  issued.CredentialNo,
 		"access_key_id":  issued.AccessKeyID,
 		"secret_key":     issued.SecretKey,
 		"security_token": issued.SecurityToken,
