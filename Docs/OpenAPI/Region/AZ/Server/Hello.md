@@ -1,73 +1,77 @@
-# 握手（Hello）
+# Hello
 
-> 所属：FinvQuant **对外 OpenAPI** 文档 · 存放：`Docs/OpenAPI/Region/AZ/Server/Hello.md`
-> 目录口径：`Docs/OpenAPI/` 按「去掉 `/OpenAPI/V1/` 后的路径段」组织（如
-> `/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert` → `Docs/OpenAPI/Quote/Cdeu/Min/Upsert.md`）；
-> 平台自身的**管理接口**文档在 `Docs/API/`（如 `Docs/API/OpenAPI/Admin.md`），两者不混放。
-> 需求：11242
-> 实现：`internal/api/openapi/hello.go`（处理器）、`internal/api/openapi/middleware.go`（`scopeFreePaths` 豁免）
-> 鉴权协议：[`Auth.md`](../../../API/OpenAPI/Auth.md)
-> 接口清单：`open.open_api_endpoint` 中 `open.region.az.server.hello`
+> 所属：FinvQuant 对外 OpenAPI 文档 · 存放：`Docs/OpenAPI/Region/AZ/Server/Hello.md`
+> 对应路径：`/OpenAPI/V1/Meta/Region/AZ/Server/Hello`
+> 需求：11242（端点）、11243（`kfp` 字段名）、11245（本文按接口规格重写）
+> 实现：`internal/api/openapi/hello.go`；`middleware.go` 的 `scopeFreePaths`（授权范围豁免）
+> 鉴权协议：[`Auth.md`](../../../API/OpenAPI/Auth.md) · 调用示例与自检：[`Usage/Handshake.md`](../../Usage/Handshake.md)
 
-## 1. 它解决什么问题
+本文只描述**接口规格**（是什么、要什么、返回什么、失败是什么码）。
+「客户端怎么接、运维怎么巡检」属使用说明，见 [`Usage/Handshake.md`](../../Usage/Handshake.md)。
 
-调用方在正式收发业务数据前，需要一个**低成本、无副作用**的方式确认三件事：
+## 1. 接口定位
 
-1. **网络通**：能连到平台（域名解析、端口、反向代理、防火墙）；
-2. **认证对**：`APIKEY` / `AKSK` / `STS` 三要素配置正确（Key 没写错、时钟没偏太多、nonce 没复用）；
-3. **连对了平台**：服务端认到的「你是谁」与预期一致（调用方、凭证号、认证模式）。
+握手接口。一次调用同时回答三件事：**网络通、认证对、连对平台**。
 
-这三件事合起来就是「握手」。思路照搬 TLS 的 ClientHello / ServerHello：
+设计参照 TLS 握手的前两步，只做连通性与身份确认，不承载业务：
 
-```
-客户端 ──── ClientHello ────► 服务端
-          （一次带认证信息的请求）
-                              │ 鉴权中间件校验：19001 开关 / 凭证有效性 / 签名 / 时间窗 /
-                              │ nonce / IP 白名单 / 限流 —— 失败按 190xx 直接拒绝
-客户端 ◄─── ServerHello ───── 服务端
-          （回显身份 + 服务端时间 + 能力 + 可用接口清单）
-```
-
-握手成功（HTTP 200 且 `data.handshake = "ServerHello"`）后，才开展后续业务请求。
-
-## 2. 端点
-
-```
-GET /OpenAPI/V1/Meta/Region/AZ/Server/Hello
-```
-
-无查询参数、无请求体、无副作用（不写业务表，只写一条审计）。
-
-## 3. 三种认证方式
-
-| 模式 | 请求头 | 说明 |
-|---|---|---|
-| 静态 API Key | `X-API-Key: SA_LIVE_…`（或 `Authorization: Bearer …`） | 只读接口，静态 Key 可直接调 |
-| AK/SK 签名 | `Authorization: META1-HMAC-SHA256 Credential=AK_LIVE_…, Signature=…` + `X-META-TS` + `X-META-Nonce` | 待签串 6 段，`PATH` 就是本路径 |
-| STS 临时凭据 | 同上，但 `Credential=SAK_LIVE_…` 且多一个 `X-META-Token: SST_LIVE_…` | 待签串 7 段（第 7 段 = token） |
-
-**STS 兑换凭证（长期 AK/SK，`token_fp` 为空）不能握手**：按需求 11210 的三类凭证隔离，
-它只能调 `POST /OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue` 换证——用它测连通性的方式就是调换证接口。
-
-## 4. 不需要授权范围（本次唯一的例外）
-
-**握手接口豁免授权范围校验**（`middleware` 的 `scopeFreePaths`）。理由：
-
-- 它只回显「服务端认到的身份」与公开能力清单，不读写任何业务数据，泄漏面为零；
-- 如果还要求凭证 `scope` 里显式包含 `/Hello`，「测连通性」就得先去页面配授权，
-  与「握手只验认证」的语义冲突。
-
-注意豁免的**只是授权范围**，其余照旧：
-
-| 校验 | 是否豁免 |
+| TLS | 本接口 |
 |---|---|
-| 19001 鉴权模式开关 | 否 |
-| 凭证存在 / 未吊销 / 未停用 / 未过期 | 否 |
-| 签名、时间窗、nonce 防重放、IP 白名单、限流配额 | 否 |
-| 凭证类型隔离（兑换凭证只能换证） | 否 |
-| **授权范围（scope）** | **是**（仅本接口） |
+| ClientHello | 一次带认证信息的 `GET` 请求（认证由鉴权中间件完成） |
+| ServerHello | 响应 `data`（服务端标识 / 时间 / 认到的身份 / 能力 / 可用接口清单） |
+| version | `data.protocol`（`finv-openapi/1.0`） |
+| random | `data.server_time`（供客户端校准签名时间窗） |
+| session id | `data.request_id`（与审计表同值） |
+| cipher suite | `data.capabilities.sign_algorithms` |
+| extensions | `data.capabilities` + `data.endpoints[]` |
 
-## 5. 响应（ServerHello）
+## 2. 请求规格
+
+| 项 | 规格 |
+|---|---|
+| 方法 | `GET` |
+| 路径 | `/OpenAPI/V1/Meta/Region/AZ/Server/Hello` |
+| 查询参数 | 无 |
+| 请求体 | 无 |
+| 幂等 / 副作用 | 幂等，无业务副作用（只写一条审计） |
+| 响应信封 | `{code, data, message, request_id}`（与所有 `/OpenAPI/V1/*` 一致，`code=0`、`message="ServerHello"`） |
+
+## 3. 认证要求
+
+三种认证模式均支持，认证信息放在请求头：
+
+| 模式 | 必需请求头 | 待签串 |
+|---|---|---|
+| 静态 API Key（`APIKEY`） | `X-API-Key: SA_LIVE_…`（或 `Authorization: Bearer SA_LIVE_…`） | 不签名 |
+| AK/SK 签名（`AKSK`） | `Authorization: META1-HMAC-SHA256 Credential=AK_LIVE_…, Signature=…` + `X-META-TS` + `X-META-Nonce` | 6 段（`PATH` 为本路径） |
+| STS 临时凭据（`STS`） | 同上，但 `Credential=SAK_LIVE_…`，并额外带 `X-META-Token: SST_LIVE_…` | 7 段（第 7 段 = token） |
+
+签名的待签串构造、时间窗、nonce 规则见 [`Auth.md`](../../../API/OpenAPI/Auth.md) §3。
+
+**不支持**：`STS` **兑换凭证**（长期 AK/SK、`token_fp` 为空）不能调用本接口——
+按需求 11210 的三类凭证隔离，它只能调 `POST /OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue` 换证。
+
+## 4. 授权范围要求
+
+**本接口豁免授权范围校验**（`middleware` 的 `scopeFreePaths`，需求 11242）：
+
+- 凭证 `scope` 不需要包含本路径，任何通过认证的凭证都能调用；
+- 理由：本接口只回显「服务端认到的身份」与公开能力清单，不读写业务数据，泄漏面为零；
+  若还要求显式授权，「先测连通性」就得先去配权限，与握手语义冲突。
+
+豁免的**只是授权范围**，其余校验照旧：
+
+| 校验项 | 是否豁免 |
+|---|---|
+| 鉴权模式开关（`sys_config` 19001） | 否 |
+| 凭证存在 / 未吊销 / 未停用 / 未过期 / 调用方启用 | 否 |
+| 签名、时间戳窗（19002）、nonce 防重放 | 否 |
+| IP 白名单（调用方级 ∩ 凭证级） | 否 |
+| 速率与每日配额（超限 `19008`） | 否 |
+| 凭证类型隔离（兑换凭证只能换证） | 否 |
+| **授权范围（`scope`）** | **是（仅本接口）** |
+
+## 5. 响应规格
 
 ```json
 {
@@ -78,14 +82,16 @@ GET /OpenAPI/V1/Meta/Region/AZ/Server/Hello
     "handshake": "ServerHello",
     "protocol": "finv-openapi/1.0",
     "server": { "name": "finvquant", "version": "0.1.5", "commit": "dev", "az": "AZ" },
-    "server_time": { "unix": 1794427217, "rfc3339": "2026-11-12T03:33:37+08:00", "utc_offset": "+08:00" },
+    "server_time": { "unix": 1794427291, "rfc3339": "2026-11-11T20:01:31Z", "utc_offset": "+00:00" },
     "client": {
-      "client_idn": 20, "client_code": "openapi-demo",
-      "credential_idn": 31, "credential_no": "DEMO-AKSK",
-      "auth_mode": "AKSK",
-      "access_key_id": "AK_LIVE_7A01139C5571D46EDEFF2DB63C9F0E45",
-      "kfp": "",
-      "scope_count": 2,
+      "client_idn": 47,
+      "client_code": "openapi-demo",
+      "credential_idn": 30,
+      "credential_no": "DEMO-STATIC",
+      "auth_mode": "APIKEY",
+      "access_key_id": "SA_LIVE_D767FC48****************AE1D3130",
+      "kfp": "6BA17C277CC6633B",
+      "scope_count": 1,
       "expire_at": ""
     },
     "capabilities": {
@@ -99,85 +105,83 @@ GET /OpenAPI/V1/Meta/Region/AZ/Server/Hello
       "scope_required_note": "除 /OpenAPI/V1/Meta/Region/AZ/Server/Hello 外的业务接口都需要凭证授权范围包含它"
     },
     "endpoints": [
-      { "api_code": "finv.quote.cdeu.min.pageuni", "alias": "finv.quote.cdeu.min.PageUni", "http_method": "GET", "flag_write": "0" },
-      { "api_code": "open.region.az.server.hello", "alias": "open.region.az.server.Hello", "http_method": "GET", "flag_write": "0" }
+      { "api_code": "finv.quote.cdeu.min.pageuni", "alias": "finv.quote.cdeu.min.PageUni", "http_method": "GET", "flag_write": "0" }
     ],
     "request_id": "336123BF096A0D87D6C876C418FE4ABD"
   }
 }
 ```
 
-### 5.1 字段说明
+### 5.1 `data` 字段
 
-| 字段 | 含义 | 客户端怎么用 |
+| 字段 | 类型 | 必有 | 说明 |
+|---|---|---|---|
+| `handshake` | string | ✅ | 固定 `"ServerHello"`；握手成功的判定依据（不要只看 HTTP 200） |
+| `protocol` | string | ✅ | 握手协议版本，当前固定 `finv-openapi/1.0` |
+| `server.name` | string | ✅ | 服务端名称，固定 `finvquant` |
+| `server.version` | string | ✅ | 服务端版本号 |
+| `server.commit` | string | ✅ | 服务端构建 commit（`dev` 表示本地构建） |
+| `server.az` | string | ✅ | 可用区标识，当前固定 `AZ` |
+| `server_time.unix` | int64 | ✅ | 服务端当前 Unix 秒；客户端据此校准签名时间窗 |
+| `server_time.rfc3339` | string | ✅ | 同一时刻的 RFC3339 表示 |
+| `server_time.utc_offset` | string | ✅ | 服务端时区偏移（如 `+08:00`） |
+| `client.client_idn` | int64 | ✅ | 调用方主键 |
+| `client.client_code` | string | ✅ | 调用方编码 |
+| `client.credential_idn` | int64 | ✅ | 凭证主键（与审计 `credential_idn` 同值） |
+| `client.credential_no` | string | ✅ | 凭证号 |
+| `client.auth_mode` | string | ✅ | 实际命中的认证模式：`APIKEY` / `AKSK` / `STS` |
+| `client.access_key_id` | string | ✅ | 公开标识，形态与审计表 `access_key_id` 一致：`APIKEY` 为脱敏形态、`AKSK` 为 AK 明文、`STS` 为临时 AK |
+| `client.kfp` | string | ✅ | 密钥指纹，**字段名与审计表列名一致**（需求 11243）：`sha256(完整 Key)` 前 16 位大写；`AKSK` 为空串（AK 已明文，无需指纹） |
+| `client.scope_count` | int | ✅ | 该凭证被授权的接口条数；`0` = 不限接口 |
+| `client.expire_at` | string | ✅ | 凭证到期时间（RFC3339）；空串表示随调用方 / 长期 |
+| `capabilities.sign_algorithms` | string[] | ✅ | 服务端接受的签名算法（当前仅 `HMAC-SHA256`） |
+| `capabilities.clock_skew_seconds` | int | ✅ | 签名时间戳允许偏差（`sys_config` 19002） |
+| `capabilities.auth_mode` | string | ✅ | 鉴权模式开关当前值：`0` 关闭 / `1` 强制 / `2` 宽松 |
+| `capabilities.rate_limit_rpm` | int | ✅ | 该凭证的有效每分钟速率上限（`0` = 不限） |
+| `capabilities.quota_day` | int | ✅ | 该凭证的有效每日配额（`0` = 不限） |
+| `capabilities.sts.exchange_path` | string | ✅ | STS 换证路径 |
+| `capabilities.sts.ttl_seconds` | int | ✅ | STS 临时凭据有效期（固定 7200 秒） |
+| `capabilities.request_id_header` | string | ✅ | 链路 ID 响应头名，固定 `X-Request-Id` |
+| `capabilities.scope_required_note` | string | ✅ | 提示「哪些接口需要授权范围」（即本接口以外的业务接口） |
+| `endpoints[]` | array | ✅ | 当前对外可用接口清单（`flag_public='1'` 且启用中且未下线），按 `catalog, func` 排序，最多 200 条 |
+| `endpoints[].api_code` | string | ✅ | 接口编码（稳定锚点） |
+| `endpoints[].alias` | string | ✅ | 别名 `{catalog}.{func}` |
+| `endpoints[].http_method` | string | ✅ | HTTP 方法 |
+| `endpoints[].flag_write` | string | ✅ | `1` = 写接口（静态 Key 调用需带 `_` 毫秒时间戳）/ `0` = 读 |
+| `request_id` | string | ✅ | 链路 ID，与响应头 `X-Request-Id`、审计表 `request_id` 三者同值 |
+
+### 5.2 敏感信息边界
+
+响应**不含任何密钥材料**：静态 Key 只有脱敏形态（前缀 + 前 8 + 等量星号 + 后 8），
+`AKSK` 只回 AK（公开标识），SK 与 SecurityToken 永不出现。
+
+### 5.3 响应头
+
+| 头 | 说明 |
+|---|---|
+| `X-Request-Id` | 32 位大写十六进制；与响应体 `request_id`、审计表 `request_id` 同值。客户端可透传（只接受 8~64 位十六进制并转大写） |
+
+## 6. 错误码
+
+失败时不返回 `ServerHello`，按鉴权错误码拒绝（详见 [`ErrorCodeSpec`](../../../DevSpec/ErrorCodeSpec.md) §1.2 与 [`Auth.md`](../../../API/OpenAPI/Auth.md) §5）：
+
+| 错误码 | HTTP | 含义 |
 |---|---|---|
-| `handshake` | 固定 `"ServerHello"` | 判断握手成功（别只看 HTTP 200） |
-| `protocol` | 握手协议版本 `finv-openapi/1.0` | 版本不匹配时降级/告警 |
-| `server` | 服务端标识（名称 / 版本 / commit / AZ） | 确认连到了预期实例（多节点排障） |
-| `server_time.unix` | 服务端当前 Unix 秒 | **校准本地时钟**：本地与它之差的绝对值应远小于 `clock_skew_seconds` |
-| `client.*` | 服务端认到的身份 | 与本地配置比对，确认 Key 没串、凭证号没搞错 |
-| `client.access_key_id` | 与审计表 `access_key_id` 同形态 | 静态 Key 是脱敏形态、AKSK 是 AK 明文、STS 是临时 AK |
-| `client.kfp` | 密钥指纹（`sha256(Key)` 前 16 位大写），**字段名与审计表列名一致**（需求 11243），可直接与 `open_api_invoke_log.kfp` 对账 | 只 `APIKEY` / `STS` 有值；`AKSK` 为空（AK 已明文） |
-| `client.scope_count` | 该凭证被授权的接口条数，`0` = 不限接口 | 发现「我以为限制了其实没限制」 |
-| `capabilities.clock_skew_seconds` | 签名时间戳允许偏差（19002） | 超过就得先校时，否则业务接口会 `19006` |
-| `capabilities.auth_mode` | 19001 当前值（`0` 关闭 / `1` 强制 / `2` 宽松） | `2` 时失败放行，别误以为认证通过 |
-| `capabilities.sts` | 换证路径与有效期 | 规划临时凭据刷新节奏（2 小时） |
-| `endpoints[]` | 当前对外可用接口（公开 + 启用 + 未下线） | 生成客户端请求白名单，避免拼错路径 |
+| `19001` | 401 | 未携带任何凭证 |
+| `19002` | 401 | 凭证无效（AK 未登记 / SK 不匹配 / 缺 `X-META-Token`） |
+| `19003` | 403 | 凭证吊销、停用、过期，或调用方停用 |
+| `19004` | 401 | 来源 IP 不在白名单 |
+| `19005` | 401 | 签名不匹配（含算法名与凭证登记不一致） |
+| `19006` | 401 | 时间戳超窗（可先用 `server_time.unix` 校准） |
+| `19007` | 401 | nonce 重复（重放） |
+| `19008` | 429 | 超出速率或每日配额 |
+| `19010` | 503 | 平台未就绪（19005 密钥未配置 / Redis fail-close） |
 
-**响应不含任何密钥材料**：静态 Key 只有脱敏形态，AK/SK 只有 AK（公开标识），SK 与 SecurityToken 永不出现。
+**本接口不会返回 `19009`**（授权范围不足，因为它豁免了 scope 校验）。
+若调用本接口看到 `19009`，说明请求路径写错了（打到了业务接口）。
 
-### 5.2 响应头
+## 7. 相关文档
 
-与所有 `/OpenAPI/V1/*` 一致：`X-Request-Id` 回显，32 位大写十六进制，与响应体 `request_id`、
-审计表 `request_id` 三者同值——出问题直接拿它查审计。
-
-## 6. 常见失败与处理
-
-| 现象 | 原因 | 处理 |
-|---|---|---|
-| `401 / 19001` | 没带凭证 | 补 `X-API-Key` 或 `Authorization` |
-| `401 / 19002` | 凭证无效（AK 未登记、SK 不符、STS 缺 `X-META-Token`） | 核对 Key/Token；`19002` 刻意合并「AK 不存在」与「SK 不匹配」防枚举 |
-| `403 / 19003` | 凭证吊销/停用/过期，或调用方停用 | 页面「OpenAPI 凭证」查状态 |
-| `401 / 19005` | 签名不匹配（含算法名与凭证登记不一致） | 核对待签串顺序、`BODY_SHA256` 是否大写 |
-| `401 / 19006` | 时间戳超窗 | 用 `data.server_time.unix` 校准本地时钟后重试 |
-| `401 / 19007` | nonce 重复 | 每次请求生成新 nonce |
-| `429 / 19008` | 超速率/配额 | 放宽调用节奏或调额度 |
-| `503 / 19010` | 平台未就绪（19005 未配置 / Redis fail-close） | 联系平台方 |
-
-> 注意：握手接口**不会**返回 `19009`（授权范围不足）——它豁免了 scope 校验。
-> 如果你在握手时看到 `19009`，说明请求路径写错了（打到了业务接口）。
-
-## 7. 典型用法
-
-### 7.1 客户端启动自检（Python 片段）
-
-```python
-status, headers, body = call("GET", "/OpenAPI/V1/Meta/Region/AZ/Server/Hello")
-assert status == 200 and body["data"]["handshake"] == "ServerHello"
-drift = abs(int(time.time()) - body["data"]["server_time"]["unix"])
-assert drift < body["data"]["capabilities"]["clock_skew_seconds"], f"本机与平台时钟差 {drift}s，请先校时"
-print("握手成功：", body["data"]["client"]["credential_no"], "可用接口", len(body["data"]["endpoints"]))
-```
-
-### 7.2 运维巡检
-
-```bash
-curl -s -H "X-API-Key: SA_LIVE_…" \
-  http://127.0.0.1:16001/OpenAPI/V1/Meta/Region/AZ/Server/Hello \
-  | jq '{handshake, server, client: .client.credential_no, endpoints: (.endpoints|length)}'
-```
-
-### 7.3 审计对账
-
-```sql
-SELECT dt_request, request_id, auth_mode, access_key_id, kfp, flag_pass, status_code
-  FROM open.open_api_invoke_log
- WHERE path = '/OpenAPI/V1/Meta/Region/AZ/Server/Hello'
- ORDER BY idn DESC LIMIT 20;
-```
-
-## 8. 为什么不用 `/Health`
-
-`/Health`（以及 `/api/v1/health/live|ready`）是**平台自身的存活探针**，不需要认证、也不校验调用方身份。
-握手接口回答的是另一个问题：**「我这个调用方，用这套凭证，能不能跟平台说上话」**——
-它必须走完整鉴权链路，因此挂在 `/OpenAPI/V1` 下，并写审计。
+- 调用示例、客户端自检、运维巡检、审计对账、常见失败处置：[`Usage/Handshake.md`](../../Usage/Handshake.md)
+- 鉴权协议（待签串 / 时间窗 / nonce）：[`Auth.md`](../../../API/OpenAPI/Auth.md)
+- 接口清单（本表数据来源）：[`Menu/OpenAPI/Endpoint.md`](../../../Menu/OpenAPI/Endpoint.md)

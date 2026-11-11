@@ -219,6 +219,16 @@
 
 ### 变更
 
+- **握手文档拆成「规格」与「用法」两篇（需求 11245）**
+  - `Docs/OpenAPI/Region/AZ/Server/Hello.md` 重写为纯**接口规格**：接口定位（TLS 对照）、
+    请求规格、三种认证模式矩阵、授权范围豁免表、`data` 逐字段表、敏感信息边界、响应头、错误码，
+    并点明「本接口不会返回 `19009`，看到它说明路径打错了」。
+  - 新建 `Docs/OpenAPI/Usage/Handshake.md` 承接「怎么用」：三条最短 curl、客户端启动自检片段
+    （含时钟偏差断言）、运维巡检、审计对账 SQL、与 `/Health` 的分工、常见失败处置、STS 场景说明。
+  - 文件名与目录沿用参考风格（`Docs/OpenAPI/Quote/Cdeu/Min/PageUni.md`：目录 = 路径段、文件名 = 接口末段），
+    标题改为以接口名开头 `# Hello`。
+  - `Docs/API/APIs.md` 的 92b 行同时链规格与用法两篇。
+
 - **握手文档归位到 Docs/OpenAPI（需求 11244）**
   - `Docs/API/OpenAPI/Hello.md` → `Docs/OpenAPI/Region/AZ/Server/Hello.md`。
     目录口径：`Docs/API/` 放平台自身**管理接口**（基路径 `/API/V1`），
