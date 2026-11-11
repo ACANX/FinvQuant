@@ -272,18 +272,6 @@ type fakeSource struct {
 	err   error
 }
 
-func (f *fakeSource) LookupByIDN(_ context.Context, idn int64) (*Credential, error) {
-	if f.err != nil {
-		return nil, f.err
-	}
-	for _, credential := range f.byKey {
-		if credential.IDN == idn {
-			return credential, nil
-		}
-	}
-	return nil, ErrCredentialNotFound
-}
-
 func (f *fakeSource) Lookup(_ context.Context, accessKeyID string) (*Credential, error) {
 	if f.err != nil {
 		return nil, f.err
@@ -1005,35 +993,34 @@ func TestMiddlewareRevokedCredential(t *testing.T) {
 func TestStsParentUsable(t *testing.T) {
 	now := testNow
 
-	ok := staticCredential("AK_LIVE_PARENT")
-	ok.AuthMode = AuthModeAKSK
-	ok.FlagRevoke, ok.FlagEnable = false, true
-	if usable, _ := stsParentUsable(ok, now); !usable {
+	// 传入的是**临时凭据**，父凭证状态由主查询 LEFT JOIN 带出的 Parent* 字段表示
+	temp := func(mutate func(*Credential)) *Credential {
+		credential := &Credential{
+			AuthMode: AuthModeSTS, ParentIDN: 900, ParentFound: true, ParentFlagEnable: true,
+		}
+		if mutate != nil {
+			mutate(credential)
+		}
+		return credential
+	}
+
+	if usable, _ := stsParentUsable(temp(nil), now); !usable {
 		t.Fatalf("正常父凭证应可用")
 	}
-
-	revoked := staticCredential("AK_LIVE_PARENT")
-	revoked.AuthMode = AuthModeAKSK
-	revoked.FlagRevoke = true
-	if usable, reason := stsParentUsable(revoked, now); usable || reason != ReasonRevoke {
+	if usable, reason := stsParentUsable(temp(func(c *Credential) { c.ParentFlagRevoke = true }), now); usable || reason != ReasonRevoke {
 		t.Fatalf("吊销父凭证应不可用且 reason=REVOKE，实际 usable=%t reason=%q", usable, reason)
 	}
-
-	disabled := staticCredential("AK_LIVE_PARENT")
-	disabled.AuthMode = AuthModeAKSK
-	disabled.FlagEnable = false
-	if usable, reason := stsParentUsable(disabled, now); usable || reason != ReasonExpire {
+	if usable, reason := stsParentUsable(temp(func(c *Credential) { c.ParentFlagEnable = false }), now); usable || reason != ReasonExpire {
 		t.Fatalf("停用父凭证应不可用且 reason=EXPIRE，实际 usable=%t reason=%q", usable, reason)
 	}
-
-	expired := staticCredential("AK_LIVE_PARENT")
-	expired.AuthMode = AuthModeAKSK
 	past := now.Add(-time.Hour)
-	expired.CredentialExp = &past
-	if usable, reason := stsParentUsable(expired, now); usable || reason != ReasonExpire {
+	if usable, reason := stsParentUsable(temp(func(c *Credential) { c.ParentExp = &past }), now); usable || reason != ReasonExpire {
 		t.Fatalf("过期父凭证应不可用且 reason=EXPIRE，实际 usable=%t reason=%q", usable, reason)
 	}
-
+	// parent_idn 指向的行已被物理删除（清理/误删）→ ParentFound=false
+	if usable, reason := stsParentUsable(temp(func(c *Credential) { c.ParentFound = false }), now); usable || reason != ReasonExpire {
+		t.Fatalf("父凭证缺失应不可用且 reason=EXPIRE，实际 usable=%t reason=%q", usable, reason)
+	}
 	if usable, _ := stsParentUsable(nil, now); usable {
 		t.Fatalf("父凭证不存在应不可用")
 	}
@@ -1050,9 +1037,10 @@ func TestMiddlewareStsRejectsRevokedParent(t *testing.T) {
 	parentRevoked.FlagEnable = false
 
 	token := "SST_LIVE_ABCDEF0123456789ABCDEF0123456789"
-	// STS 现在是独立凭证行（需求 11202）：按 SAK 查表得到 auth_mode=STS + parent_idn
+	// STS 临时凭据是独立凭证行（需求 11202）：父凭证状态由主查询 LEFT JOIN 带出（需求 11211）
 	stsCred := &Credential{
 		IDN: 900, ClientIDN: 1, AuthMode: AuthModeSTS, ParentIDN: parentRevoked.IDN,
+		ParentFound: true, ParentFlagEnable: false, ParentFlagRevoke: true,
 		AccessKeyID: "SAK_LIVE_TEMP", SignAlgorithm: "HMAC-SHA256",
 		TokenFP: TokenFingerprint(token), SecretCipher: "unused",
 		FlagEnable: true, clientEnable: true,

@@ -41,7 +41,13 @@ type Credential struct {
 	TokenFP string
 	// ParentIDN STS 的派生来源凭证 idn（0 = 页面直发，无父凭证）。
 	ParentIDN int64
-	Scope     []ScopeRule
+	// 父凭证状态（与主查询一起 LEFT JOIN 出来，避免 STS 校验时再查一次表）：
+	// ParentFound=false 表示 parent_idn 指向的行已不存在（被物理删除/清理）。
+	ParentFound      bool
+	ParentFlagEnable bool
+	ParentFlagRevoke bool
+	ParentExp        *time.Time
+	Scope            []ScopeRule
 	// ScopeBroken 授权范围数据损坏（scope_str 不是合法的对象数组）。
 	// 解析失败时**不放行**：按「无权限」拒绝，避免坏数据把凭证悄悄放大成「全部接口」（需求 11190）。
 	ScopeBroken   bool
@@ -158,8 +164,6 @@ func EncryptSecret(plain string, key []byte) (string, error) { return secret.Enc
 // CredentialSource 凭证来源抽象（便于单测注入假数据）。
 type CredentialSource interface {
 	Lookup(ctx context.Context, accessKeyID string) (*Credential, error)
-	// LookupByIDN 按主键查询（STS 校验父凭证状态时用，需求 11197/11202）。
-	LookupByIDN(ctx context.Context, idn int64) (*Credential, error)
 }
 
 // ErrCredentialNotFound 凭证不存在。
@@ -173,9 +177,11 @@ SELECT c.idn, c.credential_no, c.auth_mode, c.access_key_id,
        COALESCE(c.scope_str::text, '[]'), COALESCE(c.allow_cidr::text[], '{}'),
        c.dt_expire, c.flag_enable, c.flag_revoke,
        cl.idn, cl.client_code, COALESCE(cl.allow_cidr::text[], '{}'),
-       cl.rate_limit_rpm, cl.quota_day, cl.dt_expire, cl.flag_enable
+       cl.rate_limit_rpm, cl.quota_day, cl.dt_expire, cl.flag_enable,
+       (p.idn IS NOT NULL), COALESCE(p.flag_enable, '0'), COALESCE(p.flag_revoke, '0'), p.dt_expire
   FROM open.open_api_credential c
   JOIN open.open_api_client cl ON cl.idn = c.client_idn
+  LEFT JOIN open.open_api_credential p ON p.idn = c.parent_idn
  WHERE c.access_key_id = $1`
 
 // PGSource 从 open schema 读取凭证。
@@ -210,30 +216,6 @@ func (s *PGSource) Lookup(ctx context.Context, accessKeyID string) (*Credential,
 	return nil, err
 }
 
-// LookupByIDN 按主键查询凭证（STS 回查父凭证状态）。
-func (s *PGSource) LookupByIDN(ctx context.Context, idn int64) (*Credential, error) {
-	if s.pool == nil {
-		return nil, errors.New("数据库连接池未初始化")
-	}
-	if idn <= 0 {
-		return nil, ErrCredentialNotFound
-	}
-	return s.queryOne(ctx, selectCredentialByIDNSQL, idn)
-}
-
-const selectCredentialByIDNSQL = `
-SELECT c.idn, c.credential_no, c.auth_mode, c.access_key_id,
-       COALESCE(c.secret_hash, ''), COALESCE(c.secret_cipher, ''), COALESCE(c.secret_cipher_prev, ''),
-       COALESCE(c.secret_kid, ''), c.sign_algorithm,
-       COALESCE(c.token_fp, ''), c.parent_idn,
-       COALESCE(c.scope_str::text, '[]'), COALESCE(c.allow_cidr::text[], '{}'),
-       c.dt_expire, c.flag_enable, c.flag_revoke,
-       cl.idn, cl.client_code, COALESCE(cl.allow_cidr::text[], '{}'),
-       cl.rate_limit_rpm, cl.quota_day, cl.dt_expire, cl.flag_enable
-  FROM open.open_api_credential c
-  JOIN open.open_api_client cl ON cl.idn = c.client_idn
- WHERE c.idn = $1`
-
 // lookupExact 按给定标识精确查询。
 func (s *PGSource) lookupExact(ctx context.Context, accessKeyID string) (*Credential, error) {
 	return s.queryOne(ctx, selectCredentialSQL, accessKeyID)
@@ -249,6 +231,8 @@ func (s *PGSource) queryOne(ctx context.Context, query string, arg any) (*Creden
 		credFlagEnable  string
 		credFlagRevoke  string
 		clientFlagEnab  string
+		parentFlagEnab  string
+		parentFlagRevok string
 	)
 	err := s.pool.QueryRow(ctx, query, arg).Scan(
 		&credential.IDN, &credential.CredentialNo, &credential.AuthMode, &credential.AccessKeyID,
@@ -259,6 +243,7 @@ func (s *PGSource) queryOne(ctx context.Context, query string, arg any) (*Creden
 		&credential.CredentialExp, &credFlagEnable, &credFlagRevoke,
 		&credential.ClientIDN, &credential.ClientCode, &clientCIDRs,
 		&credential.RateLimitRPM, &credential.QuotaDay, &credential.ClientExp, &clientFlagEnab,
+		&credential.ParentFound, &parentFlagEnab, &parentFlagRevok, &credential.ParentExp,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrCredentialNotFound
@@ -270,6 +255,8 @@ func (s *PGSource) queryOne(ctx context.Context, query string, arg any) (*Creden
 	credential.FlagEnable = credFlagEnable == "1"
 	credential.FlagRevoke = credFlagRevoke == "1"
 	credential.clientEnable = clientFlagEnab == "1"
+	credential.ParentFlagEnable = parentFlagEnab == "1"
+	credential.ParentFlagRevoke = parentFlagRevok == "1"
 	credential.Scope, credential.ScopeBroken = parseScope(scopeJSON)
 	credential.CredentialIPs = parseCIDRs(credentialCIDRs)
 	credential.ClientIPs = parseCIDRs(clientCIDRs)

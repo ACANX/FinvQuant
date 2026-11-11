@@ -219,6 +219,14 @@
 
 ### 变更
 
+- **STS 父凭证校验合并进主查询，去掉一次额外查表（需求 11211）**
+  - 原先临时凭据放行前会 `LookupByIDN(parent_idn)` 再查一次凭证表；现在主查询 `LEFT JOIN` 父凭证，
+    一次带出 `ParentFound / ParentFlagEnable / ParentFlagRevoke / ParentExp`。
+  - `stsParentUsable` 改为读这些字段（吊销 → `REVOKE`，停用/过期/父行被删 → `EXPIRE`）。
+  - 删除已无调用方的 `CredentialSource.LookupByIDN` 与 `selectCredentialByIDNSQL`（不留死代码）。
+  - 说明：AKSK 与 STS 兑换凭证共用 `AK_LIVE_` 前缀不产生额外开销——验签本来就必须查库取 SK 密文，
+    `auth_mode` 由同一条记录带回，类型判定不需要第二次查询。
+
 - **STS 语义纠正：兑换凭证 + 临时凭据严格分离（需求 11210）**
   - 纠正：STS 模式签发的也是长期 **AK/SK**，程序拿它调 `POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue`
     换 2 小时的 `SAK/SSK/SST`，再用三要素调业务接口——不是由平台直接发三要素。

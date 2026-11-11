@@ -164,11 +164,23 @@ DELETE FROM open.open_api_credential
 }
 
 // stsParentUsable 父凭证是否仍可用于已派生的临时凭据（需求 11197）。
-func stsParentUsable(parent *Credential, now time.Time) (bool, string) {
-	if parent == nil {
+//
+// 父凭证状态随主查询 LEFT JOIN 带出（ParentFound / ParentFlagEnable / ParentFlagRevoke / ParentExp），
+// 判定口径与 Credential.Active 的「吊销优先」一致：吊销 → REVOKE，其余 → EXPIRE。
+func stsParentUsable(credential *Credential, now time.Time) (bool, string) {
+	if credential == nil || credential.ParentIDN <= 0 || !credential.ParentFound {
 		return false, ReasonExpire
 	}
-	return parent.Active(now)
+	if credential.ParentFlagRevoke {
+		return false, ReasonRevoke
+	}
+	if !credential.ParentFlagEnable {
+		return false, ReasonExpire
+	}
+	if credential.ParentExp != nil && !now.Before(*credential.ParentExp) {
+		return false, ReasonExpire
+	}
+	return true, ""
 }
 
 // authenticateSTS 校验 STS 临时凭据：查库 → token → 状态/过期 → 父凭证 → IP → 时间窗 → nonce → 签名。
@@ -207,13 +219,10 @@ func (m *Middleware) authenticateSTS(settings Settings, req *http.Request, body 
 		return credential, CodeCIDRDeny, "来源 IP 不在白名单"
 	}
 
-	// 父凭证吊销/停用/过期 → 派生凭据立即失效（需求 11197）；页面直发的 STS 没有父凭证
+	// 父凭证吊销/停用/过期 → 派生凭据立即失效（需求 11197）。
+	// 父凭证状态由主查询 LEFT JOIN 一并带出，不再二次查表；页面直发的 STS 没有父凭证。
 	if credential.ParentIDN > 0 {
-		parent, parentErr := m.source.LookupByIDN(req.Context(), credential.ParentIDN)
-		if parentErr != nil && !errors.Is(parentErr, ErrCredentialNotFound) {
-			return credential, CodeAuthNotReady, "查询父凭证失败: " + parentErr.Error()
-		}
-		if usable, reason := stsParentUsable(parent, m.now()); !usable {
+		if usable, reason := stsParentUsable(credential, m.now()); !usable {
 			return credential, CodeCredentialStop, "父凭证已不可用（" + reason + "），临时凭据随之失效"
 		}
 	}
