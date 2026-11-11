@@ -62,13 +62,10 @@ func (h *OpenAPIStsAdmin) Issue(c *gin.Context) {
 		return
 	}
 
+	// 授权范围与其它认证模式一致：留空表示不限制（全部接口），不做额外强制
 	scope, err := openapisvc.NormalizeScope(req.Scope)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
-		return
-	}
-	if len(scope) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "必须指定授权范围（形如 `POST /OpenAPI/V1/...`）；STS 不允许放开全部接口"})
 		return
 	}
 	cidrs, err := openapisvc.NormalizeCIDR(req.AllowCIDR)

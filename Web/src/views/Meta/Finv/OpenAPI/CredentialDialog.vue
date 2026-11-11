@@ -109,13 +109,10 @@ const apiKeyExpireInvalid = computed(
     (!form.value.dt_expire || form.value.dt_expire > maxApiKeyExpire.value),
 )
 
-const stsScopeMissing = computed(
-  () => isSts.value && form.value.scope_text.split('\n').map((item) => item.trim()).filter((item) => item !== '').length === 0,
-)
-
 const canSubmit = computed(() => {
   if (saving.value) return false
-  if (isSts.value) return !stsScopeMissing.value && Number(form.value.client_idn) > 0
+  // STS 只需选调用方；授权范围与其他模式一致（留空 = 全部接口）
+  if (isSts.value) return Number(form.value.client_idn) > 0
   return !noError.value && !apiKeyExpireInvalid.value
 })
 
@@ -264,8 +261,8 @@ watch(
             />
           </div>
           <v-alert v-if="isSts" type="warning" density="compact" variant="tonal">
-            STS 临时凭据：有效期固定 <strong>2 小时</strong>，不落库、不可续期、不能在凭证列表里管理；
-            到期自动失效。授权范围必填（不允许放开全部接口）。
+            STS 临时凭据：有效期固定 <strong>2 小时</strong>，不可续期；签发后是一条独立凭证记录
+            （认证模式 = STS），到期自动失效并清理。授权范围与其他模式一致：留空 = 全部接口。
           </v-alert>
           <v-alert v-else-if="!isRotate" type="info" density="compact" variant="tonal">
             轮换会生成一套新密钥：静态 Key 的公开标识会改变；AK/SK 的旧 SK 在签名时间窗内仍可验签，之后失效。
@@ -286,9 +283,7 @@ watch(
             v-model="form.scope_text"
             :label="form.auth_mode === 'APIKEY'
               ? '授权接口（1 条「方法 路径」，必填）'
-              : isSts
-                ? '授权范围（每行一条「方法 路径」，必填）'
-                : '授权范围（每行一条「方法 路径」，留空 = 全部接口）'"
+              : '授权范围（每行一条「方法 路径」，留空 = 全部接口）'"
             :placeholder="form.auth_mode === 'APIKEY'
               ? 'POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert'
               : 'POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert\nGET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/*'"
