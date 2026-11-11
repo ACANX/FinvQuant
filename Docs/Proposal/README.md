@@ -73,4 +73,4 @@ Docs/Proposal/202612-0003-CdeuUscAliasRule.md
 |------|------|------|------|
 | 0001 | [202611-0001-DataBaselineSyncProposal.md](202611-0001-DataBaselineSyncProposal.md) | 决策已定，待执行 | 本地修正回流 Prod：先补缺失字段，再减少差异，最后处理冲突（D1 至 D7 已定） |
 | 0002 | [202611-0002-UscPatchSchemeProposal.md](202611-0002-UscPatchSchemeProposal.md) | 待评审 | USC 补丁机制：规则表 + upsert 分批迁移 + 菜单手动执行（P1 至 P6 待确认） |
-| 0003 | [202611-0003-DeviceBindingProposal.md](202611-0003-DeviceBindingProposal.md) | 待评审 | 客户端设备绑定：Keystore 密钥对 + 挑战应答 + 验证码带外确认（D1 至 D12 待确认） |
+| 0003 | [202611-0003-DeviceBindingProposal.md](202611-0003-DeviceBindingProposal.md) | 待评审 | 客户端设备绑定（范围收窄）：Keystore 密钥对 + 挑战应答 + **人工审核出码** + 客户端文件丢失自动解绑；只服务于高安全操作，仅 K1 至 K3 待确认 |
