@@ -47,6 +47,7 @@
 |---|---|---|---|
 | `catalog` | `api_code` | 最后一个 `.` **之前**的部分 | `finv.quote.cdeu.min` |
 | `func` | `path` | 最后一个 `/` **之后**的部分，**大驼峰** | `PageUni`、`FTStockUpsert`、`Issue` |
+| `alias` | `catalog` + `func` | `{catalog}.{func}` | `finv.quote.cdeu.min.PageUni` |
 
 ```
 api_code                                 path（末段）         catalog                    func
@@ -57,6 +58,10 @@ open.auth.credential.sts.issue       →   …/STS/Issue      →   open.auth.cr
 ```
 
 `catalog` 的恒等式 `catalog || '.' || <编码末段> = api_code` 仍成立（`func` 已改来源，不再参与该恒等式）。
+
+> `alias` 的生成表达式不能直接写 `catalog || '.' || func`——PostgreSQL **不允许生成列引用其它生成列**
+> （`cannot use generated column … in column generation expression`），所以迁移里把两个派生表达式内联展开；
+> 迁移末尾仍断言 `alias = catalog || '.' || func`（`SELECT` 里可以引用生成列）。
 
 **`func` 为什么取路径末段而不是转换编码**：项目 API 路径规范本身要求末段是 PascalCase
 （`.../Min/PageUni`、`.../STS/Issue`），直接取末段就是大驼峰；SQL 无法"智能"地把 `ftstockupsert`
@@ -77,6 +82,7 @@ open.auth.credential.sts.issue       →   …/STS/Issue      →   open.auth.cr
 | 接口编码 | `api_code` | **点分小写**，按「业务域.模块.动作」分段（行情类如 `finv.quote.cdeu.min.pageuni`、开放平台鉴权类如 `open.auth.credential.sts.issue`）；路径改名后编码不变，报表/套餐/限额靠它锚定 |
 | 目录 | `catalog` | 接口编码**最后一个点之前**的部分（如 `finv.quote.cdeu.min`）；生成列，由 `api_code` 派生 |
 | 功能 | `func` | 路径**最后一个 `/` 之后**的部分（大驼峰，如 `PageUni`、`FTStockUpsert`）；生成列，由 `path` 派生，受 `^[A-Z][A-Za-z0-9]*$` 约束 |
+| 别名 | `alias` | `{catalog}.{func}`（如 `finv.quote.cdeu.min.PageUni`）；生成列，由前两列派生 |
 | 方法 | `http_method` | GET / POST / …（只登记真实方法，不含 `*`） |
 | 路径 | `path` | 含 `/OpenAPI/V1` 前缀，与授权范围、审计表同口径 |
 | 中文名 | `api_name` | 下拉与报表展示用 |
@@ -125,6 +131,7 @@ open.auth.credential.sts.issue       →   …/STS/Issue      →   open.auth.cr
 | 接口编码 | 230 | 140 | 最长 38 字符（`finv.quote.cdeu.realtime.ftstockupsert`） |
 | 目录 | 180 | 120 | 编码去掉最后一段，最长 24 字符 |
 | 功能 | 140 | 100 | 路径末段，最长 `FTStockUpsert`（13 字符） |
+| 别名 | 260 | 160 | `{catalog}.{func}`，最长约 42 字符 |
 | 方法 | 80 | 60 | |
 | 路径 | 360 | 160 | 等宽字体；放不下出省略号，点 ⓘ 看全文 |
 | 中文名 | 160 | 110 | 放不下出省略号，悬停 `title` 看全名 |

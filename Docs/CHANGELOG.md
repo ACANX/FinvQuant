@@ -219,6 +219,14 @@
 
 ### 变更
 
+- **接口清单增加 alias 列（需求 11240，迁移 V300206）**
+  - `alias = {catalog}.{func}`（如 `finv.quote.cdeu.min.PageUni`、`open.auth.credential.sts.Issue`），
+    给人看 / 对接沟通用的短标识。列名按规范拼写用 `alias`（原话 alia 为笔误）。
+  - 仍为 STORED 生成列。**踩坑**：PostgreSQL 不允许生成列引用其它生成列
+    （`cannot use generated column … in column generation expression`），
+    所以表达式把 `catalog` / `func` 的派生**内联展开**；迁移末尾断言 `alias = catalog || '.' || func`。
+  - 接口清单页新增「别名」列（默认 260px，可拖拽；超过宽度出省略号 + 悬停看全值）。
+
 - **func 改为取 path 末段（大驼峰）（需求 11239，迁移 V300205）**
   - 旧：`func` = `api_code` 最后一个点之后（`pageuni` / `ftstockupsert`，小写）。
   - 新：`func` = `path` 最后一个 `/` 之后（`PageUni` / `FTStockUpsert` / `Issue`，大驼峰）；

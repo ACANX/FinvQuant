@@ -182,8 +182,10 @@ type Endpoint struct {
 	APICode string `json:"api_code"`
 	// Catalog / Func 是 api_code 的派生结构（需求 11238）：最后一个点之前 = 目录、之后 = 功能点。
 	// 两者由生成列算好，`catalog + "." + func = api_code` 恒成立。
-	Catalog     string `json:"catalog"`
-	Func        string `json:"func"`
+	Catalog string `json:"catalog"`
+	Func    string `json:"func"`
+	// Alias = {catalog}.{func}（需求 11240），同样是生成列：给人看/对接沟通用的短标识。
+	Alias       string `json:"alias"`
 	HTTPMethod  string `json:"http_method"`
 	Path        string `json:"path"`
 	APIName     string `json:"api_name"`

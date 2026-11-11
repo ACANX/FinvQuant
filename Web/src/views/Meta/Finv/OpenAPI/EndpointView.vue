@@ -20,6 +20,7 @@ interface EndpointRow {
   api_code: string
   catalog: string
   func: string
+  alias: string
   http_method: string
   path: string
   api_name: string
@@ -107,6 +108,7 @@ const COLUMNS: Column[] = [
   { key: 'api_code', title: '接口编码', width: 230, min: 140 },
   { key: 'catalog', title: '目录', width: 180, min: 120 },
   { key: 'func', title: '功能', width: 130, min: 90 },
+  { key: 'alias', title: '别名', width: 260, min: 160 },
   { key: 'http_method', title: '方法', width: 80, min: 60 },
   { key: 'path', title: '路径', width: 360, min: 160 },
   { key: 'api_name', title: '中文名', width: 160, min: 110 },
@@ -339,6 +341,7 @@ onMounted(() => {
                 </td>
                 <td class="cell-ellipsis" :title="row.catalog"><code>{{ row.catalog }}</code></td>
                 <td class="cell-ellipsis" :title="row.func"><code>{{ row.func }}</code></td>
+                <td class="cell-ellipsis" :title="row.alias"><code>{{ row.alias }}</code></td>
                 <td class="cell-nowrap">
                   <v-chip size="x-small" variant="tonal" :color="row.flag_write === '1' ? 'warning' : 'info'">
                     {{ row.http_method }}
@@ -427,6 +430,8 @@ onMounted(() => {
           （大驼峰，如 <code>PageUni</code> / <code>FTStockUpsert</code>）。
           两者都是生成列、<strong>不可手工写入</strong>：catalog 由编码派生、func 由路径派生，且 func 有
           <code>^[A-Z][A-Za-z0-9]*$</code> 约束——路径末段不是大驼峰会直接写入失败。
+          <code>alias</code> 是二者拼接（<code>{catalog}.{func}</code>，如
+          <code>finv.quote.cdeu.min.PageUni</code>），同样不可手工写入。
         </p>
         <p>
           ⑥ <strong>已授权凭证</strong>：当前有多少个凭证的授权范围里包含这个接口（来自

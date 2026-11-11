@@ -472,13 +472,15 @@ ORDER BY last_seen DESC;
 | `apiGroup` | 精确匹配分组（分钟行情 / 实时行情 / 鉴权） |
 | `flagPublic` / `flagEnable` | 只允许 `0` / `1`，其余值 400（避免"传了没生效"） |
 
-排序：`catalog` 升序、`func` 升序（按目录自然聚集）。`catalog` / `func` 为生成列（需求 11238/11239）：
-`catalog` 取 `api_code` 最后一个点之前、`func` 取 `path` 最后一个斜杠之后（大驼峰），均不可写入。响应：
+排序：`catalog` 升序、`func` 升序（按目录自然聚集）。`catalog` / `func` / `alias` 为生成列（需求 11238–11240）：
+`catalog` 取 `api_code` 最后一个点之前、`func` 取 `path` 最后一个斜杠之后（大驼峰）、
+`alias` = `{catalog}.{func}`，三者均不可写入。响应：
 
 ```json
 { "code": 0, "message": "OK", "data": { "total": 4, "list": [
   { "idn": 1, "api_code": "finv.quote.cdeu.min.pageuni",
-    "catalog": "finv.quote.cdeu.min", "func": "PageUni", "http_method": "GET",
+    "catalog": "finv.quote.cdeu.min", "func": "PageUni",
+    "alias": "finv.quote.cdeu.min.PageUni", "http_method": "GET",
     "path": "/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni",
     "api_name": "分钟行情分页查询", "api_group": "分钟行情",
     "flag_write": "0", "flag_public": "1", "flag_enable": "1",
