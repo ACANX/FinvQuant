@@ -201,4 +201,9 @@ signature = base64(HMAC-SHA256(SK, canonical))
   `open.open_api_credential_scope`（一行 = 一条「方法 + 路径」规则，0 行 = 不限接口）并从 `scope_str` 回填，
   但**尚未接入读写**（需求 11219 只做建表 + 回填）。接入前两处可能漂移，以 `scope_str` 为准；
   接入时按 `V300192` 头注释的三条语义对齐（`method='*'` 表任意方法、path 三种匹配、0 行 = 全部放行）。
+- 接口清单 `open.open_api_endpoint`（`V300193`，需求 11220）：一行 = 一个可调接口，`api_code` 为
+  **点分小写**稳定编码（路径重命名时不变，审计报表/套餐/限额靠它锚定），`path` 含 `/OpenAPI/V1` 前缀，
+  `flag_write` 标注写接口（静态 Key 调写接口必须带查询参数 `_`）。**该表是接口目录 + 元数据，
+  不是鉴权白名单**——允许调哪些接口仍由 `internal/api/router.go` 的 `openGroup` 路由注册决定；
+  当前种子 4 条（分钟行情分页/写入、实时快照写入、STS 换证），3 条 `DELETE` 占位路由不登记。
 - 上游 Supabase 与本域无关，`open` 域数据**不进** `brs` 备份登记之前需先评估（凭证密文含密钥材料，备份策略另行确认）。

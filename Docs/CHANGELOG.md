@@ -219,6 +219,27 @@
 
 ### 变更
 
+- **清理 scope 回填带进来的脏路径（需求 11221，迁移 V300194）**
+  - 回填后发现凭证 `idn=20`（`cred-20-20261111-0924`）的 `scope_str` 里有一条
+    `{"path": ".../Cdeu/*\"", "method": "GET"}`（尾部多一个双引号），V300192 的条件只校验了
+    「以 `/` 开头、长度 > 1」，把它当合法规则复制进了新表。
+  - 这类「含 `*` 但不以 `/*` 结尾」的规则在鉴权侧 `InScope` **永远匹配不上**，放进清单只会误导
+    「该凭证能查全部 CDEU 接口」→ `V300194` 删除此类回填行（仅 `create_by='migrate'`）并断言不得残留。
+  - `scope_str` 源数据不动（修凭证授权范围属数据修复，需单独授权）；`V300194` 末尾 NOTICE 提示。
+
+- **新建 open.open_api_endpoint 接口清单并登记 4 个可调接口（需求 11220）**
+  - 目的：给授权范围页面做下拉（不再手敲路径）、给审计报表提供稳定锚点 `api_code`、
+    标注读/写（静态 Key 的 `_` 时间戳约束）。
+  - 用户定稿四项：表名 `open.open_api_endpoint`；`api_code` **点分小写**（`cdeu.min.pageuni`）；
+    `path` **含** `/OpenAPI/V1` 前缀；本轮只建表 + 种子（与 `V300192` 同节奏）。
+  - 约束：`UNIQUE (api_code)`、`UNIQUE (http_method, path)`、`api_code` 点分小写正则 CHECK、
+    `path` 必须以 `/OpenAPI/V1/` 开头、6 个 CHECK 收敛三个 flag 与 method；全库 0 物理外键。
+  - 种子 4 条：`cdeu.min.pageuni` / `cdeu.min.upsert` / `cdeu.realtime.stockupsert` / `auth.sts.issue`；
+    3 条 DELETE 占位路由（11180 的显式拒绝）不登记。全部 `ON CONFLICT DO NOTHING`。
+  - **定位红线**：本表是接口目录 + 元数据，**不是**鉴权白名单；允许调哪些接口仍由
+    `router.go` 的 `openGroup` 路由注册决定，迁移末尾也 `RAISE NOTICE` 强调。
+  - 文档：`DataDictMapping/OpenApiAuth.md §8` 补一节。
+
 - **新建 open.open_api_credential_scope 并回填（需求 11219）**
   - 当初（V300183 ⑥）为省事先把授权范围放 `scope_str` jsonb 单列，本迁移落地了结构化表，
     但**只建表 + 回填**：鉴权与页面仍读 `scope_str`，本表当前是它的镜像快照。
