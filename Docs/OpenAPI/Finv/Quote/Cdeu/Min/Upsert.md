@@ -22,7 +22,7 @@
 > **鉴权（需求 11168）**：`/OpenAPI/V1` 路由组由 `internal/api/openapi` 中间件鉴权，
 > 支持静态 API Key（`X-API-Key`）与 AK/SK 签名（`Authorization: META1-<算法> Credential=<AK>, Signature=<签名>`），
 > 由 `sys_config` 19001 控制（0 关闭 / 1 启用 / 2 宽松），失败返回 `190xx`；
-> 详见 [`Docs/API/OpenAPI/Auth.md`](../../../API/OpenAPI/Auth.md)。
+> 详见 [`Docs/API/OpenAPI/Auth.md`](../../../../../API/OpenAPI/Auth.md)。
 > 上线前请通过防火墙/内网限制来源；API Key 体系（`FINV_OPENAPI_KEY` → `sys.sys_open_api_key`）
 > 落地后再恢复鉴权。
 
@@ -182,6 +182,6 @@ curl -X POST 'http://127.0.0.1:16001/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert?
 `KLineItem` schema 已内联，不依赖内部契约）。
 
 ```bash
-npx @redocly/cli lint Docs/OpenAPI/Quote/Cdeu/Min/Upsert.yml
-npx @redocly/cli preview-docs Docs/OpenAPI/Quote/Cdeu/Min/Upsert.yml
+npx @redocly/cli lint Docs/OpenAPI/Finv/Quote/Cdeu/Min/Upsert.yml
+npx @redocly/cli preview-docs Docs/OpenAPI/Finv/Quote/Cdeu/Min/Upsert.yml
 ```

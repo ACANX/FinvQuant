@@ -219,6 +219,16 @@
 
 ### 变更
 
+- **对外 OpenAPI 行情文档目录补 `Finv` 段**
+  - 按「`Docs/OpenAPI/` 下目录 = 去掉基路径后的路径段」口径，把
+    `Docs/OpenAPI/Quote/Cdeu/{Min/{PageUni,Upsert},Realtime/StockUpsert}` 的 `.md` + `.yml`（6 个文件）
+    迁到 `Docs/OpenAPI/Finv/Quote/Cdeu/...`（`git mv` 保留历史），与新握手文档
+    `Docs/OpenAPI/Region/AZ/Server/Hello.md` 的层级规则一致。
+  - 同步引用：`Docs/API/APIs.md`（91/92/112 行）、`Docs/API/README.md`（67–69 行）、
+    `Docs/API/Cdeu/RealtimeStockUpsert.md`（28 行）的链接与显示文本。
+  - 三个被移动的 `.md` 顺带修正指向 `Docs/API/OpenAPI/Auth.md` 的相对路径
+    （原来少一层，移动后层级变化，一并改为 `../../../../../API/OpenAPI/Auth.md`）。
+
 - **新增格式检查测试：字段定义表不得把多个字段挤一行**
   - 新增 `TestMarkdownFieldRowsNotMerged`（`internal/docs/table_test.go`）：扫描 `Docs/**/*.md`，
     对表头含「字段 / 列 / 参数 / 名称 / 键」的表，若首列是「多个反引号标识符用 `/` 或 `、` 连接」
