@@ -215,6 +215,52 @@ func (s *Service) CreateCredential(ctx context.Context, req CredentialCreateRequ
 	}, nil
 }
 
+// SetCredentialScope 修改已有凭证的授权范围（需求 11230）。
+//
+// 只改 scope，不动密钥 / IP 白名单 / 有效期。静态 Key 走同一套收紧规则（只能 1 个具体接口、
+// 不许通配），否则会出现「签发时卡死、事后一改就放大」的漏洞。
+func (s *Service) SetCredentialScope(ctx context.Context, req CredentialScopeRequest,
+	operator string) (Credential, error) {
+	if req.IDN <= 0 {
+		return Credential{}, invalid("idn 必须为正整数")
+	}
+	current, err := s.store.CredentialByID(ctx, req.IDN)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return Credential{}, fmt.Errorf("%w: 凭证 %d 不存在", ErrNotFound, req.IDN)
+		}
+		return Credential{}, err
+	}
+	if current.FlagRevoke == "1" {
+		return Credential{}, fmt.Errorf("%w: 凭证已吊销，不能修改授权范围（只能新建）", ErrConflict)
+	}
+
+	scope, err := normalizeScope(req.Scope)
+	if err != nil {
+		return Credential{}, err
+	}
+	if current.AuthMode == AuthModeAPIKey {
+		if err := validateStaticScope(scope); err != nil {
+			return Credential{}, err
+		}
+	}
+
+	if err := s.store.UpdateCredentialScope(ctx, req.IDN, scopeToJSON(scope),
+		ParseScopeItems(scope), operator); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return Credential{}, fmt.Errorf("%w: 凭证 %d 不存在或已吊销", ErrNotFound, req.IDN)
+		}
+		return Credential{}, err
+	}
+	updated, err := s.store.CredentialByID(ctx, req.IDN)
+	if err != nil {
+		return Credential{}, err
+	}
+	// 授权范围变了必须让鉴权缓存立即失效，否则最多 TTL 内仍按旧范围判定（需求 11212）
+	s.invalidateCache(ctx)
+	return updated, nil
+}
+
 // RotateCredential 轮换密钥（旧 Key 立即失效；AK/SK 允许旧 SK 在窗口内并行验签）。
 func (s *Service) RotateCredential(ctx context.Context, idn int64, operator string) (IssuedSecret, error) {
 	if idn <= 0 {

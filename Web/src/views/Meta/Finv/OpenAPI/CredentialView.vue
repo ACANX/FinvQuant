@@ -141,6 +141,94 @@ async function toggle(row: CredentialRow) {
   }
 }
 
+// 改授权范围（需求 11230）：只改 scope，不动密钥/白名单/有效期
+interface EndpointOption {
+  idn: number
+  api_code: string
+  http_method: string
+  path: string
+  api_name: string
+}
+
+const scopeOpen = ref(false)
+const scopeTarget = ref<CredentialRow | null>(null)
+const scopePicked = ref<string[]>([])
+const scopeExtra = ref('')
+const scopeSaving = ref(false)
+const endpointOptions = ref<{ title: string; value: string }[]>([])
+
+// 把凭证现有 scope（"GET /path"）拆成「能对上下拉选项的」与「对不上的（通配/历史值）」两部分
+function splitScope(items: string[] | null): { picked: string[]; extra: string } {
+  const known = new Set(endpointOptions.value.map((item) => item.value))
+  const picked: string[] = []
+  const extra: string[] = []
+  for (const item of items ?? []) {
+    if (known.has(item)) picked.push(item)
+    else extra.push(item)
+  }
+  return { picked, extra: extra.join('\n') }
+}
+
+async function openScope(row: CredentialRow) {
+  scopeTarget.value = row
+  scopeExtra.value = ''
+  scopePicked.value = []
+  if (endpointOptions.value.length === 0) {
+    try {
+      const data = await apiGet<{ list: EndpointOption[] }>(`${BASE}/Endpoint/Options`)
+      endpointOptions.value = (data.list ?? []).map((item) => ({
+        title: `${item.api_name}［${item.http_method} ${item.api_code}］`,
+        value: `${item.http_method} ${item.path}`,
+      }))
+    } catch (err) {
+      endpointOptions.value = []
+      showToast(`读取接口清单失败（仍可手输路径）：${(err as Error).message}`, 'warning')
+    }
+  }
+  const split = splitScope(row.scope)
+  scopePicked.value = split.picked
+  scopeExtra.value = split.extra
+  scopeOpen.value = true
+}
+
+const scopeFinal = computed(() => {
+  const merged: string[] = []
+  const seen = new Set<string>()
+  for (const item of [...scopePicked.value, ...scopeExtra.value.split('\n')]) {
+    const value = item.trim()
+    if (!value || seen.has(value)) continue
+    seen.add(value)
+    merged.push(value)
+  }
+  return merged
+})
+
+const scopeHint = computed(() => {
+  const mode = scopeTarget.value?.auth_mode ?? ''
+  if (mode === 'APIKEY') {
+    return `静态 Key 只能授 1 个具体接口（不允通配）；当前 ${scopeFinal.value.length} 条`
+  }
+  return `留空 = 全部接口；当前 ${scopeFinal.value.length} 条`
+})
+
+async function confirmScope() {
+  if (!scopeTarget.value) return
+  scopeSaving.value = true
+  try {
+    await apiPost(`${BASE}/Credential/Scope`, {
+      idn: scopeTarget.value.idn,
+      scope: scopeFinal.value,
+    })
+    showToast('授权范围已更新（立即生效）', 'success')
+    scopeOpen.value = false
+    await load()
+  } catch (err) {
+    showToast(`修改授权范围失败：${(err as Error).message}`, 'error')
+  } finally {
+    scopeSaving.value = false
+  }
+}
+
 const revokeOpen = ref(false)
 const revokeTarget = ref<CredentialRow | null>(null)
 const revokeReason = ref('')
@@ -293,6 +381,7 @@ onMounted(async () => {
                   <v-btn size="small" variant="text" @click="toggle(row)">
                     {{ row.flag_enable === '1' ? '停用' : '启用' }}
                   </v-btn>
+                  <v-btn size="small" variant="text" @click="openScope(row)">授权范围</v-btn>
                   <v-btn size="small" variant="text" color="primary" @click="openRotate(row)">轮换</v-btn>
                   <v-btn size="small" variant="text" color="error" @click="openRevoke(row)">吊销</v-btn>
                 </template>
@@ -354,6 +443,50 @@ onMounted(async () => {
       :clients="clients"
       @saved="load"
     />
+
+    <!-- 改授权范围（需求 11230）：只改 scope，提交后立即生效 -->
+    <v-dialog v-model="scopeOpen" max-width="720">
+      <v-card>
+        <v-card-title class="text-subtitle-1">修改授权范围</v-card-title>
+        <v-card-subtitle>
+          {{ scopeTarget?.credential_no }}（{{ authModeText(scopeTarget?.auth_mode ?? '') }}）——
+          只改授权范围，不动密钥、IP 白名单与有效期；提交后立即生效（鉴权缓存同步失效）。
+        </v-card-subtitle>
+        <v-card-text>
+          <v-select
+            v-model="scopePicked"
+            :items="endpointOptions"
+            item-title="title"
+            item-value="value"
+            :return-object="false"
+            :multiple="scopeTarget?.auth_mode !== 'APIKEY'"
+            :chips="scopeTarget?.auth_mode !== 'APIKEY'"
+            :closable-chips="scopeTarget?.auth_mode !== 'APIKEY'"
+            label="授权接口（选项来自「OpenAPI 接口清单」）"
+            persistent-hint
+            :hint="scopeHint"
+            density="compact"
+            variant="outlined"
+            class="mb-3"
+          />
+          <v-textarea
+            v-model="scopeExtra"
+            label="补充规则（每行一条「方法 路径」，通配用尾部 /*，可留空）"
+            placeholder="GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/*"
+            density="compact"
+            variant="outlined"
+            rows="2"
+            persistent-hint
+            hint="通配规则无法枚举，只能手输；下拉选不到的现有规则会自动填到这里"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="scopeOpen = false">取消</v-btn>
+          <v-btn color="primary" :loading="scopeSaving" @click="confirmScope">保存</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <v-dialog v-model="revokeOpen" max-width="520">
       <v-card>

@@ -194,6 +194,14 @@ type Endpoint struct {
 	CountGrant int `json:"count_grant"`
 }
 
+// CredentialScopeRequest 修改已有凭证的授权范围（需求 11230）。
+//
+// 只改 scope，不动密钥/白名单/有效期——那些各有专用接口（轮换 / 重新签发）。
+type CredentialScopeRequest struct {
+	IDN   int64    `json:"idn"`
+	Scope []string `json:"scope"` // 形如 "POST /OpenAPI/V1/..."；空数组 = 全部接口（静态 Key 不允许）
+}
+
 // EndpointFilter 接口清单查询条件。
 type EndpointFilter struct {
 	Keyword    string
@@ -356,22 +364,10 @@ func validateCredential(req CredentialCreateRequest) (CredentialCreateRequest, e
 		return req, err
 	}
 	req.Scope = scope
-	// 静态 Key 的授权范围：只能申请**单个接口**（需求 11188）。
-	// 原因：静态 Key 无法对请求签名，暴露面只能靠「一个 Key 对应一个接口」收敛；
-	// 需要多接口时用 AK/SK 签名模式（不受接口个数限制）。
+	// 静态 Key 的授权范围收紧（需求 11188），改范围接口复用同一校验。
 	if req.AuthMode == AuthModeAPIKey {
-		if len(scope) == 0 {
-			return req, invalid("静态 Key 模式必须指定唯一授权接口（形如 `POST /OpenAPI/V1/...`）；空范围等于放开全部接口，不允许")
-		}
-		if len(scope) > 1 {
-			return req, invalid("静态 Key 模式只能授权 1 个接口（当前 %d 个）；需要多接口请改用 AK_SK 签名模式", len(scope))
-		}
-		parts := strings.Fields(scope[0])
-		if len(parts) == 2 {
-			path := parts[1]
-			if parts[0] == "*" || path == "*" || strings.Contains(path, "*") {
-				return req, invalid("静态 Key 模式不允许通配授权（%q）；必须写明具体接口", scope[0])
-			}
+		if err := validateStaticScope(scope); err != nil {
+			return req, err
 		}
 	}
 	cidrs, err := normalizeCIDRs(req.AllowCIDR)
@@ -425,6 +421,27 @@ func normalizeScope(items []string) ([]string, error) {
 		out = append(out, method+" "+parts[1])
 	}
 	return out, nil
+}
+
+// validateStaticScope 静态 Key 的授权范围收紧（需求 11188）。
+//
+// 原因：静态 Key 无法对请求签名，暴露面只能靠「一个 Key 对应一个接口」收敛；
+// 需要多接口时用 AK/SK 签名模式（不受接口个数限制）。
+func validateStaticScope(scope []string) error {
+	if len(scope) == 0 {
+		return invalid("静态 Key 模式必须指定唯一授权接口（形如 `POST /OpenAPI/V1/...`）；空范围等于放开全部接口，不允许")
+	}
+	if len(scope) > 1 {
+		return invalid("静态 Key 模式只能授权 1 个接口（当前 %d 个）；需要多接口请改用 AK_SK 签名模式", len(scope))
+	}
+	parts := strings.Fields(scope[0])
+	if len(parts) == 2 {
+		path := parts[1]
+		if parts[0] == "*" || path == "*" || strings.Contains(path, "*") {
+			return invalid("静态 Key 模式不允许通配授权（%q）；必须写明具体接口", scope[0])
+		}
+	}
+	return nil
 }
 
 // normalizeCIDRs 校验白名单（支持裸 IP 与 CIDR，统一成 CIDR 文本）。

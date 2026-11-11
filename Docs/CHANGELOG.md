@@ -219,6 +219,23 @@
 
 ### 变更
 
+- **新增「改授权范围」接口与页面入口（需求 11230）**
+  - `POST /API/V1/Meta/Finv/OpenAPI/Credential/Scope`：`{idn, scope}`，**只改授权范围**，
+    不动密钥 / IP 白名单 / 有效期。
+  - **事务双写** `scope_str`（可读快照）与 `open_api_credential_scope`（鉴权读取源）——
+    只改一处会出现「页面显示 A、鉴权按 B」；写完 `INCR finv:openapi:credver` 让鉴权缓存**立即**失效
+    （实测改成只剩 GET 后 POST 立刻 403，不用等 19007 的 TTL）。
+  - 静态 Key 复用签发时的收紧规则（1 个具体接口、不许通配、不许留空）；已吊销凭证 409。
+  - 前端「OpenAPI 凭证」列表「操作」列新增「授权范围」按钮：打开时把现有规则拆成
+    「能对上接口清单的（下拉已勾选）」与「对不上的（填进补充规则）」。
+- **DbSchemaSpec 更新 open 域描述（需求 11231）**
+  - 原写「3 张」，实际 **5 张**（`information_schema` 核对；用户口述 6 张应为笔误）：
+    `open_api_client` / `open_api_credential` / `open_api_credential_scope` /
+    `open_api_endpoint` / `open_api_invoke_log`。
+  - 补：`auth_mode` 含 `STS`、`parent_idn`+`token_fp` 区分兑换凭证与临时凭据、
+    `scope_str` 只是快照而明细表才是鉴权读取源、接口清单不是白名单、`sys_config` 19007；
+    删掉「`scope_str` 后续可扩展」的过期表述。
+
 - **接口清单表格列宽可调（需求 11229）**
   - 现象：自动布局下「路径」（60+ 字符）与「中文名」互相压字看不全。
   - 改为固定布局 + `colgroup` 像素宽度，表头右边缘可拖动、双击自适应、「重置列宽」回默认；

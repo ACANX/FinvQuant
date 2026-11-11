@@ -16,6 +16,7 @@ package handler
 //	POST /Credential/Enable               启用/停用凭证
 //	POST /Credential/Revoke               吊销凭证（原因必填）
 //	POST /Credential/Rotate               轮换密钥（新密钥只返回这一次）
+//	POST /Credential/Scope                修改授权范围（事务双写 scope_str + 明细表）
 //	GET  /InvokeLog/Page                  调用审计分页（含 join 来的 api_code / api_name）
 //	GET  /Endpoint/Page                   接口清单分页（需求 11223）
 //	GET  /Endpoint/Options                授权范围下拉可选项（公开 + 启用 + 未下线）
@@ -307,6 +308,23 @@ func (h *OpenAPIAdmin) SetEndpointFlags(c *gin.Context) {
 	log.Printf("[openapi][admin] endpoint flags idn=%d code=%s public=%s enable=%s by=%s",
 		item.IDN, item.APICode, item.FlagPublic, item.FlagEnable, operatorOf(c))
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口标志已更新", "data": item})
+}
+
+// SetCredentialScope POST /OpenAPI/Credential/Scope（需求 11230）。
+func (h *OpenAPIAdmin) SetCredentialScope(c *gin.Context) {
+	var req openapisvc.CredentialScopeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体不是合法 JSON: " + err.Error()})
+		return
+	}
+	credential, err := h.service.SetCredentialScope(c.Request.Context(), req, operatorOf(c))
+	if err != nil {
+		respondOpenAPIError(c, "修改授权范围", err)
+		return
+	}
+	log.Printf("[openapi][admin] credential scope updated idn=%d no=%s count=%d by=%s",
+		credential.IDN, credential.CredentialNo, len(credential.Scope), operatorOf(c))
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "授权范围已更新", "data": credential})
 }
 
 // InvokeLogPage GET /OpenAPI/InvokeLog/Page。

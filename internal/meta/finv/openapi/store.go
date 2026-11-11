@@ -449,12 +449,14 @@ RETURNING idn`,
 	return idn, nil
 }
 
-// ReplaceScopeRows 用给定规则替换某凭证的授权范围明细（需求 11228）。
+// UpdateCredentialScope 修改已有凭证的授权范围（需求 11230）。
 //
-// 只动明细表；`scope_str` 由调用方同步更新（凭证目前没有「改范围」接口，
-// 这个函数留给后续维护入口与测试用，行为与 InsertCredential 里的写入一致）。
-func (s *Store) ReplaceScopeRows(ctx context.Context, credentialIDN int64, pairs []ScopePair,
-	operator string) error {
+// **必须事务双写**：`scope_str` 是可读快照、`open_api_credential_scope` 是鉴权读取源，
+// 只改一处会出现「页面显示 A、鉴权按 B」的错位。语义：`pairs` 为空 = 不限接口（明细表 0 行）。
+//
+// 已吊销的凭证不允许改（只能新建），用 `flag_revoke='0'` 兜住并发吊销。
+func (s *Store) UpdateCredentialScope(ctx context.Context, credentialIDN int64,
+	scopeJSON string, pairs []ScopePair, operator string) error {
 	if s.pool == nil {
 		return errors.New("数据库连接池未初始化")
 	}
@@ -463,6 +465,17 @@ func (s *Store) ReplaceScopeRows(ctx context.Context, credentialIDN int64, pairs
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+
+	tag, err := tx.Exec(ctx, `
+UPDATE open.open_api_credential
+   SET scope_str = $2::jsonb, modify_by = NULLIF($3, '')
+ WHERE idn = $1 AND flag_revoke = '0'`, credentialIDN, scopeJSON, operator)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
 	if _, err := tx.Exec(ctx,
 		`DELETE FROM open.open_api_credential_scope WHERE credential_idn = $1`, credentialIDN); err != nil {
 		return err

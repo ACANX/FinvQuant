@@ -29,6 +29,7 @@
 | 8 | POST | `/Credential/Enable` | 启用 / 停用凭证 |
 | 9 | POST | `/Credential/Revoke` | 吊销凭证（原因必填，不可恢复） |
 | 10 | POST | `/Credential/Rotate` | 轮换密钥（新密钥只返回一次） |
+| 10b | POST | `/Credential/Scope` | 修改授权范围（事务双写 `scope_str` + 明细表，立即生效） |
 | 11 | GET | `/InvokeLog/Page` | 调用审计分页（含 join 来的 `api_code` / `api_name`） |
 | 12 | GET | `/Endpoint/Page` | 接口清单分页（需求 11223） |
 | 13 | GET | `/Endpoint/Options` | 授权范围下拉可选项（公开 + 启用 + 未下线） |
@@ -300,6 +301,28 @@
 | `log_retain_days` | 19003 | 审计日志保留天数（0~3650） |
 | `cred_cache_ttl` | 19007 | 读凭证的 Redis 缓存秒数（0~600；`0` = 关闭缓存） |
 | `secret_kid` / `secret_key_ready` / `fallback_key_ready` | 19004~19006 | 只读回显（密钥在密钥配置页维护） |
+
+### 5.7 POST `/Credential/Scope`（修改授权范围，需求 11230）
+
+```json
+{ "idn": 31, "scope": ["GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni"] }
+```
+
+| 项 | 说明 |
+|---|---|
+| 只改什么 | **只改授权范围**；密钥、IP 白名单、有效期、备注都不动（那些各有专用入口） |
+| 事务语义 | `scope_str`（可读快照）与 `open_api_credential_scope`（鉴权读取源）在**同一事务**内双写，只改一处会出现「页面显示 A、鉴权按 B」 |
+| 空数组 | `scope: []` = 不限接口（全部放行）；**静态 Key 不允许**（只能 1 个具体接口、不许通配，与签发的收紧口径一致） |
+| 已吊销 | 返回 `409`，只能新建凭证 |
+| 生效时间 | **立即**：写完 `INCR finv:openapi:credver` 让鉴权缓存失效，不用等 19007 的 TTL |
+| 响应 | 更新后的凭证对象（`scope` 为可读的 `"方法 路径"` 列表） |
+
+```
+400 入参非法: scope 元素必须是「方法 路径」两段，实际 "GET"
+400 入参非法: 静态 Key 模式只能授权 1 个接口（当前 2 个）；需要多接口请改用 AK_SK 签名模式
+403 …        （不涉及；鉴权失败走 190xx）
+409 状态冲突: 凭证已吊销，不能修改授权范围（只能新建）
+```
 
 ### 5.6 鉴权缓存（需求 11212 / 11215）
 
