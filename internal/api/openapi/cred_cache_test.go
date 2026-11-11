@@ -53,8 +53,8 @@ func TestCredentialCacheRoundTrip(t *testing.T) {
 	if !ok {
 		t.Fatal("编码失败")
 	}
-	decoded, ok := decodeCachedCredential(data)
-	if !ok {
+	decoded, found, ok := decodeCachedCredential(data)
+	if !ok || !found {
 		t.Fatal("解码失败")
 	}
 	if decoded.IDN != original.IDN || decoded.AuthMode != original.AuthMode ||
@@ -82,11 +82,16 @@ func TestCredentialCacheRoundTrip(t *testing.T) {
 	}
 
 	// 损坏数据必须判失败（由调用方回源），不能还原出半个凭证
-	if _, ok := decodeCachedCredential([]byte("{不是 JSON")); ok {
+	if _, _, ok := decodeCachedCredential([]byte("{不是 JSON")); ok {
 		t.Fatal("损坏数据应解码失败")
 	}
-	if _, ok := decodeCachedCredential([]byte(`{"idn":0}`)); ok {
+	if _, _, ok := decodeCachedCredential([]byte(`{"data":{"idn":0}}`)); ok {
 		t.Fatal("缺少 idn/auth_mode 应解码失败")
+	}
+	// 「AK 不存在」标记：解码成功但不是凭证
+	notFound, found, ok := decodeCachedCredential(mustEncodeNotFound(t))
+	if !ok || found || notFound != nil {
+		t.Fatal("不存在标记解码口径不对")
 	}
 }
 
@@ -237,4 +242,80 @@ func TestCachedSourceRedisBehaviour(t *testing.T) {
 	if err := invalidator.InvalidateCredentials(ctx); err == nil {
 		t.Fatal("Redis 故障时失效器应返回错误（由调用方忽略）")
 	}
+}
+
+// mustEncodeNotFound 生成「AK 不存在」缓存值。
+func mustEncodeNotFound(t *testing.T) []byte {
+	t.Helper()
+	data, ok := encodeNotFound()
+	if !ok {
+		t.Fatal("生成不存在标记失败")
+	}
+	return data
+}
+
+// TestCachedSourceNotFoundCached 乱码 AK 也要收敛成「每 10 秒一次查库」（负缓存）。
+func TestCachedSourceNotFoundCached(t *testing.T) {
+	ctx := context.Background()
+	next := &countingSource{credential: &Credential{IDN: 1, AuthMode: AuthModeAPIKey, AccessKeyID: "SA_LIVE_OK"}}
+	fake := newFakeRedis()
+	source := newCachedSource(next, fake, nil)
+
+	for i := 0; i < 3; i++ {
+		if _, err := source.Lookup(ctx, "SA_LIVE_INVALID"); !errors.Is(err, ErrCredentialNotFound) {
+			t.Fatalf("第 %d 次应返回不存在，实际 %v", i+1, err)
+		}
+	}
+	if next.hits != 1 {
+		t.Fatalf("不存在结果应缓存，实际回源 %d 次", next.hits)
+	}
+}
+
+// TestCachedSourceConcurrentMissSingleflight 缓存刚过期时并发请求只回源一次（防击穿）。
+func TestCachedSourceConcurrentMissSingleflight(t *testing.T) {
+	ctx := context.Background()
+	next := &slowSource{credential: &Credential{IDN: 1, AuthMode: AuthModeAPIKey, AccessKeyID: "SA_LIVE_X"}, delay: 50 * time.Millisecond}
+	fake := newFakeRedis()
+	source := newCachedSource(next, fake, nil)
+
+	const workers = 20
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			if _, err := source.Lookup(ctx, "SA_LIVE_X"); err != nil {
+				t.Errorf("并发查询失败: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	if hits := next.Hits(); hits != 1 {
+		t.Fatalf("并发 miss 应只回源 1 次，实际 %d 次", hits)
+	}
+}
+
+// slowSource 带延迟的回源（放大并发窗口）。
+type slowSource struct {
+	credential *Credential
+	delay      time.Duration
+	mu         sync.Mutex
+	hits       int
+}
+
+func (s *slowSource) Lookup(_ context.Context, accessKeyID string) (*Credential, error) {
+	s.mu.Lock()
+	s.hits++
+	s.mu.Unlock()
+	time.Sleep(s.delay)
+	if s.credential == nil || s.credential.AccessKeyID != accessKeyID {
+		return nil, ErrCredentialNotFound
+	}
+	return s.credential, nil
+}
+
+func (s *slowSource) Hits() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.hits
 }

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/singleflight"
 )
 
 // 凭证缓存键与默认 TTL。
@@ -52,6 +53,8 @@ type CachedSource struct {
 	rdb  credentialCacheClient
 	ttl  time.Duration
 	logf func(format string, args ...any)
+	// group 合并同一 AK 的并发回源：TTL 刚到期时避免 N 个并发请求同时查库（缓存击穿）。
+	group singleflight.Group
 }
 
 // NewCachedSource 创建带缓存的凭证来源；rdb 为 nil 时退化为直通（不缓存）。
@@ -75,6 +78,9 @@ func newCachedSource(next CredentialSource, client credentialCacheClient, logf f
 }
 
 // Lookup 先查缓存，未命中回源并写入缓存。
+//
+// 两种结果都缓存 10 秒：命中凭证、以及「AK 不存在」——后者避免有人拿乱码 AK 刷接口
+// 把每个请求都打成一次全表查询。
 func (s *CachedSource) Lookup(ctx context.Context, accessKeyID string) (*Credential, error) {
 	accessKeyID = strings.TrimSpace(accessKeyID)
 	if s.rdb == nil || accessKeyID == "" {
@@ -88,22 +94,70 @@ func (s *CachedSource) Lookup(ctx context.Context, accessKeyID string) (*Credent
 	}
 	key := credCacheKeyBase + version + ":" + accessKeyID
 	if data, err := s.rdb.Get(ctx, key).Bytes(); err == nil {
-		if credential, decodeOK := decodeCachedCredential(data); decodeOK {
+		if credential, found, decodeOK := decodeCachedCredential(data); decodeOK {
+			if !found {
+				return nil, ErrCredentialNotFound
+			}
 			return credential, nil
 		}
 		s.logf("[openapi] 凭证缓存解码失败，丢弃并回源: %s", key)
 	}
 
-	credential, err := s.next.Lookup(ctx, accessKeyID)
+	// 同一 AK 的并发回源只放一个进去，其余等结果（缓存击穿保护）
+	value, err, _ := s.group.Do(key, func() (any, error) {
+		credential, lookupErr := s.next.Lookup(ctx, accessKeyID)
+		switch {
+		case errors.Is(lookupErr, ErrCredentialNotFound):
+			s.store(ctx, key, nil)
+			return nil, ErrCredentialNotFound
+		case lookupErr != nil:
+			return nil, lookupErr
+		}
+		s.store(ctx, key, credential)
+		return credential, nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	if data, encodeOK := encodeCachedCredential(credential); encodeOK {
-		if setErr := s.rdb.Set(ctx, key, data, s.ttl).Err(); setErr != nil {
-			s.logf("[openapi] 写凭证缓存失败（忽略）: %v", setErr)
-		}
+	credential, ok := value.(*Credential)
+	if !ok {
+		return nil, ErrCredentialNotFound
 	}
 	return credential, nil
+}
+
+// store 写缓存（credential 为 nil 时写「不存在」标记）；写失败只记日志。
+func (s *CachedSource) store(ctx context.Context, key string, credential *Credential) {
+	var (
+		data []byte
+		ok   bool
+	)
+	if credential == nil {
+		data, ok = encodeNotFound()
+	} else {
+		data, ok = encodeCachedCredential(credential)
+	}
+	if !ok {
+		return
+	}
+	if err := s.rdb.Set(ctx, key, data, s.ttl).Err(); err != nil {
+		s.logf("[openapi] 写凭证缓存失败（忽略）: %v", err)
+	}
+}
+
+// cacheEnvelope 缓存值外层封装：区分「凭证快照」与「AK 不存在」两种结果。
+type cacheEnvelope struct {
+	NotFound bool            `json:"not_found,omitempty"`
+	Data     json.RawMessage `json:"data,omitempty"`
+}
+
+// encodeNotFound 生成「AK 不存在」缓存值。
+func encodeNotFound() ([]byte, bool) {
+	data, err := json.Marshal(cacheEnvelope{NotFound: true})
+	if err != nil {
+		return nil, false
+	}
+	return data, true
 }
 
 // version 读当前缓存版本号；键不存在按 0 处理。
@@ -208,21 +262,35 @@ func encodeCachedCredential(credential *Credential) ([]byte, bool) {
 		ClientEnable:  credential.ClientEnable(),
 		CredentialExp: timeToText(credential.CredentialExp), ClientExp: timeToText(credential.ClientExp),
 	}
-	data, err := json.Marshal(item)
+	payload, err := json.Marshal(item)
+	if err != nil {
+		return nil, false
+	}
+	data, err := json.Marshal(cacheEnvelope{Data: payload})
 	if err != nil {
 		return nil, false
 	}
 	return data, true
 }
 
-// decodeCachedCredential 从缓存字节还原凭证；数据损坏返回 false（由调用方回源）。
-func decodeCachedCredential(data []byte) (*Credential, bool) {
+// decodeCachedCredential 从缓存字节还原凭证。
+//
+// 返回值：credential、是否命中凭证（false 表示缓存里是「AK 不存在」标记）、解码是否成功。
+// 解码失败时由调用方回源（缓存数据损坏不能当成「不存在」把请求拒掉）。
+func decodeCachedCredential(data []byte) (*Credential, bool, bool) {
+	var envelope cacheEnvelope
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return nil, false, false
+	}
+	if envelope.NotFound {
+		return nil, false, true
+	}
 	var item cachedCredential
-	if err := json.Unmarshal(data, &item); err != nil {
-		return nil, false
+	if err := json.Unmarshal(envelope.Data, &item); err != nil {
+		return nil, false, false
 	}
 	if item.IDN <= 0 || item.AuthMode == "" {
-		return nil, false
+		return nil, false, false
 	}
 	scope, broken := parseScope(item.ScopeJSON)
 	credential := &Credential{
@@ -242,7 +310,7 @@ func decodeCachedCredential(data []byte) (*Credential, bool) {
 		ClientFlagEnable: item.ClientEnable,
 		CredentialExp:    textToTime(item.CredentialExp), ClientExp: textToTime(item.ClientExp),
 	}
-	return credential, true
+	return credential, true, true
 }
 
 // cidrsToText 把 IPNet 列表转成文本（与 ipNetsToText 同口径）。

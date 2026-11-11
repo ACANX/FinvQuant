@@ -2857,6 +2857,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 11210 | **STS 语义纠正（用户定稿）**：STS 模式签发的也是长期 **AK/SK（兑换凭证）**，程序用这对 AK/SK 调 `POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue` 换取 2 小时的 `SAK/SSK/SST`，再用三要素调业务接口；三类凭证互不越权——① `AKSK` 只能直连业务，**禁止**调 `STS/Issue` 派生 SST；② STS 兑换凭证（`token_fp` 为空）**只能**调 `STS/Issue`，不得直连业务；③ STS 临时凭据（`token_fp` 非空）只能调业务、不能换证。撤销 11200 的页面直发三要素接口 `POST /API/V1/Meta/Finv/OpenAPI/Credential/StsIssue`（已删除） | ① `AKSK` 调 `STS/Issue` → 403/`19009`；② 兑换凭证调业务接口 → 403/`19009`；③ 兑换凭证调 `STS/Issue` → 200 且返回三要素；用三要素调业务接口 → 200；④ 页面签发 STS 后展示 AK/SK 而非三要素；⑤ `/Credential/StsIssue` 返回 404；⑥ `cd FinvQuantDesign/OpenAPI && python3 demo_client.py` 全绿 | √ |
 | 11211 | STS 临时凭据校验父凭证不再二次查表：`selectCredentialSQL` / `selectCredentialByIDNSQL` 加 `LEFT JOIN open.open_api_credential p ON p.idn = c.parent_idn`，一次带出 `ParentFound / ParentFlagEnable / ParentFlagRevoke / ParentExp`；`stsParentUsable` 改为接收临时凭据读这些字段；删除已无调用方的 `CredentialSource.LookupByIDN` | `grep -rn 'LookupByIDN' internal/` 无输出；`go test ./internal/api/openapi/ -count=1` 通过 （含 `TestStsParentUsable`、`TestMiddlewareStsRejectsRevokedParent`）；`cd FinvQuantDesign/OpenAPI && python3 demo_client.py` 全绿（含父凭证吊销→19003/REVOKE→恢复 200） | √ |
 | 11212 | 鉴权读凭证走 Redis 缓存，避免每个请求查一次 `open.open_api_credential`：`finv:openapi:cred:<版本号>:<AK>` 存凭证快照（TTL 10 秒）、`finv:openapi:credver` 存全局版本号；平台侧签发/轮换/吊销/停用凭证与改调用方额度白名单后 `INCR` 版本号使其**立即失效**；Redis 故障时直接回源查库（缓存不是正确性依赖） | 连续两次同一 AK 调用后 `docker exec fq-redis redis-cli KEYS 'finv:openapi:cred*'` 能看到该 AK 的键；页面吊销凭证后立即再调用 → 403/`19003`（不必等 10 秒）；`go test ./internal/api/openapi/ -count=1` 通过（含 `TestCredentialCacheRoundTrip`、`TestCachedSourceRedisBehaviour`）；`cd FinvQuantDesign/OpenAPI && python3 demo_client.py` 全绿 | √ |
+| 11213 | 鉴权缓存的三个边界补齐：① **负缓存**（AK 不存在的结果也缓存 10 秒，乱码 AK 刷接口不会每次查表）；② **防击穿**（同一 AK 的并发 miss 用 `singleflight` 合并，只回源一次）；③ 缓存值加 `cacheEnvelope` 区分「凭证快照」与「AK 不存在」，解码损坏仍回源而不是误拒 | `TestCachedSourceNotFoundCached` 连查 3 次不存在 AK 只回源 1 次；`TestCachedSourceConcurrentMissSingleflight` 20 并发 miss 只回源 1 次；`go test ./internal/api/openapi/ -count=1` 通过 | √ |
 
 
 ## 汇总
@@ -3313,7 +3314,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 修复「证券参数补全 → 采集参数」必填校验必然失败：快照 `instrument_type` 是 TEXT 且 `12`/`3` 都表示股票、采集表只有 `3`，参考行匹配按 `q.instrument_type::text = btrim(t.instrument_type)` 直接比对导致 `12` 的行取不到 `market_code`（=0）；改为按归一后的整型匹配（`12`→`3`）；`market_code` 取不到参考值时预填**返回空串**并提示必须人工填写（不再返回 `0`）；前端把数值字段的 `0` 也算「未填」并逐字段标红；后端必填校验错误消息逐项列出字段与实际值 | 11164 | 1 |
 | 「证券参数补全 → 规范证券参数」对话框的 `timezone`（UTC 偏移）/ `tz`（IANA 标识）预填缺省值，按「市场 → 交易所 → 区域」三层推断：① 同 `exchange_code` 已有 `public.finv_security` 行 `(timezone, tz)` 的众数（来源=参考）；② 同 `finv_exchange.region` 已有行的众数（来源=参考）；③ 内置区域 → IANA 时区映射、偏移按该时区**当前时刻**推算（来源=字典，二进制内嵌 `time/tzdata`）；三层都拿不到时留空 + 来源=待填 + 风险提示 | 11165 | 1 |
 | 「证券参数补全 → 采集参数」对话框补缺省推断：`market_type` 改为「快照 → 同市场已有配置行众数（参考）→ 内置映射 HK=1/US=2/A股=4/FX=11/CC=17（字典）」；`req_section` 改为「同市场同品种众数（参考），众数为空则留空并说明选填」；`sub_instrument_type` 的兜底改按**归一后** `instrument_type` 计算（`12` 按 `3` 算，避免算出 12002）；`instrument_type` 仍写快照原值但说明里点明「12 与 3 同为股票、存量以 3 为主」 | 11166 | 1 |
-| **合计** | **10001–11212** | **1208**（含 4 条待办） |
+| **合计** | **10001–11213** | **1209**（含 4 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
