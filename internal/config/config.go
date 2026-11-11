@@ -52,11 +52,6 @@ type Config struct {
 	// `close`（默认）= 拒绝请求（fail-close，重放与限流不可用时不放行）；`open` = 放行并告警。
 	OpenAPIRedisFailMode string
 
-	// OpenAPICredCacheTTL 鉴权读凭证的 Redis 缓存时长（秒，需求 11214）：
-	// 默认 10；0 表示关闭缓存（每次请求都查凭证表）；最大 600。
-	// 平台侧吊销/停用会立即让缓存失效，该值只影响「直接改库」的生效延迟与查库频率。
-	OpenAPICredCacheTTL int
-
 	// OpenAPIKey 外部 OpenAPI（/OpenAPI/V1）静态访问密钥（需求 10787，过渡方案）。
 	// 为空时不注册外部路由；后续 API Key 体系落地后由 DB 凭证替换。
 	OpenAPIKey string
@@ -114,7 +109,6 @@ func Load() *Config {
 		KLineMaxListSize:     envIntOr("FINV_KLINE_MAX_LIST_SIZE", 5000),
 		KLineTSUnit:          envLowerOr("FINV_KLINE_TS_UNIT", "s"),
 		OpenAPIRedisFailMode: envOr("FINV_OPENAPI_REDIS_FAIL_MODE", "close"),
-		OpenAPICredCacheTTL:  envIntOr("FINV_OPENAPI_CRED_CACHE_TTL", 10),
 		OpenAPIKey:           envOr("FINV_OPENAPI_KEY", ""),
 		LogDir:               envOr("FINV_LOG_DIR", ""),
 		LogFile:              envOr("FINV_LOG_FILE", "FinvQuant.log"),

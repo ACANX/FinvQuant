@@ -219,6 +219,15 @@
 
 ### 变更
 
+- **凭证缓存 TTL 改为系统配置 19007（需求 11215）**
+  - 环境变量 `FINV_OPENAPI_CRED_CACHE_TTL` 撤销：改一次要重建容器、页面也看不到。
+  - 新增 `sys.sys_config` 19007「OpenAPI 凭证缓存 TTL（秒）」：默认 10，`0` 关闭缓存，1~600 有效，
+    越界由读取侧按边界收敛；迁移 `V300191` 幂等插入（`ON CONFLICT DO NOTHING`）。
+  - `GET/PUT /Meta/Finv/OpenAPI/Settings` 增 `cred_cache_ttl`；鉴权侧每次请求从配置取 TTL，
+    改后 ≤10 秒生效、无需重建容器。
+  - 前端【鉴权设置】页新增该输入项（含 0~600 校验与 `0 = 关闭缓存` 提示）。
+  - 实测：改 30 → 缓存键 TTL≈30；改 0 → 不产生缓存键且 demo 全绿；改回 10 恢复。
+
 - **凭证缓存 TTL 改为可配置（需求 11214）**
   - 新增环境变量 `FINV_OPENAPI_CRED_CACHE_TTL`（秒，默认 `10`，`0` = 关闭缓存，上限 `600`）。
   - 传递链：`internal/config` → `openapi.Options.CredCacheTTL` → `CachedSource`；`0` 时缓存层直通。

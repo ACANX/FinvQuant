@@ -38,7 +38,9 @@ const (
 	ConfigLogRetain = 19003
 	ConfigSecretKID = 19004
 	ConfigSecretKey = 19005
-	ConfigFallback  = 19006
+	// ConfigCredCacheTTL 19007：读凭证的 Redis 缓存秒数（需求 11215）。
+	ConfigCredCacheTTL = 19007
+	ConfigFallback     = 19006
 )
 
 // 业务错误（handler 按类型映射 HTTP 状态码）。
@@ -66,13 +68,16 @@ type SettingsView struct {
 	SecretKID        string `json:"secret_kid"`         // 19004
 	SecretKeyReady   bool   `json:"secret_key_ready"`   // 19005 是否已配置（只回布尔）
 	FallbackKeyReady bool   `json:"fallback_key_ready"` // 19006 是否已配置
+	// CredCacheTTL 19007：读凭证的 Redis 缓存秒数（0 = 关闭缓存；需求 11215）。
+	CredCacheTTL int `json:"cred_cache_ttl"`
 }
 
-// SettingsRequest 保存鉴权配置（只允许改 19001～19003，密钥不在此处改）。
+// SettingsRequest 保存鉴权配置（只允许改 19001～19003 与 19007，密钥不在此处改）。
 type SettingsRequest struct {
 	Mode           string `json:"mode"`
 	SignTimeWindow int    `json:"sign_time_window"`
 	LogRetainDays  int    `json:"log_retain_days"`
+	CredCacheTTL   int    `json:"cred_cache_ttl"`
 }
 
 // Client 调用方（列表/详情共用）。

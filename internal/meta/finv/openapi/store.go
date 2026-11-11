@@ -31,11 +31,11 @@ func (s *Store) Pool() *pgxpool.Pool { return s.pool }
 const selectSettingsSQL = `
 SELECT config_no, COALESCE(char_value, ''), COALESCE(str_value, ''), COALESCE(int_value, 0)
   FROM sys.sys_config
- WHERE config_no BETWEEN 19001 AND 19006`
+ WHERE config_no BETWEEN 19001 AND 19007`
 
 // LoadSettings 读取 19001～19006（只返回值与「是否已配置」，不回显密钥）。
 func (s *Store) LoadSettings(ctx context.Context) (SettingsView, error) {
-	view := SettingsView{Mode: "0", SignTimeWindow: 300, LogRetainDays: 90, SecretKID: "k1"}
+	view := SettingsView{Mode: "0", SignTimeWindow: 300, LogRetainDays: 90, SecretKID: "k1", CredCacheTTL: 10}
 	if s.pool == nil {
 		return view, errors.New("数据库连接池未初始化")
 	}
@@ -75,12 +75,16 @@ func (s *Store) LoadSettings(ctx context.Context) (SettingsView, error) {
 			view.SecretKeyReady = strings.TrimSpace(strVal) != ""
 		case ConfigFallback:
 			view.FallbackKeyReady = strings.TrimSpace(strVal) != ""
+		case ConfigCredCacheTTL:
+			if intVal >= 0 {
+				view.CredCacheTTL = intVal
+			}
 		}
 	}
 	return view, rows.Err()
 }
 
-// SaveSettings 写入 19001～19003（只改这三项，密钥不动）。
+// SaveSettings 写入 19001～19003 与 19007（密钥不在此处改）。
 func (s *Store) SaveSettings(ctx context.Context, req SettingsRequest) error {
 	if s.pool == nil {
 		return errors.New("数据库连接池未初始化")
@@ -89,9 +93,10 @@ func (s *Store) SaveSettings(ctx context.Context, req SettingsRequest) error {
 	batch.Queue(`UPDATE sys.sys_config SET char_value = $2 WHERE config_no = $1`, ConfigAuthMode, req.Mode)
 	batch.Queue(`UPDATE sys.sys_config SET int_value = $2 WHERE config_no = $1`, ConfigTimeWin, req.SignTimeWindow)
 	batch.Queue(`UPDATE sys.sys_config SET int_value = $2 WHERE config_no = $1`, ConfigLogRetain, req.LogRetainDays)
+	batch.Queue(`UPDATE sys.sys_config SET int_value = $2 WHERE config_no = $1`, ConfigCredCacheTTL, req.CredCacheTTL)
 	results := s.pool.SendBatch(ctx, batch)
 	defer results.Close()
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 4; i++ {
 		if _, err := results.Exec(); err != nil {
 			return err
 		}

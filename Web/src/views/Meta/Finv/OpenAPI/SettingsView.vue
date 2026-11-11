@@ -2,7 +2,8 @@
 // 开放平台 → OpenAPI 鉴权配置（需求 11173 拆分自原单页）
 //
 // 配置项（sys.sys_config 19xxx）：19001 鉴权模式 / 19002 签名时间窗 / 19003 日志保留天数
-//                              19004 密钥 KID / 19005 加密密钥 / 19006 兼容兜底密钥（后三项只显示是否已配置）
+//                              19007 凭证缓存 TTL / 19004 密钥 KID / 19005 加密密钥 / 19006 兼容兜底密钥
+//                              （19004~19006 只显示是否已配置，在密钥配置页维护）
 // 接口：GET /Meta/Finv/OpenAPI/Settings、PUT /Meta/Finv/OpenAPI/Settings
 import { computed, onMounted, ref } from 'vue'
 
@@ -17,6 +18,7 @@ interface Settings {
   secret_kid: string
   secret_key_ready: boolean
   fallback_key_ready: boolean
+  cred_cache_ttl: number
 }
 
 const settings = ref<Settings>({
@@ -26,10 +28,12 @@ const settings = ref<Settings>({
   secret_kid: 'k1',
   secret_key_ready: false,
   fallback_key_ready: false,
+  cred_cache_ttl: 10,
 })
 const mode = ref('0')
 const windowSeconds = ref(300)
 const retainDays = ref(90)
+const credCacheTTL = ref(10)
 const saving = ref(false)
 
 async function load() {
@@ -39,6 +43,7 @@ async function load() {
     mode.value = data.mode
     windowSeconds.value = data.sign_time_window
     retainDays.value = data.log_retain_days
+    credCacheTTL.value = data.cred_cache_ttl
   } catch (err) {
     showToast(`读取鉴权配置失败：${(err as Error).message}`, 'error')
   }
@@ -54,7 +59,14 @@ const retainError = computed(() => {
   if (!Number.isFinite(value) || value < 0 || value > 3650) return '需在 0 ~ 3650 天之间（0 = 不清理）'
   return ''
 })
-const canSave = computed(() => !windowError.value && !retainError.value && !saving.value)
+const credCacheError = computed(() => {
+  const value = Number(credCacheTTL.value)
+  if (!Number.isFinite(value) || value < 0 || value > 600) return '需在 0 ~ 600 秒之间（0 = 关闭缓存）'
+  return ''
+})
+const canSave = computed(
+  () => !windowError.value && !retainError.value && !credCacheError.value && !saving.value,
+)
 
 const modeHint = computed(() => {
   switch (mode.value) {
@@ -75,6 +87,7 @@ async function save() {
       mode: mode.value,
       sign_time_window: Number(windowSeconds.value),
       log_retain_days: Number(retainDays.value),
+      cred_cache_ttl: Number(credCacheTTL.value),
     })
     settings.value = data
     showToast('鉴权配置已保存（10 秒内生效）', 'success')
@@ -141,6 +154,20 @@ onMounted(load)
               :error="retainError !== ''"
               :error-messages="retainError"
             />
+            <v-text-field
+              v-model.number="credCacheTTL"
+              type="number"
+              label="凭证缓存 TTL（秒，19007）"
+              density="compact"
+              variant="outlined"
+              min="0"
+              max="600"
+              style="min-width: 220px; max-width: 260px"
+              :error="credCacheError !== ''"
+              :error-messages="credCacheError"
+              hint="0 = 关闭缓存（每次查凭证表）"
+              persistent-hint
+            />
             <v-btn color="primary" prepend-icon="mdi-content-save" :loading="saving" :disabled="!canSave" @click="save">
               保存配置
             </v-btn>
@@ -190,6 +217,11 @@ onMounted(load)
         <p>
           ③ <strong>审计日志保留天数</strong>：<code>open.open_api_invoke_log</code> 按 <code>dt_request</code>
           清理更早记录；<code>0</code> 表示不清理（不建议）。
+        </p>
+        <p>
+          ③-b <strong>凭证缓存 TTL</strong>：鉴权读凭证走 Redis 缓存，稳态下每个活跃凭证每 TTL 最多查表 1 次；
+          <code>0</code> = 关闭缓存（每次请求都查凭证表）。通过页面吊销/停用/轮换凭证会<strong>立即</strong>让缓存失效，
+          该值只影响「直接改库」的生效延迟与查库频率。
         </p>
         <p>
           ④ <strong>密钥项不在本页修改</strong>：<code>19004</code> KID 与 <code>19005</code> 加密密钥、

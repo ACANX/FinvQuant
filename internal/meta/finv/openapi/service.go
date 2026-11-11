@@ -45,7 +45,7 @@ func (s *Service) Settings(ctx context.Context) (SettingsView, error) {
 	return s.store.LoadSettings(ctx)
 }
 
-// SaveSettings 保存 19001～19003；模式与数值都做范围校验。
+// SaveSettings 保存 19001～19003 与 19007；模式与数值都做范围校验。
 func (s *Service) SaveSettings(ctx context.Context, req SettingsRequest) (SettingsView, error) {
 	mode, err := normalizeMode(req.Mode)
 	if err != nil {
@@ -57,8 +57,12 @@ func (s *Service) SaveSettings(ctx context.Context, req SettingsRequest) (Settin
 	if req.LogRetainDays < 0 || req.LogRetainDays > 3650 {
 		return SettingsView{}, invalid("log_retain_days 需在 0~3650 天之间（0 表示不清理），实际 %d", req.LogRetainDays)
 	}
+	if req.CredCacheTTL < 0 || req.CredCacheTTL > 600 {
+		return SettingsView{}, invalid("cred_cache_ttl 需在 0~600 秒之间（0 表示关闭凭证缓存），实际 %d", req.CredCacheTTL)
+	}
 	if err := s.store.SaveSettings(ctx, SettingsRequest{
 		Mode: mode, SignTimeWindow: req.SignTimeWindow, LogRetainDays: req.LogRetainDays,
+		CredCacheTTL: req.CredCacheTTL,
 	}); err != nil {
 		return SettingsView{}, err
 	}

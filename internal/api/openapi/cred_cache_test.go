@@ -100,7 +100,7 @@ func TestCachedSourceHitsAndInvalidates(t *testing.T) {
 	ctx := context.Background()
 	credential := &Credential{IDN: 1, AuthMode: AuthModeAPIKey, AccessKeyID: "SA_LIVE_X", FlagEnable: true}
 	next := &countingSource{credential: credential}
-	source := newCachedSource(next, nil, DefaultCredCacheTTL, nil)
+	source := newCachedSource(next, nil, fixedTTL(DefaultCredCacheTTL), nil)
 
 	// rdb 为 nil：每次直通，无缓存
 	if _, err := source.Lookup(ctx, "SA_LIVE_X"); err != nil {
@@ -114,7 +114,7 @@ func TestCachedSourceHitsAndInvalidates(t *testing.T) {
 	}
 
 	// 回源错误原样返回，不吞
-	failing := newCachedSource(&countingSource{err: errors.New("db down")}, nil, DefaultCredCacheTTL, nil)
+	failing := newCachedSource(&countingSource{err: errors.New("db down")}, nil, fixedTTL(DefaultCredCacheTTL), nil)
 	if _, err := failing.Lookup(ctx, "SA_LIVE_X"); err == nil {
 		t.Fatal("回源错误应向上传递")
 	}
@@ -202,7 +202,7 @@ func TestCachedSourceRedisBehaviour(t *testing.T) {
 	credential := &Credential{IDN: 1, AuthMode: AuthModeAPIKey, AccessKeyID: "SA_LIVE_X", FlagEnable: true}
 	next := &countingSource{credential: credential}
 	fake := newFakeRedis()
-	source := newCachedSource(next, fake, DefaultCredCacheTTL, nil)
+	source := newCachedSource(next, fake, fixedTTL(DefaultCredCacheTTL), nil)
 
 	// 第一次：miss → 回源 → 写缓存
 	if _, err := source.Lookup(ctx, "SA_LIVE_X"); err != nil {
@@ -244,6 +244,11 @@ func TestCachedSourceRedisBehaviour(t *testing.T) {
 	}
 }
 
+// fixedTTL 固定 TTL 的取值函数（测试用）。
+func fixedTTL(ttl time.Duration) func(context.Context) time.Duration {
+	return func(context.Context) time.Duration { return ttl }
+}
+
 // mustEncodeNotFound 生成「AK 不存在」缓存值。
 func mustEncodeNotFound(t *testing.T) []byte {
 	t.Helper()
@@ -259,7 +264,7 @@ func TestCachedSourceNotFoundCached(t *testing.T) {
 	ctx := context.Background()
 	next := &countingSource{credential: &Credential{IDN: 1, AuthMode: AuthModeAPIKey, AccessKeyID: "SA_LIVE_OK"}}
 	fake := newFakeRedis()
-	source := newCachedSource(next, fake, DefaultCredCacheTTL, nil)
+	source := newCachedSource(next, fake, fixedTTL(DefaultCredCacheTTL), nil)
 
 	for i := 0; i < 3; i++ {
 		if _, err := source.Lookup(ctx, "SA_LIVE_INVALID"); !errors.Is(err, ErrCredentialNotFound) {
@@ -276,7 +281,7 @@ func TestCachedSourceConcurrentMissSingleflight(t *testing.T) {
 	ctx := context.Background()
 	next := &slowSource{credential: &Credential{IDN: 1, AuthMode: AuthModeAPIKey, AccessKeyID: "SA_LIVE_X"}, delay: 50 * time.Millisecond}
 	fake := newFakeRedis()
-	source := newCachedSource(next, fake, DefaultCredCacheTTL, nil)
+	source := newCachedSource(next, fake, fixedTTL(DefaultCredCacheTTL), nil)
 
 	const workers = 20
 	var wg sync.WaitGroup
@@ -326,12 +331,9 @@ func TestNewCachedSourceTTLConfig(t *testing.T) {
 	credential := &Credential{IDN: 1, AuthMode: AuthModeAPIKey, AccessKeyID: "SA_LIVE_X", FlagEnable: true}
 	fake := newFakeRedis()
 
-	// ttl=0：关闭缓存，每次回源
+	// ttl=0：关闭缓存（19007=0），每次回源
 	next := &countingSource{credential: credential}
-	disabled := NewCachedSource(next, nil, 0, nil)
-	if disabled.rdb != nil {
-		t.Fatal("ttl=0 应关闭缓存")
-	}
+	disabled := newCachedSource(next, fake, fixedTTL(0), nil)
 	for i := 0; i < 3; i++ {
 		if _, err := disabled.Lookup(ctx, "SA_LIVE_X"); err != nil {
 			t.Fatalf("查询失败: %v", err)
@@ -343,10 +345,7 @@ func TestNewCachedSourceTTLConfig(t *testing.T) {
 
 	// ttl>0：开启缓存，命中不回源（用内部构造注入替身客户端）
 	next2 := &countingSource{credential: credential}
-	enabled := newCachedSource(next2, fake, 30*time.Second, nil)
-	if enabled.ttl != 30*time.Second {
-		t.Fatalf("TTL 未按配置生效: %v", enabled.ttl)
-	}
+	enabled := newCachedSource(next2, fake, fixedTTL(30*time.Second), nil)
 	if _, err := enabled.Lookup(ctx, "SA_LIVE_X"); err != nil {
 		t.Fatalf("查询失败: %v", err)
 	}

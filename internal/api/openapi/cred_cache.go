@@ -34,7 +34,7 @@ const (
 	credCacheKeyBase = "finv:openapi:cred:"
 	// DefaultCredCacheTTL 凭证快照的默认存活时间（需求 11214）。
 	//
-	// 实际取值由 FINV_OPENAPI_CRED_CACHE_TTL 配置（秒），0 表示关闭缓存。
+	// 实际取值来自 sys_config 19007（秒，需求 11215）；0 表示关闭缓存。
 	// 平台侧吊销/停用/轮换会 `INCR` 版本号立即失效；TTL 只兜底「绕过平台直接改库」的生效延迟，
 	// 同时决定稳态查库频率（每个活跃凭证每 TTL 最多 1 次）。
 	DefaultCredCacheTTL = 10 * time.Second
@@ -53,33 +53,39 @@ type credentialCacheClient interface {
 type CachedSource struct {
 	next CredentialSource
 	rdb  credentialCacheClient
-	ttl  time.Duration
-	logf func(format string, args ...any)
+	// ttlOf 每次取值都问一次（来自 sys_config 19007）：改配置后无需重建容器即可生效。
+	ttlOf func(ctx context.Context) time.Duration
+	logf  func(format string, args ...any)
 	// group 合并同一 AK 的并发回源：TTL 刚到期时避免 N 个并发请求同时查库（缓存击穿）。
 	group singleflight.Group
 }
 
 // NewCachedSource 创建带缓存的凭证来源；rdb 为 nil 时退化为直通（不缓存）。
 //
+// ttlOf 每次请求取一次（实现读 sys_config 19007，需求 11215）：
+// 返回 0 表示本次关闭缓存、直接回源。
+//
 // 注意：这里收 `*redis.Client` 而不是接口——未注入 Redis 时（单测/本地裸跑）传进来的
 // typed nil 若直接装进接口会变成「非 nil 接口」，调用方法会 panic。
-func NewCachedSource(next CredentialSource, rdb *redis.Client, ttl time.Duration, logf func(format string, args ...any)) *CachedSource {
+func NewCachedSource(next CredentialSource, rdb *redis.Client, ttlOf func(ctx context.Context) time.Duration,
+	logf func(format string, args ...any)) *CachedSource {
 	var client credentialCacheClient
-	if rdb != nil && ttl > 0 {
+	if rdb != nil {
 		client = rdb
 	}
-	return newCachedSource(next, client, ttl, logf)
+	return newCachedSource(next, client, ttlOf, logf)
 }
 
 // newCachedSource 内部构造（测试可直接注入替身）。
-func newCachedSource(next CredentialSource, client credentialCacheClient, ttl time.Duration, logf func(format string, args ...any)) *CachedSource {
+func newCachedSource(next CredentialSource, client credentialCacheClient,
+	ttlOf func(ctx context.Context) time.Duration, logf func(format string, args ...any)) *CachedSource {
 	if logf == nil {
 		logf = func(string, ...any) {}
 	}
-	if ttl <= 0 {
-		ttl = DefaultCredCacheTTL
+	if ttlOf == nil {
+		ttlOf = func(context.Context) time.Duration { return DefaultCredCacheTTL }
 	}
-	return &CachedSource{next: next, rdb: client, ttl: ttl, logf: logf}
+	return &CachedSource{next: next, rdb: client, ttlOf: ttlOf, logf: logf}
 }
 
 // Lookup 先查缓存，未命中回源并写入缓存。
@@ -88,7 +94,9 @@ func newCachedSource(next CredentialSource, client credentialCacheClient, ttl ti
 // 把每个请求都打成一次全表查询。
 func (s *CachedSource) Lookup(ctx context.Context, accessKeyID string) (*Credential, error) {
 	accessKeyID = strings.TrimSpace(accessKeyID)
-	if s.rdb == nil || accessKeyID == "" {
+	// 缓存时长来自 sys_config 19007：0 = 关闭缓存（需求 11215）
+	ttl := s.ttlOf(ctx)
+	if s.rdb == nil || accessKeyID == "" || ttl <= 0 {
 		return s.next.Lookup(ctx, accessKeyID)
 	}
 
@@ -113,12 +121,12 @@ func (s *CachedSource) Lookup(ctx context.Context, accessKeyID string) (*Credent
 		credential, lookupErr := s.next.Lookup(ctx, accessKeyID)
 		switch {
 		case errors.Is(lookupErr, ErrCredentialNotFound):
-			s.store(ctx, key, nil)
+			s.store(ctx, key, nil, ttl)
 			return nil, ErrCredentialNotFound
 		case lookupErr != nil:
 			return nil, lookupErr
 		}
-		s.store(ctx, key, credential)
+		s.store(ctx, key, credential, ttl)
 		return credential, nil
 	})
 	if err != nil {
@@ -132,7 +140,7 @@ func (s *CachedSource) Lookup(ctx context.Context, accessKeyID string) (*Credent
 }
 
 // store 写缓存（credential 为 nil 时写「不存在」标记）；写失败只记日志。
-func (s *CachedSource) store(ctx context.Context, key string, credential *Credential) {
+func (s *CachedSource) store(ctx context.Context, key string, credential *Credential, ttl time.Duration) {
 	var (
 		data []byte
 		ok   bool
@@ -145,7 +153,7 @@ func (s *CachedSource) store(ctx context.Context, key string, credential *Creden
 	if !ok {
 		return
 	}
-	if err := s.rdb.Set(ctx, key, data, s.ttl).Err(); err != nil {
+	if err := s.rdb.Set(ctx, key, data, ttl).Err(); err != nil {
 		s.logf("[openapi] 写凭证缓存失败（忽略）: %v", err)
 	}
 }

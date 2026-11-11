@@ -32,6 +32,7 @@ var DefaultSettings = Settings{
 	Mode:            ModeOff,
 	SignTimeWindow:  300 * time.Second,
 	LogRetainDays:   90,
+	CredCacheTTL:    10 * time.Second,
 	SecretKID:       "k1",
 	NonceKeepWindow: 600 * time.Second, // 2 倍签名时间窗
 }
@@ -50,6 +51,9 @@ type Settings struct {
 	SecretKeyBase64 string
 	// FallbackKey 19006：兼容期兜底静态密钥；空串表示不启用。
 	FallbackKey string
+	// CredCacheTTL 19007：读凭证的 Redis 缓存时长（需求 11214/11215）。
+	// 0 表示关闭缓存（每次查表）；UI/接口写入范围 0~600 秒，读取侧再收敛一次。
+	CredCacheTTL time.Duration
 	// NonceKeepWindow nonce 去重保留时长（2 倍签名时间窗）。
 	NonceKeepWindow time.Duration
 }
@@ -87,7 +91,7 @@ const configTTL = 10 * time.Second
 const selectSettingsSQL = `
 SELECT config_no, COALESCE(char_value, ''), COALESCE(str_value, ''), COALESCE(int_value, 0)
   FROM sys.sys_config
- WHERE config_no BETWEEN 19001 AND 19006`
+ WHERE config_no BETWEEN 19001 AND 19007`
 
 // SettingsStore 基于 pgx 的配置读取器（短 TTL 缓存）。
 type SettingsStore struct {
@@ -181,6 +185,9 @@ func (s *SettingsStore) query(ctx context.Context) (Settings, error) {
 			settings.SecretKeyBase64 = strings.TrimSpace(strVal)
 		case 19006:
 			settings.FallbackKey = strings.TrimSpace(strVal)
+		case 19007:
+			// 0 合法（关闭缓存）；负数按 0、超过上限按上限收敛，避免误配把直连改库的生效时间拖到几小时
+			settings.CredCacheTTL = clampCredCacheTTL(intVal)
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -188,6 +195,18 @@ func (s *SettingsStore) query(ctx context.Context) (Settings, error) {
 	}
 	settings.NonceKeepWindow = 2 * settings.SignTimeWindow
 	return settings, nil
+}
+
+// clampCredCacheTTL 把 19007 的秒数收敛到 [0, MaxCredCacheTTL]。
+func clampCredCacheTTL(seconds int) time.Duration {
+	if seconds <= 0 {
+		return 0
+	}
+	value := time.Duration(seconds) * time.Second
+	if value > MaxCredCacheTTL {
+		return MaxCredCacheTTL
+	}
+	return value
 }
 
 // staticSettings 固定配置（单测与不吃库的场景使用）。
