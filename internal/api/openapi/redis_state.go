@@ -33,9 +33,12 @@ func NewRedisStore(rdb *redis.Client) *RedisStore {
 
 // AcquireNonce 占用 nonce：返回 true 表示首次使用；false 表示窗口内重复（重放）。
 //
+// scopeKey 是去重作用域：长期凭证传凭证 idn，STS 临时凭据传临时 AK 指纹，
+// 避免不同凭据之间互相"占坑"（同一 nonce 值在别的凭据下仍可用）。
+//
 // Redis 不可用时返回 (true, err)：宁可放行也不因缓存故障把外部调用方全部挡住，
 // 由中间件把 err 写进审计日志细节。
-func (s *RedisStore) AcquireNonce(ctx context.Context, credentialIDN int64, nonce string, keep time.Duration) (bool, error) {
+func (s *RedisStore) AcquireNonce(ctx context.Context, scopeKey string, nonce string, keep time.Duration) (bool, error) {
 	if s.rdb == nil {
 		return true, nil
 	}
@@ -45,7 +48,7 @@ func (s *RedisStore) AcquireNonce(ctx context.Context, credentialIDN int64, nonc
 	if keep <= 0 {
 		keep = DefaultSettings.NonceKeepWindow
 	}
-	key := fmt.Sprintf("%s%d:%s", nonceKeyPrefix, credentialIDN, nonce)
+	key := fmt.Sprintf("%s%s:%s", nonceKeyPrefix, scopeKey, nonce)
 	return s.rdb.SetNX(ctx, key, "1", keep).Result()
 }
 

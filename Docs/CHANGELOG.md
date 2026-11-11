@@ -219,6 +219,18 @@
 
 ### 变更
 
+- **支持 STS 临时凭据（标准三要素，需求 11191）**
+  - 新端点 `POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue`（用户定稿路径，缩写段全大写）：
+    用长期 AK/SK 换取 2 小时有效的 `TA_LIVE_`(AK) + `TS_LIVE_`(SK) + `ST_LIVE_`(SecurityToken)，
+    返回 `expire_at` / `expire_seconds=7200`。
+  - 三要素都要带：新增 `X-META-Token`；SecurityToken 作为待签串第 7 段参与签名。
+    长期 AK/SK 不带该头、待签串仍是 6 段 —— **协议不变，现有客户端无需改造**。
+  - 临时凭据不落库：Redis `finv:openapi:sts:<TA>`（TTL 2h，SK 用 19005 密钥加密），
+    权限继承父凭证（scope / IP 白名单 / 调用方限流）；不可续期，且不能用 STS 换 STS。
+  - nonce 去重作用域由「凭证 idn」扩展为「作用域键」，STS 用临时 AK 指纹隔离，避免与长期凭证互相占坑。
+  - 审计：`auth_mode='STS'`、`credential_idn`=父凭证、`kfp`=临时 AK 指纹、新增 `token_fp` 列（迁移 `V300188`，含索引）。
+  - 文档：`Auth.md` §4.8；`DataDictMapping/OpenApiAuth.md` 补 `token_fp`；前端 `auth_mode` 文案加「STS 临时凭据」。
+
 - **`scope_str` 损坏按拒绝处理（需求 11190）**
   - 原 `parseScope` 遇到非法 JSON 静默返回 nil，而 nil 的语义是「全部接口」——坏数据会把凭证放大成全权限
     （上一轮 seed 脚本误写字符串数组即触发此路径，AK/SK 凭证实际被放开了全部接口）。

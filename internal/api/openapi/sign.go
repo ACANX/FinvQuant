@@ -26,6 +26,8 @@ const AuthSchemePrefix = "META1-"
 const (
 	HeaderTimestamp = "X-META-TS"
 	HeaderNonce     = "X-META-Nonce"
+	// HeaderToken STS 临时凭据的 SecurityToken（需求 11191）。长期 AK/SK 不需要该头。
+	HeaderToken = "X-META-Token"
 )
 
 // ErrBadAuthHeader Authorization 头格式非法。
@@ -39,6 +41,9 @@ type SignRequest struct {
 	BodyHash  string // sha256(body) 十六进制；GET/空体为 sha256("") 的十六进制
 	Timestamp string
 	Nonce     string
+	// Token STS 的 SecurityToken（需求 11191）：只有 STS 临时凭据参与签名；
+	// 为空时待签串与长期 AK/SK 完全一致（协议不变）。
+	Token string
 }
 
 // CanonicalString 生成待签串：
@@ -47,14 +52,19 @@ type SignRequest struct {
 //
 // SORTED_QUERY：参数名升序、同名参数的值也升序，键值均做 RFC 3986 百分号编码（空格 → %20）。
 func CanonicalString(req SignRequest) string {
-	return strings.Join([]string{
+	parts := []string{
 		strings.ToUpper(strings.TrimSpace(req.Method)),
 		req.Path,
 		canonicalQuery(req.RawQuery),
 		req.BodyHash,
 		req.Timestamp,
 		req.Nonce,
-	}, "\n")
+	}
+	// STS 临时凭据：SecurityToken 追加为第 7 段（需求 11191）；长期 AK/SK 无 token，串不变。
+	if token := strings.TrimSpace(req.Token); token != "" {
+		parts = append(parts, token)
+	}
+	return strings.Join(parts, "\n")
 }
 
 // canonicalQuery 规范化查询串；解析失败时退回原始串（宁可让签名失败，也不静默改变语义）。

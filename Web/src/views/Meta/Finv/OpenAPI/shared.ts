@@ -22,6 +22,7 @@ export const MODE_LABELS: Record<string, string> = {
 export const AUTH_MODE_LABELS: Record<string, string> = {
   APIKEY: '静态 Key',
   AKSK: 'AK/SK 签名',
+  STS: 'STS 临时凭据',
   BEARER: 'Bearer JWT（预留）',
   MTLS: '双向 TLS（预留）',
   BASIC: '用户名口令（预留）',

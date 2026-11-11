@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/acanx/finvquant/internal/meta/finv/openapi/secret"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -64,6 +65,8 @@ type Middleware struct {
 	logf     func(format string, args ...any)
 	// redisFailClose Redis 故障时是否拒绝请求（FINV_OPENAPI_REDIS_FAIL_MODE=close）。
 	redisFailClose bool
+	// sts STS 临时凭据存储（需求 11191）。
+	sts *StsStore
 }
 
 // NewMiddleware 构造中间件。
@@ -92,6 +95,7 @@ func NewMiddleware(opts Options) *Middleware {
 		source:         source,
 		settings:       settings,
 		redis:          NewRedisStore(opts.Redis),
+		sts:            NewStsStore(opts.Redis),
 		redisFailClose: opts.RedisFailClose,
 		recorder:       recorder,
 		envKey:         strings.TrimSpace(opts.FallbackKey),
@@ -160,6 +164,13 @@ func (m *Middleware) Handler() gin.HandlerFunc {
 				"凭据授权范围数据损坏（scope_str 不是合法对象数组），请联系平台方修复", nil)
 			return
 		}
+		// STS 临时凭据不能再换证（需求 11191）：在中间件拦下，保证审计记 pass=0，
+		// 而不是等 handler 返回 403（那样审计里会留下一条「放行」记录）。
+		if credential.AuthMode == AuthModeSTS && c.Request.URL.Path == StsIssuePath {
+			m.deny(c, settings, invocation, started, CodeScopeDeny,
+				"STS 临时凭据不能再换取临时凭据，请用长期 AK/SK", nil)
+			return
+		}
 		if !credential.InScope(c.Request.Method, c.Request.URL.Path) {
 			m.deny(c, settings, invocation, started, CodeScopeDeny, "接口不在授权范围内", nil)
 			return
@@ -211,6 +222,10 @@ func (m *Middleware) authenticate(c *gin.Context, settings Settings, req *http.R
 		// AK 是公开标识，即使后面定位失败也记进审计，便于排查「谁在用什么 AK 撞门」
 		invocation.AccessKeyID = accessKeyID
 		invocation.AuthMode = AuthModeAKSK
+		// STS 临时凭据（需求 11191）：TA_LIVE_ 前缀走独立分支（Redis 取回、三要素校验）
+		if strings.HasPrefix(strings.ToUpper(accessKeyID), secret.PrefixTempAK) {
+			return m.authenticateSTS(settings, req, body, invocation, algorithm, accessKeyID, signature)
+		}
 		credential, err := m.source.Lookup(req.Context(), accessKeyID)
 		if errors.Is(err, ErrCredentialNotFound) {
 			return nil, CodeKeyInvalid, "AK 未登记"
@@ -268,7 +283,7 @@ func (m *Middleware) authenticate(c *gin.Context, settings Settings, req *http.R
 			return credential, CodeTimestampSkew, "时间戳偏差 " + skew.String()
 		}
 
-		fresh, err := m.redis.AcquireNonce(req.Context(), credential.IDN, nonce, settings.NonceKeepWindow)
+		fresh, err := m.redis.AcquireNonce(req.Context(), strconv.FormatInt(credential.IDN, 10), nonce, settings.NonceKeepWindow)
 		if err != nil {
 			m.logf("[openapi] nonce 检查失败（fail-close=%t）: %v", m.redisFailClose, err)
 			if m.redisFailClose {

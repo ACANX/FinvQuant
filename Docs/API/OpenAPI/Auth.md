@@ -160,6 +160,44 @@ signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 
 > 静态 Key 模式**不做 nonce 去重**（没有签名，nonce 可伪造），写接口靠 `_` 时间戳把重放窗口压到 60 秒内。
 
+### 4.8 STS 临时凭据（需求 11191）
+
+调用方可把长期 AK/SK 换成**短期三要素**，用于短时任务（批处理、临时联调），泄露窗口从「长期」压到 2 小时。
+
+```
+POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue
+```
+
+- 必须用**长期 AK/SK** 签名调用（父凭证的授权范围要包含该路径）；返回：
+
+  ```json
+  { "code": 0, "message": "OK", "data": {
+      "access_key_id":  "TA_LIVE_...",
+      "secret_key":     "TS_LIVE_...",
+      "security_token": "ST_LIVE_...",
+      "expire_at":      "2026-11-11T10:30:00Z",
+      "expire_seconds": 7200 } }
+  ```
+
+- **有效期固定 2 小时**，不可续期；**不能用 STS 再换 STS**（防凭据链无限延长）。
+- 临时凭据不落库，存 Redis（`finv:openapi:sts:<TA>`，TTL 2h），权限继承父凭证（scope / IP 白名单 / 调用方限流）。
+
+调用时三要素都要带，签名串比长期 AK/SK **多一段**（SecurityToken）：
+
+```
+Authorization: META1-HMAC-SHA256 Credential=TA_LIVE_…, Signature=<base64>
+X-META-TS:    1737000000
+X-META-Nonce: 8~64 位
+X-META-Token: ST_LIVE_…
+
+待签串 = METHOD \n PATH \n SORTED_QUERY \n BODY_SHA256 \n TIMESTAMP \n NONCE \n TOKEN
+```
+
+> 长期 AK/SK 不带 `X-META-Token`，待签串仍是 6 段，**协议完全不变**，现有客户端无需改造。
+
+审计：`auth_mode='STS'`、`credential_idn` = 父凭证、`kfp` = 临时 AK 指纹、`token_fp` = SecurityToken 指纹
+（可按某一次临时凭据把整段会话的调用捞出来）。
+
 ## 5. 错误响应
 
 失败时 HTTP 状态码与业务码成对出现（`code` 为 `190xx`），并回显 `X-Request-Id`：

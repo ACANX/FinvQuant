@@ -26,6 +26,10 @@ const (
 	PrefixAPIKey = "SA_LIVE_"
 	PrefixAK     = "AK_LIVE_"
 	PrefixSK     = "SK_LIVE_"
+	// STS 临时凭据（需求 11191）：TA = Temporary Access，TS = Temporary Secret，ST = Security Token。
+	PrefixTempAK = "TA_LIVE_"
+	PrefixTempSK = "TS_LIVE_"
+	PrefixToken  = "ST_LIVE_"
 )
 
 // NormalizeKey 把密钥类字符串归一到大写口径。
