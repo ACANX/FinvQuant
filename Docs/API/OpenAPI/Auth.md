@@ -269,9 +269,36 @@ GET /OpenAPI/V1/Meta/Region/AZ/Server/Hello
 
 | 层 | 配置 | 作用 |
 |---|---|---|
-| Nginx → 服务端 | `proxy_set_header X-Real-IP $remote_addr;`<br>`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` | 把客户端 IP 传给服务端 |
+| Nginx → 服务端 | `proxy_set_header X-Real-IP $remote_addr;`<br>`proxy_set_header X-Forwarded-For $remote_addr;` | 把客户端 IP 传给服务端（用 `$remote_addr` **覆盖**；`$proxy_add_x_forwarded_for` 会在 CDN 已设过的情况下追加成 `IP, IP` 重复堆叠） |
 | Nginx 前面还有 CDN | `set_real_ip_from <CDN 网段>` + `real_ip_header CF-Connecting-IP` + `real_ip_recursive on` | 先把 `$remote_addr` 还原成真实客户端，否则转发的仍是 CDN 节点 IP |
 | 服务端 | `FINV_TRUSTED_PROXIES` | 只有 TCP 对端落在这些网段时才采信上面两个头 |
+
+**Cloudflare 网段从官方拉取并生成 realip 片段**（`nginx -V 2>&1 | grep realip` 确认模块存在）：
+
+```bash
+sudo mkdir -p /etc/nginx/snippets
+# curl 输出末尾没有换行，两段直接相接会把 "131.0.72.0/22" 与 "2400:cb00::/32"
+# 粘成 "131.0.72.0/222400:cb00::/32"，必须用 echo 补换行、再用 sed 删空行
+{ curl -s https://www.cloudflare.com/ips-v4; echo; curl -s https://www.cloudflare.com/ips-v6; echo; } \
+  | sed -e 's/\r$//' -e '/^$/d' -e 's/^/set_real_ip_from /' -e 's/$/;/' \
+  | sudo tee /etc/nginx/snippets/cloudflare-realip.conf >/dev/null
+printf 'real_ip_header    CF-Connecting-IP;\nreal_ip_recursive on;\n' \
+  | sudo tee -a /etc/nginx/snippets/cloudflare-realip.conf >/dev/null
+grep -c '^set_real_ip_from' /etc/nginx/snippets/cloudflare-realip.conf   # 应为 22（15 条 v4 + 7 条 v6）
+```
+
+片段在 **server 块顶层** include（不是放在某个 `location` 里）：
+
+```nginx
+server {
+    include /etc/nginx/snippets/cloudflare-realip.conf;
+    location /OpenAPI/ { proxy_pass http://127.0.0.1:16001; ... }
+}
+```
+
+> 站点配置文件位置随布局而异：Debian/Ubuntu 是 `/etc/nginx/sites-available/<site>`（`sites-enabled/` 只是软链接），
+> CentOS/宝塔等用 `/etc/nginx/conf.d/*.conf`。定位方法：`sudo nginx -t` 打印主配置路径，再
+> `sudo grep -rn "<域名>" /etc/nginx/ | grep -v ^Binary` 找站点文件。
 
 **默认值**（不配环境变量时）：`10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1/32, ::1/128, fc00::/7`。
 

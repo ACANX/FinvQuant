@@ -219,6 +219,17 @@
 
 ### 变更
 
+- **补全反向代理取真实 IP 的操作细节（需求 11247 落地）**
+  - `Docs/API/OpenAPI/Auth.md` §4.11：给出从 Cloudflare 官方拉网段并生成 realip 片段的完整命令，
+    注明 `curl` 输出末尾无换行会把 `131.0.72.0/22` 与 `2400:cb00::/32` 粘成非法 CIDR
+    （`nginx: [emerg] host not found in set_real_ip_from`），须用 `echo` 补换行 + `sed '/^$/d'`；
+    补自检口径（`grep -c '^set_real_ip_from'` = 22）与片段必须放在 `server` 顶层；
+    `X-Forwarded-For` 由 `$proxy_add_x_forwarded_for` 改为 `$remote_addr`（覆盖，避免 CDN 已设值时重复堆叠）；
+    补站点配置文件定位方法（`nginx -t` / `grep -rn <域名>` / `nginx: master -c` / 容器挂载），
+    覆盖 Debian 的 `sites-available` 与 CentOS/宝塔的 `conf.d` 两种布局。
+  - `FinvQuantDesign/OpenAPI/Prod/RealIpGuide.md`：新增 §2.0「先定位站点配置文件在哪」、
+    §8「落地检查清单」（9 项可勾选，含网段每季度刷新提醒）。
+
 - **修复反向代理后审计 IP 记成内网地址（需求 11247）**
   - 根因：`internal/api/openapi/audit.go` 的 `clientIP()` 只看 `req.RemoteAddr`，不读
     `X-Forwarded-For` / `X-Real-IP`；经 Nginx 后对端恒为代理内网 IP。同一 IP 还用于 `allow_cidr`
