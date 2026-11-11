@@ -2881,6 +2881,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 11234 | 接口编码 `finv.quote.cdeu.realtime.stockupsert` 改为 `finv.quote.cdeu.realtime.ftstockupsert`：该接口路径是 `/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert`（`FT` = 富途数据源），编码少了 `ft` 与路径末段对不上；编码改为与路径一致（38 字符，列宽 48 内）。迁移 `V300200` 幂等更新（只在当前值仍是旧编码时生效），历史审计随 join 自动显示新值 | `docker exec fq-postgres psql -U finv -d finv -c "SELECT api_code FROM open.open_api_endpoint WHERE idn=3;"` 返回 `finv.quote.cdeu.realtime.ftstockupsert`；`GET /API/V1/Meta/Finv/OpenAPI/Endpoint/Page` 与 `InvokeLog/Page` 显示新编码；重跑 `V300200` 影响 0 行；`schema_version` 为 `300200` | √ |
 | 11235 | 接口编码 `auth.sts.issue` 改为 `open.auth.sts.issue`：原编码没有业务域前缀，看起来像顶级域；`open` 对应开放平台域（与 `open` schema 一致），与行情域的 `finv.quote.` 前缀形成同一套口径。迁移 `V300201` 幂等更新（只在当前值仍是旧编码时生效），历史审计随 `(method, path)` join 自动显示新值 | `docker exec fq-postgres psql -U finv -d finv -c "SELECT api_code FROM open.open_api_endpoint WHERE idn=4;"` 返回 `open.auth.sts.issue`；重跑 `V300201` 影响 0 行；`Endpoint/Page` 返回新编码 | √ |
 | 11236 | STS 换证接口路径由 `/OpenAPI/V1/Meta/Auth/Credential/STS/Issue` 调整为 `/OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue`：`Meta/Open` 体现「开放平台自己的鉴权接口」，与编码 `open.auth.sts.issue` 对齐。代码侧同步 `router.go` 注册路径与 `openapi.StsIssuePath` 常量（兑换凭证路径隔离判定依赖它，需求 11210 语义不变）；数据侧 `V300202` 三处同改——接口清单 `path`、`scope_str` 快照、`open_api_credential_scope.path_pattern`（鉴权读取源），改前整行备份到 `archive.*_purge_20261111`，单事务「备份→改→校验」，校验用 `RAISE EXCEPTION`；**不保留旧路径**（尚无外部接入方，且签名待签串含 PATH，留旧路径只会产生 19005 噪音） | `psql` 查三处旧路径残留均为 0、明细表新路径规则数 ≥ 1；`demo_client.py` 的 `PATH_STS` 已切新路径且 24 项全绿（换证 200、三要素调用 200）；`curl -X POST` 旧路径 → 404/405；`go test ./internal/api/...` 通过 | √ |
+| 11237 | 接口编码 `open.auth.sts.issue` 改为 `open.auth.credential.sts.issue`：与其它编码统一为「业务域.模块.资源.动作」层级，补上 `credential` 资源段（与表 `open_api_credential` 对应）；原编码缺资源段，与页面/表名对不上。迁移 `V300203` 幂等更新（只在当前值仍是旧编码时生效），历史审计随 `(method, path)` join 自动显示新值 | `docker exec fq-postgres psql -U finv -d finv -c "SELECT api_code FROM open.open_api_endpoint WHERE idn=4;"` 返回 `open.auth.credential.sts.issue`；重跑 `V300203` 影响 0 行；`GET /API/V1/Meta/Finv/OpenAPI/Endpoint/Page` 与 `InvokeLog/Page` 返回新编码；`schema_version` 为 `300203` | √ |
 
 
 ## 汇总
@@ -3337,7 +3338,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 修复「证券参数补全 → 采集参数」必填校验必然失败：快照 `instrument_type` 是 TEXT 且 `12`/`3` 都表示股票、采集表只有 `3`，参考行匹配按 `q.instrument_type::text = btrim(t.instrument_type)` 直接比对导致 `12` 的行取不到 `market_code`（=0）；改为按归一后的整型匹配（`12`→`3`）；`market_code` 取不到参考值时预填**返回空串**并提示必须人工填写（不再返回 `0`）；前端把数值字段的 `0` 也算「未填」并逐字段标红；后端必填校验错误消息逐项列出字段与实际值 | 11164 | 1 |
 | 「证券参数补全 → 规范证券参数」对话框的 `timezone`（UTC 偏移）/ `tz`（IANA 标识）预填缺省值，按「市场 → 交易所 → 区域」三层推断：① 同 `exchange_code` 已有 `public.finv_security` 行 `(timezone, tz)` 的众数（来源=参考）；② 同 `finv_exchange.region` 已有行的众数（来源=参考）；③ 内置区域 → IANA 时区映射、偏移按该时区**当前时刻**推算（来源=字典，二进制内嵌 `time/tzdata`）；三层都拿不到时留空 + 来源=待填 + 风险提示 | 11165 | 1 |
 | 「证券参数补全 → 采集参数」对话框补缺省推断：`market_type` 改为「快照 → 同市场已有配置行众数（参考）→ 内置映射 HK=1/US=2/A股=4/FX=11/CC=17（字典）」；`req_section` 改为「同市场同品种众数（参考），众数为空则留空并说明选填」；`sub_instrument_type` 的兜底改按**归一后** `instrument_type` 计算（`12` 按 `3` 算，避免算出 12002）；`instrument_type` 仍写快照原值但说明里点明「12 与 3 同为股票、存量以 3 为主」 | 11166 | 1 |
-| **合计** | **10001–11236** | **1232**（含 4 条待办） |
+| **合计** | **10001–11237** | **1233**（含 4 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

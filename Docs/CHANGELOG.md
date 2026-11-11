@@ -219,6 +219,11 @@
 
 ### 变更
 
+- **STS 换证接口编码补 credential 段（需求 11237，迁移 V300203）**
+  - `open.auth.sts.issue` → `open.auth.credential.sts.issue`：统一为「业务域.模块.资源.动作」层级，
+    补上 `credential` 资源段（与表 `open_api_credential`、页面「OpenAPI 凭证」对应）。
+  - 迁移幂等（只在当前值仍是旧编码时更新），历史审计随 `(method, path)` join 自动显示新编码。
+
 - **STS 换证接口编码与路径统一到开放平台域（需求 11235 / 11236）**
   - 编码 `auth.sts.issue` → `open.auth.sts.issue`（`V300201`）：原编码没有业务域前缀，看起来像顶级域；
     `open` 与 `open` schema 对齐，和行情域的 `finv.quote.` 形成同一套口径。
