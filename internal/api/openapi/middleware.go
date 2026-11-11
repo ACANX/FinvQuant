@@ -136,7 +136,11 @@ func (m *Middleware) Handler() gin.HandlerFunc {
 		if credential != nil {
 			invocation.ClientIDN = credential.ClientIDN
 			invocation.CredentialIDN = credential.IDN
-			invocation.AccessKeyID = credential.AccessKeyID
+			// 静态 Key 的「公开标识」本身就是密钥：authenticate 里已写入脱敏形态，
+			// 这里**只在该字段为空时**才用凭证的 access_key_id 兜底（AK/SK 模式是公开值，可以落明文）。
+			if invocation.AccessKeyID == "" {
+				invocation.AccessKeyID = credential.AccessKeyID
+			}
 			invocation.AuthMode = credential.AuthMode
 		}
 		if code != 0 {

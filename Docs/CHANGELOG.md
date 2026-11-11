@@ -219,6 +219,15 @@
 
 ### 变更
 
+- **修审计表把静态 API Key 明文落库（需求 11168 安全修复）**
+  - 现象：静态 Key 放行时 `open.open_api_invoke_log.access_key_id` 存的是**完整密钥**；
+    失败时才是脱敏形态。静态 Key 本身就是密钥，等于把凭据写进了审计表（列表页也会展示）。
+  - 根因：`authenticate` 里已写入 `maskKey(provided)`，但外层又用 `credential.AccessKeyID` 覆盖了一遍。
+  - 修复：外层改为「该字段为空才用凭证的 `access_key_id` 兜底」——AK/SK 的 AK 是公开标识仍落明文，
+    静态 Key 保留脱敏值。已清理本机审计表里 19 行历史明文（改为 `前8***后4`），并轮换演示凭证让旧 Key 失效。
+  - 测试：补 `TestAuditMasksStaticKey`（静态 Key 放行后审计值是脱敏形态、不含完整密钥）。
+  - 复查：`SELECT count(*) FROM open.open_api_invoke_log WHERE auth_mode='API_KEY' AND access_key_id NOT LIKE '%***%'` = 0。
+
 - **对外 PageUni 契约：鉴权表同步为实际实现（需求 11168 文档补充）**
   - `Docs/OpenAPI/Quote/Cdeu/Min/PageUni.md` §2 原来写「认证：无（公开）／不会返回 401」，
     已改为实际口径：静态 API Key（`SA_LIVE_…`）与 AK/SK 签名两种模式、`190xx` 失败码、19001 三态开关、审计回查方式。

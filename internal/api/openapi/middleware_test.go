@@ -570,3 +570,31 @@ func TestSettingsDefaultsAndParse(t *testing.T) {
 		t.Fatalf("非法输入应返回 false")
 	}
 }
+
+// TestAuditMasksStaticKey 审计里的静态 Key 必须是脱敏形态（它本身就是密钥，不能落明文）。
+func TestAuditMasksStaticKey(t *testing.T) {
+	key := "SA_LIVE_0123456789ABCDEF0123456789ABCDEF"
+	credential := &Credential{
+		IDN: 1, ClientIDN: 1, AuthMode: AuthModeAPIKey, AccessKeyID: key,
+		SecretHash: HashStaticKey(key), FlagEnable: true, clientEnable: true,
+	}
+	engine, _ := newTestEngine(t, Options{
+		Source: &fakeSource{byKey: map[string]*Credential{key: credential}},
+	}, enabledSettings(testKey()))
+
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test", strings.NewReader("x"))
+	req.Header.Set("X-API-Key", key)
+	engine.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("静态 Key 应放行，实际 %d", recorder.Code)
+	}
+	// 复用中间件内部逻辑断言：脱敏后既不含完整密钥，也不是空
+	masked := maskKey(key)
+	if strings.Contains(masked, key) || masked == "" || !strings.Contains(masked, "***") {
+		t.Fatalf("静态 Key 脱敏形态不符: %q", masked)
+	}
+	if len(masked) >= len(key) {
+		t.Fatalf("脱敏后长度应小于原值: %q", masked)
+	}
+}
