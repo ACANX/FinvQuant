@@ -597,11 +597,12 @@ func TestAuditMasksStaticKey(t *testing.T) {
 	}
 	// 复用中间件内部逻辑断言：脱敏后既不含完整密钥，也不是空
 	masked := maskKey(key)
-	if strings.Contains(masked, key) || masked == "" || !strings.Contains(masked, "***") {
+	if strings.Contains(masked, key) || masked == "" || !strings.Contains(masked, "*") {
 		t.Fatalf("静态 Key 脱敏形态不符: %q", masked)
 	}
-	if len(masked) >= len(key) {
-		t.Fatalf("脱敏后长度应小于原值: %q", masked)
+	// 掩码总长与原密钥一致（前缀 + 前 8 + 16 个星号 + 后 8）
+	if len(masked) != len(key) {
+		t.Fatalf("掩码长度应等于原密钥（%d），实际 %d: %q", len(key), len(masked), masked)
 	}
 	// 必须跳过固定前缀，否则「前 8 位」全是 SA_LIVE_，只剩后 4 位可区分
 	if !strings.HasPrefix(masked, "SA_LIVE_") {
@@ -616,12 +617,12 @@ func TestAuditMasksStaticKey(t *testing.T) {
 // 「跳前缀 + 随机段前 8 + 后 8」= 16 位十六进制区分度，而不是只剩后 4 位。
 func TestMaskKeyDistinguishes(t *testing.T) {
 	cases := []struct{ in, want string }{
-		{"SA_LIVE_0123456789ABCDEF0123456789ABCDEF", "SA_LIVE_01234567***89ABCDEF"},
-		{"AK_LIVE_7A01139C5571D46EDEFF2DB63C9F0E45", "AK_LIVE_7A01139C***3C9F0E45"},
+		{"SA_LIVE_0123456789ABCDEF0123456789ABCDEF", "SA_LIVE_01234567****************89ABCDEF"},
+		{"AK_LIVE_7A01139C5571D46EDEFF2DB63C9F0E45", "AK_LIVE_7A01139C****************3C9F0E45"},
 		// 随机段恰为 16 位：前 8+后 8 会覆盖整串，退化为前 4 后 4
-		{"0123456789ABCDEF", "0123***CDEF"},
+		{"0123456789ABCDEF", "0123********CDEF"},
 		// 过短直接全掩
-		{"SA_LIVE_AB", "SA_LIVE_***"},
+		{"SA_LIVE_AB", "SA_LIVE_**"},
 	}
 	for _, c := range cases {
 		if got := maskKey(c.in); got != c.want {
