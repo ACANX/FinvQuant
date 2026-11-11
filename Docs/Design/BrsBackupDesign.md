@@ -177,7 +177,8 @@ type Store interface {
 | `endpoint` | 空 | 空则用 AWS 默认地址；R2/MinIO 必须填 |
 | `bucket` | 空 | 必填，否则适配器构造失败 |
 | `region` | `auto` | 空值回落 `auto`（R2 语义） |
-| `access_key` / `secret_key` | 空 | 非空则静态凭证；都为空则走 SDK 默认链（环境变量/实例角色） |
+| `access_key` | 空 | 非空则用静态凭证（与 `secret_key` 同时非空才生效） |
+| `secret_key` | 空 | 非空则用静态凭证；两者都为空则走 SDK 默认链（环境变量/实例角色） |
 | `prefix` | `brs/` | 对象 key 前缀，首尾斜杠会被规整 |
 
 ### 6.3 上传语义
@@ -200,7 +201,8 @@ type Store interface {
 |---|---|---|---|
 | `idn` | bigint identity | PK | 主键 |
 | `rdb_type` | varchar(32) | 默认 `postgresql` | 数据库类型 |
-| `schema_name` / `table_name` | varchar | 与 `rdb_type` 组合唯一 | 目标表 |
+| `schema_name` | varchar | 与 `rdb_type`、`table_name` 组合唯一 | 目标 schema |
+| `table_name` | varchar | 与 `rdb_type`、`schema_name` 组合唯一 | 目标表名 |
 | `flag_enable` | char(1) | 默认 `1`，`IN ('0','1')` | 备份开关 |
 | `priority` | integer | **唯一**、`>= 0` | 越大越先备份 |
 | `bak_scope` | varchar(16) | 默认 `both`，`IN ('both','schema','data')` | 备份范围 |
@@ -208,7 +210,10 @@ type Store interface {
 | `compression` | varchar(16) | 默认 `zstd`，`IN ('none','gzip','zstd')` | 压缩方式 |
 | `where_clause` | text | 可空 | **预留**，当前未生效（见 §9） |
 | `flag_upload` | char(1) | 默认 `1`，`IN ('0','1')` | 表级上传开关（V300061 新增） |
-| `remark` / `creator` / `gmt_create` / `gmt_update` | — | — | 备注、创建人、时间戳 |
+| `remark` | — | — | 备注 |
+| `creator` | — | — | 创建人 |
+| `gmt_create` | — | — | 创建时间 |
+| `gmt_update` | — | — | 更新时间 |
 
 ### 7.2 预置登记（12 行）
 

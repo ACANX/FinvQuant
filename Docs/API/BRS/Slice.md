@@ -41,7 +41,9 @@
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `idn` | number | 主键 |
-| `db` / `schema_name` / `table_name` | string | 目标表（`rdb_type` 首期固定 `postgresql`） |
+| `db` | string | 目标库（为空时默认 `finv`） |
+| `schema_name` | string | 目标 schema |
+| `table_name` | string | 目标表名（`rdb_type` 首期固定 `postgresql`） |
 | `flag_enable` | string | `1` 启用 / `0` 停用 |
 | `priority` | number | 执行顺序，越大越先 |
 | `slice_mode` | string | `date` / `week` / `month` / `column` / `expr` |
@@ -60,7 +62,8 @@
 
 | 字段 | 说明 |
 |------|------|
-| `rule_id` / `table` | 登记主键与 `db.schema.table` |
+| `rule_id` | 登记主键 |
+| `table` | `db.schema.table` 全名 |
 | `total` | 分片总数 |
 | `done` | 已备份分片数（产物存在即计入；内容是否变化由运行时指纹比对决定） |
 | `missing` | 待备份分片数 |
@@ -98,14 +101,18 @@
 
 | 字段 | 规则 |
 |------|------|
-| `db` / `schema_name` / `table_name` | 字母、数字、下划线（`db` 为空时默认 `finv`） |
+| `db` | 字母、数字、下划线；为空时默认 `finv` |
+| `schema_name` | 字母、数字、下划线 |
+| `table_name` | 字母、数字、下划线 |
 | `slice_mode` | `date` / `week` / `month` / `column` / `expr`；`column`、`expr` 必须提供 `slice_key_sql` |
 | `slice_key_sql` | 只允许 `SELECT` / `WITH` 开头，且不含分号 |
 | `slice_where_tpl` | 至少包含 `{value}` 或 `{start}`/`{end}`；用 `{start}/{end}` 时要求分片 SQL 返回区间值 |
 | `slice_file_tpl` | 必须包含 `{key}` |
 | `bak_scope` | 只能是 `data` |
 | `compression` | `gzip` / `none`（`zstd` 会被拒绝：分片产物是 MVSV-2 文本） |
-| `min_rows` / `max_slices` / `redo_slices` | `min_rows>=0`、`1<=max_slices<=100000`、`0<=redo_slices<=max_slices` |
+| `min_rows` | `>= 0` |
+| `max_slices` | `1 ~ 100000` |
+| `redo_slices` | `0 ~ max_slices` |
 
 ## 4. `Run/Manual` 与 `Run/Status`
 
@@ -117,9 +124,14 @@
 |------|------|
 | `run_id` | 本轮运行 ID（`yyyyMMdd-HHmmss-manual`） |
 | `status` | `idle` / `running` / `succeeded` / `failed` |
-| `started_at` / `finished_at` / `elapsed_ms` | 时间与耗时 |
-| `total` / `done` / `failed` | 分片总数 / 已完成 / 失败 |
-| `current_table` / `current_slice` | 当前处理的表与分片键 |
+| `started_at` | 开始时间 |
+| `finished_at` | 结束时间 |
+| `elapsed_ms` | 耗时（毫秒） |
+| `total` | 分片总数 |
+| `done` | 已完成分片数 |
+| `failed` | 失败分片数 |
+| `current_table` | 当前处理的表 |
+| `current_slice` | 当前处理的分片键 |
 | `backup_dir` | 本地备份根目录 |
 | `error` | 失败原因 |
 | `logs` | 日志数组（`seq` / `time` / `level` / `message`） |

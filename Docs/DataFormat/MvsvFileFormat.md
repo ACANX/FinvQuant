@@ -80,11 +80,14 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 |----|------|------|
 | `TimeZoneSource` | `"StockMapping.db secu_futu.tz ..."` | 时区来源说明 |
 | `FutuSymbol` | `"NVDA"` / `"GCmain"` | 富途符号（可能与 Code 大小写不同） |
-| `InstrumentType` / `InstrumentTypeV2` | `3` / `10` | 证券类型编码 |
+| `InstrumentType` | `3` | 证券类型编码 |
+| `InstrumentTypeV2` | `10` | 证券类型编码（V2 口径） |
 | `EngName` | `"NVIDIA"` | 英文名称 |
 | `DelistingFlag` | `0` | 退市标志 |
-| `ListedExchange` / `ListedBoard` | `"NASDAQ"` / `""` | 上市交易所/板块 |
-| `Start` / `End` | `"202601010500"` / `"202607210632"` | 数据起止时间（描述性） |
+| `ListedExchange` | `"NASDAQ"` | 上市交易所 |
+| `ListedBoard` | `""` | 上市板块 |
+| `Start` | `"202601010500"` | 数据起始时间（描述性） |
+| `End` | `"202607210632"` | 数据结束时间（描述性） |
 | `Size` | `195279` | 记录数（描述性，通常与 Count 一致） |
 | `Year` | `2026` | 数据年份 |
 

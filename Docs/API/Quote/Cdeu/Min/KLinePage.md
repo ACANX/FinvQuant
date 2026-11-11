@@ -15,8 +15,10 @@
 |---|---|---|
 | `usc` | string | 证券编码，精确定配 |
 | `provider` | string | 数据来源，精确匹配 |
-| `dateFrom` / `dateTo` | int | 交易日期区间（含） |
-| `tsFrom` / `tsTo` | int64 | 秒级时间戳区间（含） |
+| `dateFrom` | int | 交易起始日期（含） |
+| `dateTo` | int | 交易结束日期（含） |
+| `tsFrom` | int64 | 起始时间戳（秒级，含） |
+| `tsTo` | int64 | 结束时间戳（秒级，含） |
 | `limit` | int | 1~1000，默认 50 |
 | `offset` | int | ≥0，默认 0 |
 

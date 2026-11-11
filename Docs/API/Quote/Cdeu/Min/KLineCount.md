@@ -15,7 +15,8 @@
 |---|---|---|
 | `usc` | string | 精确匹配 |
 | `provider` | string | 精确匹配 |
-| `dateFrom` / `dateTo` | int | 交易日期区间（含） |
+| `dateFrom` | int | 交易起始日期（含） |
+| `dateTo` | int | 交易结束日期（含） |
 
 > 无 `tsFrom`/`tsTo` 参数（与旧服务一致）。
 

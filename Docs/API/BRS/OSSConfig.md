@@ -24,7 +24,12 @@ BRS 备份产物上传的 S3 兼容对象存储配置，对应系统配置 `sys.
 | `enable` | 是否启用上传 | 旧键 `enabled`（**`enable` 优先**） |
 | `protocol` | 传输协议（`s3`/`local`） | 误拼别名 `protocal`（仅读取，不再写出） |
 | `provider` | 厂商标签（`cloudflare-r2`/`aws-s3`/…） | 旧格式 `"provider":"s3"` 表示「只有协议」：按 endpoint 推断厂商（含 `r2.cloudflarestorage.com` → `cloudflare-r2`，否则 `aws-s3`） |
-| `endpoint`/`bucket`/`region`/`ak`/`sk`/`prefix` | 同前 | `access_key`/`secret_key` 旧键兜底（V300082 之前） |
+| `endpoint` | 同前 | — |
+| `bucket` | 同前 | — |
+| `region` | 同前 | — |
+| `ak` | 同前 | 旧键 `access_key` 兜底（V300082 之前） |
+| `sk` | 同前 | 旧键 `secret_key` 兜底（V300082 之前） |
+| `prefix` | 同前 | — |
 
 兼容行为：
 

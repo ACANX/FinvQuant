@@ -184,11 +184,17 @@
 | `run_id` | string | 运行 ID（`sk-<yyyyMMdd-HHmmss.微秒>`） |
 | `status` | string | `RUNNING` / `DONE` / `FAILED` |
 | `progress` | number | 0~100，按「已拉取行数 / 源表总行数」计算（总行数未知时为 0） |
-| `rows_total` / `rows_receive` | int | 源表总行数（首批后才知道）/ 累计拉取 |
-| `insert` / `update` / `unchanged` / `skipped` / `status_reset` | int | 累计计数，口径同 §5.2 |
+| `rows_total` | int | 源表总行数（首批后才知道） |
+| `rows_receive` | int | 累计拉取行数 |
+| `insert` | int | 累计新增行数（口径同 §5.2） |
+| `update` | int | 累计更新行数（口径同 §5.2） |
+| `unchanged` | int | 累计无变化行数（口径同 §5.2） |
+| `skipped` | int | 累计跳过行数（口径同 §5.2） |
+| `status_reset` | int | 累计状态重置行数（口径同 §5.2） |
 | `batches` | int | 已完成批次数 |
 | `batch_size` | int | 本次使用的批量 |
-| `started_at` / `finished_at` | string | RFC3339 |
+| `started_at` | string | 开始时间（RFC3339） |
+| `finished_at` | string | 结束时间（RFC3339） |
 | `elapsed_ms` | int | 运行中为「至今耗时」，结束后为总耗时 |
 | `error` | string | `FAILED` 时的可读原因（与同步接口 500 的 `message` 同源） |
 | `logs[]` | array | 实时日志：`seq`（自增）、`time`（RFC3339）、`level`（`INFO`/`ERROR`）、`text`、`batch`、`offset` |
@@ -245,7 +251,10 @@
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `configured` / `project_id` / `api_key_masked` / `config_error` | — | 同 §3（20013 状态，key 脱敏） |
+| `configured` | bool | 20013 是否已配置（同 §3） |
+| `project_id` | string | Supabase 项目 ID（同 §3） |
+| `api_key_masked` | string | API Key 脱敏形态（同 §3） |
+| `config_error` | string | 配置错误原因（同 §3） |
 | `source_table` | string | 固定 `public.finv_quote_secu_meta` |
 | `targets[]` | array | **本同步真正写入的两张目标表**的 `{table, rows}`：指标表 / 采集属性表（不再含证券键表，需求 11064） |
 | `batch_size_default` | int | 默认批量 1000 |
@@ -338,8 +347,13 @@
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `configured` / `project_id` / `api_key_masked` / `config_error` | — | 20013 状态（key 脱敏） |
-| `key_table` / `key_column` / `key_key` | string | `public.finv_quote_secu_key` / `usc` / `ftmm_symbol` |
+| `configured` | bool | 20013 是否已配置 |
+| `project_id` | string | Supabase 项目 ID |
+| `api_key_masked` | string | API Key 脱敏形态 |
+| `config_error` | string | 配置错误原因 |
+| `key_table` | string | 上游键表，固定 `public.finv_quote_secu_key` |
+| `key_column` | string | 统一证券代码列，固定 `usc` |
+| `key_key` | string | 上游键列，固定 `ftmm_symbol` |
 | `local_table` | string | `futu.finv_futu_secu_key` |
 | `local_rows` | int | 本地键表总行数（73,212） |
 | `local_with_usc` | int | `usc` 非空行数（= 待处理量，73,212） |

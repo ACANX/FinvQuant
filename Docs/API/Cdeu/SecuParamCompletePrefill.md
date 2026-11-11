@@ -122,7 +122,8 @@
 
 | 字段 | 推断链 |
 |------|--------|
-| `futu_symbol` / `market_label` | 快照 `stock_code` / `market_label`（快照） |
+| `futu_symbol` | 取快照 `stock_code` |
+| `market_label` | 取快照 `market_label` |
 | `market_type` | 快照 `market_type` → 同市场已有配置行众数（参考）→ 内置映射 HK=1/US=2/A股=4/FX=11/CC=17（字典） |
 | `market_code` | 同市场同品种归一后众数（参考）；取不到 → **空串** + 必须人工填（需求 11164） |
 | `instrument_type` | 快照原值（**不擅自改写**：12 与 3 同为股票，该列被日K同步当富途品种码直接用） |

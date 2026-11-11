@@ -169,7 +169,8 @@
 | `client_code` | 小写字母/数字/`._-`，2~32 位，全局唯一（撞车 409） |
 | `client_name` | 非空，≤128 字符 |
 | `allow_cidr` | 裸 IP 自动补 `/32`（IPv6 `/128`）；非法网段 400 |
-| `rate_limit_rpm` / `quota_day` | ≥0，`0` 表示不限 |
+| `rate_limit_rpm` | ≥0，`0` 表示不限 |
+| `quota_day` | ≥0，`0` 表示不限 |
 | `dt_expire` | 空串 = 长期；支持 RFC3339 与 `2006-01-02`（前端把「1 天/1 个月/1 年…」预设换算成具体日期后提交） |
 
 服务端兜底（需求 11174）：`owner_uid` 为空时用当前登录账号；`contact_email` 为空时按 `owner_uid`
@@ -301,7 +302,9 @@
 | `sign_time_window` | 19002 | 签名时间戳允许偏差（秒，30~3600） |
 | `log_retain_days` | 19003 | 审计日志保留天数（0~3650） |
 | `cred_cache_ttl` | 19007 | 读凭证的 Redis 缓存秒数（0~600；`0` = 关闭缓存） |
-| `secret_kid` / `secret_key_ready` / `fallback_key_ready` | 19004~19006 | 只读回显（密钥在密钥配置页维护） |
+| `secret_kid` | 19004 | 只读回显：当前加密密钥 KID（密钥在密钥配置页维护） |
+| `secret_key_ready` | 19005 | 只读回显：主密钥是否已配置 |
+| `fallback_key_ready` | 19006 | 只读回显：备用密钥是否已配置 |
 
 ### 5.7 POST `/Credential/Scope`（修改授权范围，需求 11230）
 
@@ -363,7 +366,8 @@ finv:openapi:cred:<ver>:<AK>    → 凭证快照 JSON，TTL 10 秒
 | `flagPass` | `1` 放行 / `0` 拒绝 / 空 = 全部 |
 | `reasonCode` | `NO_KEY`/`BAD_KEY`/`REVOKE`/`EXPIRE`/`CIDR_DENY`/`SIGN_MISMATCH`/`TS_SKEW`/`NONCE_REPLAY`/`SCOPE_DENY`/`RATE_LIMIT`/`NOT_READY` |
 | `accessKey` | 公开标识模糊匹配（静态 Key 存的是脱敏形态） |
-| `dtFrom` / `dtTo` | `RFC3339` / `2006-01-02 15:04:05` / `2006-01-02` |
+| `dtFrom` | 起始时间，支持 `RFC3339` / `2006-01-02 15:04:05` / `2006-01-02` |
+| `dtTo` | 结束时间，格式同 `dtFrom` |
 
 按 `dt_request` 倒序。响应字段与 `open.open_api_invoke_log` 列一一对应；`request_id` 与 `body_sha256` 均为**大写**十六进制（需求 11177），
 `body_sha256` / `count_body` 只有摘要与长度，无原文。
@@ -471,7 +475,8 @@ ORDER BY last_seen DESC;
 | `keyword` | 模糊匹配 `api_code` / `path` / `api_name` |
 | `catalog` | 精确匹配目录（`api_code` 最后一个点之前的部分，如 `finv.quote.cdeu.min`） |
 | `apiGroup` | 精确匹配分组（分钟行情 / 实时行情 / 鉴权） |
-| `flagPublic` / `flagEnable` | 只允许 `0` / `1`，其余值 400（避免"传了没生效"） |
+| `flagPublic` | 只允许 `0` / `1`，其余值 400（避免"传了没生效"） |
+| `flagEnable` | 只允许 `0` / `1`，其余值 400（避免"传了没生效"） |
 
 排序：`catalog` 升序、`func` 升序（按目录自然聚集）。`catalog` / `func` / `alias` 为生成列（需求 11238–11240）：
 `catalog` 取 `api_code` 最后一个点之前、`func` 取 `path` 最后一个斜杠之后（大驼峰）、

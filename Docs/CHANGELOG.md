@@ -219,6 +219,18 @@
 
 ### 变更
 
+- **新增格式检查测试：字段定义表不得把多个字段挤一行**
+  - 新增 `TestMarkdownFieldRowsNotMerged`（`internal/docs/table_test.go`）：扫描 `Docs/**/*.md`，
+    对表头含「字段 / 列 / 参数 / 名称 / 键」的表，若首列是「多个反引号标识符用 `/` 或 `、` 连接」
+    即报错（如 `` `serial` / `imei` / `mac` ``）。此后新增文档只要合并字段行，测试直接失败。
+  - 存量清理 18 篇文档、53 处合并行，全部拆成「一个字段一行」，并补齐各字段的类型/必填/说明：
+    `API/BRS/{OSSConfig,Run,Slice}.md`、`API/Cdeu/{DayKlineStat,DayKlineSync,RealtimeStockPendingEnqueue}`、
+    `API/Cdeu/{SecuParamCompletePrefill,SecuParamSync,StockListCollect}.md`、`API/OpenAPI/Admin.md`、
+    `API/Quote/Cdeu/Min/{KLineCount,KLinePage,KLineStats}.md`、`API/QuoteDeDup/Status.md`、`API/UscMap.md`、
+    `DataDictMapping/OpenApiAuth.md`、`DataFormat/MvsvFileFormat.md`、`Design/BrsBackupDesign.md`。
+  - 豁免范围（历史只增不改或改动受限）：`RequirementList.md`、`CHANGELOG.md`、`Docs/DevSpec/`、
+    `Docs/Refactor/`、`Docs/Archive/`。
+
 - **提案 202611-0003 的 §6 改为每字段一行**
   - 原先把 `serial` / `imei` / `mac` / `android_id` 等多个字段合并成一行，违反「一个字段一行、不合并展示」；
     已拆成每个字段独立一行，并补「类型 / 必填 / 说明」三列。

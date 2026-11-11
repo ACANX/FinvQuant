@@ -39,7 +39,8 @@
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `rows` | int | 该 usc 的日K行数 |
-| `date_from` / `date_to` | int | 最小/最大交易日（`yyyyMMdd`；无数据为 0） |
+| `date_from` | int | 最小交易日（`yyyyMMdd`；无数据为 0） |
+| `date_to` | int | 最大交易日（`yyyyMMdd`；无数据为 0） |
 | `providers` | string | 涉及的数据来源，逗号分隔（如 `FTMM`；多来源时为 `FTMM,其他`） |
 
 ## 3. 错误码

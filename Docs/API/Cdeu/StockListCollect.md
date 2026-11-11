@@ -85,10 +85,13 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 | `data.results[]` | array | 每个市场一项（含失败市场，失败时带 `error`） |
 | `data.results[].pages` | integer | 本次完成页数 |
 | `data.results[].rows_receive` | integer | 收到条目数 |
-| `data.results[].insert` / `.update` | integer | 新增 / 覆盖行数 |
+| `data.results[].insert` | integer | 新增行数 |
+| `data.results[].update` | integer | 覆盖行数 |
 | `data.results[].count_exists` | integer | 接口返回的该市场证券总数 |
 | `data.results[].total_available` | integer | 本轮实际可采集数量 |
-| `data.rows_receive` / `insert` / `update` | integer | 各市场汇总 |
+| `data.rows_receive` | integer | 各市场收到条目数汇总 |
+| `data.insert` | integer | 各市场新增行数汇总 |
+| `data.update` | integer | 各市场覆盖行数汇总 |
 | `data.error` | string | 首个失败市场的错误摘要（全部成功时缺省） |
 
 > 单个市场失败不影响响应码：`code` 仍为 `0`，失败信息在 `data.results[].error`。

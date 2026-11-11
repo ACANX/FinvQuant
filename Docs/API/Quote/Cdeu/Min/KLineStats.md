@@ -14,8 +14,10 @@
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | `usc` | string | 否 | 证券代码，精确匹配；缺省统计全部证券 |
-| `dateFrom` / `dateTo` | int | 否 | 交易日期区间（含），`yyyymmdd` |
-| `tsFrom` / `tsTo` | int64 | 否 | 秒级时间戳区间（含），与日期条件同时生效（AND） |
+| `dateFrom` | int | 否 | 交易起始日期（含），`yyyymmdd` |
+| `dateTo` | int | 否 | 交易结束日期（含），`yyyymmdd` |
+| `tsFrom` | int64 | 否 | 起始时间戳（秒级，含） |
+| `tsTo` | int64 | 否 | 结束时间戳（秒级，含）；与日期条件同时生效（AND） |
 
 > 参数校验与 `/Page` 一致：`dateFrom/dateTo` 取值 `19500101`~`21001231`，`tsFrom/tsTo` 不得为负。
 

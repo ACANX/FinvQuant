@@ -58,11 +58,19 @@
 
 | 字段 | 说明 |
 |------|------|
-| `rule_count` / `item_count` / `item_active` | 规则数 / 条目数 / 生效条目数 |
-| `map_active` / `map_retire` / `map_reuse` | 结果表在册 / 已退市 / 复用留痕行数 |
-| `key_total` / `key_match` / `key_miss` | 键表行数 / 与结果表 `lower(usc)` 对上的行数 / 对不上的行数 |
-| `last_compute_at` / `rule_version` | 最近计算时间 / 规则集版本（规则与条目指纹的前 12 位） |
-| `cron_expr` / `cron_next_run` | 系统配置 `20015` 的表达式与下次执行时间（**空 = 自动同步关闭**） |
+| `rule_count` | 规则数 |
+| `item_count` | 条目数 |
+| `item_active` | 生效条目数 |
+| `map_active` | 结果表在册行数 |
+| `map_retire` | 结果表已退市行数 |
+| `map_reuse` | 结果表复用留痕行数 |
+| `key_total` | 键表行数 |
+| `key_match` | 键表中与结果表 `lower(usc)` 对上的行数 |
+| `key_miss` | 键表中与结果表对不上的行数 |
+| `last_compute_at` | 最近计算时间 |
+| `rule_version` | 规则集版本（规则与条目指纹的前 12 位） |
+| `cron_expr` | 自动同步表达式（取系统配置 `20015`；**空 = 自动同步关闭**） |
+| `cron_next_run` | 下次执行时间 |
 | `archive_rows` | 复用归档表行数 |
 
 ### 3.2 `POST /Rule/Save`
@@ -127,7 +135,8 @@
 | `token` | 预演令牌；与缓存不一致（重新预演过 / 服务重启）返回 400，提示重新预演 |
 | `diff` | `insert` / `update` / `retire` / `key_update`；空 = 全部（`keep` 不返回） |
 | `keyword` | 关键字，大小写不敏感地匹配 `ftmm_symbol` / `code` / 当前 usc / 新 usc（几万条里直接定位一只证券，不用翻页） |
-| `page` / `pageSize` | 分页，页大小上限 200 |
+| `page` | 页码，从 1 开始 |
+| `pageSize` | 页大小，上限 200 |
 
 缓存有效期 **30 分钟**，重新预演会整体替换；服务重启后失效。返回体含 `total`（该类别总数）与 `preview_token`。
 
@@ -141,7 +150,8 @@
 | `keyword` | 关键字，大小写不敏感地匹配 `ftmm_symbol` / `code` / `usc`（例如 `US.XRP`、`XRP`、`ETFXRP`） |
 | `market` | 市场标签精确匹配（`US` / `SH` / `…`）；空 = 全部 |
 | `status` | `ACTIVE` / `RETIRED`；空 = 全部 |
-| `page` / `pageSize` | 分页，页大小上限 200 |
+| `page` | 页码，从 1 开始 |
+| `pageSize` | 页大小，上限 200 |
 
 返回 `total` + `list`（`ftmm_symbol` / `market` / `code` / `instrument` / `usc` / `rule_no` / `basis` /
 `status` / `scope_env` / `rule_version` / `dt_compute` / `dt_retire` / `reuse_of_ftmm`）。
@@ -209,11 +219,18 @@
 | `reused` | `reuse` | usc 被新证券接管 |
 | `unchanged` | `keep` | 无变化 |
 | `escalated` | `escalate` | 冲突升级为 ftmm |
-| `archived` / `archived_rows` | `archive` / `archive_rows` | 复用归档行数 |
-| `key_updated` / `key_matched` / `key_mismatch` | `key_update` / `key_match` / `key_miss` | 键表回写/匹配/未匹配 |
+| `archived` | `archive` | 复用归档行数 |
+| `archived_rows` | `archive_rows` | 复用归档行数（旧别名） |
+| `key_updated` | `key_update` | 键表回写行数 |
+| `key_matched` | `key_match` | 键表匹配行数 |
+| `key_mismatch` | `key_miss` | 键表未匹配行数 |
 | `last_computed_at` | `last_compute_at` | 最近计算时间 |
-| `retired_at` / `computed_at` / `first_assigned_at` | `dt_retire` / `dt_compute` / `dt_first_assign` | 结果表列（`V300165` 去 `-ed`，`V300166` 统一 `dt_` 前缀） |
-| `started_at` / `finished_at` / `elapsed_ms` | `start_at` / `finish_at` / `duration_ms` | 运行时间 |
+| `retired_at` | `dt_retire` | 结果表退市时间（`V300165` 去 `-ed`，`V300166` 统一 `dt_` 前缀） |
+| `computed_at` | `dt_compute` | 结果表计算时间 |
+| `first_assigned_at` | `dt_first_assign` | 结果表首次分配时间 |
+| `started_at` | `start_at` | 运行开始时间 |
+| `finished_at` | `finish_at` | 运行结束时间 |
+| `elapsed_ms` | `duration_ms` | 运行耗时（毫秒） |
 | diff 取值 `added`/`changed`/`removed`/`unchanged` | `insert`/`update`/`retire`/`keep` | 明细分类 |
 
 ## 6. 注意事项

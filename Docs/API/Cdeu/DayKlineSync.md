@@ -113,7 +113,8 @@ docker logs <容器名> 2>&1 | grep '\[cdeu\]\[daykline\]'
 | `in_range` | int | 落在 `[from, to]` 区间内的根数（实际 upsert 行数） |
 | `insert` | int | 新增行数 |
 | `update` | int | 更新行数 |
-| `date_from` / `date_to` | int | 本次写入数据的日期范围（`yyyyMMdd`，无数据为 0） |
+| `date_from` | int | 本次写入数据的起始日期（`yyyyMMdd`，无数据为 0） |
+| `date_to` | int | 本次写入数据的结束日期（`yyyyMMdd`，无数据为 0） |
 | `timezone` | string | 日期换算使用的市场时区 |
 | `provider` | string | 写入 `provider` 列的值（固定 `FTMM`） |
 | `params` | object | 实际使用的请求参数（排障用，便于确认是否与 `futu` 表一致） |

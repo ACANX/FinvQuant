@@ -35,7 +35,8 @@
 | `dt_expire` | TIMESTAMPTZ | 可空 | 授权到期（NULL=长期） |
 | `flag_enable` | CHAR(1) | NOT NULL DEFAULT `'0'`, `IN ('0','1')` | 启用标志；**新建默认停用**，核对后手工开 |
 | `remark` | VARCHAR(2000) | 可空 | 备注 |
-| `create_by` / `modify_by` | VARCHAR(32) | 可空 | 审计列 |
+| `create_by` | VARCHAR(32) | 可空 | 创建人 |
+| `modify_by` | VARCHAR(32) | 可空 | 最后修改人 |
 | `gmt_create` | TIMESTAMPTZ | NOT NULL DEFAULT `now()` | 创建时间 |
 | `gmt_update` | TIMESTAMPTZ | NOT NULL DEFAULT `now()` | 更新时间（触发器 `trg_open_api_client_set_gmt_update` 维护） |
 
@@ -67,7 +68,8 @@
 | `dt_revoke` | TIMESTAMPTZ | 可空 | 吊销时间（`flag_revoke='1'` 时必填） |
 | `reason_revoke` | VARCHAR(500) | 可空 | 吊销原因（`flag_revoke='1'` 时必填） |
 | `remark` | VARCHAR(2000) | 可空 | 备注 |
-| `create_by` / `modify_by` | VARCHAR(32) | 可空 | 审计列 |
+| `create_by` | VARCHAR(32) | 可空 | 创建人 |
+| `modify_by` | VARCHAR(32) | 可空 | 最后修改人 |
 | `gmt_create` | TIMESTAMPTZ | NOT NULL DEFAULT `now()` | 创建时间 |
 | `gmt_update` | TIMESTAMPTZ | NOT NULL DEFAULT `now()` | 更新时间（触发器 `trg_open_api_credential_set_gmt_update`） |
 
@@ -91,18 +93,25 @@ OR (auth_mode <> 'AKSK' AND secret_hash   IS NOT NULL)
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `idn` | BIGINT | 主键（identity） |
-| `client_idn` / `credential_idn` | BIGINT | 调用方/凭证（`0` = 未识别，匿名请求也留痕） |
-| `access_key_id` / `auth_mode` | VARCHAR | **冗余存**：凭证被删后仍可追溯。`AKSK` 模式存**明文 AK**（AK 是公开标识，用于区分调用方）；`APIKEY` 模式存**脱敏形态** `<前缀><随机段前 8><等量星号><后 8>`（如 `SA_LIVE_C48AABCD****************EADE84AF`，需求 11183/11184/11185；星号个数 = 被遮蔽的位数，掩码总长 = 原密钥长度）——静态 Key 本身就是密钥，绝不落明文 |
+| `client_idn` | BIGINT | 调用方 IDN（`0` = 未识别，匿名请求也留痕） |
+| `credential_idn` | BIGINT | 凭证 IDN（`0` = 未识别） |
+| `access_key_id` | VARCHAR | **冗余存**：凭证被删后仍可追溯。`AKSK` 模式存**明文 AK**（AK 是公开标识，用于区分调用方）；`APIKEY` 模式存**脱敏形态** `<前缀><随机段前 8><等量星号><后 8>`（如 `SA_LIVE_C48AABCD****************EADE84AF`，需求 11183/11184/11185；星号个数 = 被遮蔽的位数，掩码总长 = 原密钥长度）——静态 Key 本身就是密钥，绝不落明文 |
+| `auth_mode` | VARCHAR(8) | `APIKEY` / `AKSK` / `STS`（与凭证行同口径） |
 | `request_id` | VARCHAR(64) | 链路 ID（响应头 `X-Request-Id`），32 位**大写**十六进制（需求 11177） |
 | `kfp` | VARCHAR(16) | 密钥指纹（key fingerprint）：`sha256(完整 Key)` 前 16 位**大写**十六进制，仅 `APIKEY` 模式写入；不可逆，用于严格区分密钥与按 Key 反查（需求 11186，字段名 11187 定稿 `kfp`） |
 | `tfp` | VARCHAR(16) | STS SecurityToken 指纹（`sha256` 前 16 位大写十六进制）。`auth_mode='STS'` 且非空 = **临时凭据**（2 小时）；为空 = **兑换凭证**（长期 AK/SK，只能换证）。不可逆，用于按某次临时凭据聚合排查（需求 11191/11210） |
 | `dt_request` | TIMESTAMPTZ | 请求时间 |
-| `method` / `path` / `query_str` | VARCHAR(8)/VARCHAR(512)/VARCHAR(2000) | 请求行（查询串截断到 2000） |
-| `status_code` / `biz_code` | INTEGER | HTTP 码 + 信封 `code` |
+| `method` | VARCHAR(8) | HTTP 方法 |
+| `path` | VARCHAR(512) | 请求路径 |
+| `query_str` | VARCHAR(2000) | 查询串（截断到 2000） |
+| `status_code` | INTEGER | HTTP 状态码 |
+| `biz_code` | INTEGER | 信封 `code`（业务码） |
 | `flag_pass` | CHAR(1) | `1` 放行 / `0` 拒绝 |
 | `reason_code` | VARCHAR(32) | `NO_KEY`/`BAD_KEY`/`REVOKE`/`EXPIRE`/`CIDR_DENY`/`SIGN_MISMATCH`/`TS_SKEW`/`NONCE_REPLAY`/`SCOPE_DENY`/`RATE_LIMIT` |
-| `ip` / `user_agent` | INET / VARCHAR(512) | 客户端（UA 截断到 512） |
-| `body_sha256` / `count_body` | CHAR(64) / INTEGER | **只存摘要与长度**，不存原文；摘要为**大写**十六进制（需求 11177），与待签串里的 `BODY_SHA256` 同一口径 |
+| `ip` | INET | 客户端 IP |
+| `user_agent` | VARCHAR(512) | 客户端 UA（截断到 512） |
+| `body_sha256` | CHAR(64) | 请求体摘要（**大写**十六进制，需求 11177，与待签串 `BODY_SHA256` 同口径）；**只存摘要，不存原文** |
+| `count_body` | INTEGER | 请求体字节长度（**只存长度，不存原文**） |
 | `latency_ms` | INTEGER | 处理耗时（毫秒） |
 | `gmt_create` | TIMESTAMPTZ | 入库时间 |
 

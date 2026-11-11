@@ -68,9 +68,12 @@
 | `run_id` | string | 运行标识（`yyyyMMdd-HHmmss-<trigger>`），变化表示新的一轮 |
 | `trigger` | string | `manual`（手动）/ `auto`（定时） |
 | `status` | string | `idle` / `running` / `succeeded` / `failed` |
-| `started_at` / `finished_at` | string | 开始 / 结束时间 |
+| `started_at` | string | 开始时间 |
+| `finished_at` | string | 结束时间 |
 | `elapsed_ms` | int | 已耗时（运行中实时增长） |
-| `total` / `done` / `failed` | int | 总表数 / 已完成 / 失败张数（`done` 为已处理张数） |
+| `total` | int | 总表数 |
+| `done` | int | 已完成张数（已处理张数） |
+| `failed` | int | 失败张数 |
 | `current_table` | string | 当前正在备份的表（`schema.table`） |
 | `backup_dir` | string | 本轮备份目录（`<BackupDir>/<yyyyMMdd>`，`BackupDir` 取 `FINV_BRS_BACKUP_DIR`；Native 与容器统一为 `/data/App/FinvQuant/BRS`） |
 | `error` | string | 失败原因（`status=failed` 时） |
