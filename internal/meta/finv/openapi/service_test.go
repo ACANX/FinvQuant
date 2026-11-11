@@ -3,6 +3,7 @@ package openapi
 // 服务层纯函数测试（需求 11169）：不连库，只校验入参归一与密钥格式约定。
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -320,5 +321,21 @@ func TestScopeLimitByAuthMode(t *testing.T) {
 		ClientIDN: 1, CredentialNo: "cred-key", AuthMode: "APIKEY", Scope: multi,
 	}); err == nil {
 		t.Fatalf("API_KEY 不应允许多个接口")
+	}
+}
+
+// TestCredentialPageStatusFilter 状态过滤参数校验（需求 11217）。
+func TestCredentialPageStatusFilter(t *testing.T) {
+	service := NewService(NewStore(nil))
+	// 非法 status 直接拒绝，不落库（store 为 nil 时若走到 SQL 会报连接池未初始化）
+	if _, _, err := service.CredentialPage(context.Background(), 0, "", "revoked", 1, 20); err == nil {
+		t.Fatal("非法 status 应被拒绝")
+	}
+	// 合法值走 store，store 无连接池时返回「未初始化」错误（证明参数已通过校验）
+	for _, status := range []string{"", "active", "ALL"} {
+		if _, _, err := service.CredentialPage(context.Background(), 0, "", status, 1, 20); err == nil ||
+			!strings.Contains(err.Error(), "连接池") {
+			t.Fatalf("status=%q 应进入 store 查询，实际错误 %v", status, err)
+		}
 	}
 }

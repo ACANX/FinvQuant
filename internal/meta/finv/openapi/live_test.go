@@ -119,7 +119,7 @@ func TestLiveAdminLifecycle(t *testing.T) {
 	}
 
 	// 4) 列表：不得含密钥材料
-	list, total, err := service.CredentialPage(ctx, client.IDN, "", 1, 20)
+	list, total, err := service.CredentialPage(ctx, client.IDN, "", "all", 1, 20)
 	if err != nil {
 		t.Fatalf("查询凭证失败: %v", err)
 	}

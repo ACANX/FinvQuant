@@ -147,10 +147,19 @@ func (s *Service) SetClientEnable(ctx context.Context, idn int64, enable bool, o
 	return client, nil
 }
 
-// CredentialPage 分页查询凭证。
-func (s *Service) CredentialPage(ctx context.Context, clientIDN int64, keyword string, page, pageSize int) ([]Credential, int, error) {
+// CredentialPage 分页查询凭证；status 为空按 active（不含吊销/停用/过期）。
+func (s *Service) CredentialPage(ctx context.Context, clientIDN int64, keyword, status string,
+	page, pageSize int) ([]Credential, int, error) {
+	status = strings.ToLower(strings.TrimSpace(status))
+	switch status {
+	case "", CredentialStatusActive:
+		status = CredentialStatusActive
+	case CredentialStatusAll:
+	default:
+		return nil, 0, invalid("status 只能是 active（仅有效，默认）或 all（含吊销/停用/过期），实际 %q", status)
+	}
 	page, pageSize = normalizePage(page, pageSize)
-	return s.store.CredentialPage(ctx, clientIDN, keyword, page, pageSize)
+	return s.store.CredentialPage(ctx, clientIDN, keyword, status, page, pageSize)
 }
 
 // CreateCredential 签发凭证。

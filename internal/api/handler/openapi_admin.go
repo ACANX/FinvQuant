@@ -173,7 +173,9 @@ func (h *OpenAPIAdmin) SetClientEnable(c *gin.Context) {
 
 // CredentialPage GET /OpenAPI/Credential/Page。
 func (h *OpenAPIAdmin) CredentialPage(c *gin.Context) {
-	list, total, err := h.service.CredentialPage(c.Request.Context(), openAPIQueryInt64(c, "clientId"), c.Query("keyword"),
+	// status 缺省为 active（只列可用凭证）；all = 含吊销/停用/过期（需求 11217）
+	list, total, err := h.service.CredentialPage(c.Request.Context(), openAPIQueryInt64(c, "clientId"),
+		c.Query("keyword"), c.Query("status"),
 		openAPIQueryInt(c, "page", 1), openAPIQueryInt(c, "pageSize", 20))
 	if err != nil {
 		respondOpenAPIError(c, "查询凭证", err)

@@ -182,9 +182,11 @@
 
 ## 5. 凭证
 
-### 5.1 GET `/Credential/Page?clientId=&keyword=&page=&pageSize=`
+### 5.1 GET `/Credential/Page?clientId=&keyword=&status=&page=&pageSize=`
 
-`keyword` 对 `credential_no` / `access_key_id` 模糊匹配。
+- `keyword`：对 `credential_no` / `access_key_id` 模糊匹配。
+- `status`（需求 11217）：`active`（缺省）= 只返回当前可用的凭证（`flag_revoke='0'` 且 `flag_enable='1'`
+  且未过 `dt_expire`）；`all` = 全部，含已吊销 / 停用 / 过期，用于追溯。其它取值返回 `400`。
 
 ```json
 {

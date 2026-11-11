@@ -28,6 +28,14 @@ const (
 	AuthModeSTS = "STS"
 )
 
+// 凭证列表的状态过滤（需求 11217）。
+const (
+	// CredentialStatusActive 只返回当前可用的凭证（未吊销、启用中、未过期）——列表默认值。
+	CredentialStatusActive = "active"
+	// CredentialStatusAll 返回全部凭证，含已吊销/停用/过期，供追溯查询。
+	CredentialStatusAll = "all"
+)
+
 // 可签发的认证模式（BEARER / MTLS / BASIC 预留，不允许在管理接口里签发）。
 var issuableAuthModes = []string{AuthModeAPIKey, AuthModeAKSK, AuthModeSTS}
 

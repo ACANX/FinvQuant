@@ -93,6 +93,17 @@ export function timeText(value: string | null | undefined): string {
   )
 }
 
+/** 到期日期展示为「yyyy-MM-dd」（只用日期，避免表格里挤一堆时分秒）；已过期追加「已过期」 */
+export function expireText(value: string | null | undefined): string {
+  const raw = String(value ?? '').trim()
+  if (!raw) return '长期有效'
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return raw
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const date = `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}`
+  return parsed.getTime() <= Date.now() ? `${date}（已过期）` : date
+}
+
 /** 调用方 / 凭证状态配色：已吊销 → error，启用 → success，停用 → warning */
 export function statusColor(row: { flag_enable: string; flag_revoke?: string }): string {
   if (row.flag_revoke === '1') return 'error'

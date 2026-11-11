@@ -19,6 +19,7 @@ import OpenAPICredentialDialog from './CredentialDialog.vue'
 import {
   OPENAPI_BASE as BASE,
   authModeText,
+  expireText,
   statusColor,
   statusText,
   timeText,
@@ -75,12 +76,20 @@ async function loadClients() {
   }
 }
 
+// 状态过滤（需求 11217）：默认只列可用凭证（未吊销/未停用/未过期）
+const status = ref('active')
+const STATUS_OPTIONS = [
+  { title: '仅有效（未吊销/未停用/未过期）[active]', value: 'active' },
+  { title: '全部（含吊销/停用/过期）[all]', value: 'all' },
+]
+
 async function load() {
   loading.value = true
   try {
     const params = new URLSearchParams({ page: String(page.value), pageSize: String(pageSize.value) })
     if (clientIDN.value > 0) params.set('clientId', String(clientIDN.value))
     if (keyword.value.trim()) params.set('keyword', keyword.value.trim())
+    params.set('status', status.value)
     const data = await apiGet<{ total: number; list: CredentialRow[] }>(
       `${BASE}/Credential/Page?${params.toString()}`,
     )
@@ -209,6 +218,18 @@ onMounted(async () => {
             style="min-width: 200px; max-width: 280px"
             @keyup.enter="page = 1; load()"
           />
+          <v-select
+            v-model="status"
+            :items="STATUS_OPTIONS"
+            item-title="title"
+            item-value="value"
+            :return-object="false"
+            label="状态"
+            density="compact"
+            hide-details
+            style="min-width: 260px; max-width: 320px"
+            @update:model-value="status = String($event); page = 1; load()"
+          />
           <v-btn color="primary" variant="tonal" prepend-icon="mdi-magnify" @click="page = 1; load()">查询</v-btn>
           <v-btn color="primary" prepend-icon="mdi-key-plus" @click="openCreate">签发凭证</v-btn>
         </div>
@@ -223,6 +244,7 @@ onMounted(async () => {
               <th>公开标识</th>
               <th>授权范围</th>
               <th>状态</th>
+              <th>到期日期</th>
               <th>最近使用</th>
               <th>累计调用</th>
               <th>操作</th>
@@ -260,6 +282,10 @@ onMounted(async () => {
                   :lines="[`吊销时间：${timeText(row.dt_revoke)}`, `原因：${row.reason_revoke || '—'}`]"
                 />
               </td>
+              <td class="text-no-wrap">
+                <span v-if="!row.dt_expire" class="text-medium-emphasis">长期有效</span>
+                <span v-else>{{ expireText(row.dt_expire) }}</span>
+              </td>
               <td>{{ timeText(row.dt_last_use) }}</td>
               <td>{{ row.count_use }}</td>
               <td class="text-no-wrap">
@@ -274,7 +300,7 @@ onMounted(async () => {
               </td>
             </tr>
             <tr v-if="rows.length === 0">
-              <td colspan="10" class="text-center text-medium-emphasis py-6">
+              <td colspan="11" class="text-center text-medium-emphasis py-6">
                 {{ loading ? '加载中…' : '暂无凭证，点「签发凭证」生成密钥' }}
               </td>
             </tr>

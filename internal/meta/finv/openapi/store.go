@@ -309,13 +309,21 @@ SELECT c.idn, c.client_idn, cl.client_code, c.credential_no, c.auth_mode, c.acce
   FROM open.open_api_credential c
   JOIN open.open_api_client cl ON cl.idn = c.client_idn`
 
-// CredentialPage 分页查询凭证（可选按调用方过滤）。
-func (s *Store) CredentialPage(ctx context.Context, clientIDN int64, keyword string, page, pageSize int) ([]Credential, int, error) {
+// CredentialPage 分页查询凭证（可选按调用方、关键字、状态过滤）。
+//
+// status（需求 11217）：`active`（默认）= 只返回当前可用的（未吊销、启用中、未过期）；
+// `all` = 全部，含已吊销/停用/过期。判定口径与鉴权侧的 Credential.Active 保持一致。
+func (s *Store) CredentialPage(ctx context.Context, clientIDN int64, keyword, status string,
+	page, pageSize int) ([]Credential, int, error) {
 	if s.pool == nil {
 		return nil, 0, errors.New("数据库连接池未初始化")
 	}
 	conditions := []string{}
 	args := []any{}
+	if strings.TrimSpace(status) != CredentialStatusAll {
+		conditions = append(conditions,
+			`c.flag_revoke = '0' AND c.flag_enable = '1' AND (c.dt_expire IS NULL OR c.dt_expire > now())`)
+	}
 	if clientIDN > 0 {
 		args = append(args, clientIDN)
 		conditions = append(conditions, fmt.Sprintf(`c.client_idn = $%d`, len(args)))
