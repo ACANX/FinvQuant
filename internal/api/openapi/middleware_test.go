@@ -848,3 +848,53 @@ func TestMiddlewareStaticKeyWriteGuard(t *testing.T) {
 		t.Fatalf("空 scope 的静态 Key 应 403/19009，实际 %d %s", recorder.Code, recorder.Body.String())
 	}
 }
+
+// TestParseScopeBroken scope_str 损坏必须按「拒绝」处理，不能放大成「全部接口」（需求 11190）。
+func TestParseScopeBroken(t *testing.T) {
+	// 约定：空串 / null / 空数组 = 无限制（全部接口）
+	for _, raw := range []string{"", "  ", "null", "[]"} {
+		rules, broken := parseScope(raw)
+		if broken || rules != nil {
+			t.Fatalf("%q 应表示「全部接口」且不算损坏，实际 rules=%v broken=%t", raw, rules, broken)
+		}
+	}
+	// 合法对象数组
+	rules, broken := parseScope(`[{"method":"POST","path":"/OpenAPI/V1/a"}]`)
+	if broken || len(rules) != 1 || rules[0].Path != "/OpenAPI/V1/a" {
+		t.Fatalf("合法对象数组应解析成功，实际 %v broken=%t", rules, broken)
+	}
+	// 损坏：非法 JSON、字符串数组（本次事故形态）、缺 path
+	for _, raw := range []string{
+		`{"method":"POST"}`,
+		`["POST /OpenAPI/V1/a"]`,
+		`[{"method":"POST"}]`,
+		`not-json`,
+		`[1,2,3]`,
+	} {
+		if _, broken := parseScope(raw); !broken {
+			t.Fatalf("%q 应判定为损坏", raw)
+		}
+	}
+}
+
+// TestMiddlewareScopeBrokenDenied scope_str 损坏的凭证调用时 403/19009。
+func TestMiddlewareScopeBrokenDenied(t *testing.T) {
+	settings := enabledSettings(testKey())
+	broken := staticCredential("SA_LIVE_BROKEN")
+	broken.ScopeBroken = true
+	broken.Scope = nil // 即使 scope 为空，也不能因为「空=全部」而放行
+	engine, hits := newTestEngine(t, Options{
+		Source: &fakeSource{byKey: map[string]*Credential{"SA_LIVE_BROKEN": broken}},
+	}, settings)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/OpenAPI/V1/Test", nil)
+	request.Header.Set("X-API-Key", "SA_LIVE_BROKEN")
+	engine.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "19009") {
+		t.Fatalf("scope 损坏应 403/19009，实际 %d %s", recorder.Code, recorder.Body.String())
+	}
+	if *hits != 0 {
+		t.Fatalf("scope 损坏不应进入 handler")
+	}
+}

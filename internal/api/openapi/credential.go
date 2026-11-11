@@ -38,6 +38,9 @@ type Credential struct {
 	SecretKID     string
 	SignAlgorithm string
 	Scope         []ScopeRule
+	// ScopeBroken 授权范围数据损坏（scope_str 不是合法的对象数组）。
+	// 解析失败时**不放行**：按「无权限」拒绝，避免坏数据把凭证悄悄放大成「全部接口」（需求 11190）。
+	ScopeBroken   bool
 	CredentialIPs []*net.IPNet
 
 	ClientIDN    int64
@@ -230,7 +233,7 @@ func (s *PGSource) lookupExact(ctx context.Context, accessKeyID string) (*Creden
 	credential.FlagEnable = credFlagEnable == "1"
 	credential.FlagRevoke = credFlagRevoke == "1"
 	credential.clientEnable = clientFlagEnab == "1"
-	credential.Scope = parseScope(scopeJSON)
+	credential.Scope, credential.ScopeBroken = parseScope(scopeJSON)
 	credential.CredentialIPs = parseCIDRs(credentialCIDRs)
 	credential.ClientIPs = parseCIDRs(clientCIDRs)
 	return credential, nil
@@ -261,15 +264,25 @@ func parseCIDRs(values []string) []*net.IPNet {
 	return nets
 }
 
-// parseScope 解析 scope_str：容忍空串、null 与非法 JSON（一律按「无授权范围」＝ 全部接口）。
-func parseScope(raw string) []ScopeRule {
+// parseScope 解析 scope_str。
+//
+// 只有「空串 / null / 空数组」表示**无授权范围限制（全部接口）**，这是约定语义；
+// 其它任何解析失败（非法 JSON、元素是字符串而非 {"method","path"} 对象）都视为**数据损坏**，
+// 返回 broken=true 让调用方拒绝请求——绝不能把坏数据当成「全部接口」放行（需求 11190）。
+func parseScope(raw string) ([]ScopeRule, bool) {
 	raw = strings.TrimSpace(raw)
-	if raw == "" || raw == "[]" || raw == "null" {
-		return nil
+	if raw == "" || raw == "null" || raw == "[]" {
+		return nil, false
 	}
 	var rules []ScopeRule
 	if err := json.Unmarshal([]byte(raw), &rules); err != nil {
-		return nil
+		return nil, true
 	}
-	return rules
+	// 每条规则必须真的带 path（method 可空 = 任意方法）；否则视为损坏
+	for _, rule := range rules {
+		if strings.TrimSpace(rule.Path) == "" {
+			return nil, true
+		}
+	}
+	return rules, false
 }

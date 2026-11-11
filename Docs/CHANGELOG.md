@@ -219,6 +219,13 @@
 
 ### 变更
 
+- **`scope_str` 损坏按拒绝处理（需求 11190）**
+  - 原 `parseScope` 遇到非法 JSON 静默返回 nil，而 nil 的语义是「全部接口」——坏数据会把凭证放大成全权限
+    （上一轮 seed 脚本误写字符串数组即触发此路径，AK/SK 凭证实际被放开了全部接口）。
+  - 现在只有空串 / `null` / `[]` 表示无限制；非法 JSON、字符串数组、元素缺 `path`、非对象元素一律判为损坏，
+    置 `Credential.ScopeBroken`，中间件在授权范围校验前返回 `19009`（fail-closed）。
+  - 测试：`TestParseScopeBroken`、`TestMiddlewareScopeBrokenDenied`；字典补格式约束说明。
+
 - **静态 Key 收紧（单接口 / 额度 / 90 天 / 写接口 `_`）+ 防重放加固 + Redis fail-close（需求 11188）**
   - 签发侧：静态 Key 只能授权 **1 个具体接口**（留空与通配都拒绝）、调用方必须先配 `rate_limit_rpm` 或
     `quota_day`、有效期必填且 **≤ 90 天**；AK/SK 不受接口个数限制。

@@ -154,7 +154,12 @@ func (m *Middleware) Handler() gin.HandlerFunc {
 			return
 		}
 
-		// 授权范围
+		// 授权范围：scope_str 数据损坏时**拒绝**（不能当成「全部接口」放行，需求 11190）
+		if credential.ScopeBroken {
+			m.deny(c, settings, invocation, started, CodeScopeDeny,
+				"凭据授权范围数据损坏（scope_str 不是合法对象数组），请联系平台方修复", nil)
+			return
+		}
 		if !credential.InScope(c.Request.Method, c.Request.URL.Path) {
 			m.deny(c, settings, invocation, started, CodeScopeDeny, "接口不在授权范围内", nil)
 			return

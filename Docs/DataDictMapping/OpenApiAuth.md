@@ -57,7 +57,7 @@
 | `dt_secret_rotate` | TIMESTAMPTZ | 可空 | 最近一次轮换时间 |
 | `secret_kid` | VARCHAR(16) | 可空 | 加密密钥版本（对应 `sys_config` 19004） |
 | `sign_algorithm` | VARCHAR(16) | NOT NULL DEFAULT `'HMAC-SHA256'`, `IN ('HMAC-SHA256','HMAC-SHA512','ED25519')` | 签名算法 |
-| `scope_str` | JSONB | NOT NULL DEFAULT `'[]'`, `jsonb_typeof = 'array'` | 授权范围，元素形如 `{"method":"POST","path":"/OpenAPI/V1/..."}`；空数组=该路由组全部接口 |
+| `scope_str` | JSONB | NOT NULL DEFAULT `'[]'`, `jsonb_typeof = 'array'` | 授权范围，元素必须是 `{"method":"POST","path":"/OpenAPI/V1/..."}` 对象；`[]`/`null`/空串 = 全部接口。**其它非法格式（如字符串数组）按数据损坏处理：拒绝请求（19009）**，不得当成全接口放行（需求 11190） |
 | `allow_cidr` | CIDR[] | NOT NULL DEFAULT `'{}'` | 凭证级白名单，与调用方级取交集 |
 | `dt_expire` | TIMESTAMPTZ | 可空 | 凭证过期（NULL=随调用方） |
 | `dt_last_use` | TIMESTAMPTZ | 可空 | 最近一次认证成功（异步节流回写，可能略滞后） |
