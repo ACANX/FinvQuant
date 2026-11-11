@@ -9,6 +9,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,6 +46,9 @@ type Options struct {
 	Recorder *Recorder
 	// Now 时钟注入（测试用）。
 	Now func() time.Time
+	// RedisFailClose Redis 故障时是否 fail-close（拒绝）：true=拒绝（FINV_OPENAPI_REDIS_FAIL_MODE=close），
+	// false=放行并告警（open）。重放/限流依赖 Redis，故障时放行等于这两项失效。
+	RedisFailClose bool
 	// Logf 应用日志（测试可静音）。
 	Logf func(format string, args ...any)
 }
@@ -57,6 +62,8 @@ type Middleware struct {
 	envKey   string
 	now      func() time.Time
 	logf     func(format string, args ...any)
+	// redisFailClose Redis 故障时是否拒绝请求（FINV_OPENAPI_REDIS_FAIL_MODE=close）。
+	redisFailClose bool
 }
 
 // NewMiddleware 构造中间件。
@@ -82,13 +89,14 @@ func NewMiddleware(opts Options) *Middleware {
 		logf = log.Printf
 	}
 	return &Middleware{
-		source:   source,
-		settings: settings,
-		redis:    NewRedisStore(opts.Redis),
-		recorder: recorder,
-		envKey:   strings.TrimSpace(opts.FallbackKey),
-		now:      now,
-		logf:     logf,
+		source:         source,
+		settings:       settings,
+		redis:          NewRedisStore(opts.Redis),
+		redisFailClose: opts.RedisFailClose,
+		recorder:       recorder,
+		envKey:         strings.TrimSpace(opts.FallbackKey),
+		now:            now,
+		logf:           logf,
 	}
 }
 
@@ -152,10 +160,24 @@ func (m *Middleware) Handler() gin.HandlerFunc {
 			return
 		}
 
+		// 静态 Key 没有签名，写接口用查询参数 `_`（毫秒时间戳）做防重放挡板（需求 11188）：
+		// 必须存在、为纯数字毫秒、且与服务器时间相差 ≤ 60 秒。放在授权范围校验之后，
+		// 让「没有权限」优先于「时间戳不对」，避免越权探测被时间戳错误掩盖。
+		if credential.AuthMode == AuthModeAPIKey && writeMethods[c.Request.Method] {
+			if reason := checkStaticWriteTS(c.Request, m.now()); reason != "" {
+				m.deny(c, settings, invocation, started, CodeTimestampSkew, reason, nil)
+				return
+			}
+		}
+
 		// 速率与配额
 		allowed, rateErr := m.redis.AllowRate(c.Request.Context(), credential.ClientIDN, credential.RateLimitRPM, credential.QuotaDay)
 		if rateErr != nil {
-			m.logf("[openapi] 限流检查失败（放行）: %v", rateErr)
+			m.logf("[openapi] 限流检查失败（fail-close=%t）: %v", m.redisFailClose, rateErr)
+			if m.redisFailClose {
+				m.deny(c, settings, invocation, started, CodeAuthNotReady, "限流状态不可用（Redis 故障），请稍后重试", rateErr)
+				return
+			}
 		}
 		if !allowed {
 			m.deny(c, settings, invocation, started, CodeRateLimit, "超出速率或配额", nil)
@@ -228,6 +250,11 @@ func (m *Middleware) authenticate(c *gin.Context, settings Settings, req *http.R
 		if err != nil || nonce == "" {
 			return credential, CodeKeyInvalid, "缺少 " + HeaderTimestamp + " 或 " + HeaderNonce
 		}
+		// nonce 形态校验（需求 11188）：8~64 位、仅字母/数字/_/-，避免超长或包含
+		// 特殊字符的 nonce 撑大 Redis 键空间（重放键按凭证明细存储）。
+		if !noncePattern.MatchString(nonce) {
+			return credential, CodeKeyInvalid, "nonce 必须为 8~64 位字母/数字/_/-"
+		}
 		skew := m.now().Sub(time.Unix(ts, 0))
 		if skew < 0 {
 			skew = -skew
@@ -238,7 +265,10 @@ func (m *Middleware) authenticate(c *gin.Context, settings Settings, req *http.R
 
 		fresh, err := m.redis.AcquireNonce(req.Context(), credential.IDN, nonce, settings.NonceKeepWindow)
 		if err != nil {
-			m.logf("[openapi] nonce 检查失败（放行）: %v", err)
+			m.logf("[openapi] nonce 检查失败（fail-close=%t）: %v", m.redisFailClose, err)
+			if m.redisFailClose {
+				return credential, CodeAuthNotReady, "防重放状态不可用（Redis 故障），请稍后重试"
+			}
 		} else if !fresh {
 			return credential, CodeNonceReplay, "nonce 重复"
 		}
@@ -283,6 +313,12 @@ func (m *Middleware) authenticate(c *gin.Context, settings Settings, req *http.R
 		}
 		if !credential.AllowIP(invocation.IP) {
 			return credential, CodeCIDRDeny, "来源 IP 不在白名单"
+		}
+		// 静态 Key 的授权范围必须恰好 1 个接口（需求 11188）：签发时已强制，
+		// 这里兜底存量凭证——空范围（放全部）或多接口都拒绝，需重新签发。
+		if len(credential.Scope) != 1 {
+			return credential, CodeScopeDeny,
+				"静态 Key 必须且只能授权 1 个接口（当前 " + strconv.Itoa(len(credential.Scope)) + " 个），请重新签发"
 		}
 		return credential, 0, ""
 	case err == nil:
@@ -387,6 +423,20 @@ func bearerToken(header string) string {
 	return strings.TrimSpace(header[len(scheme):])
 }
 
+// noncePattern nonce 形态：8~64 位字母/数字/_/-（需求 11188）。
+var noncePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{8,64}$`)
+
+// writeMethods 需要校验「毫秒时间戳查询参数 `_`」的写方法（需求 11188，仅静态 Key 模式）。
+var writeMethods = map[string]bool{
+	http.MethodPost:   true,
+	http.MethodPut:    true,
+	http.MethodPatch:  true,
+	http.MethodDelete: true,
+}
+
+// staticKeyWriteWindow 静态 Key 写接口的时间戳允许偏差。
+const staticKeyWriteWindow = time.Minute
+
 // keyPrefixes 是平台密钥的固定前缀；掩码时必须跳过，否则「前 8 位」全是前缀、
 // 只剩后 4 位可区分（SA_LIVE_ + 32 hex 场景下所有 Key 前 8 位完全相同）。
 var keyPrefixes = []string{"SA_LIVE_", "AK_LIVE_", "SK_LIVE_", "FK_LIVE_"}
@@ -427,4 +477,35 @@ func CredentialFrom(c *gin.Context) (*Credential, bool) {
 	}
 	credential, ok := value.(*Credential)
 	return credential, ok
+}
+
+// checkStaticWriteTS 校验静态 Key 写接口的 `_`（毫秒时间戳）参数（需求 11188）。
+//
+// 返回空串表示通过；否则返回拒绝原因。静态 Key 无法像 AK/SK 那样对请求签名，
+// 用「调用方必须带当前时间附近的毫秒时间戳」抬高重放门槛（重放窗口 ≤ 60 秒）。
+func checkStaticWriteTS(req *http.Request, now time.Time) string {
+	raw := strings.TrimSpace(req.URL.Query().Get("_"))
+	if raw == "" {
+		return "写接口必须携带查询参数 `_`（毫秒时间戳）"
+	}
+	if len(raw) < 13 || len(raw) > 19 {
+		return "查询参数 `_` 必须是毫秒时间戳（13 位数字）"
+	}
+	for _, ch := range raw {
+		if ch < '0' || ch > '9' {
+			return "查询参数 `_` 必须是毫秒时间戳（纯数字）"
+		}
+	}
+	millis, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return "查询参数 `_` 不是合法的毫秒时间戳"
+	}
+	skew := now.Sub(time.UnixMilli(millis))
+	if skew < 0 {
+		skew = -skew
+	}
+	if skew > staticKeyWriteWindow {
+		return "查询参数 `_` 与服务器时间相差超过 60 秒"
+	}
+	return ""
 }

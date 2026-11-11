@@ -19,8 +19,8 @@ import (
 
 // 认证模式（open.open_api_credential.auth_mode）。
 const (
-	AuthModeAPIKey = "API_KEY"
-	AuthModeAKSK   = "AK_SK"
+	AuthModeAPIKey = "APIKEY"
+	AuthModeAKSK   = "AKSK"
 	AuthModeBearer = "BEARER"
 	AuthModeMTLS   = "MTLS"
 	AuthModeBasic  = "BASIC"

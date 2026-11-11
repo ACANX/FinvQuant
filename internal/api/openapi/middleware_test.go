@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -280,10 +281,20 @@ func (f *fakeSource) Lookup(_ context.Context, accessKeyID string) (*Credential,
 	return nil, ErrCredentialNotFound
 }
 
+// testNow 测试固定时钟（与 newTestEngine 注入的 Now 一致）。
+var testNow = time.Unix(1737000000, 0)
+
+// tsURL 给静态 Key 的写接口补上 `_`（毫秒时间戳，需求 11188）。
+func tsURL(path string) string {
+	return path + "?_=" + strconv.FormatInt(testNow.UnixMilli(), 10)
+}
+
 func staticCredential(key string) *Credential {
 	return &Credential{
 		IDN: 1, ClientIDN: 1, CredentialNo: "cred-1", AuthMode: AuthModeAPIKey,
 		AccessKeyID: key, SecretHash: HashStaticKey(key), FlagEnable: true, clientEnable: true,
+		// 静态 Key 必须恰好授权 1 个接口（需求 11188）
+		Scope: []ScopeRule{{Method: "*", Path: "/OpenAPI/V1/Test"}},
 	}
 }
 
@@ -333,7 +344,7 @@ func TestMiddlewareStaticKey(t *testing.T) {
 
 	// 缺 Key → 19001 / 401
 	recorder := httptest.NewRecorder()
-	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test", nil))
+	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, tsURL("/OpenAPI/V1/Test"), nil))
 	if recorder.Code != http.StatusUnauthorized {
 		t.Fatalf("缺 Key 应 401，实际 %d", recorder.Code)
 	}
@@ -355,7 +366,7 @@ func TestMiddlewareStaticKey(t *testing.T) {
 
 	// 正确 Key → 放行，且请求体仍可读
 	recorder = httptest.NewRecorder()
-	request = httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test", strings.NewReader("payload"))
+	request = httptest.NewRequest(http.MethodPost, tsURL("/OpenAPI/V1/Test"), strings.NewReader("payload"))
 	request.Header.Set("X-API-Key", "SA_LIVE_OK")
 	engine.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK || *hits != 1 {
@@ -461,7 +472,7 @@ func TestMiddlewareStateAndScope(t *testing.T) {
 	disabled.FlagEnable = false
 	engine, _ := newTestEngine(t, Options{Source: &fakeSource{byKey: map[string]*Credential{"SA_LIVE_OFF": disabled}}}, settings)
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test", nil)
+	request := httptest.NewRequest(http.MethodPost, tsURL("/OpenAPI/V1/Test"), nil)
 	request.Header.Set("X-API-Key", "SA_LIVE_OFF")
 	engine.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "19003") {
@@ -472,7 +483,7 @@ func TestMiddlewareStateAndScope(t *testing.T) {
 	limited.Scope = []ScopeRule{{Method: "GET", Path: "/Other"}}
 	engine, _ = newTestEngine(t, Options{Source: &fakeSource{byKey: map[string]*Credential{"SA_LIVE_SCOPE": limited}}}, settings)
 	recorder = httptest.NewRecorder()
-	request = httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test", nil)
+	request = httptest.NewRequest(http.MethodPost, tsURL("/OpenAPI/V1/Test"), nil)
 	request.Header.Set("X-API-Key", "SA_LIVE_SCOPE")
 	engine.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "19009") {
@@ -583,13 +594,14 @@ func TestAuditMasksStaticKey(t *testing.T) {
 	credential := &Credential{
 		IDN: 1, ClientIDN: 1, AuthMode: AuthModeAPIKey, AccessKeyID: key,
 		SecretHash: HashStaticKey(key), FlagEnable: true, clientEnable: true,
+		Scope: []ScopeRule{{Method: "*", Path: "/OpenAPI/V1/Test"}},
 	}
 	engine, _ := newTestEngine(t, Options{
 		Source: &fakeSource{byKey: map[string]*Credential{key: credential}},
 	}, enabledSettings(testKey()))
 
 	recorder := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test", strings.NewReader("x"))
+	req := httptest.NewRequest(http.MethodPost, tsURL("/OpenAPI/V1/Test"), strings.NewReader("x"))
 	req.Header.Set("X-API-Key", key)
 	engine.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusOK {
@@ -719,5 +731,120 @@ func TestFingerprintStaticKey(t *testing.T) {
 	// 大小写不敏感：与存储哈希同口径（先归一为大写）
 	if FingerprintStaticKey(strings.ToLower(a)) != fa {
 		t.Fatalf("指纹应对大小写不敏感")
+	}
+}
+
+// TestNoncePattern nonce 形态限制（需求 11188）：8~64 位字母/数字/_/-。
+func TestNoncePattern(t *testing.T) {
+	good := []string{"abcdef01", "ABCDEF01", "abc-123_XYZ", strings.Repeat("a", 64)}
+	for _, v := range good {
+		if !noncePattern.MatchString(v) {
+			t.Fatalf("合法 nonce 被判非法: %q", v)
+		}
+	}
+	bad := []string{"abc", strings.Repeat("a", 65), "abc def", "abc.def", "中文中文中文"}
+	for _, v := range bad {
+		if noncePattern.MatchString(v) {
+			t.Fatalf("非法 nonce 被判合法: %q", v)
+		}
+	}
+}
+
+// TestCheckStaticWriteTS 静态 Key 写接口的 `_`（毫秒时间戳）校验（需求 11188）。
+func TestCheckStaticWriteTS(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+	at := func(offset time.Duration) string {
+		return strconv.FormatInt(now.Add(offset).UnixMilli(), 10)
+	}
+	cases := []struct {
+		raw  string
+		ok   bool
+		word string
+	}{
+		{at(0), true, ""},
+		{at(-59 * time.Second), true, ""},
+		{at(59 * time.Second), true, ""},
+		{"", false, "必须携带"},
+		{at(-61 * time.Second), false, "超过 60 秒"},
+		{at(61 * time.Second), false, "超过 60 秒"},
+		{"17abc000000000", false, "纯数字"},
+		{"12345", false, "13 位"},
+	}
+	for _, c := range cases {
+		req := httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/x?_="+c.raw, nil)
+		got := checkStaticWriteTS(req, now)
+		if c.ok && got != "" {
+			t.Fatalf("_=%q 应通过，实际被拒: %s", c.raw, got)
+		}
+		if !c.ok && !strings.Contains(got, c.word) {
+			t.Fatalf("_=%q 期望拒绝含 %q，实际 %q", c.raw, c.word, got)
+		}
+	}
+	// 无参数
+	req := httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/x", nil)
+	if got := checkStaticWriteTS(req, now); !strings.Contains(got, "必须携带") {
+		t.Fatalf("缺少 _ 应被拒，实际 %q", got)
+	}
+}
+
+// TestMiddlewareStaticKeyWriteGuard 静态 Key 写接口的 `_` 时间戳与单接口约束（需求 11188）。
+func TestMiddlewareStaticKeyWriteGuard(t *testing.T) {
+	settings := enabledSettings(testKey())
+	key := "SA_LIVE_OK"
+	source := &fakeSource{byKey: map[string]*Credential{key: staticCredential(key)}}
+	engine, hits := newTestEngine(t, Options{Source: source}, settings)
+
+	// 缺 `_` → 19006
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test", strings.NewReader("x"))
+	request.Header.Set("X-API-Key", key)
+	engine.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusUnauthorized || !strings.Contains(recorder.Body.String(), "19006") {
+		t.Fatalf("写接口缺 `_` 应 401/19006，实际 %d %s", recorder.Code, recorder.Body.String())
+	}
+
+	// `_` 超窗（61 秒前）→ 19006
+	stale := strconv.FormatInt(testNow.Add(-61*time.Second).UnixMilli(), 10)
+	recorder = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test?_="+stale, strings.NewReader("x"))
+	request.Header.Set("X-API-Key", key)
+	engine.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusUnauthorized || !strings.Contains(recorder.Body.String(), "19006") {
+		t.Fatalf("`_` 超窗应 401/19006，实际 %d %s", recorder.Code, recorder.Body.String())
+	}
+
+	// 带合法 `_` → 放行
+	recorder = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodPost, tsURL("/OpenAPI/V1/Test"), strings.NewReader("x"))
+	request.Header.Set("X-API-Key", key)
+	engine.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || *hits != 1 {
+		t.Fatalf("合法 `_` 应放行，实际 %d hits=%d", recorder.Code, *hits)
+	}
+
+	// GET 不需要 `_`（读接口不受影响）
+	recorder = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodGet, "/OpenAPI/V1/Test", nil)
+	request.Header.Set("X-API-Key", key)
+	engine.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusNotFound && recorder.Code != http.StatusOK {
+		// 测试路由只注册了 POST，GET 落到 404；关键是不能因为缺 `_` 被判 19006
+		if strings.Contains(recorder.Body.String(), "19006") {
+			t.Fatalf("GET 不应要求 `_`，实际 %s", recorder.Body.String())
+		}
+	}
+
+	// 存量凭证 scope 为空（放全部）→ 19009 兜底拒绝
+	loose := staticCredential("SA_LIVE_LOOSE")
+	loose.Scope = nil
+	engine2, _ := newTestEngine(t, Options{
+		Source: &fakeSource{byKey: map[string]*Credential{"SA_LIVE_LOOSE": loose}},
+	}, settings)
+	recorder = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodPost, tsURL("/OpenAPI/V1/Test"), strings.NewReader("x"))
+	request.Header.Set("X-API-Key", "SA_LIVE_LOOSE")
+	engine2.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "19009") {
+		t.Fatalf("空 scope 的静态 Key 应 403/19009，实际 %d %s", recorder.Code, recorder.Body.String())
 	}
 }

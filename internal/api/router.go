@@ -131,10 +131,14 @@ func NewRouter(deps *Deps) *gin.Engine {
 		// 由 sys_config 19001 控制（0 关闭 / 1 启用 / 2 宽松），失败返回 190xx 错误码；
 		// 兼容期环境变量 FINV_OPENAPI_KEY 与 sys_config 19006 作为兜底静态密钥。
 		openGroup := router.Group("/OpenAPI/V1")
+		// Redis 故障策略（需求 11188）：FINV_OPENAPI_REDIS_FAIL_MODE=close（默认）时拒绝请求，
+		// 避免 Redis 不可用期间防重放/限流静默失效；=open 时退回旧行为（放行 + 日志告警）。
+		redisFailClose := !strings.EqualFold(strings.TrimSpace(cfg.OpenAPIRedisFailMode), "open")
 		openGroup.Use(openapi.NewMiddleware(openapi.Options{
-			Pool:        deps.Pool,
-			Redis:       deps.Redis,
-			FallbackKey: cfg.OpenAPIKey,
+			Pool:           deps.Pool,
+			Redis:          deps.Redis,
+			FallbackKey:    cfg.OpenAPIKey,
+			RedisFailClose: redisFailClose,
 		}).Handler())
 		openGroup.Use(WrapOpenAPIResponse())
 		openGroup.POST("/Meta/Finv/Quote/Cdeu/Min/Upsert", klineHandler.Upsert)

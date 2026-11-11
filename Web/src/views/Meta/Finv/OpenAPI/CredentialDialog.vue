@@ -49,14 +49,14 @@ const emit = defineEmits<{
 const BASE = '/Meta/Finv/OpenAPI'
 
 const AUTH_MODE_OPTIONS = [
-  { title: '静态 API Key[key=' + 'API_KEY]', value: 'API_KEY' },
-  { title: 'AK/SK 签名[key=AK_SK]', value: 'AK_SK' },
+  { title: '静态 API Key[key=APIKEY]', value: 'APIKEY' },
+  { title: 'AK/SK 签名[key=AKSK]', value: 'AKSK' },
 ]
 
 const form = ref({
   client_idn: 0,
   credential_no: '',
-  auth_mode: 'API_KEY',
+  auth_mode: 'APIKEY',
   scope_text: '',
   allow_cidr_text: '',
   dt_expire: '',
@@ -85,13 +85,25 @@ const noError = computed(() => {
   if (!/^[A-Z0-9][A-Z0-9._-]{1,47}$/.test(value)) return '只允许字母/数字/._-，2~48 位（字母统一大写）'
   return ''
 })
-const canSubmit = computed(() => !noError.value && !saving.value)
+// 静态 Key 的最长有效期 90 天（需求 11188）
+const maxApiKeyExpire = computed(() => {
+  const d = new Date()
+  d.setDate(d.getDate() + 90)
+  return d.toISOString().slice(0, 10)
+})
+
+const apiKeyExpireInvalid = computed(
+  () => form.value.auth_mode === 'APIKEY' &&
+    (!form.value.dt_expire || form.value.dt_expire > maxApiKeyExpire.value),
+)
+
+const canSubmit = computed(() => !noError.value && !saving.value && !apiKeyExpireInvalid.value)
 
 function resetForm() {
   form.value = {
     client_idn: props.clientIdn || props.clients[0]?.idn || 0,
     credential_no: '',
-    auth_mode: 'API_KEY',
+    auth_mode: 'APIKEY',
     scope_text: '',
     allow_cidr_text: '',
     dt_expire: '',
@@ -226,11 +238,25 @@ watch(
             轮换会生成一套新密钥：静态 Key 的公开标识会改变；AK/SK 的旧 SK 在签名时间窗内仍可验签，之后失效。
           </v-alert>
 
+          <v-alert
+            v-if="!isRotate && form.auth_mode === 'APIKEY'"
+            type="warning"
+            density="compact"
+            variant="tonal"
+            class="mb-2"
+          >
+            静态 Key 只能授权 <strong>1 个具体接口</strong>（不允许留空或通配），且调用方必须先配置调用额度；
+            需要多接口请改用 AK/SK 签名模式。写接口调用时还必须带查询参数 <code>_</code>（毫秒时间戳，±60 秒）。
+          </v-alert>
           <v-textarea
             v-if="!isRotate"
             v-model="form.scope_text"
-            label="授权范围（每行一条「方法 路径」，留空 = 全部接口）"
-            placeholder="POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert&#10;GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/*"
+            :label="form.auth_mode === 'APIKEY'
+              ? '授权接口（1 条「方法 路径」，必填）'
+              : '授权范围（每行一条「方法 路径」，留空 = 全部接口）'"
+            :placeholder="form.auth_mode === 'APIKEY'
+              ? 'POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert'
+              : 'POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert\nGET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/*'"
             density="compact"
             variant="outlined"
             rows="3"
@@ -247,7 +273,13 @@ watch(
             <v-text-field
               v-model="form.dt_expire"
               type="date"
-              label="凭证到期（留空 = 随调用方）"
+              :max="form.auth_mode === 'APIKEY' ? maxApiKeyExpire : undefined"
+              :label="form.auth_mode === 'APIKEY'
+                ? '凭证到期（必填，最长 90 天）'
+                : '凭证到期（留空 = 随调用方）'"
+              :error-messages="apiKeyExpireInvalid
+                ? '静态 Key 必须设置到期日，且不超过 90 天（' + maxApiKeyExpire + '）'
+                : []"
               density="compact"
               variant="outlined"
               style="min-width: 200px; flex: 1"
@@ -276,7 +308,7 @@ watch(
           </div>
           <div>
             <div class="text-caption text-medium-emphasis">
-              {{ issued.credential.auth_mode === 'AK_SK' ? 'Access Key（AK，公开标识）' : '静态 API Key' }}
+              {{ issued.credential.auth_mode === 'AKSK' ? 'Access Key（AK，公开标识）' : '静态 API Key' }}
             </div>
             <div class="d-flex align-center ga-2">
               <code class="secret-value">{{ issued.access_key }}</code>
@@ -285,7 +317,7 @@ watch(
               </v-btn>
             </div>
           </div>
-          <div v-if="issued.credential.auth_mode === 'AK_SK'">
+          <div v-if="issued.credential.auth_mode === 'AKSK'">
             <div class="text-caption text-medium-emphasis">Secret Key（SK，用于 HMAC 签名）</div>
             <div class="d-flex align-center ga-2">
               <code class="secret-value">{{ issued.secret_key }}</code>

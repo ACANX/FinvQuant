@@ -219,6 +219,19 @@
 
 ### 变更
 
+- **静态 Key 收紧（单接口 / 额度 / 90 天 / 写接口 `_`）+ 防重放加固 + Redis fail-close（需求 11188）**
+  - 签发侧：静态 Key 只能授权 **1 个具体接口**（留空与通配都拒绝）、调用方必须先配 `rate_limit_rpm` 或
+    `quota_day`、有效期必填且 **≤ 90 天**；AK/SK 不受接口个数限制。
+  - 调用侧：静态 Key 的写接口（`POST/PUT/PATCH/DELETE`）必须带查询参数 `_`（毫秒时间戳），与服务器差 ≤ 60 秒，
+    否则 `19006`；放在授权范围校验之后，避免越权探测被时间戳错误掩盖。存量凭证 scope 不是恰好 1 个时 `19009` 兜底。
+  - 防重放：`X-META-Nonce` 限 8~64 位字母/数字/`_`/`-`（否则 `19002`），堵住超长 nonce 撑 Redis 键空间。
+  - 新增 `FINV_OPENAPI_REDIS_FAIL_MODE`（默认 `close`）：Redis 故障时 nonce/限流不可用就拒绝（`19010`/503），
+    `=open` 回到旧的「放行 + 告警」。
+- **`auth_mode` 取值统一为 `APIKEY` / `AKSK`（需求 11189）**
+  - 迁移 `V300187`：先摘掉 3 个引用旧取值的 CHECK → 改 `open_api_credential` 与 `open_api_invoke_log` 存量值 →
+    按新取值重建约束与注释（直接 UPDATE 会被 `ck_open_api_credential_secret` 拦下）。
+  - 代码常量、前端枚举与下拉、Demo（`seed_credentials.py`）、文档同步。
+
 - **密钥指纹字段名定稿为 `kfp`（需求 11187）**
   - `open.open_api_invoke_log.key_fingerprint` → `kfp`（审计表列多，短名更省版面），
     索引同步为 `idx_open_api_invoke_log_kfp (kfp, dt_request DESC)`。

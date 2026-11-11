@@ -20,8 +20,8 @@ export const MODE_LABELS: Record<string, string> = {
 
 /** 凭证认证模式（open.open_api_credential.auth_mode） */
 export const AUTH_MODE_LABELS: Record<string, string> = {
-  API_KEY: '静态 Key',
-  AK_SK: 'AK/SK 签名',
+  APIKEY: '静态 Key',
+  AKSK: 'AK/SK 签名',
   BEARER: 'Bearer JWT（预留）',
   MTLS: '双向 TLS（预留）',
   BASIC: '用户名口令（预留）',

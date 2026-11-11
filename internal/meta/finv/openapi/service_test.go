@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/acanx/finvquant/internal/meta/finv/openapi/secret"
 )
@@ -60,7 +61,12 @@ func TestValidateClient(t *testing.T) {
 }
 
 func TestValidateCredential(t *testing.T) {
-	base := CredentialCreateRequest{ClientIDN: 1, CredentialNo: "cred-01", AuthMode: "api_key"}
+	// 静态 Key 必须指定唯一授权接口（需求 11188）
+	base := CredentialCreateRequest{
+		ClientIDN: 1, CredentialNo: "cred-01", AuthMode: "apikey",
+		Scope:    []string{"GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni"},
+		DTExpire: time.Now().Add(30 * 24 * time.Hour).Format("2006-01-02"), // 静态 Key 有效期 ≤ 90 天（需求 11188）
+	}
 	ok, err := validateCredential(base)
 	if err != nil {
 		t.Fatalf("合法入参不应报错: %v", err)
@@ -73,7 +79,7 @@ func TestValidateCredential(t *testing.T) {
 		t.Fatalf("API_KEY 模式应落默认算法 HMAC-SHA256，实际 %q", ok.SignAlgorithm)
 	}
 
-	aksk, err := validateCredential(CredentialCreateRequest{ClientIDN: 1, CredentialNo: "cred-02", AuthMode: "AK_SK"})
+	aksk, err := validateCredential(CredentialCreateRequest{ClientIDN: 1, CredentialNo: "cred-02", AuthMode: "AKSK"})
 	if err != nil {
 		t.Fatalf("AK/SK 合法: %v", err)
 	}
@@ -86,14 +92,29 @@ func TestValidateCredential(t *testing.T) {
 		req  CredentialCreateRequest
 		word string
 	}{
-		{"缺 client", CredentialCreateRequest{CredentialNo: "c1", AuthMode: "API_KEY"}, "client_idn"},
-		{"空 no", CredentialCreateRequest{ClientIDN: 1, AuthMode: "API_KEY"}, "credential_no"},
-		{"非法 no", CredentialCreateRequest{ClientIDN: 1, CredentialNo: "含中文", AuthMode: "API_KEY"}, "credential_no"},
+		{"缺 client", CredentialCreateRequest{CredentialNo: "c1", AuthMode: "APIKEY"}, "client_idn"},
+		{"空 no", CredentialCreateRequest{ClientIDN: 1, AuthMode: "APIKEY"}, "credential_no"},
+		{"非法 no", CredentialCreateRequest{ClientIDN: 1, CredentialNo: "含中文", AuthMode: "APIKEY"}, "credential_no"},
 		{"预留模式", CredentialCreateRequest{ClientIDN: 1, CredentialNo: "c1", AuthMode: "BEARER"}, "auth_mode"},
-		{"预留算法", CredentialCreateRequest{ClientIDN: 1, CredentialNo: "c1", AuthMode: "AK_SK", SignAlgorithm: "ED25519"}, "sign_algorithm"},
-		{"scope 缺路径", CredentialCreateRequest{ClientIDN: 1, CredentialNo: "c1", AuthMode: "API_KEY", Scope: []string{"POST"}}, "scope"},
-		{"scope 方法非法", CredentialCreateRequest{ClientIDN: 1, CredentialNo: "c1", AuthMode: "API_KEY", Scope: []string{"FETCH /a"}}, "scope 方法"},
-		{"scope 路径非斜杠", CredentialCreateRequest{ClientIDN: 1, CredentialNo: "c1", AuthMode: "API_KEY", Scope: []string{"GET a"}}, "scope 路径"},
+		{"预留算法", CredentialCreateRequest{ClientIDN: 1, CredentialNo: "c1", AuthMode: "AKSK", SignAlgorithm: "ED25519"}, "sign_algorithm"},
+		{"scope 缺路径", CredentialCreateRequest{ClientIDN: 1, CredentialNo: "c1", AuthMode: "APIKEY", Scope: []string{"POST"}}, "scope"},
+		{"scope 方法非法", CredentialCreateRequest{ClientIDN: 1, CredentialNo: "c1", AuthMode: "APIKEY", Scope: []string{"FETCH /a"}}, "scope 方法"},
+		{"scope 路径非斜杠", CredentialCreateRequest{ClientIDN: 1, CredentialNo: "c1", AuthMode: "APIKEY", Scope: []string{"GET a"}}, "scope 路径"},
+		// 静态 Key：必须单接口、禁通配（需求 11188）
+		{"静态 Key 空 scope", CredentialCreateRequest{ClientIDN: 1, CredentialNo: "c1", AuthMode: "APIKEY",
+			DTExpire: time.Now().Add(30 * 24 * time.Hour).Format("2006-01-02")}, "必须指定唯一授权接口"},
+		{"静态 Key 多接口", CredentialCreateRequest{ClientIDN: 1, CredentialNo: "c1", AuthMode: "APIKEY",
+			DTExpire: time.Now().Add(30 * 24 * time.Hour).Format("2006-01-02"),
+			Scope:    []string{"GET /OpenAPI/V1/a", "POST /OpenAPI/V1/b"}}, "只能授权 1 个接口"},
+		{"静态 Key 通配", CredentialCreateRequest{ClientIDN: 1, CredentialNo: "c1", AuthMode: "APIKEY",
+			DTExpire: time.Now().Add(30 * 24 * time.Hour).Format("2006-01-02"),
+			Scope:    []string{"* /OpenAPI/V1/*"}}, "不允许通配"},
+		// 静态 Key 有效期上限 90 天（需求 11188）
+		{"静态 Key 无到期日", CredentialCreateRequest{ClientIDN: 1, CredentialNo: "c1", AuthMode: "APIKEY",
+			Scope: []string{"GET /OpenAPI/V1/a"}}, "必须设置到期日"},
+		{"静态 Key 到期超 90 天", CredentialCreateRequest{ClientIDN: 1, CredentialNo: "c1", AuthMode: "APIKEY",
+			Scope:    []string{"GET /OpenAPI/V1/a"},
+			DTExpire: time.Now().Add(120 * 24 * time.Hour).Format("2006-01-02")}, "最长 90 天"},
 	}
 	for _, c := range bad {
 		if _, err := validateCredential(c.req); err == nil || !strings.Contains(err.Error(), c.word) {
@@ -212,7 +233,9 @@ func TestInvokeLogFilterValidation(t *testing.T) {
 func TestIssuedKeyUppercase(t *testing.T) {
 	// 凭证号：小写入参被归一为大写
 	validated, err := validateCredential(CredentialCreateRequest{
-		ClientIDN: 1, CredentialNo: "cred-cdeu-01", AuthMode: "api_key",
+		ClientIDN: 1, CredentialNo: "cred-cdeu-01", AuthMode: "apikey",
+		Scope:    []string{"GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni"},
+		DTExpire: time.Now().Add(30 * 24 * time.Hour).Format("2006-01-02"),
 	})
 	if err != nil {
 		t.Fatalf("合法凭证号不应报错: %v", err)
@@ -278,5 +301,24 @@ func TestRotationKeepsAccessKeyForAKSK(t *testing.T) {
 	}
 	if issued.SecretKey == "" {
 		t.Fatalf("SK 必须换成新的")
+	}
+}
+
+// TestScopeLimitByAuthMode 静态 Key 只能单接口，AK_SK 不受接口个数限制（需求 11188）。
+func TestScopeLimitByAuthMode(t *testing.T) {
+	multi := []string{
+		"GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni",
+		"POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert",
+		"POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert",
+	}
+	if _, err := validateCredential(CredentialCreateRequest{
+		ClientIDN: 1, CredentialNo: "cred-aksk", AuthMode: "AKSK", Scope: multi,
+	}); err != nil {
+		t.Fatalf("AK_SK 应允许多个接口: %v", err)
+	}
+	if _, err := validateCredential(CredentialCreateRequest{
+		ClientIDN: 1, CredentialNo: "cred-key", AuthMode: "APIKEY", Scope: multi,
+	}); err == nil {
+		t.Fatalf("API_KEY 不应允许多个接口")
 	}
 }

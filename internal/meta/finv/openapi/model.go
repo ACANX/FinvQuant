@@ -22,8 +22,8 @@ import (
 
 // 认证模式。
 const (
-	AuthModeAPIKey = "API_KEY"
-	AuthModeAKSK   = "AK_SK"
+	AuthModeAPIKey = "APIKEY"
+	AuthModeAKSK   = "AKSK"
 )
 
 // 可签发的认证模式（BEARER / MTLS / BASIC 预留，不允许在管理接口里签发）。
@@ -251,6 +251,9 @@ func validateClient(req ClientRequest) (ClientRequest, error) {
 	return req, nil
 }
 
+// staticKeyMaxTTL 静态 Key 的最长有效期（需求 11188）。
+const staticKeyMaxTTL = 90 * 24 * time.Hour
+
 // validateCredential 校验签发入参。
 func validateCredential(req CredentialCreateRequest) (CredentialCreateRequest, error) {
 	// 凭证号统一大写入库（需求 11176），避免与人工抄写的形式不一致
@@ -288,13 +291,42 @@ func validateCredential(req CredentialCreateRequest) (CredentialCreateRequest, e
 		return req, err
 	}
 	req.Scope = scope
+	// 静态 Key 的授权范围：只能申请**单个接口**（需求 11188）。
+	// 原因：静态 Key 无法对请求签名，暴露面只能靠「一个 Key 对应一个接口」收敛；
+	// 需要多接口时用 AK/SK 签名模式（不受接口个数限制）。
+	if req.AuthMode == AuthModeAPIKey {
+		if len(scope) == 0 {
+			return req, invalid("静态 Key 模式必须指定唯一授权接口（形如 `POST /OpenAPI/V1/...`）；空范围等于放开全部接口，不允许")
+		}
+		if len(scope) > 1 {
+			return req, invalid("静态 Key 模式只能授权 1 个接口（当前 %d 个）；需要多接口请改用 AK_SK 签名模式", len(scope))
+		}
+		parts := strings.Fields(scope[0])
+		if len(parts) == 2 {
+			path := parts[1]
+			if parts[0] == "*" || path == "*" || strings.Contains(path, "*") {
+				return req, invalid("静态 Key 模式不允许通配授权（%q）；必须写明具体接口", scope[0])
+			}
+		}
+	}
 	cidrs, err := normalizeCIDRs(req.AllowCIDR)
 	if err != nil {
 		return req, err
 	}
 	req.AllowCIDR = cidrs
-	if _, err := parseExpire(req.DTExpire); err != nil {
+	expire, err := parseExpire(req.DTExpire)
+	if err != nil {
 		return req, err
+	}
+	// 静态 Key 的有效期上限 90 天（需求 11188）：无签名、暴露面大，必须短期可回收。
+	// 未设置到期日同样拒绝——留空等于「随调用方」，可能永久有效。
+	if req.AuthMode == AuthModeAPIKey {
+		if expire == nil {
+			return req, invalid("静态 Key 必须设置到期日，且不超过 90 天（留空视为随调用方，不允许）")
+		}
+		if expire.After(time.Now().Add(staticKeyMaxTTL)) {
+			return req, invalid("静态 Key 的有效期最长 90 天，当前设置到 %s", expire.Format("2006-01-02"))
+		}
 	}
 	return req, nil
 }

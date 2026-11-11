@@ -133,11 +133,17 @@ func (s *Service) CreateCredential(ctx context.Context, req CredentialCreateRequ
 	if err != nil {
 		return IssuedSecret{}, err
 	}
-	if _, err := s.store.ClientByID(ctx, validated.ClientIDN); err != nil {
+	client, err := s.store.ClientByID(ctx, validated.ClientIDN)
+	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return IssuedSecret{}, fmt.Errorf("%w: 调用方 %d 不存在", ErrNotFound, validated.ClientIDN)
 		}
 		return IssuedSecret{}, err
+	}
+	// 静态 Key 的调用额度必须受限（需求 11188）：未配 rate_limit_rpm 也未配 quota_day 时拒绝签发，
+	// 避免「一把无签名、无上限的 Key」。AK_SK 不受此限制（可签名、可精确授权到接口）。
+	if validated.AuthMode == AuthModeAPIKey && client.RateLimitRPM <= 0 && client.QuotaDay <= 0 {
+		return IssuedSecret{}, invalid("静态 Key 模式要求调用方先配置调用额度（rate_limit_rpm 或 quota_day 至少一个 > 0）")
 	}
 
 	issued, err := s.buildSecret(ctx, validated.AuthMode)

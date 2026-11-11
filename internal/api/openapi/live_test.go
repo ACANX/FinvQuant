@@ -142,7 +142,7 @@ func TestLiveOpenAPIAuthEndToEnd(t *testing.T) {
 
 	if err := pool.QueryRow(ctx,
 		`INSERT INTO open.open_api_credential (client_idn, credential_no, auth_mode, access_key_id, key_prefix, secret_hash, flag_enable)
-		 VALUES ($1, $2, 'API_KEY', $3, $4, $5, '1') RETURNING idn`,
+		 VALUES ($1, $2, 'APIKEY', $3, $4, $5, '1') RETURNING idn`,
 		clientIDN, "cred-static-"+suffix, staticKey, staticKey[:8], HashStaticKey(staticKey)).Scan(&staticIDN); err != nil {
 		t.Fatalf("插入静态 Key 凭证失败: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestLiveOpenAPIAuthEndToEnd(t *testing.T) {
 	}
 	if err := pool.QueryRow(ctx,
 		`INSERT INTO open.open_api_credential (client_idn, credential_no, auth_mode, access_key_id, secret_cipher, secret_kid, sign_algorithm, flag_enable)
-		 VALUES ($1, $2, 'AK_SK', $3, $4, 'k1', 'HMAC-SHA256', '1') RETURNING idn`,
+		 VALUES ($1, $2, 'AKSK', $3, $4, 'k1', 'HMAC-SHA256', '1') RETURNING idn`,
 		clientIDN, "cred-aksk-"+suffix, ak, cipherText).Scan(&akskIDN); err != nil {
 		t.Fatalf("插入 AK/SK 凭证失败: %v", err)
 	}

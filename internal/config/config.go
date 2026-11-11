@@ -48,6 +48,10 @@ type Config struct {
 	// BrsDiskMinFreeGB 备份目录剩余空间告警阈值（GB，<=0 关闭）。
 	BrsDiskMinFreeGB int
 
+	// OpenAPIRedisFailMode Redis 故障时 nonce/限流的处置策略（需求 11188）：
+	// `close`（默认）= 拒绝请求（fail-close，重放与限流不可用时不放行）；`open` = 放行并告警。
+	OpenAPIRedisFailMode string
+
 	// OpenAPIKey 外部 OpenAPI（/OpenAPI/V1）静态访问密钥（需求 10787，过渡方案）。
 	// 为空时不注册外部路由；后续 API Key 体系落地后由 DB 凭证替换。
 	OpenAPIKey string
@@ -101,16 +105,17 @@ func Load() *Config {
 		RedisDB:       envIntOr("FINV_REDIS_DB", 0),
 		Mode:          envOr("FINV_MODE", "release"),
 
-		KLineMaxBatchRows: envIntOr("FINV_KLINE_MAX_BATCH_ROWS", 5000),
-		KLineMaxListSize:  envIntOr("FINV_KLINE_MAX_LIST_SIZE", 5000),
-		KLineTSUnit:       envLowerOr("FINV_KLINE_TS_UNIT", "s"),
-		OpenAPIKey:        envOr("FINV_OPENAPI_KEY", ""),
-		LogDir:            envOr("FINV_LOG_DIR", ""),
-		LogFile:           envOr("FINV_LOG_FILE", "FinvQuant.log"),
-		LogMaxMB:          envIntOr("FINV_LOG_MAX_MB", 10),
-		BrsBackupDir:      envOr("FINV_BRS_BACKUP_DIR", "/data/App/FinvQuant/BRS"),
-		BrsLocalKeepDays:  envIntOr("FINV_BRS_LOCAL_KEEP_DAYS", 7),
-		BrsDiskMinFreeGB:  envIntOr("FINV_BRS_DISK_MIN_FREE_GB", 5),
+		KLineMaxBatchRows:    envIntOr("FINV_KLINE_MAX_BATCH_ROWS", 5000),
+		KLineMaxListSize:     envIntOr("FINV_KLINE_MAX_LIST_SIZE", 5000),
+		KLineTSUnit:          envLowerOr("FINV_KLINE_TS_UNIT", "s"),
+		OpenAPIRedisFailMode: envOr("FINV_OPENAPI_REDIS_FAIL_MODE", "close"),
+		OpenAPIKey:           envOr("FINV_OPENAPI_KEY", ""),
+		LogDir:               envOr("FINV_LOG_DIR", ""),
+		LogFile:              envOr("FINV_LOG_FILE", "FinvQuant.log"),
+		LogMaxMB:             envIntOr("FINV_LOG_MAX_MB", 10),
+		BrsBackupDir:         envOr("FINV_BRS_BACKUP_DIR", "/data/App/FinvQuant/BRS"),
+		BrsLocalKeepDays:     envIntOr("FINV_BRS_LOCAL_KEEP_DAYS", 7),
+		BrsDiskMinFreeGB:     envIntOr("FINV_BRS_DISK_MIN_FREE_GB", 5),
 
 		ErrorDetailMode:         envLowerOr("FINV_ERROR_DETAIL_MODE", "safe"),
 		ErrorDebugToken:         os.Getenv("FINV_ERROR_DEBUG_TOKEN"),

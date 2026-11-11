@@ -13,7 +13,7 @@
 | 一个调用方能有几条凭证 | 多条，可同时启用**多种认证模式**（凭证表一行 = 一种模式） |
 | 静态 Key 怎么存 | 只存**哈希**（`secret_hash`，sha256 或 argon2id），永不落明文；`key_prefix` 存前 8 位供列表展示与检索 |
 | AK/SK 的 SK 怎么存 | **必须可逆**（HMAC 验签要用密钥本身），故存 **AES-256-GCM 密文**（`secret_cipher`），密钥取 `sys_config` 19005、KID 取 19004 |
-| 会不会存错 | `ck_open_api_credential_secret` 约束：`AK_SK` 只能有 `secret_cipher`、其他模式只能有 `secret_hash`，写错直接报错 |
+| 会不会存错 | `ck_open_api_credential_secret` 约束：`AKSK` 只能有 `secret_cipher`、其他模式只能有 `secret_hash`，写错直接报错 |
 | 密钥怎么轮换 | `secret_cipher_prev` + `dt_secret_rotate`：换钥后新旧并行一段窗口，再清旧密文，调用方无感 |
 | 防重放存在哪 | **Redis**（`SET key NX PX`，保留 2 倍签名时间窗），**不建 nonce 表**（用户决策 2026-11-15） |
 | 临时关闭鉴权 | `sys_config` 19001：`0` 关闭（全放行）/ `1` 启用（强制）/ `2` 宽松（校验并记日志但失败也放行，用于灰度） |
@@ -48,11 +48,11 @@
 | `idn` | BIGINT | PK, identity | 主键 |
 | `client_idn` | BIGINT | NOT NULL | 所属调用方（程序层关联，无外键） |
 | `credential_no` | VARCHAR(48) | NOT NULL, UNIQUE | 凭证号（`CRED-CDEU-01`，字母统一大写） |
-| `auth_mode` | VARCHAR(16) | NOT NULL, `IN ('API_KEY','AK_SK','BEARER','MTLS','BASIC')` | 认证模式 |
-| `access_key_id` | VARCHAR(64) | NOT NULL, UNIQUE | **公开标识**：`API_KEY` 模式即 key 本身（`SA_LIVE_...`）、`AK_SK` 模式为 AK（`AK_LIVE_...`）、`MTLS` 模式为证书指纹；**英文字母一律大写**（需求 11176） |
+| `auth_mode` | VARCHAR(16) | NOT NULL, `IN ('APIKEY','AKSK','BEARER','MTLS','BASIC')` | 认证模式 |
+| `access_key_id` | VARCHAR(64) | NOT NULL, UNIQUE | **公开标识**：`APIKEY` 模式即 key 本身（`SA_LIVE_...`）、`AKSK` 模式为 AK（`AK_LIVE_...`）、`MTLS` 模式为证书指纹；**英文字母一律大写**（需求 11176） |
 | `key_prefix` | VARCHAR(12) | 可空 | 密钥前 8 位明文（展示/检索用，绝不回显全量） |
-| `secret_hash` | VARCHAR(128) | 可空 | 密钥哈希：`API_KEY` 用 sha256 十六进制、`BASIC` 用 argon2id PHC 串；`AK_SK` 必须为 NULL |
-| `secret_cipher` | TEXT | 可空 | SK 密文（AES-256-GCM，Base64）；`AK_SK` 必须有值，其他模式必须为 NULL |
+| `secret_hash` | VARCHAR(128) | 可空 | 密钥哈希：`APIKEY` 用 sha256 十六进制、`BASIC` 用 argon2id PHC 串；`AKSK` 必须为 NULL |
+| `secret_cipher` | TEXT | 可空 | SK 密文（AES-256-GCM，Base64）；`AKSK` 必须有值，其他模式必须为 NULL |
 | `secret_cipher_prev` | TEXT | 可空 | 轮换期旧 SK 密文（双密钥并行），窗口结束置空 |
 | `dt_secret_rotate` | TIMESTAMPTZ | 可空 | 最近一次轮换时间 |
 | `secret_kid` | VARCHAR(16) | 可空 | 加密密钥版本（对应 `sys_config` 19004） |
@@ -79,8 +79,8 @@
 -- 吊销必须留痕
 flag_revoke = '0' OR (dt_revoke IS NOT NULL AND NULLIF(btrim(reason_revoke),'') IS NOT NULL)
 -- 密钥存储方式与认证模式互斥
-(auth_mode =  'AK_SK' AND secret_cipher IS NOT NULL AND secret_hash IS NULL)
-OR (auth_mode <> 'AK_SK' AND secret_hash   IS NOT NULL)
+(auth_mode =  'AKSK' AND secret_cipher IS NOT NULL AND secret_hash IS NULL)
+OR (auth_mode <> 'AKSK' AND secret_hash   IS NOT NULL)
 ```
 
 ## 4. `open.open_api_invoke_log`（20 列，主键 `idn`，只增不改）
@@ -92,9 +92,9 @@ OR (auth_mode <> 'AK_SK' AND secret_hash   IS NOT NULL)
 |------|------|------|
 | `idn` | BIGINT | 主键（identity） |
 | `client_idn` / `credential_idn` | BIGINT | 调用方/凭证（`0` = 未识别，匿名请求也留痕） |
-| `access_key_id` / `auth_mode` | VARCHAR | **冗余存**：凭证被删后仍可追溯。`AK_SK` 模式存**明文 AK**（AK 是公开标识，用于区分调用方）；`API_KEY` 模式存**脱敏形态** `<前缀><随机段前 8><等量星号><后 8>`（如 `SA_LIVE_C48AABCD****************EADE84AF`，需求 11183/11184/11185；星号个数 = 被遮蔽的位数，掩码总长 = 原密钥长度）——静态 Key 本身就是密钥，绝不落明文 |
+| `access_key_id` / `auth_mode` | VARCHAR | **冗余存**：凭证被删后仍可追溯。`AKSK` 模式存**明文 AK**（AK 是公开标识，用于区分调用方）；`APIKEY` 模式存**脱敏形态** `<前缀><随机段前 8><等量星号><后 8>`（如 `SA_LIVE_C48AABCD****************EADE84AF`，需求 11183/11184/11185；星号个数 = 被遮蔽的位数，掩码总长 = 原密钥长度）——静态 Key 本身就是密钥，绝不落明文 |
 | `request_id` | VARCHAR(64) | 链路 ID（响应头 `X-Request-Id`），32 位**大写**十六进制（需求 11177） |
-| `kfp` | VARCHAR(16) | 密钥指纹（key fingerprint）：`sha256(完整 Key)` 前 16 位**大写**十六进制，仅 `API_KEY` 模式写入；不可逆，用于严格区分密钥与按 Key 反查（需求 11186，字段名 11187 定稿 `kfp`） |
+| `kfp` | VARCHAR(16) | 密钥指纹（key fingerprint）：`sha256(完整 Key)` 前 16 位**大写**十六进制，仅 `APIKEY` 模式写入；不可逆，用于严格区分密钥与按 Key 反查（需求 11186，字段名 11187 定稿 `kfp`） |
 | `dt_request` | TIMESTAMPTZ | 请求时间 |
 | `method` / `path` / `query_str` | VARCHAR(8)/VARCHAR(512)/VARCHAR(2000) | 请求行（查询串截断到 2000） |
 | `status_code` / `biz_code` | INTEGER | HTTP 码 + 信封 `code` |

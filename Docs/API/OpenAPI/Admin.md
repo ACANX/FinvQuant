@@ -194,7 +194,7 @@
     "list": [
       {
         "idn": 1, "client_idn": 1, "client_code": "cdeu-hook",
-        "credential_no": "CRED-01", "auth_mode": "AK_SK",
+        "credential_no": "CRED-01", "auth_mode": "AKSK",
         "access_key_id": "AK_LIVE_AB12...", "key_prefix": "AK_LIVE_AB12",
         "has_secret": true, "sign_algorithm": "HMAC-SHA256",
         "scope": ["POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert"],
@@ -216,7 +216,7 @@
 {
   "client_idn": 1,
   "credential_no": "CRED-01",
-  "auth_mode": "AK_SK",
+  "auth_mode": "AKSK",
   "sign_algorithm": "HMAC-SHA256",
   "scope": ["POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert"],
   "allow_cidr": [],
@@ -229,7 +229,7 @@
 |---|---|
 | `client_idn` | 必须存在（404） |
 | `credential_no` | 字母/数字/`._-`，2~48 位，全局唯一（409）；**字母统一大写**（服务端 `ToUpper` 后入库） |
-| `auth_mode` | 仅 `API_KEY` / `AK_SK`；`BEARER` / `MTLS` / `BASIC` 为预留，传了即 400 |
+| `auth_mode` | 仅 `APIKEY` / `AKSK`；`BEARER` / `MTLS` / `BASIC` 为预留，传了即 400 |
 | `sign_algorithm` | 仅 `HMAC-SHA256`；静态 Key 不参与验签，落库统一为 `HMAC-SHA256`（列上有 NOT NULL + CHECK） |
 | `scope` | 每项「方法 路径」两段；方法限 `GET/POST/PUT/PATCH/DELETE/*`；路径以 `/` 开头 |
 | `allow_cidr` | 同调用方口径；与调用方白名单**取交集** |
@@ -249,8 +249,8 @@
 }
 ```
 
-- `API_KEY` 模式：`access_key` 与 `secret_key` 相同（静态 Key 本身就是公开标识，形如 `SA_LIVE_` + 32 位大写十六进制），库里只存 `sha256`；
-- `AK_SK` 模式：`secret_key` 是 SK，库里存 AES-256-GCM 密文（密钥取 `sys_config` 19005）。
+- `APIKEY` 模式：`access_key` 与 `secret_key` 相同（静态 Key 本身就是公开标识，形如 `SA_LIVE_` + 32 位大写十六进制），库里只存 `sha256`；
+- `AKSK` 模式：`secret_key` 是 SK，库里存 AES-256-GCM 密文（密钥取 `sys_config` 19005）。
   **19005 未配置时返回 503**，错误里明确提示先配置 19005。
 
 ### 5.3 POST `/Credential/Enable`
@@ -303,8 +303,8 @@
 | 信息 | 用途 | 稳定性 |
 |---|---|---|
 | `credential_idn` → join `open.open_api_credential` | **主关联键**：拿到 `credential_no`（凭证号，如 `DEMO-STATIC`）、`client_idn`、模式、状态 | 稳定，凭证吊销后行仍在 |
-| `access_key_id` | 人眼核对：`AK_SK` 存明文 AK；`API_KEY` 存 `SA_LIVE_C48AABCD****************EADE84AF` | 冗余快照，凭证被物理删除后仍可追溯 |
-| `kfp` | **严格区分密钥**（key fingerprint）：`sha256(完整 Key)` 前 16 位大写十六进制（需求 11186，字段名 11187 定稿为 `kfp`），可 `GROUP BY` / 精确 `WHERE` | 确定性、不可逆；仅 `API_KEY` 模式写入（`AK_SK` 的 AK 已明文） |
+| `access_key_id` | 人眼核对：`AKSK` 存明文 AK；`APIKEY` 存 `SA_LIVE_C48AABCD****************EADE84AF` | 冗余快照，凭证被物理删除后仍可追溯 |
+| `kfp` | **严格区分密钥**（key fingerprint）：`sha256(完整 Key)` 前 16 位大写十六进制（需求 11186，字段名 11187 定稿为 `kfp`），可 `GROUP BY` / 精确 `WHERE` | 确定性、不可逆；仅 `APIKEY` 模式写入（`AKSK` 的 AK 已明文） |
 
 脱敏形态刻意**跳过平台前缀**（`SA_LIVE_`/`AK_LIVE_`/`SK_LIVE_`），保留随机段**前 8 后 8 位共 16 位十六进制**，
 中间用**等量星号**（32 位随机段对应 16 个 `*`）替代被遮蔽的位（需求 11184、11185），
@@ -363,7 +363,7 @@ GROUP BY kfp
 ORDER BY last_seen DESC;
 ```
 
-`kfp IS NULL` 的行是「加列之前的历史记录」或「未识别到凭证 / `AK_SK` 模式」——
+`kfp IS NULL` 的行是「加列之前的历史记录」或「未识别到凭证 / `AKSK` 模式」——
 历史行无法补算（脱敏形态反推不出完整 Key），需要区分时以新增请求为准。
 
 `credential_idn = 0` 表示请求**没被识别到凭证**（未携带 / Key 不存在 / 凭证明文部分不合法），
