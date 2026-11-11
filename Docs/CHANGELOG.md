@@ -219,6 +219,11 @@
 
 ### 变更
 
+- **STS 三要素前缀改为 `STA_LIVE_` / `STS_LIVE_` / `STT_LIVE_`（需求 11193）**
+  - 临时 Access / 临时 Secret / 临时 Token，与静态 Key 的 `SA_LIVE_`、长期 AK 的 `AK_LIVE_` 完全不重叠，
+    看前缀即可区分长期/临时，不再需要靠传输位置判断。
+  - `maskKey` 前缀表同步；文档 `Auth.md` §4.8、数据字典示例更新。
+
 - **STS 三要素前缀改为 `SA_LIVE_` / `SS_LIVE_` / `ST_LIVE_`（需求 11192）**
   - `SA`=Security Access（临时 AK）、`SS`=Security Secret（临时 SK）、`ST`=Security Token。
   - `SA_LIVE_` 与静态 Key 前缀相同，靠**传输位置**区分：静态 Key 走 `X-API-Key` / `Bearer`，
