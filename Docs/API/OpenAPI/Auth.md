@@ -144,7 +144,7 @@ signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 {
   "code": 19001,
   "message": "未携带 API Key 或签名信息",
-  "request_id": "c620f2756dac8f303d982603a7739d1f"
+  "request_id": "C620F2756DAC8F303D982603A7739D1F"
 }
 ```
 

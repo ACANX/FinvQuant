@@ -219,6 +219,19 @@
 
 ### 变更
 
+- **`request_id` 大写写进规范并修正示例（需求 11181）**
+  - 规范：`Docs/DevSpec/ApiSpec.md` 新增 **§1.0「追踪 ID `request_id` 的大小写（强制）」**：
+    所有响应中的 `request_id`（信封顶层与 `data` 内）一律大写、禁止小写；两种形态按生成入口区分——
+    内部接口为大写 UUID4（`handler.RequestID`），对外 OpenAPI 鉴权拒绝信封 / 响应头 `X-Request-Id` / 审计表
+    为 32 位大写十六进制（`openapi.newRequestID`）；并说明 OpenAPI 成功响应的 `data.request_id`（业务侧 UUID4）
+    与响应头（网关侧 hex32）属两个层级，排障时按需引用。`ErrorCodeSpec` §2 补「错误响应 request_id 必须纯大写」。
+  - 修正 5 处仍写小写的文档示例：`Docs/API/OpenAPI/Auth.md`（改为 32 位大写十六进制）、
+    `Docs/OpenAPI/Quote/Cdeu/Min/PageUni.md`、`Docs/OpenAPI/Quote/Cdeu/Min/Upsert.md`、
+    `Docs/API/Quote/Cdeu/Min/KLinePageUni.md`、`Docs/API/Quote/Cdeu/Min/KLineUpsert.md`（改为大写 UUID4）。
+  - 代码侧本已大写（`strings.ToUpper(uuid.NewString())` / `strings.ToUpper(hex)`），本次补
+    `internal/api/handler/request_id_test.go` 锁住口径：大写、UUID4 形态、同一请求内复用同一 ID。
+  - 自查命令（应无输出）：`grep -rn '"request_id": "[^"]*[a-f]' Docs/ | grep -v '大写'`。
+
 - **对外 OpenAPI 显式拒绝 DELETE（需求 11180）+ 联调 Demo 覆盖 GET/POST/DELETE**
   - `DELETE` 现在注册成真实路由（3 条已注册资源路径），返回
     `405 {"code":405,"message":"OpenAPI 不提供删除能力；如需清理数据请走内部管理接口"}`。

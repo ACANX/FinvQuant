@@ -188,7 +188,7 @@
   "code": 211004,
   "message": "字段取值超出允许范围",
   "detail": "字段取值超出允许范围",
-  "request_id": "0b0d1f2e3a4c5d6e",
+  "request_id": "0B0D1F2E-3A4C-5D6E-8F70-1A2B3C4D5E6F"
   "error": {
     "code": 211004,
     "catalog_version": "finvquant-1",

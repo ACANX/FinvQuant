@@ -9,6 +9,26 @@
 - 所有 REST JSON 响应顶层固定输出数值 `code` 和文本 `message`；`data`、`error`、`details`、`request_id`、`trace_id` 均为按语义可选字段。
 - 所有 wire 字段（JSON 请求/响应体）使用 **snake_case**。
 
+### 1.0 追踪 ID `request_id` 的大小写（强制，需求 11181）
+
+- 所有响应中的 `request_id`（无论出现在信封顶层还是 `data` 内）**一律使用大写**，禁止小写；示例、`.yml` 契约、前端类型注释与联调脚本必须与大写口径一致。
+- 两种既有形态，按生成入口区分，不要混用：
+
+  | 场景 | 形态 | 生成位置 |
+  |---|---|---|
+  | 内部接口（`/API/V1/*`）错误信封与 `data.request_id` | **大写 UUID4**，36 字符带连字符（如 `0B0D1F2E-3A4C-5D6E-8F70-1A2B3C4D5E6F`） | `internal/api/handler.RequestID`（`strings.ToUpper(uuid.NewString())`） |
+  | 对外 OpenAPI（`/OpenAPI/V1/*`）鉴权拒绝信封、响应头 `X-Request-Id`、审计表 `open.open_api_invoke_log.request_id` | **32 位大写十六进制**（如 `C620F2756DAC8F303D982603A7739D1F`） | `internal/api/openapi.newRequestID`（需求 11177） |
+
+- 两个层级不要混淆：OpenAPI **成功**响应里的 `data.request_id` 由业务 handler 生成（大写 UUID4），
+  而响应头 `X-Request-Id` 与审计表记录的是**网关层**的 32 位大写十六进制；排障时按需分别引用。
+- 审计与日志字段同理：`open.open_api_invoke_log.request_id`、`body_sha256` 一律大写十六进制。
+- 兜底测试：`internal/api/openapi` 的 `TestBodyHashAndRequestIDUppercase`、`internal/api/handler` 的请求 ID 用例。
+- 自查命令（应无输出）：
+
+  ```bash
+  grep -rn '"request_id": "[^"]*[a-f]' Docs/ | grep -v '大写'
+  ```
+
 ### 1.1 统计与动作类字段命名（强制）
 
 - 响应体中表示「本次动作结果数量」的统计字段一律使用**动词原形**，禁止过去式/动名词：

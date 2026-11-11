@@ -144,7 +144,7 @@
   "code": 211102,
   "message": "请求内存在重复主键",
   "detail": "请求内存在重复主键",
-  "request_id": "6f1c0f7a9d2e4b0c",
+  "request_id": "0B0D1F2E-3A4C-5D6E-8F70-1A2B3C4D5E6F"
   "error": {
     "code": 211102,
     "catalog_version": "finvquant-1",

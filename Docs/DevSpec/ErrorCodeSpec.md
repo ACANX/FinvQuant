@@ -48,6 +48,8 @@
 ## 2. error 对象
 
 - 所有错误的 `error` 对象必须携带 `code`、`catalog_version` 和 `retryable`。
+- 错误响应顶层的 `request_id` **必须是纯大写**：内部接口为大于等于 36 字符的大写 UUID4，
+  对外 OpenAPI 鉴权拒绝为 32 位大写十六进制（口径见 [`ApiSpec.md`](ApiSpec.md) §1.0）。
 
 ## 3. 错误目录
 
