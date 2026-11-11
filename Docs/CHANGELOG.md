@@ -219,6 +219,13 @@
 
 ### 变更
 
+- **接口清单表格列宽可调（需求 11229）**
+  - 现象：自动布局下「路径」（60+ 字符）与「中文名」互相压字看不全。
+  - 改为固定布局 + `colgroup` 像素宽度，表头右边缘可拖动、双击自适应、「重置列宽」回默认；
+    宽度记 `localStorage`（`finv.openapi.endpoint.widths`），与调用审计页（11195/11198）同一套交互。
+  - 路径列等宽字体 + 省略号 + ⓘ 看全文；中文名省略号 + 原生 `title`；
+    开关列最小 72px 并居中，避免 compact 开关被 `overflow:hidden` 裁切。
+
 - **授权范围明细表接入读写，鉴权改读明细表（需求 11228，迁移 V300198）**
   - **读**：鉴权侧 `internal/api/openapi/credential.go` 与后台侧 `internal/meta/finv/openapi/store.go`
     两处 `selectCredentialSQL` 都改成 `LEFT JOIN LATERAL (jsonb_agg(...)) sc ON TRUE`，

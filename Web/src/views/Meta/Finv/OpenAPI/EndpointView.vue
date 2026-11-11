@@ -79,6 +79,118 @@ async function load() {
   }
 }
 
+// ---- 列宽可调（拖拽表头右边缘 / 双击自适应 / 记住宽度）----
+//
+// 「路径」与「中文名」这两列内容长度差异很大（路径可达 60+ 字符，中文名 6~8 字），
+// 自动布局会把它们挤在一起、互相压字，所以改成固定布局 + 手动可调（需求 11229）。
+interface Column {
+  key: string
+  title: string
+  width: number // 默认宽度（px）
+  min: number   // 最小宽度（px）
+}
+
+const COLUMNS: Column[] = [
+  { key: 'idn', title: 'IDN', width: 70, min: 50 },
+  { key: 'api_code', title: '接口编码', width: 200, min: 130 },
+  { key: 'http_method', title: '方法', width: 80, min: 60 },
+  { key: 'path', title: '路径', width: 360, min: 160 },
+  { key: 'api_name', title: '中文名', width: 160, min: 110 },
+  { key: 'api_group', title: '分组', width: 110, min: 80 },
+  { key: 'flag_write', title: '读写', width: 70, min: 56 },
+  { key: 'count_grant', title: '已授权凭证', width: 110, min: 80 },
+  { key: 'flag_public', title: '公开', width: 92, min: 72 },
+  { key: 'flag_enable', title: '启用', width: 92, min: 72 },
+  { key: 'gmt_update', title: '更新时间', width: 180, min: 140 },
+]
+
+const WIDTHS_KEY = 'finv.openapi.endpoint.widths'
+const colWidths = ref<Record<string, number>>({})
+
+function loadWidths() {
+  const defaults: Record<string, number> = {}
+  for (const col of COLUMNS) defaults[col.key] = col.width
+  try {
+    const saved = JSON.parse(localStorage.getItem(WIDTHS_KEY) || '{}') as Record<string, number>
+    for (const col of COLUMNS) {
+      const value = Number(saved[col.key])
+      if (Number.isFinite(value) && value >= col.min) defaults[col.key] = value
+    }
+  } catch {
+    // 本地缓存坏了就用默认宽度，不影响页面
+  }
+  colWidths.value = defaults
+}
+
+function saveWidths() {
+  try {
+    localStorage.setItem(WIDTHS_KEY, JSON.stringify(colWidths.value))
+  } catch {
+    // 隐私模式禁止 localStorage 时忽略
+  }
+}
+
+function resetWidths() {
+  for (const col of COLUMNS) colWidths.value[col.key] = col.width
+  saveWidths()
+  showToast('列宽已重置为默认', 'success')
+}
+
+// 拖拽调宽：按住表头右侧手柄左右移动
+let resizing: { key: string; startX: number; startWidth: number } | null = null
+
+function startResize(event: MouseEvent, col: Column) {
+  event.preventDefault()
+  event.stopPropagation()
+  resizing = { key: col.key, startX: event.clientX, startWidth: colWidths.value[col.key] }
+  document.addEventListener('mousemove', onResizing)
+  document.addEventListener('mouseup', stopResize)
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
+function onResizing(event: MouseEvent) {
+  if (!resizing) return
+  const col = COLUMNS.find((item) => item.key === resizing!.key)
+  if (!col) return
+  const next = Math.max(col.min, Math.min(1200, resizing.startWidth + (event.clientX - resizing.startX)))
+  colWidths.value[resizing.key] = next
+}
+
+function stopResize() {
+  if (resizing) saveWidths()
+  resizing = null
+  document.removeEventListener('mousemove', onResizing)
+  document.removeEventListener('mouseup', stopResize)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
+
+// 双击手柄：按该列内容自适应宽度（不必手动拖）
+function autoFit(col: Column) {
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+  let widest = ctx.measureText(col.title).width + 40
+  for (const row of rows.value) {
+    widest = Math.max(widest, ctx.measureText(cellText(row, col)).width + 28)
+  }
+  colWidths.value[col.key] = Math.max(col.min, Math.min(1200, Math.ceil(widest)))
+  saveWidths()
+}
+
+function cellText(row: EndpointRow, col: Column): string {
+  switch (col.key) {
+    case 'flag_write': return row.flag_write === '1' ? '写' : '读'
+    case 'count_grant': return String(row.count_grant)
+    case 'flag_public': return row.flag_public === '1' ? '开启' : '关闭'
+    case 'flag_enable': return row.flag_enable === '1' ? '启用' : '停用'
+    case 'gmt_update': return timeText(row.gmt_update)
+    default: return String((row as unknown as Record<string, unknown>)[col.key] ?? '')
+  }
+}
+
 // 两列开关：写的是同一张表，就一个接口（PATCH 语义用 POST 表达，与其它页面一致）
 async function saveFlag(row: EndpointRow, field: 'flag_public' | 'flag_enable', next: boolean) {
   const value = next ? '1' : '0'
@@ -100,7 +212,10 @@ watch(keyword, (value) => {
   }
 })
 
-onMounted(load)
+onMounted(() => {
+  loadWidths()
+  void load()
+})
 </script>
 
 <template>
@@ -156,83 +271,99 @@ onMounted(load)
           <v-btn color="primary" variant="tonal" prepend-icon="mdi-magnify" @click="page = 1; load()">查询</v-btn>
         </div>
 
-        <v-table density="comfortable" class="openapi-table">
-          <thead>
-            <tr>
-              <th>IDN</th>
-              <th>接口编码</th>
-              <th>方法</th>
-              <th>路径</th>
-              <th>中文名</th>
-              <th>分组</th>
-              <th>读写</th>
-              <th>已授权凭证</th>
-              <th>公开</th>
-              <th>启用</th>
-              <th>更新时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in rows" :key="row.idn">
-              <td class="text-no-wrap text-caption">{{ row.idn }}</td>
-              <td class="text-no-wrap">
-                <code>{{ row.api_code }}</code>
-                <TextPopover
-                  v-if="row.remark || row.dt_deprecate"
-                  title="备注 / 下线信息"
-                  :lines="[
-                    `备注：${row.remark || '—'}`,
-                    `下线时间：${row.dt_deprecate ? timeText(row.dt_deprecate) : '在服务'}`,
-                  ]"
-                />
-              </td>
-              <td class="text-no-wrap">
-                <v-chip size="x-small" variant="tonal" :color="row.flag_write === '1' ? 'warning' : 'info'">
-                  {{ row.http_method }}
-                </v-chip>
-              </td>
-              <td class="text-no-wrap" style="max-width: 340px">
-                <span class="text-caption">{{ row.path }}</span>
-              </td>
-              <td class="text-no-wrap">{{ row.api_name }}</td>
-              <td class="text-no-wrap">{{ row.api_group || '—' }}</td>
-              <td class="text-no-wrap">
-                <v-chip v-if="row.flag_write === '1'" size="x-small" variant="tonal" color="warning">写</v-chip>
-                <v-chip v-else size="x-small" variant="tonal" color="info">读</v-chip>
-              </td>
-              <td class="text-no-wrap">
-                <span :class="row.count_grant > 0 ? 'font-weight-medium' : 'text-medium-emphasis'">
-                  {{ row.count_grant }}
-                </span>
-              </td>
-              <td class="text-no-wrap">
-                <v-switch
-                  :model-value="row.flag_public === '1'"
-                  color="primary"
-                  density="compact"
-                  hide-details
-                  :disabled="!!row.dt_deprecate"
-                  @update:model-value="saveFlag(row, 'flag_public', Boolean($event))"
-                />
-              </td>
-              <td class="text-no-wrap">
-                <v-switch
-                  :model-value="row.flag_enable === '1'"
-                  color="success"
-                  density="compact"
-                  hide-details
-                  @update:model-value="saveFlag(row, 'flag_enable', Boolean($event))"
-                />
-              </td>
-              <td class="text-no-wrap">{{ timeText(row.gmt_update) }}</td>
-            </tr>
-            <tr v-if="rows.length === 0">
-              <td colspan="11" class="text-center text-medium-emphasis py-6">
-                {{ loading ? '加载中…' : '暂无接口（清单由迁移 V300193 登记，新增接口需先注册路由再补种子）' }}
-              </td>
-            </tr>
-          </tbody>
-        </v-table>
+        <div class="d-flex align-center flex-wrap ga-2 mb-2">
+          <span class="text-caption text-medium-emphasis">
+            列宽可拖动：把鼠标放到表头右边缘拖动；双击边缘按内容自适应；
+          </span>
+          <v-btn size="x-small" variant="text" prepend-icon="mdi-restore" @click="resetWidths">重置列宽</v-btn>
+        </div>
+
+        <div class="openapi-table-scroll">
+          <v-table density="comfortable" class="openapi-table openapi-table-fixed">
+            <colgroup>
+              <col v-for="col in COLUMNS" :key="col.key" :style="{ width: colWidths[col.key] + 'px' }" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th v-for="col in COLUMNS" :key="col.key" class="openapi-th">
+                  <span class="th-label">{{ col.title }}</span>
+                  <span
+                    class="col-resizer"
+                    title="拖动调整列宽；双击按内容自适应"
+                    @mousedown="startResize($event, col)"
+                    @dblclick="autoFit(col)"
+                  />
+                </th>
+              </tr>
+            </thead>
+            <!-- tbody 的 td 顺序必须与上面 COLUMNS 一一对应（colgroup 按列宽生效） -->
+            <tbody>
+              <tr v-for="row in rows" :key="row.idn">
+                <td class="cell-nowrap text-caption">{{ row.idn }}</td>
+                <td class="cell-ellipsis">
+                  <code>{{ row.api_code }}</code>
+                  <TextPopover
+                    v-if="row.remark || row.dt_deprecate"
+                    title="备注 / 下线信息"
+                    :lines="[
+                      `备注：${row.remark || '—'}`,
+                      `下线时间：${row.dt_deprecate ? timeText(row.dt_deprecate) : '在服务'}`,
+                    ]"
+                  />
+                </td>
+                <td class="cell-nowrap">
+                  <v-chip size="x-small" variant="tonal" :color="row.flag_write === '1' ? 'warning' : 'info'">
+                    {{ row.http_method }}
+                  </v-chip>
+                </td>
+                <td class="cell-ellipsis">
+                  <span class="mono">{{ row.path }}</span>
+                  <TextPopover v-if="row.path" title="完整路径" :text="row.path" />
+                </td>
+                <td class="cell-ellipsis" :title="row.api_name">{{ row.api_name }}</td>
+                <td class="cell-nowrap">{{ row.api_group || '—' }}</td>
+                <td class="cell-nowrap">
+                  <v-chip v-if="row.flag_write === '1'" size="x-small" variant="tonal" color="warning">写</v-chip>
+                  <v-chip v-else size="x-small" variant="tonal" color="info">读</v-chip>
+                </td>
+                <td class="cell-nowrap">
+                  <span :class="row.count_grant > 0 ? 'font-weight-medium' : 'text-medium-emphasis'">
+                    {{ row.count_grant }}
+                  </span>
+                </td>
+                <td class="cell-nowrap">
+                  <div class="d-flex justify-center">
+                    <v-switch
+                      :model-value="row.flag_public === '1'"
+                      color="primary"
+                      density="compact"
+                      hide-details
+                      :disabled="!!row.dt_deprecate"
+                      @update:model-value="saveFlag(row, 'flag_public', Boolean($event))"
+                    />
+                  </div>
+                </td>
+                <td class="cell-nowrap">
+                  <div class="d-flex justify-center">
+                    <v-switch
+                      :model-value="row.flag_enable === '1'"
+                      color="success"
+                      density="compact"
+                      hide-details
+                      @update:model-value="saveFlag(row, 'flag_enable', Boolean($event))"
+                    />
+                  </div>
+                </td>
+                <td class="cell-nowrap">{{ timeText(row.gmt_update) }}</td>
+              </tr>
+              <tr v-if="rows.length === 0">
+                <td :colspan="COLUMNS.length" class="text-center text-medium-emphasis py-6">
+                  {{ loading ? '加载中…' : '暂无接口（清单由迁移 V300193 登记，新增接口需先注册路由再补种子）' }}
+                </td>
+              </tr>
+            </tbody>
+          </v-table>
+        </div>
 
         <div class="d-flex align-center justify-end ga-2 mt-3">
           <v-pagination v-model="page" :length="pageCount" density="compact" total-visible="7" @update:model-value="load" />
@@ -276,8 +407,62 @@ onMounted(load)
   padding: 16px;
 }
 
+.openapi-table-scroll {
+  overflow-x: auto;
+}
+
+/* 固定布局让 colgroup 的像素宽度生效，列宽才真正可调 */
+.openapi-table-fixed :deep(table) {
+  table-layout: fixed;
+  width: max-content;
+}
+
 .openapi-table :deep(th),
 .openapi-table :deep(td) {
   white-space: nowrap;
+  overflow: hidden;
+}
+
+/* 单元格：不换行；宽度不够时才出省略号（可拖宽或点 ⓘ 看全文） */
+.cell-nowrap {
+  white-space: nowrap;
+}
+
+.cell-ellipsis {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 路径用等宽字体，便于逐字符核对 */
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+/* 表头单元格 + 右侧拖拽手柄 */
+.openapi-th {
+  position: relative;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.th-label {
+  display: inline-block;
+  padding-right: 10px;
+}
+
+.col-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+}
+
+.col-resizer:hover {
+  background: rgba(var(--v-theme-primary), 0.25);
 }
 </style>
