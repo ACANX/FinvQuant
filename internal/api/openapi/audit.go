@@ -10,10 +10,10 @@ import (
 	"context"
 	"log"
 	"net"
-	"net/http"
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -149,13 +149,18 @@ func truncate(value string, limit int) string {
 	return string(runes[:limit])
 }
 
-// clientIP 取请求来源 IP（信任 Gin 的受信代理配置）。
-func clientIP(req *http.Request) net.IP {
-	host := strings.TrimSpace(req.RemoteAddr)
-	if index := strings.LastIndex(host, ":"); index > 0 {
-		if ip := net.ParseIP(strings.Trim(host[:index], "[]")); ip != nil {
-			return ip
-		}
+// clientIP 取请求来源 IP。
+//
+// 需求 11247：经 Nginx / 网关转发后 `RemoteAddr` 恒为内网 IP，必须采信
+// `X-Forwarded-For` / `X-Real-IP`。是否采信由 `router.SetTrustedProxies`
+// （`FINV_TRUSTED_PROXIES`，默认私网+回环）决定——只有对端是可信代理时才用这些头，
+// 公网直连仍取真实 TCP 对端，避免伪造来源 IP。
+func clientIP(c *gin.Context) net.IP {
+	if c == nil {
+		return nil
 	}
-	return net.ParseIP(host)
+	if ip := net.ParseIP(strings.TrimSpace(c.ClientIP())); ip != nil {
+		return ip
+	}
+	return nil
 }

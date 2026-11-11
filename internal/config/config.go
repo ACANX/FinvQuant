@@ -52,6 +52,13 @@ type Config struct {
 	// `close`（默认）= 拒绝请求（fail-close，重放与限流不可用时不放行）；`open` = 放行并告警。
 	OpenAPIRedisFailMode string
 
+	// TrustedProxies 可信反向代理网段（需求 11247）。
+	//
+	// 只有 TCP 对端落在这些网段时，才采信 `X-Forwarded-For` / `X-Real-IP`；
+	// 否则公网直连可随意伪造来源 IP，审计表的 `ip` 与 IP 白名单都会失真。
+	// 默认私网 + 回环（覆盖本机/容器内 Nginx 转发）；前置 CDN 时用 FINV_TRUSTED_PROXIES 追加其网段。
+	TrustedProxies []string
+
 	// OpenAPIKey 外部 OpenAPI（/OpenAPI/V1）静态访问密钥（需求 10787，过渡方案）。
 	// 为空时不注册外部路由；后续 API Key 体系落地后由 DB 凭证替换。
 	OpenAPIKey string
@@ -109,6 +116,7 @@ func Load() *Config {
 		KLineMaxListSize:     envIntOr("FINV_KLINE_MAX_LIST_SIZE", 5000),
 		KLineTSUnit:          envLowerOr("FINV_KLINE_TS_UNIT", "s"),
 		OpenAPIRedisFailMode: envOr("FINV_OPENAPI_REDIS_FAIL_MODE", "close"),
+		TrustedProxies:       trustedProxies(),
 		OpenAPIKey:           envOr("FINV_OPENAPI_KEY", ""),
 		LogDir:               envOr("FINV_LOG_DIR", ""),
 		LogFile:              envOr("FINV_LOG_FILE", "FinvQuant.log"),
@@ -228,4 +236,23 @@ func envIntOr(key string, fallback int) int {
 		parsed = parsed*10 + int(r-'0')
 	}
 	return parsed
+}
+
+// defaultTrustedProxies 默认可信代理网段：私网三段 + 回环 + IPv6 唯一本地地址。
+//
+// 取默认值而非空：反向代理部署（Nginx / Docker 网关）几乎都在私网侧，
+// 而公网直连的 TCP 对端是公网 IP，不会被这些网段命中，因此不存在伪造风险。
+func defaultTrustedProxies() []string {
+	return []string{
+		"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+		"127.0.0.1/32", "::1/128", "fc00::/7",
+	}
+}
+
+// trustedProxies 读取可信代理网段：FINV_TRUSTED_PROXIES 覆盖默认值。
+func trustedProxies() []string {
+	if items := envListOr("FINV_TRUSTED_PROXIES"); len(items) > 0 {
+		return items
+	}
+	return defaultTrustedProxies()
 }

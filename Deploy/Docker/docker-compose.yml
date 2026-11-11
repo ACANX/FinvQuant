@@ -41,6 +41,9 @@ services:
       # 外部 OpenAPI 鉴权（需求 11188）：close = Redis 故障拒绝请求（防重放/限流不可用不放行）；
       # 凭证缓存时长等运行期参数在 sys_config 19001~19007 里改，不需要重建容器（需求 11215）。
       FINV_OPENAPI_REDIS_FAIL_MODE: ${FINV_OPENAPI_REDIS_FAIL_MODE:-close}
+      # 可信反向代理网段（需求 11247）：只有 TCP 对端落在这里时才采信 X-Forwarded-For / X-Real-IP。
+      # 留空 = 程序内默认私网三段 + 回环；前置 CDN 时把其网段追加进来（逗号分隔 CIDR）。
+      FINV_TRUSTED_PROXIES: ${FINV_TRUSTED_PROXIES:-}
       # 证券行情月归档导出与上传（详见 Docs/Refactor/2610-005-FinvQuoteDeDubExportUpload.md）
       FINV_QUOTE_DEDUB_ENABLED: ${FINV_QUOTE_DEDUB_ENABLED:-false}
       FINV_QUOTE_DEDUB_TIMEZONE: ${FINV_QUOTE_DEDUB_TIMEZONE:-Asia/Shanghai}

@@ -3,6 +3,7 @@ package api
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"runtime"
 	"strings"
@@ -54,6 +55,18 @@ type Deps struct {
 func NewRouter(deps *Deps) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Logger(), gin.Recovery())
+
+	// 可信反向代理（需求 11247）：只有 TCP 对端落在这里的网段时，才采信
+	// X-Forwarded-For / X-Real-IP。不设置时 Gin 默认信任**所有**来源，
+	// 公网直连可以随意伪造来源 IP（审计 ip 与 IP 白名单全部失真）。
+	proxies := []string(nil)
+	if deps.Config != nil {
+		proxies = deps.Config.TrustedProxies
+	}
+	if err := router.SetTrustedProxies(proxies); err != nil {
+		log.Printf("[api] FINV_TRUSTED_PROXIES 解析失败（%v），改为不信任任何代理头", err)
+		_ = router.SetTrustedProxies(nil)
+	}
 
 	health := &handler.Health{
 		Pool:   deps.Pool,

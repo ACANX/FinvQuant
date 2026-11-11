@@ -219,6 +219,18 @@
 
 ### 变更
 
+- **修复反向代理后审计 IP 记成内网地址（需求 11247）**
+  - 根因：`internal/api/openapi/audit.go` 的 `clientIP()` 只看 `req.RemoteAddr`，不读
+    `X-Forwarded-For` / `X-Real-IP`；经 Nginx 后对端恒为代理内网 IP。同一 IP 还用于 `allow_cidr`
+    判定，生产配公网 CIDR 会整片 `19004 CIDR_DENY` 误拒。
+  - 代码：`clientIP(c *gin.Context)` 改走 `c.ClientIP()`；`NewRouter` 调 `router.SetTrustedProxies`，
+    网段取新配置 `FINV_TRUSTED_PROXIES`（默认私网三段 + 回环），解析失败回落"不信任任何代理"。
+  - Nginx 模板：补 `location /OpenAPI/`（原模板只有 `/` 与 `/API/`，`/OpenAPI/V1/*` 会落到 16002
+    前端端口）并带 `X-Real-IP` / `X-Forwarded-For` / `X-Forwarded-Proto`；补前置 CDN 的 realip 说明。
+  - 部署：`docker-compose.yml`、`.env`、`.env.example` 增加 `FINV_TRUSTED_PROXIES`。
+  - 文档：`Docs/API/OpenAPI/Auth.md` 新增 §4.11（三层配置 + 排查命令）。
+  - 需求登记 11247。
+
 - **修复静态 Key 授权接口被写成单字符 `i` + STS 有效期可配置（需求 11246）**
   - **根因**：授权接口下拉在静态 Key 模式下 `:multiple="false"`，Vuetify 把**字符串**写进 `v-model`，
     而 `watch` 里用 `picked[picked.length - 1]` 取"最后一个"，字符串的 `length` 是字符数 →

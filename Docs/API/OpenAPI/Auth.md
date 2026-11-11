@@ -262,6 +262,41 @@ GET /OpenAPI/V1/Meta/Region/AZ/Server/Hello
 - 为什么未认证时先拒绝：否则未认证者可以靠 404/405 探测哪些接口存在。
 - 内部管理接口（`/API/V1/*`）未命中同样返回 JSON 信封，不带 OpenAPI 文档提示。
 
+## 4.11 经反向代理转发时的来源 IP（需求 11247）
+
+审计表 `open_api_invoke_log.ip` 与 IP 白名单（`allow_cidr`）都依赖"真实客户端 IP"。
+服务部署在 Nginx / 网关后面时，TCP 对端恒为代理的内网地址，必须靠请求头还原：
+
+| 层 | 配置 | 作用 |
+|---|---|---|
+| Nginx → 服务端 | `proxy_set_header X-Real-IP $remote_addr;`<br>`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` | 把客户端 IP 传给服务端 |
+| Nginx 前面还有 CDN | `set_real_ip_from <CDN 网段>` + `real_ip_header CF-Connecting-IP` + `real_ip_recursive on` | 先把 `$remote_addr` 还原成真实客户端，否则转发的仍是 CDN 节点 IP |
+| 服务端 | `FINV_TRUSTED_PROXIES` | 只有 TCP 对端落在这些网段时才采信上面两个头 |
+
+**默认值**（不配环境变量时）：`10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1/32, ::1/128, fc00::/7`。
+
+- 覆盖私网部署的 Nginx / Docker 网关，开箱即用；
+- 公网直连的对端是公网 IP，不在这些网段内 → **不会采信** `X-Forwarded-For`，杜绝伪造来源 IP；
+- 前置 CDN（Cloudflare 等）时，若让服务端直接信任 CDN 网段：
+
+```bash
+FINV_TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1/32,173.245.48.0/20,103.21.244.0/22
+```
+
+> 更推荐的做法是让 **Nginx 用 realip 模块还原**（配置见上表第二行），
+> 服务端只信任私网代理——CDN 网段会变，写在 Nginx 里更好维护，也不必重启服务端。
+
+排查：审计 `ip` 仍是内网地址时，按顺序确认
+
+```bash
+# 1) Nginx 是否真的把客户端 IP 传下去了
+sudo tail -n 50 /var/log/nginx/access.log          # $remote_addr 列
+# 2) 服务端看到的对端是不是可信代理
+docker logs finvquant 2>&1 | grep -i "trusted"      # 解析失败时会有告警
+# 3) 直连测一次对照（绕开 Nginx，此时 ip 应为你的机器地址）
+curl -s http://127.0.0.1:16001/OpenAPI/V1/Meta/Region/AZ/Server/Hello -H "X-API-Key: ..." -o /dev/null
+```
+
 ## 5. 错误响应
 
 失败时 HTTP 状态码与业务码成对出现（`code` 为 `190xx`），并回显 `X-Request-Id`：

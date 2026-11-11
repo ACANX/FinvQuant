@@ -136,7 +136,7 @@ func (m *Middleware) Handler() gin.HandlerFunc {
 			Method:    c.Request.Method,
 			Path:      c.Request.URL.Path,
 			Query:     c.Request.URL.RawQuery,
-			IP:        clientIP(c.Request),
+			IP:        clientIP(c),
 			UserAgent: c.Request.UserAgent(),
 			BodySize:  len(body),
 			BodyHash:  BodyHash(body),
