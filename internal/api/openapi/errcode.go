@@ -2,7 +2,7 @@
 //
 // 与内部接口的登录会话体系（/API/V1 的 Bearer 令牌）完全独立：
 //
-//   - 模式一：静态 API Key —— `X-API-Key: fk_live_xxx` 或 `Authorization: Bearer fk_live_xxx`；
+//   - 模式一：静态 API Key —— `X-API-Key: FK_LIVE_XXX` 或 `Authorization: Bearer FK_LIVE_XXX`；
 //   - 模式二：AK/SK 签名 —— `Authorization: FinvAK <ak>:<sig>` + `X-Finv-Timestamp` + `X-Finv-Nonce`；
 //   - 预留：BEARER（JWT）/ MTLS（证书指纹）/ BASIC（用户名口令），当前一律按「尚未启用」拒绝。
 //

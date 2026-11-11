@@ -123,8 +123,8 @@ OR (auth_mode <> 'AK_SK' AND secret_hash   IS NOT NULL)
 ### 6.1 模式一：静态 API Key
 
 ```
-X-API-Key: fk_live_xxxxxxxxxxxx
-或 Authorization: Bearer fk_live_xxxxxxxxxxxx
+X-API-Key: FK_LIVE_XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+或 Authorization: Bearer FK_LIVE_XXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
 
 服务端：按 `access_key_id` 定位凭证 → `sha256(提供值)` 与 `secret_hash` 恒时比对。
@@ -132,7 +132,7 @@ X-API-Key: fk_live_xxxxxxxxxxxx
 ### 6.2 模式二：AK/SK 签名
 
 ```
-Authorization: FinvAK <access_key_id>:<signature_base64>
+Authorization: FinvAK <access_key_id>:<signature_base64>      （AK 形如 AK_LIVE_…，全大写）
 X-Finv-Timestamp: 1737000000
 X-Finv-Nonce: 8e2f1c9a4b7d4c0e
 

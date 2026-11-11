@@ -249,7 +249,8 @@ func TestIssuedKeyUppercase(t *testing.T) {
 		t.Fatalf("大写形式应能匹配")
 	}
 
-	// 兼容：改口径之前签发的小写 Key（存小写哈希）仍可用
+	// 兼容：改口径之前签发的小写 Key（存的是小写 Key 的哈希）仍必须可用，
+	// 这是 MatchKey 里「大写归一失败后回退原样比对」分支的用途。
 	legacy := "fk_live_abcdef0123456789"
 	if !secret.MatchKey(secret.HashKey(legacy), legacy) {
 		t.Fatalf("历史小写 Key 应仍可匹配")

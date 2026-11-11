@@ -107,10 +107,10 @@ func TestParseSignHeader(t *testing.T) {
 		wantSigOK  bool
 		wantParsed bool
 	}{
-		{"FinvAK ak_live_1:c2lnbmF0dXJl", "ak_live_1", true, true},
-		{"finvak ak_live_1:c2lnbmF0dXJl==", "ak_live_1", true, true},
+		{"FinvAK AK_LIVE_1:c2lnbmF0dXJl", "AK_LIVE_1", true, true},
+		{"finvak AK_LIVE_1:c2lnbmF0dXJl==", "AK_LIVE_1", true, true},
 		{"Bearer token", "", false, false},
-		{"FinvAK ak_live_1", "", false, false},
+		{"FinvAK AK_LIVE_1", "", false, false},
 		{"FinvAK :sig", "", false, false},
 		{"FinvAK ak:", "", false, false},
 	}
@@ -172,14 +172,14 @@ func TestEncryptDecryptSecret(t *testing.T) {
 
 // TestMatchStaticKey 静态 Key 哈希比对。
 func TestMatchStaticKey(t *testing.T) {
-	key := "fk_live_abcdef123456"
+	key := "FK_LIVE_ABCDEF123456"
 	sum := sha256.Sum256([]byte(key))
 	stored := hex.EncodeToString(sum[:])
 
 	if !MatchStaticKey(stored, key) {
 		t.Fatalf("相同 Key 应匹配")
 	}
-	if MatchStaticKey(stored, "fk_live_other") {
+	if MatchStaticKey(stored, "FK_LIVE_OTHER") {
 		t.Fatalf("不同 Key 不应匹配")
 	}
 	if MatchStaticKey("", key) {
@@ -304,7 +304,7 @@ func TestMiddlewareModeOffPassThrough(t *testing.T) {
 // TestMiddlewareStaticKey 模式一：缺 Key / 错 Key / 正确 Key。
 func TestMiddlewareStaticKey(t *testing.T) {
 	settings := enabledSettings(testKey())
-	source := &fakeSource{byKey: map[string]*Credential{"fk_live_ok": staticCredential("fk_live_ok")}}
+	source := &fakeSource{byKey: map[string]*Credential{"FK_LIVE_OK": staticCredential("FK_LIVE_OK")}}
 	engine, hits := newTestEngine(t, Options{Source: source}, settings)
 
 	// 缺 Key → 19001 / 401
@@ -323,7 +323,7 @@ func TestMiddlewareStaticKey(t *testing.T) {
 	// 错 Key → 19002
 	recorder = httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test", nil)
-	request.Header.Set("X-API-Key", "fk_live_bad")
+	request.Header.Set("X-API-Key", "FK_LIVE_BAD")
 	engine.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusUnauthorized || !strings.Contains(recorder.Body.String(), "19002") {
 		t.Fatalf("错 Key 应 401/19002，实际 %d %s", recorder.Code, recorder.Body.String())
@@ -332,7 +332,7 @@ func TestMiddlewareStaticKey(t *testing.T) {
 	// 正确 Key → 放行，且请求体仍可读
 	recorder = httptest.NewRecorder()
 	request = httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test", strings.NewReader("payload"))
-	request.Header.Set("X-API-Key", "fk_live_ok")
+	request.Header.Set("X-API-Key", "FK_LIVE_OK")
 	engine.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK || *hits != 1 {
 		t.Fatalf("正确 Key 应放行，实际 %d hits=%d", recorder.Code, *hits)
@@ -349,7 +349,7 @@ func TestMiddlewareStaticKey(t *testing.T) {
 func TestMiddlewareAKSK(t *testing.T) {
 	key := testKey()
 	settings := enabledSettings(key)
-	source := &fakeSource{byKey: map[string]*Credential{"ak_live_1": akskCredential(t, "ak_live_1", "sk-super-secret", key)}}
+	source := &fakeSource{byKey: map[string]*Credential{"AK_LIVE_1": akskCredential(t, "AK_LIVE_1", "sk-super-secret", key)}}
 	now := time.Unix(1737000000, 0)
 	engine, hits := newTestEngine(t, Options{Source: source, Now: func() time.Time { return now }}, settings)
 
@@ -369,7 +369,7 @@ func TestMiddlewareAKSK(t *testing.T) {
 		}
 		signReq.Nonce = strings.TrimSpace(signReq.Nonce)
 		request := httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test?b=2&a=1", strings.NewReader(body))
-		request.Header.Set("Authorization", "FinvAK ak_live_1:"+signature)
+		request.Header.Set("Authorization", "FinvAK AK_LIVE_1:"+signature)
 		if signReq.Timestamp != "" {
 			request.Header.Set(HeaderTimestamp, signReq.Timestamp)
 		}
@@ -400,7 +400,7 @@ func TestMiddlewareAKSK(t *testing.T) {
 	}
 	signature, _ := Sign("HMAC-SHA256", "sk-super-secret", CanonicalString(signReq))
 	request := httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test?b=2&a=1", strings.NewReader(body+"tampered"))
-	request.Header.Set("Authorization", "FinvAK ak_live_1:"+signature)
+	request.Header.Set("Authorization", "FinvAK AK_LIVE_1:"+signature)
 	request.Header.Set(HeaderTimestamp, "1737000000")
 	request.Header.Set(HeaderNonce, "nonce-def")
 	engine.ServeHTTP(recorder, request)
@@ -420,7 +420,7 @@ func TestMiddlewareAKSK(t *testing.T) {
 	}
 	signature, _ = Sign("HMAC-SHA256", "sk-super-secret", CanonicalString(stale))
 	request = httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test?b=2&a=1", strings.NewReader(body))
-	request.Header.Set("Authorization", "FinvAK ak_live_1:"+signature)
+	request.Header.Set("Authorization", "FinvAK AK_LIVE_1:"+signature)
 	request.Header.Set(HeaderTimestamp, "1736000000")
 	request.Header.Set(HeaderNonce, "nonce-ghi")
 	engine.ServeHTTP(recorder, request)
@@ -433,23 +433,23 @@ func TestMiddlewareAKSK(t *testing.T) {
 func TestMiddlewareStateAndScope(t *testing.T) {
 	settings := enabledSettings(testKey())
 
-	disabled := staticCredential("fk_live_off")
+	disabled := staticCredential("FK_LIVE_OFF")
 	disabled.FlagEnable = false
-	engine, _ := newTestEngine(t, Options{Source: &fakeSource{byKey: map[string]*Credential{"fk_live_off": disabled}}}, settings)
+	engine, _ := newTestEngine(t, Options{Source: &fakeSource{byKey: map[string]*Credential{"FK_LIVE_OFF": disabled}}}, settings)
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test", nil)
-	request.Header.Set("X-API-Key", "fk_live_off")
+	request.Header.Set("X-API-Key", "FK_LIVE_OFF")
 	engine.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "19003") {
 		t.Fatalf("停用凭证应 403/19003，实际 %d %s", recorder.Code, recorder.Body.String())
 	}
 
-	limited := staticCredential("fk_live_scope")
+	limited := staticCredential("FK_LIVE_SCOPE")
 	limited.Scope = []ScopeRule{{Method: "GET", Path: "/Other"}}
-	engine, _ = newTestEngine(t, Options{Source: &fakeSource{byKey: map[string]*Credential{"fk_live_scope": limited}}}, settings)
+	engine, _ = newTestEngine(t, Options{Source: &fakeSource{byKey: map[string]*Credential{"FK_LIVE_SCOPE": limited}}}, settings)
 	recorder = httptest.NewRecorder()
 	request = httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test", nil)
-	request.Header.Set("X-API-Key", "fk_live_scope")
+	request.Header.Set("X-API-Key", "FK_LIVE_SCOPE")
 	engine.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "19009") {
 		t.Fatalf("范围外应 403/19009，实际 %d %s", recorder.Code, recorder.Body.String())
@@ -508,12 +508,12 @@ func TestMiddlewareFallbackKey(t *testing.T) {
 func TestMiddlewareNotReadyWhenSecretKeyMissing(t *testing.T) {
 	settings := enabledSettings(testKey())
 	settings.SecretKeyBase64 = "" // 模拟密钥未配置
-	source := &fakeSource{byKey: map[string]*Credential{"ak_live_1": akskCredential(t, "ak_live_1", "sk", testKey())}}
+	source := &fakeSource{byKey: map[string]*Credential{"AK_LIVE_1": akskCredential(t, "AK_LIVE_1", "sk", testKey())}}
 	engine, _ := newTestEngine(t, Options{Source: source}, settings)
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test", nil)
-	request.Header.Set("Authorization", "FinvAK ak_live_1:c2ln")
+	request.Header.Set("Authorization", "FinvAK AK_LIVE_1:c2ln")
 	request.Header.Set(HeaderTimestamp, "1737000000")
 	request.Header.Set(HeaderNonce, "n-1")
 	engine.ServeHTTP(recorder, request)

@@ -219,6 +219,14 @@
 
 ### 变更
 
+- **统一大写口径的残留清理（需求 11176 补充）**
+  - 修掉几处仍写小写的示例/注释（都是文档与注释文字，不影响逻辑）：
+    `internal/api/openapi/errcode.go` 包注释、`Docs/DataDictMapping/OpenApiAuth.md` 的两个请求示例、
+    `V300183` 的 `access_key_id` 列注释（并已在本机库执行一次 `COMMENT ON COLUMN` 同步，仅注释文字）。
+  - 中间件单测的假密钥全部改成大写（`FK_LIVE_*` / `AK_LIVE_1`），让主路径就是大写口径；
+    历史小写兼容仍由 `TestIssuedKeyUppercase` 的 `legacy` 用例覆盖（有意保留小写）。
+  - 说明：全仓检索确认**没有** `SA_LIVE_` 这类前缀，静态 Key 的前缀是 `FK_LIVE_`（`secret.PrefixAPIKey`）。
+
 - **凭证号 / 静态 Key / AK / SK 统一大写（需求 11176）**
   - 生成侧：前缀改为 `FK_LIVE_` / `AK_LIVE_` / `SK_LIVE_`，随机十六进制部分 `NormalizeKey` 转大写；
     静态 Key 与 AK 都是 `<前缀>+32 位大写十六进制`，SK 是 `SK_LIVE_+48 位大写十六进制`。

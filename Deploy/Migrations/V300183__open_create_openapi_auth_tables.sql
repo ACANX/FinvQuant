@@ -148,7 +148,7 @@ COMMENT ON COLUMN open.open_api_credential.idn IS '主键，自增';
 COMMENT ON COLUMN open.open_api_credential.client_idn IS '所属调用方（对 open.open_api_client.idn，程序层校验，无物理外键）';
 COMMENT ON COLUMN open.open_api_credential.credential_no IS '凭证号（唯一，人工识别用，如 cred-cdeu-01）';
 COMMENT ON COLUMN open.open_api_credential.auth_mode IS '认证模式：API_KEY 静态密钥 / AK_SK 签名 / BEARER JWT / MTLS 双向证书 / BASIC 用户名口令';
-COMMENT ON COLUMN open.open_api_credential.access_key_id IS '公开标识（唯一）：API_KEY 模式为 key 本身（fk_live_xxx）；AK_SK 模式为 AK；MTLS 模式为证书指纹';
+COMMENT ON COLUMN open.open_api_credential.access_key_id IS '公开标识（唯一，英文字母一律大写）：API_KEY 模式为 key 本身（FK_LIVE_ + 32 位大写十六进制）；AK_SK 模式为 AK（AK_LIVE_ + 32 位大写十六进制）；MTLS 模式为证书指纹';
 COMMENT ON COLUMN open.open_api_credential.key_prefix IS '密钥前 8 位明文，列表页展示与检索用（绝不回显全量密钥）';
 COMMENT ON COLUMN open.open_api_credential.secret_hash IS '密钥哈希（不可逆）：API_KEY 模式为 sha256、BASIC 模式为 argon2id PHC 串；AK_SK 模式必须为 NULL';
 COMMENT ON COLUMN open.open_api_credential.secret_cipher IS 'SK 密文（AES-256-GCM，密钥取 sys_config 19005、KID 取 19004）：HMAC 验签需取回明文，故只能加密不能哈希；非 AK_SK 模式必须为 NULL';
