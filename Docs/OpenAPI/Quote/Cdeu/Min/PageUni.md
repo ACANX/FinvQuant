@@ -19,14 +19,14 @@
 ## 2. 认证
 
 > **鉴权（需求 11168）**：`/OpenAPI/V1` 路由组由 `internal/api/openapi` 中间件鉴权，
-> 支持静态 API Key（`X-API-Key`）与 AK/SK 签名（`Authorization: FinvAK <ak>:<sig>`），
+> 支持静态 API Key（`X-API-Key`）与 AK/SK 签名（`Authorization: META1-<算法> Credential=<AK>, Signature=<签名>`），
 > 由 `sys_config` 19001 控制（0 关闭 / 1 启用 / 2 宽松），失败返回 `190xx`；
 > 详见 [`Docs/API/OpenAPI/Auth.md`](../../../API/OpenAPI/Auth.md)。
 > 上线前请通过防火墙/内网限制来源；API Key 体系落地后再恢复鉴权。
 
 | 项 | 当前实现（需求 11168） |
 |---|---|
-| 认证 | 静态 API Key：`X-API-Key: SA_LIVE_…` 或 `Authorization: Bearer SA_LIVE_…`；AK/SK 签名：`Authorization: FinvAK <AK>:<签名>` + `X-Finv-Timestamp` + `X-Finv-Nonce` |
+| 认证 | 静态 API Key：`X-API-Key: SA_LIVE_…` 或 `Authorization: Bearer SA_LIVE_…`；AK/SK 签名：`Authorization: FinvAK <AK>:<签名>` + `X-META-TS` + `X-META-Nonce` |
 | 失败响应 | `401/403/429/503` + `code=190xx`（无凭证 19001、凭证无效 19002、签名不符 19005、时间窗 19006、nonce 重放 19007…） |
 | 开关 | `sys_config` 19001：`0` 关闭（全部放行且不写审计）/ `1` 强制 / `2` 宽松（校验+审计但失败仍放行） |
 | 审计 | 每次校验写 `open.open_api_invoke_log`，响应头 `X-Request-Id` 可精确回查 |

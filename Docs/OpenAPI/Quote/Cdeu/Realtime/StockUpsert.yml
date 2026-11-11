@@ -98,7 +98,7 @@ components:
       type: http
       scheme: bearer
       description: |
-        AK/SK 签名（Authorization: FinvAK <ak>:<signature> + X-Finv-Timestamp + X-Finv-Nonce）。
+        AK/SK 签名（Authorization: META1-<算法> Credential=<AK>, Signature=<签名> + X-META-TS + X-META-Nonce）。
         鉴权行为由 sys_config 19001 控制（0 关闭 / 1 启用 / 2 宽松），详见 Docs/API/OpenAPI/Auth.md。
   responses:
     BadRequest:

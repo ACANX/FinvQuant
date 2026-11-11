@@ -41,9 +41,9 @@ X-API-Key: SA_LIVE_XXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
 ```http
 POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert?batch=1
-Authorization: FinvAK AK_LIVE_XXXXXXXXXXXXXXXX:oQ7Fk3v...=
-X-Finv-Timestamp: 1737000000
-X-Finv-Nonce: 8e2f1c9a4b7d4c0e
+Authorization: META1-HMAC-SHA256 Credential=AK_LIVE_XXXXXXXXXXXXXXXX, Signature=oQ7Fk3v...=
+X-META-TS: 1737000000
+X-META-Nonce: 8e2f1c9a4b7d4c0e
 Content-Type: application/json
 ```
 
@@ -64,8 +64,8 @@ NONCE
 | `PATH` | 请求路径，**不含**域名、端口、查询串（如 `/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`） |
 | `SORTED_QUERY` | 查询参数按**参数名升序**、同名参数的**值也升序**，键与值都做 RFC 3986 百分号编码（空格 → `%20`），再用 `&` 连接；无查询串时为空行 |
 | `BODY_SHA256` | 请求体的 SHA-256 十六进制**大写**（需求 11177）；GET / 空体用 `sha256("")` 的大写形式 `E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855` |
-| `TIMESTAMP` | 与 `X-Finv-Timestamp` **完全一致**的字符串（Unix 秒） |
-| `NONCE` | 与 `X-Finv-Nonce` 完全一致的字符串（建议 8~64 位随机串，每次请求不同） |
+| `TIMESTAMP` | 与 `X-META-TS` **完全一致**的字符串（Unix 秒） |
+| `NONCE` | 与 `X-META-Nonce` 完全一致的字符串（建议 8~64 位随机串，每次请求不同） |
 
 ### 3.2 签名
 
@@ -73,7 +73,15 @@ NONCE
 signature = Base64( HMAC-SHA256( SK, canonical ) )
 ```
 
-`Authorization: FinvAK <access_key_id>:<signature>`（AK 与签名之间用**最后一个冒号**分隔，签名本身可含 `=`）。
+`Authorization: META1-<签名算法> Credential=<AK>, Signature=<base64 签名>`
+
+- 方案前缀 `META1-` 后紧跟**签名算法名**（与凭证登记的 `sign_algorithm` 一致，如 `HMAC-SHA256`）；
+- 参数按 `,` 分隔、每段 `k=v`，参数名大小写不敏感，值两端空白与可选双引号会被去掉；
+- `Credential` 与 `Signature` 必须同时存在，缺一即 `19002`；
+- 大小写不敏感的前缀（`meta1-hmac-sha256` 也能识别），但算法名会统一转大写比对。
+
+> 旧写法（`Authorization: FinvAK <AK>:<签名>` + `X-Finv-Timestamp` / `X-Finv-Nonce`）**已废止**（需求 11179），
+> 中间件不再接受，请按上面的新格式改造。
 
 ### 3.3 服务端校验顺序
 
@@ -85,7 +93,7 @@ signature = Base64( HMAC-SHA256( SK, canonical ) )
 | 4 | IP 白名单（调用方级 ∩ 凭证级，都为空表示不限） | `19004` |
 | 5 | 时间戳偏差 ≤ `sys_config` 19002（默认 300 秒） | `19006` |
 | 6 | nonce 在窗口内未被使用过（Redis `SET NX PX`，窗口 = 2 × 时间窗） | `19007` |
-| 7 | 重算签名并恒定时间比较 | `19005` |
+| 7 | 校验请求头里的算法与凭证登记的 `sign_algorithm` 一致，再重算签名并恒定时间比较 | `19005` |
 | 8 | 授权范围 `scope_str`（空数组 = 全部接口；支持精确路径与尾部 `/*` 前缀） | `19009` |
 | 9 | 每分钟速率 `rate_limit_rpm` / 每日配额 `quota_day`（Redis 计数） | `19008` |
 

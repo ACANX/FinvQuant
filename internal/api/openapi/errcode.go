@@ -3,7 +3,8 @@
 // 与内部接口的登录会话体系（/API/V1 的 Bearer 令牌）完全独立：
 //
 //   - 模式一：静态 API Key —— `X-API-Key: SA_LIVE_XXX` 或 `Authorization: Bearer SA_LIVE_XXX`；
-//   - 模式二：AK/SK 签名 —— `Authorization: FinvAK <ak>:<sig>` + `X-Finv-Timestamp` + `X-Finv-Nonce`；
+//   - 模式二：AK/SK 签名 —— `Authorization: META1-<算法> Credential=<AK>, Signature=<签名>`
+//   - `X-META-TS` + `X-META-Nonce`；
 //   - 预留：BEARER（JWT）/ MTLS（证书指纹）/ BASIC（用户名口令），当前一律按「尚未启用」拒绝。
 //
 // 表结构见 Deploy/Migrations/V300183（open.open_api_client / open_api_credential / open_api_invoke_log），

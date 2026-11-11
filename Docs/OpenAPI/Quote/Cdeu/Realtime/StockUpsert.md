@@ -23,7 +23,7 @@
 ## 2. 认证
 
 > **鉴权（需求 11168）**：`/OpenAPI/V1` 路由组由 `internal/api/openapi` 中间件鉴权，
-> 支持静态 API Key（`X-API-Key`）与 AK/SK 签名（`Authorization: FinvAK <ak>:<sig>`），
+> 支持静态 API Key（`X-API-Key`）与 AK/SK 签名（`Authorization: META1-<算法> Credential=<AK>, Signature=<签名>`），
 > 由 `sys_config` 19001 控制（0 关闭 / 1 启用 / 2 宽松），失败返回 `190xx`；
 > 详见 [`Docs/API/OpenAPI/Auth.md`](../../../API/OpenAPI/Auth.md)。
 > 上线前请通过防火墙 / 内网限制来源；API Key 体系落地后再恢复鉴权。

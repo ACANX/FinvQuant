@@ -219,6 +219,26 @@
 
 ### 变更
 
+- **AK/SK 鉴权头改为 META1-<算法> + X-META-*（需求 11179，不兼容变更）**
+  - 新格式：
+    ```
+    Authorization: META1-HMAC-SHA256 Credential=AK_LIVE_…, Signature=<base64 签名>
+    X-META-TS: <Unix 秒>
+    X-META-Nonce: <随机串>
+    ```
+    方案前缀 `META1-` 后紧跟算法名（与 AWS `AWS4-HMAC-SHA256` 同构）；参数按 `,` 分隔、`k=v`，
+    参数名不区分大小写、值去空白与可选双引号；`Credential` / `Signature` 缺一即 `19002`。
+  - 新增安全校验：**请求头里的算法必须与凭证登记的 `sign_algorithm` 一致**，不一致返回 `19005`
+    （防止调用方指定别的算法绕过验签口径）。
+  - 旧格式 `Authorization: FinvAK <AK>:<签名>` + `X-Finv-Timestamp` / `X-Finv-Nonce` **不再接受**
+    （尚未有外部接入方，故不留兼容分支）；对方若仍发旧头，会落到静态 Key 分支 → `19001`。
+  - 改动面：`internal/api/openapi/sign.go`（`AuthSchemePrefix` / `ParseSignHeader` 改为 4 返回值 /
+    头名常量 `X-META-TS`、`X-META-Nonce`）、`middleware.go`（分流 + 算法一致性校验）、
+    服务层签发提示文案、`Docs/API/OpenAPI/Auth.md`（协议与校验顺序）、`Admin.md`、`DataDictMapping/OpenApiAuth.md`、
+    `Docs/OpenAPI/**` 6 份对外契约（md + yml），以及 `FinvQuantDesign/OpenAPI` 的 Demo 与 README。
+  - 测试：重写 `TestParseSignHeader`（带引号/参数乱序/缺参数/旧格式一律拒绝）；中间件与联调用例改新头。
+  - 实测：新格式 200 且审计 `pass=1 / mode=AK_SK`；旧格式 401/19001；缺 Signature 401/19002；算法不符 401/19005。
+
 - **修审计表把静态 API Key 明文落库（需求 11168 安全修复）**
   - 现象：静态 Key 放行时 `open.open_api_invoke_log.access_key_id` 存的是**完整密钥**；
     失败时才是脱敏形态。静态 Key 本身就是密钥，等于把凭据写进了审计表（列表页也会展示）。

@@ -177,10 +177,11 @@ func (m *Middleware) authenticate(c *gin.Context, settings Settings, req *http.R
 	authorization := strings.TrimSpace(req.Header.Get("Authorization"))
 
 	// ---- 模式二：AK/SK 签名 ----
-	if strings.HasPrefix(strings.ToUpper(authorization), strings.ToUpper(AuthSchemeSign)) {
-		accessKeyID, signature, ok := ParseSignHeader(authorization)
+	if strings.HasPrefix(strings.ToUpper(authorization), AuthSchemePrefix) {
+		algorithm, accessKeyID, signature, ok := ParseSignHeader(authorization)
 		if !ok {
-			return nil, CodeKeyInvalid, "Authorization 头格式非法（应为 FinvAK <ak>:<signature>）"
+			return nil, CodeKeyInvalid,
+				"Authorization 头格式非法（应为 META1-<算法> Credential=<AK>, Signature=<签名>）"
 		}
 		// AK 是公开标识，即使后面定位失败也记进审计，便于排查「谁在用什么 AK 撞门」
 		invocation.AccessKeyID = accessKeyID
@@ -194,6 +195,11 @@ func (m *Middleware) authenticate(c *gin.Context, settings Settings, req *http.R
 		}
 		if credential.AuthMode != AuthModeAKSK {
 			return nil, CodeKeyInvalid, "该凭证不是 AK/SK 模式"
+		}
+		// 请求里的算法必须与凭证登记的一致（防止调用方用别的算法绕过验签口径）
+		if !strings.EqualFold(strings.TrimSpace(credential.SignAlgorithm), algorithm) {
+			return credential, CodeSignMismatch,
+				"签名算法不一致（请求 " + algorithm + "，凭证 " + credential.SignAlgorithm + "）"
 		}
 
 		key, err := settings.SecretKeyBytes()

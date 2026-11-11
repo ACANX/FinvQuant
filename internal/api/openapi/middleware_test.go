@@ -99,31 +99,37 @@ func TestCanonicalStringAndSignature(t *testing.T) {
 	}
 }
 
-// TestParseSignHeader Authorization 头解析。
+// TestParseSignHeader Authorization 头解析（META1-<算法> Credential=…, Signature=…）。
 func TestParseSignHeader(t *testing.T) {
 	cases := []struct {
-		header     string
-		wantAK     string
-		wantSigOK  bool
-		wantParsed bool
+		header    string
+		wantAlg   string
+		wantAK    string
+		wantSigOK bool
+		wantOK    bool
 	}{
-		{"FinvAK AK_LIVE_1:c2lnbmF0dXJl", "AK_LIVE_1", true, true},
-		{"finvak AK_LIVE_1:c2lnbmF0dXJl==", "AK_LIVE_1", true, true},
-		{"Bearer token", "", false, false},
-		{"FinvAK AK_LIVE_1", "", false, false},
-		{"FinvAK :sig", "", false, false},
-		{"FinvAK ak:", "", false, false},
+		{"META1-HMAC-SHA256 Credential=AK_LIVE_1, Signature=c2lnbmF0dXJl", "HMAC-SHA256", "AK_LIVE_1", true, true},
+		{"meta1-hmac-sha256 Credential=AK_LIVE_1, Signature=c2lnbmF0dXJl==", "HMAC-SHA256", "AK_LIVE_1", true, true},
+		// 带引号 / 逗号后空格 / 参数顺序颠倒都要能解析
+		{`META1-HMAC-SHA256 Signature="c2ln", Credential="AK_LIVE_1"`, "HMAC-SHA256", "AK_LIVE_1", true, true},
+		// 缺 Signature / 缺 Credential / 缺算法 → 不合法
+		{"META1-HMAC-SHA256 Credential=AK_LIVE_1", "", "", false, false},
+		{"META1-HMAC-SHA256 Signature=c2ln", "", "", false, false},
+		{"META1- Credential=AK_LIVE_1, Signature=c2ln", "", "", false, false},
+		// 旧格式（FinvAK / Bearer）一律不再接受
+		{"FinvAK AK_LIVE_1:c2lnbmF0dXJl", "", "", false, false},
+		{"Bearer token", "", "", false, false},
 	}
 	for _, c := range cases {
-		ak, signature, ok := ParseSignHeader(c.header)
-		if ok != c.wantParsed {
-			t.Fatalf("%q 解析结果应为 %t，实际 %t", c.header, c.wantParsed, ok)
+		algorithm, ak, signature, ok := ParseSignHeader(c.header)
+		if ok != c.wantOK {
+			t.Fatalf("%q 解析结果应为 %t，实际 %t", c.header, c.wantOK, ok)
 		}
 		if !ok {
 			continue
 		}
-		if ak != c.wantAK {
-			t.Fatalf("%q 的 AK 应为 %q，实际 %q", c.header, c.wantAK, ak)
+		if algorithm != c.wantAlg || ak != c.wantAK {
+			t.Fatalf("%q 解析为 alg=%q ak=%q，期望 alg=%q ak=%q", c.header, algorithm, ak, c.wantAlg, c.wantAK)
 		}
 		if (signature != "") != c.wantSigOK {
 			t.Fatalf("%q 的签名解析异常: %q", c.header, signature)
@@ -387,7 +393,7 @@ func TestMiddlewareAKSK(t *testing.T) {
 		}
 		signReq.Nonce = strings.TrimSpace(signReq.Nonce)
 		request := httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test?b=2&a=1", strings.NewReader(body))
-		request.Header.Set("Authorization", "FinvAK AK_LIVE_1:"+signature)
+		request.Header.Set("Authorization", "META1-HMAC-SHA256 Credential=AK_LIVE_1, Signature="+signature)
 		if signReq.Timestamp != "" {
 			request.Header.Set(HeaderTimestamp, signReq.Timestamp)
 		}
@@ -418,7 +424,7 @@ func TestMiddlewareAKSK(t *testing.T) {
 	}
 	signature, _ := Sign("HMAC-SHA256", "sk-super-secret", CanonicalString(signReq))
 	request := httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test?b=2&a=1", strings.NewReader(body+"tampered"))
-	request.Header.Set("Authorization", "FinvAK AK_LIVE_1:"+signature)
+	request.Header.Set("Authorization", "META1-HMAC-SHA256 Credential=AK_LIVE_1, Signature="+signature)
 	request.Header.Set(HeaderTimestamp, "1737000000")
 	request.Header.Set(HeaderNonce, "nonce-def")
 	engine.ServeHTTP(recorder, request)
@@ -438,7 +444,7 @@ func TestMiddlewareAKSK(t *testing.T) {
 	}
 	signature, _ = Sign("HMAC-SHA256", "sk-super-secret", CanonicalString(stale))
 	request = httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test?b=2&a=1", strings.NewReader(body))
-	request.Header.Set("Authorization", "FinvAK AK_LIVE_1:"+signature)
+	request.Header.Set("Authorization", "META1-HMAC-SHA256 Credential=AK_LIVE_1, Signature="+signature)
 	request.Header.Set(HeaderTimestamp, "1736000000")
 	request.Header.Set(HeaderNonce, "nonce-ghi")
 	engine.ServeHTTP(recorder, request)
@@ -531,7 +537,7 @@ func TestMiddlewareNotReadyWhenSecretKeyMissing(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test", nil)
-	request.Header.Set("Authorization", "FinvAK AK_LIVE_1:c2ln")
+	request.Header.Set("Authorization", "META1-HMAC-SHA256 Credential=AK_LIVE_1, Signature=c2ln")
 	request.Header.Set(HeaderTimestamp, "1737000000")
 	request.Header.Set(HeaderNonce, "n-1")
 	engine.ServeHTTP(recorder, request)

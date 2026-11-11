@@ -244,7 +244,7 @@
     "credential": { "...": "同 5.1 的凭证结构" },
     "access_key": "AK_LIVE_AB12CD34EF56...",
     "secret_key": "SK_LIVE_...",
-    "note": "SK 只显示这一次：请立即复制保存（库里只存密文，丢失只能轮换）；请求用 Authorization: FinvAK <AK>:<签名>"
+    "note": "SK 只显示这一次：请立即复制保存（库里只存密文，丢失只能轮换）；请求用 Authorization: META1-<算法> Credential=<AK>, Signature=<签名> + X-META-TS + X-META-Nonce"
   }
 }
 ```

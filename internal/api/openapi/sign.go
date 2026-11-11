@@ -14,13 +14,18 @@ import (
 	"strings"
 )
 
-// AuthSchemeSign 签名认证方案前缀（Authorization: FinvAK <ak>:<sig>）。
-const AuthSchemeSign = "FinvAK "
+// AuthSchemePrefix 签名认证方案前缀（需求 11179）：
+//
+//	Authorization: META1-HMAC-SHA256 Credential=AK_LIVE_…, Signature=<base64 签名>
+//
+// 取「META1」+ 算法名，与 AWS 的 `AWS4-HMAC-SHA256 ...` 同构：
+// 一眼能看出用的是哪种签名算法，也便于网关/审计区分「静态 Key」与「签名」两类认证。
+const AuthSchemePrefix = "META1-"
 
-// HeaderTimestamp / HeaderNonce 签名请求头。
+// HeaderTimestamp / HeaderNonce 签名请求头（需求 11179 由 X-Finv-* 改为 X-META-*）。
 const (
-	HeaderTimestamp = "X-Finv-Timestamp"
-	HeaderNonce     = "X-Finv-Nonce"
+	HeaderTimestamp = "X-META-TS"
+	HeaderNonce     = "X-META-Nonce"
 )
 
 // ErrBadAuthHeader Authorization 头格式非法。
@@ -115,18 +120,41 @@ func VerifySignature(algorithm, secret, canonical, provided string) bool {
 	return hmac.Equal([]byte(expected), []byte(strings.TrimSpace(provided)))
 }
 
-// ParseSignHeader 解析 `Authorization: FinvAK <ak>:<signature>`。
-func ParseSignHeader(header string) (accessKeyID, signature string, ok bool) {
+// ParseSignHeader 解析 `Authorization: META1-<算法> Credential=<AK>, Signature=<签名>`。
+//
+// 解析口径：
+//   - 方案前缀 `META1-` 大小写不敏感，其后紧跟算法名（到第一个空白为止，统一转大写）；
+//   - 参数按 `,` 分隔、每段 `k=v`，参数名大小写不敏感，值两端空白与可选双引号会被去掉；
+//   - `Credential` 与 `Signature` 必须同时存在。
+func ParseSignHeader(header string) (algorithm, accessKeyID, signature string, ok bool) {
 	header = strings.TrimSpace(header)
-	if len(header) <= len(AuthSchemeSign) || !strings.EqualFold(header[:len(AuthSchemeSign)], AuthSchemeSign) {
-		return "", "", false
+	if len(header) <= len(AuthSchemePrefix) || !strings.EqualFold(header[:len(AuthSchemePrefix)], AuthSchemePrefix) {
+		return "", "", "", false
 	}
-	rest := strings.TrimSpace(header[len(AuthSchemeSign):])
-	index := strings.LastIndex(rest, ":")
-	if index <= 0 || index == len(rest)-1 {
-		return "", "", false
+	rest := strings.TrimSpace(header[len(AuthSchemePrefix):])
+
+	space := strings.IndexAny(rest, " \t")
+	if space <= 0 {
+		return "", "", "", false
 	}
-	return strings.TrimSpace(rest[:index]), strings.TrimSpace(rest[index+1:]), true
+	algorithm = strings.ToUpper(strings.TrimSpace(rest[:space]))
+
+	for _, part := range strings.Split(rest[space+1:], ",") {
+		name, value, found := strings.Cut(part, "=")
+		if !found {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(name)) {
+		case "credential":
+			accessKeyID = strings.Trim(strings.TrimSpace(value), `"`)
+		case "signature":
+			signature = strings.Trim(strings.TrimSpace(value), `"`)
+		}
+	}
+	if algorithm == "" || accessKeyID == "" || signature == "" {
+		return "", "", "", false
+	}
+	return algorithm, accessKeyID, signature, true
 }
 
 // ParseTimestamp 解析 Unix 秒时间戳。

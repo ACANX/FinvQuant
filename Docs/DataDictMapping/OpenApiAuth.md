@@ -132,16 +132,16 @@ X-API-Key: SA_LIVE_XXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ### 6.2 模式二：AK/SK 签名
 
 ```
-Authorization: FinvAK <access_key_id>:<signature_base64>      （AK 形如 AK_LIVE_…，全大写）
-X-Finv-Timestamp: 1737000000
-X-Finv-Nonce: 8e2f1c9a4b7d4c0e
+Authorization: META1-HMAC-SHA256 Credential=<AK>, Signature=<signature_base64>   （AK 形如 AK_LIVE_…，全大写）
+X-META-TS: 1737000000
+X-META-Nonce: 8e2f1c9a4b7d4c0e
 
 canonical = METHOD \n
             PATH \n                                   （不含域名/端口，不含查询串）
             SORTED_QUERY \n                           （键升序、值 URL 编码后以 & 连接）
             sha256(body) 十六进制 \n                   （GET/空体 = sha256("")）
-            X-Finv-Timestamp \n
-            X-Finv-Nonce
+            X-META-TS \n
+            X-META-Nonce
 
 signature = base64(HMAC-SHA256(SK, canonical))
 ```

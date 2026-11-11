@@ -198,7 +198,7 @@ func TestLiveOpenAPIAuthEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("签名失败: %v", err)
 	}
-	status, body = httpGet(t, target, "", "FinvAK "+ak+":"+signature, map[string]string{
+	status, body = httpGet(t, target, "", "META1-HMAC-SHA256 Credential="+ak+", Signature="+signature, map[string]string{
 		HeaderTimestamp: timestamp,
 		HeaderNonce:     nonce,
 	})
@@ -208,7 +208,7 @@ func TestLiveOpenAPIAuthEndToEnd(t *testing.T) {
 	t.Logf("AK/SK → %d", status)
 
 	// 重放同一 nonce → 19007
-	status, body = httpGet(t, target, "", "FinvAK "+ak+":"+signature, map[string]string{
+	status, body = httpGet(t, target, "", "META1-HMAC-SHA256 Credential="+ak+", Signature="+signature, map[string]string{
 		HeaderTimestamp: timestamp,
 		HeaderNonce:     nonce,
 	})

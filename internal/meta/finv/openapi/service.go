@@ -327,7 +327,7 @@ func issuedNote(authMode string) string {
 	if authMode == AuthModeAPIKey {
 		return "静态 Key 只显示这一次：请立即复制保存（库里不存明文，丢失只能轮换）"
 	}
-	return "SK 只显示这一次：请立即复制保存（库里只存密文，丢失只能轮换）；请求用 Authorization: FinvAK <AK>:<签名>"
+	return "SK 只显示这一次：请立即复制保存（库里只存密文，丢失只能轮换）；请求用 Authorization: META1-<算法> Credential=<AK>, Signature=<签名> + X-META-TS + X-META-Nonce"
 }
 
 // normalizePage 归一页码与页大小（1 ≤ page，1 ≤ pageSize ≤ 200）。
