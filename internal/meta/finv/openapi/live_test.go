@@ -322,3 +322,120 @@ func TestLiveAdminClientDefaults(t *testing.T) {
 	}
 	t.Logf("默认值正确：owner_uid=%s email=%s", client.OwnerUID, client.ContactEmail)
 }
+
+// TestLiveAdminSecretRotation 密钥配置与重加密（需求 11175）。
+//
+// 覆盖：首次配置 19005 → 签发 AK/SK → 换密钥并重加密 → 新密钥可解、KID 更新；
+// 非法密钥长度被拒；结束恢复 19004/19005/19006 原值。
+func TestLiveAdminSecretRotation(t *testing.T) {
+	service, pool := adminLiveService(t)
+	ctx := context.Background()
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+
+	// 记录现场
+	type cfg struct {
+		kid, key, fallback string
+	}
+	var original cfg
+	if err := pool.QueryRow(ctx, `
+SELECT COALESCE(MAX(str_value) FILTER (WHERE config_no = 19004), ''),
+       COALESCE(MAX(str_value) FILTER (WHERE config_no = 19005), ''),
+       COALESCE(MAX(str_value) FILTER (WHERE config_no = 19006), '')
+  FROM sys.sys_config WHERE config_no IN (19004, 19005, 19006)`).Scan(&original.kid, &original.key, &original.fallback); err != nil {
+		t.Fatalf("读取密钥配置失败: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := pool.Exec(ctx, `
+UPDATE sys.sys_config SET str_value = $1 WHERE config_no = 19004`, original.kid); err != nil {
+			t.Logf("恢复 19004 失败（需人工检查）: %v", err)
+		}
+		if _, err := pool.Exec(ctx, `
+UPDATE sys.sys_config SET str_value = $1 WHERE config_no = 19005`, original.key); err != nil {
+			t.Logf("恢复 19005 失败（需人工检查）: %v", err)
+		}
+		if _, err := pool.Exec(ctx, `
+UPDATE sys.sys_config SET str_value = $1 WHERE config_no = 19006`, original.fallback); err != nil {
+			t.Logf("恢复 19006 失败（需人工检查）: %v", err)
+		}
+	})
+
+	// 非法密钥：长度不对应被拒
+	if _, err := service.SaveSecret(ctx, SecretSaveRequest{SecretKeyBase64: "c2hvcnQ="}); !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("非法长度的密钥应返回 ErrInvalidRequest，实际 %v", err)
+	}
+	// 非法 KID
+	if _, err := service.SaveSecret(ctx, SecretSaveRequest{SecretKID: "含中文"}); !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("非法 KID 应返回 ErrInvalidRequest，实际 %v", err)
+	}
+
+	key1 := make([]byte, 32)
+	key2 := make([]byte, 32)
+	for i := range key1 {
+		key1[i] = byte(i + 11)
+		key2[i] = byte(i + 97)
+	}
+
+	// 首次配置密钥（KID=k1）
+	view, err := service.SaveSecret(ctx, SecretSaveRequest{SecretKID: "k1", SecretKeyBase64: base64Key(key1)})
+	if err != nil {
+		t.Fatalf("首次配置密钥失败: %v", err)
+	}
+	if !view.SecretKeyReady || view.SecretKID != "k1" {
+		t.Fatalf("配置状态不符: %+v", view)
+	}
+
+	// 建调用方 + AK/SK 凭证
+	client, err := service.SaveClient(ctx, ClientRequest{
+		ClientCode: "zz-oa-secret-" + suffix, ClientName: "密钥轮换联调",
+	}, "livetest")
+	if err != nil {
+		t.Fatalf("新建调用方失败: %v", err)
+	}
+	issued, err := service.CreateCredential(ctx, CredentialCreateRequest{
+		ClientIDN: client.IDN, CredentialNo: "zz-secret-" + suffix, AuthMode: AuthModeAKSK,
+	}, "livetest")
+	if err != nil {
+		t.Fatalf("签发 AK/SK 失败: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `DELETE FROM open.open_api_credential WHERE client_idn = $1`, client.IDN)
+		_, _ = pool.Exec(ctx, `DELETE FROM open.open_api_client WHERE idn = $1`, client.IDN)
+		t.Logf("已清理密钥轮换测试调用方 idn=%d", client.IDN)
+	})
+
+	// 换密钥 + 重加密
+	view, err = service.SaveSecret(ctx, SecretSaveRequest{
+		SecretKID: "k2", SecretKeyBase64: base64Key(key2), RotateCipher: true,
+		FallbackKey: "fk_fallback_" + suffix,
+	})
+	if err != nil {
+		t.Fatalf("换密钥失败: %v", err)
+	}
+	if view.UpdatedCredential < 1 || view.SkippedCredential != 0 {
+		t.Fatalf("重加密结果不符: updated=%d skipped=%d", view.UpdatedCredential, view.SkippedCredential)
+	}
+
+	// 新密文必须能用新密钥解出原 SK，且 secret_kid 已更新
+	var cipherText, currentKID string
+	if err := pool.QueryRow(ctx,
+		`SELECT COALESCE(secret_cipher, ''), COALESCE(secret_kid, '') FROM open.open_api_credential WHERE idn = $1`,
+		issued.Credential.IDN).Scan(&cipherText, &currentKID); err != nil {
+		t.Fatalf("读取重加密结果失败: %v", err)
+	}
+	if currentKID != "k2" {
+		t.Fatalf("secret_kid 应更新为 k2，实际 %q", currentKID)
+	}
+	plain, err := secret.Decrypt(cipherText, key2)
+	if err != nil || plain != issued.SecretKey {
+		t.Fatalf("新密钥应能解出原 SK: plain==issued?%t err=%v", plain == issued.SecretKey, err)
+	}
+	if _, err := secret.Decrypt(cipherText, key1); err == nil {
+		t.Fatalf("旧密钥不应再能解开新密文")
+	}
+
+	// 视图与响应里不得出现密钥明文
+	if strings.Contains(view.SecretKID, base64Key(key2)) {
+		t.Fatalf("响应不得包含密钥明文")
+	}
+	t.Logf("密钥轮换完成：kid=%s updated=%d fallback_ready=%t", view.SecretKID, view.UpdatedCredential, view.FallbackKeyReady)
+}

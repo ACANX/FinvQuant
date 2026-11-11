@@ -197,6 +197,7 @@ type InvokeLogFilter struct {
 var (
 	clientCodePattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{1,31}$`)
 	credentialNoPatten = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{1,47}$`)
+	kidPattern         = regexp.MustCompile(`^[A-Za-z0-9._-]{1,16}$`)
 )
 
 // normalizeMode 归一鉴权模式：只接受 0/1/2。

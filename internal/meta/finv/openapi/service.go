@@ -350,3 +350,136 @@ func isUniqueViolation(err error, constraint string) bool {
 	}
 	return constraint == "" || pgErr.ConstraintName == constraint
 }
+
+// ---------------- 密钥配置（需求 11175）----------------
+
+// SecretView 密钥配置视图（**不含任何密钥明文**）。
+type SecretView struct {
+	SecretKID         string `json:"secret_kid"`
+	SecretKeyReady    bool   `json:"secret_key_ready"`
+	FallbackKeyReady  bool   `json:"fallback_key_ready"`
+	CountCredential   int    `json:"count_credential"`
+	CountStaleKID     int    `json:"count_stale_kid"`
+	UpdatedCredential int    `json:"updated_credential"`
+	SkippedCredential int    `json:"skipped_credential"`
+}
+
+// SecretSaveRequest 保存密钥配置。
+//
+// 三个值都是「空 = 不改」；secret_key_base64 非空时表示要更换加密密钥，
+// rotate_cipher=true 时会把现有凭证密文用新密钥重加密（否则那些凭证会解不开）。
+type SecretSaveRequest struct {
+	SecretKID        string `json:"secret_kid"`
+	SecretKeyBase64  string `json:"secret_key_base64"`
+	RotateCipher     bool   `json:"rotate_cipher"`
+	FallbackKey      string `json:"fallback_key"`
+	ClearFallbackKey bool   `json:"clear_fallback_key"`
+}
+
+const (
+	// MinSecretKeyBytes / MaxSecretKeyBytes AES-256 固定 32 字节。
+	secretKeyBytes = 32
+	// maxFallbackKeyLen 兜底密钥长度上限（只是字符串比对，不参与密码学）。
+	maxFallbackKeyLen = 128
+)
+
+// SecretStatus 读密钥配置现状。
+func (s *Service) SecretStatus(ctx context.Context) (SecretView, error) {
+	state, err := s.store.LoadSecretState(ctx)
+	if err != nil {
+		return SecretView{}, err
+	}
+	return SecretView{
+		SecretKID:        state.SecretKID,
+		SecretKeyReady:   strings.TrimSpace(state.SecretKeyBase64) != "",
+		FallbackKeyReady: strings.TrimSpace(state.FallbackKey) != "",
+		CountCredential:  state.CountCredential,
+		CountStaleKID:    state.CountCredentialStale,
+	}, nil
+}
+
+// SaveSecret 保存 19004 / 19005 / 19006，并在换密钥时按需重加密现有凭证密文。
+func (s *Service) SaveSecret(ctx context.Context, req SecretSaveRequest) (SecretView, error) {
+	state, err := s.store.LoadSecretState(ctx)
+	if err != nil {
+		return SecretView{}, err
+	}
+
+	// KID
+	var kidPtr *string
+	if kid := strings.TrimSpace(req.SecretKID); kid != "" {
+		if len(kid) > 16 || !kidPattern.MatchString(kid) {
+			return SecretView{}, invalid("secret_kid 只允许字母/数字/._-，1~16 位")
+		}
+		kidPtr = &kid
+	}
+	newKID := state.SecretKID
+	if kidPtr != nil {
+		newKID = *kidPtr
+	}
+
+	// 兜底密钥
+	var fallbackPtr *string
+	if req.ClearFallbackKey {
+		empty := ""
+		fallbackPtr = &empty
+	} else if key := strings.TrimSpace(req.FallbackKey); key != "" {
+		if len(key) > maxFallbackKeyLen {
+			return SecretView{}, invalid("兜底密钥不能超过 %d 字符", maxFallbackKeyLen)
+		}
+		fallbackPtr = &key
+	}
+
+	// 加密密钥
+	var (
+		secretPtr *string
+		newKey    []byte
+		oldKey    []byte
+	)
+	if raw := strings.TrimSpace(req.SecretKeyBase64); raw != "" {
+		decoded, err := secret.DecodeKey(raw)
+		if err != nil {
+			return SecretView{}, invalid("%v", err)
+		}
+		newKey = decoded
+		secretPtr = &raw
+		if old := strings.TrimSpace(state.SecretKeyBase64); old != "" {
+			if decodedOld, err := secret.DecodeKey(old); err == nil {
+				oldKey = decodedOld
+			}
+		}
+	}
+
+	// 「重加密密文」与「写入新密钥」必须原子完成：只换一半会造成密文与密钥不匹配的死局。
+	updated, skipped := 0, 0
+	tx, err := s.store.Begin(ctx)
+	if err != nil {
+		return SecretView{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if newKey != nil && oldKey != nil && state.CountCredential > 0 {
+		updated, skipped, err = s.store.ReencryptCredentials(ctx, tx, oldKey, newKey, newKID)
+		if err != nil {
+			return SecretView{}, err
+		}
+	}
+	if err := s.store.SaveSecretSQL(ctx, tx, kidPtr, secretPtr, fallbackPtr); err != nil {
+		return SecretView{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return SecretView{}, err
+	}
+	if newKey != nil && oldKey == nil && state.CountCredential > 0 {
+		// 首次配置密钥（此前没有密钥）时不该已有密文；若有，说明数据异常，明确报出来让人工处理
+		skipped = state.CountCredential
+	}
+
+	view, err := s.SecretStatus(ctx)
+	if err != nil {
+		return SecretView{}, err
+	}
+	view.UpdatedCredential = updated
+	view.SkippedCredential = skipped
+	return view, nil
+}

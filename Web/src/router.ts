@@ -15,6 +15,7 @@ import OpenAPIClientView from './views/Meta/Finv/OpenAPI/ClientView.vue'
 import OpenAPICredentialView from './views/Meta/Finv/OpenAPI/CredentialView.vue'
 import OpenAPIInvokeLogView from './views/Meta/Finv/OpenAPI/InvokeLogView.vue'
 import OpenAPISettingsView from './views/Meta/Finv/OpenAPI/SettingsView.vue'
+import OpenAPISecretView from './views/Meta/Finv/OpenAPI/SecretView.vue'
 import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue'
 import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue'
 import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue'
@@ -129,6 +130,12 @@ const router = createRouter({
       name: 'openapi-settings',
       component: OpenAPISettingsView,
       meta: { title: 'OpenAPI 鉴权配置' },
+    },
+    {
+      path: '/Meta/Finv/OpenAPI/Secret',
+      name: 'openapi-secret',
+      component: OpenAPISecretView,
+      meta: { title: 'OpenAPI 密钥配置' },
     },
     // 行情 → 实时行情 → 证券参数同步（需求 11042）：Supabase 证券键表 → futu.finv_futu_secu_key，按钮手动触发
     {

@@ -120,6 +120,14 @@ const finvQuantMenu: MenuNode[] = [
             icon: 'mdi-tune-variant',
             path: '/Meta/Finv/OpenAPI/Settings',
           },
+          {
+            // 需求 11175：19005 是 32 字节 Base64，手填易错，且换钥要连带重加密，
+            // 因此单独给一页（生成/备份/轮换/兜底密钥）。
+            key: 'openapi-secret',
+            title: 'OpenAPI 密钥配置',
+            icon: 'mdi-shield-key-outline',
+            path: '/Meta/Finv/OpenAPI/Secret',
+          },
         ],
       },
     ],

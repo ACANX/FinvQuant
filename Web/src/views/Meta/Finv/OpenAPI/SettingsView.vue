@@ -166,7 +166,7 @@ onMounted(load)
             type="info"
             density="compact"
             variant="tonal"
-            text="19005 未配置：静态 API Key 可正常签发与使用；AK/SK 模式会被拒绝（签发 503、鉴权 19010）。需要 AK/SK 时请先在系统配置里填写 32 字节 Base64 密钥。"
+            text="19005 未配置：静态 API Key 可正常签发与使用；AK/SK 模式会被拒绝（签发 503、鉴权 19010）。请到【开放平台 → 安全设置 → OpenAPI 密钥配置】页生成并保存 32 字节密钥。"
           />
         </div>
       </v-card-text>
@@ -193,7 +193,7 @@ onMounted(load)
         </p>
         <p>
           ④ <strong>密钥项不在本页修改</strong>：<code>19004</code> KID 与 <code>19005</code> 加密密钥、
-          <code>19006</code> 兼容兜底密钥都属敏感配置，请在「系统配置」页维护；本页只显示是否已配置。
+          <code>19006</code> 兼容兜底密钥都属敏感配置，请在「开放平台 → 安全设置 → OpenAPI 密钥配置」页维护；本页只显示是否已配置。
         </p>
         <p>
           ⑤ <strong>推荐上线顺序</strong>：保持 <code>0</code> → 在凭证页登记调用方与凭证 → 切到 <code>2</code>

@@ -17,7 +17,9 @@
 
 | # | 方法 | 路径 | 说明 |
 |---|------|------|------|
-| 1 | GET | `/Settings` | 读鉴权配置（19001～19003 值 + 密钥是否已配置） |
+| 1 | GET | `/Secret/Status` | 读密钥配置现状（19004 / 19005 / 19006 是否已配置 + 凭证统计） |
+| 1b | POST | `/Secret/Save` | 保存 19004 / 19005 / 19006（换密钥时可选重加密现有凭证） |
+| 1c | GET | `/Settings` | 读鉴权配置（19001～19003 值 + 密钥是否已配置） |
 | 2 | PUT | `/Settings` | 保存 19001～19003 |
 | 3 | GET | `/Client/Page` | 调用方分页 |
 | 4 | POST | `/Client/Save` | 新建（`idn=0`）/ 更新调用方 |
@@ -63,6 +65,55 @@
 | `log_retain_days` | 0 ~ 3650（天，0 = 不清理），越界 400 |
 
 保存后 10 秒内生效（进程内短 TTL 缓存），无需重启。
+
+### 3.5 密钥配置（19004 / 19005 / 19006）
+
+#### GET `/Secret/Status`
+
+```json
+{
+  "code": 0, "message": "OK",
+  "data": {
+    "secret_kid": "k1",
+    "secret_key_ready": true,
+    "fallback_key_ready": false,
+    "count_credential": 2,
+    "count_stale_kid": 0,
+    "updated_credential": 0,
+    "skipped_credential": 0
+  }
+}
+```
+
+`count_stale_kid` = `secret_kid` 与当前 KID 不一致、建议重加密的凭证数。**响应里永远没有密钥内容**。
+
+#### POST `/Secret/Save`
+
+```json
+{
+  "secret_kid": "k2",
+  "secret_key_base64": "<32 字节的 Base64>",
+  "rotate_cipher": true,
+  "fallback_key": "fk_fallback_xxx",
+  "clear_fallback_key": false
+}
+```
+
+| 字段 | 规则 |
+|---|---|
+| `secret_kid` | 空 = 不改；字母/数字/`._-`，1~16 位 |
+| `secret_key_base64` | 空 = 不改；非空必须是 Base64 且解码后 **32 字节**（否则 400） |
+| `rotate_cipher` | 换密钥时是否重加密现有凭证密文（默认建议 true） |
+| `fallback_key` | 空 = 不改；≤128 字符 |
+| `clear_fallback_key` | true 时清空 19006（空串无法与「不改」区分，所以用独立开关） |
+
+行为：
+
+- **同一个事务**里完成「重加密 + 写配置」：只换一半会造成密文与密钥不匹配的死局。
+- 重加密逐条用**旧密钥解、新密钥加密**，并把 `secret_kid` 更新为新 KID；
+  旧密钥解不开的行**跳过并计入 `skipped_credential`**（不中断），由调用方重新签发。
+- 首次配置（此前没有密钥）时若已存在密文，这些行一律计入 `skipped_credential`（数据异常，需人工处理）。
+- 响应里 `updated_credential` / `skipped_credential` 报告本次结果，密钥内容不回显。
 
 ## 4. 调用方
 

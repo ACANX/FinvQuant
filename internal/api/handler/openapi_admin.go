@@ -4,6 +4,8 @@ package handler
 //
 // 全部挂 `/API/V1/Meta/Finv/OpenAPI/*`（内部接口，需登录）：
 //
+//	GET  /Secret/Status                   读密钥配置现状（19004 / 19005 是否已配置 + 凭证统计）
+//	POST /Secret/Save                     保存 19004 / 19005 / 19006（换密钥时可选重加密现有凭证）
 //	GET  /Settings                        读鉴权配置（19001～19003 值 + 密钥是否已配置）
 //	PUT  /Settings                        保存 19001～19003
 //	GET  /Client/Page                     调用方分页
@@ -294,4 +296,35 @@ func parseQueryTime(raw string) (time.Time, bool) {
 		}
 	}
 	return time.Time{}, false
+}
+
+// SecretStatus GET /OpenAPI/Secret/Status。
+func (h *OpenAPIAdmin) SecretStatus(c *gin.Context) {
+	view, err := h.service.SecretStatus(c.Request.Context())
+	if err != nil {
+		respondOpenAPIError(c, "读取密钥配置", err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "OK", "data": view})
+}
+
+// SaveSecret POST /OpenAPI/Secret/Save。
+//
+// 请求体里的密钥明文只在本次请求中出现，不写日志、不回显。
+func (h *OpenAPIAdmin) SaveSecret(c *gin.Context) {
+	var req openapisvc.SecretSaveRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体不是合法 JSON: " + err.Error()})
+		return
+	}
+	view, err := h.service.SaveSecret(c.Request.Context(), req)
+	if err != nil {
+		respondOpenAPIError(c, "保存密钥配置", err)
+		return
+	}
+	// 日志只记「改了什么」，绝不记密钥内容
+	log.Printf("[openapi][admin] secret saved kid=%s key_changed=%t reencrypt=%d skipped=%d fallback_ready=%t by=%s",
+		view.SecretKID, strings.TrimSpace(req.SecretKeyBase64) != "", view.UpdatedCredential,
+		view.SkippedCredential, view.FallbackKeyReady, operatorOf(c))
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "密钥配置已保存（10 秒内生效）", "data": view})
 }

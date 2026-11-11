@@ -11,6 +11,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/acanx/finvquant/internal/meta/finv/openapi/secret"
 )
 
 // Store 基于 pgx 的数据访问。
@@ -567,6 +569,14 @@ func (s *Store) InvokeLogPage(ctx context.Context, filter InvokeLogFilter) ([]In
 	return list, total, rows.Err()
 }
 
+// Begin 开启事务（「重加密 + 写配置」必须原子完成，否则会出现密文已换而配置未换的死局）。
+func (s *Store) Begin(ctx context.Context) (pgx.Tx, error) {
+	if s.pool == nil {
+		return nil, errors.New("数据库连接池未初始化")
+	}
+	return s.pool.Begin(ctx)
+}
+
 // ---- 小工具 ----
 
 // emptyToArray 保证 cidr[] 列拿到空数组而不是 NULL（两列都是 NOT NULL DEFAULT '{}'）。
@@ -582,4 +592,162 @@ func nilIfEmpty(value string) any {
 		return nil
 	}
 	return value
+}
+
+// ---- 密钥配置（19004 / 19005 / 19006，需求 11175）----
+
+// SecretState 密钥配置现状（只有布尔与计数，不含任何密钥明文）。
+type SecretState struct {
+	SecretKID            string
+	SecretKeyBase64      string // 仅供服务层内部使用，不出接口
+	FallbackKey          string // 同上
+	CountCredential      int    // 持有密文的凭证数
+	CountCredentialStale int    // secret_kid 与当前 KID 不一致（需重加密）
+}
+
+// LoadSecretState 读取密钥配置与凭证统计。
+func (s *Store) LoadSecretState(ctx context.Context) (SecretState, error) {
+	state := SecretState{SecretKID: "k1"}
+	if s.pool == nil {
+		return state, errors.New("数据库连接池未初始化")
+	}
+	rows, err := s.pool.Query(ctx, `
+SELECT config_no, COALESCE(str_value, '')
+  FROM sys.sys_config WHERE config_no IN (19004, 19005, 19006)`)
+	if err != nil {
+		return state, err
+	}
+	for rows.Next() {
+		var (
+			configNo int
+			value    string
+		)
+		if err := rows.Scan(&configNo, &value); err != nil {
+			rows.Close()
+			return state, err
+		}
+		switch configNo {
+		case ConfigSecretKID:
+			if strings.TrimSpace(value) != "" {
+				state.SecretKID = strings.TrimSpace(value)
+			}
+		case ConfigSecretKey:
+			state.SecretKeyBase64 = strings.TrimSpace(value)
+		case ConfigFallback:
+			state.FallbackKey = strings.TrimSpace(value)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return state, err
+	}
+
+	if err := s.pool.QueryRow(ctx, `
+SELECT count(*), count(*) FILTER (WHERE COALESCE(secret_kid, '') <> $1)
+  FROM open.open_api_credential
+ WHERE secret_cipher IS NOT NULL`, state.SecretKID).Scan(&state.CountCredential, &state.CountCredentialStale); err != nil {
+		return state, err
+	}
+	return state, nil
+}
+
+// execer 抽象「连接池或事务」，使多条写入能放进同一事务。
+type execer interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults
+}
+
+// SaveSecretSQL 写入 19004 / 19005 / 19006（kidKey/secretKey/fallbackKey 指针为 nil 表示不改）。
+func (s *Store) SaveSecretSQL(ctx context.Context, db execer, kidKey, secretKey, fallbackKey *string) error {
+	batch := &pgx.Batch{}
+	if kidKey != nil {
+		batch.Queue(`UPDATE sys.sys_config SET str_value = $2 WHERE config_no = $1`, ConfigSecretKID, *kidKey)
+	}
+	if secretKey != nil {
+		batch.Queue(`UPDATE sys.sys_config SET str_value = $2 WHERE config_no = $1`, ConfigSecretKey, *secretKey)
+	}
+	if fallbackKey != nil {
+		batch.Queue(`UPDATE sys.sys_config SET str_value = $2 WHERE config_no = $1`, ConfigFallback, *fallbackKey)
+	}
+	if len(batch.QueuedQueries) == 0 {
+		return nil
+	}
+	results := db.SendBatch(ctx, batch)
+	defer results.Close()
+	for range batch.QueuedQueries {
+		if _, err := results.Exec(); err != nil {
+			return err
+		}
+	}
+	return results.Close()
+}
+
+// ReencryptCredentials 用新密钥重加密所有持有密文的凭证，并把 secret_kid 更新为新 KID。
+//
+// 用旧密钥解不开的行**跳过并计数**（不中断、不改动），由调用方提示人工处理：
+// 这类行通常是被更早的密钥加密、而 19005 已被覆盖，需要重新签发凭证。
+func (s *Store) ReencryptCredentials(ctx context.Context, db execer, oldKey, newKey []byte, newKID string) (int, int, error) {
+	type row struct {
+		idn     int64
+		current string
+		prev    string
+	}
+	rows, err := db.Query(ctx, `
+SELECT idn, COALESCE(secret_cipher, ''), COALESCE(secret_cipher_prev, '')
+  FROM open.open_api_credential
+ WHERE secret_cipher IS NOT NULL OR secret_cipher_prev IS NOT NULL`)
+	if err != nil {
+		return 0, 0, err
+	}
+	var items []row
+	for rows.Next() {
+		var item row
+		if err := rows.Scan(&item.idn, &item.current, &item.prev); err != nil {
+			rows.Close()
+			return 0, 0, err
+		}
+		items = append(items, item)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, 0, err
+	}
+
+	updated, skipped := 0, 0
+	for _, item := range items {
+		newCurrent, errCurrent := reencryptOne(item.current, oldKey, newKey)
+		newPrev, errPrev := reencryptOne(item.prev, oldKey, newKey)
+		if errCurrent != nil || errPrev != nil {
+			skipped++
+			continue
+		}
+		var currentValue, prevValue *string
+		if newCurrent != "" {
+			currentValue = &newCurrent
+		}
+		if newPrev != "" {
+			prevValue = &newPrev
+		}
+		if _, err := db.Exec(ctx, `
+UPDATE open.open_api_credential
+   SET secret_cipher = $2, secret_cipher_prev = $3, secret_kid = $4
+ WHERE idn = $1`, item.idn, currentValue, prevValue, newKID); err != nil {
+			return updated, skipped, err
+		}
+		updated++
+	}
+	return updated, skipped, nil
+}
+
+// reencryptOne 单字段重加密；空密文原样返回空串。这里只做字节搬运，密码学在 secret 包里。
+func reencryptOne(cipherText string, oldKey, newKey []byte) (string, error) {
+	if strings.TrimSpace(cipherText) == "" {
+		return "", nil
+	}
+	plain, err := secret.Decrypt(cipherText, oldKey)
+	if err != nil {
+		return "", err
+	}
+	return secret.Encrypt(plain, newKey)
 }

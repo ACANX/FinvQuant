@@ -49,7 +49,8 @@
 │  ├─ 运行监控（三级分组）
 │  │  └─ OpenAPI 调用审计（/Meta/Finv/OpenAPI/InvokeLog，需求 11169）
 │  └─ 安全设置（三级分组）
-│     └─ OpenAPI 鉴权配置（/Meta/Finv/OpenAPI/Settings，需求 11169）
+│     ├─ OpenAPI 鉴权配置（/Meta/Finv/OpenAPI/Settings，需求 11169）
+│     └─ OpenAPI 密钥配置（/Meta/Finv/OpenAPI/Secret，需求 11175）
 ├─ 配置管理（二级叶子，/Meta/Finv/Quant/Config）
 ├─ 环境管理（二级叶子，/Meta/Finv/Quant/Environment）
 ├─ 模板管理（二级叶子，/Meta/Finv/Quant/Template）
@@ -127,6 +128,7 @@
 | 48 | OpenAPI 凭证 | 金融投资 | 四级叶子 | `openapi-credential` | `mdi-key-chain` | `/Meta/Finv/OpenAPI/Credential` | `Web/src/views/Meta/Finv/OpenAPI/CredentialView.vue` | `GET .../OpenAPI/Credential/Page`、`POST .../OpenAPI/Credential/Create`、`POST .../OpenAPI/Credential/Enable`、`POST .../OpenAPI/Credential/Revoke`、`POST .../OpenAPI/Credential/Rotate` | [OpenAPI/Credential.md](OpenAPI/Credential.md) |
 | 49 | OpenAPI 调用审计 | 金融投资 | 四级叶子 | `openapi-invoke-log` | `mdi-text-box-search-outline` | `/Meta/Finv/OpenAPI/InvokeLog` | `Web/src/views/Meta/Finv/OpenAPI/InvokeLogView.vue` | `GET .../OpenAPI/InvokeLog/Page` | [OpenAPI/InvokeLog.md](OpenAPI/InvokeLog.md) |
 | 50 | OpenAPI 鉴权配置 | 金融投资 | 四级叶子 | `openapi-settings` | `mdi-tune-variant` | `/Meta/Finv/OpenAPI/Settings` | `Web/src/views/Meta/Finv/OpenAPI/SettingsView.vue` | `GET .../OpenAPI/Settings`、`PUT .../OpenAPI/Settings` | [OpenAPI/Settings.md](OpenAPI/Settings.md) |
+| 51 | OpenAPI 密钥配置 | 金融投资 | 四级叶子 | `openapi-secret` | `mdi-shield-key-outline` | `/Meta/Finv/OpenAPI/Secret` | `Web/src/views/Meta/Finv/OpenAPI/SecretView.vue` | `GET .../OpenAPI/Secret/Status`、`POST .../OpenAPI/Secret/Save` | [OpenAPI/Secret.md](OpenAPI/Secret.md) |
 ## 说明
 
 - 菜单定义与视图组件一一对应，全部在 `Web/src/config/menuConfig.ts` 的 `menuSystems` 中登记；新增菜单时须同步更新本索引。

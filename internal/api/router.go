@@ -170,6 +170,8 @@ func NewRouter(deps *Deps) *gin.Engine {
 			// 只操作 open schema 与 sys_config 19xxx，不碰行情业务表。
 			openAPIAdmin := handler.NewOpenAPIAdmin(openapiSvc.NewService(openapiSvc.NewStore(deps.Pool)))
 			openAPIGroup := apiGroup.Group("/Meta/Finv/OpenAPI")
+			openAPIGroup.GET("/Secret/Status", openAPIAdmin.SecretStatus)
+			openAPIGroup.POST("/Secret/Save", openAPIAdmin.SaveSecret)
 			openAPIGroup.GET("/Settings", openAPIAdmin.Settings)
 			openAPIGroup.PUT("/Settings", openAPIAdmin.SaveSettings)
 			openAPIGroup.GET("/Client/Page", openAPIAdmin.ClientPage)
