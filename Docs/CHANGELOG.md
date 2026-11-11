@@ -219,6 +219,11 @@
 
 ### 变更
 
+- **认证模式下拉文案回归 `中文[值]`（需求 11209）**
+  - 去掉擅自添加的 `key=`：`静态 API Key[key=APIKEY]` → `静态 API Key[APIKEY]`，
+    `AK/SK 签名[key=AKSK]` → `AK/SK 签名[AKSK]`，`STS 临时凭据[key=STS]` → `STS 临时凭据[STS]`。
+  - 依据 `Docs/DevSpec/DictFilterSpec.md` §1：选项固定为「中文在前 + 半角方括号包原始值」。
+
 - **撤销 STS 签发「授权范围必填」的限制（需求 11208）**
   - 该限制是实现方擅自添加的，用户从未要求；与其它认证模式的口径也不一致。
   - `Credential/StsIssue` 不再因 `scope` 为空报 400；前端 STS 分支去掉必填校验与提示文案。

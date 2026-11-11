@@ -50,9 +50,9 @@ const emit = defineEmits<{
 const BASE = '/Meta/Finv/OpenAPI'
 
 const AUTH_MODE_OPTIONS = [
-  { title: '静态 API Key[key=APIKEY]', value: 'APIKEY' },
-  { title: 'AK/SK 签名[key=AKSK]', value: 'AKSK' },
-  { title: 'STS 临时凭据[key=STS]', value: 'STS' },
+  { title: '静态 API Key[APIKEY]', value: 'APIKEY' },
+  { title: 'AK/SK 签名[AKSK]', value: 'AKSK' },
+  { title: 'STS 临时凭据[STS]', value: 'STS' },
 ]
 
 const form = ref({
