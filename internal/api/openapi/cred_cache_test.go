@@ -100,7 +100,7 @@ func TestCachedSourceHitsAndInvalidates(t *testing.T) {
 	ctx := context.Background()
 	credential := &Credential{IDN: 1, AuthMode: AuthModeAPIKey, AccessKeyID: "SA_LIVE_X", FlagEnable: true}
 	next := &countingSource{credential: credential}
-	source := newCachedSource(next, nil, nil)
+	source := newCachedSource(next, nil, DefaultCredCacheTTL, nil)
 
 	// rdb 为 nil：每次直通，无缓存
 	if _, err := source.Lookup(ctx, "SA_LIVE_X"); err != nil {
@@ -114,7 +114,7 @@ func TestCachedSourceHitsAndInvalidates(t *testing.T) {
 	}
 
 	// 回源错误原样返回，不吞
-	failing := newCachedSource(&countingSource{err: errors.New("db down")}, nil, nil)
+	failing := newCachedSource(&countingSource{err: errors.New("db down")}, nil, DefaultCredCacheTTL, nil)
 	if _, err := failing.Lookup(ctx, "SA_LIVE_X"); err == nil {
 		t.Fatal("回源错误应向上传递")
 	}
@@ -128,7 +128,7 @@ func TestCacheKeyShapes(t *testing.T) {
 	if credVersionKey != "finv:openapi:credver" {
 		t.Fatalf("版本号键名不符合约定: %s", credVersionKey)
 	}
-	if credCacheTTL <= 0 {
+	if DefaultCredCacheTTL <= 0 {
 		t.Fatal("TTL 必须为正")
 	}
 }
@@ -202,7 +202,7 @@ func TestCachedSourceRedisBehaviour(t *testing.T) {
 	credential := &Credential{IDN: 1, AuthMode: AuthModeAPIKey, AccessKeyID: "SA_LIVE_X", FlagEnable: true}
 	next := &countingSource{credential: credential}
 	fake := newFakeRedis()
-	source := newCachedSource(next, fake, nil)
+	source := newCachedSource(next, fake, DefaultCredCacheTTL, nil)
 
 	// 第一次：miss → 回源 → 写缓存
 	if _, err := source.Lookup(ctx, "SA_LIVE_X"); err != nil {
@@ -259,7 +259,7 @@ func TestCachedSourceNotFoundCached(t *testing.T) {
 	ctx := context.Background()
 	next := &countingSource{credential: &Credential{IDN: 1, AuthMode: AuthModeAPIKey, AccessKeyID: "SA_LIVE_OK"}}
 	fake := newFakeRedis()
-	source := newCachedSource(next, fake, nil)
+	source := newCachedSource(next, fake, DefaultCredCacheTTL, nil)
 
 	for i := 0; i < 3; i++ {
 		if _, err := source.Lookup(ctx, "SA_LIVE_INVALID"); !errors.Is(err, ErrCredentialNotFound) {
@@ -276,7 +276,7 @@ func TestCachedSourceConcurrentMissSingleflight(t *testing.T) {
 	ctx := context.Background()
 	next := &slowSource{credential: &Credential{IDN: 1, AuthMode: AuthModeAPIKey, AccessKeyID: "SA_LIVE_X"}, delay: 50 * time.Millisecond}
 	fake := newFakeRedis()
-	source := newCachedSource(next, fake, nil)
+	source := newCachedSource(next, fake, DefaultCredCacheTTL, nil)
 
 	const workers = 20
 	var wg sync.WaitGroup
@@ -318,4 +318,47 @@ func (s *slowSource) Hits() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.hits
+}
+
+// TestNewCachedSourceTTLConfig TTL 由配置传入：0 关闭缓存、超上限按上限收敛（需求 11214）。
+func TestNewCachedSourceTTLConfig(t *testing.T) {
+	ctx := context.Background()
+	credential := &Credential{IDN: 1, AuthMode: AuthModeAPIKey, AccessKeyID: "SA_LIVE_X", FlagEnable: true}
+	fake := newFakeRedis()
+
+	// ttl=0：关闭缓存，每次回源
+	next := &countingSource{credential: credential}
+	disabled := NewCachedSource(next, nil, 0, nil)
+	if disabled.rdb != nil {
+		t.Fatal("ttl=0 应关闭缓存")
+	}
+	for i := 0; i < 3; i++ {
+		if _, err := disabled.Lookup(ctx, "SA_LIVE_X"); err != nil {
+			t.Fatalf("查询失败: %v", err)
+		}
+	}
+	if next.hits != 3 {
+		t.Fatalf("关闭缓存时应每次回源，实际 %d 次", next.hits)
+	}
+
+	// ttl>0：开启缓存，命中不回源（用内部构造注入替身客户端）
+	next2 := &countingSource{credential: credential}
+	enabled := newCachedSource(next2, fake, 30*time.Second, nil)
+	if enabled.ttl != 30*time.Second {
+		t.Fatalf("TTL 未按配置生效: %v", enabled.ttl)
+	}
+	if _, err := enabled.Lookup(ctx, "SA_LIVE_X"); err != nil {
+		t.Fatalf("查询失败: %v", err)
+	}
+	if _, err := enabled.Lookup(ctx, "SA_LIVE_X"); err != nil {
+		t.Fatalf("查询失败: %v", err)
+	}
+	if next2.hits != 1 {
+		t.Fatalf("开启缓存后应命中，实际回源 %d 次", next2.hits)
+	}
+
+	// 上限常量必须可用且大于默认值
+	if MaxCredCacheTTL < DefaultCredCacheTTL {
+		t.Fatalf("配置上限 %v 不应小于默认值 %v", MaxCredCacheTTL, DefaultCredCacheTTL)
+	}
 }

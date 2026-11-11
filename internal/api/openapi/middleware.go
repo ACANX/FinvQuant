@@ -47,6 +47,9 @@ type Options struct {
 	Recorder *Recorder
 	// Now 时钟注入（测试用）。
 	Now func() time.Time
+	// CredCacheTTL 凭证快照的 Redis 缓存时长（需求 11214，来自 FINV_OPENAPI_CRED_CACHE_TTL）；
+	// <=0 表示关闭缓存（每次请求都查凭证表）。
+	CredCacheTTL time.Duration
 	// RedisFailClose Redis 故障时是否 fail-close（拒绝）：true=拒绝（FINV_OPENAPI_REDIS_FAIL_MODE=close），
 	// false=放行并告警（open）。重放/限流依赖 Redis，故障时放行等于这两项失效。
 	RedisFailClose bool
@@ -90,8 +93,8 @@ func NewMiddleware(opts Options) *Middleware {
 		logf = log.Printf
 	}
 	// 凭证快照走 Redis 缓存（需求 11212）：高频调用不再每请求查一次凭证表。
-	// 注入的 Source 是测试替身时同样生效（rdb 为 nil 时 CachedSource 直通，不影响单测）。
-	source = NewCachedSource(source, opts.Redis, logf)
+	// TTL 由 FINV_OPENAPI_CRED_CACHE_TTL 配置（默认 10 秒，0 关闭）；缓存不可用时自动直通。
+	source = NewCachedSource(source, opts.Redis, opts.CredCacheTTL, logf)
 	return &Middleware{
 		source:   source,
 		settings: settings,

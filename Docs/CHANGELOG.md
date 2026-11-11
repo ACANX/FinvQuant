@@ -219,6 +219,12 @@
 
 ### 变更
 
+- **凭证缓存 TTL 改为可配置（需求 11214）**
+  - 新增环境变量 `FINV_OPENAPI_CRED_CACHE_TTL`（秒，默认 `10`，`0` = 关闭缓存，上限 `600`）。
+  - 传递链：`internal/config` → `openapi.Options.CredCacheTTL` → `CachedSource`；`0` 时缓存层直通。
+  - `Deploy/Docker/docker-compose.yml` 暴露该变量，并补上 `FINV_OPENAPI_REDIS_FAIL_MODE` 的说明。
+  - 文档 `Admin.md §5.6` 补取值效果表；单测 `TestNewCachedSourceTTLConfig` 覆盖 0 与自定义 TTL。
+
 - **凭证缓存补负缓存与防击穿（需求 11213）**
   - 负缓存：AK 不存在的结果同样缓存 10 秒，避免乱码 AK 刷接口时每个请求都查一次凭证表。
   - 防击穿：TTL 刚到期时同一 AK 的并发请求用 `singleflight` 合并，只回源一次。

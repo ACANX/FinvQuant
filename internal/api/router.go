@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -134,10 +135,16 @@ func NewRouter(deps *Deps) *gin.Engine {
 		// Redis 故障策略（需求 11188）：FINV_OPENAPI_REDIS_FAIL_MODE=close（默认）时拒绝请求，
 		// 避免 Redis 不可用期间防重放/限流静默失效；=open 时退回旧行为（放行 + 日志告警）。
 		redisFailClose := !strings.EqualFold(strings.TrimSpace(cfg.OpenAPIRedisFailMode), "open")
+		// 凭证缓存时长（需求 11214）：FINV_OPENAPI_CRED_CACHE_TTL，默认 10 秒；0 关闭缓存。
+		credCacheTTL := time.Duration(cfg.OpenAPICredCacheTTL) * time.Second
+		if credCacheTTL > openapi.MaxCredCacheTTL {
+			credCacheTTL = openapi.MaxCredCacheTTL
+		}
 		openGroup.Use(openapi.NewMiddleware(openapi.Options{
 			Pool:           deps.Pool,
 			Redis:          deps.Redis,
 			FallbackKey:    cfg.OpenAPIKey,
+			CredCacheTTL:   credCacheTTL,
 			RedisFailClose: redisFailClose,
 		}).Handler())
 		openGroup.Use(WrapOpenAPIResponse())

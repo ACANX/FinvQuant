@@ -38,6 +38,11 @@ services:
       FINV_REDIS_ADDR: redis:6379
       FINV_REDIS_PASSWORD: ${FINV_REDIS_PASSWORD:-}
       FINV_MODE: release
+      # 外部 OpenAPI 鉴权（需求 11188 / 11214）：
+      #   REDIS_FAIL_MODE=close 时 Redis 故障拒绝请求（防重放/限流不可用不放行）；
+      #   CRED_CACHE_TTL 为读凭证的 Redis 缓存秒数，0=关闭缓存（每次查表），上限 600。
+      FINV_OPENAPI_REDIS_FAIL_MODE: ${FINV_OPENAPI_REDIS_FAIL_MODE:-close}
+      FINV_OPENAPI_CRED_CACHE_TTL: ${FINV_OPENAPI_CRED_CACHE_TTL:-10}
       # 证券行情月归档导出与上传（详见 Docs/Refactor/2610-005-FinvQuoteDeDubExportUpload.md）
       FINV_QUOTE_DEDUB_ENABLED: ${FINV_QUOTE_DEDUB_ENABLED:-false}
       FINV_QUOTE_DEDUB_TIMEZONE: ${FINV_QUOTE_DEDUB_TIMEZONE:-Asia/Shanghai}

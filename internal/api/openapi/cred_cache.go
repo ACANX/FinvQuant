@@ -32,12 +32,14 @@ import (
 const (
 	credVersionKey   = "finv:openapi:credver"
 	credCacheKeyBase = "finv:openapi:cred:"
-	// credCacheTTL 单条凭证快照的存活时间。
+	// DefaultCredCacheTTL 凭证快照的默认存活时间（需求 11214）。
 	//
-	// 通过平台（页面/接口）吊销、停用、轮换会 `INCR` 版本号，立即失效；
-	// TTL 只兜底「绕过平台直接改库」的场景——那种情况下最长 10 秒后生效。
-	// 10 秒足以把高频调用对凭证表的查询压到「每个凭证每 10 秒 1 次」。
-	credCacheTTL = 10 * time.Second
+	// 实际取值由 FINV_OPENAPI_CRED_CACHE_TTL 配置（秒），0 表示关闭缓存。
+	// 平台侧吊销/停用/轮换会 `INCR` 版本号立即失效；TTL 只兜底「绕过平台直接改库」的生效延迟，
+	// 同时决定稳态查库频率（每个活跃凭证每 TTL 最多 1 次）。
+	DefaultCredCacheTTL = 10 * time.Second
+	// MaxCredCacheTTL 配置上限（600 秒），避免误配成几小时导致手工改库长时间不生效。
+	MaxCredCacheTTL = 600 * time.Second
 )
 
 // credentialCacheClient 凭证缓存用到的 Redis 能力（*redis.Client 满足；测试可注入替身）。
@@ -61,20 +63,23 @@ type CachedSource struct {
 //
 // 注意：这里收 `*redis.Client` 而不是接口——未注入 Redis 时（单测/本地裸跑）传进来的
 // typed nil 若直接装进接口会变成「非 nil 接口」，调用方法会 panic。
-func NewCachedSource(next CredentialSource, rdb *redis.Client, logf func(format string, args ...any)) *CachedSource {
+func NewCachedSource(next CredentialSource, rdb *redis.Client, ttl time.Duration, logf func(format string, args ...any)) *CachedSource {
 	var client credentialCacheClient
-	if rdb != nil {
+	if rdb != nil && ttl > 0 {
 		client = rdb
 	}
-	return newCachedSource(next, client, logf)
+	return newCachedSource(next, client, ttl, logf)
 }
 
 // newCachedSource 内部构造（测试可直接注入替身）。
-func newCachedSource(next CredentialSource, client credentialCacheClient, logf func(format string, args ...any)) *CachedSource {
+func newCachedSource(next CredentialSource, client credentialCacheClient, ttl time.Duration, logf func(format string, args ...any)) *CachedSource {
 	if logf == nil {
 		logf = func(string, ...any) {}
 	}
-	return &CachedSource{next: next, rdb: client, ttl: credCacheTTL, logf: logf}
+	if ttl <= 0 {
+		ttl = DefaultCredCacheTTL
+	}
+	return &CachedSource{next: next, rdb: client, ttl: ttl, logf: logf}
 }
 
 // Lookup 先查缓存，未命中回源并写入缓存。
