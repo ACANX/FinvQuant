@@ -2,7 +2,7 @@ package openapi
 
 // STS 临时凭据（需求 11191）：换证接口签发 2 小时有效的 AK/SK + SecurityToken。
 //
-// 三要素：`TA_LIVE_`(AK) + `TS_LIVE_`(SK) + `ST_LIVE_`(SecurityToken)，请求都要带
+// 三要素：`SA_LIVE_`(临时 AK) + `SS_LIVE_`(临时 SK) + `ST_LIVE_`(SecurityToken)，请求都要带
 // `X-META-Token`，且 SecurityToken 作为待签串第 7 段参与签名。
 //
 // 与长期凭据的差别：

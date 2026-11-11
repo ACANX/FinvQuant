@@ -219,6 +219,12 @@
 
 ### 变更
 
+- **STS 三要素前缀改为 `SA_LIVE_` / `SS_LIVE_` / `ST_LIVE_`（需求 11192）**
+  - `SA`=Security Access（临时 AK）、`SS`=Security Secret（临时 SK）、`ST`=Security Token。
+  - `SA_LIVE_` 与静态 Key 前缀相同，靠**传输位置**区分：静态 Key 走 `X-API-Key` / `Bearer`，
+    STS 走签名头 `Credential=SA_LIVE_…`；静态 Key 塞进 `Credential=` 会查不到临时凭据，直接 `19002`。
+  - `maskKey` 的前缀表补 `SS_LIVE_` / `ST_LIVE_`；文档 `Auth.md` §4.8、数据字典同步。
+
 - **支持 STS 临时凭据（标准三要素，需求 11191）**
   - 新端点 `POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue`（用户定稿路径，缩写段全大写）：
     用长期 AK/SK 换取 2 小时有效的 `TA_LIVE_`(AK) + `TS_LIVE_`(SK) + `ST_LIVE_`(SecurityToken)，

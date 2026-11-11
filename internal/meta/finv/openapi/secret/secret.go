@@ -26,9 +26,12 @@ const (
 	PrefixAPIKey = "SA_LIVE_"
 	PrefixAK     = "AK_LIVE_"
 	PrefixSK     = "SK_LIVE_"
-	// STS 临时凭据（需求 11191）：TA = Temporary Access，TS = Temporary Secret，ST = Security Token。
-	PrefixTempAK = "TA_LIVE_"
-	PrefixTempSK = "TS_LIVE_"
+	// STS 临时凭据（需求 11192）：SA = Security Access，SS = Security Secret，ST = Security Token。
+	// 注意 `PrefixTempAK` 与 `PrefixAPIKey` 同值（都叫 SA_LIVE_），靠**传输位置**区分：
+	//   静态 Key 走 `X-API-Key`（或 `Authorization: Bearer`）；
+	//   STS 临时 AK 走签名头 `Authorization: META1-... Credential=SA_LIVE_...`。
+	PrefixTempAK = "SA_LIVE_"
+	PrefixTempSK = "SS_LIVE_"
 	PrefixToken  = "ST_LIVE_"
 )
 
