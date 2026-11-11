@@ -17,6 +17,7 @@ interface InvokeLogRow {
   credential_idn: number
   access_key_id: string
   kfp: string
+  tfp: string
   auth_mode: string
   request_id: string
   dt_request: string
@@ -45,6 +46,50 @@ const accessKey = ref('')
 const kfp = ref('')
 
 const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
+
+// 详情抽屉：一行一个字段，取值不截断（FE18：字段 / 取值 / 说明 三列）
+const detail = ref<InvokeLogRow | null>(null)
+const detailOpen = computed({
+  get: () => detail.value !== null,
+  set: (value: boolean) => { if (!value) detail.value = null },
+})
+
+interface DetailField { label: string; value: string; hint: string }
+
+function detailFields(row: InvokeLogRow): DetailField[] {
+  return [
+    { label: 'idn', value: String(row.idn), hint: '审计主键（自增）' },
+    { label: '请求时间', value: timeText(row.dt_request), hint: '服务端收到请求的时间（dt_request）' },
+    { label: '方法', value: row.method || '—', hint: 'HTTP 方法' },
+    { label: '路径', value: row.path || '—', hint: '请求路径（不含查询串）' },
+    { label: '查询串', value: row.query_str || '—', hint: '原始查询串；静态 Key 写接口需带 `_` 毫秒时间戳' },
+    { label: '结果', value: passText(row.flag_pass), hint: 'flag_pass：1 放行 / 0 拒绝' },
+    { label: '拒绝原因', value: row.reason_code ? `${reasonText(row.reason_code)}（${row.reason_code}）` : '—', hint: '与 190xx 错误码一一对应；放行为空' },
+    { label: 'HTTP', value: String(row.status_code), hint: '本次响应的 HTTP 状态码' },
+    { label: '业务码', value: String(row.biz_code), hint: '响应信封里的 code' },
+    { label: '耗时（ms）', value: String(row.latency_ms), hint: '鉴权+业务处理耗时' },
+    { label: '认证模式', value: row.auth_mode ? `${row.auth_mode}` : '—', hint: 'APIKEY 静态 Key / AKSK 签名 / STS 临时凭据 / 空=未识别' },
+    { label: '公开标识', value: row.access_key_id || '—', hint: 'AK 明文；静态 Key 为脱敏形态（前缀 + 前 8 + 等量星号 + 后 8）' },
+    { label: '密钥指纹 kfp', value: row.kfp || '—', hint: 'sha256(完整公开标识) 前 16 位大写十六进制；APIKEY 记静态 Key 指纹、STS 记临时 AK 指纹，可按单把密钥聚合' },
+    { label: '令牌指纹 tfp', value: row.tfp || '—', hint: 'sha256(SecurityToken) 前 16 位，仅 STS 模式；可按一次临时会话聚合' },
+    { label: '调用方 idn', value: String(row.client_idn), hint: '0 = 未识别到调用方' },
+    { label: '凭证 idn', value: String(row.credential_idn), hint: '0 = 未识别到凭证；STS 记父凭证' },
+    { label: '请求 ID', value: row.request_id || '—', hint: '网关生成的 32 位大写十六进制，与响应头 X-Request-Id 同值' },
+    { label: '来源 IP', value: row.ip || '—', hint: '客户端出口 IP（可能被反代改写）' },
+    { label: 'User-Agent', value: row.user_agent || '—', hint: '原始 UA，超过 512 字符截断入库' },
+    { label: '请求体摘要', value: row.body_sha256 || '—', hint: 'sha256(body) 大写十六进制；不存原文' },
+    { label: '请求体长度', value: String(row.count_body), hint: '字节数' },
+  ]
+}
+
+async function copyValue(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    showToast('已复制', 'success')
+  } catch {
+    showToast('复制失败（浏览器不允许）', 'error')
+  }
+}
 
 async function load() {
   loading.value = true
@@ -143,13 +188,21 @@ onMounted(load)
               <th>密钥指纹</th>
               <th>来源 IP</th>
               <th>请求 ID</th>
+              <th class="text-right">操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="row in rows" :key="row.idn">
               <td class="text-no-wrap">{{ timeText(row.dt_request) }}</td>
               <td>{{ row.method || '—' }}</td>
-              <td class="text-truncate" style="max-width: 260px">{{ row.path || '—' }}</td>
+              <td class="text-truncate" style="max-width: 240px">
+                <span class="mr-1">{{ row.path || '—' }}</span>
+                <v-tooltip v-if="row.path" :text="row.path" location="bottom" max-width="520">
+                  <template #activator="{ props: tipProps }">
+                    <v-icon v-bind="tipProps" icon="mdi-information-outline" size="14" class="text-medium-emphasis" />
+                  </template>
+                </v-tooltip>
+              </td>
               <td>
                 <v-chip size="x-small" variant="tonal" :color="passColor(row.flag_pass)">
                   {{ passText(row.flag_pass) }}
@@ -158,13 +211,30 @@ onMounted(load)
               <td>{{ reasonText(row.reason_code) }}</td>
               <td>{{ row.status_code }}</td>
               <td>{{ row.latency_ms }}</td>
-              <td class="text-truncate" style="max-width: 180px">{{ row.access_key_id || '—' }}</td>
+              <td class="text-truncate" style="max-width: 160px">
+                <span class="mr-1">{{ row.access_key_id || '—' }}</span>
+                <v-tooltip v-if="row.access_key_id" :text="row.access_key_id" location="bottom" max-width="420">
+                  <template #activator="{ props: tipProps }">
+                    <v-icon v-bind="tipProps" icon="mdi-information-outline" size="14" class="text-medium-emphasis" />
+                  </template>
+                </v-tooltip>
+              </td>
               <td class="text-no-wrap text-caption">{{ row.kfp || '—' }}</td>
               <td>{{ row.ip || '—' }}</td>
-              <td class="text-truncate" style="max-width: 150px">{{ row.request_id || '—' }}</td>
+              <td class="text-truncate" style="max-width: 150px">
+                <span class="mr-1">{{ row.request_id || '—' }}</span>
+                <v-tooltip v-if="row.request_id" :text="row.request_id" location="bottom">
+                  <template #activator="{ props: tipProps }">
+                    <v-icon v-bind="tipProps" icon="mdi-information-outline" size="14" class="text-medium-emphasis" />
+                  </template>
+                </v-tooltip>
+              </td>
+              <td class="text-right">
+                <v-btn size="x-small" variant="tonal" prepend-icon="mdi-eye-outline" @click="detail = row">详情</v-btn>
+              </td>
             </tr>
             <tr v-if="rows.length === 0">
-              <td colspan="11" class="text-center text-medium-emphasis py-6">
+              <td colspan="12" class="text-center text-medium-emphasis py-6">
                 {{ loading ? '加载中…' : '暂无调用记录（鉴权关闭时不写审计）' }}
               </td>
             </tr>
@@ -176,6 +246,51 @@ onMounted(load)
         </div>
       </v-card-text>
     </v-card>
+
+    <!-- 详情：一行一个字段，取值不截断（FE18：字段 / 取值 / 说明） -->
+    <v-dialog v-model="detailOpen" max-width="900" scrollable>
+      <v-card v-if="detail">
+        <v-card-title class="d-flex align-center flex-wrap ga-2">
+          <v-icon icon="mdi-text-box-search-outline" class="mr-1" />
+          调用详情 #{{ detail.idn }}
+          <v-chip size="small" variant="tonal" :color="passColor(detail.flag_pass)">
+            {{ passText(detail.flag_pass) }}
+          </v-chip>
+          <v-chip size="small" variant="tonal">{{ detail.method }} {{ detail.status_code }}</v-chip>
+          <v-spacer />
+          <v-btn size="small" variant="text" prepend-icon="mdi-close" @click="detail = null">关闭</v-btn>
+        </v-card-title>
+        <v-divider />
+        <v-card-text>
+          <v-table density="compact" class="openapi-detail-table">
+            <thead>
+              <tr>
+                <th style="width: 150px">字段</th>
+                <th>取值</th>
+                <th style="width: 260px">说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="field in detailFields(detail)" :key="field.label">
+                <td class="text-no-wrap font-weight-medium">{{ field.label }}</td>
+                <td class="detail-value">
+                  <span>{{ field.value }}</span>
+                  <v-btn
+                    v-if="field.value && field.value !== '—'"
+                    icon="mdi-content-copy"
+                    size="x-small"
+                    variant="text"
+                    class="ml-1"
+                    @click="copyValue(field.value)"
+                  />
+                </td>
+                <td class="text-caption text-medium-emphasis">{{ field.hint }}</td>
+              </tr>
+            </tbody>
+          </v-table>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
 
     <v-card class="mt-4" variant="outlined">
       <v-card-title class="text-subtitle-1">
@@ -213,5 +328,18 @@ onMounted(load)
 .openapi-table :deep(th),
 .openapi-table :deep(td) {
   white-space: nowrap;
+}
+
+.openapi-detail-table :deep(td) {
+  vertical-align: top;
+}
+
+/* 详情里的取值不截断：长串自动换行，不出现省略号 */
+.detail-value {
+  white-space: normal;
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
 }
 </style>

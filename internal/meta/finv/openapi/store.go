@@ -493,7 +493,7 @@ UPDATE open.open_api_credential
 // ---- 调用审计 ----
 
 const selectInvokeLogSQL = `
-SELECT idn, client_idn, credential_idn, COALESCE(access_key_id, ''), COALESCE(kfp, ''),
+SELECT idn, client_idn, credential_idn, COALESCE(access_key_id, ''), COALESCE(kfp, ''), COALESCE(tfp, ''),
        COALESCE(auth_mode, ''),
        COALESCE(request_id, ''), to_char(dt_request, 'YYYY-MM-DD"T"HH24:MI:SSOF'),
        COALESCE(method, ''), COALESCE(path, ''), COALESCE(query_str, ''),
@@ -563,7 +563,7 @@ func (s *Store) InvokeLogPage(ctx context.Context, filter InvokeLogFilter) ([]In
 	list := make([]InvokeLog, 0, filter.PageSize)
 	for rows.Next() {
 		item := InvokeLog{}
-		if err := rows.Scan(&item.IDN, &item.ClientIDN, &item.CredentialIDN, &item.AccessKeyID, &item.KFP,
+		if err := rows.Scan(&item.IDN, &item.ClientIDN, &item.CredentialIDN, &item.AccessKeyID, &item.KFP, &item.TFP,
 			&item.AuthMode,
 			&item.RequestID, &item.DTRequest, &item.Method, &item.Path, &item.Query,
 			&item.StatusCode, &item.BizCode, &item.FlagPass, &item.ReasonCode,

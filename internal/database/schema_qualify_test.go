@@ -20,10 +20,10 @@ var domainTablePrefixes = map[string]string{
 	"finv_quote_cdeu_": "cdeu.",
 	// 证券实时行情快照（V300115）：表名沿用用户给定的 finv_cdeu_ 前缀
 	// （属刻意例外，见 DbSchemaSpec §1），同样必须写 cdeu. 前缀。
-	"finv_cdeu_":       "cdeu.",
-	"finv_quote_":      "quote.",
-	"finv_quant_":      "quant.",
-	"finv_futu_":       "futu.",
+	"finv_cdeu_":  "cdeu.",
+	"finv_quote_": "quote.",
+	"finv_quant_": "quant.",
+	"finv_futu_":  "futu.",
 }
 
 // cdeuTables CDEU 工作流域的表清单（V200078 建表、V200079 统一前缀，共 27 张）。

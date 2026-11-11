@@ -197,7 +197,7 @@ X-META-Token: ST_LIVE_…
 
 > 长期 AK/SK 不带 `X-META-Token`，待签串仍是 6 段，**协议完全不变**，现有客户端无需改造。
 
-审计：`auth_mode='STS'`、`credential_idn` = 父凭证、`kfp` = 临时 AK 指纹、`token_fp` = SecurityToken 指纹
+审计：`auth_mode='STS'`、`credential_idn` = 父凭证、`kfp` = 临时 AK 指纹、`tfp` = SecurityToken 指纹
 （可按某一次临时凭据把整段会话的调用捞出来）。
 
 ## 5. 错误响应

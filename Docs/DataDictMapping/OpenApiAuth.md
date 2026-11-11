@@ -95,7 +95,7 @@ OR (auth_mode <> 'AKSK' AND secret_hash   IS NOT NULL)
 | `access_key_id` / `auth_mode` | VARCHAR | **冗余存**：凭证被删后仍可追溯。`AKSK` 模式存**明文 AK**（AK 是公开标识，用于区分调用方）；`APIKEY` 模式存**脱敏形态** `<前缀><随机段前 8><等量星号><后 8>`（如 `SA_LIVE_C48AABCD****************EADE84AF`，需求 11183/11184/11185；星号个数 = 被遮蔽的位数，掩码总长 = 原密钥长度）——静态 Key 本身就是密钥，绝不落明文 |
 | `request_id` | VARCHAR(64) | 链路 ID（响应头 `X-Request-Id`），32 位**大写**十六进制（需求 11177） |
 | `kfp` | VARCHAR(16) | 密钥指纹（key fingerprint）：`sha256(完整 Key)` 前 16 位**大写**十六进制，仅 `APIKEY` 模式写入；不可逆，用于严格区分密钥与按 Key 反查（需求 11186，字段名 11187 定稿 `kfp`） |
-| `token_fp` | VARCHAR(16) | STS SecurityToken 指纹（`sha256` 前 16 位大写十六进制），仅 `auth_mode='STS'` 写入；不可逆，用于按某次临时凭据聚合排查（需求 11191） |
+| `tfp` | VARCHAR(16) | STS SecurityToken 指纹（`sha256` 前 16 位大写十六进制），仅 `auth_mode='STS'` 写入；不可逆，用于按某次临时凭据聚合排查（需求 11191） |
 | `dt_request` | TIMESTAMPTZ | 请求时间 |
 | `method` / `path` / `query_str` | VARCHAR(8)/VARCHAR(512)/VARCHAR(2000) | 请求行（查询串截断到 2000） |
 | `status_code` / `biz_code` | INTEGER | HTTP 码 + 信封 `code` |

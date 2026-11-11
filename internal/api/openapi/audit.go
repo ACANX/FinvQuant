@@ -21,7 +21,7 @@ const insertInvokeLogSQL = `
 INSERT INTO open.open_api_invoke_log
     (client_idn, credential_idn, access_key_id, auth_mode, request_id, dt_request,
      method, path, query_str, status_code, biz_code, flag_pass, reason_code,
-     ip, user_agent, body_sha256, count_body, latency_ms, kfp, token_fp)
+     ip, user_agent, body_sha256, count_body, latency_ms, kfp, tfp)
 VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), $6,
         $7, $8, $9, $10, $11, $12, NULLIF($13, ''),
         $14, $15, NULLIF($16, ''), $17, $18, NULLIF($19, ''), NULLIF($20, ''))`
@@ -46,8 +46,8 @@ type Invocation struct {
 	CredentialIDN int64
 	AccessKeyID   string
 	KFP           string
-	// TokenFP STS 的 SecurityToken 指纹（需求 11191）；长期凭据为空。
-	TokenFP   string
+	// TFP STS 的 SecurityToken 指纹（需求 11191/11196）；长期凭据为空。
+	TFP       string
 	AuthMode  string
 	RequestID string
 	RequestAt time.Time
@@ -95,7 +95,7 @@ func (r *Recorder) Write(ctx context.Context, item Invocation) {
 		item.ClientIDN, item.CredentialIDN, item.AccessKeyID, item.AuthMode, item.RequestID, item.RequestAt,
 		item.Method, item.Path, truncate(item.Query, 2000), item.StatusCode, item.BizCode, pass, item.ReasonCode,
 		ipText, truncate(item.UserAgent, 512), item.BodyHash, item.BodySize, int(item.Latency/time.Millisecond),
-		item.KFP, item.TokenFP,
+		item.KFP, item.TFP,
 	)
 	if err != nil {
 		r.logf("[openapi][audit] 写入 open.open_api_invoke_log 失败: %v（pass=%t reason=%s ak=%s %s %s）",

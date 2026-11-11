@@ -1,5 +1,5 @@
 -- =====================================================================
--- FinvQuant PostgreSQL V300188：open.open_api_invoke_log 增加 token_fp（STS 令牌指纹）
+-- FinvQuant PostgreSQL V300188：open.open_api_invoke_log 增加 tfp（STS 令牌指纹）
 --
 -- 需求：11191（STS 临时凭据：2 小时有效的 AK/SK + SecurityToken）
 --
@@ -18,13 +18,13 @@
 BEGIN;
 
 ALTER TABLE open.open_api_invoke_log
-    ADD COLUMN IF NOT EXISTS token_fp VARCHAR(16) NULL;
+    ADD COLUMN IF NOT EXISTS tfp VARCHAR(16) NULL;
 
-COMMENT ON COLUMN open.open_api_invoke_log.token_fp IS
+COMMENT ON COLUMN open.open_api_invoke_log.tfp IS
     'STS SecurityToken 指纹：sha256(完整 token) 前 16 位大写十六进制（仅 auth_mode=STS 写入）；不可逆，用于按临时凭据聚合排查（需求 11191）';
 
-CREATE INDEX IF NOT EXISTS idx_open_api_invoke_log_token_fp
-    ON open.open_api_invoke_log (token_fp, dt_request DESC);
+CREATE INDEX IF NOT EXISTS idx_open_api_invoke_log_tfp
+    ON open.open_api_invoke_log (tfp, dt_request DESC);
 
 DO $$
 DECLARE
@@ -33,14 +33,14 @@ BEGIN
     SELECT data_type INTO v_type
       FROM information_schema.columns
      WHERE table_schema = 'open' AND table_name = 'open_api_invoke_log'
-       AND column_name = 'token_fp';
+       AND column_name = 'tfp';
     IF v_type IS NULL THEN
-        RAISE EXCEPTION 'V300188 校验失败：open.open_api_invoke_log.token_fp 不存在';
+        RAISE EXCEPTION 'V300188 校验失败：open.open_api_invoke_log.tfp 不存在';
     END IF;
     IF v_type <> 'character varying' THEN
-        RAISE EXCEPTION 'V300188 校验失败：token_fp 类型应为 character varying，实际 %', v_type;
+        RAISE EXCEPTION 'V300188 校验失败：tfp 类型应为 character varying，实际 %', v_type;
     END IF;
-    RAISE NOTICE 'V300188 就绪：审计表已增加 token_fp 与索引';
+    RAISE NOTICE 'V300188 就绪：审计表已增加 tfp 与索引';
 END $$;
 
 COMMIT;

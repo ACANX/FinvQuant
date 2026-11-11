@@ -219,6 +219,19 @@
 
 ### 变更
 
+- **STS 令牌指纹列名定稿为 `tfp`（需求 11196）**
+  - `open.open_api_invoke_log.token_fp` → `tfp`（与 `kfp` 同风格），索引 `idx_open_api_invoke_log_tfp`。
+  - V300188（同批次、未推送）回改为 `tfp`；新增 `V300189` 把已应用旧版的库就地改名（幂等）。
+  - 代码（`Invocation.TFP`）、查询、wire 字段、详情页字段名与说明、三份文档同步。
+
+- **OpenAPI 调用审计页面补「详情」与 ⓘ 悬浮（需求 11195）**
+  - 问题：列表里路径 / 公开标识 / 请求 ID 被 `text-truncate` 截成 `…`，且没有任何展开入口，
+    排障时看不清完整值，也看不到 `query_str`、`user_agent`、`body_sha256`、`count_body`、`biz_code` 等字段。
+  - 列表：三处长值加 **ⓘ 悬浮看全文**；行末新增 **「详情」按钮**（点行不跳转）。
+  - 详情抽屉：按 **字段 / 取值 / 说明** 三列展示该行全部 21 个字段，取值不截断、长串自动换行、逐字段可复制。
+  - 后端：`InvokeLog/Page` 补查 `token_fp`（迁移 V300188 早前已加列，此前查询漏带）。
+  - 文档：`Docs/Menu/OpenAPI/InvokeLog.md` §3 同步列与详情口径。
+
 - **STS 三要素前缀定稿为 `SAK_LIVE_` / `SSK_LIVE_` / `SST_LIVE_`（需求 11194）**
   - 临时 Access Key / 临时 Secret Key / 临时 Token；与静态 Key `SA_LIVE_`、长期 `AK_LIVE_`/`SK_LIVE_` 互不重叠。
   - `maskKey` 前缀表、`Auth.md` §4.8、数据字典同步。

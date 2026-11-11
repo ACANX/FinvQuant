@@ -163,6 +163,7 @@ type InvokeLog struct {
 	CredentialIDN int64  `json:"credential_idn"`
 	AccessKeyID   string `json:"access_key_id"`
 	KFP           string `json:"kfp"`
+	TFP           string `json:"tfp"`
 	AuthMode      string `json:"auth_mode"`
 	RequestID     string `json:"request_id"`
 	DTRequest     string `json:"dt_request"`

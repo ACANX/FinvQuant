@@ -49,7 +49,7 @@ type stsState struct {
 	ClientIDN     int64    `json:"client_idn"`
 	AccessKeyID   string   `json:"access_key_id"`
 	SecretCipher  string   `json:"secret_cipher"`
-	TokenFP       string   `json:"token_fp"`
+	TFP           string   `json:"tfp"`
 	SignAlgorithm string   `json:"sign_algorithm"`
 	Scope         []string `json:"scope"`
 	AllowCIDR     []string `json:"allow_cidr"`
@@ -117,7 +117,7 @@ func (s *StsStore) Issue(ctx context.Context, parent *Credential, key []byte) (S
 		ClientIDN:     parent.ClientIDN,
 		AccessKeyID:   secret.NormalizeKey(secret.PrefixTempAK + tokenAK),
 		SecretCipher:  cipherText,
-		TokenFP:       TokenFingerprint(plainToken),
+		TFP:           TokenFingerprint(plainToken),
 		SignAlgorithm: parent.SignAlgorithm,
 		Scope:         scopeToText(parent.Scope),
 		AllowCIDR:     ipNetsToText(parent.CredentialIPs),
@@ -175,7 +175,7 @@ func (s *StsStore) Lookup(ctx context.Context, accessKeyID string) (*Credential,
 		clientEnable:  true,
 		Scope:         parseScopeText(state.Scope),
 	}
-	return credential, state.TokenFP, state.SecretCipher, nil
+	return credential, state.TFP, state.SecretCipher, nil
 }
 
 // ipNetsToText 把 *net.IPNet 列表转回 CIDR 文本（存 Redis 用）。
@@ -217,11 +217,13 @@ func (m *Middleware) authenticateSTS(settings Settings, req *http.Request, body 
 	invocation *Invocation, algorithm, accessKeyID, signature string) (*Credential, int, string) {
 
 	invocation.AuthMode = AuthModeSTS
+	// 临时 AK 也是「公开标识」，同样记指纹，便于按「哪一把临时凭据」聚合（需求 11195）
+	invocation.KFP = FingerprintStaticKey(accessKeyID)
 	token := strings.TrimSpace(req.Header.Get(HeaderToken))
 	if token == "" {
 		return nil, CodeKeyInvalid, "STS 临时凭据必须携带 " + HeaderToken
 	}
-	invocation.TokenFP = TokenFingerprint(token)
+	invocation.TFP = TokenFingerprint(token)
 
 	credential, tokenFP, cipherText, err := m.sts.Lookup(req.Context(), accessKeyID)
 	if errors.Is(err, ErrCredentialNotFound) {

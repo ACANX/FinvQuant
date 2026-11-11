@@ -2839,6 +2839,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 11192 | STS 三要素前缀改用 `SA_LIVE_` / `SS_LIVE_` / `ST_LIVE_`（原 `TA_LIVE_` / `TS_LIVE_` / `ST_LIVE_`）：`SA`=Security Access、`SS`=Security Secret、`ST`=Security Token。`SA_LIVE_` 与静态 Key 前缀相同，靠**传输位置**区分：静态 Key 走 `X-API-Key`/`Bearer`，STS 走签名头 `Authorization: META1-… Credential=SA_LIVE_…`；把静态 Key 塞进 `Credential=` 会查不到临时凭据而 `19002` | 换证响应 `access_key_id` 以 `SA_LIVE_` 开头、`secret_key` 以 `SS_LIVE_` 开头、`security_token` 以 `ST_LIVE_` 开头；用该三要素调用 → 200 且审计 `auth_mode=STS`；用静态 Key 走签名头 → 401/`19002`；`grep -rn 'TA_LIVE_\|TS_LIVE_' internal/ Docs/` 无输出 | √ |
 | 11193 | STS 三要素前缀改为 `STA_LIVE_` / `STS_LIVE_` / `STT_LIVE_`（临时 Access / 临时 Secret / 临时 Token），与静态 Key 的 `SA_LIVE_`、长期 AK 的 `AK_LIVE_` 前缀互不重叠——看密钥前缀即可区分长期/临时，不再依赖传输位置；替代 11192 的 `SA_LIVE_` / `SS_LIVE_` / `ST_LIVE_` 口径 | 换证响应三要素分别以 `STA_LIVE_`/`STS_LIVE_`/`STT_LIVE_` 开头；用三要素调用 → 200 且审计 `auth_mode=STS`；`grep -rn 'SA_LIVE_.*临时\|SS_LIVE_\|ST_LIVE_' internal/api/openapi/sts.go` 无旧口径残留；`go test ./internal/api/openapi` 通过 | √ |
 | 11194 | STS 三要素前缀改为 `SAK_LIVE_`（临时 Access Key）/ `SSK_LIVE_`（临时 Secret Key）/ `SST_LIVE_`（临时 Token），替代 11193 的 `STA_LIVE_`/`STS_LIVE_`/`STT_LIVE_`；与静态 Key `SA_LIVE_`、长期 `AK_LIVE_`/`SK_LIVE_` 前缀互不重叠 | 换证响应三要素分别以 `SAK_LIVE_`/`SSK_LIVE_`/`SST_LIVE_` 开头；三要素调用 → 200 且审计 `auth_mode=STS`；`grep -rn 'STA_LIVE_\|STS_LIVE_\|STT_LIVE_' internal/ Docs/API Docs/DataDictMapping` 无输出 | √ |
+| 11195 | OpenAPI 调用审计页面必须能看全每个字段：列表里路径/公开标识/请求 ID 截断处加 **ⓘ 悬浮看全文**；行末新增 **「详情」按钮**（点行不跳转），抽屉内按 **字段 / 取值 / 说明** 三列展示该行全部字段，取值不截断、长串自动换行、逐字段一键复制；详情补 `token_fp`（STS 令牌指纹），后端 `InvokeLog/Page` 同时补查该列 | 页面点任意行「详情」→ 抽屉列出 21 个字段（含 `token_fp`），长值无省略号；`curl '/API/V1/Meta/Finv/OpenAPI/InvokeLog/Page?page=1&pageSize=1'` 的 `list[0]` 含 `token_fp` 字段；`npx vue-tsc -b --force` 与 `npm run build` 通过 | √ |
+| 11196 | STS 令牌指纹列名定稿为 `tfp`：`open.open_api_invoke_log.token_fp` 改名为 `tfp`（与 `kfp` 同风格），索引同步改名 `idx_open_api_invoke_log_tfp`；wire 字段 `tfp`、详情页字段名与说明同步；V300188 同批回改为 `tfp`，`V300189` 负责把已应用旧版的库就地改名 | `SELECT column_name FROM information_schema.columns WHERE table_schema='open' AND table_name='open_api_invoke_log' AND column_name IN ('tfp','token_fp')` 只返回 `tfp`；`GET /API/V1/Meta/Finv/OpenAPI/InvokeLog/Page` 的 `list[0]` 含 `tfp`；`go test ./internal/database -run TestMigrateIntegration` 通过 | √ |
 
 
 ## 汇总
@@ -3295,7 +3297,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 修复「证券参数补全 → 采集参数」必填校验必然失败：快照 `instrument_type` 是 TEXT 且 `12`/`3` 都表示股票、采集表只有 `3`，参考行匹配按 `q.instrument_type::text = btrim(t.instrument_type)` 直接比对导致 `12` 的行取不到 `market_code`（=0）；改为按归一后的整型匹配（`12`→`3`）；`market_code` 取不到参考值时预填**返回空串**并提示必须人工填写（不再返回 `0`）；前端把数值字段的 `0` 也算「未填」并逐字段标红；后端必填校验错误消息逐项列出字段与实际值 | 11164 | 1 |
 | 「证券参数补全 → 规范证券参数」对话框的 `timezone`（UTC 偏移）/ `tz`（IANA 标识）预填缺省值，按「市场 → 交易所 → 区域」三层推断：① 同 `exchange_code` 已有 `public.finv_security` 行 `(timezone, tz)` 的众数（来源=参考）；② 同 `finv_exchange.region` 已有行的众数（来源=参考）；③ 内置区域 → IANA 时区映射、偏移按该时区**当前时刻**推算（来源=字典，二进制内嵌 `time/tzdata`）；三层都拿不到时留空 + 来源=待填 + 风险提示 | 11165 | 1 |
 | 「证券参数补全 → 采集参数」对话框补缺省推断：`market_type` 改为「快照 → 同市场已有配置行众数（参考）→ 内置映射 HK=1/US=2/A股=4/FX=11/CC=17（字典）」；`req_section` 改为「同市场同品种众数（参考），众数为空则留空并说明选填」；`sub_instrument_type` 的兜底改按**归一后** `instrument_type` 计算（`12` 按 `3` 算，避免算出 12002）；`instrument_type` 仍写快照原值但说明里点明「12 与 3 同为股票、存量以 3 为主」 | 11166 | 1 |
-| **合计** | **10001–11194** | **1190**（含 4 条待办） |
+| **合计** | **10001–11196** | **1192**（含 4 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
