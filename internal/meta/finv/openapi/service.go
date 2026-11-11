@@ -301,6 +301,64 @@ func (s *Service) InvokeLogPage(ctx context.Context, filter InvokeLogFilter) ([]
 	return s.store.InvokeLogPage(ctx, filter)
 }
 
+// ---------------- 接口清单（需求 11220 / 11223）----------------
+
+// EndpointPage 分页查询接口清单。
+//
+// 过滤值只允许 0/1（flag_public / flag_enable），非法值直接 400，
+// 避免"传了但没生效"这种页面看起来正常、实际过滤没做的情况。
+func (s *Service) EndpointPage(ctx context.Context, filter EndpointFilter) ([]Endpoint, int, error) {
+	for _, item := range []struct {
+		name  string
+		value string
+	}{
+		{"flag_public", filter.FlagPublic},
+		{"flag_enable", filter.FlagEnable},
+	} {
+		value := strings.TrimSpace(item.value)
+		if value != "" && value != "0" && value != "1" {
+			return nil, 0, invalid("%s 只能是 0 或 1", item.name)
+		}
+	}
+	filter.Page, filter.PageSize = normalizePage(filter.Page, filter.PageSize)
+	return s.store.EndpointPage(ctx, filter)
+}
+
+// EndpointOptions 授权范围下拉的可选项（只含对外公开、启用中、未下线的接口）。
+func (s *Service) EndpointOptions(ctx context.Context) ([]Endpoint, error) {
+	return s.store.EndpointOptions(ctx)
+}
+
+// SetEndpointFlags 切换接口的公开/启用标志。
+func (s *Service) SetEndpointFlags(ctx context.Context, req EndpointFlagRequest,
+	operator string) (Endpoint, error) {
+	if req.IDN <= 0 {
+		return Endpoint{}, invalid("idn 必填")
+	}
+	if req.FlagPublic == nil && req.FlagEnable == nil {
+		return Endpoint{}, invalid("flag_public 与 flag_enable 至少给一个")
+	}
+	normalize := func(name string, value *string) (*string, error) {
+		if value == nil {
+			return nil, nil
+		}
+		trimmed := strings.TrimSpace(*value)
+		if trimmed != "0" && trimmed != "1" {
+			return nil, invalid("%s 只能是 0（关闭）或 1（开启）", name)
+		}
+		return &trimmed, nil
+	}
+	flagPublic, err := normalize("flag_public", req.FlagPublic)
+	if err != nil {
+		return Endpoint{}, err
+	}
+	flagEnable, err := normalize("flag_enable", req.FlagEnable)
+	if err != nil {
+		return Endpoint{}, err
+	}
+	return s.store.SetEndpointFlags(ctx, req.IDN, flagPublic, flagEnable, operator)
+}
+
 // ---------------- 内部 ----------------
 
 // issuedSecret 服务层内部的密钥材料（不含明文以外的展示信息）。

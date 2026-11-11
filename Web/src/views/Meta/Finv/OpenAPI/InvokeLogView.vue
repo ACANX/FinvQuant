@@ -27,6 +27,10 @@ interface InvokeLogRow {
   dt_request: string
   method: string
   path: string
+  // api_code / api_name 由后端 join open.open_api_endpoint 得来（需求 11225），不落在审计表里：
+  // 接口改名/改编码后，历史报表会自动跟着对齐。
+  api_code: string
+  api_name: string
   query_str: string
   status_code: number
   biz_code: number
@@ -66,6 +70,8 @@ function detailFields(row: InvokeLogRow): DetailField[] {
     { label: '请求时间', value: timeText(row.dt_request), hint: '服务端收到请求的时间（dt_request）' },
     { label: '方法', value: row.method || '—', hint: 'HTTP 方法' },
     { label: '路径', value: row.path || '—', hint: '请求路径（不含查询串）' },
+    { label: '接口编码', value: row.api_code || '—', hint: '关联「OpenAPI 接口清单」的 api_code；路径改名后编码不变，报表按它聚合' },
+    { label: '接口名', value: row.api_name || '—', hint: '接口清单里的中文名；空 = 该路径未登记（可能是 404/405 或已下线）' },
     { label: '查询串', value: row.query_str || '—', hint: '原始查询串；静态 Key 写接口需带 `_` 毫秒时间戳' },
     { label: '结果', value: passText(row.flag_pass), hint: 'flag_pass：1 放行 / 0 拒绝' },
     { label: '拒绝原因', value: row.reason_code ? `${reasonText(row.reason_code)}（${row.reason_code}）` : '—', hint: '与 190xx 错误码一一对应；放行为空' },
@@ -100,7 +106,8 @@ interface Column {
 const COLUMNS: Column[] = [
   { key: 'dt_request', title: '请求时间', width: 180, min: 140 },
   { key: 'method', title: '方法', width: 80, min: 60 },
-  { key: 'path', title: '路径', width: 340, min: 160 },
+  { key: 'path', title: '路径', width: 300, min: 150 },
+  { key: 'api_code', title: '接口编码', width: 200, min: 130 },
   { key: 'flag_pass', title: '结果', width: 90, min: 70 },
   { key: 'reason_code', title: '原因', width: 120, min: 90 },
   { key: 'status_code', title: 'HTTP', width: 80, min: 60 },
@@ -335,6 +342,15 @@ onMounted(() => {
                 <td class="cell-ellipsis">
                   <span>{{ row.path || '—' }}</span>
                   <TextPopover v-if="row.path" title="完整路径" :text="row.path" />
+                </td>
+                <td class="cell-ellipsis">
+                  <span v-if="row.api_code">{{ row.api_code }}</span>
+                  <span v-else class="text-medium-emphasis">未登记</span>
+                  <TextPopover
+                    v-if="row.api_code"
+                    title="接口信息"
+                    :lines="[`api_code：${row.api_code}`, `接口名：${row.api_name || '—'}`]"
+                  />
                 </td>
                 <td>
                   <v-chip size="x-small" variant="tonal" :color="passColor(row.flag_pass)">

@@ -16,7 +16,10 @@ package handler
 //	POST /Credential/Enable               启用/停用凭证
 //	POST /Credential/Revoke               吊销凭证（原因必填）
 //	POST /Credential/Rotate               轮换密钥（新密钥只返回这一次）
-//	GET  /InvokeLog/Page                  调用审计分页
+//	GET  /InvokeLog/Page                  调用审计分页（含 join 来的 api_code / api_name）
+//	GET  /Endpoint/Page                   接口清单分页（需求 11223）
+//	GET  /Endpoint/Options                授权范围下拉可选项（公开 + 启用 + 未下线）
+//	POST /Endpoint/Flags                  切换接口的 flag_public / flag_enable
 //
 // 约定：URL 查询参数小驼峰、JSON 体字段 snake_case（ApiSpec §3）；
 // 敏感列（secret_hash / secret_cipher）任何接口都不返回，只回 has_secret 布尔。
@@ -258,6 +261,52 @@ func (h *OpenAPIAdmin) RotateCredential(c *gin.Context) {
 	log.Printf("[openapi][admin] credential rotated idn=%d mode=%s by=%s",
 		issued.Credential.IDN, issued.Credential.AuthMode, operatorOf(c))
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "密钥已轮换（新密钥只显示一次）", "data": issued})
+}
+
+// EndpointPage GET /OpenAPI/Endpoint/Page（接口清单分页，需求 11223）。
+func (h *OpenAPIAdmin) EndpointPage(c *gin.Context) {
+	list, total, err := h.service.EndpointPage(c.Request.Context(), openapisvc.EndpointFilter{
+		Keyword:    c.Query("keyword"),
+		APIGroup:   c.Query("apiGroup"),
+		FlagPublic: c.Query("flagPublic"),
+		FlagEnable: c.Query("flagEnable"),
+		Page:       openAPIQueryInt(c, "page", 1),
+		PageSize:   openAPIQueryInt(c, "pageSize", 20),
+	})
+	if err != nil {
+		respondOpenAPIError(c, "查询接口清单", err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "OK",
+		"data": gin.H{"total": total, "list": list}})
+}
+
+// EndpointOptions GET /OpenAPI/Endpoint/Options（授权范围下拉可选项）。
+func (h *OpenAPIAdmin) EndpointOptions(c *gin.Context) {
+	list, err := h.service.EndpointOptions(c.Request.Context())
+	if err != nil {
+		respondOpenAPIError(c, "查询接口可选项", err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "OK",
+		"data": gin.H{"list": list}})
+}
+
+// SetEndpointFlags POST /OpenAPI/Endpoint/Flags（切换 flag_public / flag_enable）。
+func (h *OpenAPIAdmin) SetEndpointFlags(c *gin.Context) {
+	var req openapisvc.EndpointFlagRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体不是合法 JSON: " + err.Error()})
+		return
+	}
+	item, err := h.service.SetEndpointFlags(c.Request.Context(), req, operatorOf(c))
+	if err != nil {
+		respondOpenAPIError(c, "更新接口标志", err)
+		return
+	}
+	log.Printf("[openapi][admin] endpoint flags idn=%d code=%s public=%s enable=%s by=%s",
+		item.IDN, item.APICode, item.FlagPublic, item.FlagEnable, operatorOf(c))
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口标志已更新", "data": item})
 }
 
 // InvokeLogPage GET /OpenAPI/InvokeLog/Page。

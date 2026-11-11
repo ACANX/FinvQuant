@@ -44,3 +44,12 @@
 
 - 调用方：[`Client.md`](Client.md) · 凭证：[`Credential.md`](Credential.md) · 鉴权配置：[`Settings.md`](Settings.md)
 - 错误码目录：[`../../DevSpec/ErrorCodeSpec.md`](../../DevSpec/ErrorCodeSpec.md) §1.2
+
+## 6. 接口编码列（需求 11225）
+
+「路径」右侧新增「接口编码」列，值由后端 `LEFT JOIN open.open_api_endpoint`
+（按 `method + path` 命中）得来，**不落在审计表**：
+
+- 好处：接口清单里改中文名或 `api_code` 后，历史报表自动跟着对齐（按编码聚合不会因为路径改名断档）；
+- 空值显示「未登记」：该路径不在清单里，通常是 404/405 探测，或接口已从清单下线；
+- 点 ⓘ 可看 `api_code` 与接口中文名（可选中复制）。

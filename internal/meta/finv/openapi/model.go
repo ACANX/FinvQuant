@@ -171,6 +171,46 @@ type IssuedSecret struct {
 	Note       string     `json:"note"`
 }
 
+// ---------------- 接口清单（需求 11220 / 11223）----------------
+
+// Endpoint 对外 OpenAPI 接口清单行（open.open_api_endpoint）。
+//
+// 定位：**接口目录 + 元数据，不是鉴权白名单**——允许调哪些接口由代码里的路由注册决定，
+// 本表只给「授权范围下拉」与「审计报表」提供稳定锚点（api_code 在路径改名后仍不变）。
+type Endpoint struct {
+	IDN         int64  `json:"idn"`
+	APICode     string `json:"api_code"`
+	HTTPMethod  string `json:"http_method"`
+	Path        string `json:"path"`
+	APIName     string `json:"api_name"`
+	APIGroup    string `json:"api_group"`
+	FlagWrite   string `json:"flag_write"`
+	FlagPublic  string `json:"flag_public"`
+	FlagEnable  string `json:"flag_enable"`
+	DTDeprecate string `json:"dt_deprecate"`
+	Remark      string `json:"remark"`
+	GMTUpdate   string `json:"gmt_update"`
+	// CountGrant 当前有多少个凭证授权了这个接口（报表用，由 SQL 聚合）。
+	CountGrant int `json:"count_grant"`
+}
+
+// EndpointFilter 接口清单查询条件。
+type EndpointFilter struct {
+	Keyword    string
+	APIGroup   string
+	FlagPublic string
+	FlagEnable string
+	Page       int
+	PageSize   int
+}
+
+// EndpointFlagRequest 切换接口的公开/启用标志（两列都可选，但至少给一个）。
+type EndpointFlagRequest struct {
+	IDN        int64   `json:"idn"`
+	FlagPublic *string `json:"flag_public"`
+	FlagEnable *string `json:"flag_enable"`
+}
+
 // InvokeLog 调用审计行。
 type InvokeLog struct {
 	IDN           int64 `json:"idn"`
@@ -189,16 +229,20 @@ type InvokeLog struct {
 	DTRequest          string `json:"dt_request"`
 	Method             string `json:"method"`
 	Path               string `json:"path"`
-	Query              string `json:"query_str"`
-	StatusCode         int    `json:"status_code"`
-	BizCode            int    `json:"biz_code"`
-	FlagPass           string `json:"flag_pass"`
-	ReasonCode         string `json:"reason_code"`
-	IP                 string `json:"ip"`
-	UserAgent          string `json:"user_agent"`
-	BodySHA256         string `json:"body_sha256"`
-	CountBody          int    `json:"count_body"`
-	LatencyMs          int    `json:"latency_ms"`
+	// APICode / APIName 由 path+method 关联 open.open_api_endpoint 得来（需求 11225），
+	// **不落审计表**：接口清单改名/改编码后历史报表自动跟着对齐。
+	APICode    string `json:"api_code"`
+	APIName    string `json:"api_name"`
+	Query      string `json:"query_str"`
+	StatusCode int    `json:"status_code"`
+	BizCode    int    `json:"biz_code"`
+	FlagPass   string `json:"flag_pass"`
+	ReasonCode string `json:"reason_code"`
+	IP         string `json:"ip"`
+	UserAgent  string `json:"user_agent"`
+	BodySHA256 string `json:"body_sha256"`
+	CountBody  int    `json:"count_body"`
+	LatencyMs  int    `json:"latency_ms"`
 }
 
 // InvokeLogFilter 调用审计查询条件。

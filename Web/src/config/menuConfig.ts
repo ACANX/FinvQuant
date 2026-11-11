@@ -128,6 +128,14 @@ const finvQuantMenu: MenuNode[] = [
             icon: 'mdi-shield-key-outline',
             path: '/Meta/Finv/OpenAPI/Secret',
           },
+          {
+            // 需求 11223：接口清单（open.open_api_endpoint）——给授权范围下拉提供选项、
+            // 给审计报表提供 api_code 锚点；只读目录，不允许在页面新增/改路径。
+            key: 'openapi-endpoint',
+            title: 'OpenAPI 接口清单',
+            icon: 'mdi-api',
+            path: '/Meta/Finv/OpenAPI/Endpoint',
+          },
         ],
       },
     ],

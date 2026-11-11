@@ -220,6 +220,11 @@ func NewRouter(deps *Deps) *gin.Engine {
 			openAPIGroup.POST("/Credential/Revoke", openAPIAdmin.RevokeCredential)
 			openAPIGroup.POST("/Credential/Rotate", openAPIAdmin.RotateCredential)
 			openAPIGroup.GET("/InvokeLog/Page", openAPIAdmin.InvokeLogPage)
+			// 接口清单（需求 11223）：只读列表 + 切换公开/启用标志；
+			// 本表是接口目录，不是鉴权白名单（允许调什么由本文件的路由注册决定）。
+			openAPIGroup.GET("/Endpoint/Page", openAPIAdmin.EndpointPage)
+			openAPIGroup.GET("/Endpoint/Options", openAPIAdmin.EndpointOptions)
+			openAPIGroup.POST("/Endpoint/Flags", openAPIAdmin.SetEndpointFlags)
 
 			// USC 补丁规则（需求 10931）：新接口前缀统一用 /Quote/Cdeu，不再使用 /Quote/DeDup。
 			patch := apiGroup.Group("/Meta/Finv/Quote/Cdeu/Usc/Patch")

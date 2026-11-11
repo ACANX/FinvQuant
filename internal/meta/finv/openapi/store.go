@@ -514,13 +514,15 @@ SELECT l.idn, l.client_idn, l.credential_idn, COALESCE(l.access_key_id, ''), COA
        COALESCE(l.auth_mode, ''), COALESCE(c.credential_no, ''),
        COALESCE(c.parent_idn, 0), COALESCE(pc.credential_no, ''),
        COALESCE(l.request_id, ''), to_char(l.dt_request, 'YYYY-MM-DD"T"HH24:MI:SSOF'),
-       COALESCE(l.method, ''), COALESCE(l.path, ''), COALESCE(l.query_str, ''),
+       COALESCE(l.method, ''), COALESCE(l.path, ''), COALESCE(e.api_code, ''), COALESCE(e.api_name, ''),
+       COALESCE(l.query_str, ''),
        l.status_code, l.biz_code, l.flag_pass, COALESCE(l.reason_code, ''),
        COALESCE(host(l.ip), ''), COALESCE(l.user_agent, ''), COALESCE(l.body_sha256, ''),
        l.count_body, l.latency_ms
   FROM open.open_api_invoke_log l
   LEFT JOIN open.open_api_credential c ON c.idn = l.credential_idn
-  LEFT JOIN open.open_api_credential pc ON pc.idn = c.parent_idn`
+  LEFT JOIN open.open_api_credential pc ON pc.idn = c.parent_idn
+  LEFT JOIN open.open_api_endpoint e ON e.http_method = l.method AND e.path = l.path`
 
 // InvokeLogPage 分页查询调用审计（时间倒序）。
 func (s *Store) InvokeLogPage(ctx context.Context, filter InvokeLogFilter) ([]InvokeLog, int, error) {
@@ -585,7 +587,7 @@ func (s *Store) InvokeLogPage(ctx context.Context, filter InvokeLogFilter) ([]In
 		item := InvokeLog{}
 		if err := rows.Scan(&item.IDN, &item.ClientIDN, &item.CredentialIDN, &item.AccessKeyID, &item.KFP, &item.TFP,
 			&item.AuthMode, &item.CredentialNo, &item.ParentIDN, &item.ParentCredentialNo,
-			&item.RequestID, &item.DTRequest, &item.Method, &item.Path, &item.Query,
+			&item.RequestID, &item.DTRequest, &item.Method, &item.Path, &item.APICode, &item.APIName, &item.Query,
 			&item.StatusCode, &item.BizCode, &item.FlagPass, &item.ReasonCode,
 			&item.IP, &item.UserAgent, &item.BodySHA256, &item.CountBody, &item.LatencyMs); err != nil {
 			return nil, 0, err
@@ -593,6 +595,152 @@ func (s *Store) InvokeLogPage(ctx context.Context, filter InvokeLogFilter) ([]In
 		list = append(list, item)
 	}
 	return list, total, rows.Err()
+}
+
+// ---- 接口清单（open.open_api_endpoint，需求 11220 / 11223）----
+//
+// 本表是「接口目录 + 元数据」，不是鉴权白名单：允许调哪些接口由代码里的路由注册决定。
+// 页面只用它做三件事：列清单、切 flag_public / flag_enable、给授权范围下拉提供可选项。
+const selectEndpointSQL = `
+SELECT e.idn, e.api_code, e.http_method, e.path, e.api_name, COALESCE(e.api_group, ''),
+       e.flag_write, e.flag_public, e.flag_enable,
+       COALESCE(to_char(e.dt_deprecate, 'YYYY-MM-DD"T"HH24:MI:SSOF'), ''),
+       COALESCE(e.remark, ''),
+       to_char(e.gmt_update, 'YYYY-MM-DD"T"HH24:MI:SSOF'),
+       (SELECT count(*) FROM open.open_api_credential_scope s
+         WHERE s.method = e.http_method AND s.path_pattern = e.path)
+  FROM open.open_api_endpoint e`
+
+// EndpointPage 分页查询接口清单（按分组、公开/启用标志、关键字过滤）。
+func (s *Store) EndpointPage(ctx context.Context, filter EndpointFilter) ([]Endpoint, int, error) {
+	if s.pool == nil {
+		return nil, 0, errors.New("数据库连接池未初始化")
+	}
+	conditions := []string{}
+	args := []any{}
+	if keyword := strings.TrimSpace(filter.Keyword); keyword != "" {
+		args = append(args, "%"+keyword+"%")
+		conditions = append(conditions, fmt.Sprintf(
+			`(e.api_code ILIKE $%d OR e.path ILIKE $%d OR e.api_name ILIKE $%d)`,
+			len(args), len(args), len(args)))
+	}
+	if group := strings.TrimSpace(filter.APIGroup); group != "" {
+		args = append(args, group)
+		conditions = append(conditions, fmt.Sprintf(`COALESCE(e.api_group, '') = $%d`, len(args)))
+	}
+	if flag := strings.TrimSpace(filter.FlagPublic); flag != "" {
+		args = append(args, flag)
+		conditions = append(conditions, fmt.Sprintf(`e.flag_public = $%d`, len(args)))
+	}
+	if flag := strings.TrimSpace(filter.FlagEnable); flag != "" {
+		args = append(args, flag)
+		conditions = append(conditions, fmt.Sprintf(`e.flag_enable = $%d`, len(args)))
+	}
+	where := ""
+	if len(conditions) > 0 {
+		where = " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	var total int
+	if err := s.pool.QueryRow(ctx,
+		`SELECT count(*) FROM open.open_api_endpoint e`+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	args = append(args, filter.PageSize, (filter.Page-1)*filter.PageSize)
+	rows, err := s.pool.Query(ctx, selectEndpointSQL+where+
+		fmt.Sprintf(` ORDER BY COALESCE(e.api_group, ''), e.api_code LIMIT $%d OFFSET $%d`,
+			len(args)-1, len(args)), args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	list := make([]Endpoint, 0, filter.PageSize)
+	for rows.Next() {
+		item := Endpoint{}
+		if err := rows.Scan(&item.IDN, &item.APICode, &item.HTTPMethod, &item.Path, &item.APIName,
+			&item.APIGroup, &item.FlagWrite, &item.FlagPublic, &item.FlagEnable,
+			&item.DTDeprecate, &item.Remark, &item.GMTUpdate, &item.CountGrant); err != nil {
+			return nil, 0, err
+		}
+		list = append(list, item)
+	}
+	return list, total, rows.Err()
+}
+
+// EndpointOptions 授权范围下拉的可选项：只给「对外公开 + 启用中 + 未下线」的接口。
+func (s *Store) EndpointOptions(ctx context.Context) ([]Endpoint, error) {
+	if s.pool == nil {
+		return nil, errors.New("数据库连接池未初始化")
+	}
+	rows, err := s.pool.Query(ctx, selectEndpointSQL+`
+ WHERE e.flag_public = '1' AND e.flag_enable = '1' AND e.dt_deprecate IS NULL
+ ORDER BY COALESCE(e.api_group, ''), e.api_code`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	list := make([]Endpoint, 0, 16)
+	for rows.Next() {
+		item := Endpoint{}
+		if err := rows.Scan(&item.IDN, &item.APICode, &item.HTTPMethod, &item.Path, &item.APIName,
+			&item.APIGroup, &item.FlagWrite, &item.FlagPublic, &item.FlagEnable,
+			&item.DTDeprecate, &item.Remark, &item.GMTUpdate, &item.CountGrant); err != nil {
+			return nil, err
+		}
+		list = append(list, item)
+	}
+	return list, rows.Err()
+}
+
+// SetEndpointFlags 切换接口的公开/启用标志（nil 表示该列不动）。
+func (s *Store) SetEndpointFlags(ctx context.Context, idn int64, flagPublic, flagEnable *string,
+	operator string) (Endpoint, error) {
+	if s.pool == nil {
+		return Endpoint{}, errors.New("数据库连接池未初始化")
+	}
+	sets := []string{"modify_by = $1"}
+	args := []any{operator}
+	if flagPublic != nil {
+		args = append(args, *flagPublic)
+		sets = append(sets, fmt.Sprintf("flag_public = $%d", len(args)))
+	}
+	if flagEnable != nil {
+		args = append(args, *flagEnable)
+		sets = append(sets, fmt.Sprintf("flag_enable = $%d", len(args)))
+	}
+	args = append(args, idn)
+	tag, err := s.pool.Exec(ctx, fmt.Sprintf(
+		`UPDATE open.open_api_endpoint SET %s WHERE idn = $%d`,
+		strings.Join(sets, ", "), len(args)), args...)
+	if err != nil {
+		return Endpoint{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return Endpoint{}, ErrNotFound
+	}
+	return s.EndpointByID(ctx, idn)
+}
+
+// EndpointByID 按主键取一行接口清单。
+func (s *Store) EndpointByID(ctx context.Context, idn int64) (Endpoint, error) {
+	if s.pool == nil {
+		return Endpoint{}, errors.New("数据库连接池未初始化")
+	}
+	item := Endpoint{}
+	err := s.pool.QueryRow(ctx, selectEndpointSQL+` WHERE e.idn = $1`, idn).Scan(
+		&item.IDN, &item.APICode, &item.HTTPMethod, &item.Path, &item.APIName,
+		&item.APIGroup, &item.FlagWrite, &item.FlagPublic, &item.FlagEnable,
+		&item.DTDeprecate, &item.Remark, &item.GMTUpdate, &item.CountGrant)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Endpoint{}, ErrNotFound
+	}
+	if err != nil {
+		return Endpoint{}, err
+	}
+	return item, nil
 }
 
 // Begin 开启事务（「重加密 + 写配置」必须原子完成，否则会出现密文已换而配置未换的死局）。

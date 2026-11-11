@@ -29,7 +29,10 @@
 | 8 | POST | `/Credential/Enable` | 启用 / 停用凭证 |
 | 9 | POST | `/Credential/Revoke` | 吊销凭证（原因必填，不可恢复） |
 | 10 | POST | `/Credential/Rotate` | 轮换密钥（新密钥只返回一次） |
-| 11 | GET | `/InvokeLog/Page` | 调用审计分页 |
+| 11 | GET | `/InvokeLog/Page` | 调用审计分页（含 join 来的 `api_code` / `api_name`） |
+| 12 | GET | `/Endpoint/Page` | 接口清单分页（需求 11223） |
+| 13 | GET | `/Endpoint/Options` | 授权范围下拉可选项（公开 + 启用 + 未下线） |
+| 14 | POST | `/Endpoint/Flags` | 切换接口的 `flag_public` / `flag_enable` |
 
 ## 3. 鉴权配置
 
@@ -341,6 +344,11 @@ finv:openapi:cred:<ver>:<AK>    → 凭证快照 JSON，TTL 10 秒
 按 `dt_request` 倒序。响应字段与 `open.open_api_invoke_log` 列一一对应；`request_id` 与 `body_sha256` 均为**大写**十六进制（需求 11177），
 `body_sha256` / `count_body` 只有摘要与长度，无原文。
 
+响应里另有两个**非审计表字段**（需求 11225）：`api_code` / `api_name`，由
+`LEFT JOIN open.open_api_endpoint e ON e.http_method = l.method AND e.path = l.path` 得来，
+**不落库**——接口清单里改中文名或编码后，历史报表自动跟着对齐；空值表示该路径未登记
+（通常是 404/405，或接口已从清单下线）。
+
 ### 6.1 审计里的密钥怎么区分（需求 11183）
 
 静态 Key 是密钥本身，审计只落**脱敏形态**；要区分「谁在用哪把 Key」用两级信息，不依赖明文：
@@ -425,3 +433,47 @@ ORDER BY last_seen DESC;
 | 500 | `2006` | 其它服务端错误（日志前缀 `[openapi][admin]`） |
 
 对外 `/OpenAPI/V1/*` 的鉴权失败码是另一套 `190xx`（见 [`Auth.md`](Auth.md)），两者不要混用。
+
+## 8. 接口清单（需求 11223）
+
+对外 OpenAPI 的接口目录，表 `open.open_api_endpoint`（`V300193`）。
+**这不是鉴权白名单**：允许调哪些接口由 `internal/api/router.go` 的 `openGroup` 路由注册决定，
+本表只给「授权范围下拉」提供选项、给「审计报表」提供稳定的 `api_code`。
+
+### 8.1 GET `/Endpoint/Page?keyword=&apiGroup=&flagPublic=&flagEnable=&page=1&pageSize=20`
+
+| 参数 | 说明 |
+|---|---|
+| `keyword` | 模糊匹配 `api_code` / `path` / `api_name` |
+| `apiGroup` | 精确匹配分组（分钟行情 / 实时行情 / 鉴权） |
+| `flagPublic` / `flagEnable` | 只允许 `0` / `1`，其余值 400（避免"传了没生效"） |
+
+排序：`api_group` 升序，`api_code` 升序。响应：
+
+```json
+{ "code": 0, "message": "OK", "data": { "total": 4, "list": [
+  { "idn": 1, "api_code": "cdeu.min.pageuni", "http_method": "GET",
+    "path": "/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni",
+    "api_name": "分钟行情分页查询", "api_group": "分钟行情",
+    "flag_write": "0", "flag_public": "1", "flag_enable": "1",
+    "dt_deprecate": "", "remark": "…", "gmt_update": "2026-11-12T…", "count_grant": 18 } ] } }
+```
+
+`count_grant` 由子查询聚合 `open.open_api_credential_scope`（按 `method + path` 命中），
+该镜像表尚未接入读写，数值仅供参照。
+
+### 8.2 GET `/Endpoint/Options`
+
+授权范围下拉的可选项，只返回 `flag_public='1' AND flag_enable='1' AND dt_deprecate IS NULL`，
+字段同上（`data.list`，不分页）。
+
+### 8.3 POST `/Endpoint/Flags`
+
+```json
+{ "idn": 1, "flag_public": "0", "flag_enable": "1" }
+```
+
+- 两个标志都可选，但**至少给一个**，否则 400；
+- 取值只允许 `"0"` / `"1"`，其余 400；
+- 返回更新后的整行（含 `count_grant`）；
+- **关掉标志不回收既有权限**：已授权的凭证仍可调用，收敛权限要改凭证授权范围或吊销凭证。

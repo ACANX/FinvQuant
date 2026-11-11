@@ -7,7 +7,7 @@
 // 交互：表单 → 提交 → 同一对话框切成「密钥展示」步骤；关闭后密钥即不可再取。
 import { computed, ref, watch } from 'vue'
 
-import { apiPost } from '../../../../api'
+import { apiGet, apiPost } from '../../../../api'
 import { showToast } from '../../../../ui/toast'
 
 interface ClientRow {
@@ -24,6 +24,16 @@ interface CredentialRow {
   auth_mode: string
   access_key_id: string
   key_prefix: string
+}
+
+// 「授权范围」下拉的可选项（open.open_api_endpoint，需求 11224）
+interface EndpointOption {
+  idn: number
+  api_code: string
+  http_method: string
+  path: string
+  api_name: string
+  api_group: string
 }
 
 interface IssuedSecret {
@@ -58,11 +68,15 @@ const form = ref({
   client_idn: 0,
   credential_no: '',
   auth_mode: 'APIKEY',
+  scope_picked: [] as string[],
   scope_text: '',
   allow_cidr_text: '',
   dt_expire: '',
   remark: '',
 })
+// 授权范围下拉：选中项与手输规则合并成最终 scope（前者来自接口清单，后者兜底通配）
+const endpointOptions = ref<{ title: string; value: string }[]>([])
+const endpointLoading = ref(false)
 const saving = ref(false)
 const error = ref('')
 const issued = ref<IssuedSecret | null>(null)
@@ -112,6 +126,7 @@ function resetForm() {
     client_idn: props.clientIdn || props.clients[0]?.idn || 0,
     credential_no: '',
     auth_mode: 'APIKEY',
+    scope_picked: [],
     scope_text: '',
     allow_cidr_text: '',
     dt_expire: '',
@@ -129,6 +144,49 @@ function populateCredentialNo() {
     `-${pad(stamp.getHours())}${pad(stamp.getMinutes())}`
 }
 
+// loadEndpoints 拉取授权范围下拉的可选项（只含公开 + 启用 + 未下线的接口）。
+//
+// 失败不阻断签发：下拉拉不到时还能手输路径（界面会提示）。
+async function loadEndpoints() {
+  endpointLoading.value = true
+  try {
+    const data = await apiGet<{ list: EndpointOption[] }>(`${BASE}/Endpoint/Options`)
+    endpointOptions.value = (data.list ?? []).map((row) => ({
+      title: `${row.api_name}［${row.http_method} ${row.api_code}］`,
+      value: `${row.http_method} ${row.path}`,
+    }))
+  } catch (err) {
+    endpointOptions.value = []
+    showToast(`读取接口清单失败（仍可手输路径）：${(err as Error).message}`, 'warning')
+  } finally {
+    endpointLoading.value = false
+  }
+}
+
+// 静态 Key 只能授权 1 个接口（需求 11188）：多选时只保留最后一个，避免提交后才 400
+watch(
+  () => form.value.scope_picked,
+  (picked) => {
+    if (form.value.auth_mode === 'APIKEY' && picked.length > 1) {
+      form.value.scope_picked = [picked[picked.length - 1]]
+      showToast('静态 Key 只能授权 1 个接口，已保留最后一次选择', 'warning')
+    }
+  },
+)
+
+// finalScope 下拉选中 + 手输补充，去重后按顺序返回。
+const finalScope = computed(() => {
+  const merged: string[] = []
+  const seen = new Set<string>()
+  for (const item of [...form.value.scope_picked, ...form.value.scope_text.split('\n')]) {
+    const value = item.trim()
+    if (!value || seen.has(value)) continue
+    seen.add(value)
+    merged.push(value)
+  }
+  return merged
+})
+
 async function submit() {
   if (!canSubmit.value) return
   saving.value = true
@@ -138,10 +196,7 @@ async function submit() {
       .split(/[\n,;]/)
       .map((item) => item.trim())
       .filter((item) => item !== '')
-    const scope = form.value.scope_text
-      .split('\n')
-      .map((item) => item.trim())
-      .filter((item) => item !== '')
+    const scope = finalScope.value
 
     if (isRotate.value) {
       issued.value = await apiPost<IssuedSecret>(`${BASE}/Credential/Rotate`, { idn: props.credentialIdn })
@@ -187,7 +242,10 @@ watch(
   ([open]) => {
     if (!open) return
     resetForm()
-    if (!isRotate.value) populateCredentialNo()
+    if (!isRotate.value) {
+      populateCredentialNo()
+      void loadEndpoints() // 授权范围下拉（需求 11224）
+    }
   },
 )
 </script>
@@ -261,18 +319,41 @@ watch(
             静态 Key 只能授权 <strong>1 个具体接口</strong>（不允许留空或通配），且调用方必须先配置调用额度；
             需要多接口请改用 AK/SK 签名模式。写接口调用时还必须带查询参数 <code>_</code>（毫秒时间戳，±60 秒）。
           </v-alert>
+          <!-- 授权范围（需求 11224）：从「接口清单」下拉选，避免手敲路径打错；
+               通配规则（尾部 /*）无法枚举，仍保留手输兜底。 -->
+          <v-select
+            v-if="!isRotate"
+            v-model="form.scope_picked"
+            :items="endpointOptions"
+            item-title="title"
+            item-value="value"
+            :return-object="false"
+            :multiple="form.auth_mode !== 'APIKEY'"
+            :chips="form.auth_mode !== 'APIKEY'"
+            :closable-chips="form.auth_mode !== 'APIKEY'"
+            :loading="endpointLoading"
+            :label="form.auth_mode === 'APIKEY'
+              ? '授权接口（静态 Key 只能选 1 个）'
+              : '授权接口（可多选；留空且无补充规则 = 全部接口）'"
+            :hint="form.auth_mode === 'APIKEY'
+              ? '静态 Key 只允许 1 个具体接口'
+              : '选项来自「开放平台 → 安全设置 → 接口清单」，只列对外公开且启用中的接口'"
+            persistent-hint
+            density="compact"
+            variant="outlined"
+            class="mb-2"
+          />
           <v-textarea
             v-if="!isRotate"
             v-model="form.scope_text"
-            :label="form.auth_mode === 'APIKEY'
-              ? '授权接口（1 条「方法 路径」，必填）'
-              : '授权范围（每行一条「方法 路径」，留空 = 全部接口）'"
-            :placeholder="form.auth_mode === 'APIKEY'
-              ? 'POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert'
-              : 'POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert\nGET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/*'"
+            label="补充规则（每行一条「方法 路径」，通配用尾部 /*，可留空）"
+            placeholder="GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/*"
+            :hint="`已选 ${form.scope_picked.length} 个接口 + 手输补充，合计 ${finalScope.length} 条规则`"
+            persistent-hint
             density="compact"
             variant="outlined"
-            rows="3"
+            rows="2"
+            class="mb-2"
           />
           <v-textarea
             v-if="!isRotate"
