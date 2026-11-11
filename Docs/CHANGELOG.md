@@ -219,6 +219,12 @@
 
 ### 变更
 
+- **对外 PageUni 契约：鉴权表同步为实际实现（需求 11168 文档补充）**
+  - `Docs/OpenAPI/Quote/Cdeu/Min/PageUni.md` §2 原来写「认证：无（公开）／不会返回 401」，
+    已改为实际口径：静态 API Key（`SA_LIVE_…`）与 AK/SK 签名两种模式、`190xx` 失败码、19001 三态开关、审计回查方式。
+  - 同期外部 Demo（`FinvQuantDesign/OpenAPI`）修正查询参数：`row=AAPL&column=usc` 是**响应字段**，
+    查询应写 `usc=<代码>&limit=<每页条数>`；并把查到的数据（`cnt` / `column` / `row`）打印到终端与结果文件。
+
 - **审计字段改大写 + 静态 Key 前缀改 SA_LIVE_（需求 11177 / 11178）**
   - 11177：`request_id` 与 `body_sha256` 一律存**纯大写**十六进制。
     `newRequestID` / `BodyHash` 都加了 `ToUpper`；响应头 `X-Request-Id` 同步。
