@@ -492,15 +492,20 @@ UPDATE open.open_api_credential
 
 // ---- 调用审计 ----
 
+// selectInvokeLogSQL 审计分页查询。
+//
+// LEFT JOIN open_api_credential 带出「凭证号」：STS 行的 credential_idn 是**父凭证** idn，
+// 页面要能直接看出「这次 STS 调用是基于哪个凭证来的」（需求 11201）。
 const selectInvokeLogSQL = `
-SELECT idn, client_idn, credential_idn, COALESCE(access_key_id, ''), COALESCE(kfp, ''), COALESCE(tfp, ''),
-       COALESCE(auth_mode, ''),
-       COALESCE(request_id, ''), to_char(dt_request, 'YYYY-MM-DD"T"HH24:MI:SSOF'),
-       COALESCE(method, ''), COALESCE(path, ''), COALESCE(query_str, ''),
-       status_code, biz_code, flag_pass, COALESCE(reason_code, ''),
-       COALESCE(host(ip), ''), COALESCE(user_agent, ''), COALESCE(body_sha256, ''),
-       count_body, latency_ms
-  FROM open.open_api_invoke_log`
+SELECT l.idn, l.client_idn, l.credential_idn, COALESCE(l.access_key_id, ''), COALESCE(l.kfp, ''), COALESCE(l.tfp, ''),
+       COALESCE(l.auth_mode, ''), COALESCE(c.credential_no, ''),
+       COALESCE(l.request_id, ''), to_char(l.dt_request, 'YYYY-MM-DD"T"HH24:MI:SSOF'),
+       COALESCE(l.method, ''), COALESCE(l.path, ''), COALESCE(l.query_str, ''),
+       l.status_code, l.biz_code, l.flag_pass, COALESCE(l.reason_code, ''),
+       COALESCE(host(l.ip), ''), COALESCE(l.user_agent, ''), COALESCE(l.body_sha256, ''),
+       l.count_body, l.latency_ms
+  FROM open.open_api_invoke_log l
+  LEFT JOIN open.open_api_credential c ON c.idn = l.credential_idn`
 
 // InvokeLogPage 分页查询调用审计（时间倒序）。
 func (s *Store) InvokeLogPage(ctx context.Context, filter InvokeLogFilter) ([]InvokeLog, int, error) {
@@ -511,35 +516,35 @@ func (s *Store) InvokeLogPage(ctx context.Context, filter InvokeLogFilter) ([]In
 	args := []any{}
 	if filter.ClientIDN > 0 {
 		args = append(args, filter.ClientIDN)
-		conditions = append(conditions, fmt.Sprintf(`client_idn = $%d`, len(args)))
+		conditions = append(conditions, fmt.Sprintf(`l.client_idn = $%d`, len(args)))
 	}
 	if filter.CredentialIDN > 0 {
 		args = append(args, filter.CredentialIDN)
-		conditions = append(conditions, fmt.Sprintf(`credential_idn = $%d`, len(args)))
+		conditions = append(conditions, fmt.Sprintf(`l.credential_idn = $%d`, len(args)))
 	}
 	if key := strings.TrimSpace(filter.AccessKeyID); key != "" {
 		args = append(args, "%"+key+"%")
-		conditions = append(conditions, fmt.Sprintf(`access_key_id ILIKE $%d`, len(args)))
+		conditions = append(conditions, fmt.Sprintf(`l.access_key_id ILIKE $%d`, len(args)))
 	}
 	if fingerprint := strings.TrimSpace(filter.KFP); fingerprint != "" {
 		args = append(args, strings.ToUpper(fingerprint))
-		conditions = append(conditions, fmt.Sprintf(`kfp = $%d`, len(args)))
+		conditions = append(conditions, fmt.Sprintf(`l.kfp = $%d`, len(args)))
 	}
 	if pass := strings.TrimSpace(filter.FlagPass); pass != "" {
 		args = append(args, pass)
-		conditions = append(conditions, fmt.Sprintf(`flag_pass = $%d`, len(args)))
+		conditions = append(conditions, fmt.Sprintf(`l.flag_pass = $%d`, len(args)))
 	}
 	if reason := strings.TrimSpace(filter.ReasonCode); reason != "" {
 		args = append(args, reason)
-		conditions = append(conditions, fmt.Sprintf(`reason_code = $%d`, len(args)))
+		conditions = append(conditions, fmt.Sprintf(`l.reason_code = $%d`, len(args)))
 	}
 	if !filter.DTFrom.IsZero() {
 		args = append(args, filter.DTFrom)
-		conditions = append(conditions, fmt.Sprintf(`dt_request >= $%d`, len(args)))
+		conditions = append(conditions, fmt.Sprintf(`l.dt_request >= $%d`, len(args)))
 	}
 	if !filter.DTTo.IsZero() {
 		args = append(args, filter.DTTo)
-		conditions = append(conditions, fmt.Sprintf(`dt_request <= $%d`, len(args)))
+		conditions = append(conditions, fmt.Sprintf(`l.dt_request <= $%d`, len(args)))
 	}
 	where := ""
 	if len(conditions) > 0 {
@@ -548,13 +553,13 @@ func (s *Store) InvokeLogPage(ctx context.Context, filter InvokeLogFilter) ([]In
 
 	var total int
 	if err := s.pool.QueryRow(ctx,
-		`SELECT count(*) FROM open.open_api_invoke_log`+where, args...).Scan(&total); err != nil {
+		`SELECT count(*) FROM open.open_api_invoke_log l`+where, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
 	args = append(args, filter.PageSize, (filter.Page-1)*filter.PageSize)
 	rows, err := s.pool.Query(ctx, selectInvokeLogSQL+where+
-		fmt.Sprintf(` ORDER BY dt_request DESC, idn DESC LIMIT $%d OFFSET $%d`, len(args)-1, len(args)), args...)
+		fmt.Sprintf(` ORDER BY l.dt_request DESC, l.idn DESC LIMIT $%d OFFSET $%d`, len(args)-1, len(args)), args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -564,7 +569,7 @@ func (s *Store) InvokeLogPage(ctx context.Context, filter InvokeLogFilter) ([]In
 	for rows.Next() {
 		item := InvokeLog{}
 		if err := rows.Scan(&item.IDN, &item.ClientIDN, &item.CredentialIDN, &item.AccessKeyID, &item.KFP, &item.TFP,
-			&item.AuthMode,
+			&item.AuthMode, &item.CredentialNo,
 			&item.RequestID, &item.DTRequest, &item.Method, &item.Path, &item.Query,
 			&item.StatusCode, &item.BizCode, &item.FlagPass, &item.ReasonCode,
 			&item.IP, &item.UserAgent, &item.BodySHA256, &item.CountBody, &item.LatencyMs); err != nil {

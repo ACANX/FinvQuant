@@ -2845,6 +2845,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 11198 | OpenAPI 调用审计列表补两列：**认证模式**（`auth_mode`，按中文展示 `APIKEY/AKSK/STS`，空值 `—`）与**业务码**（`biz_code`，响应信封 `code`）；同时列表列宽改为**可拖拽调整**（表头右边缘拖动、双击自适应、`重置列宽` 还原、宽度记入 `localStorage`），长值不再只能靠 ⓘ 悬浮 | 页面表头可见「业务码」「认证模式」两列且值正确（STS 行显示「STS 临时凭据」）；拖动「路径」列表头右边缘可改宽，刷新后宽度保留；点「重置列宽」恢复默认；`npx vue-tsc -b --force` 与 `npm run build` 通过 | √ |
 | 11199 | 凭证的「最近使用」（`dt_last_use`）与「累计调用」（`count_use`）必须在调用后更新：中间件在**放行**时把它们与审计写入合并成同一个 `pgx.Batch`（少一次往返），`UPDATE open.open_api_credential SET dt_last_use = now(), count_use = count_use + 1 WHERE idn = $1`；拒绝请求不计数、STS 派生调用累计到父凭证、兜底密钥（`credential_idn=0`）不计数；统计失败只记日志不影响业务 | 调用一次只读接口后 `SELECT count_use, dt_last_use FROM open.open_api_credential WHERE credential_no='DEMO-STATIC'` 的 `count_use` 递增且 `dt_last_use` 非空；被拒请求（如 19002）不改变 `count_use`；`go test ./internal/api/openapi` 通过 | √ |
 | 11200 | 签发凭证对话框的认证模式支持 STS 临时凭据：下拉增加 `STS 临时凭据`，选中后隐藏凭证号与到期输入（STS 不落库），授权范围改为必填（不允许放开全部接口），提交走新增的内部接口 `POST /API/V1/Meta/Finv/OpenAPI/Credential/StsIssue`，返回三要素 + `expire_seconds=7200` 并一次性展示；`StsStore.Issue` 支持无父凭证（管理员直发，`IDN=0`），此类凭据只靠 2 小时 TTL 收敛 | 页面签发表单选 `STS` 后能提交并看到 `SAK_LIVE_`/`SSK_LIVE_`/`SST_LIVE_` 三要素；`POST /Credential/StsIssue`（需登录）返回 200 与 `expire_seconds=7200`；用三要素调用被授权接口 → 200，调用未授权接口 → 403/`19009`；`npx vue-tsc -b --force` 与 `npm run build` 通过 | √ |
+| 11201 | 审计页要能直接看出「STS 调用基于哪个凭证」：`InvokeLog/Page` 改为 `LEFT JOIN open_api_credential` 带出 `credential_no`（STS 行的 `credential_idn` 即父凭证 idn），列表新增「来源凭证」列并加 ⓘ 悬浮显示凭证号与 idn；页面直发的 STS 明确显示「无（页面直发）」；详情抽屉同步增加该字段 | `GET /API/V1/Meta/Finv/OpenAPI/InvokeLog/Page` 的 `list[*]` 含 `credential_no`；外部换证产生的 STS 审计行「来源凭证」= 父凭证号（实测 `DEMO-AKSK`），页面直发行的显示「无（页面直发）」；`npx vue-tsc -b --force` 与 `npm run build` 通过 | √ |
 
 
 ## 汇总
@@ -3301,7 +3302,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 修复「证券参数补全 → 采集参数」必填校验必然失败：快照 `instrument_type` 是 TEXT 且 `12`/`3` 都表示股票、采集表只有 `3`，参考行匹配按 `q.instrument_type::text = btrim(t.instrument_type)` 直接比对导致 `12` 的行取不到 `market_code`（=0）；改为按归一后的整型匹配（`12`→`3`）；`market_code` 取不到参考值时预填**返回空串**并提示必须人工填写（不再返回 `0`）；前端把数值字段的 `0` 也算「未填」并逐字段标红；后端必填校验错误消息逐项列出字段与实际值 | 11164 | 1 |
 | 「证券参数补全 → 规范证券参数」对话框的 `timezone`（UTC 偏移）/ `tz`（IANA 标识）预填缺省值，按「市场 → 交易所 → 区域」三层推断：① 同 `exchange_code` 已有 `public.finv_security` 行 `(timezone, tz)` 的众数（来源=参考）；② 同 `finv_exchange.region` 已有行的众数（来源=参考）；③ 内置区域 → IANA 时区映射、偏移按该时区**当前时刻**推算（来源=字典，二进制内嵌 `time/tzdata`）；三层都拿不到时留空 + 来源=待填 + 风险提示 | 11165 | 1 |
 | 「证券参数补全 → 采集参数」对话框补缺省推断：`market_type` 改为「快照 → 同市场已有配置行众数（参考）→ 内置映射 HK=1/US=2/A股=4/FX=11/CC=17（字典）」；`req_section` 改为「同市场同品种众数（参考），众数为空则留空并说明选填」；`sub_instrument_type` 的兜底改按**归一后** `instrument_type` 计算（`12` 按 `3` 算，避免算出 12002）；`instrument_type` 仍写快照原值但说明里点明「12 与 3 同为股票、存量以 3 为主」 | 11166 | 1 |
-| **合计** | **10001–11200** | **1196**（含 4 条待办） |
+| **合计** | **10001–11201** | **1197**（含 4 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
