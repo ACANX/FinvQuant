@@ -219,6 +219,18 @@
 
 ### 变更
 
+- **func 改为取 path 末段（大驼峰）（需求 11239，迁移 V300205）**
+  - 旧：`func` = `api_code` 最后一个点之后（`pageuni` / `ftstockupsert`，小写）。
+  - 新：`func` = `path` 最后一个 `/` 之后（`PageUni` / `FTStockUpsert` / `Issue`，大驼峰）；
+    `catalog` 不变（仍取 `api_code` 最后一个点之前）。
+  - 仍为 STORED 生成列，但表达式不能 ALTER → `V300205` 走 `DROP COLUMN` + `ADD COLUMN` 重建
+    （`func` 是派生值，重建后由 `path` 重算，无数据丢失，单事务回滚保护）。
+  - 新增 `CHECK (func ~ '^[A-Z][A-Za-z0-9]*$')`：路径末段不是大驼峰时**写入直接失败**。
+    为什么不在 SQL 里做大小写转换：无法把 `ftstockupsert` 智能还原成 `FTStockUpsert`（会压平内部大写），
+    项目路径规范本身要求末段 PascalCase，取末段 + 约束比"猜"更可靠。
+  - 文档：`Menu/OpenAPI/Endpoint.md` 派生规则表改为「catalog 来自编码 / func 来自路径」；
+    `Admin.md §8.1` 响应示例 `func` 改为 `PageUni`。
+
 - **接口清单增加 catalog / func 两列（需求 11238，迁移 V300204）**
   - 语义（用户定稿）：`catalog` = `api_code` 最后一个点**之前**的部分、`func` = 最后一个点**之后**的部分。
   - 两列做成 **STORED 生成列**：它们是 `api_code` 的纯派生值（`catalog || '.' || func = api_code` 恒成立），

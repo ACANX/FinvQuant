@@ -39,21 +39,31 @@
 `open.auth` = 开放平台自身的鉴权接口（与 `open` schema、路径里的 `Meta/Open` 对齐），
 其后按「模块.资源.动作」——如 `open.auth.credential.sts.issue`（`credential` 段与表 `open_api_credential` 对应）。
 
-## 2.2 catalog / func 的派生规则（需求 11238）
+## 2.2 catalog / func 的派生规则（需求 11238 / 11239）
 
-两列是**生成列**（`GENERATED ALWAYS AS … STORED`），由 `api_code` 按「最后一个点」切分，**不可显式写入**：
+两列都是**生成列**（`GENERATED ALWAYS AS … STORED`），来源不同、都**不可显式写入**：
+
+| 列 | 来源 | 规则 | 示例 |
+|---|---|---|---|
+| `catalog` | `api_code` | 最后一个 `.` **之前**的部分 | `finv.quote.cdeu.min` |
+| `func` | `path` | 最后一个 `/` **之后**的部分，**大驼峰** | `PageUni`、`FTStockUpsert`、`Issue` |
 
 ```
-api_code                                 catalog                    func
-finv.quote.cdeu.min.pageuni          →   finv.quote.cdeu.min        pageuni
-finv.quote.cdeu.min.upsert           →   finv.quote.cdeu.min        upsert
-finv.quote.cdeu.realtime.ftstockupsert → finv.quote.cdeu.realtime   ftstockupsert
-open.auth.credential.sts.issue       →   open.auth.credential.sts   issue
+api_code                                 path（末段）         catalog                    func
+finv.quote.cdeu.min.pageuni          →   …/Min/PageUni    →   finv.quote.cdeu.min        PageUni
+finv.quote.cdeu.min.upsert           →   …/Min/Upsert     →   finv.quote.cdeu.min        Upsert
+finv.quote.cdeu.realtime.ftstockupsert → …/Realtime/FTStockUpsert → finv.quote.cdeu.realtime FTStockUpsert
+open.auth.credential.sts.issue       →   …/STS/Issue      →   open.auth.credential.sts   Issue
 ```
 
-恒等式：`catalog || '.' || func = api_code`（迁移末尾断言这条）。
+`catalog` 的恒等式 `catalog || '.' || <编码末段> = api_code` 仍成立（`func` 已改来源，不再参与该恒等式）。
 
-为什么用生成列而不是普通列：这两列是纯派生值，做成普通列就得靠每条 INSERT/UPDATE 手工同步，
+**`func` 为什么取路径末段而不是转换编码**：项目 API 路径规范本身要求末段是 PascalCase
+（`.../Min/PageUni`、`.../STS/Issue`），直接取末段就是大驼峰；SQL 无法"智能"地把 `ftstockupsert`
+还原成 `FTStockUpsert`（会把内部大写压平）。因此取末段 + `CHECK (func ~ '^[A-Z][A-Za-z0-9]*$')`：
+末段不合规时**写入直接失败**，让命名问题在源头暴露。
+
+为什么用生成列而不是普通列：派生值做成普通列就得靠每条 INSERT/UPDATE 手工同步，
 接口清单本来就要靠人维护，再叠一层「忘了同步」的漂移没必要；生成列让不一致在结构上不可能出现。
 （与 `usc_lower`、`ftmm_symbol` 同规则：**生成列禁止显式写入**，写了 PostgreSQL 直接报错。）
 
@@ -66,7 +76,7 @@ open.auth.credential.sts.issue       →   open.auth.credential.sts   issue
 | IDN | `idn` | 自增主键 |
 | 接口编码 | `api_code` | **点分小写**，按「业务域.模块.动作」分段（行情类如 `finv.quote.cdeu.min.pageuni`、开放平台鉴权类如 `open.auth.credential.sts.issue`）；路径改名后编码不变，报表/套餐/限额靠它锚定 |
 | 目录 | `catalog` | 接口编码**最后一个点之前**的部分（如 `finv.quote.cdeu.min`）；生成列，由 `api_code` 派生 |
-| 功能 | `func` | 接口编码**最后一个点之后**的部分（如 `pageuni`、`ftstockupsert`）；生成列，由 `api_code` 派生 |
+| 功能 | `func` | 路径**最后一个 `/` 之后**的部分（大驼峰，如 `PageUni`、`FTStockUpsert`）；生成列，由 `path` 派生，受 `^[A-Z][A-Za-z0-9]*$` 约束 |
 | 方法 | `http_method` | GET / POST / …（只登记真实方法，不含 `*`） |
 | 路径 | `path` | 含 `/OpenAPI/V1` 前缀，与授权范围、审计表同口径 |
 | 中文名 | `api_name` | 下拉与报表展示用 |
@@ -114,7 +124,7 @@ open.auth.credential.sts.issue       →   open.auth.credential.sts   issue
 | IDN | 70 | 50 | |
 | 接口编码 | 230 | 140 | 最长 38 字符（`finv.quote.cdeu.realtime.ftstockupsert`） |
 | 目录 | 180 | 120 | 编码去掉最后一段，最长 24 字符 |
-| 功能 | 130 | 90 | 编码最后一段 |
+| 功能 | 140 | 100 | 路径末段，最长 `FTStockUpsert`（13 字符） |
 | 方法 | 80 | 60 | |
 | 路径 | 360 | 160 | 等宽字体；放不下出省略号，点 ⓘ 看全文 |
 | 中文名 | 160 | 110 | 放不下出省略号，悬停 `title` 看全名 |

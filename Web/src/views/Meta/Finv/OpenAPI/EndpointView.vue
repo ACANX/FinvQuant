@@ -422,9 +422,11 @@ onMounted(() => {
           <code>_</code>（毫秒时间戳，±60 秒），否则 <code>19006</code>。
         </p>
         <p>
-          ⑤ <strong>目录 / 功能</strong>：由接口编码自动切分——<code>catalog</code> 是编码<strong>最后一个点之前</strong>的部分、
-          <code>func</code> 是<strong>最后一个点之后</strong>的部分（如 <code>finv.quote.cdeu.min</code> + <code>pageuni</code>）。
-          两者是生成列，由 <code>api_code</code> 派生、<strong>不可手工写入</strong>，因此永远能拼回编码。
+          ⑤ <strong>目录 / 功能</strong>：<code>catalog</code> 取 <code>api_code</code> <strong>最后一个点之前</strong>的部分
+          （如 <code>finv.quote.cdeu.min</code>）；<code>func</code> 取 <code>path</code> <strong>最后一个斜杠之后</strong>的部分
+          （大驼峰，如 <code>PageUni</code> / <code>FTStockUpsert</code>）。
+          两者都是生成列、<strong>不可手工写入</strong>：catalog 由编码派生、func 由路径派生，且 func 有
+          <code>^[A-Z][A-Za-z0-9]*$</code> 约束——路径末段不是大驼峰会直接写入失败。
         </p>
         <p>
           ⑥ <strong>已授权凭证</strong>：当前有多少个凭证的授权范围里包含这个接口（来自
