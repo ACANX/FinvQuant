@@ -266,8 +266,10 @@ func (m *Middleware) authenticate(c *gin.Context, settings Settings, req *http.R
 	if provided == "" {
 		return nil, CodeKeyMissing, "未携带 X-API-Key 或 Authorization"
 	}
-	// 静态 Key 本身就是密钥：审计里只记脱敏形态（前 8 后 4），绝不落明文
+	// 静态 Key 本身就是密钥：审计里只记脱敏形态，绝不落明文；
+	// 同时写指纹（sha256 前 16 位）用于严格区分「哪一把 Key」（需求 11186）。
 	invocation.AccessKeyID = maskKey(provided)
+	invocation.KeyFingerprint = FingerprintStaticKey(provided)
 	invocation.AuthMode = AuthModeAPIKey
 
 	credential, err := m.source.Lookup(req.Context(), provided)

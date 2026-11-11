@@ -697,3 +697,27 @@ func TestMiddlewareEchoesRequestIDUppercase(t *testing.T) {
 		}
 	}
 }
+
+// TestFingerprintStaticKey 密钥指纹必须稳定、可区分、且不等于明文（需求 11186）。
+func TestFingerprintStaticKey(t *testing.T) {
+	a := "SA_LIVE_0123456789ABCDEF0123456789ABCDEF"
+	b := "SA_LIVE_0123456789ABCDEF0123456789ABCDEE" // 只差最后一位
+
+	fa, fb := FingerprintStaticKey(a), FingerprintStaticKey(b)
+	if fa != FingerprintStaticKey(a) {
+		t.Fatalf("同一密钥的指纹必须稳定: %q", fa)
+	}
+	if fa == fb {
+		t.Fatalf("不同密钥的指纹必须不同: %q", fa)
+	}
+	if len(fa) != 16 || fa != strings.ToUpper(fa) {
+		t.Fatalf("指纹应为 16 位大写十六进制，实际 %q", fa)
+	}
+	if strings.Contains(a, fa) || strings.Contains(fa, a[len(a)-8:]) {
+		t.Fatalf("指纹不能由明文片段推导: %q", fa)
+	}
+	// 大小写不敏感：与存储哈希同口径（先归一为大写）
+	if FingerprintStaticKey(strings.ToLower(a)) != fa {
+		t.Fatalf("指纹应对大小写不敏感")
+	}
+}

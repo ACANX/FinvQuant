@@ -219,6 +219,18 @@
 
 ### 变更
 
+- **审计增加密钥指纹，脱敏前提下可严格区分每一把 Key（需求 11186）**
+  - 问题：静态 Key 只能存脱敏形态（前 8 + 等量星号 + 后 8），部分位相同的两把 Key 无法严格区分，
+    也没法用「调用方报上来的完整 Key」反查历史（库里没有完整明文）。
+  - 新增 `secret.FingerprintKey` = `upper(sha256(完整 Key))[:16]`（先大写归一，与存储哈希同口径）；
+    仅 `API_KEY` 模式写入（`AK_SK` 的 AK 本来就是公开标识、已存明文）。
+  - 迁移 `V300185`：`open.open_api_invoke_log` 加 `key_fingerprint VARCHAR(16)` + 索引
+    `(key_fingerprint, dt_request DESC)`；存量行保持 `NULL`（无法从掩码反推）。
+  - 接口：`GET /InvokeLog/Page` 新增 `keyFingerprint` 精确筛选；审计页面新增「密钥指纹」列与筛选框。
+  - 文档：`Admin.md` 新增 §6.2「要严格区分是哪一把 Key 时用指纹」，含 psql 现算指纹反查的 SQL
+    与「同一凭证轮换前后按指纹分组」的 SQL；`DataDictMapping/OpenApiAuth.md` 补字段行。
+  - 测试：`TestFingerprintStaticKey`（稳定、可区分、不可逆、大小写不敏感）。
+
 - **审计脱敏改为「按位补星号」（需求 11185）**
   - 上一版把中间 16 位随机段用一个固定 `***` 顶替，掩码长度（27）与原密钥（40）对不上，
     既看不出原长、也无法核对位数。现改为 `strings.Repeat("*", n)`，**星号数 = 被遮蔽位数**：

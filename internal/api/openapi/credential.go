@@ -137,6 +137,9 @@ func HashStaticKey(key string) string { return secret.HashKey(key) }
 // MatchStaticKey 恒定时间比较静态 Key 与库内哈希。
 func MatchStaticKey(storedHash, provided string) bool { return secret.MatchKey(storedHash, provided) }
 
+// FingerprintStaticKey 计算静态 Key 指纹（sha256 前 16 位大写），供审计严格区分密钥（需求 11186）。
+func FingerprintStaticKey(key string) string { return secret.FingerprintKey(key) }
+
 // DecryptSecret 解密 AK/SK 的 SK 密文（委托给共享的 secret 包）。
 func DecryptSecret(cipherText string, key []byte) (string, error) {
 	return secret.Decrypt(cipherText, key)

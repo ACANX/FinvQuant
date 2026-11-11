@@ -16,6 +16,7 @@ interface InvokeLogRow {
   client_idn: number
   credential_idn: number
   access_key_id: string
+  key_fingerprint: string
   auth_mode: string
   request_id: string
   dt_request: string
@@ -41,6 +42,7 @@ const loading = ref(false)
 const flagPass = ref('')
 const reasonCode = ref('')
 const accessKey = ref('')
+const keyFingerprint = ref('')
 
 const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
@@ -51,6 +53,7 @@ async function load() {
     if (flagPass.value) params.set('flagPass', flagPass.value)
     if (reasonCode.value) params.set('reasonCode', reasonCode.value)
     if (accessKey.value.trim()) params.set('accessKey', accessKey.value.trim())
+    if (keyFingerprint.value.trim()) params.set('keyFingerprint', keyFingerprint.value.trim())
     const data = await apiGet<{ total: number; list: InvokeLogRow[] }>(
       `${BASE}/InvokeLog/Page?${params.toString()}`,
     )
@@ -114,6 +117,15 @@ onMounted(load)
             style="min-width: 180px; max-width: 240px"
             @keyup.enter="page = 1; load()"
           />
+          <v-text-field
+            v-model="keyFingerprint"
+            label="密钥指纹（精确）"
+            density="compact"
+            hide-details
+            clearable
+            style="min-width: 170px; max-width: 210px"
+            @keyup.enter="page = 1; load()"
+          />
           <v-btn color="primary" variant="tonal" prepend-icon="mdi-magnify" @click="page = 1; load()">查询</v-btn>
         </div>
 
@@ -128,6 +140,7 @@ onMounted(load)
               <th>HTTP</th>
               <th>耗时（ms）</th>
               <th>公开标识</th>
+              <th>密钥指纹</th>
               <th>来源 IP</th>
               <th>请求 ID</th>
             </tr>
@@ -146,11 +159,12 @@ onMounted(load)
               <td>{{ row.status_code }}</td>
               <td>{{ row.latency_ms }}</td>
               <td class="text-truncate" style="max-width: 180px">{{ row.access_key_id || '—' }}</td>
+              <td class="text-no-wrap text-caption">{{ row.key_fingerprint || '—' }}</td>
               <td>{{ row.ip || '—' }}</td>
               <td class="text-truncate" style="max-width: 150px">{{ row.request_id || '—' }}</td>
             </tr>
             <tr v-if="rows.length === 0">
-              <td colspan="10" class="text-center text-medium-emphasis py-6">
+              <td colspan="11" class="text-center text-medium-emphasis py-6">
                 {{ loading ? '加载中…' : '暂无调用记录（鉴权关闭时不写审计）' }}
               </td>
             </tr>

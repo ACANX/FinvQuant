@@ -39,6 +39,18 @@ func HashKey(key string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// FingerprintKey 计算密钥指纹：sha256(完整密钥) 的前 16 位十六进制（大写）。
+//
+// 用途（需求 11186）：审计里静态 Key 只能存脱敏形态，部分位相同无法严格区分；
+// 指纹不可逆、确定性、长度固定，可 GROUP BY / 建索引 / 按「调用方报的 Key」反查具体记录。
+func FingerprintKey(key string) string {
+	hash := HashKey(NormalizeKey(key)) // 与存储口径一致：先大写归一再哈希
+	if len(hash) < 16 {
+		return strings.ToUpper(hash)
+	}
+	return strings.ToUpper(hash)[:16]
+}
+
 // MatchKey 恒定时间比较静态 Key 与库内哈希。
 //
 // 先按「大写归一」比对（需求 11176 的存储口径），再退回原样比对——
