@@ -219,6 +219,15 @@
 
 ### 变更
 
+- **鉴权读凭证加 Redis 缓存（需求 11212）**
+  - 原先每个外部请求都查一次凭证表（JOIN 调用方与父凭证），高频调用把压力全压在 PG 上。
+  - 新增 `CachedSource`：`finv:openapi:cred:<版本号>:<AK>` 存凭证快照，TTL 10 秒；
+    `finv:openapi:credver` 存全局版本号。签发/轮换/吊销/停用凭证、改调用方额度或白名单后 `INCR`
+    版本号，旧键立即失效——吊销不必等 TTL。
+  - 缓存内容是 SK 密文与状态字段（无明文）；Redis 故障时直接回源，不影响正确性。
+  - `Credential.clientEnable` 改为导出 `ClientFlagEnable` 以便随快照序列化；缓存编解码单测覆盖全部鉴权字段。
+  - 文档：`Admin.md §5.6`（键形态、失效语义、手工改库注意事项）、`Auth.md §4.8` 提示。
+
 - **STS 父凭证校验合并进主查询，去掉一次额外查表（需求 11211）**
   - 原先临时凭据放行前会 `LookupByIDN(parent_idn)` 再查一次凭证表；现在主查询 `LEFT JOIN` 父凭证，
     一次带出 `ParentFound / ParentFlagEnable / ParentFlagRevoke / ParentExp`。

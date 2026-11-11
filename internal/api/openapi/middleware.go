@@ -89,6 +89,9 @@ func NewMiddleware(opts Options) *Middleware {
 	if logf == nil {
 		logf = log.Printf
 	}
+	// 凭证快照走 Redis 缓存（需求 11212）：高频调用不再每请求查一次凭证表。
+	// 注入的 Source 是测试替身时同样生效（rdb 为 nil 时 CachedSource 直通，不影响单测）。
+	source = NewCachedSource(source, opts.Redis, logf)
 	return &Middleware{
 		source:   source,
 		settings: settings,

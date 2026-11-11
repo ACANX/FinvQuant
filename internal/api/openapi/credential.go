@@ -64,7 +64,8 @@ type Credential struct {
 	CredentialExp *time.Time
 	ClientExp     *time.Time
 
-	clientEnable bool // 调用方 flag_enable（未导出，避免构造假凭证时漏填）
+	// ClientFlagEnable 调用方是否启用（flag_enable）；导出是为了随凭证快照一起缓存（需求 11212）。
+	ClientFlagEnable bool
 }
 
 // ScopeRule 授权范围条目（scope_str 数组元素）。
@@ -93,7 +94,7 @@ func (c *Credential) Active(now time.Time) (bool, string) {
 }
 
 // ClientEnable 调用方是否启用（读取时由 SQL 的 flag_enable 置位）。
-func (c *Credential) ClientEnable() bool { return c.clientEnable }
+func (c *Credential) ClientEnable() bool { return c.ClientFlagEnable }
 
 // AllowIP 判定来源 IP 是否通过白名单（调用方级 ∩ 凭证级；两边都为空表示不限）。
 func (c *Credential) AllowIP(ip net.IP) bool {
@@ -254,7 +255,7 @@ func (s *PGSource) queryOne(ctx context.Context, query string, arg any) (*Creden
 
 	credential.FlagEnable = credFlagEnable == "1"
 	credential.FlagRevoke = credFlagRevoke == "1"
-	credential.clientEnable = clientFlagEnab == "1"
+	credential.ClientFlagEnable = clientFlagEnab == "1"
 	credential.ParentFlagEnable = parentFlagEnab == "1"
 	credential.ParentFlagRevoke = parentFlagRevok == "1"
 	credential.Scope, credential.ScopeBroken = parseScope(scopeJSON)

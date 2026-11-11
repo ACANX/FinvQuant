@@ -225,6 +225,9 @@ X-META-Token: SST_LIVE_…
 | STS 兑换凭证调业务接口 | 拒绝：只能用兑换凭证换三要素 |
 | STS 临时凭据调 `STS/Issue` | 拒绝：临时凭据不能再换证 |
 
+凭证读取结果在服务端缓存 10 秒（`finv:openapi:cred:<版本号>:<AK>`，见 `Admin.md §5.6`）：
+平台侧的吊销/停用/轮换会立即让缓存失效，直接改库则最长 10 秒后生效。
+
 审计：`auth_mode='STS'`、`credential_idn` = 本次使用的凭证行（临时凭据记它自己）、`kfp` = 本次 AK 指纹、
 `tfp` = SecurityToken 指纹（兑换凭证为空）；列表里「本次凭证」「父凭证（STS 来源）」两列可直接看出派生关系。
 

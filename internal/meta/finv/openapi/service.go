@@ -16,10 +16,29 @@ import (
 // Service 「OpenAPI 调用方管理」服务。
 type Service struct {
 	store *Store
+	cache CacheInvalidator
 }
 
 // NewService 创建服务。
 func NewService(store *Store) *Service { return &Service{store: store} }
+
+// CacheInvalidator 凭证/调用方发生写操作后，让鉴权侧的凭证缓存立即失效（需求 11212）。
+//
+// 接口放在本包、实现放在 api 层（Redis 版本号），避免 meta 层反向依赖 api 层。
+type CacheInvalidator interface {
+	InvalidateCredentials(ctx context.Context) error
+}
+
+// SetCacheInvalidator 注入缓存失效器；未注入时缓存只靠 TTL 自然过期。
+func (s *Service) SetCacheInvalidator(invalidator CacheInvalidator) { s.cache = invalidator }
+
+// invalidateCache 写完凭证/调用方后调用；失败不影响业务结果（下次 TTL 到期也会生效）。
+func (s *Service) invalidateCache(ctx context.Context) {
+	if s.cache == nil {
+		return
+	}
+	_ = s.cache.InvalidateCredentials(ctx)
+}
 
 // Settings 读鉴权配置（不含密钥明文）。
 func (s *Service) Settings(ctx context.Context) (SettingsView, error) {
@@ -91,6 +110,7 @@ func (s *Service) SaveClient(ctx context.Context, req ClientRequest, operator st
 			}
 			return Client{}, err
 		}
+		s.invalidateCache(ctx)
 		return client, nil
 	}
 	client, err := s.store.UpdateClient(ctx, validated, operator)
@@ -103,6 +123,7 @@ func (s *Service) SaveClient(ctx context.Context, req ClientRequest, operator st
 		}
 		return Client{}, err
 	}
+	s.invalidateCache(ctx)
 	return client, nil
 }
 
@@ -115,7 +136,11 @@ func (s *Service) SetClientEnable(ctx context.Context, idn int64, enable bool, o
 	if errors.Is(err, ErrNotFound) {
 		return Client{}, fmt.Errorf("%w: 调用方 %d 不存在", ErrNotFound, idn)
 	}
-	return client, err
+	if err != nil {
+		return Client{}, err
+	}
+	s.invalidateCache(ctx)
+	return client, nil
 }
 
 // CredentialPage 分页查询凭证。
@@ -168,6 +193,7 @@ func (s *Service) CreateCredential(ctx context.Context, req CredentialCreateRequ
 	if err != nil {
 		return IssuedSecret{}, err
 	}
+	s.invalidateCache(ctx)
 	return IssuedSecret{
 		Credential: credential,
 		AccessKey:  issued.AccessKey,
@@ -223,7 +249,11 @@ func (s *Service) SetCredentialEnable(ctx context.Context, idn int64, enable boo
 	if errors.Is(err, ErrNotFound) {
 		return Credential{}, fmt.Errorf("%w: 凭证 %d 不存在", ErrNotFound, idn)
 	}
-	return credential, err
+	if err != nil {
+		return Credential{}, err
+	}
+	s.invalidateCache(ctx)
+	return credential, nil
 }
 
 // RevokeCredential 吊销凭证（原因必填，不可恢复）。
@@ -242,7 +272,11 @@ func (s *Service) RevokeCredential(ctx context.Context, idn int64, reason, opera
 	if errors.Is(err, ErrNotFound) {
 		return Credential{}, fmt.Errorf("%w: 凭证 %d 不存在", ErrNotFound, idn)
 	}
-	return credential, err
+	if err != nil {
+		return Credential{}, err
+	}
+	s.invalidateCache(ctx)
+	return credential, nil
 }
 
 // InvokeLogPage 分页查询调用审计。

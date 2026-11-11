@@ -196,7 +196,10 @@ func NewRouter(deps *Deps) *gin.Engine {
 
 			// OpenAPI 调用方管理（需求 11169）：调用方 / 凭证 / 调用审计 + 鉴权开关。
 			// 只操作 open schema 与 sys_config 19xxx，不碰行情业务表。
-			openAPIAdmin := handler.NewOpenAPIAdmin(openapiSvc.NewService(openapiSvc.NewStore(deps.Pool)))
+			openAPIService := openapiSvc.NewService(openapiSvc.NewStore(deps.Pool))
+			// 凭证变更后让鉴权侧的 Redis 缓存立即失效（需求 11212：吊销/停用不用等 TTL）
+			openAPIService.SetCacheInvalidator(openapi.NewCacheInvalidator(deps.Redis))
+			openAPIAdmin := handler.NewOpenAPIAdmin(openAPIService)
 			openAPIGroup := apiGroup.Group("/Meta/Finv/OpenAPI")
 			openAPIGroup.GET("/Secret/Status", openAPIAdmin.SecretStatus)
 			openAPIGroup.POST("/Secret/Save", openAPIAdmin.SaveSecret)

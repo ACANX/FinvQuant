@@ -286,6 +286,22 @@
 - 同时重置 `dt_last_use` / `count_use`，写 `dt_secret_rotate`；
 - 响应结构同签发（`access_key` / `secret_key` 为新密钥，只显示一次）。
 
+### 5.6 鉴权缓存（需求 11212）
+
+鉴权时读取凭证走 Redis 缓存，避免每个外部请求都查一次 `open.open_api_credential`：
+
+```
+finv:openapi:credver            → 全局版本号（整数）
+finv:openapi:cred:<ver>:<AK>    → 凭证快照 JSON，TTL 10 秒
+```
+
+- **通过平台**（页面或管理接口）签发、轮换、吊销、停用凭证，或改动调用方额度/白名单，
+  服务层都会把版本号 `INCR` 一次——旧版本的键再也不被读取，**立即生效**，不需要等 TTL。
+- 单条快照 TTL 10 秒只是兜底：**绕过平台直接改库**（`psql UPDATE`）时最长 10 秒后生效；
+  紧急场景可手工 `redis-cli INCR finv:openapi:credver` 让其立刻生效。
+- 缓存里存的是 SK **密文**（与库里同级别）与状态字段，不含任何明文密钥。
+- Redis 不可用时缓存层直接回源查库：缓存是性能优化，不是正确性依赖。
+
 ## 6. 调用审计
 
 ### GET `/InvokeLog/Page?clientId=&credentialId=&accessKey=&flagPass=&reasonCode=&dtFrom=&dtTo=&page=&pageSize=`

@@ -293,7 +293,7 @@ func tsURL(path string) string {
 func staticCredential(key string) *Credential {
 	return &Credential{
 		IDN: 1, ClientIDN: 1, CredentialNo: "cred-1", AuthMode: AuthModeAPIKey,
-		AccessKeyID: key, SecretHash: HashStaticKey(key), FlagEnable: true, clientEnable: true,
+		AccessKeyID: key, SecretHash: HashStaticKey(key), FlagEnable: true, ClientFlagEnable: true,
 		// 静态 Key 必须恰好授权 1 个接口（需求 11188）
 		Scope: []ScopeRule{{Method: "*", Path: "/OpenAPI/V1/Test"}},
 	}
@@ -308,7 +308,7 @@ func akskCredential(t *testing.T, ak, sk string, key []byte) *Credential {
 	return &Credential{
 		IDN: 2, ClientIDN: 1, CredentialNo: "cred-2", AuthMode: AuthModeAKSK,
 		AccessKeyID: ak, SecretCipher: cipherText, SignAlgorithm: "HMAC-SHA256",
-		FlagEnable: true, clientEnable: true,
+		FlagEnable: true, ClientFlagEnable: true,
 	}
 }
 
@@ -594,7 +594,7 @@ func TestAuditMasksStaticKey(t *testing.T) {
 	key := "SA_LIVE_0123456789ABCDEF0123456789ABCDEF"
 	credential := &Credential{
 		IDN: 1, ClientIDN: 1, AuthMode: AuthModeAPIKey, AccessKeyID: key,
-		SecretHash: HashStaticKey(key), FlagEnable: true, clientEnable: true,
+		SecretHash: HashStaticKey(key), FlagEnable: true, ClientFlagEnable: true,
 		Scope: []ScopeRule{{Method: "*", Path: "/OpenAPI/V1/Test"}},
 	}
 	engine, _ := newTestEngine(t, Options{
@@ -1043,7 +1043,7 @@ func TestMiddlewareStsRejectsRevokedParent(t *testing.T) {
 		ParentFound: true, ParentFlagEnable: false, ParentFlagRevoke: true,
 		AccessKeyID: "SAK_LIVE_TEMP", SignAlgorithm: "HMAC-SHA256",
 		TokenFP: TokenFingerprint(token), SecretCipher: "unused",
-		FlagEnable: true, clientEnable: true,
+		FlagEnable: true, ClientFlagEnable: true,
 		Scope: []ScopeRule{{Method: "*", Path: "/OpenAPI/V1/Test"}},
 	}
 	parentRevoked.IDN = 900 + 1
