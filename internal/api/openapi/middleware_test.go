@@ -612,13 +612,13 @@ func TestAuditMasksStaticKey(t *testing.T) {
 	}
 }
 
-// TestMaskKeyDistinguishes 掩码必须能区分不同密钥（需求 11183）：
-// 「跳前缀 + 随机段前 4 + 后 4」= 8 位十六进制区分度，而不是只剩后 4 位。
+// TestMaskKeyDistinguishes 掩码必须能区分不同密钥（需求 11183、11184）：
+// 「跳前缀 + 随机段前 8 + 后 8」= 16 位十六进制区分度，而不是只剩后 4 位。
 func TestMaskKeyDistinguishes(t *testing.T) {
 	cases := []struct{ in, want string }{
-		{"SA_LIVE_0123456789ABCDEF0123456789ABCDEF", "SA_LIVE_0123***CDEF"},
-		{"AK_LIVE_7A01139C5571D46EDEFF2DB63C9F0E45", "AK_LIVE_7A01***0E45"},
-		// 无前缀的历史/自定义密钥：仍按前 4 后 4 脱敏
+		{"SA_LIVE_0123456789ABCDEF0123456789ABCDEF", "SA_LIVE_01234567***89ABCDEF"},
+		{"AK_LIVE_7A01139C5571D46EDEFF2DB63C9F0E45", "AK_LIVE_7A01139C***3C9F0E45"},
+		// 随机段恰为 16 位：前 8+后 8 会覆盖整串，退化为前 4 后 4
 		{"0123456789ABCDEF", "0123***CDEF"},
 		// 过短直接全掩
 		{"SA_LIVE_AB", "SA_LIVE_***"},

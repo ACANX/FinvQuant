@@ -389,11 +389,12 @@ func bearerToken(header string) string {
 // 只剩后 4 位可区分（SA_LIVE_ + 32 hex 场景下所有 Key 前 8 位完全相同）。
 var keyPrefixes = []string{"SA_LIVE_", "AK_LIVE_", "SK_LIVE_", "FK_LIVE_"}
 
-// maskKey 脱敏展示密钥，供审计用人眼核对（需求 11183）。
+// maskKey 脱敏展示密钥，供审计用人眼核对（需求 11183、11184）。
 //
-// 形态：<前缀><随机段前 4>***<后 4>，如 SA_LIVE_C48A***84AF。
-// 跳过固定前缀后保留 8 位十六进制，足以区分不同 Key（含同一凭证轮换前后的 Key）；
-// 完整密钥不可从掩码反推，日志/备份导出不含明文。
+// 形态：<前缀><随机段前 8>***<后 8>，如 SA_LIVE_C48AABCD***EADE84AF。
+// 跳过固定前缀后保留 16 位十六进制（16^16 量级），既能区分不同 Key、也能区分
+// 同一凭证轮换前后的两把 Key；完整密钥不可反推，日志/备份导出不含明文。
+// 随机段 ≤16 位时退化为「前 4 + *** + 后 4」，避免整串（前 8+后 8 即全长）外露。
 func maskKey(key string) string {
 	key = strings.TrimSpace(key)
 	prefix := ""
@@ -403,10 +404,15 @@ func maskKey(key string) string {
 			break
 		}
 	}
-	if len(key) <= 8 {
+	switch {
+	case len(key) <= 8:
 		return prefix + "***"
+	case len(key) <= 16:
+		// 太短：前 8 + 后 8 会覆盖整串，退化为前 4 后 4
+		return prefix + key[:4] + "***" + key[len(key)-4:]
+	default:
+		return prefix + key[:8] + "***" + key[len(key)-8:]
 	}
-	return prefix + key[:4] + "***" + key[len(key)-4:]
 }
 
 // CredentialFrom 从上下文取凭证（handler 可用）。
