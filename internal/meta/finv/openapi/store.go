@@ -694,7 +694,7 @@ func (s *Store) InvokeLogPage(ctx context.Context, filter InvokeLogFilter) ([]In
 // 本表是「接口目录 + 元数据」，不是鉴权白名单：允许调哪些接口由代码里的路由注册决定。
 // 页面只用它做三件事：列清单、切 flag_public / flag_enable、给授权范围下拉提供可选项。
 const selectEndpointSQL = `
-SELECT e.idn, e.api_code, e.http_method, e.path, e.api_name, COALESCE(e.api_group, ''),
+SELECT e.idn, e.api_code, e.catalog, e.func, e.http_method, e.path, e.api_name, COALESCE(e.api_group, ''),
        e.flag_write, e.flag_public, e.flag_enable,
        COALESCE(to_char(e.dt_deprecate, 'YYYY-MM-DD"T"HH24:MI:SSOF'), ''),
        COALESCE(e.remark, ''),
@@ -715,6 +715,10 @@ func (s *Store) EndpointPage(ctx context.Context, filter EndpointFilter) ([]Endp
 		conditions = append(conditions, fmt.Sprintf(
 			`(e.api_code ILIKE $%d OR e.path ILIKE $%d OR e.api_name ILIKE $%d)`,
 			len(args), len(args), len(args)))
+	}
+	if catalog := strings.TrimSpace(filter.Catalog); catalog != "" {
+		args = append(args, catalog)
+		conditions = append(conditions, fmt.Sprintf(`e.catalog = $%d`, len(args)))
 	}
 	if group := strings.TrimSpace(filter.APIGroup); group != "" {
 		args = append(args, group)
@@ -741,7 +745,7 @@ func (s *Store) EndpointPage(ctx context.Context, filter EndpointFilter) ([]Endp
 
 	args = append(args, filter.PageSize, (filter.Page-1)*filter.PageSize)
 	rows, err := s.pool.Query(ctx, selectEndpointSQL+where+
-		fmt.Sprintf(` ORDER BY COALESCE(e.api_group, ''), e.api_code LIMIT $%d OFFSET $%d`,
+		fmt.Sprintf(` ORDER BY e.catalog, e.func LIMIT $%d OFFSET $%d`,
 			len(args)-1, len(args)), args...)
 	if err != nil {
 		return nil, 0, err
@@ -751,8 +755,8 @@ func (s *Store) EndpointPage(ctx context.Context, filter EndpointFilter) ([]Endp
 	list := make([]Endpoint, 0, filter.PageSize)
 	for rows.Next() {
 		item := Endpoint{}
-		if err := rows.Scan(&item.IDN, &item.APICode, &item.HTTPMethod, &item.Path, &item.APIName,
-			&item.APIGroup, &item.FlagWrite, &item.FlagPublic, &item.FlagEnable,
+		if err := rows.Scan(&item.IDN, &item.APICode, &item.Catalog, &item.Func, &item.HTTPMethod, &item.Path,
+			&item.APIName, &item.APIGroup, &item.FlagWrite, &item.FlagPublic, &item.FlagEnable,
 			&item.DTDeprecate, &item.Remark, &item.GMTUpdate, &item.CountGrant); err != nil {
 			return nil, 0, err
 		}
@@ -768,7 +772,7 @@ func (s *Store) EndpointOptions(ctx context.Context) ([]Endpoint, error) {
 	}
 	rows, err := s.pool.Query(ctx, selectEndpointSQL+`
  WHERE e.flag_public = '1' AND e.flag_enable = '1' AND e.dt_deprecate IS NULL
- ORDER BY COALESCE(e.api_group, ''), e.api_code`)
+ ORDER BY e.catalog, e.func`)
 	if err != nil {
 		return nil, err
 	}
@@ -777,8 +781,8 @@ func (s *Store) EndpointOptions(ctx context.Context) ([]Endpoint, error) {
 	list := make([]Endpoint, 0, 16)
 	for rows.Next() {
 		item := Endpoint{}
-		if err := rows.Scan(&item.IDN, &item.APICode, &item.HTTPMethod, &item.Path, &item.APIName,
-			&item.APIGroup, &item.FlagWrite, &item.FlagPublic, &item.FlagEnable,
+		if err := rows.Scan(&item.IDN, &item.APICode, &item.Catalog, &item.Func, &item.HTTPMethod, &item.Path,
+			&item.APIName, &item.APIGroup, &item.FlagWrite, &item.FlagPublic, &item.FlagEnable,
 			&item.DTDeprecate, &item.Remark, &item.GMTUpdate, &item.CountGrant); err != nil {
 			return nil, err
 		}
@@ -823,8 +827,8 @@ func (s *Store) EndpointByID(ctx context.Context, idn int64) (Endpoint, error) {
 	}
 	item := Endpoint{}
 	err := s.pool.QueryRow(ctx, selectEndpointSQL+` WHERE e.idn = $1`, idn).Scan(
-		&item.IDN, &item.APICode, &item.HTTPMethod, &item.Path, &item.APIName,
-		&item.APIGroup, &item.FlagWrite, &item.FlagPublic, &item.FlagEnable,
+		&item.IDN, &item.APICode, &item.Catalog, &item.Func, &item.HTTPMethod, &item.Path,
+		&item.APIName, &item.APIGroup, &item.FlagWrite, &item.FlagPublic, &item.FlagEnable,
 		&item.DTDeprecate, &item.Remark, &item.GMTUpdate, &item.CountGrant)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Endpoint{}, ErrNotFound

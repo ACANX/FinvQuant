@@ -268,6 +268,7 @@ func (h *OpenAPIAdmin) RotateCredential(c *gin.Context) {
 func (h *OpenAPIAdmin) EndpointPage(c *gin.Context) {
 	list, total, err := h.service.EndpointPage(c.Request.Context(), openapisvc.EndpointFilter{
 		Keyword:    c.Query("keyword"),
+		Catalog:    c.Query("catalog"),
 		APIGroup:   c.Query("apiGroup"),
 		FlagPublic: c.Query("flagPublic"),
 		FlagEnable: c.Query("flagEnable"),

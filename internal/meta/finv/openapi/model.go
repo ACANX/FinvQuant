@@ -178,8 +178,12 @@ type IssuedSecret struct {
 // 定位：**接口目录 + 元数据，不是鉴权白名单**——允许调哪些接口由代码里的路由注册决定，
 // 本表只给「授权范围下拉」与「审计报表」提供稳定锚点（api_code 在路径改名后仍不变）。
 type Endpoint struct {
-	IDN         int64  `json:"idn"`
-	APICode     string `json:"api_code"`
+	IDN     int64  `json:"idn"`
+	APICode string `json:"api_code"`
+	// Catalog / Func 是 api_code 的派生结构（需求 11238）：最后一个点之前 = 目录、之后 = 功能点。
+	// 两者由生成列算好，`catalog + "." + func = api_code` 恒成立。
+	Catalog     string `json:"catalog"`
+	Func        string `json:"func"`
 	HTTPMethod  string `json:"http_method"`
 	Path        string `json:"path"`
 	APIName     string `json:"api_name"`
@@ -205,6 +209,7 @@ type CredentialScopeRequest struct {
 // EndpointFilter 接口清单查询条件。
 type EndpointFilter struct {
 	Keyword    string
+	Catalog    string
 	APIGroup   string
 	FlagPublic string
 	FlagEnable string

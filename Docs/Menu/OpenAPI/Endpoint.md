@@ -39,12 +39,34 @@
 `open.auth` = 开放平台自身的鉴权接口（与 `open` schema、路径里的 `Meta/Open` 对齐），
 其后按「模块.资源.动作」——如 `open.auth.credential.sts.issue`（`credential` 段与表 `open_api_credential` 对应）。
 
+## 2.2 catalog / func 的派生规则（需求 11238）
+
+两列是**生成列**（`GENERATED ALWAYS AS … STORED`），由 `api_code` 按「最后一个点」切分，**不可显式写入**：
+
+```
+api_code                                 catalog                    func
+finv.quote.cdeu.min.pageuni          →   finv.quote.cdeu.min        pageuni
+finv.quote.cdeu.min.upsert           →   finv.quote.cdeu.min        upsert
+finv.quote.cdeu.realtime.ftstockupsert → finv.quote.cdeu.realtime   ftstockupsert
+open.auth.credential.sts.issue       →   open.auth.credential.sts   issue
+```
+
+恒等式：`catalog || '.' || func = api_code`（迁移末尾断言这条）。
+
+为什么用生成列而不是普通列：这两列是纯派生值，做成普通列就得靠每条 INSERT/UPDATE 手工同步，
+接口清单本来就要靠人维护，再叠一层「忘了同步」的漂移没必要；生成列让不一致在结构上不可能出现。
+（与 `usc_lower`、`ftmm_symbol` 同规则：**生成列禁止显式写入**，写了 PostgreSQL 直接报错。）
+
+用途：页面按「目录」分组/筛选；`Endpoint/Options` 也按 `catalog, func` 排序，授权范围下拉自然按目录聚集。
+
 ## 3. 列说明
 
 | 列 | 字段 | 口径 |
 |---|---|---|
 | IDN | `idn` | 自增主键 |
 | 接口编码 | `api_code` | **点分小写**，按「业务域.模块.动作」分段（行情类如 `finv.quote.cdeu.min.pageuni`、开放平台鉴权类如 `open.auth.credential.sts.issue`）；路径改名后编码不变，报表/套餐/限额靠它锚定 |
+| 目录 | `catalog` | 接口编码**最后一个点之前**的部分（如 `finv.quote.cdeu.min`）；生成列，由 `api_code` 派生 |
+| 功能 | `func` | 接口编码**最后一个点之后**的部分（如 `pageuni`、`ftstockupsert`）；生成列，由 `api_code` 派生 |
 | 方法 | `http_method` | GET / POST / …（只登记真实方法，不含 `*`） |
 | 路径 | `path` | 含 `/OpenAPI/V1` 前缀，与授权范围、审计表同口径 |
 | 中文名 | `api_name` | 下拉与报表展示用 |
@@ -90,7 +112,9 @@
 | 列 | 默认 | 最小 | 说明 |
 |---|---|---|---|
 | IDN | 70 | 50 | |
-| 接口编码 | 200 | 130 | 最长 38 字符（`finv.quote.cdeu.realtime.ftstockupsert`） |
+| 接口编码 | 230 | 140 | 最长 38 字符（`finv.quote.cdeu.realtime.ftstockupsert`） |
+| 目录 | 180 | 120 | 编码去掉最后一段，最长 24 字符 |
+| 功能 | 130 | 90 | 编码最后一段 |
 | 方法 | 80 | 60 | |
 | 路径 | 360 | 160 | 等宽字体；放不下出省略号，点 ⓘ 看全文 |
 | 中文名 | 160 | 110 | 放不下出省略号，悬停 `title` 看全名 |

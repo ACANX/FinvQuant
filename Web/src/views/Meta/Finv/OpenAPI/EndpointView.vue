@@ -18,6 +18,8 @@ import { OPENAPI_BASE as BASE, timeText } from './shared'
 interface EndpointRow {
   idn: number
   api_code: string
+  catalog: string
+  func: string
   http_method: string
   path: string
   api_name: string
@@ -34,6 +36,8 @@ interface EndpointRow {
 const rows = ref<EndpointRow[]>([])
 const total = ref(0)
 const keyword = ref('')
+const catalog = ref('')
+const catalogOptions = ref<{ title: string; value: string }[]>([{ title: '全部目录', value: '' }])
 const apiGroup = ref('')
 const flagPublic = ref('')
 const page = ref(1)
@@ -56,6 +60,7 @@ async function load() {
   try {
     const params = new URLSearchParams({ page: String(page.value), pageSize: String(pageSize.value) })
     if (keyword.value.trim()) params.set('keyword', keyword.value.trim())
+    if (catalog.value) params.set('catalog', catalog.value)
     if (apiGroup.value) params.set('apiGroup', apiGroup.value)
     if (flagPublic.value) params.set('flagPublic', flagPublic.value)
     const data = await apiGet<{ total: number; list: EndpointRow[] }>(
@@ -63,6 +68,13 @@ async function load() {
     )
     rows.value = data.list ?? []
     total.value = data.total ?? 0
+    const catalogs = new Set((data.list ?? []).map((row) => row.catalog).filter(Boolean))
+    if (catalogs.size > 0) {
+      catalogOptions.value = [
+        { title: '全部目录', value: '' },
+        ...[...catalogs].map((item) => ({ title: item, value: item })),
+      ]
+    }
     const groups = new Set((data.list ?? []).map((row) => row.api_group).filter(Boolean))
     if (groups.size > 0) {
       groupOptions.value = [
@@ -92,7 +104,9 @@ interface Column {
 
 const COLUMNS: Column[] = [
   { key: 'idn', title: 'IDN', width: 70, min: 50 },
-  { key: 'api_code', title: '接口编码', width: 200, min: 130 },
+  { key: 'api_code', title: '接口编码', width: 230, min: 140 },
+  { key: 'catalog', title: '目录', width: 180, min: 120 },
+  { key: 'func', title: '功能', width: 130, min: 90 },
   { key: 'http_method', title: '方法', width: 80, min: 60 },
   { key: 'path', title: '路径', width: 360, min: 160 },
   { key: 'api_name', title: '中文名', width: 160, min: 110 },
@@ -245,6 +259,18 @@ onMounted(() => {
             @keyup.enter="page = 1; load()"
           />
           <v-select
+            v-model="catalog"
+            :items="catalogOptions"
+            item-title="title"
+            item-value="value"
+            :return-object="false"
+            label="目录"
+            density="compact"
+            hide-details
+            style="min-width: 190px; max-width: 240px"
+            @update:model-value="catalog = String($event); page = 1; load()"
+          />
+          <v-select
             v-model="apiGroup"
             :items="groupOptions"
             item-title="title"
@@ -311,6 +337,8 @@ onMounted(() => {
                     ]"
                   />
                 </td>
+                <td class="cell-ellipsis" :title="row.catalog"><code>{{ row.catalog }}</code></td>
+                <td class="cell-ellipsis" :title="row.func"><code>{{ row.func }}</code></td>
                 <td class="cell-nowrap">
                   <v-chip size="x-small" variant="tonal" :color="row.flag_write === '1' ? 'warning' : 'info'">
                     {{ row.http_method }}
@@ -394,7 +422,12 @@ onMounted(() => {
           <code>_</code>（毫秒时间戳，±60 秒），否则 <code>19006</code>。
         </p>
         <p>
-          ⑤ <strong>已授权凭证</strong>：当前有多少个凭证的授权范围里包含这个接口（来自
+          ⑤ <strong>目录 / 功能</strong>：由接口编码自动切分——<code>catalog</code> 是编码<strong>最后一个点之前</strong>的部分、
+          <code>func</code> 是<strong>最后一个点之后</strong>的部分（如 <code>finv.quote.cdeu.min</code> + <code>pageuni</code>）。
+          两者是生成列，由 <code>api_code</code> 派生、<strong>不可手工写入</strong>，因此永远能拼回编码。
+        </p>
+        <p>
+          ⑥ <strong>已授权凭证</strong>：当前有多少个凭证的授权范围里包含这个接口（来自
           <code>open.open_api_credential_scope</code>；该表尚未接入读写，数值仅供参考）。
         </p>
       </v-card-text>

@@ -219,6 +219,15 @@
 
 ### 变更
 
+- **接口清单增加 catalog / func 两列（需求 11238，迁移 V300204）**
+  - 语义（用户定稿）：`catalog` = `api_code` 最后一个点**之前**的部分、`func` = 最后一个点**之后**的部分。
+  - 两列做成 **STORED 生成列**：它们是 `api_code` 的纯派生值（`catalog || '.' || func = api_code` 恒成立），
+    做成普通列就得靠每条 INSERT/UPDATE 手工同步；生成列让不一致在结构上不可能出现。
+    【红线】与 `usc_lower` / `ftmm_symbol` 同规则——**生成列禁止显式写入**（实测 `UPDATE … SET catalog='x'` 直接报错）。
+  - 接口清单页新增「目录」「功能」两列 + 「目录」筛选下拉；列宽默认值同步（接口编码 230 / 目录 180 / 功能 130）。
+  - `Endpoint/Page` 增 `catalog` 过滤参数，排序改为 `catalog, func`（按目录自然聚集）；`Endpoint/Options` 同序。
+  - 文档：`Menu/OpenAPI/Endpoint.md` 新增「catalog / func 的派生规则」小节、`Admin.md §8.1` 参数与响应示例同步。
+
 - **STS 换证接口编码补 credential 段（需求 11237，迁移 V300203）**
   - `open.auth.sts.issue` → `open.auth.credential.sts.issue`：统一为「业务域.模块.资源.动作」层级，
     补上 `credential` 资源段（与表 `open_api_credential`、页面「OpenAPI 凭证」对应）。
