@@ -85,9 +85,9 @@ type helloClient struct {
 	// AccessKeyID 公开标识，形态与审计表 access_key_id 一致：
 	// APIKEY 为脱敏形态（前缀 + 前8 + 等量星号 + 后8）、AKSK 为 AK 明文、STS 为临时 AK。
 	AccessKeyID string `json:"access_key_id"`
-	// KeyFP 密钥指纹，与审计表 kfp 同值：仅 APIKEY / STS 有值，
-	// AKSK 为空（AK 已明文记录，无需指纹区分，见 Admin.md §6.1）。
-	KeyFP string `json:"key_fp"`
+	// KFP 密钥指纹，字段名与审计表列名 `kfp` 完全一致（需求 11243），便于客户端与审计直接对账：
+	// 仅 APIKEY / STS 有值，AKSK 为空（AK 已明文记录，无需指纹区分，见 Admin.md §6.1）。
+	KFP string `json:"kfp"`
 	// ScopeCount 该凭证被授权的接口条数（0 = 不限接口）。
 	ScopeCount int `json:"scope_count"`
 	// ExpireAt 凭证到期时间（空 = 随调用方 / 长期）。
@@ -170,7 +170,7 @@ func (h *HelloHandler) Hello(c *gin.Context) {
 			CredentialNo:  credential.CredentialNo,
 			AuthMode:      credential.AuthMode,
 			AccessKeyID:   helloAccessKeyID(credential),
-			KeyFP:         helloKeyFingerprint(credential),
+			KFP:           helloKeyFingerprint(credential),
 			ScopeCount:    len(credential.Scope),
 			ExpireAt:      formatTimePtr(credential.CredentialExp),
 		},
@@ -233,7 +233,7 @@ func helloAccessKeyID(credential *Credential) string {
 	return credential.AccessKeyID
 }
 
-// helloKeyFingerprint 计算密钥指纹（与审计表 kfp 同算法同口径，便于两边对账）。
+// helloKeyFingerprint 计算密钥指纹（响应字段名 `kfp`，与审计表同列名同算法，便于两边对账）。
 //
 // 与审计一致：APIKEY / STS 写 kfp；AKSK 不写（AK 已明文，见 Admin.md §6.1）。
 func helloKeyFingerprint(credential *Credential) string {

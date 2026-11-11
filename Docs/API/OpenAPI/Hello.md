@@ -81,7 +81,7 @@ GET /OpenAPI/V1/Meta/Region/AZ/Server/Hello
       "credential_idn": 31, "credential_no": "DEMO-AKSK",
       "auth_mode": "AKSK",
       "access_key_id": "AK_LIVE_7A01139C5571D46EDEFF2DB63C9F0E45",
-      "key_fp": "",
+      "kfp": "",
       "scope_count": 2,
       "expire_at": ""
     },
@@ -114,7 +114,7 @@ GET /OpenAPI/V1/Meta/Region/AZ/Server/Hello
 | `server_time.unix` | 服务端当前 Unix 秒 | **校准本地时钟**：本地与它之差的绝对值应远小于 `clock_skew_seconds` |
 | `client.*` | 服务端认到的身份 | 与本地配置比对，确认 Key 没串、凭证号没搞错 |
 | `client.access_key_id` | 与审计表 `access_key_id` 同形态 | 静态 Key 是脱敏形态、AKSK 是 AK 明文、STS 是临时 AK |
-| `client.key_fp` | 与审计表 `kfp` 同值（`sha256(Key)` 前 16 位大写） | 只 `APIKEY` / `STS` 有值；`AKSK` 为空（AK 已明文） |
+| `client.kfp` | 密钥指纹（`sha256(Key)` 前 16 位大写），**字段名与审计表列名一致**（需求 11243），可直接与 `open_api_invoke_log.kfp` 对账 | 只 `APIKEY` / `STS` 有值；`AKSK` 为空（AK 已明文） |
 | `client.scope_count` | 该凭证被授权的接口条数，`0` = 不限接口 | 发现「我以为限制了其实没限制」 |
 | `capabilities.clock_skew_seconds` | 签名时间戳允许偏差（19002） | 超过就得先校时，否则业务接口会 `19006` |
 | `capabilities.auth_mode` | 19001 当前值（`0` 关闭 / `1` 强制 / `2` 宽松） | `2` 时失败放行，别误以为认证通过 |

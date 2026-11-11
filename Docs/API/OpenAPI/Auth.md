@@ -243,7 +243,7 @@ GET /OpenAPI/V1/Meta/Region/AZ/Server/Hello
 - **豁免授权范围校验**：凭证 `scope` 不需要包含本接口（它只回显身份与公开能力，无业务副作用）；
   其余校验（吊销/停用/过期、签名、时间窗、nonce、白名单、限流）照旧。
 - `STS` 兑换凭证不能握手（只能换证，需求 11210）。
-- 响应 `data.handshake = "ServerHello"` 才算成功；同时回 `client.*`（服务端认到的身份）、
+- 响应 `data.handshake = "ServerHello"` 才算成功；同时回 `client.*`（服务端认到的身份，含 `kfp` 指纹）、
   `server_time.unix`（校准时钟）、`capabilities`（时间窗 / 限流 / 换证规则）、`endpoints[]`（可用接口清单）。
 
 完整字段与示例见 [`Hello.md`](Hello.md)。

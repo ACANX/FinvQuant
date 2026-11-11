@@ -219,6 +219,11 @@
 
 ### 变更
 
+- **握手响应的指纹字段改名 kfp（需求 11243）**
+  - `data.client.key_fp` → `data.client.kfp`：字段名与审计表列名 `open_api_invoke_log.kfp` 一致，
+    客户端拿到响应后可以直接用同名字段去审计表对账，不必再做字段名映射。
+  - 取值口径不变：`sha256(完整 Key)` 前 16 位大写；`APIKEY` / `STS` 有值，`AKSK` 为空。
+
 - **新增握手端点 ClientHello / ServerHello（需求 11242，迁移 V300207）**
   - `GET /OpenAPI/V1/Meta/Region/AZ/Server/Hello`：客户端发 ClientHello（一次带认证的请求）→
     鉴权中间件校验通过 → 服务端回 ServerHello。用于「网络通 / 认证对 / 连对平台」三件事，
