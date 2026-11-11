@@ -19,10 +19,21 @@
   | 内部接口（`/API/V1/*`）错误信封与 `data.request_id` | **大写 UUID4**，36 字符带连字符（如 `0B0D1F2E-3A4C-5D6E-8F70-1A2B3C4D5E6F`） | `internal/api/handler.RequestID`（`strings.ToUpper(uuid.NewString())`） |
   | 对外 OpenAPI（`/OpenAPI/V1/*`）鉴权拒绝信封、响应头 `X-Request-Id`、审计表 `open.open_api_invoke_log.request_id` | **32 位大写十六进制**（如 `C620F2756DAC8F303D982603A7739D1F`） | `internal/api/openapi.newRequestID`（需求 11177） |
 
+- **响应头 `X-Request-Id`（单独约定，强制）**：
+  - 头名固定写 `X-Request-Id`（各段首字母大写、中间用连字符），不得写成 `X-Request-ID`、`X-RequestId` 等变体；
+  - **头值一律为大写十六进制**：服务端生成时固定 32 位（如 `7285C7E32383A768ADE7615BA81A197D`），禁止小写；
+  - 客户端可透传该头用于跨系统串联链路，但**只接受 8~64 位十六进制**并统一转大写；
+    其它形态（中文、带分隔符、超长、空）一律忽略并由服务端重新生成——既保证「值必为大写十六进制」，
+    也防止调用方污染审计或把多个请求伪造成同一个 ID；
+  - 回显范围：仅 `/OpenAPI/V1/*`（由 `internal/api/openapi` 中间件写响应头）；内部接口不返回该响应头，
+    排障以响应体里的 `request_id` 为准；
+  - 审计表 `open.open_api_invoke_log.request_id` **与响应头同值**，可据此一一对应。
 - 两个层级不要混淆：OpenAPI **成功**响应里的 `data.request_id` 由业务 handler 生成（大写 UUID4），
   而响应头 `X-Request-Id` 与审计表记录的是**网关层**的 32 位大写十六进制；排障时按需分别引用。
 - 审计与日志字段同理：`open.open_api_invoke_log.request_id`、`body_sha256` 一律大写十六进制。
-- 兜底测试：`internal/api/openapi` 的 `TestBodyHashAndRequestIDUppercase`、`internal/api/handler` 的请求 ID 用例。
+- 兜底测试：`internal/api/openapi` 的 `TestBodyHashAndRequestIDUppercase`、`TestResolveRequestID`、
+  `TestMiddlewareEchoesRequestIDUppercase`（透传小写被归一、非法值被忽略、回显恒为大写十六进制），
+  以及 `internal/api/handler` 的 `TestRequestIDUppercaseUUID`。
 - 自查命令（应无输出）：
 
   ```bash

@@ -108,10 +108,8 @@ func (m *Middleware) Handler() gin.HandlerFunc {
 			return
 		}
 
-		requestID := strings.TrimSpace(c.GetHeader(HeaderRequestID))
-		if requestID == "" {
-			requestID = newRequestID()
-		}
+		// 客户端可透传，但只接受 8~64 位十六进制并统一转大写；否则服务端生成（需求 11182）
+		requestID := resolveRequestID(c.GetHeader(HeaderRequestID))
 		c.Header(HeaderRequestID, requestID)
 		c.Set(ContextRequestIDKey, requestID)
 

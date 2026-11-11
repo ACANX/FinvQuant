@@ -219,6 +219,21 @@
 
 ### 变更
 
+- **规范补齐响应头 `X-Request-Id` 的约定，并修掉透传漏洞（需求 11182）**
+  - 原来 `ApiSpec` §1.0 只在形态表里顺带提到 `X-Request-Id`，正文没有独立约定；
+    实现上中间件又把客户端传来的 `X-Request-Id` **原样采用**回显并写审计——小写、带连字符甚至任意串都会落地，
+    「头值必为大写十六进制」实际并不成立，也给了调用方污染审计 / 把多个请求伪造成同一 ID 的空间。
+  - 规范（`Docs/DevSpec/ApiSpec.md` §1.0）新增「响应头 `X-Request-Id`（单独约定，强制）」：
+    头名固定 `X-Request-Id`；头值一律大写十六进制（服务端生成 32 位）；
+    客户端可透传但只接受 8~64 位十六进制并统一转大写，其它形态一律忽略并重新生成；
+    仅 `/OpenAPI/V1/*` 回显；审计表 `request_id` 与响应头同值。
+  - 实现：新增 `resolveRequestID`（`^[0-9A-Fa-f]{8,64}$` 校验 + `ToUpper`），中间件改用它替代原值直接采用。
+  - 测试：新增 `TestResolveRequestID`、`TestMiddlewareEchoesRequestIDUppercase`（小写透传被归一、非法值被忽略、
+    回显恒为大写十六进制）。
+  - 对外文档：`Docs/API/OpenAPI/Auth.md` 的失败响应段落补该口径。
+  - 实测：不传 → 32 位大写 hex；透传小写 → `ABCDEF0123456789`；传 `abc`/`ABCD-1234`/`ZZZZZZZZ` → 服务端重新生成；
+    审计表 `request_id` 与响应头一致。
+
 - **`request_id` 大写写进规范并修正示例（需求 11181）**
   - 规范：`Docs/DevSpec/ApiSpec.md` 新增 **§1.0「追踪 ID `request_id` 的大小写（强制）」**：
     所有响应中的 `request_id`（信封顶层与 `data` 内）一律大写、禁止小写；两种形态按生成入口区分——

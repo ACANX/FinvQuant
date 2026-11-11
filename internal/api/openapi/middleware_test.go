@@ -604,3 +604,64 @@ func TestAuditMasksStaticKey(t *testing.T) {
 		t.Fatalf("脱敏后长度应小于原值: %q", masked)
 	}
 }
+
+// TestResolveRequestID 追踪 ID 透传规则（需求 11182）：
+// 只接受 8~64 位十六进制并统一转大写，其它形态一律服务端重新生成。
+func TestResolveRequestID(t *testing.T) {
+	// 透传合法值：小写被归一为大写
+	if got := resolveRequestID("abcdef0123456789"); got != "ABCDEF0123456789" {
+		t.Fatalf("小写透传应转大写，实际 %q", got)
+	}
+	if got := resolveRequestID("  ABCDEF01  "); got != "ABCDEF01" {
+		t.Fatalf("应去掉首尾空白，实际 %q", got)
+	}
+	// 非法值：全部落回服务端生成的 32 位大写十六进制
+	for _, bad := range []string{"", "   ", "abc", "中文ID", "ABCD-1234",
+		"ZZZZZZZZ", strings.Repeat("A", 65)} {
+		got := resolveRequestID(bad)
+		if len(got) != 32 || got != strings.ToUpper(got) {
+			t.Fatalf("非法透传 %q 应回落到 32 位大写十六进制，实际 %q", bad, got)
+		}
+	}
+	// 生成结果每次不同（不会退化成常量）
+	if resolveRequestID("") == resolveRequestID("") {
+		t.Fatalf("服务端生成的 ID 应每次不同")
+	}
+}
+
+// TestMiddlewareEchoesRequestIDUppercase 响应头 X-Request-Id 的值恒为大写十六进制。
+func TestMiddlewareEchoesRequestIDUppercase(t *testing.T) {
+	// 用宽松模式：鉴权失败也继续，便于观察响应头
+	settings := enabledSettings(testKey())
+	settings.Mode = ModePermissive
+	engine, _ := newTestEngine(t, Options{Source: &fakeSource{}}, settings)
+
+	cases := []struct {
+		incoming string
+		want     string // 空表示「由服务端生成，只校验形态」
+	}{
+		{"abcdef0123456789", "ABCDEF0123456789"},
+		{"ABCDEF0123456789", "ABCDEF0123456789"},
+		{"bad-id-中文", ""},
+		{"", ""},
+	}
+	for _, c := range cases {
+		request := httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test", strings.NewReader("x"))
+		if c.incoming != "" {
+			request.Header.Set(HeaderRequestID, c.incoming)
+		}
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, request)
+
+		got := recorder.Header().Get(HeaderRequestID)
+		if c.want != "" && got != c.want {
+			t.Fatalf("透传 %q 应回显 %q，实际 %q", c.incoming, c.want, got)
+		}
+		if len(got) != len(c.incoming) && c.want != "" {
+			t.Fatalf("回显长度异常: %q", got)
+		}
+		if got != strings.ToUpper(got) || !requestIDPattern.MatchString(got) {
+			t.Fatalf("响应头值必须是大写十六进制，实际 %q", got)
+		}
+	}
+}

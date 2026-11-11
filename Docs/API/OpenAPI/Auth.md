@@ -140,6 +140,9 @@ signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 
 失败时 HTTP 状态码与业务码成对出现（`code` 为 `190xx`），并回显 `X-Request-Id`：
 
+> `X-Request-Id` 的值**一律为大写十六进制**（服务端生成 32 位）。客户端可透传该头用于链路串联，
+> 但只接受 8~64 位十六进制并统一转大写，其它形态会被忽略并重新生成；审计表 `request_id` 与它同值。
+
 ```json
 {
   "code": 19001,
