@@ -118,56 +118,57 @@ onMounted(load)
 
       <v-card-text>
         <div class="d-flex flex-column ga-4">
-          <div class="d-flex flex-wrap align-end ga-3">
-            <v-select
-              v-model="mode"
-              :items="MODE_OPTIONS"
-              item-title="title"
-              item-value="value"
-              label="鉴权模式（19001）"
-              density="compact"
-              variant="outlined"
-              style="min-width: 300px; max-width: 420px"
-              @update:model-value="mode = String($event)"
-            />
-            <v-text-field
-              v-model.number="windowSeconds"
-              type="number"
-              label="签名时间窗（秒，19002）"
-              density="compact"
-              variant="outlined"
-              min="30"
-              max="3600"
-              style="min-width: 200px; max-width: 240px"
-              :error="windowError !== ''"
-              :error-messages="windowError"
-            />
-            <v-text-field
-              v-model.number="retainDays"
-              type="number"
-              label="审计日志保留天数（19003）"
-              density="compact"
-              variant="outlined"
-              min="0"
-              max="3650"
-              style="min-width: 220px; max-width: 260px"
-              :error="retainError !== ''"
-              :error-messages="retainError"
-            />
-            <v-text-field
-              v-model.number="credCacheTTL"
-              type="number"
-              label="凭证缓存 TTL（秒，19007）"
-              density="compact"
-              variant="outlined"
-              min="0"
-              max="600"
-              style="min-width: 220px; max-width: 260px"
-              :error="credCacheError !== ''"
-              :error-messages="credCacheError"
-              hint="0 = 关闭缓存（每次查凭证表）"
-              persistent-hint
-            />
+          <!-- 一个字段一行（FE17）：横向并排会让标签与校验提示挤在一起 -->
+          <v-select
+            v-model="mode"
+            :items="MODE_OPTIONS"
+            item-title="title"
+            item-value="value"
+            label="鉴权模式（19001）"
+            density="compact"
+            variant="outlined"
+            class="settings-field"
+            @update:model-value="mode = String($event)"
+          />
+          <v-text-field
+            v-model.number="windowSeconds"
+            type="number"
+            label="签名时间窗（秒，19002）"
+            density="compact"
+            variant="outlined"
+            min="30"
+            max="3600"
+            class="settings-field"
+            :error="windowError !== ''"
+            :error-messages="windowError"
+          />
+          <v-text-field
+            v-model.number="retainDays"
+            type="number"
+            label="审计日志保留天数（19003）"
+            density="compact"
+            variant="outlined"
+            min="0"
+            max="3650"
+            class="settings-field"
+            :error="retainError !== ''"
+            :error-messages="retainError"
+          />
+          <v-text-field
+            v-model.number="credCacheTTL"
+            type="number"
+            label="凭证缓存 TTL（秒，19007）"
+            density="compact"
+            variant="outlined"
+            min="0"
+            max="600"
+            class="settings-field"
+            :error="credCacheError !== ''"
+            :error-messages="credCacheError"
+            hint="0 = 关闭缓存（每次查凭证表）"
+            persistent-hint
+          />
+          <div>
             <v-btn color="primary" prepend-icon="mdi-content-save" :loading="saving" :disabled="!canSave" @click="save">
               保存配置
             </v-btn>
@@ -240,5 +241,10 @@ onMounted(load)
 <style scoped>
 .openapi-page {
   padding: 16px;
+}
+
+/* 每个字段独占一行，宽度限制在可读区间（FE17：一个字段一行） */
+.settings-field {
+  max-width: 420px;
 }
 </style>

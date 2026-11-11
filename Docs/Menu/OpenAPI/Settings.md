@@ -45,3 +45,4 @@
 
 - 调用方：[`Client.md`](Client.md) · 凭证：[`Credential.md`](Credential.md) · 审计：[`InvokeLog.md`](InvokeLog.md)
 - 鉴权协议：[`../../API/OpenAPI/Auth.md`](../../API/OpenAPI/Auth.md)
+- 布局：每个配置项**独占一行**（宽度上限 420px），保存按钮单独一行；不横向并排。
