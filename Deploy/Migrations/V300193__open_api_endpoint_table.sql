@@ -4,9 +4,14 @@
 -- 需求：11220（建表 + 登记既有 4 个可调接口）。
 -- 授权依据：用户在 2026-11-11 会话中明确确认四项设计并批准落地：
 --   ① 表名 open.open_api_endpoint；
---   ② api_code 用「点分小写」（如 cdeu.min.pageuni）；
+--   ② api_code 用「点分小写」（如 finv.quote.cdeu.min.pageuni）；
 --   ③ path 含 `/OpenAPI/V1` 前缀（与 open_api_credential_scope.path_pattern、审计表 path 同口径）；
 --   ④ 本轮只建表 + 种子，不改读写代码（与 V300192 的节奏一致）。
+--
+-- 种子取值说明（需求 11241 收敛）：本文件直接写**最终编码与最终路径**。
+--   编码/路径在同一批次里调整过多次（原 V300199/300200/300201/300203 的连环改名、
+--   V300202 的路径迁移），已按「同一批次、尚未推送任何环境」的例外规则回改收敛到本文件；
+--   全新部署不再产生中间态，已有环境的路径与授权数据仍由 V300202 兜底修正。
 --
 -- 定位（**必须守住**）：
 --   本表是「接口目录 + 元数据」，**不是**鉴权白名单。
@@ -102,10 +107,10 @@ CREATE TRIGGER trg_open_api_endpoint_set_gmt_update
 -- 2. 种子：登记既有 4 个可调接口
 --
 -- 与 internal/api/router.go 的 openGroup 逐条对应：
---   openGroup.POST("/Meta/Finv/Quote/Cdeu/Min/Upsert")                → cdeu.min.upsert
---   openGroup.GET ("/Meta/Finv/Quote/Cdeu/Min/PageUni")               → cdeu.min.pageuni
---   openGroup.POST("/Meta/Auth/Credential/STS/Issue")                 → auth.sts.issue
---   openGroup.POST("/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert")    → cdeu.realtime.stockupsert
+--   openGroup.POST("/Meta/Finv/Quote/Cdeu/Min/Upsert")             → finv.quote.cdeu.min.upsert
+--   openGroup.GET ("/Meta/Finv/Quote/Cdeu/Min/PageUni")            → finv.quote.cdeu.min.pageuni
+--   openGroup.POST("/Meta/Open/Auth/Credential/STS/Issue")         → open.auth.credential.sts.issue
+--   openGroup.POST("/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert") → finv.quote.cdeu.realtime.ftstockupsert
 --     （最后一条仅在 deps.ExportArchive != nil 时注册；本表照常登记，是否可调由路由决定）
 --
 -- 3 条 DELETE 占位路由（11180）是「显式拒绝删除」，不是可调接口，不登记。
@@ -115,16 +120,16 @@ INSERT INTO open.open_api_endpoint
     (api_code, http_method, path, api_name, api_group, flag_write, flag_public, flag_enable,
      remark, create_by)
 VALUES
-    ('cdeu.min.pageuni', 'GET', '/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni',
+    ('finv.quote.cdeu.min.pageuni', 'GET', '/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni',
      '分钟行情分页查询', '分钟行情', '0', '1', '1',
      'router.go openGroup.GET；读接口，静态 Key 可直接调用', 'migrate'),
-    ('cdeu.min.upsert', 'POST', '/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert',
+    ('finv.quote.cdeu.min.upsert', 'POST', '/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert',
      '分钟行情批量写入', '分钟行情', '1', '1', '1',
      'router.go openGroup.POST；写接口，静态 Key 调用必须带查询参数 `_`（毫秒时间戳，±60 秒）', 'migrate'),
-    ('cdeu.realtime.stockupsert', 'POST', '/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert',
+    ('finv.quote.cdeu.realtime.ftstockupsert', 'POST', '/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert',
      '实时行情快照写入', '实时行情', '1', '1', '1',
      'router.go openGroup.POST（deps.ExportArchive 非空时注册）；写接口', 'migrate'),
-    ('auth.sts.issue', 'POST', '/OpenAPI/V1/Meta/Auth/Credential/STS/Issue',
+    ('open.auth.credential.sts.issue', 'POST', '/OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue',
      'STS 临时凭据换证', '鉴权', '0', '1', '1',
      'router.go openGroup.POST；只有 STS 兑换凭证（token_fp 为空）可调，AKSK 与临时凭据调用一律 403/19009（需求 11210）', 'migrate')
 ON CONFLICT DO NOTHING;
@@ -192,8 +197,8 @@ BEGIN
 
     -- 3.6 种子可查到（本脚本自己写的 4 条编码）
     SELECT count(*) INTO v_seed FROM open.open_api_endpoint
-     WHERE api_code IN ('cdeu.min.pageuni','cdeu.min.upsert',
-                        'cdeu.realtime.stockupsert','auth.sts.issue');
+     WHERE api_code IN ('finv.quote.cdeu.min.pageuni','finv.quote.cdeu.min.upsert',
+                        'finv.quote.cdeu.realtime.ftstockupsert','open.auth.credential.sts.issue');
     IF v_seed <> 4 THEN
         RAISE EXCEPTION 'V300193 校验失败：4 条种子接口应全部登记，实际只查到 %', v_seed;
     END IF;
