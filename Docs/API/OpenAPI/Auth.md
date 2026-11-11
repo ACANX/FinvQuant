@@ -231,7 +231,24 @@ X-META-Token: SST_LIVE_…
 审计：`auth_mode='STS'`、`credential_idn` = 本次使用的凭证行（临时凭据记它自己）、`kfp` = 本次 AK 指纹、
 `tfp` = SecurityToken 指纹（兑换凭证为空）；列表里「本次凭证」「父凭证（STS 来源）」两列可直接看出派生关系。
 
-## 4.9 未命中路径 / 方法时的响应（需求 11218）
+## 4.9 握手（ClientHello / ServerHello，需求 11242）
+
+对接前先握手，确认「网络通 / 认证对 / 连对平台」：
+
+```
+GET /OpenAPI/V1/Meta/Region/AZ/Server/Hello
+```
+
+- 三种认证方式都支持（`APIKEY` / `AKSK` / `STS` 三要素）；认证失败按 `190xx` 拒绝，握手不成立。
+- **豁免授权范围校验**：凭证 `scope` 不需要包含本接口（它只回显身份与公开能力，无业务副作用）；
+  其余校验（吊销/停用/过期、签名、时间窗、nonce、白名单、限流）照旧。
+- `STS` 兑换凭证不能握手（只能换证，需求 11210）。
+- 响应 `data.handshake = "ServerHello"` 才算成功；同时回 `client.*`（服务端认到的身份）、
+  `server_time.unix`（校准时钟）、`capabilities`（时间窗 / 限流 / 换证规则）、`endpoints[]`（可用接口清单）。
+
+完整字段与示例见 [`Hello.md`](Hello.md)。
+
+## 4.10 未命中路径 / 方法时的响应（需求 11218）
 
 `404 page not found` 这种 Gin 默认纯文本不再出现，两种情况都返回结构化 JSON：
 

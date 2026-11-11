@@ -219,6 +219,24 @@
 
 ### 变更
 
+- **新增握手端点 ClientHello / ServerHello（需求 11242，迁移 V300207）**
+  - `GET /OpenAPI/V1/Meta/Region/AZ/Server/Hello`：客户端发 ClientHello（一次带认证的请求）→
+    鉴权中间件校验通过 → 服务端回 ServerHello。用于「网络通 / 认证对 / 连对平台」三件事，
+    避免调用方把「业务接口 4xx」误判成网络问题。
+  - 响应：`handshake` / `protocol` / `server`（名称版本 commit AZ）/ `server_time`（供客户端校时）/
+    `client`（服务端认到的身份，`access_key_id` 与 `key_fp` 与审计同形态同值）/ `capabilities`
+    （签名算法、时间窗、19001 模式、限流配额、STS 换证路径与 TTL、`X-Request-Id` 头名）/
+    `endpoints[]`（公开+启用+未下线接口清单）。**不含任何密钥材料**。
+  - **豁免授权范围**（`middleware.scopeFreePaths`）：只验认证与连通性、无业务副作用；
+    若还要求 scope 包含它，「测连通性」就得先配授权，与握手语义冲突。其余校验（吊销/停用/过期、
+    凭证类型隔离、签名、时间窗、nonce、IP 白名单、限流）照旧。STS 兑换凭证仍只能换证，不能握手。
+  - `key_fp` 口径与审计 `kfp` 对齐：`APIKEY` / `STS` 有值、`AKSK` 为空（AK 已明文，见 Admin.md §6.1）——
+    初版对 AKSK 也算了指纹，与审计对不上，已按审计口径修正。
+  - 迁移 `V300207` 登记接口清单（`open.region.az.server.hello`，catalog/func/alias 均由生成列自动算出）。
+  - 文档：新增 `Docs/API/OpenAPI/Hello.md`（含客户端自检片段与失败对照表）、
+    `Auth.md §4.9`、`Admin.md` 接口清单、`Menu/OpenAPI/Endpoint.md §4.1`。
+  - Demo：新增握手用例（`demo_client.py`，现共 25 项）。
+
 - **收敛同批次迁移：接口清单种子直接写最终值（需求 11241）**
   - 前几轮把接口编码/路径反复调了几次，每次各加一条 UPDATE 迁移，导致全新部署要跑
     `V300193`（插旧值）→ `V300199/300200/300201/300203`（连环改名）→ `V300202`（改路径）的中间态。

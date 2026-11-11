@@ -34,6 +34,7 @@
 | 12 | GET | `/Endpoint/Page` | 接口清单分页（需求 11223） |
 | 13 | GET | `/Endpoint/Options` | 授权范围下拉可选项（公开 + 启用 + 未下线） |
 | 14 | POST | `/Endpoint/Flags` | 切换接口的 `flag_public` / `flag_enable` |
+| 15 | GET | `/Meta/Region/AZ/Server/Hello` | 对外握手（ClientHello → ServerHello，豁免授权范围，需求 11242） |
 
 ## 3. 鉴权配置
 

@@ -156,6 +156,12 @@ func NewRouter(deps *Deps) *gin.Engine {
 			openapi.NewSettingsStore(deps.Pool), openapi.NewStsStore(deps.Pool))
 		openGroup.POST("/Meta/Open/Auth/Credential/STS/Issue", stsHandler.Issue)
 
+		// 握手（需求 11242）：客户端发 ClientHello（带认证）、服务端回 ServerHello。
+		// 只验连通性与身份，无业务副作用；豁免授权范围校验（见 middleware 的 scopeFreePaths）。
+		helloHandler := openapi.NewHelloHandler(deps.Pool, openapi.NewSettingsStore(deps.Pool),
+			"finvquant", version.Version, version.Commit)
+		openGroup.GET("/Meta/Region/AZ/Server/Hello", helloHandler.Hello)
+
 		// DELETE 显式拒绝（需求 11180）：对外 OpenAPI 不提供删除能力。
 		// 注册成真实路由（而不是留给 404）有两个目的：
 		//   ① 删除类请求也会先过鉴权——无凭证照旧 19001，不会因为「方法不支持」而绕过鉴权被探测；

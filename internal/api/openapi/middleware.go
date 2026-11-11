@@ -177,9 +177,14 @@ func (m *Middleware) Handler() gin.HandlerFunc {
 			m.deny(c, settings, invocation, started, CodeScopeDeny, reason, nil)
 			return
 		}
-		// 兑换凭证的 scope_str 描述的是「派生出的临时凭据」的权限，不用来限制它自己——
+		// 兑换凭证的 scope 描述的是「派生出的临时凭据」的权限，不用来限制它自己——
 		// 它只能访问 StsIssuePath（上面已判定），若再按 scope 卡会与「授权范围给临时凭据用」的语义冲突。
-		if !IsStsExchange(credential) && !credential.InScope(c.Request.Method, c.Request.URL.Path) {
+		//
+		// 握手接口（需求 11242）也豁免授权范围：它只验认证与连通性、无副作用，
+		// 若要求凭证 scope 里显式包含 /Hello，"测连通性"就得先配授权，与握手语义冲突。
+		// 注意：豁免的只是**授权范围**，凭证类型隔离（上面）与吊销/停用/白名单校验照旧生效。
+		if !IsStsExchange(credential) && !scopeFreePath(c.Request.URL.Path) &&
+			!credential.InScope(c.Request.Method, c.Request.URL.Path) {
 			m.deny(c, settings, invocation, started, CodeScopeDeny, "接口不在授权范围内", nil)
 			return
 		}
@@ -499,6 +504,20 @@ func maskKey(key string) string {
 	default:
 		return prefix + key[:8] + strings.Repeat("*", len(key)-16) + key[len(key)-8:]
 	}
+}
+
+// scopeFreePaths 不参与授权范围校验的路径（需求 11242）。
+//
+// 目前只有握手接口：它只回显「服务端认到的身份」+ 能力清单，不读写业务数据，
+// 让任何通过认证的凭证都能用它做连通性自检。
+var scopeFreePaths = map[string]struct{}{
+	HelloPath: {},
+}
+
+// scopeFreePath 判断路径是否豁免授权范围校验。
+func scopeFreePath(path string) bool {
+	_, ok := scopeFreePaths[path]
+	return ok
 }
 
 // CredentialFrom 从上下文取凭证（handler 可用）。
