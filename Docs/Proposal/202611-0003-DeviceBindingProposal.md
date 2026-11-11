@@ -31,7 +31,7 @@
 |---|---|---|
 | 凭证是磁盘上的字符串 | 静态 Key / AK / SK 可被复制 | 从一台机器拷到另一台，平台看不出区别 |
 | 无设备维度 | 平台不记录"这把 Key 在哪台设备上用" | 泄露后无法定位泄露点 |
-| 审计只有被动信号 | 仅 `ip` / `user_agent`，均可伪造 | 事后追责只能靠猜 |
+| 审计只有被动信号 | 仅 `ip` 与 `user_agent`，均可伪造 | 事后追责只能靠猜 |
 
 目标：使「**拷走凭证文件**」不能在高安全操作上直接冒用。
 
@@ -43,7 +43,7 @@
 | 握手端点 | `GET /OpenAPI/V1/Meta/Region/AZ/Server/Hello` 已上线（需求 11242） |
 | 防重放 | nonce 存 Redis `finv:openapi:*`，已在用（需求 11188） |
 | 设备相关表 | **无**（`open` 域 5 张表：client / credential / credential_scope / endpoint / invoke_log） |
-| 设备信息采集 | 仅审计表 `ip` / `user_agent` |
+| 设备信息采集 | 仅审计表 `ip` 与 `user_agent` 两列 |
 
 ## 4. 已确认的设计
 
@@ -119,17 +119,23 @@
 
 | 字段 | 可信度 | 用途 |
 |---|---|---|
-| 公钥（Keystore 生成） | **高**（能证明持有私钥） | 认证因子 |
-| `install_id`（客户端生成 UUID） | 中（配合签名后不可抵赖） | 识别"同设备重装" |
-| 型号 / OS / OS 版本 / 架构 / App 版本 | **低**（自报，可伪造） | 仅展示、风控信号、审计 |
-| IMEI / MAC / 序列号 / Android ID | **中**（客户端自报，root/改机可伪造；但配合公钥签名后可用于唯一性判定与人审） | 设备唯一性识别、审批时人工核对、事后追责 |
-| 客户端取不到的字段 | — | 传空串 + 在 `id_missing` 里标出缺了哪几项；**不得**因缺字段让接口报错 |
+| `pubkey` | **高**（能证明持有私钥） | 认证因子 |
+| `install_id` | 中（配合签名后不可抵赖） | 识别"同设备重装" |
+| `serial` | 中（自报，root/改机可伪造） | 设备唯一性识别、审批核对 |
+| `imei` | 中（自报，root/改机可伪造） | 设备唯一性识别、审批核对 |
+| `mac` | 中（自报，root/改机可伪造） | 设备唯一性识别、审批核对 |
+| `android_id` | 中（自报，可改） | 设备唯一性辅助识别 |
+| `device_model` | 低（自报，可伪造） | 仅展示、风控信号、审计 |
+| `os` | 低（自报，可伪造） | 仅展示、风控信号、审计 |
+| `os_version` | 低（自报，可伪造） | 仅展示、风控信号、审计 |
+| `arch` | 低（自报，可伪造） | 仅展示、风控信号、审计 |
+| `app_version` | 低（自报，可伪造） | 仅展示、风控信号、审计 |
 
-### 4.7 硬件标识采集（IMEI / MAC / 序列号 / Android ID）
+### 4.7 硬件标识采集
 
 绑定申请**采集**以下标识，全部入库、参与设备唯一性判定：
 
-| 字段 | 取值 | Android 上的实际情况 |
+| 字段 | 取值方式 | Android 上的实际情况 |
 |---|---|---|
 | `serial` | `Build.getSerial()` | 唯一性最好。**普通应用**在 Android 10+ 需要特权权限，取不到返回 `"unknown"`；**设备所有者 / 系统应用 / 厂商预装**可取 |
 | `imei` | `TelephonyManager.getImei()` | 普通应用 Android 10+ 已不可取（需 `READ_PRIVILEGED_PHONE_STATE`）；平板/无 SIM 设备本身没有 |
@@ -201,7 +207,11 @@ POST /OpenAPI/V1/Meta/Region/AZ/Server/Bind/Apply
 | `hardware.imei` | — | 15 位数字，非法则置空并记缺失 | |
 | `hardware.mac` | — | 归一为 `AA:BB:CC:DD:EE:FF`；取到假值 `02:00:00:00:00:00` 视为缺失 | |
 | `hardware.android_id` | — | ≤64 | |
-| `device.model` / `os` / `os_version` / `arch` / `app_version` | — | ≤64 | 自报，仅展示 |
+| `device.model` | — | ≤64 | 设备型号，自报仅展示 |
+| `device.os` | — | ≤32 | 操作系统，自报仅展示 |
+| `device.os_version` | — | ≤32 | 系统版本，自报仅展示 |
+| `device.arch` | — | ≤32 | 硬件架构，自报仅展示 |
+| `device.app_version` | — | ≤32 | 客户端版本，自报仅展示 |
 
 **服务端处理顺序（8 步）**
 
@@ -342,7 +352,7 @@ POST /OpenAPI/V1/Meta/Region/AZ/Server/Bind/Confirm
 
 ### 5.5 自动解绑
 
-| 路径 | 触发方式 | 请求 / 条件 | 结果 |
+| 路径 | 触发方式 | 请求或条件 | 结果 |
 |---|---|---|---|
 | **主动上报** | 客户端发现本地私钥不存在（清数据/换机/Keystore 失效） | `POST .../Bind/Unbind`（AKSK 认证）`{ "device_id": "…", "reason": "CLIENT_KEY_LOST" }` | 设备行 `flag_revoke='1'` + `dt_revoke` + `reason_revoke`；关联申请 `state=UNBOUND` |
 | **被动检测** | 设备仍持公钥但签名验不过（私钥损坏/被改机） | `Prove` 或设备签名校验失败：`count_fail += 1`，且本次与 `dt_last_fail` 间隔 **≥10 分钟**才计数（去抖）；`count_fail >= 3` | 自动吊销，`reason_revoke='KEY_INVALID'`；管理页标红 |
@@ -362,36 +372,107 @@ POST /OpenAPI/V1/Meta/Region/AZ/Server/Bind/Confirm
 ## 6. 数据模型（草案，未建表）
 
 两张新表，命名对齐 `open_api_*`，**无物理外键**（`DbSchemaSpec` 红线）。
+**每个字段单独一行**，不合并展示。
 
-### 6.1 `open.open_device`
+### 6.1 `open.open_device`（已绑定设备）
 
-| 列 | 说明 |
-|---|---|
-| `idn` / `device_id`(UNIQUE) | `device_id` 由服务端生成，给客户端与业务侧引用 |
-| `client_idn` / `install_id` | `UNIQUE (client_idn, install_id)`：同设备重装复用同一行 |
-| `pubkey`(UNIQUE) / `key_alg` | 公钥不可重复绑定 |
-| `serial` / `imei` / `mac` / `android_id` | 硬件标识（可空）。`serial` / `imei` 各建**部分唯一索引**（`WHERE serial <> ''`），防同一台机器绑两次 |
-| `id_missing` | VARCHAR(64)：本次缺失的标识项（如 `IMEI,MAC`），审批页标黄 |
-| `device_model` / `os` / `os_version` / `arch` / `app_version` | **自报**，仅展示 |
-| `dt_bind` / `dt_last_seen` | 绑定生效时间 / 最近一次设备请求时间 |
-| `count_fail` / `dt_last_fail` | 被动自动解绑用：连续失败计数 + 上次失败时间（去抖 ≥10 分钟） |
-| `flag_enable` / `flag_revoke` / `dt_revoke` / `reason_revoke` | 吊销留痕，原因必填（CHECK） |
-| `remark` / `create_by` / `modify_by` / `gmt_create` / `gmt_update` | 审计列 |
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `idn` | BIGINT | ✅ | 主键，自增 |
+| `device_id` | VARCHAR(32) | ✅ | 业务标识（服务端生成，唯一），给客户端与业务侧引用 |
+| `client_idn` | BIGINT | ✅ | 所属调用方（程序层校验，无物理外键） |
+| `install_id` | VARCHAR(64) | ✅ | 客户端生成，`UNIQUE (client_idn, install_id)`：同设备重装复用同一行 |
+| `pubkey` | TEXT | ✅ | 设备公钥（SPKI Base64），唯一，公钥不可重复绑定 |
+| `key_alg` | VARCHAR(24) | ✅ | 密钥算法，当前仅 `ECDSA-P256-SHA256` |
+| `serial` | VARCHAR(64) | — | 设备序列号；空串表示取不到。部分唯一索引 `WHERE serial <> ''` |
+| `imei` | VARCHAR(32) | — | IMEI（15 位数字）；取不到或非法为空串。部分唯一索引 `WHERE imei <> ''` |
+| `mac` | VARCHAR(32) | — | 网卡硬件地址，归一为 `AA:BB:CC:DD:EE:FF`；假值 `02:00:00:00:00:00` 视为空 |
+| `android_id` | VARCHAR(64) | — | `Settings.Secure.ANDROID_ID` |
+| `id_missing` | VARCHAR(64) | — | 本次缺失的标识项，逗号分隔（如 `IMEI,MAC`），审批页标黄 |
+| `device_model` | VARCHAR(64) | — | 设备型号（自报，仅展示） |
+| `os` | VARCHAR(32) | — | 操作系统（自报，仅展示） |
+| `os_version` | VARCHAR(32) | — | 系统版本（自报，仅展示） |
+| `arch` | VARCHAR(32) | — | 硬件架构（自报，仅展示） |
+| `app_version` | VARCHAR(32) | — | 客户端版本（自报，仅展示） |
+| `dt_bind` | TIMESTAMPTZ | ✅ | 绑定生效时间 |
+| `dt_last_seen` | TIMESTAMPTZ | — | 最近一次带 `X-Finv-Device` 的请求时间 |
+| `count_fail` | INTEGER | ✅ | 连续签名失败次数（默认 0），用于被动自动解绑 |
+| `dt_last_fail` | TIMESTAMPTZ | — | 上次签名失败时间，用于「间隔 ≥10 分钟才计数」的去抖 |
+| `flag_enable` | CHAR(1) | ✅ | 启用标志：`0` 停用 / `1` 启用（默认 `1`） |
+| `flag_revoke` | CHAR(1) | ✅ | 吊销标志：`0` 正常 / `1` 已解绑或吊销（默认 `0`） |
+| `dt_revoke` | TIMESTAMPTZ | — | 吊销时间（`flag_revoke='1'` 时必填） |
+| `reason_revoke` | VARCHAR(500) | — | 吊销原因（`flag_revoke='1'` 时必填）：`CLIENT_KEY_LOST` / `KEY_INVALID` / `REBIND` / `MANUAL` |
+| `remark` | VARCHAR(2000) | — | 备注 |
+| `create_by` | VARCHAR(32) | — | 创建人 |
+| `modify_by` | VARCHAR(32) | — | 最后修改人 |
+| `gmt_create` | TIMESTAMPTZ | ✅ | 创建时间 |
+| `gmt_update` | TIMESTAMPTZ | ✅ | 更新时间（触发器维护） |
 
-### 6.2 `open.open_device_bind`
+索引与约束：
 
-| 列 | 说明 |
-|---|---|
-| `bind_id`(UNIQUE) / `client_idn` / `credential_idn` | 申请标识与申请人 |
-| `install_id` / `pubkey` / `key_alg` / 设备自报信息 | 申请时快照 |
-| `serial` / `imei` / `mac` / `android_id` / `id_missing` | 硬件标识快照（审批人据此核对） |
-| `state` | `PENDING` / `PROVEN` / `APPROVED` / `ACTIVE` / `REJECTED` / `EXPIRED` / `UNBOUND` |
-| `code_hash` / `dt_code_expire` / `count_try` | 码哈希 `sha256(bind_id + ":" + code)`（不存明文）、码过期时间、已尝试次数（上限 5） |
-| `approve_by` / `dt_approve` / `reason_reject` | 人工审核留痕（批准人 / 时间 / 驳回原因） |
-| `rebind_of_device_id` | 同机换钥或重装时指向旧设备行（Confirm 成功后自动吊销旧行） |
-| `count_prove_fail` | Prove 验签失败次数（上限 5，防暴力验签） |
-| `dt_prove` / `dt_active` | 设备证明成功时间 / 绑定生效时间 |
-| `dt_expire` / `dt_create` / `ip` / `user_agent` | |
+| 名称 | 类型 | 内容 |
+|---|---|---|
+| `pk_open_device` | 主键 | `idn` |
+| `uk_open_device_device_id` | 唯一 | `device_id` |
+| `uk_open_device_client_install` | 唯一 | `(client_idn, install_id)` |
+| `uk_open_device_pubkey` | 唯一 | `pubkey` |
+| `uk_open_device_serial` | 部分唯一 | `(serial) WHERE serial <> ''` |
+| `uk_open_device_imei` | 部分唯一 | `(imei) WHERE imei <> ''` |
+| `idx_open_device_client` | 普通 | `(client_idn)` |
+| `ck_open_device_flag_enable` | CHECK | `flag_enable IN ('0','1')` |
+| `ck_open_device_flag_revoke` | CHECK | `flag_revoke IN ('0','1')` |
+| `ck_open_device_revoke_trace` | CHECK | `flag_revoke='0' OR (dt_revoke IS NOT NULL AND NULLIF(btrim(reason_revoke),'') IS NOT NULL)` |
+| `ck_open_device_count_fail` | CHECK | `count_fail >= 0` |
+
+### 6.2 `open.open_device_bind`（绑定申请流水）
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `idn` | BIGINT | ✅ | 主键，自增 |
+| `bind_id` | VARCHAR(32) | ✅ | 申请标识（32 位大写十六进制，唯一） |
+| `client_idn` | BIGINT | ✅ | 申请调用方 |
+| `credential_idn` | BIGINT | ✅ | 申请所用凭证 |
+| `install_id` | VARCHAR(64) | ✅ | 申请时快照 |
+| `pubkey` | TEXT | ✅ | 申请时快照（Prove 验签用） |
+| `key_alg` | VARCHAR(24) | ✅ | 申请时快照 |
+| `serial` | VARCHAR(64) | — | 硬件标识快照（审批人核对用） |
+| `imei` | VARCHAR(32) | — | 硬件标识快照 |
+| `mac` | VARCHAR(32) | — | 硬件标识快照 |
+| `android_id` | VARCHAR(64) | — | 硬件标识快照 |
+| `id_missing` | VARCHAR(64) | — | 申请时缺失项，审批页标黄 |
+| `device_model` | VARCHAR(64) | — | 设备型号快照 |
+| `os` | VARCHAR(32) | — | 操作系统快照 |
+| `os_version` | VARCHAR(32) | — | 系统版本快照 |
+| `arch` | VARCHAR(32) | — | 硬件架构快照 |
+| `app_version` | VARCHAR(32) | — | 客户端版本快照 |
+| `state` | VARCHAR(16) | ✅ | `PENDING` / `PROVEN` / `APPROVED` / `ACTIVE` / `REJECTED` / `EXPIRED` / `UNBOUND` |
+| `code_hash` | VARCHAR(64) | — | 验证码哈希 `sha256(bind_id + ":" + code)`；不存明文，用后置空 |
+| `dt_code_expire` | TIMESTAMPTZ | — | 验证码过期时间（生成时 +600s） |
+| `count_try` | INTEGER | ✅ | 验证码已尝试次数（默认 0，上限 5） |
+| `count_prove_fail` | INTEGER | ✅ | Prove 验签失败次数（默认 0，上限 5） |
+| `approve_by` | VARCHAR(32) | — | 审批人账号 |
+| `dt_approve` | TIMESTAMPTZ | — | 审批时间 |
+| `reason_reject` | VARCHAR(500) | — | 驳回原因（`state='REJECTED'` 时必填） |
+| `rebind_of_device_id` | VARCHAR(32) | — | 同机换钥/重装时指向旧设备行；Confirm 成功后自动吊销旧行（`reason=REBIND`） |
+| `dt_prove` | TIMESTAMPTZ | — | 设备证明成功时间 |
+| `dt_active` | TIMESTAMPTZ | — | 绑定生效时间 |
+| `dt_expire` | TIMESTAMPTZ | ✅ | 申请过期时间（Apply 时 +600s） |
+| `dt_create` | TIMESTAMPTZ | ✅ | 申请创建时间 |
+| `ip` | INET | — | 申请来源 IP（审批核对用） |
+| `user_agent` | VARCHAR(512) | — | 申请 UA（审批核对用） |
+
+索引与约束：
+
+| 名称 | 类型 | 内容 |
+|---|---|---|
+| `pk_open_device_bind` | 主键 | `idn` |
+| `uk_open_device_bind_bind_id` | 唯一 | `bind_id` |
+| `idx_open_device_bind_state` | 普通 | `(state, dt_create)`：管理端待审列表 |
+| `idx_open_device_bind_client` | 普通 | `(client_idn, install_id)` |
+| `ck_open_device_bind_state` | CHECK | `state IN ('PENDING','PROVEN','APPROVED','ACTIVE','REJECTED','EXPIRED','UNBOUND')` |
+| `ck_open_device_bind_count_try` | CHECK | `count_try >= 0 AND count_try <= 5` |
+| `ck_open_device_bind_count_prove_fail` | CHECK | `count_prove_fail >= 0` |
+| `ck_open_device_bind_reject_trace` | CHECK | `state <> 'REJECTED' OR NULLIF(btrim(reason_reject),'') IS NOT NULL` |
 
 ## 7. 需要你确认的（只有 3 条，其余一律暂不决策）
 
