@@ -42,9 +42,14 @@
 │     ├─ 交易所下设市场信息维护（/meta/market）
 │     ├─ 规范证券信息维护（/meta/security）
 │     └─ 历史行情数据导入（/meta/import）
-├─ 系统管理（二级分组，需求 11171）
-│  └─ 开放接口（三级分组）
-│     └─ OpenAPI 调用方管理（四级叶子，/Meta/Finv/OpenAPI/Client，需求 11169）
+├─ 开放平台（二级分组，需求 11171 建立，11172 改名；本身不可点）
+│  ├─ 接入管理（三级分组，需求 11173）
+│  │  ├─ OpenAPI 调用方（/Meta/Finv/OpenAPI/Client，需求 11169）
+│  │  └─ OpenAPI 凭证（/Meta/Finv/OpenAPI/Credential，需求 11169）
+│  ├─ 运行监控（三级分组）
+│  │  └─ OpenAPI 调用审计（/Meta/Finv/OpenAPI/InvokeLog，需求 11169）
+│  └─ 安全设置（三级分组）
+│     └─ OpenAPI 鉴权配置（/Meta/Finv/OpenAPI/Settings，需求 11169）
 ├─ 配置管理（二级叶子，/Meta/Finv/Quant/Config）
 ├─ 环境管理（二级叶子，/Meta/Finv/Quant/Environment）
 ├─ 模板管理（二级叶子，/Meta/Finv/Quant/Template）
@@ -118,7 +123,10 @@
 | 44 | 待采证券录入 | 金融投资 | 四级叶子 | `quote-realtime-pending-secu` | `mdi-database-plus-outline` | `/Meta/Finv/Quote/Realtime/PendingSecu` | `Web/src/views/Meta/Finv/Quote/Realtime/PendingSecuView.vue` | `GET .../Realtime/Stock/Pending`、`POST .../Stock/USCBackfill`、`POST .../Stock/Pending/Enqueue*` | [Quote/Realtime/PendingSecu.md](Quote/Realtime/PendingSecu.md) |
 | 45 | 证券参数同步 | 金融投资 | 四级叶子 | `quote-realtime-secu-param-sync` | `mdi-database-sync-outline` | `/Meta/Finv/Quote/Realtime/SecuParamSync` | `Web/src/views/Meta/Finv/Quote/Realtime/SecuParamSyncView.vue` | `GET .../SecuKey/Status`、`POST .../SecuKey/Config`、`POST .../SecuKey/Sync` | [Quote/Realtime/SecuParamSync.md](Quote/Realtime/SecuParamSync.md) |
 | 46 | 证券参数补全 | 金融投资 | 四级叶子 | `quote-realtime-secu-param-complete` | `mdi-table-cog` | `/Meta/Finv/Quote/Realtime/SecuParamComplete` | `Web/src/views/Meta/Finv/Quote/Realtime/SecuParamCompleteView.vue` | `GET .../Secu/Param/Complete/Pending`、`GET .../Secu/Param/Complete/Prefill`、`POST .../Secu/Param/Complete` | [Quote/Realtime/SecuParamComplete.md](Quote/Realtime/SecuParamComplete.md) |
-| 47 | OpenAPI 调用方管理 | 金融投资 | 四级叶子 | `openapi-client-manage` | `mdi-key-chain` | `/Meta/Finv/OpenAPI/Client` | `Web/src/views/Meta/Finv/OpenAPI/ClientManageView.vue` | `GET/PUT .../OpenAPI/Settings`、`GET .../OpenAPI/Client/Page`、`POST .../OpenAPI/Client/Save`、`POST .../OpenAPI/Client/Enable`、`GET .../OpenAPI/Credential/Page`、`POST .../OpenAPI/Credential/Create`、`POST .../OpenAPI/Credential/Enable`、`POST .../OpenAPI/Credential/Revoke`、`POST .../OpenAPI/Credential/Rotate`、`GET .../OpenAPI/InvokeLog/Page` | [OpenAPI/Client.md](OpenAPI/Client.md) |
+| 47 | OpenAPI 调用方 | 金融投资 | 四级叶子 | `openapi-client` | `mdi-account-key-outline` | `/Meta/Finv/OpenAPI/Client` | `Web/src/views/Meta/Finv/OpenAPI/ClientView.vue` | `GET .../OpenAPI/Client/Page`、`POST .../OpenAPI/Client/Save`、`POST .../OpenAPI/Client/Enable` | [OpenAPI/Client.md](OpenAPI/Client.md) |
+| 48 | OpenAPI 凭证 | 金融投资 | 四级叶子 | `openapi-credential` | `mdi-key-chain` | `/Meta/Finv/OpenAPI/Credential` | `Web/src/views/Meta/Finv/OpenAPI/CredentialView.vue` | `GET .../OpenAPI/Credential/Page`、`POST .../OpenAPI/Credential/Create`、`POST .../OpenAPI/Credential/Enable`、`POST .../OpenAPI/Credential/Revoke`、`POST .../OpenAPI/Credential/Rotate` | [OpenAPI/Credential.md](OpenAPI/Credential.md) |
+| 49 | OpenAPI 调用审计 | 金融投资 | 四级叶子 | `openapi-invoke-log` | `mdi-text-box-search-outline` | `/Meta/Finv/OpenAPI/InvokeLog` | `Web/src/views/Meta/Finv/OpenAPI/InvokeLogView.vue` | `GET .../OpenAPI/InvokeLog/Page` | [OpenAPI/InvokeLog.md](OpenAPI/InvokeLog.md) |
+| 50 | OpenAPI 鉴权配置 | 金融投资 | 四级叶子 | `openapi-settings` | `mdi-tune-variant` | `/Meta/Finv/OpenAPI/Settings` | `Web/src/views/Meta/Finv/OpenAPI/SettingsView.vue` | `GET .../OpenAPI/Settings`、`PUT .../OpenAPI/Settings` | [OpenAPI/Settings.md](OpenAPI/Settings.md) |
 ## 说明
 
 - 菜单定义与视图组件一一对应，全部在 `Web/src/config/menuConfig.ts` 的 `menuSystems` 中登记；新增菜单时须同步更新本索引。

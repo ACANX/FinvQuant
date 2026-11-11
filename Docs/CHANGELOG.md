@@ -219,6 +219,32 @@
 
 ### 变更
 
+- **「开放平台」按功能拆分菜单与页面（需求 11173）**
+  - 原来三 Tab（调用方/凭证/审计）+ 顶部鉴权配置全塞在一个页面里；现按功能拆成 4 个页面、3 个三级分组：
+    ```
+    开放平台（sys-manage）
+    ├─ 接入管理（openapi-access）
+    │  ├─ OpenAPI 调用方    /Meta/Finv/OpenAPI/Client       → open.open_api_client
+    │  └─ OpenAPI 凭证      /Meta/Finv/OpenAPI/Credential   → open.open_api_credential
+    ├─ 运行监控（openapi-monitor）
+    │  └─ OpenAPI 调用审计  /Meta/Finv/OpenAPI/InvokeLog    → open.open_api_invoke_log
+    └─ 安全设置（openapi-security）
+       └─ OpenAPI 鉴权配置  /Meta/Finv/OpenAPI/Settings     → sys.sys_config 19xxx
+    ```
+  - 前端：`ClientManageView.vue`（三 Tab 单页）删除，拆为 `ClientView.vue` / `CredentialView.vue` /
+    `InvokeLogView.vue` / `SettingsView.vue`；枚举中文、时间格式、状态配色等共用逻辑抽到 `OpenAPI/shared.ts`，
+    避免四份各写各的。每页只写一张表、底部只放一块说明卡片（ExplainCardSpec）。
+  - 路由：4 条独立路由；原 `/Meta/Finv/OpenAPI/Client` 保留且仍指向调用方页，历史深链接不断。
+  - 后端接口不变（仍是 11 个），凭证页用 `GET /Client/Page` 只读加载调用方下拉。
+  - 文档：`Docs/Menu/OpenAPI/` 拆成 `Client.md` / `Credential.md` / `InvokeLog.md` / `Settings.md` 四份；
+    `Docs/Menu/Menus.md` 树与表格（47~50 行）同步。
+
+- **菜单改名：二级分组「系统管理」→「开放平台」（需求 11172）**
+  - 只改 `Web/src/config/menuConfig.ts` 里 `sys-manage` 的 `title`（key、路由前缀、三级分组「开放接口」、
+    四级叶子与全部接口路径均不变，历史深链接不受影响）。
+  - 注释同步：该分组定位为「对外开放能力的容器」，后续开放能力菜单继续在其下追加三级分组。
+  - 文档：`Docs/Menu/Menus.md` 树、`Docs/Menu/OpenAPI/Client.md` 菜单位置说明。
+
 - **菜单层级调整：OpenAPI 调用方管理改为四级叶子（需求 11171）**
   - 原来它直接挂在二级（与「系统配置」并列的二级叶子）；按「二级菜单不直接挂业务叶子」的约束，
     改为 金融投资 → **系统管理**（二级分组，key `sys-manage`，`mdi-shield-lock-outline`，本身不可点）→

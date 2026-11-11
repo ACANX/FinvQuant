@@ -68,24 +68,57 @@ const finvQuantMenu: MenuNode[] = [
   },
   { key: 'config-manage', title: '系统配置', icon: 'mdi-cog-outline', path: '/Meta/Finv/Quant/Config' },
   {
-    // 「系统管理」二级分组（需求 11171）：平台级治理能力的容器，本身不可点。
-    // 二级不再直接挂业务叶子（约束：业务菜单必须落在四级叶子）；
-    // 分组前缀 /Meta/Finv/，后续平台治理相关菜单在此二级分组下继续追加三级分组。
+    // 「开放平台」二级分组（需求 11171 建立为「系统管理」，11172 改名为「开放平台」）。
+    // 本身不可点，也不直接挂业务叶子；叶子按功能拆到三级分组下（需求 11173）：
+    //   接入管理 → 调用方 / 凭证      （open.open_api_client / open.open_api_credential）
+    //   运行监控 → 调用审计           （open.open_api_invoke_log）
+    //   安全设置 → 鉴权配置           （sys.sys_config 19xxx）
     key: 'sys-manage',
-    title: '系统管理',
+    title: '开放平台',
     icon: 'mdi-shield-lock-outline',
     children: [
       {
-        // 开放接口（三级分组）：对外 OpenAPI 的接入治理（调用方、凭证、调用审计）。
-        key: 'sys-manage-openapi',
-        title: '开放接口',
-        icon: 'mdi-api',
+        key: 'openapi-access',
+        title: '接入管理',
+        icon: 'mdi-lan-connect',
         children: [
           {
-            key: 'openapi-client-manage',
-            title: 'OpenAPI 调用方管理',
-            icon: 'mdi-key-chain',
+            key: 'openapi-client',
+            title: 'OpenAPI 调用方',
+            icon: 'mdi-account-key-outline',
             path: '/Meta/Finv/OpenAPI/Client',
+          },
+          {
+            key: 'openapi-credential',
+            title: 'OpenAPI 凭证',
+            icon: 'mdi-key-chain',
+            path: '/Meta/Finv/OpenAPI/Credential',
+          },
+        ],
+      },
+      {
+        key: 'openapi-monitor',
+        title: '运行监控',
+        icon: 'mdi-chart-timeline-variant',
+        children: [
+          {
+            key: 'openapi-invoke-log',
+            title: 'OpenAPI 调用审计',
+            icon: 'mdi-text-box-search-outline',
+            path: '/Meta/Finv/OpenAPI/InvokeLog',
+          },
+        ],
+      },
+      {
+        key: 'openapi-security',
+        title: '安全设置',
+        icon: 'mdi-shield-key-outline',
+        children: [
+          {
+            key: 'openapi-settings',
+            title: 'OpenAPI 鉴权配置',
+            icon: 'mdi-tune-variant',
+            path: '/Meta/Finv/OpenAPI/Settings',
           },
         ],
       },

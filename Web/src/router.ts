@@ -11,7 +11,10 @@ import SecuParamCompleteView from './views/Meta/Finv/Quote/Realtime/SecuParamCom
 import FxCerView from './views/Meta/Finv/Quote/Realtime/FxCerView.vue'
 import SecuParamSyncView from './views/Meta/Finv/Quote/Realtime/SecuParamSyncView.vue'
 import UscMappingView from './views/Meta/Finv/Quote/Realtime/UscMappingView.vue'
-import OpenAPIClientManageView from './views/Meta/Finv/OpenAPI/ClientManageView.vue'
+import OpenAPIClientView from './views/Meta/Finv/OpenAPI/ClientView.vue'
+import OpenAPICredentialView from './views/Meta/Finv/OpenAPI/CredentialView.vue'
+import OpenAPIInvokeLogView from './views/Meta/Finv/OpenAPI/InvokeLogView.vue'
+import OpenAPISettingsView from './views/Meta/Finv/OpenAPI/SettingsView.vue'
 import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue'
 import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue'
 import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue'
@@ -98,11 +101,34 @@ const router = createRouter({
       component: SecuParamCompleteView,
       meta: { title: '证券参数补全' },
     },
+    // 开放平台（需求 11171/11172/11173）：按功能拆四个页面，各自只写一张表
+    //   /Client      → open.open_api_client
+    //   /Credential  → open.open_api_credential
+    //   /InvokeLog   → open.open_api_invoke_log
+    //   /Settings    → sys.sys_config 19xxx
     {
       path: '/Meta/Finv/OpenAPI/Client',
-      name: 'openapi-client-manage',
-      component: OpenAPIClientManageView,
-      meta: { title: 'OpenAPI 调用方管理' },
+      name: 'openapi-client',
+      component: OpenAPIClientView,
+      meta: { title: 'OpenAPI 调用方' },
+    },
+    {
+      path: '/Meta/Finv/OpenAPI/Credential',
+      name: 'openapi-credential',
+      component: OpenAPICredentialView,
+      meta: { title: 'OpenAPI 凭证' },
+    },
+    {
+      path: '/Meta/Finv/OpenAPI/InvokeLog',
+      name: 'openapi-invoke-log',
+      component: OpenAPIInvokeLogView,
+      meta: { title: 'OpenAPI 调用审计' },
+    },
+    {
+      path: '/Meta/Finv/OpenAPI/Settings',
+      name: 'openapi-settings',
+      component: OpenAPISettingsView,
+      meta: { title: 'OpenAPI 鉴权配置' },
     },
     // 行情 → 实时行情 → 证券参数同步（需求 11042）：Supabase 证券键表 → futu.finv_futu_secu_key，按钮手动触发
     {
