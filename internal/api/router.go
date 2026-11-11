@@ -2,6 +2,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"runtime"
 	"strings"
@@ -98,6 +99,9 @@ func NewRouter(deps *Deps) *gin.Engine {
 		}
 	}
 
+	// 外部 OpenAPI 鉴权中间件实例（在 /OpenAPI/V1 分组里赋值；未命中路由/方法时也要复用它，需求 11218）。
+	var openapiMW *openapi.Middleware
+
 	// 业务端点：统一要求登录（Authorization: Bearer <token>）。
 	apiGroup := router.Group("/API/V1")
 	if deps.Auth != nil {
@@ -134,12 +138,14 @@ func NewRouter(deps *Deps) *gin.Engine {
 		// Redis 故障策略（需求 11188）：FINV_OPENAPI_REDIS_FAIL_MODE=close（默认）时拒绝请求，
 		// 避免 Redis 不可用期间防重放/限流静默失效；=open 时退回旧行为（放行 + 日志告警）。
 		redisFailClose := !strings.EqualFold(strings.TrimSpace(cfg.OpenAPIRedisFailMode), "open")
-		openGroup.Use(openapi.NewMiddleware(openapi.Options{
+		// 中间件实例单独持有：未命中路由/方法时也要用它先鉴权（需求 11218）
+		openapiMW = openapi.NewMiddleware(openapi.Options{
 			Pool:           deps.Pool,
 			Redis:          deps.Redis,
 			FallbackKey:    cfg.OpenAPIKey,
 			RedisFailClose: redisFailClose,
-		}).Handler())
+		})
+		openGroup.Use(openapiMW.Handler())
 		openGroup.Use(WrapOpenAPIResponse())
 		openGroup.POST("/Meta/Finv/Quote/Cdeu/Min/Upsert", klineHandler.Upsert)
 		openGroup.GET("/Meta/Finv/Quote/Cdeu/Min/PageUni", klineHandler.PageUni)
@@ -433,6 +439,54 @@ func NewRouter(deps *Deps) *gin.Engine {
 	router.GET("/Health", klineOps.Health)
 	router.GET("/healthz", klineOps.Health)
 	router.GET("/", klineOps.Root)
+
+	// 未命中路由 / 未命中方法统一返回结构化 JSON（需求 11218）。
+	//
+	// 背景：Gin 默认对这两种情况回纯文本 `404 page not found`，既不进中间件、也不带 X-Request-Id：
+	//   - 外部调用方拿不到可读原因（是路径错、方法错，还是鉴权没通过）；
+	//   - 未认证者可以靠 404/405 探测「路径是否存在」，绕过鉴权。
+	// 这里对 `/OpenAPI/V1/*` 先跑鉴权中间件：没凭证就是 19001/19002，有凭证才告诉你 404/405。
+	router.HandleMethodNotAllowed = true
+	notFoundHandler := func(c *gin.Context, status int, openAPIReason, internalReason string) {
+		isOpenAPI := strings.HasPrefix(c.Request.URL.Path, "/OpenAPI/V1/")
+		if isOpenAPI && openapiMW != nil {
+			openapiMW.Handler()(c)
+			if c.IsAborted() {
+				return // 鉴权失败已由中间件写出响应并记审计
+			}
+			// 鉴权关闭时中间件会提前返回、不写 request_id，这里兜底生成一个（需求 11181/11218）
+			requestID := ""
+			if value, exists := c.Get(openapi.ContextRequestIDKey); exists {
+				requestID, _ = value.(string)
+			}
+			if requestID == "" {
+				requestID = openapi.NewRequestID()
+				c.Set(openapi.ContextRequestIDKey, requestID)
+			}
+			c.Header(openapi.HeaderRequestID, requestID)
+			c.JSON(status, gin.H{
+				"code":       status,
+				"message":    openAPIReason,
+				"request_id": requestID,
+			})
+			return
+		}
+		c.JSON(status, gin.H{
+			"code":    status,
+			"message": internalReason,
+		})
+	}
+	router.NoRoute(func(c *gin.Context) {
+		notFoundHandler(c, http.StatusNotFound,
+			fmt.Sprintf("接口不存在：%s %s；请核对路径，OpenAPI 文档见 Docs/API/OpenAPI/Auth.md",
+				c.Request.Method, c.Request.URL.Path),
+			fmt.Sprintf("接口不存在：%s %s；请核对路径", c.Request.Method, c.Request.URL.Path))
+	})
+	router.NoMethod(func(c *gin.Context) {
+		notFoundHandler(c, http.StatusMethodNotAllowed,
+			fmt.Sprintf("接口 %s 不支持 %s 方法；请改用文档声明的方法", c.Request.URL.Path, c.Request.Method),
+			fmt.Sprintf("接口 %s 不支持 %s 方法；请改用文档声明的方法", c.Request.URL.Path, c.Request.Method))
+	})
 
 	return router
 }

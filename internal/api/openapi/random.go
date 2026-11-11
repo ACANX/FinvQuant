@@ -34,6 +34,11 @@ func resolveRequestID(incoming string) string {
 // newRequestID 生成 32 位十六进制请求 ID（与响应头 X-Request-Id 一致，便于对日志）。
 //
 // 需求 11177：纯大写，与审计表里的其它十六进制字段（body_sha256）口径一致。
+// NewRequestID 生成 32 位大写十六进制请求 ID（OpenAPI 网关层口径，需求 11181）。
+//
+// 除中间件自用外，路由层的 404/405 兜底也要用它——鉴权关闭时中间件提前返回，不会生成 ID（需求 11218）。
+func NewRequestID() string { return newRequestID() }
+
 func newRequestID() string {
 	buf := make([]byte, 16)
 	if err := fillRandom(buf); err != nil {

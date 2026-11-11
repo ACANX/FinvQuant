@@ -219,6 +219,15 @@
 
 ### 变更
 
+- **未命中路径/方法返回结构化 JSON（需求 11218）**
+  - 问题：`GET` 一个只注册了 `POST` 的 OpenAPI 路径会得到 Gin 默认的纯文本 `404 page not found`——
+    既不进鉴权中间件、也没有 `X-Request-Id`，调用方无法判断是路径错、方法错还是鉴权没通过。
+  - 开启 `HandleMethodNotAllowed`，新增 `NoRoute` / `NoMethod`：`/OpenAPI/V1/*` 先过鉴权（未认证仍 `19001`，
+    不泄漏路径存在性），通过后返回 `404`/`405` JSON 并回显 `X-Request-Id`；内部 `/API/V1/*` 未命中同样返回 JSON 信封。
+  - 新增 `openapi.NewRequestID()` 供路由层兜底生成请求 ID（鉴权关闭时中间件不生成）。
+  - 单测：`TestOpenAPINotFoundAndMethodNotAllowed`、`TestInternalNotFoundReturnsJSON`。
+  - 文档：`Auth.md §4.9`。
+
 - **凭证列表增加状态过滤与到期日期列（需求 11217）**
   - `Credential/Page` 增 `status` 参数：`active`（缺省，未吊销/启用中/未过期）/ `all`（含吊销/停用/过期）。
   - 页面筛选栏加「状态」下拉，默认 `仅有效`；需要追溯时切到 `全部` 再查询。
