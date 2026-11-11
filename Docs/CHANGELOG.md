@@ -219,6 +219,16 @@
 
 ### 变更
 
+- **补「已吊销凭证」单元测试，并修掉 STS 不复核父凭证的缺口（需求 11197）**
+  - 新增 `TestMiddlewareRevokedCredential`：静态 Key 与长期 AK/SK 两种模式，断言 403 + `19003`，
+    且审计记 `reason=REVOKE`（此前只测了「停用」，吊销路径没有单测，REVOKE 与 EXPIRE 的区分也没验证）。
+  - 新增 `TestStsParentUsable`：父凭证「正常 / 吊销 / 停用 / 过期 / 不存在」五种情形。
+  - 新增 `TestMiddlewareStsRejectsRevokedParent`：父凭证吊销后，已签发的 STS 临时凭据立即失效。
+  - **修复真实缺口**：STS 临时凭据有 2 小时 TTL，但此前从不回查父凭证状态 —— 父凭证吊销后派生凭据仍能用到
+    TTL 结束。现在 `stsState` 存父凭证公开标识，每次 STS 鉴权都回查父凭证，吊销/停用/过期即 `19003`。
+  - 中间件 `sts` 字段接口化（`StsSource`），便于注入假实现做无 Redis 单测。
+  - Demo 增加吊销回归：吊销父凭证 → STS 调用 403/`REVOKE` → 恢复 → 200（`finally` 兜底恢复状态）。
+
 - **STS 令牌指纹列名定稿为 `tfp`（需求 11196）**
   - `open.open_api_invoke_log.token_fp` → `tfp`（与 `kfp` 同风格），索引 `idx_open_api_invoke_log_tfp`。
   - V300188（同批次、未推送）回改为 `tfp`；新增 `V300189` 把已应用旧版的库就地改名（幂等）。

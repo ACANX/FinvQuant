@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -498,7 +499,7 @@ func TestMiddlewarePermissive(t *testing.T) {
 	var logs []string
 	engine, hits := newTestEngine(t, Options{
 		Source: &fakeSource{},
-		Logf:   func(format string, args ...any) { logs = append(logs, format) },
+		Logf:   func(format string, args ...any) { logs = append(logs, fmt.Sprintf(format, args...)) },
 	}, settings)
 
 	recorder := httptest.NewRecorder()
@@ -896,5 +897,189 @@ func TestMiddlewareScopeBrokenDenied(t *testing.T) {
 	}
 	if *hits != 0 {
 		t.Fatalf("scope 损坏不应进入 handler")
+	}
+}
+
+// signHeadersWith 生成 AK/SK 签名头（GET、无查询串），供测试复用。
+func signHeadersWith(t *testing.T, sk, ak, method, path, query string) (map[string]string, *strings.Reader) {
+	return signHeadersWithToken(t, sk, ak, method, path, query, "")
+}
+
+// signHeadersWithToken 同上，但带 STS 的 X-META-Token（参与签名第 7 段）。
+func signHeadersWithToken(t *testing.T, sk, ak, method, path, query, token string) (map[string]string, *strings.Reader) {
+	t.Helper()
+	body := ""
+	signReq := SignRequest{
+		Method:    method,
+		Path:      path,
+		RawQuery:  query,
+		BodyHash:  BodyHash([]byte(body)),
+		Timestamp: strconv.FormatInt(testNow.Unix(), 10),
+		Nonce:     "nonce-" + ak[len(ak)-4:],
+		Token:     token,
+	}
+	signature, err := Sign("HMAC-SHA256", sk, CanonicalString(signReq))
+	if err != nil {
+		t.Fatalf("生成签名失败: %v", err)
+	}
+	headers := map[string]string{
+		"Authorization": "META1-HMAC-SHA256 Credential=" + ak + ", Signature=" + signature,
+		HeaderTimestamp: signReq.Timestamp,
+		HeaderNonce:     signReq.Nonce,
+	}
+	if token != "" {
+		headers[HeaderToken] = token
+	}
+	return headers, strings.NewReader(body)
+}
+
+// TestMiddlewareRevokedCredential 已吊销凭证必须被拒（19003）且审计记 REVOKE 而不是 EXPIRE。
+// 两种模式都覆盖：静态 Key（APIKEY）与长期 AK/SK。
+func TestMiddlewareRevokedCredential(t *testing.T) {
+	key := testKey()
+	settings := enabledSettings(key)
+
+	// ---- 静态 Key：吊销 ----
+	revokedStatic := staticCredential("SA_LIVE_REVOKED")
+	revokedStatic.FlagRevoke = true
+	revokedStatic.FlagEnable = false
+
+	var logs []string
+	engine, hits := newTestEngine(t, Options{
+		Source: &fakeSource{byKey: map[string]*Credential{"SA_LIVE_REVOKED": revokedStatic}},
+		Logf:   func(format string, args ...any) { logs = append(logs, fmt.Sprintf(format, args...)) },
+	}, settings)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/OpenAPI/V1/Test", nil)
+	request.Header.Set("X-API-Key", "SA_LIVE_REVOKED")
+	engine.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "19003") {
+		t.Fatalf("已吊销静态 Key 应 403/19003，实际 %d %s", recorder.Code, recorder.Body.String())
+	}
+	if *hits != 0 {
+		t.Fatalf("已吊销凭证不应进入 handler")
+	}
+	// 审计必须记 REVOKE（而不是笼统的 EXPIRE），否则事后追查分不清「吊销」与「过期」
+	if len(logs) == 0 || !strings.Contains(logs[0], "reason=REVOKE") {
+		t.Fatalf("审计应记 reason=REVOKE，实际 %v", logs)
+	}
+
+	// ---- 长期 AK/SK：吊销 ----
+	revokedAK := akskCredential(t, "AK_LIVE_REVOKED", "sk-revoked-secret", key)
+	revokedAK.FlagRevoke = true
+	revokedAK.FlagEnable = false
+	engine2, hits2 := newTestEngine(t, Options{
+		Source: &fakeSource{byKey: map[string]*Credential{"AK_LIVE_REVOKED": revokedAK}},
+		Logf:   func(string, ...any) {},
+	}, settings)
+
+	headers, body := signHeadersWith(t, "sk-revoked-secret", "AK_LIVE_REVOKED", "GET", "/OpenAPI/V1/Test", "")
+	recorder = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodGet, "/OpenAPI/V1/Test", body)
+	for name, value := range headers {
+		request.Header.Set(name, value)
+	}
+	engine2.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "19003") {
+		t.Fatalf("已吊销 AK/SK 应 403/19003，实际 %d %s", recorder.Code, recorder.Body.String())
+	}
+	if *hits2 != 0 {
+		t.Fatalf("已吊销 AK/SK 不应进入 handler")
+	}
+}
+
+// TestStsParentUsable 父凭证吊销/停用/过期后，派生的临时凭据必须失效（需求 11197）。
+func TestStsParentUsable(t *testing.T) {
+	now := testNow
+
+	ok := staticCredential("AK_LIVE_PARENT")
+	ok.AuthMode = AuthModeAKSK
+	ok.FlagRevoke, ok.FlagEnable = false, true
+	if usable, _ := stsParentUsable(ok, now); !usable {
+		t.Fatalf("正常父凭证应可用")
+	}
+
+	revoked := staticCredential("AK_LIVE_PARENT")
+	revoked.AuthMode = AuthModeAKSK
+	revoked.FlagRevoke = true
+	if usable, reason := stsParentUsable(revoked, now); usable || reason != ReasonRevoke {
+		t.Fatalf("吊销父凭证应不可用且 reason=REVOKE，实际 usable=%t reason=%q", usable, reason)
+	}
+
+	disabled := staticCredential("AK_LIVE_PARENT")
+	disabled.AuthMode = AuthModeAKSK
+	disabled.FlagEnable = false
+	if usable, reason := stsParentUsable(disabled, now); usable || reason != ReasonExpire {
+		t.Fatalf("停用父凭证应不可用且 reason=EXPIRE，实际 usable=%t reason=%q", usable, reason)
+	}
+
+	expired := staticCredential("AK_LIVE_PARENT")
+	expired.AuthMode = AuthModeAKSK
+	past := now.Add(-time.Hour)
+	expired.CredentialExp = &past
+	if usable, reason := stsParentUsable(expired, now); usable || reason != ReasonExpire {
+		t.Fatalf("过期父凭证应不可用且 reason=EXPIRE，实际 usable=%t reason=%q", usable, reason)
+	}
+
+	if usable, _ := stsParentUsable(nil, now); usable {
+		t.Fatalf("父凭证不存在应不可用")
+	}
+}
+
+// fakeSts 假 STS 来源：直接返回预置的三要素与父凭证标识。
+type fakeSts struct {
+	credential *Credential
+	tokenFP    string
+	cipher     string
+	parentAK   string
+	err        error
+}
+
+func (f *fakeSts) Lookup(_ context.Context, _ string) (*Credential, string, string, string, error) {
+	return f.credential, f.tokenFP, f.cipher, f.parentAK, f.err
+}
+
+// TestMiddlewareStsRejectsRevokedParent 父凭证被吊销后，已签发的临时凭据立即失效（需求 11197）。
+func TestMiddlewareStsRejectsRevokedParent(t *testing.T) {
+	key := testKey()
+	settings := enabledSettings(key)
+
+	parentRevoked := staticCredential("AK_LIVE_PARENT")
+	parentRevoked.AuthMode = AuthModeAKSK
+	parentRevoked.FlagRevoke = true
+	parentRevoked.FlagEnable = false
+
+	token := "SST_LIVE_ABCDEF0123456789ABCDEF0123456789"
+	stsCred := &Credential{
+		IDN: parentRevoked.IDN, ClientIDN: 1, AuthMode: AuthModeSTS,
+		AccessKeyID: "SAK_LIVE_TEMP", SignAlgorithm: "HMAC-SHA256",
+		FlagEnable: true, clientEnable: true,
+		Scope: []ScopeRule{{Method: "*", Path: "/OpenAPI/V1/Test"}},
+	}
+	sts := &fakeSts{
+		credential: stsCred,
+		tokenFP:    TokenFingerprint(token),
+		cipher:     "unused",
+		parentAK:   "AK_LIVE_PARENT",
+	}
+	engine, hits := newTestEngine(t, Options{
+		Source: &fakeSource{byKey: map[string]*Credential{"AK_LIVE_PARENT": parentRevoked}},
+		Sts:    sts,
+		Logf:   func(string, ...any) {},
+	}, settings)
+
+	headers, body := signHeadersWithToken(t, "sk-temp", "SAK_LIVE_TEMP", "GET", "/OpenAPI/V1/Test", "", token)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/OpenAPI/V1/Test", body)
+	for name, value := range headers {
+		request.Header.Set(name, value)
+	}
+	engine.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "19003") {
+		t.Fatalf("父凭证吊销后 STS 应 403/19003，实际 %d %s", recorder.Code, recorder.Body.String())
+	}
+	if *hits != 0 {
+		t.Fatalf("父凭证吊销后 STS 不应进入 handler")
 	}
 }

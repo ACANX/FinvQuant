@@ -45,17 +45,26 @@ type StsIssued struct {
 
 // stsState Redis 里保存的临时凭据（SK 与库内同口径加密）。
 type stsState struct {
-	ParentIDN     int64    `json:"parent_idn"`
-	ClientIDN     int64    `json:"client_idn"`
-	AccessKeyID   string   `json:"access_key_id"`
-	SecretCipher  string   `json:"secret_cipher"`
-	TFP           string   `json:"tfp"`
-	SignAlgorithm string   `json:"sign_algorithm"`
-	Scope         []string `json:"scope"`
-	AllowCIDR     []string `json:"allow_cidr"`
-	RateLimitRPM  int      `json:"rate_limit_rpm"`
-	QuotaDay      int      `json:"quota_day"`
-	ExpireAt      int64    `json:"expire_at"` // Unix 秒
+	ParentIDN int64 `json:"parent_idn"`
+	// ParentAccessKey 父凭证的公开标识：每次 STS 请求都会回查父凭证状态，
+	// 保证父凭证被**吊销/停用/过期**后，派生出来的临时凭据立即失效（需求 11197）。
+	ParentAccessKey string   `json:"parent_access_key"`
+	ClientIDN       int64    `json:"client_idn"`
+	AccessKeyID     string   `json:"access_key_id"`
+	SecretCipher    string   `json:"secret_cipher"`
+	TFP             string   `json:"tfp"`
+	SignAlgorithm   string   `json:"sign_algorithm"`
+	Scope           []string `json:"scope"`
+	AllowCIDR       []string `json:"allow_cidr"`
+	RateLimitRPM    int      `json:"rate_limit_rpm"`
+	QuotaDay        int      `json:"quota_day"`
+	ExpireAt        int64    `json:"expire_at"` // Unix 秒
+}
+
+// StsSource 临时凭据的读取能力（单测可注入假实现）。
+type StsSource interface {
+	// Lookup 返回 (凭据, token 指纹, SK 密文, 父凭证公开标识, 错误)。
+	Lookup(ctx context.Context, accessKeyID string) (*Credential, string, string, string, error)
 }
 
 // StsStore STS 临时凭据的签发与查询（Redis）。
@@ -113,17 +122,18 @@ func (s *StsStore) Issue(ctx context.Context, parent *Credential, key []byte) (S
 	}
 	expireAt := s.now().Add(StsTTL)
 	state := stsState{
-		ParentIDN:     parent.IDN,
-		ClientIDN:     parent.ClientIDN,
-		AccessKeyID:   secret.NormalizeKey(secret.PrefixTempAK + tokenAK),
-		SecretCipher:  cipherText,
-		TFP:           TokenFingerprint(plainToken),
-		SignAlgorithm: parent.SignAlgorithm,
-		Scope:         scopeToText(parent.Scope),
-		AllowCIDR:     ipNetsToText(parent.CredentialIPs),
-		RateLimitRPM:  parent.RateLimitRPM,
-		QuotaDay:      parent.QuotaDay,
-		ExpireAt:      expireAt.Unix(),
+		ParentIDN:       parent.IDN,
+		ParentAccessKey: parent.AccessKeyID,
+		ClientIDN:       parent.ClientIDN,
+		AccessKeyID:     secret.NormalizeKey(secret.PrefixTempAK + tokenAK),
+		SecretCipher:    cipherText,
+		TFP:             TokenFingerprint(plainToken),
+		SignAlgorithm:   parent.SignAlgorithm,
+		Scope:           scopeToText(parent.Scope),
+		AllowCIDR:       ipNetsToText(parent.CredentialIPs),
+		RateLimitRPM:    parent.RateLimitRPM,
+		QuotaDay:        parent.QuotaDay,
+		ExpireAt:        expireAt.Unix(),
 	}
 	payload, err := json.Marshal(state)
 	if err != nil {
@@ -141,23 +151,23 @@ func (s *StsStore) Issue(ctx context.Context, parent *Credential, key []byte) (S
 }
 
 // Lookup 按临时 AK 取回凭据与 token 指纹；不存在/已过期返回 ErrCredentialNotFound。
-func (s *StsStore) Lookup(ctx context.Context, accessKeyID string) (*Credential, string, string, error) {
+func (s *StsStore) Lookup(ctx context.Context, accessKeyID string) (*Credential, string, string, string, error) {
 	if s.rdb == nil {
-		return nil, "", "", ErrCredentialNotFound
+		return nil, "", "", "", ErrCredentialNotFound
 	}
 	raw, err := s.rdb.Get(ctx, stsKeyPrefix+strings.TrimSpace(accessKeyID)).Result()
 	if errors.Is(err, redis.Nil) {
-		return nil, "", "", ErrCredentialNotFound
+		return nil, "", "", "", ErrCredentialNotFound
 	}
 	if err != nil {
-		return nil, "", "", err
+		return nil, "", "", "", err
 	}
 	var state stsState
 	if err := json.Unmarshal([]byte(raw), &state); err != nil {
-		return nil, "", "", fmt.Errorf("临时凭据数据损坏: %w", err)
+		return nil, "", "", "", fmt.Errorf("临时凭据数据损坏: %w", err)
 	}
 	if s.now().Unix() >= state.ExpireAt {
-		return nil, "", "", ErrCredentialNotFound
+		return nil, "", "", "", ErrCredentialNotFound
 	}
 	expireAt := time.Unix(state.ExpireAt, 0)
 	credential := &Credential{
@@ -175,7 +185,18 @@ func (s *StsStore) Lookup(ctx context.Context, accessKeyID string) (*Credential,
 		clientEnable:  true,
 		Scope:         parseScopeText(state.Scope),
 	}
-	return credential, state.TFP, state.SecretCipher, nil
+	return credential, state.TFP, state.SecretCipher, state.ParentAccessKey, nil
+}
+
+// stsParentUsable 父凭证是否仍可用于已派生的临时凭据（需求 11197）。
+//
+// 临时凭据在 Redis 里有 2 小时 TTL，但父凭证可能在这期间被**吊销**（最危险）、停用或到期；
+// 这些情况下派生的临时凭据必须立即失效，否则「吊销」只是纸面动作。
+func stsParentUsable(parent *Credential, now time.Time) (bool, string) {
+	if parent == nil {
+		return false, ReasonExpire
+	}
+	return parent.Active(now)
 }
 
 // ipNetsToText 把 *net.IPNet 列表转回 CIDR 文本（存 Redis 用）。
@@ -225,7 +246,7 @@ func (m *Middleware) authenticateSTS(settings Settings, req *http.Request, body 
 	}
 	invocation.TFP = TokenFingerprint(token)
 
-	credential, tokenFP, cipherText, err := m.sts.Lookup(req.Context(), accessKeyID)
+	credential, tokenFP, cipherText, parentAK, err := m.sts.Lookup(req.Context(), accessKeyID)
 	if errors.Is(err, ErrCredentialNotFound) {
 		return nil, CodeKeyInvalid, "STS 临时凭据不存在或已过期"
 	}
@@ -234,6 +255,14 @@ func (m *Middleware) authenticateSTS(settings Settings, req *http.Request, body 
 	}
 	if !MatchToken(tokenFP, token) {
 		return nil, CodeKeyInvalid, "SecurityToken 不匹配"
+	}
+	// 父凭证状态必须仍然有效：吊销/停用/过期后，派生的临时凭据立即失效（需求 11197）
+	parent, err := m.source.Lookup(req.Context(), parentAK)
+	if err != nil && !errors.Is(err, ErrCredentialNotFound) {
+		return credential, CodeAuthNotReady, "查询父凭证失败: " + err.Error()
+	}
+	if usable, reason := stsParentUsable(parent, m.now()); !usable {
+		return credential, CodeCredentialStop, "父凭证已不可用（" + reason + "），临时凭据随之失效"
 	}
 	if !strings.EqualFold(strings.TrimSpace(credential.SignAlgorithm), algorithm) {
 		return credential, CodeSignMismatch,
