@@ -68,6 +68,12 @@ const finvQuantMenu: MenuNode[] = [
   },
   { key: 'config-manage', title: '系统配置', icon: 'mdi-cog-outline', path: '/Meta/Finv/Quant/Config' },
   {
+    key: 'openapi-client-manage',
+    title: 'OpenAPI 调用方管理',
+    icon: 'mdi-key-chain',
+    path: '/Meta/Finv/OpenAPI/Client',
+  },
+  {
     // 「行情」二级菜单（分组前缀 /Meta/Finv/Quote/），与「数据采集」同级；
     // 其下两个三级分组按加工阶段划分：
     //   收剔导传ETL（/Meta/Finv/Quote/Cdeu/）—— 采集→去重→导出→上传→复核的 ETL 链路页面

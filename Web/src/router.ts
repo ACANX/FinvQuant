@@ -11,6 +11,7 @@ import SecuParamCompleteView from './views/Meta/Finv/Quote/Realtime/SecuParamCom
 import FxCerView from './views/Meta/Finv/Quote/Realtime/FxCerView.vue'
 import SecuParamSyncView from './views/Meta/Finv/Quote/Realtime/SecuParamSyncView.vue'
 import UscMappingView from './views/Meta/Finv/Quote/Realtime/UscMappingView.vue'
+import OpenAPIClientManageView from './views/Meta/Finv/OpenAPI/ClientManageView.vue'
 import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue'
 import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue'
 import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue'
@@ -96,6 +97,12 @@ const router = createRouter({
       name: 'quote-realtime-secu-param-complete',
       component: SecuParamCompleteView,
       meta: { title: '证券参数补全' },
+    },
+    {
+      path: '/Meta/Finv/OpenAPI/Client',
+      name: 'openapi-client-manage',
+      component: OpenAPIClientManageView,
+      meta: { title: 'OpenAPI 调用方管理' },
     },
     // 行情 → 实时行情 → 证券参数同步（需求 11042）：Supabase 证券键表 → futu.finv_futu_secu_key，按钮手动触发
     {

@@ -1,0 +1,341 @@
+package openapi
+
+// 服务层：在 Store 之上补业务规则（签发密钥、状态流转、参数校验）。
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/acanx/finvquant/internal/meta/finv/openapi/secret"
+)
+
+// Service 「OpenAPI 调用方管理」服务。
+type Service struct {
+	store *Store
+}
+
+// NewService 创建服务。
+func NewService(store *Store) *Service { return &Service{store: store} }
+
+// Settings 读鉴权配置（不含密钥明文）。
+func (s *Service) Settings(ctx context.Context) (SettingsView, error) {
+	return s.store.LoadSettings(ctx)
+}
+
+// SaveSettings 保存 19001～19003；模式与数值都做范围校验。
+func (s *Service) SaveSettings(ctx context.Context, req SettingsRequest) (SettingsView, error) {
+	mode, err := normalizeMode(req.Mode)
+	if err != nil {
+		return SettingsView{}, err
+	}
+	if req.SignTimeWindow < 30 || req.SignTimeWindow > 3600 {
+		return SettingsView{}, invalid("sign_time_window 需在 30~3600 秒之间，实际 %d", req.SignTimeWindow)
+	}
+	if req.LogRetainDays < 0 || req.LogRetainDays > 3650 {
+		return SettingsView{}, invalid("log_retain_days 需在 0~3650 天之间（0 表示不清理），实际 %d", req.LogRetainDays)
+	}
+	if err := s.store.SaveSettings(ctx, SettingsRequest{
+		Mode: mode, SignTimeWindow: req.SignTimeWindow, LogRetainDays: req.LogRetainDays,
+	}); err != nil {
+		return SettingsView{}, err
+	}
+	return s.store.LoadSettings(ctx)
+}
+
+// ClientPage 分页查询调用方。
+func (s *Service) ClientPage(ctx context.Context, keyword string, page, pageSize int) ([]Client, int, error) {
+	page, pageSize = normalizePage(page, pageSize)
+	return s.store.ClientPage(ctx, keyword, page, pageSize)
+}
+
+// ClientDetail 单个调用方。
+func (s *Service) ClientDetail(ctx context.Context, idn int64) (Client, error) {
+	if idn <= 0 {
+		return Client{}, invalid("idn 必须为正整数")
+	}
+	client, err := s.store.ClientByID(ctx, idn)
+	if errors.Is(err, ErrNotFound) {
+		return Client{}, fmt.Errorf("%w: 调用方 %d 不存在", ErrNotFound, idn)
+	}
+	return client, err
+}
+
+// SaveClient 新建（idn=0）或更新调用方。
+//
+// 新建默认 `flag_enable='0'`（停用）：先登记、核对白名单与配额，再显式启用。
+func (s *Service) SaveClient(ctx context.Context, req ClientRequest, operator string) (Client, error) {
+	validated, err := validateClient(req)
+	if err != nil {
+		return Client{}, err
+	}
+	if validated.IDN <= 0 {
+		client, err := s.store.InsertClient(ctx, validated, operator)
+		if err != nil {
+			if isUniqueViolation(err, "uk_open_api_client_code") {
+				return Client{}, fmt.Errorf("%w: client_code=%s 已存在", ErrConflict, validated.ClientCode)
+			}
+			return Client{}, err
+		}
+		return client, nil
+	}
+	client, err := s.store.UpdateClient(ctx, validated, operator)
+	if errors.Is(err, ErrNotFound) {
+		return Client{}, fmt.Errorf("%w: 调用方 %d 不存在", ErrNotFound, validated.IDN)
+	}
+	if err != nil {
+		if isUniqueViolation(err, "uk_open_api_client_code") {
+			return Client{}, fmt.Errorf("%w: client_code=%s 已被其它调用方占用", ErrConflict, validated.ClientCode)
+		}
+		return Client{}, err
+	}
+	return client, nil
+}
+
+// SetClientEnable 启用/停用调用方。
+func (s *Service) SetClientEnable(ctx context.Context, idn int64, enable bool, operator string) (Client, error) {
+	if idn <= 0 {
+		return Client{}, invalid("idn 必须为正整数")
+	}
+	client, err := s.store.SetClientEnable(ctx, idn, enable, operator)
+	if errors.Is(err, ErrNotFound) {
+		return Client{}, fmt.Errorf("%w: 调用方 %d 不存在", ErrNotFound, idn)
+	}
+	return client, err
+}
+
+// CredentialPage 分页查询凭证。
+func (s *Service) CredentialPage(ctx context.Context, clientIDN int64, keyword string, page, pageSize int) ([]Credential, int, error) {
+	page, pageSize = normalizePage(page, pageSize)
+	return s.store.CredentialPage(ctx, clientIDN, keyword, page, pageSize)
+}
+
+// CreateCredential 签发凭证。
+//
+// 返回体里的密钥明文**只出现这一次**：库里只存哈希（静态 Key）或密文（SK）。
+// 静态 Key 的明文同时就是 `access_key_id`（调用方要用它标识自己）。
+func (s *Service) CreateCredential(ctx context.Context, req CredentialCreateRequest, operator string) (IssuedSecret, error) {
+	validated, err := validateCredential(req)
+	if err != nil {
+		return IssuedSecret{}, err
+	}
+	if _, err := s.store.ClientByID(ctx, validated.ClientIDN); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return IssuedSecret{}, fmt.Errorf("%w: 调用方 %d 不存在", ErrNotFound, validated.ClientIDN)
+		}
+		return IssuedSecret{}, err
+	}
+
+	issued, err := s.buildSecret(ctx, validated.AuthMode)
+	if err != nil {
+		return IssuedSecret{}, err
+	}
+	validated.AccessKey = issued.AccessKey
+
+	idn, err := s.store.InsertCredential(ctx, validated, issued.SecretHash, issued.SecretCipher,
+		issued.KeyPrefix, issued.KID, operator)
+	if err != nil {
+		if isUniqueViolation(err, "uk_open_api_credential_no") {
+			return IssuedSecret{}, fmt.Errorf("%w: credential_no=%s 已存在", ErrConflict, validated.CredentialNo)
+		}
+		if isUniqueViolation(err, "uk_open_api_credential_access_key") {
+			return IssuedSecret{}, fmt.Errorf("%w: 生成的公开标识与已有凭证冲突，请重试", ErrConflict)
+		}
+		return IssuedSecret{}, err
+	}
+
+	credential, err := s.store.CredentialByID(ctx, idn)
+	if err != nil {
+		return IssuedSecret{}, err
+	}
+	return IssuedSecret{
+		Credential: credential,
+		AccessKey:  issued.AccessKey,
+		SecretKey:  issued.SecretKey,
+		Note:       issuedNote(validated.AuthMode),
+	}, nil
+}
+
+// RotateCredential 轮换密钥（旧 Key 立即失效；AK/SK 允许旧 SK 在窗口内并行验签）。
+func (s *Service) RotateCredential(ctx context.Context, idn int64, operator string) (IssuedSecret, error) {
+	if idn <= 0 {
+		return IssuedSecret{}, invalid("idn 必须为正整数")
+	}
+	current, err := s.store.CredentialByID(ctx, idn)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return IssuedSecret{}, fmt.Errorf("%w: 凭证 %d 不存在", ErrNotFound, idn)
+		}
+		return IssuedSecret{}, err
+	}
+	if current.FlagRevoke == "1" {
+		return IssuedSecret{}, fmt.Errorf("%w: 凭证已吊销，不能轮换（请新建凭证）", ErrConflict)
+	}
+
+	issued, err := s.buildSecret(ctx, current.AuthMode)
+	if err != nil {
+		return IssuedSecret{}, err
+	}
+	if err := s.store.RotateCredential(ctx, idn, current.AuthMode, issued.AccessKey,
+		issued.SecretHash, issued.SecretCipher, issued.KeyPrefix, issued.KID, operator); err != nil {
+		return IssuedSecret{}, err
+	}
+	credential, err := s.store.CredentialByID(ctx, idn)
+	if err != nil {
+		return IssuedSecret{}, err
+	}
+	return IssuedSecret{
+		Credential: credential,
+		AccessKey:  issued.AccessKey,
+		SecretKey:  issued.SecretKey,
+		Note:       "轮换完成：" + issuedNote(current.AuthMode),
+	}, nil
+}
+
+// SetCredentialEnable 启用/停用凭证。
+func (s *Service) SetCredentialEnable(ctx context.Context, idn int64, enable bool, operator string) (Credential, error) {
+	if idn <= 0 {
+		return Credential{}, invalid("idn 必须为正整数")
+	}
+	credential, err := s.store.SetCredentialEnable(ctx, idn, enable, operator)
+	if errors.Is(err, ErrNotFound) {
+		return Credential{}, fmt.Errorf("%w: 凭证 %d 不存在", ErrNotFound, idn)
+	}
+	return credential, err
+}
+
+// RevokeCredential 吊销凭证（原因必填，不可恢复）。
+func (s *Service) RevokeCredential(ctx context.Context, idn int64, reason, operator string) (Credential, error) {
+	if idn <= 0 {
+		return Credential{}, invalid("idn 必须为正整数")
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return Credential{}, invalid("吊销必须填写原因")
+	}
+	if len([]rune(reason)) > 500 {
+		return Credential{}, invalid("吊销原因不能超过 500 字符")
+	}
+	credential, err := s.store.RevokeCredential(ctx, idn, reason, operator)
+	if errors.Is(err, ErrNotFound) {
+		return Credential{}, fmt.Errorf("%w: 凭证 %d 不存在", ErrNotFound, idn)
+	}
+	return credential, err
+}
+
+// InvokeLogPage 分页查询调用审计。
+func (s *Service) InvokeLogPage(ctx context.Context, filter InvokeLogFilter) ([]InvokeLog, int, error) {
+	if filter.FlagPass != "" && filter.FlagPass != "0" && filter.FlagPass != "1" {
+		return nil, 0, invalid("flag_pass 只能是 0（拒绝）或 1（放行）")
+	}
+	filter.Page, filter.PageSize = normalizePage(filter.Page, filter.PageSize)
+	return s.store.InvokeLogPage(ctx, filter)
+}
+
+// ---------------- 内部 ----------------
+
+// issuedSecret 服务层内部的密钥材料（不含明文以外的展示信息）。
+type issuedSecret struct {
+	AccessKey    string
+	SecretKey    string
+	SecretHash   string
+	SecretCipher string
+	KeyPrefix    string
+	KID          string
+}
+
+// buildSecret 生成密钥材料。
+//
+//   - API_KEY：access_key_id 即静态 Key（`fk_live_` + 32 位十六进制），库里只存 sha256；
+//   - AK_SK：AK 为 `ak_live_` + 32 位十六进制，SK 为 48 位十六进制，库里存 AES-256-GCM 密文。
+func (s *Service) buildSecret(ctx context.Context, authMode string) (issuedSecret, error) {
+	random, err := secret.RandomToken(16)
+	if err != nil {
+		return issuedSecret{}, fmt.Errorf("生成随机密钥失败: %w", err)
+	}
+
+	if authMode == AuthModeAPIKey {
+		key := secret.PrefixAPIKey + random
+		return issuedSecret{
+			AccessKey:  key,
+			SecretKey:  key,
+			SecretHash: secret.HashKey(key),
+			KeyPrefix:  keyPrefixOf(key),
+		}, nil
+	}
+
+	skToken, err := secret.RandomToken(24)
+	if err != nil {
+		return issuedSecret{}, fmt.Errorf("生成随机密钥失败: %w", err)
+	}
+	sk := "sk_live_" + skToken
+
+	base64Key, err := s.store.SecretKeyBase64(ctx)
+	if err != nil {
+		return issuedSecret{}, err
+	}
+	keyBytes, err := secret.DecodeKey(base64Key)
+	if err != nil {
+		return issuedSecret{}, fmt.Errorf("%w: %v（请先在系统配置里填写 19005）", ErrNotReady, err)
+	}
+	cipherText, err := secret.Encrypt(sk, keyBytes)
+	if err != nil {
+		return issuedSecret{}, fmt.Errorf("加密 SK 失败: %w", err)
+	}
+	kid, err := s.store.SecretKID(ctx)
+	if err != nil {
+		return issuedSecret{}, err
+	}
+	return issuedSecret{
+		AccessKey:    secret.PrefixAK + random,
+		SecretKey:    sk,
+		SecretCipher: cipherText,
+		KeyPrefix:    keyPrefixOf(secret.PrefixAK + random),
+		KID:          kid,
+	}, nil
+}
+
+// keyPrefixOf 取前 12 位作为展示前缀（列宽 varchar(12)）。
+func keyPrefixOf(key string) string {
+	if len(key) <= 12 {
+		return key
+	}
+	return key[:12]
+}
+
+// issuedNote 签发提示语。
+func issuedNote(authMode string) string {
+	if authMode == AuthModeAPIKey {
+		return "静态 Key 只显示这一次：请立即复制保存（库里不存明文，丢失只能轮换）"
+	}
+	return "SK 只显示这一次：请立即复制保存（库里只存密文，丢失只能轮换）；请求用 Authorization: FinvAK <AK>:<签名>"
+}
+
+// normalizePage 归一页码与页大小（1 ≤ page，1 ≤ pageSize ≤ 200）。
+func normalizePage(page, pageSize int) (int, int) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 200 {
+		pageSize = 200
+	}
+	return page, pageSize
+}
+
+// isUniqueViolation 判断是否指定约束的唯一键冲突。
+func isUniqueViolation(err error, constraint string) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	if pgErr.Code != "23505" {
+		return false
+	}
+	return constraint == "" || pgErr.ConstraintName == constraint
+}

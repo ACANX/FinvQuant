@@ -15,6 +15,7 @@ import (
 	"github.com/acanx/finvquant/internal/meta"
 	"github.com/acanx/finvquant/internal/meta/finv/auth"
 	"github.com/acanx/finvquant/internal/meta/finv/brs"
+	openapiSvc "github.com/acanx/finvquant/internal/meta/finv/openapi"
 	"github.com/acanx/finvquant/internal/meta/finv/quant/backtest"
 	"github.com/acanx/finvquant/internal/meta/finv/quote"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
@@ -164,6 +165,22 @@ func NewRouter(deps *Deps) *gin.Engine {
 			group.GET("/File/List", archive.FileList)
 			group.POST("/Job/Retry", archive.JobRetry)
 			group.POST("/File/Retry", archive.FileRetry)
+
+			// OpenAPI 调用方管理（需求 11169）：调用方 / 凭证 / 调用审计 + 鉴权开关。
+			// 只操作 open schema 与 sys_config 19xxx，不碰行情业务表。
+			openAPIAdmin := handler.NewOpenAPIAdmin(openapiSvc.NewService(openapiSvc.NewStore(deps.Pool)))
+			openAPIGroup := apiGroup.Group("/Meta/Finv/OpenAPI")
+			openAPIGroup.GET("/Settings", openAPIAdmin.Settings)
+			openAPIGroup.PUT("/Settings", openAPIAdmin.SaveSettings)
+			openAPIGroup.GET("/Client/Page", openAPIAdmin.ClientPage)
+			openAPIGroup.POST("/Client/Save", openAPIAdmin.SaveClient)
+			openAPIGroup.POST("/Client/Enable", openAPIAdmin.SetClientEnable)
+			openAPIGroup.GET("/Credential/Page", openAPIAdmin.CredentialPage)
+			openAPIGroup.POST("/Credential/Create", openAPIAdmin.CreateCredential)
+			openAPIGroup.POST("/Credential/Enable", openAPIAdmin.SetCredentialEnable)
+			openAPIGroup.POST("/Credential/Revoke", openAPIAdmin.RevokeCredential)
+			openAPIGroup.POST("/Credential/Rotate", openAPIAdmin.RotateCredential)
+			openAPIGroup.GET("/InvokeLog/Page", openAPIAdmin.InvokeLogPage)
 
 			// USC 补丁规则（需求 10931）：新接口前缀统一用 /Quote/Cdeu，不再使用 /Quote/DeDup。
 			patch := apiGroup.Group("/Meta/Finv/Quote/Cdeu/Usc/Patch")

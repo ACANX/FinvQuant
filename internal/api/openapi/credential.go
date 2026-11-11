@@ -4,12 +4,6 @@ package openapi
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/sha256"
-	"crypto/subtle"
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +13,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/acanx/finvquant/internal/meta/finv/openapi/secret"
 )
 
 // 认证模式（open.open_api_credential.auth_mode）。
@@ -135,76 +131,19 @@ func (c *Credential) InScope(method, path string) bool {
 	return false
 }
 
-// HashStaticKey 计算静态 Key 的存储哈希（sha256 十六进制，与 kdf 无关）。
-func HashStaticKey(key string) string {
-	sum := sha256.Sum256([]byte(key))
-	return hex.EncodeToString(sum[:])
-}
+// HashStaticKey 计算静态 Key 的存储哈希（委托给共享的 secret 包）。
+func HashStaticKey(key string) string { return secret.HashKey(key) }
 
 // MatchStaticKey 恒定时间比较静态 Key 与库内哈希。
-func MatchStaticKey(storedHash, provided string) bool {
-	if storedHash == "" || provided == "" {
-		return false
-	}
-	return subtle.ConstantTimeCompare([]byte(strings.ToLower(storedHash)), []byte(HashStaticKey(provided))) == 1
-}
+func MatchStaticKey(storedHash, provided string) bool { return secret.MatchKey(storedHash, provided) }
 
-// DecryptSecret 解密 AK/SK 的 SK 密文。
-//
-// 密文格式：Base64( nonce(12 字节) || ciphertext+tag )，算法 AES-256-GCM。
-// 空密文（未配置或已清理）返回空串与 nil 错误，由调用方按「验签必然失败」处理。
+// DecryptSecret 解密 AK/SK 的 SK 密文（委托给共享的 secret 包）。
 func DecryptSecret(cipherText string, key []byte) (string, error) {
-	cipherText = strings.TrimSpace(cipherText)
-	if cipherText == "" {
-		return "", nil
-	}
-	if len(key) != 32 {
-		return "", errors.New("密钥必须是 32 字节")
-	}
-	raw, err := base64.StdEncoding.DecodeString(cipherText)
-	if err != nil {
-		return "", fmt.Errorf("密文不是合法 Base64: %w", err)
-	}
-	if len(raw) < 12+16 {
-		return "", errors.New("密文长度不足")
-	}
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", err
-	}
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-	plain, err := aead.Open(nil, raw[:12], raw[12:], nil)
-	if err != nil {
-		return "", errors.New("密文解密失败（密钥或 KID 不匹配）")
-	}
-	return string(plain), nil
+	return secret.Decrypt(cipherText, key)
 }
 
-// EncryptSecret 加密 SK（供密钥录入/轮换与测试使用）。
-//
-// 非安全随机源在 crypto/rand 失败时才会触发，正常路径不会返回错误。
-func EncryptSecret(plain string, key []byte) (string, error) {
-	if len(key) != 32 {
-		return "", errors.New("密钥必须是 32 字节")
-	}
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", err
-	}
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-	nonce := make([]byte, aead.NonceSize())
-	if err := fillRandom(nonce); err != nil {
-		return "", err
-	}
-	sealed := aead.Seal(nil, nonce, []byte(plain), nil)
-	return base64.StdEncoding.EncodeToString(append(nonce, sealed...)), nil
-}
+// EncryptSecret 加密 SK（服务端签发/轮换与测试使用）。
+func EncryptSecret(plain string, key []byte) (string, error) { return secret.Encrypt(plain, key) }
 
 // CredentialSource 凭证来源抽象（便于单测注入假数据）。
 type CredentialSource interface {

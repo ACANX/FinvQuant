@@ -42,6 +42,7 @@
 │     ├─ 交易所下设市场信息维护（/meta/market）
 │     ├─ 规范证券信息维护（/meta/security）
 │     └─ 历史行情数据导入（/meta/import）
+├─ OpenAPI 调用方管理（二级叶子，/Meta/Finv/OpenAPI/Client，需求 11169）
 ├─ 配置管理（二级叶子，/Meta/Finv/Quant/Config）
 ├─ 环境管理（二级叶子，/Meta/Finv/Quant/Environment）
 ├─ 模板管理（二级叶子，/Meta/Finv/Quant/Template）
@@ -115,6 +116,7 @@
 | 44 | 待采证券录入 | 金融投资 | 四级叶子 | `quote-realtime-pending-secu` | `mdi-database-plus-outline` | `/Meta/Finv/Quote/Realtime/PendingSecu` | `Web/src/views/Meta/Finv/Quote/Realtime/PendingSecuView.vue` | `GET .../Realtime/Stock/Pending`、`POST .../Stock/USCBackfill`、`POST .../Stock/Pending/Enqueue*` | [Quote/Realtime/PendingSecu.md](Quote/Realtime/PendingSecu.md) |
 | 45 | 证券参数同步 | 金融投资 | 四级叶子 | `quote-realtime-secu-param-sync` | `mdi-database-sync-outline` | `/Meta/Finv/Quote/Realtime/SecuParamSync` | `Web/src/views/Meta/Finv/Quote/Realtime/SecuParamSyncView.vue` | `GET .../SecuKey/Status`、`POST .../SecuKey/Config`、`POST .../SecuKey/Sync` | [Quote/Realtime/SecuParamSync.md](Quote/Realtime/SecuParamSync.md) |
 | 46 | 证券参数补全 | 金融投资 | 四级叶子 | `quote-realtime-secu-param-complete` | `mdi-table-cog` | `/Meta/Finv/Quote/Realtime/SecuParamComplete` | `Web/src/views/Meta/Finv/Quote/Realtime/SecuParamCompleteView.vue` | `GET .../Secu/Param/Complete/Pending`、`GET .../Secu/Param/Complete/Prefill`、`POST .../Secu/Param/Complete` | [Quote/Realtime/SecuParamComplete.md](Quote/Realtime/SecuParamComplete.md) |
+| 47 | OpenAPI 调用方管理 | 金融投资 | 二级叶子 | `openapi-client-manage` | `mdi-key-chain` | `/Meta/Finv/OpenAPI/Client` | `Web/src/views/Meta/Finv/OpenAPI/ClientManageView.vue` | `GET/PUT .../OpenAPI/Settings`、`GET .../OpenAPI/Client/Page`、`POST .../OpenAPI/Client/Save`、`POST .../OpenAPI/Client/Enable`、`GET .../OpenAPI/Credential/Page`、`POST .../OpenAPI/Credential/Create`、`POST .../OpenAPI/Credential/Enable`、`POST .../OpenAPI/Credential/Revoke`、`POST .../OpenAPI/Credential/Rotate`、`GET .../OpenAPI/InvokeLog/Page` | [OpenAPI/Client.md](OpenAPI/Client.md) |
 ## 说明
 
 - 菜单定义与视图组件一一对应，全部在 `Web/src/config/menuConfig.ts` 的 `menuSystems` 中登记；新增菜单时须同步更新本索引。

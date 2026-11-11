@@ -219,6 +219,29 @@
 
 ### 变更
 
+- **「OpenAPI 调用方管理」菜单（需求 11169）**
+  - 后端：新增 `internal/meta/finv/openapi`（`Service` + `Store`）与 `internal/api/handler/openapi_admin.go`，
+    共 11 个内部接口（`/API/V1/Meta/Finv/OpenAPI/*`，需登录）：
+    `Settings`(GET/PUT)、`Client/Page|Save|Enable`、`Credential/Page|Create|Enable|Revoke|Rotate`、`InvokeLog/Page`。
+  - 密钥学实现抽到 `internal/meta/finv/openapi/secret`（`HashKey`/`MatchKey`/`Encrypt`/`Decrypt`/`DecodeKey`/`RandomToken`），
+    鉴权中间件与管理接口共用同一套口径（`internal/api/openapi` 改为委托调用，行为不变）。
+  - 密钥只在**签发与轮换的响应里出现一次**：静态 Key = `fk_live_` + 32 位随机十六进制（库里只存 sha256）；
+    AK/SK 的 AK = `ak_live_` + 32 位随机、SK = `sk_live_` + 48 位随机（库里存 AES-256-GCM 密文，密钥取 `sys_config` 19005）。
+    19005 未配置时签发 AK/SK 返回 503 并提示先配置。
+  - 状态语义：停用可逆（`flag_enable`）；吊销不可逆（`flag_revoke` + `dt_revoke` + `reason_revoke`，原因必填），
+    已吊销的凭证不能启用也不能轮换（409）；调用方停用会让其全部凭证立即失效。
+  - 校验：`client_code` 小写字母/数字/`._-`（2~32）、`credential_no` 字母数字/`._-`（2~48）、
+    `auth_mode` 只允许 `API_KEY`/`AK_SK`（预留模式拒绝）、`sign_algorithm` 只允许 `HMAC-SHA256`、
+    `scope` 每项「方法 路径」两段、`allow_cidr` 支持裸 IP 自动补掩码；唯一键冲突 409、记录不存在 404、入参非法 400。
+  - 页面上可读写鉴权配置 `sys_config` 19001～19003（模式/时间窗/日志保留天数），19004～19006 只读显示「是否已配置」。
+  - 前端：`Web/src/views/Meta/Finv/OpenAPI/ClientManageView.vue` + `ClientDialog.vue` + `CredentialDialog.vue`
+    （三个 Tab 一一对应三张表；密钥展示独立步骤 + 复制按钮 + 「只显示这一次」提示；吊销必须填原因）。
+    菜单接线：`menuConfig.ts`（二级叶子「OpenAPI 调用方管理」，`mdi-key-chain`，位于「系统配置」之前）、`router.ts`（`/Meta/Finv/OpenAPI/Client`）。
+  - 测试：`internal/meta/finv/openapi` 单测覆盖入参归一、CIDR 归一、scope 往返、模式/到期解析、
+    密钥格式约定（`fk_live_`+32 位、12 位展示前缀）、分页归一、签发提示必含「只显示这一次」。
+  - 文档：新增 `Docs/API/OpenAPI/Admin.md`（11 个接口逐个字段 + 错误码）与 `Docs/Menu/OpenAPI/Client.md`；
+    `Docs/API/APIs.md` 编号 130、`Docs/Menu/Menus.md`（树 + 表第 47 行）同步登记。
+
 - **外部 OpenAPI 鉴权中间件（需求 11168）**
   - 新增 `internal/api/openapi`：`Middleware.Handler` 挂在 `/OpenAPI/V1` 路由组（先于 `WrapOpenAPIResponse`）。
   - 两种主用模式：
