@@ -1,9 +1,12 @@
 # 握手（Hello）
 
-> 所属：FinvQuant API 文档 · 存放：`Docs/API/OpenAPI/Hello.md`
+> 所属：FinvQuant **对外 OpenAPI** 文档 · 存放：`Docs/OpenAPI/Region/AZ/Server/Hello.md`
+> 目录口径：`Docs/OpenAPI/` 按「去掉 `/OpenAPI/V1/` 后的路径段」组织（如
+> `/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert` → `Docs/OpenAPI/Quote/Cdeu/Min/Upsert.md`）；
+> 平台自身的**管理接口**文档在 `Docs/API/`（如 `Docs/API/OpenAPI/Admin.md`），两者不混放。
 > 需求：11242
 > 实现：`internal/api/openapi/hello.go`（处理器）、`internal/api/openapi/middleware.go`（`scopeFreePaths` 豁免）
-> 鉴权协议：[`Auth.md`](Auth.md)
+> 鉴权协议：[`Auth.md`](../../../API/OpenAPI/Auth.md)
 > 接口清单：`open.open_api_endpoint` 中 `open.region.az.server.hello`
 
 ## 1. 它解决什么问题

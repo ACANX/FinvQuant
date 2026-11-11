@@ -219,6 +219,14 @@
 
 ### 变更
 
+- **握手文档归位到 Docs/OpenAPI（需求 11244）**
+  - `Docs/API/OpenAPI/Hello.md` → `Docs/OpenAPI/Region/AZ/Server/Hello.md`。
+    目录口径：`Docs/API/` 放平台自身**管理接口**（基路径 `/API/V1`），
+    `Docs/OpenAPI/` 放**对外 OpenAPI**（基路径 `/OpenAPI/V1`），按去掉 `/OpenAPI/V1/` 后的路径段组织
+    （现有 `Docs/OpenAPI/Quote/Cdeu/Min` 即此规则）。
+  - 同步修正 `Auth.md §4.9` 的链接、`Docs/API/APIs.md` 索引（新增 92b 行，不重排既有编号）、
+    需求 11242 条目里的文件路径。
+
 - **握手响应的指纹字段改名 kfp（需求 11243）**
   - `data.client.key_fp` → `data.client.kfp`：字段名与审计表列名 `open_api_invoke_log.kfp` 一致，
     客户端拿到响应后可以直接用同名字段去审计表对账，不必再做字段名映射。

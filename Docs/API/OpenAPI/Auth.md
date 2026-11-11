@@ -246,7 +246,7 @@ GET /OpenAPI/V1/Meta/Region/AZ/Server/Hello
 - 响应 `data.handshake = "ServerHello"` 才算成功；同时回 `client.*`（服务端认到的身份，含 `kfp` 指纹）、
   `server_time.unix`（校准时钟）、`capabilities`（时间窗 / 限流 / 换证规则）、`endpoints[]`（可用接口清单）。
 
-完整字段与示例见 [`Hello.md`](Hello.md)。
+完整字段与示例见 [`OpenAPI/Region/AZ/Server/Hello.md`](../../OpenAPI/Region/AZ/Server/Hello.md)。
 
 ## 4.10 未命中路径 / 方法时的响应（需求 11218）
 
