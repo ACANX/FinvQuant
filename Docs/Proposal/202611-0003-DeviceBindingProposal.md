@@ -23,7 +23,6 @@
 | 全局中间件强制设备签名（所有接口都校验） | 会让现有调用方"上线即锁死"；绑定只服务于少数高安全操作 |
 | 设备管理平台（批量下发/远程擦除/统计报表） | 超出当前需要 |
 | Play Integrity / Key Attestation / 防 root | 成本高、依赖 Google 链路；等真有攻击面再评估 |
-| 采集 IMEI / MAC / 序列号 / 手机号 | 用不上：Android 10+ 已限制 IMEI，MAC 跨网段不可见，序列号各家实现不一 |
 | 用设备型号/OS/架构做认证因子 | 客户端自报、可伪造；只作风控信号与展示 |
 
 ## 2. 问题陈述（现状事实）
@@ -122,7 +121,36 @@
 |---|---|---|
 | 公钥（Keystore 生成） | **高**（能证明持有私钥） | 认证因子 |
 | `install_id`（客户端生成 UUID） | 中（配合签名后不可抵赖） | 识别"同设备重装" |
-| 型号 / OS / OS 版本 / 架构 / App 版本 | **低**（自报，可伪造） | 仅展示、风控信号、审计；**不作认证依据**；客户端取不到时传空串，服务端不得因此拒绝 |
+| 型号 / OS / OS 版本 / 架构 / App 版本 | **低**（自报，可伪造） | 仅展示、风控信号、审计 |
+| IMEI / MAC / 序列号 / Android ID | **中**（客户端自报，root/改机可伪造；但配合公钥签名后可用于唯一性判定与人审） | 设备唯一性识别、审批时人工核对、事后追责 |
+| 客户端取不到的字段 | — | 传空串 + 在 `id_missing` 里标出缺了哪几项；**不得**因缺字段让接口报错 |
+
+### 4.7 硬件标识采集（IMEI / MAC / 序列号 / Android ID）
+
+绑定申请**采集**以下标识，全部入库、参与设备唯一性判定：
+
+| 字段 | 取值 | Android 上的实际情况 |
+|---|---|---|
+| `serial` | `Build.getSerial()` | 唯一性最好。**普通应用**在 Android 10+ 需要特权权限，取不到返回 `"unknown"`；**设备所有者 / 系统应用 / 厂商预装**可取 |
+| `imei` | `TelephonyManager.getImei()` | 普通应用 Android 10+ 已不可取（需 `READ_PRIVILEGED_PHONE_STATE`）；平板/无 SIM 设备本身没有 |
+| `mac` | 网卡硬件地址（`wifi0` / `eth0`） | Android 6+ 对应用隐藏，返回固定假值 `02:00:00:00:00:00`；专用设备可用 `NetworkInterface` 或系统权限取真实值 |
+| `android_id` | `Settings.Secure.ANDROID_ID` | 始终可取；Android 8+ 按「应用签名 + 用户 + 设备」生成，卸载重装不变、恢复出厂会变 |
+| `install_id` | 客户端生成 UUID，存 Keystore | 始终可取；清应用数据/卸载即丢 |
+
+**设备唯一性判定优先级**（服务端比对顺序）：
+
+```
+serial > imei > mac > android_id > install_id
+```
+
+命中任一已绑定设备 → 视为同一台设备（走"重绑/复用"分支），避免一条设备因字段缺失被重复登记。
+
+**缺失处理**：允许空值，缺失项记入 `id_missing`（如 `"IMEI,MAC"`），管理端审批页对该申请标黄显示。
+若你的客户端是**设备所有者 / 系统应用 / 自有硬件**，这些字段可全部取到——那种情况下可把
+「`serial` 必填」提为硬校验（见 §7 的 K4）。
+
+> 注意：即便是真实取到的 IMEI/MAC，root 后也能改（Xposed/改机工具），因此它们只用于**唯一性识别与人工核对**，
+> 真正不可伪造的仍然是「Keystore 私钥能签名」这件事。
 
 ## 5. 流程
 
@@ -145,6 +173,10 @@ Phase 4  Bind/Confirm  POST …/Bind/Confirm → 人在设备上输入码 → �
   "install_id": "6f1c3b8e-…",
   "device_pubkey": "MFkwEwYHKoZIzj0C…",
   "key_alg": "ECDSA-P256-SHA256",
+  "hardware": {                              // 取不到传空串，缺失项写进 id_missing
+    "serial": "R58M12ABCDE", "imei": "869123456789012",
+    "mac": "AC:1F:6B:12:34:56", "android_id": "9774d56d682e549c"
+  },
   "device": { "model": "Pixel 8", "os": "Android", "os_version": "15", "arch": "arm64-v8a", "app_version": "1.0.0" }
 }
 ```
@@ -182,7 +214,9 @@ Phase 4  Bind/Confirm  POST …/Bind/Confirm → 人在设备上输入码 → �
 | `idn` / `device_id`(UNIQUE) | `device_id` 由服务端生成，给客户端与业务侧引用 |
 | `client_idn` / `install_id` | `UNIQUE (client_idn, install_id)`：同设备重装复用同一行 |
 | `pubkey`(UNIQUE) / `key_alg` | 公钥不可重复绑定 |
-| `device_model` / `os` / `os_version` / `arch` / `app_version` | **自报、不可信**，仅展示 |
+| `serial` / `imei` / `mac` / `android_id` | 硬件标识（可空）。`serial` / `imei` 各建**部分唯一索引**（`WHERE serial <> ''`），防同一台机器绑两次 |
+| `id_missing` | VARCHAR(64)：本次缺失的标识项（如 `IMEI,MAC`），审批页标黄 |
+| `device_model` / `os` / `os_version` / `arch` / `app_version` | **自报**，仅展示 |
 | `dt_bind` / `dt_last_seen` / `count_fail` | `count_fail` 用于"连续失败自动解绑" |
 | `flag_enable` / `flag_revoke` / `dt_revoke` / `reason_revoke` | 吊销留痕，原因必填（CHECK） |
 | `remark` / `create_by` / `modify_by` / `gmt_create` / `gmt_update` | 审计列 |
@@ -193,6 +227,7 @@ Phase 4  Bind/Confirm  POST …/Bind/Confirm → 人在设备上输入码 → �
 |---|---|
 | `bind_id`(UNIQUE) / `client_idn` / `credential_idn` | 申请标识与申请人 |
 | `install_id` / `pubkey` / `key_alg` / 设备自报信息 | 申请时快照 |
+| `serial` / `imei` / `mac` / `android_id` / `id_missing` | 硬件标识快照（审批人据此核对） |
 | `state` | `PENDING` / `PROVEN` / `APPROVED` / `ACTIVE` / `REJECTED` / `EXPIRED` / `UNBOUND` |
 | `code_hash` / `dt_code` / `count_try` | 码哈希（不存明文）、生成时间、尝试次数 |
 | `approve_by` / `dt_approve` / `reason_reject` | 人工审核留痕 |
@@ -205,6 +240,7 @@ Phase 4  Bind/Confirm  POST …/Bind/Confirm → 人在设备上输入码 → �
 | **K1** | 码的存储形态 | A 只存哈希（审批时生成、只展示一次）/ B 存明文或可逆密文（后台随时可查） | **A** 更安全；若你更在意"随时能查当前码"就选 B |
 | **K2** | 绑定接口的认证模式 | A 只允许 AKSK / B 也允许静态 Key | **A**（要验签设备请求，静态 Key 签不了名） |
 | **K3** | 绑定粒度 | A 调用方级（`client_idn`）/ B 凭证级 | **A**（凭证轮换不影响设备记录） |
+| **K4** | 硬件标识缺失时是否允许绑定 | A 允许（`id_missing` 标记，审批人判断）/ B `serial` 必填，缺失直接拒绝 | **A**（普通 Android 机取不到 IMEI/MAC；若你的客户端是设备所有者/系统应用、能稳定取到，就选 **B**） |
 
 以下**本期不决策**，落地时按需再定，草案里已给出默认取值，不阻塞开工：
 
@@ -219,7 +255,7 @@ Phase 4  Bind/Confirm  POST …/Bind/Confirm → 人在设备上输入码 → �
 | 影响既有认证语义 | 本期**不改**任何既有鉴权路径；设备绑定是独立的旁路状态 |
 | 误伤解绑 | 单次失败不解绑：需「连续 3 次 + 间隔 ≥10 分钟」或客户端显式上报 |
 | 码被爆破 | TTL 10 分钟 + 5 次尝试 + 一次性 + 哈希存储 + `crypto/rand` |
-| 设备字段膨胀 | 只存型号/OS/版本/架构/App 版本这类自报字段，不存硬件唯一号 |
+| 硬件标识缺失或伪造 | 可空 + `id_missing` 标记，审批页标黄提示；唯一性按 `serial > imei > mac > android_id > install_id` 顺序判定；root 可改，故只作识别不作认证因子 |
 | Redis 不可用 | `challenge` 取不到则拒绝绑定（fail-close，与现有 nonce 策略一致） |
 
 ## 9. 阶段与验收
