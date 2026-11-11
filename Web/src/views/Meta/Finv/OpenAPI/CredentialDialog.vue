@@ -159,7 +159,7 @@ async function submit() {
     if (isRotate.value) {
       issued.value = await apiPost<IssuedSecret>(`${BASE}/Credential/Rotate`, { idn: props.credentialIdn })
     } else if (isSts.value) {
-      // STS 临时凭据：不落库、固定 2 小时，只返回三要素（需求 11200）
+      // STS 临时凭据：独立凭证行（auth_mode=STS）、固定 2 小时，返回三要素（需求 11200/11202）
       stsIssued.value = await apiPost<StsIssued>(`${BASE}/Credential/StsIssue`, {
         client_idn: Number(form.value.client_idn),
         scope,
@@ -221,12 +221,12 @@ watch(
         {{ title }}
         <v-chip v-if="isRotate" size="small" variant="tonal" color="warning" class="ml-2">旧密钥立即失效</v-chip>
       </v-card-title>
-      <v-card-subtitle v-if="!issued">
+      <v-card-subtitle v-if="!issued && !stsIssued">
         密钥只在提交成功后显示一次；库里静态 Key 只存 sha256、SK 只存 AES-256-GCM 密文，无法再取回。
       </v-card-subtitle>
 
       <!-- 步骤一：表单 -->
-      <v-card-text v-if="!issued">
+      <v-card-text v-if="!issued && !stsIssued">
         <v-alert v-if="error" type="error" density="compact" variant="tonal" class="mb-3" :text="error" />
         <div class="d-flex flex-column ga-3">
           <div v-if="!isRotate" class="d-flex flex-wrap ga-3">
@@ -351,15 +351,22 @@ watch(
             </div>
           </div>
           <v-alert type="info" density="compact" variant="tonal">
-            调用时三要素都要带：<code>Authorization: META1-HMAC-SHA256 Credential=&lt;SAK&gt;, Signature=...</code>
-            + <code>X-META-TS</code> + <code>X-META-Nonce</code> + <code>X-META-Token: &lt;SST&gt;</code>，
-            且 SecurityToken 参与签名（待签串第 7 段）。
+            <div class="mb-1"><strong>怎么用</strong>：把三要素填到调用方配置里，按 AK/SK 的方式签名，区别是多带一个头：</div>
+            <div class="text-caption">
+              ① <code>Authorization: META1-HMAC-SHA256 Credential=&lt;SAK&gt;, Signature=&lt;base64&gt;</code><br>
+              ② <code>X-META-TS: &lt;秒级时间戳&gt;</code> + <code>X-META-Nonce: &lt;8~64 位随机串&gt;</code><br>
+              ③ <code>X-META-Token: &lt;SST&gt;</code>（SecurityToken）<br>
+              ④ 待签串比长期 AK/SK 多第 7 段：<code>METHOD\nPATH\nSORTED_QUERY\nBODY_SHA256\nTS\nNONCE\nTOKEN</code>
+            </div>
+            <div class="text-caption mt-1">
+              完整示例（curl / Python）见 <code>Docs/API/OpenAPI/Auth.md</code> §4.8。
+            </div>
           </v-alert>
         </div>
       </v-card-text>
 
-      <!-- 步骤二：一次性密钥展示 -->
-      <v-card-text v-else>
+      <!-- 步骤二：一次性密钥展示（长期凭证：APIKEY / AKSK） -->
+      <v-card-text v-else-if="issued">
         <v-alert type="warning" density="compact" variant="tonal" class="mb-3" :text="issued.note" />
         <div class="d-flex flex-column ga-3">
           <div>
@@ -397,7 +404,7 @@ watch(
 
       <v-card-actions>
         <v-spacer />
-        <template v-if="!issued">
+        <template v-if="!issued && !stsIssued">
           <v-btn variant="text" :disabled="saving" @click="visible = false">取消</v-btn>
           <v-btn color="primary" :loading="saving" :disabled="!canSubmit" @click="submit">
             {{ isRotate ? '确认轮换' : '签发' }}
