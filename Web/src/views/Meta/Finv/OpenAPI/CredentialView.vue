@@ -109,6 +109,8 @@ const dialogOpen = ref(false)
 const dialogMode = ref<'create' | 'rotate'>('create')
 const dialogClientIDN = ref(0)
 const dialogCredentialIDN = ref(0)
+const dialogCredentialNo = ref('')
+const dialogAuthMode = ref('')
 
 function openCreate() {
   if (clients.value.length === 0) {
@@ -118,6 +120,8 @@ function openCreate() {
   dialogMode.value = 'create'
   dialogClientIDN.value = clientIDN.value || clients.value[0].idn
   dialogCredentialIDN.value = 0
+  dialogCredentialNo.value = ''
+  dialogAuthMode.value = ''
   dialogOpen.value = true
 }
 
@@ -126,6 +130,8 @@ function openRotate(row: CredentialRow) {
   dialogMode.value = 'rotate'
   dialogClientIDN.value = row.client_idn
   dialogCredentialIDN.value = row.idn
+  dialogCredentialNo.value = row.credential_no
+  dialogAuthMode.value = row.auth_mode
   dialogOpen.value = true
 }
 
@@ -440,6 +446,8 @@ onMounted(async () => {
       :mode="dialogMode"
       :client-idn="dialogClientIDN"
       :credential-idn="dialogCredentialIDN"
+      :credential-no="dialogCredentialNo"
+      :auth-mode="dialogAuthMode"
       :clients="clients"
       @saved="load"
     />

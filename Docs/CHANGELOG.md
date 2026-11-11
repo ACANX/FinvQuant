@@ -219,6 +219,15 @@
 
 ### 变更
 
+- **修复「确认轮换」按钮恒置灰（需求 11232）**
+  - 根因：`canSubmit` 里仍在跑「静态 Key 有效期」校验，而轮换页没有有效期输入
+    （字段都 `v-if="!isRotate"`），`form.auth_mode` 又是默认 `APIKEY`、`dt_expire` 为空
+    → `apiKeyExpireInvalid` 恒为 `true`，按钮永远 disabled。
+  - 修复：`apiKeyExpireInvalid` 加 `!isRotate` 前置条件；`canSubmit` 在轮换时直接放行
+    （轮换只需凭证 idn，没有任何表单字段可填）。
+  - 顺带：轮换对话框顶部改显示「将轮换 <凭证号>（认证模式）的密钥」，避免用户不确定点到哪一条
+    （`CredentialView` 把 `credentialNo` / `authMode` 传进对话框）。
+
 - **新增「改授权范围」接口与页面入口（需求 11230）**
   - `POST /API/V1/Meta/Finv/OpenAPI/Credential/Scope`：`{idn, scope}`，**只改授权范围**，
     不动密钥 / IP 白名单 / 有效期。

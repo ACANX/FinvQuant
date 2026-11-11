@@ -49,6 +49,9 @@ const props = defineProps<{
   clientIdn: number
   credentialIdn: number
   clients: ClientRow[]
+  /** 轮换目标：凭证号与认证模式（仅用于展示与避免误判，签发时为默认值） */
+  credentialNo?: string
+  authMode?: string
 }>()
 
 const emit = defineEmits<{
@@ -110,13 +113,19 @@ const maxApiKeyExpire = computed(() => {
   return d.toISOString().slice(0, 10)
 })
 
+// 静态 Key 有效期校验：只在**签发**时生效。
+// 轮换页没有有效期输入（v-if="!isRotate"），form.auth_mode 仍是默认的 APIKEY、dt_expire 为空，
+// 若不排除轮换，这个 computed 恒为 true → 「确认轮换」按钮永远置灰（需求 11232 修复）。
 const apiKeyExpireInvalid = computed(
-  () => form.value.auth_mode === 'APIKEY' &&
+  () => !isRotate.value &&
+    form.value.auth_mode === 'APIKEY' &&
     (!form.value.dt_expire || form.value.dt_expire > maxApiKeyExpire.value),
 )
 
 const canSubmit = computed(() => {
   if (saving.value) return false
+  // 轮换只需要凭证 idn，没有任何表单字段可填，谈不上校验
+  if (isRotate.value) return true
   // STS 走与 AKSK 相同的签发流程（生成 AK/SK 兑换凭证），凭证号同样必填
   return !noError.value && !apiKeyExpireInvalid.value
 })
@@ -125,7 +134,8 @@ function resetForm() {
   form.value = {
     client_idn: props.clientIdn || props.clients[0]?.idn || 0,
     credential_no: '',
-    auth_mode: 'APIKEY',
+    // 轮换时用凭证真实模式（否则默认 APIKEY 会让「静态 Key 有效期」提示误显示）
+    auth_mode: props.authMode || 'APIKEY',
     scope_picked: [],
     scope_text: '',
     allow_cidr_text: '',
@@ -259,7 +269,13 @@ watch(
         <v-chip v-if="isRotate" size="small" variant="tonal" color="warning" class="ml-2">旧密钥立即失效</v-chip>
       </v-card-title>
       <v-card-subtitle v-if="!issued">
-        密钥只在提交成功后显示一次；库里静态 Key 只存 sha256、SK 只存 AES-256-GCM 密文，无法再取回。
+        <template v-if="isRotate">
+          将轮换 {{ props.credentialNo || `idn=${props.credentialIdn}` }}（{{ props.authMode || '原模式' }}）的密钥，
+          旧密钥立即失效；新密钥只在提交成功后显示一次，之后无法再取回。
+        </template>
+        <template v-else>
+          密钥只在提交成功后显示一次；库里静态 Key 只存 sha256、SK 只存 AES-256-GCM 密文，无法再取回。
+        </template>
       </v-card-subtitle>
 
       <!-- 步骤一：表单 -->
