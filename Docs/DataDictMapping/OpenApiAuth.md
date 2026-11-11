@@ -47,9 +47,9 @@
 |------|------|------|------|
 | `idn` | BIGINT | PK, identity | 主键 |
 | `client_idn` | BIGINT | NOT NULL | 所属调用方（程序层关联，无外键） |
-| `credential_no` | VARCHAR(48) | NOT NULL, UNIQUE | 凭证号（`cred-cdeu-01`） |
+| `credential_no` | VARCHAR(48) | NOT NULL, UNIQUE | 凭证号（`CRED-CDEU-01`，字母统一大写） |
 | `auth_mode` | VARCHAR(16) | NOT NULL, `IN ('API_KEY','AK_SK','BEARER','MTLS','BASIC')` | 认证模式 |
-| `access_key_id` | VARCHAR(64) | NOT NULL, UNIQUE | **公开标识**：`API_KEY` 模式即 key 本身（`fk_live_...`）、`AK_SK` 模式为 AK、`MTLS` 模式为证书指纹 |
+| `access_key_id` | VARCHAR(64) | NOT NULL, UNIQUE | **公开标识**：`API_KEY` 模式即 key 本身（`FK_LIVE_...`）、`AK_SK` 模式为 AK（`AK_LIVE_...`）、`MTLS` 模式为证书指纹；**英文字母一律大写**（需求 11176） |
 | `key_prefix` | VARCHAR(12) | 可空 | 密钥前 8 位明文（展示/检索用，绝不回显全量） |
 | `secret_hash` | VARCHAR(128) | 可空 | 密钥哈希：`API_KEY` 用 sha256 十六进制、`BASIC` 用 argon2id PHC 串；`AK_SK` 必须为 NULL |
 | `secret_cipher` | TEXT | 可空 | SK 密文（AES-256-GCM，Base64）；`AK_SK` 必须有值，其他模式必须为 NULL |

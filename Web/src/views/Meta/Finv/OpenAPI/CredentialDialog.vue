@@ -82,7 +82,7 @@ const noError = computed(() => {
   if (isRotate.value) return ''
   const value = form.value.credential_no.trim()
   if (!value) return '不能为空'
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{1,47}$/.test(value)) return '只允许字母/数字/._-，2~48 位'
+  if (!/^[A-Z0-9][A-Z0-9._-]{1,47}$/.test(value)) return '只允许字母/数字/._-，2~48 位（字母统一大写）'
   return ''
 })
 const canSubmit = computed(() => !noError.value && !saving.value)
@@ -105,7 +105,7 @@ function populateCredentialNo() {
   const stamp = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
   form.value.credential_no =
-    `cred-${form.value.client_idn}-${stamp.getFullYear()}${pad(stamp.getMonth() + 1)}${pad(stamp.getDate())}` +
+    `CRED-${form.value.client_idn}-${stamp.getFullYear()}${pad(stamp.getMonth() + 1)}${pad(stamp.getDate())}` +
     `-${pad(stamp.getHours())}${pad(stamp.getMinutes())}`
 }
 
@@ -128,7 +128,7 @@ async function submit() {
     } else {
       issued.value = await apiPost<IssuedSecret>(`${BASE}/Credential/Create`, {
         client_idn: Number(form.value.client_idn),
-        credential_no: form.value.credential_no.trim(),
+        credential_no: form.value.credential_no.trim().toUpperCase(),
         auth_mode: form.value.auth_mode,
         scope,
         allow_cidr: cidrs,
@@ -201,9 +201,10 @@ watch(
               @update:model-value="form.client_idn = Number($event)"
             />
             <v-text-field
-              v-model="form.credential_no"
-              label="凭证号 *"
-              placeholder="如 cred-cdeu-01"
+              :model-value="form.credential_no"
+              label="凭证号 *（字母统一大写）"
+              placeholder="如 CRED-CDEU-01"
+              @update:model-value="form.credential_no = String($event ?? '').toUpperCase()"
               density="compact"
               variant="outlined"
               style="min-width: 240px; flex: 1"

@@ -258,15 +258,18 @@ type issuedSecret struct {
 	KID          string
 }
 
-// buildSecret 生成密钥材料。
+// buildSecret 生成密钥材料（英文字母一律大写，需求 11176）。
 //
-//   - API_KEY：access_key_id 即静态 Key（`fk_live_` + 32 位十六进制），库里只存 sha256；
-//   - AK_SK：AK 为 `ak_live_` + 32 位十六进制，SK 为 48 位十六进制，库里存 AES-256-GCM 密文。
+//   - API_KEY：access_key_id 即静态 Key（`FK_LIVE_` + 32 位十六进制大写），库里只存 sha256；
+//   - AK_SK：AK 为 `AK_LIVE_` + 32 位十六进制大写，SK 为 `SK_LIVE_` + 48 位十六进制大写，
+//     库里存 AES-256-GCM 密文。
 func (s *Service) buildSecret(ctx context.Context, authMode string) (issuedSecret, error) {
+	// 十六进制随机数本身是小写，统一转大写（需求 11176）
 	random, err := secret.RandomToken(16)
 	if err != nil {
 		return issuedSecret{}, fmt.Errorf("生成随机密钥失败: %w", err)
 	}
+	random = secret.NormalizeKey(random)
 
 	if authMode == AuthModeAPIKey {
 		key := secret.PrefixAPIKey + random
@@ -282,7 +285,7 @@ func (s *Service) buildSecret(ctx context.Context, authMode string) (issuedSecre
 	if err != nil {
 		return issuedSecret{}, fmt.Errorf("生成随机密钥失败: %w", err)
 	}
-	sk := "sk_live_" + skToken
+	sk := secret.PrefixSK + secret.NormalizeKey(skToken)
 
 	base64Key, err := s.store.SecretKeyBase64(ctx)
 	if err != nil {

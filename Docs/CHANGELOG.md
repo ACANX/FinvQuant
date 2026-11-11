@@ -219,6 +219,19 @@
 
 ### 变更
 
+- **凭证号 / 静态 Key / AK / SK 统一大写（需求 11176）**
+  - 生成侧：前缀改为 `FK_LIVE_` / `AK_LIVE_` / `SK_LIVE_`，随机十六进制部分 `NormalizeKey` 转大写；
+    静态 Key 与 AK 都是 `<前缀>+32 位大写十六进制`，SK 是 `SK_LIVE_+48 位大写十六进制`。
+  - 凭证号：`validateCredential` 先 `ToUpper` 再校验（正则收紧为 `^[A-Z0-9][A-Z0-9._-]{1,47}$`）；
+    前端输入框实时转大写（粘贴也过一遍），自动生成的凭证号改为 `CRED-<clientId>-<yyyyMMdd>-<HHmm>`。
+  - 校验侧：新增 `secret.NormalizeKey`；`MatchKey` 先按大写归一比对，不匹配再退回原样比对
+    （**兼容改口径之前签发的小写密钥**，等这些凭证轮换完可视需要删掉兜底分支）；
+    `PGSource.Lookup` 查不到时按大写重试一次，调用方手写小写也能命中。
+  - 文档示例同步改大写：`Docs/API/OpenAPI/Auth.md`、`Admin.md`、`Docs/DataDictMapping/OpenApiAuth.md`、
+    `Docs/Menu/OpenAPI/Credential.md`（并注明「手写小写也能通过」）。
+  - 测试：新增 `TestIssuedKeyUppercase`（凭证号归一、三种前缀全大写、小写输入可匹配大写哈希、历史小写密钥仍可用）；
+    联调测试同步改用大写密钥字面量并断言 AK/SK 全大写。
+
 - **新增「OpenAPI 密钥配置」菜单，解决 19005 无法手填（需求 11175）**
   - 问题：19005 是 32 字节的 AES-256 密钥、要 Base64 编码，手写极易出现「必须是 32 字节」的报错；
     而且换密钥会让已签发的 AK/SK 凭证解不开密文，不适合在通用配置里裸改。

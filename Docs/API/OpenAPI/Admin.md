@@ -194,8 +194,8 @@
     "list": [
       {
         "idn": 1, "client_idn": 1, "client_code": "cdeu-hook",
-        "credential_no": "cred-01", "auth_mode": "AK_SK",
-        "access_key_id": "ak_live_ab12...", "key_prefix": "ak_live_ab12",
+        "credential_no": "CRED-01", "auth_mode": "AK_SK",
+        "access_key_id": "AK_LIVE_AB12...", "key_prefix": "AK_LIVE_AB12",
         "has_secret": true, "sign_algorithm": "HMAC-SHA256",
         "scope": ["POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert"],
         "allow_cidr": [], "dt_expire": "", "dt_last_use": "2026-11-11T08:10:00+08:00",
@@ -215,7 +215,7 @@
 ```json
 {
   "client_idn": 1,
-  "credential_no": "cred-01",
+  "credential_no": "CRED-01",
   "auth_mode": "AK_SK",
   "sign_algorithm": "HMAC-SHA256",
   "scope": ["POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert"],
@@ -228,7 +228,7 @@
 | 字段 | 约束 |
 |---|---|
 | `client_idn` | 必须存在（404） |
-| `credential_no` | 字母/数字/`._-`，2~48 位，全局唯一（409） |
+| `credential_no` | 字母/数字/`._-`，2~48 位，全局唯一（409）；**字母统一大写**（服务端 `ToUpper` 后入库） |
 | `auth_mode` | 仅 `API_KEY` / `AK_SK`；`BEARER` / `MTLS` / `BASIC` 为预留，传了即 400 |
 | `sign_algorithm` | 仅 `HMAC-SHA256`；静态 Key 不参与验签，落库统一为 `HMAC-SHA256`（列上有 NOT NULL + CHECK） |
 | `scope` | 每项「方法 路径」两段；方法限 `GET/POST/PUT/PATCH/DELETE/*`；路径以 `/` 开头 |
@@ -242,14 +242,14 @@
   "message": "凭证已签发（密钥只显示一次）",
   "data": {
     "credential": { "...": "同 5.1 的凭证结构" },
-    "access_key": "ak_live_ab12cd34ef56...",
-    "secret_key": "sk_live_...",
+    "access_key": "AK_LIVE_AB12CD34EF56...",
+    "secret_key": "SK_LIVE_...",
     "note": "SK 只显示这一次：请立即复制保存（库里只存密文，丢失只能轮换）；请求用 Authorization: FinvAK <AK>:<签名>"
   }
 }
 ```
 
-- `API_KEY` 模式：`access_key` 与 `secret_key` 相同（静态 Key 本身就是公开标识），库里只存 `sha256`；
+- `API_KEY` 模式：`access_key` 与 `secret_key` 相同（静态 Key 本身就是公开标识，形如 `FK_LIVE_` + 32 位大写十六进制），库里只存 `sha256`；
 - `AK_SK` 模式：`secret_key` 是 SK，库里存 AES-256-GCM 密文（密钥取 `sys_config` 19005）。
   **19005 未配置时返回 503**，错误里明确提示先配置 19005。
 

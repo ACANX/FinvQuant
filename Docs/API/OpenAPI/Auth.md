@@ -25,10 +25,13 @@
 
 ```http
 GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni?column=usc&row=AAPL&limit=1
-X-API-Key: fk_live_xxxxxxxxxxxx
+X-API-Key: FK_LIVE_XXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
 
-也接受 `Authorization: Bearer fk_live_xxxxxxxxxxxx`（两者都带时以 `X-API-Key` 为准）。
+也接受 `Authorization: Bearer FK_LIVE_XXXXXXXXXXXXXXXXXXXXXXXXXXXX`（两者都带时以 `X-API-Key` 为准）。
+
+> **大小写（需求 11176）**：凭证号、静态 Key、AK、SK 里的英文字母**一律大写**，便于人工抄写与电话核对。
+> 调用方手写小写也能通过：服务端会按大写归一后查库与比对哈希。
 
 - 凭证表中的 `access_key_id` 与 `X-API-Key` 的值**相同**（静态 Key 本身就是公开标识）；
 - 服务端比对 `sha256(提供的 Key)` 与库内 `secret_hash`（恒定时间比较），库内**不存明文**；
@@ -38,7 +41,7 @@ X-API-Key: fk_live_xxxxxxxxxxxx
 
 ```http
 POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert?batch=1
-Authorization: FinvAK ak_live_xxxxxxxx:oQ7Fk3v...=
+Authorization: FinvAK AK_LIVE_XXXXXXXXXXXXXXXX:oQ7Fk3v...=
 X-Finv-Timestamp: 1737000000
 X-Finv-Nonce: 8e2f1c9a4b7d4c0e
 Content-Type: application/json

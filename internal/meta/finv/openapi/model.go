@@ -196,7 +196,7 @@ type InvokeLogFilter struct {
 
 var (
 	clientCodePattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{1,31}$`)
-	credentialNoPatten = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{1,47}$`)
+	credentialNoPatten = regexp.MustCompile(`^[A-Z0-9][A-Z0-9._-]{1,47}$`)
 	kidPattern         = regexp.MustCompile(`^[A-Za-z0-9._-]{1,16}$`)
 )
 
@@ -251,7 +251,8 @@ func validateClient(req ClientRequest) (ClientRequest, error) {
 
 // validateCredential 校验签发入参。
 func validateCredential(req CredentialCreateRequest) (CredentialCreateRequest, error) {
-	req.CredentialNo = strings.TrimSpace(req.CredentialNo)
+	// 凭证号统一大写入库（需求 11176），避免与人工抄写的形式不一致
+	req.CredentialNo = strings.ToUpper(strings.TrimSpace(req.CredentialNo))
 	req.AuthMode = strings.ToUpper(strings.TrimSpace(req.AuthMode))
 	req.SignAlgorithm = strings.ToUpper(strings.TrimSpace(req.SignAlgorithm))
 	req.Remark = strings.TrimSpace(req.Remark)
@@ -263,7 +264,7 @@ func validateCredential(req CredentialCreateRequest) (CredentialCreateRequest, e
 		return req, invalid("credential_no 不能为空")
 	}
 	if !credentialNoPatten.MatchString(req.CredentialNo) {
-		return req, invalid("credential_no 只允许字母/数字/._-，2~48 位")
+		return req, invalid("credential_no 只允许字母/数字/._-，2~48 位（字母统一大写）")
 	}
 	if !contains(issuableAuthModes, req.AuthMode) {
 		return req, invalid("auth_mode 只能是 %s（BEARER / MTLS / BASIC 为预留，暂不允许签发）",

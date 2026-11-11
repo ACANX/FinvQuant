@@ -254,7 +254,7 @@ func TestLiveAdminAKSKIssuance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("配置 19005 后签发 AK/SK 失败: %v", err)
 	}
-	if !strings.HasPrefix(issued.AccessKey, secret.PrefixAK) || !strings.HasPrefix(issued.SecretKey, "sk_live_") {
+	if !strings.HasPrefix(issued.AccessKey, secret.PrefixAK) || !strings.HasPrefix(issued.SecretKey, secret.PrefixSK) {
 		t.Fatalf("AK/SK 前缀不符: ak=%q sk=%q", issued.AccessKey, issued.SecretKey)
 	}
 	if issued.AccessKey == issued.SecretKey {
@@ -276,6 +276,9 @@ func TestLiveAdminAKSKIssuance(t *testing.T) {
 	}
 	if plain != issued.SecretKey {
 		t.Fatalf("解密结果应等于返回的 SK")
+	}
+	if issued.AccessKey != strings.ToUpper(issued.AccessKey) || issued.SecretKey != strings.ToUpper(issued.SecretKey) {
+		t.Fatalf("AK/SK 必须全大写：ak=%q sk=%q", issued.AccessKey, issued.SecretKey)
 	}
 	t.Logf("AK/SK 签发成功：ak=%s… sk 长度=%d，密文可解回", issued.AccessKey[:12], len(issued.SecretKey))
 }
@@ -344,7 +347,40 @@ SELECT COALESCE(MAX(str_value) FILTER (WHERE config_no = 19004), ''),
   FROM sys.sys_config WHERE config_no IN (19004, 19005, 19006)`).Scan(&original.kid, &original.key, &original.fallback); err != nil {
 		t.Fatalf("读取密钥配置失败: %v", err)
 	}
+	// 重要：SaveSecret 的重加密是**全局**的，会改到库里所有持有密文的凭证。
+	// 因此测试开始先整表快照（密文 + KID），结束时按 idn 原样写回，
+	// 否则会把别人的凭证改成用临时密钥加密、而配置里没有那把密钥 → 永久解不开。
+	type cipherRow struct {
+		idn, kid, current, prev string
+	}
+	var snapshot []cipherRow
+	cipherRows, err := pool.Query(ctx, `
+SELECT idn::text, COALESCE(secret_kid, ''), COALESCE(secret_cipher, ''), COALESCE(secret_cipher_prev, '')
+  FROM open.open_api_credential`)
+	if err != nil {
+		t.Fatalf("快照凭证密文失败: %v", err)
+	}
+	for cipherRows.Next() {
+		var item cipherRow
+		if err := cipherRows.Scan(&item.idn, &item.kid, &item.current, &item.prev); err != nil {
+			cipherRows.Close()
+			t.Fatalf("读取凭证密文失败: %v", err)
+		}
+		snapshot = append(snapshot, item)
+	}
+	cipherRows.Close()
+
 	t.Cleanup(func() {
+		// 先删掉本测试自己造的凭证，再把快照里的原始凭证密文写回
+		_, _ = pool.Exec(ctx, `DELETE FROM open.open_api_credential WHERE credential_no LIKE 'zz-secret-%'`)
+		for _, item := range snapshot {
+			if _, err := pool.Exec(ctx, `
+UPDATE open.open_api_credential
+   SET secret_kid = NULLIF($2, ''), secret_cipher = NULLIF($3, ''), secret_cipher_prev = NULLIF($4, '')
+ WHERE idn = $1::bigint`, item.idn, item.kid, item.current, item.prev); err != nil {
+				t.Logf("恢复凭证 %s 密文失败（需人工检查）: %v", item.idn, err)
+			}
+		}
 		if _, err := pool.Exec(ctx, `
 UPDATE sys.sys_config SET str_value = $1 WHERE config_no = 19004`, original.kid); err != nil {
 			t.Logf("恢复 19004 失败（需人工检查）: %v", err)
@@ -411,8 +447,13 @@ UPDATE sys.sys_config SET str_value = $1 WHERE config_no = 19006`, original.fall
 	if err != nil {
 		t.Fatalf("换密钥失败: %v", err)
 	}
-	if view.UpdatedCredential < 1 || view.SkippedCredential != 0 {
-		t.Fatalf("重加密结果不符: updated=%d skipped=%d", view.UpdatedCredential, view.SkippedCredential)
+	// 只要求「本测试自己那条」被重加密成功；库里其它凭证若本来就解不开（历史遗留），
+	// 服务端会跳过并计数——这是预期行为，这里只记录不当作失败。
+	if view.UpdatedCredential < 1 {
+		t.Fatalf("至少应重加密 1 条凭证，实际 updated=%d skipped=%d", view.UpdatedCredential, view.SkippedCredential)
+	}
+	if view.SkippedCredential > 0 {
+		t.Logf("跳过 %d 条解不开的历史凭证（预期内，需人工重新签发）", view.SkippedCredential)
 	}
 
 	// 新密文必须能用新密钥解出原 SK，且 secret_kid 已更新

@@ -29,8 +29,11 @@
 
 | 模式 | 返回 | 库内存储 |
 |---|---|---|
-| 静态 API Key | `fk_live_` + 32 位随机（`access_key` = `secret_key`） | `secret_hash`（sha256） |
-| AK/SK | AK `ak_live_` + 32 位随机、SK `sk_live_` + 48 位随机 | `secret_cipher`（AES-256-GCM，密钥取 `sys_config` 19005） |
+| 静态 API Key | `FK_LIVE_` + 32 位大写随机（`access_key` = `secret_key`） | `secret_hash`（sha256） |
+| AK/SK | AK `AK_LIVE_` + 32 位大写随机、SK `SK_LIVE_` + 48 位大写随机 | `secret_cipher`（AES-256-GCM，密钥取 `sys_config` 19005） |
+
+**大小写（需求 11176）**：凭证号、静态 Key、AK、SK 的英文字母一律大写；凭证号输入框会自动转大写，
+服务端入库前也会 `ToUpper`。调用方手写小写时，服务端按大写归一后查库与比对，因此不会因为大小写失败。
 
 `19005` 未配置时签发 AK/SK 返回 503，页面会提示先去系统配置填写。
 

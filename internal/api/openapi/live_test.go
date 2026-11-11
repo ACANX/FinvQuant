@@ -108,9 +108,9 @@ func TestLiveOpenAPIAuthEndToEnd(t *testing.T) {
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	testStart := time.Now().Add(-time.Minute)
 	clientCode := "zz-oa-live-" + suffix
-	staticKey := "fk_live_live" + suffix
-	ak := "ak_live_" + suffix
-	sk := "sk_live_" + suffix
+	staticKey := "FK_LIVE_" + suffix
+	ak := "AK_LIVE_" + suffix
+	sk := "SK_LIVE_" + suffix
 
 	// ---- 现场记录，defer 恢复 ----
 	modeChar, modeStr, _ := getConfig(t, pool, 19001)
@@ -173,7 +173,7 @@ func TestLiveOpenAPIAuthEndToEnd(t *testing.T) {
 	t.Logf("无凭证 → %d %s", status, strings.TrimSpace(body))
 
 	// 错 Key → 19002
-	status, body = httpGet(t, target, "fk_live_wrong"+suffix, "", nil)
+	status, body = httpGet(t, target, "FK_LIVE_WRONG"+suffix, "", nil)
 	if status != http.StatusUnauthorized || !strings.Contains(body, "19002") {
 		t.Fatalf("错 Key 应 401/19002，实际 %d %s", status, body)
 	}

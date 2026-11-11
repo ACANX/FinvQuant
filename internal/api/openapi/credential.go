@@ -174,6 +174,9 @@ type PGSource struct {
 func NewPGSource(pool *pgxpool.Pool) *PGSource { return &PGSource{pool: pool} }
 
 // Lookup 按公开标识读取凭证；不存在返回 ErrCredentialNotFound。
+//
+// 需求 11176：公开标识（静态 Key / AK）统一大写存储，因此先按原样查，
+// 查不到再按大写查一次——这样调用方手写小写也能命中。
 func (s *PGSource) Lookup(ctx context.Context, accessKeyID string) (*Credential, error) {
 	if s.pool == nil {
 		return nil, errors.New("数据库连接池未初始化")
@@ -182,7 +185,20 @@ func (s *PGSource) Lookup(ctx context.Context, accessKeyID string) (*Credential,
 	if accessKeyID == "" {
 		return nil, ErrCredentialNotFound
 	}
+	credential, err := s.lookupExact(ctx, accessKeyID)
+	if err == nil {
+		return credential, nil
+	}
+	if errors.Is(err, ErrCredentialNotFound) {
+		if upper := strings.ToUpper(accessKeyID); upper != accessKeyID {
+			return s.lookupExact(ctx, upper)
+		}
+	}
+	return nil, err
+}
 
+// lookupExact 按给定标识精确查询。
+func (s *PGSource) lookupExact(ctx context.Context, accessKeyID string) (*Credential, error) {
 	credential := &Credential{}
 	var (
 		scopeJSON       string

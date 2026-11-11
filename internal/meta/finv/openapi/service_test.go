@@ -151,7 +151,8 @@ func TestNormalizeModeAndExpire(t *testing.T) {
 }
 
 func TestKeyFormatConvention(t *testing.T) {
-	// 文档承诺的格式：静态 Key = fk_live_ + 32 位十六进制；AK = ak_live_ + 32 位十六进制
+	// 文档承诺的格式（需求 11176 起全大写）：静态 Key = FK_LIVE_ + 32 位十六进制；
+	// AK = AK_LIVE_ + 32 位十六进制；SK = SK_LIVE_ + 48 位十六进制
 	random, err := secret.RandomToken(16)
 	if err != nil {
 		t.Fatalf("生成随机数失败: %v", err)
@@ -160,10 +161,10 @@ func TestKeyFormatConvention(t *testing.T) {
 		t.Fatalf("16 字节随机数应产生 32 位十六进制，实际 %d", len(random))
 	}
 	key := secret.PrefixAPIKey + random
-	if !strings.HasPrefix(key, "fk_live_") || len(key) != len("fk_live_")+32 {
+	if !strings.HasPrefix(key, secret.PrefixAPIKey) || len(key) != len(secret.PrefixAPIKey)+32 {
 		t.Fatalf("静态 Key 格式不符: %s", key)
 	}
-	if prefix := keyPrefixOf(key); len(prefix) != 12 || prefix != "fk_live_"+random[:4] {
+	if prefix := keyPrefixOf(key); len(prefix) != 12 || prefix != secret.PrefixAPIKey+random[:4] {
 		t.Fatalf("展示前缀应为前 12 位，实际 %q", prefix)
 	}
 
@@ -204,5 +205,53 @@ func TestInvokeLogFilterValidation(t *testing.T) {
 	service := &Service{}
 	if _, _, err := service.InvokeLogPage(nil, InvokeLogFilter{FlagPass: "x"}); err == nil {
 		t.Fatalf("非法 flag_pass 应被拒绝")
+	}
+}
+
+// TestIssuedKeyUppercase 凭证号与三种密钥的英文字母一律大写（需求 11176）。
+func TestIssuedKeyUppercase(t *testing.T) {
+	// 凭证号：小写入参被归一为大写
+	validated, err := validateCredential(CredentialCreateRequest{
+		ClientIDN: 1, CredentialNo: "cred-cdeu-01", AuthMode: "api_key",
+	})
+	if err != nil {
+		t.Fatalf("合法凭证号不应报错: %v", err)
+	}
+	if validated.CredentialNo != "CRED-CDEU-01" {
+		t.Fatalf("凭证号应归一为大写，实际 %q", validated.CredentialNo)
+	}
+
+	// 生成侧：前缀与随机部分都大写
+	random, err := secret.RandomToken(16)
+	if err != nil {
+		t.Fatalf("生成随机数失败: %v", err)
+	}
+	upper := secret.NormalizeKey(random)
+	if upper != strings.ToUpper(random) {
+		t.Fatalf("NormalizeKey 应转大写")
+	}
+	for _, prefix := range []string{secret.PrefixAPIKey, secret.PrefixAK, secret.PrefixSK} {
+		if prefix != strings.ToUpper(prefix) {
+			t.Fatalf("密钥前缀 %q 必须全大写", prefix)
+		}
+	}
+	full := secret.PrefixAPIKey + upper
+	if full != strings.ToUpper(full) {
+		t.Fatalf("拼出的密钥必须全大写: %s", full)
+	}
+
+	// 校验侧：库里存大写 Key 的哈希时，客户端传小写也能通过（归一后比对）
+	hashOfUpper := secret.HashKey(full)
+	if !secret.MatchKey(hashOfUpper, strings.ToLower(full)) {
+		t.Fatalf("小写形式应能匹配大写 Key 的哈希")
+	}
+	if !secret.MatchKey(hashOfUpper, full) {
+		t.Fatalf("大写形式应能匹配")
+	}
+
+	// 兼容：改口径之前签发的小写 Key（存小写哈希）仍可用
+	legacy := "fk_live_abcdef0123456789"
+	if !secret.MatchKey(secret.HashKey(legacy), legacy) {
+		t.Fatalf("历史小写 Key 应仍可匹配")
 	}
 }

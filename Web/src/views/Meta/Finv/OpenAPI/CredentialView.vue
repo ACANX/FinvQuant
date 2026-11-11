@@ -298,21 +298,26 @@ onMounted(async () => {
       </v-card-title>
       <v-card-text class="text-body-2">
         <p>
-          ① <strong>模式一 静态 Key</strong>：密钥形如 <code>fk_live_</code> + 32 位随机串，请求带
+          ① <strong>凭证号 / AK / SK / 静态 Key 的英文字母一律大写</strong>（便于人工抄写核对），
+          形如 <code>CRED-CDEU-01</code>、<code>FK_LIVE_…</code>、<code>AK_LIVE_…</code>、<code>SK_LIVE_…</code>；
+          调用方手写小写也能匹配（服务端会按大写归一后比对）。
+        </p>
+        <p>
+          ② <strong>模式一 静态 Key</strong>：密钥形如 <code>FK_LIVE_</code> + 32 位随机串，请求带
           <code>X-API-Key</code>（或 <code>Authorization: Bearer</code>）；库里只存 <code>sha256</code> 哈希。
         </p>
         <p>
-          ② <strong>模式二 AK/SK</strong>：AK 形如 <code>ak_live_</code> + 32 位随机串（公开标识），
-          SK 形如 <code>sk_live_</code> + 48 位随机串；请求带 <code>Authorization: FinvAK &lt;AK&gt;:&lt;签名&gt;</code> +
+          ③ <strong>模式二 AK/SK</strong>：AK 形如 <code>AK_LIVE_</code> + 32 位随机串（公开标识），
+          SK 形如 <code>SK_LIVE_</code> + 48 位随机串；请求带 <code>Authorization: FinvAK &lt;AK&gt;:&lt;签名&gt;</code> +
           <code>X-Finv-Timestamp</code> + <code>X-Finv-Nonce</code>。SK 以 AES-256-GCM 密文存储，
           加密密钥取系统配置 <code>19005</code>（未配置时签发会返回 503）。
         </p>
         <p>
-          ③ <strong>状态语义</strong>：停用可逆（不改密钥）；吊销不可逆，必须填写原因并留痕，
+          ④ <strong>状态语义</strong>：停用可逆（不改密钥）；吊销不可逆，必须填写原因并留痕，
           之后只能新建凭证；调用方停用时其全部凭证一并失效。
         </p>
         <p>
-          ④ <strong>轮换</strong>：静态 Key 的公开标识会改变（旧 Key 立即失效）；AK/SK 的旧 SK 在签名时间窗内仍可验签，
+          ⑤ <strong>轮换</strong>：静态 Key 的公开标识会改变（旧 Key 立即失效）；AK/SK 的旧 SK 在签名时间窗内仍可验签，
           窗口过后失效，便于调用方无感切换。
         </p>
         <p>⑤ 授权范围留空 = 该路由组全部接口；每条写成「方法 路径」，路径支持尾部 <code>/*</code> 前缀匹配。</p>

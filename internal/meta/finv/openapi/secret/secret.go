@@ -17,11 +17,20 @@ import (
 	"strings"
 )
 
-// 静态 Key 前缀（便于人工识别与日志检索）。
+// 密钥前缀（便于人工识别与日志检索）。
+//
+// 需求 11176：凭证号 / AK / SK / 静态 Key 中的英文字母**一律大写**，
+// 便于人工抄写与电话核对（大小写混排最容易看错）。
 const (
-	PrefixAPIKey = "fk_live_"
-	PrefixAK     = "ak_live_"
+	PrefixAPIKey = "FK_LIVE_"
+	PrefixAK     = "AK_LIVE_"
+	PrefixSK     = "SK_LIVE_"
 )
+
+// NormalizeKey 把密钥类字符串归一到大写口径。
+//
+// 生成侧本来就产出大写，这里主要防人工录入/粘贴时带小写。
+func NormalizeKey(key string) string { return strings.ToUpper(strings.TrimSpace(key)) }
 
 // HashKey 计算静态 Key 的存储哈希（sha256 十六进制）。
 func HashKey(key string) string {
@@ -29,12 +38,25 @@ func HashKey(key string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// MatchKey 恒定时间比较静态 Key 与库内哈希（哈希大小写不敏感，防人工改乱）。
+// MatchKey 恒定时间比较静态 Key 与库内哈希。
+//
+// 先按「大写归一」比对（需求 11176 的存储口径），再退回原样比对——
+// 后者只为兼容改口径之前签发的小写密钥，等这些凭证轮换完即可视需要删除。
 func MatchKey(storedHash, provided string) bool {
 	if storedHash == "" || provided == "" {
 		return false
 	}
-	return subtle.ConstantTimeCompare([]byte(strings.ToLower(storedHash)), []byte(HashKey(provided))) == 1
+	stored := strings.ToLower(storedHash)
+	candidates := []string{NormalizeKey(provided)}
+	if candidates[0] != provided {
+		candidates = append(candidates, provided)
+	}
+	for _, candidate := range candidates {
+		if subtle.ConstantTimeCompare([]byte(stored), []byte(HashKey(candidate))) == 1 {
+			return true
+		}
+	}
+	return false
 }
 
 // Encrypt 用 AES-256-GCM 加密明文（SK），输出 Base64(nonce||ciphertext)。
