@@ -32,18 +32,18 @@
 |---|---|---|
 | `finv.quote.cdeu.min.pageuni` | GET | 分钟行情分页查询 |
 | `finv.quote.cdeu.min.upsert` | POST | 分钟行情批量写入 |
-| `finv.quote.cdeu.realtime.stockupsert` | POST | 实时行情快照写入 |
-| `auth.sts.issue` | POST | STS 临时凭据换证（鉴权域，不带 `finv.quote.`） |
+| `finv.quote.cdeu.realtime.ftstockupsert` | POST | 实时行情快照写入（`FT` = 富途数据源，与路径末段一致，需求 11234） |
+| `open.auth.sts.issue` | POST | STS 临时凭据换证（开放平台域，路径同样带 `Meta/Open`，需求 11235/11236） |
 
-分段含义：`finv.quote` = 行情业务域（与库表 `finv_quote_*`、菜单「行情」对齐），
-其后按「模块.动作」；鉴权类接口用 `auth.` 前缀。
+分段含义：`finv.quote` = 行情业务域（与库表 `finv_quote_*`、菜单「行情」对齐）、
+`open.auth` = 开放平台自身的鉴权接口（与 `open` schema、路径里的 `Meta/Open` 对齐），其后按「模块.动作」。
 
 ## 3. 列说明
 
 | 列 | 字段 | 口径 |
 |---|---|---|
 | IDN | `idn` | 自增主键 |
-| 接口编码 | `api_code` | **点分小写**，按「业务域.模块.动作」分段（行情类如 `finv.quote.cdeu.min.pageuni`、鉴权类如 `auth.sts.issue`）；路径改名后编码不变，报表/套餐/限额靠它锚定 |
+| 接口编码 | `api_code` | **点分小写**，按「业务域.模块.动作」分段（行情类如 `finv.quote.cdeu.min.pageuni`、开放平台鉴权类如 `open.auth.sts.issue`）；路径改名后编码不变，报表/套餐/限额靠它锚定 |
 | 方法 | `http_method` | GET / POST / …（只登记真实方法，不含 `*`） |
 | 路径 | `path` | 含 `/OpenAPI/V1` 前缀，与授权范围、审计表同口径 |
 | 中文名 | `api_name` | 下拉与报表展示用 |
@@ -89,7 +89,7 @@
 | 列 | 默认 | 最小 | 说明 |
 |---|---|---|---|
 | IDN | 70 | 50 | |
-| 接口编码 | 200 | 130 | 最长约 38 字符（`finv.quote.cdeu.realtime.stockupsert`） |
+| 接口编码 | 200 | 130 | 最长 38 字符（`finv.quote.cdeu.realtime.ftstockupsert`） |
 | 方法 | 80 | 60 | |
 | 路径 | 360 | 160 | 等宽字体；放不下出省略号，点 ⓘ 看全文 |
 | 中文名 | 160 | 110 | 放不下出省略号，悬停 `title` 看全名 |

@@ -19,7 +19,7 @@
   默认打开不展示失效凭证，需要追溯时切到「全部」再查询。
 - 签发对话框的认证模式支持三种：静态 Key（APIKEY）/ AK-SK 签名（AKSK）/ **STS 兑换凭证（STS，需求 11210）**。
 - **STS 兑换凭证**：签发的同样是 `AK_LIVE_` / `SK_LIVE_`，但这对 AK/SK 不能直接调业务接口，
-  只能调 `POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue` 换 2 小时有效的 SAK/SSK/SST；
+  只能调 `POST /OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue` 换 2 小时有效的 SAK/SSK/SST；
   填写的授权范围是**派生出的临时凭据**的权限（留空 = 全部接口），IP 白名单与调用方限流同样继承给临时凭据。
   兑换凭证本身长期有效（可设到期日），不需要每次使用都来平台签发。
 - 三类凭证互不越权：`AKSK` 不能换临时凭据；兑换凭证不能直连业务；临时凭据不能再换证。被拒都是 `403/19009`。

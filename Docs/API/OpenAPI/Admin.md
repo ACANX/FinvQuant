@@ -259,7 +259,7 @@
 - `AKSK` 模式：`secret_key` 是 SK，库里存 AES-256-GCM 密文（密钥取 `sys_config` 19005）。
   **19005 未配置时返回 503**，错误里明确提示先配置 19005。
 - `STS` 模式（需求 11210）：签发的同样是 `AK_LIVE_` / `SK_LIVE_`，但这对 AK/SK 是**兑换凭证**——
-  只能调 `POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue` 换 2 小时三要素，不能直接调业务接口；
+  只能调 `POST /OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue` 换 2 小时三要素，不能直接调业务接口；
   它填写的 `scope` 是**派生出的临时凭据**的权限（留空 = 全部接口）。
   长期 AK/SK（`AKSK`）反过来：不允许调 `STS/Issue` 派生 SST，两者刻意隔离。
 

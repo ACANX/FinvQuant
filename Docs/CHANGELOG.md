@@ -219,6 +219,25 @@
 
 ### 变更
 
+- **STS 换证接口编码与路径统一到开放平台域（需求 11235 / 11236）**
+  - 编码 `auth.sts.issue` → `open.auth.sts.issue`（`V300201`）：原编码没有业务域前缀，看起来像顶级域；
+    `open` 与 `open` schema 对齐，和行情域的 `finv.quote.` 形成同一套口径。
+  - 路径 `/OpenAPI/V1/Meta/Auth/Credential/STS/Issue` → `**/OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue**`（`V300202`）：
+    `Meta/Open` 体现「开放平台自己的鉴权接口」。
+  - 代码同步：`router.go` 注册路径 + `openapi.StsIssuePath` 常量（兑换凭证的路径隔离判定依赖它，
+    11210 三类凭证隔离语义不变）+ 相关注释与页面提示文案。
+  - 数据三处同改（缺一处就会出现「被授权但鉴权不认」）：接口清单 `path`、`scope_str` 快照、
+    `open_api_credential_scope.path_pattern`；改前整行备份到 `archive.*_purge_20261111`，
+    单事务「备份→改→校验」，校验用 `RAISE EXCEPTION`。
+  - **不保留旧路径**：尚无外部接入方，且签名待签串含 PATH，留旧路径只会产生 19005 噪音。
+  - 注意：路径改名后，历史审计里调用旧路径的记录在「接口编码」列显示为空/未登记（如实反映，不是 bug）；
+    需要连续追溯时可按旧路径单独过滤。
+
+- **实时行情写入接口编码改为 ftstockupsert（需求 11234，迁移 V300200）**
+  - `finv.quote.cdeu.realtime.stockupsert` → `finv.quote.cdeu.realtime.ftstockupsert`：
+    路径是 `.../Realtime/FTStockUpsert`（`FT` = 富途数据源），编码少 `ft` 与路径对不上，人工核对易误认。
+  - 迁移幂等（只在当前值仍是旧编码时更新），历史审计随 `(method, path)` join 自动显示新编码。
+
 - **行情类接口编码加 `finv.quote.` 前缀（需求 11233，迁移 V300199）**
   - `idn=1/2/3` 改为 `finv.quote.cdeu.min.pageuni` / `finv.quote.cdeu.min.upsert` /
     `finv.quote.cdeu.realtime.stockupsert`，与库表 `finv_quote_*`、菜单「行情」对齐；

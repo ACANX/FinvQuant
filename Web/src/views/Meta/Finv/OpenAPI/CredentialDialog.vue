@@ -84,7 +84,7 @@ const saving = ref(false)
 const error = ref('')
 const issued = ref<IssuedSecret | null>(null)
 // STS 模式（需求 11210）：签发的同样是 AK/SK，只是这对 AK/SK 是「兑换凭证」，
-// 只能调 POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue 换 2 小时三要素。
+// 只能调 POST /OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue 换 2 小时三要素。
 const isSts = computed(() => form.value.auth_mode === 'STS')
 
 const visible = computed({
@@ -318,7 +318,7 @@ watch(
           </div>
           <v-alert v-if="isSts" type="warning" density="compact" variant="tonal">
             STS 兑换凭证：签发的是一对长期 <strong>AK/SK</strong>，但它<strong>不能直接调业务接口</strong>，
-            只能调用 <code>POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue</code> 换取 2 小时有效的
+            只能调用 <code>POST /OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue</code> 换取 2 小时有效的
             SAK/SSK/SST 三要素再用三要素调业务接口。下面的授权范围是<strong>派生出的临时凭据</strong>的权限（留空 = 全部接口）。
           </v-alert>
           <v-alert v-else-if="!isRotate" type="info" density="compact" variant="tonal">
@@ -440,7 +440,7 @@ watch(
           <v-alert v-if="issued.credential.auth_mode === 'STS'" type="info" density="compact" variant="tonal">
             <div class="mb-1"><strong>这对 AK/SK 不能直接调业务接口</strong>，只能用它换取 2 小时的临时凭据：</div>
             <div class="text-caption">
-              ① <code>POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue</code>（用本 AK/SK 按标准方式签名）<br>
+              ① <code>POST /OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue</code>（用本 AK/SK 按标准方式签名）<br>
               ② 返回 <code>SAK_LIVE_</code> / <code>SSK_LIVE_</code> / <code>SST_LIVE_</code> 三要素，有效期 2 小时<br>
               ③ 用三要素调业务接口，并额外带 <code>X-META-Token: &lt;SST&gt;</code>（参与签名，待签串第 7 段）<br>
               ④ 临时凭据到期后重新换一次即可；兑换凭证长住，不需要每次来平台签发

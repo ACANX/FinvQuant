@@ -167,7 +167,7 @@ signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 | 凭证类型 | `auth_mode` | 签发得到 | 能做什么 | 不能做什么 |
 |---|---|---|---|---|
 | 长期 AK/SK | `AKSK` | `AK_LIVE_` / `SK_LIVE_` | 直接签名调业务接口 | **不能**换 STS 临时凭据（不允许派生 SST） |
-| STS 兑换凭证 | `STS`（无 `token_fp`） | `AK_LIVE_` / `SK_LIVE_` | **只能**调 `POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue` 换临时凭据 | 不能直接调业务接口 |
+| STS 兑换凭证 | `STS`（无 `token_fp`） | `AK_LIVE_` / `SK_LIVE_` | **只能**调 `POST /OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue` 换临时凭据 | 不能直接调业务接口 |
 | STS 临时凭据 | `STS`（有 `token_fp`） | `SAK_LIVE_` / `SSK_LIVE_` / `SST_LIVE_` | 带 `X-META-Token` 调业务接口 | 不能再换证（防链条延长） |
 
 目的：兑换凭证只存在客户端的长驻配置里、能做的事被压到「换证」一件；它一旦泄露，
@@ -176,7 +176,7 @@ signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 #### 4.8.1 换证请求
 
 ```
-POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue
+POST /OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue
 Authorization: META1-HMAC-SHA256 Credential=<STS 兑换凭证的 AK>, Signature=<base64>
 X-META-TS:    1737000000
 X-META-Nonce: 8~64 位

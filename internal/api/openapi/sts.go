@@ -4,7 +4,7 @@ package openapi
 //
 // 设计（需求 11210 定稿）：`auth_mode='STS'` 下面有**两类行**，靠 `token_fp` 区分——
 //   - 兑换凭证（`token_fp IS NULL`）：管理员签发的长期 AK/SK（`AK_LIVE_`/`SK_LIVE_`），
-//     **只能**调用 `POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue`，不能直接调业务接口；
+//     **只能**调用 `POST /OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue`，不能直接调业务接口；
 //   - 临时凭据（`token_fp IS NOT NULL`）：用兑换凭证换来的三要素（SAK/SSK/SST），有效期 2 小时，
 //     `parent_idn` 指向兑换凭证、`dt_expire`=签发时刻+2h，**只能**调业务接口、不能再换证。
 // 两类凭证与 AKSK 模式三者互相隔离：AKSK 不能派生临时凭据，兑换凭证不能调业务接口。

@@ -1,6 +1,6 @@
 package openapi
 
-// STS 换证接口（需求 11191 / 11210）：POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue
+// STS 换证接口（需求 11191 / 11210）：POST /OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue
 //
 // 端点由用户定稿（缩写 STS 保持全大写，其余段 PascalCase）。
 // 只能用 `auth_mode='STS'` 的**兑换凭证**（长期 AK/SK，`token_fp` 为空）签名调用；
@@ -15,7 +15,7 @@ import (
 )
 
 // StsIssuePath 换证接口路径（用户定稿，需求 11191）。
-const StsIssuePath = "/OpenAPI/V1/Meta/Auth/Credential/STS/Issue"
+const StsIssuePath = "/OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue"
 
 // StsIssueHandler 换证处理器；settings 用于取 SK 加密密钥（19005）。
 type StsIssueHandler struct {

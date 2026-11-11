@@ -486,7 +486,7 @@ func issuedNote(authMode string) string {
 		return "静态 Key 只显示这一次：请立即复制保存（库里不存明文，丢失只能轮换）"
 	case AuthModeSTS:
 		// STS 模式的 AK/SK 是「兑换券」：不能直接调业务接口，只能换 2 小时临时凭据（需求 11210）
-		return "这对 AK/SK 是 STS 兑换凭证，只能调用 POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue 换取 2 小时有效的 SAK/SSK/SST，不能用它直接调业务接口。SK 只显示这一次，请立即保存"
+		return "这对 AK/SK 是 STS 兑换凭证，只能调用 POST /OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue 换取 2 小时有效的 SAK/SSK/SST，不能用它直接调业务接口。SK 只显示这一次，请立即保存"
 	default:
 		return "SK 只显示这一次：请立即复制保存（库里只存密文，丢失只能轮换）；请求用 Authorization: META1-<算法> Credential=<AK>, Signature=<签名> + X-META-TS + X-META-Nonce"
 	}
