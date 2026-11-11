@@ -172,22 +172,22 @@ POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue
 
   ```json
   { "code": 0, "message": "OK", "data": {
-      "access_key_id":  "STA_LIVE_...",
-      "secret_key":     "STS_LIVE_...",
-      "security_token": "STT_LIVE_...",
+      "access_key_id":  "SAK_LIVE_...",
+      "secret_key":     "SSK_LIVE_...",
+      "security_token": "SST_LIVE_...",
       "expire_at":      "2026-11-11T10:30:00Z",
       "expire_seconds": 7200 } }
   ```
 
 - **有效期固定 2 小时**，不可续期；**不能用 STS 再换 STS**（防凭据链无限延长）。
 - 临时凭据不落库，存 Redis（`finv:openapi:sts:<临时 AK>`，TTL 2h），权限继承父凭证（scope / IP 白名单 / 调用方限流）。
-- 三要素前缀互不重叠（需求 11193）：`STA_LIVE_`(临时 AK) / `STS_LIVE_`(临时 SK) / `STT_LIVE_`(Token)，
+- 三要素前缀互不重叠（需求 11193）：`SAK_LIVE_`(临时 AK) / `SSK_LIVE_`(临时 SK) / `SST_LIVE_`(Token)，
   与静态 Key 的 `SA_LIVE_`、长期 AK 的 `AK_LIVE_` 一眼可分，不需要靠传输位置区分。
 
 调用时三要素都要带，签名串比长期 AK/SK **多一段**（SecurityToken）：
 
 ```
-Authorization: META1-HMAC-SHA256 Credential=STA_LIVE_…, Signature=<base64>
+Authorization: META1-HMAC-SHA256 Credential=SAK_LIVE_…, Signature=<base64>
 X-META-TS:    1737000000
 X-META-Nonce: 8~64 位
 X-META-Token: ST_LIVE_…

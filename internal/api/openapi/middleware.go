@@ -222,8 +222,8 @@ func (m *Middleware) authenticate(c *gin.Context, settings Settings, req *http.R
 		// AK 是公开标识，即使后面定位失败也记进审计，便于排查「谁在用什么 AK 撞门」
 		invocation.AccessKeyID = accessKeyID
 		invocation.AuthMode = AuthModeAKSK
-		// STS 临时凭据（需求 11191/11193）：STA_LIVE_ 前缀走独立分支（Redis 取回、三要素校验）。
-		// 与静态 Key 的 SA_LIVE_ 前缀不重叠，看前缀即可区分，无需依赖传输位置。
+		// STS 临时凭据（需求 11191/11194）：SAK_LIVE_ 前缀走独立分支（Redis 取回、三要素校验）。
+		// 与静态 Key 的 SA_LIVE_、长期 AK 的 AK_LIVE_ 前缀均不重叠，看前缀即可区分。
 		if strings.HasPrefix(strings.ToUpper(accessKeyID), secret.PrefixTempAK) {
 			return m.authenticateSTS(settings, req, body, invocation, algorithm, accessKeyID, signature)
 		}
@@ -460,7 +460,7 @@ const staticKeyWriteWindow = time.Minute
 
 // keyPrefixes 是平台密钥的固定前缀；掩码时必须跳过，否则「前 8 位」全是前缀、
 // 只剩后 4 位可区分（SA_LIVE_ + 32 hex 场景下所有 Key 前 8 位完全相同）。
-var keyPrefixes = []string{"SA_LIVE_", "AK_LIVE_", "SK_LIVE_", "STA_LIVE_", "STS_LIVE_", "STT_LIVE_", "FK_LIVE_"}
+var keyPrefixes = []string{"SA_LIVE_", "AK_LIVE_", "SK_LIVE_", "SAK_LIVE_", "SSK_LIVE_", "SST_LIVE_", "FK_LIVE_"}
 
 // maskKey 脱敏展示密钥，供审计用人眼核对（需求 11183、11184）。
 //
