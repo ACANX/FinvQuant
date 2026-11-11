@@ -219,6 +219,17 @@
 
 ### 变更
 
+- **新建 open.open_api_credential_scope 并回填（需求 11219）**
+  - 当初（V300183 ⑥）为省事先把授权范围放 `scope_str` jsonb 单列，本迁移落地了结构化表，
+    但**只建表 + 回填**：鉴权与页面仍读 `scope_str`，本表当前是它的镜像快照。
+  - 表约束：`UNIQUE (credential_idn, method, path_pattern)`；`method` 用 `'*'` 哨兵表示任意方法
+    （不用 NULL——PG 唯一索引里 NULL 互不相等，挡不住重复插入）；`path_pattern` 必须以 `/` 开头；
+    0 行 = 不限接口；全库 0 物理外键；`gmt_update` 复用 `public.vq_set_gmt_update()`。
+  - 回填只 `INSERT ... ON CONFLICT DO NOTHING`，不合结构要求的条目（非对象元素 / path 非法 / method 越界）
+    跳过并 `RAISE NOTICE`，绝不放大成 `*`（与 11190 的 fail-closed 口径一致）。
+  - `scope_str` 列**不删**（破坏性操作需单独授权），末尾 NOTICE 提示两处可能漂移。
+  - 文档：`DataDictMapping/OpenApiAuth.md §8` 更新为「已建表，尚未接入读写」。
+
 - **未命中路径/方法返回结构化 JSON（需求 11218）**
   - 问题：`GET` 一个只注册了 `POST` 的 OpenAPI 路径会得到 Gin 默认的纯文本 `404 page not found`——
     既不进鉴权中间件、也没有 `X-Request-Id`，调用方无法判断是路径错、方法错还是鉴权没通过。

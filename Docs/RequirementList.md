@@ -2863,6 +2863,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 11216 | 「OpenAPI 鉴权配置」页每个输入框独占一行（原先 4 个控件横向并排，标签与校验提示挤在一起）：改为纵向 `flex-column`，字段宽度上限 420px，保存按钮单独一行 | 页面从上到下依次为：鉴权模式 / 签名时间窗 / 审计日志保留天数 / 凭证缓存 TTL / 保存按钮；浏览器宽度 1920 下任一字段不与其它字段同行；`npx vue-tsc -b --force` 与 `npm run build` 通过 | √ |
 | 11217 | 凭证列表增加状态过滤与到期日期列：`GET /Meta/Finv/OpenAPI/Credential/Page` 增 `status` 参数（`active` 默认 = 未吊销且启用且未过期；`all` = 含吊销/停用/过期；其它值 400），页面筛选栏加「状态」下拉（`仅有效[active]` / `全部…[all]`），表格加「到期日期」列（空 = 长期有效，过期加「（已过期）」） | 缺省请求只返回可用凭证（吊销一条后 total 减少且不含该凭证）；`status=all` 仍能查到该凭证；表格可见「到期日期」列且 STS 临时凭据显示到期日；`go test ./internal/meta/finv/openapi/ -count=1` 与 `npx vue-tsc -b --force` 通过 | √ |
 | 11218 | 未命中路径 / 未命中方法的请求必须返回结构化 JSON，而不是 Gin 默认的纯文本 `404 page not found`：开启 `HandleMethodNotAllowed`，新增 `NoRoute` / `NoMethod` 兜底；`/OpenAPI/V1/*` 先过鉴权中间件（未携带凭证返回 `19001`，不泄漏路径是否存在），通过后返回 `404`/`405` JSON 并回显 `X-Request-Id`；内部 `/API/V1/*` 未命中同样返回 JSON 信封 | `curl -X GET http://127.0.0.1:16001/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`（无凭证）→ 401 且 body 为 `{"code":19001,…}`；`curl -X POST …/NoSuchApi` → 同为结构化 JSON；`curl /API/V1/Meta/Finv/NoSuchApi` → 404 JSON 含 message；body 中不再出现 `page not found`；`go test ./internal/api/ -count=1` 通过 | √ |
+| 11219 | 新建 `open.open_api_credential_scope`（凭证授权范围明细，一行 = 一条「方法 + 路径」规则）：`credential_idn` / `method`（`*` = 任意方法，不用 NULL，因为 PG 唯一索引里 NULL 互不相等挡不住重复）/ `path_pattern`（精确、尾部 `/*`、尾部 `/`，与 `InScope` 口径一致）/ `remark` / `create_by` / `gmt_create` / `gmt_update`；唯一约束 `(credential_idn, method, path_pattern)`、CHECK 收敛 method 白名单与 path 必须以 `/` 开头、全库 0 物理外键；迁移 `V300192` 从既有 `scope_str` 回填（只 `INSERT ... ON CONFLICT DO NOTHING`，不 DELETE/UPDATE，不覆盖用户改动）；本轮**只建表 + 回填，不改读写代码**，鉴权与页面仍以 `scope_str` 为准，`scope_str` 列不删 | `docker exec fq-postgres psql -U finv -d finv -c "SELECT count(*) FROM open.open_api_credential_scope;"` 与 `-c "\d+ open.open_api_credential_scope"` 显示表/唯一约束/2 个 CHECK/2 个索引/触发器齐全；行数与 `scope_str` 展开条目数一致（当前 72 条合法规则）；`schema_version` 为 `300192`；重跑该迁移 0 变更；`go test ./internal/database -run=TestMigrateIntegration -count=1` 通过 | √ |
 
 
 ## 汇总
@@ -3319,7 +3320,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 修复「证券参数补全 → 采集参数」必填校验必然失败：快照 `instrument_type` 是 TEXT 且 `12`/`3` 都表示股票、采集表只有 `3`，参考行匹配按 `q.instrument_type::text = btrim(t.instrument_type)` 直接比对导致 `12` 的行取不到 `market_code`（=0）；改为按归一后的整型匹配（`12`→`3`）；`market_code` 取不到参考值时预填**返回空串**并提示必须人工填写（不再返回 `0`）；前端把数值字段的 `0` 也算「未填」并逐字段标红；后端必填校验错误消息逐项列出字段与实际值 | 11164 | 1 |
 | 「证券参数补全 → 规范证券参数」对话框的 `timezone`（UTC 偏移）/ `tz`（IANA 标识）预填缺省值，按「市场 → 交易所 → 区域」三层推断：① 同 `exchange_code` 已有 `public.finv_security` 行 `(timezone, tz)` 的众数（来源=参考）；② 同 `finv_exchange.region` 已有行的众数（来源=参考）；③ 内置区域 → IANA 时区映射、偏移按该时区**当前时刻**推算（来源=字典，二进制内嵌 `time/tzdata`）；三层都拿不到时留空 + 来源=待填 + 风险提示 | 11165 | 1 |
 | 「证券参数补全 → 采集参数」对话框补缺省推断：`market_type` 改为「快照 → 同市场已有配置行众数（参考）→ 内置映射 HK=1/US=2/A股=4/FX=11/CC=17（字典）」；`req_section` 改为「同市场同品种众数（参考），众数为空则留空并说明选填」；`sub_instrument_type` 的兜底改按**归一后** `instrument_type` 计算（`12` 按 `3` 算，避免算出 12002）；`instrument_type` 仍写快照原值但说明里点明「12 与 3 同为股票、存量以 3 为主」 | 11166 | 1 |
-| **合计** | **10001–11218** | **1214**（含 4 条待办） |
+| **合计** | **10001–11219** | **1215**（含 4 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

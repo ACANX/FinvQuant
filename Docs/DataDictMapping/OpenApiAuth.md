@@ -197,5 +197,8 @@ signature = base64(HMAC-SHA256(SK, canonical))
 - 全库 **0 物理外键**：`client_idn`、`owner_uid`、`credential_idn` 都只在程序层校验（`DbSchemaSpec` §2）。
 - 时间列口径：创建/修改统一 `gmt_create`/`gmt_update`；业务时间（请求时间、最近使用、过期、吊销、轮换）用 `dt_` 前缀。
 - 日志表刻意不建 `gmt_update` 与更新触发器：审计记录不允许改。
-- `scope_str` 先单列 jsonb，条目多到需要索引/分组再演进成 `open.open_api_credential_scope`（用户决议：先单列）。
+- 授权范围目前仍以 `open.open_api_credential.scope_str`（jsonb）为唯一读写来源；`V300192` 已新建
+  `open.open_api_credential_scope`（一行 = 一条「方法 + 路径」规则，0 行 = 不限接口）并从 `scope_str` 回填，
+  但**尚未接入读写**（需求 11219 只做建表 + 回填）。接入前两处可能漂移，以 `scope_str` 为准；
+  接入时按 `V300192` 头注释的三条语义对齐（`method='*'` 表任意方法、path 三种匹配、0 行 = 全部放行）。
 - 上游 Supabase 与本域无关，`open` 域数据**不进** `brs` 备份登记之前需先评估（凭证密文含密钥材料，备份策略另行确认）。
