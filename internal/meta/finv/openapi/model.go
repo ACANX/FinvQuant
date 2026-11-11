@@ -24,10 +24,12 @@ import (
 const (
 	AuthModeAPIKey = "APIKEY"
 	AuthModeAKSK   = "AKSK"
+	// AuthModeSTS STS 模式（需求 11210）：签发的 AK/SK 是「兑换凭证」，只能调 STS/Issue 换 2 小时三要素。
+	AuthModeSTS = "STS"
 )
 
 // 可签发的认证模式（BEARER / MTLS / BASIC 预留，不允许在管理接口里签发）。
-var issuableAuthModes = []string{AuthModeAPIKey, AuthModeAKSK}
+var issuableAuthModes = []string{AuthModeAPIKey, AuthModeAKSK, AuthModeSTS}
 
 // 配置号（sys.sys_config 19xxx 号段）。
 const (

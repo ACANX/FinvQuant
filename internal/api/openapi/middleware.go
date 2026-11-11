@@ -162,14 +162,18 @@ func (m *Middleware) Handler() gin.HandlerFunc {
 				"凭据授权范围数据损坏（scope_str 不是合法对象数组），请联系平台方修复", nil)
 			return
 		}
-		// STS 临时凭据不能再换证（需求 11191）：在中间件拦下，保证审计记 pass=0，
+		// 三类凭证互相隔离（需求 11210）：都在中间件拦下，保证审计记 pass=0，
 		// 而不是等 handler 返回 403（那样审计里会留下一条「放行」记录）。
-		if credential.AuthMode == AuthModeSTS && c.Request.URL.Path == StsIssuePath {
-			m.deny(c, settings, invocation, started, CodeScopeDeny,
-				"STS 临时凭据不能再换取临时凭据，请用长期 AK/SK", nil)
+		//   - 兑换凭证（STS 且 token_fp 为空）：只能调 StsIssuePath 换临时凭据，不能直接调业务接口；
+		//   - 长期 AK/SK（AKSK）：只能直接签名调业务接口，**不允许**派生临时凭据；
+		//   - 临时凭据（STS 且 token_fp 非空）：只能调业务接口，不能再换证。
+		if reason := isolationDenyReason(credential, c.Request.URL.Path); reason != "" {
+			m.deny(c, settings, invocation, started, CodeScopeDeny, reason, nil)
 			return
 		}
-		if !credential.InScope(c.Request.Method, c.Request.URL.Path) {
+		// 兑换凭证的 scope_str 描述的是「派生出的临时凭据」的权限，不用来限制它自己——
+		// 它只能访问 StsIssuePath（上面已判定），若再按 scope 卡会与「授权范围给临时凭据用」的语义冲突。
+		if !IsStsExchange(credential) && !credential.InScope(c.Request.Method, c.Request.URL.Path) {
 			m.deny(c, settings, invocation, started, CodeScopeDeny, "接口不在授权范围内", nil)
 			return
 		}
@@ -232,7 +236,10 @@ func (m *Middleware) authenticate(c *gin.Context, settings Settings, req *http.R
 		if err != nil {
 			return nil, CodeAuthNotReady, "查询凭证失败: " + err.Error()
 		}
-		if credential.AuthMode != AuthModeAKSK {
+		// AK/SK 验签分支同时容纳两类凭证（需求 11210）：长期 AK/SK 与 STS 兑换凭证（token_fp 为空）。
+		// 两者的差别不在验签方式，而在**允许访问的路径**：兑换凭证只能调 StsIssuePath（见 isolationDenyReason）。
+		if credential.AuthMode != AuthModeAKSK &&
+			!(credential.AuthMode == AuthModeSTS && credential.TokenFP == "") {
 			return nil, CodeKeyInvalid, "该凭证不是 AK/SK 模式"
 		}
 		// 请求里的算法必须与凭证登记的一致（防止调用方用别的算法绕过验签口径）
@@ -525,6 +532,43 @@ func checkStaticWriteTS(req *http.Request, now time.Time) string {
 	}
 	if skew > staticKeyWriteWindow {
 		return "查询参数 `_` 与服务器时间相差超过 60 秒"
+	}
+	return ""
+}
+
+// IsStsExchange 是否为 STS 兑换凭证（`auth_mode='STS'` 且没有 SecurityToken：长期 AK/SK）。
+//
+// 兑换凭证只能调 StsIssuePath 换临时凭据；它自己的 scope_str 是派生出临时凭据的权限。
+func IsStsExchange(c *Credential) bool {
+	return c != nil && c.AuthMode == AuthModeSTS && c.TokenFP == ""
+}
+
+// isolationDenyReason 判定凭证类型与访问路径是否冲突（需求 11210）。
+//
+// 三类凭证的允许动作被刻意做成互斥，降低「一次泄露能直连业务」的风险：
+//   - AKSK（长期 AK/SK）：直接签名调业务接口；调 StsIssuePath 拒绝（不允许派生 SST，防权限放大）；
+//   - STS 兑换凭证（auth_mode=STS 且 token_fp 为空）：只能调 StsIssuePath；调业务接口拒绝；
+//   - STS 临时凭据（auth_mode=STS 且 token_fp 非空）：只能调业务接口；再换证拒绝。
+//
+// 返回空串表示允许。
+func isolationDenyReason(credential *Credential, path string) string {
+	if credential == nil {
+		return ""
+	}
+	atStsIssue := path == StsIssuePath
+	switch {
+	case IsStsExchange(credential):
+		if !atStsIssue {
+			return "STS 兑换凭证只能用于换取临时凭据（POST " + StsIssuePath + "），不能直接调用业务接口；请先用它换 SAK/SSK/SST"
+		}
+	case credential.AuthMode == AuthModeAKSK:
+		if atStsIssue {
+			return "AK/SK 长期凭证不能派生 STS 临时凭据；需要临时凭据请单独签发 STS 模式的凭证"
+		}
+	case credential.AuthMode == AuthModeSTS:
+		if atStsIssue {
+			return "STS 临时凭据不能再换取临时凭据，请用 STS 兑换凭证"
+		}
 	}
 	return ""
 }

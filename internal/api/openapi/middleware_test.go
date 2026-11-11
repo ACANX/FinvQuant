@@ -1081,3 +1081,52 @@ func TestMiddlewareStsRejectsRevokedParent(t *testing.T) {
 		t.Fatalf("父凭证吊销后 STS 不应进入 handler")
 	}
 }
+
+// TestIsolationDenyReason 三类凭证 × 两条路径的隔离矩阵（需求 11210）。
+func TestIsolationDenyReason(t *testing.T) {
+	aksk := &Credential{IDN: 1, AuthMode: AuthModeAKSK}
+	exchange := &Credential{IDN: 2, AuthMode: AuthModeSTS}
+	temp := &Credential{IDN: 3, AuthMode: AuthModeSTS, TokenFP: "ABCDEF0123456789"}
+	statics := &Credential{IDN: 4, AuthMode: AuthModeAPIKey}
+	bizPath := "/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni"
+
+	cases := []struct {
+		name   string
+		cred   *Credential
+		path   string
+		denied bool
+	}{
+		{"AKSK 调业务接口", aksk, bizPath, false},
+		{"AKSK 换临时凭据", aksk, StsIssuePath, true},
+		{"兑换凭证 换临时凭据", exchange, StsIssuePath, false},
+		{"兑换凭证 调业务接口", exchange, bizPath, true},
+		{"临时凭据 调业务接口", temp, bizPath, false},
+		{"临时凭据 再换证", temp, StsIssuePath, true},
+		{"静态 Key 调业务接口", statics, bizPath, false},
+		{"静态 Key 换临时凭据", statics, StsIssuePath, false},
+	}
+	for _, item := range cases {
+		t.Run(item.name, func(t *testing.T) {
+			reason := isolationDenyReason(item.cred, item.path)
+			if got := reason != ""; got != item.denied {
+				t.Fatalf("denied=%v 期望 %v（reason=%q）", got, item.denied, reason)
+			}
+		})
+	}
+}
+
+// TestIsStsExchange 只有「STS 且无 SecurityToken」才是兑换凭证（需求 11210）。
+func TestIsStsExchange(t *testing.T) {
+	if !IsStsExchange(&Credential{AuthMode: AuthModeSTS}) {
+		t.Fatal("STS 且 token_fp 为空应判定为兑换凭证")
+	}
+	if IsStsExchange(&Credential{AuthMode: AuthModeSTS, TokenFP: "X"}) {
+		t.Fatal("STS 临时凭据不应判定为兑换凭证")
+	}
+	if IsStsExchange(&Credential{AuthMode: AuthModeAKSK}) {
+		t.Fatal("AKSK 不应判定为兑换凭证")
+	}
+	if IsStsExchange(nil) {
+		t.Fatal("nil 不应判定为兑换凭证")
+	}
+}

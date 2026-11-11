@@ -160,45 +160,73 @@ signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 
 > 静态 Key 模式**不做 nonce 去重**（没有签名，nonce 可伪造），写接口靠 `_` 时间戳把重放窗口压到 60 秒内。
 
-### 4.8 STS 临时凭据（需求 11191）
+### 4.8 STS 临时凭据（需求 11191 / 11210 定稿）
 
-调用方可把长期 AK/SK 换成**短期三要素**，用于短时任务（批处理、临时联调），泄露窗口从「长期」压到 2 小时。
+把「能直连业务的长期密钥」和「能换短期凭据的兑换密钥」拆成**两类不同的凭证**，互不越权：
+
+| 凭证类型 | `auth_mode` | 签发得到 | 能做什么 | 不能做什么 |
+|---|---|---|---|---|
+| 长期 AK/SK | `AKSK` | `AK_LIVE_` / `SK_LIVE_` | 直接签名调业务接口 | **不能**换 STS 临时凭据（不允许派生 SST） |
+| STS 兑换凭证 | `STS`（无 `token_fp`） | `AK_LIVE_` / `SK_LIVE_` | **只能**调 `POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue` 换临时凭据 | 不能直接调业务接口 |
+| STS 临时凭据 | `STS`（有 `token_fp`） | `SAK_LIVE_` / `SSK_LIVE_` / `SST_LIVE_` | 带 `X-META-Token` 调业务接口 | 不能再换证（防链条延长） |
+
+目的：兑换凭证只存在客户端的长驻配置里、能做的事被压到「换证」一件；它一旦泄露，
+攻击者拿到的是 2 小时、可审计、可随兑换凭证吊销而立刻失效的临时凭据，而不是能直连业务的长期密钥。
+
+#### 4.8.1 换证请求
 
 ```
 POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue
+Authorization: META1-HMAC-SHA256 Credential=<STS 兑换凭证的 AK>, Signature=<base64>
+X-META-TS:    1737000000
+X-META-Nonce: 8~64 位
+(无 body、无 X-META-Token)
 ```
 
-- 必须用**长期 AK/SK** 签名调用（父凭证的授权范围要包含该路径）；返回：
+返回（三要素明文只出现这一次）：
 
-  ```json
-  { "code": 0, "message": "OK", "data": {
-      "access_key_id":  "SAK_LIVE_...",
-      "secret_key":     "SSK_LIVE_...",
-      "security_token": "SST_LIVE_...",
-      "expire_at":      "2026-11-11T10:30:00Z",
-      "expire_seconds": 7200 } }
-  ```
+```json
+{ "code": 0, "message": "OK", "data": {
+    "credential_idn": 34,
+    "credential_no":  "STS-47-20261111T160000",
+    "access_key_id":  "SAK_LIVE_...",
+    "secret_key":     "SSK_LIVE_...",
+    "security_token": "SST_LIVE_...",
+    "expire_at":      "2026-11-11T18:00:00Z",
+    "expire_seconds": 7200 } }
+```
 
-- **有效期固定 2 小时**，不可续期；**不能用 STS 再换 STS**（防凭据链无限延长）。
-- 临时凭据不落库，存 Redis（`finv:openapi:sts:<临时 AK>`，TTL 2h），权限继承父凭证（scope / IP 白名单 / 调用方限流）。
-- 三要素前缀互不重叠（需求 11193）：`SAK_LIVE_`(临时 AK) / `SSK_LIVE_`(临时 SK) / `SST_LIVE_`(Token)，
-  与静态 Key 的 `SA_LIVE_`、长期 AK 的 `AK_LIVE_` 一眼可分，不需要靠传输位置区分。
+- **有效期固定 2 小时**，不可续期；到期重新换一次即可（兑换凭证长期有效，不需要每次找平台签发）。
+- 三要素的授权范围**继承兑换凭证的 `scope_str`**（留空 = 全部接口），IP 白名单与调用方限流同样继承。
+- 临时凭据落库为 `auth_mode='STS'` 的独立行（`parent_idn` 指向兑换凭证、`token_fp` 为 SecurityToken 指纹、
+  `dt_expire`=签发时刻+2h），因此在凭证列表与审计里都能按凭证号追溯；
+  兑换凭证吊销/停用/过期时，已派生的临时凭据**立即失效**。
+- 三要素前缀互不重叠（需求 11194）：`SAK_LIVE_`(临时 AK) / `SSK_LIVE_`(临时 SK) / `SST_LIVE_`(Token)，
+  与静态 Key 的 `SA_LIVE_`、长期 AK 的 `AK_LIVE_` 一眼可分。
 
-调用时三要素都要带，签名串比长期 AK/SK **多一段**（SecurityToken）：
+#### 4.8.2 用三要素调用业务接口
 
 ```
 Authorization: META1-HMAC-SHA256 Credential=SAK_LIVE_…, Signature=<base64>
 X-META-TS:    1737000000
 X-META-Nonce: 8~64 位
-X-META-Token: ST_LIVE_…
+X-META-Token: SST_LIVE_…
 
 待签串 = METHOD \n PATH \n SORTED_QUERY \n BODY_SHA256 \n TIMESTAMP \n NONCE \n TOKEN
 ```
 
-> 长期 AK/SK 不带 `X-META-Token`，待签串仍是 6 段，**协议完全不变**，现有客户端无需改造。
+> 长期 AK/SK 与兑换凭证都不带 `X-META-Token`，待签串仍是 6 段，**协议完全不变**，现有客户端无需改造。
 
-审计：`auth_mode='STS'`、`credential_idn` = 父凭证、`kfp` = 临时 AK 指纹、`tfp` = SecurityToken 指纹
-（可按某一次临时凭据把整段会话的调用捞出来）。
+#### 4.8.3 被拒绝的三种组合（`403` / `19009`，审计 `pass=0`、`reason=SCOPE_DENY`）
+
+| 场景 | 结果 |
+|---|---|
+| 长期 AK/SK 调 `STS/Issue` | 拒绝：不允许派生 SST，请单独签发 STS 模式的凭证 |
+| STS 兑换凭证调业务接口 | 拒绝：只能用兑换凭证换三要素 |
+| STS 临时凭据调 `STS/Issue` | 拒绝：临时凭据不能再换证 |
+
+审计：`auth_mode='STS'`、`credential_idn` = 本次使用的凭证行（临时凭据记它自己）、`kfp` = 本次 AK 指纹、
+`tfp` = SecurityToken 指纹（兑换凭证为空）；列表里「本次凭证」「父凭证（STS 来源）」两列可直接看出派生关系。
 
 ## 5. 错误响应
 

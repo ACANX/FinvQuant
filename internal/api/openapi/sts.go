@@ -2,12 +2,12 @@ package openapi
 
 // STS 临时凭据（需求 11191 / 11202）。
 //
-// 设计（需求 11202 纠正）：STS 是**独立凭证行**（`open.open_api_credential.auth_mode='STS'`），
-// 不再寄生在 AKSK 凭证下、也不再只存 Redis：
-//   - 每套三要素对应一行：`access_key_id`=SAK、`secret_cipher`=SSK 密文、`token_fp`=SecurityToken 指纹、
-//     `parent_idn`=派生来源凭证（0 表示管理员页面直发）、`dt_expire`=now()+2 小时；
-//   - 因此页面凭证列表能看到、能按凭证号追溯、审计 `credential_idn` 记的是 STS 自己；
-//   - 过期靠 `dt_expire`（`Active()` 拒绝），过期行由 `PurgeExpired` 定期清理（保留 7 天便于追溯）。
+// 设计（需求 11210 定稿）：`auth_mode='STS'` 下面有**两类行**，靠 `token_fp` 区分——
+//   - 兑换凭证（`token_fp IS NULL`）：管理员签发的长期 AK/SK（`AK_LIVE_`/`SK_LIVE_`），
+//     **只能**调用 `POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue`，不能直接调业务接口；
+//   - 临时凭据（`token_fp IS NOT NULL`）：用兑换凭证换来的三要素（SAK/SSK/SST），有效期 2 小时，
+//     `parent_idn` 指向兑换凭证、`dt_expire`=签发时刻+2h，**只能**调业务接口、不能再换证。
+// 两类凭证与 AKSK 模式三者互相隔离：AKSK 不能派生临时凭据，兑换凭证不能调业务接口。
 
 import (
 	"context"
@@ -34,7 +34,7 @@ const AuthModeSTS = "STS"
 // stsPurgeKeep 过期 STS 行的保留期（超过即物理删除，便于事后追溯一段时间）。
 const stsPurgeKeep = 7 * 24 * time.Hour
 
-// StsIssued 签发结果（三要素明文只出现这一次）。
+// StsIssued 换证结果（三要素明文只出现这一次）。
 type StsIssued struct {
 	CredentialIDN int64     `json:"credential_idn"`
 	CredentialNo  string    `json:"credential_no"`
@@ -70,8 +70,10 @@ func MatchToken(expectedFP, provided string) bool {
 	return subtle.ConstantTimeCompare([]byte(expected), []byte(TokenFingerprint(provided))) == 1
 }
 
-// Issue 签发一套 STS 三要素并落库；parentIDN>0 表示由长期凭证换证，0 表示管理员直发。
+// Issue 用兑换凭证换一套 STS 三要素并落库。
 //
+// parent 必须是 `auth_mode='STS'` 的兑换凭证（`token_fp` 为空）；三要素的授权范围继承兑换凭证的
+// `scope_str`（留空 = 全部接口），有效期固定 StsTTL。
 // 三要素前缀（需求 11194）：SAK_LIVE_ / SSK_LIVE_ / SST_LIVE_。
 func (s *StsStore) Issue(ctx context.Context, parent *Credential, key []byte, operator string) (StsIssued, error) {
 	if s.pool == nil {
@@ -119,7 +121,7 @@ VALUES ($1, $2, 'STS', $3, $4,
 RETURNING idn`,
 		parent.ClientIDN, credentialNo, sak, strings.TrimSuffix(secret.PrefixTempAK, "LIVE_"),
 		cipherText, scopeJSON, cidrText,
-		expireAt, TokenFingerprint(token), parent.IDN, "STS 临时凭据（2 小时）", operator,
+		expireAt, TokenFingerprint(token), parent.IDN, "STS 临时凭据（2 小时，由兑换凭证派生）", operator,
 	).Scan(&idn)
 	if err != nil {
 		return StsIssued{}, fmt.Errorf("写入 STS 凭证失败: %w", err)
@@ -141,10 +143,10 @@ RETURNING idn`,
 	}, nil
 }
 
-// PurgeExpired 物理删除过期超过保留期的 STS 行。
+// PurgeExpired 物理删除过期超过保留期的 STS **临时凭据**行。
 //
-// 只删 `auth_mode='STS'` 且 `dt_expire < now()-7天` 的行——这是本功能自己写入的行，
-// 不触碰任何长期凭证。
+// 条件三重收敛：`auth_mode='STS'` + `token_fp IS NOT NULL`（排除兑换凭证）+ `dt_expire < now()-7天`。
+// 兑换凭证是长期凭证（`token_fp` 为空），过期/停用由 `Active()` 判定，绝不在这里删。
 func (s *StsStore) PurgeExpired(ctx context.Context) (int64, error) {
 	if s.pool == nil {
 		return 0, nil
@@ -152,6 +154,7 @@ func (s *StsStore) PurgeExpired(ctx context.Context) (int64, error) {
 	tag, err := s.pool.Exec(ctx, `
 DELETE FROM open.open_api_credential
  WHERE auth_mode = 'STS'
+   AND token_fp IS NOT NULL
    AND dt_expire IS NOT NULL
    AND dt_expire < now() - $1::interval`, fmt.Sprintf("%d hours", int(stsPurgeKeep.Hours())))
 	if err != nil {

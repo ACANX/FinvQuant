@@ -9,7 +9,6 @@ import { computed, ref, watch } from 'vue'
 
 import { apiPost } from '../../../../api'
 import { showToast } from '../../../../ui/toast'
-import { timeText } from './shared'
 
 interface ClientRow {
   idn: number
@@ -67,15 +66,8 @@ const form = ref({
 const saving = ref(false)
 const error = ref('')
 const issued = ref<IssuedSecret | null>(null)
-// STS 临时凭据的签发结果（三要素 + 到期，与落库凭证结构不同）
-interface StsIssued {
-  access_key_id: string
-  secret_key: string
-  security_token: string
-  expire_at: string
-  expire_seconds: number
-}
-const stsIssued = ref<StsIssued | null>(null)
+// STS 模式（需求 11210）：签发的同样是 AK/SK，只是这对 AK/SK 是「兑换凭证」，
+// 只能调 POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue 换 2 小时三要素。
 const isSts = computed(() => form.value.auth_mode === 'STS')
 
 const visible = computed({
@@ -111,8 +103,7 @@ const apiKeyExpireInvalid = computed(
 
 const canSubmit = computed(() => {
   if (saving.value) return false
-  // STS 只需选调用方；授权范围与其他模式一致（留空 = 全部接口）
-  if (isSts.value) return Number(form.value.client_idn) > 0
+  // STS 走与 AKSK 相同的签发流程（生成 AK/SK 兑换凭证），凭证号同样必填
   return !noError.value && !apiKeyExpireInvalid.value
 })
 
@@ -127,7 +118,6 @@ function resetForm() {
     remark: '',
   }
   issued.value = null
-  stsIssued.value = null
   error.value = ''
 }
 
@@ -155,14 +145,6 @@ async function submit() {
 
     if (isRotate.value) {
       issued.value = await apiPost<IssuedSecret>(`${BASE}/Credential/Rotate`, { idn: props.credentialIdn })
-    } else if (isSts.value) {
-      // STS 临时凭据：独立凭证行（auth_mode=STS）、固定 2 小时，返回三要素（需求 11200/11202）
-      stsIssued.value = await apiPost<StsIssued>(`${BASE}/Credential/StsIssue`, {
-        client_idn: Number(form.value.client_idn),
-        scope,
-        allow_cidr: cidrs,
-        remark: form.value.remark.trim(),
-      })
     } else {
       issued.value = await apiPost<IssuedSecret>(`${BASE}/Credential/Create`, {
         client_idn: Number(form.value.client_idn),
@@ -218,12 +200,12 @@ watch(
         {{ title }}
         <v-chip v-if="isRotate" size="small" variant="tonal" color="warning" class="ml-2">旧密钥立即失效</v-chip>
       </v-card-title>
-      <v-card-subtitle v-if="!issued && !stsIssued">
+      <v-card-subtitle v-if="!issued">
         密钥只在提交成功后显示一次；库里静态 Key 只存 sha256、SK 只存 AES-256-GCM 密文，无法再取回。
       </v-card-subtitle>
 
       <!-- 步骤一：表单 -->
-      <v-card-text v-if="!issued && !stsIssued">
+      <v-card-text v-if="!issued">
         <v-alert v-if="error" type="error" density="compact" variant="tonal" class="mb-3" :text="error" />
         <div class="d-flex flex-column ga-3">
           <div v-if="!isRotate" class="d-flex flex-wrap ga-3">
@@ -261,8 +243,9 @@ watch(
             />
           </div>
           <v-alert v-if="isSts" type="warning" density="compact" variant="tonal">
-            STS 临时凭据：有效期固定 <strong>2 小时</strong>，不可续期；签发后是一条独立凭证记录
-            （认证模式 = STS），到期自动失效并清理。授权范围与其他模式一致：留空 = 全部接口。
+            STS 兑换凭证：签发的是一对长期 <strong>AK/SK</strong>，但它<strong>不能直接调业务接口</strong>，
+            只能调用 <code>POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue</code> 换取 2 小时有效的
+            SAK/SSK/SST 三要素再用三要素调业务接口。下面的授权范围是<strong>派生出的临时凭据</strong>的权限（留空 = 全部接口）。
           </v-alert>
           <v-alert v-else-if="!isRotate" type="info" density="compact" variant="tonal">
             轮换会生成一套新密钥：静态 Key 的公开标识会改变；AK/SK 的旧 SK 在签名时间窗内仍可验签，之后失效。
@@ -326,41 +309,7 @@ watch(
         </div>
       </v-card-text>
 
-      <!-- 步骤二（STS）：三要素一次性展示 -->
-      <v-card-text v-else-if="stsIssued">
-        <v-alert type="warning" density="compact" variant="tonal" class="mb-3">
-          三要素只显示这一次；有效期 2 小时（到 {{ timeText(stsIssued.expire_at) }}），到期自动失效、不可续期。
-        </v-alert>
-        <div class="d-flex flex-column ga-3">
-          <div v-for="item in [
-            { label: 'Access Key（SAK，临时）', value: stsIssued.access_key_id },
-            { label: 'Secret Key（SSK，临时）', value: stsIssued.secret_key },
-            { label: 'Security Token（SST）', value: stsIssued.security_token },
-          ]" :key="item.label">
-            <div class="text-caption text-medium-emphasis">{{ item.label }}</div>
-            <div class="d-flex align-center ga-2">
-              <code class="secret-value">{{ item.value }}</code>
-              <v-btn size="small" variant="text" prepend-icon="mdi-content-copy" @click="copy(item.value, item.label)">
-                复制
-              </v-btn>
-            </div>
-          </div>
-          <v-alert type="info" density="compact" variant="tonal">
-            <div class="mb-1"><strong>怎么用</strong>：把三要素填到调用方配置里，按 AK/SK 的方式签名，区别是多带一个头：</div>
-            <div class="text-caption">
-              ① <code>Authorization: META1-HMAC-SHA256 Credential=&lt;SAK&gt;, Signature=&lt;base64&gt;</code><br>
-              ② <code>X-META-TS: &lt;秒级时间戳&gt;</code> + <code>X-META-Nonce: &lt;8~64 位随机串&gt;</code><br>
-              ③ <code>X-META-Token: &lt;SST&gt;</code>（SecurityToken）<br>
-              ④ 待签串比长期 AK/SK 多第 7 段：<code>METHOD\nPATH\nSORTED_QUERY\nBODY_SHA256\nTS\nNONCE\nTOKEN</code>
-            </div>
-            <div class="text-caption mt-1">
-              完整示例（curl / Python）见 <code>Docs/API/OpenAPI/Auth.md</code> §4.8。
-            </div>
-          </v-alert>
-        </div>
-      </v-card-text>
-
-      <!-- 步骤二：一次性密钥展示（长期凭证：APIKEY / AKSK） -->
+      <!-- 步骤二：一次性密钥展示（APIKEY 静态 Key / AKSK 长期签名 / STS 兑换凭证） -->
       <v-card-text v-else-if="issued">
         <v-alert type="warning" density="compact" variant="tonal" class="mb-3" :text="issued.note" />
         <div class="d-flex flex-column ga-3">
@@ -373,7 +322,7 @@ watch(
           </div>
           <div>
             <div class="text-caption text-medium-emphasis">
-              {{ issued.credential.auth_mode === 'AKSK' ? 'Access Key（AK，公开标识）' : '静态 API Key' }}
+              {{ issued.credential.auth_mode === 'AKSK' || issued.credential.auth_mode === 'STS' ? 'Access Key（AK，公开标识）' : '静态 API Key' }}
             </div>
             <div class="d-flex align-center ga-2">
               <code class="secret-value">{{ issued.access_key }}</code>
@@ -382,7 +331,7 @@ watch(
               </v-btn>
             </div>
           </div>
-          <div v-if="issued.credential.auth_mode === 'AKSK'">
+          <div v-if="issued.credential.auth_mode === 'AKSK' || issued.credential.auth_mode === 'STS'">
             <div class="text-caption text-medium-emphasis">Secret Key（SK，用于 HMAC 签名）</div>
             <div class="d-flex align-center ga-2">
               <code class="secret-value">{{ issued.secret_key }}</code>
@@ -391,6 +340,18 @@ watch(
               </v-btn>
             </div>
           </div>
+          <v-alert v-if="issued.credential.auth_mode === 'STS'" type="info" density="compact" variant="tonal">
+            <div class="mb-1"><strong>这对 AK/SK 不能直接调业务接口</strong>，只能用它换取 2 小时的临时凭据：</div>
+            <div class="text-caption">
+              ① <code>POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue</code>（用本 AK/SK 按标准方式签名）<br>
+              ② 返回 <code>SAK_LIVE_</code> / <code>SSK_LIVE_</code> / <code>SST_LIVE_</code> 三要素，有效期 2 小时<br>
+              ③ 用三要素调业务接口，并额外带 <code>X-META-Token: &lt;SST&gt;</code>（参与签名，待签串第 7 段）<br>
+              ④ 临时凭据到期后重新换一次即可；兑换凭证长住，不需要每次来平台签发
+            </div>
+            <div class="text-caption mt-1">
+              完整示例见 <code>Docs/API/OpenAPI/Auth.md</code> §4.8。
+            </div>
+          </v-alert>
           <v-alert type="info" density="compact" variant="tonal">
             关闭对话框后密钥不再显示。请立即粘贴到调用方的配置里；如果丢失，只能轮换生成新密钥。
           </v-alert>
@@ -399,7 +360,7 @@ watch(
 
       <v-card-actions>
         <v-spacer />
-        <template v-if="!issued && !stsIssued">
+        <template v-if="!issued">
           <v-btn variant="text" :disabled="saving" @click="visible = false">取消</v-btn>
           <v-btn color="primary" :loading="saving" :disabled="!canSubmit" @click="submit">
             {{ isRotate ? '确认轮换' : '签发' }}

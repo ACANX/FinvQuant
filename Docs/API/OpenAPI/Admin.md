@@ -26,7 +26,6 @@
 | 5 | POST | `/Client/Enable` | 启用 / 停用调用方 |
 | 6 | GET | `/Credential/Page` | 凭证分页 |
 | 7 | POST | `/Credential/Create` | 签发凭证（密钥只返回一次） |
-| 7.1 | POST | `/Credential/StsIssue` | 签发 STS 临时凭据（2 小时、不落库、三要素只返回一次；需求 11200） |
 | 8 | POST | `/Credential/Enable` | 启用 / 停用凭证 |
 | 9 | POST | `/Credential/Revoke` | 吊销凭证（原因必填，不可恢复） |
 | 10 | POST | `/Credential/Rotate` | 轮换密钥（新密钥只返回一次） |
@@ -253,29 +252,10 @@
 - `APIKEY` 模式：`access_key` 与 `secret_key` 相同（静态 Key 本身就是公开标识，形如 `SA_LIVE_` + 32 位大写十六进制），库里只存 `sha256`；
 - `AKSK` 模式：`secret_key` 是 SK，库里存 AES-256-GCM 密文（密钥取 `sys_config` 19005）。
   **19005 未配置时返回 503**，错误里明确提示先配置 19005。
-
-### 5.2.1 POST `/Credential/StsIssue`（STS 临时凭据，需求 11200）
-
-管理员在页面上直接签发一套 2 小时有效的 STS 三要素（不落库、不可续期、不可在列表管理）。
-
-```json
-// 请求
-{ "client_idn": 47,
-  "scope": ["GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni"],
-  "allow_cidr": [], "remark": "临时联调" }
-
-// 响应
-{ "code": 0, "message": "OK", "data": {
-    "access_key_id":  "SAK_LIVE_...",
-    "secret_key":     "SSK_LIVE_...",
-    "security_token": "SST_LIVE_...",
-    "expire_at":      "2026-11-11T14:18:42Z",
-    "expire_seconds": 7200 } }
-```
-
-约束：`scope` 与其他认证模式一致——**留空表示不限制（全部接口）**，不额外强制；
-调用方必须启用；IP 白名单与调用方限流照旧生效；页面直发的 STS 没有父凭证，
-只靠 2 小时有效期收敛（过期行由程序清理）。
+- `STS` 模式（需求 11210）：签发的同样是 `AK_LIVE_` / `SK_LIVE_`，但这对 AK/SK 是**兑换凭证**——
+  只能调 `POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue` 换 2 小时三要素，不能直接调业务接口；
+  它填写的 `scope` 是**派生出的临时凭据**的权限（留空 = 全部接口）。
+  长期 AK/SK（`AKSK`）反过来：不允许调 `STS/Issue` 派生 SST，两者刻意隔离。
 
 ### 5.3 POST `/Credential/Enable`
 

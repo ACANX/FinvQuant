@@ -1,10 +1,11 @@
 package openapi
 
-// STS 换证接口（需求 11191）：POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue
+// STS 换证接口（需求 11191 / 11210）：POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue
 //
 // 端点由用户定稿（缩写 STS 保持全大写，其余段 PascalCase）。
-// 该接口本身走 OpenAPI 鉴权：调用方必须用**长期 AK/SK** 签名调用，且父凭证的授权范围
-// 必须包含本路径；返回的临时凭据有效期固定 2 小时。
+// 只能用 `auth_mode='STS'` 的**兑换凭证**（长期 AK/SK，`token_fp` 为空）签名调用；
+// 长期 AK/SK 模式（AKSK）调用本接口一律拒绝——两类凭证刻意隔离，避免「一把 AK 既能直连业务
+// 又能派生 SST」放大风险。返回的三要素有效期固定 2 小时，授权范围继承兑换凭证。
 
 import (
 	"errors"
@@ -34,11 +35,11 @@ func (h *StsIssueHandler) Issue(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": CodeKeyMissing, "message": "未携带凭证"})
 		return
 	}
-	// 只有长期 AK/SK 可以换证：STS 不能换 STS（防凭据链无限延长）
-	if parent.AuthMode != AuthModeAKSK {
+	// 只有 STS 兑换凭证可以换证：AKSK 不允许派生 SST（防权限放大），临时凭据不能换证（防链条延长）
+	if parent.AuthMode != AuthModeSTS || parent.TokenFP != "" {
 		c.JSON(http.StatusForbidden, gin.H{
 			"code":    CodeScopeDeny,
-			"message": "只有 AK/SK 长期凭证可以换取 STS 临时凭据",
+			"message": "只有 STS 模式的兑换凭证可以换取临时凭据（AK/SK 长期凭证与 STS 临时凭据都不允许）",
 		})
 		return
 	}

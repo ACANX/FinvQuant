@@ -219,6 +219,18 @@
 
 ### 变更
 
+- **STS 语义纠正：兑换凭证 + 临时凭据严格分离（需求 11210）**
+  - 纠正：STS 模式签发的也是长期 **AK/SK**，程序拿它调 `POST /OpenAPI/V1/Meta/Auth/Credential/STS/Issue`
+    换 2 小时的 `SAK/SSK/SST`，再用三要素调业务接口——不是由平台直接发三要素。
+  - 三类凭证互不越权（被拒统一 `403/19009`，审计 `pass=0`、`reason=SCOPE_DENY`）：
+    `AKSK` 禁止派生 SST；STS 兑换凭证只能换证、不能直连业务；STS 临时凭据只能调业务、不能换证。
+  - 兑换凭证的 `scope_str` 是**派生出的临时凭据**的权限，不用来限制它自己；IP 白名单/限流同样继承。
+  - 删除页面直发三要素的内部接口 `POST /API/V1/Meta/Finv/OpenAPI/Credential/StsIssue`（用户明确反对
+    「每次用都来平台登记签发」），前端对话框 STS 分支改为走正常签发、展示 AK/SK。
+  - `PurgeExpired` 加 `token_fp IS NOT NULL`，只清临时凭据、绝不删兑换凭证。
+  - 补单测 `TestIsolationDenyReason`（8 组矩阵）、`TestIsStsExchange`；Demo 增加两条隔离负例。
+  - 文档：`Auth.md §4.8` 重写（三类凭证对照表 + 换证/调用/拒绝示例）、`Admin.md` 删 5.2.1、`Menu/OpenAPI/Credential.md`。
+
 - **认证模式下拉文案回归 `中文[值]`（需求 11209）**
   - 去掉擅自添加的 `key=`：`静态 API Key[key=APIKEY]` → `静态 API Key[APIKEY]`，
     `AK/SK 签名[key=AKSK]` → `AK/SK 签名[AKSK]`，`STS 临时凭据[key=STS]` → `STS 临时凭据[STS]`。
