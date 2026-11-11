@@ -92,7 +92,7 @@ OR (auth_mode <> 'AK_SK' AND secret_hash   IS NOT NULL)
 |------|------|------|
 | `idn` | BIGINT | 主键（identity） |
 | `client_idn` / `credential_idn` | BIGINT | 调用方/凭证（`0` = 未识别，匿名请求也留痕） |
-| `access_key_id` / `auth_mode` | VARCHAR | **冗余存**：凭证被删后仍可追溯 |
+| `access_key_id` / `auth_mode` | VARCHAR | **冗余存**：凭证被删后仍可追溯。`AK_SK` 模式存**明文 AK**（AK 是公开标识，用于区分调用方）；`API_KEY` 模式存**脱敏形态** `<前缀><随机段前 4>***<后 4>`（如 `SA_LIVE_C48A***84AF`，需求 11183）——静态 Key 本身就是密钥，绝不落明文 |
 | `request_id` | VARCHAR(64) | 链路 ID（响应头 `X-Request-Id`），32 位**大写**十六进制（需求 11177） |
 | `dt_request` | TIMESTAMPTZ | 请求时间 |
 | `method` / `path` / `query_str` | VARCHAR(8)/VARCHAR(512)/VARCHAR(2000) | 请求行（查询串截断到 2000） |

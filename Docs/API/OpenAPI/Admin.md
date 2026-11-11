@@ -296,6 +296,37 @@
 按 `dt_request` 倒序。响应字段与 `open.open_api_invoke_log` 列一一对应；`request_id` 与 `body_sha256` 均为**大写**十六进制（需求 11177），
 `body_sha256` / `count_body` 只有摘要与长度，无原文。
 
+### 6.1 审计里的密钥怎么区分（需求 11183）
+
+静态 Key 是密钥本身，审计只落**脱敏形态**；要区分「谁在用哪把 Key」用两级信息，不依赖明文：
+
+| 信息 | 用途 | 稳定性 |
+|---|---|---|
+| `credential_idn` → join `open.open_api_credential` | **主关联键**：拿到 `credential_no`（凭证号，如 `DEMO-STATIC`）、`client_idn`、模式、状态 | 稳定，凭证吊销后行仍在 |
+| `access_key_id` | 人眼核对：`AK_SK` 存明文 AK；`API_KEY` 存 `SA_LIVE_C48A***84AF` | 冗余快照，凭证被物理删除后仍可追溯 |
+
+脱敏形态刻意**跳过平台前缀**（`SA_LIVE_`/`AK_LIVE_`/`SK_LIVE_`），保留随机段前 4 后 4 位共 8 位十六进制，
+因此同一凭证**轮换前后的两把 Key 也能区分**（旧形态「前 8 后 4」在 `SA_LIVE_` 前缀下只剩后 4 位，区分度不足）。
+
+按调用方聚合的常用 SQL：
+
+```sql
+SELECT l.credential_idn,
+       c.credential_no,
+       l.access_key_id,
+       count(*)                                  AS total,
+       count(*) FILTER (WHERE l.flag_pass = '1') AS pass_cnt,
+       count(*) FILTER (WHERE l.flag_pass = '0') AS deny_cnt
+FROM open.open_api_invoke_log l
+LEFT JOIN open.open_api_credential c ON c.idn = l.credential_idn
+WHERE l.dt_request >= now() - interval '1 day'
+GROUP BY 1, 2, 3
+ORDER BY deny_cnt DESC;
+```
+
+`credential_idn = 0` 表示请求**没被识别到凭证**（未携带 / Key 不存在 / 凭证明文部分不合法），
+这类行只能靠 `access_key_id` 的掩码 + `ip` + `dt_request` 定位，也是排查「谁在撞门」的主要依据。
+
 ## 7. 错误码
 
 | HTTP | code | 场景 |

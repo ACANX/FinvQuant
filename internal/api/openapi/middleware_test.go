@@ -603,6 +603,37 @@ func TestAuditMasksStaticKey(t *testing.T) {
 	if len(masked) >= len(key) {
 		t.Fatalf("脱敏后长度应小于原值: %q", masked)
 	}
+	// 必须跳过固定前缀，否则「前 8 位」全是 SA_LIVE_，只剩后 4 位可区分
+	if !strings.HasPrefix(masked, "SA_LIVE_") {
+		t.Fatalf("应保留平台前缀: %q", masked)
+	}
+	if masked == maskKey("SA_LIVE_0123456789ABCDEF0123456789ABCDEE") {
+		t.Fatalf("不同 Key 的掩码必须不同: %q", masked)
+	}
+}
+
+// TestMaskKeyDistinguishes 掩码必须能区分不同密钥（需求 11183）：
+// 「跳前缀 + 随机段前 4 + 后 4」= 8 位十六进制区分度，而不是只剩后 4 位。
+func TestMaskKeyDistinguishes(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"SA_LIVE_0123456789ABCDEF0123456789ABCDEF", "SA_LIVE_0123***CDEF"},
+		{"AK_LIVE_7A01139C5571D46EDEFF2DB63C9F0E45", "AK_LIVE_7A01***0E45"},
+		// 无前缀的历史/自定义密钥：仍按前 4 后 4 脱敏
+		{"0123456789ABCDEF", "0123***CDEF"},
+		// 过短直接全掩
+		{"SA_LIVE_AB", "SA_LIVE_***"},
+	}
+	for _, c := range cases {
+		if got := maskKey(c.in); got != c.want {
+			t.Fatalf("maskKey(%q) = %q，期望 %q", c.in, got, c.want)
+		}
+	}
+	// 同一凭证轮换前后（仅末段不同）也必须区分得开
+	a := maskKey("SA_LIVE_0123456789ABCDEF0123456789ABCDEF")
+	b := maskKey("SA_LIVE_0123456789ABCDEF0123456789ABCDEE")
+	if a == b {
+		t.Fatalf("轮换前后的掩码不应相同: %q", a)
+	}
 }
 
 // TestResolveRequestID 追踪 ID 透传规则（需求 11182）：

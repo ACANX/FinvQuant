@@ -385,13 +385,28 @@ func bearerToken(header string) string {
 	return strings.TrimSpace(header[len(scheme):])
 }
 
-// maskKey 脱敏展示密钥（审计/AK 字段只留前 8 后 4）。
+// keyPrefixes 是平台密钥的固定前缀；掩码时必须跳过，否则「前 8 位」全是前缀、
+// 只剩后 4 位可区分（SA_LIVE_ + 32 hex 场景下所有 Key 前 8 位完全相同）。
+var keyPrefixes = []string{"SA_LIVE_", "AK_LIVE_", "SK_LIVE_", "FK_LIVE_"}
+
+// maskKey 脱敏展示密钥，供审计用人眼核对（需求 11183）。
+//
+// 形态：<前缀><随机段前 4>***<后 4>，如 SA_LIVE_C48A***84AF。
+// 跳过固定前缀后保留 8 位十六进制，足以区分不同 Key（含同一凭证轮换前后的 Key）；
+// 完整密钥不可从掩码反推，日志/备份导出不含明文。
 func maskKey(key string) string {
 	key = strings.TrimSpace(key)
-	if len(key) <= 12 {
-		return "***"
+	prefix := ""
+	for _, candidate := range keyPrefixes {
+		if strings.HasPrefix(strings.ToUpper(key), candidate) {
+			prefix, key = key[:len(candidate)], key[len(candidate):]
+			break
+		}
 	}
-	return key[:8] + "***" + key[len(key)-4:]
+	if len(key) <= 8 {
+		return prefix + "***"
+	}
+	return prefix + key[:4] + "***" + key[len(key)-4:]
 }
 
 // CredentialFrom 从上下文取凭证（handler 可用）。

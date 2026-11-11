@@ -219,6 +219,18 @@
 
 ### 变更
 
+- **审计里静态 Key 的脱敏形态改为「跳前缀 + 前 4 后 4」（需求 11183）**
+  - 背景：静态 Key 形如 `SA_LIVE_` + 32 位十六进制，旧 `maskKey` 取「前 8 位」正好全是 `SA_LIVE_`，
+    实际只剩后 4 位可区分（16^4，几百把 Key 就会撞），同一凭证轮换前后的两把 Key 也分不开。
+  - 改为跳过平台前缀（`SA_LIVE_`/`AK_LIVE_`/`SK_LIVE_`/`FK_LIVE_`）后取「随机段前 4 + `***` + 后 4」：
+    `SA_LIVE_C48A***84AF`，保留 8 位十六进制区分度；完整密钥仍不可反推，无误落明文。
+  - 文档：`Docs/API/OpenAPI/Admin.md` 新增 §6.1「审计里的密钥怎么区分」——主键用 `credential_idn`
+    join 凭证表取 `credential_no`/客户，`access_key_id` 仅作人眼核对；附按凭证聚合 pass/deny 的 SQL，
+    并说明 `credential_idn = 0`（未识别凭证）只能靠掩码 + IP + 时间定位。
+    `Docs/DataDictMapping/OpenApiAuth.md` 的 `access_key_id` 说明同步。
+  - 测试：新增 `TestMaskKeyDistinguishes`（含轮换前后区分），`TestAuditMasksStaticKey` 补前缀与区分度断言。
+  - 实测审计表：`30 | API_KEY | SA_LIVE_C48A***84AF`、`31 | AK_SK | AK_LIVE_7A01…0E45`（AK 明文）。
+
 - **规范补齐响应头 `X-Request-Id` 的约定，并修掉透传漏洞（需求 11182）**
   - 原来 `ApiSpec` §1.0 只在形态表里顺带提到 `X-Request-Id`，正文没有独立约定；
     实现上中间件又把客户端传来的 `X-Request-Id` **原样采用**回显并写审计——小写、带连字符甚至任意串都会落地，
