@@ -42,12 +42,13 @@ func NewOpenAPIAdmin(service *openapisvc.Service) *OpenAPIAdmin {
 	return &OpenAPIAdmin{service: service}
 }
 
-// operatorOf 取当前登录账号（审计列 create_by / modify_by）。
+// operatorOf 取当前登录账号（审计列 create_by / modify_by、调用方负责人默认值）。
+//
+// 登录会话由 RequireAuth 放在 auth.ContextSessionKey 里；这里不再去 Context 里
+// 猜 "uid" 之类的键（那是取不到的，会静默返回空串）。
 func operatorOf(c *gin.Context) string {
-	for _, key := range []string{"uid", "user", "session"} {
-		if value := strings.TrimSpace(c.GetString(key)); value != "" {
-			return value
-		}
+	if session, ok := SessionFrom(c); ok && session != nil {
+		return strings.TrimSpace(session.UID)
 	}
 	return ""
 }

@@ -68,6 +68,17 @@ func (s *Service) ClientDetail(ctx context.Context, idn int64) (Client, error) {
 //
 // 新建默认 `flag_enable='0'`（停用）：先登记、核对白名单与配额，再显式启用。
 func (s *Service) SaveClient(ctx context.Context, req ClientRequest, operator string) (Client, error) {
+	// 新增时「负责人账号」默认当前登录账号、「联系邮箱」默认取该账号的资料，
+	// 免得每个调用方都要手填（需求 11174）；调用方显式传值时以传入值优先。
+	if strings.TrimSpace(req.OwnerUID) == "" {
+		req.OwnerUID = operator
+	}
+	if strings.TrimSpace(req.ContactEmail) == "" && strings.TrimSpace(req.OwnerUID) != "" {
+		if email, err := s.store.UserEmailByUID(ctx, req.OwnerUID); err == nil {
+			req.ContactEmail = email
+		}
+	}
+
 	validated, err := validateClient(req)
 	if err != nil {
 		return Client{}, err

@@ -114,7 +114,10 @@
 | `client_name` | 非空，≤128 字符 |
 | `allow_cidr` | 裸 IP 自动补 `/32`（IPv6 `/128`）；非法网段 400 |
 | `rate_limit_rpm` / `quota_day` | ≥0，`0` 表示不限 |
-| `dt_expire` | 空串 = 长期；支持 RFC3339 与 `2006-01-02` |
+| `dt_expire` | 空串 = 长期；支持 RFC3339 与 `2006-01-02`（前端把「1 天/1 个月/1 年…」预设换算成具体日期后提交） |
+
+服务端兜底（需求 11174）：`owner_uid` 为空时用当前登录账号；`contact_email` 为空时按 `owner_uid`
+查 `sys.sys_user.email` 补（查不到则保持空）。
 
 **新建默认停用**（`flag_enable='0'`）：登记 → 核对白名单与配额 → 显式启用。
 

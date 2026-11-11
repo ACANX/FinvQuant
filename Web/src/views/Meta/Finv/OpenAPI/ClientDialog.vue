@@ -1,13 +1,18 @@
 <script setup lang="ts">
-// 新增/编辑 OpenAPI 调用方（需求 11169）
+// 新增/编辑 OpenAPI 调用方（需求 11169；11174 补默认值）
 //
-// 接口：GET  /Meta/Finv/OpenAPI/Client/Page（父页面已加载列表）
-//       POST /Meta/Finv/OpenAPI/Client/Save（idn=0 新建，默认停用）
+// 接口：GET  /Meta/Finv/Auth/Profile            （取当前登录账号与邮箱做默认值）
+//       POST /Meta/Finv/OpenAPI/Client/Save     （idn=0 新建，默认停用）
 //
-// 校验口径：client_code 只允许小写字母/数字/._-；数值型字段为负即非法（0 表示不限）。
+// 默认值口径（需求 11174）：
+//   - 负责人账号 = 当前登录账号，只读展示（后端在 uid 为空时也会用它兜底）；
+//   - 联系邮箱   = 当前登录账号的资料邮箱，预填后可改；
+//   - 授权到期   = 下拉预设（1天/7天/15天/1个月/3个月/半年/1年/18个月/3年/长期），
+//                  选中后自动算出具体日期并提交，不再手输日期。
 import { computed, ref, watch } from 'vue'
 
 import { apiGet, apiPost } from '../../../../api'
+import { authState } from '../../../../auth'
 import { showToast } from '../../../../ui/toast'
 
 interface ClientRow {
@@ -25,6 +30,12 @@ interface ClientRow {
   remark: string
 }
 
+interface Profile {
+  uid: string
+  nick_name: string
+  email: string
+}
+
 const props = defineProps<{
   modelValue: boolean
   clientIdn: number
@@ -37,6 +48,23 @@ const emit = defineEmits<{
 
 const BASE = '/Meta/Finv/OpenAPI'
 
+// ---------- 授权到期预设 ----------
+//
+// value 是「天数或月数」的语义标记，真正落库的是算出来的日期（YYYY-MM-DD）。
+const EXPIRE_PRESETS = [
+  { title: '长期（不过期）', value: 'never' },
+  { title: '1 天', value: 'd1' },
+  { title: '7 天', value: 'd7' },
+  { title: '15 天', value: 'd15' },
+  { title: '1 个月', value: 'm1' },
+  { title: '3 个月', value: 'm3' },
+  { title: '半年', value: 'm6' },
+  { title: '1 年', value: 'm12' },
+  { title: '18 个月', value: 'm18' },
+  { title: '3 年', value: 'm36' },
+  { title: '保持当前到期日', value: 'keep' },
+]
+
 const form = ref({
   client_code: '',
   client_name: '',
@@ -46,9 +74,10 @@ const form = ref({
   allow_cidr_text: '',
   rate_limit_rpm: 0,
   quota_day: 0,
-  dt_expire: '',
   remark: '',
 })
+const expirePreset = ref('never')
+const existingExpire = ref('') // 编辑时的原到期日（YYYY-MM-DD），供「保持当前」使用
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -61,10 +90,50 @@ const visible = computed({
   set: (value: boolean) => emit('update:modelValue', value),
 })
 
-// 数值字段判空：负数非法（0 = 不限）
-const rateError = computed(() =>
-  Number(form.value.rate_limit_rpm) < 0 ? '不能为负数（0 表示不限）' : '',
+// 「保持当前到期日」只在编辑且原有到期日时出现
+const expireOptions = computed(() =>
+  isEdit.value && existingExpire.value
+    ? EXPIRE_PRESETS
+    : EXPIRE_PRESETS.filter((item) => item.value !== 'keep'),
 )
+
+/** 月末裁剪的月份加法：2026-01-31 + 1 个月 → 2026-02-28 */
+function addMonths(base: Date, months: number): Date {
+  const result = new Date(base.getFullYear(), base.getMonth() + months, base.getDate())
+  if (result.getDate() !== base.getDate()) {
+    result.setDate(0) // 溢出时回退到上个月最后一天
+  }
+  return result
+}
+
+function formatDate(value: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`
+}
+
+/** 按预设算出到期日（YYYY-MM-DD）；long 返回空串表示长期 */
+const expireDate = computed(() => {
+  const preset = expirePreset.value
+  if (preset === 'keep') return existingExpire.value
+  if (preset === 'never') return ''
+  const now = new Date()
+  const days = Number(preset.slice(1))
+  switch (preset[0]) {
+    case 'd':
+      return formatDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() + days))
+    case 'm':
+      return formatDate(addMonths(now, days))
+    default:
+      return ''
+  }
+})
+
+const expireHint = computed(() =>
+  expireDate.value ? `到期日：${expireDate.value}（提交时按该日 00:00 +08:00 生效）` : '长期有效，不会自动过期',
+)
+
+// 数值字段判空：负数非法（0 = 不限）
+const rateError = computed(() => (Number(form.value.rate_limit_rpm) < 0 ? '不能为负数（0 表示不限）' : ''))
 const quotaError = computed(() => (Number(form.value.quota_day) < 0 ? '不能为负数（0 表示不限）' : ''))
 const codeError = computed(() => {
   const value = form.value.client_code.trim()
@@ -81,16 +150,30 @@ function resetForm() {
   form.value = {
     client_code: '',
     client_name: '',
-    owner_uid: '',
+    owner_uid: authState.user?.uid ?? '',
     contact_email: '',
     contract_no: '',
     allow_cidr_text: '',
     rate_limit_rpm: 0,
     quota_day: 0,
-    dt_expire: '',
     remark: '',
   }
+  expirePreset.value = 'never'
+  existingExpire.value = ''
   error.value = ''
+}
+
+/** 新增时带出当前登录账号与邮箱（需求 11174） */
+async function fillLoginDefaults() {
+  form.value.owner_uid = authState.user?.uid ?? ''
+  try {
+    const profile = await apiGet<Profile>('/Meta/Finv/Auth/Profile')
+    if (profile.uid) form.value.owner_uid = profile.uid
+    if (profile.email) form.value.contact_email = profile.email
+  } catch (err) {
+    // 取不到资料不阻断录入：负责人已有登录账号兜底，邮箱留空可手填
+    showToast(`读取登录用户资料失败（可手填邮箱）：${(err as Error).message}`, 'warning')
+  }
 }
 
 async function loadDetail() {
@@ -115,9 +198,10 @@ async function loadDetail() {
       allow_cidr_text: (found.allow_cidr ?? []).join('\n'),
       rate_limit_rpm: found.rate_limit_rpm,
       quota_day: found.quota_day,
-      dt_expire: (found.dt_expire ?? '').slice(0, 10),
       remark: found.remark ?? '',
     }
+    existingExpire.value = (found.dt_expire ?? '').slice(0, 10)
+    expirePreset.value = existingExpire.value ? 'keep' : 'never'
   } catch (err) {
     error.value = (err as Error).message
   } finally {
@@ -144,7 +228,7 @@ async function submit() {
       allow_cidr: cidrs,
       rate_limit_rpm: Number(form.value.rate_limit_rpm),
       quota_day: Number(form.value.quota_day),
-      dt_expire: form.value.dt_expire ? `${form.value.dt_expire}T00:00:00+08:00` : '',
+      dt_expire: expireDate.value ? `${expireDate.value}T00:00:00+08:00` : '',
       remark: form.value.remark.trim(),
     })
     showToast(
@@ -168,13 +252,17 @@ watch(
   ([open]) => {
     if (!open) return
     resetForm()
-    void loadDetail()
+    if (props.clientIdn > 0) {
+      void loadDetail()
+    } else {
+      void fillLoginDefaults()
+    }
   },
 )
 </script>
 
 <template>
-  <v-dialog v-model="visible" max-width="720" persistent>
+  <v-dialog v-model="visible" max-width="760" persistent>
     <v-card>
       <v-card-title class="text-subtitle-1 d-flex align-center">
         <v-icon icon="mdi-account-key-outline" class="mr-2" />
@@ -182,7 +270,7 @@ watch(
         <v-chip v-if="!isEdit" size="small" variant="tonal" color="warning" class="ml-2">新建默认停用</v-chip>
       </v-card-title>
       <v-card-subtitle>
-        调用方代号用于人工识别；IP 白名单与配额为空/0 表示不限。停用调用方会让其全部凭证立即失效。
+        调用方代号用于人工识别；负责人与联系邮箱已按当前登录账号预填，可按需修改；IP 白名单与配额为空/0 表示不限。
       </v-card-subtitle>
 
       <v-card-text>
@@ -214,12 +302,14 @@ watch(
           </div>
           <div class="d-flex flex-wrap ga-3">
             <v-text-field
-              v-model="form.owner_uid"
+              :model-value="form.owner_uid"
               label="负责人账号"
-              placeholder="对 sys_user.uid"
               density="compact"
               variant="outlined"
-              style="min-width: 200px; flex: 1"
+              readonly
+              persistent-hint
+              hint="默认当前登录账号，取自服务端会话，不可在此修改"
+              style="min-width: 220px; flex: 1"
               :disabled="loading"
             />
             <v-text-field
@@ -227,7 +317,9 @@ watch(
               label="联系邮箱"
               density="compact"
               variant="outlined"
-              style="min-width: 200px; flex: 1"
+              persistent-hint
+              hint="默认取当前登录账号的资料邮箱，可改"
+              style="min-width: 220px; flex: 1"
               :disabled="loading"
             />
             <v-text-field
@@ -240,6 +332,19 @@ watch(
             />
           </div>
           <div class="d-flex flex-wrap ga-3">
+            <v-select
+              v-model="expirePreset"
+              :items="expireOptions"
+              item-title="title"
+              item-value="value"
+              label="授权到期"
+              density="compact"
+              variant="outlined"
+              persistent-hint
+              :hint="expireHint"
+              style="min-width: 220px; flex: 1"
+              :disabled="loading"
+            />
             <v-text-field
               v-model.number="form.rate_limit_rpm"
               type="number"
@@ -262,15 +367,6 @@ watch(
               style="min-width: 180px; flex: 1"
               :error="quotaError !== ''"
               :error-messages="quotaError"
-              :disabled="loading"
-            />
-            <v-text-field
-              v-model="form.dt_expire"
-              type="date"
-              label="授权到期（留空 = 长期）"
-              density="compact"
-              variant="outlined"
-              style="min-width: 180px; flex: 1"
               :disabled="loading"
             />
           </div>

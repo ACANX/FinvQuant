@@ -219,6 +219,22 @@
 
 ### 变更
 
+- **OpenAPI 调用方：负责人/邮箱默认值 + 到期下拉（需求 11174）**
+  - 负责人账号默认当前登录账号：前端只读展示（取自本地会话，命中服务端会话时以服务端为准）；
+    后端 `Service.SaveClient` 在 `owner_uid` 为空时同样用登录账号兜底，脚本调用也不会漏。
+  - 联系邮箱默认取登录账号的资料邮箱：前端调 `GET /Meta/Finv/Auth/Profile` 预填（可取不到，不阻断录入）；
+    后端在 `contact_email` 为空时按 `owner_uid` 查 `sys.sys_user.email` 补。
+  - 授权到期改为下拉预设：长期 / 1 天 / 7 天 / 15 天 / 1 个月 / 3 个月 / 半年 / 1 年 / 18 个月 / 3 年
+    （编辑时多一项「保持当前到期日」），选中即换算成具体日期并在 hint 里显示「到期日：YYYY-MM-DD」；
+    提交的仍是绝对时间（`YYYY-MM-DDT00:00:00+08:00`），服务端不需要理解「相对时长」。
+    月份加法做了月末裁剪（1-31 加 1 个月 → 2-28），避免 3-03 这类日期漂移。
+  - 顺带修一个静默 bug：`openapi_admin.go` 的 `operatorOf` 原本去 Context 里找 `"uid"` 键（取不到，恒为空串），
+    导致 `open_api_client.create_by/modify_by` 等审计列一直没值；改为从登录会话 `auth.ContextSessionKey`
+    取 `session.UID`。
+  - 测试：新增 `TestLiveAdminClientDefaults`（真库：不传负责人/邮箱时按登录账号补，断言 `owner_uid` 与 `email` 一致）；
+    另两个联调测试继续通过。
+  - 文档：`Docs/Menu/OpenAPI/Client.md` 字段表补默认值与「§3.1 授权到期下拉」、`Docs/API/OpenAPI/Admin.md` §4.2 补服务端兜底口径。
+
 - **「开放平台」按功能拆分菜单与页面（需求 11173）**
   - 原来三 Tab（调用方/凭证/审计）+ 顶部鉴权配置全塞在一个页面里；现按功能拆成 4 个页面、3 个三级分组：
     ```

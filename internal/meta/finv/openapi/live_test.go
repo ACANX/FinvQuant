@@ -284,3 +284,41 @@ func TestLiveAdminAKSKIssuance(t *testing.T) {
 func base64Key(raw []byte) string {
 	return secret.EncodeKeyForTest(raw)
 }
+
+// TestLiveAdminClientDefaults 新增调用方时负责人与联系邮箱的默认值（需求 11174）。
+func TestLiveAdminClientDefaults(t *testing.T) {
+	service, pool := adminLiveService(t)
+	ctx := context.Background()
+
+	// 取一个真实登录账号作为「当前登录用户」
+	var uid, email string
+	err := pool.QueryRow(ctx,
+		`SELECT uid, COALESCE(email, '') FROM sys.sys_user
+		  WHERE COALESCE(email, '') <> '' ORDER BY idn LIMIT 1`).Scan(&uid, &email)
+	if err != nil {
+		t.Skip("sys_user 中没有带邮箱的账号，跳过默认值测试")
+	}
+
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	client, err := service.SaveClient(ctx, ClientRequest{
+		ClientCode: "zz-oa-def-" + suffix,
+		ClientName: "默认值联调调用方",
+		// owner_uid 与 contact_email 都不传，应由服务端按登录账号补
+	}, uid)
+	if err != nil {
+		t.Fatalf("新建调用方失败: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `DELETE FROM open.open_api_credential WHERE client_idn = $1`, client.IDN)
+		_, _ = pool.Exec(ctx, `DELETE FROM open.open_api_client WHERE idn = $1`, client.IDN)
+		t.Logf("已清理默认值测试调用方 idn=%d", client.IDN)
+	})
+
+	if client.OwnerUID != uid {
+		t.Fatalf("负责人应默认当前登录账号 %q，实际 %q", uid, client.OwnerUID)
+	}
+	if client.ContactEmail != email {
+		t.Fatalf("联系邮箱应默认取用户资料 %q，实际 %q", email, client.ContactEmail)
+	}
+	t.Logf("默认值正确：owner_uid=%s email=%s", client.OwnerUID, client.ContactEmail)
+}

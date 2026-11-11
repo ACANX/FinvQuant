@@ -128,6 +128,21 @@ func (s *Store) SecretKID(ctx context.Context) (string, error) {
 	return value, err
 }
 
+// UserEmailByUID 按登录账号取邮箱（新增调用方时默认填充联系邮箱）。
+func (s *Store) UserEmailByUID(ctx context.Context, uid string) (string, error) {
+	uid = strings.TrimSpace(uid)
+	if s.pool == nil || uid == "" {
+		return "", nil
+	}
+	var email string
+	err := s.pool.QueryRow(ctx,
+		`SELECT COALESCE(email, '') FROM sys.sys_user WHERE uid = $1`, uid).Scan(&email)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return email, err
+}
+
 // ---- 调用方 ----
 
 const selectClientSQL = `
