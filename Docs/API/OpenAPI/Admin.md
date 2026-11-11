@@ -304,7 +304,7 @@
 |---|---|---|
 | `credential_idn` → join `open.open_api_credential` | **主关联键**：拿到 `credential_no`（凭证号，如 `DEMO-STATIC`）、`client_idn`、模式、状态 | 稳定，凭证吊销后行仍在 |
 | `access_key_id` | 人眼核对：`AK_SK` 存明文 AK；`API_KEY` 存 `SA_LIVE_C48AABCD****************EADE84AF` | 冗余快照，凭证被物理删除后仍可追溯 |
-| `key_fingerprint` | **严格区分密钥**：`sha256(完整 Key)` 前 16 位大写十六进制（需求 11186），可 `GROUP BY` / 精确 `WHERE` | 确定性、不可逆；仅 `API_KEY` 模式写入（`AK_SK` 的 AK 已明文） |
+| `kfp` | **严格区分密钥**（key fingerprint）：`sha256(完整 Key)` 前 16 位大写十六进制（需求 11186，字段名 11187 定稿为 `kfp`），可 `GROUP BY` / 精确 `WHERE` | 确定性、不可逆；仅 `API_KEY` 模式写入（`AK_SK` 的 AK 已明文） |
 
 脱敏形态刻意**跳过平台前缀**（`SA_LIVE_`/`AK_LIVE_`/`SK_LIVE_`），保留随机段**前 8 后 8 位共 16 位十六进制**，
 中间用**等量星号**（32 位随机段对应 16 个 `*`）替代被遮蔽的位（需求 11184、11185），
@@ -332,11 +332,11 @@ ORDER BY deny_cnt DESC;
 
 掩码只保留部分位（前缀后前 8 后 8），两把 Key 在极端情况下可能落到同一掩码，
 且**无法**用「调用方报上来的完整 Key」反查历史——因为库里只有部分明文。
-因此审计另存 `key_fingerprint`（`sha256(完整 Key)` 前 16 位大写十六进制，需求 11186）：
+因此审计另存 `kfp`（key fingerprint，`sha256(完整 Key)` 前 16 位大写十六进制，需求 11186/11187）：
 
 - 确定性：同一把 Key 恒为同一指纹，轮换前后两把 Key 必然不同；
 - 不可逆：不能从指纹还原密钥，导出日志/备份不带明文；
-- 可索引：`idx_open_api_invoke_log_key_fingerprint (key_fingerprint, dt_request DESC)`。
+- 可索引：`idx_open_api_invoke_log_kfp (kfp, dt_request DESC)`。
 
 运维排障（调用方只报了完整 Key）：在服务端算一次指纹再查，**不要把完整 Key 留在查询历史里**：
 
@@ -345,25 +345,25 @@ ORDER BY deny_cnt DESC;
 SELECT credential_idn, key_fingerprint, count(*) AS cnt,
        max(dt_request) AS last_seen
 FROM open.open_api_invoke_log
-WHERE key_fingerprint = upper(substr(encode(sha256('SA_LIVE_……'), 'hex'), 1, 16))
+WHERE kfp = upper(substr(encode(sha256('SA_LIVE_……'), 'hex'), 1, 16))
 GROUP BY 1, 2;
 ```
 
 按「一把 Key」聚合（同一凭证轮换前后也能分开）：
 
 ```sql
-SELECT key_fingerprint,
+SELECT kfp,
        min(dt_request) AS first_seen,
        max(dt_request) AS last_seen,
        count(*)        AS cnt,
        count(*) FILTER (WHERE flag_pass = '0') AS deny_cnt
 FROM open.open_api_invoke_log
 WHERE credential_idn = 30
-GROUP BY key_fingerprint
+GROUP BY kfp
 ORDER BY last_seen DESC;
 ```
 
-`key_fingerprint IS NULL` 的行是「加列之前的历史记录」或「未识别到凭证 / `AK_SK` 模式」——
+`kfp IS NULL` 的行是「加列之前的历史记录」或「未识别到凭证 / `AK_SK` 模式」——
 历史行无法补算（脱敏形态反推不出完整 Key），需要区分时以新增请求为准。
 
 `credential_idn = 0` 表示请求**没被识别到凭证**（未携带 / Key 不存在 / 凭证明文部分不合法），

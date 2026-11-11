@@ -16,7 +16,7 @@ interface InvokeLogRow {
   client_idn: number
   credential_idn: number
   access_key_id: string
-  key_fingerprint: string
+  kfp: string
   auth_mode: string
   request_id: string
   dt_request: string
@@ -42,7 +42,7 @@ const loading = ref(false)
 const flagPass = ref('')
 const reasonCode = ref('')
 const accessKey = ref('')
-const keyFingerprint = ref('')
+const kfp = ref('')
 
 const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
@@ -53,7 +53,7 @@ async function load() {
     if (flagPass.value) params.set('flagPass', flagPass.value)
     if (reasonCode.value) params.set('reasonCode', reasonCode.value)
     if (accessKey.value.trim()) params.set('accessKey', accessKey.value.trim())
-    if (keyFingerprint.value.trim()) params.set('keyFingerprint', keyFingerprint.value.trim())
+    if (kfp.value.trim()) params.set('kfp', kfp.value.trim())
     const data = await apiGet<{ total: number; list: InvokeLogRow[] }>(
       `${BASE}/InvokeLog/Page?${params.toString()}`,
     )
@@ -118,7 +118,7 @@ onMounted(load)
             @keyup.enter="page = 1; load()"
           />
           <v-text-field
-            v-model="keyFingerprint"
+            v-model="kfp"
             label="密钥指纹（精确）"
             density="compact"
             hide-details
@@ -159,7 +159,7 @@ onMounted(load)
               <td>{{ row.status_code }}</td>
               <td>{{ row.latency_ms }}</td>
               <td class="text-truncate" style="max-width: 180px">{{ row.access_key_id || '—' }}</td>
-              <td class="text-no-wrap text-caption">{{ row.key_fingerprint || '—' }}</td>
+              <td class="text-no-wrap text-caption">{{ row.kfp || '—' }}</td>
               <td>{{ row.ip || '—' }}</td>
               <td class="text-truncate" style="max-width: 150px">{{ row.request_id || '—' }}</td>
             </tr>

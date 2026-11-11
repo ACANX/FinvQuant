@@ -158,40 +158,40 @@ type IssuedSecret struct {
 
 // InvokeLog 调用审计行。
 type InvokeLog struct {
-	IDN            int64  `json:"idn"`
-	ClientIDN      int64  `json:"client_idn"`
-	CredentialIDN  int64  `json:"credential_idn"`
-	AccessKeyID    string `json:"access_key_id"`
-	KeyFingerprint string `json:"key_fingerprint"`
-	AuthMode       string `json:"auth_mode"`
-	RequestID      string `json:"request_id"`
-	DTRequest      string `json:"dt_request"`
-	Method         string `json:"method"`
-	Path           string `json:"path"`
-	Query          string `json:"query_str"`
-	StatusCode     int    `json:"status_code"`
-	BizCode        int    `json:"biz_code"`
-	FlagPass       string `json:"flag_pass"`
-	ReasonCode     string `json:"reason_code"`
-	IP             string `json:"ip"`
-	UserAgent      string `json:"user_agent"`
-	BodySHA256     string `json:"body_sha256"`
-	CountBody      int    `json:"count_body"`
-	LatencyMs      int    `json:"latency_ms"`
+	IDN           int64  `json:"idn"`
+	ClientIDN     int64  `json:"client_idn"`
+	CredentialIDN int64  `json:"credential_idn"`
+	AccessKeyID   string `json:"access_key_id"`
+	KFP           string `json:"kfp"`
+	AuthMode      string `json:"auth_mode"`
+	RequestID     string `json:"request_id"`
+	DTRequest     string `json:"dt_request"`
+	Method        string `json:"method"`
+	Path          string `json:"path"`
+	Query         string `json:"query_str"`
+	StatusCode    int    `json:"status_code"`
+	BizCode       int    `json:"biz_code"`
+	FlagPass      string `json:"flag_pass"`
+	ReasonCode    string `json:"reason_code"`
+	IP            string `json:"ip"`
+	UserAgent     string `json:"user_agent"`
+	BodySHA256    string `json:"body_sha256"`
+	CountBody     int    `json:"count_body"`
+	LatencyMs     int    `json:"latency_ms"`
 }
 
 // InvokeLogFilter 调用审计查询条件。
 type InvokeLogFilter struct {
-	ClientIDN      int64
-	CredentialIDN  int64
-	AccessKeyID    string
-	KeyFingerprint string
-	FlagPass       string
-	ReasonCode     string
-	DTFrom         time.Time
-	DTTo           time.Time
-	Page           int
-	PageSize       int
+	ClientIDN     int64
+	CredentialIDN int64
+	AccessKeyID   string
+	KFP           string
+	FlagPass      string
+	ReasonCode    string
+	DTFrom        time.Time
+	DTTo          time.Time
+	Page          int
+	PageSize      int
 }
 
 // ---------------- 校验 ----------------

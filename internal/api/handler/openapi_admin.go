@@ -261,14 +261,14 @@ func (h *OpenAPIAdmin) RotateCredential(c *gin.Context) {
 // InvokeLogPage GET /OpenAPI/InvokeLog/Page。
 func (h *OpenAPIAdmin) InvokeLogPage(c *gin.Context) {
 	filter := openapisvc.InvokeLogFilter{
-		ClientIDN:      openAPIQueryInt64(c, "clientId"),
-		CredentialIDN:  openAPIQueryInt64(c, "credentialId"),
-		AccessKeyID:    c.Query("accessKey"),
-		KeyFingerprint: c.Query("keyFingerprint"),
-		FlagPass:       c.Query("flagPass"),
-		ReasonCode:     c.Query("reasonCode"),
-		Page:           openAPIQueryInt(c, "page", 1),
-		PageSize:       openAPIQueryInt(c, "pageSize", 20),
+		ClientIDN:     openAPIQueryInt64(c, "clientId"),
+		CredentialIDN: openAPIQueryInt64(c, "credentialId"),
+		AccessKeyID:   c.Query("accessKey"),
+		KFP:           c.Query("kfp"),
+		FlagPass:      c.Query("flagPass"),
+		ReasonCode:    c.Query("reasonCode"),
+		Page:          openAPIQueryInt(c, "page", 1),
+		PageSize:      openAPIQueryInt(c, "pageSize", 20),
 	}
 	if from, ok := parseQueryTime(c.Query("dtFrom")); ok {
 		filter.DTFrom = from

@@ -219,6 +219,14 @@
 
 ### 变更
 
+- **密钥指纹字段名定稿为 `kfp`（需求 11187）**
+  - `open.open_api_invoke_log.key_fingerprint` → `kfp`（审计表列多，短名更省版面），
+    索引同步为 `idx_open_api_invoke_log_kfp (kfp, dt_request DESC)`。
+  - V300185（同批次、未推送）回改为 `kfp`；新增 `V300186` 把已应用旧版的库就地改名，
+    幂等且兼容 `key_fingerprint` 与中间态 `key_fp` 两种旧名，收敛校验只断言列存在/类型/无残留旧名。
+  - 接口与前端：`InvokeLog/Page` 查询参数改为 `kfp`，响应字段 `kfp`，审计页面列与筛选框同步。
+  - 文档：`Admin.md` §6.2、`DataDictMapping/OpenApiAuth.md` 改为 `kfp`。
+
 - **审计增加密钥指纹，脱敏前提下可严格区分每一把 Key（需求 11186）**
   - 问题：静态 Key 只能存脱敏形态（前 8 + 等量星号 + 后 8），部分位相同的两把 Key 无法严格区分，
     也没法用「调用方报上来的完整 Key」反查历史（库里没有完整明文）。

@@ -493,7 +493,7 @@ UPDATE open.open_api_credential
 // ---- 调用审计 ----
 
 const selectInvokeLogSQL = `
-SELECT idn, client_idn, credential_idn, COALESCE(access_key_id, ''), COALESCE(key_fingerprint, ''),
+SELECT idn, client_idn, credential_idn, COALESCE(access_key_id, ''), COALESCE(kfp, ''),
        COALESCE(auth_mode, ''),
        COALESCE(request_id, ''), to_char(dt_request, 'YYYY-MM-DD"T"HH24:MI:SSOF'),
        COALESCE(method, ''), COALESCE(path, ''), COALESCE(query_str, ''),
@@ -521,9 +521,9 @@ func (s *Store) InvokeLogPage(ctx context.Context, filter InvokeLogFilter) ([]In
 		args = append(args, "%"+key+"%")
 		conditions = append(conditions, fmt.Sprintf(`access_key_id ILIKE $%d`, len(args)))
 	}
-	if fingerprint := strings.TrimSpace(filter.KeyFingerprint); fingerprint != "" {
+	if fingerprint := strings.TrimSpace(filter.KFP); fingerprint != "" {
 		args = append(args, strings.ToUpper(fingerprint))
-		conditions = append(conditions, fmt.Sprintf(`key_fingerprint = $%d`, len(args)))
+		conditions = append(conditions, fmt.Sprintf(`kfp = $%d`, len(args)))
 	}
 	if pass := strings.TrimSpace(filter.FlagPass); pass != "" {
 		args = append(args, pass)
@@ -563,7 +563,7 @@ func (s *Store) InvokeLogPage(ctx context.Context, filter InvokeLogFilter) ([]In
 	list := make([]InvokeLog, 0, filter.PageSize)
 	for rows.Next() {
 		item := InvokeLog{}
-		if err := rows.Scan(&item.IDN, &item.ClientIDN, &item.CredentialIDN, &item.AccessKeyID, &item.KeyFingerprint,
+		if err := rows.Scan(&item.IDN, &item.ClientIDN, &item.CredentialIDN, &item.AccessKeyID, &item.KFP,
 			&item.AuthMode,
 			&item.RequestID, &item.DTRequest, &item.Method, &item.Path, &item.Query,
 			&item.StatusCode, &item.BizCode, &item.FlagPass, &item.ReasonCode,
