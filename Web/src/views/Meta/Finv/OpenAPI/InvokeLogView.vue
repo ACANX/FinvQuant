@@ -9,6 +9,7 @@ import { computed, onMounted, ref } from 'vue'
 
 import { apiGet } from '../../../../api'
 import { showToast } from '../../../../ui/toast'
+import TextPopover from '../../../../components/TextPopover.vue'
 import { OPENAPI_BASE as BASE, PASS_OPTIONS, REASON_OPTIONS, authModeText, passColor, passText, reasonText, timeText } from './shared'
 
 interface InvokeLogRow {
@@ -333,11 +334,7 @@ onMounted(() => {
                 <td class="cell-nowrap">{{ row.method || '—' }}</td>
                 <td class="cell-ellipsis">
                   <span>{{ row.path || '—' }}</span>
-                  <v-tooltip v-if="row.path" :text="row.path" location="bottom" max-width="720">
-                    <template #activator="{ props: tipProps }">
-                      <v-icon v-bind="tipProps" icon="mdi-information-outline" size="14" class="ml-1 text-medium-emphasis" />
-                    </template>
-                  </v-tooltip>
+                  <TextPopover v-if="row.path" title="完整路径" :text="row.path" />
                 </td>
                 <td>
                   <v-chip size="x-small" variant="tonal" :color="passColor(row.flag_pass)">
@@ -351,30 +348,22 @@ onMounted(() => {
                 <td class="cell-nowrap">{{ authModeText(row.auth_mode) }}</td>
                 <td class="cell-ellipsis">
                   <span>{{ row.credential_no || (row.credential_idn > 0 ? `idn=${row.credential_idn}` : '—') }}</span>
-                  <v-tooltip v-if="row.credential_no" :text="`凭证号：${row.credential_no}（idn=${row.credential_idn}）`" location="bottom" max-width="420">
-                    <template #activator="{ props: tipProps }">
-                      <v-icon v-bind="tipProps" icon="mdi-information-outline" size="14" class="ml-1 text-medium-emphasis" />
-                    </template>
-                  </v-tooltip>
+                  <TextPopover
+                    v-if="row.credential_no"
+                    title="凭证"
+                    :lines="[`凭证号：${row.credential_no}`, `IDN：${row.credential_idn}`]"
+                  />
                 </td>
                 <td class="cell-ellipsis">{{ row.parent_credential_no || (row.auth_mode === 'STS' ? '无（页面直发）' : '—') }}</td>
                 <td class="cell-ellipsis">
                   <span>{{ row.access_key_id || '—' }}</span>
-                  <v-tooltip v-if="row.access_key_id" :text="row.access_key_id" location="bottom" max-width="520">
-                    <template #activator="{ props: tipProps }">
-                      <v-icon v-bind="tipProps" icon="mdi-information-outline" size="14" class="ml-1 text-medium-emphasis" />
-                    </template>
-                  </v-tooltip>
+                  <TextPopover v-if="row.access_key_id" title="公开标识（完整值）" :text="row.access_key_id" />
                 </td>
                 <td class="cell-nowrap text-caption">{{ row.kfp || '—' }}</td>
                 <td class="cell-nowrap">{{ row.ip || '—' }}</td>
                 <td class="cell-ellipsis">
                   <span>{{ row.request_id || '—' }}</span>
-                  <v-tooltip v-if="row.request_id" :text="row.request_id" location="bottom">
-                    <template #activator="{ props: tipProps }">
-                      <v-icon v-bind="tipProps" icon="mdi-information-outline" size="14" class="ml-1 text-medium-emphasis" />
-                    </template>
-                  </v-tooltip>
+                  <TextPopover v-if="row.request_id" title="请求 ID" :text="row.request_id" />
                 </td>
                 <td class="text-right">
                   <v-btn size="x-small" variant="tonal" prepend-icon="mdi-eye-outline" @click="detail = row">详情</v-btn>

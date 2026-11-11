@@ -2851,6 +2851,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 11204 | OpenAPI 凭证列表增加 `idn` 列：`/Meta/Finv/OpenAPI/Credential` 表格首列显示凭证主键，便于与审计里的 `credential_idn`、STS 的 `parent_idn` 直接对照 | 页面首列可见数字 idn，且与 `SELECT idn FROM open.open_api_credential WHERE credential_no='DEMO-AKSK'` 一致；`npx vue-tsc -b --force` 与 `npm run build` 通过 | √ |
 | 11205 | 表格列名 `idn` 一律显示为纯大写 `IDN`（只改展示文案，wire 字段仍是 `idn`）：调用方列表、凭证列表的表头，以及审计详情里的「调用方 IDN」「凭证 IDN」 | `/Meta/Finv/OpenAPI/Client` 与 `/Credential` 表头为 `IDN`；审计详情字段名为「调用方 IDN」「凭证 IDN」；`grep -rn '<th>idn</th>' Web/src` 无输出；`npx vue-tsc -b --force` 通过 | √ |
 | 11206 | 修复「签发 STS 临时凭据后看不到三要素」：对话框表单与操作区原先只看 `issued`，STS 签发成功时 `issued` 仍为 null，导致表单不消失、`v-else-if="stsIssued"` 永不命中；改为表单/操作区条件 `!issued && !stsIssued`、长期凭证展示用 `v-else-if="issued"`，并在三要素下方补「怎么用」说明（三要素 + `X-META-Token` + 待签串第 7 段 + 文档指引） | 页面选 `STS` 签发后：表单消失、出现 SAK/SSK/SST 三个可复制值 + 到期时间；把这三个值按说明调用 `PageUni` → 200；`npx vue-tsc -b --force` 与 `npm run build` 通过 | √ |
+| 11207 | 表格 `ⓘ` 展开的文本必须可选中复制：不再用 hover 型 `v-tooltip`（鼠标移入即消失、无法选中），改为点击型浮层组件 `Web/src/components/TextPopover.vue`（`v-menu` + `close-on-content-click=false`，文本 `user-select: text` / `pre-wrap` / `word-break: break-all`，带「复制」按钮）；凭证列表的公开标识 / 授权范围 / 吊销信息与审计列表的路径 / 凭证 / 公开标识 / 请求 ID 全部替换；规范 `TableTextSpec` 新增 §1.2 强制条款 | 凭证列表点授权范围 `ⓘ` → 浮层打开后鼠标可拖动选中文本、`Ctrl+C` 可复制、移入不关闭；`grep -rn 'v-tooltip' Web/src/views/Meta/Finv/OpenAPI` 无输出；`npx vue-tsc -b --force` 与 `npm run build` 通过 | √ |
 
 
 ## 汇总
@@ -3307,7 +3308,7 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 修复「证券参数补全 → 采集参数」必填校验必然失败：快照 `instrument_type` 是 TEXT 且 `12`/`3` 都表示股票、采集表只有 `3`，参考行匹配按 `q.instrument_type::text = btrim(t.instrument_type)` 直接比对导致 `12` 的行取不到 `market_code`（=0）；改为按归一后的整型匹配（`12`→`3`）；`market_code` 取不到参考值时预填**返回空串**并提示必须人工填写（不再返回 `0`）；前端把数值字段的 `0` 也算「未填」并逐字段标红；后端必填校验错误消息逐项列出字段与实际值 | 11164 | 1 |
 | 「证券参数补全 → 规范证券参数」对话框的 `timezone`（UTC 偏移）/ `tz`（IANA 标识）预填缺省值，按「市场 → 交易所 → 区域」三层推断：① 同 `exchange_code` 已有 `public.finv_security` 行 `(timezone, tz)` 的众数（来源=参考）；② 同 `finv_exchange.region` 已有行的众数（来源=参考）；③ 内置区域 → IANA 时区映射、偏移按该时区**当前时刻**推算（来源=字典，二进制内嵌 `time/tzdata`）；三层都拿不到时留空 + 来源=待填 + 风险提示 | 11165 | 1 |
 | 「证券参数补全 → 采集参数」对话框补缺省推断：`market_type` 改为「快照 → 同市场已有配置行众数（参考）→ 内置映射 HK=1/US=2/A股=4/FX=11/CC=17（字典）」；`req_section` 改为「同市场同品种众数（参考），众数为空则留空并说明选填」；`sub_instrument_type` 的兜底改按**归一后** `instrument_type` 计算（`12` 按 `3` 算，避免算出 12002）；`instrument_type` 仍写快照原值但说明里点明「12 与 3 同为股票、存量以 3 为主」 | 11166 | 1 |
-| **合计** | **10001–11206** | **1202**（含 4 条待办） |
+| **合计** | **10001–11207** | **1203**（含 4 条待办） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

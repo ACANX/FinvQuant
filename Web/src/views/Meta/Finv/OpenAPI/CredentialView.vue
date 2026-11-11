@@ -13,6 +13,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 
 import { apiGet, apiPost } from '../../../../api'
+import TextPopover from '../../../../components/TextPopover.vue'
 import { showToast } from '../../../../ui/toast'
 import OpenAPICredentialDialog from './CredentialDialog.vue'
 import {
@@ -235,36 +236,29 @@ onMounted(async () => {
               <td>{{ authModeText(row.auth_mode) }}</td>
               <td>
                 <code>{{ row.key_prefix }}…</code>
-                <v-tooltip location="bottom" max-width="420">
-                  <template #activator="{ props }">
-                    <v-icon v-bind="props" icon="mdi-information-outline" size="small" class="ml-1" />
-                  </template>
-                  <div>公开标识（完整值）：<code>{{ row.access_key_id }}</code></div>
-                  <div class="mt-1">密钥材料：{{ row.has_secret ? '已写入（不可回显）' : '缺失' }}</div>
-                  <div>签名算法：{{ row.sign_algorithm }}</div>
-                </v-tooltip>
+                <TextPopover
+                  title="公开标识（完整值）"
+                  :lines="[
+                    row.access_key_id,
+                    `密钥材料：${row.has_secret ? '已写入（不可回显）' : '缺失'}`,
+                    `签名算法：${row.sign_algorithm}`,
+                  ]"
+                />
               </td>
               <td>
                 <span v-if="!row.scope || row.scope.length === 0" class="text-medium-emphasis">全部接口</span>
                 <template v-else>
                   <span>{{ row.scope.length }} 条</span>
-                  <v-tooltip location="bottom" max-width="480">
-                    <template #activator="{ props }">
-                      <v-icon v-bind="props" icon="mdi-eye-outline" size="small" class="ml-1" />
-                    </template>
-                    <div v-for="item in row.scope" :key="item"><code>{{ item }}</code></div>
-                  </v-tooltip>
+                  <TextPopover title="授权范围（完整）" :lines="row.scope" />
                 </template>
               </td>
               <td>
                 <v-chip size="small" variant="tonal" :color="statusColor(row)">{{ statusText(row) }}</v-chip>
-                <v-tooltip v-if="row.flag_revoke === '1'" location="bottom" max-width="360">
-                  <template #activator="{ props }">
-                    <v-icon v-bind="props" icon="mdi-information-outline" size="small" class="ml-1" />
-                  </template>
-                  <div>吊销时间：{{ timeText(row.dt_revoke) }}</div>
-                  <div>原因：{{ row.reason_revoke || '—' }}</div>
-                </v-tooltip>
+                <TextPopover
+                  v-if="row.flag_revoke === '1'"
+                  title="吊销信息"
+                  :lines="[`吊销时间：${timeText(row.dt_revoke)}`, `原因：${row.reason_revoke || '—'}`]"
+                />
               </td>
               <td>{{ timeText(row.dt_last_use) }}</td>
               <td>{{ row.count_use }}</td>
