@@ -484,22 +484,52 @@ func maskKey(key string) string {
 
 // ---------------- scope 序列化 ----------------
 
-// scopeToJSON 把 "METHOD PATH" 列表转成 scope_str 的 jsonb 文本。
-func scopeToJSON(items []string) string {
-	if len(items) == 0 {
-		return "[]"
-	}
-	type rule struct {
-		Method string `json:"method"`
-		Path   string `json:"path"`
-	}
-	rules := make([]rule, 0, len(items))
+// ScopePair 授权范围条目（method + path），写 open.open_api_credential_scope 用。
+type ScopePair struct {
+	Method string
+	Path   string
+}
+
+// ParseScopeItems 把 "METHOD PATH" 列表转成条目（需求 11228）。
+//
+//   - 只接受恰好两段（`strings.Fields`），不足/多余一律跳过（与 scopeToJSON 同口径）；
+//   - method 归一为大写，缺省/越界一律落 `*`——但注意：**只有调用方明确写 `*` 才是通配**，
+//     这里不做"猜测"，参数错误由服务层在入口拦（见 ValidateScope）；
+//   - path 必须以 `/` 开头，否则跳过。
+func ParseScopeItems(items []string) []ScopePair {
+	pairs := make([]ScopePair, 0, len(items))
 	for _, item := range items {
 		parts := strings.Fields(item)
 		if len(parts) != 2 {
 			continue
 		}
-		rules = append(rules, rule{Method: parts[0], Path: parts[1]})
+		method := strings.ToUpper(parts[0])
+		if method == "" {
+			method = "*"
+		}
+		path := parts[1]
+		if !strings.HasPrefix(path, "/") {
+			continue
+		}
+		pairs = append(pairs, ScopePair{Method: method, Path: path})
+	}
+	return pairs
+}
+
+// scopeToJSON 把 "METHOD PATH" 列表转成 scope_str 的 jsonb 文本。
+//
+// 需求 11228：内部改用 ParseScopeItems 归一（大写 method、丢掉非法 path），
+// 保证 `scope_str` 与 `open.open_api_credential_scope` **两处写入的条目完全一致**——
+// 否则会出现「scope_str 3 条、明细表 2 条」的静默漂移，而鉴权读明细表。
+func scopeToJSON(items []string) string {
+	type rule struct {
+		Method string `json:"method"`
+		Path   string `json:"path"`
+	}
+	pairs := ParseScopeItems(items)
+	rules := make([]rule, 0, len(pairs))
+	for _, pair := range pairs {
+		rules = append(rules, rule{Method: pair.Method, Path: pair.Path})
 	}
 	encoded, err := json.Marshal(rules)
 	if err != nil {

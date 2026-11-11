@@ -295,11 +295,24 @@ func (s *Store) SetClientEnable(ctx context.Context, idn int64, enable bool, ope
 
 // ---- 凭证 ----
 
+// scopeAggregateSQL 把授权范围明细表聚合成与原 `scope_str` **同形状**的 JSON 数组。
+//
+// 这样 `parseScope` / `InScope` / 缓存快照结构全都不用改（需求 11228：业务代码零改）。
+// 关键语义：某凭证 0 行 = 不限接口（`jsonb_agg` 返回 NULL，这里按 '[]' 处理）；
+// `method='*'` 原样带出，`InScope` 已支持通配。
+const scopeAggregateSQL = `
+  LEFT JOIN LATERAL (
+        SELECT jsonb_agg(jsonb_build_object('method', r.method, 'path', r.path_pattern)
+                         ORDER BY r.idn) AS scope
+          FROM open.open_api_credential_scope r
+         WHERE r.credential_idn = c.idn
+  ) sc ON TRUE`
+
 const selectCredentialSQL = `
 SELECT c.idn, c.client_idn, cl.client_code, c.credential_no, c.auth_mode, c.access_key_id,
        COALESCE(c.key_prefix, ''),
        (c.secret_hash IS NOT NULL OR c.secret_cipher IS NOT NULL),
-       c.sign_algorithm, COALESCE(c.scope_str::text, '[]'), COALESCE(c.allow_cidr::text[], '{}'),
+       c.sign_algorithm, COALESCE(sc.scope::text, '[]'), COALESCE(c.allow_cidr::text[], '{}'),
        COALESCE(to_char(c.dt_expire, 'YYYY-MM-DD"T"HH24:MI:SSOF'), ''),
        COALESCE(to_char(c.dt_last_use, 'YYYY-MM-DD"T"HH24:MI:SSOF'), ''),
        c.count_use, c.flag_enable, c.flag_revoke,
@@ -307,7 +320,7 @@ SELECT c.idn, c.client_idn, cl.client_code, c.credential_no, c.auth_mode, c.acce
        COALESCE(c.reason_revoke, ''), COALESCE(c.remark, ''),
        to_char(c.gmt_update, 'YYYY-MM-DD"T"HH24:MI:SSOF')
   FROM open.open_api_credential c
-  JOIN open.open_api_client cl ON cl.idn = c.client_idn`
+  JOIN open.open_api_client cl ON cl.idn = c.client_idn` + scopeAggregateSQL
 
 // CredentialPage 分页查询凭证（可选按调用方、关键字、状态过滤）。
 //
@@ -397,13 +410,23 @@ func scanCredential(rows pgx.Rows) (Credential, error) {
 }
 
 // InsertCredential 插入新凭证（密钥材料由服务层算好后传入）。
+//
+// 需求 11228：**同一事务内双写**——`scope_str` 保留（兼容/可读快照），
+// `open.open_api_credential_scope` 写结构化明细（鉴权读取以它为准）。
+// 两者必须原子写入，否则会出现「凭证已建、权限却是全部接口」的窗口。
 func (s *Store) InsertCredential(ctx context.Context, req CredentialCreateRequest,
 	secretHash, secretCipher, keyPrefix, kid, operator string) (int64, error) {
 	if s.pool == nil {
 		return 0, errors.New("数据库连接池未初始化")
 	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	var idn int64
-	err := s.pool.QueryRow(ctx, `
+	if err := tx.QueryRow(ctx, `
 INSERT INTO open.open_api_credential
     (client_idn, credential_no, auth_mode, access_key_id, key_prefix, secret_hash, secret_cipher,
      secret_kid, sign_algorithm, scope_str, allow_cidr, dt_expire, flag_enable, flag_revoke, remark,
@@ -414,8 +437,64 @@ VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''),
 RETURNING idn`,
 		req.ClientIDN, req.CredentialNo, req.AuthMode, req.AccessKey, keyPrefix, secretHash, secretCipher,
 		kid, req.SignAlgorithm, scopeToJSON(req.Scope), emptyToArray(req.AllowCIDR),
-		nilIfEmpty(req.DTExpire), req.Remark, operator).Scan(&idn)
-	return idn, err
+		nilIfEmpty(req.DTExpire), req.Remark, operator).Scan(&idn); err != nil {
+		return 0, err
+	}
+	if err := insertScopeRows(ctx, tx, idn, ParseScopeItems(req.Scope), operator); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return idn, nil
+}
+
+// ReplaceScopeRows 用给定规则替换某凭证的授权范围明细（需求 11228）。
+//
+// 只动明细表；`scope_str` 由调用方同步更新（凭证目前没有「改范围」接口，
+// 这个函数留给后续维护入口与测试用，行为与 InsertCredential 里的写入一致）。
+func (s *Store) ReplaceScopeRows(ctx context.Context, credentialIDN int64, pairs []ScopePair,
+	operator string) error {
+	if s.pool == nil {
+		return errors.New("数据库连接池未初始化")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM open.open_api_credential_scope WHERE credential_idn = $1`, credentialIDN); err != nil {
+		return err
+	}
+	if err := insertScopeRows(ctx, tx, credentialIDN, pairs, operator); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// insertScopeRows 批量写授权范围明细（同一事务内，调用方负责提交）。
+func insertScopeRows(ctx context.Context, tx pgx.Tx, credentialIDN int64, pairs []ScopePair,
+	operator string) error {
+	if len(pairs) == 0 {
+		return nil // 0 行 = 不限接口，无需写入
+	}
+	batch := &pgx.Batch{}
+	for _, pair := range pairs {
+		batch.Queue(`
+INSERT INTO open.open_api_credential_scope (credential_idn, method, path_pattern, create_by)
+VALUES ($1, $2, $3, NULLIF($4, ''))
+ON CONFLICT (credential_idn, method, path_pattern) DO NOTHING`,
+			credentialIDN, pair.Method, pair.Path, operator)
+	}
+	results := tx.SendBatch(ctx, batch)
+	defer func() { _ = results.Close() }()
+	for range pairs {
+		if _, err := results.Exec(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // RotateCredential 轮换密钥材料。

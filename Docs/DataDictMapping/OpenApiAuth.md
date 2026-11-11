@@ -197,19 +197,20 @@ signature = base64(HMAC-SHA256(SK, canonical))
 - 全库 **0 物理外键**：`client_idn`、`owner_uid`、`credential_idn` 都只在程序层校验（`DbSchemaSpec` §2）。
 - 时间列口径：创建/修改统一 `gmt_create`/`gmt_update`；业务时间（请求时间、最近使用、过期、吊销、轮换）用 `dt_` 前缀。
 - 日志表刻意不建 `gmt_update` 与更新触发器：审计记录不允许改。
-- 授权范围目前仍以 `open.open_api_credential.scope_str`（jsonb）为唯一读写来源；`V300192` 已新建
-  `open.open_api_credential_scope`（一行 = 一条「方法 + 路径」规则，0 行 = 不限接口）并从 `scope_str` 回填，
-  但**尚未接入读写**（需求 11219 只做建表 + 回填）。接入前两处可能漂移，以 `scope_str` 为准；
-  接入时按 `V300192` 头注释的三条语义对齐（`method='*'` 表任意方法、path 三种匹配、0 行 = 全部放行）。
+- **授权范围已接入明细表（需求 11228）**：鉴权读取以 `open.open_api_credential_scope` 为准
+  （`selectCredentialSQL` 用 LATERAL 聚合成与旧 `scope_str` 同形状的 JSON，`parseScope` / `InScope` 零改动），
+  `scope_str` 保留为**可读快照**。写路径（页面签发、STS 换证）在**同一事务**内双写，`V300198` 已做一次全量对账。
+  语义仍然：某凭证 0 行 = 不限接口；`method='*'` 表任意方法；path 支持精确 / 尾部 `/*` / 尾部 `/`。
+  **运维注意**：直接 `UPDATE scope_str` 改不动权限（鉴权读明细表），必须两处同写
+  （`seed_credentials.py` 的 `fix_scope` 已按此调整）。
 - 接口清单 `open.open_api_endpoint`（`V300193`，需求 11220）：一行 = 一个可调接口，`api_code` 为
   **点分小写**稳定编码（路径重命名时不变，审计报表/套餐/限额靠它锚定），`path` 含 `/OpenAPI/V1` 前缀，
   `flag_write` 标注写接口（静态 Key 调写接口必须带查询参数 `_`）。**该表是接口目录 + 元数据，
   不是鉴权白名单**——允许调哪些接口仍由 `internal/api/router.go` 的 `openGroup` 路由注册决定；
   当前种子 4 条（分钟行情分页/写入、实时快照写入、STS 换证），3 条 `DELETE` 占位路由不登记。
-- **授权范围两处的漂移是已知状态**（需求 11219）：`scope_str` 是鉴权唯一读取来源，
-  `open_api_credential_scope` 只是 `V300192` 的一次性快照。因此 V300192 之后**新签发的凭证在本表里没有行**
-  （0 行在表内语义上是"不限接口"，但实际权限以 `scope_str` 为准，不要按本表推断权限）。
-  需要重新对账时用下面这条（幂等，可随时手工跑）：
+- **授权范围两处必须同步**（需求 11228 起）：鉴权读 `open_api_credential_scope`，`scope_str` 是快照。
+  `V300198` 已把两侧对账一致，之后由写路径（页面签发 / STS 换证）在同一事务内双写。
+  若绕过服务层直接改库，用下面这条把 `scope_str` 补录进明细表（幂等，可随时手工跑）；**反向不会自动同步**：
 
   ```sql
   INSERT INTO open.open_api_credential_scope (credential_idn, method, path_pattern, create_by, remark)

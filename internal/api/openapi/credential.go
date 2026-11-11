@@ -170,12 +170,17 @@ type CredentialSource interface {
 // ErrCredentialNotFound 凭证不存在。
 var ErrCredentialNotFound = errors.New("凭证不存在")
 
+// selectCredentialSQL 鉴权热路径：一次查库带出凭证、调用方、父凭证状态与授权范围。
+//
+// 需求 11228：授权范围改读 `open.open_api_credential_scope` 明细表，用 LATERAL 聚合成
+// 与旧 `scope_str` **同形状**的 JSON —— `parseScope` / `InScope` / 缓存快照都不用改。
+// `scope_str` 仅作为可读快照保留，不再参与鉴权判定。
 const selectCredentialSQL = `
 SELECT c.idn, c.credential_no, c.auth_mode, c.access_key_id,
        COALESCE(c.secret_hash, ''), COALESCE(c.secret_cipher, ''), COALESCE(c.secret_cipher_prev, ''),
        COALESCE(c.secret_kid, ''), c.sign_algorithm,
        COALESCE(c.token_fp, ''), c.parent_idn,
-       COALESCE(c.scope_str::text, '[]'), COALESCE(c.allow_cidr::text[], '{}'),
+       COALESCE(sc.scope::text, '[]'), COALESCE(c.allow_cidr::text[], '{}'),
        c.dt_expire, c.flag_enable, c.flag_revoke,
        cl.idn, cl.client_code, COALESCE(cl.allow_cidr::text[], '{}'),
        cl.rate_limit_rpm, cl.quota_day, cl.dt_expire, cl.flag_enable,
@@ -183,6 +188,12 @@ SELECT c.idn, c.credential_no, c.auth_mode, c.access_key_id,
   FROM open.open_api_credential c
   JOIN open.open_api_client cl ON cl.idn = c.client_idn
   LEFT JOIN open.open_api_credential p ON p.idn = c.parent_idn
+  LEFT JOIN LATERAL (
+        SELECT jsonb_agg(jsonb_build_object('method', r.method, 'path', r.path_pattern)
+                         ORDER BY r.idn) AS scope
+          FROM open.open_api_credential_scope r
+         WHERE r.credential_idn = c.idn
+  ) sc ON TRUE
  WHERE c.access_key_id = $1`
 
 // PGSource 从 open schema 读取凭证。

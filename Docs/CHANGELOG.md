@@ -219,6 +219,22 @@
 
 ### 变更
 
+- **授权范围明细表接入读写，鉴权改读明细表（需求 11228，迁移 V300198）**
+  - **读**：鉴权侧 `internal/api/openapi/credential.go` 与后台侧 `internal/meta/finv/openapi/store.go`
+    两处 `selectCredentialSQL` 都改成 `LEFT JOIN LATERAL (jsonb_agg(...)) sc ON TRUE`，
+    把明细表聚合成与旧 `scope_str` **同形状**的 JSON → `parseScope` / `InScope` / 缓存快照零改动。
+  - **写**：页面签发（`InsertCredential`）与 STS 换证（`StsStore.Issue`）在**同一事务**内双写
+    凭证行 + 明细行；`scopeToJSON` 改用 `ParseScopeItems` 归一（大写 method、丢弃非法 path），
+    避免「scope_str 3 条、明细 2 条」的静默漂移。
+  - **清理**：`PurgeExpired` 改为事务内「先删明细、再删凭证」，杜绝孤儿行（原先每 2 小时签一次
+    STS 会持续堆积明细）。
+  - **对账**：`V300198` 全量拉齐两侧（补漏 + 删多余，删前整行备份到
+    `archive.open_api_credential_scope_purge_20261111`），校验用双向 `EXCEPT` 差集必须都为 0。
+  - 语义不变：0 行 = 不限接口；`method='*'` 表任意方法；path 精确 / 尾部 `/*` / 尾部 `/`。
+  - **运维注意**：直接 `UPDATE scope_str` 改不动权限了，必须两处同写
+    （`FinvQuantDesign/OpenAPI/seed_credentials.py` 的 `fix_scope` 已按此调整）。
+  - 单测：`TestParseScopeItems`、`TestScopeToJSONThenParse`。
+
 - **接口清单页面 + 授权范围下拉 + 审计接口编码列 + 修复 idn=20 的 scope（需求 11223–11227）**
   - **11223 接口清单页**：`/Meta/Finv/OpenAPI/Endpoint`（开放平台 → 安全设置 → 叶子）。
     后端 `GET /Endpoint/Page` + `POST /Endpoint/Flags` + `GET /Endpoint/Options`。

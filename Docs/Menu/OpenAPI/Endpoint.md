@@ -37,7 +37,7 @@
 | 中文名 | `api_name` | 下拉与报表展示用 |
 | 分组 | `api_group` | 分钟行情 / 实时行情 / 鉴权 |
 | 读写 | `flag_write` | 写接口用静态 Key 调用必须带查询参数 `_`（毫秒时间戳，±60 秒） |
-| 已授权凭证 | 聚合 | `open_api_credential_scope` 里命中该 `method + path` 的规则数；该表尚未接入读写，仅供参照 |
+| 已授权凭证 | 聚合 | `open_api_credential_scope` 里命中该 `method + path` 的规则数（需求 11228 起该表已是鉴权读取来源，数值准确） |
 | 公开 | `flag_public` | 开关：关掉后不再出现在授权范围下拉 |
 | 启用 | `flag_enable` | 开关：仅「不再推荐授权」，**已授权的凭证仍可调用** |
 | 更新时间 | `gmt_update` | 触发器维护 |

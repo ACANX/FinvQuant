@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/acanx/finvquant/internal/meta/finv/openapi/secret"
@@ -109,8 +110,15 @@ func (s *StsStore) Issue(ctx context.Context, parent *Credential, key []byte, op
 	scopeJSON := scopeToJSONText(parent.Scope)
 	cidrText := ipNetsToText(parent.CredentialIPs)
 
+	// 需求 11228：凭证行与授权范围明细必须原子写入（鉴权读明细表，缺一行就是全部放行）
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return StsIssued{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	var idn int64
-	err = s.pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 INSERT INTO open.open_api_credential
     (client_idn, credential_no, auth_mode, access_key_id, key_prefix,
      secret_cipher, secret_kid, sign_algorithm, scope_str, allow_cidr,
@@ -125,6 +133,12 @@ RETURNING idn`,
 	).Scan(&idn)
 	if err != nil {
 		return StsIssued{}, fmt.Errorf("写入 STS 凭证失败: %w", err)
+	}
+	if err := insertScopeRows(ctx, tx, idn, parent.Scope); err != nil {
+		return StsIssued{}, fmt.Errorf("写入 STS 授权范围失败: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return StsIssued{}, fmt.Errorf("提交 STS 凭证失败: %w", err)
 	}
 
 	// 顺带清理过期很久的 STS 行（失败不影响签发）
@@ -143,6 +157,41 @@ RETURNING idn`,
 	}, nil
 }
 
+// insertScopeRows 把父凭证的授权范围复制给新签发的临时凭据（需求 11228）。
+//
+// 语义与父凭证一致：0 行 = 不限接口；`*` 表任意方法。
+func insertScopeRows(ctx context.Context, tx pgx.Tx, credentialIDN int64, rules []ScopeRule) error {
+	if len(rules) == 0 {
+		return nil
+	}
+	batch := &pgx.Batch{}
+	for _, rule := range rules {
+		method := strings.ToUpper(strings.TrimSpace(rule.Method))
+		if method == "" {
+			method = "*"
+		}
+		path := strings.TrimSpace(rule.Path)
+		if !strings.HasPrefix(path, "/") {
+			continue
+		}
+		batch.Queue(`
+INSERT INTO open.open_api_credential_scope (credential_idn, method, path_pattern, create_by)
+VALUES ($1, $2, $3, 'sts')
+ON CONFLICT (credential_idn, method, path_pattern) DO NOTHING`, credentialIDN, method, path)
+	}
+	if batch.Len() == 0 {
+		return nil
+	}
+	results := tx.SendBatch(ctx, batch)
+	defer func() { _ = results.Close() }()
+	for i := 0; i < batch.Len(); i++ {
+		if _, err := results.Exec(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // PurgeExpired 物理删除过期超过保留期的 STS **临时凭据**行。
 //
 // 条件三重收敛：`auth_mode='STS'` + `token_fp IS NOT NULL`（排除兑换凭证）+ `dt_expire < now()-7天`。
@@ -151,13 +200,36 @@ func (s *StsStore) PurgeExpired(ctx context.Context) (int64, error) {
 	if s.pool == nil {
 		return 0, nil
 	}
-	tag, err := s.pool.Exec(ctx, `
+	// 需求 11228：先删授权范围明细、再删凭证行，同一事务——
+	// 否则明细会变成孤儿行（只增不减），且接口清单页的「已授权凭证」会虚高。
+	interval := fmt.Sprintf("%d hours", int(stsPurgeKeep.Hours()))
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx, `
+DELETE FROM open.open_api_credential_scope
+ WHERE credential_idn IN (
+       SELECT idn FROM open.open_api_credential
+        WHERE auth_mode = 'STS'
+          AND token_fp IS NOT NULL
+          AND dt_expire IS NOT NULL
+          AND dt_expire < now() - $1::interval)`, interval); err != nil {
+		return 0, err
+	}
+
+	tag, err := tx.Exec(ctx, `
 DELETE FROM open.open_api_credential
  WHERE auth_mode = 'STS'
    AND token_fp IS NOT NULL
    AND dt_expire IS NOT NULL
-   AND dt_expire < now() - $1::interval`, fmt.Sprintf("%d hours", int(stsPurgeKeep.Hours())))
+   AND dt_expire < now() - $1::interval`, interval)
 	if err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return 0, err
 	}
 	return tag.RowsAffected(), nil
