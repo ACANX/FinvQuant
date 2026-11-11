@@ -449,6 +449,27 @@ RETURNING idn`,
 	return idn, nil
 }
 
+// UpdateCredentialExpire 修改已有凭证的有效期（需求 11246）。
+//
+// `raw` 为空串表示改为长期（`dt_expire = NULL`）。已吊销的凭证不允许改，用 `flag_revoke='0'` 兜住。
+func (s *Store) UpdateCredentialExpire(ctx context.Context, credentialIDN int64,
+	raw string, operator string) error {
+	if s.pool == nil {
+		return errors.New("数据库连接池未初始化")
+	}
+	tag, err := s.pool.Exec(ctx, `
+UPDATE open.open_api_credential
+   SET dt_expire = NULLIF($2, '')::timestamptz, modify_by = NULLIF($3, '')
+ WHERE idn = $1 AND flag_revoke = '0'`, credentialIDN, raw, operator)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // UpdateCredentialScope 修改已有凭证的授权范围（需求 11230）。
 //
 // **必须事务双写**：`scope_str` 是可读快照、`open_api_credential_scope` 是鉴权读取源，

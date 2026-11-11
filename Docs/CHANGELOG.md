@@ -219,6 +219,20 @@
 
 ### 变更
 
+- **修复静态 Key 授权接口被写成单字符 `i` + STS 有效期可配置（需求 11246）**
+  - **根因**：授权接口下拉在静态 Key 模式下 `:multiple="false"`，Vuetify 把**字符串**写进 `v-model`，
+    而 `watch` 里用 `picked[picked.length - 1]` 取"最后一个"，字符串的 `length` 是字符数 →
+    取到末字符。选 `…/Min/PageUni` 就变成 `"i"`，提交报 `入参非法: scope 元素必须是「方法 路径」两段，实际 "i"`。
+  - **修复**：两处对话框（`CredentialDialog.vue` 签发、`CredentialView.vue` 改授权范围）新增 `toList()`，
+    把 `string | string[]` 统一成数组；单选写回字符串时立即归一，`finalScope` 也用 `toList()` 兜底。
+  - **STS 有效期**：`CredentialDialog.vue` 的到期字段原本 `v-if="!isSts"`（整个隐藏，只能长期且无入口），
+    改为始终显示，文案按模式区分（`兑换凭证到期（留空 = 长期，不建议）`）。
+  - **新增接口** `POST /API/V1/Meta/Finv/OpenAPI/Credential/Expire`：`{idn, dt_expire}`，
+    空串 = 改长期；只改有效期，不动密钥/授权范围/白名单；已吊销 409；写完 `invalidateCache` 立即生效。
+    静态 Key 仍受「必填且 ≤90 天」约束，校验抽成 `validateExpireForMode` 供签发与改期共用。
+  - **新增入口**：凭证列表操作列「有效期」按钮 + 对话框（静态 Key 留空则置灰并提示必填）。
+  - 文档：`Docs/API/OpenAPI/Admin.md` 新增 §5.8；需求登记 11246。
+
 - **对外 OpenAPI 行情文档目录补 `Finv` 段**
   - 按「`Docs/OpenAPI/` 下目录 = 去掉基路径后的路径段」口径，把
     `Docs/OpenAPI/Quote/Cdeu/{Min/{PageUni,Upsert},Realtime/StockUpsert}` 的 `.md` + `.yml`（6 个文件）

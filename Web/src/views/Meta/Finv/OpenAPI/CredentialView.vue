@@ -197,10 +197,32 @@ async function openScope(row: CredentialRow) {
   scopeOpen.value = true
 }
 
+// toList 把 v-select 的取值统一成数组：单选模式（静态 Key，multiple=false）下
+// Vuetify 会写字符串进来，直接展开会被拆成单个字符（选中 PageUni 变成 "i"）。
+function toList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string')
+  return typeof value === 'string' && value !== '' ? [value] : []
+}
+
+// 静态 Key 只能授权 1 个接口：单选写回字符串时归一为数组，多选时只保留最后一个
+watch(
+  () => scopePicked.value,
+  (raw) => {
+    const picked = toList(raw)
+    if (scopeTarget.value?.auth_mode !== 'APIKEY') return
+    if (picked.length > 1) {
+      scopePicked.value = [picked[picked.length - 1]]
+      showToast('静态 Key 只能授权 1 个接口，已保留最后一次选择', 'warning')
+    } else if (!Array.isArray(raw)) {
+      scopePicked.value = picked
+    }
+  },
+)
+
 const scopeFinal = computed(() => {
   const merged: string[] = []
   const seen = new Set<string>()
-  for (const item of [...scopePicked.value, ...scopeExtra.value.split('\n')]) {
+  for (const item of [...toList(scopePicked.value), ...scopeExtra.value.split('\n')]) {
     const value = item.trim()
     if (!value || seen.has(value)) continue
     seen.add(value)
@@ -232,6 +254,45 @@ async function confirmScope() {
     showToast(`修改授权范围失败：${(err as Error).message}`, 'error')
   } finally {
     scopeSaving.value = false
+  }
+}
+
+// 改有效期（需求 11246）：只改 dt_expire，不动密钥/授权范围/白名单
+const expireOpen = ref(false)
+const expireTarget = ref<CredentialRow | null>(null)
+const expireValue = ref('')
+const expireSaving = ref(false)
+
+function openExpire(row: CredentialRow) {
+  expireTarget.value = row
+  expireValue.value = (row.dt_expire ?? '').slice(0, 10)
+  expireOpen.value = true
+}
+
+const expireInvalid = computed(() => {
+  if (expireTarget.value?.auth_mode !== 'APIKEY') return ''
+  if (!expireValue.value) return '静态 Key 必须设置到期日（不允许长期）'
+  const limit = new Date()
+  limit.setDate(limit.getDate() + 90)
+  if (expireValue.value > limit.toISOString().slice(0, 10)) return '静态 Key 有效期最长 90 天'
+  return ''
+})
+
+async function confirmExpire() {
+  if (!expireTarget.value || expireInvalid.value) return
+  expireSaving.value = true
+  try {
+    await apiPost(`${BASE}/Credential/Expire`, {
+      idn: expireTarget.value.idn,
+      dt_expire: expireValue.value ? `${expireValue.value}T00:00:00+08:00` : '',
+    })
+    showToast('有效期已更新（立即生效）', 'success')
+    expireOpen.value = false
+    await load()
+  } catch (err) {
+    showToast(`修改有效期失败：${(err as Error).message}`, 'error')
+  } finally {
+    expireSaving.value = false
   }
 }
 
@@ -388,6 +449,7 @@ onMounted(async () => {
                     {{ row.flag_enable === '1' ? '停用' : '启用' }}
                   </v-btn>
                   <v-btn size="small" variant="text" @click="openScope(row)">授权范围</v-btn>
+                  <v-btn size="small" variant="text" @click="openExpire(row)">有效期</v-btn>
                   <v-btn size="small" variant="text" color="primary" @click="openRotate(row)">轮换</v-btn>
                   <v-btn size="small" variant="text" color="error" @click="openRevoke(row)">吊销</v-btn>
                 </template>
@@ -492,6 +554,38 @@ onMounted(async () => {
           <v-spacer />
           <v-btn variant="text" @click="scopeOpen = false">取消</v-btn>
           <v-btn color="primary" :loading="scopeSaving" @click="confirmScope">保存</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 改有效期（需求 11246）：只改 dt_expire，提交后立即生效 -->
+    <v-dialog v-model="expireOpen" max-width="520">
+      <v-card>
+        <v-card-title class="text-subtitle-1">修改有效期</v-card-title>
+        <v-card-subtitle>
+          {{ expireTarget?.credential_no }}（{{ authModeText(expireTarget?.auth_mode ?? '') }}）——
+          只改有效期，不动密钥、授权范围与 IP 白名单；提交后立即生效（鉴权缓存同步失效）。
+        </v-card-subtitle>
+        <v-card-text>
+          <v-text-field
+            v-model="expireValue"
+            type="date"
+            :label="expireTarget?.auth_mode === 'APIKEY'
+              ? '到期日（必填，最长 90 天）'
+              : '到期日（留空 = 长期）'"
+            :error-messages="expireInvalid ? [expireInvalid] : []"
+            density="compact"
+            variant="outlined"
+            persistent-hint
+            hint="当前值取自列表的「到期」列；保存后列表刷新"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="expireOpen = false">取消</v-btn>
+          <v-btn color="primary" :loading="expireSaving" :disabled="expireInvalid !== ''" @click="confirmExpire">
+            保存
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

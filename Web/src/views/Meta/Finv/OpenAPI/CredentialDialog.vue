@@ -173,13 +173,27 @@ async function loadEndpoints() {
   }
 }
 
+// toList 把 v-select 的取值统一成数组。
+//
+// 单选模式（静态 Key，multiple=false）下 Vuetify 会把**字符串**写进 v-model，
+// 此时若直接 `[...str]` 会被拆成单个字符——表现为「选中的接口变成末字符 i」，
+// 提交时报「scope 元素必须是「方法 路径」两段，实际 "i"」。
+function toList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string')
+  return typeof value === 'string' && value !== '' ? [value] : []
+}
+
 // 静态 Key 只能授权 1 个接口（需求 11188）：多选时只保留最后一个，避免提交后才 400
 watch(
   () => form.value.scope_picked,
-  (picked) => {
-    if (form.value.auth_mode === 'APIKEY' && picked.length > 1) {
+  (raw) => {
+    const picked = toList(raw)
+    if (form.value.auth_mode !== 'APIKEY') return
+    if (picked.length > 1) {
       form.value.scope_picked = [picked[picked.length - 1]]
       showToast('静态 Key 只能授权 1 个接口，已保留最后一次选择', 'warning')
+    } else if (!Array.isArray(raw)) {
+      form.value.scope_picked = picked // 单选写回字符串时归一为数组
     }
   },
 )
@@ -188,7 +202,7 @@ watch(
 const finalScope = computed(() => {
   const merged: string[] = []
   const seen = new Set<string>()
-  for (const item of [...form.value.scope_picked, ...form.value.scope_text.split('\n')]) {
+  for (const item of [...toList(form.value.scope_picked), ...form.value.scope_text.split('\n')]) {
     const value = item.trim()
     if (!value || seen.has(value)) continue
     seen.add(value)
@@ -317,9 +331,10 @@ watch(
             />
           </div>
           <v-alert v-if="isSts" type="warning" density="compact" variant="tonal">
-            STS 兑换凭证：签发的是一对长期 <strong>AK/SK</strong>，但它<strong>不能直接调业务接口</strong>，
+            STS 兑换凭证：签发的是一对 <strong>AK/SK</strong>，但它<strong>不能直接调业务接口</strong>，
             只能调用 <code>POST /OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue</code> 换取 2 小时有效的
-            SAK/SSK/SST 三要素再用三要素调业务接口。下面的授权范围是<strong>派生出的临时凭据</strong>的权限（留空 = 全部接口）。
+            SAK/SSK/SST 三要素再用三要素调业务接口。下面的授权范围是<strong>派生出的临时凭据</strong>的权限（留空 = 全部接口）；
+            <strong>兑换凭证本身的到期日</strong>在下方「凭证到期」里设置（留空 = 长期，不建议）。
           </v-alert>
           <v-alert v-else-if="!isRotate" type="info" density="compact" variant="tonal">
             轮换会生成一套新密钥：静态 Key 的公开标识会改变；AK/SK 的旧 SK 在签名时间窗内仍可验签，之后失效。
@@ -381,13 +396,14 @@ watch(
           />
           <div v-if="!isRotate" class="d-flex flex-wrap ga-3">
             <v-text-field
-              v-if="!isSts"
               v-model="form.dt_expire"
               type="date"
               :max="form.auth_mode === 'APIKEY' ? maxApiKeyExpire : undefined"
               :label="form.auth_mode === 'APIKEY'
                 ? '凭证到期（必填，最长 90 天）'
-                : '凭证到期（留空 = 随调用方）'"
+                : isSts
+                  ? '兑换凭证到期（留空 = 长期，不建议）'
+                  : '凭证到期（留空 = 随调用方）'"
               :error-messages="apiKeyExpireInvalid
                 ? '静态 Key 必须设置到期日，且不超过 90 天（' + maxApiKeyExpire + '）'
                 : []"

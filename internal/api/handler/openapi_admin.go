@@ -328,6 +328,23 @@ func (h *OpenAPIAdmin) SetCredentialScope(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "授权范围已更新", "data": credential})
 }
 
+// SetCredentialExpire POST /OpenAPI/Credential/Expire（需求 11246）。
+func (h *OpenAPIAdmin) SetCredentialExpire(c *gin.Context) {
+	var req openapisvc.CredentialExpireRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体不是合法 JSON: " + err.Error()})
+		return
+	}
+	credential, err := h.service.SetCredentialExpire(c.Request.Context(), req, operatorOf(c))
+	if err != nil {
+		respondOpenAPIError(c, "修改有效期", err)
+		return
+	}
+	log.Printf("[openapi][admin] credential expire updated idn=%d no=%s expire=%q by=%s",
+		credential.IDN, credential.CredentialNo, credential.DTExpire, operatorOf(c))
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "有效期已更新", "data": credential})
+}
+
 // InvokeLogPage GET /OpenAPI/InvokeLog/Page。
 func (h *OpenAPIAdmin) InvokeLogPage(c *gin.Context) {
 	filter := openapisvc.InvokeLogFilter{

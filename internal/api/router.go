@@ -228,6 +228,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 			openAPIGroup.POST("/Credential/Rotate", openAPIAdmin.RotateCredential)
 			// 修改授权范围（需求 11230）：事务内双写 scope_str 与明细表，改完立即让鉴权缓存失效
 			openAPIGroup.POST("/Credential/Scope", openAPIAdmin.SetCredentialScope)
+			openAPIGroup.POST("/Credential/Expire", openAPIAdmin.SetCredentialExpire)
 			openAPIGroup.GET("/InvokeLog/Page", openAPIAdmin.InvokeLogPage)
 			// 接口清单（需求 11223）：只读列表 + 切换公开/启用标志；
 			// 本表是接口目录，不是鉴权白名单（允许调什么由本文件的路由注册决定）。

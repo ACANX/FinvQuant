@@ -261,6 +261,47 @@ func (s *Service) SetCredentialScope(ctx context.Context, req CredentialScopeReq
 	return updated, nil
 }
 
+// SetCredentialExpire 修改已有凭证的有效期（需求 11246）。
+//
+// 只改有效期，不动密钥 / 授权范围 / IP 白名单。空串 = 改为长期；静态 Key 仍受
+// 「必填且不超过 90 天」约束（validateExpireForMode），否则会出现「签发时卡死、事后一改就长期」的漏洞。
+func (s *Service) SetCredentialExpire(ctx context.Context, req CredentialExpireRequest,
+	operator string) (Credential, error) {
+	if req.IDN <= 0 {
+		return Credential{}, invalid("idn 必须为正整数")
+	}
+	current, err := s.store.CredentialByID(ctx, req.IDN)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return Credential{}, fmt.Errorf("%w: 凭证 %d 不存在", ErrNotFound, req.IDN)
+		}
+		return Credential{}, err
+	}
+	if current.FlagRevoke == "1" {
+		return Credential{}, fmt.Errorf("%w: 凭证已吊销，不能修改有效期（只能新建）", ErrConflict)
+	}
+	expire, err := parseExpire(req.DTExpire)
+	if err != nil {
+		return Credential{}, err
+	}
+	if err := validateExpireForMode(current.AuthMode, expire); err != nil {
+		return Credential{}, err
+	}
+	if err := s.store.UpdateCredentialExpire(ctx, req.IDN, req.DTExpire, operator); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return Credential{}, fmt.Errorf("%w: 凭证 %d 不存在或已吊销", ErrNotFound, req.IDN)
+		}
+		return Credential{}, err
+	}
+	updated, err := s.store.CredentialByID(ctx, req.IDN)
+	if err != nil {
+		return Credential{}, err
+	}
+	// 有效期参与鉴权判定（dt_expire > now()），改完必须让缓存立即失效（同需求 11212 口径）
+	s.invalidateCache(ctx)
+	return updated, nil
+}
+
 // RotateCredential 轮换密钥（旧 Key 立即失效；AK/SK 允许旧 SK 在窗口内并行验签）。
 func (s *Service) RotateCredential(ctx context.Context, idn int64, operator string) (IssuedSecret, error) {
 	if idn <= 0 {

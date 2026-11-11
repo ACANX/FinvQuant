@@ -208,6 +208,14 @@ type CredentialScopeRequest struct {
 	Scope []string `json:"scope"` // 形如 "POST /OpenAPI/V1/..."；空数组 = 全部接口（静态 Key 不允许）
 }
 
+// CredentialExpireRequest 修改已有凭证的有效期（需求 11246）。
+//
+// 只改有效期，不动密钥/授权范围/白名单；空串 = 改为长期（静态 Key 不允许长期）。
+type CredentialExpireRequest struct {
+	IDN      int64  `json:"idn"`
+	DTExpire string `json:"dt_expire"` // RFC3339 或 2006-01-02；空串 = 长期
+}
+
 // EndpointFilter 接口清单查询条件。
 type EndpointFilter struct {
 	Keyword    string
@@ -386,17 +394,27 @@ func validateCredential(req CredentialCreateRequest) (CredentialCreateRequest, e
 	if err != nil {
 		return req, err
 	}
-	// 静态 Key 的有效期上限 90 天（需求 11188）：无签名、暴露面大，必须短期可回收。
-	// 未设置到期日同样拒绝——留空等于「随调用方」，可能永久有效。
-	if req.AuthMode == AuthModeAPIKey {
-		if expire == nil {
-			return req, invalid("静态 Key 必须设置到期日，且不超过 90 天（留空视为随调用方，不允许）")
-		}
-		if expire.After(time.Now().Add(staticKeyMaxTTL)) {
-			return req, invalid("静态 Key 的有效期最长 90 天，当前设置到 %s", expire.Format("2006-01-02"))
-		}
+	if err := validateExpireForMode(req.AuthMode, expire); err != nil {
+		return req, err
 	}
 	return req, nil
+}
+
+// validateExpireForMode 有效期口径：静态 Key 必须设置且不超过 90 天。
+//
+// 静态 Key 无签名、暴露面大，必须短期可回收（需求 11188）；未设置到期日同样拒绝——
+// 留空等于「随调用方」，可能永久有效。AK/SK 与 STS 兑换凭证允许留空（长期）或自定义。
+func validateExpireForMode(authMode string, expire *time.Time) error {
+	if authMode != AuthModeAPIKey {
+		return nil
+	}
+	if expire == nil {
+		return invalid("静态 Key 必须设置到期日，且不超过 90 天（留空视为随调用方，不允许）")
+	}
+	if expire.After(time.Now().Add(staticKeyMaxTTL)) {
+		return invalid("静态 Key 的有效期最长 90 天，当前设置到 %s", expire.Format("2006-01-02"))
+	}
+	return nil
 }
 
 // normalizeScope 校验授权范围："METHOD PATH" 形式；空数组表示全部接口。

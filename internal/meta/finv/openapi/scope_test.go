@@ -1,6 +1,9 @@
 package openapi
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 // TestParseScopeItems 授权范围字符串 → 明细表条目（需求 11228）。
 //
@@ -74,3 +77,31 @@ func TestScopeToJSONThenParse(t *testing.T) {
 		t.Fatalf("scope_str 与写表条目数不一致：写表 %d 条、JSON %d 条 (%s)", len(pairs), len(back), raw)
 	}
 }
+
+// TestValidateExpireForMode 有效期口径（需求 11188 / 11246）：
+// 静态 Key 必填且不超过 90 天；AK/SK 与 STS 兑换凭证允许长期。
+func TestValidateExpireForMode(t *testing.T) {
+	now := time.Now()
+	day := 24 * time.Hour
+	cases := []struct {
+		name    string
+		mode    string
+		expire  *time.Time
+		wantErr bool
+	}{
+		{name: "静态Key留空", mode: AuthModeAPIKey, expire: nil, wantErr: true},
+		{name: "静态Key超90天", mode: AuthModeAPIKey, expire: ptrTime(now.Add(91 * day)), wantErr: true},
+		{name: "静态Key 30天", mode: AuthModeAPIKey, expire: ptrTime(now.Add(30 * day)), wantErr: false},
+		{name: "AKSK留空", mode: AuthModeAKSK, expire: nil, wantErr: false},
+		{name: "AKSK超90天", mode: AuthModeAKSK, expire: ptrTime(now.Add(365 * day)), wantErr: false},
+		{name: "STS留空", mode: AuthModeSTS, expire: nil, wantErr: false},
+		{name: "STS长期", mode: AuthModeSTS, expire: ptrTime(now.Add(730 * day)), wantErr: false},
+	}
+	for _, c := range cases {
+		if err := validateExpireForMode(c.mode, c.expire); (err != nil) != c.wantErr {
+			t.Errorf("%s: 期望报错=%v，实际 err=%v", c.name, c.wantErr, err)
+		}
+	}
+}
+
+func ptrTime(v time.Time) *time.Time { return &v }
