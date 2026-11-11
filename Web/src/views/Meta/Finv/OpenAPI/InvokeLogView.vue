@@ -9,7 +9,7 @@ import { computed, onMounted, ref } from 'vue'
 
 import { apiGet } from '../../../../api'
 import { showToast } from '../../../../ui/toast'
-import { OPENAPI_BASE as BASE, PASS_OPTIONS, REASON_OPTIONS, passColor, passText, reasonText, timeText } from './shared'
+import { OPENAPI_BASE as BASE, PASS_OPTIONS, REASON_OPTIONS, authModeText, passColor, passText, reasonText, timeText } from './shared'
 
 interface InvokeLogRow {
   idn: number
@@ -68,7 +68,7 @@ function detailFields(row: InvokeLogRow): DetailField[] {
     { label: 'HTTP', value: String(row.status_code), hint: '本次响应的 HTTP 状态码' },
     { label: '业务码', value: String(row.biz_code), hint: '响应信封里的 code' },
     { label: '耗时（ms）', value: String(row.latency_ms), hint: '鉴权+业务处理耗时' },
-    { label: '认证模式', value: row.auth_mode ? `${row.auth_mode}` : '—', hint: 'APIKEY 静态 Key / AKSK 签名 / STS 临时凭据 / 空=未识别' },
+    { label: '认证模式', value: authModeText(row.auth_mode), hint: 'APIKEY 静态 Key / AKSK 签名 / STS 临时凭据 / 空=未识别' },
     { label: '公开标识', value: row.access_key_id || '—', hint: 'AK 明文；静态 Key 为脱敏形态（前缀 + 前 8 + 等量星号 + 后 8）' },
     { label: '密钥指纹 kfp', value: row.kfp || '—', hint: 'sha256(完整公开标识) 前 16 位大写十六进制；APIKEY 记静态 Key 指纹、STS 记临时 AK 指纹，可按单把密钥聚合' },
     { label: '令牌指纹 tfp', value: row.tfp || '—', hint: 'sha256(SecurityToken) 前 16 位，仅 STS 模式；可按一次临时会话聚合' },
@@ -80,6 +80,120 @@ function detailFields(row: InvokeLogRow): DetailField[] {
     { label: '请求体摘要', value: row.body_sha256 || '—', hint: 'sha256(body) 大写十六进制；不存原文' },
     { label: '请求体长度', value: String(row.count_body), hint: '字节数' },
   ]
+}
+
+// ---- 列宽可调（拖拽表头右边缘 / 双击自适应 / 记住宽度）----
+interface Column {
+  key: keyof InvokeLogRow | 'actions'
+  title: string
+  width: number   // 默认宽度（px）
+  min: number     // 最小宽度（px）
+  align?: string
+}
+
+const COLUMNS: Column[] = [
+  { key: 'dt_request', title: '请求时间', width: 180, min: 140 },
+  { key: 'method', title: '方法', width: 80, min: 60 },
+  { key: 'path', title: '路径', width: 340, min: 160 },
+  { key: 'flag_pass', title: '结果', width: 90, min: 70 },
+  { key: 'reason_code', title: '原因', width: 120, min: 90 },
+  { key: 'status_code', title: 'HTTP', width: 80, min: 60 },
+  { key: 'biz_code', title: '业务码', width: 90, min: 70 },
+  { key: 'latency_ms', title: '耗时（ms）', width: 100, min: 80 },
+  { key: 'auth_mode', title: '认证模式', width: 130, min: 100 },
+  { key: 'access_key_id', title: '公开标识', width: 320, min: 140 },
+  { key: 'kfp', title: '密钥指纹', width: 160, min: 120 },
+  { key: 'ip', title: '来源 IP', width: 140, min: 110 },
+  { key: 'request_id', title: '请求 ID', width: 320, min: 140 },
+  { key: 'actions', title: '操作', width: 96, min: 80, align: 'text-right' },
+]
+
+const WIDTHS_KEY = 'finv.openapi.invokelog.widths'
+const colWidths = ref<Record<string, number>>({})
+
+function loadWidths() {
+  const defaults: Record<string, number> = {}
+  for (const col of COLUMNS) defaults[col.key] = col.width
+  try {
+    const saved = JSON.parse(localStorage.getItem(WIDTHS_KEY) || '{}') as Record<string, number>
+    for (const col of COLUMNS) {
+      const value = Number(saved[col.key])
+      if (Number.isFinite(value) && value >= col.min) defaults[col.key] = value
+    }
+  } catch {
+    // 本地缓存坏了就用默认宽度，不影响页面
+  }
+  colWidths.value = defaults
+}
+
+function saveWidths() {
+  try {
+    localStorage.setItem(WIDTHS_KEY, JSON.stringify(colWidths.value))
+  } catch {
+    // 隐私模式禁止 localStorage 时忽略
+  }
+}
+
+function resetWidths() {
+  for (const col of COLUMNS) colWidths.value[col.key] = col.width
+  saveWidths()
+  showToast('列宽已重置为默认', 'success')
+}
+
+// 拖拽调宽：按住表头右侧手柄左右移动
+let resizing: { key: string; startX: number; startWidth: number } | null = null
+
+function startResize(event: MouseEvent, col: Column) {
+  event.preventDefault()
+  event.stopPropagation()
+  resizing = { key: String(col.key), startX: event.clientX, startWidth: colWidths.value[col.key] }
+  document.addEventListener('mousemove', onResizing)
+  document.addEventListener('mouseup', stopResize)
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
+function onResizing(event: MouseEvent) {
+  if (!resizing) return
+  const col = COLUMNS.find((item) => String(item.key) === resizing!.key)
+  if (!col) return
+  const next = Math.max(col.min, Math.min(1200, resizing.startWidth + (event.clientX - resizing.startX)))
+  colWidths.value[resizing.key] = next
+}
+
+function stopResize() {
+  if (resizing) saveWidths()
+  resizing = null
+  document.removeEventListener('mousemove', onResizing)
+  document.removeEventListener('mouseup', stopResize)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
+
+// 双击手柄：按该列内容自适应宽度（不必手动拖）
+function autoFit(col: Column) {
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+  let widest = ctx.measureText(col.title).width + 40
+  for (const row of rows.value) {
+    const text = cellText(row, col)
+    widest = Math.max(widest, ctx.measureText(text).width + 28)
+  }
+  colWidths.value[col.key] = Math.max(col.min, Math.min(1200, Math.ceil(widest)))
+  saveWidths()
+}
+
+function cellText(row: InvokeLogRow, col: Column): string {
+  switch (col.key) {
+    case 'dt_request': return timeText(row.dt_request)
+    case 'flag_pass': return passText(row.flag_pass)
+    case 'auth_mode': return authModeText(row.auth_mode)
+    case 'reason_code': return reasonText(row.reason_code)
+    case 'actions': return '详情'
+    default: return String((row as unknown as Record<string, unknown>)[col.key] ?? '')
+  }
 }
 
 async function copyValue(text: string) {
@@ -113,7 +227,10 @@ async function load() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  loadWidths()
+  load()
+})
 </script>
 
 <template>
@@ -174,72 +291,85 @@ onMounted(load)
           <v-btn color="primary" variant="tonal" prepend-icon="mdi-magnify" @click="page = 1; load()">查询</v-btn>
         </div>
 
-        <v-table density="compact" class="openapi-table">
-          <thead>
-            <tr>
-              <th>请求时间</th>
-              <th>方法</th>
-              <th>路径</th>
-              <th>结果</th>
-              <th>原因</th>
-              <th>HTTP</th>
-              <th>耗时（ms）</th>
-              <th>公开标识</th>
-              <th>密钥指纹</th>
-              <th>来源 IP</th>
-              <th>请求 ID</th>
-              <th class="text-right">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in rows" :key="row.idn">
-              <td class="text-no-wrap">{{ timeText(row.dt_request) }}</td>
-              <td>{{ row.method || '—' }}</td>
-              <td class="text-truncate" style="max-width: 240px">
-                <span class="mr-1">{{ row.path || '—' }}</span>
-                <v-tooltip v-if="row.path" :text="row.path" location="bottom" max-width="520">
-                  <template #activator="{ props: tipProps }">
-                    <v-icon v-bind="tipProps" icon="mdi-information-outline" size="14" class="text-medium-emphasis" />
-                  </template>
-                </v-tooltip>
-              </td>
-              <td>
-                <v-chip size="x-small" variant="tonal" :color="passColor(row.flag_pass)">
-                  {{ passText(row.flag_pass) }}
-                </v-chip>
-              </td>
-              <td>{{ reasonText(row.reason_code) }}</td>
-              <td>{{ row.status_code }}</td>
-              <td>{{ row.latency_ms }}</td>
-              <td class="text-truncate" style="max-width: 160px">
-                <span class="mr-1">{{ row.access_key_id || '—' }}</span>
-                <v-tooltip v-if="row.access_key_id" :text="row.access_key_id" location="bottom" max-width="420">
-                  <template #activator="{ props: tipProps }">
-                    <v-icon v-bind="tipProps" icon="mdi-information-outline" size="14" class="text-medium-emphasis" />
-                  </template>
-                </v-tooltip>
-              </td>
-              <td class="text-no-wrap text-caption">{{ row.kfp || '—' }}</td>
-              <td>{{ row.ip || '—' }}</td>
-              <td class="text-truncate" style="max-width: 150px">
-                <span class="mr-1">{{ row.request_id || '—' }}</span>
-                <v-tooltip v-if="row.request_id" :text="row.request_id" location="bottom">
-                  <template #activator="{ props: tipProps }">
-                    <v-icon v-bind="tipProps" icon="mdi-information-outline" size="14" class="text-medium-emphasis" />
-                  </template>
-                </v-tooltip>
-              </td>
-              <td class="text-right">
-                <v-btn size="x-small" variant="tonal" prepend-icon="mdi-eye-outline" @click="detail = row">详情</v-btn>
-              </td>
-            </tr>
-            <tr v-if="rows.length === 0">
-              <td colspan="12" class="text-center text-medium-emphasis py-6">
-                {{ loading ? '加载中…' : '暂无调用记录（鉴权关闭时不写审计）' }}
-              </td>
-            </tr>
-          </tbody>
-        </v-table>
+        <div class="d-flex align-center flex-wrap ga-2 mb-2">
+          <span class="text-caption text-medium-emphasis">
+            列宽可拖动：把鼠标放到表头右边缘拖动；双击边缘按内容自适应；
+          </span>
+          <v-btn size="x-small" variant="text" prepend-icon="mdi-restore" @click="resetWidths">重置列宽</v-btn>
+        </div>
+
+        <div class="openapi-table-scroll">
+          <v-table density="compact" class="openapi-table openapi-table-fixed">
+            <colgroup>
+              <col v-for="col in COLUMNS" :key="col.key" :style="{ width: colWidths[col.key] + 'px' }" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th v-for="col in COLUMNS" :key="col.key" :class="col.align" class="openapi-th">
+                  <span class="th-label">{{ col.title }}</span>
+                  <span
+                    class="col-resizer"
+                    title="拖动调整列宽；双击按内容自适应"
+                    @mousedown="startResize($event, col)"
+                    @dblclick="autoFit(col)"
+                  />
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in rows" :key="row.idn">
+                <td class="cell-nowrap">
+                  <span>{{ timeText(row.dt_request) }}</span>
+                </td>
+                <td class="cell-nowrap">{{ row.method || '—' }}</td>
+                <td class="cell-ellipsis">
+                  <span>{{ row.path || '—' }}</span>
+                  <v-tooltip v-if="row.path" :text="row.path" location="bottom" max-width="720">
+                    <template #activator="{ props: tipProps }">
+                      <v-icon v-bind="tipProps" icon="mdi-information-outline" size="14" class="ml-1 text-medium-emphasis" />
+                    </template>
+                  </v-tooltip>
+                </td>
+                <td>
+                  <v-chip size="x-small" variant="tonal" :color="passColor(row.flag_pass)">
+                    {{ passText(row.flag_pass) }}
+                  </v-chip>
+                </td>
+                <td class="cell-nowrap">{{ reasonText(row.reason_code) }}</td>
+                <td>{{ row.status_code }}</td>
+                <td>{{ row.biz_code }}</td>
+                <td>{{ row.latency_ms }}</td>
+                <td class="cell-nowrap">{{ authModeText(row.auth_mode) }}</td>
+                <td class="cell-ellipsis">
+                  <span>{{ row.access_key_id || '—' }}</span>
+                  <v-tooltip v-if="row.access_key_id" :text="row.access_key_id" location="bottom" max-width="520">
+                    <template #activator="{ props: tipProps }">
+                      <v-icon v-bind="tipProps" icon="mdi-information-outline" size="14" class="ml-1 text-medium-emphasis" />
+                    </template>
+                  </v-tooltip>
+                </td>
+                <td class="cell-nowrap text-caption">{{ row.kfp || '—' }}</td>
+                <td class="cell-nowrap">{{ row.ip || '—' }}</td>
+                <td class="cell-ellipsis">
+                  <span>{{ row.request_id || '—' }}</span>
+                  <v-tooltip v-if="row.request_id" :text="row.request_id" location="bottom">
+                    <template #activator="{ props: tipProps }">
+                      <v-icon v-bind="tipProps" icon="mdi-information-outline" size="14" class="ml-1 text-medium-emphasis" />
+                    </template>
+                  </v-tooltip>
+                </td>
+                <td class="text-right">
+                  <v-btn size="x-small" variant="tonal" prepend-icon="mdi-eye-outline" @click="detail = row">详情</v-btn>
+                </td>
+              </tr>
+              <tr v-if="rows.length === 0">
+                <td :colspan="COLUMNS.length" class="text-center text-medium-emphasis py-6">
+                  {{ loading ? '加载中…' : '暂无调用记录（鉴权关闭时不写审计）' }}
+                </td>
+              </tr>
+            </tbody>
+          </v-table>
+        </div>
 
         <div class="d-flex align-center justify-end ga-2 mt-3">
           <v-pagination v-model="page" :length="pageCount" density="compact" total-visible="7" @update:model-value="load" />
@@ -325,9 +455,57 @@ onMounted(load)
   padding: 16px;
 }
 
+.openapi-table-scroll {
+  overflow-x: auto;
+}
+
+/* 固定布局让 colgroup 的像素宽度生效，列宽才真正可调 */
+.openapi-table-fixed :deep(table) {
+  table-layout: fixed;
+  width: max-content;
+}
+
 .openapi-table :deep(th),
 .openapi-table :deep(td) {
   white-space: nowrap;
+  overflow: hidden;
+}
+
+/* 单元格：不换行；宽度不够时才出省略号（可拖宽或看 ⓘ） */
+.cell-nowrap {
+  white-space: nowrap;
+}
+
+.cell-ellipsis {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 表头单元格 + 右侧拖拽手柄 */
+.openapi-th {
+  position: relative;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.th-label {
+  display: inline-block;
+  padding-right: 10px;
+}
+
+.col-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+}
+
+.col-resizer:hover {
+  background: rgba(var(--v-theme-primary), 0.25);
 }
 
 .openapi-detail-table :deep(td) {
