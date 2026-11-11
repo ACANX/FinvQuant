@@ -68,10 +68,28 @@ const finvQuantMenu: MenuNode[] = [
   },
   { key: 'config-manage', title: '系统配置', icon: 'mdi-cog-outline', path: '/Meta/Finv/Quant/Config' },
   {
-    key: 'openapi-client-manage',
-    title: 'OpenAPI 调用方管理',
-    icon: 'mdi-key-chain',
-    path: '/Meta/Finv/OpenAPI/Client',
+    // 「系统管理」二级分组（需求 11171）：平台级治理能力的容器，本身不可点。
+    // 二级不再直接挂业务叶子（约束：业务菜单必须落在四级叶子）；
+    // 分组前缀 /Meta/Finv/，后续平台治理相关菜单在此二级分组下继续追加三级分组。
+    key: 'sys-manage',
+    title: '系统管理',
+    icon: 'mdi-shield-lock-outline',
+    children: [
+      {
+        // 开放接口（三级分组）：对外 OpenAPI 的接入治理（调用方、凭证、调用审计）。
+        key: 'sys-manage-openapi',
+        title: '开放接口',
+        icon: 'mdi-api',
+        children: [
+          {
+            key: 'openapi-client-manage',
+            title: 'OpenAPI 调用方管理',
+            icon: 'mdi-key-chain',
+            path: '/Meta/Finv/OpenAPI/Client',
+          },
+        ],
+      },
+    ],
   },
   {
     // 「行情」二级菜单（分组前缀 /Meta/Finv/Quote/），与「数据采集」同级；

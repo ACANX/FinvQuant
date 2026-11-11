@@ -2,6 +2,7 @@
 
 > 所属：FinvQuant 菜单文档 · 存放：`Docs/Menu/OpenAPI/Client.md`
 > 路由：`/Meta/Finv/OpenAPI/Client`（key `openapi-client-manage`，菜单标题「OpenAPI 调用方管理」）
+> 菜单位置：金融投资 → **系统管理**（二级分组）→ **开放接口**（三级分组）→ OpenAPI 调用方管理（四级叶子，需求 11171）
 > 视图：`Web/src/views/Meta/Finv/OpenAPI/ClientManageView.vue`（+ `ClientDialog.vue` / `CredentialDialog.vue`）
 > 接口：[`../../API/OpenAPI/Admin.md`](../../API/OpenAPI/Admin.md)
 > 需求：11169（页面）；11167（表结构）；11168（鉴权中间件）

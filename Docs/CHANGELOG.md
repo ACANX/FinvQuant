@@ -219,6 +219,14 @@
 
 ### 变更
 
+- **菜单层级调整：OpenAPI 调用方管理改为四级叶子（需求 11171）**
+  - 原来它直接挂在二级（与「系统配置」并列的二级叶子）；按「二级菜单不直接挂业务叶子」的约束，
+    改为 金融投资 → **系统管理**（二级分组，key `sys-manage`，`mdi-shield-lock-outline`，本身不可点）→
+    **开放接口**（三级分组，key `sys-manage-openapi`，`mdi-api`）→ **OpenAPI 调用方管理**（四级叶子）。
+  - 只改菜单层级：叶子 key `openapi-client-manage`、路由 `/Meta/Finv/OpenAPI/Client`、视图组件与全部接口路径不变，
+    历史深链接继续可用。
+  - 文档：`Docs/Menu/Menus.md` 树与表格（第 47 行「二级叶子」→「四级叶子」）、`Docs/Menu/OpenAPI/Client.md` 补父级链路。
+
 - **「OpenAPI 调用方管理」菜单（需求 11169）**
   - 后端：新增 `internal/meta/finv/openapi`（`Service` + `Store`）与 `internal/api/handler/openapi_admin.go`，
     共 11 个内部接口（`/API/V1/Meta/Finv/OpenAPI/*`，需登录）：
