@@ -25,10 +25,10 @@
 
 ```http
 GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni?column=usc&row=AAPL&limit=1
-X-API-Key: FK_LIVE_XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+X-API-Key: SA_LIVE_XXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
 
-也接受 `Authorization: Bearer FK_LIVE_XXXXXXXXXXXXXXXXXXXXXXXXXXXX`（两者都带时以 `X-API-Key` 为准）。
+也接受 `Authorization: Bearer SA_LIVE_XXXXXXXXXXXXXXXXXXXXXXXXXXXX`（两者都带时以 `X-API-Key` 为准）。
 
 > **大小写（需求 11176）**：凭证号、静态 Key、AK、SK 里的英文字母**一律大写**，便于人工抄写与电话核对。
 > 调用方手写小写也能通过：服务端会按大写归一后查库与比对哈希。
@@ -63,7 +63,7 @@ NONCE
 | `METHOD` | 大写的 HTTP 方法（`GET` / `POST` …） |
 | `PATH` | 请求路径，**不含**域名、端口、查询串（如 `/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`） |
 | `SORTED_QUERY` | 查询参数按**参数名升序**、同名参数的**值也升序**，键与值都做 RFC 3986 百分号编码（空格 → `%20`），再用 `&` 连接；无查询串时为空行 |
-| `BODY_SHA256` | 请求体的 SHA-256 十六进制小写；GET / 空体用 `sha256("")` = `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `BODY_SHA256` | 请求体的 SHA-256 十六进制**大写**（需求 11177）；GET / 空体用 `sha256("")` 的大写形式 `E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855` |
 | `TIMESTAMP` | 与 `X-Finv-Timestamp` **完全一致**的字符串（Unix 秒） |
 | `NONCE` | 与 `X-Finv-Nonce` 完全一致的字符串（建议 8~64 位随机串，每次请求不同） |
 
@@ -138,7 +138,8 @@ signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 - 谁：`client_idn` / `credential_idn` / `access_key_id`（冗余存，凭证删了也能追）/ `auth_mode`；
 - 什么：`request_id` / `dt_request` / `method` / `path` / `query_str` / `ip` / `user_agent`；
 - 结果：`flag_pass` / `status_code` / `biz_code` / `reason_code`（`NO_KEY`/`BAD_KEY`/`REVOKE`/`EXPIRE`/`CIDR_DENY`/`SIGN_MISMATCH`/`TS_SKEW`/`NONCE_REPLAY`/`SCOPE_DENY`/`RATE_LIMIT`/`NOT_READY`）；
-- 体积：`body_sha256` + `count_body`（**不存请求原文**）。
+- 体积：`body_sha256`（**大写**十六进制）+ `count_body`（**不存请求原文**）。
+- 链路：响应头 `X-Request-Id` 与审计表 `request_id` 同为 32 位**大写**十六进制，可直接按它回查。
 
 审计写入超时 1.5 秒，失败只打应用日志，不影响响应；表按 `sys_config` 19003（默认 90 天）清理。
 

@@ -249,7 +249,7 @@
 }
 ```
 
-- `API_KEY` 模式：`access_key` 与 `secret_key` 相同（静态 Key 本身就是公开标识，形如 `FK_LIVE_` + 32 位大写十六进制），库里只存 `sha256`；
+- `API_KEY` 模式：`access_key` 与 `secret_key` 相同（静态 Key 本身就是公开标识，形如 `SA_LIVE_` + 32 位大写十六进制），库里只存 `sha256`；
 - `AK_SK` 模式：`secret_key` 是 SK，库里存 AES-256-GCM 密文（密钥取 `sys_config` 19005）。
   **19005 未配置时返回 503**，错误里明确提示先配置 19005。
 
@@ -293,7 +293,8 @@
 | `accessKey` | 公开标识模糊匹配（静态 Key 存的是脱敏形态） |
 | `dtFrom` / `dtTo` | `RFC3339` / `2006-01-02 15:04:05` / `2006-01-02` |
 
-按 `dt_request` 倒序。响应字段与 `open.open_api_invoke_log` 列一一对应（`body_sha256` / `count_body` 只有摘要与长度，无原文）。
+按 `dt_request` 倒序。响应字段与 `open.open_api_invoke_log` 列一一对应；`request_id` 与 `body_sha256` 均为**大写**十六进制（需求 11177），
+`body_sha256` / `count_body` 只有摘要与长度，无原文。
 
 ## 7. 错误码
 

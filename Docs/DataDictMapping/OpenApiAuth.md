@@ -49,7 +49,7 @@
 | `client_idn` | BIGINT | NOT NULL | 所属调用方（程序层关联，无外键） |
 | `credential_no` | VARCHAR(48) | NOT NULL, UNIQUE | 凭证号（`CRED-CDEU-01`，字母统一大写） |
 | `auth_mode` | VARCHAR(16) | NOT NULL, `IN ('API_KEY','AK_SK','BEARER','MTLS','BASIC')` | 认证模式 |
-| `access_key_id` | VARCHAR(64) | NOT NULL, UNIQUE | **公开标识**：`API_KEY` 模式即 key 本身（`FK_LIVE_...`）、`AK_SK` 模式为 AK（`AK_LIVE_...`）、`MTLS` 模式为证书指纹；**英文字母一律大写**（需求 11176） |
+| `access_key_id` | VARCHAR(64) | NOT NULL, UNIQUE | **公开标识**：`API_KEY` 模式即 key 本身（`SA_LIVE_...`）、`AK_SK` 模式为 AK（`AK_LIVE_...`）、`MTLS` 模式为证书指纹；**英文字母一律大写**（需求 11176） |
 | `key_prefix` | VARCHAR(12) | 可空 | 密钥前 8 位明文（展示/检索用，绝不回显全量） |
 | `secret_hash` | VARCHAR(128) | 可空 | 密钥哈希：`API_KEY` 用 sha256 十六进制、`BASIC` 用 argon2id PHC 串；`AK_SK` 必须为 NULL |
 | `secret_cipher` | TEXT | 可空 | SK 密文（AES-256-GCM，Base64）；`AK_SK` 必须有值，其他模式必须为 NULL |
@@ -93,14 +93,14 @@ OR (auth_mode <> 'AK_SK' AND secret_hash   IS NOT NULL)
 | `idn` | BIGINT | 主键（identity） |
 | `client_idn` / `credential_idn` | BIGINT | 调用方/凭证（`0` = 未识别，匿名请求也留痕） |
 | `access_key_id` / `auth_mode` | VARCHAR | **冗余存**：凭证被删后仍可追溯 |
-| `request_id` | VARCHAR(64) | 链路 ID（响应头 `X-Request-Id`） |
+| `request_id` | VARCHAR(64) | 链路 ID（响应头 `X-Request-Id`），32 位**大写**十六进制（需求 11177） |
 | `dt_request` | TIMESTAMPTZ | 请求时间 |
 | `method` / `path` / `query_str` | VARCHAR(8)/VARCHAR(512)/VARCHAR(2000) | 请求行（查询串截断到 2000） |
 | `status_code` / `biz_code` | INTEGER | HTTP 码 + 信封 `code` |
 | `flag_pass` | CHAR(1) | `1` 放行 / `0` 拒绝 |
 | `reason_code` | VARCHAR(32) | `NO_KEY`/`BAD_KEY`/`REVOKE`/`EXPIRE`/`CIDR_DENY`/`SIGN_MISMATCH`/`TS_SKEW`/`NONCE_REPLAY`/`SCOPE_DENY`/`RATE_LIMIT` |
 | `ip` / `user_agent` | INET / VARCHAR(512) | 客户端（UA 截断到 512） |
-| `body_sha256` / `count_body` | CHAR(64) / INTEGER | **只存摘要与长度**，不存原文（行情明细含业务数据） |
+| `body_sha256` / `count_body` | CHAR(64) / INTEGER | **只存摘要与长度**，不存原文；摘要为**大写**十六进制（需求 11177），与待签串里的 `BODY_SHA256` 同一口径 |
 | `latency_ms` | INTEGER | 处理耗时（毫秒） |
 | `gmt_create` | TIMESTAMPTZ | 入库时间 |
 
@@ -123,8 +123,8 @@ OR (auth_mode <> 'AK_SK' AND secret_hash   IS NOT NULL)
 ### 6.1 模式一：静态 API Key
 
 ```
-X-API-Key: FK_LIVE_XXXXXXXXXXXXXXXXXXXXXXXXXXXX
-或 Authorization: Bearer FK_LIVE_XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+X-API-Key: SA_LIVE_XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+或 Authorization: Bearer SA_LIVE_XXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
 
 服务端：按 `access_key_id` 定位凭证 → `sha256(提供值)` 与 `secret_hash` 恒时比对。

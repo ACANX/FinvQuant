@@ -151,8 +151,8 @@ func TestNormalizeModeAndExpire(t *testing.T) {
 }
 
 func TestKeyFormatConvention(t *testing.T) {
-	// 文档承诺的格式（需求 11176 起全大写）：静态 Key = FK_LIVE_ + 32 位十六进制；
-	// AK = AK_LIVE_ + 32 位十六进制；SK = SK_LIVE_ + 48 位十六进制
+	// 文档承诺的格式（需求 11176 起全大写；11178 起静态 Key 前缀为 SA_LIVE_）：
+	// 静态 Key = SA_LIVE_ + 32 位十六进制；AK = AK_LIVE_ + 32 位；SK = SK_LIVE_ + 48 位
 	random, err := secret.RandomToken(16)
 	if err != nil {
 		t.Fatalf("生成随机数失败: %v", err)
@@ -229,6 +229,9 @@ func TestIssuedKeyUppercase(t *testing.T) {
 	upper := secret.NormalizeKey(random)
 	if upper != strings.ToUpper(random) {
 		t.Fatalf("NormalizeKey 应转大写")
+	}
+	if secret.PrefixAPIKey != "SA_LIVE_" {
+		t.Fatalf("静态 Key 前缀应为 SA_LIVE_（需求 11178），实际 %q", secret.PrefixAPIKey)
 	}
 	for _, prefix := range []string{secret.PrefixAPIKey, secret.PrefixAK, secret.PrefixSK} {
 		if prefix != strings.ToUpper(prefix) {

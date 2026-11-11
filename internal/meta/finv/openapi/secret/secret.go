@@ -22,7 +22,8 @@ import (
 // 需求 11176：凭证号 / AK / SK / 静态 Key 中的英文字母**一律大写**，
 // 便于人工抄写与电话核对（大小写混排最容易看错）。
 const (
-	PrefixAPIKey = "FK_LIVE_"
+	// PrefixAPIKey 静态 API Key：SA = Static API（需求 11178 由 FK_LIVE_ 改为 SA_LIVE_）。
+	PrefixAPIKey = "SA_LIVE_"
 	PrefixAK     = "AK_LIVE_"
 	PrefixSK     = "SK_LIVE_"
 )

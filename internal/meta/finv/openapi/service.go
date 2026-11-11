@@ -262,7 +262,7 @@ type issuedSecret struct {
 
 // buildSecret 生成密钥材料（英文字母一律大写，需求 11176）。
 //
-//   - API_KEY：access_key_id 即静态 Key（`FK_LIVE_` + 32 位十六进制大写），库里只存 sha256；
+//   - API_KEY：access_key_id 即静态 Key（`SA_LIVE_` + 32 位十六进制大写），库里只存 sha256；
 //   - AK_SK：AK 为 `AK_LIVE_` + 32 位十六进制大写，SK 为 `SK_LIVE_` + 48 位十六进制大写，
 //     库里存 AES-256-GCM 密文。
 func (s *Service) buildSecret(ctx context.Context, authMode string) (issuedSecret, error) {

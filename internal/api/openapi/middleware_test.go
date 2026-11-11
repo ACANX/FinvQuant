@@ -170,16 +170,34 @@ func TestEncryptDecryptSecret(t *testing.T) {
 	}
 }
 
+// TestBodyHashAndRequestIDUppercase 请求体摘要与请求 ID 都是大写十六进制（需求 11177）。
+func TestBodyHashAndRequestIDUppercase(t *testing.T) {
+	empty := BodyHash(nil)
+	// sha256("") 的十六进制（大写）
+	if empty != "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855" {
+		t.Fatalf("空体摘要应为大写 sha256(\"\")，实际 %q", empty)
+	}
+	if got := BodyHash([]byte("abc")); got != strings.ToUpper(got) || len(got) != 64 {
+		t.Fatalf("body_sha256 必须 64 位大写十六进制，实际 %q", got)
+	}
+	for i := 0; i < 5; i++ {
+		id := newRequestID()
+		if len(id) != 32 || id != strings.ToUpper(id) {
+			t.Fatalf("request_id 必须 32 位大写十六进制，实际 %q", id)
+		}
+	}
+}
+
 // TestMatchStaticKey 静态 Key 哈希比对。
 func TestMatchStaticKey(t *testing.T) {
-	key := "FK_LIVE_ABCDEF123456"
+	key := "SA_LIVE_ABCDEF123456"
 	sum := sha256.Sum256([]byte(key))
 	stored := hex.EncodeToString(sum[:])
 
 	if !MatchStaticKey(stored, key) {
 		t.Fatalf("相同 Key 应匹配")
 	}
-	if MatchStaticKey(stored, "FK_LIVE_OTHER") {
+	if MatchStaticKey(stored, "SA_LIVE_OTHER") {
 		t.Fatalf("不同 Key 不应匹配")
 	}
 	if MatchStaticKey("", key) {
@@ -304,7 +322,7 @@ func TestMiddlewareModeOffPassThrough(t *testing.T) {
 // TestMiddlewareStaticKey 模式一：缺 Key / 错 Key / 正确 Key。
 func TestMiddlewareStaticKey(t *testing.T) {
 	settings := enabledSettings(testKey())
-	source := &fakeSource{byKey: map[string]*Credential{"FK_LIVE_OK": staticCredential("FK_LIVE_OK")}}
+	source := &fakeSource{byKey: map[string]*Credential{"SA_LIVE_OK": staticCredential("SA_LIVE_OK")}}
 	engine, hits := newTestEngine(t, Options{Source: source}, settings)
 
 	// 缺 Key → 19001 / 401
@@ -323,7 +341,7 @@ func TestMiddlewareStaticKey(t *testing.T) {
 	// 错 Key → 19002
 	recorder = httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test", nil)
-	request.Header.Set("X-API-Key", "FK_LIVE_BAD")
+	request.Header.Set("X-API-Key", "SA_LIVE_BAD")
 	engine.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusUnauthorized || !strings.Contains(recorder.Body.String(), "19002") {
 		t.Fatalf("错 Key 应 401/19002，实际 %d %s", recorder.Code, recorder.Body.String())
@@ -332,7 +350,7 @@ func TestMiddlewareStaticKey(t *testing.T) {
 	// 正确 Key → 放行，且请求体仍可读
 	recorder = httptest.NewRecorder()
 	request = httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test", strings.NewReader("payload"))
-	request.Header.Set("X-API-Key", "FK_LIVE_OK")
+	request.Header.Set("X-API-Key", "SA_LIVE_OK")
 	engine.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK || *hits != 1 {
 		t.Fatalf("正确 Key 应放行，实际 %d hits=%d", recorder.Code, *hits)
@@ -433,23 +451,23 @@ func TestMiddlewareAKSK(t *testing.T) {
 func TestMiddlewareStateAndScope(t *testing.T) {
 	settings := enabledSettings(testKey())
 
-	disabled := staticCredential("FK_LIVE_OFF")
+	disabled := staticCredential("SA_LIVE_OFF")
 	disabled.FlagEnable = false
-	engine, _ := newTestEngine(t, Options{Source: &fakeSource{byKey: map[string]*Credential{"FK_LIVE_OFF": disabled}}}, settings)
+	engine, _ := newTestEngine(t, Options{Source: &fakeSource{byKey: map[string]*Credential{"SA_LIVE_OFF": disabled}}}, settings)
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test", nil)
-	request.Header.Set("X-API-Key", "FK_LIVE_OFF")
+	request.Header.Set("X-API-Key", "SA_LIVE_OFF")
 	engine.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "19003") {
 		t.Fatalf("停用凭证应 403/19003，实际 %d %s", recorder.Code, recorder.Body.String())
 	}
 
-	limited := staticCredential("FK_LIVE_SCOPE")
+	limited := staticCredential("SA_LIVE_SCOPE")
 	limited.Scope = []ScopeRule{{Method: "GET", Path: "/Other"}}
-	engine, _ = newTestEngine(t, Options{Source: &fakeSource{byKey: map[string]*Credential{"FK_LIVE_SCOPE": limited}}}, settings)
+	engine, _ = newTestEngine(t, Options{Source: &fakeSource{byKey: map[string]*Credential{"SA_LIVE_SCOPE": limited}}}, settings)
 	recorder = httptest.NewRecorder()
 	request = httptest.NewRequest(http.MethodPost, "/OpenAPI/V1/Test", nil)
-	request.Header.Set("X-API-Key", "FK_LIVE_SCOPE")
+	request.Header.Set("X-API-Key", "SA_LIVE_SCOPE")
 	engine.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "19009") {
 		t.Fatalf("范围外应 403/19009，实际 %d %s", recorder.Code, recorder.Body.String())

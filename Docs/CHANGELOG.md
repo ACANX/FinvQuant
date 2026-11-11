@@ -219,6 +219,18 @@
 
 ### 变更
 
+- **审计字段改大写 + 静态 Key 前缀改 SA_LIVE_（需求 11177 / 11178）**
+  - 11177：`request_id` 与 `body_sha256` 一律存**纯大写**十六进制。
+    `newRequestID` / `BodyHash` 都加了 `ToUpper`；响应头 `X-Request-Id` 同步。
+    `body_sha256` 与待签串里的 `BODY_SHA256` 是同一个值，因此**调用方算签名也必须用大写**——
+    文档（`Auth.md` 的 BODY_SHA256 行、`Admin.md`、`DataDictMapping/OpenApiAuth.md`）与
+    `FinvQuantDesign/OpenAPI` 的 Demo 均已同步。
+  - 11178：静态 API Key 前缀 `FK_LIVE_` → **`SA_LIVE_`**（SA = Static API），随机部分仍是 32 位大写十六进制；
+    AK / SK 前缀不变。只改 `secret.PrefixAPIKey` 一处常量，**已签发的 `FK_LIVE_` 存量 Key 不受影响**
+    （校验按 `access_key_id` 全值匹配，与前缀无关）。
+  - 测试：新增 `TestBodyHashAndRequestIDUppercase`（空体摘要等于大写 `sha256("")`、请求 ID 32 位大写）；
+    `TestIssuedKeyUppercase` 增加前缀断言；中间件单测的假静态 Key 统一改为 `SA_LIVE_*`。
+
 - **修 AK/SK 轮换后响应里的 AK 与库内不一致（需求 11169 缺陷修复）**
   - 现象：调 `POST /Credential/Rotate` 轮换 AK/SK 凭证时，响应返回的是**新生成**的 `access_key`，
     但库里按设计只更新 `secret_cipher`（AK 是身份标识，轮换不动），于是调用方拿到的 AK 在库里根本不存在，

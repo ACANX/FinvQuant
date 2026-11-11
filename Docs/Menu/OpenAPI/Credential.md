@@ -29,7 +29,7 @@
 
 | 模式 | 返回 | 库内存储 |
 |---|---|---|
-| 静态 API Key | `FK_LIVE_` + 32 位大写随机（`access_key` = `secret_key`） | `secret_hash`（sha256） |
+| 静态 API Key | `SA_LIVE_` + 32 位大写随机（`access_key` = `secret_key`） | `secret_hash`（sha256） |
 | AK/SK | AK `AK_LIVE_` + 32 位大写随机、SK `SK_LIVE_` + 48 位大写随机 | `secret_cipher`（AES-256-GCM，密钥取 `sys_config` 19005） |
 
 **大小写（需求 11176）**：凭证号、静态 Key、AK、SK 的英文字母一律大写；凭证号输入框会自动转大写，

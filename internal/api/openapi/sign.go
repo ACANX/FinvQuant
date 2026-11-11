@@ -139,7 +139,10 @@ func ParseTimestamp(raw string) (int64, error) {
 }
 
 // BodyHash 请求体摘要（空体也要参与签名，统一用 sha256("")）。
+//
+// 需求 11177：输出**纯大写**十六进制，审计表 body_sha256 与待签串共用同一个值，
+// 调用方算签名时也必须用大写形式。
 func BodyHash(body []byte) string {
 	sum := sha256.Sum256(body)
-	return hex.EncodeToString(sum[:])
+	return strings.ToUpper(hex.EncodeToString(sum[:]))
 }
