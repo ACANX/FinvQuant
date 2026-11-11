@@ -206,4 +206,26 @@ signature = base64(HMAC-SHA256(SK, canonical))
   `flag_write` 标注写接口（静态 Key 调写接口必须带查询参数 `_`）。**该表是接口目录 + 元数据，
   不是鉴权白名单**——允许调哪些接口仍由 `internal/api/router.go` 的 `openGroup` 路由注册决定；
   当前种子 4 条（分钟行情分页/写入、实时快照写入、STS 换证），3 条 `DELETE` 占位路由不登记。
+- **授权范围两处的漂移是已知状态**（需求 11219）：`scope_str` 是鉴权唯一读取来源，
+  `open_api_credential_scope` 只是 `V300192` 的一次性快照。因此 V300192 之后**新签发的凭证在本表里没有行**
+  （0 行在表内语义上是"不限接口"，但实际权限以 `scope_str` 为准，不要按本表推断权限）。
+  需要重新对账时用下面这条（幂等，可随时手工跑）：
+
+  ```sql
+  INSERT INTO open.open_api_credential_scope (credential_idn, method, path_pattern, create_by, remark)
+  SELECT c.idn, COALESCE(NULLIF(btrim(upper(r->>'method')), ''), '*'), btrim(r->>'path'),
+         'manual', '手工对账补录'
+    FROM open.open_api_credential c
+    CROSS JOIN LATERAL jsonb_array_elements(c.scope_str) AS r
+   WHERE jsonb_typeof(c.scope_str) = 'array'
+     AND jsonb_typeof(r) = 'object'
+     AND NULLIF(btrim(r->>'path'), '') IS NOT NULL
+     AND btrim(r->>'path') LIKE '/OpenAPI/V1/%'
+     AND COALESCE(NULLIF(btrim(upper(r->>'method')), ''), '*')
+         IN ('*','GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS')
+  ON CONFLICT (credential_idn, method, path_pattern) DO NOTHING;
+  ```
+
+- 授权范围里的 `DELETE` 规则已按用户授权清理（`V300195`，需求 11222）：平台对外不提供删除能力，
+  这类授权永远只能走到 405，属误导性数据。
 - 上游 Supabase 与本域无关，`open` 域数据**不进** `brs` 备份登记之前需先评估（凭证密文含密钥材料，备份策略另行确认）。

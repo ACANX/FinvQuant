@@ -219,6 +219,18 @@
 
 ### 变更
 
+- **清理 OpenAPI 授权范围里的 DELETE 规则（需求 11222，迁移 V300195）**
+  - 平台对外 OpenAPI 不提供删除能力（3 条 `DELETE` 路由是 11180 的显式 405 拒绝），
+    `method='DELETE'` 的授权永远只能走到 405，却在页面/报表里显示成「已授权删除」→ 用户确认清理。
+  - 两处同口径：`open_api_credential_scope` 删 16 条行 + `open_api_credential.scope_str` 移除
+    18 条凭证的 `DELETE` 元素（多出的 2 条是 V300192 之后签发的 STS 临时凭据，本表尚无镜像行）。
+  - 按 `DbSchemaSpec §0.4` 留痕：删前整行备份到 `archive.open_api_credential_scope_purge_20261111`
+    （16 行）与 `archive.open_api_credential_purge_20261111`（18 行，含改前/改后 scope_str），
+    含 `reason` / `backup_at` / `src_schema`；单事务「备份→改→删→校验」，备份为 0 时 `RAISE EXCEPTION` 中止。
+  - 受影响凭证全部是演示调用方 `openapi-demo`，无真实接入方。
+  - 联调 Demo 同步：`seed_credentials.py` 不再授 DELETE，`demo_client.py` 该用例改为断言
+    `403/19009 SCOPE_DENY`（仍校验「数据未被删除」）。
+
 - **清理 scope 回填带进来的脏路径（需求 11221，迁移 V300194）**
   - 回填后发现凭证 `idn=20`（`cred-20-20261111-0924`）的 `scope_str` 里有一条
     `{"path": ".../Cdeu/*\"", "method": "GET"}`（尾部多一个双引号），V300192 的条件只校验了
