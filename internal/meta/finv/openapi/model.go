@@ -333,6 +333,12 @@ func validateCredential(req CredentialCreateRequest) (CredentialCreateRequest, e
 }
 
 // normalizeScope 校验授权范围："METHOD PATH" 形式；空数组表示全部接口。
+// NormalizeScope 校验并归一授权范围（供内部管理接口复用）；入参形如 "POST /OpenAPI/V1/..."。
+func NormalizeScope(items []string) ([]string, error) { return normalizeScope(items) }
+
+// NormalizeCIDR 校验并归一 IP 白名单（供内部管理接口复用）。
+func NormalizeCIDR(items []string) ([]string, error) { return normalizeCIDRs(items) }
+
 func normalizeScope(items []string) ([]string, error) {
 	out := make([]string, 0, len(items))
 	for _, item := range items {

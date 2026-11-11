@@ -197,6 +197,12 @@ func NewRouter(deps *Deps) *gin.Engine {
 			// OpenAPI 调用方管理（需求 11169）：调用方 / 凭证 / 调用审计 + 鉴权开关。
 			// 只操作 open schema 与 sys_config 19xxx，不碰行情业务表。
 			openAPIAdmin := handler.NewOpenAPIAdmin(openapiSvc.NewService(openapiSvc.NewStore(deps.Pool)))
+			// STS 内部签发（需求 11200）：管理员在页面直接发 2 小时临时凭据（无父凭证）
+			openAPIStsAdmin := handler.NewOpenAPIStsAdmin(
+				openapiSvc.NewService(openapiSvc.NewStore(deps.Pool)),
+				openapi.NewSettingsStore(deps.Pool),
+				openapi.NewStsStore(deps.Redis),
+			)
 			openAPIGroup := apiGroup.Group("/Meta/Finv/OpenAPI")
 			openAPIGroup.GET("/Secret/Status", openAPIAdmin.SecretStatus)
 			openAPIGroup.POST("/Secret/Save", openAPIAdmin.SaveSecret)
@@ -207,6 +213,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 			openAPIGroup.POST("/Client/Enable", openAPIAdmin.SetClientEnable)
 			openAPIGroup.GET("/Credential/Page", openAPIAdmin.CredentialPage)
 			openAPIGroup.POST("/Credential/Create", openAPIAdmin.CreateCredential)
+			openAPIGroup.POST("/Credential/StsIssue", openAPIStsAdmin.Issue)
 			openAPIGroup.POST("/Credential/Enable", openAPIAdmin.SetCredentialEnable)
 			openAPIGroup.POST("/Credential/Revoke", openAPIAdmin.RevokeCredential)
 			openAPIGroup.POST("/Credential/Rotate", openAPIAdmin.RotateCredential)

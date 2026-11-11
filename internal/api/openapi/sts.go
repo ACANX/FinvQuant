@@ -97,8 +97,12 @@ func (s *StsStore) Issue(ctx context.Context, parent *Credential, key []byte) (S
 	if s.rdb == nil {
 		return StsIssued{}, errors.New("STS 未就绪（Redis 未配置）")
 	}
-	if parent == nil || parent.AuthMode != AuthModeAKSK {
-		return StsIssued{}, errors.New("只有 AK/SK 长期凭证可以换取 STS 临时凭据")
+	if parent == nil || parent.ClientIDN <= 0 {
+		return StsIssued{}, errors.New("签发 STS 临时凭据需要指定调用方")
+	}
+	// 两种来源：外部换证（父凭证 IDN>0，带 ParentAccessKey）与管理员直发（IDN=0，无父凭证）
+	if parent.IDN == 0 && parent.AuthMode != AuthModeAKSK {
+		return StsIssued{}, errors.New("管理员直发时 parent.AuthMode 必须是 AKSK（内部占位）")
 	}
 
 	tokenAK, err := secret.RandomToken(16)
@@ -256,13 +260,16 @@ func (m *Middleware) authenticateSTS(settings Settings, req *http.Request, body 
 	if !MatchToken(tokenFP, token) {
 		return nil, CodeKeyInvalid, "SecurityToken 不匹配"
 	}
-	// 父凭证状态必须仍然有效：吊销/停用/过期后，派生的临时凭据立即失效（需求 11197）
-	parent, err := m.source.Lookup(req.Context(), parentAK)
-	if err != nil && !errors.Is(err, ErrCredentialNotFound) {
-		return credential, CodeAuthNotReady, "查询父凭证失败: " + err.Error()
-	}
-	if usable, reason := stsParentUsable(parent, m.now()); !usable {
-		return credential, CodeCredentialStop, "父凭证已不可用（" + reason + "），临时凭据随之失效"
+	// 由长期凭证换来的临时凭据每次回查父凭证状态（需求 11197）；
+	// 管理员直发的临时凭据没有父凭证（parentAK 为空），只靠 2 小时 TTL 收敛（需求 11200）。
+	if parentAK != "" {
+		parent, parentErr := m.source.Lookup(req.Context(), parentAK)
+		if parentErr != nil && !errors.Is(parentErr, ErrCredentialNotFound) {
+			return credential, CodeAuthNotReady, "查询父凭证失败: " + parentErr.Error()
+		}
+		if usable, reason := stsParentUsable(parent, m.now()); !usable {
+			return credential, CodeCredentialStop, "父凭证已不可用（" + reason + "），临时凭据随之失效"
+		}
 	}
 	if !strings.EqualFold(strings.TrimSpace(credential.SignAlgorithm), algorithm) {
 		return credential, CodeSignMismatch,

@@ -9,6 +9,7 @@ import { computed, ref, watch } from 'vue'
 
 import { apiPost } from '../../../../api'
 import { showToast } from '../../../../ui/toast'
+import { timeText } from './shared'
 
 interface ClientRow {
   idn: number
@@ -51,6 +52,7 @@ const BASE = '/Meta/Finv/OpenAPI'
 const AUTH_MODE_OPTIONS = [
   { title: '静态 API Key[key=APIKEY]', value: 'APIKEY' },
   { title: 'AK/SK 签名[key=AKSK]', value: 'AKSK' },
+  { title: 'STS 临时凭据[key=STS]', value: 'STS' },
 ]
 
 const form = ref({
@@ -65,6 +67,16 @@ const form = ref({
 const saving = ref(false)
 const error = ref('')
 const issued = ref<IssuedSecret | null>(null)
+// STS 临时凭据的签发结果（三要素 + 到期，与落库凭证结构不同）
+interface StsIssued {
+  access_key_id: string
+  secret_key: string
+  security_token: string
+  expire_at: string
+  expire_seconds: number
+}
+const stsIssued = ref<StsIssued | null>(null)
+const isSts = computed(() => form.value.auth_mode === 'STS')
 
 const visible = computed({
   get: () => props.modelValue,
@@ -97,7 +109,15 @@ const apiKeyExpireInvalid = computed(
     (!form.value.dt_expire || form.value.dt_expire > maxApiKeyExpire.value),
 )
 
-const canSubmit = computed(() => !noError.value && !saving.value && !apiKeyExpireInvalid.value)
+const stsScopeMissing = computed(
+  () => isSts.value && form.value.scope_text.split('\n').map((item) => item.trim()).filter((item) => item !== '').length === 0,
+)
+
+const canSubmit = computed(() => {
+  if (saving.value) return false
+  if (isSts.value) return !stsScopeMissing.value && Number(form.value.client_idn) > 0
+  return !noError.value && !apiKeyExpireInvalid.value
+})
 
 function resetForm() {
   form.value = {
@@ -110,6 +130,7 @@ function resetForm() {
     remark: '',
   }
   issued.value = null
+  stsIssued.value = null
   error.value = ''
 }
 
@@ -137,6 +158,14 @@ async function submit() {
 
     if (isRotate.value) {
       issued.value = await apiPost<IssuedSecret>(`${BASE}/Credential/Rotate`, { idn: props.credentialIdn })
+    } else if (isSts.value) {
+      // STS 临时凭据：不落库、固定 2 小时，只返回三要素（需求 11200）
+      stsIssued.value = await apiPost<StsIssued>(`${BASE}/Credential/StsIssue`, {
+        client_idn: Number(form.value.client_idn),
+        scope,
+        allow_cidr: cidrs,
+        remark: form.value.remark.trim(),
+      })
     } else {
       issued.value = await apiPost<IssuedSecret>(`${BASE}/Credential/Create`, {
         client_idn: Number(form.value.client_idn),
@@ -234,7 +263,11 @@ watch(
               style="min-width: 220px; flex: 1"
             />
           </div>
-          <v-alert v-else type="info" density="compact" variant="tonal">
+          <v-alert v-if="isSts" type="warning" density="compact" variant="tonal">
+            STS 临时凭据：有效期固定 <strong>2 小时</strong>，不落库、不可续期、不能在凭证列表里管理；
+            到期自动失效。授权范围必填（不允许放开全部接口）。
+          </v-alert>
+          <v-alert v-else-if="!isRotate" type="info" density="compact" variant="tonal">
             轮换会生成一套新密钥：静态 Key 的公开标识会改变；AK/SK 的旧 SK 在签名时间窗内仍可验签，之后失效。
           </v-alert>
 
@@ -253,7 +286,9 @@ watch(
             v-model="form.scope_text"
             :label="form.auth_mode === 'APIKEY'
               ? '授权接口（1 条「方法 路径」，必填）'
-              : '授权范围（每行一条「方法 路径」，留空 = 全部接口）'"
+              : isSts
+                ? '授权范围（每行一条「方法 路径」，必填）'
+                : '授权范围（每行一条「方法 路径」，留空 = 全部接口）'"
             :placeholder="form.auth_mode === 'APIKEY'
               ? 'POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert'
               : 'POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert\nGET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/*'"
@@ -271,6 +306,7 @@ watch(
           />
           <div v-if="!isRotate" class="d-flex flex-wrap ga-3">
             <v-text-field
+              v-if="!isSts"
               v-model="form.dt_expire"
               type="date"
               :max="form.auth_mode === 'APIKEY' ? maxApiKeyExpire : undefined"
@@ -292,6 +328,33 @@ watch(
               style="min-width: 240px; flex: 2"
             />
           </div>
+        </div>
+      </v-card-text>
+
+      <!-- 步骤二（STS）：三要素一次性展示 -->
+      <v-card-text v-else-if="stsIssued">
+        <v-alert type="warning" density="compact" variant="tonal" class="mb-3">
+          三要素只显示这一次；有效期 2 小时（到 {{ timeText(stsIssued.expire_at) }}），到期自动失效、不可续期。
+        </v-alert>
+        <div class="d-flex flex-column ga-3">
+          <div v-for="item in [
+            { label: 'Access Key（SAK，临时）', value: stsIssued.access_key_id },
+            { label: 'Secret Key（SSK，临时）', value: stsIssued.secret_key },
+            { label: 'Security Token（SST）', value: stsIssued.security_token },
+          ]" :key="item.label">
+            <div class="text-caption text-medium-emphasis">{{ item.label }}</div>
+            <div class="d-flex align-center ga-2">
+              <code class="secret-value">{{ item.value }}</code>
+              <v-btn size="small" variant="text" prepend-icon="mdi-content-copy" @click="copy(item.value, item.label)">
+                复制
+              </v-btn>
+            </div>
+          </div>
+          <v-alert type="info" density="compact" variant="tonal">
+            调用时三要素都要带：<code>Authorization: META1-HMAC-SHA256 Credential=&lt;SAK&gt;, Signature=...</code>
+            + <code>X-META-TS</code> + <code>X-META-Nonce</code> + <code>X-META-Token: &lt;SST&gt;</code>，
+            且 SecurityToken 参与签名（待签串第 7 段）。
+          </v-alert>
         </div>
       </v-card-text>
 
