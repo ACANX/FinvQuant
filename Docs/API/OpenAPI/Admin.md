@@ -475,7 +475,7 @@ ORDER BY last_seen DESC;
 
 ```json
 { "code": 0, "message": "OK", "data": { "total": 4, "list": [
-  { "idn": 1, "api_code": "cdeu.min.pageuni", "http_method": "GET",
+  { "idn": 1, "api_code": "finv.quote.cdeu.min.pageuni", "http_method": "GET",
     "path": "/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni",
     "api_name": "分钟行情分页查询", "api_group": "分钟行情",
     "flag_write": "0", "flag_public": "1", "flag_enable": "1",

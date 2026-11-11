@@ -219,6 +219,15 @@
 
 ### 变更
 
+- **行情类接口编码加 `finv.quote.` 前缀（需求 11233，迁移 V300199）**
+  - `idn=1/2/3` 改为 `finv.quote.cdeu.min.pageuni` / `finv.quote.cdeu.min.upsert` /
+    `finv.quote.cdeu.realtime.stockupsert`，与库表 `finv_quote_*`、菜单「行情」对齐；
+    `idn=4 auth.sts.issue` 属鉴权域，保持不变。
+  - 改编码安全：审计与授权范围都用 `(method, path)` 关联接口清单，`api_code` 只是人读标识，
+    历史审计记录随 join 自动显示新编码，无需回刷数据（实测 428/258/100 条历史记录已显示新值）。
+  - 迁移幂等（只对还没有 `finv.quote.` 前缀的行生效），重跑 0 变更。
+  - 文档：`Admin.md §8.1` 示例、`Menu/OpenAPI/Endpoint.md` 新增「现有接口编码」小节与列宽说明。
+
 - **修复「确认轮换」按钮恒置灰（需求 11232）**
   - 根因：`canSubmit` 里仍在跑「静态 Key 有效期」校验，而轮换页没有有效期输入
     （字段都 `v-if="!isRotate"`），`form.auth_mode` 又是默认 `APIKEY`、`dt_expire` 为空

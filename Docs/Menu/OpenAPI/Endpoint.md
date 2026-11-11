@@ -26,12 +26,24 @@
 
 新增接口的正确顺序：先注册路由 → 再补一条种子迁移（`ON CONFLICT DO NOTHING`）→ 页面自然出现。
 
+## 2.1 现有接口编码（需求 11233 定稿）
+
+| `api_code` | 方法 | 说明 |
+|---|---|---|
+| `finv.quote.cdeu.min.pageuni` | GET | 分钟行情分页查询 |
+| `finv.quote.cdeu.min.upsert` | POST | 分钟行情批量写入 |
+| `finv.quote.cdeu.realtime.stockupsert` | POST | 实时行情快照写入 |
+| `auth.sts.issue` | POST | STS 临时凭据换证（鉴权域，不带 `finv.quote.`） |
+
+分段含义：`finv.quote` = 行情业务域（与库表 `finv_quote_*`、菜单「行情」对齐），
+其后按「模块.动作」；鉴权类接口用 `auth.` 前缀。
+
 ## 3. 列说明
 
 | 列 | 字段 | 口径 |
 |---|---|---|
 | IDN | `idn` | 自增主键 |
-| 接口编码 | `api_code` | **点分小写**（如 `cdeu.min.pageuni`）；路径改名后编码不变，报表/套餐/限额靠它锚定 |
+| 接口编码 | `api_code` | **点分小写**，按「业务域.模块.动作」分段（行情类如 `finv.quote.cdeu.min.pageuni`、鉴权类如 `auth.sts.issue`）；路径改名后编码不变，报表/套餐/限额靠它锚定 |
 | 方法 | `http_method` | GET / POST / …（只登记真实方法，不含 `*`） |
 | 路径 | `path` | 含 `/OpenAPI/V1` 前缀，与授权范围、审计表同口径 |
 | 中文名 | `api_name` | 下拉与报表展示用 |
@@ -77,7 +89,7 @@
 | 列 | 默认 | 最小 | 说明 |
 |---|---|---|---|
 | IDN | 70 | 50 | |
-| 接口编码 | 200 | 130 | `cdeu.min.pageuni` 长约 16 字符 |
+| 接口编码 | 200 | 130 | 最长约 38 字符（`finv.quote.cdeu.realtime.stockupsert`） |
 | 方法 | 80 | 60 | |
 | 路径 | 360 | 160 | 等宽字体；放不下出省略号，点 ⓘ 看全文 |
 | 中文名 | 160 | 110 | 放不下出省略号，悬停 `title` 看全名 |
