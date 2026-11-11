@@ -176,7 +176,7 @@
 | `client_idn` | 必须存在（404） |
 | `credential_no` | 字母/数字/`._-`，2~48 位，全局唯一（409） |
 | `auth_mode` | 仅 `API_KEY` / `AK_SK`；`BEARER` / `MTLS` / `BASIC` 为预留，传了即 400 |
-| `sign_algorithm` | 仅 `HMAC-SHA256`（AK/SK 模式；静态 Key 忽略该字段） |
+| `sign_algorithm` | 仅 `HMAC-SHA256`；静态 Key 不参与验签，落库统一为 `HMAC-SHA256`（列上有 NOT NULL + CHECK） |
 | `scope` | 每项「方法 路径」两段；方法限 `GET/POST/PUT/PATCH/DELETE/*`；路径以 `/` 开头 |
 | `allow_cidr` | 同调用方口径；与调用方白名单**取交集** |
 

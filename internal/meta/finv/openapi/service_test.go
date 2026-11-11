@@ -68,8 +68,9 @@ func TestValidateCredential(t *testing.T) {
 	if ok.AuthMode != AuthModeAPIKey {
 		t.Fatalf("auth_mode 应归一为大写，实际 %q", ok.AuthMode)
 	}
-	if ok.SignAlgorithm != "" {
-		t.Fatalf("API_KEY 模式不需要签名算法，实际 %q", ok.SignAlgorithm)
+	if ok.SignAlgorithm != "HMAC-SHA256" {
+		// 列上有 NOT NULL + CHECK，静态 Key 也落 HMAC-SHA256（只是不参与验签）
+		t.Fatalf("API_KEY 模式应落默认算法 HMAC-SHA256，实际 %q", ok.SignAlgorithm)
 	}
 
 	aksk, err := validateCredential(CredentialCreateRequest{ClientIDN: 1, CredentialNo: "cred-02", AuthMode: "AK_SK"})

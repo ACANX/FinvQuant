@@ -115,3 +115,9 @@ func RandomToken(n int) (string, error) {
 	}
 	return hex.EncodeToString(buf), nil
 }
+
+// EncodeKeyForTest 把密钥字节编码为 sys_config 19005 期望的 Base64 文本
+// （仅供联调测试与运维脚本生成配置值，生产路径不会用它写库）。
+func EncodeKeyForTest(raw []byte) string {
+	return base64.StdEncoding.EncodeToString(raw)
+}

@@ -221,7 +221,7 @@ VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), $6::cidr[],
         $7, $8, $9::timestamptz, '0', NULLIF($10, ''), NULLIF($11, ''), NULLIF($11, ''))
 RETURNING idn`,
 		req.ClientCode, req.ClientName, req.OwnerUID, req.ContactEmail, req.ContractNo,
-		emptyToNil(req.AllowCIDR), req.RateLimitRPM, req.QuotaDay, nilIfEmpty(req.DTExpire), req.Remark, operator).Scan(&idn)
+		emptyToArray(req.AllowCIDR), req.RateLimitRPM, req.QuotaDay, nilIfEmpty(req.DTExpire), req.Remark, operator).Scan(&idn)
 	if err != nil {
 		return Client{}, err
 	}
@@ -240,7 +240,7 @@ UPDATE open.open_api_client
        dt_expire = $10::timestamptz, remark = NULLIF($11, ''), modify_by = NULLIF($12, '')
  WHERE idn = $1`,
 		req.IDN, req.ClientCode, req.ClientName, req.OwnerUID, req.ContactEmail, req.ContractNo,
-		emptyToNil(req.AllowCIDR), req.RateLimitRPM, req.QuotaDay, nilIfEmpty(req.DTExpire), req.Remark, operator)
+		emptyToArray(req.AllowCIDR), req.RateLimitRPM, req.QuotaDay, nilIfEmpty(req.DTExpire), req.Remark, operator)
 	if err != nil {
 		return Client{}, err
 	}
@@ -383,7 +383,7 @@ VALUES ($1, $2, $3, $4, NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''),
         NULLIF($14, ''), NULLIF($14, ''))
 RETURNING idn`,
 		req.ClientIDN, req.CredentialNo, req.AuthMode, req.AccessKey, keyPrefix, secretHash, secretCipher,
-		kid, req.SignAlgorithm, scopeToJSON(req.Scope), emptyToNil(req.AllowCIDR),
+		kid, req.SignAlgorithm, scopeToJSON(req.Scope), emptyToArray(req.AllowCIDR),
 		nilIfEmpty(req.DTExpire), req.Remark, operator).Scan(&idn)
 	return idn, err
 }
@@ -554,9 +554,10 @@ func (s *Store) InvokeLogPage(ctx context.Context, filter InvokeLogFilter) ([]In
 
 // ---- 小工具 ----
 
-func emptyToNil(items []string) []string {
+// emptyToArray 保证 cidr[] 列拿到空数组而不是 NULL（两列都是 NOT NULL DEFAULT '{}'）。
+func emptyToArray(items []string) []string {
 	if len(items) == 0 {
-		return nil
+		return []string{}
 	}
 	return items
 }

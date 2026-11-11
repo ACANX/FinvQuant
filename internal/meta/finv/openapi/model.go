@@ -269,7 +269,8 @@ func validateCredential(req CredentialCreateRequest) (CredentialCreateRequest, e
 			strings.Join(issuableAuthModes, " / "))
 	}
 	if req.AuthMode == AuthModeAPIKey {
-		req.SignAlgorithm = ""
+		// 静态 Key 不走签名，但列上有 NOT NULL + CHECK，统一落 HMAC-SHA256（与表默认值一致）
+		req.SignAlgorithm = "HMAC-SHA256"
 	} else {
 		if req.SignAlgorithm == "" {
 			req.SignAlgorithm = "HMAC-SHA256"
