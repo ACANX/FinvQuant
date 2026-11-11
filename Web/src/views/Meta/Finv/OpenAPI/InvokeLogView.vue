@@ -61,7 +61,7 @@ interface DetailField { label: string; value: string; hint: string }
 
 function detailFields(row: InvokeLogRow): DetailField[] {
   return [
-    { label: 'idn', value: String(row.idn), hint: '审计主键（自增）' },
+    { label: 'IDN', value: String(row.idn), hint: '审计主键（自增）' },
     { label: '请求时间', value: timeText(row.dt_request), hint: '服务端收到请求的时间（dt_request）' },
     { label: '方法', value: row.method || '—', hint: 'HTTP 方法' },
     { label: '路径', value: row.path || '—', hint: '请求路径（不含查询串）' },
@@ -75,10 +75,10 @@ function detailFields(row: InvokeLogRow): DetailField[] {
     { label: '公开标识', value: row.access_key_id || '—', hint: 'AK 明文；静态 Key 为脱敏形态（前缀 + 前 8 + 等量星号 + 后 8）' },
     { label: '密钥指纹 kfp', value: row.kfp || '—', hint: 'sha256(完整公开标识) 前 16 位大写十六进制；APIKEY 记静态 Key 指纹、STS 记临时 AK 指纹，可按单把密钥聚合' },
     { label: '令牌指纹 tfp', value: row.tfp || '—', hint: 'sha256(SecurityToken) 前 16 位，仅 STS 模式；可按一次临时会话聚合' },
-    { label: '调用方 idn', value: String(row.client_idn), hint: '0 = 未识别到调用方' },
+    { label: '调用方 IDN', value: String(row.client_idn), hint: '0 = 未识别到调用方' },
     { label: '本次凭证', value: row.credential_no || (row.credential_idn > 0 ? `idn=${row.credential_idn}` : '—'), hint: '本次调用使用的凭证号（STS 行是 STS 自己的凭证号，需求 11202）' },
     { label: '父凭证（STS 来源）', value: row.parent_credential_no || (row.auth_mode === 'STS' ? '无（页面直发）' : '—'), hint: 'STS 记录派生它的长期凭证；页面直发的 STS 没有父凭证' },
-    { label: '凭证 idn', value: String(row.credential_idn), hint: '0 = 未识别到凭证' },
+    { label: '凭证 IDN', value: String(row.credential_idn), hint: '0 = 未识别到凭证' },
     { label: '请求 ID', value: row.request_id || '—', hint: '网关生成的 32 位大写十六进制，与响应头 X-Request-Id 同值' },
     { label: '来源 IP', value: row.ip || '—', hint: '客户端出口 IP（可能被反代改写）' },
     { label: 'User-Agent', value: row.user_agent || '—', hint: '原始 UA，超过 512 字符截断入库' },

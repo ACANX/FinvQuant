@@ -219,6 +219,14 @@
 
 ### 变更
 
+- **表格列名 `idn` 显示为纯大写 `IDN`（需求 11205）**
+  - 调用方列表、凭证列表表头改为 `IDN`；审计详情里的字段名改为「调用方 IDN」「凭证 IDN」。
+  - 只改展示文案：wire 字段与查询参数仍是 `idn`，接口不变。
+
+- **凭证列表增加 idn 列（需求 11204）**
+  - `/Meta/Finv/OpenAPI/Credential` 表格首列显示凭证主键 `idn`，可与审计 `credential_idn`、STS `parent_idn` 直接对照。
+  - 文档 `Docs/Menu/OpenAPI/Credential.md` 列清单同步。
+
 - **调用方列表增加 idn 列（需求 11203）**
   - `/Meta/Finv/OpenAPI/Client` 表格首列显示调用方主键 `idn`，方便与凭证页、审计页里的 `client_idn` 直接对照。
   - 文档 `Docs/Menu/OpenAPI/Client.md` 列清单同步。

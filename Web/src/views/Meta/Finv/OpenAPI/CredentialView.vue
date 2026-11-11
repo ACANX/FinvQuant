@@ -215,6 +215,7 @@ onMounted(async () => {
         <v-table density="comfortable" class="openapi-table">
           <thead>
             <tr>
+              <th>IDN</th>
               <th>凭证号</th>
               <th>调用方</th>
               <th>认证模式</th>
@@ -228,6 +229,7 @@ onMounted(async () => {
           </thead>
           <tbody>
             <tr v-for="row in rows" :key="row.idn">
+              <td class="text-no-wrap text-caption">{{ row.idn }}</td>
               <td class="font-weight-medium">{{ row.credential_no }}</td>
               <td>{{ row.client_code }}</td>
               <td>{{ authModeText(row.auth_mode) }}</td>
@@ -278,7 +280,7 @@ onMounted(async () => {
               </td>
             </tr>
             <tr v-if="rows.length === 0">
-              <td colspan="9" class="text-center text-medium-emphasis py-6">
+              <td colspan="10" class="text-center text-medium-emphasis py-6">
                 {{ loading ? '加载中…' : '暂无凭证，点「签发凭证」生成密钥' }}
               </td>
             </tr>

@@ -125,7 +125,7 @@ onMounted(load)
         <v-table density="comfortable" class="openapi-table">
           <thead>
             <tr>
-              <th>idn</th>
+              <th>IDN</th>
               <th>代号</th>
               <th>名称</th>
               <th>状态</th>
