@@ -198,9 +198,11 @@ func (s *Service) RotateCredential(ctx context.Context, idn int64, operator stri
 	if err != nil {
 		return IssuedSecret{}, err
 	}
+	// AK/SK 模式轮换只换 SK，AK 保持原值（它是身份标识）；API_KEY 模式的公开标识本身就是密钥，会变。
+	// 因此这里回读库里的 access_key_id，而不是返回刚生成的那个——否则响应里的 AK 根本不存在于库中。
 	return IssuedSecret{
 		Credential: credential,
-		AccessKey:  issued.AccessKey,
+		AccessKey:  credential.AccessKeyID,
 		SecretKey:  issued.SecretKey,
 		Note:       "轮换完成：" + issuedNote(current.AuthMode),
 	}, nil

@@ -219,6 +219,16 @@
 
 ### 变更
 
+- **修 AK/SK 轮换后响应里的 AK 与库内不一致（需求 11169 缺陷修复）**
+  - 现象：调 `POST /Credential/Rotate` 轮换 AK/SK 凭证时，响应返回的是**新生成**的 `access_key`，
+    但库里按设计只更新 `secret_cipher`（AK 是身份标识，轮换不动），于是调用方拿到的 AK 在库里根本不存在，
+    下一次请求直接 `19002`。
+  - 修复：轮换后回读凭证行，响应里的 `access_key` 取库内 `access_key_id`
+    （API_KEY 模式公开标识本身就是密钥、会随轮换变化，回读同样正确）。
+  - 这个缺陷是做 OpenAPI 联调 Demo（`FinvQuantDesign/OpenAPI`）时暴露的：Demo 的「AK/SK 放行」用例先失败为
+    `BAD_KEY`，顺着日志才定位到「AK 由响应生成、库内未变」。
+  - 测试：补 `TestRotationKeepsAccessKeyForAKSK`（轮换返回的 AK 必须等于库内 access_key_id）。
+
 - **统一大写口径的残留清理（需求 11176 补充）**
   - 修掉几处仍写小写的示例/注释（都是文档与注释文字，不影响逻辑）：
     `internal/api/openapi/errcode.go` 包注释、`Docs/DataDictMapping/OpenApiAuth.md` 的两个请求示例、

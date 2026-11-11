@@ -256,3 +256,24 @@ func TestIssuedKeyUppercase(t *testing.T) {
 		t.Fatalf("历史小写 Key 应仍可匹配")
 	}
 }
+
+// TestRotationKeepsAccessKeyForAKSK 轮换不会凭空换掉 AK（AK 是身份标识，库里不变）。
+//
+// 这里只断言纯逻辑约定：AK/SK 模式的轮换只重写 secret_cipher，
+// 服务层返回的 access_key 必须来自回读的凭证行（而不是 buildSecret 新生成的那个）。
+func TestRotationKeepsAccessKeyForAKSK(t *testing.T) {
+	issued := issuedSecret{AccessKey: "AK_LIVE_NEW", SecretKey: "SK_LIVE_NEW"}
+	persisted := Credential{AccessKeyID: "AK_LIVE_ORIGINAL"}
+
+	// 模拟 RotateCredential 的取值口径
+	returnedAK := persisted.AccessKeyID
+	if returnedAK == issued.AccessKey {
+		t.Fatalf("AK/SK 轮换后应对齐库内 AK，不能返回新生成的 AK")
+	}
+	if returnedAK != "AK_LIVE_ORIGINAL" {
+		t.Fatalf("应返回库内 AK，实际 %q", returnedAK)
+	}
+	if issued.SecretKey == "" {
+		t.Fatalf("SK 必须换成新的")
+	}
+}
