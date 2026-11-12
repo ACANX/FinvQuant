@@ -219,6 +219,24 @@
 
 ### 变更
 
+- **新增对外 OpenAPI：采集端证券指标回传（需求 11248）**
+  - 端点 `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTSecuIndicatorUpsert`，
+    只注册在 `openGroup`（内部 `/API/V1` 无对应路由，人不需要从这里写数据）。
+  - 单事务写三张表：`cdeu.finv_quote_secu_indicator`（指标）/ `futu.finv_futu_quote_collect`（采集参数）/
+    `futu.finv_futu_secu_key`（`status` 置 `DONE`，采集端后续跳过该证券）。
+  - `usc` 判定链：`ftmm_symbol` → key 表 `usc` → indicator 反查 → collect 反查 → 以 `ftmm_symbol` 兜底，
+    响应回 `usc_source`（出现 `FTMM_SYMBOL` 说明该证券此前未登记）。
+  - 字段映射：同名直取 + 11 处改名（`change`→`change_price`、`time`→`ts`、`source_url`→`secu_url` 等）；
+    指标表无对应列的字段按用户口径**不处理**；已有行只覆盖请求给了值的列（`COALESCE`）。
+  - 请求体两种形态都收：内层裸 JSON，或带 `body` 节点的 Cloudflare Worker 外壳（自动取 `body`）。
+  - `stock_id` 同时接受字符串与数字；数值统一走 `json.Number` 原文，不经 `float64`，避免 `numeric(30,10)` 丢精度。
+  - 采集参数表两个跳过分支不报错：`SKIPPED_NO_STOCK_ID`（新插入需 `stock_id`）、
+    `SKIPPED_NO_MARKET_CODE`（新插入需 `market_code` 且同市场推不出众数）。
+  - 迁移 `V300208` 登记接口清单（`finv.quote.cdeu.realtime.ftsecuindicatorupsert`，`flag_write='1'`）。
+  - 文档：`Docs/OpenAPI/Finv/Quote/Cdeu/Realtime/SecuIndicatorUpsert.md` + `.yml`（新增），
+    `Docs/API/APIs.md` 与 `Docs/API/README.md` 补索引。
+  - 需求登记 11248。
+
 - **补全反向代理取真实 IP 的操作细节（需求 11247 落地）**
   - `Docs/API/OpenAPI/Auth.md` §4.11：给出从 Cloudflare 官方拉网段并生成 realip 片段的完整命令，
     注明 `curl` 输出末尾无换行会把 `131.0.72.0/22` 与 `2400:cb00::/32` 粘成非法 CIDR

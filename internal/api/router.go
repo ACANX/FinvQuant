@@ -189,6 +189,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 			"/Meta/Finv/Quote/Cdeu/Min/PageUni",
 			"/Meta/Finv/Quote/Cdeu/Min/Upsert",
 			"/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert",
+			"/Meta/Finv/Quote/Cdeu/Realtime/FTSecuIndicatorUpsert",
 		} {
 			openGroup.DELETE(path, openAPIRejectDelete)
 		}
@@ -294,6 +295,10 @@ func NewRouter(deps *Deps) *gin.Engine {
 			realtime.GET("/Secu/Param/Complete/Prefill", archive.RealtimeSecuParamPrefill)
 			realtime.POST("/Secu/Param/Complete", archive.RealtimeSecuParamComplete)
 			openGroup.POST("/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert", archive.RealtimeStockUpsert)
+			// 采集端指标回传（需求 11248）：一次事务写 indicator + collect + 把 key 置 DONE。
+			// 只注册在 openGroup —— 内部没有对应路由（人不需要从这里写数据）。
+			openGroup.POST("/Meta/Finv/Quote/Cdeu/Realtime/FTSecuIndicatorUpsert",
+				archive.FTSecuIndicatorUpsert)
 
 			// 缺省汇率（需求 10999/11002）：public.finv_fxcer，手动触发 get-fx-overview / get-fx-rate-list 全量更新 + 整表查询。
 			fx := apiGroup.Group("/Meta/Finv/Quote/Cdeu/Fx")

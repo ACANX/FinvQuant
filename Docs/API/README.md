@@ -67,6 +67,8 @@ Authorization: Bearer <token>
     - [`OpenAPI/Finv/Quote/Cdeu/Min/Upsert.md`](../OpenAPI/Finv/Quote/Cdeu/Min/Upsert.md) — `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`（批量 upsert；成功码默认 0；契约 [.yml](../OpenAPI/Finv/Quote/Cdeu/Min/Upsert.yml)）
     - [`OpenAPI/Finv/Quote/Cdeu/Min/PageUni.md`](../OpenAPI/Finv/Quote/Cdeu/Min/PageUni.md) — `GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni`（分页，column/row；成功码默认 0；契约 [.yml](../OpenAPI/Finv/Quote/Cdeu/Min/PageUni.yml)）
     - [`OpenAPI/Finv/Quote/Cdeu/Realtime/StockUpsert.md`](../OpenAPI/Finv/Quote/Cdeu/Realtime/StockUpsert.md) — `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert`（证券实时行情快照批量 upsert；成功码默认 0；契约 [.yml](../OpenAPI/Finv/Quote/Cdeu/Realtime/StockUpsert.yml)）
+
+    - [`OpenAPI/Finv/Quote/Cdeu/Realtime/SecuIndicatorUpsert.md`](../OpenAPI/Finv/Quote/Cdeu/Realtime/SecuIndicatorUpsert.md) — `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTSecuIndicatorUpsert`（采集端指标回传：三表单事务 upsert + 键表置 DONE；成功码默认 0；契约 [.yml](../OpenAPI/Finv/Quote/Cdeu/Realtime/SecuIndicatorUpsert.yml)）
   - [`HistoryQuote/ImportsUpload.md`](HistoryQuote/ImportsUpload.md) — `POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload`（MVSV 历史行情导入）
   - [`HistoryQuote/HistoryQuote.md`](HistoryQuote/HistoryQuote.md) — `GET /API/V1/Meta/Finv/Quant/Quote/History/QuoteQuery`（历史行情查询）
   - [`Meta/MetaExchange.md`](Meta/MetaExchange.md) — `GET/POST /API/V1/Meta/Finv/Quant/Metadata/Exchange/*`（交易所信息维护）
