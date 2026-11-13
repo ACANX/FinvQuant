@@ -26,6 +26,7 @@ import DeDupArchiveChainView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArc
 import DeDupCDEUView from './views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue'
 import CdeuUscPatchView from './views/Meta/Finv/Quote/Cdeu/UscPatchView.vue'
 import CdeuDayKlineSyncView from './views/Meta/Finv/Quote/Cdeu/DayKlineSyncView.vue'
+import CdeuCollectParamView from './views/Meta/Finv/Quote/Cdeu/CollectParamView.vue'
 import DeDupCDEUWorkflowView from './views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue'
 import DeDupExportJobView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportJobView.vue'
 import DeDupExportFileView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue'
@@ -167,6 +168,13 @@ const router = createRouter({
       name: 'quote-realtime-secu-indicator',
       component: IndicatorView,
       meta: { title: '证券指标' },
+    },
+    // 收剔导传ETL → CDEU自动化 → 采集参数（需求 11254）：futu.finv_futu_quote_collect 查询与单行维护
+    {
+      path: '/Meta/Finv/Quote/Cdeu/CollectParam',
+      name: 'cdeu-collect-param',
+      component: CdeuCollectParamView,
+      meta: { title: '采集参数' },
     },
     // 行情数据归档 → K线数据查询 / 统计（需求 10856/10857 改名并移入「收剔导传ETL」）
     {

@@ -20,6 +20,25 @@
 
 ### 新增
 
+- **新增菜单「采集参数」：富途采集参数查询与单行维护（需求 11254）**
+  - 位置：行情 → 收剔导传ETL → CDEU自动化 → 采集参数（`/Meta/Finv/Quote/Cdeu/CollectParam`，
+    菜单 key `cdeu-collect-param`），表 `futu.finv_futu_quote_collect`。
+  - 查询左关联 `public.finv_security`（`c.usc = s.usc`）再左关联 `public.finv_exchange` /
+    `public.finv_market`，带出**名称 / 分类 / 子类 / 计价货币 / 交易所 / 市场**六列
+    （采集表本身只有富途侧编码，没有这些元数据）；主数据缺失的行该六列显示 `—`，
+    并提供「只看主数据缺失」筛选。
+  - 新增两支接口：`GET /API/V1/Meta/Finv/Quote/Secu/Collect/Page`（关键字 / 行情市场 / 品种 /
+    证券分类 / 采集状态 / 主数据缺失筛选 + 白名单排序）、
+    `POST /API/V1/Meta/Finv/Quote/Secu/Collect/Update`（`usc` 定位、`fields` 只提交改动列，
+    11 列可编辑白名单；`usc` 不存在 404、`(market_code, futu_symbol)` 唯一冲突 409）。
+  - 不可编辑 `usc`（主键）、`ftmm_symbol`（生成列）、`gmt_create` / `gmt_update`（触发器维护）；
+    **不提供新增行 / 删除行**（本表是采集链路镜像，删行等于停采）。
+  - 前端：表格编码列按字典显示中文（品种 / 市场类型 / 品种类型），采集状态用 chip；
+    单行编辑对话框只提交改动过的字段，409 冲突保持对话框并提示；页面底部唯一「说明」卡片
+    交代表口径、六列元数据来源、字段编码含义与唯一键约束。
+  - 文档：新增 `Docs/API/Cdeu/CollectParam.md` + `.yml`、`Docs/Menu/Quote/Cdeu/CollectParam.md`；
+    同步 `Docs/API/APIs.md`（134/135）、`Docs/API/README.md`、`Docs/Menu/Menus.md`、
+    `Docs/RequirementList.md`（11254）。
 - **证券指标表只读浏览：两个接口 + 一个页面（需求 11249 / 11250 / 11251）**
   - 新增 `GET /API/V1/Meta/Finv/Quote/Secu/Indicator/Columns`：从 `pg_attribute` + 列注释读出
     `cdeu.finv_quote_secu_indicator` 的**实际全部列**（当前 132 列，按建表列序），返回

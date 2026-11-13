@@ -131,6 +131,7 @@
 | 50 | OpenAPI 鉴权配置 | 金融投资 | 四级叶子 | `openapi-settings` | `mdi-tune-variant` | `/Meta/Finv/OpenAPI/Settings` | `Web/src/views/Meta/Finv/OpenAPI/SettingsView.vue` | `GET .../OpenAPI/Settings`、`PUT .../OpenAPI/Settings` | [OpenAPI/Settings.md](OpenAPI/Settings.md) |
 | 51 | OpenAPI 密钥配置 | 金融投资 | 四级叶子 | `openapi-secret` | `mdi-shield-key-outline` | `/Meta/Finv/OpenAPI/Secret` | `Web/src/views/Meta/Finv/OpenAPI/SecretView.vue` | `GET .../OpenAPI/Secret/Status`、`POST .../OpenAPI/Secret/Save` | [OpenAPI/Secret.md](OpenAPI/Secret.md) |
 | 52 | 证券指标 | 金融投资 | 四级叶子 | `quote-realtime-secu-indicator` | `mdi-table-large` | `/Meta/Finv/Quote/Realtime/SecuIndicator` | `Web/src/views/Meta/Finv/Quote/Realtime/IndicatorView.vue` | `GET /API/V1/Meta/Finv/Quote/Secu/Indicator/Columns`、`GET .../Secu/Indicator/Page` | [Quote/Realtime/Indicator.md](Quote/Realtime/Indicator.md) |
+| 53 | 采集参数 | 金融投资 | 四级叶子 | `cdeu-collect-param` | `mdi-tune-variant` | `/Meta/Finv/Quote/Cdeu/CollectParam` | `Web/src/views/Meta/Finv/Quote/Cdeu/CollectParamView.vue` | `GET /API/V1/Meta/Finv/Quote/Secu/Collect/Page`、`POST .../Secu/Collect/Update` | [Quote/Cdeu/CollectParam.md](Quote/Cdeu/CollectParam.md) |
 
 ## 说明
 
@@ -151,6 +152,7 @@
 | `dashboard` | `DashboardView.vue` |
 | `quote-query` | `Meta/Finv/Quote/History/HistoryQuoteQueryView.vue` |
 | `quote-realtime-secu-indicator` | `Meta/Finv/Quote/Realtime/IndicatorView.vue` |
+| `cdeu-collect-param` | `Meta/Finv/Quote/Cdeu/CollectParamView.vue` |
 | `dedup-kline-query` | `Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue` |
 | `dedup-kline-stats` | `Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue` |
 | `dedup-export-overview` | `Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue` |

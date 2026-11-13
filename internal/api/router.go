@@ -206,6 +206,13 @@ func NewRouter(deps *Deps) *gin.Engine {
 		indicatorGroup.GET("/Columns", secuIndicator.Columns)
 		indicatorGroup.GET("/Page", secuIndicator.Page)
 
+		// 采集参数查询与单行维护（需求 11254）：futu.finv_futu_quote_collect，
+		// 查询时左关联 public.finv_security（+ 交易所 / 市场字典）带出证券元数据。
+		secuCollect := handler.NewSecuFtmmCollect(cdeu.NewStore(deps.Pool))
+		secuCollectGroup := apiGroup.Group("/Meta/Finv/Quote/Secu/Collect")
+		secuCollectGroup.GET("/Page", secuCollect.Page)
+		secuCollectGroup.POST("/Update", secuCollect.Update)
+
 		// 证券行情月归档导出与上传（运维：状态 / 任务 / 文件 / 重试 / 手动触发）
 		if deps.ExportArchive != nil {
 			archive := handler.NewExportArchive(deps.ExportArchive)

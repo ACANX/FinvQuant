@@ -171,6 +171,14 @@ const finvQuantMenu: MenuNode[] = [
           { key: 'dedup-export-log', title: '归档日志与补丁', icon: 'mdi-text-box-search-outline', path: '/Meta/Finv/Quote/DeDup/Export/Log' },
           // CDEU自动化（需求 10864 新增，10865 由占位分组改为叶子，指向占位页路由）。
           { key: 'cdeu-automation', title: 'CDEU自动化', icon: 'mdi-robot-happy-outline', path: '/Meta/Finv/Quote/Cdeu/Automation' },
+          // 需求 11254：采集参数（futu.finv_futu_quote_collect）查询与单行维护，
+          // 查询时左关联 public.finv_security 带出证券名称 / 分类 / 子类 / 币种 / 交易所 / 市场。
+          {
+            key: 'cdeu-collect-param',
+            title: '采集参数',
+            icon: 'mdi-tune-variant',
+            path: '/Meta/Finv/Quote/Cdeu/CollectParam',
+          },
         ],
       },
       {
