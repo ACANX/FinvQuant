@@ -10,6 +10,7 @@ import {
   INDICATOR_GROUPS,
   INDICATOR_KEY_COLUMNS,
   INDICATOR_PRESETS,
+  indicatorColumnLabel,
   indicatorGroupOf,
 } from '../../../../../config/indicatorColumns'
 import type { IndicatorColumn } from '../../../../../config/indicatorColumns'
@@ -33,10 +34,17 @@ const emit = defineEmits<{
 
 const keyword = ref('')
 
-/** 后端列 → 前端元数据（标题取后端中文注释，分组取静态配置） */
+/**
+ * 后端列 → 前端元数据。
+ *
+ * 列表文字用**中文短名**（`indicatorColumns.ts` 的 label），不用后端 `title`——
+ * 后者取自表列注释，常常是整句口径说明，铺在 132 个勾选项里会成灾。
+ * 完整口径只在悬浮（`hint`）与行详情里出现。
+ */
 interface PickItem {
   name: string
   title: string
+  /** 完整口径（后端表列注释），仅用于悬浮 */
   hint?: string
   groupKey: string
   groupTitle: string
@@ -46,9 +54,11 @@ const items = computed<PickItem[]>(() => {
   const groupTitles = new Map(INDICATOR_GROUPS.map((group) => [group.key, group.title]))
   return props.columns.map((column) => {
     const groupKey = indicatorGroupOf(column.name)
+    const title = indicatorColumnLabel(column)
     return {
       name: column.name,
-      title: column.title || column.name,
+      title,
+      hint: column.title && column.title !== title ? column.title : '',
       groupKey,
       groupTitle: groupTitles.get(groupKey) ?? '其它（未登记）',
     }
@@ -210,7 +220,7 @@ function commit(next: string[], presetHandled = false): void {
               @update:model-value="toggle(item.name, $event)"
             >
               <template #label>
-                <span>{{ item.title }}</span>
+                <span :title="item.hint">{{ item.title }}</span>
                 <code class="ml-2 text-caption text-medium-emphasis">{{ item.name }}</code>
               </template>
             </v-checkbox>

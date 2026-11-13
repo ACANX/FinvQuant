@@ -21,6 +21,7 @@ import {
   INDICATOR_KEY_COLUMNS,
   INDICATOR_PRESETS,
   formatIndicatorCell,
+  indicatorColumnLabel,
   indicatorColumnSpec,
   indicatorGroupOf,
   isIndicatorLongText,
@@ -71,8 +72,8 @@ const MARKET_OPTIONS = [
   { title: 'SZ', value: 'SZ' },
   { title: 'BJ', value: 'BJ' },
   { title: 'US', value: 'US' },
-  { title: 'CC（加密货币）', value: 'CC' },
-  { title: 'FX（外汇指数）', value: 'FX' },
+  { title: 'CC', value: 'CC' },
+  { title: 'FX', value: 'FX' },
 ]
 
 /** 列名 → 列元数据 */
@@ -95,11 +96,16 @@ const visibleColumns = computed<IndicatorColumn[]>(() => {
   return result
 })
 
-/** 排序候选（与后端白名单同源：后端只认表里真实存在的列） */
+/**
+ * 排序候选（与后端白名单同源：后端只认表里真实存在的列）。
+ *
+ * 选项文字只用中文短名：表列注释是整句口径说明、列名是 snake_case，
+ * 两个都不该出现在下拉选项里（列名与完整口径看表头悬浮 / 「选择列」 / 行详情 / 说明卡片）。
+ */
 const orderOptions = computed(() =>
   columns.value
     .filter((column) => column.sortable)
-    .map((column) => ({ title: `${column.title}（${column.name}）`, value: column.name })),
+    .map((column) => ({ title: indicatorColumnLabel(column), value: column.name })),
 )
 
 const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
@@ -308,7 +314,7 @@ function moveClass(row: IndicatorRow): string {
   }
 }
 
-/** 列标题悬浮说明：口径提示 + 列名 */
+/** 列标题悬浮说明：短名 + 完整口径（表列注释）+ 列名 */
 function columnHint(column: IndicatorColumn): string {
   const spec = indicatorColumnSpec(column.name)
   const parts = [column.title, `列名：${column.name}`]
@@ -431,7 +437,7 @@ watch(detailOpen, (open) => {
                   :class="{ 'text-right': isIndicatorNumericColumn(column.name) }"
                   :title="columnHint(column)"
                 >
-                  {{ column.title }}
+                  {{ indicatorColumnLabel(column) }}
                 </th>
                 <th class="text-no-wrap text-center">详情</th>
               </tr>
@@ -451,7 +457,7 @@ watch(detailOpen, (open) => {
                 >
                   <template v-if="isIndicatorLongText(column.name)">
                     <span v-if="row[column.name]" class="d-inline-flex align-center">
-                      <TextPopover :title="column.title" :text="row[column.name]" />
+                      <TextPopover :title="indicatorColumnLabel(column)" :text="row[column.name]" />
                       <span class="text-caption text-medium-emphasis">查看</span>
                     </span>
                     <span v-else>—</span>
@@ -540,14 +546,21 @@ watch(detailOpen, (open) => {
             <v-table density="compact" class="text-caption finv-indicator-detail">
               <tbody>
                 <tr v-for="column in group.columns" :key="column.name">
-                  <td class="text-no-wrap finv-indicator-detail-key">{{ column.title }}</td>
-                  <td class="text-no-wrap text-medium-emphasis">
-                    <code>{{ column.name }}</code>
+                  <td class="text-no-wrap finv-indicator-detail-key">
+                    {{ indicatorColumnLabel(column) }}
+                  </td>
+                  <td class="finv-indicator-detail-desc">
+                    <code class="text-caption">{{ column.name }}</code>
+                    <TextPopover
+                      v-if="column.title !== indicatorColumnLabel(column)"
+                      :title="`${indicatorColumnLabel(column)} 的口径`"
+                      :text="column.title"
+                    />
                   </td>
                   <td class="text-no-wrap">
                     <template v-if="isIndicatorLongText(column.name)">
                       <span v-if="detailRow?.[column.name]" class="d-inline-flex align-center">
-                        <TextPopover :title="column.title" :text="detailRow[column.name]" />
+                        <TextPopover :title="indicatorColumnLabel(column)" :text="detailRow[column.name]" />
                         <span class="text-caption text-medium-emphasis">查看</span>
                       </span>
                       <span v-else>—</span>
@@ -589,6 +602,7 @@ watch(detailOpen, (open) => {
             点行或在「详情」列点击可看该证券全部列。数值以文本返回、由页面按列口径折算：
             金额类按 <strong>万 / 亿 / 万亿</strong> 缩写，比率类直接加 <code>%</code>（库里是百分点数值），
             时间类按浏览器本地时区显示；空值统一显示 <code>—</code>，不显示 0。
+            表头、排序下拉与「选择列」里**只显示中文短名**：列名与完整口径看表头悬浮、「选择列」里的列名小字，或行详情。
           </div>
         </div>
 
@@ -612,6 +626,8 @@ watch(detailOpen, (open) => {
             <code>json_unmapped</code> 是上游未映射字段的原始 JSON，点 <code>ⓘ</code> 查看全文并可复制；
             <code>difference</code> / <code>bid_price_lowest</code> / <code>ask_price_highest</code> 的上游口径仍待确认，
             取值仅供参考。排序默认按 <code>dt_update</code> 降序（最近同步的行在前），空值一律排最后。
+            市场筛选取 <code>ftmm_symbol</code> 的第一段：<code>CC</code> 为加密货币、<code>FX</code> 为外汇/货币指数，
+            其余为交易所市场代码（HK / SH / SZ / BJ / US）。
           </div>
         </div>
       </v-card-text>
@@ -693,7 +709,14 @@ watch(detailOpen, (open) => {
 }
 
 .finv-indicator-detail-key {
-  width: 200px;
+  width: 160px;
+}
+
+/* 详情第二列放「列名 + 口径 ⓘ」，给个宽度上限，避免把值列挤到屏幕外 */
+.finv-indicator-detail-desc {
+  max-width: 260px;
+  white-space: normal;
+  word-break: break-all;
 }
 
 /* 说明卡片分节（ExplainCardSpec §4 统一 token） */
