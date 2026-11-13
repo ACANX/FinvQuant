@@ -261,20 +261,31 @@ async function openDetail(row: IndicatorRow): Promise<void> {
   }
 }
 
+/** 说明卡片「列口径速查」的分组：全部列的 短名 / 列名 / 口径 */
+const catalogGroups = computed(() => groupByIndicatorGroup(columns.value))
+
 /** 详情分组：按静态分组的顺序把全列切开（未登记的列归「其它」） */
-const detailGroups = computed(() => {
-  const known = detailColumns.value
+const detailGroups = computed(() => groupByIndicatorGroup(detailColumns.value))
+
+/** 把列按分组切开（顺序 = INDICATOR_GROUPS，未登记的列归「其它」） */
+function groupByIndicatorGroup(source: IndicatorColumn[]): {
+  key: string
+  title: string
+  columns: IndicatorColumn[]
+}[] {
   const buckets = new Map<string, IndicatorColumn[]>()
-  for (const column of known) {
+  for (const column of source) {
     const key = indicatorGroupOf(column.name)
     const list = buckets.get(key) ?? []
     list.push(column)
     buckets.set(key, list)
   }
-  return INDICATOR_GROUPS.filter((group) => (buckets.get(group.key)?.length ?? 0) > 0).map(
-    (group) => ({ key: group.key, title: group.title, columns: buckets.get(group.key) ?? [] }),
-  )
-})
+  return INDICATOR_GROUPS.filter((group) => (buckets.get(group.key)?.length ?? 0) > 0).map((group) => ({
+    key: group.key,
+    title: group.title,
+    columns: buckets.get(group.key) ?? [],
+  }))
+}
 
 async function copyDetailJson(): Promise<void> {
   if (!detailRow.value) return
@@ -549,13 +560,8 @@ watch(detailOpen, (open) => {
                   <td class="text-no-wrap finv-indicator-detail-key">
                     {{ indicatorColumnLabel(column) }}
                   </td>
-                  <td class="finv-indicator-detail-desc">
+                  <td class="finv-indicator-detail-name">
                     <code class="text-caption">{{ column.name }}</code>
-                    <TextPopover
-                      v-if="column.title !== indicatorColumnLabel(column)"
-                      :title="`${indicatorColumnLabel(column)} 的口径`"
-                      :text="column.title"
-                    />
                   </td>
                   <td class="text-no-wrap">
                     <template v-if="isIndicatorLongText(column.name)">
@@ -604,6 +610,41 @@ watch(detailOpen, (open) => {
             时间类按浏览器本地时区显示；空值统一显示 <code>—</code>，不显示 0。
             表头、排序下拉与「选择列」里**只显示中文短名**：列名与完整口径看表头悬浮、「选择列」里的列名小字，或行详情。
           </div>
+        </div>
+
+        <v-divider class="my-3" />
+
+        <div class="finv-indicator-note">
+          <div class="finv-indicator-note-title">列口径速查</div>
+          <div class="text-body-2 finv-indicator-note-body">
+            表头、排序下拉、列选择器与行详情**只显示中文短名**；每列的表列口径注释（整句说明）
+            全部收在这里，按分组列出，需要核对口径时展开查。
+          </div>
+          <v-expansion-panels class="mt-2" variant="accordion">
+            <v-expansion-panel>
+              <v-expansion-panel-title class="text-caption py-2">
+                展开全部 {{ columns.length }} 列的短名 / 列名 / 口径
+              </v-expansion-panel-title>
+              <v-expansion-panel-text>
+                <div v-for="group in catalogGroups" :key="group.key" class="mb-3">
+                  <div class="finv-indicator-note-title">{{ group.title }}</div>
+                  <v-table density="compact" class="text-caption finv-indicator-catalog">
+                    <tbody>
+                      <tr v-for="column in group.columns" :key="column.name">
+                        <td class="text-no-wrap finv-indicator-catalog-key">
+                          {{ indicatorColumnLabel(column) }}
+                        </td>
+                        <td class="text-no-wrap">
+                          <code class="text-caption">{{ column.name }}</code>
+                        </td>
+                        <td>{{ column.title }}</td>
+                      </tr>
+                    </tbody>
+                  </v-table>
+                </div>
+              </v-expansion-panel-text>
+            </v-expansion-panel>
+          </v-expansion-panels>
         </div>
 
         <v-divider class="my-3" />
@@ -712,11 +753,19 @@ watch(detailOpen, (open) => {
   width: 160px;
 }
 
-/* 详情第二列放「列名 + 口径 ⓘ」，给个宽度上限，避免把值列挤到屏幕外 */
-.finv-indicator-detail-desc {
-  max-width: 260px;
-  white-space: normal;
-  word-break: break-all;
+/* 详情第二列只放列名（窄），口径不在这里 */
+.finv-indicator-detail-name {
+  width: 200px;
+}
+
+/* 说明卡片里的列口径速查：口径列允许换行 */
+.finv-indicator-catalog-key {
+  width: 140px;
+}
+
+.finv-indicator-catalog :deep(td) {
+  padding-block: 2px;
+  vertical-align: top;
 }
 
 /* 说明卡片分节（ExplainCardSpec §4 统一 token） */

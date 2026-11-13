@@ -40,9 +40,10 @@
     列分组与格式化口径全部收敛在 `Web/src/config/indicatorColumns.ts`（改列只改这一个文件；
     未登记列自动落到「其它」分组）；金额按万/亿/万亿缩写、比率加 `%`、epoch 毫秒与 `timestamptz`
     转本地时间、字典列只显中文、`json_unmapped`/`secu_url` 走 `TextPopover` ⓘ 浮层、空值统一 `—`。
-  - **展示文字只用中文短名**：表头、排序下拉、列选择器一律用 `indicatorColumns.ts` 的 `label`
-    （如「涨跌幅」「总市值」）；表列注释是整句口径（常带括号补充），只出现在表头悬浮、
-    列选择器悬浮与行详情的「口径 ⓘ」浮层里，以及页面底部说明卡片，不铺在表格与下拉选项里。
+  - **展示文字只用中文短名**：表头、排序下拉、列选择器、行详情一律用 `indicatorColumns.ts` 的 `label`
+    （如「涨跌幅」「总市值」）；表列注释是整句口径（常带括号补充），不铺在表格、下拉与详情对话框里。
+    行详情只保留「短名 / 列名 / 值」三列，口径统一收进页面底部说明卡片新增的「列口径速查」
+    （默认收起的折叠面板，按分组列出 132 列的短名 / 列名 / 口径），另在表头与列选择器悬浮里可见。
     市场下拉同理为 `HK/SH/SZ/BJ/US/CC/FX` 短值，`CC`/`FX` 含义写在说明卡片。
   - 文档：新增 `Docs/API/Cdeu/IndicatorPage.md` + `.yml`、`Docs/Menu/Quote/Realtime/Indicator.md`；
     同步 `Docs/API/APIs.md`（132/133）、`Docs/API/README.md`、`Docs/Menu/Menus.md`、`Docs/RequirementList.md`。
