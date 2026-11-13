@@ -33,8 +33,8 @@
     `usc ASC` 稳定次序；**所有列值 `::text` 返回**，保住 `NUMERIC(30,10)` 精度，空值返回空串。
   - 两个接口路径都不带 `Cdeu`（指标表不属于 CDEU 跑批域）；写入侧不变，仍是
     `.../Quote/Cdeu/SecuKey/Indicator/Sync/Run`（批量同步）与 OpenAPI `FTSecuIndicatorUpsert`（采集端回传）。
-  - 新增页面「行情 → 实时行情 → 证券指标」（`/Meta/Finv/Quote/Realtime/FTIndicator`，菜单 key
-    `quote-realtime-indicator`）：132 列按三层读——主表只渲染当前列方案（左侧三列冻结、其余横向滚动）、
+  - 新增页面「行情 → 实时行情 → 证券指标」（`/Meta/Finv/Quote/Realtime/SecuIndicator`，菜单 key
+    `quote-realtime-secu-indicator`，需求 11252 由 `FTIndicator` 改名）：132 列按三层读——主表只渲染当前列方案（左侧三列冻结、其余横向滚动）、
     列选择抽屉（13 个业务分组 + 搜索 + 分组全选/清空 + 7 个预设方案，选择结果存 `localStorage`）、
     行详情对话框（另行请求该证券全部 132 列、按分组展开、可复制整行 JSON）。
     列分组与格式化口径全部收敛在 `Web/src/config/indicatorColumns.ts`（改列只改这一个文件；
@@ -42,7 +42,7 @@
     转本地时间、字典列只显中文、`json_unmapped`/`secu_url` 走 `TextPopover` ⓘ 浮层、空值统一 `—`。
   - **展示文字只用中文短名**：表头、排序下拉、列选择器、行详情一律用 `indicatorColumns.ts` 的 `label`
     （如「涨跌幅」「总市值」）；表列注释是整句口径（常带括号补充），不铺在表格、下拉与详情对话框里。
-    行详情只保留「短名 / 列名 / 值」三列，口径统一收进页面底部说明卡片新增的「列口径速查」
+    行详情只保留「短名 / 值」两列（列名悬浮可见），口径统一收进页面底部说明卡片新增的「列口径速查」
     （默认收起的折叠面板，按分组列出 132 列的短名 / 列名 / 口径），另在表头与列选择器悬浮里可见。
     市场下拉同理为 `HK/SH/SZ/BJ/US/CC/FX` 短值，`CC`/`FX` 含义写在说明卡片。
   - 文档：新增 `Docs/API/Cdeu/IndicatorPage.md` + `.yml`、`Docs/Menu/Quote/Realtime/Indicator.md`；
@@ -246,6 +246,14 @@
 
 ### 变更
 
+- **证券指标页：路由改名 + 行详情改版（需求 11252 / 11253）**
+  - 菜单与路由 `/Meta/Finv/Quote/Realtime/FTIndicator` → `/Meta/Finv/Quote/Realtime/SecuIndicator`，
+    菜单 key `quote-realtime-indicator` → `quote-realtime-secu-indicator`（旧路径不再注册，深链接需更新）。
+  - 行详情对话框去掉「字段名」列：默认只显示「中文短名 / 值」，鼠标悬浮第一列的中文名时才显示
+    「列名：`change_ratio`」。
+  - 同一对话框支持**全屏**（标题栏 `mdi-fullscreen` 切换，每次打开默认非全屏、`max-width: 1400`）
+    与**指标多列并排**（`12 / sm 6 / lg 4 / xl 3`：窄屏 1 列、中屏 2 列、宽屏 3–4 列），
+    132 列不再一路往下滚；数值列右对齐，长文本仍走 ⓘ 浮层。
 - **新增对外 OpenAPI：采集端证券指标回传（需求 11248）**
   - 端点 `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTSecuIndicatorUpsert`，
     只注册在 `openGroup`（内部 `/API/V1` 无对应路由，人不需要从这里写数据）。

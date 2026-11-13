@@ -62,6 +62,8 @@ const pickerOpen = ref(false)
 // 行详情：全列另行请求（不受当前列方案影响）
 const detailOpen = ref(false)
 const detailLoading = ref(false)
+// 行详情全屏开关：132 列在默认弹窗里要滚很久，支持一键铺满屏幕（多列并排时尤其明显）
+const detailFullscreen = ref(false)
 const detailRow = ref<IndicatorRow | null>(null)
 const detailColumns = ref<IndicatorColumn[]>([])
 
@@ -239,6 +241,7 @@ function onPageSizeChange(): void {
 async function openDetail(row: IndicatorRow): Promise<void> {
   detailRow.value = row
   detailOpen.value = true
+  detailFullscreen.value = false
   detailLoading.value = true
   detailColumns.value = columns.value
   try {
@@ -535,8 +538,13 @@ watch(detailOpen, (open) => {
       @update:preset="onPresetChange"
     />
 
-    <!-- 行详情：全部 132 列按分组展开 -->
-    <v-dialog v-model="detailOpen" max-width="1100" scrollable>
+    <!-- 行详情：全部 132 列按分组展开，可全屏、小屏单列 / 宽屏最多 4 列并排 -->
+    <v-dialog
+      v-model="detailOpen"
+      :fullscreen="detailFullscreen"
+      :max-width="detailFullscreen ? undefined : 1400"
+      scrollable
+    >
       <v-card>
         <v-card-title class="d-flex align-center ga-2">
           <v-icon icon="mdi-card-text-outline" />
@@ -547,36 +555,58 @@ watch(detailOpen, (open) => {
           <v-btn size="small" variant="tonal" prepend-icon="mdi-content-copy" @click="copyDetailJson">
             复制 JSON
           </v-btn>
+          <v-btn
+            size="small"
+            variant="text"
+            :icon="detailFullscreen ? 'mdi-fullscreen-exit' : 'mdi-fullscreen'"
+            :title="detailFullscreen ? '退出全屏' : '全屏显示'"
+            @click="detailFullscreen = !detailFullscreen"
+          />
           <v-btn size="small" variant="text" icon="mdi-close" @click="detailOpen = false" />
         </v-card-title>
         <v-divider />
         <v-progress-linear v-if="detailLoading" indeterminate color="primary" />
         <v-card-text>
-          <div v-for="group in detailGroups" :key="group.key" class="mb-4">
-            <div class="finv-indicator-note-title">{{ group.title }}</div>
-            <v-table density="compact" class="text-caption finv-indicator-detail">
-              <tbody>
-                <tr v-for="column in group.columns" :key="column.name">
-                  <td class="text-no-wrap finv-indicator-detail-key">
-                    {{ indicatorColumnLabel(column) }}
-                  </td>
-                  <td class="finv-indicator-detail-name">
-                    <code class="text-caption">{{ column.name }}</code>
-                  </td>
-                  <td class="text-no-wrap">
-                    <template v-if="isIndicatorLongText(column.name)">
-                      <span v-if="detailRow?.[column.name]" class="d-inline-flex align-center">
-                        <TextPopover :title="indicatorColumnLabel(column)" :text="detailRow[column.name]" />
-                        <span class="text-caption text-medium-emphasis">查看</span>
-                      </span>
-                      <span v-else>—</span>
-                    </template>
-                    <span v-else>{{ cellText(column, detailRow ?? {}) }}</span>
-                  </td>
-                </tr>
-              </tbody>
-            </v-table>
-          </div>
+          <!-- 指标多列并排：窄屏 1 列、中屏 2 列、宽屏 3~4 列，避免 132 行一路往下滚 -->
+          <v-row dense>
+            <v-col
+              v-for="group in detailGroups"
+              :key="group.key"
+              cols="12"
+              sm="6"
+              lg="4"
+              xl="3"
+              class="mb-2"
+            >
+              <div class="finv-indicator-note-title">{{ group.title }}</div>
+              <v-table density="compact" class="text-caption finv-indicator-detail">
+                <tbody>
+                  <tr v-for="column in group.columns" :key="column.name">
+                    <!-- 第一列只放中文短名；字段名（列名）鼠标悬浮时才显示，不占版面 -->
+                    <td
+                      class="text-no-wrap finv-indicator-detail-key"
+                      :title="`列名：${column.name}`"
+                    >
+                      {{ indicatorColumnLabel(column) }}
+                    </td>
+                    <td
+                      class="text-no-wrap"
+                      :class="{ 'text-right': isIndicatorNumericColumn(column.name) }"
+                    >
+                      <template v-if="isIndicatorLongText(column.name)">
+                        <span v-if="detailRow?.[column.name]" class="d-inline-flex align-center">
+                          <TextPopover :title="indicatorColumnLabel(column)" :text="detailRow[column.name]" />
+                          <span class="text-caption text-medium-emphasis">查看</span>
+                        </span>
+                        <span v-else>—</span>
+                      </template>
+                      <span v-else>{{ cellText(column, detailRow ?? {}) }}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </v-table>
+            </v-col>
+          </v-row>
         </v-card-text>
       </v-card>
     </v-dialog>
@@ -749,13 +779,9 @@ watch(detailOpen, (open) => {
   padding-block: 2px;
 }
 
+/* 详情第一列（中文短名）：字段名改成悬浮显示，列宽收紧 */
 .finv-indicator-detail-key {
-  width: 160px;
-}
-
-/* 详情第二列只放列名（窄），口径不在这里 */
-.finv-indicator-detail-name {
-  width: 200px;
+  width: 110px;
 }
 
 /* 说明卡片里的列口径速查：口径列允许换行 */

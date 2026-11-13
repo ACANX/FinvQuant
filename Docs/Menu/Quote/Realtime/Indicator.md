@@ -1,15 +1,15 @@
 # 证券指标（Indicator）
 
 > 所属：导航「行情 → 实时行情 → 证券指标」
-> 路由：`/Meta/Finv/Quote/Realtime/FTIndicator`
+> 路由：`/Meta/Finv/Quote/Realtime/SecuIndicator`（需求 11252 由 `FTIndicator` 改名）
 > 视图：`Web/src/views/Meta/Finv/Quote/Realtime/IndicatorView.vue`
 > 列选择组件：`Web/src/views/Meta/Finv/Quote/Realtime/IndicatorColumnPicker.vue`
 > 列配置（分组 / 预设 / 格式化）：`Web/src/config/indicatorColumns.ts`
-> 菜单 key：`quote-realtime-indicator`（父分组 `quote-realtime`）
+> 菜单 key：`quote-realtime-secu-indicator`（父分组 `quote-realtime`）
 > 数据表：`cdeu.finv_quote_secu_indicator`（132 列，一行一证券的最新指标快照，主键 `usc`）
 > 接口：[`GET /API/V1/Meta/Finv/Quote/Secu/Indicator/Columns`](../../../API/Cdeu/IndicatorPage.md)（列元数据）、
 > [`GET /API/V1/Meta/Finv/Quote/Secu/Indicator/Page`](../../../API/Cdeu/IndicatorPage.md)（分页查询）
-> 关联需求：11249（列元数据接口）、11250（分页查询接口）、11251（本页面）
+> 关联需求：11249（列元数据接口）、11250（分页查询接口）、11251（本页面）、11252（路由与菜单 key 改名）、11253（行详情悬浮列名 / 全屏 / 多列并排）
 > 写入侧（不在本页操作）：`POST .../Quote/Cdeu/SecuKey/Indicator/Sync/Run`（批量同步上游）、
 > `POST .../OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTSecuIndicatorUpsert`（采集端回传）
 
@@ -65,8 +65,16 @@
 
 ### 2.4 行详情（对话框）
 
-点行后另行请求该证券的**全部 132 列**（不受当前列方案影响），按分组顺序逐段展开「中文短名 / 列名 / 值」三列，
-顶部显示名称 + `usc` + `ftmm_symbol`，并提供「复制 JSON」（整行 wire 数据）。
+点行后另行请求该证券的**全部 132 列**（不受当前列方案影响），按分组展开「中文短名 / 值」两列：
+
+| 行为 | 说明 |
+|---|---|
+| 指标多列并排 | 分组以响应式网格排列：窄屏 1 列、`sm` 2 列、`lg` 3 列、`xl` 4 列，宽屏下一屏能看到多组指标，不必一路往下滚 |
+| 全屏 | 标题栏右侧 `mdi-fullscreen` 一键铺满整屏（`mdi-fullscreen-exit` 退出）；每次打开默认非全屏（`max-width: 1400`） |
+| 字段名 | 第二列**不再显示列名**：鼠标悬浮第一列的中文短名时才显示「列名：`change_ratio`」，默认版面只留中文 |
+| 值 | 数值列右对齐；长文本（`json_unmapped` / `secu_url`）走 ⓘ 浮层；空值 `—` |
+| 复制 | 标题栏「复制 JSON」拷走整行 wire 数据 |
+
 **对话框里不放任何口径长文本**（表列注释满是括号补充，132 行铺出来只会吵）：
 口径统一去页面底部说明卡片的「列口径速查」里查。
 

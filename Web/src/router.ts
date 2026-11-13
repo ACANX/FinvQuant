@@ -160,11 +160,11 @@ const router = createRouter({
       component: UscMappingView,
       meta: { title: 'USC 映射规则' },
     },
-    // 行情 → 实时行情 → 证券指标（需求 11251）：cdeu.finv_quote_secu_indicator 全列只读浏览
+    // 行情 → 实时行情 → 证券指标（需求 11251，路由改名 11252）：cdeu.finv_quote_secu_indicator 全列只读浏览
     // 列元数据 + 分页查询走 /Meta/Finv/Quote/Secu/Indicator/*（需求 11249/11250）
     {
-      path: '/Meta/Finv/Quote/Realtime/FTIndicator',
-      name: 'quote-realtime-indicator',
+      path: '/Meta/Finv/Quote/Realtime/SecuIndicator',
+      name: 'quote-realtime-secu-indicator',
       component: IndicatorView,
       meta: { title: '证券指标' },
     },

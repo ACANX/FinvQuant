@@ -142,5 +142,5 @@
 
 ## 4. 已使用位置
 
-`Web/src/views/Meta/Finv/Quote/Realtime/IndicatorView.vue`（行情 → 实时行情 → 证券指标）：
+`Web/src/views/Meta/Finv/Quote/Realtime/IndicatorView.vue`（行情 → 实时行情 → 证券指标，路由 `/Meta/Finv/Quote/Realtime/SecuIndicator`）：
 `/Columns` 生成列选择器与列标题、`/Page` 取主表数据；点行看详情时用同一 `/Page` 携带全列请求该证券。
