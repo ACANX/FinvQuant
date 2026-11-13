@@ -15,8 +15,10 @@
 |---|---|---|
 | `usc` | string | 证券编码，精确定配 |
 | `provider` | string | 数据来源，精确匹配 |
-| `dateFrom` / `dateTo` | int | 交易日期区间（含） |
-| `tsFrom` / `tsTo` | int64 | 秒级时间戳区间（含） |
+| `dateFrom` | int | 交易起始日期（含） |
+| `dateTo` | int | 交易结束日期（含） |
+| `tsFrom` | int64 | 起始时间戳（秒级，含） |
+| `tsTo` | int64 | 结束时间戳（秒级，含） |
 | `limit` | int | 1~1000，默认 50 |
 | `offset` | int | ≥0，默认 0 |
 
@@ -31,7 +33,7 @@
  "message":"OK"}
 ```
 
-- 紧凑字段映射（顺序固定）：`o=open`、`h=high`、`l=low`、`c=close`、`v=volume`、`t=turnover`、`cr=change_ratio`、`cp=change_price`、`pa=pacd`、`pv=provider`、`ext=ext_field`。
+- 紧凑字段映射（顺序固定）：`o=open`、`h=high`、`l=low`、`c=close`、`v=volume`、`t=turnover`、`cr=change_ratio`、`cp=change_price`、`vwa=vwap`、`pv=provider`、`ext=ext_field`。
 - 数值列统一输出字符串并去尾零；`v`（成交量）为 `numeric(20,6)`，支持小数。
 - `request_id` 为大写 UUID4；成功与错误响应使用同一个值（DC-07）。
 - `cr` 为**两位小数文本**（`ROUND_HALF_UP`，如 `"-0.00"`），其余 numeric 为 JSON 数字。

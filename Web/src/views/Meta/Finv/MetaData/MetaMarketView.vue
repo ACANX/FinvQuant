@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 
 import { apiGet, apiPost } from '../../../../api'
+import { showToast } from '../../../../ui/toast'
 
 // finv_market 交易市场行
 interface MarketRow {
@@ -22,7 +23,6 @@ const pageSize = ref(20)
 const keyword = ref('')
 const loading = ref(false)
 const error = ref('')
-const message = ref('')
 
 // 新增/编辑对话框
 const dialog = ref(false)
@@ -43,7 +43,7 @@ async function load() {
   error.value = ''
   try {
     const data = await apiGet<{ total: number; list: MarketRow[] }>(
-      `/Meta/Finv/Quant/Metadata/Market/List?page=${page.value}&page_size=${pageSize.value}&keyword=${encodeURIComponent(keyword.value)}`,
+      `/Meta/Finv/Quant/Metadata/Market/List?page=${page.value}&pageSize=${pageSize.value}&keyword=${encodeURIComponent(keyword.value)}`,
     )
     rows.value = data.list ?? []
     total.value = data.total ?? 0
@@ -76,14 +76,12 @@ function openEdit(row: MarketRow) {
 }
 
 async function save() {
-  error.value = ''
-  message.value = ''
   if (!form.value.market_code || form.value.market_code <= 0) {
-    error.value = '市场代码必须为正整数'
+    showToast('市场代码必须为正整数', 'error')
     return
   }
   if (!form.value.market_flag.trim()) {
-    error.value = '市场标识不能为空'
+    showToast('市场标识不能为空', 'error')
     return
   }
   try {
@@ -96,23 +94,22 @@ async function save() {
       en_security_type: form.value.en_security_type.trim(),
       base_currency: form.value.base_currency.trim(),
     })
-    message.value = '保存成功'
+    showToast('保存成功')
     dialog.value = false
     await load()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
 async function toggle(row: MarketRow) {
-  error.value = ''
   const next = row.flag_enable === '1' ? '0' : '1'
   try {
     await apiPost('/Meta/Finv/Quant/Metadata/Market/Toggle', { market_code: row.market_code, flag_enable: next })
     row.flag_enable = next
-    message.value = `已${next === '1' ? '启用' : '禁用'}市场 ${row.market_code}`
+    showToast(`已${next === '1' ? '启用' : '禁用'}市场 ${row.market_code}`)
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   }
 }
 
@@ -156,7 +153,6 @@ onMounted(load)
       </v-row>
 
       <v-alert v-if="error" type="error" class="mb-3" density="compact">{{ error }}</v-alert>
-      <v-alert v-if="message" type="success" class="mb-3" density="compact">{{ message }}</v-alert>
 
       <v-data-table
         :headers="[

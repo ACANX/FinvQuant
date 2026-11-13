@@ -9,6 +9,46 @@
 - 所有 REST JSON 响应顶层固定输出数值 `code` 和文本 `message`；`data`、`error`、`details`、`request_id`、`trace_id` 均为按语义可选字段。
 - 所有 wire 字段（JSON 请求/响应体）使用 **snake_case**。
 
+### 1.0 追踪 ID `request_id` 的大小写（强制，需求 11181）
+
+- 所有响应中的 `request_id`（无论出现在信封顶层还是 `data` 内）**一律使用大写**，禁止小写；示例、`.yml` 契约、前端类型注释与联调脚本必须与大写口径一致。
+- 两种既有形态，按生成入口区分，不要混用：
+
+  | 场景 | 形态 | 生成位置 |
+  |---|---|---|
+  | 内部接口（`/API/V1/*`）错误信封与 `data.request_id` | **大写 UUID4**，36 字符带连字符（如 `0B0D1F2E-3A4C-5D6E-8F70-1A2B3C4D5E6F`） | `internal/api/handler.RequestID`（`strings.ToUpper(uuid.NewString())`） |
+  | 对外 OpenAPI（`/OpenAPI/V1/*`）鉴权拒绝信封、响应头 `X-Request-Id`、审计表 `open.open_api_invoke_log.request_id` | **32 位大写十六进制**（如 `C620F2756DAC8F303D982603A7739D1F`） | `internal/api/openapi.newRequestID`（需求 11177） |
+
+- **响应头 `X-Request-Id`（单独约定，强制）**：
+  - 头名固定写 `X-Request-Id`（各段首字母大写、中间用连字符），不得写成 `X-Request-ID`、`X-RequestId` 等变体；
+  - **头值一律为大写十六进制**：服务端生成时固定 32 位（如 `7285C7E32383A768ADE7615BA81A197D`），禁止小写；
+  - 客户端可透传该头用于跨系统串联链路，但**只接受 8~64 位十六进制**并统一转大写；
+    其它形态（中文、带分隔符、超长、空）一律忽略并由服务端重新生成——既保证「值必为大写十六进制」，
+    也防止调用方污染审计或把多个请求伪造成同一个 ID；
+  - 回显范围：仅 `/OpenAPI/V1/*`（由 `internal/api/openapi` 中间件写响应头）；内部接口不返回该响应头，
+    排障以响应体里的 `request_id` 为准；
+  - 审计表 `open.open_api_invoke_log.request_id` **与响应头同值**，可据此一一对应。
+- 两个层级不要混淆：OpenAPI **成功**响应里的 `data.request_id` 由业务 handler 生成（大写 UUID4），
+  而响应头 `X-Request-Id` 与审计表记录的是**网关层**的 32 位大写十六进制；排障时按需分别引用。
+- 审计与日志字段同理：`open.open_api_invoke_log.request_id`、`body_sha256` 一律大写十六进制。
+- 兜底测试：`internal/api/openapi` 的 `TestBodyHashAndRequestIDUppercase`、`TestResolveRequestID`、
+  `TestMiddlewareEchoesRequestIDUppercase`（透传小写被归一、非法值被忽略、回显恒为大写十六进制），
+  以及 `internal/api/handler` 的 `TestRequestIDUppercaseUUID`。
+- 自查命令（应无输出）：
+
+  ```bash
+  grep -rn '"request_id": "[^"]*[a-f]' Docs/ | grep -v '大写'
+  ```
+
+### 1.1 统计与动作类字段命名（强制）
+
+- 响应体中表示「本次动作结果数量」的统计字段一律使用**动词原形**，禁止过去式/动名词：
+  - 允许：`insert`、`update`、`receive`、`delete`、`skip`；
+  - 禁止：`inserted`、`updated`、`received`、`deleted`、`skipped`。
+- 行数类字段统一 `rows_` 前缀（`rows_insert` / `rows_update` / `rows_receive`），总量字段用 `total`。
+- 规则同时覆盖：`.md` 文档的响应示例与字段表、`.yml` 契约的 `properties` 与 `required`、前端 TS 类型定义。
+- 存量不合规字段按需求条目逐条迁移（`Docs/RequirementList.md` 10973/10974/10975/10979），新增字段一律按本节执行。
+
 ## 2. API 路径
 
 - 服务端 API 路径统一使用大写 `/API/V1/` 前缀（例如 `GET /API/V1/Health/Live`），不使用 `/api/v1/`。
@@ -73,6 +113,7 @@ API 契约测试必须覆盖：
 
 - **运维根端点**：`GET /Health`、`GET /healthz` 不挂在业务前缀下（探针/脚本使用），不属于前缀违规。
 - **URL 查询参数双读**：`dateFrom/dateTo/tsFrom/tsTo/onConflict`（小驼峰，规范名）与 `date_from/date_to/ts_from/ts_to/on_conflict`（旧下划线名）同时接受；文档以规范名为准。
+- **迁移期兼容参数双读（2026-11-01 登记）**：`pageSize`（兼容 `page_size`）、`flagEnable`（兼容 `flag_enable`）用于元数据字典接口；`secuName`（兼容 `secu_name`）、`startTs/endTs`（兼容 `start_ts/end_ts`）用于历史行情查询。规范名为主路径，旧名仅兜底，**新接口不得照此新增**；`internal/api/handler/queryparam_naming_test.go` 静态校验：出现未登记的下划线查询参数即测试失败。
 - **列表信封沿用旧契约**：`GET /Page`、`GET /PageUni` 成功响应为 `{"code":1,"data":{...},"message":"OK"}`（成功码 `1` 属成功码集合，允许）。
 - **错误体为超集**：`{code,message,detail,request_id,error}`，保留旧客户端依赖的 `detail` 字段；`code` 见 `ErrorCodeSpec` §1.1。
 - **运维端点无 `/API/V1` 前缀**：`GET /Health`（旧 `/healthz` 过渡别名）、`GET /` 服务标识。

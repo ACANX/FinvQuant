@@ -1,7 +1,7 @@
 # CDEU 工作流模型重构（Workflow → Phase → Process → JOB → Step）
 
 > 状态：已落地（V50）
-> 生效迁移：[`V100050__finv_dedup_cdeu_workflow_process_jobstep.sql`](../../Deploy/Migrations/V100050__finv_dedup_cdeu_workflow_process_jobstep.sql)
+> 生效迁移：[`V200050__finv_dedup_cdeu_workflow_process_jobstep.sql`](../../Deploy/Migrations/V200050__finv_dedup_cdeu_workflow_process_jobstep.sql)
 > 关联设计：[`2610-007-CDEUProcessModelDesign.md`](2610-007-CDEUProcessModelDesign.md)（旧四层模型；本文为 V50 后的权威模型）
 
 ## 1. 背景

@@ -13,12 +13,13 @@
 |---|---|
 | 安装根目录 | `/data/App/FinvQuant/`（`--prefix <dir>` 或 `FINVQ_PREFIX` 可改） |
 | 二进制 | `/data/App/FinvQuant/bin/finvquant`（软链 `/usr/local/bin/finvquant`） |
-| 数据搬运工具 | `/data/App/FinvQuant/bin/qmio`（软链 `/usr/local/bin/qmio`；用法见 [Qmio.md](../../Docs/FinvQuant/Qmio.md)） |
+| 数据搬运工具 | `/data/App/FinvQuant/bin/qiom`（软链 `/usr/local/bin/qiom`；用法见 [Qiom.md](../../Docs/FinvQuant/Qiom.md)） |
 | 配置 | `/data/App/FinvQuant/finvquant.env`（权限 600，含随机生成的数据库密码） |
 | 迁移脚本 | `/data/App/FinvQuant/Deploy/Migrations/`（与仓库结构一致，服务启动时自动应用未执行版本） |
 | 部署脚本与文件 | `/data/App/FinvQuant/Deploy/`（`Install.sh`/`Upgrade.sh`/`Uninstall.sh`、`finvquant.service`、env 与 Nginx 模板、本手册） |
-| 一次性运维脚本 | `/data/App/FinvQuant/Deploy/Script/`（如 `MigratePublicKlineToCdeu.sql`；不进入迁移链） |
-| BRS 备份 | `/data/App/FinvQuant/Backup/BRS/<yyyyMMdd>/`（每日表级 `pg_dump`，见 [Brs.md](../../Docs/FinvQuant/Brs.md)） |
+| 初始化脚本 | `/data/App/FinvQuant/Deploy/Init/`（部署前**手工执行一次**：`2610-001-CreateDatabase.sql` 建库、`2610-002-AddRuntimeEnvConfig.sql` 发放运行环境标识 `sys_config 1002`；`CREATE DATABASE` 不能在迁移事务内执行，故不放进 `Migrations/`） |
+| 升级维护脚本 | `/data/App/FinvQuant/Deploy/Upgrade/`（如 `2610-004-MigratePublicKlineToCdeu.sql`；手工执行、不进入迁移链） |
+| BRS 备份 | `/data/App/FinvQuant/BRS/`（表级 `pg_dump` 在 `<yyyyMMdd>/`，大表分片在 `Slice/`；独立于 `Backup/`，见 [Brs.md](../../Docs/FinvQuant/Brs.md)） |
 | 服务日志 | `/data/App/FinvQuant/Log/FinvQuant.log`（`FINV_LOG_DIR`；10MB 切分、按日 `tar.gz` 归档） |
 | 备份 | `/data/App/FinvQuant/Backup/`（升级脚本写入 `finvquant_YYYYMMDD_HHMMSS.dump`） |
 | 导出 | `/data/App/FinvQuant/Export/`（行情归档导出，与容器方式一致） |
@@ -165,9 +166,9 @@ install -d -o root -g root -m 0755 "$PREFIX/Deploy"
 # 5) 二进制、迁移与部署文件
 install -o root -g root -m 0755 ./finvquant "$PREFIX/bin/finvquant"
 ln -sfn "$PREFIX/bin/finvquant" /usr/local/bin/finvquant
-# qmio 与 finvquant 必须同目录（安装包根目录内的 qmio）
-install -o root -g root -m 0755 ./qmio "$PREFIX/bin/qmio"
-ln -sfn "$PREFIX/bin/qmio" /usr/local/bin/qmio
+# qiom 与 finvquant 必须同目录（安装包根目录内的 qiom）
+install -o root -g root -m 0755 ./qiom "$PREFIX/bin/qiom"
+ln -sfn "$PREFIX/bin/qiom" /usr/local/bin/qiom
 cp Deploy/Migrations/*.sql "$PREFIX/Deploy/Migrations/" && chmod 0644 "$PREFIX/Deploy/Migrations/"*.sql
 cp Deploy/Native/*.sh "$PREFIX/Deploy/"
 cp Deploy/Native/*.md Deploy/Native/*.example Deploy/Native/FinvQuant.service "$PREFIX/Deploy/"
@@ -271,7 +272,7 @@ FINV_LOG_MAX_MB=10
 | `systemctl status` 显示 `failed` | `journalctl -u finvquant -n 100 --no-pager` 看具体错误 |
 | 启动报 `Failed to load environment files` / 找不到二进制 | 确认 unit 里的 `@PREFIX@` 已渲染（`grep -n 'data/App' /etc/systemd/system/finvquant.service`），且 `/data` 已挂载 |
 | 日志含 `迁移 V<n> 失败` | 迁移单事务执行、失败已回滚；多为权限不足（需 `CREATE SCHEMA` 权限，见第 3 节授权） |
-| `迁移 V100001 失败: relation "finv_quote_secu_kline_min" already exists` | 旧版脚本遗留问题：V100001 未限定 schema，按 `search_path` 落到 `public` 撞到其它服务的同名表。**已修正**（V100001/V100021/V100029/V100030/V100031/V100032 显式 `quote.`，且不再从 `public` 搬表）；更新脚本后重跑即可，脚本不会删除/重命名任何表 |
+| `迁移 V200001 失败: relation "finv_quote_secu_kline_min" already exists` | 旧版脚本遗留问题：V200001 未限定 schema，按 `search_path` 落到 `public` 撞到其它服务的同名表。**已修正**（V200001/V200021/V200029/V200030/V200031/V200032 显式 `quote.`，且不再从 `public` 搬表）；更新脚本后重跑即可，脚本不会删除/重命名任何表 |
 | `PG 连通性检查失败` | 检查 `FINV_PG_HOST/PORT/USER/PASSWORD` 与 `pg_hba.conf`（`127.0.0.1/32` 是否 `scram-sha-256`） |
 | 健康检查通过但 Web 打不开 | 确认 `FINV_SERVER_HOST=127.0.0.1` 且 Nginx 反代指向 16002；或临时改 0.0.0.0 直连验证 |
 | 手工 `psql` 报 `relation does not exist` | 表在 `quote`/`quant`/`futu`/`export`/`sche`/`dedup`/`archive`/`sys` schema，需写全限定名或设置 `search_path`，见 `Docs/DevSpec/DbSchemaSpec.md` |

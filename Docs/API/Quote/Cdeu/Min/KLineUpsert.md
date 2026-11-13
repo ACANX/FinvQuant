@@ -5,8 +5,8 @@
 > （约定见 [`Docs/DevSpec/ApiSpec.md`](../../../../DevSpec/ApiSpec.md) §7.7）。
 >
 > - 变更记录：需求 10777（迁移到 CDEU 前缀）、10782（全量统一 CDEU）、10783（本文按 OpenAPI 3.1 重写）
-> - 实现：`internal/api/handler/kline.go`（`Upsert`）、`internal/kline/service.go`（`Upsert`）
-> - 错误目录：`internal/kline/apierr.go`
+> - 实现：`internal/api/handler/kline.go`（`Upsert`）、`internal/meta/finv/quote/cdeu/kline/service.go`（`Upsert`）
+> - 错误目录：`internal/meta/finv/quote/cdeu/kline/apierr.go`
 
 ## 1. 概述
 
@@ -52,7 +52,7 @@
 | `turnover` | number | 是 | 否 | ≥ 0 | 是 | 成交金额 |
 | `change_price` | number | 是 | 否 | — | 是 | 涨跌额；与 `change_ratio` 均未传时自动计算 |
 | `change_ratio` | number | 是 | 否 | — | 是 | 涨跌幅；与 `change_price` 均未传时自动计算 |
-| `pacd` | number | 是 | 否 | — | 是 | 当日累计均价（库列名 `paocd`） |
+| `vwap` | number | 是 | 否 | — | 是 | 成交量加权平均价（VWAP）（库列名 `vwap`）；旧字段名 `pacd` 兼容接收，`vwap` 优先 |
 | `ext_field` | string | 是 | 否 | — | 是 | 预留扩展字段 |
 | `remark` | string | 是 | 否 | — | 是 | 备注 |
 | `provider` | string | 是 | 否 | ≤ 255 字符 | 是 | 数据来源（如 `FT`） |
@@ -77,7 +77,7 @@
       "turnover": 3560.00,
       "change_price": 0.10,
       "change_ratio": 2.857143,
-      "pacd": 3.56,
+      "vwap": 3.56,
       "ext_field": null,
       "remark": null,
       "provider": "FT"
@@ -98,7 +98,7 @@
 | `update`（默认） | `ON CONFLICT (usc, ts) DO UPDATE SET …` | 提前返回 409 / `211102` | 插入 + 覆盖影响行数 |
 
 `update` 覆盖的列为除 `usc`、`ts` 外的全部业务列（`date`、`time`、`open`、`high`、`low`、
-`close`、`last_close`、`volume`、`turnover`、`change_price`、`change_ratio`、`pacd`、`ext_field`、
+`close`、`last_close`、`volume`、`turnover`、`change_price`、`change_ratio`、`vwap`、`ext_field`、
 `remark`、`provider`），并刷新 `gmt_update = now()`。
 
 ### 3.2 整行覆盖
@@ -144,7 +144,7 @@
   "code": 211102,
   "message": "请求内存在重复主键",
   "detail": "请求内存在重复主键",
-  "request_id": "6f1c0f7a9d2e4b0c",
+  "request_id": "0B0D1F2E-3A4C-5D6E-8F70-1A2B3C4D5E6F"
   "error": {
     "code": 211102,
     "catalog_version": "finvquant-1",
@@ -184,7 +184,7 @@ curl -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert?onCo
         "turnover": 3560.00,
         "change_price": 0.10,
         "change_ratio": 2.857143,
-        "pacd": 3.56,
+        "vwap": 3.56,
         "ext_field": null,
         "remark": null,
         "provider": "FT"

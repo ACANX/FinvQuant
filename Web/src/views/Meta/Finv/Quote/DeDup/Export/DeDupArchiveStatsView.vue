@@ -1,10 +1,11 @@
 <script setup lang="ts">
 // 归档统计与预算：入口日统计、每日预算（可覆盖）、扫描水位（可重置）、成熟度（可重算）
 // 接口：Stats/Page、Budget/Page、Budget/Override、Watermark/List、Watermark、Maturity/Page、Maturity/Refresh
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 import { apiGet, apiPost, apiPut } from '../../../../../../api'
-import { fmtBytes, fmtDate, fmtISO, fmtMonth, fmtNum, fmtPct, isoDate } from '../../../../../../utils'
+import { showToast } from '../../../../../../ui/toast'
+import { bizMonthOptions, fmtBytes, fmtDate, fmtISO, fmtMonth, fmtNum, fmtPct, isoDate } from '../../../../../../utils'
 
 interface PageData<T> {
   total: number
@@ -66,12 +67,10 @@ const MATURITY_COLOR: Record<string, string> = {
   COMPLETE: 'success',
   FROZEN: 'deep-purple',
 }
-const maturityStatusItems = Object.keys(MATURITY_NAME).map((value) => ({ title: `${value}（${MATURITY_NAME[value]}）`, value }))
+const maturityStatusItems = Object.keys(MATURITY_NAME).map((value) => ({ title: `${MATURITY_NAME[value]}[${value}]`, value }))
 
 const tab = ref('stats')
 const error = ref('')
-const toast = ref(false)
-const toastText = ref('')
 
 // ---- 入口统计 ----
 const stats = ref<PageData<IngestStat>>({ total: 0, list: [] })
@@ -104,6 +103,8 @@ const maturityPageSize = ref(20)
 const maturityUsc = ref('')
 const maturityStatus = ref<string | null>(null)
 const maturityMonth = ref('')
+/** 业务月份是确定的枚举值：默认最近 10 年（yyyymm），最新在前 */
+const bizMonthItems = computed(() => bizMonthOptions())
 const maturityLoading = ref(false)
 const refreshing = ref(false)
 
@@ -240,8 +241,7 @@ async function saveBudget() {
   error.value = ''
   try {
     await apiPut<{ biz_date: string }>('/Meta/Finv/Quote/DeDup/Budget/Override', budgetForm.value)
-    toastText.value = '预算已覆盖，下一个调度周期生效'
-    toast.value = true
+    showToast('预算已覆盖，下一个调度周期生效')
     budgetDialog.value = false
     await loadBudgets()
   } catch (e) {
@@ -261,8 +261,7 @@ async function saveWatermark() {
   error.value = ''
   try {
     await apiPut<{ watermark_name: string }>('/Meta/Finv/Quote/DeDup/Watermark', watermarkForm.value)
-    toastText.value = '水位已重置'
-    toast.value = true
+    showToast('水位已重置')
     watermarkDialog.value = false
     await loadWatermarks()
   } catch (e) {
@@ -277,8 +276,7 @@ async function refreshMaturity() {
   error.value = ''
   try {
     await apiPost<{ job_kind: string }>('/Meta/Finv/Quote/DeDup/Maturity/Refresh', {})
-    toastText.value = '已触发成熟度重算，稍后刷新查看'
-    toast.value = true
+    showToast('已触发成熟度重算，稍后刷新查看')
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -427,7 +425,8 @@ onMounted(async () => {
               <v-select v-model="maturityStatus" :items="maturityStatusItems" label="成熟度" density="compact" hide-details clearable />
             </v-col>
             <v-col cols="12" sm="4" md="2">
-              <v-text-field v-model="maturityMonth" label="业务月份" placeholder="如 202608" density="compact" hide-details clearable />
+              <v-select v-model="maturityMonth" :items="bizMonthItems"
+                        label="业务月份" density="compact" hide-details clearable />
             </v-col>
             <v-col cols="auto">
               <v-btn color="primary" prepend-icon="mdi-magnify" :loading="maturityLoading" @click="loadMaturity">查询</v-btn>
@@ -512,6 +511,5 @@ onMounted(async () => {
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="toast" :timeout="3000" color="success">{{ toastText }}</v-snackbar>
   </v-card>
 </template>

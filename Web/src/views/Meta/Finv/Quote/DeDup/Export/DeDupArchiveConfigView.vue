@@ -4,7 +4,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 
 import { apiDelete, apiGet, apiPut } from '../../../../../../api'
-import { fmtISO, fmtNum, isoDate } from '../../../../../../utils'
+import { showToast } from '../../../../../../ui/toast'
+import { bizMonthOptions, fmtISO, fmtNum, isoDate } from '../../../../../../utils'
 
 interface PageData<T> {
   total: number
@@ -40,8 +41,6 @@ interface CalendarRow {
 
 const tab = ref('usc')
 const error = ref('')
-const toast = ref(false)
-const toastText = ref('')
 
 // ---- 证券主数据 ----
 const uscRows = ref<PageData<UscRow>>({ total: 0, list: [] })
@@ -80,6 +79,8 @@ const calendarPage = ref(1)
 const calendarPageSize = ref(20)
 const calendarUsc = ref('')
 const calendarMonth = ref('')
+/** 业务月份是确定的枚举值：默认最近 10 年（yyyymm），最新在前 */
+const bizMonthItems = computed(() => bizMonthOptions())
 const calendarLoading = ref(false)
 const calendarDialog = ref(false)
 const calendarSaving = ref(false)
@@ -211,8 +212,7 @@ async function saveUsc() {
   }
   try {
     await apiPut<{ usc: string }>('/Meta/Finv/Quote/DeDup/Usc', payload)
-    toastText.value = `证券 ${form.usc} 已保存`
-    toast.value = true
+    showToast(`证券 ${form.usc} 已保存`)
     uscDialog.value = false
     await loadUsc()
   } catch (e) {
@@ -239,8 +239,7 @@ async function savePriority() {
   error.value = ''
   try {
     await apiPut<{ usc: string }>('/Meta/Finv/Quote/DeDup/Priority', priorityForm.value)
-    toastText.value = `${priorityForm.value.usc} 优先级已保存`
-    toast.value = true
+    showToast(`${priorityForm.value.usc} 优先级已保存`)
     priorityDialog.value = false
     await loadUsc()
   } catch (e) {
@@ -257,8 +256,7 @@ async function clearPriority(usc: string) {
   error.value = ''
   try {
     await apiDelete<{ usc: string }>(`/Meta/Finv/Quote/DeDup/Priority?usc=${encodeURIComponent(usc)}`)
-    toastText.value = `${usc} 优先级覆盖已清除`
-    toast.value = true
+    showToast(`${usc} 优先级覆盖已清除`)
     priorityDialog.value = false
     await loadUsc()
   } catch (e) {
@@ -266,9 +264,11 @@ async function clearPriority(usc: string) {
   }
 }
 
-// priorityConfigured 当前编辑项是否已有覆盖（决定「清除覆盖」按钮是否可用）。
+// priorityConfigured 当前编辑项是否已有「人工设置」的覆盖值（决定「清除覆盖」按钮是否可用）。
+// 自动补全写入的默认值（priority_gmt_update 为 NULL）不算人工配置。
 const priorityConfigured = computed(() => currentUscRow.value?.priority_rank !== null
-  && currentUscRow.value?.priority_rank !== undefined)
+  && currentUscRow.value?.priority_rank !== undefined
+  && currentUscRow.value?.priority_gmt_update !== null)
 
 function openCalendar(row?: CalendarRow) {
   calendarForm.value = row
@@ -282,8 +282,7 @@ async function saveCalendar() {
   error.value = ''
   try {
     await apiPut<{ usc: string }>('/Meta/Finv/Quote/DeDup/Calendar', calendarForm.value)
-    toastText.value = '交易日历已保存'
-    toast.value = true
+    showToast('交易日历已保存')
     calendarDialog.value = false
     await loadCalendar()
   } catch (e) {
@@ -300,8 +299,7 @@ async function removeCalendar(row: CalendarRow) {
     await apiDelete<{ usc: string }>(
       `/Meta/Finv/Quote/DeDup/Calendar?usc=${encodeURIComponent(row.usc)}&tradeDate=${row.trade_date}`,
     )
-    toastText.value = '日历记录已删除'
-    toast.value = true
+    showToast('日历记录已删除')
     await loadCalendar()
   } catch (e) {
     error.value = (e as Error).message
@@ -389,21 +387,24 @@ onMounted(async () => {
             <template #item.provider="{ item }">{{ item.provider ?? '—' }}</template>
             <template #item.timezone="{ item }">{{ item.timezone ?? '—' }}</template>
             <template #item.currency="{ item }">{{ item.currency ?? '—' }}</template>
-            <!-- 优先级覆盖：未配置时显示默认值并置灰，提示走 100 / 5 / 7 兜底 -->
+            <!-- 优先级覆盖：自动补全写入的默认值（priority_gmt_update 为 NULL）置灰并标注「默认」，人工设置过的高亮 -->
             <template #item.priority_rank="{ item }">
-              <v-chip v-if="item.priority_rank !== null" size="small" variant="tonal" color="primary">
-                {{ item.priority_rank }}
+              <v-chip v-if="item.priority_rank !== null"
+                      size="small"
+                      variant="tonal"
+                      :color="item.priority_gmt_update === null ? 'grey' : 'primary'">
+                {{ item.priority_rank }}<span v-if="item.priority_gmt_update === null">&nbsp;默认</span>
               </v-chip>
               <span v-else class="text-medium-emphasis text-caption">默认 100</span>
             </template>
             <template #item.sla_days="{ item }">
-              <span :class="item.sla_days === null ? 'text-medium-emphasis' : ''">
-                {{ item.sla_days ?? '未配置(5)' }}
+              <span :class="item.priority_gmt_update === null ? 'text-medium-emphasis' : ''">
+                {{ item.sla_days ?? '未配置(5)' }}<span v-if="item.sla_days !== null && item.priority_gmt_update === null">（默认）</span>
               </span>
             </template>
             <template #item.max_wait_days="{ item }">
-              <span :class="item.max_wait_days === null ? 'text-medium-emphasis' : ''">
-                {{ item.max_wait_days ?? '未配置(7)' }}
+              <span :class="item.priority_gmt_update === null ? 'text-medium-emphasis' : ''">
+                {{ item.max_wait_days ?? '未配置(7)' }}<span v-if="item.max_wait_days !== null && item.priority_gmt_update === null">（默认）</span>
               </span>
             </template>
             <template #item.gmt_update="{ item }">{{ fmtISO(item.gmt_update) }}</template>
@@ -422,7 +423,8 @@ onMounted(async () => {
               <v-text-field v-model="calendarUsc" label="证券[USC]" density="compact" hide-details clearable />
             </v-col>
             <v-col cols="12" sm="4" md="2">
-              <v-text-field v-model="calendarMonth" label="业务月份" placeholder="如 202608" density="compact" hide-details clearable />
+              <v-select v-model="calendarMonth" :items="bizMonthItems"
+                        label="业务月份" density="compact" hide-details clearable />
             </v-col>
             <v-col cols="auto">
               <v-btn color="primary" prepend-icon="mdi-magnify" :loading="calendarLoading" @click="loadCalendar">查询</v-btn>
@@ -556,6 +558,5 @@ onMounted(async () => {
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="toast" :timeout="3000" color="success">{{ toastText }}</v-snackbar>
   </v-card>
 </template>

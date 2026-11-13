@@ -4,6 +4,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { apiGet, apiPost } from '../../../../../../api'
+import { showToast } from '../../../../../../ui/toast'
 import { fmtISO, fmtNum, fmtPct } from '../../../../../../utils'
 
 interface Alert {
@@ -114,8 +115,6 @@ const ALERT_TYPE: Record<string, 'info' | 'warning' | 'error'> = {
 const data = ref<StatusData | null>(null)
 const loading = ref(false)
 const error = ref('')
-const toast = ref(false)
-const toastText = ref('')
 const autoRefresh = ref(true)
 const runningKind = ref('')
 
@@ -193,8 +192,7 @@ async function runJob(kind: string) {
   runningKind.value = kind
   try {
     await apiPost<{ job_kind: string }>('/Meta/Finv/Quote/DeDup/Job/Run', { job_kind: kind })
-    toastText.value = `已触发 ${kind}，异步执行中`
-    toast.value = true
+    showToast(`已触发 ${kind}，异步执行中`)
     await load()
   } catch (e) {
     error.value = (e as Error).message
@@ -451,7 +449,6 @@ onBeforeUnmount(clearTimer)
       </v-card>
     </v-card-text>
 
-    <v-snackbar v-model="toast" :timeout="3000" color="success">{{ toastText }}</v-snackbar>
   </v-card>
 </template>
 

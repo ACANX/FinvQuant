@@ -38,6 +38,12 @@ services:
       FINV_REDIS_ADDR: redis:6379
       FINV_REDIS_PASSWORD: ${FINV_REDIS_PASSWORD:-}
       FINV_MODE: release
+      # 外部 OpenAPI 鉴权（需求 11188）：close = Redis 故障拒绝请求（防重放/限流不可用不放行）；
+      # 凭证缓存时长等运行期参数在 sys_config 19001~19007 里改，不需要重建容器（需求 11215）。
+      FINV_OPENAPI_REDIS_FAIL_MODE: ${FINV_OPENAPI_REDIS_FAIL_MODE:-close}
+      # 可信反向代理网段（需求 11247）：只有 TCP 对端落在这里时才采信 X-Forwarded-For / X-Real-IP。
+      # 留空 = 程序内默认私网三段 + 回环；前置 CDN 时把其网段追加进来（逗号分隔 CIDR）。
+      FINV_TRUSTED_PROXIES: ${FINV_TRUSTED_PROXIES:-}
       # 证券行情月归档导出与上传（详见 Docs/Refactor/2610-005-FinvQuoteDeDubExportUpload.md）
       FINV_QUOTE_DEDUB_ENABLED: ${FINV_QUOTE_DEDUB_ENABLED:-false}
       FINV_QUOTE_DEDUB_TIMEZONE: ${FINV_QUOTE_DEDUB_TIMEZONE:-Asia/Shanghai}
@@ -53,9 +59,18 @@ services:
       # 导出低峰窗口改由 sys.sys_config 20006 承载（格式 HH:MM:SS|HH:MM:SS），
       # 不再从环境变量读取；缺失或非法时按内置默认 00:30:00|06:30:00 兜底。
       FINV_QUOTE_DEDUB_PAGE_SIZE: ${FINV_QUOTE_DEDUB_PAGE_SIZE:-10000}
+      # BRS 备份根目录：容器内 /data/App/FinvQuant/BRS（与 Native 完全一致），
+      # 与数据库逻辑备份分开，避免权限互相干扰；由下方 volume 映射到宿主。
+      FINV_BRS_BACKUP_DIR: ${FINV_BRS_BACKUP_DIR:-/data/App/FinvQuant/BRS}
+      # 本地全量 dump 保留天数（<=0 不清理；只删远端已存在的文件）
+      FINV_BRS_LOCAL_KEEP_DAYS: ${FINV_BRS_LOCAL_KEEP_DAYS:-7}
+      # 备份目录剩余空间告警阈值（GB，<=0 关闭）
+      FINV_BRS_DISK_MIN_FREE_GB: ${FINV_BRS_DISK_MIN_FREE_GB:-5}
     volumes:
       # 本地导出与上传暂存目录（容器重建不丢文件；独享存储可用 NAS 挂载目录）
       - ${FINV_QUOTE_DEDUB_HOST_DIR:-./data/App/FinvQuant/Export}:/data/App/FinvQuant/Export
+      # BRS 备份产物目录（容器重建不丢文件）
+      - ${FINV_BRS_HOST_DIR:-./data/App/Backup}:/data/App/FinvQuant/BRS
     depends_on:
       postgres:
         condition: service_healthy

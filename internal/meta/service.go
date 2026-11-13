@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// FlagEnable 启用标志常量（与 V100017/V100018 迁移约定一致：'0'=禁用，'1'=启用）。
+// FlagEnable 启用标志常量（与 V200017/V200018 迁移约定一致：'0'=禁用，'1'=启用）。
 const (
 	FlagDisable = "0"
 	FlagEnable  = "1"

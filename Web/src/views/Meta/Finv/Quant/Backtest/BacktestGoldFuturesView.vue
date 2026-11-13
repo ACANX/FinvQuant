@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiGet, apiPost } from '../../../../../api'
+import { showToast } from '../../../../../ui/toast'
 import { fmtDate } from '../../../../../utils'
 
 const router = useRouter()
@@ -97,7 +98,6 @@ const loading = ref(false)
 const submitting = ref(false)
 const cancelling = ref('')
 const error = ref('')
-const message = ref('')
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
@@ -172,14 +172,12 @@ function toDateInt(v: string): number {
 }
 
 async function startBacktest() {
-  error.value = ''
-  message.value = ''
   if (!strategyId.value) {
-    error.value = '请先选择策略（可在「策略管理」中创建）'
+    showToast('请先选择策略（可在「策略管理」中创建）', 'error')
     return
   }
   if (!accountId.value) {
-    error.value = '请先选择账户（可在「账户管理」中创建）'
+    showToast('请先选择账户（可在「账户管理」中创建）', 'error')
     return
   }
   submitting.value = true
@@ -201,10 +199,10 @@ async function startBacktest() {
       report_precision: reportPrecision.value,
       options,
     })
-    message.value = `回测任务 #${run.run_no} 已创建并启动（${run.status}），执行中请稍后刷新查看报告`
+    showToast(`回测任务 #${run.run_no} 已创建并启动（${run.status}），执行中请稍后刷新查看报告`)
     await loadRuns()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   } finally {
     submitting.value = false
   }
@@ -215,10 +213,10 @@ async function cancelRun(run: RunRow) {
   cancelling.value = run.run_id
   try {
     await apiPost('/Meta/Finv/Quant/Backtest/Run/Cancel', { run_id: run.run_id })
-    message.value = `任务 #${run.run_no} 取消请求已受理`
+    showToast(`任务 #${run.run_no} 取消请求已受理`)
     await loadRuns()
   } catch (e) {
-    error.value = (e as Error).message
+    showToast((e as Error).message, 'error')
   } finally {
     cancelling.value = ''
   }
@@ -323,16 +321,16 @@ onBeforeUnmount(() => {
             <v-row>
               <v-col cols="6">
                 <v-select v-model="period" :items="[
-                  { title: '分钟（Min）', value: 'Min' },
-                  { title: '小时（Hour）', value: 'Hour' },
-                  { title: '日（Day）', value: 'Day' },
+                  { title: '分钟[Min]', value: 'Min' },
+                  { title: '小时[Hour]', value: 'Hour' },
+                  { title: '日[Day]', value: 'Day' },
                 ]" label="回测数据周期" />
               </v-col>
               <v-col cols="6">
                 <v-select v-model="reportPrecision" :items="[
-                  { title: '日（Day）', value: 'Day' },
-                  { title: '小时（Hour）', value: 'Hour' },
-                  { title: '分钟（Min）', value: 'Min' },
+                  { title: '日[Day]', value: 'Day' },
+                  { title: '小时[Hour]', value: 'Hour' },
+                  { title: '分钟[Min]', value: 'Min' },
                 ]" label="报告时间精度" hint="曲线数据粒度" />
               </v-col>
             </v-row>
@@ -389,7 +387,6 @@ onBeforeUnmount(() => {
             <v-btn size="small" variant="tonal" prepend-icon="mdi-refresh" @click="loadRuns">刷新</v-btn>
           </v-card-title>
           <v-alert v-if="error" type="error" dismissible class="mx-4 mb-2">{{ error }}</v-alert>
-          <v-alert v-if="message" type="success" dismissible class="mx-4 mb-2">{{ message }}</v-alert>
 
           <v-data-table-server v-model:page="runPage" v-model:items-per-page="runPageSize"
             :headers="[

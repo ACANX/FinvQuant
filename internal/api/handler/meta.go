@@ -27,7 +27,7 @@ func NewMeta(service *meta.Service) *Meta {
 // ListExchanges 分页查询交易所字典。
 func (h *Meta) ListExchanges(c *gin.Context) {
 	keyword := c.Query("keyword")
-	flagEnable := c.Query("flag_enable")
+	flagEnable := queryFlagEnable(c)
 	list, total, err := h.service.ListExchanges(c.Request.Context(), parsePager(c), keyword, flagEnable)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "查询交易所字典失败: " + err.Error()})
@@ -79,7 +79,7 @@ func (h *Meta) ToggleExchange(c *gin.Context) {
 // ListMarkets 分页查询交易市场。
 func (h *Meta) ListMarkets(c *gin.Context) {
 	keyword := c.Query("keyword")
-	flagEnable := c.Query("flag_enable")
+	flagEnable := queryFlagEnable(c)
 	list, total, err := h.service.ListMarkets(c.Request.Context(), parsePager(c), keyword, flagEnable)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "查询交易市场失败: " + err.Error()})
@@ -131,7 +131,7 @@ func (h *Meta) ToggleMarket(c *gin.Context) {
 // ListSecurities 分页查询证券代码。
 func (h *Meta) ListSecurities(c *gin.Context) {
 	keyword := c.Query("keyword")
-	flagEnable := c.Query("flag_enable")
+	flagEnable := queryFlagEnable(c)
 	list, total, err := h.service.ListSecurities(c.Request.Context(), parsePager(c), keyword, flagEnable)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "查询证券代码失败: " + err.Error()})
@@ -216,6 +216,15 @@ func (h *Meta) LookupSecurity(c *gin.Context) {
 // parsePager 从 Query 参数解析分页参数（page / page_size）。
 func parsePager(c *gin.Context) meta.Pager {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", c.DefaultQuery("page_size", "20"))) // page_size 兼容旧参数
 	return meta.Pager{Page: page, PageSize: pageSize}
+}
+
+// queryFlagEnable 读取启用状态过滤参数。
+// 规范名 flagEnable（小驼峰，见 Docs/DevSpec/ApiSpec.md §3），兼容旧参数 flag_enable。
+func queryFlagEnable(c *gin.Context) string {
+	if v := c.Query("flagEnable"); v != "" {
+		return v
+	}
+	return c.Query("flag_enable") // 兼容旧参数
 }

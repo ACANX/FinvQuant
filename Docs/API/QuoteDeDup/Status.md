@@ -77,7 +77,8 @@
 | `alerts[].code` | `BACKLOG_TOO_HIGH`、`BUDGET_FACTOR_HIGH`、`HEARTBEAT_TIMEOUT`、`UPLOAD_RETRY_EXHAUSTED`、`PATCH_FREQUENCY_HIGH`、`STAGING_RESIDUAL`、`FROZEN_MISSING_HIGH`、`MVSV_STRUCTURE_INVALID` |
 | `options` | 当前生效的运行参数（不包含任何凭据） |
 | `options.upload_mode` | 当前生效上传模式：`none` / `dir` / `http` / `github`。`sys_config` 20002='1' 时为 `github`（Contents API），否则取 `FINV_QUOTE_DEDUB_UPLOAD_MODE` |
-| `options.window_start` / `options.window_end` | 当前低峰窗口，`HH:MM:SS`（来自 `sys.sys_config` 20006，秒级） |
+| `options.window_start` | 低峰窗口开始，`HH:MM:SS`（来自 `sys.sys_config` 20006，秒级） |
+| `options.window_end` | 低峰窗口结束，`HH:MM:SS`（来自 `sys.sys_config` 20006，秒级） |
 | `options.dynamic_job_retention_days` | 历史运行动态 JOB 实例保留天数（来自 `sys.sys_config` 20008，默认 30） |
 | `options.cdeu_mode` | CDEU 工作流运行模式（`sys_config` 20005，字符串）：`Manual`（默认）——进程内调度器**不自动触发任何 Job**，只能通过 `POST .../Job/Run` 手动执行；`Auto`——每天按定时任务时间（`cdeu_job.schedule_value`）自动跑。取值大小写不敏感，空值/未知值按 `Manual` 处理 |
 | `options.cdeu_schedule_enabled` | `cdeu_mode == "Auto"` 的便捷布尔值，供前端直接判断是否会自动运行 |

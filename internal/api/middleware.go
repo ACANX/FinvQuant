@@ -2,7 +2,6 @@ package api
 
 import (
 	"bytes"
-	"crypto/subtle"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -54,36 +53,10 @@ func abortUnauthorized(c *gin.Context) {
 	})
 }
 
-// OpenAPIKeyHeader 外部 OpenAPI 密钥头（与 Authorization: Bearer 二选一）。
-const OpenAPIKeyHeader = "X-API-Key"
-
-// OpenAPIKeyFromRequest 解析外部 OpenAPI 密钥：优先 X-API-Key，其次 Authorization: Bearer。
-func OpenAPIKeyFromRequest(c *gin.Context) string {
-	if key := strings.TrimSpace(c.GetHeader(OpenAPIKeyHeader)); key != "" {
-		return key
-	}
-	return BearerToken(c.GetHeader("Authorization"))
-}
-
-// RequireOpenAPIKey 校验外部 OpenAPI 静态密钥（需求 10787，过渡方案）。
-//
-// 仅用于 /OpenAPI/V1 路由组；与登录会话 RequireAuth 完全独立。
-// 未配置密钥时路由组不应注册（见 router.go），此处再兜底拒绝。
-func RequireOpenAPIKey(expected string) gin.HandlerFunc {
-	secret := strings.TrimSpace(expected)
-	return func(c *gin.Context) {
-		if secret == "" {
-			abortUnauthorized(c)
-			return
-		}
-		provided := OpenAPIKeyFromRequest(c)
-		if subtle.ConstantTimeCompare([]byte(provided), []byte(secret)) != 1 {
-			abortUnauthorized(c)
-			return
-		}
-		c.Next()
-	}
-}
+// 外部 OpenAPI 的鉴权已迁到独立包 internal/api/openapi（需求 11168）：
+// `openapi.Middleware` 支持静态 API Key 与 AK/SK 签名，配置取自 sys.sys_config 19xxx 号段，
+// 兼容期环境变量 FINV_OPENAPI_KEY（config.OpenAPIKey）作为「兜底静态密钥」传入 Options.FallbackKey。
+// 原 RequireOpenAPIKey（需求 10787 的过渡实现，只比对单一环境变量）已删除。
 
 // responseCapture 缓冲 handler 输出，便于外部 OpenAPI 统一包装响应。
 type responseCapture struct {

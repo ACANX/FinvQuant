@@ -1,0 +1,230 @@
+# FinvQuant — 行情列表股票快照同步（OpenAPI 3.1 契约）
+#
+# 与同目录 StockListCollect.md 成对维护，任一侧变更须同步更新另一侧。
+#
+openapi: 3.1.0
+info:
+  title: FinvQuant — 行情列表股票快照同步
+  version: 1.0.0
+  description: |
+    手动触发「证券列表采集」：读取 cdeu.finv_cdeu_secu_realtime_sync_config 中启用的配置，
+    按市场分页调用 moomoo get-stock-list，逐页 upsert 到 cdeu.finv_cdeu_secu_realtime_stock，
+    并把接口 pagination.total 回写到配置表 count_exists。
+    采集逻辑集中在 internal/meta/finv/quote/cdeu/quote_list_stock_snapshot_sync.go（单文件、可迁移）。
+servers:
+  - url: http://127.0.0.1:16001
+    description: 本机直连（生产经 Nginx 反代时替换为 https://<域名>）
+tags:
+  - name: Quote/Cdeu/Realtime
+    description: 证券实时行情快照（CDEU）
+security:
+  - bearerAuth: []
+paths:
+  /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync:
+    post:
+      operationId: collectCdeuRealtimeStockList
+      tags: [Quote/Cdeu/Realtime]
+      summary: 触发证券列表采集（分页拉取 + 落库 + 回写统计）
+      description: |
+        请求体全部字段可选：缺省时采集配置取自配置表，控制参数取默认值
+        （每页 50、页间间隔 6s、重试 2 次、单请求 20s、页码从 1 开始）。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockListCollectRequest'
+            examples:
+              quick:
+                summary: 只采港股前 100 只，缩短间隔便于验证
+                value:
+                  market_type: '1'
+                  count_plan: 100
+                  page_size: 50
+                  interval_ms: 300
+                  max_pages: 2
+      responses:
+        '200':
+          description: 采集结束（单个市场失败时 code 仍为 0，失败信息见 data.results[].error）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockListCollectResponse'
+        '400':
+          description: 请求体不是合法 JSON / 含未定义字段
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 未登录或 token 失效
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: 无匹配配置、读配置失败等（业务码 2006）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    StockListCollectRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        instrument_symbol:
+          type: string
+          description: 只采集该证券品种（stock/etf/future）；空=全部。
+        market_type:
+          type: string
+          description: 只采集该市场（1=HK 2=US 4=CN）；空=全部。
+        count_plan:
+          type: integer
+          minimum: 1
+          description: 覆盖配置表中的计划采集数量。
+        plate_type:
+          type: string
+          default: '1'
+          description: 接口 plateType。
+        rank_type:
+          type: string
+          default: '3'
+          description: 接口 rankType（3=市值排行）。
+        page_size:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 50
+          description: 每页条数。
+        page_start:
+          type: integer
+          description: 页码起始值，默认 `0`（本接口 0-based，`0` 即第一页；MetaExt v0.1.2 起上游 page 下限即为 0）。
+        interval_ms:
+          type: integer
+          minimum: 0
+          default: 6000
+          description: 页间间隔（毫秒），用于避免被服务端限流。
+        max_retries:
+          type: integer
+          minimum: 0
+          default: 2
+          description: 单页失败重试次数。
+        retry_backoff_ms:
+          type: integer
+          minimum: 0
+          default: 2000
+          description: 重试退避基数（第 n 次重试等待 n×该值）。
+        request_timeout_ms:
+          type: integer
+          minimum: 0
+          default: 20000
+          description: 单次请求超时（毫秒）。
+        max_pages:
+          type: integer
+          minimum: 0
+          default: 0
+          description: 页数上限，0=不限（仍受计划数量约束）。
+        continue_on_error:
+          type: boolean
+          default: true
+          description: 单个市场失败后是否继续后续市场。
+        extra:
+          type: object
+          additionalProperties:
+            type: string
+          description: 预留扩展参数（当前未消费，供后续新增控制项透传）。
+
+    StockListCollectResult:
+      type: object
+      required: [instrument_symbol, market_type, pages, rows_receive, insert, update, elapsed_ms]
+      properties:
+        instrument_symbol:
+          type: string
+          description: 证券品种符号。
+        market_type:
+          type: string
+          description: 市场类型编码。
+        pages:
+          type: integer
+          description: 本次完成页数。
+        rows_receive:
+          type: integer
+          format: int64
+          description: 收到条目数。
+        insert:
+          type: integer
+          format: int64
+          description: 新增行数。
+        update:
+          type: integer
+          format: int64
+          description: 覆盖行数。
+        count_exists:
+          type: integer
+          description: 接口返回的该市场证券总数（pagination.total）。
+        total_available:
+          type: integer
+          description: 本轮实际可采集数量 = min(计划数量, count_exists)。
+        elapsed_ms:
+          type: integer
+          format: int64
+          description: 耗时（毫秒）。
+        error:
+          type: string
+          description: 该市场失败原因；成功时缺省。
+
+    StockListCollectResponse:
+      type: object
+      required: [code, message, data]
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+          description: 业务码，0=成功。
+        message:
+          type: string
+          description: 文本消息。
+        data:
+          type: object
+          required: [results, rows_receive, insert, update, elapsed_ms]
+          properties:
+            results:
+              type: array
+              items:
+                $ref: '#/components/schemas/StockListCollectResult'
+            rows_receive:
+              type: integer
+              format: int64
+            insert:
+              type: integer
+              format: int64
+            update:
+              type: integer
+              format: int64
+            elapsed_ms:
+              type: integer
+              format: int64
+            error:
+              type: string
+              description: 首个失败市场的错误摘要（全部成功时缺省）。
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+          description: 业务码（400/401/2006）。
+        message:
+          type: string
+          description: 错误说明。

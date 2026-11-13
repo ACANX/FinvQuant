@@ -1,0 +1,95 @@
+openapi: 3.0.3
+info:
+  title: FinvQuant API — 待录入证券录入证券元数据
+  version: 1.0.0
+  description: |
+    POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enroll
+    需求 10996/11147：单事务写入 public.finv_security + futu.finv_futu_quote_collect，
+    并把 usc 回写 cdeu.finv_cdeu_secu_realtime_stock；remark 带 [AUTO-FILL] 标记便于溯源。
+    cdeu.finv_quote_cdeu_usc 不录入（运行时动态生成）。三处写入均幂等，不覆盖人工数据。
+servers:
+  - url: /
+paths:
+  /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enroll:
+    post:
+      summary: 录入待录入证券（写两张主数据表 + 回写快照 usc）
+      operationId: realtimeStockPendingEnroll
+      tags: [Cdeu]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stock_id, security, collect]
+              properties:
+                stock_id: { type: integer, format: int64 }
+                remark: { type: string, description: '人工备注，服务端会拼 [AUTO-FILL] 前缀与时间' }
+                security: { $ref: '#/components/schemas/SecurityFields' }
+                collect: { $ref: '#/components/schemas/CollectFields' }
+      responses:
+        '200':
+          description: 录入完成（含三处都已存在的情形）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string, example: 补录完成 }
+                  data:
+                    type: object
+                    required: [usc, security_created, collect_created, snapshot_updated, remark]
+                    properties:
+                      usc: { type: string, example: HK.ZZTEST1 }
+                      security_created: { type: boolean }
+                      collect_created: { type: boolean }
+                      snapshot_updated: { type: boolean }
+                      remark: { type: string, example: '[AUTO-FILL] 待录入证券补录 2026-01-15T10:20:30+08:00' }
+        '400':
+          description: 请求体解析失败 / 必填缺失 / stock_id 不存在 / 唯一约束冲突
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 400 }
+                  message: { type: string }
+        '500':
+          description: 数据库侧失败
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 2006 }
+                  message: { type: string }
+components:
+  schemas:
+    SecurityFields:
+      type: object
+      required: [exchange_code, security_type, security_code, security_name, security_name_cn, currency_type]
+      properties:
+        exchange_code: { type: integer, example: 21 }
+        security_type: { type: string, example: Stock }
+        security_code: { type: string, example: '09999' }
+        security_name: { type: string }
+        security_name_cn: { type: string }
+        security_name_full: { type: string }
+        currency_type: { type: string, example: HKD }
+        timezone: { type: string }
+        tz: { type: string }
+    CollectFields:
+      type: object
+      required: [futu_symbol, market_type, market_code, instrument_type, sub_instrument_type, market_label, instrument]
+      properties:
+        futu_symbol: { type: string, example: '09999' }
+        market_type: { type: integer, example: 1 }
+        market_code: { type: integer, example: 1 }
+        instrument_type: { type: integer, example: 3 }
+        sub_instrument_type: { type: integer, example: 3002 }
+        market_label: { type: string, example: HK }
+        instrument: { type: string, example: stock }
+        req_section: { type: string }
+        flag_enable: { type: string, example: '0' }

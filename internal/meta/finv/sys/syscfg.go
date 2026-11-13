@@ -21,7 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// sys_config 中与「月归档上传 Git 仓库」相关的配置编号（见 V100034/V100035 种子迁移）。
+// sys_config 中与「月归档上传 Git 仓库」相关的配置编号（见 V200034/V200035 种子迁移）。
 const (
 	// KeyArchiveUpload 启用月归档数据自动上传 Git 仓库标志：'0'-关闭（默认） '1'-启用。
 	KeyArchiveUpload = 20002
@@ -39,7 +39,7 @@ const (
 	// KeyPurgeAfterExport 导出成功后是否立即删除主表行情数据（char_value：'1' 删除 / '0' 保留）。
 	KeyPurgeAfterExport = 20007
 	// KeyDynamicJobRetentionDays 历史运行动态 JOB 实例的保留天数（int_value，默认 30）。
-	// 自 V200045 起 cdeu_job_dynamic 每次运行各一条，超过该天数的历史实例由
+	// 自 V300045 起 cdeu_job_dynamic 每次运行各一条，超过该天数的历史实例由
 	// PURGE_STALE_DYNAMIC（归档复核阶段）清理。
 	KeyDynamicJobRetentionDays = 20008
 	// KeyHistoryPurgePolicy 历史流程运行数据的清理策略（str_value）：
@@ -59,6 +59,20 @@ const (
 	// 会话存放于 Redis；每次命中且剩余时间不足一半时滑动续期，
 	// 因此该值同时是「空闲超时」的上界。见需求 10761。
 	KeyAuthSessionTTLMinutes = 20012
+	// KeySupabaseConn Supabase 数据库连接配置，格式 {PROJECT_ID}|{APIKEY}
+	// （半角竖线分隔两段，见 V300142 种子迁移，需求 11041）。留空表示未配置（不连接 Supabase）。
+	KeySupabaseConn = 20013
+	// KeySupabaseSecuKeyTable Supabase 侧「证券键」源表名（V300143 种子迁移，需求 11044）。
+	// 缺行或为空时回退 SupabaseSecuKeyTableDefault。
+	KeySupabaseSecuKeyTable = 20014
+)
+
+// Supabase 连接与源表相关的内置默认值（需求 11041 / 11044）。
+const (
+	// SupabaseSecuKeyTableDefault 20014 缺失或为空时的默认源表名。
+	SupabaseSecuKeyTableDefault = "finv_quote_secu_key"
+	// SupabaseDefaultSchema PostgREST 默认 schema（源表名不带 schema 前缀时使用）。
+	SupabaseDefaultSchema = "public"
 )
 
 // 20012 登录会话有效期取值约束。
@@ -194,7 +208,118 @@ var (
 	ErrTokenMissing = errors.New("系统配置 20003（归档数据上传GitHub仓库的PAT值）未配置")
 	// ErrExportWindowEmpty 20006 未配置（调用方回退内置默认窗口）。
 	ErrExportWindowEmpty = errors.New("系统配置 20006（导出低峰窗口）未配置，已回退默认 " + ExportWindowDefault)
+	// ErrSupabaseConnEmpty 20013 未配置（不连接 Supabase）。
+	ErrSupabaseConnEmpty = errors.New("系统配置 20013（Supabase 数据库连接配置）未配置")
 )
+
+// SupabaseConn 20013 的解析结果：项目 ID + API Key。
+//
+// 用法：BaseURL() 得到 https://<PROJECT_ID>.supabase.co，RestURL(table) 得到 PostgREST
+// 表地址。APIKey 属敏感信息：任何时候都不要原样输出到日志或前端响应，只允许输出
+// 项目 ID 与 key 的脱敏前缀。
+type SupabaseConn struct {
+	ProjectID string // Supabase 项目 ID（https://<PROJECT_ID>.supabase.co 的子域）
+	APIKey    string // Supabase API Key（sb_publishable_... / sb_secret_...）
+}
+
+// BaseURL Supabase 项目根地址。
+func (c SupabaseConn) BaseURL() string {
+	return "https://" + c.ProjectID + ".supabase.co"
+}
+
+// RestURL 拼接 PostgREST 表地址（table 允许 `schema.table`，缺 schema 时用 SupabaseDefaultSchema）。
+//
+// 表名由调用方先行校验（NormalizeSupabaseTableName），此处不再重复校验。
+func (c SupabaseConn) RestURL(table string) string {
+	name := table
+	if !strings.Contains(name, ".") {
+		name = SupabaseDefaultSchema + "." + name
+	}
+	return c.BaseURL() + "/rest/v1/" + name
+}
+
+// MaskedAPIKey API Key 的脱敏展示（仅保留前 8 位，便于运维核对是否换过 key）。
+func (c SupabaseConn) MaskedAPIKey() string {
+	key := strings.TrimSpace(c.APIKey)
+	if key == "" {
+		return ""
+	}
+	if len(key) <= 8 {
+		return "****"
+	}
+	return key[:8] + "…"
+}
+
+// ParseSupabaseConn 解析并校验 20013 的取值：{PROJECT_ID}|{APIKEY}。
+//
+// 严格口径（对齐「格式非法按未配置处理」）：
+//   - 必须且只能两段（半角竖线分隔），两段都不得为空白；
+//   - PROJECT_ID 必须是 Supabase 项目引用（小写字母/数字/连字符，6~64 位）；
+//   - APIKEY 不得含空白。
+func ParseSupabaseConn(raw string) (SupabaseConn, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return SupabaseConn{}, ErrSupabaseConnEmpty
+	}
+	parts := strings.Split(trimmed, "|")
+	if len(parts) != 2 {
+		return SupabaseConn{}, fmt.Errorf(
+			"Supabase 连接配置应为 {PROJECT_ID}|{APIKEY}（半角竖线分隔 2 段），当前 %d 段", len(parts))
+	}
+	projectID := strings.TrimSpace(parts[0])
+	apiKey := strings.TrimSpace(parts[1])
+	if projectID == "" {
+		return SupabaseConn{}, errors.New("Supabase 连接配置的 PROJECT_ID 段为空")
+	}
+	if apiKey == "" {
+		return SupabaseConn{}, errors.New("Supabase 连接配置的 APIKEY 段为空")
+	}
+	if len(projectID) < 6 || len(projectID) > 64 {
+		return SupabaseConn{}, fmt.Errorf("Supabase 连接配置的 PROJECT_ID 长度非法（%d 位，应为 6~64）", len(projectID))
+	}
+	for _, r := range projectID {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' {
+			return SupabaseConn{}, fmt.Errorf(
+				"Supabase 连接配置的 PROJECT_ID 含非法字符 %q（只允许小写字母、数字与 '-'）", r)
+		}
+	}
+	if strings.ContainsAny(apiKey, " \t\r\n") {
+		return SupabaseConn{}, errors.New("Supabase 连接配置的 APIKEY 含空白字符")
+	}
+	return SupabaseConn{ProjectID: projectID, APIKey: apiKey}, nil
+}
+
+// NormalizeSupabaseTableName 校验并归一化源表名（20014 与接口入参共用）。
+//
+// 允许 `finv_quote_secu_key` 或 `public.finv_quote_secu_key`；每段只允许
+// [A-Za-z_][A-Za-z0-9_]*，避免表名拼进 PostgREST URL 时被注入路径或查询串。
+// 空值回退默认表名。
+func NormalizeSupabaseTableName(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return SupabaseSecuKeyTableDefault, nil
+	}
+	segments := strings.Split(trimmed, ".")
+	if len(segments) > 2 {
+		return "", fmt.Errorf("源表名 %q 非法：最多只允许 schema.table 两段", trimmed)
+	}
+	for _, segment := range segments {
+		if segment == "" {
+			return "", fmt.Errorf("源表名 %q 非法：存在空段", trimmed)
+		}
+		for i, r := range segment {
+			isLetter := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+			isDigit := r >= '0' && r <= '9'
+			if i == 0 && !isLetter && r != '_' {
+				return "", fmt.Errorf("源表名 %q 非法：每段必须以字母或下划线开头", trimmed)
+			}
+			if i > 0 && !isLetter && !isDigit && r != '_' {
+				return "", fmt.Errorf("源表名 %q 非法：只允许字母、数字与下划线", trimmed)
+			}
+		}
+	}
+	return trimmed, nil
+}
 
 // RepoSpec 是 20004 配置值的解析结果：{owner}:{repo}:{branch}:{pre_path_key}。
 type RepoSpec struct {
@@ -306,8 +431,16 @@ type Values struct {
 	// PurgeLocalExportFiles 20011：归档复核阶段是否清理本地导出文件（默认 true）。
 	PurgeLocalExportFiles bool // 20011 != '0'
 	// AuthSessionTTLMinutes 20012：登录会话有效期（分钟，默认 480）。
-	AuthSessionTTLMinutes int       // 20012（已归一化到 5~43200）
-	LoadedAt              time.Time // 快照时间
+	AuthSessionTTLMinutes int // 20012（已归一化到 5~43200）
+	// SupabaseConn 20013 解析结果（{PROJECT_ID}|{APIKEY}）；未配置时为零值。
+	SupabaseConn SupabaseConn // 20013
+	// SupabaseConnErr 20013 解析错误（未配置 / 格式非法）。
+	SupabaseConnErr error
+	// SupabaseSecuKeyTable 20014：Supabase 侧证券键源表名（已归一化，永不为空）。
+	SupabaseSecuKeyTable string
+	// SupabaseSecuKeyTableRaw 20014 原始取值（便于诊断非法配置）。
+	SupabaseSecuKeyTableRaw string
+	LoadedAt                time.Time // 快照时间
 }
 
 // CDEUScheduleEnabled 是否允许进程内调度器自动触发 CDEU Job。
@@ -343,7 +476,7 @@ func (v Values) ArchiveTarget() (Target, error) {
 const selectConfigSQL = `
 SELECT config_no, char_value, str_value, int_value
   FROM sys.sys_config
- WHERE config_no IN ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
+ WHERE config_no IN ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`
 
 // Store sys.sys_config 读取器（短 TTL 缓存；并发安全）。
 type Store struct {
@@ -452,7 +585,7 @@ func (s *Store) cachedValues() (Values, bool) {
 
 // loadFromPool 从 sys.sys_config 读取配置并解析。
 func loadFromPool(ctx context.Context, pool *pgxpool.Pool) (Values, error) {
-	rows, err := pool.Query(ctx, selectConfigSQL, KeyArchiveUpload, KeyArchiveUploadToken, KeyArchiveRepoSpec, KeyCDEUMode, KeyExportWindow, KeyPurgeAfterExport, KeyDynamicJobRetentionDays, KeyHistoryPurgePolicy, KeyHistoryPurgeKeep, KeyPurgeLocalExportFiles, KeyAuthSessionTTLMinutes)
+	rows, err := pool.Query(ctx, selectConfigSQL, KeyArchiveUpload, KeyArchiveUploadToken, KeyArchiveRepoSpec, KeyCDEUMode, KeyExportWindow, KeyPurgeAfterExport, KeyDynamicJobRetentionDays, KeyHistoryPurgePolicy, KeyHistoryPurgeKeep, KeyPurgeLocalExportFiles, KeyAuthSessionTTLMinutes, KeySupabaseConn, KeySupabaseSecuKeyTable)
 	if err != nil {
 		return Values{}, fmt.Errorf("查询 sys.sys_config 失败: %w", err)
 	}
@@ -465,6 +598,8 @@ func loadFromPool(ctx context.Context, pool *pgxpool.Pool) (Values, error) {
 	keepSeen := false
 	localSeen := false
 	authTTLSeen := false
+	supabaseConnSeen := false
+	supabaseTableSeen := false
 	for rows.Next() {
 		var (
 			configNo  int
@@ -516,6 +651,21 @@ func loadFromPool(ctx context.Context, pool *pgxpool.Pool) (Values, error) {
 		case KeyAuthSessionTTLMinutes:
 			authTTLSeen = true
 			values.AuthSessionTTLMinutes = NormalizeAuthSessionTTLMinutes(int(intValueValue(intValue)))
+		case KeySupabaseConn:
+			supabaseConnSeen = true
+			conn, connErr := ParseSupabaseConn(stringValue(strValue))
+			values.SupabaseConn = conn
+			values.SupabaseConnErr = connErr
+		case KeySupabaseSecuKeyTable:
+			supabaseTableSeen = true
+			values.SupabaseSecuKeyTableRaw = strings.TrimSpace(stringValue(strValue))
+			table, tableErr := NormalizeSupabaseTableName(values.SupabaseSecuKeyTableRaw)
+			if tableErr != nil {
+				// 非法表名不阻断其他配置读取：回退默认表名，原始值留在 Raw 字段供诊断。
+				values.SupabaseSecuKeyTable = SupabaseSecuKeyTableDefault
+			} else {
+				values.SupabaseSecuKeyTable = table
+			}
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -552,6 +702,14 @@ func loadFromPool(ctx context.Context, pool *pgxpool.Pool) (Values, error) {
 	// 20012 缺行时按默认 480 分钟（8 小时）兜底。
 	if !authTTLSeen {
 		values.AuthSessionTTLMinutes = AuthSessionTTLDefaultMinutes
+	}
+	// 20013 缺行时按「未配置」处理，与 str_value 为空一致。
+	if !supabaseConnSeen && values.SupabaseConnErr == nil {
+		values.SupabaseConnErr = ErrSupabaseConnEmpty
+	}
+	// 20014 缺行时按默认源表名兜底（永不为空）。
+	if !supabaseTableSeen || values.SupabaseSecuKeyTable == "" {
+		values.SupabaseSecuKeyTable = SupabaseSecuKeyTableDefault
 	}
 	// 20006 缺行或为空时按内置默认值降级（不再回读环境变量）。
 	if values.ExportWindowRaw == "" {

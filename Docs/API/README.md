@@ -63,14 +63,51 @@ Authorization: Bearer <token>
     - [`Quote/Cdeu/Min/KLineStats.md`](Quote/Cdeu/Min/KLineStats.md) — `GET .../Min/Stats`（汇总统计与可视化数据）
     - [`Quote/Cdeu/Min/KLineBounds.md`](Quote/Cdeu/Min/KLineBounds.md) — `GET .../Min/Bounds`（交易日期边界）
     - [`Quote/Cdeu/Min/KLineHealth.md`](Quote/Cdeu/Min/KLineHealth.md) — `GET /Health`（探活，含 `/healthz` 过渡别名）
-  - **外部 OpenAPI**（`/OpenAPI/V1/*`，当前公开访问、暂不鉴权；API Key 后续支持）：
-    - [`OpenAPI/Quote/Cdeu/Min/Upsert.md`](../OpenAPI/Quote/Cdeu/Min/Upsert.md) — `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`（批量 upsert；成功码默认 0；契约 [.yml](../OpenAPI/Quote/Cdeu/Min/Upsert.yml)）
-    - [`OpenAPI/Quote/Cdeu/Min/PageUni.md`](../OpenAPI/Quote/Cdeu/Min/PageUni.md) — `GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni`（分页，column/row；成功码默认 0；契约 [.yml](../OpenAPI/Quote/Cdeu/Min/PageUni.yml)）
+  - **外部 OpenAPI**（`/OpenAPI/V1/*`，鉴权见 [OpenAPI/Auth.md](OpenAPI/Auth.md)：静态 API Key / AK-SK 签名，由 `sys_config` 19001 控制，默认关闭）：
+    - [`OpenAPI/Finv/Quote/Cdeu/Min/Upsert.md`](../OpenAPI/Finv/Quote/Cdeu/Min/Upsert.md) — `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`（批量 upsert；成功码默认 0；契约 [.yml](../OpenAPI/Finv/Quote/Cdeu/Min/Upsert.yml)）
+    - [`OpenAPI/Finv/Quote/Cdeu/Min/PageUni.md`](../OpenAPI/Finv/Quote/Cdeu/Min/PageUni.md) — `GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni`（分页，column/row；成功码默认 0；契约 [.yml](../OpenAPI/Finv/Quote/Cdeu/Min/PageUni.yml)）
+    - [`OpenAPI/Finv/Quote/Cdeu/Realtime/StockUpsert.md`](../OpenAPI/Finv/Quote/Cdeu/Realtime/StockUpsert.md) — `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert`（证券实时行情快照批量 upsert；成功码默认 0；契约 [.yml](../OpenAPI/Finv/Quote/Cdeu/Realtime/StockUpsert.yml)）
+
+    - [`OpenAPI/Finv/Quote/Cdeu/Realtime/SecuIndicatorUpsert.md`](../OpenAPI/Finv/Quote/Cdeu/Realtime/SecuIndicatorUpsert.md) — `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTSecuIndicatorUpsert`（采集端指标回传：三表单事务 upsert + 键表置 DONE；成功码默认 0；契约 [.yml](../OpenAPI/Finv/Quote/Cdeu/Realtime/SecuIndicatorUpsert.yml)）
   - [`HistoryQuote/ImportsUpload.md`](HistoryQuote/ImportsUpload.md) — `POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload`（MVSV 历史行情导入）
   - [`HistoryQuote/HistoryQuote.md`](HistoryQuote/HistoryQuote.md) — `GET /API/V1/Meta/Finv/Quant/Quote/History/QuoteQuery`（历史行情查询）
   - [`Meta/MetaExchange.md`](Meta/MetaExchange.md) — `GET/POST /API/V1/Meta/Finv/Quant/Metadata/Exchange/*`（交易所信息维护）
   - [`Meta/MetaMarket.md`](Meta/MetaMarket.md) — `GET/POST /API/V1/Meta/Finv/Quant/Metadata/Market/*`（交易所下设市场信息维护）
   - [`Meta/MetaSecurity.md`](Meta/MetaSecurity.md) — `GET/POST /API/V1/Meta/Finv/Quant/Metadata/Security/*`（规范证券信息维护，含 `Options` 下拉与 `Lookup` 详情查询）
+  - [`BRS/BackupTable.md`](BRS/BackupTable.md) — `GET/POST /API/V1/Meta/BRS/Backup/Finv/Table/*`（备份登记维护：查询 / 新增修改 / 启用禁用）
+  - [`BRS/OSSConfig.md`](BRS/OSSConfig.md) — `GET/POST /API/V1/Meta/BRS/Backup/Finv/OSSConfig/*`（对象存储配置：sys_config 39002 可视化读写，secret_key 不回传）
+  - [`BRS/Schedule.md`](BRS/Schedule.md) — `GET/POST /API/V1/Meta/BRS/Backup/Finv/Schedule/*`（备份调度配置：sys_config 39001 的 6 段 cron + 未来执行时间预览）
+  - [`BRS/Run.md`](BRS/Run.md) — `POST .../Run/Manual`、`GET .../Run/Status`（小表全量备份：手动触发 + 实时进度与增量日志）
+  - [`BRS/Slice.md`](BRS/Slice.md) — `GET/POST .../Slice/Rule/*`、`.../Slice/Plan`、`.../Slice/Run/{Manual,Status}`（大表增量备份：按分片切分、只补缺失分片）
+  - 日K线数据同步（`/API/V1/Meta/Finv/Quote/Cdeu/DayKline/*`，**一个接口一个文档**）：
+    - [`Cdeu/DayKlineSync.md`](Cdeu/DayKlineSync.md) — `POST .../DayKline/Sync`（拉取 moomoo 全量日K并 upsert 到 `cdeu.finv_quote_secu_kline_day`）
+    - [`Cdeu/DayKlineStat.md`](Cdeu/DayKlineStat.md) — `GET .../DayKline/Stat`（单 usc 日K存量：行数/日期范围/来源）
+    - [`Cdeu/DayKlineUscList.md`](Cdeu/DayKlineUscList.md) — `GET .../DayKline/UscList`（候选 usc，取自 `futu.finv_futu_quote_collect`）
+  - 证券实时行情快照（`/API/V1/Meta/Finv/Quote/Cdeu/Realtime/*`，**一个接口一个文档**）：
+    - [`Cdeu/RealtimeStockUpsert.md`](Cdeu/RealtimeStockUpsert.md) — `POST .../Realtime/FTStockUpsert`（批量 upsert 到 `cdeu.finv_cdeu_secu_realtime_stock`；契约 [.yml](Cdeu/RealtimeStockUpsert.yml)）
+    - [`Cdeu/RealtimeStockPage.md`](Cdeu/RealtimeStockPage.md) — `GET .../Realtime/Stock/Page`（实时行情分页查询：关键字/市场/币种筛选 + 白名单排序；契约 [.yml](Cdeu/RealtimeStockPage.yml)）
+    - [`Cdeu/StockListCollect.md`](Cdeu/StockListCollect.md) — `POST .../Realtime/FTStockQuoteSnapshotSync`（行情列表股票快照同步：读配置表分市场分页采集、逐页落库并回写 `count_exists`/`total_available`；契约 [.yml](Cdeu/StockListCollect.yml)）
+    - [`Cdeu/StockSnapshotSyncRun.md`](Cdeu/StockSnapshotSyncRun.md) — `POST/GET .../Realtime/FTStockQuoteSnapshotSync/Run`（异步启动采集 + 轮询运行状态与逐页日志；契约 [.yml](Cdeu/StockSnapshotSyncRun.yml)）
+    - [`Cdeu/RealtimeStockRmbSync.md`](Cdeu/RealtimeStockRmbSync.md) — `POST .../Realtime/Stock/RmbSync`（人民币计价指标手动补全：先补 `rmb_exchange_rate`、再补 `rmb_` 金额/价格字段；契约 [.yml](Cdeu/RealtimeStockRmbSync.yml)）
+  - 证券参数补全（`/API/V1/Meta/Finv/Quote/Cdeu/Realtime/Secu/Param/Complete/*`，需求 11161，一个接口一个文档）：
+    - [`Cdeu/SecuParamCompletePending.md`](Cdeu/SecuParamCompletePending.md) — `GET .../Secu/Param/Complete/Pending`（按 `target=security|collect` 列目标表缺口；契约 [.yml](Cdeu/SecuParamCompletePending.yml)）
+    - [`Cdeu/SecuParamCompletePrefill.md`](Cdeu/SecuParamCompletePrefill.md) — `GET .../Secu/Param/Complete/Prefill`（单表预填 + 来源标记 + `exists`；契约 [.yml](Cdeu/SecuParamCompletePrefill.yml)）
+    - [`Cdeu/SecuParamComplete.md`](Cdeu/SecuParamComplete.md) — `POST .../Secu/Param/Complete`（只写目标表，`ON CONFLICT (usc) DO NOTHING`；契约 [.yml](Cdeu/SecuParamComplete.yml)）
+  - 证券指标表只读查询（`/API/V1/Meta/Finv/Quote/Secu/Indicator/*`，需求 11249/11250）：
+    - [`Cdeu/IndicatorPage.md`](Cdeu/IndicatorPage.md) — `GET .../Secu/Indicator/Columns`（列元数据）+ `GET .../Secu/Indicator/Page`（可变列集分页查询 `cdeu.finv_quote_secu_indicator`，值一律文本；契约 [.yml](Cdeu/IndicatorPage.yml)）
+  - 采集参数（`/API/V1/Meta/Finv/Quote/Secu/Collect/*`，需求 11254）：
+    - [`Cdeu/CollectParam.md`](Cdeu/CollectParam.md) — `GET .../Secu/Collect/Page`（左关联 `public.finv_security` 的分页查询）+ `POST .../Secu/Collect/Update`（单行更新，11 列白名单；契约 [.yml](Cdeu/CollectParam.yml)）
+  - 外汇汇率（菜单「缺省汇率」已改名，接口路径 `/API/V1/Meta/Finv/Quote/Cdeu/Fx/*` 不变，一个文档覆盖两个接口）：
+    - [`Cdeu/FxCer.md`](Cdeu/FxCer.md) — `POST .../Fx/CerSync?source=overview|rateList` 手动更新 + `GET .../Fx/Cer` 整表查询（`public.finv_fxcer`，主键 `usc`，含 `name`/`rate`/`ts_quote`/`source`；两来源互补、只保最新；契约 [.yml](Cdeu/FxCer.yml)）
+  - 证券参数同步（`/API/V1/Meta/Finv/Quote/Cdeu/SecuKey/*`，一个文档覆盖三个接口）：
+    - [`Cdeu/SecuParamSync.md`](Cdeu/SecuParamSync.md) — `GET .../SecuKey/Status` 状态快照 + `POST .../SecuKey/Config` 保存源表名（系统配置 20014）+ `POST .../SecuKey/Sync`（同步执行）/ `POST|GET .../SecuKey/Sync/Run`（异步 + 实时日志）手动同步
+（Supabase 证券键表 → `futu.finv_futu_secu_key`，按 `ftmm_symbol` 分批增量 upsert）；
+另含 Tab 2 指标同步三支：`GET .../SecuKey/Indicator/Status`、`POST|GET .../SecuKey/Indicator/Sync/Run`
+（上游 `public.finv_quote_secu_meta` → `cdeu.finv_quote_secu_indicator` + `futu.finv_futu_quote_collect` + `futu.finv_futu_secu_key`）；
+以及 Tab 3 上游主键参数回填三支：`GET .../SecuKey/UscBackfill/Status`、`POST|GET .../SecuKey/UscBackfill/Sync/Run`
+（**反向**，一次写两张上游表：`public.finv_quote_secu_meta.usc` 按 `stock_id`；
+`public.finv_quote_secu_key.usc + stock_id` 按 `ftmm_symbol`）；
+连接配置 20013；契约 [.yml](Cdeu/SecuParamSync.yml)）
   - 证券行情月归档导出与上传（`/API/V1/Meta/Finv/Quote/DeDup/*`，**一个接口一个文档**）：
     - [`QuoteDeDup/Status.md`](QuoteDeDup/Status.md) — `GET .../DeDup/Status`（归档链路指标、运行参数与调度表）
     - [`QuoteDeDup/JobRuntime.md`](QuoteDeDup/JobRuntime.md) — `GET .../DeDup/Job/Runtime`（10 个 Job 运行快照：阶段 / 进度 / 心跳 / 最近结果）

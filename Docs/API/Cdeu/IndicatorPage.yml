@@ -1,0 +1,189 @@
+# FinvQuant — 证券指标表只读查询（OpenAPI 3.1 契约）
+#
+# 与同目录 IndicatorPage.md 成对维护，任一侧变更须同步更新另一侧。
+#
+openapi: 3.1.0
+info:
+  title: FinvQuant — 证券指标表只读查询
+  version: 1.0.0
+  description: |
+    只读浏览 cdeu.finv_quote_secu_indicator（132 列，一行一证券的最新指标快照）。
+    列清单来自数据库目录（pg_attribute），请求用 columns= 指定列集；
+    所有列值一律 ::text 返回以保住 NUMERIC(30,10) 精度，展示折算由前端负责。
+    路径不带 Cdeu：指标表不属于 CDEU 跑批域（写入侧同步接口仍在 /Quote/Cdeu/SecuKey/Indicator/*）。
+servers:
+  - url: http://127.0.0.1:16001
+    description: 本机直连（生产经 Nginx 反代时替换为 https://<域名>）
+tags:
+  - name: Quote/Secu/Indicator
+    description: 证券指标表（只读）
+security:
+  - bearerAuth: []
+paths:
+  /API/V1/Meta/Finv/Quote/Secu/Indicator/Columns:
+    get:
+      operationId: listSecuIndicatorColumns
+      tags: [Quote/Secu/Indicator]
+      summary: 指标表列元数据（列名 / 中文名 / 类型）
+      description: |
+        返回表里**实际存在**的列（按建表列序），前端据此生成列选择器与列标题，不硬编码 132 列。
+        同一份清单在 /Page 里兼任 SQL 标识符白名单。
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ColumnsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /API/V1/Meta/Finv/Quote/Secu/Indicator/Page:
+    get:
+      operationId: pageSecuIndicator
+      tags: [Quote/Secu/Indicator]
+      summary: 分页查询指标行（可变列集）
+      parameters:
+        - name: keyword
+          in: query
+          required: false
+          description: 模糊匹配 usc / ftmm_symbol / name（ILIKE）。
+          schema: { type: string }
+        - name: market
+          in: query
+          required: false
+          description: ftmm_symbol 第一段（市场）；空或 all 表示不限。
+          schema:
+            type: string
+            enum: ['', all, HK, SH, SZ, BJ, US, CC, FX]
+        - name: columns
+          in: query
+          required: false
+          description: |
+            逗号分隔的列名（如 usc,name,price,pe_ttm）。省略则用默认概览 23 列；
+            usc 与 ftmm_symbol 是身份列，任何列集都会被补齐并前置；
+            含表里不存在的列名 → 400。
+          schema: { type: string }
+        - name: orderBy
+          in: query
+          required: false
+          description: |
+            排序字段，必须是表里真实存在的列（默认 dt_update = 最近同步的行在前）。
+            空值一律 NULLS LAST，并以 usc ASC 作稳定次序。
+          schema: { type: string, default: dt_update }
+        - name: order
+          in: query
+          required: false
+          schema:
+            type: string
+            default: desc
+            enum: [desc, asc]
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 500, default: 50 }
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    BadRequest:
+      description: 参数非法（page/pageSize 越界、order 非 asc/desc、columns 含不存在的列、orderBy 不在表内）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: 未登录或令牌失效。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: 数据库查询失败（表不存在 / 连接失败，可重试）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ColumnsResponse:
+      type: object
+      required: [code, message, data]
+      additionalProperties: false
+      properties:
+        code: { type: integer, const: 0 }
+        message: { type: string }
+        data:
+          type: object
+          required: [table, total, columns]
+          additionalProperties: false
+          properties:
+            table: { type: string, const: cdeu.finv_quote_secu_indicator }
+            total: { type: integer, description: 列数（当前 132） }
+            columns:
+              type: array
+              items:
+                $ref: '#/components/schemas/ColumnMeta'
+    ColumnMeta:
+      type: object
+      required: [name, title, dataType, sortable]
+      additionalProperties: false
+      properties:
+        name: { type: string, description: 列名（snake_case） }
+        title: { type: string, description: 列中文名（表列注释；缺失时回退列名） }
+        dataType:
+          type: string
+          enum: [numeric, integer, text, timestamp, boolean, other]
+          description: 简化类型（由 format_type 收敛）
+        sortable: { type: boolean, description: 是否允许作为 orderBy }
+    PageResponse:
+      type: object
+      required: [code, message, data]
+      additionalProperties: false
+      properties:
+        code: { type: integer, const: 0 }
+        message: { type: string }
+        data:
+          type: object
+          required: [total, page, pageSize, list]
+          additionalProperties: false
+          properties:
+            total: { type: integer, format: int64 }
+            page: { type: integer }
+            pageSize: { type: integer }
+            list:
+              type: array
+              description: |
+                行对象：键 = 请求的列名，值**一律为文本**；空列返回空串 ""（不是 null、不是 0）。
+                timestamptz 列返回 PostgreSQL 文本形式（如 2026-11-18 09:31:02.345+08）；
+                ts / ts_* 等 bigint 列返回十进制文本（多为 epoch 毫秒）。
+              items:
+                type: object
+                additionalProperties: { type: string }
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      additionalProperties: false
+      properties:
+        code: { type: integer }
+        message: { type: string }

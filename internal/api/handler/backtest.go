@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/acanx/finvquant/internal/backtest"
+	"github.com/acanx/finvquant/internal/meta/finv/quant/backtest"
 )
 
 // parseBTPager 解析分页查询参数（URL 查询参数统一小驼峰：page / pageSize）。

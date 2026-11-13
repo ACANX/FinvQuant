@@ -2,6 +2,9 @@
 package api
 
 import (
+	"fmt"
+	"log"
+	"net/http"
 	"runtime"
 	"strings"
 
@@ -10,13 +13,20 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/acanx/finvquant/internal/api/handler"
-	"github.com/acanx/finvquant/internal/backtest"
+	"github.com/acanx/finvquant/internal/api/openapi"
 	"github.com/acanx/finvquant/internal/config"
-	"github.com/acanx/finvquant/internal/kline"
 	"github.com/acanx/finvquant/internal/meta"
 	"github.com/acanx/finvquant/internal/meta/finv/auth"
-	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
-	"github.com/acanx/finvquant/internal/quote"
+	"github.com/acanx/finvquant/internal/meta/finv/brs"
+	openapiSvc "github.com/acanx/finvquant/internal/meta/finv/openapi"
+	"github.com/acanx/finvquant/internal/meta/finv/quant/backtest"
+	"github.com/acanx/finvquant/internal/meta/finv/quote"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/indicator"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/secukey"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/uscbackfill"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/uscrule"
 )
 
 // Deps 路由依赖。
@@ -27,16 +37,36 @@ type Deps struct {
 	Commit        string
 	Server        string
 	Config        *config.Config
-	ExportArchive *dedup.Service
+	ExportArchive *cdeu.Service
 	// Auth 登录认证服务；为 nil 时不启用登录校验（仅供单元测试构造）。
 	// 生产环境由 cmd/server 注入，任何业务请求都必须携带有效令牌。
 	Auth *auth.Service
+	// BRSRunner 小表全量备份运行器（手动触发 + 运行状态）；为 nil 时不注册相关路由（仅供单元测试构造）。
+	BRSRunner *brs.Runner
+	// BRSSliceRunner 大表分片备份运行器（手动触发 + 运行状态）；为 nil 时不注册相关路由。
+	BRSSliceRunner *brs.SliceRunner
+	// USCSync USC 映射规则服务（需求 11072）；为 nil 时不注册相关路由（仅供单元测试构造）。
+	USCSync *uscrule.Service
+	// USCRunner USC 映射同步运行器（手动触发 + 每日 cron 共用）；为 nil 时不注册相关路由。
+	USCRunner *uscrule.Runner
 }
 
 // NewRouter 构建 Gin 路由（默认监听端口 16001）。
 func NewRouter(deps *Deps) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Logger(), gin.Recovery())
+
+	// 可信反向代理（需求 11247）：只有 TCP 对端落在这里的网段时，才采信
+	// X-Forwarded-For / X-Real-IP。不设置时 Gin 默认信任**所有**来源，
+	// 公网直连可以随意伪造来源 IP（审计 ip 与 IP 白名单全部失真）。
+	proxies := []string(nil)
+	if deps.Config != nil {
+		proxies = deps.Config.TrustedProxies
+	}
+	if err := router.SetTrustedProxies(proxies); err != nil {
+		log.Printf("[api] FINV_TRUSTED_PROXIES 解析失败（%v），改为不信任任何代理头", err)
+		_ = router.SetTrustedProxies(nil)
+	}
 
 	health := &handler.Health{
 		Pool:   deps.Pool,
@@ -82,6 +112,9 @@ func NewRouter(deps *Deps) *gin.Engine {
 		}
 	}
 
+	// 外部 OpenAPI 鉴权中间件实例（在 /OpenAPI/V1 分组里赋值；未命中路由/方法时也要复用它，需求 11218）。
+	var openapiMW *openapi.Middleware
+
 	// 业务端点：统一要求登录（Authorization: Bearer <token>）。
 	apiGroup := router.Group("/API/V1")
 	if deps.Auth != nil {
@@ -111,21 +144,83 @@ func NewRouter(deps *Deps) *gin.Engine {
 		group.GET("/Bounds", klineHandler.Bounds)
 
 		// 外部 OpenAPI：独立前缀 /OpenAPI/V1，业务逻辑复用内部 handler。
-		// 需求 10790：当前**暂不鉴权**（公开访问），仅统一响应信封；
-		// API Key 体系（sys.sys_open_api_key）落地后恢复：
-		//   openGroup.Use(RequireOpenAPIKey(cfg.OpenAPIKey), WrapOpenAPIResponse())
+		// 需求 11168：鉴权中间件 openapi.Middleware，支持静态 API Key 与 AK/SK 签名，
+		// 由 sys_config 19001 控制（0 关闭 / 1 启用 / 2 宽松），失败返回 190xx 错误码；
+		// 兼容期环境变量 FINV_OPENAPI_KEY 与 sys_config 19006 作为兜底静态密钥。
 		openGroup := router.Group("/OpenAPI/V1")
+		// Redis 故障策略（需求 11188）：FINV_OPENAPI_REDIS_FAIL_MODE=close（默认）时拒绝请求，
+		// 避免 Redis 不可用期间防重放/限流静默失效；=open 时退回旧行为（放行 + 日志告警）。
+		redisFailClose := !strings.EqualFold(strings.TrimSpace(cfg.OpenAPIRedisFailMode), "open")
+		// 中间件实例单独持有：未命中路由/方法时也要用它先鉴权（需求 11218）
+		openapiMW = openapi.NewMiddleware(openapi.Options{
+			Pool:           deps.Pool,
+			Redis:          deps.Redis,
+			FallbackKey:    cfg.OpenAPIKey,
+			RedisFailClose: redisFailClose,
+		})
+		openGroup.Use(openapiMW.Handler())
 		openGroup.Use(WrapOpenAPIResponse())
 		openGroup.POST("/Meta/Finv/Quote/Cdeu/Min/Upsert", klineHandler.Upsert)
 		openGroup.GET("/Meta/Finv/Quote/Cdeu/Min/PageUni", klineHandler.PageUni)
+		// STS 换证（需求 11191）：用长期 AK/SK 换取 2 小时有效的 AK/SK + SecurityToken。
+		// 路径由用户定稿：Meta/Open/Auth/Credential/STS/Issue
+		// （`Meta/Open` 表示开放平台域，与接口清单里 `open.auth.sts.issue` 编码对齐；需求 11236）。
+		stsHandler := openapi.NewStsIssueHandler(
+			openapi.NewSettingsStore(deps.Pool), openapi.NewStsStore(deps.Pool))
+		openGroup.POST("/Meta/Open/Auth/Credential/STS/Issue", stsHandler.Issue)
+
+		// 握手（需求 11242）：客户端发 ClientHello（带认证）、服务端回 ServerHello。
+		// 只验连通性与身份，无业务副作用；豁免授权范围校验（见 middleware 的 scopeFreePaths）。
+		helloHandler := openapi.NewHelloHandler(deps.Pool, openapi.NewSettingsStore(deps.Pool),
+			"finvquant", version.Version, version.Commit)
+		openGroup.GET("/Meta/Region/AZ/Server/Hello", helloHandler.Hello)
+
+		// DELETE 显式拒绝（需求 11180）：对外 OpenAPI 不提供删除能力。
+		// 注册成真实路由（而不是留给 404）有两个目的：
+		//   ① 删除类请求也会先过鉴权——无凭证照旧 19001，不会因为「方法不支持」而绕过鉴权被探测；
+		//   ② 调用方拿到明确的 405 + 说明，而不是含糊的 404。
+		openAPIRejectDelete := func(c *gin.Context) {
+			c.JSON(http.StatusMethodNotAllowed, gin.H{
+				"code":    405,
+				"message": "OpenAPI 不提供删除能力；如需清理数据请走内部管理接口",
+			})
+		}
+		for _, path := range []string{
+			"/Meta/Finv/Quote/Cdeu/Min/PageUni",
+			"/Meta/Finv/Quote/Cdeu/Min/Upsert",
+			"/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert",
+			"/Meta/Finv/Quote/Cdeu/Realtime/FTSecuIndicatorUpsert",
+		} {
+			openGroup.DELETE(path, openAPIRejectDelete)
+		}
 
 		// 历史行情：导入 / 查询（统一 /Meta/Finv/Quant/Quote/ 前缀，与前端路由对应）
 		apiGroup.POST("/Meta/Finv/Quant/Quote/Import/Upload", quoteImport.Upload)
 		apiGroup.GET("/Meta/Finv/Quant/Quote/History/QuoteQuery", quoteQuery.Query)
 
+		// 证券指标表只读查询（需求 11249/11250）：cdeu.finv_quote_secu_indicator（132 列）的
+		// 列元数据 + 可变列集分页查询，供前端「行情 → 实时行情 → 证券指标」页面使用。
+		// 路径不带 Cdeu：指标表不属于 CDEU 跑批域（同表写入侧仍在 /Quote/Cdeu/SecuKey/Indicator/*）。
+		secuIndicator := handler.NewSecuIndicator(indicator.NewReader(deps.Pool))
+		indicatorGroup := apiGroup.Group("/Meta/Finv/Quote/Secu/Indicator")
+		indicatorGroup.GET("/Columns", secuIndicator.Columns)
+		indicatorGroup.GET("/Page", secuIndicator.Page)
+
+		// 采集参数查询与单行维护（需求 11254）：futu.finv_futu_quote_collect，
+		// 查询时左关联 public.finv_security（+ 交易所 / 市场字典）带出证券元数据。
+		secuCollect := handler.NewSecuFtmmCollect(cdeu.NewStore(deps.Pool))
+		secuCollectGroup := apiGroup.Group("/Meta/Finv/Quote/Secu/Collect")
+		secuCollectGroup.GET("/Page", secuCollect.Page)
+		secuCollectGroup.POST("/Update", secuCollect.Update)
+
 		// 证券行情月归档导出与上传（运维：状态 / 任务 / 文件 / 重试 / 手动触发）
 		if deps.ExportArchive != nil {
 			archive := handler.NewExportArchive(deps.ExportArchive)
+			secuKeyHandler := handler.NewSecuKey(
+				secukey.NewService(deps.Pool),
+				indicator.NewService(deps.Pool),
+				uscbackfill.NewService(deps.Pool),
+			)
 			group := apiGroup.Group("/Meta/Finv/Quote/DeDup")
 			group.GET("/Status", archive.Status)
 			group.GET("/Settings", archive.Settings)
@@ -140,6 +235,109 @@ func NewRouter(deps *Deps) *gin.Engine {
 			group.GET("/File/List", archive.FileList)
 			group.POST("/Job/Retry", archive.JobRetry)
 			group.POST("/File/Retry", archive.FileRetry)
+
+			// OpenAPI 调用方管理（需求 11169）：调用方 / 凭证 / 调用审计 + 鉴权开关。
+			// 只操作 open schema 与 sys_config 19xxx，不碰行情业务表。
+			openAPIService := openapiSvc.NewService(openapiSvc.NewStore(deps.Pool))
+			// 凭证变更后让鉴权侧的 Redis 缓存立即失效（需求 11212：吊销/停用不用等 TTL）
+			openAPIService.SetCacheInvalidator(openapi.NewCacheInvalidator(deps.Redis))
+			openAPIAdmin := handler.NewOpenAPIAdmin(openAPIService)
+			openAPIGroup := apiGroup.Group("/Meta/Finv/OpenAPI")
+			openAPIGroup.GET("/Secret/Status", openAPIAdmin.SecretStatus)
+			openAPIGroup.POST("/Secret/Save", openAPIAdmin.SaveSecret)
+			openAPIGroup.GET("/Settings", openAPIAdmin.Settings)
+			openAPIGroup.PUT("/Settings", openAPIAdmin.SaveSettings)
+			openAPIGroup.GET("/Client/Page", openAPIAdmin.ClientPage)
+			openAPIGroup.POST("/Client/Save", openAPIAdmin.SaveClient)
+			openAPIGroup.POST("/Client/Enable", openAPIAdmin.SetClientEnable)
+			openAPIGroup.GET("/Credential/Page", openAPIAdmin.CredentialPage)
+			openAPIGroup.POST("/Credential/Create", openAPIAdmin.CreateCredential)
+			openAPIGroup.POST("/Credential/Enable", openAPIAdmin.SetCredentialEnable)
+			openAPIGroup.POST("/Credential/Revoke", openAPIAdmin.RevokeCredential)
+			openAPIGroup.POST("/Credential/Rotate", openAPIAdmin.RotateCredential)
+			// 修改授权范围（需求 11230）：事务内双写 scope_str 与明细表，改完立即让鉴权缓存失效
+			openAPIGroup.POST("/Credential/Scope", openAPIAdmin.SetCredentialScope)
+			openAPIGroup.POST("/Credential/Expire", openAPIAdmin.SetCredentialExpire)
+			openAPIGroup.GET("/InvokeLog/Page", openAPIAdmin.InvokeLogPage)
+			// 接口清单（需求 11223）：只读列表 + 切换公开/启用标志；
+			// 本表是接口目录，不是鉴权白名单（允许调什么由本文件的路由注册决定）。
+			openAPIGroup.GET("/Endpoint/Page", openAPIAdmin.EndpointPage)
+			openAPIGroup.GET("/Endpoint/Options", openAPIAdmin.EndpointOptions)
+			openAPIGroup.POST("/Endpoint/Flags", openAPIAdmin.SetEndpointFlags)
+
+			// USC 补丁规则（需求 10931）：新接口前缀统一用 /Quote/Cdeu，不再使用 /Quote/DeDup。
+			patch := apiGroup.Group("/Meta/Finv/Quote/Cdeu/Usc/Patch")
+			patch.GET("/List", archive.UscPatchRuleList)
+			patch.POST("/Save", archive.UscPatchRuleSave)
+			patch.POST("/Enable", archive.UscPatchRuleEnable)
+			patch.POST("/Delete", archive.UscPatchRuleDelete)
+			patch.GET("/Preview", archive.UscPatchPreview)
+			patch.POST("/Run", archive.UscPatchRun)
+			patch.GET("/Status", archive.UscPatchStatus)
+
+			// 日K线数据同步（需求 10952）：拉取 moomoo 日K 并 upsert 到 cdeu.finv_quote_secu_kline_day。
+			dayKline := apiGroup.Group("/Meta/Finv/Quote/Cdeu/DayKline")
+			dayKline.POST("/Sync", archive.DayKlineSync)
+			dayKline.GET("/Stat", archive.DayKlineStat)
+			dayKline.GET("/UscList", archive.DayKlineUscList)
+
+			// 证券实时行情快照批量 Upsert（需求 10957）：写入 cdeu.finv_cdeu_secu_realtime_stock。
+			// 内部路径需登录；对外 OpenAPI 路径复用同一 handler，响应经 WrapOpenAPIResponse
+			// 包成 {code,data,message}（当前 OpenAPI 组公开访问、暂不鉴权，同 Min/Upsert 先例）。
+			realtime := apiGroup.Group("/Meta/Finv/Quote/Cdeu/Realtime")
+			realtime.POST("/FTStockUpsert", archive.RealtimeStockUpsert)
+			// 证券列表采集（需求 10976/10977）：读配置表分页拉取列表并落库。
+			realtime.POST("/FTStockQuoteSnapshotSync", archive.RealtimeStockListCollect)
+			// 网页「行情快照手动同步」：异步启动 + 轮询进度/逐页日志（需求 10982）。
+			realtime.POST("/FTStockQuoteSnapshotSync/Run", archive.RealtimeStockListRunStart)
+			realtime.GET("/FTStockQuoteSnapshotSync/Run", archive.RealtimeStockListRunStatus)
+			realtime.GET("/Stock/Page", archive.RealtimeStockPage)
+			// 人民币计价指标手动补全（需求 11024）：先补 rmb_exchange_rate，再补 rmb_ 金额字段。
+			realtime.POST("/Stock/RmbSync", archive.RealtimeStockRmbSync)
+			// 需求 10995：待录入证券（usc 为空，作为补录主数据的依据），先只提供查询。
+			realtime.GET("/Stock/Pending", archive.RealtimeStockPendingPage)
+			// 手动补录 usc：按派生键关联键表补空值（需求 11146）
+			realtime.POST("/Stock/USCBackfill", archive.RealtimeStockUSCBackfill)
+			// 待录入证券补录：预填（关联自动填）+ 录入（写两张主数据表并回写 usc，需求 11147）
+			realtime.GET("/Stock/Pending/Prefill", archive.RealtimeStockPendingPrefill)
+			realtime.POST("/Stock/Pending/Enroll", archive.RealtimeStockPendingEnroll)
+			// 待录入证券「入队」：探测（是否存在）→ 人工确认 → 入队 / 更新键（需求 11153–11156）
+			realtime.POST("/Stock/Pending/Enqueue/Probe", archive.RealtimeStockPendingEnqueueProbe)
+			realtime.POST("/Stock/Pending/Enqueue", archive.RealtimeStockPendingEnqueue)
+			realtime.POST("/Stock/Pending/Enqueue/Update", archive.RealtimeStockPendingEnqueueUpdate)
+			// 需求 11161：「证券参数补全」——按目标表（security / collect）分别列缺口、预填、写入
+			realtime.GET("/Secu/Param/Complete/Pending", archive.RealtimeSecuParamPendingPage)
+			realtime.GET("/Secu/Param/Complete/Prefill", archive.RealtimeSecuParamPrefill)
+			realtime.POST("/Secu/Param/Complete", archive.RealtimeSecuParamComplete)
+			openGroup.POST("/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert", archive.RealtimeStockUpsert)
+			// 采集端指标回传（需求 11248）：一次事务写 indicator + collect + 把 key 置 DONE。
+			// 只注册在 openGroup —— 内部没有对应路由（人不需要从这里写数据）。
+			openGroup.POST("/Meta/Finv/Quote/Cdeu/Realtime/FTSecuIndicatorUpsert",
+				archive.FTSecuIndicatorUpsert)
+
+			// 缺省汇率（需求 10999/11002）：public.finv_fxcer，手动触发 get-fx-overview / get-fx-rate-list 全量更新 + 整表查询。
+			fx := apiGroup.Group("/Meta/Finv/Quote/Cdeu/Fx")
+			fx.POST("/CerSync", archive.FxCERSync)
+			fx.GET("/Cer", archive.FxCERList)
+
+			// 证券参数同步（需求 11042/11043）：Supabase 证券键表 → 本地 futu.finv_futu_secu_key，
+			// 只由前端按钮手动触发，分批增量 upsert；源表名可配（系统配置 20014，默认 finv_quote_secu_key）。
+			secuKeyGroup := apiGroup.Group("/Meta/Finv/Quote/Cdeu/SecuKey")
+			secuKeyGroup.GET("/Status", secuKeyHandler.Status)
+			secuKeyGroup.POST("/Config", secuKeyHandler.SaveConfig)
+			secuKeyGroup.POST("/Sync", secuKeyHandler.Sync)
+			// 异步运行（需求 11046）：启动后立刻返回 run_id，前端轮询状态拿进度与逐批实时日志。
+			secuKeyGroup.POST("/Sync/Run", secuKeyHandler.StartSyncRun)
+			secuKeyGroup.GET("/Sync/Run", secuKeyHandler.SyncRunStatus)
+			// FT证券指标数据同步（需求 11050）：上游 public.finv_quote_secu_meta → 指标表 + 采集属性表 + 键表。
+			secuKeyGroup.GET("/Indicator/Status", secuKeyHandler.IndicatorStatus)
+			secuKeyGroup.POST("/Indicator/Sync/Run", secuKeyHandler.StartIndicatorSyncRun)
+			secuKeyGroup.GET("/Indicator/Sync/Run", secuKeyHandler.IndicatorSyncRunStatus)
+
+			// Tab 3「上游主键参数回填」（需求 11054）：本地 futu.finv_futu_quote_collect → 上游 public.finv_quote_secu_meta
+			secuKeyGroup.GET("/UscBackfill/Status", secuKeyHandler.UscBackfillStatus)
+			secuKeyGroup.POST("/UscBackfill/Sync/Run", secuKeyHandler.StartUscBackfillRun)
+			secuKeyGroup.GET("/UscBackfill/Sync/Run", secuKeyHandler.UscBackfillRunStatus)
 			group.POST("/Job/Run", archive.JobRun)
 			group.POST("/Job/Dynamic/Run", archive.DynamicJobRun)
 
@@ -149,6 +347,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 			group.GET("/Calendar/Page", archive.CalendarPage)
 			group.GET("/Maturity/Page", archive.MaturityPage)
 			group.GET("/Stats/Page", archive.StatsPage)
+			group.GET("/Export/Stock/Page", archive.StockPage)
 			group.GET("/Budget/Page", archive.BudgetPage)
 			group.GET("/Watermark/List", archive.WatermarkList)
 			group.GET("/RunLog/Page", archive.RunLogPage)
@@ -168,6 +367,66 @@ func NewRouter(deps *Deps) *gin.Engine {
 			group.POST("/Job/Pause", archive.JobPause)
 			group.POST("/Job/Cancel", archive.JobCancel)
 			group.POST("/Maturity/Refresh", archive.MaturityRefresh)
+		}
+
+		// USC 映射规则维护（需求 11072）：规则/条目维护 + 预演 diff + 异步应用 + 审计日志。
+		// 前缀按用户指定为 /Meta/Finv/Quote/UscMap（不带 Cdeu 段）。
+		if deps.USCSync != nil && deps.USCRunner != nil {
+			uscMap := handler.NewUscMap(deps.USCSync, deps.USCRunner)
+			uscGroup := apiGroup.Group("/Meta/Finv/Quote/UscMap")
+			uscGroup.GET("/Status", uscMap.Status)
+			uscGroup.GET("/Rule/List", uscMap.RuleList)
+			uscGroup.POST("/Rule/Save", uscMap.RuleSave)
+			uscGroup.GET("/Item/List", uscMap.ItemList)
+			uscGroup.POST("/Item/Save", uscMap.ItemSave)
+			uscGroup.POST("/Item/Retire", uscMap.ItemRetire)
+			uscGroup.GET("/Diff/Preview", uscMap.DiffPreview)
+			uscGroup.GET("/Diff/Page", uscMap.DiffPage)
+			uscGroup.GET("/Map/Page", uscMap.MapPage)
+			uscGroup.POST("/Sync/Run", uscMap.StartSyncRun)
+			uscGroup.GET("/Sync/Run", uscMap.SyncRunStatus)
+			uscGroup.GET("/Log/List", uscMap.LogList)
+			uscGroup.GET("/Schedule", uscMap.ScheduleGet)
+			uscGroup.POST("/Schedule", uscMap.ScheduleSave)
+		}
+
+		// BRS 备份登记维护（brs.brs_bak_rdb_table_full）：查询 / 新增编辑 / 启用禁用。
+		// 前端路由 /Meta/BRS/Backup/Finv/Table 与接口前缀保持一致。
+		brsBackupTable := handler.NewBrsBackupTable(brs.NewRegistry(deps.Pool))
+		brsTable := apiGroup.Group("/Meta/BRS/Backup/Finv/Table")
+		brsTable.GET("/List", brsBackupTable.List)
+		brsTable.POST("/Save", brsBackupTable.Save)
+		brsTable.POST("/Toggle", brsBackupTable.Toggle)
+
+		// BRS 对象存储配置（sys.sys_config 39002 的 JSON 可视化配置）
+		brsOss := apiGroup.Group("/Meta/BRS/Backup/Finv/OSSConfig")
+		brsOss.GET("/Get", brsBackupTable.GetOSSConfig)
+		brsOss.POST("/Save", brsBackupTable.SaveOSSConfig)
+
+		// BRS 备份执行：调度配置（39001）+ 手动触发 + 实时运行状态与日志。
+		// Runner 缺失时不注册（单元测试构造的 Deps 可省略）。
+		if deps.BRSRunner != nil {
+			brsRun := handler.NewBrsRun(deps.BRSRunner)
+			schedule := apiGroup.Group("/Meta/BRS/Backup/Finv/Schedule")
+			schedule.GET("/Get", brsRun.GetSchedule)
+			schedule.POST("/Save", brsRun.SaveSchedule)
+			run := apiGroup.Group("/Meta/BRS/Backup/Finv/Run")
+			run.POST("/Manual", brsRun.TriggerManual)
+			run.GET("/Status", brsRun.Status)
+		}
+
+		// BRS 大表增量（分片）备份：登记维护 + 分片计划 + 手动触发 + 运行状态。
+		// 与小表全量备份完全独立（各自一套登记、执行链与运行状态）。
+		if deps.BRSSliceRunner != nil {
+			brsSlice := handler.NewBrsSlice(deps.BRSSliceRunner)
+			sliceRule := apiGroup.Group("/Meta/BRS/Backup/Finv/Slice/Rule")
+			sliceRule.GET("/List", brsSlice.ListRules)
+			sliceRule.POST("/Save", brsSlice.SaveRule)
+			sliceRule.POST("/Toggle", brsSlice.ToggleRule)
+			apiGroup.GET("/Meta/BRS/Backup/Finv/Slice/Plan", brsSlice.Plan)
+			sliceRun := apiGroup.Group("/Meta/BRS/Backup/Finv/Slice/Run")
+			sliceRun.POST("/Manual", brsSlice.TriggerManual)
+			sliceRun.GET("/Status", brsSlice.Status)
 		}
 
 		// 元数据管理：交易所 / 市场 / 证券字典维护
@@ -228,6 +487,54 @@ func NewRouter(deps *Deps) *gin.Engine {
 	router.GET("/Health", klineOps.Health)
 	router.GET("/healthz", klineOps.Health)
 	router.GET("/", klineOps.Root)
+
+	// 未命中路由 / 未命中方法统一返回结构化 JSON（需求 11218）。
+	//
+	// 背景：Gin 默认对这两种情况回纯文本 `404 page not found`，既不进中间件、也不带 X-Request-Id：
+	//   - 外部调用方拿不到可读原因（是路径错、方法错，还是鉴权没通过）；
+	//   - 未认证者可以靠 404/405 探测「路径是否存在」，绕过鉴权。
+	// 这里对 `/OpenAPI/V1/*` 先跑鉴权中间件：没凭证就是 19001/19002，有凭证才告诉你 404/405。
+	router.HandleMethodNotAllowed = true
+	notFoundHandler := func(c *gin.Context, status int, openAPIReason, internalReason string) {
+		isOpenAPI := strings.HasPrefix(c.Request.URL.Path, "/OpenAPI/V1/")
+		if isOpenAPI && openapiMW != nil {
+			openapiMW.Handler()(c)
+			if c.IsAborted() {
+				return // 鉴权失败已由中间件写出响应并记审计
+			}
+			// 鉴权关闭时中间件会提前返回、不写 request_id，这里兜底生成一个（需求 11181/11218）
+			requestID := ""
+			if value, exists := c.Get(openapi.ContextRequestIDKey); exists {
+				requestID, _ = value.(string)
+			}
+			if requestID == "" {
+				requestID = openapi.NewRequestID()
+				c.Set(openapi.ContextRequestIDKey, requestID)
+			}
+			c.Header(openapi.HeaderRequestID, requestID)
+			c.JSON(status, gin.H{
+				"code":       status,
+				"message":    openAPIReason,
+				"request_id": requestID,
+			})
+			return
+		}
+		c.JSON(status, gin.H{
+			"code":    status,
+			"message": internalReason,
+		})
+	}
+	router.NoRoute(func(c *gin.Context) {
+		notFoundHandler(c, http.StatusNotFound,
+			fmt.Sprintf("接口不存在：%s %s；请核对路径，OpenAPI 文档见 Docs/API/OpenAPI/Auth.md",
+				c.Request.Method, c.Request.URL.Path),
+			fmt.Sprintf("接口不存在：%s %s；请核对路径", c.Request.Method, c.Request.URL.Path))
+	})
+	router.NoMethod(func(c *gin.Context) {
+		notFoundHandler(c, http.StatusMethodNotAllowed,
+			fmt.Sprintf("接口 %s 不支持 %s 方法；请改用文档声明的方法", c.Request.URL.Path, c.Request.Method),
+			fmt.Sprintf("接口 %s 不支持 %s 方法；请改用文档声明的方法", c.Request.URL.Path, c.Request.Method))
+	})
 
 	return router
 }

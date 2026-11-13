@@ -1,0 +1,216 @@
+# 证券参数同步（SecuParamSync）
+
+> 菜单 key：`quote-realtime-secu-param-sync`
+> 路由：`/Meta/Finv/Quote/Realtime/SecuParamSync`
+> 所属：导航「行情 → 实时行情 → 证券参数同步」（紧跟「缺省汇率」之后）
+> 视图：`Web/src/views/Meta/Finv/Quote/Realtime/SecuParamSyncView.vue`
+> 关联需求：11042（菜单与页面）、11043（同步实现）、11044（源表名可配 20014）、11045（拆两个 Tab）、
+> 11046（异步运行 + 实时日志）、11047（Tab 2 口径确认）、11050（Tab 2 指标同步实现）、
+> 11051（`flag_enable` 规则，已被 11063 取代）、11052（Tab 1 不清空 Tab 2 补的 `url`）、
+> 11084（Tab 3 重构为「本地 usc 回推上游」，只写 `usc` 一列；删除 11054/11055/11056/11057 旧逻辑）、
+> 11142（Tab 3 起同时回推 `priority`，两列同一行一次写入）、11163（Tab 3 同步字段可勾选，默认两列都写）
+> 关联接口：[`API/Cdeu/SecuParamSync.md`](../../../API/Cdeu/SecuParamSync.md)
+> 关联数据表：目标 `futu.finv_futu_secu_key`（V300137 建表 / V300139 补 `stock_id`+`usc` / V300141 改名）；
+> 源 Supabase `public.finv_quote_secu_key`（表名可配，默认与上游同名）
+
+## 1. 用途
+
+把上游 Supabase 的**证券基础参数**与（后续）**证券指标数据**分批增量同步到本地库。
+
+页面为**两个 Tab**（需求 11045）：
+
+| Tab | 状态 | 内容 |
+|-----|------|------|
+| **FT证券基础参数同步** | 已实现 | Supabase 证券键表（默认 `public.finv_quote_secu_key`）→ 本地 `futu.finv_futu_secu_key` |
+| **FT证券指标数据同步** | 已实现（需求 11050/11063） | 上游 `public.finv_quote_secu_meta` → 指标表 + 采集属性表（一条记录写两张表，均按 `usc` 主键 upsert）；不再写证券键表 |
+| **本地 usc 回推上游** | 已实现（需求 11084 重构 + 11142 增列 + 11163 可配字段） | 方向相反：把 `futu.finv_futu_secu_key.usc` / `.priority` 按 `ftmm_symbol` 回推到 `public.finv_quote_secu_key.usc` / `.priority`；**写哪几列可勾选**，默认两列同一行一次写入 |
+
+- 只由本页**按钮手动触发**，没有定时任务；
+- 单向只读上游 → 写本地：不删除本地行；`url` / `stock_id` / `usc` 按 `COALESCE(源, 本地)` 取值，上游为 NULL 时保留本地值、不清空（`stock_id` / `usc` 自上游补列后已纳入同步，需求 11062）；
+- 连接配置（`PROJECT_ID|APIKEY`）在系统配置 **20013** 里维护，本页只展示状态，不回显完整 key；
+- 源表名存系统配置 **20014**，默认 `finv_quote_secu_key`，在本页可直接改。
+
+## 2. 页面结构
+
+### 2.1 头部
+
+| 控件 | 说明 |
+|------|------|
+| 刷新状态 | `GET .../SecuKey/Status` 重新读配置与目标表行数（不访问 Supabase） |
+| Tab 切换 | 「FT证券基础参数同步」 / 「FT证券指标数据同步」 |
+
+### 2.2 Tab 1：FT证券基础参数同步
+
+#### 2.2.1 连接与目标表（第一张卡片）
+
+| 区块 | 展示 |
+|------|------|
+| Supabase 连接（20013） | `已配置`（success chip）/ `未配置`（warning chip）；已配置时显示项目 ID 与脱敏 key 前缀（`APIKEY sb_publi…（已脱敏）`）；未配置时显示 `config_error` 原文 |
+| 本地目标表 | `futu.finv_futu_secu_key` + `共 N 行`（tonal chip）+ 最近变更时间（`max(gmt_update)`） |
+
+#### 2.2.2 同步参数（第二张卡片）
+
+| 控件 | 说明 |
+|------|------|
+| Supabase 源表名 | 文本输入，默认 `finv_quote_secu_key`；可写 `schema.table` 两段，只允许字母/数字/下划线；与已生效值不同时才允许保存 |
+| 每批行数 | 下拉 `500 / 1000 / 2000 / 5000`，默认 1000 |
+| 保存源表名 | `POST .../SecuKey/Config` 写系统配置 20014，成功后 toast 与状态刷新 |
+| 立即同步 | `POST .../SecuKey/Sync/Run` **异步启动**（立刻返回 `run_id`），随后页面每 800 ms 轮询 `GET .../SecuKey/Sync/Run`；20013 未配置时禁用；运行中按钮显示「同步中…」并禁用 |
+
+#### 2.2.3 同步进度与日志（第三张卡片，需求 11046）
+
+同步启动后立即出现，**边跑边更新**（不必等结束）：
+
+| 元素 | 说明 |
+|------|------|
+| 状态 chip | `运行中`（info）/ `已完成`（success）/ `失败`（error） |
+| 累计 chip | `拉取 / 新增 / 更新 / 未变 / 跳过（有才显示）/ status 归一（有才显示）` + `N 批 · 耗时` |
+| 进度条 | `v-progress-linear`，按「已拉取行数 / 源表总行数」；总行数未知时为首批前的 indeterminate |
+| 进度说明 | `进度 61.5%（45000 / 73212 行）· 源表 xxx · run_id sk-…` |
+| **日志区** | 独立滚动区域（`max-height: 320px`、等宽字体、深色底），每条一行 `HH:mm:ss 文本`；**自动滚到底部**；运行中末尾显示「等待下一批…」；`ERROR` 行标红 |
+
+日志内容（每批一行，含本批差值与本批耗时）：
+
+```
+22:25:24 同步任务已启动
+22:25:25 第 1 批：offset=0，拉取 5000，新增 0，更新 0，未变 5000，跳过 0（本批 807 ms）
+22:25:26 第 2 批：offset=5000，拉取 5000，新增 0，更新 0，未变 5000，跳过 0（本批 428 ms）
+...
+22:25:32 第 15 批：offset=70000，拉取 3212，新增 0，更新 0，未变 3212，跳过 0（本批 316 ms）
+22:25:32 同步完成：源表 finv_quote_secu_key 共 73212 行，15 批，新增 0，更新 0，未变 73212，跳过 0，耗时 7854 ms
+```
+
+失败时最后一行是 `ERROR 同步失败：<可读原因>`（如上游 `PGRST205`、鉴权失败、20013 未配置），
+同时弹 error toast，`status` chip 变红。
+
+### 2.3 Tab 2：FT证券指标数据同步（需求 11050）
+
+#### 2.3.1 连接与目标表（第一张卡片）
+
+| 区块 | 展示 |
+|------|------|
+| Supabase 连接（20013） | 同 Tab 1：`已配置` / `未配置` + 项目 ID + 脱敏 key 前缀 |
+| 上游源表（固定） | `public.finv_quote_secu_meta`（不可改） |
+| 本地目标表（一次同步写两张） | 两个 chip：`cdeu.finv_quote_secu_indicator` / `futu.finv_futu_quote_collect`，各带当前行数（**不再展示** `futu.finv_futu_secu_key`——它不在本 Tab 同步，需求 11064） |
+
+#### 2.3.2 同步参数（第二张卡片）
+
+| 控件 | 说明 |
+|------|------|
+| 每批行数 | 下拉 `500 / 1000 / 2000 / 5000`，默认 1000 |
+| 立即同步 | `POST .../SecuKey/Indicator/Sync/Run` 异步启动；20013 未配置或运行中时禁用 |
+
+#### 2.3.3 同步进度与日志（第三张卡片）
+
+与 Tab 1 同款（状态 chip / 累计 chip / 进度条 / 独立滚动日志区 + 自动滚底 + `ERROR` 标红 + 「等待下一批…」），
+只是累计 chip 换成两张表的口径：
+
+`拉取 · 指标 新增/更新/未变 · 采集属性 新增/更新/跳过 · N 批 · 耗时`
+
+日志形态（每批一行，含本批差值）：
+
+```
+22:55:29 指标同步任务已启动
+22:55:35 第 1 批：offset=0，拉取 5000，指标 新增 0 / 更新 1 / 未变 4999，采集属性 新增 0 / 更新 2 / 跳过 2，键表补全 0（本批 6075 ms）
+22:55:49 指标同步完成：源表 public.finv_quote_secu_meta 共 10910 行，3 批；……；键表补全 10910；耗时 14275 ms
+```
+
+#### 2.3.4 字段口径（页面「说明」里同步展示）
+
+| 目标表 | 写入内容 |
+|--------|----------|
+| `cdeu.finv_quote_secu_indicator` | 132 列同名同步（`dt_update` 由触发器维护，不参与比对；`stock_id` 需求 11061） |
+| `futu.finv_futu_quote_collect` | 身份字段同名同步（`stock_id`/`market_type`/`market_code`/`instrument_type`/`sub_instrument_type`/`market_label`/`instrument`），`futu_symbol` 由 `public.finv_quote_secu_meta.stock_code`（缺失时用 `ftmm_symbol`）去市场前缀派生 |
+| ~~`futu.finv_futu_secu_key`~~ | **不再同步**（需求 11063）：上游已自行回填 `url`（源 `secu_url`）与 `stock_id` |
+
+- 两表主键均为 `usc`，upsert 增量；源 `usc` 为空时用 `ftmm_symbol` 占位；
+- **`flag_enable`（需求 11063，取代 11051）**：同步**不写**该列——新增行取表默认 `'0'`，已有行保持原值；
+- 采集属性表唯一键 `(market_code, futu_symbol)` 撞车（被别的 `usc` 占用）时跳过该行并计入「跳过」。
+
+### 2.4 Tab 3：本地 usc 回推上游（需求 11084）
+
+#### 2.4.1 连接与目标表（第一张卡片）
+
+| 区块 | 展示 |
+|------|------|
+| Supabase 连接（20013） | 同 Tab 1/2：`已配置` / `未配置` + 项目 ID + 脱敏 key 前缀 |
+| 本地来源 | `futu.finv_futu_secu_key`、`共 N 行`、`usc 有值 N 行`；`usc` 为空的行以灰字提示「跳过 N 行」 |
+| 上游可回推的列 | 两个 chip `public.finv_quote_secu_key.usc` / `.priority` + 说明「按 `ftmm_symbol` 与本地关联（双边主键，一对一）；本次写哪几列由「同步字段」决定」 |
+
+#### 2.4.2 回推参数（第二张卡片）
+
+| 控件 | 说明 |
+|------|------|
+| 每批 `ftmm_symbol` 数 | 下拉 `200 / 500 / 1000 / 2000`，默认 500（逐行 PATCH，批量大只是让单批更粗） |
+| **同步字段**（需求 11163） | 两个复选框 `usc（统一证券代码）` / `priority（优先级）`，**默认都勾**；右侧 chip 实时显示「将写 usc+priority」 |
+| 立即回推 | `POST .../UscBackfill/Sync/Run`（body 带 `fields`）异步启动；20013 未配置、运行中、或**两个字段都不勾**时禁用 |
+
+字段勾选规则：
+
+| 勾选 | 效果 |
+|------|------|
+| 都勾（默认） | 两列都参与比对，同一行一次 PATCH 写两列 |
+| 只勾 `usc` | 只比、只写 `usc`；上游 `priority` 不参与比对也不算差异（**上游人工设定的优先级不会被改掉**） |
+| 只勾 `priority` | 只比、只写 `priority`；上游 `usc` 保持原值 |
+| 都不勾 | 按钮禁用 + 红字提示「至少勾选一个字段」 |
+
+运行中两个复选框一并禁用（运行参数不可中途改）。
+
+#### 2.4.3 回推进度与日志（第三张卡片）
+
+与 Tab 1/2 同款（状态 chip / 累计 chip / 进度条 / 独立滚动日志区 + 自动滚底 + `ERROR` 标红 + 「等待下一批…」），
+累计 chip：`处理 a / b · 填入 · 覆盖 · 未变 · 上游新增 · 无法插入 · 字段 usc+priority · N 批 · 耗时`
+（`字段` 取自运行快照回显，本次到底写了哪几列一目了然）。
+
+日志形态：
+
+```
+回推任务已启动：public.finv_quote_secu_key ← futu.finv_futu_secu_key（按 ftmm_symbol 关联，本次写 usc+priority 列；未勾选的列不动）
+第 1 批：offset=0，处理 500 个 ftmm_symbol，写入 12（填入 0 / 覆盖 12），未变 488，无对应 0（本批 3210 ms）
+……
+回推完成：字段 usc+priority，本地 futu.finv_futu_secu_key 共 73212 行（usc 有值 73212，为空跳过 0），147 批；
+         写入 N（填入 a / 覆盖 b），未变 c，上游无对应 0，新增 d（未插入 e）；耗时 … ms
+```
+
+#### 2.4.4 口径（页面「说明」里同步展示）
+
+- 源 `futu.finv_futu_secu_key.usc`（= USC 映射规则 `futu.finv_futu_usc_map` 的产出）→ 目标 `public.finv_quote_secu_key.usc`；
+- 关联键 **`ftmm_symbol`**（本地主键 = 上游主键，一对一）；**写哪几列由「同步字段」决定**（需求 11163，默认都勾），
+  勾选的列同一行一次 PATCH，不写 `stock_id`、不写 `meta` 表；
+- 判定口径**只看勾选的列**：都一致 → 未变（不发请求）；任一为空 → 填入；都不为空但有差异 → 覆盖；
+  未勾选的列既不比对也不写（上游 `priority` 是人工设定值时，取消勾选即可保住它）；
+- 只勾 `priority` 时上游缺记录的行**不插入**（计「无法插入」）：新建一行却没有 `usc` 对下游没有意义；
+- 上游 `usc` 已等于本地值 → 「未变」，**不发请求**（复跑幂等）；为空 → 「填入」；有值不同 → 「覆盖」；
+- 上游没有该 `ftmm_symbol` → **插入新记录**（需求 11157，「上游新增」）：按本地 `instrument` / `market` / `code` / `usc` / `priority` / `stock_id` / `status` / `flag_enable`（上游列名 `enable`）组一行，`on_conflict=ftmm_symbol` + `resolution=merge-duplicates` 批量 upsert，`note` 写 `[AUTO-FILL]` 标记；本地缺 `instrument` / `market` / `code` 的行无法插入，计「无法插入」；本地 `usc` 为空的行直接跳过；
+- 本 Tab **写入线上 Supabase**：逐行 PATCH，每行校验受影响行数 = 1，RLS 拒绝直接报错。
+
+### 2.5 说明卡片（页面最底部唯一「说明」卡片，ExplainCardSpec）
+
+四段：**表口径**（FT证券基础参数同步）、**增量口径与进度**（缺则插入、变了才更新、未变不改写 + 轮询/实时日志）、
+**配置与安全**（20013 格式与脱敏、20014 需保存才生效、`status` 非法归一为 `PENDING`）、
+**FT证券指标数据同步**（来源固定 `public.finv_quote_secu_meta`，一次按 `usc` 主键 upsert 两张表；
+`futu_symbol` 优先取 `stock_code`；`flag_enable` 不覆盖、保持表默认值与原值；不再写证券键表）。
+
+**本地 usc 回推上游**（方向相反：本地 → 上游，按 `ftmm_symbol` 关联，回推 `usc` + `priority` 两列；会写入线上 Supabase；
+上游 `usc` 已一致时不发请求；上游缺记录则插入新行，不是「只计数」）。
+
+## 3. 交互细节
+
+| 场景 | 表现 |
+|------|------|
+| 页面打开 | 自动 `GET Status`；失败弹 error toast 并在页面显示 error alert |
+| 20013 未配置 | 状态显示「未配置」；点「立即同步」弹 warning toast 并直接返回（不发请求） |
+| 源表名未改动 | 「保存源表名」按钮禁用（避免无意义写入） |
+| 同步启动成功 | 立刻出现「同步进度与日志」卡片（状态「运行中」+ 首条日志），日志逐批追加 |
+| 同步完成 | toast（新增/更新/未变）+ 状态 chip 变「已完成」+ 自动刷新「连接与目标表」 |
+| 同步失败 | 状态 chip 变「失败」+ error 日志行 + error toast + alert 展示原因 |
+| 运行中重复点击 | 按钮禁用；若从别处再次启动，接口返回 409 并在页面提示「已有同步任务在运行」 |
+| 同步进行中 | 「保存源表名」禁用，避免与进行中的同步口径不一致 |
+| 离开页面 | 轮询定时器在 `onBeforeUnmount` 清理（后台任务继续跑，回来重新点同步即可；运行状态存在服务端内存） |
+
+## 4. 与其他页面的关系
+
+- 「缺省汇率」之后新增本菜单（需求 11042 指定位置）；
+- Tab 1 只写 `futu.finv_futu_secu_key`，不改 `cdeu.*` 快照表，也不触发任何采集；
+- 后续按 `ftmm_symbol` 采集行情时以本表为键来源（`status`/`priority`/`url` 供采集侧使用）；
+- Tab 2 落地后同样走「异步启动 + 轮询 + 实时日志」，与 Tab 1 交互一致。

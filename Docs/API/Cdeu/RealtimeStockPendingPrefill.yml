@@ -1,0 +1,83 @@
+openapi: 3.0.3
+info:
+  title: FinvQuant API — 待录入证券补录预填
+  version: 1.0.0
+  description: |
+    GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Prefill?stockId=
+    需求 11147：按快照行 + public.finv_exchange 字典 + futu.finv_futu_quote_collect 同市场参考值，
+    一次性算齐「录入证券元数据」对话框的可填字段，并标注来源（snapshot/dictionary/reference/default/manual）。
+    cdeu.finv_quote_cdeu_usc 不在补录范围（运行时动态生成）。
+servers:
+  - url: /
+paths:
+  /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Prefill:
+    get:
+      summary: 待录入证券补录预填（关联自动填 + 来源标注）
+      operationId: realtimeStockPendingPrefill
+      tags: [Cdeu]
+      parameters:
+        - name: stockId
+          in: query
+          required: true
+          schema: { type: integer, format: int64 }
+          description: 快照表 cdeu.finv_cdeu_secu_realtime_stock.stock_id
+      responses:
+        '200':
+          description: 预填成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string, example: 预填完成 }
+                  data:
+                    type: object
+                    required: [stock_id, usc, name, security, collect, warnings]
+                    properties:
+                      stock_id: { type: integer, format: int64 }
+                      usc: { type: string, description: 派生键 upper(市场标签.代码), example: HK.09999 }
+                      name: { type: string }
+                      security:
+                        type: array
+                        items: { $ref: '#/components/schemas/PrefillField' }
+                      collect:
+                        type: array
+                        items: { $ref: '#/components/schemas/PrefillField' }
+                      warnings:
+                        type: array
+                        items: { type: string }
+        '400':
+          description: stockId 非法或快照行不存在
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 400 }
+                  message: { type: string }
+        '500':
+          description: 数据库侧失败
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 2006 }
+                  message: { type: string }
+components:
+  schemas:
+    PrefillField:
+      type: object
+      required: [key, label, value, source, required, note]
+      properties:
+        key: { type: string, example: exchange_code }
+        label: { type: string }
+        value: { type: string, example: '21' }
+        source:
+          type: string
+          enum: [snapshot, dictionary, reference, default, manual]
+          description: 快照 / 字典 / 参考同市场 / 缺省占位 / 需人工
+        required: { type: boolean }
+        note: { type: string }

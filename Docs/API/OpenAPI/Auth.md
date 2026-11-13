@@ -1,0 +1,370 @@
+# 外部 OpenAPI 鉴权（Auth）
+
+> 所属：FinvQuant API 文档 · 存放：`Docs/API/OpenAPI/Auth.md`
+> 需求：11168（鉴权中间件）；11167（表结构）
+> 实现：`internal/api/openapi`（`Middleware` / `PGSource` / `SettingsStore` / `Recorder`）
+> 数据字典：[`../../DataDictMapping/OpenApiAuth.md`](../../DataDictMapping/OpenApiAuth.md)
+> 错误码目录：[`../../DevSpec/ErrorCodeSpec.md`](../../DevSpec/ErrorCodeSpec.md) §1.2（`190xx`）
+
+## 1. 适用范围
+
+`/OpenAPI/V1/*` 全部接口。与内部接口（`/API/V1/*` 的登录会话 `Authorization: Bearer <token>`）**完全独立**：
+同一个 `Authorization` 头在两套体系里含义不同，互不通用。
+
+鉴权行为由 `sys.sys_config` **19001** 控制：
+
+| 19001 | 含义 | 行为 |
+|---|---|---|
+| `0` | 关闭（**默认**） | 不做任何校验，全部放行（等价早期的过渡实现），不写审计日志 |
+| `1` | 启用 | 必须通过鉴权，失败按 `190xx` 拒绝 |
+| `2` | 宽松（灰度） | 照常校验、照常写审计日志，但**校验失败仍放行**（只打告警日志） |
+
+配置改动最多 10 秒生效（进程内短 TTL 缓存），**不需要重启**。
+
+## 2. 模式一：静态 API Key
+
+```http
+GET /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni?column=usc&row=AAPL&limit=1
+X-API-Key: SA_LIVE_XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+```
+
+也接受 `Authorization: Bearer SA_LIVE_XXXXXXXXXXXXXXXXXXXXXXXXXXXX`（两者都带时以 `X-API-Key` 为准）。
+
+> **大小写（需求 11176）**：凭证号、静态 Key、AK、SK 里的英文字母**一律大写**，便于人工抄写与电话核对。
+> 调用方手写小写也能通过：服务端会按大写归一后查库与比对哈希。
+
+- 凭证表中的 `access_key_id` 与 `X-API-Key` 的值**相同**（静态 Key 本身就是公开标识）；
+- 服务端比对 `sha256(提供的 Key)` 与库内 `secret_hash`（恒定时间比较），库内**不存明文**；
+- 密钥只在创建凭证时返回一次，之后无法从系统取回（丢了就轮换/新建）。
+
+## 3. 模式二：AK/SK 签名
+
+```http
+POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert?batch=1
+Authorization: META1-HMAC-SHA256 Credential=AK_LIVE_XXXXXXXXXXXXXXXX, Signature=oQ7Fk3v...=
+X-META-TS: 1737000000
+X-META-Nonce: 8e2f1c9a4b7d4c0e
+Content-Type: application/json
+```
+
+### 3.1 待签串（canonical string）
+
+```
+METHOD \n
+PATH \n
+SORTED_QUERY \n
+BODY_SHA256 \n
+TIMESTAMP \n
+NONCE
+```
+
+| 段 | 取值 |
+|---|---|
+| `METHOD` | 大写的 HTTP 方法（`GET` / `POST` …） |
+| `PATH` | 请求路径，**不含**域名、端口、查询串（如 `/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert`） |
+| `SORTED_QUERY` | 查询参数按**参数名升序**、同名参数的**值也升序**，键与值都做 RFC 3986 百分号编码（空格 → `%20`），再用 `&` 连接；无查询串时为空行 |
+| `BODY_SHA256` | 请求体的 SHA-256 十六进制**大写**（需求 11177）；GET / 空体用 `sha256("")` 的大写形式 `E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855` |
+| `TIMESTAMP` | 与 `X-META-TS` **完全一致**的字符串（Unix 秒） |
+| `NONCE` | 与 `X-META-Nonce` 完全一致的字符串（建议 8~64 位随机串，每次请求不同） |
+
+### 3.2 签名
+
+```
+signature = Base64( HMAC-SHA256( SK, canonical ) )
+```
+
+`Authorization: META1-<签名算法> Credential=<AK>, Signature=<base64 签名>`
+
+- 方案前缀 `META1-` 后紧跟**签名算法名**（与凭证登记的 `sign_algorithm` 一致，如 `HMAC-SHA256`）；
+- 参数按 `,` 分隔、每段 `k=v`，参数名大小写不敏感，值两端空白与可选双引号会被去掉；
+- `Credential` 与 `Signature` 必须同时存在，缺一即 `19002`；
+- 大小写不敏感的前缀（`meta1-hmac-sha256` 也能识别），但算法名会统一转大写比对。
+
+> 旧写法（`Authorization: FinvAK <AK>:<签名>` + `X-Finv-Timestamp` / `X-Finv-Nonce`）**已废止**（需求 11179），
+> 中间件不再接受，请按上面的新格式改造。
+
+### 3.3 服务端校验顺序
+
+| # | 检查 | 失败码 |
+|---|---|---|
+| 1 | 按 `access_key_id` 定位凭证（不存在也返回 19002，**不区分**「AK 不存在」与「SK 不匹配」，防 AK 枚举） | `19002` |
+| 2 | 用 `sys_config` 19005 的密钥解密 SK（`secret_cipher`；轮换窗口内 `secret_cipher_prev` 也参与验签） | `19010`（密钥未配置/解不开） |
+| 3 | 凭证与调用方状态：`flag_enable` / `flag_revoke` / `dt_revoke` / 双方 `dt_expire` | `19003` |
+| 4 | IP 白名单（调用方级 ∩ 凭证级，都为空表示不限） | `19004` |
+| 5 | 时间戳偏差 ≤ `sys_config` 19002（默认 300 秒） | `19006` |
+| 6 | nonce 在窗口内未被使用过（Redis `SET NX PX`，窗口 = 2 × 时间窗） | `19007` |
+| 7 | 校验请求头里的算法与凭证登记的 `sign_algorithm` 一致，再重算签名并恒定时间比较 | `19005` |
+| 8 | 授权范围 `scope_str`（空数组 = 全部接口；支持精确路径与尾部 `/*` 前缀） | `19009` |
+| 9 | 每分钟速率 `rate_limit_rpm` / 每日配额 `quota_day`（Redis 计数） | `19008` |
+
+Redis 不可用时，nonce 与限流检查**放行**并打告警日志（宁可放行，也不因缓存故障把外部调用方全挡住）；但签名、状态、白名单、时间窗这些不依赖外部状态的检查照旧执行。
+
+### 3.4 最小可运行示例（Go）
+
+```go
+canonical := strings.Join([]string{
+    "POST",
+    "/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert",
+    "",                                  // 无查询串
+    sha256Hex(body),                     // 空体用 sha256("")
+    timestamp, nonce,
+}, "\n")
+mac := hmac.New(sha256.New, []byte(sk))
+mac.Write([]byte(canonical))
+signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
+```
+
+## 4. 兼容期兜底密钥（过渡）
+
+鉴权启用后，为了不打断尚未改造的旧调用方，仍接受一个**兜底静态密钥**：
+
+- 环境变量 `FINV_OPENAPI_KEY`；
+- `sys_config` **19006**（敏感项，默认空）。
+
+两者任一命中即放行（审计日志里 `auth_mode='FALLBACK'`）。兜底密钥**不受**凭证表的停用/吊销控制，也不参与限流；
+正式调用方应改为登记凭证，兜底通道在过渡结束后清空这两个值即可关闭。
+
+## 4.5 方法与删除能力（需求 11180）
+
+对外 OpenAPI 只提供**查询**与**写入（upsert）**两类接口，**不提供删除能力**：
+
+- `GET` / `POST` 之外的请求方法（如 `DELETE`）会先经过鉴权中间件，鉴权通过后返回 `405`：
+  ```json
+  { "code": 405, "message": "OpenAPI 不提供删除能力；如需清理数据请走内部管理接口" }
+  ```
+- 之所以注册成真实路由而不是留给 404：删除类请求**同样要过鉴权**，无凭证照样 `19001`，
+  不会因为「方法不支持」而绕过鉴权被用来探测接口是否开放。
+- 需要清理数据请走内部管理接口（`/API/V1/*`，需登录），或联系平台方。
+
+### 4.6 静态 Key 的额外约束（需求 11188）
+
+静态 Key 没有签名，靠**收紧使用条件**降低风险，以下规则在签发与调用两侧都强制：
+
+| 约束 | 规则 | 违反时 |
+|---|---|---|
+| 授权接口 | 只能授权 **1 个具体接口**（留空 = 全部、通配 `*` 都不允许） | 签发 400；调用 19009 |
+| 调用额度 | 调用方必须先配置 `rate_limit_rpm` 或 `quota_day`（至少一个 > 0）才允许签发 | 签发 400 |
+| 有效期 | 必须显式设置到期日，**最长 90 天**（留空视为随调用方，不允许） | 签发 400 |
+| 写接口时间戳 | `POST/PUT/PATCH/DELETE` 必须带查询参数 `_`（毫秒时间戳），与服务器时间差 ≤ **60 秒** | 19006 |
+| 认证模式取值 | `auth_mode` 统一为 `APIKEY` / `AKSK`（需求 11189，不再使用 `API_KEY` / `AK_SK`） | — |
+
+> AK/SK 签名模式不受「接口个数」限制（可授权多个接口），也不需要 `_` 参数（签名里的时间戳已覆盖）。
+
+### 4.7 防重放与 Redis 故障策略（需求 11188）
+
+| 项 | 规则 |
+|---|---|
+| 签名时间窗 | `X-META-TS` 与服务器时间差 ≤ `SignTimeWindow`（`sys_config 19002`，默认 300 秒）→ 否则 19006 |
+| nonce 去重 | `X-META-Nonce` 必须是 **8~64 位**字母/数字/`_`/`-`，Redis `SET NX PX` 去重（TTL = 2× 时间窗）→ 重复 19007 |
+| Redis 故障 | `FINV_OPENAPI_REDIS_FAIL_MODE=close`（默认）→ 拒绝请求（19010，503）；`=open` → 放行并告警（旧行为） |
+
+> 静态 Key 模式**不做 nonce 去重**（没有签名，nonce 可伪造），写接口靠 `_` 时间戳把重放窗口压到 60 秒内。
+
+### 4.8 STS 临时凭据（需求 11191 / 11210 定稿）
+
+把「能直连业务的长期密钥」和「能换短期凭据的兑换密钥」拆成**两类不同的凭证**，互不越权：
+
+| 凭证类型 | `auth_mode` | 签发得到 | 能做什么 | 不能做什么 |
+|---|---|---|---|---|
+| 长期 AK/SK | `AKSK` | `AK_LIVE_` / `SK_LIVE_` | 直接签名调业务接口 | **不能**换 STS 临时凭据（不允许派生 SST） |
+| STS 兑换凭证 | `STS`（无 `token_fp`） | `AK_LIVE_` / `SK_LIVE_` | **只能**调 `POST /OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue` 换临时凭据 | 不能直接调业务接口 |
+| STS 临时凭据 | `STS`（有 `token_fp`） | `SAK_LIVE_` / `SSK_LIVE_` / `SST_LIVE_` | 带 `X-META-Token` 调业务接口 | 不能再换证（防链条延长） |
+
+目的：兑换凭证只存在客户端的长驻配置里、能做的事被压到「换证」一件；它一旦泄露，
+攻击者拿到的是 2 小时、可审计、可随兑换凭证吊销而立刻失效的临时凭据，而不是能直连业务的长期密钥。
+
+#### 4.8.1 换证请求
+
+```
+POST /OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue
+Authorization: META1-HMAC-SHA256 Credential=<STS 兑换凭证的 AK>, Signature=<base64>
+X-META-TS:    1737000000
+X-META-Nonce: 8~64 位
+(无 body、无 X-META-Token)
+```
+
+返回（三要素明文只出现这一次）：
+
+```json
+{ "code": 0, "message": "OK", "data": {
+    "credential_idn": 34,
+    "credential_no":  "STS-47-20261111T160000",
+    "access_key_id":  "SAK_LIVE_...",
+    "secret_key":     "SSK_LIVE_...",
+    "security_token": "SST_LIVE_...",
+    "expire_at":      "2026-11-11T18:00:00Z",
+    "expire_seconds": 7200 } }
+```
+
+- **有效期固定 2 小时**，不可续期；到期重新换一次即可（兑换凭证长期有效，不需要每次找平台签发）。
+- 三要素的授权范围**继承兑换凭证的 `scope_str`**（留空 = 全部接口），IP 白名单与调用方限流同样继承。
+- 临时凭据落库为 `auth_mode='STS'` 的独立行（`parent_idn` 指向兑换凭证、`token_fp` 为 SecurityToken 指纹、
+  `dt_expire`=签发时刻+2h），因此在凭证列表与审计里都能按凭证号追溯；
+  兑换凭证吊销/停用/过期时，已派生的临时凭据**立即失效**。
+- 三要素前缀互不重叠（需求 11194）：`SAK_LIVE_`(临时 AK) / `SSK_LIVE_`(临时 SK) / `SST_LIVE_`(Token)，
+  与静态 Key 的 `SA_LIVE_`、长期 AK 的 `AK_LIVE_` 一眼可分。
+
+#### 4.8.2 用三要素调用业务接口
+
+```
+Authorization: META1-HMAC-SHA256 Credential=SAK_LIVE_…, Signature=<base64>
+X-META-TS:    1737000000
+X-META-Nonce: 8~64 位
+X-META-Token: SST_LIVE_…
+
+待签串 = METHOD \n PATH \n SORTED_QUERY \n BODY_SHA256 \n TIMESTAMP \n NONCE \n TOKEN
+```
+
+> 长期 AK/SK 与兑换凭证都不带 `X-META-Token`，待签串仍是 6 段，**协议完全不变**，现有客户端无需改造。
+
+#### 4.8.3 被拒绝的三种组合（`403` / `19009`，审计 `pass=0`、`reason=SCOPE_DENY`）
+
+| 场景 | 结果 |
+|---|---|
+| 长期 AK/SK 调 `STS/Issue` | 拒绝：不允许派生 SST，请单独签发 STS 模式的凭证 |
+| STS 兑换凭证调业务接口 | 拒绝：只能用兑换凭证换三要素 |
+| STS 临时凭据调 `STS/Issue` | 拒绝：临时凭据不能再换证 |
+
+凭证读取结果在服务端缓存 10 秒（`finv:openapi:cred:<版本号>:<AK>`，见 `Admin.md §5.6`）：
+平台侧的吊销/停用/轮换会立即让缓存失效，直接改库则最长 10 秒后生效。
+
+审计：`auth_mode='STS'`、`credential_idn` = 本次使用的凭证行（临时凭据记它自己）、`kfp` = 本次 AK 指纹、
+`tfp` = SecurityToken 指纹（兑换凭证为空）；列表里「本次凭证」「父凭证（STS 来源）」两列可直接看出派生关系。
+
+## 4.9 握手（ClientHello / ServerHello，需求 11242）
+
+对接前先握手，确认「网络通 / 认证对 / 连对平台」：
+
+```
+GET /OpenAPI/V1/Meta/Region/AZ/Server/Hello
+```
+
+- 三种认证方式都支持（`APIKEY` / `AKSK` / `STS` 三要素）；认证失败按 `190xx` 拒绝，握手不成立。
+- **豁免授权范围校验**：凭证 `scope` 不需要包含本接口（它只回显身份与公开能力，无业务副作用）；
+  其余校验（吊销/停用/过期、签名、时间窗、nonce、白名单、限流）照旧。
+- `STS` 兑换凭证不能握手（只能换证，需求 11210）。
+- 响应 `data.handshake = "ServerHello"` 才算成功；同时回 `client.*`（服务端认到的身份，含 `kfp` 指纹）、
+  `server_time.unix`（校准时钟）、`capabilities`（时间窗 / 限流 / 换证规则）、`endpoints[]`（可用接口清单）。
+
+完整字段与示例见 [`OpenAPI/Region/AZ/Server/Hello.md`](../../OpenAPI/Region/AZ/Server/Hello.md)。
+
+## 4.10 未命中路径 / 方法时的响应（需求 11218）
+
+`404 page not found` 这种 Gin 默认纯文本不再出现，两种情况都返回结构化 JSON：
+
+| 场景 | HTTP | 响应 |
+|---|---|---|
+| 路径不存在（带合法凭证） | `404` | `{"code":404,"message":"接口不存在：GET /OpenAPI/V1/...；请核对路径…","request_id":"…"}` |
+| 方法不被支持（带合法凭证） | `405` | `{"code":405,"message":"接口 /... 不支持 GET 方法；请改用文档声明的方法","request_id":"…"}` |
+| 路径/方法错且**未携带凭证** | `401` | 先按鉴权拒绝（`19001` 等），不告诉你路径是否存在 |
+
+- 所有响应都带 `X-Request-Id`（32 位大写十六进制），与审计表 `request_id` 同值。
+- 为什么未认证时先拒绝：否则未认证者可以靠 404/405 探测哪些接口存在。
+- 内部管理接口（`/API/V1/*`）未命中同样返回 JSON 信封，不带 OpenAPI 文档提示。
+
+## 4.11 经反向代理转发时的来源 IP（需求 11247）
+
+审计表 `open_api_invoke_log.ip` 与 IP 白名单（`allow_cidr`）都依赖"真实客户端 IP"。
+服务部署在 Nginx / 网关后面时，TCP 对端恒为代理的内网地址，必须靠请求头还原：
+
+| 层 | 配置 | 作用 |
+|---|---|---|
+| Nginx → 服务端 | `proxy_set_header X-Real-IP $remote_addr;`<br>`proxy_set_header X-Forwarded-For $remote_addr;` | 把客户端 IP 传给服务端（用 `$remote_addr` **覆盖**；`$proxy_add_x_forwarded_for` 会在 CDN 已设过的情况下追加成 `IP, IP` 重复堆叠） |
+| Nginx 前面还有 CDN | `set_real_ip_from <CDN 网段>` + `real_ip_header CF-Connecting-IP` + `real_ip_recursive on` | 先把 `$remote_addr` 还原成真实客户端，否则转发的仍是 CDN 节点 IP |
+| 服务端 | `FINV_TRUSTED_PROXIES` | 只有 TCP 对端落在这些网段时才采信上面两个头 |
+
+**Cloudflare 网段从官方拉取并生成 realip 片段**（`nginx -V 2>&1 | grep realip` 确认模块存在）：
+
+```bash
+sudo mkdir -p /etc/nginx/snippets
+# curl 输出末尾没有换行，两段直接相接会把 "131.0.72.0/22" 与 "2400:cb00::/32"
+# 粘成 "131.0.72.0/222400:cb00::/32"，必须用 echo 补换行、再用 sed 删空行
+{ curl -s https://www.cloudflare.com/ips-v4; echo; curl -s https://www.cloudflare.com/ips-v6; echo; } \
+  | sed -e 's/\r$//' -e '/^$/d' -e 's/^/set_real_ip_from /' -e 's/$/;/' \
+  | sudo tee /etc/nginx/snippets/cloudflare-realip.conf >/dev/null
+printf 'real_ip_header    CF-Connecting-IP;\nreal_ip_recursive on;\n' \
+  | sudo tee -a /etc/nginx/snippets/cloudflare-realip.conf >/dev/null
+grep -c '^set_real_ip_from' /etc/nginx/snippets/cloudflare-realip.conf   # 应为 22（15 条 v4 + 7 条 v6）
+```
+
+片段在 **server 块顶层** include（不是放在某个 `location` 里）：
+
+```nginx
+server {
+    include /etc/nginx/snippets/cloudflare-realip.conf;
+    location /OpenAPI/ { proxy_pass http://127.0.0.1:16001; ... }
+}
+```
+
+> 站点配置文件位置随布局而异：Debian/Ubuntu 是 `/etc/nginx/sites-available/<site>`（`sites-enabled/` 只是软链接），
+> CentOS/宝塔等用 `/etc/nginx/conf.d/*.conf`。定位方法：`sudo nginx -t` 打印主配置路径，再
+> `sudo grep -rn "<域名>" /etc/nginx/ | grep -v ^Binary` 找站点文件。
+
+**默认值**（不配环境变量时）：`10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.1/32, ::1/128, fc00::/7`。
+
+- 覆盖私网部署的 Nginx / Docker 网关，开箱即用；
+- 公网直连的对端是公网 IP，不在这些网段内 → **不会采信** `X-Forwarded-For`，杜绝伪造来源 IP；
+- 前置 CDN（Cloudflare 等）时，若让服务端直接信任 CDN 网段：
+
+```bash
+FINV_TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1/32,173.245.48.0/20,103.21.244.0/22
+```
+
+> 更推荐的做法是让 **Nginx 用 realip 模块还原**（配置见上表第二行），
+> 服务端只信任私网代理——CDN 网段会变，写在 Nginx 里更好维护，也不必重启服务端。
+
+排查：审计 `ip` 仍是内网地址时，按顺序确认
+
+```bash
+# 1) Nginx 是否真的把客户端 IP 传下去了
+sudo tail -n 50 /var/log/nginx/access.log          # $remote_addr 列
+# 2) 服务端看到的对端是不是可信代理
+docker logs finvquant 2>&1 | grep -i "trusted"      # 解析失败时会有告警
+# 3) 直连测一次对照（绕开 Nginx，此时 ip 应为你的机器地址）
+curl -s http://127.0.0.1:16001/OpenAPI/V1/Meta/Region/AZ/Server/Hello -H "X-API-Key: ..." -o /dev/null
+```
+
+## 5. 错误响应
+
+失败时 HTTP 状态码与业务码成对出现（`code` 为 `190xx`），并回显 `X-Request-Id`：
+
+> `X-Request-Id` 的值**一律为大写十六进制**（服务端生成 32 位）。客户端可透传该头用于链路串联，
+> 但只接受 8~64 位十六进制并统一转大写，其它形态会被忽略并重新生成；审计表 `request_id` 与它同值。
+
+```json
+{
+  "code": 19001,
+  "message": "未携带 API Key 或签名信息",
+  "request_id": "C620F2756DAC8F303D982603A7739D1F"
+}
+```
+
+完整码表见 [`ErrorCodeSpec.md`](../../DevSpec/ErrorCodeSpec.md) §1.2。成功响应仍走统一信封
+`{"code":0,"data":<原始数据>,"message":"OK"}`（`WrapOpenAPIResponse`）。
+
+## 6. 审计
+
+每次经过鉴权的调用（放行与拒绝都算）写一条 `open.open_api_invoke_log`：
+
+- 谁：`client_idn` / `credential_idn` / `access_key_id`（冗余存，凭证删了也能追）/ `auth_mode`；
+- 什么：`request_id` / `dt_request` / `method` / `path` / `query_str` / `ip` / `user_agent`；
+- 结果：`flag_pass` / `status_code` / `biz_code` / `reason_code`（`NO_KEY`/`BAD_KEY`/`REVOKE`/`EXPIRE`/`CIDR_DENY`/`SIGN_MISMATCH`/`TS_SKEW`/`NONCE_REPLAY`/`SCOPE_DENY`/`RATE_LIMIT`/`NOT_READY`）；
+- 体积：`body_sha256`（**大写**十六进制）+ `count_body`（**不存请求原文**）。
+- 链路：响应头 `X-Request-Id` 与审计表 `request_id` 同为 32 位**大写**十六进制，可直接按它回查。
+
+审计写入超时 1.5 秒，失败只打应用日志，不影响响应；表按 `sys_config` 19003（默认 90 天）清理。
+
+## 7. 上线步骤（建议顺序）
+
+1. 迁移 `V300183`/`V300184` 已建表建配置，此时 19001 默认 `'0'`，**行为与之前完全一致**；
+2. 在 `open.open_api_client` / `open.open_api_credential` 登记调用方与凭证（管理菜单见需求 11169，暂可手工 SQL）；
+3. 把 19001 改为 `'2'`（宽松），观察 `open.open_api_invoke_log` 里的失败记录，逐个通知调用方改造；
+4. 失败清零后把 19001 改为 `'1'`（强制）；
+5. 过渡结束后清空 `FINV_OPENAPI_KEY` 与 19006。
+
+## 8. 说明
+
+- 预留模式：`BEARER`（JWT）/ `MTLS`（证书指纹）/ `BASIC`（用户名口令）在表结构里已有位置，
+  中间件当前**明确按 `19010` 拒绝**，避免「看起来支持其实没验」。
+- 请求体上限 64 MiB，超限按 `19002` 拒绝（不再继续读取，防内存放大）。
+- 幂等与重复请求：签名里含 `nonce`，业务接口本身的幂等性由各自 `ON CONFLICT` 语义保证，两者互不替代。

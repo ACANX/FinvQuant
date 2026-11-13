@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/acanx/finvquant/internal/kline"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
 )
 
 // KLineOps 分钟行情 API 的运维端点（/Health、/healthz、/）。

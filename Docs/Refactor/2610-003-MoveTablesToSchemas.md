@@ -51,7 +51,7 @@
 
 ## 1.3 关键技术约束（本改造真正的风险点）
 
-1. **迁移顺序与种子段耦合**：迁移按版本号排序执行，`V32`（移动表）排在 `V100001`～`V100023`（种子数据）之前。种子迁移是历史文件、**不可回改**，其 SQL 写的是不带 schema 的表名（如 `INSERT INTO finv_quote_revision_log ...`）。因此 **`V32` 执行后，连接必须能通过 `search_path` 解析到 `quote` / `quant`**，否则全新库首次部署会在种子阶段失败。
+1. **迁移顺序与种子段耦合**：迁移按版本号排序执行，`V32`（移动表）排在 `V200001`～`V200023`（种子数据）之前。种子迁移是历史文件、**不可回改**，其 SQL 写的是不带 schema 的表名（如 `INSERT INTO finv_quote_revision_log ...`）。因此 **`V32` 执行后，连接必须能通过 `search_path` 解析到 `quote` / `quant`**，否则全新库首次部署会在种子阶段失败。
 2. **`ALTER DATABASE ... SET search_path` 只对新连接生效**：迁移用的连接池（`migrate.go`）在 `V32` 之前就已建立连接，因此**单靠 `V32` 无法让种子迁移生效**。必须同时让**连接串本身**携带 `search_path`（见 `C-09`），这样 pool 中每条连接从建立起就带正确的搜索路径；`quote` / `quant` 尚未创建时，PostgreSQL 会静默忽略不存在的 schema，不影响 `V1`～`V31`。
 3. **应用 SQL 显式 schema 前缀**：`Go` 侧 SQL 统一写 `quote.xxx` / `quant.xxx`（见 `C-10`～`C-12`），不依赖 `search_path`；`search_path` 仅作为历史种子迁移与手工 `psql` 的兜底。
 4. **幂等**：`V32` 用 `pg_tables.schemaname` 判断表当前所在 schema，已迁移则跳过；重复执行安全。
@@ -60,14 +60,14 @@
 
 | 编号 | 位置 | 改动内容 | 完成判定 | 状态 |
 |---|---|---|---|---|
-| C-01 | `Deploy/Migrations/V100032__move_finv_tables_to_quote_quant_schemas.sql`（新建） | 单事务：`CREATE SCHEMA IF NOT EXISTS quote;`、`CREATE SCHEMA IF NOT EXISTS quant;` | 文件存在，含两条 `CREATE SCHEMA IF NOT EXISTS` | ☑ 2026-10-24 |
+| C-01 | `Deploy/Migrations/V200032__move_finv_tables_to_quote_quant_schemas.sql`（新建） | 单事务：`CREATE SCHEMA IF NOT EXISTS quote;`、`CREATE SCHEMA IF NOT EXISTS quant;` | 文件存在，含两条 `CREATE SCHEMA IF NOT EXISTS` | ☑ 2026-10-24 |
 | C-02 | 同上 | 3 张 `finv_quote_*` 表 `ALTER TABLE public.<t> SET SCHEMA quote;`，逐表用 `pg_tables` 判断当前 schema 保证幂等 | 脚本内 3 个表名齐全且含 `schemaname = 'public'` 判断 | ☑ 2026-10-24 |
 | C-03 | 同上 | 13 张 `finv_quant_*` 表 `SET SCHEMA quant`，同样幂等判断 | 脚本内 13 个表名齐全 | ☑ 2026-10-24 |
 | C-04 | 同上 | `ALTER DATABASE <当前库> SET search_path TO public, quote, quant;`（用 `current_database()` 动态取库名，避免写死） | 脚本含 `ALTER DATABASE` 与 `current_database()` | ☑ 2026-10-24 |
 | C-05 | 同上 | 收敛校验：迁移末尾用 `DO` 块断言「应迁的表已不在 `public`」，不满足则 `RAISE EXCEPTION` 使整事务回滚 | 脚本含 `RAISE EXCEPTION` | ☑ 2026-10-24 |
 | C-06 | 同上 | 不重建索引/触发器/序列，不 `DROP`/`CREATE` 任何表 | 脚本内无 `CREATE INDEX`、`DROP TABLE`、`CREATE TABLE` | ☑ 2026-10-24 |
-| C-07 | `Deploy/Migrations/V1*`～`V31`、`V100xxx` | **历史迁移保持原样**（不可回改） | `git diff --stat -- Deploy/Migrations/` 中不包含既有文件 | ☑ 2026-10-24（唯一例外：V100019/V100023 的列名修正，见 C-32） |
-| C-08 | 临时 PG18 库 | 全链验证：`V1`～`V31` → `V32` → `V100001`～`V100023` 全部成功（重点：种子迁移在 `V32` 之后仍能写入） | 迁移链无错误，`schema_version` 含 `32` | ☑ 2026-10-24 |
+| C-07 | `Deploy/Migrations/V1*`～`V31`、`V100xxx` | **历史迁移保持原样**（不可回改） | `git diff --stat -- Deploy/Migrations/` 中不包含既有文件 | ☑ 2026-10-24（唯一例外：V200019/V200023 的列名修正，见 C-32） |
+| C-08 | 临时 PG18 库 | 全链验证：`V1`～`V31` → `V32` → `V200001`～`V200023` 全部成功（重点：种子迁移在 `V32` 之后仍能写入） | 迁移链无错误，`schema_version` 含 `32` | ☑ 2026-10-24 |
 
 ## 1.5 C2 应用连接与 SQL
 
@@ -115,8 +115,8 @@
 | C-28 | 运行环境 | 服务与接口回归 | `/API/V1/Version` 正常、`/Health/Ready` 200、`QuoteQuery?usc=GCMain` 返回 bars、回测 `Run/List` 正常 | ☑ 2026-10-24（版本 0.1.1、`QuoteQuery` 正常、`Run/List`/`Strategy/List`/`Environment/List` 正常、前端 200） |
 | C-29 | 运行环境 | `search_path` 生效确认 | `SHOW search_path;` 含 `public, quote, quant` | ☑ 2026-10-24（`public, quote, quant`） |
 | C-30 | 运行环境 | 容器日志无 ERROR | `docker logs finvquant 2>&1 \| grep -ciE "ERROR\|失败\|panic"` 为 `0` | ☑ 2026-10-24（0 条） |
-| C-31 | `Deploy/Migrations/V200024__finv_quant_seed_tables_move_to_quant_schema.sql`（新建，执行中新发现） | `V32` 早于种子段，而 `V100023` 用 `CREATE TABLE IF NOT EXISTS` 新建了 3 张 `finv_quant_*` 表（`backtest_del_task`/`del_log`/`run_archive`），在全新库中会落到 `search_path` 首个 schema（`public`）；新增 `V100024`（编号 > 100023）在种子之后把这 3 张表移入 `quant`，存量库中为空操作（幂等） | 文件存在且含 `SET SCHEMA quant`；全新库验证后 `quant` 表数为 13 | ☑ 2026-10-24 |
-| C-32 | `Deploy/Migrations/V200019__...seed.sql`、`V200023__...del_task.sql`（执行中新发现，历史迁移例外） | A 改造已把 `secu_code` 改名 `usc`，但这两个种子迁移在 `V29` **之后**执行且仍引用旧列名：`V100019` 的 INSERT 列表、`V100023` 的 `CREATE TABLE` 列定义。不改会让**全新库首次部署在 V100019 失败**（实测报错：column "secu_code" ... does not exist）；本次仅改这两处列名，对已应用库无影响（`schema_version` 跳过），并在 `DbSchemaSpec` §4 登记为例外 | 两个文件内 `secu_code` 清零；全新库全链迁移成功 | ☑ 2026-10-24 |
+| C-31 | `Deploy/Migrations/V300024__finv_quant_seed_tables_move_to_quant_schema.sql`（新建，执行中新发现） | `V32` 早于种子段，而 `V200023` 用 `CREATE TABLE IF NOT EXISTS` 新建了 3 张 `finv_quant_*` 表（`backtest_del_task`/`del_log`/`run_archive`），在全新库中会落到 `search_path` 首个 schema（`public`）；新增 `V200024`（编号 > 100023）在种子之后把这 3 张表移入 `quant`，存量库中为空操作（幂等） | 文件存在且含 `SET SCHEMA quant`；全新库验证后 `quant` 表数为 13 | ☑ 2026-10-24 |
+| C-32 | `Deploy/Migrations/V300019__...seed.sql`、`V300023__...del_task.sql`（执行中新发现，历史迁移例外） | A 改造已把 `secu_code` 改名 `usc`，但这两个种子迁移在 `V29` **之后**执行且仍引用旧列名：`V200019` 的 INSERT 列表、`V200023` 的 `CREATE TABLE` 列定义。不改会让**全新库首次部署在 V200019 失败**（实测报错：column "secu_code" ... does not exist）；本次仅改这两处列名，对已应用库无影响（`schema_version` 跳过），并在 `DbSchemaSpec` §4 登记为例外 | 两个文件内 `secu_code` 清零；全新库全链迁移成功 | ☑ 2026-10-24 |
 
 ---
 
@@ -134,8 +134,8 @@
 
 ```bash
 # 迁移脚本结构
-grep -c "CREATE SCHEMA IF NOT EXISTS" Deploy/Migrations/V100032__move_finv_tables_to_quote_quant_schemas.sql   # 期望 2
-grep -c "SET SCHEMA" Deploy/Migrations/V100032__move_finv_tables_to_quote_quant_schemas.sql                    # 期望 16
+grep -c "CREATE SCHEMA IF NOT EXISTS" Deploy/Migrations/V200032__move_finv_tables_to_quote_quant_schemas.sql   # 期望 2
+grep -c "SET SCHEMA" Deploy/Migrations/V200032__move_finv_tables_to_quote_quant_schemas.sql                    # 期望 16
 
 # 代码中的表名均带 schema 前缀（排除纯注释行较难，人工复核注释即可）
 grep -rn "FROM finv_quote_\|INTO finv_quote_\|FROM finv_quant_\|INTO finv_quant_\|UPDATE finv_quant_\|UPDATE finv_quote_" internal/ --include="*.go"   # 期望为空
@@ -154,6 +154,6 @@ go build ./... && go vet ./... && go test ./...
 
 | 日期 | 变更 | 说明 |
 |---|---|---|
-| 2026-10-24 | 部署验证 | 备份 `Deploy/backup/finvquant_周六1024_011446.dump` 后重建容器；`V32`/`V100024` 均 `success=t`；`quote` 3 张、`quant` 13 张、`public` 11 张（字典表 + `schema_version`）；2,804,329 行数据一致；触发器随表生效；`search_path=public, quote, quant`；版本 0.1.1，接口与前端回归通过，日志 0 条 ERROR |
-| 2026-10-24 | 执行完成 | 新建 `V32`（建 schema + 移动 3+13 张表 + `ALTER DATABASE` search_path + 收敛校验）；`postgres.go` DSN 加 `search_path`；Go 侧 6 文件 106 处加 schema 前缀；文档 12 篇 50 处同步；新增 `Docs/DevSpec/DbSchemaSpec.md`；执行中发现并修正两处历史种子迁移列名（`C-32`）；临时 PG18 库全链（`V1`～`V32` + `V100000`～`V100024`）验证通过、重复执行幂等；`go build`/`vet`/单测通过 |
+| 2026-10-24 | 部署验证 | 备份 `Deploy/backup/finvquant_周六1024_011446.dump` 后重建容器；`V32`/`V200024` 均 `success=t`；`quote` 3 张、`quant` 13 张、`public` 11 张（字典表 + `schema_version`）；2,804,329 行数据一致；触发器随表生效；`search_path=public, quote, quant`；版本 0.1.1，接口与前端回归通过，日志 0 条 ERROR |
+| 2026-10-24 | 执行完成 | 新建 `V32`（建 schema + 移动 3+13 张表 + `ALTER DATABASE` search_path + 收敛校验）；`postgres.go` DSN 加 `search_path`；Go 侧 6 文件 106 处加 schema 前缀；文档 12 篇 50 处同步；新增 `Docs/DevSpec/DbSchemaSpec.md`；执行中发现并修正两处历史种子迁移列名（`C-32`）；临时 PG18 库全链（`V1`～`V32` + `V200000`～`V200024`）验证通过、重复执行幂等；`go build`/`vet`/单测通过 |
 | 2026-10-24 | 初版 | 建立改造项 C 检查清单（`C-01`～`C-30`）；盘点生产库 27 张表的归属（quote 3 / quant 13 / public 10 + `schema_version`）；识别关键约束：`V32` 早于种子段执行，必须靠连接串 `search_path` 才能让历史种子迁移写入新 schema |

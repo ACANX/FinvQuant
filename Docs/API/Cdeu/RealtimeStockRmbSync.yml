@@ -1,0 +1,123 @@
+openapi: 3.1.0
+info:
+  title: FinvQuant API — 证券实时快照人民币计价指标手动补全
+  version: 1.0.0
+  description: |
+    行情 → 实时行情 → 证券行情排行（/Meta/Finv/Quote/Realtime/FTStockRank）的
+    「人民币计价指标更新」按钮所用接口（需求 11024）。
+
+    两步：先按 currency 补 rmb_exchange_rate（汇率取 public.finv_fxcer，
+    CNY 恒为 1，回退顺序：直采 → 反向取倒数 → 经 USD 交叉），
+    再按该汇率换算 rmb_market_value / rmb_circulation_market_value /
+    rmb_trade_trunover / rmb_price_nominal。
+
+    幂等：重复调用时 rate_update / amount_update 为 0；本币值为 NULL 时对应 rmb_ 字段保持 NULL。
+servers:
+  - url: http://127.0.0.1:16001/API/V1
+paths:
+  /Meta/Finv/Quote/Cdeu/Realtime/Stock/RmbSync:
+    post:
+      summary: 手动补全证券实时快照的人民币计价指标
+      operationId: realtimeStockRmbSync
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: step
+          in: query
+          required: false
+          description: |
+            执行步骤：all（默认，先 rate 后 amount）/ rate（只补 rmb_exchange_rate）/
+            amount（只补 rmb_ 金额与价格字段，需已有汇率）。取值非法返回 400。
+          schema:
+            type: string
+            enum: [all, rate, amount]
+            default: all
+      responses:
+        '200':
+          description: 补全完成
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code:
+                    type: integer
+                    const: 0
+                  message:
+                    type: string
+                    examples: ['人民币计价指标已更新']
+                  data:
+                    type: object
+                    properties:
+                      step:
+                        type: string
+                        enum: [all, rate, amount]
+                        description: 实际执行的步骤
+                      rows_total:
+                        type: integer
+                        description: 快照表总行数
+                      rows_currency_missing:
+                        type: integer
+                        description: currency 为空、无法换算的行数（其 rmb_* 保持 NULL）
+                      rate_rows:
+                        type: integer
+                        description: 补全后已有 rmb_exchange_rate 的行数
+                      rate_update:
+                        type: integer
+                        description: 本次实际写入 rmb_exchange_rate 的行数（值未变不计）
+                      amount_rows:
+                        type: integer
+                        description: 补全后已有任一 rmb_ 金额/价格字段的行数
+                      amount_update:
+                        type: integer
+                        description: 本次实际写入 rmb_ 金额/价格字段的行数（值未变不计）
+                      rates:
+                        type: object
+                        additionalProperties:
+                          type: string
+                        description: 本次使用的汇率（币种 → 10 位小数文本）
+                        examples:
+                          - { CNY: '1.0000000000', HKD: '0.8516000000', USD: '6.6760000000' }
+                      missing_currencies:
+                        type: array
+                        description: 查不到汇率的币种（不会写入任何 rmb_ 值）
+                        items:
+                          type: string
+                      elapsed_ms:
+                        type: integer
+                        description: 服务端耗时（毫秒）
+        '400':
+          description: step 非法
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    const: 400
+                  message:
+                    type: string
+                    examples: ['step 非法（仅支持 all / rate / amount）: bogus']
+        '401':
+          description: 未登录或 token 失效
+        '500':
+          description: 数据库写入/查询失败
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    const: 2006
+                  message:
+                    type: string
+                    examples: ['人民币计价指标更新失败: ...']
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

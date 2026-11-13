@@ -1,0 +1,288 @@
+# FinvQuant — 证券实时行情快照外部批量 Upsert（OpenAPI 3.1 契约）
+#
+# 与同目录 StockUpsert.md 成对维护：
+#   - StockUpsert.md 是面向外部调用方的人读说明；
+#   - 本文件是机器可读契约，供 lint / 生成客户端 / 交互文档使用。
+# 契约变更时两者必须同步更新。
+#
+# 说明：本契约**自包含**（字段 / 错误码 / schema 全部内联），不引用仓库内部 API 文档。
+#
+openapi: 3.1.0
+info:
+  title: FinvQuant — 证券实时行情快照外部批量 Upsert
+  version: 1.0.0
+  description: |
+    外部 OpenAPI：批量写入证券实时行情快照（表 cdeu.finv_cdeu_secu_realtime_stock，主键 stock_id）。
+    主键存在则只覆盖本次有值的列（COALESCE），不存在则插入；
+    整批单条语句执行，失败整批回滚。鉴权见 Docs/API/OpenAPI/Auth.md（sys_config 19001 控制，默认关闭）。
+servers:
+  - url: http://127.0.0.1:16001
+    description: 本机直连（生产经 Nginx 反代时替换为 https://<域名>）
+tags:
+  - name: OpenAPI/Quote/Cdeu/Realtime
+    description: 外部 OpenAPI — 证券实时行情快照
+paths:
+  /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert:
+    post:
+      operationId: upsertCdeuRealtimeStockOpenAPI
+      tags: [OpenAPI/Quote/Cdeu/Realtime]
+      summary: 批量写入证券实时行情快照（外部 upsert）
+      description: |
+        批量 upsert；主键 `stock_id` 冲突时**只覆盖本次有值的列**，其余列保留旧值。
+
+        - 未提供或 `null` 的列：已存在行保留旧值；新行为 `NULL`；
+        - 空字符串视同未提供（不会把旧值写成空串）；
+        - `dt_update` 例外：省略或 `null` 时刷新为本次写入时刻的 Unix 毫秒；
+        - 批内 `stock_id` 重复 → 400；
+        - 整批单条 `INSERT ... ON CONFLICT` 语句，失败整批回滚；
+        - 请求体严格解码：未定义字段 → 400。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RealtimeStockUpsertRequest'
+            examples:
+              single:
+                summary: 单条快照
+                value:
+                  items:
+                    - usc: SH600000
+                      stock_id: 1001
+                      name: 浦发银行
+                      stock_code: '600000'
+                      market_type: '1'
+                      market_label: SH
+                      instrument_type: '1'
+                      currency: CNY
+                      market_value: 123456789.123456
+                      total_shares: 2935208
+                      circulation_total_shares: 2935208
+                      trade_trunover: 1234567.89
+                      trade_volumn: 100000
+                      circulation_market_value: 120000000.5
+                      dt_update: 1767225600000
+              minimal:
+                summary: 仅主键（新行其余列为 NULL；已存在行保留旧值）
+                value:
+                  items:
+                    - stock_id: 1001
+      responses:
+        '200':
+          description: 写入成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpsertEnvelope'
+              examples:
+                insert:
+                  value:
+                    code: 0
+                    data: { total: 1, insert: 1, update: 0 }
+                    message: OK
+                update:
+                  value:
+                    code: 0
+                    data: { total: 1, insert: 0, update: 1 }
+                    message: OK
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        AK/SK 签名（Authorization: META1-<算法> Credential=<AK>, Signature=<签名> + X-META-TS + X-META-Nonce）。
+        鉴权行为由 sys_config 19001 控制（0 关闭 / 1 启用 / 2 宽松），详见 Docs/API/OpenAPI/Auth.md。
+  responses:
+    BadRequest:
+      description: |
+        入参非法：请求体不是合法 JSON、含未定义字段、`items` 为空或超过 500 条、
+        `stock_id` 缺失/越界/批内重复、`dt_update` 为负、数值超出 `NUMERIC(24,6)` 范围。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            duplicateStockId:
+              value:
+                code: 400
+                message: "实时行情快照入参非法: stock_id=1001 在第 1 条与第 2 条重复"
+            tooManyItems:
+              value:
+                code: 400
+                message: "实时行情快照入参非法: items 条数 501 超过上限 500"
+    Unauthorized:
+      description: 仅 API Key 体系启用后可能出现（当前公开访问，不会返回）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: 服务端错误（写库失败、连接失败等），可重试。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            dbError:
+              value: { code: 2006, message: "UpsertRealtimeStocks：写入实时行情快照失败: ..." }
+  schemas:
+    RealtimeStockUpsertRequest:
+      type: object
+      required: [items]
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          description: 待写入的快照行；1 ≤ 条数 ≤ 500。
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/RealtimeStockItem'
+
+    RealtimeStockItem:
+      type: object
+      required: [stock_id]
+      additionalProperties: false
+      description: |
+        单行证券实时行情快照。未列出的字段名会触发 400（严格解码，未知字段报错）。
+        未提供或为 `null` 的字段：已存在行保留旧值（字段级覆盖语义）；新行为 `NULL`。
+      properties:
+        stock_id:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 9223372036854775807
+          description: 源系统证券 ID（富途 64 位编号），主键；批内必须唯一。
+        usc:
+          type: [string, 'null']
+          description: Finv 统一证券编码（如 `SH600000`）。
+        name:
+          type: [string, 'null']
+          description: 证券名称。
+        stock_code:
+          type: [string, 'null']
+          description: 行情代码（不含市场前缀）。
+        market_type:
+          type: [string, 'null']
+          description: 市场类型（源系统市场分类编码）。
+        market_label:
+          type: [string, 'null']
+          description: 市场标签（市场显示名称）。
+        instrument_type:
+          type: [string, 'null']
+          description: 品种类型（股票/基金/债券等）。
+        currency:
+          type: [string, 'null']
+          description: 货币类型，ISO 4217 三位字母代码（`CNY`/`USD`/`HKD` 等）。
+        market_value:
+          type: [number, 'null']
+          description: 总市值（`NUMERIC(24,6)`）。
+        total_shares:
+          type: [number, 'null']
+          description: 总股本（股，`NUMERIC(24,6)`）。
+        circulation_total_shares:
+          type: [number, 'null']
+          description: 流通股本（股，`NUMERIC(24,6)`）。
+        trade_trunover:
+          type: [number, 'null']
+          description: 成交额（当日累计，`NUMERIC(24,6)`）；列名沿用上游拼写 `trunover`。
+        trade_volumn:
+          type: [number, 'null']
+          description: 成交量（当日累计，`NUMERIC(24,6)`）；列名沿用上游拼写 `volumn`。
+        circulation_market_value:
+          type: [number, 'null']
+          description: 流通市值（`NUMERIC(24,6)`）。
+        dt_update:
+          type: [integer, 'null']
+          format: int64
+          minimum: 0
+          description: 快照更新时间（Unix 毫秒）；省略或 `null` 时刷新为本次写入时刻。
+        price_nominal:
+          type: [number, 'null']
+          description: 名义价格/单价（`NUMERIC(20,6)`）。
+        change_ratio:
+          type: [number, 'null']
+          description: 涨跌幅，**百分点数值**（1.03 表示 +1.03%）。
+        trust_aum:
+          type: [number, 'null']
+          description: 信托/基金资产规模（`NUMERIC(24,6)`，**单位元**；源值的万/亿/万亿已换算）。
+        trade_change_ratio:
+          type: [number, 'null']
+          description: 成交额变化率，百分点数值（0.12 表示 +0.12%）。
+        price_amplitude:
+          type: [number, 'null']
+          description: 价格振幅，百分点数值（1.30 表示 1.30%）。
+        volumn_ratio:
+          type: [number, 'null']
+          description: 量比，无量纲（1.15 即 1.15 倍）。
+        buysell_ratio:
+          type: [number, 'null']
+          description: 买卖比，百分点数值，可为负（0.00 表示 0.00%）。
+        change_price:
+          type: [number, 'null']
+          description: 涨跌额（`NUMERIC(20,6)`；源值 `+0.750` 去正号）。
+        price_direct:
+          type: [string, 'null']
+          enum: ['+', '-', '0', null]
+          description: 涨跌方向：`+` = 涨（源 up）、`-` = 跌（源 down）、`0` = 平（源 flat）。
+        leverage:
+          type: [number, 'null']
+          description: 杠杆（`NUMERIC(20,6)`，可为负；源空值不写入）。
+        page:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 2147483647
+          description: 来源页码——该证券最新快照由市值排行接口分页拉取所得时的页码（从 1 开始）；省略或 null 不覆盖已有值。
+
+    UpsertEnvelope:
+      type: object
+      required: [code, data, message]
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+          const: 0
+          description: 业务码；成功固定 0。
+        data:
+          $ref: '#/components/schemas/UpsertStat'
+        message:
+          type: string
+          description: 成功固定为 OK。
+
+    UpsertStat:
+      type: object
+      required: [total, insert, update]
+      additionalProperties: false
+      properties:
+        total:
+          type: integer
+          format: int64
+          description: 本次处理行数（= insert + update）。
+        insert:
+          type: integer
+          format: int64
+          description: 新增行数。
+        update:
+          type: integer
+          format: int64
+          description: 覆盖更新行数。
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+          description: 业务码；入参问题 400，服务端错误 2006。
+        message:
+          type: string
+          description: 错误描述。

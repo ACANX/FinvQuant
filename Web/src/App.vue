@@ -9,6 +9,8 @@ import NavMenuTree from './components/menu/NavMenuTree.vue'
 import SystemSwitcher from './components/menu/SystemSwitcher.vue'
 import { menuSystems, resolveSystem } from './config/menuConfig'
 import { NAV_LAST_PATH_STORAGE_KEY, readStorage, setNavTheme, writeStorage } from './config/uiConfig'
+import AppToast from './components/AppToast.vue'
+import { showToast } from './ui/toast'
 import ChangePasswordDialog from './views/Common/ChangePasswordDialog.vue'
 
 // 导航结构：一级 = 系统（顶栏切换器），左侧抽屉渲染当前系统的二~四级菜单。
@@ -37,9 +39,6 @@ const isPublicRoute = computed(() => Boolean(route.meta.public))
 
 // 修改密码对话框（需求 10763）
 const changePasswordOpen = ref(false)
-// 顶部提示条：改密结果与吊销的其它会话数
-const toast = ref(false)
-const toastText = ref('')
 
 /** 读取各系统上次访问的路由（切换系统时回到原页面） */
 function readLastPaths(): Record<string, string> {
@@ -81,11 +80,12 @@ function onMenuNavigate(): void {
 
 /** 改密成功回调：当前会话保留，仅提示结果 */
 function onChangePasswordDone(revokedSessions: number): void {
-  toastText.value =
+  // 一次性操作反馈走全局 toast（5 秒后自动消失），见 Docs/DevSpec/UiSpec.md
+  showToast(
     revokedSessions > 0
       ? `密码已修改，已退出其它 ${revokedSessions} 个设备的登录`
-      : '密码已修改'
-  toast.value = true
+      : '密码已修改',
+  )
 }
 
 /** 退出登录：先尽力吊销服务端会话，再清本地状态并回登录页 */
@@ -121,7 +121,7 @@ watch(
       <v-app-bar-nav-icon @click="drawer = !drawer" />
       <v-app-bar-title class="finv-app-title">
         <v-icon icon="mdi-finance" class="mr-2" />
-        FinvQuant 量化策略交易平台
+        FinvQuant策略回测量化交易
       </v-app-bar-title>
 
       <!-- 一级系统切换（金融投资 / 内容管理） -->
@@ -202,9 +202,7 @@ watch(
     </v-main>
 
     <ChangePasswordDialog v-model="changePasswordOpen" @changed="onChangePasswordDone" />
-    <v-snackbar v-model="toast" :timeout="4000" color="success" location="top">
-      {{ toastText }}
-    </v-snackbar>
+    <AppToast />
     </template>
   </v-app>
 </template>

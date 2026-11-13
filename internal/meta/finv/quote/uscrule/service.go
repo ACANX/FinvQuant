@@ -1,0 +1,255 @@
+package uscrule
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/acanx/finvquant/internal/meta/base/cron"
+)
+
+// previewCacheTTL 预演明细缓存有效期（超过后 Diff/Page 提示重新预演）。
+const previewCacheTTL = 30 * time.Minute
+
+// Service USC 映射规则业务层：页面查询、预演、应用与调度配置读取。
+type Service struct {
+	store *Store
+
+	// 最近一次预演的完整明细（内存缓存，供 Diff/Page 分页浏览）。
+	// 预演本身不落库，明细也没法从库里再查，所以缓存一次；重新预演会整体替换。
+	mu       sync.Mutex
+	cached   []DiffRow
+	cacheAt  time.Time
+	cacheEnv string
+	cacheTok string
+}
+
+// NewService 创建服务。
+func NewService(pool *pgxpool.Pool) *Service {
+	return &Service{store: NewStore(pool)}
+}
+
+// Store 暴露底层读写器（运行器与测试用）。
+func (s *Service) Store() *Store { return s.store }
+
+// Status 页面快照。
+func (s *Service) Status(ctx context.Context, env string) (Status, error) {
+	return s.store.Status(ctx, env)
+}
+
+// Preview 预演（不落库），并把完整明细缓存在内存里供分页浏览。
+func (s *Service) Preview(ctx context.Context, env string) (Preview, error) {
+	preview, rows, err := s.store.Preview(ctx, env)
+	if err != nil {
+		return Preview{}, err
+	}
+	s.mu.Lock()
+	s.cached = rows
+	s.cacheAt = time.Now()
+	s.cacheEnv = preview.Env
+	s.cacheTok = preview.PreviewToken
+	s.mu.Unlock()
+	return preview, nil
+}
+
+// diffRowMatch 判断预演明细行是否命中关键字（ftmm_symbol / code / 当前 usc / 新 usc）。
+func diffRowMatch(row DiffRow, kw string) bool {
+	if strings.Contains(strings.ToLower(row.FtmmSymbol), kw) ||
+		strings.Contains(strings.ToLower(row.Code), kw) {
+		return true
+	}
+	if row.CurrentUSC != nil && strings.Contains(strings.ToLower(*row.CurrentUSC), kw) {
+		return true
+	}
+	if row.NewUSC != nil && strings.Contains(strings.ToLower(*row.NewUSC), kw) {
+		return true
+	}
+	return false
+}
+
+// MapPage 分页查询结果表（与预演无关，随时可用）。
+func (s *Service) MapPage(ctx context.Context, filter MapFilter) ([]MapRow, int64, error) {
+	return s.store.ListMapRows(ctx, filter)
+}
+
+// DiffPage 分页读取最近一次预演的明细。
+//
+// diff 为空表示全部（不含 keep）；token 非空时必须与缓存令牌一致，避免「预演 → 改了规则 → 还在看旧明细」。
+func (s *Service) DiffPage(token, diff, keyword string, page, pageSize int) ([]DiffRow, int, string, error) {
+	s.mu.Lock()
+	rows := s.cached
+	at := s.cacheAt
+	tok := s.cacheTok
+	s.mu.Unlock()
+
+	if rows == nil || at.IsZero() {
+		return nil, 0, "", fmt.Errorf("还没有预演结果，请先点「预演差异」")
+	}
+	if time.Since(at) > previewCacheTTL {
+		return nil, 0, "", fmt.Errorf("预演明细已超过 %d 分钟，请重新预演", int(previewCacheTTL.Minutes()))
+	}
+	if token != "" && token != tok {
+		return nil, 0, "", fmt.Errorf("预演令牌不匹配（可能是重新预演或服务重启），请刷新后重试")
+	}
+
+	// 关键字同时匹配 ftmm_symbol / code / 当前 usc / 新 usc（大小写不敏感），
+	// 几万条明细里直接定位某一只证券，不用翻页。
+	kw := strings.ToLower(strings.TrimSpace(keyword))
+	filtered := rows
+	if diff != "" || kw != "" {
+		filtered = make([]DiffRow, 0, len(rows))
+		for _, row := range rows {
+			if diff != "" && row.Diff != diff {
+				continue
+			}
+			if kw != "" && !diffRowMatch(row, kw) {
+				continue
+			}
+			filtered = append(filtered, row)
+		}
+	}
+	page, pageSize = normalizePager(page, pageSize)
+	total := len(filtered)
+	start := (page - 1) * pageSize
+	if start >= total {
+		return []DiffRow{}, total, tok, nil
+	}
+	end := start + pageSize
+	if end > total {
+		end = total
+	}
+	return filtered[start:end], total, tok, nil
+}
+
+// Apply 应用一次映射（落库 + 归档 + 回写键表 + 记账）。
+func (s *Service) Apply(ctx context.Context, env, previewToken, operator, reason string) (Result, error) {
+	if strings.TrimSpace(reason) == "" {
+		reason = "应用 USC 映射规则（定时任务或维护页手动触发）"
+	}
+	return s.store.Apply(ctx, env, previewToken, operator, reason)
+}
+
+// ListRules 规则列表。
+func (s *Service) ListRules(ctx context.Context) ([]Rule, error) {
+	return s.store.ListRules(ctx)
+}
+
+// ListItems 条目分页。
+func (s *Service) ListItems(ctx context.Context, filter ItemFilter) ([]Item, int64, error) {
+	return s.store.ListItems(ctx, filter)
+}
+
+// SaveRule 保存规则层可改字段（启用开关 / 默认动作 / 说明 / 备注）。
+func (s *Service) SaveRule(ctx context.Context, u RuleUpdate, operator string) error {
+	return s.store.SaveRule(ctx, u, operator)
+}
+
+// SaveItem 保存条目。
+func (s *Service) SaveItem(ctx context.Context, item Item, operator string) (int64, error) {
+	return s.store.SaveItem(ctx, item, operator)
+}
+
+// RetireItem 停用条目。
+func (s *Service) RetireItem(ctx context.Context, idn int64, reason, operator string) error {
+	return s.store.RetireItem(ctx, idn, reason, operator)
+}
+
+// ListLogs 审计日志分页。
+func (s *Service) ListLogs(ctx context.Context, page, pageSize int) ([]LogRow, int64, error) {
+	return s.store.ListLogs(ctx, page, pageSize)
+}
+
+// NextRun 按 6 段 cron 计算下一次执行时间（表达式为空或非法时返回空串）。
+func NextRun(expr string, from time.Time) string {
+	schedule := ParseSchedule(expr)
+	if schedule == nil {
+		return ""
+	}
+	return schedule.Next(from).Format(time.RFC3339)
+}
+
+// ParseSchedule 解析 6 段 cron（空串/非法返回 nil）。
+func ParseSchedule(expr string) *cron.Schedule {
+	expr = strings.TrimSpace(expr)
+	if expr == "" {
+		return nil
+	}
+	parsed, err := cron.Parse(expr)
+	if err != nil {
+		return nil
+	}
+	return parsed
+}
+
+// MaxSchedulePreview 调度配置里展示的未来执行次数。
+const MaxSchedulePreview = 5
+
+// LoadSchedule 读取系统配置 20015 的调度配置（空串 = 自动同步关闭）。
+func (s *Service) LoadSchedule(ctx context.Context) (ScheduleConfig, error) {
+	var expr, remark string
+	var gmtModify *time.Time
+	err := s.store.pool.QueryRow(ctx, `
+SELECT COALESCE(str_value, ''), COALESCE(remark, ''), gmt_modify
+  FROM sys.sys_config WHERE config_no = $1`, ConfigCronNo).Scan(&expr, &remark, &gmtModify)
+	if err != nil {
+		return ScheduleConfig{}, fmt.Errorf("读取同步 cron 配置（%d）失败: %w", ConfigCronNo, err)
+	}
+	cfg := ScheduleConfig{CronExpr: strings.TrimSpace(expr), Remark: remark}
+	if gmtModify != nil {
+		text := gmtModify.Format(time.RFC3339)
+		cfg.GmtModify = &text
+	}
+	if schedule := ParseSchedule(cfg.CronExpr); schedule != nil {
+		cfg.Enable = true
+		cfg.NextRun = nextRunsOf(schedule, MaxSchedulePreview)
+	} else {
+		cfg.NextRun = []string{}
+	}
+	return cfg, nil
+}
+
+// SaveSchedule 保存调度配置：空串表示关闭自动同步；非空必须是合法 6 段 cron。
+func (s *Service) SaveSchedule(ctx context.Context, expr, operator string) (ScheduleConfig, error) {
+	expr = strings.TrimSpace(expr)
+	if expr != "" && ParseSchedule(expr) == nil {
+		return ScheduleConfig{}, fmt.Errorf("cron 表达式非法（需 6 段：秒 分 时 日 月 周）: %q", expr)
+	}
+	tag, err := s.store.pool.Exec(ctx, `
+UPDATE sys.sys_config
+   SET str_value = $1, gmt_modify = CURRENT_TIMESTAMP(6), modify_by = $2
+ WHERE config_no = $3`, expr, nonEmpty(operator, "finv"), ConfigCronNo)
+	if err != nil {
+		return ScheduleConfig{}, fmt.Errorf("保存同步 cron 配置失败: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ScheduleConfig{}, fmt.Errorf("系统配置 %d 不存在，请先执行迁移 V300157", ConfigCronNo)
+	}
+	return s.LoadSchedule(ctx)
+}
+
+// nextRunsOf 计算未来 n 次执行时间（本地时区 RFC3339）。
+func nextRunsOf(schedule *cron.Schedule, n int) []string {
+	out := make([]string, 0, n)
+	at := time.Now()
+	for i := 0; i < n; i++ {
+		at = schedule.Next(at)
+		if at.IsZero() {
+			break
+		}
+		out = append(out, at.Format(time.RFC3339))
+	}
+	return out
+}
+
+// CronExpr 读取系统配置 20015 的 cron 表达式。
+func (s *Service) CronExpr(ctx context.Context) (string, error) {
+	var expr *string
+	if err := s.store.pool.QueryRow(ctx, `SELECT str_value FROM sys.sys_config WHERE config_no = $1`, ConfigCronNo).Scan(&expr); err != nil {
+		return "", fmt.Errorf("读取同步 cron 配置（%d）失败: %w", ConfigCronNo, err)
+	}
+	return strings.TrimSpace(derefString(expr)), nil
+}

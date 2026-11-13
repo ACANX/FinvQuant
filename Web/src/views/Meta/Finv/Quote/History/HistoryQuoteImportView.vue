@@ -122,8 +122,8 @@ onMounted(async () => {
   // 加载交易所/市场字典（含禁用，供数字后中文名称展示）
   try {
     const [ex, mk] = await Promise.all([
-      apiGet<{ list: ExchangeDict[] }>('/Meta/FinvQuant/Metadata/Exchange/List?page=1&page_size=500'),
-      apiGet<{ list: MarketDict[] }>('/Meta/FinvQuant/Metadata/Market/List?page=1&page_size=500'),
+      apiGet<{ list: ExchangeDict[] }>('/Meta/FinvQuant/Metadata/Exchange/List?page=1&pageSize=500'),
+      apiGet<{ list: MarketDict[] }>('/Meta/FinvQuant/Metadata/Market/List?page=1&pageSize=500'),
     ])
     exchangeDict.value = new Map((ex.list ?? []).map((e) => [e.exchange_code, e]))
     marketDict.value = new Map((mk.list ?? []).map((m) => [m.market_code, m]))
@@ -515,8 +515,8 @@ async function submitImport() {
           v-model="upsertMode"
           label="覆盖模式"
           :items="[
-            { title: 'FIELD（只覆盖有值的字段，推荐）', value: 'FIELD' },
-            { title: 'ROW（整行覆盖）', value: 'ROW' },
+            { title: '只覆盖有值的字段，推荐[FIELD]', value: 'FIELD' },
+            { title: '整行覆盖[ROW]', value: 'ROW' },
           ]"
         />
         <v-checkbox v-model="confirmChecked" label="我确认导入将覆盖同时刻同证券的对应字段值" />

@@ -35,15 +35,19 @@ APP_GROUP="finvquant"
 PREFIX="${FINVQ_PREFIX:-/data/App/FinvQuant}"
 BIN_DIR="${PREFIX}/bin"
 MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"
-BACKUP_DIR="${PREFIX}/Backup"
+BACKUP_DIR="${PREFIX}/Backup"          # 数据库逻辑备份（Upgrade.sh 写入）
+BRS_DIR="${PREFIX}/BRS"                # BRS 备份产物（运行用户可写，独立于 Backup）
 EXPORT_DIR="${PREFIX}/Export"
 LOG_DIR="${PREFIX}/Log"
 DEPLOY_DIR="${PREFIX}/Deploy"
 ENV_FILE="${PREFIX}/finvquant.env"
 BINARY="${BIN_DIR}/finvquant"
-QMIO_BINARY="${BIN_DIR}/qmio"
+QIOM_BINARY="${BIN_DIR}/qiom"
 BINARY_LINK="/usr/local/bin/finvquant"
-QMIO_LINK="/usr/local/bin/qmio"
+QIOM_LINK="/usr/local/bin/qiom"
+# 旧名 qmio 的残留路径（需求 10904 改名前的版本），安装时清理
+QMIO_LEGACY_BINARY="${BIN_DIR}/qmio"
+QMIO_LEGACY_LINK="/usr/local/bin/qmio"
 SERVICE_FILE="/etc/systemd/system/finvquant.service"
 SERVICE="finvquant"
 
@@ -68,9 +72,10 @@ while [[ $# -gt 0 ]]; do
     --prefix)     PREFIX="${2:-}"; shift 2
                   BIN_DIR="${PREFIX}/bin"
                   MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"; BACKUP_DIR="${PREFIX}/Backup"
+                  BRS_DIR="${PREFIX}/BRS"
                   EXPORT_DIR="${PREFIX}/Export"; LOG_DIR="${PREFIX}/Log"; DEPLOY_DIR="${PREFIX}/Deploy"
                   ENV_FILE="${PREFIX}/finvquant.env"; BINARY="${BIN_DIR}/finvquant"
-                  QMIO_BINARY="${BIN_DIR}/qmio" ;;
+                  QIOM_BINARY="${BIN_DIR}/qiom" ;;
     -h|--help)    sed -n '2,26p' "$0"; exit 0 ;;
     *)            die "未知参数：$1（--help 查看用法）" ;;
   esac
@@ -213,9 +218,14 @@ install -d -o root -g root -m 0755 "${BIN_DIR}"
 install -d -o root -g root -m 0755 "${DEPLOY_DIR}"
 install -d -o root -g "${APP_GROUP}" -m 0755 "${MIGRATIONS_DIR}"
 install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
+# BRS 备份根目录独立于 Backup（需求 10907）：运行用户可写，避免与数据库逻辑
+# 备份的属主/权限互相干扰；表级与分片产物都在这里。
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}"
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}/Full"
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}/Incr"
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0755 "${EXPORT_DIR}"
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${LOG_DIR}"
-ok "目录：${BIN_DIR} / ${MIGRATIONS_DIR} / ${BACKUP_DIR} / ${EXPORT_DIR} / ${LOG_DIR} / ${DEPLOY_DIR}（配置：${ENV_FILE}）"
+ok "目录：${BIN_DIR} / ${MIGRATIONS_DIR} / ${BACKUP_DIR} / ${BRS_DIR} / ${EXPORT_DIR} / ${LOG_DIR} / ${DEPLOY_DIR}（配置：${ENV_FILE}）"
 
 # ---------------------------------------------------------------------
 # 6. 安装二进制、迁移脚本与部署文件
@@ -225,22 +235,58 @@ install -o root -g root -m 0755 "${BINARY_SRC}" "${BINARY}"
 ln -sfn "${BINARY}" "${BINARY_LINK}"
 ok "二进制：${BINARY}（软链 ${BINARY_LINK}）"
 
-# qmio：数据搬运工具，必须与 finvquant 同目录（<PREFIX>/bin/qmio）
-QMIO_SRC=""
-for candidate in "${SCRIPT_DIR}/../qmio" "${SCRIPT_DIR}/qmio"; do
-  if [[ -f "${candidate}" ]]; then QMIO_SRC="${candidate}"; break; fi
+# qiom：数据搬运工具，必须与 finvquant 同目录（<PREFIX>/bin/qiom）
+# 来源优先级（PackSnapshot.sh 的包布局是「qiom 与 finvquant 并列放在包根」）：
+#   ① <PREFIX>/qiom（发行包根目录 / 安装后根目录，与 finvquant 同级）
+#   ② <PREFIX>/Deploy/qiom（历史自定义布局，保留兼容）
+#   ③ <PREFIX>/Deploy/Native/qiom（脚本同级，手工放文件时可用）
+QIOM_SRC=""
+for candidate in "${REPO_ROOT}/qiom" "${SCRIPT_DIR}/../qiom" "${SCRIPT_DIR}/qiom"; do
+  if [[ -f "${candidate}" ]]; then QIOM_SRC="${candidate}"; break; fi
 done
-if [[ -n "${QMIO_SRC}" ]]; then
-  install -o root -g root -m 0755 "${QMIO_SRC}" "${QMIO_BINARY}"
-  ln -sfn "${QMIO_BINARY}" "${QMIO_LINK}"
-  ok "qmio：${QMIO_BINARY}（软链 ${QMIO_LINK}）"
+if [[ -n "${QIOM_SRC}" ]]; then
+  install -o root -g root -m 0755 "${QIOM_SRC}" "${QIOM_BINARY}"
+  ln -sfn "${QIOM_BINARY}" "${QIOM_LINK}"
+  # 清理旧名残留（qmio → qiom 改名，需求 10904）
+  if [[ -e "${QMIO_LEGACY_BINARY}" || -L "${QMIO_LEGACY_LINK}" ]]; then
+    rm -f "${QMIO_LEGACY_LINK}" "${QMIO_LEGACY_BINARY}"
+    ok "已清理旧名残留：${QMIO_LEGACY_BINARY} / ${QMIO_LEGACY_LINK}"
+  fi
+  ok "qiom：${QIOM_BINARY}（软链 ${QIOM_LINK}）"
 else
-  warn "未找到 qmio（期望 ${SCRIPT_DIR}/../qmio），跳过（不影响主服务）"
+  warn "未找到 qiom（已尝试 ${REPO_ROOT}/qiom、${SCRIPT_DIR}/../qiom、${SCRIPT_DIR}/qiom），跳过（不影响主服务）"
 fi
 if [[ "$(readlink -f "${MIGRATIONS_SRC}")" == "$(readlink -f "${MIGRATIONS_DIR}" 2>/dev/null || echo -)" ]]; then
-  ok "迁移目录即安装目录，无需复制：${MIGRATIONS_DIR}"
+  ok "迁移目录即安装目录，跳过复制：${MIGRATIONS_DIR}"
+  # 源与目标同一目录时没有参照集，无法自动隔离；至少把同版本重名（新旧号段混存）挑出来
+  dup="$(ls -1 "${MIGRATIONS_DIR}"/V*__*.sql 2>/dev/null | sed -E 's#.*/V([0-9]+)__.*#\1#' | sort -n | uniq -d | head -5)"
+  [[ -z "${dup}" ]] || die "迁移目录存在同版本重名脚本（版本号：${dup//$'\n'/、}），迁移器会拒绝启动；请先清理非当前发行包的文件（建议移到 ${BACKUP_DIR}/Migrations.old.<时间戳>/）"
 else
   cp -f "${MIGRATIONS_SRC}"/*.sql "${MIGRATIONS_DIR}/"
+  # `cp -f` 只增不删：号段重排（需求 10881）后，旧号段脚本（如 V100003__finv_market.sql）
+  # 会与新号段脚本撞同一版本号，迁移器会拒绝启动；这里对「源目录不存在」的文件做隔离，不删除。
+  migrate_isolate_stale() {
+    local src="$1" dst="$2"
+    local src_cnt stale=() f base
+    src_cnt="$(find "${src}" -maxdepth 1 -type f -name 'V*__*.sql' | wc -l)"
+    if [[ "${src_cnt:-0}" -eq 0 ]]; then
+      warn "源迁移目录无脚本，跳过旧文件隔离：${src}"
+      return 0
+    fi
+    while IFS= read -r f; do
+      base="${f##*/}"
+      [[ -f "${src}/${base}" ]] || stale+=("${f}")
+    done < <(find "${dst}" -maxdepth 1 -type f -name 'V*__*.sql' -print 2>/dev/null)
+    [[ ${#stale[@]} -gt 0 ]] || return 0
+    install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
+    local keep
+    keep="$(mktemp -d "${BACKUP_DIR}/Migrations.old.$(date +%Y%m%d_%H%M%S).XXXXXX")"
+    chown root:root "${keep}"
+    chmod 0750 "${keep}"
+    for f in "${stale[@]}"; do mv -f "${f}" "${keep}/"; done
+    warn "迁移目录有 ${#stale[@]} 个非当前发行包的文件，已隔离到 ${keep}（未删除，请人工核对后处理）"
+  }
+  migrate_isolate_stale "${MIGRATIONS_SRC}" "${MIGRATIONS_DIR}"
   ok "迁移脚本：$(ls -1 "${MIGRATIONS_DIR}"/*.sql | wc -l) 个 → ${MIGRATIONS_DIR}"
 fi
 chown -R root:"${APP_GROUP}" "${MIGRATIONS_DIR}"
@@ -266,22 +312,24 @@ chmod 0755 "${DEPLOY_DIR}"/*.sh
 for f in "${DEPLOY_DIR}"/*.md "${DEPLOY_DIR}"/*.example "${DEPLOY_DIR}"/*.service; do
   if [[ -f "${f}" ]]; then chmod 0644 "${f}"; fi
 done
-# 一次性运维脚本（Deploy/Script/*.sql）随安装目录留存；与 DEPLOY_DIR 相同布局时跳过
-SCRIPT_SRC_DIR="${SCRIPT_DIR}/../Script"
-if [[ -d "${SCRIPT_SRC_DIR}" ]] && \
-   [[ "$(readlink -f "${SCRIPT_SRC_DIR}")" != "$(readlink -f "${DEPLOY_DIR}/Script" 2>/dev/null || echo -)" ]]; then
-  mkdir -p "${DEPLOY_DIR}/Script"
-  if compgen -G "${SCRIPT_SRC_DIR}/*.sql" > /dev/null; then
-    cp -f "${SCRIPT_SRC_DIR}"/*.sql "${DEPLOY_DIR}/Script/"
+# 运维类 SQL 与构建脚本随安装目录留存：Script/（构建打包）、Init/（初始化）、Upgrade/（升级维护）；
+# 与 DEPLOY_DIR 相同布局时跳过
+for pair in "Script:运维" "Init:初始化" "Upgrade:升级维护"; do
+  src_sub="${pair%%:*}"; src_label="${pair#*:}"
+  src_dir="${SCRIPT_DIR}/../${src_sub}"
+  [[ -d "${src_dir}" ]] || continue
+  [[ "$(readlink -f "${src_dir}")" != "$(readlink -f "${DEPLOY_DIR}/${src_sub}" 2>/dev/null || echo -)" ]] || continue
+  mkdir -p "${DEPLOY_DIR}/${src_sub}"
+  if compgen -G "${src_dir}/*.sql" > /dev/null; then
+    cp -f "${src_dir}"/*.sql "${DEPLOY_DIR}/${src_sub}/"
   fi
-  if [[ -f "${SCRIPT_SRC_DIR}/README.md" ]]; then
-    cp -f "${SCRIPT_SRC_DIR}/README.md" "${DEPLOY_DIR}/Script/README.md"
+  if [[ -f "${src_dir}/README.md" ]]; then
+    cp -f "${src_dir}/README.md" "${DEPLOY_DIR}/${src_sub}/README.md"
   fi
-fi
-if [[ -d "${DEPLOY_DIR}/Script" ]]; then
-  chmod 0644 "${DEPLOY_DIR}/Script/"* 2>/dev/null || true
-fi
-ok "部署文件：${DEPLOY_DIR}（脚本、unit 模板、env 模板、Nginx 示例、运维 SQL 脚本、手册）"
+  chmod 0644 "${DEPLOY_DIR}/${src_sub}/"* 2>/dev/null || true
+  ok "${src_label}脚本：${DEPLOY_DIR}/${src_sub}"
+done
+ok "部署文件：${DEPLOY_DIR}（脚本、unit 模板、env 模板、Nginx 示例、运维与初始化 SQL 脚本、手册）"
 
 # ---------------------------------------------------------------------
 # 7. 环境变量文件（存在则不覆盖）
@@ -304,6 +352,14 @@ if [[ -f "${ENV_FILE}" ]]; then
     printf '\n# 日志目录（安装脚本自动补齐）\nFINV_LOG_DIR=%s\nFINV_LOG_FILE=FinvQuant.log\nFINV_LOG_MAX_MB=10\n' "${LOG_DIR}" >> "${ENV_FILE}"
     ok "已补齐 FINV_LOG_DIR=${LOG_DIR}"
   fi
+  # 旧配置补齐 BRS 备份目录（不覆盖用户自定义值，但纠正 10907 之前的旧默认值）
+  if ! grep -q '^FINV_BRS_BACKUP_DIR=' "${ENV_FILE}"; then
+    printf '\n# BRS 备份目录（安装脚本自动补齐）\nFINV_BRS_BACKUP_DIR=%s\n' "${BRS_DIR}" >> "${ENV_FILE}"
+    ok "已补齐 FINV_BRS_BACKUP_DIR=${BRS_DIR}"
+  elif [[ "$(grep -E '^FINV_BRS_BACKUP_DIR=' "${ENV_FILE}" | cut -d= -f2-)" == "${BACKUP_DIR}/BRS" ]]; then
+    sed -i "s|^FINV_BRS_BACKUP_DIR=.*|FINV_BRS_BACKUP_DIR=${BRS_DIR}|" "${ENV_FILE}"
+    ok "已更新 FINV_BRS_BACKUP_DIR：${BACKUP_DIR}/BRS → ${BRS_DIR}"
+  fi
 else
   DB_PASSWORD="$(openssl rand -hex 16)"
   install -o root -g root -m 0600 "${SCRIPT_DIR}/FinvQuant.env.example" "${ENV_FILE}"
@@ -313,6 +369,7 @@ else
   sed -i "s|^FINV_QUOTE_DEDUB_OUTPUT_DIR=.*|FINV_QUOTE_DEDUB_OUTPUT_DIR=${EXPORT_DIR}|" "${ENV_FILE}"
   sed -i "s|^FINV_QUOTE_DEDUB_UPLOAD_DIR=.*|FINV_QUOTE_DEDUB_UPLOAD_DIR=${EXPORT_DIR}/Upload|" "${ENV_FILE}"
   sed -i "s|^FINV_LOG_DIR=.*|FINV_LOG_DIR=${LOG_DIR}|" "${ENV_FILE}"
+  sed -i "s|^FINV_BRS_BACKUP_DIR=.*|FINV_BRS_BACKUP_DIR=${BRS_DIR}|" "${ENV_FILE}"
   ok "已生成 ${ENV_FILE}（随机数据库密码，权限 600）"
 fi
 [[ -n "${DB_PASSWORD}" ]] || die "未能读取或生成数据库密码，请检查 ${ENV_FILE}"
@@ -341,10 +398,13 @@ if [[ "${SKIP_DB}" -eq 0 ]]; then
     TBL_CNT="$(sudo -u postgres psql -d "${DB_NAME}" -tAc \
       "SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema')" 2>/dev/null || echo 0)"
     if [[ -z "${HAS_SV}" && "${TBL_CNT:-0}" -gt 0 ]]; then
-      warn "数据库 ${DB_NAME} 内有 ${TBL_CNT} 张表，但缺少 public.schema_version（非本程序初始化或旧库）"
-      warn "迁移将从 V100001 起执行，遇到已有同名表会失败（relation ... already exists）"
-      warn "本脚本不会删除、重命名或迁移该库中的任何表；迁移将以未限定名在同一库内继续执行"
-      warn "如需规避同名表冲突，请在 env 中改用独立数据库（FINV_PG_DATABASE），或改用独立 PG 实例"
+      warn "数据库 ${DB_NAME} 内有 ${TBL_CNT} 张业务表，但没有 public.schema_version（非本程序初始化，或该表被清空/恢复时遗漏）"
+      warn "迁移会从 V100001 从头执行，遇到已有同名表必然失败（relation ... already exists），服务无法启动"
+      warn "本脚本不会删除、重命名或迁移该库中的任何表；请先在下列处置中选一种再重跑："
+      warn "  ① env 中改用独立数据库（FINV_PG_DATABASE=finvquant_new）；"
+      warn "  ② 改用独立的 PostgreSQL 实例或端口；"
+      warn "  ③ 确认库内数据可丢弃且已 pg_dump 备份后，手工 dropdb + createdb 再重跑（破坏性，脚本不代做）"
+      die "已中止在建库校验（避免装出必然崩溃的服务）；若库结构已由基线管理，可加 --skip-db 跳过本步"
     fi
   else
     sudo -u postgres createdb -O "${DB_USER}" "${DB_NAME}"
@@ -389,7 +449,7 @@ printf '\n\033[1;32m安装完成\033[0m（安装根目录：%s）\n' "${PREFIX}"
 printf '  服务管理：systemctl status|restart|stop %s\n' "${SERVICE}"
 printf '  日志查看：journalctl -u %s -f\n' "${SERVICE}"
 printf '  二进制：%s（软链 %s）\n' "${BINARY}" "${BINARY_LINK}"
-printf '  qmio：%s（软链 %s）\n' "${QMIO_BINARY}" "${QMIO_LINK}"
+printf '  qiom：%s（软链 %s）\n' "${QIOM_BINARY}" "${QIOM_LINK}"
 printf '  配置文件：%s（权限 600）\n' "${ENV_FILE}"
 printf '  迁移目录：%s（启动时自动应用未执行版本）\n' "${MIGRATIONS_DIR}"
 printf '  部署脚本：%s/Upgrade.sh、%s/Uninstall.sh\n' "${DEPLOY_DIR}" "${DEPLOY_DIR}"

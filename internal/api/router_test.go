@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/acanx/finvquant/internal/config"
-	"github.com/acanx/finvquant/internal/kline"
-	"github.com/acanx/finvquant/internal/meta/finv/quote/dedup"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
 )
 
 func newTestRouter(t *testing.T) *gin.Engine {
@@ -34,7 +34,7 @@ func newTestRouterWithConfig(t *testing.T, cfg *config.Config) *gin.Engine {
 		t.Fatalf("创建测试连接池失败: %v", err)
 	}
 	t.Cleanup(pool.Close)
-	archiveService, err := dedup.NewService(pool, dedup.Options{UploadMode: dedup.UploadModeNone})
+	archiveService, err := cdeu.NewService(pool, cdeu.Options{UploadMode: cdeu.UploadModeNone})
 	if err != nil {
 		t.Fatalf("创建归档服务失败: %v", err)
 	}
@@ -69,6 +69,24 @@ func TestExportArchiveRoutesRegistered(t *testing.T) {
 		"GET /API/V1/Meta/Finv/Quote/DeDup/File/List",
 		"POST /API/V1/Meta/Finv/Quote/DeDup/Job/Retry",
 		"POST /API/V1/Meta/Finv/Quote/DeDup/File/Retry",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/List",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Save",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Enable",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Delete",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Preview",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Run",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Status",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/DayKline/Sync",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/DayKline/Stat",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/DayKline/UscList",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Page",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Fx/CerSync",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Fx/Cer",
+		"POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert",
 		"POST /API/V1/Meta/Finv/Quote/DeDup/Job/Run",
 	}
 	for _, route := range expected {
@@ -291,5 +309,84 @@ func TestOpenAPIPageUniRoute(t *testing.T) {
 	router.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("limit=0 应进入 handler（422 / 211004），实际 %d", recorder.Code)
+	}
+}
+
+// TestOpenAPINotFoundAndMethodNotAllowed 未命中路径/方法必须返回结构化 JSON（需求 11218）。
+//
+// 默认 Gin 会回纯文本 `404 page not found`：既不进鉴权中间件，也不带 X-Request-Id。
+func TestOpenAPINotFoundAndMethodNotAllowed(t *testing.T) {
+	router := newTestRouterWithConfig(t, &config.Config{
+		KLineMaxBatchRows: 5000, KLineMaxListSize: 5000, KLineTSUnit: "s",
+	})
+
+	cases := []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{"方法不匹配（GET 写接口）", http.MethodGet, "/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert"},
+		{"路径不存在", http.MethodPost, "/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/NoSuchApi"},
+	}
+	for _, item := range cases {
+		t.Run(item.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(item.method, item.path, nil)
+			router.ServeHTTP(recorder, request)
+
+			contentType := recorder.Header().Get("Content-Type")
+			if !strings.Contains(contentType, "application/json") {
+				t.Fatalf("应返回 JSON，实际 Content-Type=%q body=%s", contentType, recorder.Body.String())
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("响应不是合法 JSON: %v body=%s", err, recorder.Body.String())
+			}
+			// 测试环境 sys_config 读不到（连不上库）→ 鉴权按缺省关闭，直接给出 404/405；
+			// 鉴权开启时「先 19001、再 404」由 TestOpenAPINotFoundAuthFirst 覆盖。
+			wantStatus := http.StatusMethodNotAllowed
+			if item.method == http.MethodPost {
+				wantStatus = http.StatusNotFound
+			}
+			if recorder.Code != wantStatus {
+				t.Fatalf("HTTP 应为 %d，实际 %d body=%s", wantStatus, recorder.Code, recorder.Body.String())
+			}
+			if code, _ := payload["code"].(float64); int(code) != wantStatus {
+				t.Fatalf("code 应为 %d，实际 %v", wantStatus, payload["code"])
+			}
+			if payload["request_id"] == nil || payload["request_id"] == "<nil>" {
+				t.Fatalf("响应应含非空 request_id: %s", recorder.Body.String())
+			}
+			if recorder.Header().Get("X-Request-Id") == "" {
+				t.Fatalf("应回显 X-Request-Id")
+			}
+			if strings.Contains(recorder.Body.String(), "page not found") {
+				t.Fatalf("不应再出现 Gin 的纯文本 404")
+			}
+		})
+	}
+}
+
+// TestInternalNotFoundReturnsJSON 内部接口未命中同样返回 JSON 信封。
+func TestInternalNotFoundReturnsJSON(t *testing.T) {
+	router := newTestRouterWithConfig(t, &config.Config{
+		KLineMaxBatchRows: 5000, KLineMaxListSize: 5000, KLineTSUnit: "s",
+	})
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/API/V1/Meta/Finv/NoSuchApi", nil)
+	router.ServeHTTP(recorder, request)
+
+	if !strings.Contains(recorder.Header().Get("Content-Type"), "application/json") {
+		t.Fatalf("内部未命中应返回 JSON，实际 %q", recorder.Header().Get("Content-Type"))
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("响应不是合法 JSON: %v", err)
+	}
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("HTTP 应为 404，实际 %d", recorder.Code)
+	}
+	if _, hasMessage := payload["message"]; !hasMessage {
+		t.Fatalf("响应应含 message: %s", recorder.Body.String())
 	}
 }

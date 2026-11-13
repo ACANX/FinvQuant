@@ -2,7 +2,7 @@
 
 > 所属：FinvQuant 数据格式 · 存放：`Docs/DataFormat/`
 > 适用范围：**所有向 FinvQuant 导入历史行情的导出程序**（脚本/服务/工具）必须按本规范生成 MVSV-1 文件。
-> 服务端解析实现：`internal/mvsv/parser.go`（本规范与该实现严格一致，如有差异以代码为准）。
+> 服务端解析实现：`internal/meta/finv/quote/mvsv/parser.go`（本规范与该实现严格一致，如有差异以代码为准）。
 > 导入接口：`POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload`（见 [ImportsUpload.md](../API/HistoryQuote/ImportsUpload.md)）。
 
 ---
@@ -80,11 +80,14 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 |----|------|------|
 | `TimeZoneSource` | `"StockMapping.db secu_futu.tz ..."` | 时区来源说明 |
 | `FutuSymbol` | `"NVDA"` / `"GCmain"` | 富途符号（可能与 Code 大小写不同） |
-| `InstrumentType` / `InstrumentTypeV2` | `3` / `10` | 证券类型编码 |
+| `InstrumentType` | `3` | 证券类型编码 |
+| `InstrumentTypeV2` | `10` | 证券类型编码（V2 口径） |
 | `EngName` | `"NVIDIA"` | 英文名称 |
 | `DelistingFlag` | `0` | 退市标志 |
-| `ListedExchange` / `ListedBoard` | `"NASDAQ"` / `""` | 上市交易所/板块 |
-| `Start` / `End` | `"202601010500"` / `"202607210632"` | 数据起止时间（描述性） |
+| `ListedExchange` | `"NASDAQ"` | 上市交易所 |
+| `ListedBoard` | `""` | 上市板块 |
+| `Start` | `"202601010500"` | 数据起始时间（描述性） |
+| `End` | `"202607210632"` | 数据结束时间（描述性） |
 | `Size` | `195279` | 记录数（描述性，通常与 Count 一致） |
 | `Year` | `2026` | 数据年份 |
 
@@ -311,7 +314,7 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 
 - **`Code`**：建议使用 FinvQuant `finv_security` 字典的 **usc**（如 `NVDA`、`GCMain`、`518880`），导入时可被 `Security/Lookup` 匹配；若用源证券代码（security_code），Lookup 也支持。
 - **`MarketCode`**：建议与 FinvQuant `finv_market.market_code` 编码体系一致（**通常四位**，如 1315=美股（NVDA）、1320=COMEX 期货（GCMain）等）；导入时会与表单/字典做一致性核对。
-- 主表 `dedup.finv_quote_secu_kline_min` 不再存储 market_code（V100021 起），市场信息由 `finv_security` 字典关联获取；文件头 `MarketCode` 仍参与导入一致性校验。
+- 主表 `dedup.finv_quote_secu_kline_min` 不再存储 market_code（V200021 起），市场信息由 `finv_security` 字典关联获取；文件头 `MarketCode` 仍参与导入一致性校验。
 
 ---
 
@@ -332,14 +335,15 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| 1.0 | 2026-08-06 | 初版：双布局（11 列/13 列）规范，必填/可选要求明细（对应 `internal/mvsv/parser.go` 双布局支持） |
+| 1.0 | 2026-08-06 | 初版：双布局（11 列/13 列）规范，必填/可选要求明细（对应 `internal/meta/finv/quote/mvsv/parser.go` 双布局支持） |
 | 1.1 | 2026-08-06 | 更正：布局 B 实为 12 列（`ts\|d\|t\|o\|c\|l\|h\|v\|a\|cp\|cr\|p`，pc 已过时移除）；补充行尾空段容忍说明 |
 | 1.2 | 2026-08-06 | 时区规则更正：解析以头部 `TimeZone` 为准，`EffectiveTimeZone` 仅参考且非必填；两者都缺失时跳过 ts 一致性校验 |
 | 1.3 | 2026-08-06 | 必填键 9→11：新增 `Exchange` / `ExchangeCode`（与 `Market` / `MarketCode` 四键必填）；`MarketCode` 通常为四位；示例统一 NVDA→1315、GCMain→1320 |
 | 1.4 | 2026-08-06 | 必填键 11→20：新增 `Title` / `Region` / `Name` / `Period` / `Dsv` / `FieldType` / `FieldName` / `字段名称` / `StockId`（溯源类键强制） |
 | 1.5 | 2026-08-06 | 布局匹配放宽：`# Field` 以核心布局开头即可，多余列（如已过时 `pc`）允许并忽略（修复 13 列 GCmain 文件无法导入） |
+| 1.6 | 2026-11-02 | MVSV-2 增加 **字段转义**（需求 10906）：文本列含 `\|`、换行、回车、反斜杠时按反斜杠转义写出，头部声明 `# Escape : "backslash"`；读取端仅在该头存在时按转义解析，历史文件行为不变（详见 §5.5） |
 
-## 5. MVSV-2（多证券，qmio 导出/导入）
+## 5. MVSV-2（多证券，qiom 导出/导入）
 
 > 用途：单文件搬运整张 `cdeu.finv_quote_secu_kline_min`（灌数据/联调）。
 > 与 MVSV-1 并列，`Format` 字段区分；MVSV-1 的解析与导出链路不变。
@@ -358,10 +362,11 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 ```
 # Title : "CdeuKline_20261028_120000"
 # Format : "MVSV-2"
-# Field : "usc|ts|date|time|open|high|low|close|last_close|volume|turnover|change_price|change_ratio|paocd|ext_field|remark|provider|gmt_create|gmt_update"
+# Field : "usc|ts|date|time|open|high|low|close|last_close|volume|turnover|change_price|change_ratio|vwap|ext_field|remark|provider|gmt_create|gmt_update"
 # FieldType : "String|Int|Int|Int|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|Decimal|String|String|String|Timestamp|Timestamp"
-# FieldName : "Usc|Ts|Date|Time|Open|High|Low|Close|LastClose|Volume|Turnover|ChangePrice|ChangeRatio|Paocd|ExtField|Remark|Provider|GmtCreate|GmtUpdate"
-# 字段名称 : "证券代码|时间戳(UTC)|交易日期|交易时间|开盘价|最高价|最低价|收盘价|上一收盘价|成交量|成交额|涨跌额|涨跌幅|累计均价|扩展字段|备注|数据来源|创建时间|更新时间"
+# FieldName : "Usc|Ts|Date|Time|Open|High|Low|Close|LastClose|Volume|Turnover|ChangePrice|ChangeRatio|Vwap|ExtField|Remark|Provider|GmtCreate|GmtUpdate"
+# 字段名称 : "证券代码|时间戳(UTC)|交易日期|交易时间|开盘价|最高价|最低价|收盘价|上一收盘价|成交量|成交额|涨跌额|涨跌幅|成交量加权平均价|扩展字段|备注|数据来源|创建时间|更新时间"
+# Escape : "backslash"
 # Count : 2
 # DataScope : "all"
 # ExportTime : "2026-10-28T12:00:00+08:00"
@@ -378,4 +383,39 @@ GCMain|1000|20261028|93000|3.500000|3.620000|3.400000|3.600000|3.500000|12.34567
 
 - `Format=MVSV-2` 时按 `Field` 列名动态解析（`usc`/`ts` 必填）；
 - 旧 `MVSV-1` 文件继续走原固定布局解析，互不影响；
-- 工具实现见 [`Docs/FinvQuant/Qmio.md`](../FinvQuant/Qmio.md)。
+- 工具实现见 [`Docs/FinvQuant/Qiom.md`](../FinvQuant/Qiom.md)。
+
+### 5.5 字段转义（`# Escape`）
+
+数据区以 `\|` 分隔字段、以换行分隔记录，但 `ext_field` / `remark` 等文本列本身可能包含 `\|` 或换行
+（历史数据中存在）。**允许**这种取值，通过转义保证可逆：
+
+| 原始字符 | 转义后 |
+|----------|--------|
+| `\`（反斜杠） | `\\` |
+| `\|`（竖线） | `\|`（`\` + `\|`，即反斜杠 + 竖线） |
+| 换行 `\n` | `\n`（字面两字符） |
+| 回车 `\r` | `\r`（字面两字符） |
+
+写侧规则：
+
+- 每个字段独立转义后再用 `\|` 拼接；转义顺序为先 `\`、再其它，避免二次转义；
+- 头部固定写出 `# Escape : "backslash"`；
+- 未知转义序列（如 `\x`）在读取时按原样保留（`\` + 字符），避免吞掉历史数据里的裸反斜杠。
+
+读侧规则（**向后兼容**）：
+
+| 文件情况 | 解析方式 |
+|----------|----------|
+| 头部有 `# Escape : "backslash"` | 逐字符扫描，按转义还原后再按列名映射 |
+| 头部无该键（历史文件） | 沿用旧的 `Split("\|")`；文本列若含裸 `\|` 会因列数不符报错，并提示缺少 `# Escape` 声明 |
+| `MVSV-1` 文件 | 不受影响（供应商文件不写该头，仍按固定布局解析） |
+
+示例（`ext_field = 'source|vendor'`、`remark = "第一行\n第二行"`）：
+
+```
+TESTPIPE|1792000000|20261001|93000|10.000000|11.000000|9.000000|10.500000||100.000000|1050.00000000|||10.200000|source\|vendor|第一行\n第二行|FT|...
+```
+
+对应实现：`internal/meta/finv/quote/mvsv/escape.go`（`escapeCell` / `unescapeCell` / `splitEscaped`），
+单测 `escape_test.go` 覆盖往返、未知转义、历史文件兼容与缺头提示。
