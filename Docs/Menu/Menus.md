@@ -35,7 +35,8 @@
 │  ├─ 待采证券录入（/Meta/Finv/Quote/Realtime/PendingSecu，需求 10995，11160 改名）
 │  ├─ 证券参数补全（/Meta/Finv/Quote/Realtime/SecuParamComplete，需求 11161）
 │  ├─ 证券参数同步（/Meta/Finv/Quote/Realtime/SecuParamSync，需求 11042/11043/11044）
-│  └─ USC 映射规则（/Meta/Finv/Quote/Realtime/UscMapping，需求 11072）
+│  ├─ USC 映射规则（/Meta/Finv/Quote/Realtime/UscMapping，需求 11072）
+│  └─ 证券指标（/Meta/Finv/Quote/Realtime/FTIndicator，需求 11251）
 ├─ 元数据管理（二级分组）
 │  └─ 业务元数据维护（三级分组）
 │     ├─ 交易所信息维护（/meta/exchange）
@@ -129,6 +130,8 @@
 | 49 | OpenAPI 调用审计 | 金融投资 | 四级叶子 | `openapi-invoke-log` | `mdi-text-box-search-outline` | `/Meta/Finv/OpenAPI/InvokeLog` | `Web/src/views/Meta/Finv/OpenAPI/InvokeLogView.vue` | `GET .../OpenAPI/InvokeLog/Page` | [OpenAPI/InvokeLog.md](OpenAPI/InvokeLog.md) |
 | 50 | OpenAPI 鉴权配置 | 金融投资 | 四级叶子 | `openapi-settings` | `mdi-tune-variant` | `/Meta/Finv/OpenAPI/Settings` | `Web/src/views/Meta/Finv/OpenAPI/SettingsView.vue` | `GET .../OpenAPI/Settings`、`PUT .../OpenAPI/Settings` | [OpenAPI/Settings.md](OpenAPI/Settings.md) |
 | 51 | OpenAPI 密钥配置 | 金融投资 | 四级叶子 | `openapi-secret` | `mdi-shield-key-outline` | `/Meta/Finv/OpenAPI/Secret` | `Web/src/views/Meta/Finv/OpenAPI/SecretView.vue` | `GET .../OpenAPI/Secret/Status`、`POST .../OpenAPI/Secret/Save` | [OpenAPI/Secret.md](OpenAPI/Secret.md) |
+| 52 | 证券指标 | 金融投资 | 四级叶子 | `quote-realtime-indicator` | `mdi-table-large` | `/Meta/Finv/Quote/Realtime/FTIndicator` | `Web/src/views/Meta/Finv/Quote/Realtime/IndicatorView.vue` | `GET /API/V1/Meta/Finv/Quote/Secu/Indicator/Columns`、`GET .../Secu/Indicator/Page` | [Quote/Realtime/Indicator.md](Quote/Realtime/Indicator.md) |
+
 ## 说明
 
 - 菜单定义与视图组件一一对应，全部在 `Web/src/config/menuConfig.ts` 的 `menuSystems` 中登记；新增菜单时须同步更新本索引。
@@ -147,6 +150,7 @@
 |----------|----------------------------------|
 | `dashboard` | `DashboardView.vue` |
 | `quote-query` | `Meta/Finv/Quote/History/HistoryQuoteQueryView.vue` |
+| `quote-realtime-indicator` | `Meta/Finv/Quote/Realtime/IndicatorView.vue` |
 | `dedup-kline-query` | `Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue` |
 | `dedup-kline-stats` | `Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue` |
 | `dedup-export-overview` | `Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue` |

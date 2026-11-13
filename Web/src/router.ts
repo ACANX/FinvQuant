@@ -11,6 +11,7 @@ import SecuParamCompleteView from './views/Meta/Finv/Quote/Realtime/SecuParamCom
 import FxCerView from './views/Meta/Finv/Quote/Realtime/FxCerView.vue'
 import SecuParamSyncView from './views/Meta/Finv/Quote/Realtime/SecuParamSyncView.vue'
 import UscMappingView from './views/Meta/Finv/Quote/Realtime/UscMappingView.vue'
+import IndicatorView from './views/Meta/Finv/Quote/Realtime/IndicatorView.vue'
 import OpenAPIClientView from './views/Meta/Finv/OpenAPI/ClientView.vue'
 import OpenAPICredentialView from './views/Meta/Finv/OpenAPI/CredentialView.vue'
 import OpenAPIInvokeLogView from './views/Meta/Finv/OpenAPI/InvokeLogView.vue'
@@ -158,6 +159,14 @@ const router = createRouter({
       name: 'quote-realtime-usc-mapping',
       component: UscMappingView,
       meta: { title: 'USC 映射规则' },
+    },
+    // 行情 → 实时行情 → 证券指标（需求 11251）：cdeu.finv_quote_secu_indicator 全列只读浏览
+    // 列元数据 + 分页查询走 /Meta/Finv/Quote/Secu/Indicator/*（需求 11249/11250）
+    {
+      path: '/Meta/Finv/Quote/Realtime/FTIndicator',
+      name: 'quote-realtime-indicator',
+      component: IndicatorView,
+      meta: { title: '证券指标' },
     },
     // 行情数据归档 → K线数据查询 / 统计（需求 10856/10857 改名并移入「收剔导传ETL」）
     {

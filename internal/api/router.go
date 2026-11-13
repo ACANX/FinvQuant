@@ -198,6 +198,14 @@ func NewRouter(deps *Deps) *gin.Engine {
 		apiGroup.POST("/Meta/Finv/Quant/Quote/Import/Upload", quoteImport.Upload)
 		apiGroup.GET("/Meta/Finv/Quant/Quote/History/QuoteQuery", quoteQuery.Query)
 
+		// 证券指标表只读查询（需求 11249/11250）：cdeu.finv_quote_secu_indicator（132 列）的
+		// 列元数据 + 可变列集分页查询，供前端「行情 → 实时行情 → 证券指标」页面使用。
+		// 路径不带 Cdeu：指标表不属于 CDEU 跑批域（同表写入侧仍在 /Quote/Cdeu/SecuKey/Indicator/*）。
+		secuIndicator := handler.NewSecuIndicator(indicator.NewReader(deps.Pool))
+		indicatorGroup := apiGroup.Group("/Meta/Finv/Quote/Secu/Indicator")
+		indicatorGroup.GET("/Columns", secuIndicator.Columns)
+		indicatorGroup.GET("/Page", secuIndicator.Page)
+
 		// 证券行情月归档导出与上传（运维：状态 / 任务 / 文件 / 重试 / 手动触发）
 		if deps.ExportArchive != nil {
 			archive := handler.NewExportArchive(deps.ExportArchive)

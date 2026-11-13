@@ -242,6 +242,14 @@ const finvQuantMenu: MenuNode[] = [
             icon: 'mdi-transit-connection-variant',
             path: '/Meta/Finv/Quote/Realtime/UscMapping',
           },
+          // 需求 11251：证券指标表（cdeu.finv_quote_secu_indicator，132 列）只读浏览，
+          // 列分组 / 列选择 / 行详情三层读法；接口 /Meta/Finv/Quote/Secu/Indicator/{Columns,Page}。
+          {
+            key: 'quote-realtime-indicator',
+            title: '证券指标',
+            icon: 'mdi-table-large',
+            path: '/Meta/Finv/Quote/Realtime/FTIndicator',
+          },
         ],
       },
       // 需求 10860：从「数据采集」移入，作为「行情」下第三个三级分组（原「数据采集」随之删除）。

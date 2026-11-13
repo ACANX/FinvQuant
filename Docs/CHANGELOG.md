@@ -20,6 +20,28 @@
 
 ### 新增
 
+- **证券指标表只读浏览：两个接口 + 一个页面（需求 11249 / 11250 / 11251）**
+  - 新增 `GET /API/V1/Meta/Finv/Quote/Secu/Indicator/Columns`：从 `pg_attribute` + 列注释读出
+    `cdeu.finv_quote_secu_indicator` 的**实际全部列**（当前 132 列，按建表列序），返回
+    `{table, total, columns[{name, title, dataType, sortable}]}`；`title` 取表列中文注释，
+    `dataType` 由 `format_type` 收敛为 `numeric/integer/text/timestamp/boolean/other`。
+    同一份列清单在 `/Page` 里兼任 SQL 标识符白名单——拼进 SQL 的列名只来自数据库目录，不来自请求参数。
+  - 新增 `GET /API/V1/Meta/Finv/Quote/Secu/Indicator/Page`：`keyword`（`usc`/`ftmm_symbol`/`name` 模糊）、
+    `market`（`ftmm_symbol` 第一段）筛选，`columns=` 指定**可变列集**（空则用默认概览 23 列；
+    `usc`/`ftmm_symbol` 强制补齐并前置；含表内不存在的列名返回 400），`orderBy` 必须在表内
+    （默认 `dt_update`）、`order`、`page`、`pageSize`（1–500）；排序一律 `NULLS LAST` +
+    `usc ASC` 稳定次序；**所有列值 `::text` 返回**，保住 `NUMERIC(30,10)` 精度，空值返回空串。
+  - 两个接口路径都不带 `Cdeu`（指标表不属于 CDEU 跑批域）；写入侧不变，仍是
+    `.../Quote/Cdeu/SecuKey/Indicator/Sync/Run`（批量同步）与 OpenAPI `FTSecuIndicatorUpsert`（采集端回传）。
+  - 新增页面「行情 → 实时行情 → 证券指标」（`/Meta/Finv/Quote/Realtime/FTIndicator`，菜单 key
+    `quote-realtime-indicator`）：132 列按三层读——主表只渲染当前列方案（左侧三列冻结、其余横向滚动）、
+    列选择抽屉（13 个业务分组 + 搜索 + 分组全选/清空 + 7 个预设方案，选择结果存 `localStorage`）、
+    行详情对话框（另行请求该证券全部 132 列、按分组展开、可复制整行 JSON）。
+    列分组与格式化口径全部收敛在 `Web/src/config/indicatorColumns.ts`（改列只改这一个文件；
+    未登记列自动落到「其它」分组）；金额按万/亿/万亿缩写、比率加 `%`、epoch 毫秒与 `timestamptz`
+    转本地时间、字典列只显中文、`json_unmapped`/`secu_url` 走 `TextPopover` ⓘ 浮层、空值统一 `—`。
+  - 文档：新增 `Docs/API/Cdeu/IndicatorPage.md` + `.yml`、`Docs/Menu/Quote/Realtime/Indicator.md`；
+    同步 `Docs/API/APIs.md`（132/133）、`Docs/API/README.md`、`Docs/Menu/Menus.md`、`Docs/RequirementList.md`。
 - **恢复启用 P50 批量例外层（需求 11140）**
   - 新增迁移 `V300180__usc_p50_rule_reenable.sql`：把 `futu.finv_futu_usc_rule` 中 P50 的
     `flag_enable` 由 `'0'` 改回 `'1'`，并追加一条备注说明「此前按需求 11079 停用」；带目标值判断，重跑影响 0 行，

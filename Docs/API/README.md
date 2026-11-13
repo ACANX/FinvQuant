@@ -93,6 +93,8 @@ Authorization: Bearer <token>
     - [`Cdeu/SecuParamCompletePending.md`](Cdeu/SecuParamCompletePending.md) — `GET .../Secu/Param/Complete/Pending`（按 `target=security|collect` 列目标表缺口；契约 [.yml](Cdeu/SecuParamCompletePending.yml)）
     - [`Cdeu/SecuParamCompletePrefill.md`](Cdeu/SecuParamCompletePrefill.md) — `GET .../Secu/Param/Complete/Prefill`（单表预填 + 来源标记 + `exists`；契约 [.yml](Cdeu/SecuParamCompletePrefill.yml)）
     - [`Cdeu/SecuParamComplete.md`](Cdeu/SecuParamComplete.md) — `POST .../Secu/Param/Complete`（只写目标表，`ON CONFLICT (usc) DO NOTHING`；契约 [.yml](Cdeu/SecuParamComplete.yml)）
+  - 证券指标表只读查询（`/API/V1/Meta/Finv/Quote/Secu/Indicator/*`，需求 11249/11250）：
+    - [`Cdeu/IndicatorPage.md`](Cdeu/IndicatorPage.md) — `GET .../Secu/Indicator/Columns`（列元数据）+ `GET .../Secu/Indicator/Page`（可变列集分页查询 `cdeu.finv_quote_secu_indicator`，值一律文本；契约 [.yml](Cdeu/IndicatorPage.yml)）
   - 外汇汇率（菜单「缺省汇率」已改名，接口路径 `/API/V1/Meta/Finv/Quote/Cdeu/Fx/*` 不变，一个文档覆盖两个接口）：
     - [`Cdeu/FxCer.md`](Cdeu/FxCer.md) — `POST .../Fx/CerSync?source=overview|rateList` 手动更新 + `GET .../Fx/Cer` 整表查询（`public.finv_fxcer`，主键 `usc`，含 `name`/`rate`/`ts_quote`/`source`；两来源互补、只保最新；契约 [.yml](Cdeu/FxCer.yml)）
   - 证券参数同步（`/API/V1/Meta/Finv/Quote/Cdeu/SecuKey/*`，一个文档覆盖三个接口）：
