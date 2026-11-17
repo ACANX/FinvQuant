@@ -110,9 +110,9 @@ func TestXetIndexMarketLabel(t *testing.T) {
 // TestXetIndexCurrency 币种按名称后缀。
 func TestXetIndexCurrency(t *testing.T) {
 	cases := map[string]string{
-		"上证指数":   "CNY",
-		"CNTHKD": "HKD",
-		"CNTUSD": "USD",
+		"上证指数":     "CNY",
+		"CNTHKD":   "HKD",
+		"CNTUSD":   "USD",
 		"港股通消费CNY": "CNY",
 	}
 	for name, want := range cases {
@@ -138,7 +138,7 @@ func TestXetIndexRealtimeRow(t *testing.T) {
 	if row.USC != "SH0001" || row.Provider != "ZXET" {
 		t.Fatalf("usc/provider 不符: %s/%s", row.USC, row.Provider)
 	}
-	if row.MarketType == nil || *row.MarketType != "4" || row.InstrumentType == nil || *row.InstrumentType != "4" {
+	if row.MarketType == nil || *row.MarketType != "4" || row.InstrumentType == nil || *row.InstrumentType != "6" {
 		t.Fatalf("market_type/instrument_type 应为 4")
 	}
 	if row.MarketLabel == nil || *row.MarketLabel != "SH" {

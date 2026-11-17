@@ -20,6 +20,22 @@
 
 ### 新增
 
+- **「证券行情排行」新增「品种」筛选，市场增加 `CN`（需求 11301）**
+  - 查询参数 `instrumentType`：归一语义 `stock` / `etf` / `index` / `sector` / `futures` / `currency` / `crypto`，
+    空或 `all` 不限，其它值 HTTP 400。后端按 `realtimeStockInstrumentTypeExpr` 把
+    `cdeu.finv_quote_secu_realtime.instrument_type` 的原文归一后比较（`3` / `12` / `stock` → 股票，
+    `4` / `etf` → ETF，`6` → 指数，`7` → 板块，`9` → 期货，`10` → 外汇，`11` → 加密），
+    前端不必感知原始编码。
+  - 前端「品种」下拉按 `DictFilterSpec` 写 `中文[值]`（`股票[stock]` / `ETF[etf]` / `指数[index]` …），
+    首项 `全部品种`、选中即查；「市场」筛选增加 `CN`（沪深京指数中国证非标等无交易所归属行）。
+  - 沪深京指数（`provider='ZXET'`）的 `instrument_type` 由 `4`（ETF）纠正为 `6`（指数，富途口径），
+    重采集覆盖 1239 行；「指数」筛选不再需要把 ETF 与指数混在一起。
+  - 文档：`Docs/Menu/Quote/Realtime/FTStockRank.md` 2.1、`Docs/API/Cdeu/RealtimeStockPage.md` 2.1/2.2 +
+    `.yml`、`Docs/Menu/Quote/RealtimeCollect/SecuQuoteSnapshotSync.md` 2.0.4、`Docs/API/Cdeu/StockSnapshotSyncRun.md` 2.6。
+  - 验证：`go test ./internal/api/handler/ -run TestRealtimeStockInstrumentType` 通过；
+    `curl '.../Stock/Page?instrumentType=index&pageSize=1'` 返回 `code=0`、`total=1239`；
+    `cd Web && npm run build` 通过。
+
 - **「行情快照同步 → 沪深京指数」Tab 接入中信 XetApp 全量指数（需求 11294–11297/11299）**
   - `instrument_symbol=cnindex` 走独立分支（固定来源、无配置行）：经 MetaExt `xetapp.GetQuoteSnapshotCNAIndex`
     拉上游 4 池 + 深市 `1200` + 北交所 `1400`（串行 6 次、按内部码去重，实测 1239 只），字段转换后

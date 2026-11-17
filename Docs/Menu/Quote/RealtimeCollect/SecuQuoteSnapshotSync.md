@@ -29,7 +29,7 @@
 | `crypto` | 加密货币 | 占位 |
 | `bsestock` | 北交所股票 | BDFS 板块采集（需求 11262，固定来源，无需配置行） |
 | `etf` | ETF | **实装（需求 11279）**：moomoo `get-etf-list`（HK `plateId=900075` / US `plateId=10002799`），结果写 `cdeu.finv_quote_secu_realtime`；与 `cnetf` 刻意分开 |
-| `cnindex` | 沪深京指数 | **实装（需求 11294）**：中信 XetApp `GetQuoteSnapshotCNAIndex`（上游 4 池 + 深市 1200 + 北交所 1400 合并去重），固定来源、无需配置行；结果写 `cdeu.finv_quote_secu_realtime`（`provider=ZXET`、`instrument_type=4`） |
+| `cnindex` | 沪深京指数 | **实装（需求 11294）**：中信 XetApp `GetQuoteSnapshotCNAIndex`（上游 4 池 + 深市 1200 + 北交所 1400 合并去重），固定来源、无需配置行；结果写 `cdeu.finv_quote_secu_realtime`（`provider=ZXET`、`instrument_type=6`） |
 | `otc` | 中国OTC | 占位（需求 11266） |
 | `sector` | 板块 | 占位 |
 | `portfolio` | 投资组合 | 占位 |
@@ -127,7 +127,7 @@ ETF 代码同样按 `(exchange, code)` 解析 `public.finv_security.usc`；实�
 |---|---|
 | 数据源 | 中信 XetApp `POST /reqxml`（经 MetaExt `component/quote/citics/xetapp` 的 `GetQuoteSnapshotCNAIndex`） |
 | 池 | 上游 4 池（中证 1100 / 国证 / 股转 / 大盘）+ **深市 `1200`** + **北交所 `1400`**，共 6 次请求、按内部码去重；实测去重后 1239 只（上游文档 `IndexCodeMapping.md`） |
-| 落库表 | `cdeu.finv_quote_secu_realtime`（`V300209`，主键 `usc`，`provider` 固定 `ZXET`，`instrument_type` 固定 `4`） |
+| 落库表 | `cdeu.finv_quote_secu_realtime`（`V300209`，主键 `usc`，`provider` 固定 `ZXET`，`instrument_type` 固定 `6`） |
 | 代码映射 | 接口返回的是**站点内部码**（`1A0001`/`2A01`/`H50001`…），按上游映射表（`xet_index_code_mapping.tsv`，1239 行，go:embed）还原为交易所/官方代码与编码域 |
 | usc 构造 | 按编码域直接构造（不查 `finv_security`）：`SH`+4 位（`000001`→`SH0001`）、`BSE50`（899050）、其余官方码原样（`399001` / `899001` / `931743` / `980028` / `CES300` / `716567`） |
 | market_label | 按站点市场号：`1100`→`SH`、`1200`→`SZ`、`1400`→`BJ`、其它（`7100` 国证非标）→`CN` |
@@ -138,12 +138,12 @@ ETF 代码同样按 `(exchange, code)` 解析 `public.finv_security.usc`；实�
 
 | 目标列 | 来源 | 口径 |
 |---|---|---|
-| `usc` | 映射表 + `public.finv_security` | 命中用库内 usc；未命中按编码域构造（见上） |
+| `usc` | 映射表 + `XetIndexUSC` | 按编码域直接构造（见上），不查 `finv_security` |
 | `stock_code` | 映射表「交易所/官方代码」 | 不含市场前缀（`000001` / `399001` / `931743`） |
 | `name` | `Row.Name` | 已剥离序号前缀 |
 | `market_type` | 固定 `4` | CN A 股市场类型编码 |
 | `market_label` | 映射表「市场号」 | `SH` / `SZ` / `BJ` / `CN` |
-| `instrument_type` | 固定 `4` | 与 moomoo ETF 同口径 |
+| `instrument_type` | 固定 `6` | 富途口径 6=指数（需求 11301 由 `4` 纠正，与 moomoo ETF 的 `4` 区分） |
 | `currency` | 名称后缀 | 含 `HKD`→`HKD`、含 `USD`→`USD`，其余 `CNY` |
 | `price_nominal` | `Row.Last` | 点 |
 | `change_price` | `Row.ChangePrice` | 点，可负 |

@@ -2,7 +2,8 @@
 
 > 所属：行情 → 实时行情 → 实时行情
 > 数据表：`cdeu.finv_quote_secu_realtime`（建表 `V300115`，数值列 `V300117`/`V300118`/`V300119`）
-> 关联需求：10962（菜单）、10956–10961（表与写入）、11023（表增 `rmb_*` 列）、11024（补全接口）、11025（人民币口径展示与排行）
+> 关联需求：10962（菜单）、10956–10961（表与写入）、11023（表增 `rmb_*` 列）、11024（补全接口）、
+> 11025（人民币口径展示与排行）、11301（`instrumentType` 品种筛选）
 > 实现：`internal/api/handler/cdeu_realtime_stock.go`（`RealtimeStockPage`）、
 > `internal/meta/finv/quote/cdeu/store_realtime_stock.go`（`ListRealtimeStocks`）
 > 机器可读契约：[`RealtimeStockPage.yml`](RealtimeStockPage.yml)（OpenAPI 3.1）
@@ -11,7 +12,7 @@
 
 分页查询证券实时行情快照（一行一证券，主键 `stock_id`），用于「行情 → 实时行情」页面：
 
-- 筛选：`keyword`（模糊匹配 `usc` / `stock_code` / `name`）、`marketLabel`、`currency`；
+- 筛选：`keyword`（模糊匹配 `usc` / `stock_code` / `name`）、`marketLabel`、`currency`、`instrumentType`；
 - 排序：白名单列 + `asc`/`desc`，空值（NULL）一律排在最后；**默认按人民币总市值 `rmb_market_value` 降序**（需求 11025，未补全的行排最后）；
   白名单只含「指标」列——`rmb_exchange_rate` 是换算参数而非指标，**不参与排序**（仍随行返回用于展示，需求 11027）；
 - 数值列（市值、股本、成交、AUM、涨跌幅等）以**文本**返回，保住 `NUMERIC(24,6)` 精度，
@@ -25,14 +26,33 @@
 |---|---|---|---|---|---|
 | `Authorization` | header | string | 是 | — | `Bearer <token>` |
 | `keyword` | query | string | 否 | 空 | 模糊匹配 `usc` / `stock_code` / `name`（ILIKE，`%kw%`） |
-| `marketLabel` | query | string | 否 | 空 | 市场：`HK`/`SH`/`SZ`/`BJ`/`US`；空或 `all` 不限 |
+| `marketLabel` | query | string | 否 | 空 | 市场：`HK`/`SH`/`SZ`/`BJ`/`CN`/`US`；空或 `all` 不限 |
 | `currency` | query | string | 否 | 空 | 币种：`CNY`/`HKD`/`USD`；空或 `all` 不限 |
-| `orderBy` | query | string | 否 | `rmb_market_value` | 排序字段，白名单见 2.2 |
+| `instrumentType` | query | string | 否 | 空 | 品种（归一语义）：`stock`/`etf`/`index`/`sector`/`futures`/`currency`/`crypto`；空或 `all` 不限；其它值 → HTTP 400（需求 11301） |
+| `orderBy` | query | string | 否 | `rmb_market_value` | 排序字段，白名单见 2.3 |
 | `order` | query | string | 否 | `desc` | `desc`（降序）/ `asc`（升序） |
 | `page` | query | integer | 否 | `1` | 页码，从 1 开始 |
 | `pageSize` | query | integer | 否 | `50` | 每页条数，1–500 |
 
-### 2.2 排序字段白名单
+### 2.2 品种归一（`instrumentType`）
+
+`cdeu.finv_quote_secu_realtime.instrument_type` 是 TEXT，历史上有数字与文本两套写法：
+富途写 `3` / `12`（股票）、`4`（ETF）、`6`（指数）；BDFS 写 `stock` / `etf`。
+接口按**语义**比较（SQL 侧 `CASE` 归一，需求 11301），客户端只需传归一值：
+
+| 归一值 | 命中原文 | 说明 |
+|---|---|---|
+| `stock` | `3` / `12` / `stock` | 股票（12 与 3 同义） |
+| `etf` | `4` / `etf` | ETF |
+| `index` | `6` / `index` | 指数（沪深京指数 `provider=ZXET` 自 2026-11-18 起写 `6`） |
+| `sector` | `7` / `sector` | 板块 |
+| `futures` | `9` / `futures` | 期货 |
+| `currency` | `10` / `currency` | 外汇 |
+| `crypto` | `11` / `crypto` | 加密 |
+
+未登记原文按 `lower(btrim(value))` 比较，传原值仍可命中（不做前缀推断）。
+
+### 2.3 排序字段白名单
 
 | 取值 | 说明 |
 |---|---|
@@ -51,7 +71,8 @@
 | `dt_update` | 快照更新时间 |
 | `stock_id` | 证券编号 |
 
-`orderBy` 传白名单之外的值 → HTTP 400（不允许拼接任意列名）。
+`orderBy` 传白名单之外的值 → HTTP 400（不允许拼接任意列名）；
+`instrumentType` 传归一集合之外的值同样 HTTP 400。
 
 ## 3. 响应
 

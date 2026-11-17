@@ -169,8 +169,12 @@ type RealtimeStockListFilter struct {
 	Keyword     string // 匹配 usc / stock_code / name（ILIKE）
 	MarketLabel string // 空或 all 表示不限
 	Currency    string // 空或 all 表示不限
-	OrderBy     string // 见 RealtimeStockOrderColumns，空默认 rmb_market_value（需求 11025）
-	Desc        bool   // true 降序（默认），false 升序
+	// InstrumentType 归一后的品种（stock/etf/index/sector/futures/currency/crypto）；
+	// 空或 all 表示不限（需求 11301）。库内原文混用 3/12/stock、4/etf 等写法，
+	// 由 realtimeStockInstrumentTypeExpr 归一后比较，前端不必感知原始编码。
+	InstrumentType string
+	OrderBy        string // 见 RealtimeStockOrderColumns，空默认 rmb_market_value（需求 11025）
+	Desc           bool   // true 降序（默认），false 升序
 	// USCMissing 为 true 时只查 usc 为空的行，即「待录入证券」（需求 10995）。
 	//
 	// 需求 11145 起：判断前先用派生 `ftmm_symbol = 市场标签 || '.' || 代码` 关联
@@ -187,6 +191,35 @@ type RealtimeStockListFilter struct {
 	Limit         int
 	Offset        int
 }
+
+// RealtimeStockInstrumentTypes 品种筛选允许的归一值（需求 11301）。
+//
+// 与富途 instrument_type 口径一致：3/12→stock、4→etf、6→index、7→sector、
+// 9→futures、10→currency、11→crypto；文本写法（stock/etf/…）同样接受。
+var RealtimeStockInstrumentTypes = map[string]bool{
+	"stock":    true,
+	"etf":      true,
+	"index":    true,
+	"sector":   true,
+	"futures":  true,
+	"currency": true,
+	"crypto":   true,
+}
+
+// realtimeStockInstrumentTypeExpr 把 instrument_type 原文归一为语义键（需求 11301）。
+//
+// 库内同一语义有多套写法（富途写数字 `3`/`12`，BDFS 写 `stock`；ETF 有 `4`/`etf`），
+// 直接按原文筛选会把「股票」割裂成三个选项，所以在 SQL 侧统一归一后再比较。
+// 未登记值原样返回（lower + btrim），保证 `?instrumentType=xxx` 这类查询仍可按原值命中。
+const realtimeStockInstrumentTypeExpr = `CASE lower(btrim(t.instrument_type))
+	WHEN '3' THEN 'stock' WHEN '12' THEN 'stock' WHEN 'stock' THEN 'stock'
+	WHEN '4' THEN 'etf' WHEN 'etf' THEN 'etf'
+	WHEN '6' THEN 'index' WHEN 'index' THEN 'index'
+	WHEN '7' THEN 'sector' WHEN 'sector' THEN 'sector'
+	WHEN '9' THEN 'futures' WHEN 'futures' THEN 'futures'
+	WHEN '10' THEN 'currency' WHEN 'currency' THEN 'currency'
+	WHEN '11' THEN 'crypto' WHEN 'crypto' THEN 'crypto'
+	ELSE lower(btrim(t.instrument_type)) END`
 
 // RealtimeStockOrderColumns 允许排序的列白名单（列名直接拼进 SQL，必须先校验）。
 var RealtimeStockOrderColumns = map[string]bool{

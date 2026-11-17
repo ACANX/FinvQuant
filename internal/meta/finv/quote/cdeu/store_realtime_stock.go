@@ -245,7 +245,7 @@ func realtimeStockListColumns(fillUSC bool) string {
        COALESCE(t.dt_update, 0)                       AS dt_update`
 }
 
-// ListRealtimeStocks 分页查询实时行情快照：关键字（usc / 代码 / 名称）、市场、币种筛选，
+// ListRealtimeStocks 分页查询实时行情快照：关键字（usc / 代码 / 名称）、市场、币种、品种筛选，
 // 白名单列排序（NULL 一律排最后），返回总数与当前页。
 func (s *Store) ListRealtimeStocks(ctx context.Context, f RealtimeStockListFilter) (int64, []RealtimeStockListRow, error) {
 	if f.Limit <= 0 {
@@ -278,6 +278,11 @@ func (s *Store) ListRealtimeStocks(ctx context.Context, f RealtimeStockListFilte
 	if currency := strings.TrimSpace(f.Currency); currency != "" && !strings.EqualFold(currency, "all") {
 		args = append(args, currency)
 		conds = append(conds, fmt.Sprintf("t.currency = $%d", len(args)))
+	}
+	// 品种筛选（需求 11301）：按归一语义比较，原文 3/12/stock 都命中「股票」。
+	if it := strings.ToLower(strings.TrimSpace(f.InstrumentType)); it != "" && it != "all" {
+		args = append(args, it)
+		conds = append(conds, fmt.Sprintf("(%s) = $%d", realtimeStockInstrumentTypeExpr, len(args)))
 	}
 	// 证券参数补全（需求 11161）：只列目标表里还没有该证券的行。
 	//

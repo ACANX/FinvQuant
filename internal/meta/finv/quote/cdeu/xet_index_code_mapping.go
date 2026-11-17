@@ -1,8 +1,8 @@
 package cdeu
 
 import (
-	_ "embed"
 	"bufio"
+	_ "embed"
 	"fmt"
 	"strings"
 	"sync"
@@ -24,8 +24,8 @@ const (
 	XetIndexSymbol = "cnindex"
 	// XetIndexProvider 写入 cdeu.finv_quote_secu_realtime.provider 的固定值。
 	XetIndexProvider = "ZXET"
-	// XetIndexInstrumentType 写入 instrument_type 的值（需求 11294：与 moomoo ETF 的 4 同口径）。
-	XetIndexInstrumentType = "4"
+	// XetIndexInstrumentType 写入 instrument_type 的值（富途口径 6=指数；需求 11301 由 4 纠正）。
+	XetIndexInstrumentType = "6"
 	// XetIndexMarketType 写入 market_type 的值（CN A 股，与 BDFS 同口径）。
 	XetIndexMarketType = "4"
 )
@@ -117,7 +117,7 @@ func parseXetIndexMapping(text string) (map[string]XetIndexCodeEntry, error) {
 //	1200 → SZ（深市，含国证 98xxxx、新三板 899xxx）
 //	1400 → BJ（北交所，899050 / 899601）
 //	其它（7100 国证非标等，无对应交易所）→ CN
- //
+//
 // 注：成分市场（沪+深+京 等）只写进 remark，不参与归属判定。
 func XetIndexMarketLabel(marketNo string) string {
 	switch strings.TrimSpace(marketNo) {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // 证券行情排行（cdeu.finv_quote_secu_realtime，主键 usc，需求 10962/11271）
-// 接口：GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Page?keyword=&marketLabel=&currency=&orderBy=&order=&page=&pageSize=
+// 接口：GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Page?keyword=&marketLabel=&currency=&instrumentType=&orderBy=&order=&page=&pageSize=
+// 需求 11301：新增「品种」筛选（归一语义 stock/etf/index/sector/futures/currency/crypto），市场增加 CN。
 // 数值列由后端以文本返回（保住 NUMERIC(24,6) 精度），本页负责万/亿折算与小数位裁剪。
 // 涨跌用整行颜色表达（红涨绿跌，row-rise / row-fall），不占单独的方向列。
 // 需求 11025：列表展示 rmb_ 五个字段，排序白名单增加人民币口径，默认按人民币总市值排行。
@@ -55,6 +56,7 @@ const pageSize = ref(50)
 const keyword = ref('')
 const marketLabel = ref('')
 const currency = ref('')
+const instrumentType = ref('')
 const orderBy = ref('rmb_market_value')
 const order = ref<'desc' | 'asc'>('desc')
 const loading = ref(false)
@@ -99,7 +101,20 @@ const MARKET_OPTIONS = [
   { title: 'SH', value: 'SH' },
   { title: 'SZ', value: 'SZ' },
   { title: 'BJ', value: 'BJ' },
+  { title: 'CN', value: 'CN' },
   { title: 'US', value: 'US' },
+]
+// 品种筛选（需求 11301）：选项按 DictFilterSpec 写「中文[值]」，值为归一后的语义键；
+// 库内原文（3/12/stock、4/etf 等）由后端归一后比较，前端不感知原始编码。
+const INSTRUMENT_TYPE_OPTIONS = [
+  { title: '全部品种', value: '' },
+  { title: '股票[stock]', value: 'stock' },
+  { title: 'ETF[etf]', value: 'etf' },
+  { title: '指数[index]', value: 'index' },
+  { title: '板块[sector]', value: 'sector' },
+  { title: '期货[futures]', value: 'futures' },
+  { title: '外汇[currency]', value: 'currency' },
+  { title: '加密[crypto]', value: 'crypto' },
 ]
 const CURRENCY_OPTIONS = [
   { title: '全部币种', value: '' },
@@ -123,6 +138,7 @@ async function load() {
     if (keyword.value.trim()) params.set('keyword', keyword.value.trim())
     if (marketLabel.value) params.set('marketLabel', marketLabel.value)
     if (currency.value) params.set('currency', currency.value)
+    if (instrumentType.value) params.set('instrumentType', instrumentType.value)
     const data = await apiGet<{ total: number; page: number; pageSize: number; list: RealtimeStockRow[] }>(
       `${API}?${params.toString()}`,
     )
@@ -146,6 +162,7 @@ function reset() {
   keyword.value = ''
   marketLabel.value = ''
   currency.value = ''
+  instrumentType.value = ''
   orderBy.value = 'rmb_market_value'
   order.value = 'desc'
   search()
@@ -293,6 +310,17 @@ onMounted(load)
           density="compact"
           hide-details
           style="max-width: 130px"
+          @update:model-value="search"
+        />
+        <v-select
+          v-model="instrumentType"
+          :items="INSTRUMENT_TYPE_OPTIONS"
+          item-title="title"
+          item-value="value"
+          label="品种"
+          density="compact"
+          hide-details
+          style="max-width: 160px"
           @update:model-value="search"
         />
         <v-select

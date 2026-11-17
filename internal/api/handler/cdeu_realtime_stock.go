@@ -447,9 +447,24 @@ func (h *ExportArchive) RealtimeStockUSCBackfill(c *gin.Context) {
 	})
 }
 
+// realtimeStockInstrumentType 归一校验 instrumentType 查询参数（需求 11301）。
+//
+// 空串或 all → 不限（返回空串，SQL 不加条件）；其余必须是归一后的品种集合，
+// 非法值返回错误（handler 映射为 HTTP 400），避免把任意字符串拼进 SQL 条件。
+func realtimeStockInstrumentType(raw string) (string, error) {
+	v := strings.ToLower(strings.TrimSpace(raw))
+	if v == "" || v == "all" {
+		return "", nil
+	}
+	if !cdeu.RealtimeStockInstrumentTypes[v] {
+		return "", fmt.Errorf("instrumentType 非法（%s），可选值：stock / etf / index / sector / futures / currency / crypto", raw)
+	}
+	return v, nil
+}
+
 // RealtimeStockPage GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Page。
 //
-// 查询参数（小驼峰，ApiSpec §3）：keyword / marketLabel / currency /
+// 查询参数（小驼峰，ApiSpec §3）：keyword / marketLabel / currency / instrumentType /
 // orderBy / order / page / pageSize。
 // 响应 data：{total, page, pageSize, list[]}；list 内数值列为文本，保住 NUMERIC 精度，
 // 万/亿折算与小数位裁剪由前端负责。
@@ -476,14 +491,21 @@ func (h *ExportArchive) RealtimeStockPage(c *gin.Context) {
 		return
 	}
 
+	instrumentType, err := realtimeStockInstrumentType(c.Query("instrumentType"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+
 	filter := cdeu.RealtimeStockListFilter{
-		Keyword:     strings.TrimSpace(c.Query("keyword")),
-		MarketLabel: strings.TrimSpace(c.Query("marketLabel")),
-		Currency:    strings.TrimSpace(c.Query("currency")),
-		OrderBy:     strings.TrimSpace(c.Query("orderBy")),
-		Desc:        desc,
-		Limit:       pageSize,
-		Offset:      (page - 1) * pageSize,
+		Keyword:        strings.TrimSpace(c.Query("keyword")),
+		MarketLabel:    strings.TrimSpace(c.Query("marketLabel")),
+		Currency:       strings.TrimSpace(c.Query("currency")),
+		InstrumentType: instrumentType,
+		OrderBy:        strings.TrimSpace(c.Query("orderBy")),
+		Desc:           desc,
+		Limit:          pageSize,
+		Offset:         (page - 1) * pageSize,
 	}
 
 	started := time.Now()

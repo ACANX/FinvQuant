@@ -126,7 +126,7 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 | 请求池 | 上游 4 池（中证 `1100` / 国证 / 股转 / 大盘）+ 深市 `1200` + 北交所 `1400`，串行 6 次请求、按内部码去重；实测 1239 只 |
 | 生效参数 | `request_timeout_ms`（默认 20000，但本分支下限 120000，6 次串行） |
 | 不生效参数 | `page_size` / `page_start` / `interval_ms` / `max_retries` / `retry_backoff_ms` / `max_pages`（一次取全量，无分页） |
-| 落库表 | `cdeu.finv_quote_secu_realtime`，`provider` 固定 `ZXET`，`instrument_type` 固定 `4`，按 `usc` upsert（有值才覆盖） |
+| 落库表 | `cdeu.finv_quote_secu_realtime`，`provider` 固定 `ZXET`，`instrument_type` 固定 `6`（富途口径 6=指数），按 `usc` upsert（有值才覆盖） |
 | usc 构造 | 接口内部码（`1A0001`/`2A01`/`H50001`）→ 映射表 → 按编码域直接构造（不查库）：`SH`+4 位（`000001`→`SH0001`）、`BSE50`（899050）、其余官方码原样（`399001` / `899001` / `931743` / `980028` / `CES300` / `716567`） |
 | 关键口径 | `change_ratio` / `price_amplitude` / `buysell_ratio` 除 100（表内小数比例）；`trade_volumn` × 100（手→股）；`market_value` / `total_shares` / `circulation_*` 为**成分合计**；`page` 恒 NULL |
 | 运行状态 / 日志 | 与 moomoo 分支共用同一运行持有者与轮询端点，`results[].instrument_symbol` 为 `cnindex`、`market_type` 为 `4`；日志含池级统计与未知接口码（上限 50）逐条清单 |

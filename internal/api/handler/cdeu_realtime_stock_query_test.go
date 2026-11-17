@@ -58,3 +58,33 @@ func TestRealtimeStockQueryIntRange(t *testing.T) {
 		}
 	}
 }
+
+// TestRealtimeStockInstrumentType 品种筛选参数归一与白名单（需求 11301）。
+//
+// 前端只传归一后的语义键（stock/etf/index/…）；空串与 all 表示不限，
+// 其它值（含库内原文 3/4/12）一律 400，避免把任意字符串带进 SQL 条件。
+func TestRealtimeStockInstrumentType(t *testing.T) {
+	ok := map[string]string{
+		"":         "",
+		"all":      "",
+		"ALL":      "",
+		" stock ":  "stock",
+		"etf":      "etf",
+		"INDEX":    "index",
+		"sector":   "sector",
+		"futures":  "futures",
+		"currency": "currency",
+		"crypto":   "crypto",
+	}
+	for raw, want := range ok {
+		got, err := realtimeStockInstrumentType(raw)
+		if err != nil || got != want {
+			t.Fatalf("%q → %q/%v，期望 %q", raw, got, err, want)
+		}
+	}
+	for _, raw := range []string{"3", "4", "12", "bond", "index; DROP TABLE x"} {
+		if _, err := realtimeStockInstrumentType(raw); err == nil {
+			t.Fatalf("%q 应被拒绝", raw)
+		}
+	}
+}

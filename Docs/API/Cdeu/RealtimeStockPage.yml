@@ -35,7 +35,7 @@ paths:
           description: 市场；空或 all 表示不限。
           schema:
             type: string
-            enum: ['', all, HK, SH, SZ, BJ, US]
+            enum: ['', all, HK, SH, SZ, BJ, CN, US]
         - name: currency
           in: query
           required: false
@@ -43,6 +43,15 @@ paths:
           schema:
             type: string
             enum: ['', all, CNY, HKD, USD]
+        - name: instrumentType
+          in: query
+          required: false
+          description: |
+            品种（归一语义，需求 11301）；空或 all 表示不限。
+            库内原文 3/12/stock 归一为 stock、4/etf 归一为 etf、6 归一为 index。
+          schema:
+            type: string
+            enum: ['', all, stock, etf, index, sector, futures, currency, crypto]
         - name: orderBy
           in: query
           required: false
