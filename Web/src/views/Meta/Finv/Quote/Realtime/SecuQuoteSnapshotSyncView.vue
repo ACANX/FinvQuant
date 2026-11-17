@@ -153,6 +153,10 @@ const countPlan = ref<number | null>(null)
 // 每页条数默认值：BDFS 板块采集默认 500（接口 rn），其余品种沿用 50
 const BDFS_DEFAULT_PAGE_SIZE = 500
 const PAGE_SIZE_DEFAULT = 50
+// 期货（需求 11274）：接口观测默认每页 40 条，每个分类通常只有 1~3 页，
+// 页间间隔 2s 即可（与后端 FutureListDefault* 保持一致，避免前端默认 50/6000ms 覆盖）
+const FUTURES_PAGE_SIZE_DEFAULT = 40
+const FUTURES_INTERVAL_DEFAULT = 2000
 const pageSize = ref(PAGE_SIZE_DEFAULT)
 const intervalMs = ref(6000)
 const maxRetries = ref(2)
@@ -402,8 +406,12 @@ function resetOptions() {
   marketType.value = FIXED_MARKET[activeSymbol.value]?.value ?? ''
   futuresType.value = ''
   countPlan.value = null
-  pageSize.value = activeIsFixedSource.value ? BDFS_DEFAULT_PAGE_SIZE : PAGE_SIZE_DEFAULT
-  intervalMs.value = 6000
+  pageSize.value = activeIsFutures.value
+    ? FUTURES_PAGE_SIZE_DEFAULT
+    : activeIsFixedSource.value
+      ? BDFS_DEFAULT_PAGE_SIZE
+      : PAGE_SIZE_DEFAULT
+  intervalMs.value = activeIsFutures.value ? FUTURES_INTERVAL_DEFAULT : 6000
   maxRetries.value = 2
   retryBackoffMs.value = 2000
   maxPages.value = 0
@@ -414,7 +422,12 @@ function onSymbolChange() {
   marketType.value = FIXED_MARKET[activeSymbol.value]?.value ?? ''
   futuresType.value = ''
   countPlan.value = null
-  pageSize.value = activeIsFixedSource.value ? BDFS_DEFAULT_PAGE_SIZE : PAGE_SIZE_DEFAULT
+  pageSize.value = activeIsFutures.value
+    ? FUTURES_PAGE_SIZE_DEFAULT
+    : activeIsFixedSource.value
+      ? BDFS_DEFAULT_PAGE_SIZE
+      : PAGE_SIZE_DEFAULT
+  intervalMs.value = activeIsFutures.value ? FUTURES_INTERVAL_DEFAULT : 6000
   scrollLogs()
 }
 

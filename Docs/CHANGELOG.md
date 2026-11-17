@@ -2483,6 +2483,23 @@
     重新部署后 `journalctl -u finvquant` 应出现 `V300216 备份登记完成：本批写入 2 行（期望 2 行）` 与
     `V300216 校验通过：结果表 20 列 / 配置表 10 列 / 种子 8 行 / 已登记 BRS 全量备份`。
 
+- **期货列表采不到数：线上 `stockId` 是字符串，上游结构体声明为 int64（需求 11274）**
+  - 现象：页面「开始同步」后每个分类都在重试，日志报
+    `moomoo /quote-api/quote-v2/get-futures-list 请求失败：响应解析失败: json: cannot unmarshal string into Go struct field FuturesListItem.data.list.stockId of type int64`。
+  - 根因：上游 `quoteapiv2.FuturesListItem.StockID` 声明为 `int64`，线上响应为 `"stockId": "70000294"`（字符串）；
+    `json.Unmarshal` 在第一个类型不匹配字段即失败，整页数据丢失。上游当前最新版本（v0.1.2 / main tip）仍为 `int64`，无法通过配置绕过。
+  - 修复：新增 `internal/meta/finv/quote/cdeu/future_list_fetcher.go` —— 复用上游导出的签名与协议常量
+    （`quoteapiv2.SignedQuery`/`DefaultReferers`/`DefaultUserAgent`/`CodeOK` 等），只替换「发送请求 + 反序列化」两段：
+    `stockId`/`fieldId`/`precision`/`contentType`/`pagination.*` 以及 `fields` 的值，**字符串与数字都能解析**
+    （`futureFlexText`），返回值仍是 `quoteapiv2.FuturesListPage`，采集器与落库层零改动。
+    请求头（token/csrf/cookie/referer/UA）与上游 `getList` 完全同序，签名口径不变。
+  - 边界与退场条件：这是**临时适配层**，注释已写明「上游把 `StockID` 改为兼容类型后删除本文件、改回
+    `quoteapiv2.New(quoteapiv2.Config{})`」。
+  - 前端：期货 Tab 的默认采集参数改为每页 40 条、页间 2s（与后端 `FutureListDefault*` 一致），
+    不再用股票页面的 50 条 / 6s 覆盖。
+  - 验证：新增 6 个用例（字符串 stockId / 数字 stockId / 业务码非 0 / HTTP 403 / 非法参数 / 宽松文本），
+    `go test ./internal/meta/finv/quote/cdeu/ -run Future` 全过；`go build ./...`、`cd Web && npm run build` 通过。
+
 - **全新空库执行迁移链失败（需求 11022）**
   - `V200090`（`brs.brs_bak_rdb_table` 加 `db` 列）版本号早于建表脚本 `V300060`，空库跑到这里表还不存在 → `42P01`。改为 `DO` 块内 `to_regclass(...) IS NULL` 时 `NOTICE` 跳过；存量库行为不变（早已执行完）。
   - `V300060` 建表即带 `db` 列与四列唯一约束 `(rdb_type, db, schema_name, table_name)`，种子 `INSERT` 补 `db` 值与匹配的 `ON CONFLICT` 目标，空库一次建成与存量库一致的结构。

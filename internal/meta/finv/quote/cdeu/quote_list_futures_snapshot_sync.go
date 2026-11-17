@@ -718,11 +718,3 @@ func futureListSampleFields(items []quoteapiv2.FuturesListItem) string {
 	}
 	return text
 }
-
-// NewFutureListFetcher 创建期货列表拉取实现（直接用上游 quoteapiv2.Client）。
-//
-// 与 NewStockListFetcher 同理：默认 Config 已满足要求（按 marketType 命中
-// DefaultReferers 拿到中文口径），故不注入自定义 transport/referer。
-func NewFutureListFetcher() FutureListFetcher {
-	return quoteapiv2.New(quoteapiv2.Config{})
-}
