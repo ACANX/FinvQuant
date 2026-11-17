@@ -31,11 +31,11 @@ func (s *Store) UpsertRealtimeStocks(ctx context.Context, items []RealtimeStockI
 
 	payload := make([]map[string]any, 0, len(items))
 	for _, item := range items {
-		if item.StockID == nil {
-			return stat, fmt.Errorf("%w: 缺少 stock_id", ErrRealtimeStockInvalid)
+		if item.USC == nil || strings.TrimSpace(*item.USC) == "" {
+			return stat, fmt.Errorf("%w: 缺少 usc（新表主键）", ErrRealtimeStockInvalid)
 		}
 		payload = append(payload, map[string]any{
-			"stock_id":                 *item.StockID,
+			"stock_id":                 realtimeStockText(item.StockID),
 			"usc":                      realtimeStockText(item.USC),
 			"name":                     realtimeStockText(item.Name),
 			"stock_code":               realtimeStockText(item.StockCode),
@@ -209,7 +209,7 @@ func realtimeStockListColumns(fillUSC bool) string {
 		uscExpr = "COALESCE(NULLIF(btrim(t.usc), ''), k.usc, '')"
 	}
 	return `
-       t.stock_id,
+       COALESCE(t.stock_id, '')                   AS stock_id,
        ` + uscExpr + `                            AS usc,
        ` + realtimeStockFtmmExpr + ` AS ftmm_symbol,
        COALESCE(t.name, '')                           AS name,
@@ -389,20 +389,27 @@ func (s *Store) BackfillRealtimeStockUSC(ctx context.Context) (RealtimeStockUSCB
 
 	// 一次 SQL 内完成「筛 → 改 → 计数」：src 为可补录集，upd 为实际写入行。
 	// 键表以 ftmm_symbol 为主键，匹配必为一行，不会产生重复更新。
+	// 需求 11271：新表主键是 usc，不存在「usc 为空的快照行」可补，
+	// 因此补录对象改为键表 futu.finv_futu_secu_key：把能按 (市场, 代码) 从
+	// public.finv_security 解析到 usc 的空键补全；下一轮采集即可正常入库。
 	const stmt = `
 WITH src AS (
-    SELECT t.stock_id, btrim(k.usc) AS usc
-      FROM ` + tableRealtimeStock + ` t
-      JOIN ` + realtimeStockKeyTable + ` k ON k.ftmm_symbol = ` + realtimeStockFtmmExpr + `
-     WHERE NULLIF(btrim(t.usc), '') IS NULL
-       AND NULLIF(btrim(k.usc), '') IS NOT NULL
+    SELECT k.ftmm_symbol, btrim(s.usc) AS usc
+      FROM ` + tableSecuKey + ` k
+      JOIN public.finv_exchange e
+        ON upper(btrim(e.exchange_flag)) = upper(btrim(k.market))
+      JOIN public.finv_security s
+        ON s.exchange_code = e.exchange_code
+       AND s.security_code = btrim(k.code)
+     WHERE NULLIF(btrim(k.usc), '') IS NULL
+       AND NULLIF(btrim(s.usc), '') IS NOT NULL
 ), upd AS (
-    UPDATE ` + tableRealtimeStock + ` u
+    UPDATE ` + tableSecuKey + ` u
        SET usc = src.usc
       FROM src
-     WHERE u.stock_id = src.stock_id
+     WHERE u.ftmm_symbol = src.ftmm_symbol
        AND NULLIF(btrim(u.usc), '') IS NULL
-    RETURNING u.stock_id
+    RETURNING 1
 )
 SELECT (SELECT count(*) FROM src)::bigint,
        (SELECT count(*) FROM upd)::bigint`

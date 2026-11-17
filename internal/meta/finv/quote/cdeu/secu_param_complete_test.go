@@ -3,6 +3,7 @@ package cdeu
 import (
 	"context"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -81,12 +82,12 @@ func TestLiveSecuParamComplete(t *testing.T) {
 			continue
 		}
 		first := list[0]
-		prefill, err := store.SecuParamPrefill(ctx, target, first.StockID)
+		prefill, err := store.SecuParamPrefill(ctx, target, mustStockID(t, first.StockID))
 		if err != nil {
-			t.Fatalf("target=%s stock_id=%d 预填失败: %v", target, first.StockID, err)
+			t.Fatalf("target=%s stock_id=%s 预填失败: %v", target, first.StockID, err)
 		}
 		if prefill.Exists {
-			t.Fatalf("清单里的行不应在目标表已存在：target=%s stock_id=%d usc=%s",
+			t.Fatalf("清单里的行不应在目标表已存在：target=%s stock_id=%s usc=%s",
 				target, first.StockID, prefill.USC)
 		}
 		if prefill.Target != target {
@@ -95,7 +96,7 @@ func TestLiveSecuParamComplete(t *testing.T) {
 		if len(prefill.Fields) == 0 {
 			t.Fatalf("target=%s 预填字段为空", target)
 		}
-		t.Logf("target=%s 样例 stock_id=%d usc=%s 名称=%s 字段数=%d 警告数=%d",
+		t.Logf("target=%s 样例 stock_id=%s usc=%s 名称=%s 字段数=%d 警告数=%d",
 			target, first.StockID, prefill.USC, prefill.Name, len(prefill.Fields), len(prefill.Warnings))
 		for _, field := range prefill.Fields {
 			t.Logf("  字段 %-22s = %-24q 来源=%s 必填=%t", field.Key, field.Value, field.Source, field.Required)
@@ -209,7 +210,7 @@ func TestLiveSecuParamCollectComplete(t *testing.T) {
 	}
 	row := list[0]
 
-	prefill, err := store.SecuParamPrefill(ctx, SecuParamTargetCollect, row.StockID)
+	prefill, err := store.SecuParamPrefill(ctx, SecuParamTargetCollect, mustStockID(t, row.StockID))
 	if err != nil {
 		t.Fatalf("预填失败: %v", err)
 	}
@@ -220,7 +221,7 @@ func TestLiveSecuParamCollectComplete(t *testing.T) {
 
 	req := SecuParamCompleteRequest{
 		Target:  SecuParamTargetCollect,
-		StockID: row.StockID,
+		StockID: mustStockID(t, row.StockID),
 		Remark:  "自动测试（会立即删除）",
 		Collect: PendingSecuEnrollCollect{
 			FutuSymbol:        values["futu_symbol"],
@@ -384,7 +385,7 @@ func TestLiveSecuParamPrefillTZ(t *testing.T) {
 			t.Logf("market=%s 没有待补全的行，跳过", market)
 			continue
 		}
-		prefill, err := store.SecuParamPrefill(ctx, SecuParamTargetSecurity, list[0].StockID)
+		prefill, err := store.SecuParamPrefill(ctx, SecuParamTargetSecurity, mustStockID(t, list[0].StockID))
 		if err != nil {
 			t.Fatalf("market=%s 预填失败: %v", market, err)
 		}
@@ -394,7 +395,7 @@ func TestLiveSecuParamPrefillTZ(t *testing.T) {
 			values[field.Key] = field.Value
 			sources[field.Key] = field.Source
 		}
-		t.Logf("market=%s stock_id=%d usc=%s timezone=%q(%s) tz=%q(%s)",
+		t.Logf("market=%s stock_id=%s usc=%s timezone=%q(%s) tz=%q(%s)",
 			market, list[0].StockID, prefill.USC, values["timezone"], sources["timezone"],
 			values["tz"], sources["tz"])
 		if values["timezone"] == "" || values["tz"] == "" {
@@ -499,7 +500,7 @@ func TestLivePendingSecuCollectDefaults(t *testing.T) {
 			t.Logf("market=%s 没有待补全的行，跳过", market)
 			continue
 		}
-		prefill, err := store.SecuParamPrefill(ctx, SecuParamTargetCollect, list[0].StockID)
+		prefill, err := store.SecuParamPrefill(ctx, SecuParamTargetCollect, mustStockID(t, list[0].StockID))
 		if err != nil {
 			t.Fatalf("market=%s 预填失败: %v", market, err)
 		}
@@ -525,4 +526,14 @@ func TestLivePendingSecuCollectDefaults(t *testing.T) {
 			t.Fatalf("market=%s 的 req_section 被标成待填（选填列不该如此）", market)
 		}
 	}
+}
+
+// mustStockID 把列表行里的 stock_id 文本转回 int64（新表 stock_id 为 TEXT）。
+func mustStockID(t *testing.T, raw string) int64 {
+	t.Helper()
+	id, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil {
+		t.Fatalf("stock_id 解析失败（%q）: %v", raw, err)
+	}
+	return id
 }

@@ -214,7 +214,7 @@ var RealtimeStockOrderColumns = map[string]bool{
 // 数值列统一以文本输出（SQL 侧 ::text），保住 NUMERIC(24,6) 的精度；
 // 展示层的万/亿折算与小数位裁剪由前端负责。
 type RealtimeStockListRow struct {
-	StockID int64  `json:"stock_id"`
+	StockID string `json:"stock_id"`
 	USC     string `json:"usc"`
 	// FtmmSymbol 派生键：`upper(市场标签 || '.' || 代码)`，与
 	// `futu.finv_futu_secu_key.ftmm_symbol` 同口径（需求 11145）。
