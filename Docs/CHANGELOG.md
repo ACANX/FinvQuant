@@ -4506,6 +4506,17 @@
     采集日志不再出现「未能在 public.finv_security 解析到 usc」。
   - 验证：两脚本在本库重复执行 `INSERT 0 0` + 校验通过；容器重启后 `schema_version` 记录 `300211`/`300212`。
 
+- **修复 `V300211`/`V300212` 在生产库的唯一约束冲突（需求 11268）**
+  - 现象：生产（Native/systemd）启动即失败并进入重启循环，报
+    `duplicate key value violates unique constraint "uq_finv_security_exchange_code"`。
+  - 原因：`finv_security` 除主键 `usc` 外还有 `UNIQUE (exchange_code, security_code)`；生产已存在
+    「同交易所同代码、但 `usc` 为别名」的行，`ON CONFLICT (usc) DO NOTHING` 挡不住，撞唯一约束。
+  - 修复：两条迁移改为 `INSERT ... SELECT ... WHERE NOT EXISTS`，同时按 `usc` 与
+    `(exchange_code, security_code)`（`futu` 表为 `usc` 与 `(market_label, futu_symbol)`）判重；
+    校验改为按「交易所 + 代码」196 组判定，不再要求 `usc` 等于代码。
+  - 验证：本机重复执行 `验证通过`；模拟生产冲突（预置 `usc='589880.SH'` 的 `(11,'589880')` 行）后执行，
+    `INSERT 0 195` 且无报错，回滚后数据完整。
+
 ## [0.1.3] - 2026-10-29
 
 > 本版本内容：四级菜单导航改造、登录与文案修复、BRS 上传与配置、去重/导出链路修复、深色/浅色主题切换等。
