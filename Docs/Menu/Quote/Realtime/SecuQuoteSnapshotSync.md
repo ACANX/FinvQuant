@@ -26,22 +26,23 @@
 | `future` | 期货 | 占位 |
 | `crypto` | 加密货币 | 占位 |
 | `bsestock` | 北交所股票 | BDFS 板块采集（需求 11262，固定来源，无需配置行） |
+| `cnindex` | 沪深京指数 | 占位（需求 11264） |
 | `sector` | 板块 | 占位 |
 | `portfolio` | 投资组合 | 占位 |
 | `gold` | 黄金 | 占位 |
 | `forex` | 外汇 | 配置表（插行后出现） |
 | `option` | 期权 | 配置表（插行后出现） |
 
-**占位 Tab（需求 11256）**：`index` / `future` / `crypto` / `sector` / `portfolio` / `gold`
-六个品种按上表顺序**跟在配置表已有品种之后常显**，由前端 `PLACEHOLDER_SYMBOLS` 硬编码（不依赖配置行）：
+**占位 Tab（需求 11256 / 11264）**：`index` / `future` / `crypto` / `cnindex` / `sector` / `portfolio` / `gold`
+七个品种按上表顺序**跟在配置表已有品种之后常显**，由前端 `PLACEHOLDER_SYMBOLS` 硬编码（不依赖配置行）：
 配置表暂无该品种的行时，Tab 照常可点，配置表显示「该品种为占位 Tab：配置表暂无该品种的采集行，暂不参与采集」，
 「开始同步」按钮禁用；后续接入时只要往 `cdeu.finv_cdeu_secu_realtime_sync_config` 插入同符号的配置行，
 即自动转为可采集（无需改前端）。
 
 **固定来源 Tab（需求 11262）**：`bsestock`（北交所股票）已接入 BDFS 采集，由前端 `FIXED_SYMBOLS` 常显，
 不读配置表、也不需要配置行。Tab 顺序统一由前端 `SYMBOL_ORDER` 决定
-（`stock` / `index` / `future` / `crypto` / `bsestock` / **`etf`** / `sector` / `portfolio` / `gold`），
-`bsestock` 在「指数 / 期货 / 加密货币」之后，`etf`（沪深京ETF）紧随其后——「开始同步」直接可用，配置表区显示
+（`stock` / `index` / `future` / `crypto` / `bsestock` / **`cnindex`** / **`etf`** / `sector` / `portfolio` / `gold`），
+`bsestock` 在「指数 / 期货 / 加密货币」之后，`cnindex`（沪深京指数，占位）与 `etf`（沪深京ETF）紧随其后——「开始同步」直接可用，配置表区显示
 「该品种为 BDFS 板块采集（板块 GN2309 北交所上市企业）…结果写入 `cdeu.finv_quote_secu_realtime`（provider=BDFS）」。
 
 #### 2.0.1 BDFS 板块采集（`bsestock`，需求 11262）

@@ -20,6 +20,13 @@
 
 ### 新增
 
+- **「行情快照同步」新增「沪深京指数」占位 Tab（需求 11264）**
+  - 位置：排在「北交所股票」与「沪深京ETF」之间（`SYMBOL_ORDER`：`… / bsestock / cnindex / etf / …`）。
+  - 状态：**仅占位**——由前端 `PLACEHOLDER_SYMBOLS` 常显，无配置行时显示占位文案、「开始同步」置灰；
+    后续接入采集时插配置行（或按 BDFS 指数来源登记）即可转为可采集。
+  - 标签「沪深京指数」，图标 `mdi-chart-box-outline`；不改后端与采集逻辑。
+  - 验证：`cd Web && npm run build` 通过；浏览器 Tab 栏顺序与置灰行为符合预期。
+
 - **「行情快照同步」新增「沪深京ETF」Tab，BDFS 源采集 ETF 行情（需求 11263）**
   - 位置：`/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync` 页，排在「北交所股票」之后（`SYMBOL_ORDER`）。
   - 来源：BDFS `GetConstituents` 的 `financeType=index` + `code=399380`（国证ETF，实测 1687 条：`SH` 922 / `SZ` 765）；

@@ -73,6 +73,7 @@ const SYMBOL_LABELS: Record<string, string> = {
   option: '期权',
   crypto: '加密货币',
   bsestock: '北交所股票',
+  cnindex: '沪深京指数',
   sector: '板块',
   portfolio: '投资组合',
   gold: '黄金',
@@ -86,6 +87,7 @@ const SYMBOL_ICONS: Record<string, string> = {
   option: 'mdi-chart-bell-curve',
   crypto: 'mdi-bitcoin',
   bsestock: 'mdi-office-building-outline',
+  cnindex: 'mdi-chart-box-outline',
   sector: 'mdi-view-grid-outline',
   portfolio: 'mdi-briefcase-outline',
   gold: 'mdi-gold',
@@ -93,7 +95,7 @@ const SYMBOL_ICONS: Record<string, string> = {
 
 // 占位品种（需求 11256）：按此顺序排在配置表已有品种之后，暂未接入采集，仅出 Tab。
 // 符号与后续配置表的 instrument_symbol 保持一致，接入时插配置行即自动生效。
-const PLACEHOLDER_SYMBOLS = ['index', 'future', 'crypto', 'sector', 'portfolio', 'gold']
+const PLACEHOLDER_SYMBOLS = ['index', 'future', 'crypto', 'cnindex', 'sector', 'portfolio', 'gold']
 // 已接入真实采集、但配置表（cdeu.finv_cdeu_secu_realtime_sync_config）没有采集行的品种（BDFS 源）：
 // bsestock = 板块 GN2309（北交所上市企业）、etf = 国证ETF 指数 399380（沪深京 ETF），全量拉取，无需配置行。
 const FIXED_SYMBOLS = ['bsestock', 'etf']
@@ -103,8 +105,8 @@ const FIXED_MARKET: Record<string, { title: string; value: string }> = {
   etf: { title: 'CN A 股（沪深京）', value: '4' },
 }
 // Tab 固定展示顺序（需求 11256/11262/11263）：配置表没出现的品种按此顺序补齐，
-// bsestock 固定在「指数 / 期货 / 加密货币」之后，etf（沪深京ETF）紧随其后。
-const SYMBOL_ORDER = ['stock', 'index', 'future', 'crypto', 'bsestock', 'etf', 'sector', 'portfolio', 'gold']
+// bsestock 固定在「指数 / 期货 / 加密货币」之后，cnindex（沪深京指数，占位）与 etf（沪深京ETF）紧随其后。
+const SYMBOL_ORDER = ['stock', 'index', 'future', 'crypto', 'bsestock', 'cnindex', 'etf', 'sector', 'portfolio', 'gold']
 
 const MARKET_LABELS: Record<string, string> = { '1': 'HK 港股', '2': 'US 美股', '4': 'CN A 股' }
 
