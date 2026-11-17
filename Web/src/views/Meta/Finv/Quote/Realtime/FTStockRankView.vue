@@ -13,7 +13,7 @@ import { showToast } from '../../../../../ui/toast'
 
 // 列表行（wire 字段 snake_case，数值列为文本）
 interface RealtimeStockRow {
-  stock_id: number
+  stock_id: string
   usc: string
   name: string
   stock_code: string
@@ -392,7 +392,7 @@ onMounted(load)
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in rows" :key="row.stock_id" :class="rowClass(row.price_direct)">
+          <tr v-for="row in rows" :key="row.usc" :class="rowClass(row.price_direct)">
             <td class="text-no-wrap">{{ row.usc || '—' }}</td>
             <td class="text-no-wrap">{{ row.name || '—' }}</td>
             <td class="text-no-wrap">{{ row.stock_code || '—' }}</td>

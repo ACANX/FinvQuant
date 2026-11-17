@@ -377,7 +377,7 @@ onMounted(load)
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in rows" :key="row.stock_id" :class="rowClass(row.price_direct)">
+          <tr v-for="row in rows" :key="row.usc || row.stock_id" :class="rowClass(row.price_direct)">
             <td class="text-no-wrap">
               <template v-if="row.usc">{{ row.usc }}</template>
               <v-tooltip v-else text="快照 usc 仍为空（本页只列补全后仍为空的证券）；补录后将写入的值见「唯一标识」列" location="bottom" max-width="360">

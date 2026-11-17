@@ -303,7 +303,7 @@ onMounted(load)
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in rows" :key="row.stock_id">
+          <tr v-for="row in rows" :key="row.usc || row.stock_id">
             <td class="text-no-wrap">
               <code>{{ targetUSC(row) || '—' }}</code>
               <v-icon
