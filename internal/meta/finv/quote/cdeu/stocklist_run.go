@@ -209,6 +209,12 @@ func (s *Service) StartStockListRun(opts StockListCollectOptions) (StockListRun,
 		return s.startBdfsSecuRealtimeRun(normalized, src)
 	}
 
+	// 需求 11274：期货列表采集（moomoo get-futures-list）与股票列表采集共用同一运行持有者
+	// 与轮询端点，按 instrument_symbol=future 分支；结果落 cdeu.finv_quote_realtime_future。
+	if normalized.FilterInstrumentSymbol == FuturesInstrumentSymbol {
+		return s.startFuturesListRun(normalized)
+	}
+
 	params := map[string]any{
 		"instrument_symbol":  normalized.FilterInstrumentSymbol,
 		"market_type":        normalized.FilterMarketType,
@@ -244,6 +250,118 @@ func (s *Service) StartStockListRun(opts StockListCollectOptions) (StockListRun,
 
 	run, _ := s.stockListRunner.snapshot(runID)
 	return run, nil
+}
+
+// startFuturesListRun 启动一次期货列表采集（需求 11274）。
+//
+// 与股票列表采集共用 StockListRunner（运行状态 + 日志 + 轮询接口），
+// 因此前端「行情快照同步」页无需新增接口：同一个 /Run 接口按 instrument_symbol 分支。
+// 采集范围来自 cdeu.finv_quote_cdeu_future_sync_config，结果落 cdeu.finv_quote_realtime_future。
+func (s *Service) startFuturesListRun(opts StockListCollectOptions) (StockListRun, error) {
+	if s.stockListRunner == nil {
+		s.stockListRunner = newStockListRunner()
+	}
+	futuresOpts := FutureListCollectOptions{
+		PageSize:          opts.PageSize,
+		PageStart:         opts.PageStart,
+		Interval:          opts.Interval,
+		MaxRetries:        opts.MaxRetries,
+		RetryBackoff:      opts.RetryBackoff,
+		RequestTimeout:    opts.RequestTimeout,
+		MaxPages:          opts.MaxPages,
+		ContinueOnError:   opts.ContinueOnError,
+		FilterFuturesType: opts.FilterFuturesType,
+		FilterMarketType:  opts.FilterMarketType,
+		OverrideCountPlan: opts.OverrideCountPlan,
+		MarkOffline:       true,
+		Extra:             opts.Extra,
+	}.Normalize()
+
+	params := map[string]any{
+		"instrument_symbol":  FuturesInstrumentSymbol,
+		"futures_type":       futuresOpts.FilterFuturesType,
+		"market_type":        futuresOpts.FilterMarketType,
+		"count_plan":         futuresOpts.OverrideCountPlan,
+		"page_size":          futuresOpts.PageSize,
+		"page_start":         futuresOpts.PageStart,
+		"interval_ms":        futuresOpts.Interval.Milliseconds(),
+		"max_retries":        futuresOpts.MaxRetries,
+		"retry_backoff_ms":   futuresOpts.RetryBackoff.Milliseconds(),
+		"request_timeout_ms": futuresOpts.RequestTimeout.Milliseconds(),
+		"max_pages":          futuresOpts.MaxPages,
+		"continue_on_error":  futuresOpts.ContinueOnError,
+		"target_table":       tableFutureList,
+	}
+	runID, err := s.stockListRunner.begin(params)
+	if err != nil {
+		return StockListRun{}, err
+	}
+
+	s.stockListRunner.appendLog(runID, StockListRunLog{
+		Level: "INFO",
+		Message: fmt.Sprintf("任务已启动：期货列表采集，每页 %d 条、页间间隔 %s、重试 %d 次、分类=%s",
+			futuresOpts.PageSize, futuresOpts.Interval, futuresOpts.MaxRetries,
+			futureListFilterLabel(futuresOpts.FilterFuturesType)),
+	})
+
+	go func() {
+		fetcher := s.futureListFetcher
+		if fetcher == nil {
+			fetcher = NewFutureListFetcher()
+		}
+		collector := NewFutureListCollector(s.store, fetcher, s.store, nil).WithHook(
+			func(event StockListCollectEvent) {
+				s.stockListRunner.appendLog(runID, StockListCollectEventToLog(event))
+			})
+		results, collectErr := collector.Collect(context.Background(), futuresOpts)
+		s.stockListRunner.finish(runID, toStockListResults(results), collectErr)
+	}()
+
+	run, _ := s.stockListRunner.snapshot(runID)
+	return run, nil
+}
+
+// toStockListResults 把期货结果转成运行快照用的统一结果类型。
+//
+// 运行快照的 results 是 []StockListCollectResult；期货分类维度（futures_type /
+// futures_type_name / rows_offline）在 wire 上额外用 futures_* 键透出，
+// 前端期货 Tab 按这些键展示「分类」，股票分支不受影响。
+func toStockListResults(results []FutureListCollectResult) []StockListCollectResult {
+	if len(results) == 0 {
+		return []StockListCollectResult{}
+	}
+	out := make([]StockListCollectResult, 0, len(results))
+	for _, item := range results {
+		out = append(out, StockListCollectResult{
+			InstrumentSymbol: item.InstrumentSymbol,
+			MarketType:       item.MarketType,
+			FuturesType:      item.FuturesType,
+			FuturesTypeName:  item.FuturesTypeName,
+			Pages:            item.Pages,
+			RowsReceived:     item.RowsReceived,
+			RowsInsert:       item.RowsInsert,
+			RowsUpdate:       item.RowsUpdate,
+			CountExists:      item.CountExists,
+			TotalAvailable:   item.TotalAvailable,
+			ElapsedMs:        item.ElapsedMs,
+			Error:            item.Error,
+		})
+	}
+	return out
+}
+
+// futureListFilterLabel 分类过滤条件的日志文案。
+func futureListFilterLabel(filter string) string {
+	trimmed := strings.TrimSpace(filter)
+	if trimmed == "" || trimmed == FuturesTypeAll {
+		return "全部启用分类"
+	}
+	return "分类 " + trimmed
+}
+
+// FuturesConfigs 读取期货列表采集配置（网页「行情快照同步」期货 Tab 展示用）。
+func (s *Service) FuturesConfigs(ctx context.Context) ([]FutureListCollectConfig, error) {
+	return s.store.LoadFuturesConfigs(ctx)
 }
 
 // StockListRunStatus 查询某次运行的快照；runID 为空时返回最近一次运行。

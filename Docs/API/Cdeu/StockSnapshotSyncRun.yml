@@ -9,7 +9,8 @@ info:
   description: |
     网页「行情快照手动同步」使用的两个端点：
     启动一次列表采集（后台执行，立即返回 run_id），以及轮询运行状态与逐页日志。
-    采集逻辑在 internal/meta/finv/quote/cdeu/quote_list_stock_snapshot_sync.go（可迁移单文件），
+    采集逻辑在 internal/meta/finv/quote/cdeu/quote_list_stock_snapshot_sync.go（股票）与
+    quote_list_futures_snapshot_sync.go（期货，需求 11274）（均单文件、可迁移），
     运行状态与日志由 internal/meta/finv/quote/cdeu/stocklist_run.go 保存在内存（进程重启即清空）。
 servers:
   - url: http://127.0.0.1:16001
@@ -84,7 +85,10 @@ components:
       properties:
         instrument_symbol:
           type: string
-          description: 只采集该品种（stock/etf/future）；空=全部。
+          description: 只采集该品种（stock/etf/future）；空=全部。取 `future` 时走期货分支（见 md 2.4）。
+        futures_type:
+          type: string
+          description: 只采集该期货分类（1~8，仅 instrument_symbol=future 生效）；空或 `all`=全部启用分类。
         market_type:
           type: string
           description: 只采集该市场（1=HK 2=US 4=CN）；空=全部。
@@ -161,6 +165,28 @@ components:
           type: integer
           description: 最近一轮实际可采集数量（配置表回写值）。
 
+    FuturesConfig:
+      type: object
+      required: [market_type, futures_type, count_exists, total_available]
+      properties:
+        market_type:
+          type: string
+          description: 请求用的 marketType（默认 0=聚合口径，可按分类覆盖）。
+        futures_type:
+          type: string
+          description: 期货分类 1~8。
+        futures_type_name:
+          type: [string, 'null']
+          description: 分类中文名；为空时前端降级显示「分类 N」。
+        count_plan:
+          type: [integer, 'null']
+        count_exists:
+          type: integer
+          description: 该分类当前合约总数（配置表回写值）。
+        total_available:
+          type: integer
+          description: 最近一轮实际可采集数量（配置表回写值）。
+
     RunResult:
       type: object
       required: [instrument_symbol, market_type, pages, rows_receive, insert, update, elapsed_ms]
@@ -169,6 +195,12 @@ components:
           type: string
         market_type:
           type: string
+        futures_type:
+          type: string
+          description: 期货分类（仅 future 分支有值）。
+        futures_type_name:
+          type: string
+          description: 期货分类中文名（可为空）。
         pages:
           type: integer
         rows_receive:
@@ -268,8 +300,20 @@ components:
               $ref: '#/components/schemas/Run'
             configs:
               type: array
+              description: 股票等 moomoo 列表采集配置（cdeu.finv_cdeu_secu_realtime_sync_config）。
               items:
                 $ref: '#/components/schemas/Config'
+            futures_configs:
+              type: array
+              description: 期货分类采集配置（cdeu.finv_quote_cdeu_future_sync_config，需求 11274）。
+              items:
+                $ref: '#/components/schemas/FuturesConfig'
+            error:
+              type: [string, 'null']
+              description: 读取股票采集配置失败的原因。
+            futures_error:
+              type: [string, 'null']
+              description: 读取期货采集配置失败的原因。
 
     ErrorResponse:
       type: object

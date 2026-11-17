@@ -69,6 +69,12 @@ func (h *ExportArchive) RealtimeStockListRunStatus(c *gin.Context) {
 	if cfgErr != nil {
 		log.Printf("[cdeu][stocklist] api run status configs failed err=%v", cfgErr)
 	}
+	// 需求 11274：期货 Tab 的采集配置来自另一张表（cdeu.finv_quote_cdeu_future_sync_config），
+	// 与股票配置分开返回：两张表的主键维度不同（股票是 市场+品种，期货是 市场+分类）。
+	futuresConfigs, futuresCfgErr := h.service.FuturesConfigs(c.Request.Context())
+	if futuresCfgErr != nil {
+		log.Printf("[cdeu][futurelist] api run status configs failed err=%v", futuresCfgErr)
+	}
 
 	var run cdeu.StockListRun
 	found := false
@@ -82,12 +88,14 @@ func (h *ExportArchive) RealtimeStockListRunStatus(c *gin.Context) {
 			// run_id/status/logs/results 保持原有空值形态；额外带上 configs 与 error，
 			// 让前端在没有运行记录时也能渲染品种 Tab 与配置表。
 			"data": gin.H{
-				"run_id":  "",
-				"status":  "IDLE",
-				"logs":    []any{},
-				"results": []any{},
-				"configs": configs,
-				"error":   cfgErr,
+				"run_id":          "",
+				"status":          "IDLE",
+				"logs":            []any{},
+				"results":         []any{},
+				"configs":         configs,
+				"futures_configs": futuresConfigs,
+				"error":           cfgErr,
+				"futures_error":   futuresCfgErr,
 			},
 		})
 		return
@@ -97,9 +105,11 @@ func (h *ExportArchive) RealtimeStockListRunStatus(c *gin.Context) {
 		"code":    0,
 		"message": "OK",
 		"data": gin.H{
-			"run":     run,
-			"configs": configs,
-			"error":   cfgErr,
+			"run":             run,
+			"configs":         configs,
+			"futures_configs": futuresConfigs,
+			"error":           cfgErr,
+			"futures_error":   futuresCfgErr,
 		},
 	})
 }

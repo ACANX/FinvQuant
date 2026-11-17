@@ -93,6 +93,10 @@ var exactTableSchema = map[string][]string{
 	// finv_quote_cdeu_* 约定，因此必须单独固定 schema，否则会被
 	// domainTablePrefixes 误判成 quote.。
 	"finv_quote_secu_kline_min_export": {"cdeu."},
+	// `V300216` 起期货合约实时快照落在 cdeu 域，但表名由用户指定为
+	// `finv_quote_realtime_future`（不带 cdeu 段），因此会被 finv_quote_ 前缀规则
+	// 误判成 quote.；与上条同理，这里固定为 cdeu.。
+	"finv_quote_realtime_future": {"cdeu."},
 }
 
 // forbiddenSchemaPrefixes 已清理淘汰的 schema：代码里出现即视为违规（需求 10834）。

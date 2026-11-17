@@ -76,6 +76,9 @@ type Service struct {
 	// stockListRunner 采集运行持有者（内存；进程重启即清空）。
 	stockListRunner *StockListRunner
 
+	// futureListFetcher 期货列表拉取实现（默认 moomoo 客户端；单测可通过 SetFutureListFetcher 注入）。
+	futureListFetcher FutureListFetcher
+
 	// fxCerFetcher 汇率概览拉取实现（默认 moomoo 客户端；单测可通过 SetFxCERFetcher 注入）。
 	fxCerFetcher FxCERFetcher
 
@@ -111,6 +114,7 @@ func NewService(pool *pgxpool.Pool, options Options) (*Service, error) {
 		running:              map[string]time.Time{},
 		klineFetcher:         quoteapiv2.New(quoteapiv2.Config{}),
 		stockListFetcher:     NewStockListFetcher(),
+		futureListFetcher:    NewFutureListFetcher(),
 		stockListRunner:      newStockListRunner(),
 		fxCerFetcher:         NewFxCERFetcher(),
 		fxCerRateListFetcher: NewFxCERFetcher(),

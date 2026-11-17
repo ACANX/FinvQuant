@@ -4,8 +4,10 @@
 > 路由：`/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync`（需求 11255 由 `FTStockQuoteSnapshotSync` 改名，后端接口路径不变）
 > 所属：导航「行情 → 实时行情 → 行情快照同步」（需求 11158 由「行情快照手动同步」改名）
 > 视图：`Web/src/views/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSyncView.vue`
-> 关联需求：10982（本页）、10976（配置表）、10977（同步服务）、11255（路由改名）、11256（占位 Tab）
+> 关联需求：10982（本页）、10976（配置表）、10977（同步服务）、11255（路由改名）、11256（占位 Tab）、11273/11274（期货 Tab 实装）
 > 关联接口：[`API/Cdeu/StockSnapshotSyncRun.md`](../../../API/Cdeu/StockSnapshotSyncRun.md)（异步启动 + 轮询）
+> 关联表：`cdeu.finv_cdeu_secu_realtime_sync_config`（股票等品种配置）、`cdeu.finv_quote_secu_realtime`（股票结果）、
+> `cdeu.finv_quote_cdeu_future_sync_config`（期货分类配置）、`cdeu.finv_quote_realtime_future`（期货结果）
 
 ## 1. 用途
 
@@ -23,7 +25,7 @@
 | `stock` | 股票 | 配置表（当前唯一有配置行的品种） |
 | `cnetf` | 沪深京ETF | BDFS 指数采集（需求 11263，固定来源，无需配置行；符号 `cnetf`，需求 11265） |
 | `index` | 指数 | 占位 |
-| `future` | 期货 | 占位 |
+| `future` | 期货 | **实装（需求 11274）**：配置表 `cdeu.finv_quote_cdeu_future_sync_config`，结果 `cdeu.finv_quote_realtime_future` |
 | `crypto` | 加密货币 | 占位 |
 | `bsestock` | 北交所股票 | BDFS 板块采集（需求 11262，固定来源，无需配置行） |
 | `etf` | ETF | 占位（需求 11256；与 `cnetf` 刻意分开，需求 11265） |
@@ -35,8 +37,8 @@
 | `forex` | 外汇 | 配置表（插行后出现） |
 | `option` | 期权 | 配置表（插行后出现） |
 
-**占位 Tab（需求 11256 / 11264 / 11266）**：`index` / `etf` / `future` / `crypto` / `cnindex` / `sector` / `portfolio` / `otc` / `gold`
-九个品种按上表顺序**跟在配置表已有品种之后常显**，由前端 `PLACEHOLDER_SYMBOLS` 硬编码（不依赖配置行）：
+**占位 Tab（需求 11256 / 11264 / 11266）**：`index` / `etf` / `crypto` / `cnindex` / `sector` / `portfolio` / `otc` / `gold`
+八个品种按上表顺序**跟在配置表已有品种之后常显**（`future` 已于需求 11274 实装，移出占位清单），由前端 `PLACEHOLDER_SYMBOLS` 硬编码（不依赖配置行）：
 配置表暂无该品种的行时，Tab 照常可点，配置表显示「该品种为占位 Tab：配置表暂无该品种的采集行，暂不参与采集」，
 「开始同步」按钮禁用；后续接入时只要往 `cdeu.finv_cdeu_secu_realtime_sync_config` 插入同符号的配置行，
 即自动转为可采集（无需改前端）。
@@ -47,6 +49,19 @@
 `etf`（占位「ETF」）在「指数」之后，`bsestock` 在「期货 / 加密货币」之后，
 `cnindex`（沪深京指数，占位）与 `cnetf`（沪深京ETF）紧随其后——「开始同步」直接可用，配置表区显示
 「该品种为 BDFS 板块采集（板块 GN2309 北交所上市企业）…结果写入 `cdeu.finv_quote_secu_realtime`（provider=BDFS）」。
+
+#### 2.0.2 期货列表采集（`future`，需求 11274）
+
+| 项 | 内容 |
+|---|---|
+| 数据源 | moomoo `GET /quote-api/quote-v2/get-futures-list`（经 MetaExt `quoteapiv2.GetFuturesList`） |
+| 采集范围 | 配置表 `cdeu.finv_quote_cdeu_future_sync_config` 的启用行，一行=一个「市场 + 分类」；种子 `futures_type='1'..'8'`、`market_type='0'`（聚合口径） |
+| 参数 | 每页默认 40、页码 0-based、页间 2s、重试 2 次；请求必带 `_` 毫秒时间戳（签名输入） |
+| 落库表 | `cdeu.finv_quote_realtime_future`（`V300216`，**主键单列 `stock_id`**） |
+| 字段口径 | 只把已验证的位置化字段提列：`1`=合约代码、`2`=名称、`3`=价格、`4`=涨跌幅（去 `%` 按百分点）、`19`=市场标签；其余进 `fields_json`，`field_list_json` 留档；首页日志打一条字段字典采样 |
+| usc 解析 | `stock_id` → `futu.finv_futu_quote_collect.usc`，再 `upper(市场标签.合约代码)` → `futu.finv_futu_secu_key.usc`；都不命中写 NULL |
+| 下架标记 | 整轮「全部启用分类都成功」才把 `dt_last_seen < 本轮开始时刻` 的行置 `flag_online='0'`，单分类/部分失败跳过 |
+| 页面 | 配置表区显示 8 行分类（分类 / 分类名称（空显示「待确认」）/ 市场 / 计划 / 分类合约总数 / 本轮可采集）；参数区「期货分类」下拉（首项「全部期货分类」）；市场下拉隐藏；结果表首列按分类显示 |
 
 #### 2.0.1 BDFS 板块采集（`bsestock`，需求 11262）
 

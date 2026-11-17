@@ -3,9 +3,10 @@
 > 网页「行情 → 实时行情 → 行情快照手动同步」使用的后端端点。
 > 机器可读契约：[`StockSnapshotSyncRun.yml`](StockSnapshotSyncRun.yml)（OpenAPI 3.1），两者须成对更新。
 >
-> - 采集逻辑：`internal/meta/finv/quote/cdeu/quote_list_stock_snapshot_sync.go`（单文件，可整体迁往 MetaExt）
+> - 采集逻辑：`internal/meta/finv/quote/cdeu/quote_list_stock_snapshot_sync.go`（股票，单文件可整体迁往 MetaExt）
+>   与 `quote_list_futures_snapshot_sync.go`（期货，需求 11274，同款单文件）
 > - 运行状态与日志：`internal/meta/finv/quote/cdeu/stocklist_run.go`（内存保留最近 10 次运行、每次 500 行日志）
-> - 关联需求：10976（配置表）、10977（同步接口）、10982（异步任务 + 前端菜单）
+> - 关联需求：10976（配置表）、10977（同步接口）、10982（异步任务 + 前端菜单）、11273/11274（期货）
 
 ## 1. 两个端点
 
@@ -22,8 +23,9 @@
 
 | 字段 | 类型 | 默认 | 说明 |
 |---|---|---|---|
-| `instrument_symbol` | string | 全部 | 只采集该品种 |
-| `market_type` | string | 全部 | 只采集该市场（`1`=HK、`2`=US、`4`=CN） |
+| `instrument_symbol` | string | 全部 | 只采集该品种（`future`=期货分支，见 2.4） |
+| `market_type` | string | 全部 | 只采集该市场（`1`=HK、`2`=US、`4`=CN）；期货分支不生效（市场取配置行） |
+| `futures_type` | string | 全部 | 只采集该期货分类（`1`~`8`，仅 `instrument_symbol=future` 生效；`all`=全部） |
 | `count_plan` | integer | 配置值 | 覆盖计划采集数量 |
 | `page_size` | integer | `50` | 每页条数（1–500） |
 | `page_start` | integer | `0` | 页码起始值（本接口 **0-based**，`0` 即第一页；直接透传上游 `GetStockList`） |
@@ -71,6 +73,32 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 | 运行状态 / 日志 | 与 moomoo 分支共用同一运行持有者与轮询端点，`results[].instrument_symbol` 为 `bsestock`、`market_type` 为 `BJ` |
 | 主要失败原因 | 接口风控（`hit risk`，需降频或换出口网络）、板块无数据、全部行未解析到 usc |
 
+### 2.4 按品种分支：期货列表采集（需求 11274）
+
+`instrument_symbol` 为 `future` 时走**独立分支**：读 `cdeu.finv_quote_cdeu_future_sync_config`，
+按分类分页拉取 moomoo `get-futures-list`，逐页写 `cdeu.finv_quote_realtime_future`。
+
+| 项 | 行为 |
+|---|---|
+| 请求体 | `instrument_symbol: "future"` 必填；`futures_type` 可选（`1`~`8`，空/`all`=全部启用分类） |
+| 生效参数 | `page_size`（默认 40，接口观测默认值）、`page_start`（默认 0，本接口 0-based）、`interval_ms`（默认 2000）、`max_retries`（2）、`retry_backoff_ms`（2000）、`request_timeout_ms`（20000）、`max_pages`（0=不限）、`count_plan`（覆盖每分类计划数量） |
+| 不生效参数 | `market_type`（每个分类的 `marketType` 取配置行，默认 `0`=聚合口径）、`plate_type`、`rank_type` |
+| 落库表 | `cdeu.finv_quote_realtime_future`，**主键单列 `stock_id`**，整行覆盖；`futures_type` 由最后采集的分类覆盖（采集按分类升序） |
+| 字段口径 | 接口 `fields` 是位置化字典：本仓库只把 `1`=合约代码、`2`=名称、`3`=价格、`4`=涨跌幅（去 `%` 按百分点）、`19`=市场标签提成列；其余原样进 `fields_json`，`field_list_json` 留档 |
+| `usc` 解析 | ① `stock_id` → `futu.finv_futu_quote_collect.usc`；② `upper(市场标签.合约代码)` → `futu.finv_futu_secu_key.usc`；两级都不命中写 NULL（不用合约代码冒充） |
+| 下架标记 | 整轮「全部启用分类都成功」时，把 `dt_last_seen < 本轮开始时刻` 的在售行置 `flag_online='0'`；单分类运行或任一分类失败**跳过**（结果表主键单列 `stock_id`，按分类分批置下架会误标其它分类） |
+| 运行状态 / 日志 | 与 moomoo 股票分支共用同一运行持有者与轮询端点；日志 `market` 段为 `future/<分类>`，整轮下架汇总为 `future/all` |
+| 结果行 | `results[]` 每项带 `futures_type` / `futures_type_name`，`market_type` 为配置行的市场取值 |
+
+```bash
+curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run' \
+  -H 'Authorization: Bearer <token>' -H 'Content-Type: application/json' \
+  -d '{"instrument_symbol":"future","futures_type":"5","interval_ms":200}'
+```
+
+> 分类中文名未确认前，配置表 `futures_type_name` 为空，响应与页面均降级显示「分类 N」；
+> 回填只需 `UPDATE cdeu.finv_quote_cdeu_future_sync_config SET futures_type_name='…' WHERE futures_type='5'`。
+
 ## 3. 轮询状态
 
 `GET .../FTStockQuoteSnapshotSync/Run`（`runId` 省略时取最近一次）：
@@ -99,7 +127,12 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
     },
     "configs": [
       {"instrument_symbol":"stock","market_type":"1","count_plan":2500,"count_exists":3337,"total_available":60}
-    ]
+    ],
+    "futures_configs": [
+      {"market_type":"0","futures_type":"5","futures_type_name":null,"count_plan":null,"count_exists":14,"total_available":14}
+    ],
+    "error": null,
+    "futures_error": null
   }
 }
 ```
@@ -109,8 +142,10 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 | `data.run.status` | `RUNNING` / `SUCCESS` / `PARTIAL` / `FAILED` |
 | `data.run.results[]` | 每个市场的结果（失败时带 `error`） |
 | `data.run.logs[]` | 逐页日志：`begin` / `page` / `retry` / `done`，`level` 为 `INFO`/`WARN`/`ERROR` |
-| `data.configs[]` | 配置表当前内容（含回写的 `count_exists` / `total_available`）；**任何分支都会返回**，含"暂无运行记录" |
-| `data.error` | 读取配置失败的原因（正常为 `null`）；前端据此提示，避免只显示"暂无启用的采集配置" |
+| `data.configs[]` | 股票等 moomoo 列表采集配置（含回写的 `count_exists` / `total_available`）；**任何分支都会返回**，含"暂无运行记录" |
+| `data.futures_configs[]` | 期货分类配置（`cdeu.finv_quote_cdeu_future_sync_config`，`futures_type` 1~8）；同样任何分支都返回（需求 11274） |
+| `data.error` | 读取股票配置失败的原因（正常为 `null`）；前端据此提示，避免只显示"暂无启用的采集配置" |
+| `data.futures_error` | 读取期货配置失败的原因（正常为 `null`） |
 | 无运行记录 | 响应为**扁平结构**（不是 `data.run`）：`run_id` 空串、`status = IDLE`、`logs`/`results` 空数组，且同样带 `configs` 与 `error` |
 
 > 注意：服务刚重启时内存中的运行记录为空，此时若 `configs` 不返回，前端会误判为"该品种暂无启用的采集配置"（需求 10990）。
@@ -128,7 +163,9 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 |---|---|---|
 | 任务启动 | INFO | 含每页条数、间隔、重试次数 |
 | 市场开始 | INFO | 含市场总数、本轮计划、总页数 |
-| 单页完成 | INFO | 首行为页码/条数/累计新增覆盖；其后为**逐页明细**：每行 10 个证券、每页最多 5 行，只展示代码，`[I]`=新增、`[U]`=更新，每格 11 显示列对齐 |
+| 单页完成 | INFO | 首行为页码/条数/累计新增覆盖；其后为**逐页明细**：每行 10 个证券、每页最多 5 行，只展示代码，`[I]`=新增、`[U]`=更新，每格 11 显示列对齐（期货分支每行 10 个合约、每格 13 显示列） |
+| 字段字典采样 | INFO | 期货分支首页额外一行：`fieldId=fieldName/typeN/precN` + `fields` 独有键（用于确认位置化字段口径） |
+| 整轮下架汇总 | INFO | 期货分支整轮成功后一行：`下架标记：N 条合约本轮未再出现…`；跳过时容器日志另有「跳过下架标记（本轮 x/y 个分类、失败 z 个）」 |
 | 单页重试 | WARN | 含重试次数与失败原因 |
 | 市场结束 | INFO / ERROR | 成功为 INFO 汇总，失败为 ERROR |
 

@@ -20,6 +20,26 @@
 
 ### 新增
 
+- **期货列表同步：新增两张表 + 采集链路 + 「行情快照同步」期货 Tab（需求 11273–11278）**
+  - 迁移 `V300216`：新建结果表 `cdeu.finv_quote_realtime_future`（一行一合约、**主键单列 `stock_id`**、
+    `futures_type` 由最后采集的分类覆盖、`usc` 可空、`fields_json`/`field_list_json` 留档、
+    `dt_update`/`dt_last_seen`/`flag_online` 承载下架语义）与配置表
+    `cdeu.finv_quote_cdeu_future_sync_config`（主键 `(market_type, futures_type)`，
+    `market_type` 默认 `'0'` 聚合口径、种子 `futures_type='1'..'8'` 共 8 行、`futures_type_name` 待补）。
+    两表同时登记 `brs.brs_bak_rdb_table_full` 全量备份。结果表名由用户指定、位于 `cdeu` 域，属
+    DbSchemaSpec §1 刻意例外（`schema_qualify_test.go` 的 `exactTableSchema` 已固定为 `cdeu.`）。
+  - 采集：`instrument_symbol=future` 时 `POST .../FTStockQuoteSnapshotSync/Run` 走独立分支，读配置表按
+    `get-futures-list` 分页采集（默认 `pageSize=40`、页间 2s、重试 2 次、必带 `_` 时间戳），逐页 upsert
+    并回写 `count_exists`/`total_available`；`usc` 两级解析（`futu_futu_quote_collect` → `finv_futu_secu_key`），
+    查不到写 NULL。运行状态/日志/轮询端点与股票共用，新增响应字段 `futures_configs`/`futures_error`
+    与请求字段 `futures_type`。
+  - 下架标记只在「本轮全部分类成功」时按整轮水位统一置 `flag_online='0'`；单分类或部分失败跳过（结果表主键
+    单列 `stock_id`，按分类分批置下架会误标其它分类）。
+  - 页面：`/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync` 的「期货」Tab 由占位转实装（配置表、分类下拉、
+    结果按分类展示），菜单与路由不变。
+  - 验证：`go build ./...`、`go test ./internal/meta/finv/quote/cdeu/ -run Future`、
+    `go test ./internal/database/ -run TestSQLSchemaQualified`、`cd Web && npm run build` 全部通过。
+
 - **存量数据迁移（阶段一）：单 provider 快照表增量复制到跨 provider 表（需求 11269）**
   - 迁移 `V300213`：创建 `cdeu.f_finv_quote_secu_realtime_sync(p_limit int DEFAULT 5000)`，把
     `cdeu.finv_cdeu_secu_realtime_stock`（主键 `stock_id`）按 `stock_id` 水位分批复制到

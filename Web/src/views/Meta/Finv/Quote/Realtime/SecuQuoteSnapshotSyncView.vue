@@ -5,6 +5,11 @@
 //   GET  /Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run?runId=  轮询状态 + 逐页日志 + 采集配置
 // 采集逻辑：internal/meta/finv/quote/cdeu/quote_list_stock_snapshot_sync.go
 //
+// 期货（需求 11274）：instrument_symbol='future' 时走独立分支，配置读
+//   cdeu.finv_quote_cdeu_future_sync_config（按 futuresType 1~8 分行），
+//   结果落 cdeu.finv_quote_realtime_future（主键 stock_id），下架由 flag_online 标记。
+//   运行状态 / 日志 / 轮询接口与股票完全共用，故本页只多一份 futures_configs 与分类下拉。
+//
 // Tab 由配置表的 instrument_symbol 去重生成（当前只有 stock），
 // 后续在 cdeu.finv_cdeu_secu_realtime_sync_config 里插入 etf/future/forex/option/crypto
 // 行即可自动出现对应 Tab，无需改前端。
@@ -24,10 +29,22 @@ interface SyncConfig {
   total_available: number
 }
 
-// 单个市场的采集结果
+// 期货列表采集配置（cdeu.finv_quote_cdeu_future_sync_config 一行）
+interface FuturesConfig {
+  market_type: string
+  futures_type: string
+  futures_type_name: string
+  count_plan: number | null
+  count_exists: number
+  total_available: number
+}
+
+// 单个市场的采集结果（期货分支额外带 futures_type / futures_type_name）
 interface RunResult {
   instrument_symbol: string
   market_type: string
+  futures_type?: string
+  futures_type_name?: string
   pages: number
   rows_receive: number
   insert: number
@@ -99,7 +116,11 @@ const SYMBOL_ICONS: Record<string, string> = {
 
 // 占位品种（需求 11256）：按此顺序排在配置表已有品种之后，暂未接入采集，仅出 Tab。
 // 符号与后续配置表的 instrument_symbol 保持一致，接入时插配置行即自动生效。
-const PLACEHOLDER_SYMBOLS = ['index', 'etf', 'future', 'crypto', 'cnindex', 'sector', 'portfolio', 'otc', 'gold']
+// 期货已于需求 11274 接入真实采集，故从占位清单移除（Tab 位置由 SYMBOL_ORDER 决定）。
+const PLACEHOLDER_SYMBOLS = ['index', 'etf', 'crypto', 'cnindex', 'sector', 'portfolio', 'otc', 'gold']
+// 期货符号（需求 11274）：配置读 cdeu.finv_quote_cdeu_future_sync_config，结果落
+// cdeu.finv_quote_realtime_future；运行状态与日志复用同一套接口。
+const FUTURES_SYMBOL = 'future'
 // 已接入真实采集、但配置表（cdeu.finv_cdeu_secu_realtime_sync_config）没有采集行的品种（BDFS 源）：
 // bsestock = 板块 GN2309（北交所上市企业）、cnetf = 国证ETF 指数 399380（沪深京 ETF），全量拉取，无需配置行。
 const FIXED_SYMBOLS = ['bsestock', 'cnetf']
@@ -116,6 +137,8 @@ const MARKET_LABELS: Record<string, string> = { '1': 'HK 港股', '2': 'US 美�
 
 const run = ref<StockListRun | null>(null)
 const configs = ref<SyncConfig[]>([])
+// 期货采集配置（cdeu.finv_quote_cdeu_future_sync_config，按 futuresType 1~8 分 8 行）
+const futuresConfigs = ref<FuturesConfig[]>([])
 // 上一次已提示过的「读取配置失败」原因，避免轮询期间重复弹 Toast
 let lastConfigError = ''
 const activeSymbol = ref('stock')
@@ -124,6 +147,8 @@ const logBox = ref<HTMLElement | null>(null)
 
 // 采集范围与节奏（对应后端 StockListCollectRequest；市场为空=该品种全部市场）
 const marketType = ref('')
+// 期货分类（仅期货 Tab 生效；空=全部启用分类）
+const futuresType = ref('')
 const countPlan = ref<number | null>(null)
 // 每页条数默认值：BDFS 板块采集默认 500（接口 rn），其余品种沿用 50
 const BDFS_DEFAULT_PAGE_SIZE = 500
@@ -146,6 +171,9 @@ const symbols = computed(() => {
   for (const item of configs.value) push(item.instrument_symbol)
   if (!present.length) push('stock')
   for (const symbol of FIXED_SYMBOLS) push(symbol)
+  // 期货（需求 11274）：配置在 cdeu.finv_quote_cdeu_future_sync_config，不在股票配置表里，
+  // 因此必须常显（否则从占位清单移除后 Tab 会消失）。
+  push(FUTURES_SYMBOL)
   for (const symbol of PLACEHOLDER_SYMBOLS) push(symbol)
   const ordered = SYMBOL_ORDER.filter((symbol) => present.includes(symbol))
   const rest = present.filter((symbol) => !SYMBOL_ORDER.includes(symbol))
@@ -155,12 +183,35 @@ const symbols = computed(() => {
 /** 当前 Tab 是「固定来源」品种（无配置行但已接入真实采集，如 BDFS 板块成分股） */
 const activeIsFixedSource = computed(() => FIXED_SYMBOLS.includes(activeSymbol.value))
 
+/** 当前 Tab 是期货（走 cdeu.finv_quote_cdeu_future_sync_config + 独立结果表） */
+const activeIsFutures = computed(() => activeSymbol.value === FUTURES_SYMBOL)
+
+/** 期货分类下拉：首项「全部」，其余来自配置行（无中文名时显示「分类 N」） */
+const futuresTypeOptions = computed(() => [
+  { title: '全部期货分类', value: '' },
+  ...futuresConfigs.value.map((item) => ({
+    title: futuresTypeLabel(item),
+    value: item.futures_type,
+  })),
+])
+
+/** 当前品种是否有可启动的采集配置（配置表行 / 固定来源 / 期货配置行） */
+const canStart = computed(
+  () =>
+    symbolConfigs.value.length > 0 ||
+    activeIsFixedSource.value ||
+    (activeIsFutures.value && futuresConfigs.value.length > 0),
+)
+
 /** 当前 Tab 品种的配置行 */
 const symbolConfigs = computed(() => configs.value.filter((item) => item.instrument_symbol === activeSymbol.value))
 
 /** 当前 Tab 是占位品种（在占位清单里且配置表尚无该品种的行） */
 const activeIsPlaceholder = computed(
-  () => PLACEHOLDER_SYMBOLS.includes(activeSymbol.value) && !symbolConfigs.value.length,
+  () =>
+    PLACEHOLDER_SYMBOLS.includes(activeSymbol.value) &&
+    !symbolConfigs.value.length &&
+    !(activeIsFutures.value && futuresConfigs.value.length),
 )
 
 /** 当前 Tab 品种的市场选项（来自配置行，插新行自动生效） */
@@ -223,6 +274,19 @@ function marketLabel(value: string) {
   return MARKET_LABELS[value] ?? value
 }
 
+/** 期货分类显示名：有中文名用中文名，否则降级「分类 N」（配置表 futures_type_name 待补） */
+function futuresTypeLabel(item: FuturesConfig) {
+  const name = (item.futures_type_name ?? '').trim()
+  return name || `分类 ${item.futures_type}`
+}
+
+/** 结果行里的分类显示（期货 Tab 专用） */
+function resultFuturesLabel(item: RunResult) {
+  const name = (item.futures_type_name ?? '').trim()
+  if (name) return name
+  return item.futures_type ? `分类 ${item.futures_type}` : '—'
+}
+
 function logColor(level: string) {
   if (level === 'ERROR') return 'text-error'
   if (level === 'WARN') return 'text-warning'
@@ -238,9 +302,13 @@ async function scrollLogs() {
 async function loadStatus(runId = '') {
   try {
     const query = runId ? `?runId=${encodeURIComponent(runId)}` : ''
-    const payload = await apiGet<{ run: StockListRun; configs: SyncConfig[]; error?: string }>(
-      `${STATUS_API}${query}`,
-    )
+    const payload = await apiGet<{
+      run: StockListRun
+      configs: SyncConfig[]
+      futures_configs?: FuturesConfig[]
+      error?: string
+      futures_error?: string
+    }>(`${STATUS_API}${query}`)
     // 后端读取配置失败时（配置表不存在/无权限等）会把原因放在 data.error；
     // 不提示的话页面只会显示「暂无启用的采集配置」，无法定位（需求 10990）。
     const cfgError = payload?.error ? String(payload.error) : ''
@@ -248,6 +316,13 @@ async function loadStatus(runId = '') {
       lastConfigError = cfgError
       showToast(`读取采集配置失败：${cfgError}`, 'error')
     }
+    // 期货配置来自另一张表（cdeu.finv_quote_cdeu_future_sync_config），单独的键返回
+    const futuresError = payload?.futures_error ? String(payload.futures_error) : ''
+    if (futuresError && futuresError !== lastConfigError) {
+      lastConfigError = futuresError
+      showToast(`读取期货采集配置失败：${futuresError}`, 'error')
+    }
+    if (payload?.futures_configs) futuresConfigs.value = payload.futures_configs
     if (payload?.configs) {
       configs.value = payload.configs
       // 首次加载后确保当前 Tab 有效：占位品种也是有效 Tab（需求 11256），
@@ -299,7 +374,10 @@ async function startSync() {
       max_pages: maxPages.value,
     }
     const fixedMarket = FIXED_MARKET[activeSymbol.value]
-    if (fixedMarket) body.market_type = fixedMarket.value
+    if (activeIsFutures.value) {
+      // 期货：分类可选，市场由配置行决定（默认 0=聚合口径），前端不传 market_type
+      if (futuresType.value) body.futures_type = futuresType.value
+    } else if (fixedMarket) body.market_type = fixedMarket.value
     else if (marketType.value) body.market_type = marketType.value
     if (countPlan.value !== null && countPlan.value > 0) body.count_plan = countPlan.value
 
@@ -322,6 +400,7 @@ async function refreshOnce() {
 
 function resetOptions() {
   marketType.value = FIXED_MARKET[activeSymbol.value]?.value ?? ''
+  futuresType.value = ''
   countPlan.value = null
   pageSize.value = activeIsFixedSource.value ? BDFS_DEFAULT_PAGE_SIZE : PAGE_SIZE_DEFAULT
   intervalMs.value = 6000
@@ -333,6 +412,7 @@ function resetOptions() {
 /** 切换 Tab：清空当前品种专属的筛选值，避免把上个品种的市场带过去 */
 function onSymbolChange() {
   marketType.value = FIXED_MARKET[activeSymbol.value]?.value ?? ''
+  futuresType.value = ''
   countPlan.value = null
   pageSize.value = activeIsFixedSource.value ? BDFS_DEFAULT_PAGE_SIZE : PAGE_SIZE_DEFAULT
   scrollLogs()
@@ -359,7 +439,9 @@ onBeforeUnmount(stopPolling)
     </v-card-title>
     <v-card-subtitle>
       读 cdeu.finv_cdeu_secu_realtime_sync_config 的启用配置，按品种分 Tab、按市场分页拉取 moomoo get-stock-list，
-      逐页写入 cdeu.finv_quote_secu_realtime（主键 usc），并回写 count_exists / total_available
+      逐页写入 cdeu.finv_quote_secu_realtime（主键 usc），并回写 count_exists / total_available；
+      期货 Tab（需求 11274）读 cdeu.finv_quote_cdeu_future_sync_config，按 futuresType 1~8 分页拉取
+      moomoo get-futures-list，逐页写入 cdeu.finv_quote_realtime_future（主键 stock_id）
     </v-card-subtitle>
 
     <!-- 证券品种 Tab：配置表已有品种 + 占位品种（需求 11256），配置行新增即自动生效 -->
@@ -382,7 +464,15 @@ onBeforeUnmount(stopPolling)
       <div class="text-subtitle-2 mb-1">{{ symbolLabel(activeSymbol) }}采集配置（数据库）</div>
       <v-table density="compact" class="text-caption mb-4">
         <thead>
-          <tr>
+          <tr v-if="activeIsFutures">
+            <th class="text-no-wrap">分类</th>
+            <th class="text-no-wrap">分类名称</th>
+            <th class="text-no-wrap">市场</th>
+            <th class="text-no-wrap text-right">计划数量</th>
+            <th class="text-no-wrap text-right">分类合约总数</th>
+            <th class="text-no-wrap text-right">本轮可采集</th>
+          </tr>
+          <tr v-else>
             <th class="text-no-wrap">品种</th>
             <th class="text-no-wrap">市场</th>
             <th class="text-no-wrap text-right">计划数量</th>
@@ -391,16 +481,31 @@ onBeforeUnmount(stopPolling)
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in symbolConfigs" :key="`${item.instrument_symbol}-${item.market_type}`">
-            <td>{{ symbolLabel(item.instrument_symbol) }}</td>
-            <td class="text-no-wrap">{{ marketLabel(item.market_type) }}</td>
-            <td class="text-right">{{ item.count_plan ?? '全量' }}</td>
-            <td class="text-right">{{ item.count_exists || '—' }}</td>
-            <td class="text-right">{{ item.total_available || '—' }}</td>
-          </tr>
-          <tr v-if="!symbolConfigs.length">
-            <td colspan="5" class="text-center text-medium-emphasis py-4">
-              <template v-if="activeIsPlaceholder">
+          <template v-if="activeIsFutures">
+            <tr v-for="item in futuresConfigs" :key="`future-${item.market_type}-${item.futures_type}`">
+              <td class="text-no-wrap">{{ futuresTypeLabel(item) }}</td>
+              <td class="text-no-wrap">{{ item.futures_type_name || '待确认' }}</td>
+              <td class="text-no-wrap">{{ item.market_type }}</td>
+              <td class="text-right">{{ item.count_plan ?? '全量' }}</td>
+              <td class="text-right">{{ item.count_exists || '—' }}</td>
+              <td class="text-right">{{ item.total_available || '—' }}</td>
+            </tr>
+          </template>
+          <template v-else>
+            <tr v-for="item in symbolConfigs" :key="`${item.instrument_symbol}-${item.market_type}`">
+              <td>{{ symbolLabel(item.instrument_symbol) }}</td>
+              <td class="text-no-wrap">{{ marketLabel(item.market_type) }}</td>
+              <td class="text-right">{{ item.count_plan ?? '全量' }}</td>
+              <td class="text-right">{{ item.count_exists || '—' }}</td>
+              <td class="text-right">{{ item.total_available || '—' }}</td>
+            </tr>
+          </template>
+          <tr v-if="activeIsFutures ? !futuresConfigs.length : !symbolConfigs.length">
+            <td :colspan="activeIsFutures ? 6 : 5" class="text-center text-medium-emphasis py-4">
+              <template v-if="activeIsFutures">
+                期货采集配置表暂无启用行（可在 cdeu.finv_quote_cdeu_future_sync_config 插入 futures_type 1~8）
+              </template>
+              <template v-else-if="activeIsPlaceholder">
                 该品种为占位 Tab：配置表暂无该品种的采集行，暂不参与采集
               </template>
               <template v-else-if="activeSymbol === 'bsestock'">
@@ -421,6 +526,18 @@ onBeforeUnmount(stopPolling)
       <div class="text-subtitle-2 mb-1">本次采集参数（{{ symbolLabel(activeSymbol) }}）</div>
       <div class="d-flex flex-wrap align-center ga-2 mb-4">
         <v-select
+          v-if="activeIsFutures"
+          v-model="futuresType"
+          :items="futuresTypeOptions"
+          item-title="title"
+          item-value="value"
+          label="期货分类"
+          density="compact"
+          hide-details
+          style="max-width: 180px"
+        />
+        <v-select
+          v-else
           v-model="marketType"
           :items="marketOptions"
           :disabled="activeIsFixedSource"
@@ -451,8 +568,8 @@ onBeforeUnmount(stopPolling)
           color="primary"
           prepend-icon="mdi-play"
           :loading="starting"
-          :disabled="anyRunning || (!symbolConfigs.length && !activeIsFixedSource)"
-          :title="symbolConfigs.length || activeIsFixedSource ? '' : '该品种暂无采集配置，无法启动同步'"
+          :disabled="anyRunning || !canStart"
+          :title="canStart ? '' : '该品种暂无采集配置，无法启动同步'"
           @click="startSync"
         >
           开始同步
@@ -486,8 +603,14 @@ onBeforeUnmount(stopPolling)
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in symbolResults" :key="`${item.instrument_symbol}-${item.market_type}`">
-            <td class="text-no-wrap">{{ symbolLabel(item.instrument_symbol) }} / {{ marketLabel(item.market_type) }}</td>
+          <tr
+            v-for="item in symbolResults"
+            :key="`${item.instrument_symbol}-${item.market_type}-${item.futures_type ?? ''}`"
+          >
+            <td class="text-no-wrap">
+              <template v-if="item.futures_type">{{ resultFuturesLabel(item) }}</template>
+              <template v-else>{{ symbolLabel(item.instrument_symbol) }} / {{ marketLabel(item.market_type) }}</template>
+            </td>
             <td class="text-right">{{ item.pages }}</td>
             <td class="text-right">{{ item.rows_receive }}</td>
             <td class="text-right">{{ item.insert }}</td>

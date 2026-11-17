@@ -112,6 +112,9 @@ type StockListCollectOptions struct {
 	FilterInstrumentSymbol string
 	// FilterMarketType 只采集该市场（空=全部）。
 	FilterMarketType string
+	// FilterFuturesType 只采集该期货分类（仅 instrument_symbol=future 分支消费；
+	// 空或 FuturesTypeAll 表示全部启用分类，需求 11274）。
+	FilterFuturesType string
 	// OverrideCountPlan 覆盖配置里的计划数量（nil=用配置值）。
 	OverrideCountPlan *int
 	// Extra 预留扩展参数（当前未消费，供后续新增控制项透传）。
@@ -229,14 +232,18 @@ type StockListConfigStore interface {
 type StockListCollectResult struct {
 	InstrumentSymbol string `json:"instrument_symbol"`
 	MarketType       string `json:"market_type"`
-	Pages            int    `json:"pages"`
-	RowsReceived     int64  `json:"rows_receive"`
-	RowsInsert       int64  `json:"insert"`
-	RowsUpdate       int64  `json:"update"`
-	CountExists      int    `json:"count_exists"`
-	TotalAvailable   int    `json:"total_available"`
-	ElapsedMs        int64  `json:"elapsed_ms"`
-	Error            string `json:"error,omitempty"`
+	// FuturesType / FuturesTypeName 期货分类维度（仅 instrument_symbol=future 分支有值，
+	// 股票等其它品种为空串，不影响既有响应形态，需求 11274）。
+	FuturesType     string `json:"futures_type,omitempty"`
+	FuturesTypeName string `json:"futures_type_name,omitempty"`
+	Pages           int    `json:"pages"`
+	RowsReceived    int64  `json:"rows_receive"`
+	RowsInsert      int64  `json:"insert"`
+	RowsUpdate      int64  `json:"update"`
+	CountExists     int    `json:"count_exists"`
+	TotalAvailable  int    `json:"total_available"`
+	ElapsedMs       int64  `json:"elapsed_ms"`
+	Error           string `json:"error,omitempty"`
 }
 
 // StockListCollector 列表采集器（无状态，可并发调用不同配置）。
@@ -574,6 +581,7 @@ func stockListSleep(ctx context.Context, d time.Duration) error {
 type StockListCollectRequest struct {
 	InstrumentSymbol string            `json:"instrument_symbol,omitempty"`
 	MarketType       string            `json:"market_type,omitempty"`
+	FuturesType      string            `json:"futures_type,omitempty"`
 	CountPlan        *int              `json:"count_plan,omitempty"`
 	PlateType        string            `json:"plate_type,omitempty"`
 	RankType         string            `json:"rank_type,omitempty"`
@@ -601,6 +609,7 @@ func (r StockListCollectRequest) Options() StockListCollectOptions {
 		ContinueOnError:        true,
 		FilterInstrumentSymbol: r.InstrumentSymbol,
 		FilterMarketType:       r.MarketType,
+		FilterFuturesType:      r.FuturesType,
 		OverrideCountPlan:      r.CountPlan,
 		Extra:                  r.Extra,
 	}
