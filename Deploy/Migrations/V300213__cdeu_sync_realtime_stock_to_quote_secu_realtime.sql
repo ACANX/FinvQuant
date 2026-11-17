@@ -7,6 +7,8 @@
 --   跨 provider 归一快照表 finv_quote_secu_realtime（主键 usc）在阶段一并存；
 --   本迁移把前者存量增量复制到后者，**不做 DELETE/TRUNCATE**，
 --   业务代码切换留到下一阶段（切换前两张表由本函数保持同步）。
+--   冲突取舍（需求 11270）：同一 usc 两表都有时**只比 dt_update**，
+--   谁更新用谁，不设 provider 优先级（源表更新则连同 provider 一起写成 FTMM）。
 --
 -- 字段映射：
 --   · 34 列中 32 列同名直传；另两处转换：
@@ -18,9 +20,11 @@
 -- 增量与幂等：
 --   · 复制逻辑封装为 cdeu.f_finv_quote_secu_realtime_sync(p_limit)
 --     —— 按 stock_id 水位分批（默认 5000 行/批），可被后续业务代码定时重复调用；
---   · 冲突策略：ON CONFLICT (usc) DO UPDATE，且仅当
---       目标行 provider = 'FTMM' 且源 dt_update 更新时才覆盖
---     —— ① 重复执行不产生额外写入；② **不覆盖 BDFS 写入的行**（两 provider 不互相踩）；
+--   · 冲突策略：ON CONFLICT (usc) DO UPDATE，**只比 dt_update：谁更新谁赢**，
+--     不设 provider 优先级（需求 11270）——
+--     ① 重复执行不产生额外写入（dt_update 相同则不更新）；
+--     ② 源表快照比目标新时连 provider 一起覆盖为 'FTMM'，
+--        目标更新时保持原行（可能是 BDFS 采的更晚快照）；
 --   · 源表 usc 为空的行跳过（无法定位主键），函数返回跳过数供日志/巡检使用。
 --
 -- 生产自动执行：本文件随发行包发布，服务启动时按 schema_version 顺序应用；
@@ -118,11 +122,11 @@ BEGIN
                 rmb_circulation_market_value = EXCLUDED.rmb_circulation_market_value,
                 rmb_trade_trunover       = EXCLUDED.rmb_trade_trunover,
                 rmb_price_nominal        = EXCLUDED.rmb_price_nominal,
-                remark                   = EXCLUDED.remark
-            -- 保护其它 provider 的行；同 provider 只在源快照更新时覆盖
-            WHERE cdeu.finv_quote_secu_realtime.provider = 'FTMM'
-              AND (cdeu.finv_quote_secu_realtime.dt_update IS NULL
-                   OR cdeu.finv_quote_secu_realtime.dt_update < EXCLUDED.dt_update)
+                remark                   = EXCLUDED.remark,
+                provider                 = EXCLUDED.provider
+            -- 谁更新（dt_update 更大）谁赢，不设 provider 优先级（需求 11270）
+            WHERE cdeu.finv_quote_secu_realtime.dt_update IS NULL
+               OR cdeu.finv_quote_secu_realtime.dt_update < EXCLUDED.dt_update
             RETURNING 1
         )
         SELECT (SELECT count(*) FROM done), (SELECT max(stock_id) FROM batch)
@@ -145,7 +149,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION cdeu.f_finv_quote_secu_realtime_sync(int)
-    IS '把 cdeu.finv_cdeu_secu_realtime_stock 的存量/增量快照复制到 cdeu.finv_quote_secu_realtime（provider=FTMM，源表只读；按 stock_id 水位分批，不覆盖其它 provider 的行）';
+    IS '把 cdeu.finv_cdeu_secu_realtime_stock 的存量/增量快照复制到 cdeu.finv_quote_secu_realtime（provider=FTMM，源表只读；按 stock_id 水位分批，按 dt_update 决胜、不设 provider 优先级）';
 
 -- ---------------------------------------------------------------------
 -- 2. 执行一次存量迁移（幂等：重复执行只同步变更新行）

@@ -26,8 +26,8 @@
     `cdeu.finv_quote_secu_realtime`（主键 `usc`）；**源表只读、不 DELETE/TRUNCATE**。
   - 字段映射：`stock_id` `BIGINT → TEXT`、`price_direct` 的 `0 → =`、`provider` 固定 `FTMM`，其余 32 列直传；
     `gmt_create`/`gmt_update` 交给目标表默认值与触发器。
-  - 冲突策略：`ON CONFLICT (usc) DO UPDATE` 仅当目标行 `provider = 'FTMM'` 且源 `dt_update` 更新时才覆盖
-    —— 重复执行零写入（幂等），且不覆盖 BDFS 写入的行。
+  - 冲突策略：`ON CONFLICT (usc) DO UPDATE`，**只比 `dt_update`：谁更新谁赢**（需求 11270），
+    源表更晚时连 `provider` 一起覆盖为 `FTMM`；重复执行零写入（幂等）。
   - 迁移末尾自动执行一次并校验「源表 usc 已全部可在目标表查到」；生产随发行包启动自动应用。
   - 本机实测：源表 13,905 行 → 同步 13,827 行（78 行 usc 已被 BDFS 行占用而按策略跳过），
     目标表 FTMM 13,827 + BDFS 2,043；二次执行 `synced=0`；源表行数不变。
@@ -4528,6 +4528,13 @@
     校验改为按「交易所 + 代码」196 组判定，不再要求 `usc` 等于代码。
   - 验证：本机重复执行 `验证通过`；模拟生产冲突（预置 `usc='589880.SH'` 的 `(11,'589880')` 行）后执行，
     `INSERT 0 195` 且无报错，回滚后数据完整。
+
+- **存量迁移覆盖策略改为「按 dt_update 决胜，无 provider 优先级」（需求 11270）**
+  - 原策略（11269）为「不覆盖 BDFS 行」，会让源表更晚的快照被丢弃；实测 78 行 `usc` 与 BDFS 重叠，
+    当前恰好都是 BDFS 更新，但语义上不应有 provider 优先级。
+  - 现策略：`ON CONFLICT (usc) DO UPDATE` 只比较 `dt_update`，源更新则整行覆盖并写
+    `provider='FTMM'`，目标更新则保持原行。
+  - 验证：事务内把一条 BDFS 重叠行的源 `dt_update` 改晚 → 调函数 → 目标行 `provider` 变 `FTMM`、数值同步（回滚验证）。
 
 ## [0.1.3] - 2026-10-29
 
