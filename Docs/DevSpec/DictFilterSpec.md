@@ -3,7 +3,7 @@
 > 所属：FinvQuant 开发规范 · 存放：`Docs/DevSpec/`
 > 适用范围：前端（`Web/`）所有**有字典 / 可枚举**的查询筛选控件（`v-select` / `v-autocomplete` / `v-btn-toggle` / 日期区间）。
 > 关联：[`DictColumnSpec.md`](DictColumnSpec.md)（同一个字典在**表格列**里的口径：只显示中文）、[`UiSpec.md`](UiSpec.md)（组件与反馈统一）、[`MenuSpec.md`](MenuSpec.md)（菜单与状态列）、[`DocSpec.md`](DocSpec.md)。
-> 参考实现：`Web/src/views/Meta/Finv/Quote/Realtime/UscMappingView.vue`（规则 / 市场 / 状态 / 类别筛选）、`Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue`（上传状态 / 文件类型）、`Web/src/views/Meta/BRS/Backup/Finv/BrsSliceView.vue`（分片维度）。
+> 参考实现：`Web/src/views/Meta/Finv/Quote/Realtime/UscMappingView.vue`（规则 / 市场 / 状态 / 类别筛选）、`Web/src/views/Meta/Finv/Quote/DeDup/Export/FileView.vue`（上传状态 / 文件类型）、`Web/src/views/Meta/BRS/Backup/Finv/BrsSliceView.vue`（分片维度）。
 
 ## 1. 核心口径
 

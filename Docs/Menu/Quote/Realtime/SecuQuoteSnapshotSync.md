@@ -1,10 +1,10 @@
-# 行情快照同步（SnapshotSync）
+# 行情快照同步（SecuQuoteSnapshotSync）
 
 > 菜单 key：`quote-realtime-snapshot-sync`
-> 路由：`/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync`
+> 路由：`/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync`（需求 11255 由 `FTStockQuoteSnapshotSync` 改名，后端接口路径不变）
 > 所属：导航「行情 → 实时行情 → 行情快照同步」（需求 11158 由「行情快照手动同步」改名）
-> 视图：`Web/src/views/Meta/Finv/Quote/Realtime/StockSnapshotSyncView.vue`
-> 关联需求：10982（本页）、10976（配置表）、10977（同步服务）
+> 视图：`Web/src/views/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSyncView.vue`
+> 关联需求：10982（本页）、10976（配置表）、10977（同步服务）、11255（路由改名）、11256（占位 Tab）
 > 关联接口：[`API/Cdeu/StockSnapshotSyncRun.md`](../../../API/Cdeu/StockSnapshotSyncRun.md)（异步启动 + 轮询）
 
 ## 1. 用途
@@ -16,16 +16,27 @@
 
 ### 2.0 证券品种 Tab（需求 10986）
 
-页面顶部按**证券品种**分 Tab，Tab 列表由配置表的 `instrument_symbol` 去重生成：
+页面顶部按**证券品种**分 Tab，Tab 列表 = 配置表的 `instrument_symbol` 去重（当前 `stock`）+ 占位品种（需求 11256，固定顺序补齐）：
 
-| 品种符号 | Tab 名 |
-|---|---|
-| `stock` | 股票（当前唯一） |
-| `etf` | ETF |
-| `future` | 期货 |
-| `forex` | 外汇 |
-| `option` | 期权 |
-| `crypto` | 加密货币 |
+| 品种符号 | Tab 名 | 来源 |
+|---|---|---|
+| `stock` | 股票 | 配置表（当前唯一有配置行的品种） |
+| `etf` | ETF | 占位 |
+| `index` | 指数 | 占位 |
+| `future` | 期货 | 占位 |
+| `crypto` | 加密货币 | 占位 |
+| `bsestock` | 北交所股票 | 占位 |
+| `sector` | 板块 | 占位 |
+| `portfolio` | 投资组合 | 占位 |
+| `gold` | 黄金 | 占位 |
+| `forex` | 外汇 | 配置表（插行后出现） |
+| `option` | 期权 | 配置表（插行后出现） |
+
+**占位 Tab（需求 11256）**：`etf` / `index` / `future` / `crypto` / `bsestock` / `sector` / `portfolio` /
+`gold` 八个品种按上表顺序**跟在配置表已有品种之后常显**，由前端 `PLACEHOLDER_SYMBOLS` 硬编码（不依赖配置行）：
+配置表暂无该品种的行时，Tab 照常可点，配置表显示「该品种为占位 Tab：配置表暂无该品种的采集行，暂不参与采集」，
+「开始同步」按钮禁用；后续接入时只要往 `cdeu.finv_cdeu_secu_realtime_sync_config` 插入同符号的配置行，
+即自动转为可采集（无需改前端）。
 
 扩展方式：往 `cdeu.finv_cdeu_secu_realtime_sync_config` 插一行对应 `instrument_symbol` 的配置，
 **无需改前端**——Tab 自动出现，该 Tab 的市场下拉也由该品种的配置行生成。
@@ -56,7 +67,7 @@
 | 重试次数 | `max_retries` | 默认 2 |
 | 退避(ms) | `retry_backoff_ms` | 默认 2000 |
 | 页数上限 | `max_pages` | 0=不限 |
-| 开始同步 / 刷新状态 / 重置参数 | — | 「开始同步」只采**当前 Tab 品种**（请求体带 `instrument_symbol`）；任务运行中按钮置灰 |
+| 开始同步 / 刷新状态 / 重置参数 | — | 「开始同步」只采**当前 Tab 品种**（请求体带 `instrument_symbol`）；任务运行中或该品种无配置行（含占位 Tab）时按钮置灰 |
 
 ### 2.3 汇总与结果
 

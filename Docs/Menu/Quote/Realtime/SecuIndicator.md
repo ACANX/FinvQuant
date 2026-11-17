@@ -1,8 +1,8 @@
-# 证券指标（Indicator）
+# 证券指标（SecuIndicator）
 
 > 所属：导航「行情 → 实时行情 → 证券指标」
 > 路由：`/Meta/Finv/Quote/Realtime/SecuIndicator`（需求 11252 由 `FTIndicator` 改名）
-> 视图：`Web/src/views/Meta/Finv/Quote/Realtime/IndicatorView.vue`
+> 视图：`Web/src/views/Meta/Finv/Quote/Realtime/SecuIndicatorView.vue`
 > 列选择组件：`Web/src/views/Meta/Finv/Quote/Realtime/IndicatorColumnPicker.vue`
 > 列配置（分组 / 预设 / 格式化）：`Web/src/config/indicatorColumns.ts`
 > 菜单 key：`quote-realtime-secu-indicator`（父分组 `quote-realtime`）

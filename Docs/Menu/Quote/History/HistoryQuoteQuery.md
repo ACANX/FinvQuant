@@ -1,8 +1,8 @@
 # 历史行情查询（QuoteQuery）— 菜单业务文档
 
-> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/HistoryQuote/HistoryQuoteQuery.md`
+> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Quote/History/HistoryQuoteQuery.md`
 > 对应视图：`Web/src/views/Meta/Finv/Quote/History/HistoryQuoteQueryView.vue`
-> 接口契约：见 [Docs/API/HistoryQuote/HistoryQuote.md](../../API/HistoryQuote/HistoryQuote.md)
+> 接口契约：见 [Docs/API/HistoryQuote/HistoryQuote.md](../../../API/HistoryQuote/HistoryQuote.md)
 
 ## 1. 菜单入口
 

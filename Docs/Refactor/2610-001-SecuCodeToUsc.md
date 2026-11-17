@@ -78,7 +78,7 @@
 | A-26 | `Docs/API/HistoryQuote/HistoryQuote.md`（8 处） | 查询参数、响应字段、错误表、curl 示例全部改 `usc` | `grep -c "secu_code\|secuCode"` 输出 `0` | ☑ 2026-10-24 |
 | A-27 | `Docs/API/HistoryQuote/ImportsUpload.md`（5 处） | 表单字段、响应回显、主键描述「`ts + usc`」 | 同上输出 `0` | ☑ 2026-10-24 |
 | A-28 | `Docs/API/Backtest/{RunCreate,RunList,StrategyList,StrategySave}.md` | 请求/响应字段与 curl 示例 | 四篇 `grep -c "secu_code\|secuCode"` 均为 `0` | ☑ 2026-10-24 |
-| A-29 | `Docs/Menu/HistoryQuote/{HistoryQuoteQuery,HistoryQuoteImport}.md`、`Docs/Menu/Backtest/BacktestGoldFutures.md` | 菜单与接口映射中的字段名 | 三篇输出 `0` | ☑ 2026-10-24 |
+| A-29 | `Docs/Menu/HistoryQuote/{HistoryQuoteQuery,HistoryQuoteImport}.md`、`Docs/Menu/Quant/Backtest/GoldFutures.md` | 菜单与接口映射中的字段名 | 三篇输出 `0` | ☑ 2026-10-24 |
 | A-30 | `Docs/DataFormat/MvsvFileFormat.md` | **仅改**「导入时作为 `secu_code`」→ `usc`；文件头 `Code` 字段说明不变 | `grep -c "secu_code"` 输出 `0` 且 `grep -c "Code"` 不变 | ☑ 2026-10-24 |
 | A-31 | `Docs/DevSpec/ApiSpec.md`（2 处） | 第 20 行小驼峰示例中的 `secuCode` 替换为其他示例（如 `runId`）；第 21 行反面示例中的 `secu_code` 保留或换为 `run_id` 一类，确保规范不出现「`usc` 被禁用」的歧义 | 该两行不再出现 `secuCode`/`secu_code` | ☑ 2026-10-24 |
 | A-32 | `Docs/Asset/Backtest/BacktestFullFlowTask.svg`（1 处） | 流程图节点文本 `secu_code` → `usc` | `grep -c "secu_code"` 输出 `0` | ☑ 2026-10-24 |

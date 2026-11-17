@@ -1,8 +1,8 @@
-# 黄金期货合约回测验证（BacktestGoldFutures）— 菜单业务文档
+# 黄金期货合约回测验证（GoldFutures）— 菜单业务文档
 
-> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Backtest/BacktestGoldFutures.md`
-> 对应视图：`Web/src/views/BacktestGoldFuturesView.vue`
-> 接口契约：见 [Docs/API/Backtest/](../../API/Backtest/)
+> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Quant/Backtest/GoldFutures.md`
+> 对应视图：`Web/src/views/Meta/Finv/Quant/Backtest/GoldFuturesView.vue`
+> 接口契约：见 [Docs/API/Backtest/](../../../API/Backtest/)
 
 ## 1. 菜单入口
 
@@ -11,7 +11,7 @@
 - **菜单 key**：`backtest-gold-futures`
 - **菜单图标**：`mdi-chart-bell-curve`
 - **URL 路由**：`/meta/finvquant/backtest/gold-futures`
-- **对应视图组件**：`Web/src/views/BacktestGoldFuturesView.vue`
+- **对应视图组件**：`Web/src/views/Meta/Finv/Quant/Backtest/GoldFuturesView.vue`
 
 ## 2. 业务功能概述
 
@@ -71,10 +71,10 @@
 
 | 接口 | 接口文档 |
 |------|----------|
-| `GET /API/V1/Meta/Finv/Quant/Backtest/Strategy/List` | [StrategyList.md](../../API/Backtest/StrategyList.md) |
-| `GET /API/V1/Meta/Finv/Quant/Backtest/Account/List` | [AccountList.md](../../API/Backtest/AccountList.md) |
-| `GET /API/V1/Meta/Finv/Quant/Backtest/Environment/List` | [EnvironmentList.md](../../API/Backtest/EnvironmentList.md) |
-| `POST /API/V1/Meta/Finv/Quant/Backtest/Run/Create` | [RunCreate.md](../../API/Backtest/RunCreate.md) |
-| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/List` | [RunList.md](../../API/Backtest/RunList.md) |
-| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/Get` | [RunGet.md](../../API/Backtest/RunGet.md) |
-| `POST /API/V1/Meta/Finv/Quant/Backtest/Run/Cancel` | [RunCancel.md](../../API/Backtest/RunCancel.md) |
+| `GET /API/V1/Meta/Finv/Quant/Backtest/Strategy/List` | [StrategyList.md](../../../API/Backtest/StrategyList.md) |
+| `GET /API/V1/Meta/Finv/Quant/Backtest/Account/List` | [AccountList.md](../../../API/Backtest/AccountList.md) |
+| `GET /API/V1/Meta/Finv/Quant/Backtest/Environment/List` | [EnvironmentList.md](../../../API/Backtest/EnvironmentList.md) |
+| `POST /API/V1/Meta/Finv/Quant/Backtest/Run/Create` | [RunCreate.md](../../../API/Backtest/RunCreate.md) |
+| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/List` | [RunList.md](../../../API/Backtest/RunList.md) |
+| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/Get` | [RunGet.md](../../../API/Backtest/RunGet.md) |
+| `POST /API/V1/Meta/Finv/Quant/Backtest/Run/Cancel` | [RunCancel.md](../../../API/Backtest/RunCancel.md) |

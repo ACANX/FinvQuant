@@ -1,7 +1,7 @@
 # 日K线数据同步（菜单文档）
 
 > 所属：行情 → 收剔导传ETL → 日K线数据同步
-> 路由：`/Meta/Finv/Quote/Cdeu/DayKline/Sync`
+> 路由：`/Meta/Finv/Quote/Cdeu/DayKlineSync`
 > 菜单 key：`cdeu-daykline-sync`；图标：`mdi-chart-candlestick`
 > 视图组件：`Web/src/views/Meta/Finv/Quote/Cdeu/DayKlineSyncView.vue`
 > 关联需求：10952（同步能力 10951，建表 10950）

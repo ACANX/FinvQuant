@@ -48,5 +48,5 @@
 
 | 业务菜单 | 菜单文档 | 使用接口 |
 |----------|----------|----------|
-| 回测分析 | [Docs/Menu/Backtest/BacktestAnalysis.md](../../Menu/Backtest/BacktestAnalysis.md) | List / Get（深链加载）/ Report / Equity / Trades / Cashflows / PositionLogs / EventTraces / Cancel |
-| 黄金期货合约回测验证 | [Docs/Menu/Backtest/BacktestGoldFutures.md](../../Menu/Backtest/BacktestGoldFutures.md) | Get（轮询进度） |
+| 回测分析 | [Docs/Menu/Quant/Backtest/Analysis.md](../../Menu/Quant/Backtest/Analysis.md) | List / Get（深链加载）/ Report / Equity / Trades / Cashflows / PositionLogs / EventTraces / Cancel |
+| 黄金期货合约回测验证 | [Docs/Menu/Quant/Backtest/GoldFutures.md](../../Menu/Quant/Backtest/GoldFutures.md) | Get（轮询进度） |

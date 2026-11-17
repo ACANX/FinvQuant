@@ -1,8 +1,8 @@
-# 证券行情排行（RealtimeStock）
+# 证券行情排行（FTStockRank）
 
 > 所属：导航「行情 → 实时行情 → 证券行情排行」
 > 路由：`/Meta/Finv/Quote/Realtime/FTStockRank`
-> 视图：`Web/src/views/Meta/Finv/Quote/Realtime/RealtimeStockView.vue`
+> 视图：`Web/src/views/Meta/Finv/Quote/Realtime/FTStockRankView.vue`
 > 菜单 key：`quote-realtime-ftstockrank`（父分组 `quote-realtime`）
 > 数据表：`cdeu.finv_cdeu_secu_realtime_stock`（一行一证券，主键 `stock_id`）
 > 接口：[`GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Page`](../../../API/Cdeu/RealtimeStockPage.md)

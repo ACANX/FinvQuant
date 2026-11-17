@@ -3,7 +3,7 @@
 > 所属：FinvQuant 开发规范 · 存放：`Docs/DevSpec/`
 > 适用范围：前端（`Web/`）全部业务页面的「静态文字说明」摆放方式。
 > 关联：[`UiSpec.md`](UiSpec.md)（组件与反馈统一）、[`MenuSpec.md`](MenuSpec.md)（菜单与视图组织）、[`DocSpec.md`](DocSpec.md)（文档规范）。
-> 参考实现：`Web/src/views/Meta/Finv/Quote/Realtime/FxCerView.vue`（需求 11005 / 11006）。
+> 参考实现：`Web/src/views/Meta/Finv/Quote/Realtime/FXCEROverviewView.vue`（需求 11005 / 11006）。
 
 ## 1. 目的与结论
 
@@ -129,7 +129,7 @@ grep -n 'type="info"' Web/src/views/<相关页面>.vue                          
 
 ## 8. 参考实现
 
-`Web/src/views/Meta/Finv/Quote/Realtime/FxCerView.vue`：
+`Web/src/views/Meta/Finv/Quote/Realtime/FXCEROverviewView.vue`：
 
 - 主卡片：标题 + 模式切换 + 立即更新/刷新 + 状态告警 + 汇总 chip + 表格；
 - 说明卡片：标题「说明」+ 三个分节（表口径 / 数据源与互补 / 矩阵读法，最后一段仅矩阵模式显示）。

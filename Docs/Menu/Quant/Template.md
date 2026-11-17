@@ -1,7 +1,7 @@
 # 模板管理（Template）— 菜单业务文档
 
-> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Backtest/TemplateManage.md`
-> 对应视图：`Web/src/views/Meta/Finv/Quant/Backtest/TemplateView.vue`
+> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Quant/Template.md`
+> 对应视图：`Web/src/views/Meta/Finv/Quant/TemplateView.vue`
 > 接口契约：见 [Docs/API/Backtest/TemplateList.md](../../API/Backtest/TemplateList.md)
 
 ## 1. 菜单入口
@@ -11,7 +11,7 @@
 - **菜单 key**：`template`
 - **菜单图标**：`mdi-content-copy`
 - **URL 路由**：`/Meta/Finv/Quant/Template`
-- **对应视图组件**：`Web/src/views/Meta/Finv/Quant/Backtest/TemplateView.vue`
+- **对应视图组件**：`Web/src/views/Meta/Finv/Quant/TemplateView.vue`
 
 ## 2. 业务功能概述
 

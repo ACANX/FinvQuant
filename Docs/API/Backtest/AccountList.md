@@ -65,5 +65,5 @@
 
 | 业务菜单 | 菜单文档 | 使用接口 |
 |----------|----------|----------|
-| 账户管理 | [Docs/Menu/Backtest/AccountManage.md](../../Menu/Backtest/AccountManage.md) | List / Get / Save / Toggle / Delete |
-| 黄金期货合约回测验证 | [Docs/Menu/Backtest/BacktestGoldFutures.md](../../Menu/Backtest/BacktestGoldFutures.md) | List（账户下拉） |
+| 账户管理 | [Docs/Menu/Quant/Account.md](../../Menu/Quant/Account.md) | List / Get / Save / Toggle / Delete |
+| 黄金期货合约回测验证 | [Docs/Menu/Quant/Backtest/GoldFutures.md](../../Menu/Quant/Backtest/GoldFutures.md) | List（账户下拉） |

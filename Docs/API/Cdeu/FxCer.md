@@ -1,12 +1,12 @@
-# 缺省汇率（FxCer）
+# 缺省汇率（FXCEROverview）
 
 > 接口：
 > - `POST /API/V1/Meta/Finv/Quote/Cdeu/Fx/CerSync` —— 手动更新（同步执行）
 > - `GET /API/V1/Meta/Finv/Quote/Cdeu/Fx/Cer` —— 整表查询
 > 需求：10999（接口与菜单）、11000（双模式/中文名称/路由）、11001（双来源互补）、11002（表 v2：usc/name 与列改名）；表结构 10998（v1）/11002（v2）
 > 权限：需登录（内部接口，暂不对外暴露 OpenAPI）
-> 关联表：[`public.finv_fxcer`](../../../DataDictMapping/FinvFxcer.md)（迁移 `V300124`；`public.finv_fxcer` 为 v1，已停写保留）
-> 关联菜单：[`Menu/Quote/Realtime/FxCer.md`](../../../Menu/Quote/Realtime/FxCer.md)（路由 `/Meta/Finv/Quote/Realtime/FXCEROverview`）
+> 关联表：[`public.finv_fxcer`](../../DataDictMapping/FinvFxcer.md)（迁移 `V300124`；`public.finv_fxcer` 为 v1，已停写保留）
+> 关联菜单：[`Menu/Quote/Realtime/FXCEROverview.md`](../../Menu/Quote/Realtime/FXCEROverview.md)（路由 `/Meta/Finv/Quote/Realtime/FXCEROverview`）
 
 ## 1. 用途
 
@@ -182,7 +182,7 @@ curl -sS 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Fx/Cer' \
 
 ## 4. 消费口径（换算建议）
 
-查询 `A → B` 的三级回退（详见 [`DataDictMapping/FinvFxcer.md`](../../../DataDictMapping/FinvFxcer.md) §4）：
+查询 `A → B` 的三级回退（详见 [`DataDictMapping/FinvFxcer.md`](../../DataDictMapping/FinvFxcer.md) §4）：
 
 1. 直采行 `(A, B)`；
 2. 反向行 `(B, A)` 取倒数；

@@ -1,7 +1,7 @@
-# 规范证券信息维护（MetaSecurity）— 菜单业务文档
+# 规范证券信息维护（Security）— 菜单业务文档
 
-> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Meta/MetaSecurity.md`
-> 对应视图：`Web/src/views/MetaSecurityView.vue`
+> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/MetaData/Security.md`
+> 对应视图：`Web/src/views/Meta/Finv/MetaData/SecurityView.vue`
 > 接口契约：见 [Docs/API/Meta/MetaSecurity.md](../../API/Meta/MetaSecurity.md)
 
 ## 1. 菜单入口
@@ -10,8 +10,8 @@
 - **菜单名称**：规范证券信息维护
 - **菜单 key**：`meta-security`
 - **菜单图标**：`mdi-tag-multiple`
-- **URL 路由**：`/meta/security`
-- **对应视图组件**：`Web/src/views/MetaSecurityView.vue`
+- **URL 路由**：`/Meta/Finv/MetaData/Security`
+- **对应视图组件**：`Web/src/views/Meta/Finv/MetaData/SecurityView.vue`
 
 ## 2. 业务功能概述
 

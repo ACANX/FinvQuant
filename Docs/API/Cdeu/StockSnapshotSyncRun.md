@@ -119,6 +119,6 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 
 ## 6. 前端
 
-- 菜单：行情 → 实时行情 → 行情快照手动同步（`/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync`）
-- 视图：`Web/src/views/Meta/Finv/Quote/Realtime/StockSnapshotSyncView.vue`
+- 菜单：行情 → 实时行情 → 行情快照同步（`/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync`，需求 11255 路由改名，后端接口路径不变）
+- 视图：`Web/src/views/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSyncView.vue`
 - 交互：展示配置表 → 选择市场/覆盖计划数量/节奏参数 → 开始同步 → 每 1.5s 轮询并追加日志（自动滚到底部）

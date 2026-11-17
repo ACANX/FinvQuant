@@ -48,4 +48,4 @@
 
 | 业务菜单 | 菜单文档 |
 |----------|----------|
-| 日K线数据同步（`/Meta/Finv/Quote/Cdeu/DayKline/Sync`，视图 `DayKlineSyncView.vue`） | [Docs/Menu/Quote/Cdeu/DayKlineSync.md](../../Menu/Quote/Cdeu/DayKlineSync.md) |
+| 日K线数据同步（`/Meta/Finv/Quote/Cdeu/DayKlineSync`，视图 `DayKlineSyncView.vue`） | [Docs/Menu/Quote/Cdeu/DayKlineSync.md](../../Menu/Quote/Cdeu/DayKlineSync.md) |

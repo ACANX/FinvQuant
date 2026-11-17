@@ -4,10 +4,10 @@
 > 对应路径：`/OpenAPI/V1/Meta/Region/AZ/Server/Hello`
 > 需求：11242（端点）、11243（`kfp` 字段名）、11245（本文按接口规格重写）
 > 实现：`internal/api/openapi/hello.go`；`middleware.go` 的 `scopeFreePaths`（授权范围豁免）
-> 鉴权协议：[`Auth.md`](../../../API/OpenAPI/Auth.md) · 调用示例与自检：[`Usage/Handshake.md`](../../Usage/Handshake.md)
+> 鉴权协议：[`Auth.md`](../../../../API/OpenAPI/Auth.md) · 调用示例与自检：[`Usage/Handshake.md`](../../../Usage/Handshake.md)
 
 本文只描述**接口规格**（是什么、要什么、返回什么、失败是什么码）。
-「客户端怎么接、运维怎么巡检」属使用说明，见 [`Usage/Handshake.md`](../../Usage/Handshake.md)。
+「客户端怎么接、运维怎么巡检」属使用说明，见 [`Usage/Handshake.md`](../../../Usage/Handshake.md)。
 
 ## 1. 接口定位
 
@@ -46,7 +46,7 @@
 | AK/SK 签名（`AKSK`） | `Authorization: META1-HMAC-SHA256 Credential=AK_LIVE_…, Signature=…` + `X-META-TS` + `X-META-Nonce` | 6 段（`PATH` 为本路径） |
 | STS 临时凭据（`STS`） | 同上，但 `Credential=SAK_LIVE_…`，并额外带 `X-META-Token: SST_LIVE_…` | 7 段（第 7 段 = token） |
 
-签名的待签串构造、时间窗、nonce 规则见 [`Auth.md`](../../../API/OpenAPI/Auth.md) §3。
+签名的待签串构造、时间窗、nonce 规则见 [`Auth.md`](../../../../API/OpenAPI/Auth.md) §3。
 
 **不支持**：`STS` **兑换凭证**（长期 AK/SK、`token_fp` 为空）不能调用本接口——
 按需求 11210 的三类凭证隔离，它只能调 `POST /OpenAPI/V1/Meta/Open/Auth/Credential/STS/Issue` 换证。
@@ -163,7 +163,7 @@
 
 ## 6. 错误码
 
-失败时不返回 `ServerHello`，按鉴权错误码拒绝（详见 [`ErrorCodeSpec`](../../../DevSpec/ErrorCodeSpec.md) §1.2 与 [`Auth.md`](../../../API/OpenAPI/Auth.md) §5）：
+失败时不返回 `ServerHello`，按鉴权错误码拒绝（详见 [`ErrorCodeSpec`](../../../../DevSpec/ErrorCodeSpec.md) §1.2 与 [`Auth.md`](../../../../API/OpenAPI/Auth.md) §5）：
 
 | 错误码 | HTTP | 含义 |
 |---|---|---|
@@ -182,6 +182,6 @@
 
 ## 7. 相关文档
 
-- 调用示例、客户端自检、运维巡检、审计对账、常见失败处置：[`Usage/Handshake.md`](../../Usage/Handshake.md)
-- 鉴权协议（待签串 / 时间窗 / nonce）：[`Auth.md`](../../../API/OpenAPI/Auth.md)
-- 接口清单（本表数据来源）：[`Menu/OpenAPI/Endpoint.md`](../../../Menu/OpenAPI/Endpoint.md)
+- 调用示例、客户端自检、运维巡检、审计对账、常见失败处置：[`Usage/Handshake.md`](../../../Usage/Handshake.md)
+- 鉴权协议（待签串 / 时间窗 / nonce）：[`Auth.md`](../../../../API/OpenAPI/Auth.md)
+- 接口清单（本表数据来源）：[`Menu/OpenAPI/Endpoint.md`](../../../../Menu/OpenAPI/Endpoint.md)

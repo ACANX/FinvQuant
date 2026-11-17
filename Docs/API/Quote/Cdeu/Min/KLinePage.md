@@ -63,4 +63,4 @@
 ## 已使用位置登记
 
 - 采集端/数据核对工具分页浏览
-- 去重分钟行情查询（`Web/src/views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue`）
+- 去重分钟行情查询（`Web/src/views/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineQueryView.vue`）

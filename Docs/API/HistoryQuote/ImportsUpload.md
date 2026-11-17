@@ -109,4 +109,4 @@ const body = await response.json()
 
 | 使用方 | 位置 | 说明 |
 |--------|------|------|
-| 历史行情数据导入菜单 | [`Docs/Menu/Menus.md`](../../Menu/Menus.md)（菜单文档待补充） | 前端 `QuoteImportView.vue` 调用本接口上传 MVSV 文件并导入 PG（字段级/整行覆盖） |
+| 历史行情数据导入菜单 | [`Docs/Menu/Quote/History/HistoryQuoteImport.md`](../../Menu/Quote/History/HistoryQuoteImport.md) | 前端 `HistoryQuoteImportView.vue` 调用本接口上传 MVSV 文件并导入 PG（字段级/整行覆盖） |

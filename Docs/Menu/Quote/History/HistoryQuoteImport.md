@@ -1,9 +1,9 @@
 # 历史行情数据导入（HistoryQuoteImport）
 
-> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/HistoryQuote/`
+> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Quote/History/`
 > 菜单层级：元数据管理 → 业务元数据维护 → **历史行情数据导入**
-> 路由：`/meta/import`（name `meta-import`）· 视图：`Web/src/views/QuoteImportView.vue`
-> 关联 API：`POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload`（[ImportsUpload.md](../../API/HistoryQuote/ImportsUpload.md)）、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Lookup`（[MetaSecurity.md](../../API/Meta/MetaSecurity.md)）
+> 路由：`/Meta/Finv/Quote/History/HistoryQuoteImport`（name `meta-import`）· 视图：`Web/src/views/Meta/Finv/Quote/History/HistoryQuoteImportView.vue`
+> 关联 API：`POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload`（[ImportsUpload.md](../../../API/HistoryQuote/ImportsUpload.md)）、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Lookup`（[MetaSecurity.md](../../../API/Meta/MetaSecurity.md)）
 
 ## 功能概述
 
@@ -40,7 +40,7 @@
 - 上传按钮可用性（`canUpload`）：
   - 策略 1：已选证券 + 核对状态 `ok` + 已确认；
   - 策略 2：已匹配证券 + 文件头存在 + 已确认。
-- 视图：`Web/src/views/QuoteImportView.vue`（tsc + vite build 通过）。
+- 视图：`Web/src/views/Meta/Finv/Quote/History/HistoryQuoteImportView.vue`（tsc + vite build 通过）。
 
 ## 已使用 API 登记
 

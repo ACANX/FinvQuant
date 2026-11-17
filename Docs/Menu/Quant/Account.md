@@ -1,7 +1,7 @@
-# 账户管理（AccountManage）— 菜单业务文档
+# 账户管理（Account）— 菜单业务文档
 
-> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Backtest/AccountManage.md`
-> 对应视图：`Web/src/views/AccountManageView.vue`
+> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Quant/Account.md`
+> 对应视图：`Web/src/views/Meta/Finv/Quant/AccountView.vue`
 > 接口契约：见 [Docs/API/Backtest/AccountList.md](../../API/Backtest/AccountList.md)
 
 ## 1. 菜单入口
@@ -11,7 +11,7 @@
 - **菜单 key**：`account`
 - **菜单图标**：`mdi-account-cog-outline`
 - **URL 路由**：`/meta/finvquant/account`
-- **对应视图组件**：`Web/src/views/AccountManageView.vue`
+- **对应视图组件**：`Web/src/views/Meta/Finv/Quant/AccountView.vue`
 
 ## 2. 业务功能概述
 

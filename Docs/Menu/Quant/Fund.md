@@ -1,7 +1,7 @@
-# 资金管理（FundManage）— 菜单业务文档
+# 资金管理（Fund）— 菜单业务文档
 
-> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Backtest/FundManage.md`
-> 对应视图：`Web/src/views/FundManageView.vue`
+> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Quant/Fund.md`
+> 对应视图：`Web/src/views/Meta/Finv/Quant/FundView.vue`
 > 接口契约：见 [Docs/API/Backtest/RunList.md](../../API/Backtest/RunList.md) 与 [RunEquity.md](../../API/Backtest/RunEquity.md)
 
 ## 1. 菜单入口
@@ -11,7 +11,7 @@
 - **菜单 key**：`fund`
 - **菜单图标**：`mdi-cash-multiple`
 - **URL 路由**：`/meta/finvquant/fund`
-- **对应视图组件**：`Web/src/views/FundManageView.vue`
+- **对应视图组件**：`Web/src/views/Meta/Finv/Quant/FundView.vue`
 
 ## 2. 业务功能概述
 

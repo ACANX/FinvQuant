@@ -1,7 +1,7 @@
-# 交易所信息维护（MetaExchange）— 菜单业务文档
+# 交易所信息维护（Exchange）— 菜单业务文档
 
-> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Meta/MetaExchange.md`
-> 对应视图：`Web/src/views/MetaExchangeView.vue`
+> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/MetaData/Exchange.md`
+> 对应视图：`Web/src/views/Meta/Finv/MetaData/ExchangeView.vue`
 > 接口契约：见 [Docs/API/Meta/MetaExchange.md](../../API/Meta/MetaExchange.md)
 
 ## 1. 菜单入口
@@ -10,8 +10,8 @@
 - **菜单名称**：交易所信息维护
 - **菜单 key**：`meta-exchange`
 - **菜单图标**：`mdi-office-building`
-- **URL 路由**：`/meta/exchange`
-- **对应视图组件**：`Web/src/views/MetaExchangeView.vue`
+- **URL 路由**：`/Meta/Finv/MetaData/Exchange`
+- **对应视图组件**：`Web/src/views/Meta/Finv/MetaData/ExchangeView.vue`
 
 ## 2. 业务功能概述
 

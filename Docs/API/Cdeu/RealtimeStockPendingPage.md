@@ -3,7 +3,7 @@
 > 接口：`GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending`
 > 需求：10995（待录入清单）、11145（按派生键先补 usc 再判断）
 > 权限：需登录（内部接口）
-> 关联菜单：[`Menu/Quote/Realtime/PendingSecu.md`](../../../Menu/Quote/Realtime/PendingSecu.md)
+> 关联菜单：[`Menu/Quote/Realtime/PendingSecu.md`](../../Menu/Quote/Realtime/PendingSecu.md)
 
 ## 1. 用途
 

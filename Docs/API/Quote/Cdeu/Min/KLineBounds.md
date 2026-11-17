@@ -31,4 +31,4 @@
 
 ## 已使用位置登记
 
-- 去重分钟行情查询/统计页默认日期范围初始化（`DeDupKLineQueryView.vue`、`DeDupKLineStatsView.vue`）
+- 去重分钟行情查询/统计页默认日期范围初始化（`KLineQueryView.vue`、`KLineStatsView.vue`）

@@ -52,5 +52,5 @@
 
 | 业务菜单 | 菜单文档 | 使用接口 |
 |----------|----------|----------|
-| 回测分析 | [Docs/Menu/Backtest/BacktestAnalysis.md](../../Menu/Backtest/BacktestAnalysis.md) | List / Get / Report / Equity / Trades / Cashflows / PositionLogs / EventTraces / Cancel |
-| 持仓管理 | [Docs/Menu/Backtest/PositionManage.md](../../Menu/Backtest/PositionManage.md) | List / Equity / Trades |
+| 回测分析 | [Docs/Menu/Quant/Backtest/Analysis.md](../../Menu/Quant/Backtest/Analysis.md) | List / Get / Report / Equity / Trades / Cashflows / PositionLogs / EventTraces / Cancel |
+| 持仓管理 | [Docs/Menu/Quant/Position.md](../../Menu/Quant/Position.md) | List / Equity / Trades |

@@ -94,4 +94,4 @@ RUNNING → 加载行情（`quote.finv_quote_secu_kline_min` 按 date 区间；�
 
 | 业务菜单 | 菜单文档 | 使用接口 |
 |----------|----------|----------|
-| 黄金期货合约回测验证 | [Docs/Menu/Backtest/BacktestGoldFutures.md](../../Menu/Backtest/BacktestGoldFutures.md) | Run/Create（启动回测） |
+| 黄金期货合约回测验证 | [Docs/Menu/Quant/Backtest/GoldFutures.md](../../Menu/Quant/Backtest/GoldFutures.md) | Run/Create（启动回测） |

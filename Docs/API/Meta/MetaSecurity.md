@@ -170,6 +170,6 @@ finv_security 证券代码字典维护接口：分页查询、新增/修改、�
 
 ## 已使用位置登记
 
-- 规范证券信息维护菜单（`Docs/Menu/Meta/MetaSecurity.md`，视图 `MetaSecurityView.vue`）
-- 历史行情查询菜单（`Docs/Menu/HistoryQuote/HistoryQuoteQuery.md`，视图 `QuoteQueryView.vue`）—— 仅使用 `GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options` 作为证券代码下拉字典来源
-- 历史行情数据导入菜单（`Docs/Menu/HistoryQuote/HistoryQuoteImport.md`，视图 `QuoteImportView.vue`）—— 使用 `Options` 下拉 + `Lookup` 自动带出/匹配（导入双策略）
+- 规范证券信息维护菜单（`Docs/Menu/MetaData/Security.md`，视图 `SecurityView.vue`）
+- 历史行情查询菜单（`Docs/Menu/Quote/History/HistoryQuoteQuery.md`，视图 `QuoteQueryView.vue`）—— 仅使用 `GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options` 作为证券代码下拉字典来源
+- 历史行情数据导入菜单（`Docs/Menu/Quote/History/HistoryQuoteImport.md`，视图 `HistoryQuoteImportView.vue`）—— 使用 `Options` 下拉 + `Lookup` 自动带出/匹配（导入双策略）

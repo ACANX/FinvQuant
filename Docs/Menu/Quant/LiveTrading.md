@@ -1,7 +1,7 @@
 # 实盘交易（LiveTrading）— 菜单业务文档
 
-> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Backtest/LiveTrading.md`
-> 对应视图：`Web/src/views/PlaceholderView.vue`（占位，与仿真数据验证/模拟盘验证/实盘仿真验证共用视图组件）
+> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Quant/LiveTrading.md`
+> 对应视图：`Web/src/views/Common/PlaceholderView.vue`（占位，与仿真数据验证/模拟盘验证/实盘仿真验证共用视图组件）
 
 ## 1. 菜单入口
 
@@ -10,7 +10,7 @@
 - **菜单 key**：`live-trading`
 - **菜单图标**：`mdi-cash-register`
 - **URL 路由**：`/meta/finvquant/live-trading`
-- **对应视图组件**：`Web/src/views/PlaceholderView.vue`
+- **对应视图组件**：`Web/src/views/Common/PlaceholderView.vue`
 - **状态**：🚧 规划中（占位）
 
 ## 2. 业务功能概述（规划）

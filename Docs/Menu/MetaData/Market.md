@@ -1,7 +1,7 @@
-# 交易所下设市场信息维护（MetaMarket）— 菜单业务文档
+# 交易所下设市场信息维护（Market）— 菜单业务文档
 
-> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Meta/MetaMarket.md`
-> 对应视图：`Web/src/views/MetaMarketView.vue`
+> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/MetaData/Market.md`
+> 对应视图：`Web/src/views/Meta/Finv/MetaData/MarketView.vue`
 > 接口契约：见 [Docs/API/Meta/MetaMarket.md](../../API/Meta/MetaMarket.md)
 
 ## 1. 菜单入口
@@ -10,8 +10,8 @@
 - **菜单名称**：交易所下设市场信息维护
 - **菜单 key**：`meta-market`
 - **菜单图标**：`mdi-chart-areaspline`
-- **URL 路由**：`/meta/market`
-- **对应视图组件**：`Web/src/views/MetaMarketView.vue`
+- **URL 路由**：`/Meta/Finv/MetaData/Market`
+- **对应视图组件**：`Web/src/views/Meta/Finv/MetaData/MarketView.vue`
 
 ## 2. 业务功能概述
 

@@ -94,7 +94,7 @@
 |---|---|---|---|---|
 | C-18 | `Docs/API/HistoryQuote/{HistoryQuote,ImportsUpload}.md` | 表名加 `quote.` 前缀 | `grep -c "quote.finv_quote_"` 不小于 1 | ⚠ **作废**：`V38` 曾改为 `dedup.`，2026-10-27 已改回 `quote.`（`Docs/API/HistoryQuote/ImportsUpload.md`） |
 | C-19 | `Docs/API/Backtest/{RunCreate,StrategySave}.md`、`Docs/Menu/Backtest/*.md`（5 篇） | 表名加 `quant.` 前缀 | 各文件旧写法清零（无未加前缀的 `finv_quant_`） | ☑ 2026-10-24 |
-| C-20 | `Docs/DataFormat/MvsvFileFormat.md`、`Docs/Menu/HistoryQuote/HistoryQuoteImport.md` | 落库表名加 `quote.` 前缀 | 同上 | ⚠ **作废**：同上，落库表名现为 `quote.finv_quote_secu_kline_min` |
+| C-20 | `Docs/DataFormat/MvsvFileFormat.md`、`Docs/Menu/Quote/History/HistoryQuoteImport.md` | 落库表名加 `quote.` 前缀 | 同上 | ⚠ **作废**：同上，落库表名现为 `quote.finv_quote_secu_kline_min` |
 | C-21 | `Docs/DevSpec/BacktestStrategySpec.md` | 第 13 章表结构说明中的表名加 `quant.` 前缀 | 同上 | ☑ 2026-10-24 |
 | C-22 | `Prompt.md` | 技术基线段中的表名同步 | 同上 | ☑ 2026-10-24 |
 | C-23 | `Docs/DevSpec/DocSpec.md` 或 `FileNamingSpec.md` | 补充「数据库对象命名：按域分 schema，表名保留业务前缀」约定 | 规范含该条款 | ☑ 2026-10-24 |

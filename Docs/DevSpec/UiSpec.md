@@ -38,10 +38,10 @@
 
 ### 1.3 参考实现
 
-- 账户管理表格「回测开关」列：`Web/src/views/Meta/Finv/Quant/Account/AccountManageView.vue`
-- 环境管理表格「回测开关」列：`Web/src/views/Meta/Finv/Quant/Backtest/EnvironmentView.vue`
-- 策略管理表格「回测开关」列：`Web/src/views/Meta/Finv/Quant/Strategy/StrategyManageView.vue`
-- 黄金期货回测验证「限制条件」开关：`Web/src/views/Meta/Finv/Quant/Backtest/BacktestGoldFuturesView.vue`
+- 账户管理表格「回测开关」列：`Web/src/views/Meta/Finv/Quant/AccountView.vue`
+- 环境管理表格「回测开关」列：`Web/src/views/Meta/Finv/Quant/EnvironmentView.vue`
+- 策略管理表格「回测开关」列：`Web/src/views/Meta/Finv/Quant/StrategyView.vue`
+- 黄金期货回测验证「限制条件」开关：`Web/src/views/Meta/Finv/Quant/Backtest/GoldFuturesView.vue`
 
 ### 1.4 注意
 
@@ -62,7 +62,7 @@
 | FAILED（失败） | `mdi-close-circle` | red |
 | CANCELLED（已取消） | `mdi-cancel` | orange |
 
-参考实现：`Web/src/views/Meta/Finv/Quant/Backtest/BacktestGoldFuturesView.vue`（`statusMeta` / `statusIcon*` 辅助函数 + `.spin` 旋转动画）。
+参考实现：`Web/src/views/Meta/Finv/Quant/Backtest/GoldFuturesView.vue`（`statusMeta` / `statusIcon*` 辅助函数 + `.spin` 旋转动画）。
 
 ## 3. 主题（深色 / 浅色）切换
 
@@ -72,7 +72,7 @@
 - **持久化范围**：仅保存在**用户浏览器本地**，**不做服务端持久化**（待办，见 `Docs/RequirementList.md` 10811）。
 - **新增页面/组件约束**（强制）：
   - 禁止硬编码深色背景与浅色文本，优先使用主题变量（`rgb(var(--v-theme-surface))`、`rgb(var(--v-theme-on-surface))`、`rgb(var(--v-theme-primary))` 等）；
-  - Canvas 图表（ECharts）的颜色必须按 `theme.global.name` 取值，并在主题切换后重绘（参考 `HistoryQuoteQueryView.vue` 的 `chartPalette()` + `watch(theme.global.name)`、`DeDupKLineStatsView.vue` 的 `splitColor()` + 重绘）；
+  - Canvas 图表（ECharts）的颜色必须按 `theme.global.name` 取值，并在主题切换后重绘（参考 `HistoryQuoteQueryView.vue` 的 `chartPalette()` + `watch(theme.global.name)`、`KLineStatsView.vue` 的 `splitColor()` + 重绘）；
   - 登录页（`LoginView.vue`）保持独立深色视觉，不跟随主题。
 - **回归自检**：切换主题后逐个页面检查表格斑马纹、图表坐标轴/图例/tooltip、输入框边框、页脚文字是否可读；发现硬编码颜色应在同一变更中改为主题变量。
 

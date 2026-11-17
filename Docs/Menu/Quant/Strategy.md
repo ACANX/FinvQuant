@@ -1,7 +1,7 @@
-# 策略管理（StrategyManage）— 菜单业务文档
+# 策略管理（Strategy）— 菜单业务文档
 
-> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Backtest/StrategyManage.md`
-> 对应视图：`Web/src/views/StrategyManageView.vue`
+> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Quant/Strategy.md`
+> 对应视图：`Web/src/views/Meta/Finv/Quant/StrategyView.vue`
 > 接口契约：见 [Docs/API/Backtest/StrategyList.md](../../API/Backtest/StrategyList.md)
 
 ## 1. 菜单入口
@@ -11,7 +11,7 @@
 - **菜单 key**：`strategy`
 - **菜单图标**：`mdi-sitemap-outline`
 - **URL 路由**：`/meta/finvquant/strategy`
-- **对应视图组件**：`Web/src/views/StrategyManageView.vue`
+- **对应视图组件**：`Web/src/views/Meta/Finv/Quant/StrategyView.vue`
 
 ## 2. 业务功能概述
 

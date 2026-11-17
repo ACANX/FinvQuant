@@ -1,8 +1,8 @@
-# 回测分析（BacktestAnalysis）— 菜单业务文档
+# 回测分析（Analysis）— 菜单业务文档
 
-> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Backtest/BacktestAnalysis.md`
-> 对应视图：`Web/src/views/BacktestAnalysisView.vue`
-> 接口契约：见 [Docs/API/Backtest/RunList.md](../../API/Backtest/RunList.md)
+> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Quant/Backtest/Analysis.md`
+> 对应视图：`Web/src/views/Meta/Finv/Quant/Backtest/AnalysisView.vue`
+> 接口契约：见 [Docs/API/Backtest/RunList.md](../../../API/Backtest/RunList.md)
 
 ## 1. 菜单入口
 
@@ -11,7 +11,7 @@
 - **菜单 key**：`backtest-analysis`
 - **菜单图标**：`mdi-chart-timeline-variant`
 - **URL 路由**：`/meta/finvquant/backtest/analysis`
-- **对应视图组件**：`Web/src/views/BacktestAnalysisView.vue`
+- **对应视图组件**：`Web/src/views/Meta/Finv/Quant/Backtest/AnalysisView.vue`
 - **支持 URL 参数**：`?runId=xxx`（自动打开指定任务的报告，由黄金期货回测验证页跳转携带）
 
 ## 2. 业务功能概述
@@ -53,7 +53,7 @@
 
 - ECharts 按报告精度生成 x 轴标签（Day=日期 / Hour=日期+时 / Min=日期+时分）；切换任务时 dispose 旧图实例；
 - 报告指标语义（最大投入/平均投入（持仓期时间加权）/回撤区间/夏普（rf=0，按精度年化因子）等）
-  见 [BacktestStrategySpec.md](../../DevSpec/BacktestStrategySpec.md) 第 7 章。
+  见 [BacktestStrategySpec.md](../../../DevSpec/BacktestStrategySpec.md) 第 7 章。
 
 ## 5. 注意事项
 
@@ -65,12 +65,12 @@
 
 | 接口 | 接口文档 |
 |------|----------|
-| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/List` | [RunList.md](../../API/Backtest/RunList.md) |
-| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/Report` | [RunReport.md](../../API/Backtest/RunReport.md) |
-| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/Equity` | [RunEquity.md](../../API/Backtest/RunEquity.md) |
-| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/Trades` | [RunTrades.md](../../API/Backtest/RunTrades.md) |
-| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/Cashflows` | [RunCashflows.md](../../API/Backtest/RunCashflows.md) |
-| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/PositionLogs` | [RunPositionLogs.md](../../API/Backtest/RunPositionLogs.md) |
-| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/EventTraces` | [RunEventTraces.md](../../API/Backtest/RunEventTraces.md) |
-| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/Get` | [RunGet.md](../../API/Backtest/RunGet.md) |
-| `POST /API/V1/Meta/Finv/Quant/Backtest/Run/Cancel` | [RunCancel.md](../../API/Backtest/RunCancel.md) |
+| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/List` | [RunList.md](../../../API/Backtest/RunList.md) |
+| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/Report` | [RunReport.md](../../../API/Backtest/RunReport.md) |
+| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/Equity` | [RunEquity.md](../../../API/Backtest/RunEquity.md) |
+| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/Trades` | [RunTrades.md](../../../API/Backtest/RunTrades.md) |
+| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/Cashflows` | [RunCashflows.md](../../../API/Backtest/RunCashflows.md) |
+| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/PositionLogs` | [RunPositionLogs.md](../../../API/Backtest/RunPositionLogs.md) |
+| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/EventTraces` | [RunEventTraces.md](../../../API/Backtest/RunEventTraces.md) |
+| `GET /API/V1/Meta/Finv/Quant/Backtest/Run/Get` | [RunGet.md](../../../API/Backtest/RunGet.md) |
+| `POST /API/V1/Meta/Finv/Quant/Backtest/Run/Cancel` | [RunCancel.md](../../../API/Backtest/RunCancel.md) |

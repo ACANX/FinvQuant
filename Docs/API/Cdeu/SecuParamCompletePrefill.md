@@ -3,7 +3,7 @@
 > 接口：`GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Secu/Param/Complete/Prefill`
 > 需求：11161（复用 11147 的预填与派生规则）
 > 权限：需登录（内部接口）
-> 关联菜单：[`Menu/Quote/Realtime/SecuParamComplete.md`](../../../Menu/Quote/Realtime/SecuParamComplete.md)
+> 关联菜单：[`Menu/Quote/Realtime/SecuParamComplete.md`](../../Menu/Quote/Realtime/SecuParamComplete.md)
 > 关联接口：[`Cdeu/SecuParamCompletePending.md`](SecuParamCompletePending.md)（清单）、
 > [`Cdeu/SecuParamComplete.md`](SecuParamComplete.md)（写入）
 
@@ -149,4 +149,4 @@
 - [`Cdeu/SecuParamCompletePending.md`](SecuParamCompletePending.md) — 待补清单
 - [`Cdeu/SecuParamComplete.md`](SecuParamComplete.md) — 单表写入
 - [`Cdeu/RealtimeStockPendingPrefill.md`](RealtimeStockPendingPrefill.md) — 旧的整体预填（两张表一起返回，页面入口已迁出）
-- [`Menu/Quote/Realtime/SecuParamComplete.md`](../../../Menu/Quote/Realtime/SecuParamComplete.md) — 页面说明
+- [`Menu/Quote/Realtime/SecuParamComplete.md`](../../Menu/Quote/Realtime/SecuParamComplete.md) — 页面说明

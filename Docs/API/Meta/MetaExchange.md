@@ -97,4 +97,4 @@ finv_exchange 交易所/市场字典维护接口：分页查询、新增/修改�
 
 ## 已使用位置登记
 
-- 交易所信息维护菜单（`Docs/Menu/Meta/MetaExchange.md`，视图 `MetaExchangeView.vue`）
+- 交易所信息维护菜单（`Docs/Menu/MetaData/Exchange.md`，视图 `ExchangeView.vue`）

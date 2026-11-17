@@ -74,4 +74,4 @@
 
 ## 已使用位置登记
 
-- 去重分钟行情统计（`Web/src/views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue`）
+- 去重分钟行情统计（`Web/src/views/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineStatsView.vue`）

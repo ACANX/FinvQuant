@@ -1,7 +1,7 @@
-# 模拟盘验证（SimulationPaper）— 菜单业务文档
+# 模拟盘验证（Simulation/Paper）— 菜单业务文档
 
-> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Backtest/SimulationPaper.md`
-> 对应视图：`Web/src/views/PlaceholderView.vue`（占位，与仿真数据验证/实盘仿真验证/实盘交易共用视图组件）
+> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Quant/Simulation/Paper.md`
+> 对应视图：`Web/src/views/Common/PlaceholderView.vue`（占位，与仿真数据验证/实盘仿真验证/实盘交易共用视图组件）
 
 ## 1. 菜单入口
 
@@ -10,7 +10,7 @@
 - **菜单 key**：`simulation-paper`
 - **菜单图标**：`mdi-account-cash-outline`
 - **URL 路由**：`/meta/finvquant/simulation/paper`
-- **对应视图组件**：`Web/src/views/PlaceholderView.vue`
+- **对应视图组件**：`Web/src/views/Common/PlaceholderView.vue`
 - **状态**：🚧 规划中（占位）
 
 ## 2. 业务功能概述（规划）
@@ -36,4 +36,4 @@
 
 ## 5. 使用的后端接口
 
-当前占位页不调用后端接口；后续实现时按 [ApiSpec.md](../../DevSpec/ApiSpec.md) 补充文档并登记。
+当前占位页不调用后端接口；后续实现时按 [ApiSpec.md](../../../DevSpec/ApiSpec.md) 补充文档并登记。

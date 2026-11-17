@@ -64,5 +64,5 @@
 
 | 业务菜单 | 菜单文档 | 使用接口 |
 |----------|----------|----------|
-| 策略管理 | [Docs/Menu/Backtest/StrategyManage.md](../../Menu/Backtest/StrategyManage.md) | List / Get / Save / Toggle / Delete |
-| 黄金期货合约回测验证 | [Docs/Menu/Backtest/BacktestGoldFutures.md](../../Menu/Backtest/BacktestGoldFutures.md) | List（策略下拉） |
+| 策略管理 | [Docs/Menu/Quant/Strategy.md](../../Menu/Quant/Strategy.md) | List / Get / Save / Toggle / Delete |
+| 黄金期货合约回测验证 | [Docs/Menu/Quant/Backtest/GoldFutures.md](../../Menu/Quant/Backtest/GoldFutures.md) | List（策略下拉） |

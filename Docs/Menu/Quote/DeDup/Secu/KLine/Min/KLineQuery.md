@@ -1,16 +1,16 @@
-# 去重分钟行情查询（DeDupKLineQuery）— 菜单业务文档
+# 去重分钟行情查询（KLineQuery）— 菜单业务文档
 
-> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/HistoryQuote/DeDupKLineQuery.md`
-> 对应视图：`Web/src/views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue`
-> 接口契约：见 [Docs/API/Quote/Cdeu/Min/KLinePage.md](../../API/Quote/Cdeu/Min/KLinePage.md)
+> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Quote/DeDup/Secu/KLine/Min/KLineQuery.md`
+> 对应视图：`Web/src/views/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineQueryView.vue`
+> 接口契约：见 [Docs/API/Quote/Cdeu/Min/KLinePage.md](../../../../../../API/Quote/Cdeu/Min/KLinePage.md)
 
 ## 1. 菜单入口
 
 - **菜单位置**：左侧导航栏 → 数据采集 → 行情数据去重 → 去重分钟行情查询
 - **菜单 key**：`dedup-kline-query`
 - **菜单图标**：`mdi-table-search`
-- **URL 路由**：`/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query`
-- **对应视图组件**：`Web/src/views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue`
+- **URL 路由**：`/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineQuery`
+- **对应视图组件**：`Web/src/views/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineQueryView.vue`
 
 ## 2. 业务功能
 

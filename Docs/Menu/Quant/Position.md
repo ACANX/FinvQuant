@@ -1,7 +1,7 @@
-# 持仓管理（PositionManage）— 菜单业务文档
+# 持仓管理（Position）— 菜单业务文档
 
-> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Backtest/PositionManage.md`
-> 对应视图：`Web/src/views/PositionManageView.vue`
+> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/Quant/Position.md`
+> 对应视图：`Web/src/views/Meta/Finv/Quant/PositionView.vue`
 > 接口契约：见 [Docs/API/Backtest/RunList.md](../../API/Backtest/RunList.md)、[RunEquity.md](../../API/Backtest/RunEquity.md) 与 [RunTrades.md](../../API/Backtest/RunTrades.md)
 
 ## 1. 菜单入口
@@ -11,7 +11,7 @@
 - **菜单 key**：`position`
 - **菜单图标**：`mdi-briefcase-variant-outline`
 - **URL 路由**：`/meta/finvquant/position`
-- **对应视图组件**：`Web/src/views/PositionManageView.vue`
+- **对应视图组件**：`Web/src/views/Meta/Finv/Quant/PositionView.vue`
 
 ## 2. 业务功能概述
 

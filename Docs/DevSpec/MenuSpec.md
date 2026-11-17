@@ -7,12 +7,12 @@
 ## 1. 菜单新增
 
 - **前端视图组件统一存放于 `Web/src/views/` 目录下**，并**按照业务模块层级放在对应的子目录中**（每级目录使用大驼峰 PascalCase 命名），例如：
-  - 策略管理菜单 → `Web/src/views/Meta/Finv/Quant/Strategy/StrategyManageView.vue`；
-  - 回测分析菜单 → `Web/src/views/Meta/Finv/Quant/Backtest/BacktestAnalysisView.vue`；
-  - 黄金期货合约回测验证 → `Web/src/views/Meta/Finv/Quant/Backtest/BacktestGoldFuturesView.vue`；
-  - 账户管理 → `Web/src/views/Meta/Finv/Quant/Account/AccountManageView.vue`；
+  - 策略管理菜单 → `Web/src/views/Meta/Finv/Quant/StrategyView.vue`；
+  - 回测分析菜单 → `Web/src/views/Meta/Finv/Quant/Backtest/AnalysisView.vue`；
+  - 黄金期货合约回测验证 → `Web/src/views/Meta/Finv/Quant/Backtest/GoldFuturesView.vue`；
+  - 账户管理 → `Web/src/views/Meta/Finv/Quant/AccountView.vue`；
   - 历史行情查询 → `Web/src/views/Meta/Finv/Quote/History/HistoryQuoteQueryView.vue`；
-  - 交易所信息维护 → `Web/src/views/Meta/Finv/MetaData/MetaExchangeView.vue`。
+  - 交易所信息维护 → `Web/src/views/Meta/Finv/MetaData/ExchangeView.vue`。
 - **本项目业务视图统一归入 `Web/src/views/Meta/Finv/` 下**，按**平级业务域**分层（各域互不从属，协同支撑量化平台）：
   - **`Meta/Finv/Quant/`（Quant 量化交易）**：账户/资金/持仓/策略/回测等按菜单分层；
   - **`Meta/Finv/Quote/`（Quote 行情）**：历史行情查询、历史行情数据导入等；
@@ -38,7 +38,7 @@
   - 实盘仿真验证 → `/Meta/Finv/Quant/Simulation/LiveSim`
 - **行情模块（Quote）**：路由统一加 **`/Meta/Finv/Quote/`** 前缀，其后每段采用大驼峰（如 `/Meta/Finv/Quote/History/HistoryQuoteQuery`）。
 - **元数据模块（MetaData）**：路由统一加 **`/Meta/Finv/MetaData/`** 前缀，其后每段采用大驼峰（如 `/Meta/Finv/MetaData/Exchange`）。元数据独立于行情/量化（平级关联，不从属），路由与目录均置于 `Meta/Finv/MetaData/`。
-- **其他非 Finv 模块**：路由路径同样遵循大驼峰命名（如 `/Meta/Exchange`、`/Quote/Query`），不在此路径层级中引入下划线或小写片段；存量小写路由（如 `/dashboard`、`/meta/exchange`）在维护时逐步迁移对齐。
+- **其他非 Finv 模块**：路由路径同样遵循大驼峰命名（如 `/Meta/Exchange`、`/Quote/Query`），不在此路径层级中引入下划线或小写片段；存量小写路由（如 `/dashboard`、`/Meta/Finv/MetaData/Exchange`）在维护时逐步迁移对齐。
 - **禁止**使用 `-`（连字符）、`_`（下划线）或全小写路径片段（如 `/meta/finvquant/backtest/analysis` 为违规写法）。
 - 路由在 `Web/src/router.ts` 的 `path` 与 `Web/src/config/menuConfig.ts` 中叶子节点的 `path` **两处必须一致**，且与 `Docs/Menu/Menus.md` 索引中的「路由」列保持一致。
 - 后端 API 接口路径前缀保持 `/API/V1/Meta/Finv/Quant/...`（大驼峰），前端路由与其保持同一前缀体系（见 `Docs/DevSpec/ApiSpec.md`）。
@@ -75,19 +75,27 @@ grep -oE 'Wr\(`(NavMenuTree|NavMenuTreeNode|SystemSwitcher)`\)' dist/assets/inde
 ### 2.2 一个菜单一个文档（强制）
 
 - **每个业务菜单必须独立成一篇文档文件**，**不允许多个业务菜单放到同一文件中描述**；一篇文档只对应一个菜单（唯一菜单 key / 唯一路由）；
-- 文档文件名与菜单/视图名对应，使用 **PascalCase**：如 `FundManage.md` 对应资金管理菜单（视图 `FundManageView.vue`）、`PositionManage.md` 对应持仓管理菜单（视图 `PositionManageView.vue`）；
+- 文档文件名与菜单/视图名对应，使用 **PascalCase**：如 `Fund.md` 对应资金管理菜单（视图 `FundView.vue`）、`Position.md` 对应持仓管理菜单（视图 `PositionView.vue`）；
 - **多个菜单共用一个视图组件时，仍须为每个菜单分别编写独立文档，不得合并**（例如占位页共用的多个规划菜单，各自独立成篇）；
 - **禁止**以 `xxxAll.md`、`xxxManage.md` 等合并文件描述多个菜单，也禁止把不同菜单的内容写在同一个文件中用多级标题区分。
 
-### 2.3 文档位置与命名
+### 2.3 文档位置与命名（强制）
 
-- 文档位置通常在 `Docs/Menu/xxx/XXXX.md`（按业务模块建目录，文档名与菜单/视图名对应）；
-- 参考示例：[`Docs/Menu/HistoryQuote/HistoryQuoteQuery.md`](../Menu/HistoryQuote/HistoryQuoteQuery.md)（对应视图 `Web/src/views/QuoteQueryView.vue`）。
+- **路径镜像**：路由、视图组件、菜单文档三者按同一层级镜像：
+  - 路由 `/<前缀>/<层1>/<层2>/<X>`；
+  - 视图 `Web/src/views/<前缀>/<层1>/<层2>/<X>View.vue`；
+  - 文档 `Docs/Menu/<层1>/<层2>/<X>.md`（`/Meta/Finv` 前缀在文档路径中省略）。
+- **文件名 = 路由末段**：视图文件名去 `View`、文档文件名去 `.md` 后必须等于路由末段（`<X>`），不得再带业务前缀或 `Manage` 之类后缀。
+- **非 Finv 系统**（`备份与恢复` `/Meta/BRS`、`内容管理` `/Meta/CMS`）按各自系统前缀镜像（如 `Docs/Menu/BRS/Backup/Finv/Table.md` ↔ `/Meta/BRS/Backup/Finv/Table`），视图命名沿用该系统既有约定（如 `Brs*View.vue`、`PlaceholderView.vue`）。
+- 参考示例：[`Docs/Menu/Quote/History/HistoryQuoteQuery.md`](../Menu/Quote/History/HistoryQuoteQuery.md)（对应视图 `Web/src/views/Meta/Finv/Quote/History/HistoryQuoteQueryView.vue`）。
 - 菜单文档随视图代码在同一变更中提交，保持「代码 + 文档」同步交付。
+- 改路由名时，视图与文档文件名必须同步改名（不得只改其一），并在同一次提交内更新 `router.ts`、`menuConfig.ts`、`Menus.md` 与本目录规范中的示例。
 
 ### 2.4 索引登记
 
 - 新增菜单后须在 [`Menus.md`](../Menu/Menus.md) 菜单总索引中登记（菜单名称 / key / 图标 / 视图组件 / 使用的后端接口 / 菜单文档）。
+- 索引序号按菜单树顺序编号；**补登记**（历史遗漏补登）追加到表末并顺延编号，不重排既有序号。
+- 只注册路由、不登记菜单（仅能 URL 访问）的页面，索引行 key 列标注「未登记」，但仍须有独立菜单文档。
 
 ## 3. 文档内容要求
 

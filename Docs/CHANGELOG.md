@@ -265,6 +265,63 @@
 
 ### 变更
 
+- **开发规范 `MenuSpec` 固化「路由 / 视图 / 菜单文档」三者路径镜像（需求 11258 口径）**
+  - §2.2：文档名示例改为 `Fund.md` / `Position.md`（与现行视图 `FundView.vue` / `PositionView.vue` 对齐）。
+  - §2.3：新增强制条款——路由 `/<前缀>/<层1>/<层2>/<X>`、视图 `<前缀>/<层1>/<层2>/<X>View.vue`、
+    文档 `Docs/Menu/<层1>/<层2>/<X>.md` 三者同名同层级；文件名必须等于路由末段；
+    非 Finv 系统（`/Meta/BRS`、`/Meta/CMS`）按各自系统前缀镜像；改路由名须同步改视图与文档文件名。
+  - §2.4：索引序号按菜单树顺序，补登记追加表末不重排；只注册路由不登记菜单的页面 key 列标「未登记」但仍须有独立文档。
+  - 示例视图路径同步更新为 `Web/src/views/Meta/Finv/Quote/History/HistoryQuoteQueryView.vue`。
+
+- **存量菜单路由前缀统一（需求 11257）**
+  - `/meta/exchange` → `/Meta/Finv/MetaData/Exchange`、`/meta/market` → `/Meta/Finv/MetaData/Market`、
+    `/meta/security` → `/Meta/Finv/MetaData/Security`（按 MenuSpec §1.1 的 MetaData 前缀）；
+    历史行情数据导入 `/meta/import` → `/Meta/Finv/Quote/History/HistoryQuoteImport`（语义属 Quote/History）。
+  - BRS 大小写收口：`/Meta/Finv/Brs/Restore/Run` → `/Meta/BRS/Restore/Run`。
+  - 视图与菜单文档同步改名：`MetaData/{Exchange,Market,Security}View.vue`、`Docs/Menu/MetaData/*.md`；
+    旧路由不再注册（书签需更新）。
+
+- **菜单路由 / 视图文件 / 菜单文档三者命名对齐（需求 11258）**
+  - 口径：路由末段 = 视图文件名去 `View` = 菜单文档文件名去 `.md`，文档目录镜像路由层级。
+  - 视图改名 16 个（`RealtimeStockView`→`FTStockRankView`、`FxCerView`→`FXCEROverviewView`、
+    `IndicatorView`→`SecuIndicatorView`、`Account/Fund/Position/StrategyManageView`→`*View`、
+    `BacktestGoldFuturesView`→`GoldFuturesView`、`BacktestAnalysisView`→`AnalysisView`、
+    `DeDupKLineQuery/StatsView`→`DeDup/Secu/KLine/Min/KLine{Query,Stats}View`）。
+  - 文档搬移 23 篇：`Docs/Menu/Backtest/*` → `Docs/Menu/Quant/…`、`Docs/Menu/HistoryQuote/*` →
+    `Docs/Menu/Quote/History|DeDup/…`、`RealtimeStock/FxCer/Indicator.md` 改名、`CMSHome.md`→`CMS.md`；
+    所有 Markdown 相对链接按新位置重算（含 API 文档「业务菜单」列的互链）。
+  - 过渡路由改名 3 条：`DayKline/Sync`→`DayKlineSync`、`DeDup/Secu/KLine/Min/{Query,Stats}`→`…/KLine{Query,Stats}`。
+
+- **补齐菜单文档与菜单总索引（需求 11259）**
+  - 新增 22 篇菜单文档（CDEU 工作流面板 / 全流程拓扑 / 历史月份存量清点 / USC 补丁 / CDEU自动化 /
+    归档导出 7 篇 / 系统配置 / 回测删除管理 / 回测报告 / USC 映射规则），`Menus.md` 索引补登 15 行（54–68）
+    并为 9 条既有行补文档链接。
+  - B 组 13 个视图名同步对齐路由末段（`DeDupCDEUView`→`CdeuOverviewView` 等），消除「文档名对、视图名不对」。
+
+- **补齐 BRS 与 CMS 菜单文档目录（需求 11260）**
+  - 新建 `Docs/Menu/BRS/Backup/Finv/`（Table / Record / OSSConfig / Schedule / Run / Slice）、
+    `Docs/Menu/BRS/Restore/Run.md`、`Docs/Menu/CMS/CMS.md`；BRS 视图保留 `Brs*View.vue` 命名，
+    CMS 保留占位视图。
+
+- **「行情快照同步」菜单路由改名 `SecuQuoteSnapshotSync`，视图与菜单文档文件跟随改名（需求 11255）**
+  - 路由 `/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync` → `/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync`；
+    菜单 key `quote-realtime-snapshot-sync`、菜单标题、图标与后端接口路径
+    `POST/GET .../Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync[/Run]` 均不变，旧前端路由不再注册（书签需更新）。
+  - 文件跟随路由改名：`Web/src/views/Meta/Finv/Quote/Realtime/StockSnapshotSyncView.vue` →
+    `SecuQuoteSnapshotSyncView.vue`、`Docs/Menu/Quote/Realtime/SnapshotSync.md` → `SecuQuoteSnapshotSync.md`；
+    同步 `Web/src/router.ts`、`Web/src/config/menuConfig.ts`、`Docs/Menu/Menus.md`（索引 43）、
+    `Docs/API/Cdeu/StockSnapshotSyncRun.md` §6。
+  - 需求登记 11255。
+
+- **「行情快照同步」页新增 8 个占位 Tab（需求 11256）**
+  - 「股票」之后依次常显 ETF / 指数 / 期货 / 加密货币 / 北交所股票 / 板块 / 投资组合 / 黄金，
+    符号依次 `etf` / `index` / `future` / `crypto` / `bsestock` / `sector` / `portfolio` / `gold`；
+    由前端常量 `PLACEHOLDER_SYMBOLS` 硬编码，不依赖配置表（配置表若已有同符号行则按配置生效、不重复）。
+  - 占位 Tab：配置表区提示「该品种为占位 Tab：配置表暂无该品种的采集行，暂不参与采集」，
+    「开始同步」置灰（不发必失败请求）；Tab 有效性判定改为「配置品种 + 占位品种」，
+    修掉轮询把占位 Tab 顶回「股票」的问题。后续插同符号配置行即自动转为可采集。
+  - 需求登记 11256。
+
 - **证券指标页：路由改名 + 行详情改版（需求 11252 / 11253）**
   - 菜单与路由 `/Meta/Finv/Quote/Realtime/FTIndicator` → `/Meta/Finv/Quote/Realtime/SecuIndicator`，
     菜单 key `quote-realtime-indicator` → `quote-realtime-secu-indicator`（旧路径不再注册，深链接需更新）。
@@ -4349,6 +4406,16 @@
   - 工具侧：`FinvQuantDesign/Scripts/SecuSync/` 的 `ExportSecu.py` 增加 `hkRmbCounter` 规则（优先于交易所默认币种），使后续增量拉取直接产出 `CNY`；新增 `FixSecuCurrency.py` 按 `currencyFixRules` 生成可重复执行的更正 SQL（幂等 + 收敛校验）。
   - 数据侧：已对库内 23 条误写为 `HKD` 的人民币柜台执行 `UPDATE`（另有 3 条历史数据本就是 `CNY`，未被重复更新）；校验后 26 条人民币柜台全为 `CNY`、261 条 8 开头港元指数全为 `HKD`；重跑同 SQL `UPDATE 0`。
   - 文档同步：`Docs/DataDictMapping/FinvSecurity.md` §3 补充「`currency_type` 口径（港股人民币柜台）」说明。
+
+### 修复
+
+- **修复 `Docs/` 下 36 处失效相对链接（跨文档引用）**
+  - `Docs/API/Cdeu/*` 中指向菜单文档的链接多了一层 `../`（`../../../Menu/...` → `../../Menu/...`）；
+    `Docs/API/UscMap.md`、`Docs/API/Cdeu/FxCer.md`、`Docs/API/Cdeu/RealtimeStockUpsert.md` 同类层级错误一并修正。
+  - `Docs/OpenAPI/**` 中指向 `DevSpec/`、`Usage/`、`Proposal/`、`Menu/` 的链接层级修正（`Hello.md`、
+    `SecuIndicatorUpsert.md`）。
+  - 仅修正链接层级，不改文档内容；`Docs/Guide/DesignDocGuide.md` 的 `XxxSpec.md` / `YyyFileFormat.md`
+    属模板占位示例，保持原样。
 
 ## [0.1.3] - 2026-10-29
 

@@ -263,7 +263,7 @@
 | `429` | `19007` | 超过调用额度 |
 | `500` | `2006` | 写库失败（事务已回滚，三表均无变更） |
 
-完整错误码见 [`ErrorCodeSpec.md`](../../../../../../DevSpec/ErrorCodeSpec.md) §1.2。
+完整错误码见 [`ErrorCodeSpec.md`](../../../../../DevSpec/ErrorCodeSpec.md) §1.2。
 
 ## 6. 错误码
 
@@ -310,7 +310,7 @@ curl -X POST 'http://127.0.0.1:16001/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 ```
 
 AK/SK 签名与 STS 临时凭据的完整示例见
-[`Docs/Proposal`](../../../../../../Proposal/README.md) 同目录的联调脚本说明。
+[`Docs/Proposal`](../../../../../Proposal/README.md) 同目录的联调脚本说明。
 
 ## 8. 已使用位置登记
 

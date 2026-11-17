@@ -147,7 +147,7 @@ curl -sS -G 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/P
 
 | 使用方 | 说明 |
 |---|---|
-| 行情 → 实时行情 → 证券行情排行（`/Meta/Finv/Quote/Realtime/FTStockRank`） | `Web/src/views/Meta/Finv/Quote/Realtime/RealtimeStockView.vue`（见 [Menu/Quote/Realtime/RealtimeStock.md](../../Menu/Quote/Realtime/RealtimeStock.md)） |
+| 行情 → 实时行情 → 证券行情排行（`/Meta/Finv/Quote/Realtime/FTStockRank`） | `Web/src/views/Meta/Finv/Quote/Realtime/FTStockRankView.vue`（见 [Menu/Quote/Realtime/FTStockRank.md](../../Menu/Quote/Realtime/FTStockRank.md)） |
 
 ## 7. 附录：OpenAPI 3.1 契约
 

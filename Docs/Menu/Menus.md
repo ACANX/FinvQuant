@@ -14,13 +14,13 @@
 ├─ 仪表盘（二级叶子，/Dashboard）
 ├─ 数据采集（二级分组）
 │  ├─ 行情数据去重（三级分组）
-│  │  ├─ 去重分钟行情查询（四级叶子，/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query）
-│  │  └─ 去重分钟行情统计（四级叶子，/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats）
+│  │  ├─ 去重分钟行情查询（四级叶子，/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineQuery）
+│  │  └─ 去重分钟行情统计（四级叶子，/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineStats）
 │  └─ 行情数据归档（三级分组）
 │     ├─ 归档监控总览（/Meta/Finv/Quote/DeDup/Export/Overview）
 │     ├─ 端到端链路（/Meta/Finv/Quote/DeDup/Export/Chain）
 │     ├─ 工作流控制与监控（/Meta/Finv/Quote/Cdeu/CdeuOverview）
-│     ├─ 日K线数据同步（/Meta/Finv/Quote/Cdeu/DayKline/Sync，需求 10952）
+│     ├─ 日K线数据同步（/Meta/Finv/Quote/Cdeu/DayKlineSync，需求 10952）
 │     ├─ 导出任务（/Meta/Finv/Quote/DeDup/Export/Job）
 │     ├─ 文件与上传（/Meta/Finv/Quote/DeDup/Export/File）
 │     ├─ 归档统计与预算（/Meta/Finv/Quote/DeDup/Export/Stats）
@@ -31,7 +31,7 @@
 ├─ 实时行情（二级分组）
 │  ├─ 证券行情排行（/Meta/Finv/Quote/Realtime/FTStockRank，需求 10962/10963/10964）
 │  ├─ 外汇汇率（/Meta/Finv/Quote/Realtime/FXCEROverview，需求 10999/11000，11159 改名并前移）
-│  ├─ 行情快照同步（/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync，需求 10982，11158 改名）
+│  ├─ 行情快照同步（/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync，需求 10982，11158 改名）
 │  ├─ 待采证券录入（/Meta/Finv/Quote/Realtime/PendingSecu，需求 10995，11160 改名）
 │  ├─ 证券参数补全（/Meta/Finv/Quote/Realtime/SecuParamComplete，需求 11161）
 │  ├─ 证券参数同步（/Meta/Finv/Quote/Realtime/SecuParamSync，需求 11042/11043/11044）
@@ -39,10 +39,10 @@
 │  └─ 证券指标（/Meta/Finv/Quote/Realtime/SecuIndicator，需求 11251，11252 改名）
 ├─ 元数据管理（二级分组）
 │  └─ 业务元数据维护（三级分组）
-│     ├─ 交易所信息维护（/meta/exchange）
-│     ├─ 交易所下设市场信息维护（/meta/market）
-│     ├─ 规范证券信息维护（/meta/security）
-│     └─ 历史行情数据导入（/meta/import）
+│     ├─ 交易所信息维护（/Meta/Finv/MetaData/Exchange）
+│     ├─ 交易所下设市场信息维护（/Meta/Finv/MetaData/Market）
+│     ├─ 规范证券信息维护（/Meta/Finv/MetaData/Security）
+│     └─ 历史行情数据导入（/Meta/Finv/Quote/History/HistoryQuoteImport）
 ├─ 开放平台（二级分组，需求 11171 建立，11172 改名；本身不可点）
 │  ├─ 接入管理（三级分组，需求 11173）
 │  │  ├─ OpenAPI 调用方（/Meta/Finv/OpenAPI/Client，需求 11169）
@@ -83,45 +83,45 @@
 | 2 | 仪表盘 | 金融投资 | 二级叶子 | `dashboard` | `mdi-view-dashboard` | `/Dashboard` | `Web/src/views/DashboardView.vue` | `GET /API/V1/Health/Live`（存活探针） | — |
 | 3 | 数据采集 | 金融投资 | 二级分组 | `data-collection` | `mdi-database-arrow-down` | — | — | — | — |
 | 4 | 行情数据去重 | 金融投资 | 三级分组 | `quote-dedup` | `mdi-content-duplicate` | — | — | — | — |
-| 5 | 去重分钟行情查询 | 金融投资 | 四级叶子 | `dedup-kline-query` | `mdi-table-search` | `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query` | `Web/src/views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue` | `GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Page`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options` | [HistoryQuote/DeDupKLineQuery.md](HistoryQuote/DeDupKLineQuery.md) |
-| 6 | 去重分钟行情统计 | 金融投资 | 四级叶子 | `dedup-kline-stats` | `mdi-chart-box-outline` | `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats` | `Web/src/views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue` | `GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Stats`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options` | [HistoryQuote/DeDupKLineStats.md](HistoryQuote/DeDupKLineStats.md) |
+| 5 | 去重分钟行情查询 | 金融投资 | 四级叶子 | `dedup-kline-query` | `mdi-table-search` | `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineQuery` | `Web/src/views/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineQueryView.vue` | `GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Page`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options` | [Quote/DeDup/Secu/KLine/Min/KLineQuery.md](Quote/DeDup/Secu/KLine/Min/KLineQuery.md) |
+| 6 | 去重分钟行情统计 | 金融投资 | 四级叶子 | `dedup-kline-stats` | `mdi-chart-box-outline` | `/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineStats` | `Web/src/views/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineStatsView.vue` | `GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Stats`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options` | [Quote/DeDup/Secu/KLine/Min/KLineStats.md](Quote/DeDup/Secu/KLine/Min/KLineStats.md) |
 | 7 | 行情数据归档 | 金融投资 | 三级分组 | `quote-archive` | `mdi-database-export-outline` | — | — | — | — |
-| 8 | 归档监控总览 | 金融投资 | 四级叶子 | `dedup-export-overview` | `mdi-monitor-dashboard` | `/Meta/Finv/Quote/DeDup/Export/Overview` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue` | `GET .../Quote/Cdeu/Overview` | — |
-| 9 | 端到端链路 | 金融投资 | 四级叶子 | `dedup-export-chain` | `mdi-transit-connection-variant` | `/Meta/Finv/Quote/DeDup/Export/Chain` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` | `GET .../Quote/Cdeu/Chain` | — |
-| 10 | 工作流控制与监控 | 金融投资 | 四级叶子 | `dedup-export-cdeu` | `mdi-sitemap-outline` | `/Meta/Finv/Quote/Cdeu/CdeuOverview` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` | `GET .../Quote/Cdeu/Status`、`POST .../Quote/Cdeu/Step/Run` | — |
-| 11 | 导出任务 | 金融投资 | 四级叶子 | `dedup-export-job` | `mdi-clipboard-list-outline` | `/Meta/Finv/Quote/DeDup/Export/Job` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportJobView.vue` | `GET .../Quote/Cdeu/Export/Job/List` | — |
-| 12 | 文件与上传 | 金融投资 | 四级叶子 | `dedup-export-file` | `mdi-file-cloud-outline` | `/Meta/Finv/Quote/DeDup/Export/File` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue` | `GET .../Quote/Cdeu/Export/File/List` | — |
-| 13 | 归档统计与预算 | 金融投资 | 四级叶子 | `dedup-export-stats` | `mdi-chart-box-multiple-outline` | `/Meta/Finv/Quote/DeDup/Export/Stats` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveStatsView.vue` | `GET .../Quote/Cdeu/Export/Stats` | — |
-| 14 | 归档主数据与规则 | 金融投资 | 四级叶子 | `dedup-export-config` | `mdi-tune-variant` | `/Meta/Finv/Quote/DeDup/Export/Config` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveConfigView.vue` | `GET/POST .../Quote/Cdeu/Export/Config` | — |
-| 15 | 归档日志与补丁 | 金融投资 | 四级叶子 | `dedup-export-log` | `mdi-text-box-search-outline` | `/Meta/Finv/Quote/DeDup/Export/Log` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveLogView.vue` | `GET .../Quote/Cdeu/Export/Log` | — |
+| 8 | 归档监控总览 | 金融投资 | 四级叶子 | `dedup-export-overview` | `mdi-monitor-dashboard` | `/Meta/Finv/Quote/DeDup/Export/Overview` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/OverviewView.vue` | `GET .../Quote/Cdeu/Overview` | [Quote/DeDup/Export/Overview.md](Quote/DeDup/Export/Overview.md) |
+| 9 | 端到端链路 | 金融投资 | 四级叶子 | `dedup-export-chain` | `mdi-transit-connection-variant` | `/Meta/Finv/Quote/DeDup/Export/Chain` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/ChainView.vue` | `GET .../Quote/Cdeu/Chain` | [Quote/DeDup/Export/Chain.md](Quote/DeDup/Export/Chain.md) |
+| 10 | CDEU 工作流控制面板 | 金融投资 | 四级叶子 | `dedup-export-cdeu` | `mdi-sitemap-outline` | `/Meta/Finv/Quote/Cdeu/CdeuOverview` | `Web/src/views/Meta/Finv/Quote/Cdeu/CdeuOverviewView.vue` | `GET .../Quote/Cdeu/Status`、`POST .../Quote/Cdeu/Step/Run` | [Quote/Cdeu/CdeuOverview.md](Quote/Cdeu/CdeuOverview.md) |
+| 11 | 文件导出 | 金融投资 | 四级叶子 | `dedup-export-job` | `mdi-clipboard-list-outline` | `/Meta/Finv/Quote/DeDup/Export/Job` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/JobView.vue` | `GET .../Quote/Cdeu/Export/Job/List` | [Quote/DeDup/Export/Job.md](Quote/DeDup/Export/Job.md) |
+| 12 | 文件上传 | 金融投资 | 四级叶子 | `dedup-export-file` | `mdi-file-cloud-outline` | `/Meta/Finv/Quote/DeDup/Export/File` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/FileView.vue` | `GET .../Quote/Cdeu/Export/File/List` | [Quote/DeDup/Export/File.md](Quote/DeDup/Export/File.md) |
+| 13 | 归档统计与预算 | 金融投资 | 四级叶子 | `dedup-export-stats` | `mdi-chart-box-multiple-outline` | `/Meta/Finv/Quote/DeDup/Export/Stats` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/StatsView.vue` | `GET .../Quote/Cdeu/Export/Stats` | [Quote/DeDup/Export/Stats.md](Quote/DeDup/Export/Stats.md) |
+| 14 | 归档主数据与规则 | 金融投资 | 四级叶子 | `dedup-export-config` | `mdi-tune-variant` | `/Meta/Finv/Quote/DeDup/Export/Config` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/ConfigView.vue` | `GET/POST .../Quote/Cdeu/Export/Config` | [Quote/DeDup/Export/Config.md](Quote/DeDup/Export/Config.md) |
+| 15 | 归档日志与补丁 | 金融投资 | 四级叶子 | `dedup-export-log` | `mdi-text-box-search-outline` | `/Meta/Finv/Quote/DeDup/Export/Log` | `Web/src/views/Meta/Finv/Quote/DeDup/Export/LogView.vue` | `GET .../Quote/Cdeu/Export/Log` | [Quote/DeDup/Export/Log.md](Quote/DeDup/Export/Log.md) |
 | 16 | 历史行情 | 金融投资 | 二级分组 | `history-quote` | `mdi-chart-box` | — | — | — | — |
-| 17 | 历史行情查询 | 金融投资 | 三级叶子 | `quote-query` | `mdi-chart-line` | `/Meta/Finv/Quote/History/HistoryQuoteQuery` | `Web/src/views/Meta/Finv/Quote/History/HistoryQuoteQueryView.vue` | `GET /API/V1/Meta/Finv/Quant/Quote/History/QuoteQuery`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options` | [HistoryQuote/HistoryQuoteQuery.md](HistoryQuote/HistoryQuoteQuery.md) |
+| 17 | 历史行情查询 | 金融投资 | 三级叶子 | `quote-query` | `mdi-chart-line` | `/Meta/Finv/Quote/History/HistoryQuoteQuery` | `Web/src/views/Meta/Finv/Quote/History/HistoryQuoteQueryView.vue` | `GET /API/V1/Meta/Finv/Quant/Quote/History/QuoteQuery`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options` | [Quote/History/HistoryQuoteQuery.md](Quote/History/HistoryQuoteQuery.md) |
 | 18 | 元数据管理 | 金融投资 | 二级分组 | `metadata` | `mdi-database-cog` | — | — | — | — |
 | 19 | 业务元数据维护 | 金融投资 | 三级分组 | `meta-maintenance` | `mdi-database-search` | — | — | — | — |
-| 20 | 交易所信息维护 | 金融投资 | 四级叶子 | `meta-exchange` | `mdi-office-building` | `/meta/exchange` | `Web/src/views/Meta/Finv/MetaData/MetaExchangeView.vue` | `GET /API/V1/Meta/Finv/Quant/Metadata/Exchange/List`、`POST /API/V1/Meta/Finv/Quant/Metadata/Exchange/Save`、`POST /API/V1/Meta/Finv/Quant/Metadata/Exchange/Toggle` | [Meta/MetaExchange.md](Meta/MetaExchange.md) |
-| 21 | 交易所下设市场信息维护 | 金融投资 | 四级叶子 | `meta-market` | `mdi-chart-areaspline` | `/meta/market` | `Web/src/views/Meta/Finv/MetaData/MetaMarketView.vue` | `GET /API/V1/Meta/Finv/Quant/Metadata/Market/List`、`POST /API/V1/Meta/Finv/Quant/Metadata/Market/Save`、`POST /API/V1/Meta/Finv/Quant/Metadata/Market/Toggle` | [Meta/MetaMarket.md](Meta/MetaMarket.md) |
-| 22 | 规范证券信息维护 | 金融投资 | 四级叶子 | `meta-security` | `mdi-tag-multiple` | `/meta/security` | `Web/src/views/Meta/Finv/MetaData/MetaSecurityView.vue` | `GET /API/V1/Meta/Finv/Quant/Metadata/Security/List`、`POST /API/V1/Meta/Finv/Quant/Metadata/Security/Save`、`POST /API/V1/Meta/Finv/Quant/Metadata/Security/Toggle`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Lookup` | [Meta/MetaSecurity.md](Meta/MetaSecurity.md) |
-| 23 | 历史行情数据导入 | 金融投资 | 四级叶子 | `meta-import` | `mdi-database-import` | `/meta/import` | `Web/src/views/Meta/Finv/Quote/History/HistoryQuoteImportView.vue` | `POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Lookup` | [HistoryQuote/HistoryQuoteImport.md](HistoryQuote/HistoryQuoteImport.md) |
-| 24 | 配置管理 | 金融投资 | 二级叶子 | `config-manage` | `mdi-cog-outline` | `/Meta/Finv/Quant/Config` | `Web/src/views/Meta/Finv/Quant/Backtest/ConfigManageView.vue` | —（规划中） | — |
-| 25 | 环境管理 | 金融投资 | 二级叶子 | `environment` | `mdi-application-cog-outline` | `/Meta/Finv/Quant/Environment` | `Web/src/views/Meta/Finv/Quant/Backtest/EnvironmentView.vue` | `GET/POST .../Backtest/Environment/*` | [Backtest/EnvironmentManage.md](Backtest/EnvironmentManage.md) |
-| 26 | 模板管理 | 金融投资 | 二级叶子 | `template` | `mdi-content-copy` | `/Meta/Finv/Quant/Template` | `Web/src/views/Meta/Finv/Quant/Backtest/TemplateView.vue` | `GET/POST .../Backtest/Template/*` | [Backtest/TemplateManage.md](Backtest/TemplateManage.md) |
-| 27 | 账户管理 | 金融投资 | 二级叶子 | `account` | `mdi-account-cog-outline` | `/Meta/Finv/Quant/Account` | `Web/src/views/Meta/Finv/Quant/Account/AccountManageView.vue` | `GET/POST .../Backtest/Account/*` | [Backtest/AccountManage.md](Backtest/AccountManage.md) |
-| 28 | 资金管理 | 金融投资 | 二级叶子 | `fund` | `mdi-cash-multiple` | `/Meta/Finv/Quant/Fund` | `Web/src/views/Meta/Finv/Quant/Fund/FundManageView.vue` | `GET .../Backtest/Run/List`、`GET .../Backtest/Run/Equity` | [Backtest/FundManage.md](Backtest/FundManage.md) |
-| 29 | 持仓管理 | 金融投资 | 二级叶子 | `position` | `mdi-briefcase-variant-outline` | `/Meta/Finv/Quant/Position` | `Web/src/views/Meta/Finv/Quant/Position/PositionManageView.vue` | `GET .../Backtest/Run/List`、`GET .../Backtest/Run/Equity`、`GET .../Backtest/Run/Trades` | [Backtest/PositionManage.md](Backtest/PositionManage.md) |
+| 20 | 交易所信息维护 | 金融投资 | 四级叶子 | `meta-exchange` | `mdi-office-building` | `/Meta/Finv/MetaData/Exchange` | `Web/src/views/Meta/Finv/MetaData/ExchangeView.vue` | `GET /API/V1/Meta/Finv/Quant/Metadata/Exchange/List`、`POST /API/V1/Meta/Finv/Quant/Metadata/Exchange/Save`、`POST /API/V1/Meta/Finv/Quant/Metadata/Exchange/Toggle` | [MetaData/Exchange.md](MetaData/Exchange.md) |
+| 21 | 交易所下设市场信息维护 | 金融投资 | 四级叶子 | `meta-market` | `mdi-chart-areaspline` | `/Meta/Finv/MetaData/Market` | `Web/src/views/Meta/Finv/MetaData/MarketView.vue` | `GET /API/V1/Meta/Finv/Quant/Metadata/Market/List`、`POST /API/V1/Meta/Finv/Quant/Metadata/Market/Save`、`POST /API/V1/Meta/Finv/Quant/Metadata/Market/Toggle` | [MetaData/Market.md](MetaData/Market.md) |
+| 22 | 规范证券信息维护 | 金融投资 | 四级叶子 | `meta-security` | `mdi-tag-multiple` | `/Meta/Finv/MetaData/Security` | `Web/src/views/Meta/Finv/MetaData/SecurityView.vue` | `GET /API/V1/Meta/Finv/Quant/Metadata/Security/List`、`POST /API/V1/Meta/Finv/Quant/Metadata/Security/Save`、`POST /API/V1/Meta/Finv/Quant/Metadata/Security/Toggle`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Lookup` | [MetaData/Security.md](MetaData/Security.md) |
+| 23 | 历史行情数据导入 | 金融投资 | 四级叶子 | `meta-import` | `mdi-database-import` | `/Meta/Finv/Quote/History/HistoryQuoteImport` | `Web/src/views/Meta/Finv/Quote/History/HistoryQuoteImportView.vue` | `POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Lookup` | [Quote/History/HistoryQuoteImport.md](Quote/History/HistoryQuoteImport.md) |
+| 24 | 系统配置 | 金融投资 | 二级叶子 | `config-manage` | `mdi-cog-outline` | `/Meta/Finv/Quant/Config` | `Web/src/views/Meta/Finv/Quant/ConfigView.vue` | —（规划中） | [Quant/Config.md](Quant/Config.md) |
+| 25 | 环境管理 | 金融投资 | 二级叶子 | `environment` | `mdi-application-cog-outline` | `/Meta/Finv/Quant/Environment` | `Web/src/views/Meta/Finv/Quant/EnvironmentView.vue` | `GET/POST .../Backtest/Environment/*` | [Quant/Environment.md](Quant/Environment.md) |
+| 26 | 模板管理 | 金融投资 | 二级叶子 | `template` | `mdi-content-copy` | `/Meta/Finv/Quant/Template` | `Web/src/views/Meta/Finv/Quant/TemplateView.vue` | `GET/POST .../Backtest/Template/*` | [Quant/Template.md](Quant/Template.md) |
+| 27 | 账户管理 | 金融投资 | 二级叶子 | `account` | `mdi-account-cog-outline` | `/Meta/Finv/Quant/Account` | `Web/src/views/Meta/Finv/Quant/AccountView.vue` | `GET/POST .../Backtest/Account/*` | [Quant/Account.md](Quant/Account.md) |
+| 28 | 资金管理 | 金融投资 | 二级叶子 | `fund` | `mdi-cash-multiple` | `/Meta/Finv/Quant/Fund` | `Web/src/views/Meta/Finv/Quant/FundView.vue` | `GET .../Backtest/Run/List`、`GET .../Backtest/Run/Equity` | [Quant/Fund.md](Quant/Fund.md) |
+| 29 | 持仓管理 | 金融投资 | 二级叶子 | `position` | `mdi-briefcase-variant-outline` | `/Meta/Finv/Quant/Position` | `Web/src/views/Meta/Finv/Quant/PositionView.vue` | `GET .../Backtest/Run/List`、`GET .../Backtest/Run/Equity`、`GET .../Backtest/Run/Trades` | [Quant/Position.md](Quant/Position.md) |
 | 30 | 量化策略验证 | 金融投资 | 二级分组 | `quant-backtest` | `mdi-flask-outline` | — | — | — | — |
-| 31 | 黄金期货合约回测验证 | 金融投资 | 三级叶子 | `backtest-gold-futures` | `mdi-chart-bell-curve` | `/Meta/Finv/Quant/Backtest/GoldFutures` | `Web/src/views/Meta/Finv/Quant/Backtest/BacktestGoldFuturesView.vue` | `GET .../Backtest/Strategy/List`、`GET .../Backtest/Account/List`、`GET .../Backtest/Environment/List`、`POST .../Backtest/Run/Create`、`GET .../Backtest/Run/List` | [Backtest/BacktestGoldFutures.md](Backtest/BacktestGoldFutures.md) |
-| 32 | 策略管理 | 金融投资 | 二级叶子 | `strategy` | `mdi-sitemap-outline` | `/Meta/Finv/Quant/Strategy` | `Web/src/views/Meta/Finv/Quant/Strategy/StrategyManageView.vue` | `GET/POST .../Backtest/Strategy/*` | [Backtest/StrategyManage.md](Backtest/StrategyManage.md) |
-| 33 | 回测分析 | 金融投资 | 二级叶子 | `backtest-analysis` | `mdi-chart-timeline-variant` | `/Meta/Finv/Quant/Backtest/Analysis` | `Web/src/views/Meta/Finv/Quant/Backtest/BacktestAnalysisView.vue` | `GET .../Backtest/Run/List`、`GET .../Backtest/Run/Report`、`GET .../Backtest/Run/Equity`、`GET .../Backtest/Run/Trades`、`GET .../Backtest/Run/Cashflows`、`GET .../Backtest/Run/PositionLogs`、`GET .../Backtest/Run/EventTraces` | [Backtest/BacktestAnalysis.md](Backtest/BacktestAnalysis.md) |
-| 34 | 仿真数据验证 | 金融投资 | 二级叶子 | `simulation-data` | `mdi-database-sync-outline` | `/Meta/Finv/Quant/Simulation/Data` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中） | [Backtest/SimulationData.md](Backtest/SimulationData.md) |
-| 35 | 模拟盘验证 | 金融投资 | 二级叶子 | `simulation-paper` | `mdi-account-cash-outline` | `/Meta/Finv/Quant/Simulation/Paper` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中） | [Backtest/SimulationPaper.md](Backtest/SimulationPaper.md) |
-| 36 | 实盘仿真验证 | 金融投资 | 二级叶子 | `simulation-live-sim` | `mdi-robot-outline` | `/Meta/Finv/Quant/Simulation/LiveSim` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中） | [Backtest/SimulationLiveSim.md](Backtest/SimulationLiveSim.md) |
-| 37 | 实盘交易 | 金融投资 | 二级叶子 | `live-trading` | `mdi-cash-register` | `/Meta/Finv/Quant/LiveTrading` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中） | [Backtest/LiveTrading.md](Backtest/LiveTrading.md) |
+| 31 | 黄金期货合约回测验证 | 金融投资 | 三级叶子 | `backtest-gold-futures` | `mdi-chart-bell-curve` | `/Meta/Finv/Quant/Backtest/GoldFutures` | `Web/src/views/Meta/Finv/Quant/Backtest/GoldFuturesView.vue` | `GET .../Backtest/Strategy/List`、`GET .../Backtest/Account/List`、`GET .../Backtest/Environment/List`、`POST .../Backtest/Run/Create`、`GET .../Backtest/Run/List` | [Quant/Backtest/GoldFutures.md](Quant/Backtest/GoldFutures.md) |
+| 32 | 策略管理 | 金融投资 | 二级叶子 | `strategy` | `mdi-sitemap-outline` | `/Meta/Finv/Quant/Strategy` | `Web/src/views/Meta/Finv/Quant/StrategyView.vue` | `GET/POST .../Backtest/Strategy/*` | [Quant/Strategy.md](Quant/Strategy.md) |
+| 33 | 回测分析 | 金融投资 | 二级叶子 | `backtest-analysis` | `mdi-chart-timeline-variant` | `/Meta/Finv/Quant/Backtest/Analysis` | `Web/src/views/Meta/Finv/Quant/Backtest/AnalysisView.vue` | `GET .../Backtest/Run/List`、`GET .../Backtest/Run/Report`、`GET .../Backtest/Run/Equity`、`GET .../Backtest/Run/Trades`、`GET .../Backtest/Run/Cashflows`、`GET .../Backtest/Run/PositionLogs`、`GET .../Backtest/Run/EventTraces` | [Quant/Backtest/Analysis.md](Quant/Backtest/Analysis.md) |
+| 34 | 仿真数据验证 | 金融投资 | 二级叶子 | `simulation-data` | `mdi-database-sync-outline` | `/Meta/Finv/Quant/Simulation/Data` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中） | [Quant/Simulation/Data.md](Quant/Simulation/Data.md) |
+| 35 | 模拟盘验证 | 金融投资 | 二级叶子 | `simulation-paper` | `mdi-account-cash-outline` | `/Meta/Finv/Quant/Simulation/Paper` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中） | [Quant/Simulation/Paper.md](Quant/Simulation/Paper.md) |
+| 36 | 实盘仿真验证 | 金融投资 | 二级叶子 | `simulation-live-sim` | `mdi-robot-outline` | `/Meta/Finv/Quant/Simulation/LiveSim` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中） | [Quant/Simulation/LiveSim.md](Quant/Simulation/LiveSim.md) |
+| 37 | 实盘交易 | 金融投资 | 二级叶子 | `live-trading` | `mdi-cash-register` | `/Meta/Finv/Quant/LiveTrading` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中） | [Quant/LiveTrading.md](Quant/LiveTrading.md) |
 | 38 | 内容管理 | 内容管理 | 一级系统 | `cms` | `mdi-laptop` | `/Meta/CMS` | — | — | — |
-| 39 | 内容管理控制台 | 内容管理 | 二级叶子 | `cms-home` | `mdi-view-dashboard-outline` | `/Meta/CMS` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中，系统占位） | [CMS/CMSHome.md](CMS/CMSHome.md) |
-| 40 | 日K线数据同步 | 金融投资 | 四级叶子 | `cdeu-daykline-sync` | `mdi-candle` | `/Meta/Finv/Quote/Cdeu/DayKline/Sync` | `Web/src/views/Meta/Finv/Quote/Cdeu/DayKlineSyncView.vue` | `POST /API/V1/Meta/Finv/Quote/Cdeu/DayKline/Sync`、`GET .../DayKline/Stat`、`GET .../DayKline/UscList` | [Quote/Cdeu/DayKlineSync.md](Quote/Cdeu/DayKlineSync.md) |
-| 41 | 证券行情排行 | 金融投资 | 四级叶子 | `quote-realtime-ftstockrank` | `mdi-chart-timeline-variant` | `/Meta/Finv/Quote/Realtime/FTStockRank` | `Web/src/views/Meta/Finv/Quote/Realtime/RealtimeStockView.vue` | `GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Page` | [Quote/Realtime/RealtimeStock.md](Quote/Realtime/RealtimeStock.md) |
-| 42 | 外汇汇率 | 金融投资 | 四级叶子 | `quote-realtime-fxcer-overview` | `mdi-cash-sync` | `/Meta/Finv/Quote/Realtime/FXCEROverview` | `Web/src/views/Meta/Finv/Quote/Realtime/FxCerView.vue` | `POST .../Fx/CerSync`、`GET .../Fx/Cer` | [Quote/Realtime/FxCer.md](Quote/Realtime/FxCer.md) |
-| 43 | 行情快照同步 | 金融投资 | 四级叶子 | `quote-realtime-snapshot-sync` | `mdi-cloud-sync-outline` | `/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync` | `Web/src/views/Meta/Finv/Quote/Realtime/StockSnapshotSyncView.vue` | `POST/GET .../Realtime/FTStockQuoteSnapshotSync/Run` | [Quote/Realtime/SnapshotSync.md](Quote/Realtime/SnapshotSync.md) |
+| 39 | 内容管理控制台 | 内容管理 | 二级叶子 | `cms-home` | `mdi-view-dashboard-outline` | `/Meta/CMS` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中，系统占位） | [CMS/CMS.md](CMS/CMS.md) |
+| 40 | 日K线数据同步 | 金融投资 | 四级叶子 | `cdeu-daykline-sync` | `mdi-candle` | `/Meta/Finv/Quote/Cdeu/DayKlineSync` | `Web/src/views/Meta/Finv/Quote/Cdeu/DayKlineSyncView.vue` | `POST /API/V1/Meta/Finv/Quote/Cdeu/DayKline/Sync`、`GET .../DayKline/Stat`、`GET .../DayKline/UscList` | [Quote/Cdeu/DayKlineSync.md](Quote/Cdeu/DayKlineSync.md) |
+| 41 | 证券行情排行 | 金融投资 | 四级叶子 | `quote-realtime-ftstockrank` | `mdi-chart-timeline-variant` | `/Meta/Finv/Quote/Realtime/FTStockRank` | `Web/src/views/Meta/Finv/Quote/Realtime/FTStockRankView.vue` | `GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Page` | [Quote/Realtime/FTStockRank.md](Quote/Realtime/FTStockRank.md) |
+| 42 | 外汇汇率 | 金融投资 | 四级叶子 | `quote-realtime-fxcer-overview` | `mdi-cash-sync` | `/Meta/Finv/Quote/Realtime/FXCEROverview` | `Web/src/views/Meta/Finv/Quote/Realtime/FXCEROverviewView.vue` | `POST .../Fx/CerSync`、`GET .../Fx/Cer` | [Quote/Realtime/FXCEROverview.md](Quote/Realtime/FXCEROverview.md) |
+| 43 | 行情快照同步 | 金融投资 | 四级叶子 | `quote-realtime-snapshot-sync` | `mdi-cloud-sync-outline` | `/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync` | `Web/src/views/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSyncView.vue` | `POST/GET .../Realtime/FTStockQuoteSnapshotSync/Run` | [Quote/Realtime/SecuQuoteSnapshotSync.md](Quote/Realtime/SecuQuoteSnapshotSync.md) |
 | 44 | 待采证券录入 | 金融投资 | 四级叶子 | `quote-realtime-pending-secu` | `mdi-database-plus-outline` | `/Meta/Finv/Quote/Realtime/PendingSecu` | `Web/src/views/Meta/Finv/Quote/Realtime/PendingSecuView.vue` | `GET .../Realtime/Stock/Pending`、`POST .../Stock/USCBackfill`、`POST .../Stock/Pending/Enqueue*` | [Quote/Realtime/PendingSecu.md](Quote/Realtime/PendingSecu.md) |
 | 45 | 证券参数同步 | 金融投资 | 四级叶子 | `quote-realtime-secu-param-sync` | `mdi-database-sync-outline` | `/Meta/Finv/Quote/Realtime/SecuParamSync` | `Web/src/views/Meta/Finv/Quote/Realtime/SecuParamSyncView.vue` | `GET .../SecuKey/Status`、`POST .../SecuKey/Config`、`POST .../SecuKey/Sync` | [Quote/Realtime/SecuParamSync.md](Quote/Realtime/SecuParamSync.md) |
 | 46 | 证券参数补全 | 金融投资 | 四级叶子 | `quote-realtime-secu-param-complete` | `mdi-table-cog` | `/Meta/Finv/Quote/Realtime/SecuParamComplete` | `Web/src/views/Meta/Finv/Quote/Realtime/SecuParamCompleteView.vue` | `GET .../Secu/Param/Complete/Pending`、`GET .../Secu/Param/Complete/Prefill`、`POST .../Secu/Param/Complete` | [Quote/Realtime/SecuParamComplete.md](Quote/Realtime/SecuParamComplete.md) |
@@ -130,8 +130,23 @@
 | 49 | OpenAPI 调用审计 | 金融投资 | 四级叶子 | `openapi-invoke-log` | `mdi-text-box-search-outline` | `/Meta/Finv/OpenAPI/InvokeLog` | `Web/src/views/Meta/Finv/OpenAPI/InvokeLogView.vue` | `GET .../OpenAPI/InvokeLog/Page` | [OpenAPI/InvokeLog.md](OpenAPI/InvokeLog.md) |
 | 50 | OpenAPI 鉴权配置 | 金融投资 | 四级叶子 | `openapi-settings` | `mdi-tune-variant` | `/Meta/Finv/OpenAPI/Settings` | `Web/src/views/Meta/Finv/OpenAPI/SettingsView.vue` | `GET .../OpenAPI/Settings`、`PUT .../OpenAPI/Settings` | [OpenAPI/Settings.md](OpenAPI/Settings.md) |
 | 51 | OpenAPI 密钥配置 | 金融投资 | 四级叶子 | `openapi-secret` | `mdi-shield-key-outline` | `/Meta/Finv/OpenAPI/Secret` | `Web/src/views/Meta/Finv/OpenAPI/SecretView.vue` | `GET .../OpenAPI/Secret/Status`、`POST .../OpenAPI/Secret/Save` | [OpenAPI/Secret.md](OpenAPI/Secret.md) |
-| 52 | 证券指标 | 金融投资 | 四级叶子 | `quote-realtime-secu-indicator` | `mdi-table-large` | `/Meta/Finv/Quote/Realtime/SecuIndicator` | `Web/src/views/Meta/Finv/Quote/Realtime/IndicatorView.vue` | `GET /API/V1/Meta/Finv/Quote/Secu/Indicator/Columns`、`GET .../Secu/Indicator/Page` | [Quote/Realtime/Indicator.md](Quote/Realtime/Indicator.md) |
+| 52 | 证券指标 | 金融投资 | 四级叶子 | `quote-realtime-secu-indicator` | `mdi-table-large` | `/Meta/Finv/Quote/Realtime/SecuIndicator` | `Web/src/views/Meta/Finv/Quote/Realtime/SecuIndicatorView.vue` | `GET /API/V1/Meta/Finv/Quote/Secu/Indicator/Columns`、`GET .../Secu/Indicator/Page` | [Quote/Realtime/SecuIndicator.md](Quote/Realtime/SecuIndicator.md) |
 | 53 | 采集参数 | 金融投资 | 四级叶子 | `cdeu-collect-param` | `mdi-tune-variant` | `/Meta/Finv/Quote/Cdeu/CollectParam` | `Web/src/views/Meta/Finv/Quote/Cdeu/CollectParamView.vue` | `GET /API/V1/Meta/Finv/Quote/Secu/Collect/Page`、`POST .../Secu/Collect/Update` | [Quote/Cdeu/CollectParam.md](Quote/Cdeu/CollectParam.md) |
+| 54 | CDEU 全流程拓扑 | 金融投资 | 四级叶子 | `cdeu-workflow`（未登记） | `mdi-sitemap` | `/Meta/Finv/Quote/Cdeu/CdeuWorkflow` | `Web/src/views/Meta/Finv/Quote/Cdeu/CdeuWorkflowView.vue` | `GET .../DeDup/CDEU/Overview` | [Quote/Cdeu/CdeuWorkflow.md](Quote/Cdeu/CdeuWorkflow.md) |
+| 55 | 历史月份存量数据清点 | 金融投资 | 四级叶子 | `cdeu-his-month-exist-secu-stat` | `mdi-database-eye-outline` | `/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat` | `Web/src/views/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStatView.vue` | `GET .../DeDup/Export/Stock/Page` | [Quote/Cdeu/HisMonthExistSecuStat.md](Quote/Cdeu/HisMonthExistSecuStat.md) |
+| 56 | 过时USC映射到新USC | 金融投资 | 四级叶子 | `cdeu-usc-patch` | `mdi-swap-horizontal-bold` | `/Meta/Finv/Quote/Cdeu/Usc/Patch` | `Web/src/views/Meta/Finv/Quote/Cdeu/Usc/PatchView.vue` | `POST .../Quote/Cdeu/Usc/Patch` | [Quote/Cdeu/Usc/Patch.md](Quote/Cdeu/Usc/Patch.md) |
+| 57 | CDEU自动化 | 金融投资 | 四级叶子 | `cdeu-automation` | `mdi-robot-happy-outline` | `/Meta/Finv/Quote/Cdeu/Automation` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中） | [Quote/Cdeu/Automation.md](Quote/Cdeu/Automation.md) |
+| 58 | USC 映射规则 | 金融投资 | 四级叶子 | `quote-realtime-usc-mapping` | `mdi-transit-connection-variant` | `/Meta/Finv/Quote/Realtime/UscMapping` | `Web/src/views/Meta/Finv/Quote/Realtime/UscMappingView.vue` | `GET/POST .../Quote/UscMap` | [Quote/Realtime/UscMapping.md](Quote/Realtime/UscMapping.md) |
+| 59 | OpenAPI 接口清单 | 金融投资 | 四级叶子 | `openapi-endpoint` | `mdi-api` | `/Meta/Finv/OpenAPI/Endpoint` | `Web/src/views/Meta/Finv/OpenAPI/EndpointView.vue` | `GET/POST .../OpenAPI/Admin/Endpoint` | [OpenAPI/Endpoint.md](OpenAPI/Endpoint.md) |
+| 60 | 回测任务删除管理 | 金融投资 | 四级叶子 | `run-delete-tasks`（未登记） | `mdi-delete-clock-outline` | `/Meta/Finv/Quant/Backtest/RunDeleteTasks` | `Web/src/views/Meta/Finv/Quant/Backtest/RunDeleteTasksView.vue` | `POST .../Backtest/Run/DeleteTask/Retry` | [Quant/Backtest/RunDeleteTasks.md](Quant/Backtest/RunDeleteTasks.md) |
+| 61 | 投资策略回测收益分析报告 | 金融投资 | 四级叶子 | `backtest-report`（未登记） | `mdi-file-chart-outline` | `/Meta/Finv/Quant/Backtest/Analysis/Report` | `Web/src/views/Meta/Finv/Quant/Backtest/Analysis/ReportView.vue` | `GET .../Backtest/Analysis` | [Quant/Backtest/Analysis/Report.md](Quant/Backtest/Analysis/Report.md) |
+| 62 | 备份登记维护 | 备份与恢复 | 四级叶子 | `brs-table` | `mdi-table-cog` | `/Meta/BRS/Backup/Finv/Table` | `Web/src/views/Meta/BRS/Backup/Finv/BrsBackupTableView.vue` | `GET/POST .../BRS/Backup/Finv/Table` | [BRS/Backup/Finv/Table.md](BRS/Backup/Finv/Table.md) |
+| 63 | 备份记录与产物 | 备份与恢复 | 四级叶子 | `brs-record` | `mdi-file-clock-outline` | `/Meta/BRS/Backup/Finv/Record` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中） | [BRS/Backup/Finv/Record.md](BRS/Backup/Finv/Record.md) |
+| 64 | 对象存储配置 | 备份与恢复 | 四级叶子 | `brs-storage` | `mdi-cloud-cog-outline` | `/Meta/BRS/Backup/Finv/OSSConfig` | `Web/src/views/Meta/BRS/Backup/Finv/BrsOssConfigView.vue` | `GET/POST .../BRS/Backup/Finv/OSSConfig` | [BRS/Backup/Finv/OSSConfig.md](BRS/Backup/Finv/OSSConfig.md) |
+| 65 | 备份调度配置 | 备份与恢复 | 四级叶子 | `brs-schedule` | `mdi-calendar-clock` | `/Meta/BRS/Backup/Finv/Schedule` | `Web/src/views/Meta/BRS/Backup/Finv/BrsScheduleView.vue` | `GET/POST .../BRS/Backup/Finv/Schedule` | [BRS/Backup/Finv/Schedule.md](BRS/Backup/Finv/Schedule.md) |
+| 66 | 小表全量备份 | 备份与恢复 | 四级叶子 | `brs-run` | `mdi-database-export` | `/Meta/BRS/Backup/Finv/Run` | `Web/src/views/Meta/BRS/Backup/Finv/BrsRunView.vue` | `GET/POST .../BRS/Backup/Finv/Run` | [BRS/Backup/Finv/Run.md](BRS/Backup/Finv/Run.md) |
+| 67 | 大表增量备份 | 备份与恢复 | 四级叶子 | `brs-slice` | `mdi-table-large` | `/Meta/BRS/Backup/Finv/Slice` | `Web/src/views/Meta/BRS/Backup/Finv/BrsSliceView.vue` | `GET/POST .../BRS/Backup/Finv/Slice` | [BRS/Backup/Finv/Slice.md](BRS/Backup/Finv/Slice.md) |
+| 68 | 数据恢复 | 备份与恢复 | 四级叶子 | `brs-restore-run` | `mdi-database-arrow-left` | `/Meta/BRS/Restore/Run` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中） | [BRS/Restore/Run.md](BRS/Restore/Run.md) |
 
 ## 说明
 
@@ -144,6 +159,7 @@
 - 图标统一使用 Material Design Icons（`@mdi/font`），**二/三/四级菜单均保留图标**；**注意：`mdi-chart-candlestick` 在 @mdi/font 7.4.47 中不存在**，K 线类菜单使用 `mdi-chart-line` / `mdi-chart-box`。
 - 三个字典维护菜单（交易所/市场/证券）的 List 分页：**启用的（flag_enable='1'）优先展示，禁用的排后面**，同状态按 code 升序（见 `internal/meta/service.go`）。
 - 「菜单文档」列指向对应业务菜单介绍文档（`Docs/Menu/xxx/XXXX.md`，见 [MenuSpec.md](../DevSpec/MenuSpec.md)）；暂无文档的菜单以 `—` 标注，待补充。
+- 序号 **54–68** 为 2026-11 补登记（CDEU 工作流 / 历史月份存量清点 / USC 补丁 / USC 映射 / OpenAPI 接口清单 / 回测删除与报告 / BRS 备份与恢复），按补登顺序追加，不重排既有序号。
 - 「使用的后端接口」列与对应 API 接口文档的「已使用位置登记」互为索引（见 [ApiSpec.md](../DevSpec/ApiSpec.md) 第 7 节）。
 - 视图组件名称与菜单 key 的对应关系（视图文件统一存放于 `Web/src/views/` 并按业务域分子目录，见 [MenuSpec.md](../DevSpec/MenuSpec.md)）：
 
@@ -151,34 +167,47 @@
 |----------|----------------------------------|
 | `dashboard` | `DashboardView.vue` |
 | `quote-query` | `Meta/Finv/Quote/History/HistoryQuoteQueryView.vue` |
-| `quote-realtime-secu-indicator` | `Meta/Finv/Quote/Realtime/IndicatorView.vue` |
-| `cdeu-collect-param` | `Meta/Finv/Quote/Cdeu/CollectParamView.vue` |
-| `dedup-kline-query` | `Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue` |
-| `dedup-kline-stats` | `Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue` |
-| `dedup-export-overview` | `Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue` |
-| `dedup-export-chain` | `Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue` |
-| `dedup-export-cdeu` | `Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue` |
-| `dedup-export-job` | `Meta/Finv/Quote/DeDup/Export/DeDupExportJobView.vue` |
-| `dedup-export-file` | `Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue` |
-| `dedup-export-stats` | `Meta/Finv/Quote/DeDup/Export/DeDupArchiveStatsView.vue` |
-| `dedup-export-config` | `Meta/Finv/Quote/DeDup/Export/DeDupArchiveConfigView.vue` |
-| `dedup-export-log` | `Meta/Finv/Quote/DeDup/Export/DeDupArchiveLogView.vue` |
-| `meta-exchange` | `Meta/Finv/MetaData/MetaExchangeView.vue` |
-| `meta-market` | `Meta/Finv/MetaData/MetaMarketView.vue` |
-| `meta-security` | `Meta/Finv/MetaData/MetaSecurityView.vue` |
 | `meta-import` | `Meta/Finv/Quote/History/HistoryQuoteImportView.vue` |
-| `config-manage` | `Meta/Finv/Quant/Backtest/ConfigManageView.vue` |
-| `environment` | `Meta/Finv/Quant/Backtest/EnvironmentView.vue` |
-| `template` | `Meta/Finv/Quant/Backtest/TemplateView.vue` |
-| `backtest-gold-futures` | `Meta/Finv/Quant/Backtest/BacktestGoldFuturesView.vue` |
-| `account` | `Meta/Finv/Quant/Account/AccountManageView.vue` |
-| `fund` | `Meta/Finv/Quant/Fund/FundManageView.vue` |
-| `position` | `Meta/Finv/Quant/Position/PositionManageView.vue` |
-| `strategy` | `Meta/Finv/Quant/Strategy/StrategyManageView.vue` |
-| `backtest-analysis` | `Meta/Finv/Quant/Backtest/BacktestAnalysisView.vue` |
-| `backtest-report`（报告页） | `Meta/Finv/Quant/Backtest/BacktestReportView.vue` |
-| `run-delete-tasks`（删除管理） | `Meta/Finv/Quant/Backtest/RunDeleteTasksView.vue` |
-| `simulation-data` / `simulation-paper` / `simulation-live-sim` / `live-trading` / `cms-home` | `Common/PlaceholderView.vue`（占位，五个菜单共用） |
+| `quote-realtime-ftstockrank` | `Meta/Finv/Quote/Realtime/FTStockRankView.vue` |
+| `quote-realtime-fxcer-overview` | `Meta/Finv/Quote/Realtime/FXCEROverviewView.vue` |
+| `quote-realtime-snapshot-sync` | `Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSyncView.vue` |
+| `quote-realtime-pending-secu` | `Meta/Finv/Quote/Realtime/PendingSecuView.vue` |
+| `quote-realtime-secu-param-complete` | `Meta/Finv/Quote/Realtime/SecuParamCompleteView.vue` |
+| `quote-realtime-secu-param-sync` | `Meta/Finv/Quote/Realtime/SecuParamSyncView.vue` |
+| `quote-realtime-usc-mapping` | `Meta/Finv/Quote/Realtime/UscMappingView.vue` |
+| `quote-realtime-secu-indicator` | `Meta/Finv/Quote/Realtime/SecuIndicatorView.vue` |
+| `cdeu-collect-param` | `Meta/Finv/Quote/Cdeu/CollectParamView.vue` |
+| `cdeu-daykline-sync` | `Meta/Finv/Quote/Cdeu/DayKlineSyncView.vue` |
+| `dedup-export-cdeu` | `Meta/Finv/Quote/Cdeu/CdeuOverviewView.vue` |
+| `cdeu-workflow`（未登记） | `Meta/Finv/Quote/Cdeu/CdeuWorkflowView.vue` |
+| `cdeu-his-month-exist-secu-stat` | `Meta/Finv/Quote/Cdeu/HisMonthExistSecuStatView.vue` |
+| `cdeu-usc-patch` | `Meta/Finv/Quote/Cdeu/Usc/PatchView.vue` |
+| `dedup-kline-query` | `Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineQueryView.vue` |
+| `dedup-kline-stats` | `Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineStatsView.vue` |
+| `dedup-export-overview` | `Meta/Finv/Quote/DeDup/Export/OverviewView.vue` |
+| `dedup-export-chain` | `Meta/Finv/Quote/DeDup/Export/ChainView.vue` |
+| `dedup-export-job` | `Meta/Finv/Quote/DeDup/Export/JobView.vue` |
+| `dedup-export-file` | `Meta/Finv/Quote/DeDup/Export/FileView.vue` |
+| `dedup-export-stats` | `Meta/Finv/Quote/DeDup/Export/StatsView.vue` |
+| `dedup-export-config` | `Meta/Finv/Quote/DeDup/Export/ConfigView.vue` |
+| `dedup-export-log` | `Meta/Finv/Quote/DeDup/Export/LogView.vue` |
+| `meta-exchange` | `Meta/Finv/MetaData/ExchangeView.vue` |
+| `meta-market` | `Meta/Finv/MetaData/MarketView.vue` |
+| `meta-security` | `Meta/Finv/MetaData/SecurityView.vue` |
+| `config-manage` | `Meta/Finv/Quant/ConfigView.vue` |
+| `environment` | `Meta/Finv/Quant/EnvironmentView.vue` |
+| `template` | `Meta/Finv/Quant/TemplateView.vue` |
+| `backtest-gold-futures` | `Meta/Finv/Quant/Backtest/GoldFuturesView.vue` |
+| `account` | `Meta/Finv/Quant/AccountView.vue` |
+| `fund` | `Meta/Finv/Quant/FundView.vue` |
+| `position` | `Meta/Finv/Quant/PositionView.vue` |
+| `strategy` | `Meta/Finv/Quant/StrategyView.vue` |
+| `backtest-analysis` | `Meta/Finv/Quant/Backtest/AnalysisView.vue` |
+| `backtest-report`（未登记） | `Meta/Finv/Quant/Backtest/Analysis/ReportView.vue` |
+| `run-delete-tasks`（未登记） | `Meta/Finv/Quant/Backtest/RunDeleteTasksView.vue` |
+| `openapi-client` / `openapi-credential` / `openapi-invoke-log` / `openapi-settings` / `openapi-secret` / `openapi-endpoint` | `Meta/Finv/OpenAPI/{Client,Credential,InvokeLog,Settings,Secret,Endpoint}View.vue` |
+| `brs-table` / `brs-storage` / `brs-schedule` / `brs-run` / `brs-slice` | `Meta/BRS/Backup/Finv/Brs{BackupTable,OssConfig,Schedule,Run,Slice}View.vue` |
+| `simulation-data` / `simulation-paper` / `simulation-live-sim` / `live-trading` / `cms-home` / `cdeu-automation` / `brs-record` / `brs-restore-run` | `Common/PlaceholderView.vue`（占位，多个菜单共用） |
 
 ## 相关文档
 

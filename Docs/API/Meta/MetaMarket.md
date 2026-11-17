@@ -95,4 +95,4 @@ finv_market 交易市场字典维护接口：分页查询、新增/修改、禁�
 
 ## 已使用位置登记
 
-- 交易所下设市场信息维护菜单（`Docs/Menu/Meta/MetaMarket.md`，视图 `MetaMarketView.vue`）
+- 交易所下设市场信息维护菜单（`Docs/Menu/MetaData/Market.md`，视图 `MarketView.vue`）

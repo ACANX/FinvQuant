@@ -119,4 +119,4 @@ curl "http://localhost:16001/API/V1/Meta/Finv/Quant/Quote/History/QuoteQuery?usc
 
 | 使用方 | 位置 | 说明 |
 |--------|------|------|
-| 历史行情查询菜单 | [`Docs/Menu/HistoryQuote/HistoryQuoteQuery.md`](../../Menu/HistoryQuote/HistoryQuoteQuery.md) | 前端 `HistoryQuoteQueryView.vue` 调用本接口获取分钟级 K 线（1 日 / 5 日、ts 范围、不分页、拖拽平移） |
+| 历史行情查询菜单 | [`Docs/Menu/Quote/History/HistoryQuoteQuery.md`](../../Menu/Quote/History/HistoryQuoteQuery.md) | 前端 `HistoryQuoteQueryView.vue` 调用本接口获取分钟级 K 线（1 日 / 5 日、ts 范围、不分页、拖拽平移） |

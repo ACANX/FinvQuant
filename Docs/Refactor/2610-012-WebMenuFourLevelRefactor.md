@@ -20,7 +20,7 @@
 | `App.vue` | 移除内联 `menuItems` 与两层 `v-list-group` 模板，改为 `<NavMenuTree>`；顶栏加系统切换器（登录用户菜单保持在最右）；抽屉宽度 300px；`v-main` 顶部加面包屑（webcms） |
 | 路由 | 新增 `/Meta/Finv`（redirect `/Dashboard`）、`/Meta/CMS`（`name: 'cms-home'`，`PlaceholderView`）；其余路由零改动 |
 | 占位页 | `PlaceholderView.vue` 的 `plans` 新增 `cms-home` 文案（唯一视图改动） |
-| 文档 | `Menus.md` 重写（四级树 + 清单加「所属系统」列 + 仪表盘路由笔误修正）、`MenuSpec.md` §1/§1.2、`Docs/Menu/CMS/CMSHome.md` 新增、`CHANGELOG`、`RequirementList` 10803–10807 |
+| 文档 | `Menus.md` 重写（四级树 + 清单加「所属系统」列 + 仪表盘路由笔误修正）、`MenuSpec.md` §1/§1.2、`Docs/Menu/CMS/CMS.md` 新增、`CHANGELOG`、`RequirementList` 10803–10807 |
 | 验证 | `cd Web && npm run build`（vue-tsc + vite）通过；菜单 31 条路径全部命中 `router.ts`；叶子 30 / 系统 2 / 最大层级 4；深链接链与 CMS 链正确 |
 
 ---
@@ -218,7 +218,7 @@ export function findFirstLeaf(node: MenuNode): string | undefined
 | 左侧菜单 | 仅一项「内容管理控制台」（二级叶子，`key=cms-home`） |
 | 路由 | 新增 `{ path: '/Meta/CMS', name: 'cms-home', component: PlaceholderView, meta: { title: '内容管理控制台' } }` |
 | 页面 | 复用 `Web/src/views/Common/PlaceholderView.vue`，在 `plans` 中新增 `cms-home` 一条说明（文案见 R4） |
-| 文档 | 新增 `Docs/Menu/CMS/CMSHome.md`（MenuSpec §2.2「一个菜单一个文档」）+ `Menus.md` 登记 |
+| 文档 | 新增 `Docs/Menu/CMS/CMS.md`（MenuSpec §2.2「一个菜单一个文档」）+ `Menus.md` 登记 |
 | 后续整合 | 内容管理实际业务菜单落地时，只在 `menuSystems[1].children` 追加节点，不动组件与路由骨架 |
 
 > 选占位而非"空系统"的原因：空 `children` 的左侧抽屉会没有任何内容，用户会误判为加载失败；一个占位叶子能明确传达「系统已接入、业务待整合」。
@@ -431,7 +431,7 @@ WebCMS 的 `menuConfig.js` 一级菜单共 9 项；本项目按「一个一级�
 | `Web/src/views/Common/PlaceholderView.vue` | 在 `plans` 中新增 `cms-home` 文案（唯一的视图文件改动，不含业务逻辑） |
 | `Docs/DevSpec/MenuSpec.md` | §1 改为登记 `Web/src/config/menuConfig.ts`；新增「四级菜单与系统注册」条款（层级语义、一级系统、`match` 归属、key 规则、`subtitle` 可选、深度上限） |
 | `Docs/Menu/Menus.md` | ① 重写「菜单层级结构」为「系统 → 二/三/四级」；② 清单表「层级」列改为 `一级系统`、`二级分组`、`二级叶子`、`三级分组`、`三级叶子`、`四级叶子`，并新增「所属系统」列（取值 `金融投资` / `内容管理`，与 CMS 一级菜单同名）；③ 修正仪表盘路由 `/dashboard` → `/Dashboard`（与代码不一致，现存笔误）；④ 登记内容管理占位菜单 |
-| `Docs/Menu/CMS/CMSHome.md` | 新增（一个菜单一个文档），说明占位菜单入口、规划、后续整合方式 |
+| `Docs/Menu/CMS/CMS.md` | 新增（一个菜单一个文档），说明占位菜单入口、规划、后续整合方式 |
 | `Docs/CHANGELOG.md` | `[未发布]` → `变更`：左侧菜单四级化 + 顶栏系统切换（金融投资 / 内容管理）+ 内容管理占位 + 视觉开关（说明导航结构变化，路由不变） |
 | `Docs/RequirementList.md` | 追加需求条目（`10803` 起，建议 5 条：四级树、顶栏系统切换、内容管理占位、展开状态持久化、视觉开关），核对方式为命令 + 人工判定点 |
 
@@ -512,7 +512,7 @@ route 变化：并入新祖先链（不收起其它分支）
 
 1. `Docs/DevSpec/MenuSpec.md`：登记位置、四级层级语义、系统注册表与 `match` 约束、`subtitle` 可选、视觉开关说明；
 2. `Docs/Menu/Menus.md`：层级树 + 清单表（层级列、所属系统列）+ 仪表盘路由笔误修正 + 内容管理占位登记；
-3. `Docs/Menu/CMS/CMSHome.md`：新建（一个菜单一个文档）；
+3. `Docs/Menu/CMS/CMS.md`：新建（一个菜单一个文档）；
 4. `Docs/CHANGELOG.md`：`[未发布] / 变更` 一条（含视觉开关与回退方式）；
 5. `Docs/RequirementList.md`：新增需求条目（`10803` 起，只增不改）；
 6. 本方案文档 `2610-012`：实施完成后在文首追加「实施记录」小节（状态改为已实施）。

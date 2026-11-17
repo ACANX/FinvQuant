@@ -36,4 +36,4 @@
 
 | 业务菜单 | 菜单文档 | 使用接口 |
 |----------|----------|----------|
-| 模板管理 | [Docs/Menu/Backtest/TemplateManage.md](../../Menu/Backtest/TemplateManage.md) | List / Get / Save / Delete |
+| 模板管理 | [Docs/Menu/Quant/Template.md](../../Menu/Quant/Template.md) | List / Get / Save / Delete |

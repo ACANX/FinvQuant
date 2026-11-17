@@ -48,4 +48,4 @@
 
 | 业务菜单 | 菜单文档 | 使用接口 |
 |----------|----------|----------|
-| 策略管理 | [Docs/Menu/Backtest/StrategyManage.md](../../Menu/Backtest/StrategyManage.md) | List / Get / Save / Toggle / Delete |
+| 策略管理 | [Docs/Menu/Quant/Strategy.md](../../Menu/Quant/Strategy.md) | List / Get / Save / Toggle / Delete |

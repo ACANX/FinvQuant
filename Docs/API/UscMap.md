@@ -17,7 +17,7 @@
 > 权限：需登录（内部接口）
 > 关联表：`futu.finv_futu_usc_rule` / `futu.finv_futu_usc_rule_item` / `futu.finv_futu_usc_map` /
 > `futu.finv_futu_usc_rule_log` / `archive.finv_usc_reuse_snapshot`（迁移 `V300157`）
-> 关联菜单：[`Menu/Quote/Realtime/UscMapping.md`](../../Menu/Quote/Realtime/UscMapping.md)
+> 关联菜单：[`Menu/Quote/Realtime/UscMapping.md`](../Menu/Quote/Realtime/UscMapping.md)
 > 契约：[`UscMap.yml`](UscMap.yml)
 
 ## 1. 用途

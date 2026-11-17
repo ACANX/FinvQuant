@@ -176,7 +176,7 @@ quote.finv_quote_secu_kline_min ──► cdeu.finv_quote_secu_kline_min（主�
 | `internal/meta/finv/quote/mvsv/` | MVSV-1/2 文件的解析与写出（与归档共用格式实现） |
 | `internal/meta/finv/sys/` | `sys.sys_config` 配置读写（20001–20012），带 TTL 缓存 |
 | `internal/api/handler/{cdeu.go,cdeu_admin.go}` | 页面接口：概览、运行历史、JOB 手动触发、暂停/取消、成熟度重算 |
-| `Web/src/views/.../DeDup/Export/DeDupCDEUView.vue`、`DeDupCDEUWorkflowView.vue` | 两个页面：运行监控 + 全流程拓扑 |
+| `Web/src/views/Meta/Finv/Quote/Cdeu/CdeuOverviewView.vue`、`CdeuWorkflowView.vue` | 两个页面：运行监控 + 全流程拓扑 |
 
 ### 3.3 调度与执行
 

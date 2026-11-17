@@ -1,6 +1,6 @@
-# 内容管理控制台（CMSHome）— 菜单业务文档
+# 内容管理控制台（CMS）— 菜单业务文档
 
-> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/CMS/CMSHome.md`
+> 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/CMS/CMS.md`
 > 对应视图：`Web/src/views/Common/PlaceholderView.vue`
 > 导航方案：[Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md](../../Refactor/2610-012-WebMenuFourLevelRefactor.md)
 

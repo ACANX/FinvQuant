@@ -1,9 +1,9 @@
-# 外汇汇率（FxCer）
+# 外汇汇率（FXCEROverview）
 
 > 菜单 key：`quote-realtime-fxcer-overview`
 > 路由：`/Meta/Finv/Quote/Realtime/FXCEROverview`
 > 所属：导航「行情 → 实时行情 → 外汇汇率」（需求 11159 由「缺省汇率」改名，并前移到「行情快照同步」之前）
-> 视图：`Web/src/views/Meta/Finv/Quote/Realtime/FxCerView.vue`
+> 视图：`Web/src/views/Meta/Finv/Quote/Realtime/FXCEROverviewView.vue`
 > 关联需求：10999（本页与接口；表结构 10998）、11000（路由改名 + 矩阵/表格双模式 + 中文名称）
 > 关联接口：[`API/Cdeu/FxCer.md`](../../../API/Cdeu/FxCer.md)
 > 关联数据表：[`DataDictMapping/FinvFxcer.md`](../../../DataDictMapping/FinvFxcer.md)（`public.finv_fxcer`，V300124）
