@@ -20,6 +20,17 @@
 
 ### 新增
 
+- **新增跨 provider 证券实时行情快照表 `cdeu.finv_quote_secu_realtime`（需求 11261，迁移 `V300209`）**
+  - 参考 `cdeu.finv_cdeu_secu_realtime_stock` 的 34 列结构：主键由 `stock_id` 改为 `usc`（`usc TEXT NOT NULL`），
+    `stock_id` 由 `BIGINT` 改为 `TEXT` 且可空（NULL = 源系统未分配），表尾新增
+    `provider TEXT NOT NULL DEFAULT 'FTMM'`（数据提供方），其余 31 列同名同类型。
+  - 保留 `page_chk`（`page IS NULL OR page > 0`）与触发器 `trg_finv_quote_secu_realtime_gmt_update`（`public.vq_set_gmt_update()`）；
+    35 列均有中文注释；脚本幂等（`IF NOT EXISTS` + 约束存在性判断 + 触发器先删后建），末尾校验列清单 / 类型 /
+    主键 / `page_chk` / `provider` 默认值 / 注释数 / 触发器，不符整体回滚。
+  - 与 `cdeu.finv_cdeu_secu_realtime_stock` **并存**：`stock_id` 主键表存单 provider 原始快照，本表按 `usc` 存跨 provider 归一快照，
+    不得合并或互相改写（`DbSchemaSpec` §0/§1 已登记）。
+  - 验证：`go test ./internal/docs/` 通过；迁移号 `V300209` 唯一、幂等、末尾带收敛校验。
+
 - **新增菜单「采集参数」：富途采集参数查询与单行维护（需求 11254）**
   - 位置：行情 → 收剔导传ETL → CDEU自动化 → 采集参数（`/Meta/Finv/Quote/Cdeu/CollectParam`，
     菜单 key `cdeu-collect-param`），表 `futu.finv_futu_quote_collect`。
