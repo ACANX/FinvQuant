@@ -2468,6 +2468,21 @@
 
 ### 修复
 
+- **期货两表的 BRS 备份登记改用动态空闲 priority，修复部署时迁移 `V300216` 失败（需求 11273）**
+  - 现象：Native 部署启动即失败并被 systemd 反复重启，`journalctl -u finvquant` 反复报
+    `数据库迁移失败: 迁移 V300216（V300216__cdeu_create_future_list_tables.sql）失败: ERROR: V300216 备份登记缺失：cdeu.finv_quote_realtime_future, cdeu.finv_quote_cdeu_future_sync_config (SQLSTATE P0001)`。
+  - 根因：`V300216` 第 6 步把备份登记的 `priority` 写死为 `450` / `440`，而 `brs.brs_bak_rdb_table_full`
+    对 `priority` 有唯一约束（`uq_brs_bak_rdb_table_priority`）；目标库该号已被占用时，
+    `INSERT ... ON CONFLICT DO NOTHING` 把整行**静默跳过**，末尾收敛校验随即判「未登记」并整体回滚。
+  - 修复：登记语句改为**动态取最小空闲号**（在 `generate_series(10, 1000, 10)` 中跳过已占用的 priority），
+    并在插入后用 `GET DIAGNOSTICS ROW_COUNT` 立即判定「两表是否都已登记」；失败时错误信息带上
+    「期望/实际写入行数 + 未登记表 + 同名登记现状（db/priority/flag_enable）」，不再等到末尾才给一句笼统结论。
+  - 影响面：`V300216` 此前从未成功提交（失败即整事务回滚，两张表与种子均不存在），本次修改对任何环境都是首次生效；
+    未发布版本，无需数据修复。
+  - 验证：`sqlglot`（postgres 方言）解析脚本内 47 条纯 SQL 与 DO 块内的 CTE INSERT 全部通过；
+    重新部署后 `journalctl -u finvquant` 应出现 `V300216 备份登记完成：本批写入 2 行（期望 2 行）` 与
+    `V300216 校验通过：结果表 20 列 / 配置表 10 列 / 种子 8 行 / 已登记 BRS 全量备份`。
+
 - **全新空库执行迁移链失败（需求 11022）**
   - `V200090`（`brs.brs_bak_rdb_table` 加 `db` 列）版本号早于建表脚本 `V300060`，空库跑到这里表还不存在 → `42P01`。改为 `DO` 块内 `to_regclass(...) IS NULL` 时 `NOTICE` 跳过；存量库行为不变（早已执行完）。
   - `V300060` 建表即带 `db` 列与四列唯一约束 `(rdb_type, db, schema_name, table_name)`，种子 `INSERT` 补 `db` 值与匹配的 `ON CONFLICT` 目标，空库一次建成与存量库一致的结构。

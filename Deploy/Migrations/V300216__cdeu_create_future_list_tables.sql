@@ -39,6 +39,12 @@
 -- 幂等：CREATE TABLE / 约束 / 索引 / 触发器 / 注释均可重复执行；seed 用
 --   ON CONFLICT DO NOTHING；BRS 备份登记用 to_regclass 守卫 + ON CONFLICT DO NOTHING。
 --   末尾校验列清单、主键、注释数、约束、索引、触发器与配置行数，任一不符整事务回滚。
+--
+-- 修正记录（2026-11-18，线上首跑失败后修订）：BRS 备份登记的 priority 由写死
+--   450/440 改为**动态取最小空闲号**——写死值与已有登记行撞唯一约束时
+--   ON CONFLICT DO NOTHING 会静默跳过，末尾校验报「备份登记缺失」使迁移整体回滚。
+--   本脚本此前从未成功提交过（失败即整体回滚），故本次修改对任何环境都是首次生效，
+--   不影响已应用版本。
 -- =====================================================================
 
 BEGIN;
@@ -253,21 +259,85 @@ ON CONFLICT (market_type, futures_type) DO NOTHING;
 -- ---------------------------------------------------------------------
 -- 6. BRS 全量备份登记（两张新表纳入每日全量备份）
 --
--- priority 取 450 / 440：现有登记已用到 460 及以上（V300149 的 510~680、
--- V300150 的 460~490、更早的 690~1000），向下取 10 的整数互不冲突。
+-- priority **动态取空闲号**，不写死：brs.brs_bak_rdb_table_full 对 priority 有
+-- 唯一约束（uq_brs_bak_rdb_table_priority，见 V300060/V300091），而各环境的人工
+-- 登记行与其它脚本的占用情况不可预知；写死值一旦被占用，`ON CONFLICT DO NOTHING`
+-- 会把整行静默跳过，末尾校验才报「备份登记缺失」，导致迁移在启动阶段直接失败
+-- （线上 V300216 首次执行即为此原因，事务整体回滚、无副作用）。
+--
+-- 取号规则：从 10 起按 10 递增找**最小空闲号**（priority 越大越先备份，
+-- 新表排后面正合语义），按清单顺序取前 N 个空闲号。
 -- 用 to_regclass 守卫：某环境缺该表就跳过登记，不制造僵尸登记。
+-- 幂等：同 (rdb_type, db, schema_name, table_name) 已登记时 ON CONFLICT DO NOTHING。
 -- ---------------------------------------------------------------------
-INSERT INTO brs.brs_bak_rdb_table_full
-    (rdb_type, db, schema_name, table_name, flag_enable, priority, bak_scope,
-     bak_method, compression, flag_upload, creator, remark)
-SELECT 'postgresql', 'finv', v.schema_name, v.table_name, '1', v.priority, 'both',
-       'pg_dump', 'zstd', '1', 'migration', v.remark
-  FROM (VALUES
-        ('cdeu', 'finv_quote_realtime_future',            450, '期货合约实时快照（moomoo get-futures-list，需求 11273）'),
-        ('cdeu', 'finv_quote_cdeu_future_sync_config',    440, '期货列表采集配置（需求 11273）')
-       ) AS v(schema_name, table_name, priority, remark)
- WHERE to_regclass(v.schema_name || '.' || v.table_name) IS NOT NULL
-ON CONFLICT DO NOTHING;
+DO $$
+DECLARE
+    v_expect   int;
+    v_inserted int;
+    v_missing  text;
+    v_existing text;
+BEGIN
+    -- 期望登记行数 = 清单中「库里确实存在」的表数（本事务刚建，通常为 2）
+    SELECT count(*) INTO v_expect
+      FROM (VALUES ('cdeu', 'finv_quote_realtime_future'),
+                   ('cdeu', 'finv_quote_cdeu_future_sync_config')
+           ) AS v(schema_name, table_name)
+     WHERE to_regclass(v.schema_name || '.' || v.table_name) IS NOT NULL;
+
+    WITH want (schema_name, table_name, remark, ord) AS (
+        VALUES ('cdeu', 'finv_quote_realtime_future',
+                '期货合约实时快照（moomoo get-futures-list，需求 11273）', 1),
+               ('cdeu', 'finv_quote_cdeu_future_sync_config',
+                '期货列表采集配置（需求 11273）', 2)
+    ), free_slot AS (
+        SELECT gs.slot AS priority, row_number() OVER (ORDER BY gs.slot ASC) AS rn
+          FROM generate_series(10, 1000, 10) AS gs(slot)
+         WHERE NOT EXISTS (
+                 SELECT 1 FROM brs.brs_bak_rdb_table_full b WHERE b.priority = gs.slot
+               )
+    ), pick AS (
+        SELECT w.schema_name, w.table_name, w.remark, f.priority
+          FROM want w
+          JOIN free_slot f ON f.rn = w.ord
+    )
+    INSERT INTO brs.brs_bak_rdb_table_full
+        (rdb_type, db, schema_name, table_name, flag_enable, priority, bak_scope,
+         bak_method, compression, flag_upload, creator, remark)
+    SELECT 'postgresql', 'finv', p.schema_name, p.table_name, '1', p.priority, 'both',
+           'pg_dump', 'zstd', '1', 'migration', p.remark
+      FROM pick p
+     WHERE to_regclass(p.schema_name || '.' || p.table_name) IS NOT NULL
+    ON CONFLICT DO NOTHING;
+
+    GET DIAGNOSTICS v_inserted = ROW_COUNT;
+
+    -- 插入后立刻判定「两表是否都已登记」：不等到末尾校验，且错误里带上现场信息，
+    -- 便于一眼区分「唯一约束把行吞了」与「本来就已登记（幂等）」。
+    SELECT string_agg(v.schema_name || '.' || v.table_name, ', ' ORDER BY 1)
+      INTO v_missing
+      FROM (VALUES ('cdeu', 'finv_quote_realtime_future'),
+                   ('cdeu', 'finv_quote_cdeu_future_sync_config')
+           ) AS v(schema_name, table_name)
+     WHERE to_regclass(v.schema_name || '.' || v.table_name) IS NOT NULL
+       AND NOT EXISTS (
+             SELECT 1 FROM brs.brs_bak_rdb_table_full b
+              WHERE b.schema_name = v.schema_name AND b.table_name = v.table_name
+           );
+
+    IF v_missing IS NOT NULL THEN
+        SELECT string_agg(format('%s.%s(db=%s, priority=%s, flag_enable=%s)',
+                                 b.schema_name, b.table_name, b.db, b.priority, b.flag_enable), '; ')
+          INTO v_existing
+          FROM brs.brs_bak_rdb_table_full b
+         WHERE b.table_name IN ('finv_quote_realtime_future', 'finv_quote_cdeu_future_sync_config');
+
+        RAISE EXCEPTION
+            'V300216 备份登记未生效：期望 % 行、实际写入 % 行；未登记表 = %；同名登记现状 = %',
+            v_expect, v_inserted, v_missing, COALESCE(v_existing, '无');
+    END IF;
+
+    RAISE NOTICE 'V300216 备份登记完成：本批写入 % 行（期望 % 行）', v_inserted, v_expect;
+END $$;
 
 -- ---------------------------------------------------------------------
 -- 7. 收敛校验：结构、注释、种子行数、备份登记，不符则整事务回滚
