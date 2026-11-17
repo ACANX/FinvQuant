@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="980" viewBox="0 0 1240 980" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#546e7a"/>
+    </marker>
+    <marker id="arrowR" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#c62828"/>
+    </marker>
+    <linearGradient id="hdr" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0d47a1"/><stop offset="100%" stop-color="#1565c0"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1240" height="58" fill="url(#hdr)"/>
+  <text x="620" y="37" text-anchor="middle" fill="#fff" font-size="23" font-weight="bold">量化策略回测全流程 · 数据流向图</text>
+  <text x="620" y="78" text-anchor="middle" fill="#546e7a" font-size="13">输入（配置+行情）→ 处理（服务/引擎）→ 输出（结果表+报告）→ 展示（前端）</text>
+
+  <!-- ============ 输入区 ============ -->
+  <rect x="40" y="96" width="360" height="330" rx="10" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.5"/>
+  <text x="60" y="122" fill="#0d47a1" font-size="15" font-weight="bold">输入（配置与行情）</text>
+
+  <g font-size="12.5" fill="#37474f">
+    <rect x="60" y="136" width="320" height="64" rx="6" fill="#fff" stroke="#90caf9"/>
+    <text x="220" y="156" text-anchor="middle" font-weight="bold">策略定义（JSON 模型 v1）</text>
+    <text x="220" y="174" text-anchor="middle" fill="#78909c">universe/data/indicators/signals</text>
+    <text x="220" y="190" text-anchor="middle" fill="#78909c">/rules/risk/cost（finv_quant_backtest_strategy）</text>
+
+    <rect x="60" y="212" width="320" height="64" rx="6" fill="#fff" stroke="#90caf9"/>
+    <text x="220" y="232" text-anchor="middle" font-weight="bold">账户配置</text>
+    <text x="220" y="250" text-anchor="middle" fill="#78909c">初始资金/手续费/滑点/保证金模式/币种/分组</text>
+    <text x="220" y="266" text-anchor="middle" fill="#78909c">（finv_quant_backtest_account）</text>
+
+    <rect x="60" y="288" width="320" height="64" rx="6" fill="#fff" stroke="#90caf9"/>
+    <text x="220" y="308" text-anchor="middle" font-weight="bold">环境配置（动态切换）</text>
+    <text x="220" y="326" text-anchor="middle" fill="#78909c">交易时段/T+N/涨跌停/合约乘数/tick_size</text>
+    <text x="220" y="342" text-anchor="middle" fill="#78909c">成本/撮合模式/币种（finv_quant_environment）</text>
+
+    <rect x="60" y="364" width="320" height="50" rx="6" fill="#fff" stroke="#90caf9"/>
+    <text x="220" y="384" text-anchor="middle" font-weight="bold">历史行情（只读）</text>
+    <text x="220" y="401" text-anchor="middle" fill="#78909c">finv_quote_secu_kline_min（GCMain 分钟级）</text>
+  </g>
+
+  <!-- 中间处理区 -->
+  <rect x="440" y="96" width="360" height="330" rx="10" fill="#fff3e0" stroke="#e65100" stroke-width="1.5"/>
+  <text x="460" y="122" fill="#bf360c" font-size="15" font-weight="bold">处理（服务层 + 引擎）</text>
+  <g font-size="12.5" fill="#37474f">
+    <rect x="460" y="136" width="320" height="58" rx="6" fill="#fff" stroke="#ffcc80"/>
+    <text x="620" y="156" text-anchor="middle" font-weight="bold">任务创建（Run/Create）</text>
+    <text x="620" y="174" text-anchor="middle" fill="#78909c">校验 → 三快照（策略/账户/环境）</text>
+    <text x="620" y="190" text-anchor="middle" fill="#78909c">写 finv_quant_backtest_run（PENDING）</text>
+
+    <rect x="460" y="206" width="320" height="58" rx="6" fill="#fff" stroke="#ffcc80"/>
+    <text x="620" y="226" text-anchor="middle" font-weight="bold">调度执行（并发≤4）</text>
+    <text x="620" y="244" text-anchor="middle" fill="#78909c">加载行情 → 周期聚合（Min/Hour/Day）</text>
+    <text x="620" y="260" text-anchor="middle" fill="#78909c">→ 预热 → 逐 bar 回放</text>
+
+    <rect x="460" y="276" width="320" height="58" rx="6" fill="#fff" stroke="#ffcc80"/>
+    <text x="620" y="296" text-anchor="middle" font-weight="bold">引擎回放（无未来函数）</text>
+    <text x="620" y="314" text-anchor="middle" fill="#78909c">挂单撮合 → 风控 → 信号 → 规则限制</text>
+    <text x="620" y="330" text-anchor="middle" fill="#78909c">→ 账户更新 → 市值快照/回撤</text>
+
+    <rect x="460" y="346" width="320" height="58" rx="6" fill="#fff" stroke="#ffcc80"/>
+    <text x="620" y="366" text-anchor="middle" font-weight="bold">结果持久化（persistResult 批量）</text>
+    <text x="620" y="384" text-anchor="middle" fill="#78909c">成交先落库建 seq→trade_id 映射</text>
+    <text x="620" y="400" text-anchor="middle" fill="#78909c">→ 明细经 seq 关联 → 报告 JSONB</text>
+  </g>
+
+  <!-- 输出区 -->
+  <rect x="840" y="96" width="360" height="330" rx="10" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1.5"/>
+  <text x="860" y="122" fill="#1b5e20" font-size="15" font-weight="bold">输出（结果表 + 报告）</text>
+  <g font-size="12" fill="#37474f">
+    <rect x="860" y="136" width="320" height="40" rx="6" fill="#fff" stroke="#a5d6a7"/>
+    <text x="1020" y="161" text-anchor="middle">finv_quant_backtest_equity（净值曲线，降采样≤2万点）</text>
+
+    <rect x="860" y="184" width="320" height="40" rx="6" fill="#fff" stroke="#a5d6a7"/>
+    <text x="1020" y="209" text-anchor="middle">finv_quant_backtest_trade（成交，含 seq/remark）</text>
+
+    <rect x="860" y="232" width="320" height="40" rx="6" fill="#fff" stroke="#a5d6a7"/>
+    <text x="1020" y="257" text-anchor="middle">finv_quant_backtest_cashflow（资金流水·连续可校验）</text>
+
+    <rect x="860" y="280" width="320" height="40" rx="6" fill="#fff" stroke="#a5d6a7"/>
+    <text x="1020" y="305" text-anchor="middle">finv_quant_backtest_position_log（持仓变化明细）</text>
+
+    <rect x="860" y="328" width="320" height="40" rx="6" fill="#fff" stroke="#a5d6a7"/>
+    <text x="1020" y="353" text-anchor="middle">finv_quant_backtest_event_trace（事件八项登记）</text>
+
+    <rect x="860" y="376" width="320" height="40" rx="6" fill="#fff" stroke="#a5d6a7"/>
+    <text x="1020" y="401" text-anchor="middle">run.report JSONB（指标 + event_stats + 快照）</text>
+  </g>
+
+  <!-- ============ 数据流连线（输入 → 处理） ============ -->
+  <g stroke="#546e7a" stroke-width="2" fill="none">
+    <line x1="400" y1="168" x2="436" y2="168" marker-end="url(#arrow)"/>
+    <line x1="400" y1="244" x2="436" y2="244" marker-end="url(#arrow)"/>
+    <line x1="400" y1="320" x2="436" y2="320" marker-end="url(#arrow)"/>
+    <line x1="400" y1="389" x2="436" y2="389" marker-end="url(#arrow)"/>
+  </g>
+  <text x="404" y="160" fill="#546e7a" font-size="11">定义/JSONB</text>
+  <text x="404" y="236" fill="#546e7a" font-size="11">配置</text>
+  <text x="404" y="312" fill="#546e7a" font-size="11">环境快照</text>
+  <text x="404" y="380" fill="#546e7a" font-size="11">K 线</text>
+
+  <!-- 处理 → 输出 -->
+  <g stroke="#2e7d32" stroke-width="2" fill="none">
+    <line x1="800" y1="156" x2="836" y2="156" marker-end="url(#arrow)"/>
+    <line x1="800" y1="204" x2="836" y2="204" marker-end="url(#arrow)"/>
+    <line x1="800" y1="252" x2="836" y2="252" marker-end="url(#arrow)"/>
+    <line x1="800" y1="300" x2="836" y2="300" marker-end="url(#arrow)"/>
+    <line x1="800" y1="348" x2="836" y2="348" marker-end="url(#arrow)"/>
+    <line x1="800" y1="396" x2="836" y2="396" marker-end="url(#arrow)"/>
+  </g>
+  <text x="806" y="148" fill="#2e7d32" font-size="11">曲线点</text>
+  <text x="806" y="196" fill="#2e7d32" font-size="11">成交</text>
+  <text x="806" y="244" fill="#2e7d32" font-size="11">流水</text>
+  <text x="806" y="292" fill="#2e7d32" font-size="11">持仓明细</text>
+  <text x="806" y="340" fill="#2e7d32" font-size="11">事件</text>
+  <text x="806" y="388" fill="#2e7d32" font-size="11">报告</text>
+
+  <!-- ============ 展示区 ============ -->
+  <rect x="40" y="470" width="1160" height="200" rx="10" fill="#fce4ec" stroke="#ad1457" stroke-width="1.5"/>
+  <text x="60" y="496" fill="#880e4f" font-size="15" font-weight="bold">展示（前端 · 按 run_id 拉取）</text>
+  <g font-size="12.5" fill="#37474f">
+    <rect x="60" y="510" width="350" height="70" rx="6" fill="#fff" stroke="#f48fb1"/>
+    <text x="235" y="532" text-anchor="middle" font-weight="bold">回测分析页（Run/Report + Run/Equity）</text>
+    <text x="235" y="552" text-anchor="middle" fill="#78909c">12 项指标卡：期末资产/收益率/年化/回撤/夏普/胜率/盈亏比/投入/手续费…</text>
+    <text x="235" y="570" text-anchor="middle" fill="#78909c">四类曲线：余额/收益率/收益额/持仓金额（按精度标签 Day/Hour/Min）</text>
+
+    <rect x="440" y="510" width="350" height="70" rx="6" fill="#fff" stroke="#f48fb1"/>
+    <text x="615" y="532" text-anchor="middle" font-weight="bold">⑨ 链路追踪页签（明细接口）</text>
+    <text x="615" y="552" text-anchor="middle" fill="#78909c">成交记录（Run/Trades）· 资金流水（Run/Cashflows）</text>
+    <text x="615" y="570" text-anchor="middle" fill="#78909c">持仓变化（Run/PositionLogs）· 事件追踪（Run/EventTraces）</text>
+
+    <rect x="820" y="510" width="350" height="70" rx="6" fill="#fff" stroke="#f48fb1"/>
+    <text x="995" y="532" text-anchor="middle" font-weight="bold">资金/持仓管理页</text>
+    <text x="995" y="552" text-anchor="middle" fill="#78909c">Run/Equity 现金与总资产曲线</text>
+    <text x="995" y="570" text-anchor="middle" fill="#78909c">持仓数量/市值曲线 + 开平仓记录（Run/Trades）</text>
+
+    <rect x="60" y="594" width="1110" height="56" rx="6" fill="#fff" stroke="#f48fb1"/>
+    <text x="615" y="616" text-anchor="middle" font-weight="bold">任务跟踪（两页均支持）</text>
+    <text x="615" y="636" text-anchor="middle" fill="#78909c">Run/List（状态/进度/失败原因）· Run/Get（深链加载）· Run/Cancel（取消）· 存在执行中任务时每 5s 自动轮询</text>
+  </g>
+
+  <!-- 输出 → 展示连线 -->
+  <g stroke="#ad1457" stroke-width="2" fill="none">
+    <line x1="1020" y1="436" x2="1020" y2="466" marker-end="url(#arrow)"/>
+    <line x1="620" y1="436" x2="620" y2="466" marker-end="url(#arrow)"/>
+    <line x1="235" y1="436" x2="235" y2="466" marker-end="url(#arrow)"/>
+  </g>
+  <text x="1030" y="456" fill="#ad1457" font-size="11">报告/曲线</text>
+  <text x="560" y="456" fill="#ad1457" font-size="11">明细/事件</text>
+  <text x="150" y="456" fill="#ad1457" font-size="11">曲线/成交</text>
+
+  <!-- ============ 底部：数据库对象清单 ============ -->
+  <rect x="40" y="700" width="1160" height="250" rx="10" fill="#ede7f6" stroke="#4527a0" stroke-width="1.5"/>
+  <text x="60" y="726" fill="#311b92" font-size="15" font-weight="bold">数据库对象清单（前缀 finv_quant_，迁移 V22~V28 + 种子 V100019/V100020）</text>
+  <g font-size="12" fill="#37474f">
+    <rect x="60" y="742" width="550" height="88" rx="6" fill="#fff" stroke="#b39ddb"/>
+    <text x="80" y="762" font-weight="bold">配置类（4 张）</text>
+    <text x="80" y="782" fill="#455a64">finv_quant_backtest_strategy（策略定义 JSONB）</text>
+    <text x="80" y="800" fill="#455a64">finv_quant_backtest_account（账户/分组/环境关联）</text>
+    <text x="80" y="818" fill="#455a64">finv_quant_environment（环境配置）· finv_quant_template（模板）</text>
+
+    <rect x="630" y="742" width="550" height="88" rx="6" fill="#fff" stroke="#b39ddb"/>
+    <text x="650" y="762" font-weight="bold">任务与结果类（6 张）</text>
+    <text x="650" y="782" fill="#455a64">finv_quant_backtest_run（任务/快照/进度/报告 JSONB）</text>
+    <text x="650" y="800" fill="#455a64">finv_quant_backtest_equity（曲线）· trade（成交，含 seq/remark）</text>
+    <text x="650" y="818" fill="#455a64">cashflow / position_log / event_trace（⑨ 链路追踪三张明细）</text>
+
+    <rect x="60" y="846" width="550" height="88" rx="6" fill="#fff" stroke="#b39ddb"/>
+    <text x="80" y="866" font-weight="bold">行情/证券（只读，既有表）</text>
+    <text x="80" y="886" fill="#455a64">finv_quote_secu_kline_min（分钟 K 线，GCMain 2018~2026）</text>
+    <text x="80" y="904" fill="#455a64">finv_security（证券信息，market_code 关联）</text>
+
+    <rect x="630" y="846" width="550" height="88" rx="6" fill="#fff" stroke="#b39ddb"/>
+    <text x="650" y="866" font-weight="bold">关键约束</text>
+    <text x="650" y="886" fill="#455a64">流水连续性：下一条 cash_before = 上一条 cash_after（可校验）</text>
+    <text x="650" y="904" fill="#455a64">明细关联：trade_id 经引擎内 seq 映射 · 同 user+type 默认环境唯一（部分唯一索引）</text>
+  </g>
+</svg>

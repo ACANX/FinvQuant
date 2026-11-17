@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1120" viewBox="0 0 1280 1120" font-family="'Microsoft YaHei','PingFang SC','Noto Sans CJK SC',sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#546e7a"/>
+    </marker>
+    <marker id="arrowG" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#2e7d32"/>
+    </marker>
+    <linearGradient id="hdr" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0d47a1"/><stop offset="100%" stop-color="#1565c0"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1280" height="58" fill="url(#hdr)"/>
+  <text x="640" y="37" text-anchor="middle" fill="#fff" font-size="23" font-weight="bold">典型量化策略回测任务运行时序设计图 —— 以 GCMain 黄金期货为例</text>
+
+  <!-- 泳道头部 -->
+  <g font-size="13" font-weight="bold" text-anchor="middle">
+    <rect x="30" y="80" width="180" height="40" rx="6" fill="#1565c0"/><text x="120" y="105" fill="#fff">用户 / 前端</text>
+    <rect x="220" y="80" width="200" height="40" rx="6" fill="#2e7d32"/><text x="320" y="105" fill="#fff">API Handler</text>
+    <rect x="430" y="80" width="220" height="40" rx="6" fill="#e65100"/><text x="540" y="105" fill="#fff">Backtest Service（调度）</text>
+    <rect x="660" y="80" width="220" height="40" rx="6" fill="#6a1b9a"/><text x="770" y="105" fill="#fff">回测引擎（Engine）</text>
+    <rect x="890" y="80" width="170" height="40" rx="6" fill="#00838f"/><text x="975" y="105" fill="#fff">PostgreSQL</text>
+    <rect x="1070" y="80" width="180" height="40" rx="6" fill="#546e7a"/><text x="1160" y="105" fill="#fff">行情 / 配置</text>
+  </g>
+
+  <!-- 泳道背景 -->
+  <rect x="30" y="120" width="180" height="960" fill="#e3f2fd" opacity="0.35"/>
+  <rect x="220" y="120" width="200" height="960" fill="#e8f5e9" opacity="0.35"/>
+  <rect x="430" y="120" width="220" height="960" fill="#fff3e0" opacity="0.35"/>
+  <rect x="660" y="120" width="220" height="960" fill="#ede7f6" opacity="0.35"/>
+  <rect x="890" y="120" width="170" height="960" fill="#e0f7fa" opacity="0.35"/>
+  <rect x="1070" y="120" width="180" height="960" fill="#eceff1" opacity="0.35"/>
+
+  <g font-size="12.5" fill="#37474f">
+    <!-- 1 -->
+    <rect x="45" y="140" width="150" height="44" rx="6" fill="#fff" stroke="#1565c0"/>
+    <text x="120" y="158" text-anchor="middle">配置回测条件</text>
+    <text x="120" y="174" text-anchor="middle" fill="#78909c" font-size="11">策略/账户/环境/标的 GCMain</text>
+    <line x1="120" y1="184" x2="320" y2="184" stroke="#546e7a" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <text x="205" y="176" fill="#546e7a" font-size="11">POST Run/Create</text>
+
+    <rect x="235" y="196" width="170" height="44" rx="6" fill="#fff" stroke="#2e7d32"/>
+    <text x="320" y="214" text-anchor="middle">校验请求体（JSON）</text>
+    <text x="320" y="230" text-anchor="middle" fill="#78909c" font-size="11">缺参/格式错误 → 400</text>
+    <line x1="320" y1="240" x2="540" y2="240" stroke="#546e7a" stroke-width="1.8" marker-end="url(#arrow)"/>
+
+    <rect x="445" y="252" width="190" height="58" rx="6" fill="#fff" stroke="#e65100"/>
+    <text x="540" y="270" text-anchor="middle">CreateRun（归属校验）</text>
+    <text x="540" y="288" text-anchor="middle" fill="#78909c" font-size="11">策略/账户 user_id 归属</text>
+    <text x="540" y="302" text-anchor="middle" fill="#78909c" font-size="11">开关/币种/环境校验</text>
+
+    <!-- 1b: 读取策略/账户 -->
+    <line x1="540" y1="310" x2="975" y2="310" stroke="#546e7a" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <text x="700" y="302" fill="#546e7a" font-size="11">SELECT 策略 / 账户 / 环境（含默认环境回退）</text>
+    <rect x="905" y="322" width="140" height="40" rx="6" fill="#fff" stroke="#00838f"/>
+    <text x="975" y="347" text-anchor="middle">返回快照数据</text>
+    <line x1="975" y1="362" x2="540" y2="362" stroke="#2e7d32" stroke-width="1.8" marker-end="url(#arrowG)"/>
+
+    <rect x="445" y="374" width="190" height="58" rx="6" fill="#fff" stroke="#e65100"/>
+    <text x="540" y="392" text-anchor="middle">组装三快照 + 区间解析</text>
+    <text x="540" y="410" text-anchor="middle" fill="#78909c" font-size="11">start/end 日期 → TS</text>
+    <text x="540" y="424" text-anchor="middle" fill="#78909c" font-size="11">market_code 查询</text>
+    <line x1="540" y1="432" x2="975" y2="432" stroke="#546e7a" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <text x="640" y="424" fill="#546e7a" font-size="11">INSERT finv_quant_backtest_run（PENDING）</text>
+
+    <!-- 2 调度 -->
+    <rect x="445" y="452" width="190" height="58" rx="6" fill="#fff" stroke="#e65100"/>
+    <text x="540" y="470" text-anchor="middle">异步调度 executeRun</text>
+    <text x="540" y="488" text-anchor="middle" fill="#78909c" font-size="11">并发信号量（≤4）</text>
+    <text x="540" y="502" text-anchor="middle" fill="#78909c" font-size="11">注册取消函数</text>
+    <line x1="540" y1="510" x2="770" y2="510" stroke="#546e7a" stroke-width="1.8" marker-end="url(#arrow)"/>
+
+    <rect x="675" y="522" width="190" height="58" rx="6" fill="#fff" stroke="#6a1b9a"/>
+    <text x="770" y="540" text-anchor="middle">加载并聚合行情</text>
+    <text x="770" y="558" text-anchor="middle" fill="#78909c" font-size="11">finv_quote_secu_kline_min</text>
+    <text x="770" y="572" text-anchor="middle" fill="#78909c" font-size="11">Min/Hour/Day 聚合</text>
+    <line x1="770" y1="580" x2="975" y2="580" stroke="#546e7a" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <text x="790" y="572" fill="#546e7a" font-size="11">SELECT 区间 K 线</text>
+    <line x1="975" y1="596" x2="770" y2="596" stroke="#2e7d32" stroke-width="1.8" marker-end="url(#arrowG)"/>
+    <text x="880" y="590" fill="#2e7d32" font-size="11">~48 万根分钟线（2018~2026）</text>
+
+    <!-- 3 逐bar -->
+    <rect x="675" y="612" width="190" height="70" rx="6" fill="#fff" stroke="#6a1b9a"/>
+    <text x="770" y="630" text-anchor="middle">逐 bar 回放（核心循环）</text>
+    <text x="770" y="648" text-anchor="middle" fill="#78909c" font-size="11">预热跳过 → 挂单撮合</text>
+    <text x="770" y="664" text-anchor="middle" fill="#78909c" font-size="11">→ 风控 → 信号求值</text>
+    <text x="770" y="680" text-anchor="middle" fill="#78909c" font-size="11">→ 限制判定 → 账户更新</text>
+
+    <rect x="675" y="700" width="190" height="58" rx="6" fill="#fff" stroke="#6a1b9a"/>
+    <text x="770" y="718" text-anchor="middle">信号：cross_up(ma_fast, ma_slow)</text>
+    <text x="770" y="736" text-anchor="middle" fill="#78909c" font-size="11">MA5 上穿 MA20（收盘确认）</text>
+    <text x="770" y="752" text-anchor="middle" fill="#78909c" font-size="11">环境时段/时间点/次数校验</text>
+
+    <rect x="675" y="776" width="190" height="58" rx="6" fill="#fff" stroke="#6a1b9a"/>
+    <text x="770" y="794" text-anchor="middle">挂单 NEXT_BAR_OPEN</text>
+    <text x="770" y="812" text-anchor="middle" fill="#78909c" font-size="11">登记 PENDING 事件（八项）</text>
+    <text x="770" y="828" text-anchor="middle" fill="#78909c" font-size="11">下一根开盘成交（无未来函数）</text>
+
+    <rect x="675" y="852" width="190" height="72" rx="6" fill="#fff" stroke="#6a1b9a"/>
+    <text x="770" y="870" text-anchor="middle">成交：tick_size 对齐（0.1）</text>
+    <text x="770" y="888" text-anchor="middle" fill="#78909c" font-size="11">滑点/手续费（环境成本基准）</text>
+    <text x="770" y="904" text-anchor="middle" fill="#78909c" font-size="11">合约乘数 100 · 资金流水/持仓明细</text>
+    <text x="770" y="920" text-anchor="middle" fill="#78909c" font-size="11">事件 FILLED（latency/alive）</text>
+
+    <rect x="675" y="942" width="190" height="58" rx="6" fill="#fff" stroke="#6a1b9a"/>
+    <text x="770" y="960" text-anchor="middle">风控：3% 止损 / 止盈 intrabar</text>
+    <text x="770" y="978" text-anchor="middle" fill="#78909c" font-size="11">bar 高低价触及 → 触发价成交</text>
+    <text x="770" y="994" text-anchor="middle" fill="#78909c" font-size="11">市值快照/回撤跟踪/报告桶</text>
+
+    <!-- 进度回写 -->
+    <line x1="770" y1="1000" x2="975" y2="1000" stroke="#546e7a" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <text x="800" y="992" fill="#546e7a" font-size="11">每 512 bar：进度/取消检查</text>
+    <line x1="975" y1="1012" x2="770" y2="1012" stroke="#2e7d32" stroke-width="1.8" marker-end="url(#arrowG)"/>
+    <text x="880" y="1006" fill="#2e7d32" font-size="11">UPDATE progress（0~100）</text>
+
+    <!-- 4 持久化 -->
+    <rect x="675" y="1028" width="190" height="58" rx="6" fill="#fff" stroke="#6a1b9a"/>
+    <text x="770" y="1046" text-anchor="middle">结果持久化（批量 Batch）</text>
+    <text x="770" y="1064" text-anchor="middle" fill="#78909c" font-size="11">成交先落库建 seq→trade_id</text>
+    <text x="770" y="1080" text-anchor="middle" fill="#78909c" font-size="11">明细经 seq 关联</text>
+    <line x1="770" y1="1086" x2="975" y2="1086" stroke="#546e7a" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <text x="790" y="1078" fill="#546e7a" font-size="11">INSERT equity/trade/cashflow/position_log/event_trace + report</text>
+
+    <!-- 5 完成回执 -->
+    <line x1="540" y1="1040" x2="540" y2="1030" stroke="#2e7d32" stroke-width="1.8"/>
+    <line x1="770" y1="1040" x2="540" y2="1040" stroke="#2e7d32" stroke-width="1.8" marker-end="url(#arrowG)"/>
+    <text x="610" y="1032" fill="#2e7d32" font-size="11">markRun SUCCEEDED（finished_at）</text>
+
+    <rect x="445" y="1052" width="190" height="44" rx="6" fill="#fff" stroke="#e65100"/>
+    <text x="540" y="1070" text-anchor="middle">返回任务状态/进度</text>
+    <text x="540" y="1086" text-anchor="middle" fill="#78909c" font-size="11">Create 响应 → 前端轮询</text>
+    <line x1="445" y1="1074" x2="320" y2="1074" stroke="#2e7d32" stroke-width="1.8" marker-end="url(#arrowG)"/>
+
+    <rect x="235" y="1040" width="170" height="58" rx="6" fill="#fff" stroke="#2e7d32"/>
+    <text x="320" y="1058" text-anchor="middle">轮询 Run/List（每 5s）</text>
+    <text x="320" y="1076" text-anchor="middle" fill="#78909c" font-size="11">执行中任务自动刷新进度</text>
+    <text x="320" y="1090" text-anchor="middle" fill="#78909c" font-size="11">可 Run/Cancel 取消</text>
+    <line x1="235" y1="1070" x2="120" y2="1070" stroke="#2e7d32" stroke-width="1.8" marker-end="url(#arrowG)"/>
+
+    <rect x="45" y="1038" width="150" height="58" rx="6" fill="#fff" stroke="#1565c0"/>
+    <text x="120" y="1056" text-anchor="middle">任务列表/进度条</text>
+    <text x="120" y="1074" text-anchor="middle" fill="#78909c" font-size="11">SUCCEEDED 后</text>
+    <text x="120" y="1088" text-anchor="middle" fill="#78909c" font-size="11">「查看报告」跳转</text>
+
+    <!-- 6 报告查看 -->
+    <rect x="45" y="1110" width="150" height="44" rx="6" fill="#fff" stroke="#1565c0"/>
+    <text x="120" y="1128" text-anchor="middle">打开回测分析页</text>
+    <text x="120" y="1144" text-anchor="middle" fill="#78909c" font-size="11">?run_id 深链（Run/Get）</text>
+    <line x1="120" y1="1154" x2="320" y2="1154" stroke="#546e7a" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <text x="205" y="1146" fill="#546e7a" font-size="11">并行拉取 6 类数据</text>
+
+    <rect x="235" y="1124" width="170" height="40" rx="6" fill="#fff" stroke="#2e7d32"/>
+    <text x="320" y="1149" text-anchor="middle">Report/Equity/Trades/Cashflows/PositionLogs/EventTraces</text>
+    <line x1="320" y1="1164" x2="975" y2="1164" stroke="#546e7a" stroke-width="1.8" marker-end="url(#arrow)"/>
+    <text x="500" y="1156" fill="#546e7a" font-size="11">SELECT 报告 JSONB + 各明细表（按 run_id，归属校验）</text>
+    <line x1="975" y1="1180" x2="320" y2="1180" stroke="#2e7d32" stroke-width="1.8" marker-end="url(#arrowG)"/>
+    <text x="640" y="1174" fill="#2e7d32" font-size="11">返回报告与明细（含 event_stats 统计）</text>
+
+    <rect x="45" y="1190" width="150" height="44" rx="6" fill="#fff" stroke="#1565c0"/>
+    <text x="120" y="1208" text-anchor="middle">渲染指标卡 + 四类曲线</text>
+    <text x="120" y="1224" text-anchor="middle" fill="#78909c" font-size="11">+ ⑨链路追踪四页签</text>
+  </g>
+
+  <!-- 图例 -->
+  <rect x="30" y="1256" width="1220" height="52" rx="8" fill="#f5f5f5" stroke="#bdbdbd"/>
+  <g font-size="12" fill="#37474f">
+    <line x1="50" y1="1278" x2="100" y2="1278" stroke="#546e7a" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <text x="110" y="1282">请求 / 写入</text>
+    <line x1="250" y1="1278" x2="300" y2="1278" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#arrowG)"/>
+    <text x="310" y="1282">响应 / 回读</text>
+    <text x="470" y="1282">GCMain 关键参数：双均线 MA5/MA20 · 全仓 ALL_IN · 3% 止损 · NEXT_BAR_OPEN 无未来函数 · COMEX 环境（时段 082000-133000 / tick 0.1 / 乘数 100 / USD）</text>
+    <text x="50" y="1300">任务状态机：PENDING → RUNNING → SUCCEEDED / FAILED / CANCELLED（重启时悬挂任务自动标记 FAILED）</text>
+  </g>
+</svg>

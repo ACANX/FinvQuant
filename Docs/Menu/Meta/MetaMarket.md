@@ -37,7 +37,7 @@
 
 ### 4.1 查询参数
 
-- **请求**：`GET /API/V1/Meta/FinvQuant/Metadata/Market/List`，Query 参数如下：
+- **请求**：`GET /API/V1/Meta/Finv/Quant/Metadata/Market/List`，Query 参数如下：
 
 | 参数 | 说明 |
 |------|------|
@@ -47,13 +47,13 @@
 
 ### 4.2 新增与修改
 
-- **请求**：`POST /API/V1/Meta/FinvQuant/Metadata/Market/Save`，JSON body 字段见接口文档。
+- **请求**：`POST /API/V1/Meta/Finv/Quant/Metadata/Market/Save`，JSON body 字段见接口文档。
 - 新增：`market_code` 不存在时 INSERT，`flag_enable` 默认 `'1'`。
 - 修改：`market_code` 已存在时 UPDATE（主键不可改）。
 
 ### 4.3 禁用/启用
 
-- **请求**：`POST /API/V1/Meta/FinvQuant/Metadata/Market/Toggle`，body：`{ "market_code": 1110, "flag_enable": "0" }`。
+- **请求**：`POST /API/V1/Meta/Finv/Quant/Metadata/Market/Toggle`，body：`{ "market_code": 1110, "flag_enable": "0" }`。
 
 ### 4.4 响应处理
 

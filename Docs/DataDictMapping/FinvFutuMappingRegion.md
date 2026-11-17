@@ -1,7 +1,7 @@
 # FinvFutuMappingRegion — 富途区域映射
 
 > 所属：FinvQuant 数据字典映射 · 存放：`Docs/DataDictMapping/FinvFutuMappingRegion.md`
-> 数据表：`finv_futu_mapping_region`（表结构：[`Deploy/Migrations/V13__finv_futu_mapping_region.sql`](../../Deploy/Migrations/V13__finv_futu_mapping_region.sql)；增量列：[`Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql`](../../Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql)；初始数据：[`Deploy/Migrations/V100005__finv_futu_mapping_region_seed.sql`](../../Deploy/Migrations/V100005__finv_futu_mapping_region_seed.sql)）
+> 数据表：`futu.finv_futu_mapping_region`（表结构：[`Deploy/Migrations/V13__finv_futu_mapping_region.sql`](../../Deploy/Migrations/V13__finv_futu_mapping_region.sql)；增量列：[`Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql`](../../Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql)；初始数据：[`Deploy/Migrations/V100005__finv_futu_mapping_region_seed.sql`](../../Deploy/Migrations/V100005__finv_futu_mapping_region_seed.sql)）
 > 用途：富途行情源 region 字典（0~24）与 finv_region.idx 的字段映射表，供富途数据入库时转换区域标识。
 
 ## 1. 表结构

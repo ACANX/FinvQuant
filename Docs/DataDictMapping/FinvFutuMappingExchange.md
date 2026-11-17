@@ -1,7 +1,7 @@
 # FinvFutuMappingExchange — 富途交易所映射
 
 > 所属：FinvQuant 数据字典映射 · 存放：`Docs/DataDictMapping/FinvFutuMappingExchange.md`
-> 数据表：`finv_futu_mapping_exchange`（表结构：[`Deploy/Migrations/V14__finv_futu_mapping_exchange.sql`](../../Deploy/Migrations/V14__finv_futu_mapping_exchange.sql)；增量列：[`Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql`](../../Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql)；初始数据：[`Deploy/Migrations/V100006__finv_futu_mapping_exchange_seed.sql`](../../Deploy/Migrations/V100006__finv_futu_mapping_exchange_seed.sql)；全量替换：[`Deploy/Migrations/V100013__finv_futu_mapping_exchange_seed_full.sql`](../../Deploy/Migrations/V100013__finv_futu_mapping_exchange_seed_full.sql)）
+> 数据表：`futu.finv_futu_mapping_exchange`（表结构：[`Deploy/Migrations/V14__finv_futu_mapping_exchange.sql`](../../Deploy/Migrations/V14__finv_futu_mapping_exchange.sql)；增量列：[`Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql`](../../Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql)；初始数据：[`Deploy/Migrations/V100006__finv_futu_mapping_exchange_seed.sql`](../../Deploy/Migrations/V100006__finv_futu_mapping_exchange_seed.sql)；全量替换：[`Deploy/Migrations/V100013__finv_futu_mapping_exchange_seed_full.sql`](../../Deploy/Migrations/V100013__finv_futu_mapping_exchange_seed_full.sql)）
 > 用途：富途行情源 exchange 字典（30 类）的字段映射表，记录富途交易所代码、对应地区与 finv 侧交易所标识。
 
 ## 1. 表结构

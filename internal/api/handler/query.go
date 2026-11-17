@@ -22,35 +22,80 @@ func NewQuoteQuery(service *quote.Service) *QuoteQuery {
 }
 
 // Query 处理 GET /API/V1/Quote/Query：
-// 按证券代码 + 交易日（支持 1 日 / 5 日多日回溯）查询分钟级 K 线（周期目前仅支持 Min=1 分钟）。
-// 支持 page/page_size 分页。
+// 按证券代码 + ts 时间范围（startTs/endTs，UTC 秒）查询分钟级 K 线（周期目前仅支持 Min=1 分钟）。
+// 返回时间范围内全部记录（不分页，适配 A 股/港股/美股/24h 电子盘单日数据量差异）。
+// URL 查询参数遵循小驼峰规范（usc/secuName/startTs/endTs）；兼容旧 snake_case 参数。
 func (h *QuoteQuery) Query(c *gin.Context) {
-	secuCode := c.Query("secu_code")
-	secuName := c.Query("secu_name") // 证券名称（可选，前端从 usc 字典选中后回传，便于确认证券）
-	dateStr := c.Query("date")
+	usc := c.Query("usc")
+	if usc == "" {
+		usc = c.Query("usc") // 兼容旧参数
+	}
+	secuName := c.Query("secuName") // 证券名称（可选，前端从 usc 字典选中后回传，便于确认证券）
+	if secuName == "" {
+		secuName = c.Query("secu_name")
+	}
 	period := c.Query("period")
 	if period == "" {
 		period = "Min"
 	}
 
-	if secuCode == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "secu_code 不能为空"})
-		return
-	}
-	date, err := strconv.Atoi(dateStr)
-	if err != nil || date <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 4001, "message": "date 必须为有效的交易日期（yyyymmdd）"})
+	if usc == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "usc 不能为空"})
 		return
 	}
 
-	days := parseIntDefault(c.Query("days"), 1)
-	page := parseIntDefault(c.Query("page"), 1)
-	pageSize := parseIntDefault(c.Query("page_size"), 240)
+	// ts 范围：优先 startTs/endTs（前端已把日期+N日换算为 UTC 秒）；
+	// 兼容旧参数 date（yyyymmdd）+ days（回溯 N 个自然日）→ 转 ts 范围。
+	var startTS, endTS int64
+	st := c.Query("startTs")
+	if st == "" {
+		st = c.Query("start_ts") // 兼容旧参数
+	}
+	if st != "" {
+		var err error
+		startTS, err = strconv.ParseInt(st, 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "startTs 必须为整数"})
+			return
+		}
+		et := c.Query("endTs")
+		if et == "" {
+			et = c.Query("end_ts")
+		}
+		if et == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "缺少 endTs"})
+			return
+		}
+		endTS, err = strconv.ParseInt(et, 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "endTs 必须为整数"})
+			return
+		}
+	} else {
+		dateStr := c.Query("date")
+		date, err := strconv.Atoi(dateStr)
+		if err != nil || date <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "date 必须为有效的交易日期（yyyymmdd）"})
+			return
+		}
+		days := parseIntDefault(c.Query("days"), 1)
+		if days < 1 {
+			days = 1
+		}
+		if days > 30 {
+			days = 30
+		}
+		startTS, endTS = quote.DateRangeToTS(date, days)
+	}
+	if startTS <= 0 || endTS < startTS {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "时间范围非法"})
+		return
+	}
 
 	ctx, cancel := contextWithTimeout(c, 30*time.Second)
 	defer cancel()
 
-	bars, total, err := h.service.QueryBars(ctx, secuCode, date, period, days, page, pageSize)
+	bars, total, err := h.service.QueryBars(ctx, usc, period, startTS, endTS)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "查询失败: " + err.Error()})
 		return
@@ -59,13 +104,11 @@ func (h *QuoteQuery) Query(c *gin.Context) {
 		"code":    0,
 		"message": "查询完成",
 		"data": gin.H{
-			"secu_code": secuCode,
+			"usc":       usc,
 			"secu_name": secuName, // 回显证券名称（可为空）
-			"date":      date,
+			"start_ts":  startTS,
+			"end_ts":    endTS,
 			"period":    period,
-			"days":      days,
-			"page":      page,
-			"page_size": pageSize,
 			"total":     total,
 			"count":     len(bars),
 			"bars":      bars,

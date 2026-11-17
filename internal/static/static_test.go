@@ -16,14 +16,14 @@ func TestHandlerProxiesAPIRequests(t *testing.T) {
 	defer backend.Close()
 
 	handler := Handler(backend.URL)
-	req := httptest.NewRequest(http.MethodPost, "/API/V1/Quote/Import/Upload", nil)
+	req := httptest.NewRequest(http.MethodPost, "/API/V1/Meta/Finv/Quant/Quote/Import/Upload", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("状态码=%d，期望 200", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "/API/V1/Quote/Import/Upload") {
+	if !strings.Contains(rec.Body.String(), "/API/V1/Meta/Finv/Quant/Quote/Import/Upload") {
 		t.Fatalf("代理未保留原始路径: %s", rec.Body.String())
 	}
 }

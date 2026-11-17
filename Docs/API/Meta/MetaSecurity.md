@@ -1,4 +1,4 @@
-# GET/POST /API/V1/Meta/FinvQuant/Metadata/Security/* — 规范证券信息维护
+# GET/POST /API/V1/Meta/Finv/Quant/Metadata/Security/* — 规范证券信息维护
 
 finv_security 证券代码字典维护接口：分页查询、新增/修改、禁用/启用、下拉选项、按代码查询详情。
 
@@ -7,7 +7,7 @@ finv_security 证券代码字典维护接口：分页查询、新增/修改、�
 ## 1. 分页查询证券
 
 - **方法**：`GET`
-- **路径**：`/API/V1/Meta/FinvQuant/Metadata/Security/List`
+- **路径**：`/API/V1/Meta/Finv/Quant/Metadata/Security/List`
 
 ### Query 参数
 
@@ -50,7 +50,7 @@ finv_security 证券代码字典维护接口：分页查询、新增/修改、�
 ## 2. 新增/修改证券
 
 - **方法**：`POST`
-- **路径**：`/API/V1/Meta/FinvQuant/Metadata/Security/Save`
+- **路径**：`/API/V1/Meta/Finv/Quant/Metadata/Security/Save`
 
 ### 请求体（JSON）
 
@@ -78,7 +78,7 @@ finv_security 证券代码字典维护接口：分页查询、新增/修改、�
 ## 3. 禁用/启用证券
 
 - **方法**：`POST`
-- **路径**：`/API/V1/Meta/FinvQuant/Metadata/Security/Toggle`
+- **路径**：`/API/V1/Meta/Finv/Quant/Metadata/Security/Toggle`
 
 ### 请求体（JSON）
 
@@ -96,7 +96,7 @@ finv_security 证券代码字典维护接口：分页查询、新增/修改、�
 ## 4. 证券下拉选项（供历史行情查询证券代码筛选）
 
 - **方法**：`GET`
-- **路径**：`/API/V1/Meta/FinvQuant/Metadata/Security/Options`
+- **路径**：`/API/V1/Meta/Finv/Quant/Metadata/Security/Options`
 - **说明**：仅返回**启用状态**（flag_enable='1'）的证券；`usc` 为下拉选项 key，`security_name_cn` 为字面展示值。
 
 ### 响应（成功 HTTP 200）
@@ -118,7 +118,7 @@ finv_security 证券代码字典维护接口：分页查询、新增/修改、�
 ## 5. 按代码查询证券详情（供历史行情导入双策略）
 
 - **方法**：`GET`
-- **路径**：`/API/V1/Meta/FinvQuant/Metadata/Security/Lookup?code=<代码>`
+- **路径**：`/API/V1/Meta/Finv/Quant/Metadata/Security/Lookup?code=<代码>`
 - **说明**：按统一证券代码（usc）或源证券代码（security_code）精确匹配；命中 usc 优先。供历史行情导入页两种策略使用：① 选中证券后自动带出详情核对；② 按文件头代码自动匹配补全。
 
 ### Query 参数
@@ -171,5 +171,5 @@ finv_security 证券代码字典维护接口：分页查询、新增/修改、�
 ## 已使用位置登记
 
 - 规范证券信息维护菜单（`Docs/Menu/Meta/MetaSecurity.md`，视图 `MetaSecurityView.vue`）
-- 历史行情查询菜单（`Docs/Menu/HistoryQuote/HistoryQuoteQuery.md`，视图 `QuoteQueryView.vue`）—— 仅使用 `GET /API/V1/Meta/FinvQuant/Metadata/Security/Options` 作为证券代码下拉字典来源
+- 历史行情查询菜单（`Docs/Menu/HistoryQuote/HistoryQuoteQuery.md`，视图 `QuoteQueryView.vue`）—— 仅使用 `GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options` 作为证券代码下拉字典来源
 - 历史行情数据导入菜单（`Docs/Menu/HistoryQuote/HistoryQuoteImport.md`，视图 `QuoteImportView.vue`）—— 使用 `Options` 下拉 + `Lookup` 自动带出/匹配（导入双策略）

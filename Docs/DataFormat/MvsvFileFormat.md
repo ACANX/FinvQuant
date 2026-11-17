@@ -3,7 +3,7 @@
 > 所属：FinvQuant 数据格式 · 存放：`Docs/DataFormat/`
 > 适用范围：**所有向 FinvQuant 导入历史行情的导出程序**（脚本/服务/工具）必须按本规范生成 MVSV-1 文件。
 > 服务端解析实现：`internal/mvsv/parser.go`（本规范与该实现严格一致，如有差异以代码为准）。
-> 导入接口：`POST /API/V1/Quote/Import/Upload`（见 [ImportsUpload.md](../API/HistoryQuote/ImportsUpload.md)）。
+> 导入接口：`POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload`（见 [ImportsUpload.md](../API/HistoryQuote/ImportsUpload.md)）。
 
 ---
 
@@ -54,7 +54,7 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 | 1 | `Format` | string | `"MVSV-1"` | **必须严格等于 `MVSV-1`** |
 | 2 | `Field` | string | `"ts\|dt\|o\|c\|l\|h\|v\|t\|cp\|cr\|p"` | **必须匹配 §3 支持的一种列布局**，否则报「Field 布局不支持」 |
 | 3 | `Count` | int | `15000` | **必须为非负整数**；且必须等于数据区实际记录行数（末尾不匹配报错） |
-| 4 | `Code` | string | `"NVDA"` / `"GCMain"` | 证券代码（通常与 FinvQuant 字典 usc 一致）；导入时作为 `secu_code` |
+| 4 | `Code` | string | `"NVDA"` / `"GCMain"` | 证券代码（通常与 FinvQuant 字典 usc 一致）；导入时作为 `usc` |
 | 5 | `Exchange` | string | `"NSDQ"` / `"COMEX"` | 交易所标识（**必填**，用户约定 2026-08-06） |
 | 6 | `ExchangeCode` | int | `31` / `33` | 交易所数字代码（**必填**，用户约定 2026-08-06） |
 | 7 | `Market` | string | `"NSDQ"` / `"COMEX"` | 市场标识（**必填**） |
@@ -97,6 +97,8 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 ### 3.1 当前支持的两种核心列布局（核心字段必须，多余列允许）
 
 > 📌 **匹配规则（用户约定 2026-08-06）**：文件头 `# Field` 的列名序列**只需以某个核心布局开头即可**；核心字段之后的多余列（如已过时的 `pc`）**允许存在并自动忽略**。例如 `ts|d|t|o|c|l|h|v|a|cp|cr|p|pc`（13 列）按核心布局 B（12 列）解析，`pc` 忽略。
+>
+> 📌 **涨跌额/涨跌幅补全规则（2026-10-24）**：`cp`/`cr` **有值时按文件值落库**（不重算）；**为空时**由服务端自动补全：`last_close`（`p`，非 0）优先 → `open`（非 0）兜底 → 两者都不可用则保持 NULL。计算式：`change_price = close - ref`、`change_ratio = (close - ref) / ref * 100`（百分比，保留 6 位小数）。
 
 #### 布局 A：11 列（典型文件：`US_NVDA_Min_V4_*`）
 
@@ -114,9 +116,9 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 | 6 | `h` | 最高价 | Decimal | `high` |
 | 7 | `v` | 成交量（股/手） | Long | `volume` |
 | 8 | `t` | 成交额 | Decimal | `turnover` |
-| 9 | `cp` | 涨跌值 | Decimal | **不落表**（忽略） |
-| 10 | `cr` | 涨跌幅（%） | Decimal | **不落表**（忽略） |
-| 11 | `p` | 前一收盘价 | Decimal | `prev_close` |
+| 9 | `cp` | 涨跌值 | Decimal | **落库**（有值优先；为空时由服务端补全） |
+| 10 | `cr` | 涨跌幅（%） | Decimal | **落库**（有值优先；为空时由服务端补全） |
+| 11 | `p` | 前一收盘价 | Decimal | `last_close` |
 
 **数据行示例：**
 ```
@@ -142,7 +144,7 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 | 9 | `a` | 成交额 | Decimal | `turnover` |
 | 10 | `cp` | 涨跌值 | Decimal | **不落表**（忽略） |
 | 11 | `cr` | 涨跌幅（%） | Decimal | **不落表**（忽略） |
-| 12 | `p` | 前一收盘价 | Decimal | `prev_close` |
+| 12 | `p` | 前一收盘价 | Decimal | `last_close` |
 
 **数据行示例**（注意行尾允许残留旧 pc 空段 `\|`，解析器自动截断）：
 ```
@@ -309,7 +311,7 @@ MVSV-1（Minute Value Stream V1）是 FinvQuant 历史分钟行情的文本交�
 
 - **`Code`**：建议使用 FinvQuant `finv_security` 字典的 **usc**（如 `NVDA`、`GCMain`、`518880`），导入时可被 `Security/Lookup` 匹配；若用源证券代码（security_code），Lookup 也支持。
 - **`MarketCode`**：建议与 FinvQuant `finv_market.market_code` 编码体系一致（**通常四位**，如 1315=美股（NVDA）、1320=COMEX 期货（GCMain）等）；导入时会与表单/字典做一致性核对。
-- 主表 `finv_quote_secu_kline_min` 不再存储 market_code（V21 起），市场信息由 `finv_security` 字典关联获取；文件头 `MarketCode` 仍参与导入一致性校验。
+- 主表 `dedup.finv_quote_secu_kline_min` 不再存储 market_code（V21 起），市场信息由 `finv_security` 字典关联获取；文件头 `MarketCode` 仍参与导入一致性校验。
 
 ---
 

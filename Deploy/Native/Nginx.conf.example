@@ -1,0 +1,83 @@
+# =====================================================================
+# FinvQuant Native 部署：Nginx 反向代理示例
+#
+# 使用：
+#   sudo cp Deploy/Native/Nginx.conf.example /etc/nginx/sites-available/finvquant
+#   sudo ln -sf /etc/nginx/sites-available/finvquant /etc/nginx/sites-enabled/finvquant
+#   # 修改下方 server_name 与证书路径后：
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# 说明：
+#   - finvquant 默认只监听 127.0.0.1:16001（API）与 127.0.0.1:16002（前端）
+#   - 前端为 SPA（Vue3），静态资源已内嵌进二进制，无需单独 root 目录
+#   - API 路径前缀为 /API/，与前端同域可避免 CORS
+# =====================================================================
+
+# ---------- HTTP → HTTPS 跳转 ----------
+server {
+    listen 80;
+    listen [::]:80;
+    server_name finvquant.example.com;
+
+    # Let's Encrypt HTTP-01 校验（未用 certbot 时可删除）
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# ---------- HTTPS 主站 ----------
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name finvquant.example.com;
+
+    # 证书（certbot 默认路径；自签/商用证书请替换）
+    ssl_certificate     /etc/letsencrypt/live/finvquant.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/finvquant.example.com/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_session_cache   shared:SSL:10m;
+
+    # 前端为单文件包，导入行情等接口可能上传较大 MVSV 文件
+    client_max_body_size 512m;
+    proxy_read_timeout   300s;
+    proxy_send_timeout   300s;
+
+    # 安全响应头（按需调整）
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+    # ---------- 前端（Vue3 SPA，资源内嵌在 finvquant 内）----------
+    location / {
+        proxy_pass http://127.0.0.1:16002;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade           $http_upgrade;
+        proxy_set_header Connection        "upgrade";
+    }
+
+    # ---------- API（同域，避免 CORS）----------
+    location /API/ {
+        proxy_pass http://127.0.0.1:16001;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # ---------- 健康检查（可选：暴露给外部探活）----------
+    location = /healthz {
+        proxy_pass http://127.0.0.1:16001/API/V1/Health/Ready;
+        access_log off;
+    }
+}

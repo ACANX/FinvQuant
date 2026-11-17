@@ -1,7 +1,7 @@
 # FinvFutuMappingSecurity — 富途证券代码映射
 
 > 所属：FinvQuant 数据字典映射 · 存放：`Docs/DataDictMapping/FinvFutuMappingSecurity.md`
-> 数据表：`finv_futu_mapping_security`（表结构：[`Deploy/Migrations/V7__finv_futu_mapping_security.sql`](../../Deploy/Migrations/V7__finv_futu_mapping_security.sql)；增量列：[`Deploy/Migrations/V10__finv_futu_mapping_security_add_futu_symbol.sql`](../../Deploy/Migrations/V10__finv_futu_mapping_security_add_futu_symbol.sql) / [`Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql`](../../Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql)；初始数据：[`Deploy/Migrations/V100003__finv_futu_mapping_security_seed.sql`](../../Deploy/Migrations/V100003__finv_futu_mapping_security_seed.sql)；全量替换：[`Deploy/Migrations/V100014__finv_futu_mapping_security_seed_full.sql`](../../Deploy/Migrations/V100014__finv_futu_mapping_security_seed_full.sql)）
+> 数据表：`futu.finv_futu_mapping_security`（表结构：[`Deploy/Migrations/V7__finv_futu_mapping_security.sql`](../../Deploy/Migrations/V7__finv_futu_mapping_security.sql)；增量列：[`Deploy/Migrations/V10__finv_futu_mapping_security_add_futu_symbol.sql`](../../Deploy/Migrations/V10__finv_futu_mapping_security_add_futu_symbol.sql) / [`Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql`](../../Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql)；初始数据：[`Deploy/Migrations/V100003__finv_futu_mapping_security_seed.sql`](../../Deploy/Migrations/V100003__finv_futu_mapping_security_seed.sql)；全量替换：[`Deploy/Migrations/V100014__finv_futu_mapping_security_seed_full.sql`](../../Deploy/Migrations/V100014__finv_futu_mapping_security_seed_full.sql)）
 > 用途：FT（富途/moomoo）行情源证券内部 ID 与统一证券代码（usc）的字段映射表，供行情源数据入库时转换证券标识。
 
 ## 1. 表结构

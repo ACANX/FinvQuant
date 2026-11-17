@@ -1,7 +1,7 @@
 # FinvFutuMappingCSMarket — 富途 CS 市场映射
 
 > 所属：FinvQuant 数据字典映射 · 存放：`Docs/DataDictMapping/FinvFutuMappingCSMarket.md`
-> 数据表：`finv_futu_mapping_cs_market`（表结构：[`Deploy/Migrations/V9__finv_futu_mapping_cs_market.sql`](../../Deploy/Migrations/V9__finv_futu_mapping_cs_market.sql)；新增列/约束放宽：[`Deploy/Migrations/V16__finv_futu_mapping_cs_market_add_exchange_name.sql`](../../Deploy/Migrations/V16__finv_futu_mapping_cs_market_add_exchange_name.sql)；增量列：[`Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql`](../../Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql)；初始数据：[`Deploy/Migrations/V100008__finv_futu_mapping_cs_market_seed.sql`](../../Deploy/Migrations/V100008__finv_futu_mapping_cs_market_seed.sql)；全量替换：[`Deploy/Migrations/V100011__finv_futu_mapping_cs_market_seed_full.sql`](../../Deploy/Migrations/V100011__finv_futu_mapping_cs_market_seed_full.sql)）
+> 数据表：`futu.finv_futu_mapping_cs_market`（表结构：[`Deploy/Migrations/V9__finv_futu_mapping_cs_market.sql`](../../Deploy/Migrations/V9__finv_futu_mapping_cs_market.sql)；新增列/约束放宽：[`Deploy/Migrations/V16__finv_futu_mapping_cs_market_add_exchange_name.sql`](../../Deploy/Migrations/V16__finv_futu_mapping_cs_market_add_exchange_name.sql)；增量列：[`Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql`](../../Deploy/Migrations/V17__finv_futu_mapping_add_flag_enable.sql)；初始数据：[`Deploy/Migrations/V100008__finv_futu_mapping_cs_market_seed.sql`](../../Deploy/Migrations/V100008__finv_futu_mapping_cs_market_seed.sql)；全量替换：[`Deploy/Migrations/V100011__finv_futu_mapping_cs_market_seed_full.sql`](../../Deploy/Migrations/V100011__finv_futu_mapping_cs_market_seed_full.sql)）
 > 用途：FT（富途/moomoo）行情源 CS 市场标识与交易所代码（finv_exchange.exchange_code）的字段映射表。
 
 ## 1. 表结构

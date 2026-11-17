@@ -28,7 +28,7 @@ import (
 
 // 版本信息（构建时通过 -ldflags 注入）。
 var (
-	version = "0.1.0"
+	version = "0.1.2"
 	commit  = "dev"
 )
 
@@ -48,7 +48,7 @@ func main() {
 	}
 	defer pool.Close()
 
-	// 应用数据库迁移（启动时幂等；finv_quote_secu_kline_min 建表）
+	// 应用数据库迁移（启动时幂等；quote.finv_quote_secu_kline_min 等域表建表）
 	migrateCtx, migrateCancel := context.WithTimeout(ctx, 30*time.Second)
 	if err := database.Migrate(migrateCtx, pool, cfg.MigrationsDir()); err != nil {
 		migrateCancel()
@@ -66,7 +66,7 @@ func main() {
 	// 16001：API 服务
 	apiServer := &http.Server{
 		Addr:              cfg.ListenAddr(),
-		Handler:           api.NewRouter(&api.Deps{Pool: pool, Redis: rdb, Version: version, Commit: commit, Server: "finvquant"}),
+		Handler:           api.NewRouter(&api.Deps{Pool: pool, Redis: rdb, Version: version, Commit: commit, Server: "finvquant", Config: cfg}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

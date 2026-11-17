@@ -1,11 +1,11 @@
 // Package mvsv 解析 MVSV-1 分钟级历史行情文件格式。
 //
-// 格式（与 VeritasQuant/data/Mvsv.py 对齐）：
+// 格式（与 Archive/VeritasQuant/data/Mvsv.py 对齐）：
 //   - 头部：# Key : Value 行，空行分隔头部与数据区；
 //   - 数据区：列布局由头部 # Field 声明，当前支持两种：
 //     ① ts|dt|o|c|l|h|v|t|cp|cr|p（11 列，dt=14 位日期时间，t=成交额）
 //     ② ts|d|t|o|c|l|h|v|a|cp|cr|p|pc（13 列，d=8 位日期 + t=6 位时间，a=成交额）
-//   其余列（cp 涨跌值 / cr 涨跌幅 / pc）解析但不落表。
+//     其余列（cp 涨跌值 / cr 涨跌幅 / pc）解析但不落表。
 package mvsv
 
 import (
@@ -34,18 +34,20 @@ var RequiredHeaders = []string{
 type columnKind int
 
 const (
-	colTS columnKind = iota // ts：UTC 时间戳（秒）
-	colDate                 // d：8 位交易日期 yyyymmdd
-	colDateTime             // dt：14 位日期时间 yyyymmddHHMMSS
-	colTime                 // t：6 位时间 HHMMSS
-	colOpen                 // o：开盘价
-	colClose                // c：收盘价
-	colLow                  // l：最低价
-	colHigh                 // h：最高价
-	colVolume               // v：成交量
-	colTurnover             // t（布局 A）/ a（布局 B）：成交额
-	colPrevClose            // p：前一收盘价
-	colIgnore               // cp / cr / pc：解析但不落表
+	colTS          columnKind = iota // ts：UTC 时间戳（秒）
+	colDate                          // d：8 位交易日期 yyyymmdd
+	colDateTime                      // dt：14 位日期时间 yyyymmddHHMMSS
+	colTime                          // t：6 位时间 HHMMSS
+	colOpen                          // o：开盘价
+	colClose                         // c：收盘价
+	colLow                           // l：最低价
+	colHigh                          // h：最高价
+	colVolume                        // v：成交量
+	colTurnover                      // t（布局 A）/ a（布局 B）：成交额
+	colLastClose                     // p：前一收盘价
+	colChangePrice                   // cp：涨跌额（有值则落库）
+	colChangeRatio                   // cr：涨跌幅 %（有值则落库）
+	colIgnore                        // 其它多余列（如旧 pc）：解析后忽略
 )
 
 // fieldLayout 一种数据区列布局（列名序列 → 语义序列）。
@@ -62,14 +64,14 @@ var supportedLayouts = []fieldLayout{
 		Field: "ts|dt|o|c|l|h|v|t|cp|cr|p",
 		Kinds: []columnKind{
 			colTS, colDateTime, colOpen, colClose, colLow, colHigh,
-			colVolume, colTurnover, colIgnore, colIgnore, colPrevClose,
+			colVolume, colTurnover, colChangePrice, colChangeRatio, colLastClose,
 		},
 	},
 	{
 		Field: "ts|d|t|o|c|l|h|v|a|cp|cr|p",
 		Kinds: []columnKind{
 			colTS, colDate, colTime, colOpen, colClose, colLow, colHigh,
-			colVolume, colTurnover, colIgnore, colIgnore, colPrevClose,
+			colVolume, colTurnover, colChangePrice, colChangeRatio, colLastClose,
 		},
 	},
 }
@@ -102,28 +104,30 @@ func matchLayout(field string) (fieldLayout, bool) {
 type Header struct {
 	Values            map[string]string
 	Count             int
-	TimeZone          string // 解析用时区（优先 TimeZone，回退 EffectiveTimeZone；空=未提供）
-	EffectiveTimeZone string // 头部 EffectiveTimeZone 原始值（仅参考，非必填）
+	TimeZone          string      // 解析用时区（优先 TimeZone，回退 EffectiveTimeZone；空=未提供）
+	EffectiveTimeZone string      // 头部 EffectiveTimeZone 原始值（仅参考，非必填）
 	Layout            fieldLayout // 数据区列布局（由 # Field 决定）
 }
 
-// Row 一条分钟行情（与 finv_quote_secu_kline_min 表对齐；价格保留字符串精度）。
+// Row 一条分钟行情（与 dedup.finv_quote_secu_kline_min 表对齐；价格保留字符串精度）。
 type Row struct {
-	MarketCode int
-	SecuCode   string
-	Ts         int64
-	Date       *int
-	Time       *int
-	PrevClose  *string
-	Open       *string
-	High       *string
-	Low        *string
-	Close      *string
-	Paocd      *string
-	Volume     *int64
-	Turnover   *string
-	ExtField   *string
-	Remark     *string
+	MarketCode  int
+	Usc         string
+	Ts          int64
+	Date        *int
+	Time        *int
+	LastClose   *string
+	Open        *string
+	High        *string
+	Low         *string
+	Close       *string
+	ChangePrice *string // 涨跌额：MVSV 的 cp 列当前忽略，由导入服务按规则计算
+	ChangeRatio *string // 涨跌幅（%）：MVSV 的 cr 列当前忽略，由导入服务按规则计算
+	Paocd       *string
+	Volume      *int64
+	Turnover    *string
+	ExtField    *string
+	Remark      *string
 }
 
 // ParseResult 解析结果。
@@ -256,7 +260,7 @@ func parseRow(line string, header *Header, lineNumber int) (Row, error) {
 	fields = fields[:coreLen]
 
 	row := Row{}
-	row.SecuCode = header.Values["Code"]
+	row.Usc = header.Values["Code"]
 	row.MarketCode, _ = strconv.Atoi(header.Values["MarketCode"])
 
 	// 本地时间字段（dt 14 位 / d+t 拼接），用于 ts 一致性校验
@@ -307,10 +311,16 @@ func parseRow(line string, header *Header, lineNumber int) (Row, error) {
 			row.Volume = int64OrNil(raw)
 		case colTurnover:
 			row.Turnover = decimalOrNil(raw)
-		case colPrevClose:
-			row.PrevClose = decimalOrNil(raw)
+		case colLastClose:
+			row.LastClose = decimalOrNil(raw)
+		case colChangePrice:
+			// cp：文件提供则落库；为空则由导入服务按 last_close → open 规则补全。
+			row.ChangePrice = decimalOrNil(raw)
+		case colChangeRatio:
+			// cr：文件提供则落库；为空则由导入服务按 last_close → open 规则补全。
+			row.ChangeRatio = decimalOrNil(raw)
 		case colIgnore:
-			// cp / cr / pc：不落表
+			// 多余列（如旧 pc）：忽略
 		}
 	}
 

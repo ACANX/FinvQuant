@@ -37,7 +37,7 @@
 
 ### 4.1 查询参数
 
-- **请求**：`GET /API/V1/Meta/FinvQuant/Metadata/Exchange/List`，Query 参数如下：
+- **请求**：`GET /API/V1/Meta/Finv/Quant/Metadata/Exchange/List`，Query 参数如下：
 
 | 参数 | 说明 |
 |------|------|
@@ -47,13 +47,13 @@
 
 ### 4.2 新增与修改
 
-- **请求**：`POST /API/V1/Meta/FinvQuant/Metadata/Exchange/Save`，JSON body 字段见接口文档。
+- **请求**：`POST /API/V1/Meta/Finv/Quant/Metadata/Exchange/Save`，JSON body 字段见接口文档。
 - 新增：`exchange_code` 不存在时 INSERT，`flag_enable` 默认 `'1'`。
 - 修改：`exchange_code` 已存在时 UPDATE（主键不可改）。
 
 ### 4.3 禁用/启用
 
-- **请求**：`POST /API/V1/Meta/FinvQuant/Metadata/Exchange/Toggle`，body：`{ "exchange_code": 11, "flag_enable": "0" }`。
+- **请求**：`POST /API/V1/Meta/Finv/Quant/Metadata/Exchange/Toggle`，body：`{ "exchange_code": 11, "flag_enable": "0" }`。
 - 成功后行内状态即时刷新并提示。
 
 ### 4.4 响应处理

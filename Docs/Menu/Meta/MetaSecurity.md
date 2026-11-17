@@ -37,7 +37,7 @@
 
 ### 4.1 查询参数
 
-- **请求**：`GET /API/V1/Meta/FinvQuant/Metadata/Security/List`，Query 参数如下：
+- **请求**：`GET /API/V1/Meta/Finv/Quant/Metadata/Security/List`，Query 参数如下：
 
 | 参数 | 说明 |
 |------|------|
@@ -47,16 +47,16 @@
 
 ### 4.2 新增与修改
 
-- **请求**：`POST /API/V1/Meta/FinvQuant/Metadata/Security/Save`，JSON body 字段见接口文档。
+- **请求**：`POST /API/V1/Meta/Finv/Quant/Metadata/Security/Save`，JSON body 字段见接口文档。
 - 新增：`usc` 不存在时 INSERT，`flag_enable` 默认 `'1'`。
 - 修改：`usc` 已存在时 UPDATE（主键不可改）。
 - **对话框下拉**：
-  - 「交易所代码」为下拉选择，数据源 `GET /API/V1/Meta/FinvQuant/Metadata/Exchange/List`（仅启用记录），展示 `code abbr（name）`；
-  - 「市场代码」为下拉选择，数据源 `GET /API/V1/Meta/FinvQuant/Metadata/Market/List`（仅启用记录），展示 `code flag（name）`；两者均保留清空（清空即 0/未选）。
+  - 「交易所代码」为下拉选择，数据源 `GET /API/V1/Meta/Finv/Quant/Metadata/Exchange/List`（仅启用记录），展示 `code abbr（name）`；
+  - 「市场代码」为下拉选择，数据源 `GET /API/V1/Meta/Finv/Quant/Metadata/Market/List`（仅启用记录），展示 `code flag（name）`；两者均保留清空（清空即 0/未选）。
 
 ### 4.3 禁用/启用
 
-- **请求**：`POST /API/V1/Meta/FinvQuant/Metadata/Security/Toggle`，body：`{ "usc": "NVDA", "flag_enable": "0" }`。
+- **请求**：`POST /API/V1/Meta/Finv/Quant/Metadata/Security/Toggle`，body：`{ "usc": "NVDA", "flag_enable": "0" }`。
 
 ### 4.4 响应处理
 
@@ -65,7 +65,7 @@
 
 ## 5. 与其他菜单的联动
 
-- 「历史行情查询」菜单的**证券代码筛选下拉字典**来源于本字典：`GET /API/V1/Meta/FinvQuant/Metadata/Security/Options` 返回启用状态证券的 `usc`（key）与 `security_name_cn`（展示值），按 `usc:security_name_cn` 格式展示，保留手动输入。
+- 「历史行情查询」菜单的**证券代码筛选下拉字典**来源于本字典：`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options` 返回启用状态证券的 `usc`（key）与 `security_name_cn`（展示值），按 `usc:security_name_cn` 格式展示，保留手动输入。
 - 在本菜单禁用某证券后，该证券将不再出现在历史行情查询的下拉选项中。
 
 ## 6. 注意事项

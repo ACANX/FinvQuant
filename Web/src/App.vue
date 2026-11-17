@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
+import { useDisplay } from 'vuetify'
 import { useRoute } from 'vue-router'
 
 // 多级菜单定义（支持两级分组：顶级 → 二级 → 三级菜单项）
@@ -21,11 +22,27 @@ interface MenuGroup {
 const menuItems: (MenuLeaf | MenuGroup)[] = [
   { key: 'dashboard', title: '仪表盘', icon: 'mdi-view-dashboard', path: '/dashboard' },
   {
+    key: 'data-collection',
+    title: '数据采集',
+    icon: 'mdi-database-arrow-down',
+    children: [
+      {
+        key: 'quote-dedup',
+        title: '行情数据去重',
+        icon: 'mdi-content-duplicate',
+        children: [
+          { key: 'dedup-kline-query', title: '去重分钟行情查询', icon: 'mdi-table-search', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query' },
+          { key: 'dedup-kline-stats', title: '去重分钟行情统计', icon: 'mdi-chart-box-outline', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats' },
+        ],
+      },
+    ],
+  },
+  {
     key: 'history-quote',
     title: '历史行情',
     icon: 'mdi-chart-box',
     children: [
-      { key: 'quote-query', title: '历史行情查询', icon: 'mdi-chart-line', path: '/quote/query' },
+      { key: 'quote-query', title: '历史行情查询', icon: 'mdi-chart-line', path: '/Meta/Finv/Quote/History/HistoryQuoteQuery' },
     ],
   },
   {
@@ -46,9 +63,35 @@ const menuItems: (MenuLeaf | MenuGroup)[] = [
       },
     ],
   },
+  // 配置管理 / 环境管理 / 模板管理（元数据管理之后、量化策略验证之前）
+  { key: 'config-manage', title: '配置管理', icon: 'mdi-cog-outline', path: '/Meta/Finv/Quant/Config' },
+  { key: 'environment', title: '环境管理', icon: 'mdi-application-cog-outline', path: '/Meta/Finv/Quant/Environment' },
+  { key: 'template', title: '模板管理', icon: 'mdi-content-copy', path: '/Meta/Finv/Quant/Template' },
+  // 账户管理 / 资金管理 / 持仓管理（模板管理之后、量化策略验证之前）
+  { key: 'account', title: '账户管理', icon: 'mdi-account-cog-outline', path: '/Meta/Finv/Quant/Account' },
+  { key: 'fund', title: '资金管理', icon: 'mdi-cash-multiple', path: '/Meta/Finv/Quant/Fund' },
+  { key: 'position', title: '持仓管理', icon: 'mdi-briefcase-variant-outline', path: '/Meta/Finv/Quant/Position' },
+  // 量化策略验证 → 黄金期货合约回测验证
+  {
+    key: 'quant-backtest',
+    title: '量化策略验证',
+    icon: 'mdi-flask-outline',
+    children: [
+      { key: 'backtest-gold-futures', title: '黄金期货合约回测验证', icon: 'mdi-chart-bell-curve', path: '/Meta/Finv/Quant/Backtest/GoldFutures' },
+    ],
+  },
+  // 策略管理 / 回测分析（通用量化回测）
+  { key: 'strategy', title: '策略管理', icon: 'mdi-sitemap-outline', path: '/Meta/Finv/Quant/Strategy' },
+  { key: 'backtest-analysis', title: '回测分析', icon: 'mdi-chart-timeline-variant', path: '/Meta/Finv/Quant/Backtest/Analysis' },
+  // 仿真 / 模拟盘 / 实盘（规划中）
+  { key: 'simulation-data', title: '仿真数据验证', icon: 'mdi-database-sync-outline', path: '/Meta/Finv/Quant/Simulation/Data' },
+  { key: 'simulation-paper', title: '模拟盘验证', icon: 'mdi-account-cash-outline', path: '/Meta/Finv/Quant/Simulation/Paper' },
+  { key: 'simulation-live-sim', title: '实盘仿真验证', icon: 'mdi-robot-outline', path: '/Meta/Finv/Quant/Simulation/LiveSim' },
+  { key: 'live-trading', title: '实盘交易', icon: 'mdi-cash-register', path: '/Meta/Finv/Quant/LiveTrading' },
 ]
 
 const route = useRoute()
+const display = useDisplay()
 const drawer = ref(true)
 
 // 当前激活菜单项 key（叶子路径匹配）
@@ -65,18 +108,32 @@ function isActive(item: MenuLeaf | MenuGroup): boolean {
 function isGroupOpen(item: MenuGroup): boolean {
   return item.children.some((child) => (isLeaf(child) ? isActive(child) : isGroupOpen(child)))
 }
+
+// 路由切换后收起抽屉（移动端/小屏临时抽屉），桌面端保持折叠状态用户可自行展开
+watch(
+  () => route.fullPath,
+  () => {
+    if (display.mobile.value) drawer.value = false
+  },
+)
 </script>
 
 <template>
   <v-app>
     <v-app-bar color="primary" density="comfortable">
+      <v-app-bar-nav-icon @click="drawer = !drawer" />
       <v-app-bar-title>
         <v-icon icon="mdi-finance" class="mr-2" />
         FinvQuant 量化策略交易平台
       </v-app-bar-title>
     </v-app-bar>
 
-    <v-navigation-drawer v-model="drawer">
+    <v-navigation-drawer
+      v-model="drawer"
+      :temporary="display.mobile.value"
+      :permanent="!display.mobile.value"
+      :width="260"
+    >
       <v-list density="comfortable" nav>
         <template v-for="item in menuItems" :key="item.key">
           <!-- 叶子菜单 -->
@@ -107,7 +164,6 @@ function isGroupOpen(item: MenuGroup): boolean {
                 :title="child.title"
                 :active="isActive(child)"
                 :to="child.path"
-                class="pl-6"
               />
 
               <!-- 二级分组（三级叶子） -->
@@ -128,7 +184,6 @@ function isGroupOpen(item: MenuGroup): boolean {
                   :title="leaf.title"
                   :active="isActive(leaf)"
                   :to="leaf.path"
-                  class="pl-12"
                 />
               </v-list-group>
             </template>
@@ -144,3 +199,16 @@ function isGroupOpen(item: MenuGroup): boolean {
     </v-main>
   </v-app>
 </template>
+
+<style>
+/* 侧边导航缩进：每级增量 14px（上一版 28px 的 50%），进一步释放三级菜单标题空间 */
+.v-navigation-drawer .v-list-group {
+  --list-indent-size: 4px;
+  --v-list-group-prepend: 10px;
+}
+
+/* 菜单图标与标题的水平间距：32px → 约 1/3（10.67px） */
+.v-navigation-drawer .v-list-item__prepend {
+  --v-list-prepend-gap: 10.67px;
+}
+</style>

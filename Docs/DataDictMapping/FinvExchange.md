@@ -83,7 +83,7 @@
 - **全量替换（V100010/V100016）**：V100000 已发布不可修改，V100010 先 `DELETE FROM finv_exchange` 清空存量再 INSERT 全量 44 条；V100016（ACANX 2026-08-05 二次定版）再次全量替换，仅 code 101 名称字段互换；均单事务失败回滚、重复执行幂等。
 - **exchange_code 段位**：1~999 常规市场（证券/期货/外汇等），9001+ 富途结构化产品/测试环境，10000+ 加密货币交易所；`exchange_flag` / `exchange_abbr` 均唯一。
 - **数据来源**：FT 交易所清单；原始数据中 `exchange_code=19` 存在 `OTC` / `CNOTC` 两条冲突记录，经 ACANX 确认**仅保留 `19 CNOTC 中国场外交易`**。
-- **映射表依赖**：`finv_futu_mapping_cs_market.finv_exchange_code`（V100008）引用的 `-1`（无对应）项，可在本表扩充后由后续迁移 UPDATE 补齐（如 HKFE/ASX/KR/CA/CRYPTO/BD/FD 等）。
+- **映射表依赖**：`futu.finv_futu_mapping_cs_market.finv_exchange_code`（V100008）引用的 `-1`（无对应）项，可在本表扩充后由后续迁移 UPDATE 补齐（如 HKFE/ASX/KR/CA/CRYPTO/BD/FD 等）。
 - **映射预留**：`ft_list_exchange_code` 字段已建列、当前留空，待 FT 行情源列表编码映射确定后补充（`UPDATE finv_exchange SET ft_list_exchange_code = ... WHERE exchange_code = ...`）。
 - **幂等插入**：初始数据使用 `INSERT ... ON CONFLICT (exchange_code) DO NOTHING`，重复执行不产生重复记录。
 - **审计字段**：`gmt_create` / `gmt_update` 与既有表规范一致，`gmt_update` 由 `vq_set_gmt_update()` 触发器自动维护。

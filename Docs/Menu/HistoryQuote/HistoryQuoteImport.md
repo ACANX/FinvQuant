@@ -3,11 +3,11 @@
 > 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/HistoryQuote/`
 > 菜单层级：元数据管理 → 业务元数据维护 → **历史行情数据导入**
 > 路由：`/meta/import`（name `meta-import`）· 视图：`Web/src/views/QuoteImportView.vue`
-> 关联 API：`POST /API/V1/Quote/Import/Upload`（[ImportsUpload.md](../../API/HistoryQuote/ImportsUpload.md)）、`GET /API/V1/Meta/FinvQuant/Metadata/Security/Options`、`GET /API/V1/Meta/FinvQuant/Metadata/Security/Lookup`（[MetaSecurity.md](../../API/Meta/MetaSecurity.md)）
+> 关联 API：`POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload`（[ImportsUpload.md](../../API/HistoryQuote/ImportsUpload.md)）、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options`、`GET /API/V1/Meta/Finv/Quant/Metadata/Security/Lookup`（[MetaSecurity.md](../../API/Meta/MetaSecurity.md)）
 
 ## 功能概述
 
-上传 MVSV-1 分钟级历史行情文件，服务端解析后字段级覆盖导入 PostgreSQL（`finv_quote_secu_kline_min`）。
+上传 MVSV-1 分钟级历史行情文件，服务端解析后字段级覆盖导入 PostgreSQL（`dedup.finv_quote_secu_kline_min`）。
 
 **证券选择双策略**（页面顶部 tabs 切换）：
 
@@ -31,7 +31,7 @@
 ### 通用规则
 
 - 两种策略都需勾选「我确认导入将覆盖同时刻同证券的对应字段值」后上传按钮才可用；
-- 上传仍提交 `market_code` / `secu_code` 表单字段，服务端 `import.go` 对文件头做一致性校验兜底（不一致返回 4001）；
+- 上传仍提交 `market_code` / `usc` 表单字段，服务端 `import.go` 对文件头做一致性校验兜底（不一致返回 4001）；
 - 数据源 `source` 必填；覆盖模式 FIELD（推荐）/ ROW 可选；备注可选。
 
 ## 关键实现
@@ -46,6 +46,6 @@
 
 | API | 用途 |
 |-----|------|
-| `POST /API/V1/Quote/Import/Upload` | 上传 MVSV 文件并导入 |
-| `GET /API/V1/Meta/FinvQuant/Metadata/Security/Options` | 证券代码下拉字典 |
-| `GET /API/V1/Meta/FinvQuant/Metadata/Security/Lookup` | 策略 1 自动带出 / 策略 2 自动匹配 |
+| `POST /API/V1/Meta/Finv/Quant/Quote/Import/Upload` | 上传 MVSV 文件并导入 |
+| `GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options` | 证券代码下拉字典 |
+| `GET /API/V1/Meta/Finv/Quant/Metadata/Security/Lookup` | 策略 1 自动带出 / 策略 2 自动匹配 |
