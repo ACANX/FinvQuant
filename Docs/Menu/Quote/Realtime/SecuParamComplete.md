@@ -30,7 +30,7 @@
 
 ## 2. 列出口径
 
-源表：`cdeu.finv_cdeu_secu_realtime_stock`（一行一证券，采集写入的全量在售证券）。
+源表：`cdeu.finv_quote_secu_realtime`（一行一证券，采集写入的全量在售证券）。
 
 一个证券算「待补全」= 目标表里**没有**它：
 

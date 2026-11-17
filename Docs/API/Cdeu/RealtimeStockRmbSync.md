@@ -1,7 +1,7 @@
 # POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/RmbSync — 人民币计价指标手动补全
 
 > 所属：行情 → 实时行情 → 证券行情排行（`/Meta/Finv/Quote/Realtime/FTStockRank`）
-> 数据表：`cdeu.finv_cdeu_secu_realtime_stock`（人民币字段：`V300126` / 需求 11023）
+> 数据表：`cdeu.finv_quote_secu_realtime`（人民币字段：`V300126` / 需求 11023）
 > 关联需求：11023（加列）、11024（本接口与前端按钮）
 > 实现：`internal/api/handler/cdeu_realtime_stock.go`（`RealtimeStockRmbSync`）、
 > `internal/meta/finv/quote/cdeu/store_rmb_metrics.go`（`SyncRMBMetrics`）
@@ -101,10 +101,10 @@ toast 提示 `汇率 N 行（累计 X/总）`、`金额 N 行（累计 Y）`、�
 # 补全覆盖率
 psql -U finv -d finv -c "SELECT currency, count(*),
        count(rmb_exchange_rate) AS with_rate, count(rmb_market_value) AS with_mv
-  FROM cdeu.finv_cdeu_secu_realtime_stock GROUP BY 1 ORDER BY 1"
+  FROM cdeu.finv_quote_secu_realtime GROUP BY 1 ORDER BY 1"
 # 换算正确性（应为 t）
 psql -U finv -d finv -c "SELECT stock_code, currency, market_value, rmb_exchange_rate, rmb_market_value,
        round(market_value * rmb_exchange_rate, 6) = rmb_market_value AS ok
-  FROM cdeu.finv_cdeu_secu_realtime_stock
+  FROM cdeu.finv_quote_secu_realtime
  WHERE market_value IS NOT NULL LIMIT 5"
 ```

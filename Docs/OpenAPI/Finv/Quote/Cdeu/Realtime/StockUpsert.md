@@ -12,7 +12,7 @@
 ## 1. 概述
 
 供外部采集端 / 数据同步脚本调用，批量写入**证券实时行情快照**
-（表 `cdeu.finv_cdeu_secu_realtime_stock`，一行一证券，主键 `stock_id`）：
+（表 `cdeu.finv_quote_secu_realtime`，一行一证券，主键 `stock_id`）：
 
 - 主键不存在 → 插入；已存在 → **只覆盖本次有值的列**（`COALESCE(EXCLUDED.x, t.x)`），
   源端缺字段不会清空已有值；
@@ -108,9 +108,9 @@
 ### 4.1 冲突处理（字段级覆盖）
 
 ```sql
-INSERT INTO cdeu.finv_cdeu_secu_realtime_stock (...)
+INSERT INTO cdeu.finv_quote_secu_realtime (...)
 SELECT ... FROM src
-ON CONFLICT (stock_id) DO UPDATE SET
+ON CONFLICT (usc) DO UPDATE SET
     usc                      = COALESCE(EXCLUDED.usc, t.usc),
     name                     = COALESCE(EXCLUDED.name, t.name),
     ...（除主键外全部 14 列均为 COALESCE(EXCLUDED.x, t.x)）

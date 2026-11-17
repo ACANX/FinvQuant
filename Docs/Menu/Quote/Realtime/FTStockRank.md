@@ -4,7 +4,7 @@
 > 路由：`/Meta/Finv/Quote/Realtime/FTStockRank`
 > 视图：`Web/src/views/Meta/Finv/Quote/Realtime/FTStockRankView.vue`
 > 菜单 key：`quote-realtime-ftstockrank`（父分组 `quote-realtime`）
-> 数据表：`cdeu.finv_cdeu_secu_realtime_stock`（一行一证券，主键 `stock_id`）
+> 数据表：`cdeu.finv_quote_secu_realtime`（一行一证券，主键 `stock_id`）
 > 接口：[`GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Page`](../../../API/Cdeu/RealtimeStockPage.md)
 > 接口（人民币计价补全）：[`POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/RmbSync`](../../../API/Cdeu/RealtimeStockRmbSync.md)
 > 关联需求：10962（菜单）、10963（路由与着色）、10964（更名）、10956–10961（表、写入接口与数值列）、11025（人民币口径展示与默认排行）、

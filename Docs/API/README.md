@@ -84,7 +84,7 @@ Authorization: Bearer <token>
     - [`Cdeu/DayKlineStat.md`](Cdeu/DayKlineStat.md) — `GET .../DayKline/Stat`（单 usc 日K存量：行数/日期范围/来源）
     - [`Cdeu/DayKlineUscList.md`](Cdeu/DayKlineUscList.md) — `GET .../DayKline/UscList`（候选 usc，取自 `futu.finv_futu_quote_collect`）
   - 证券实时行情快照（`/API/V1/Meta/Finv/Quote/Cdeu/Realtime/*`，**一个接口一个文档**）：
-    - [`Cdeu/RealtimeStockUpsert.md`](Cdeu/RealtimeStockUpsert.md) — `POST .../Realtime/FTStockUpsert`（批量 upsert 到 `cdeu.finv_cdeu_secu_realtime_stock`；契约 [.yml](Cdeu/RealtimeStockUpsert.yml)）
+    - [`Cdeu/RealtimeStockUpsert.md`](Cdeu/RealtimeStockUpsert.md) — `POST .../Realtime/FTStockUpsert`（批量 upsert 到 `cdeu.finv_quote_secu_realtime`；契约 [.yml](Cdeu/RealtimeStockUpsert.yml)）
     - [`Cdeu/RealtimeStockPage.md`](Cdeu/RealtimeStockPage.md) — `GET .../Realtime/Stock/Page`（实时行情分页查询：关键字/市场/币种筛选 + 白名单排序；契约 [.yml](Cdeu/RealtimeStockPage.yml)）
     - [`Cdeu/StockListCollect.md`](Cdeu/StockListCollect.md) — `POST .../Realtime/FTStockQuoteSnapshotSync`（行情列表股票快照同步：读配置表分市场分页采集、逐页落库并回写 `count_exists`/`total_available`；契约 [.yml](Cdeu/StockListCollect.yml)）
     - [`Cdeu/StockSnapshotSyncRun.md`](Cdeu/StockSnapshotSyncRun.md) — `POST/GET .../Realtime/FTStockQuoteSnapshotSync/Run`（异步启动采集 + 轮询运行状态与逐页日志；契约 [.yml](Cdeu/StockSnapshotSyncRun.yml)）

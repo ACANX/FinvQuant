@@ -11,7 +11,7 @@
 
 ## 1. 用途
 
-列出 `cdeu.finv_cdeu_secu_realtime_stock` 中 **补全后 `usc` 仍为空** 的快照行。
+列出 `cdeu.finv_quote_secu_realtime` 中 **补全后 `usc` 仍为空** 的快照行。
 
 **本页负责把 `usc` 弄进快照表**（「入队」登记键 /「手动补录USC」回写）：
 `public.finv_security` 与 `futu.finv_futu_quote_collect` 的补全已拆到独立菜单
@@ -89,7 +89,7 @@
 
 「查询」按钮右侧的「手动补录USC」，调用
 `POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/USCBackfill`，把 `usc` 为空（NULL / 空白）的快照行**真正写回**
-`cdeu.finv_cdeu_secu_realtime_stock`：
+`cdeu.finv_quote_secu_realtime`：
 
 | 步骤 | 说明 |
 |------|------|

@@ -6,7 +6,7 @@ info:
     POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/USCBackfill
     需求 11146：按派生键 ftmm_symbol = upper(market_label || '.' || stock_code) 关联
     futu.finv_futu_secu_key，把 usc 为空（NULL / 空白）的快照行就地写回
-    cdeu.finv_cdeu_secu_realtime_stock。键表无对应证券的行保持不动（仍为待录入）；幂等。
+    futu.finv_futu_secu_key。键表无对应证券的行保持不动（仍为待录入）；幂等。
 servers:
   - url: /
 paths:

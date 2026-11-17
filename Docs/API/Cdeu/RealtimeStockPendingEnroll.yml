@@ -5,7 +5,7 @@ info:
   description: |
     POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enroll
     需求 10996/11147：单事务写入 public.finv_security + futu.finv_futu_quote_collect，
-    并把 usc 回写 cdeu.finv_cdeu_secu_realtime_stock；remark 带 [AUTO-FILL] 标记便于溯源。
+    并把 usc 回写 futu.finv_futu_secu_key；remark 带 [AUTO-FILL] 标记便于溯源。
     cdeu.finv_quote_cdeu_usc 不录入（运行时动态生成）。三处写入均幂等，不覆盖人工数据。
 servers:
   - url: /

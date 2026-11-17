@@ -14,7 +14,7 @@
 |------|----|------|
 | 1 | `public.finv_security` | 证券主数据 |
 | 2 | `futu.finv_futu_quote_collect` | futu 采集配置（`ftmm_symbol` 生成列不写） |
-| 3 | `cdeu.finv_cdeu_secu_realtime_stock` | 只把 `usc` 写回（`NULL` / 空白 才写） |
+| 3 | `futu.finv_futu_secu_key` | 只把 `usc` 写回（`NULL` / 空白 才写） |
 
 > `cdeu.finv_quote_cdeu_usc` **不录入**（需求 11147）：该表数据由运行时采集链路动态生成。
 

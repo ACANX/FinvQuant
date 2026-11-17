@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: |
     GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Secu/Param/Complete/Pending
-    需求 11161：「证券参数补全」清单。源表 cdeu.finv_cdeu_secu_realtime_stock，
+    需求 11161：「证券参数补全」清单。源表 cdeu.finv_quote_secu_realtime，
     按目标表（security = public.finv_security / collect = futu.finv_futu_quote_collect）
     列出「目标表里还没有该证券」的行。
     目标键 = COALESCE(快照 usc, upper(市场标签.代码))；存在性同时接受目标键与派生键两种形态。

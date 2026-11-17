@@ -8,7 +8,7 @@
 
 ## 1. 用途
 
-把 `cdeu.finv_cdeu_secu_realtime_stock` 里 **`usc` 为空**（`NULL` 或空白串）的快照行**就地补上**：
+把 `futu.finv_futu_secu_key` 里 **`usc` 为空**（`NULL` 或空白串）的快照行**就地补上**：
 
 1. 派生键 `ftmm_symbol = upper(btrim(market_label) || '.' || btrim(stock_code))`（英文字母统一大写，需求 11143）；
 2. `JOIN futu.finv_futu_secu_key` 按 `ftmm_symbol` 取 `usc`；

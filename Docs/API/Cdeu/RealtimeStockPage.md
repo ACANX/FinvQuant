@@ -1,7 +1,7 @@
 # GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Page — 实时行情分页查询
 
 > 所属：行情 → 实时行情 → 实时行情
-> 数据表：`cdeu.finv_cdeu_secu_realtime_stock`（建表 `V300115`，数值列 `V300117`/`V300118`/`V300119`）
+> 数据表：`cdeu.finv_quote_secu_realtime`（建表 `V300115`，数值列 `V300117`/`V300118`/`V300119`）
 > 关联需求：10962（菜单）、10956–10961（表与写入）、11023（表增 `rmb_*` 列）、11024（补全接口）、11025（人民币口径展示与排行）
 > 实现：`internal/api/handler/cdeu_realtime_stock.go`（`RealtimeStockPage`）、
 > `internal/meta/finv/quote/cdeu/store_realtime_stock.go`（`ListRealtimeStocks`）

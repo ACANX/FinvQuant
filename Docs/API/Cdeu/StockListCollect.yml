@@ -8,7 +8,7 @@ info:
   version: 1.0.0
   description: |
     手动触发「证券列表采集」：读取 cdeu.finv_cdeu_secu_realtime_sync_config 中启用的配置，
-    按市场分页调用 moomoo get-stock-list，逐页 upsert 到 cdeu.finv_cdeu_secu_realtime_stock，
+    按市场分页调用 moomoo get-stock-list，逐页 upsert 到 cdeu.finv_quote_secu_realtime，
     并把接口 pagination.total 回写到配置表 count_exists。
     采集逻辑集中在 internal/meta/finv/quote/cdeu/quote_list_stock_snapshot_sync.go（单文件、可迁移）。
 servers:

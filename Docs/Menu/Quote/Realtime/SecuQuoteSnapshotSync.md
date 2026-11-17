@@ -10,7 +10,7 @@
 ## 1. 用途
 
 手动触发「证券列表采集」并按市场分页拉取 moomoo `get-stock-list`，把结果写入
-`cdeu.finv_cdeu_secu_realtime_stock`，同时查看每一步的状态与逐页日志。
+`cdeu.finv_quote_secu_realtime`，同时查看每一步的状态与逐页日志。
 
 ## 2. 页面结构
 

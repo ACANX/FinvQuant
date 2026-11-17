@@ -24,7 +24,7 @@
 
 | 参数 | 位置 | 类型 | 必填 | 说明 |
 |------|------|------|------|------|
-| `stockId` | query | integer | 是 | 快照表 `cdeu.finv_cdeu_secu_realtime_stock.stock_id` |
+| `stockId` | query | integer | 是 | 快照表 `futu.finv_futu_secu_key.stock_id` |
 
 `stockId` 不存在返回 400（`stock_id=<n> 不存在`）。
 

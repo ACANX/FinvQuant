@@ -20,7 +20,7 @@ paths:
           in: query
           required: true
           schema: { type: integer, format: int64 }
-          description: 快照表 cdeu.finv_cdeu_secu_realtime_stock.stock_id
+          description: 快照表 futu.finv_futu_secu_key.stock_id
       responses:
         '200':
           description: 预填成功

@@ -12,7 +12,7 @@ info:
   title: FinvQuant — 证券实时行情快照外部批量 Upsert
   version: 1.0.0
   description: |
-    外部 OpenAPI：批量写入证券实时行情快照（表 cdeu.finv_cdeu_secu_realtime_stock，主键 stock_id）。
+    外部 OpenAPI：批量写入证券实时行情快照（表 cdeu.finv_quote_secu_realtime，主键 stock_id）。
     主键存在则只覆盖本次有值的列（COALESCE），不存在则插入；
     整批单条语句执行，失败整批回滚。鉴权见 Docs/API/OpenAPI/Auth.md（sys_config 19001 控制，默认关闭）。
 servers:

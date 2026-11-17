@@ -1,7 +1,7 @@
 # POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert — 证券实时行情快照批量 Upsert
 
 > 所属：行情 → CDEU → 证券实时行情快照
-> 数据表：`cdeu.finv_cdeu_secu_realtime_stock`（建表迁移 `V300115`，需求 10956）
+> 数据表：`cdeu.finv_quote_secu_realtime`（建表迁移 `V300115`，需求 10956）
 > 关联需求：10957（建表 10956）
 > 实现：`internal/api/handler/cdeu_realtime_stock.go`（`RealtimeStockUpsert`）、
 > `internal/meta/finv/quote/cdeu/realtime_stock.go`（模型与校验）、
@@ -111,9 +111,9 @@
 ### 3.1 冲突处理
 
 ```sql
-INSERT INTO cdeu.finv_cdeu_secu_realtime_stock (...)
+INSERT INTO cdeu.finv_quote_secu_realtime (...)
 SELECT ... FROM src
-ON CONFLICT (stock_id) DO UPDATE SET
+ON CONFLICT (usc) DO UPDATE SET
     usc                      = COALESCE(EXCLUDED.usc, t.usc),
     name                     = COALESCE(EXCLUDED.name, t.name),
     ...（除主键外全部 14 列均为 COALESCE(EXCLUDED.x, t.x)）
@@ -206,7 +206,7 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 
 | 使用方 | 说明 |
 |---|---|
-| 采集端（仓库外工具 / 上游同步脚本） | 按快照批次调用本接口写入 `cdeu.finv_cdeu_secu_realtime_stock`；当前仓库内无前端菜单调用 |
+| 采集端（仓库外工具 / 上游同步脚本） | 按快照批次调用本接口写入 `cdeu.finv_quote_secu_realtime`；当前仓库内无前端菜单调用 |
 | 外部 OpenAPI 调用方 | `POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert`（鉴权见 [OpenAPI/Auth.md](../OpenAPI/Auth.md)） |
 
 ## 8. 校验与生成

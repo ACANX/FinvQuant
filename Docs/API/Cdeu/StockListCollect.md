@@ -1,7 +1,7 @@
 # POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync — 行情列表股票快照同步
 
 > 手动触发「证券列表采集」：读配置表 → 按市场分页拉取 moomoo `get-stock-list`
-> → 逐页 upsert 到 `cdeu.finv_cdeu_secu_realtime_stock` → 回写 `count_exists` / `total_available`。
+> → 逐页 upsert 到 `cdeu.finv_quote_secu_realtime` → 回写 `count_exists` / `total_available`。
 > 机器可读契约：[`StockListCollect.yml`](StockListCollect.yml)（OpenAPI 3.1），两者须成对更新。
 >
 > - 实现：`internal/api/handler/cdeu_realtime_stock.go`（`RealtimeStockListCollect`）、
@@ -16,7 +16,7 @@
 | 认证 | 需登录（`Authorization: Bearer <token>`），未登录返回 401 |
 | 请求体 | **全部字段可选**，缺省用配置表 + 默认控制参数 |
 | 采集范围 | 来自 `cdeu.finv_cdeu_secu_realtime_sync_config`（`flag_enable='1'` 的行），可用 `instrument_symbol` / `market_type` 过滤，用 `count_plan` 覆盖计划数量 |
-| 采集结果 | 写入 `cdeu.finv_cdeu_secu_realtime_stock`（`page` 记录来源页码，`dt_update` 为写入时刻） |
+| 采集结果 | 写入 `cdeu.finv_quote_secu_realtime`（`page` 记录来源页码，`dt_update` 为写入时刻） |
 | 配置回写 | 每页回写进度；结束时把接口 `pagination.total` 写入 `count_exists`，把本轮实际可采集数量写入 `total_available` |
 
 ## 2. 请求
@@ -105,7 +105,7 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 5. **截断**：最后一页按剩余计划数量截断，不会多采。
 6. **数值口径**（与既有快照一致）：`万/亿/万亿/B/M` 换算成元或股，百分号去掉后按百分点数值入库，`up/down/flat` → `+/-/0`；解析失败的字段留空，不猜值。
 7. **幂等**：同一批重复采集只会产生 `update`，业务字段以最后一次为准。
-8. **逐页明细日志**：每页落库后按「每行 10 个、每格 11 显示列」打印该页证券代码清单（不含名称），`[I]`=新增、`[U]`=更新（`stock_id` 此前是否存在于 `finv_cdeu_secu_realtime_stock`），并同时写入容器日志（`docker logs`）与异步任务的日志流。
+8. **逐页明细日志**：每页落库后按「每行 10 个、每格 11 显示列」打印该页证券代码清单（不含名称），`[I]`=新增、`[U]`=更新（`usc` 此前是否存在于 `finv_quote_secu_realtime`），并同时写入容器日志（`docker logs`）与异步任务的日志流。
 
 ## 5. 错误目录
 
@@ -120,7 +120,7 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 | 表 | 作用 |
 |---|---|
 | `cdeu.finv_cdeu_secu_realtime_sync_config` | 采集配置（市场 + 品种、计划数量、`count_exists`、`total_available`） |
-| `cdeu.finv_cdeu_secu_realtime_stock` | 采集结果（一行一证券，`page` 记录来源页码） |
+| `cdeu.finv_quote_secu_realtime` | 采集结果（一行一证券，`page` 记录来源页码） |
 
 ### usc 与币种自动补齐（需求 10993）
 

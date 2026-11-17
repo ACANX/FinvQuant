@@ -7,7 +7,7 @@
 
 ## 1. 用途
 
-查询 `cdeu.finv_cdeu_secu_realtime_stock` 中 **补全后 `usc` 仍为空** 的快照行（需求 11145 起的口径）：
+查询 `futu.finv_futu_secu_key` 中 **补全后 `usc` 仍为空** 的快照行（需求 11145 起的口径）：
 
 1. 由快照行派生键 `ftmm_symbol = upper(market_label || '.' || stock_code)`（英文字母统一大写，与
    `futu.finv_futu_secu_key.ftmm_symbol` 同口径）；

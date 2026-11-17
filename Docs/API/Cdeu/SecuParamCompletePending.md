@@ -16,7 +16,7 @@
 | `security` | `public.finv_security` | 规范证券参数还没登记的证券 |
 | `collect` | `futu.finv_futu_quote_collect` | 采集参数还没配置的证券 |
 
-源表是快照 `cdeu.finv_cdeu_secu_realtime_stock`（采集写入的全量在售证券，一行一证券）。
+源表是快照 `cdeu.finv_quote_secu_realtime`（采集写入的全量在售证券，一行一证券）。
 只读，不写任何表。
 
 ## 2. 判定口径

@@ -3,7 +3,7 @@ info:
   title: 待录入证券分页查询
   version: 1.0.0
   description: |
-    查询 cdeu.finv_cdeu_secu_realtime_stock 中「补全后 usc 仍为空」的快照行（尚未录入证券主数据的证券）：
+    查询 futu.finv_futu_secu_key 中「补全后 usc 仍为空」的快照行（尚未录入证券主数据的证券）：
     先按派生 ftmm_symbol = upper(market_label || '.' || stock_code) 左连 futu.finv_futu_secu_key 取 usc，
     COALESCE(快照 usc, 键表 usc) 仍为空才返回；键表里已登记的证券不进清单。
     作为后续补录 public.finv_security + futu.finv_futu_quote_collect + cdeu.finv_quote_cdeu_usc 的依据。

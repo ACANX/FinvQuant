@@ -7,7 +7,7 @@ info:
   title: FinvQuant — 实时行情分页查询
   version: 1.0.0
   description: |
-    分页查询 cdeu.finv_cdeu_secu_realtime_stock（一行一证券，主键 stock_id）。
+    分页查询 cdeu.finv_quote_secu_realtime（一行一证券，主键 stock_id）。
     数值列以文本返回以保住 NUMERIC(24,6) 精度，展示折算由前端负责。
 servers:
   - url: http://127.0.0.1:16001
