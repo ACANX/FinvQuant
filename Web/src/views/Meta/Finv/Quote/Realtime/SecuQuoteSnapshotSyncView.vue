@@ -97,6 +97,9 @@ const PLACEHOLDER_SYMBOLS = ['etf', 'index', 'future', 'crypto', 'sector', 'port
 // 已接入真实采集、但配置表（cdeu.finv_cdeu_secu_realtime_sync_config）没有采集行的品种：
 // bsestock 走 BDFS 板块成分股接口（需求 11262），全量拉取，无需配置行。
 const FIXED_SYMBOLS = ['bsestock']
+// Tab 固定展示顺序（需求 11256/11262）：配置表没出现的品种按此顺序补齐，
+// bsestock 固定排在「指数」（index）之后的原占位位置，不得因接入采集而提到前面。
+const SYMBOL_ORDER = ['stock', 'etf', 'index', 'future', 'crypto', 'bsestock', 'sector', 'portfolio', 'gold']
 
 const MARKET_LABELS: Record<string, string> = { '1': 'HK 港股', '2': 'US 美股', '4': 'CN A 股' }
 
@@ -120,22 +123,19 @@ const maxPages = ref(0)
 let timer: number | null = null
 let pollFailures = 0
 
-/** 配置表里出现过的品种（按配置顺序去重）+ 占位品种（按 PLACEHOLDER_SYMBOLS 顺序补齐） */
+/** 配置表里出现过的品种 + 固定来源品种 + 占位品种，统一按 SYMBOL_ORDER 排序（未登记在末尾追加） */
 const symbols = computed(() => {
-  const seen: string[] = []
-  for (const item of configs.value) {
-    if (item.instrument_symbol && !seen.includes(item.instrument_symbol)) {
-      seen.push(item.instrument_symbol)
-    }
+  const present: string[] = []
+  const push = (symbol: string) => {
+    if (symbol && !present.includes(symbol)) present.push(symbol)
   }
-  if (!seen.length) seen.push('stock')
-  for (const symbol of FIXED_SYMBOLS) {
-    if (!seen.includes(symbol)) seen.push(symbol)
-  }
-  for (const symbol of PLACEHOLDER_SYMBOLS) {
-    if (!seen.includes(symbol)) seen.push(symbol)
-  }
-  return seen
+  for (const item of configs.value) push(item.instrument_symbol)
+  if (!present.length) push('stock')
+  for (const symbol of FIXED_SYMBOLS) push(symbol)
+  for (const symbol of PLACEHOLDER_SYMBOLS) push(symbol)
+  const ordered = SYMBOL_ORDER.filter((symbol) => present.includes(symbol))
+  const rest = present.filter((symbol) => !SYMBOL_ORDER.includes(symbol))
+  return [...ordered, ...rest]
 })
 
 /** 当前 Tab 是「固定来源」品种（无配置行但已接入真实采集，如 BDFS 板块成分股） */

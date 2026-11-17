@@ -39,7 +39,9 @@
 即自动转为可采集（无需改前端）。
 
 **固定来源 Tab（需求 11262）**：`bsestock`（北交所股票）已接入 BDFS 采集，由前端 `FIXED_SYMBOLS` 常显，
-不读配置表、也不需要配置行——「开始同步」直接可用，配置表区显示
+不读配置表、也不需要配置行。Tab 顺序统一由前端 `SYMBOL_ORDER` 决定
+（`stock` / `etf` / `index` / `future` / `crypto` / **`bsestock`** / `sector` / `portfolio` / `gold`），
+接入采集**不改变位置**（仍在「指数」之后）——「开始同步」直接可用，配置表区显示
 「该品种为 BDFS 板块采集（板块 GN2309 北交所上市企业）…结果写入 `cdeu.finv_quote_secu_realtime`（provider=BDFS）」。
 
 #### 2.0.1 BDFS 板块采集（`bsestock`，需求 11262）
