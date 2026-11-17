@@ -61,10 +61,13 @@ const (
 	FutureListDefaultRequestTimeout = 20 * time.Second
 )
 
-// 日志明细排版：每行 10 个合约、每格固定显示宽度（中文按 2 列计），便于对齐阅读。
+// 日志明细排版：每行 5 个合约、每格固定显示宽度（中文按 2 列计），便于对齐阅读。
+//
+// 格宽 20：`[I] ` 占 4 显示列，余 16 列足够放下最长的合约代码
+// （观测最长 `NK225MCmain` 11 字符）；早先 13 列会把 `NK225Mmain` 截成 `NK225Mmai`。
 const (
-	futureListDetailPerLine   = 10
-	futureListDetailCellWidth = 13
+	futureListDetailPerLine   = 5
+	futureListDetailCellWidth = 20
 )
 
 // FutureListCollectConfig 一份采集范围配置（对应配置表一行）。
@@ -597,7 +600,8 @@ func futureListSleep(ctx context.Context, d time.Duration) error {
 // futureListFormatDetail 把一页的落库行排成「每行 N 个、各列对齐」的文本块。
 //
 // 每格形如 `[I] GCmain`：I=新增、U=更新（只展示合约代码，不含名称）；
-// 宽度按显示列计算（CJK 字符占 2 列），超出截断、不足补空格，保证多行之间严格对齐。
+// 每行 futureListDetailPerLine 个，宽度按显示列计算（CJK 字符占 2 列），
+// 超出 futureListDetailCellWidth 才截断、不足补空格，保证多行之间严格对齐。
 func futureListFormatDetail(rows []FutureListSavedRow) string {
 	if len(rows) == 0 {
 		return ""

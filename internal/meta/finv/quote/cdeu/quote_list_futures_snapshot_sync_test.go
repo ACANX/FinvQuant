@@ -405,8 +405,13 @@ func TestFutureListDetailFormat(t *testing.T) {
 		}
 		lines++
 	}
-	if lines != 2 {
-		t.Fatalf("12 行明细应排成 2 行（每行 10 个），实际 %d 行:\n%s", lines, detail)
+	if lines != 3 {
+		t.Fatalf("12 行明细应排成 3 行（每行 5 个），实际 %d 行:\n%s", lines, detail)
+	}
+	// 每格 20 显示列：11 字符的合约代码加 `[I] ` 前缀必须完整显示，不得截断
+	longDetail := futureListFormatDetail([]FutureListSavedRow{{ContractCode: "NK225MCmain"}})
+	if !strings.Contains(longDetail, "NK225MCmain") {
+		t.Fatalf("最长合约代码应完整显示，实际 %q", longDetail)
 	}
 }
 

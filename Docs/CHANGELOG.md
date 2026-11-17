@@ -338,6 +338,15 @@
 
 ### 变更
 
+- **期货采集日志明细改为每行 5 个合约、每格 20 显示列（需求 11274）**
+  - 现象：明细格宽 13 时，`[I] ` 前缀占掉 4 显示列、只剩 9 列，线上日志里
+    `NK225Mmain` 被截成 `NK225Mmai`、`NK225MCmain` 截成 `NK225MCma`，人工核对合约代码容易误读。
+  - 调整：`futureListDetailPerLine` 10 → **5**、`futureListDetailCellWidth` 13 → **20**；
+    最长观测代码 11 字符可完整显示，单行固定 104 显示列。
+  - 影响面：只改日志明细排版（容器日志与页面日志面板）；请求、落库、统计口径不变。
+  - 验证：`go test ./internal/meta/finv/quote/cdeu/ -run Future` 全过（用例新增「12 条排 3 行」
+    与「11 字符合约代码不得截断」两条断言）。
+
 - **期货采集配置补全 8 个分类中文名（需求 11273/11274 数据补全）**
   - 迁移 `V300217`：按线上首轮采集（2026-11-18，`marketType=0` 聚合口径、全部为各交易所主连）反推的分类语义，
     回填 `cdeu.finv_quote_cdeu_future_sync_config.futures_type_name` 与 `remark`：
