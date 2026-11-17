@@ -163,7 +163,7 @@ func TestBdfsRealtimeRowPriceDirect(t *testing.T) {
 	cases := []struct {
 		change float64
 		want   string
-	}{{1.2, "+"}, {-1.2, "-"}, {0, "0"}}
+	}{{1.2, "+"}, {-1.2, "-"}, {0, "="}}
 	for _, c := range cases {
 		row := BdfsRealtimeRow(BdfsConstituent{Code: "1", Exchange: "SH", HasQuote: 1, HasRaw: true, ChangePrice: c.change}, "1.SH", 1, 1)
 		if got := bdfsDerefString(row.PriceDirect); got != c.want {
@@ -220,13 +220,26 @@ func TestBdfsCollectorSkipsUnresolvedUsc(t *testing.T) {
 		t.Fatalf("usc 应一致，实际 %q / %q", sink.rows[0].USC, sink.rows[1].USC)
 	}
 	hasWarn := false
+	var detailLines []string
 	for _, e := range events {
-		if e.Stage == "retry" && strings.Contains(e.Message, "未能在 public.finv_security 解析到 usc") {
+		if e.Stage != "retry" {
+			continue
+		}
+		if strings.Contains(e.Message, "未能在 public.finv_security 解析到 usc") {
 			hasWarn = true
+		}
+		if strings.HasPrefix(e.Message, "未解析 usc：") {
+			detailLines = append(detailLines, e.Message)
 		}
 	}
 	if !hasWarn {
 		t.Fatalf("应记录「跳过未解析 usc」的 WARN 日志，实际事件 %+v", events)
+	}
+	if len(detailLines) != 1 {
+		t.Fatalf("未解析行应逐条打印（期望 1 行），实际 %+v", detailLines)
+	}
+	if !strings.Contains(detailLines[0], "exchange=BJ") || !strings.Contains(detailLines[0], "code=920001") || !strings.Contains(detailLines[0], "name=未入库股") {
+		t.Fatalf("未解析明细应含 exchange/code/name，实际 %q", detailLines[0])
 	}
 	if sink.rows[0].Provider != "BDFS" {
 		t.Fatalf("写入行 provider 应为 BDFS，实际 %q", sink.rows[0].Provider)

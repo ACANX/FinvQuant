@@ -4440,6 +4440,14 @@
   - 仅修正链接层级，不改文档内容；`Docs/Guide/DesignDocGuide.md` 的 `XxxSpec.md` / `YyyFileFormat.md`
     属模板占位示例，保持原样。
 
+- **BDFS 采集的 `price_direct` 持平改用 `=`，未解析 usc 的成分股逐条打印（需求 11262 调整）**
+  - 写入 `cdeu.finv_quote_secu_realtime.price_direct` 时，涨 `+` / 跌 `-` / **持平 `=`**（原实现写 `0`，
+    与参考表 `cdeu.finv_cdeu_secu_realtime_stock` 的 `0` 不同，避免下游误判为「无数据」）。
+  - 迁移 `V300210` 只更新该列注释为「+ 涨 / - 跌 / = 平」，不动参考表、不改列类型/约束，幂等 + 末尾校验。
+  - 未解析到 usc 的成分股：日志先给汇总条数，再逐条打印 `exchange=… code=… name=…`（最多 200 条，
+    同时写服务端日志），便于人工登记 `public.finv_security` 后重跑。
+  - 验证：`go test ./internal/meta/finv/quote/cdeu/ -run Bdfs` 通过（含 `=` 与逐条明细断言）。
+
 ## [0.1.3] - 2026-10-29
 
 > 本版本内容：四级菜单导航改造、登录与文案修复、BRS 上传与配置、去重/导出链路修复、深色/浅色主题切换等。

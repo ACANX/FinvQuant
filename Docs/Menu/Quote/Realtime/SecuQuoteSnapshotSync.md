@@ -52,7 +52,7 @@
 | 板块 | `block` / `GN2309`（北交所上市企业），`market=ab` |
 | 翻页 | 按**偏移量** `pn += rn` 递增（`rn` = 页面「每页条数」，默认 500），返回条数 < `rn` 即末页；另有 200 页上限防死循环 |
 | 落库表 | `cdeu.finv_quote_secu_realtime`（`V300209`，主键 `usc`，`provider` 固定 `BDFS`） |
-| usc 解析 | 按 `(exchange, code)` 关联 `public.finv_exchange.exchange_flag` + `public.finv_security.security_code`；解析不到的行跳过并在日志记 WARN 计数 |
+| usc 解析 | 按 `(exchange, code)` 关联 `public.finv_exchange.exchange_flag` + `public.finv_security.security_code`；解析不到的行跳过，日志先给汇总，再**逐条打印 `exchange` / `code` / `name`**（最多 200 条）便于登记入库 |
 | 写入语义 | 按 `usc` 整行覆盖（`ON CONFLICT (usc) DO UPDATE`），`stock_id` 恒为 NULL（BDFS 不提供源系统 ID） |
 | 节流 | 无页间间隔（单次全量可在数百毫秒内完成）；「页间隔 / 重试 / 退避」参数对该 Tab 不生效 |
 
@@ -73,7 +73,7 @@
 | `trade_volumn` | `rawData.volume × 100` | 接口单位为**手**，表内按**股** |
 | `trade_trunover` | `rawData.amount` | 元 |
 | `market_value` | `rawData.marketValue` | 元 |
-| `price_direct` | `pxChange` 符号 | `+` / `-` / `0` |
+| `price_direct` | `pxChange` 符号 | `+` 涨 / `-` 跌 / `=` 平（**持平为 `=`，不是 `0`**） |
 | `page` | 本次采集页码 | 从 1 起（`行序号 / 每页条数 + 1`） |
 | `dt_update` | 采集时刻 | Unix 毫秒 |
 | `provider` | 固定 `BDFS` | — |

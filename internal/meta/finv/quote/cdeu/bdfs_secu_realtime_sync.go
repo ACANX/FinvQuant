@@ -38,6 +38,9 @@ const (
 	BdfsDbBatchSize = 200
 	// BdfsDefaultTimeout 单次接口请求超时。
 	BdfsDefaultTimeout = 20 * time.Second
+	// BdfsUnresolvedLogLimit 未解析 usc 的成分股逐条打印上限（防止大板块一次刷满日志面板；
+	// 运行日志本身有 500 行上限，超出会丢弃最早的行）。
+	BdfsUnresolvedLogLimit = 200
 )
 
 // BdfsConstituent 是一条成分股的入库所需字段（已从接口结构里取过 rawData）。
@@ -324,20 +327,35 @@ func (c *BdfsSecuRealtimeCollector) Collect(ctx context.Context, opts BdfsCollec
 
 	now := time.Now().UnixMilli()
 	rows := make([]QuoteSecuRealtimeRow, 0, len(fetched.Items))
-	unresolved := 0
+	unresolved := make([]BdfsConstituent, 0)
 	for idx, item := range fetched.Items {
 		key := SecuUscKey{Exchange: strings.ToUpper(item.Exchange), Code: item.Code}
 		usc := uscMap[key]
 		if usc == "" {
-			unresolved++
+			unresolved = append(unresolved, item)
 			continue
 		}
 		pageNo := int64(idx/opts.PageSize) + 1
 		rows = append(rows, BdfsRealtimeRow(item, usc, now, pageNo))
 	}
-	if unresolved > 0 {
-		c.emit("retry", 0, unresolved, 0, 0,
-			fmt.Sprintf("有 %d 条成分股未能在 public.finv_security 解析到 usc，已跳过", unresolved))
+	if len(unresolved) > 0 {
+		c.emit("retry", 0, len(unresolved), 0, 0,
+			fmt.Sprintf("有 %d 条成分股未能在 public.finv_security 解析到 usc，已跳过（清单见下方逐条日志）", len(unresolved)))
+		// 逐条打印，便于人工登记入库：日志面板与 docker logs 都能直接复制
+		// exchange + code 是登记 public.finv_security 所需的最小键，name 便于人工核对。
+		for i, item := range unresolved {
+			if i >= BdfsUnresolvedLogLimit {
+				c.emit("retry", 0, 0, 0, 0,
+					fmt.Sprintf("其余 %d 条未解析成分股不再逐条打印（仅保留前 %d 条）",
+						len(unresolved)-BdfsUnresolvedLogLimit, BdfsUnresolvedLogLimit))
+				break
+			}
+			line := fmt.Sprintf("未解析 usc：exchange=%s code=%s name=%s",
+				strings.ToUpper(item.Exchange), item.Code, item.Name)
+			c.emit("retry", 0, 0, 0, 0, line)
+			c.logger.Printf("[cdeu][bdfs] unresolved usc: exchange=%s code=%s name=%s block=%s",
+				strings.ToUpper(item.Exchange), item.Code, item.Name, opts.BlockCode)
+		}
 	}
 	if len(rows) == 0 {
 		return finish(fmt.Errorf("板块 %s 的 %d 条成分股均未解析到 usc，未写入任何行",
@@ -364,7 +382,7 @@ func (c *BdfsSecuRealtimeCollector) Collect(ctx context.Context, opts BdfsCollec
 	}
 
 	c.logger.Printf("[cdeu][bdfs] block=%s items=%d insert=%d update=%d unresolved=%d elapsed=%dms",
-		opts.BlockCode, len(rows), result.RowsInsert, result.RowsUpdate, unresolved,
+		opts.BlockCode, len(rows), result.RowsInsert, result.RowsUpdate, len(unresolved),
 		time.Since(started).Milliseconds())
 	return finish(nil)
 }
@@ -407,7 +425,7 @@ var bdfsExchangeMeta = map[string]struct {
 //	trade_volumn      ← rawData.volume × 100（接口单位为手，表内按股）
 //	trade_trunover    ← rawData.amount（元）
 //	market_value      ← rawData.marketValue（元）
-//	price_direct      ← pxChange 符号（+ / - / 0）
+//	price_direct      ← pxChange 符号（+ / - / =；持平为 =）
 //	page              ← 该行在本次采集里的页码（从 1 起）
 //	dt_update         ← 采集时刻（Unix 毫秒）
 //	provider          ← "BDFS"
@@ -451,7 +469,7 @@ func BdfsRealtimeRow(item BdfsConstituent, usc string, dtUpdateMs int64, page in
 	row.TradeVolumn = bdfsNumber(item.Volume * 100)
 	row.TradeTrunover = bdfsNumber(item.Amount)
 	row.MarketValue = bdfsNumber(item.MarketValue)
-	direct := "0"
+	direct := "="
 	switch {
 	case item.ChangePrice > 0:
 		direct = "+"
