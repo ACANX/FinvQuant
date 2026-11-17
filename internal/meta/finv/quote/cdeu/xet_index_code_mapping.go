@@ -28,8 +28,6 @@ const (
 	XetIndexInstrumentType = "4"
 	// XetIndexMarketType 写入 market_type 的值（CN A 股，与 BDFS 同口径）。
 	XetIndexMarketType = "4"
-	// XetIndexUnregisteredLogLimit 「未在 finv_security 登记」的逐条日志上限。
-	XetIndexUnregisteredLogLimit = 100
 )
 
 // xetIndexMappingTSV 上游映射表（go:embed，1239 行，列：接口代码 / 名称 / 交易所或官方代码 / 编码域 / 成分市场 / 市场号 / 校验）。
@@ -134,17 +132,18 @@ func XetIndexMarketLabel(marketNo string) string {
 	}
 }
 
-// XetIndexUSC 按编码域构造 usc（`finv_security` 未登记时的兜底口径）。
+// XetIndexUSC 按编码域构造 usc（不查 `finv_security`，规则即口径）。
 //
-// 与库内既有口径对齐（需求 11294）：
+// 规则（需求 11294，用户 2026-11-18 确认）：
 //
 //	SH   → SH + 4 位（000001 → SH0001，V300074 的 6 位口径）
-//	SZ   → 交易所代码原样（399001）
 //	BJ   → 899050 固定 BSE50（用户指定），其它原样（899601）
-//	NEEQ → NEEQ + 代码（899001 → NEEQ899001）
-//	CSI  → CSI + 官方码（931743 → CSI931743）
-//	CNI  → CNI + 官方码（980028 → CNI980028）
-//	CES / MSCI → 官方码原样（CES300 / 990001 / 716567）
+//	其它（SZ / NEEQ / CSI / CNI / CES / MSCI）→ 官方码原样
+//	      （399001 / 899001 / 931743 / 980028 / CES300 / 716567）
+//
+// 为什么中证/国证/新三板不加域前缀：库内 `public.finv_security` 已用裸码登记
+// （如 931743），`93/95/98/899` 段不属于任何交易所代码段，不会与个股撞号；
+// 加前缀反而让同一指数出现两套 usc（需求 11294 联调时发现并纠正）。
 func XetIndexUSC(entry XetIndexCodeEntry) string {
 	code := entry.SecuCode
 	switch entry.Domain {
@@ -153,42 +152,13 @@ func XetIndexUSC(entry XetIndexCodeEntry) string {
 			code = code[2:] // 000001 → 0001
 		}
 		return "SH" + code
-	case "SZ":
-		return code
 	case "BJ":
 		if code == "899050" {
 			return "BSE50"
 		}
 		return code
-	case "NEEQ":
-		return "NEEQ" + code
-	case "CSI":
-		return "CSI" + code
-	case "CNI":
-		return "CNI" + code
-	default: // CES / MSCI：官方码自身已含域
-		return code
-	}
-}
-
-// XetIndexSecuKey 返回查询 public.finv_security 用的键；非交易所域返回 false（不查库）。
-//
-// 沪市指数的库内 `security_code` 是 6 位 usc 形态（`SH0001`，V300074 归一），
-// 因此键用 SH + 4 位，而不是接口给的 6 位数字码（000001 会命中历史别名行 SHI）。
-func XetIndexSecuKey(entry XetIndexCodeEntry) (SecuUscKey, bool) {
-	switch entry.Domain {
-	case "SH":
-		code := entry.SecuCode
-		if len(code) == 6 {
-			code = code[2:]
-		}
-		return SecuUscKey{Exchange: "SH", Code: "SH" + code}, true
-	case "SZ":
-		return SecuUscKey{Exchange: "SZ", Code: entry.SecuCode}, true
-	case "BJ":
-		return SecuUscKey{Exchange: "BJ", Code: entry.SecuCode}, true
 	default:
-		return SecuUscKey{}, false
+		return code
 	}
 }
 

@@ -27,8 +27,8 @@
     `market_type='4'`）。
   - 内部码映射：新增 `internal/meta/finv/quote/cdeu/xet_index_code_mapping.tsv`（上游 `IndexCodeMapping.md`
     全量 1239 行，`go:embed`），覆盖 `1B0001→000004` 等 10 条例外、`2C01→399106`、`395xxx` 与
-    `CES*` / `MSCI` 字母码；usc 先查 `public.finv_security`（沪市用 6 位 `SH0001` 形态），未登记按编码域构造
-    （`SH`+4 位 / `SZ` 原码 / `BSE50` / `NEEQ`+代码 / `CSI`+代码 / `CNI`+代码 / CES·MSCI 原码）。
+    `CES*` / `MSCI` 字母码；usc 按编码域直接构造（不查库）：`SH`+4 位（`000001`→`SH0001`）、`BSE50`（899050）、
+    其余官方码原样（`399001` / `899001` / `931743` / `980028` / `CES300` / `716567`）。
   - `market_label` 按站点市场号：`1100`→`SH`、`1200`→`SZ`、`1400`→`BJ`、其它（`7100`）→`CN`
     （中证2000 `932000` 归 `SH`）。
   - 字段口径：`change_ratio` / `price_amplitude` / `buysell_ratio` 除 100（表内小数比例）、`trade_volumn` ×100

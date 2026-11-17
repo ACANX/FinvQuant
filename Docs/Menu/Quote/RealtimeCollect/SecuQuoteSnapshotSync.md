@@ -129,10 +129,10 @@ ETF 代码同样按 `(exchange, code)` 解析 `public.finv_security.usc`；实�
 | 池 | 上游 4 池（中证 1100 / 国证 / 股转 / 大盘）+ **深市 `1200`** + **北交所 `1400`**，共 6 次请求、按内部码去重；实测去重后 1239 只（上游文档 `IndexCodeMapping.md`） |
 | 落库表 | `cdeu.finv_quote_secu_realtime`（`V300209`，主键 `usc`，`provider` 固定 `ZXET`，`instrument_type` 固定 `4`） |
 | 代码映射 | 接口返回的是**站点内部码**（`1A0001`/`2A01`/`H50001`…），按上游映射表（`xet_index_code_mapping.tsv`，1239 行，go:embed）还原为交易所/官方代码与编码域 |
-| usc 解析 | 先按 `(交易所, 代码)` 查 `public.finv_security`（沪市用 6 位 `SH0001` 形态）；未登记时按编码域构造：`SH`+4 位 / `SZ` 原码 / `BSE50`（899050）/ `NEEQ`+代码 / `CSI`+代码 / `CNI`+代码 / CES·MSCI 原码 |
+| usc 构造 | 按编码域直接构造（不查 `finv_security`）：`SH`+4 位（`000001`→`SH0001`）、`BSE50`（899050）、其余官方码原样（`399001` / `899001` / `931743` / `980028` / `CES300` / `716567`） |
 | market_label | 按站点市场号：`1100`→`SH`、`1200`→`SZ`、`1400`→`BJ`、其它（`7100` 国证非标）→`CN` |
 | 写入语义 | 按 `usc` upsert（`ON CONFLICT (usc) DO UPDATE`，有值才覆盖）；`page` 恒为 NULL（指数无分页），`stock_id` 恒为 NULL |
-| 日志 | 池级统计 + 未知接口码（映射表无此码）逐条打印（上限 50）+ 未登记 usc 逐条打印（上限 100），便于登记主数据 |
+| 日志 | 池级统计 + 未知接口码（映射表无此码）逐条打印（上限 50） |
 
 **字段映射（XetApp 指数 → `cdeu.finv_quote_secu_realtime`）**：
 

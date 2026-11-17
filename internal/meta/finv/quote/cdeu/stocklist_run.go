@@ -500,7 +500,7 @@ func (s *Service) startXetIndexRun(opts StockListCollectOptions) (StockListRun, 
 		if timeout < XetIndexDefaultTimeout {
 			timeout = XetIndexDefaultTimeout
 		}
-		collector := NewXetIndexCollector(fetcher, s.store, s.store, nil).WithHook(
+		collector := NewXetIndexCollector(fetcher, s.store, nil).WithHook(
 			func(event StockListCollectEvent) {
 				s.stockListRunner.appendLog(runID, StockListCollectEventToLog(event))
 			})

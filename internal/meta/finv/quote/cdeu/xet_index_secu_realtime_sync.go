@@ -19,7 +19,7 @@ import (
 //   - 落库表与 sink/resolver 完全复用（QuoteSecuRealtimeSink / SecuUscResolver）；
 //   - 行情字段口径一致（涨跌幅等按小数比例、成交量按股）；
 //   - 差异：指数没有分页（一次 6 池合并），没有配置表行（固定来源），
-//     usc 优先查 public.finv_security，未登记时按编码域构造（见 xet_index_code_mapping.go）。
+//     usc 按编码域直接构造（见 xet_index_code_mapping.go 的 XetIndexUSC，不查库）。
 //
 // 池：默认 = 上游 4 池（中证 1100 / 国证 / 股转 / 大盘） + 深市 1200 + 北交所 1400。
 // 上游 4 池覆盖 879 只；补 1200/1400 后覆盖 1239 只（`IndexCodeMapping.md` §A）。
@@ -92,19 +92,20 @@ func xetIndexDefaultBoards() []xetapp.IndexBoard {
 
 // XetIndexCollector 指数采集器（无状态，可并发调用）。
 type XetIndexCollector struct {
-	fetcher  XetIndexSnapshotFetcher
-	resolver SecuUscResolver
-	sink     QuoteSecuRealtimeSink
-	logger   *log.Logger
-	hook     StockListCollectHook
+	fetcher XetIndexSnapshotFetcher
+	sink    QuoteSecuRealtimeSink
+	logger  *log.Logger
+	hook    StockListCollectHook
 }
 
 // NewXetIndexCollector 创建采集器；logger 为 nil 时用 log.Default()。
-func NewXetIndexCollector(fetcher XetIndexSnapshotFetcher, resolver SecuUscResolver, sink QuoteSecuRealtimeSink, logger *log.Logger) *XetIndexCollector {
+//
+// usc 由 XetIndexUSC 按编码域直接构造（不查 finv_security），因此不需要 resolver。
+func NewXetIndexCollector(fetcher XetIndexSnapshotFetcher, sink QuoteSecuRealtimeSink, logger *log.Logger) *XetIndexCollector {
 	if logger == nil {
 		logger = log.Default()
 	}
-	return &XetIndexCollector{fetcher: fetcher, resolver: resolver, sink: sink, logger: logger}
+	return &XetIndexCollector{fetcher: fetcher, sink: sink, logger: logger}
 }
 
 // WithHook 设置过程事件回调（链式）。
@@ -190,11 +191,9 @@ func (c *XetIndexCollector) Collect(ctx context.Context, opts XetIndexCollectOpt
 	c.emit("page", result.Pages, len(fetched.Rows), 0, 0,
 		fmt.Sprintf("拉取完成：%d 池 / %d 条（去重后）", result.Pages, len(fetched.Rows)))
 
-	// 先批量解析 usc：只查有交易所键的行（SH/SZ/BJ），非交易所域直接构造。
+	// 按映射表逐行构造 usc（规则见 XetIndexUSC，不查库）。
 	entries := make([]XetIndexCodeEntry, 0, len(fetched.Rows))
 	rows := make([]xetapp.Row, 0, len(fetched.Rows))
-	keys := make([]SecuUscKey, 0, len(fetched.Rows))
-	seenKey := make(map[SecuUscKey]struct{}, len(fetched.Rows))
 	unknown := make([]string, 0)
 	for _, row := range fetched.Rows {
 		entry, ok := mapping[row.Code]
@@ -204,12 +203,6 @@ func (c *XetIndexCollector) Collect(ctx context.Context, opts XetIndexCollectOpt
 		}
 		entries = append(entries, entry)
 		rows = append(rows, row)
-		if key, ok := XetIndexSecuKey(entry); ok {
-			if _, dup := seenKey[key]; !dup {
-				seenKey[key] = struct{}{}
-				keys = append(keys, key)
-			}
-		}
 	}
 	if len(unknown) > 0 {
 		for i, code := range unknown {
@@ -226,42 +219,11 @@ func (c *XetIndexCollector) Collect(ctx context.Context, opts XetIndexCollectOpt
 		return finish(fmt.Errorf("全部 %d 条数据的接口码都不在映射表中", len(fetched.Rows)))
 	}
 
-	uscMap, err := c.resolver.ResolveSecuUsc(reqCtx, keys)
-	if err != nil {
-		return finish(fmt.Errorf("解析 usc 失败: %w", err))
-	}
-
 	now := time.Now().UnixMilli()
 	out := make([]QuoteSecuRealtimeRow, 0, len(rows))
-	unregistered := make([]XetIndexCodeEntry, 0)
 	for i := range rows {
 		entry := entries[i]
-		usc := ""
-		if key, ok := XetIndexSecuKey(entry); ok {
-			usc = uscMap[key]
-		}
-		if usc == "" {
-			usc = XetIndexUSC(entry)
-			unregistered = append(unregistered, entry)
-		}
-		out = append(out, XetIndexRealtimeRow(entry, rows[i], usc, now))
-	}
-	if len(unregistered) > 0 {
-		c.emit("retry", 0, len(unregistered), 0, 0,
-			fmt.Sprintf("%d 只指数未在 public.finv_security 登记，按编码域构造 usc 写入（清单见逐条日志）",
-				len(unregistered)))
-		for i, entry := range unregistered {
-			if i >= XetIndexUnregisteredLogLimit {
-				c.emit("retry", 0, 0, 0, 0,
-					fmt.Sprintf("其余 %d 条未登记指数不再逐条打印", len(unregistered)-XetIndexUnregisteredLogLimit))
-				break
-			}
-			line := fmt.Sprintf("未登记 usc：code=%s name=%s domain=%s secu=%s usc=%s",
-				entry.Code, entry.Name, entry.Domain, entry.SecuCode, XetIndexUSC(entry))
-			c.emit("retry", 0, 0, 0, 0, line)
-			c.logger.Printf("[cdeu][xetindex] unregistered usc: code=%s name=%s domain=%s secu=%s usc=%s",
-				entry.Code, entry.Name, entry.Domain, entry.SecuCode, XetIndexUSC(entry))
-		}
+		out = append(out, XetIndexRealtimeRow(entry, rows[i], XetIndexUSC(entry), now))
 	}
 
 	for start := 0; start < len(out); start += XetIndexDbBatchSize {
@@ -283,8 +245,8 @@ func (c *XetIndexCollector) Collect(ctx context.Context, opts XetIndexCollectOpt
 			fmt.Sprintf("写入第 %d 批：新增 %d、覆盖 %d", start/XetIndexDbBatchSize+1, inserted, updated))
 	}
 
-	c.logger.Printf("[cdeu][xetindex] pools=%d rows=%d insert=%d update=%d unknown=%d unregistered=%d elapsed=%dms",
-		result.Pages, len(out), result.RowsInsert, result.RowsUpdate, len(unknown), len(unregistered),
+	c.logger.Printf("[cdeu][xetindex] pools=%d rows=%d insert=%d update=%d unknown=%d elapsed=%dms",
+		result.Pages, len(out), result.RowsInsert, result.RowsUpdate, len(unknown),
 		time.Since(started).Milliseconds())
 	return finish(nil)
 }

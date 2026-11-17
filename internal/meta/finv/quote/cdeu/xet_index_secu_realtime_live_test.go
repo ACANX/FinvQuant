@@ -27,7 +27,7 @@ func TestLiveXetIndexSnapshot(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	collector := NewXetIndexCollector(NewXetIndexFetcher(), store, store, nil)
+	collector := NewXetIndexCollector(NewXetIndexFetcher(), store, nil)
 	result, err := collector.Collect(ctx, XetIndexCollectOptions{})
 	if err != nil {
 		t.Fatalf("采集失败: %v", err)
@@ -46,10 +46,10 @@ func TestLiveXetIndexSnapshot(t *testing.T) {
 		label string
 		code  string
 	}{
-		{"SH0001", "SH", "000001"},   // 1A0001 上证指数（市场号 1100）
-		{"CSI932000", "SH", "932000"}, // 932000 中证2000（编码域 CSI，市场号 1100 → SH）
-		{"BSE50", "BJ", "899050"},     // 899050 北证50（V300219 改名后的 usc）
-		{"CNI980028", "SZ", "980028"}, // 980028 龙头家电（国证，市场号 1200 → SZ）
+		{"SH0001", "SH", "000001"}, // 1A0001 上证指数（市场号 1100）
+		{"932000", "SH", "932000"}, // 中证2000（裸码，市场号 1100 → SH）
+		{"BSE50", "BJ", "899050"},  // 899050 北证50（V300219 改名后的 usc）
+		{"980028", "SZ", "980028"}, // 龙头家电（国证裸码，市场号 1200 → SZ）
 	}
 	for _, tc := range cases {
 		var label, code string

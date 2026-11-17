@@ -77,37 +77,15 @@ func TestXetIndexUSC(t *testing.T) {
 		{XetIndexCodeEntry{SecuCode: "399001", Domain: "SZ"}, "399001"},
 		{XetIndexCodeEntry{SecuCode: "899050", Domain: "BJ"}, "BSE50"},
 		{XetIndexCodeEntry{SecuCode: "899601", Domain: "BJ"}, "899601"},
-		{XetIndexCodeEntry{SecuCode: "899001", Domain: "NEEQ"}, "NEEQ899001"},
-		{XetIndexCodeEntry{SecuCode: "931743", Domain: "CSI"}, "CSI931743"},
-		{XetIndexCodeEntry{SecuCode: "980028", Domain: "CNI"}, "CNI980028"},
+		{XetIndexCodeEntry{SecuCode: "899001", Domain: "NEEQ"}, "899001"},
+		{XetIndexCodeEntry{SecuCode: "931743", Domain: "CSI"}, "931743"},
+		{XetIndexCodeEntry{SecuCode: "980028", Domain: "CNI"}, "980028"},
 		{XetIndexCodeEntry{SecuCode: "CES300", Domain: "CES"}, "CES300"},
 		{XetIndexCodeEntry{SecuCode: "704843", Domain: "MSCI"}, "704843"},
 	}
 	for _, tc := range cases {
 		if got := XetIndexUSC(tc.entry); got != tc.want {
 			t.Fatalf("%s/%s：期望 %s，实际 %s", tc.entry.Domain, tc.entry.SecuCode, tc.want, got)
-		}
-	}
-}
-
-// TestXetIndexSecuKey 沪市指数用 6 位 usc 形态查库，非交易所域不查库。
-func TestXetIndexSecuKey(t *testing.T) {
-	cases := []struct {
-		entry XetIndexCodeEntry
-		want  SecuUscKey
-		ok    bool
-	}{
-		{XetIndexCodeEntry{SecuCode: "000001", Domain: "SH"}, SecuUscKey{Exchange: "SH", Code: "SH0001"}, true},
-		{XetIndexCodeEntry{SecuCode: "399001", Domain: "SZ"}, SecuUscKey{Exchange: "SZ", Code: "399001"}, true},
-		{XetIndexCodeEntry{SecuCode: "899050", Domain: "BJ"}, SecuUscKey{Exchange: "BJ", Code: "899050"}, true},
-		{XetIndexCodeEntry{SecuCode: "931743", Domain: "CSI"}, SecuUscKey{}, false},
-		{XetIndexCodeEntry{SecuCode: "980028", Domain: "CNI"}, SecuUscKey{}, false},
-		{XetIndexCodeEntry{SecuCode: "899001", Domain: "NEEQ"}, SecuUscKey{}, false},
-	}
-	for _, tc := range cases {
-		got, ok := XetIndexSecuKey(tc.entry)
-		if ok != tc.ok || got != tc.want {
-			t.Fatalf("%s/%s：期望 %+v ok=%v，实际 %+v ok=%v", tc.entry.Domain, tc.entry.SecuCode, tc.want, tc.ok, got, ok)
 		}
 	}
 }
@@ -211,11 +189,8 @@ func TestXetIndexCollector(t *testing.T) {
 		},
 		Pools: []xetapp.IndexPool{{Name: "中证指数", Fetched: 3}},
 	}}
-	resolver := &fakeUscResolver{mapping: map[SecuUscKey]string{
-		{Exchange: "SH", Code: "SH0001"}: "SH0001",
-	}}
 	sink := &fakeRealtimeSink{inserted: 2}
-	collector := NewXetIndexCollector(fetcher, resolver, sink, bdfsTestLogger())
+	collector := NewXetIndexCollector(fetcher, sink, bdfsTestLogger())
 
 	result, err := collector.Collect(context.Background(), XetIndexCollectOptions{})
 	if err != nil {
@@ -231,13 +206,10 @@ func TestXetIndexCollector(t *testing.T) {
 		t.Fatalf("统计不符: %+v", result)
 	}
 	if sink.rows[0].USC != "SH0001" {
-		t.Fatalf("第一行应命中库内 usc SH0001，实际 %s", sink.rows[0].USC)
+		t.Fatalf("第一行 usc 应为 SH0001，实际 %s", sink.rows[0].USC)
 	}
-	if sink.rows[1].USC != "CSI932000" {
-		t.Fatalf("第二行未登记应按域构造 CSI932000，实际 %s", sink.rows[1].USC)
-	}
-	if len(resolver.keys) != 1 || resolver.keys[0] != (SecuUscKey{Exchange: "SH", Code: "SH0001"}) {
-		t.Fatalf("查库键应为 (SH, SH0001)，实际 %+v", resolver.keys)
+	if sink.rows[1].USC != "932000" {
+		t.Fatalf("第二行应写裸码 932000，实际 %s", sink.rows[1].USC)
 	}
 	if sink.rows[1].MarketLabel == nil || *sink.rows[1].MarketLabel != "SH" {
 		t.Fatalf("中证2000（市场号 1100）的 market_label 应为 SH，实际 %v", sink.rows[1].MarketLabel)
@@ -248,7 +220,7 @@ func TestXetIndexCollector(t *testing.T) {
 func TestXetIndexCollectorFetchError(t *testing.T) {
 	collector := NewXetIndexCollector(
 		&fakeXetIndexFetcher{err: errors.New("上游 502")},
-		&fakeUscResolver{}, &fakeRealtimeSink{}, bdfsTestLogger())
+		&fakeRealtimeSink{}, bdfsTestLogger())
 	result, err := collector.Collect(context.Background(), XetIndexCollectOptions{})
 	if err == nil {
 		t.Fatalf("应返回错误")
@@ -263,7 +235,7 @@ func TestXetIndexCollectorEmptyResult(t *testing.T) {
 	sink := &fakeRealtimeSink{}
 	collector := NewXetIndexCollector(
 		&fakeXetIndexFetcher{result: &xetapp.IndexSnapshotResult{}},
-		&fakeUscResolver{}, sink, bdfsTestLogger())
+		sink, bdfsTestLogger())
 	if _, err := collector.Collect(context.Background(), XetIndexCollectOptions{}); err == nil {
 		t.Fatalf("空结果应返回错误")
 	}
