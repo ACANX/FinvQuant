@@ -136,6 +136,7 @@ FINV_PG_DATA_DIR=D:/Dev/Docker/HostFileSystem/FinvQuant/PostgreSQL
 - 所有业务表名必须以 **`finv_` 作为前缀**。
 - 行情模块表名统一为 **`finv_quote_xxx`**（例如 `finv_quote_secu_kline_min`、`finv_quote_ingest_batches`、`finv_quote_revision_log`）。
 - 迁移文件存放于 `Deploy/Migrations/`，命名 `V<number>__<name>.sql`，服务端启动时自动应用。
+- **迁移分段约定**：`V1~V99999` 为表结构/变更脚本（DDL），`V100000+` 为数据种子脚本（DML）；初始数据必须放在数据种子段，确保在所有表结构脚本执行完后再执行。
 
 ## 8. 端口约定（汇总）
 

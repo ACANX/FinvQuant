@@ -47,6 +47,8 @@ func NewService(pool *pgxpool.Pool) *Service {
 
 // Bar 查询返回的分钟级 K 线（涨跌额/涨跌幅由 close 与 prev_close 计算）。
 type Bar struct {
+	TS        int64    `json:"ts"`         // UTC 时间戳（秒，主键列，如 1754398800）
+	Date      int      `json:"date"`       // 交易日期 yyyymmdd（多日查询时用于区分）
 	Time      int      `json:"time"`       // 交易时间 hhmmss
 	Open      *string  `json:"open"`       // 开盘价
 	High      *string  `json:"high"`       // 最高价
@@ -59,26 +61,63 @@ type Bar struct {
 	Remark    *string  `json:"remark"`     // 备注
 }
 
-// QueryBars 按证券代码 + 交易日期查询分钟级 K 线（周期目前仅支持 Min=1 分钟）。
-func (s *Service) QueryBars(ctx context.Context, secuCode string, date int, period string) ([]Bar, error) {
+// QueryBars 按证券代码 + 交易日（可多日回溯）分页查询分钟级 K 线（周期目前仅支持 Min=1 分钟）。
+// days 表示回溯最近 N 个交易日：取该证券代码 date 当天及之前最近 N 个有数据的交易日，days=1 仅查当天。
+// page 从 1 开始；pageSize 默认为 240（全天 4 小时交易时段约 240 根分钟线）。
+// 返回当前页 bars（按日期、时间升序）与满足条件的总条数 total。
+func (s *Service) QueryBars(ctx context.Context, secuCode string, date int, period string, days, page, pageSize int) ([]Bar, int, error) {
 	if secuCode == "" {
-		return nil, fmt.Errorf("secu_code 不能为空")
+		return nil, 0, fmt.Errorf("secu_code 不能为空")
 	}
 	if date <= 0 {
-		return nil, fmt.Errorf("date 必须为有效的交易日期（yyyymmdd）")
+		return nil, 0, fmt.Errorf("date 必须为有效的交易日期（yyyymmdd）")
 	}
 	// 周期目前仅支持 1 分钟（Min），其他周期暂不支持
 	if period != "" && period != "Min" {
-		return nil, fmt.Errorf("周期 %s 暂不支持，目前仅支持 Min（1 分钟）", period)
+		return nil, 0, fmt.Errorf("周期 %s 暂不支持，目前仅支持 Min（1 分钟）", period)
+	}
+	if days < 1 {
+		days = 1
+	}
+	if days > 10 {
+		days = 10
+	}
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 240
+	}
+	if pageSize > 1000 {
+		pageSize = 1000
 	}
 
-	rows, err := s.pool.Query(ctx, `
-SELECT "time", open, high, low, close, volume, turnover, prev_close, remark
+	// 多日查询：date 当天及之前最近 days 个有数据的交易日（按 date 倒序去重取前 N）
+	dayFilter := `
+date IN (
+  SELECT DISTINCT date FROM finv_quote_secu_kline_min
+  WHERE secu_code = $2 AND date <= $3
+  ORDER BY date DESC
+  LIMIT $4
+)`
+
+	var total int
+	if err := s.pool.QueryRow(ctx, `
+SELECT COUNT(*)
 FROM finv_quote_secu_kline_min
-WHERE secu_code = $1 AND date = $2
-ORDER BY ts ASC`, secuCode, date)
+WHERE secu_code = $1 AND `+dayFilter, secuCode, secuCode, date, days).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * pageSize
+	rows, err := s.pool.Query(ctx, `
+SELECT ts, date, "time", open, high, low, close, volume, turnover, prev_close, remark
+FROM finv_quote_secu_kline_min
+WHERE secu_code = $1 AND `+dayFilter+`
+ORDER BY date ASC, ts ASC
+LIMIT $5 OFFSET $6`, secuCode, secuCode, date, days, pageSize, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -86,14 +125,14 @@ ORDER BY ts ASC`, secuCode, date)
 	for rows.Next() {
 		var bar Bar
 		var prevClose *string
-		if err := rows.Scan(&bar.Time, &bar.Open, &bar.High, &bar.Low, &bar.Close,
+		if err := rows.Scan(&bar.TS, &bar.Date, &bar.Time, &bar.Open, &bar.High, &bar.Low, &bar.Close,
 			&bar.Volume, &bar.Turnover, &prevClose, &bar.Remark); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		bar.Change, bar.ChangePct = computeChange(bar.Close, prevClose)
 		bars = append(bars, bar)
 	}
-	return bars, rows.Err()
+	return bars, total, rows.Err()
 }
 
 // computeChange 计算涨跌额与涨跌幅（close - prev_close）。
@@ -155,10 +194,18 @@ func (s *Service) ImportRows(ctx context.Context, rows []mvsv.Row, mode UpsertMo
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
+	// market_code 已从主表移除（V21）：从 finv_security 字典关联获取，保持响应字段兼容
+	marketCode := 0
+	if err := s.pool.QueryRow(ctx,
+		`SELECT market_code FROM finv_security WHERE usc = $1 OR security_code = $1 LIMIT 1`,
+		rows[0].SecuCode).Scan(&marketCode); err != nil {
+		// 字典未登记时返回 0（前端展示“未维护”），不影响导入结果
+		marketCode = 0
+	}
 	return &UpsertResult{
 		BatchID:     batchID,
 		SecuCode:    rows[0].SecuCode,
-		MarketCode:  rows[0].MarketCode,
+		MarketCode:  marketCode,
 		RecordCount: len(rows),
 		Inserted:    inserted,
 		Updated:     updated,
@@ -175,10 +222,10 @@ func buildUpsertSQL(mode UpsertMode) string {
 	}
 	base := `
 INSERT INTO finv_quote_secu_kline_min
-    (market_code, secu_code, ts, date, "time", prev_close, open, high, low, close,
+    (secu_code, ts, date, "time", prev_close, open, high, low, close,
      paocd, volume, turnover, ext_field, remark)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-ON CONFLICT (ts, market_code, secu_code) DO UPDATE SET
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+ON CONFLICT (ts, secu_code) DO UPDATE SET
 `
 	var assignments []string
 	for _, column := range updatable {
@@ -241,7 +288,6 @@ func (s *Service) upsertBatch(
 
 func rowParams(row mvsv.Row) []any {
 	return []any{
-		row.MarketCode,
 		row.SecuCode,
 		row.Ts,
 		row.Date,

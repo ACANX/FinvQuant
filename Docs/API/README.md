@@ -31,12 +31,12 @@
 
 （详见 [Docs/DevSpec/ErrorCodeSpec.md](../DevSpec/ErrorCodeSpec.md)）
 
-## 端点索引
+## 接口索引
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/API/V1/health/live` | 存活探针 |
-| GET | `/API/V1/health/ready` | 就绪探针（PG + Redis） |
-| GET | `/API/V1/version` | 服务端版本信息 |
-| POST | `/API/V1/Quote/Import/Upload` | 上传 MVSV 历史行情文件并导入 PG（[详细文档](ImportsUpload.md)） |
-| GET | `/API/V1/Quote/Query` | 按证券代码+日期查询分钟级 K 线（周期 Min）（[详细文档](QuoteQuery.md)） |
+- **接口总览（方法 / 路径 / 说明 / 详细文档 / 已使用位置）**：见 [APIs.md](APIs.md)。
+- **详细接口文档**：
+  - [`HistoryQuote/ImportsUpload.md`](HistoryQuote/ImportsUpload.md) — `POST /API/V1/Quote/Import/Upload`（MVSV 历史行情导入）
+  - [`HistoryQuote/HistoryQuote.md`](HistoryQuote/HistoryQuote.md) — `GET /API/V1/Quote/Query`（历史行情查询）
+  - [`Meta/MetaExchange.md`](Meta/MetaExchange.md) — `GET/POST /API/V1/Meta/FinvQuant/Metadata/Exchange/*`（交易所信息维护）
+  - [`Meta/MetaMarket.md`](Meta/MetaMarket.md) — `GET/POST /API/V1/Meta/FinvQuant/Metadata/Market/*`（交易所下设市场信息维护）
+  - [`Meta/MetaSecurity.md`](Meta/MetaSecurity.md) — `GET/POST /API/V1/Meta/FinvQuant/Metadata/Security/*`（规范证券信息维护，含 `Options` 下拉与 `Lookup` 详情查询）

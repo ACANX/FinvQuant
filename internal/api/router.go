@@ -9,6 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/acanx/finvquant/internal/api/handler"
+	"github.com/acanx/finvquant/internal/meta"
 	"github.com/acanx/finvquant/internal/quote"
 )
 
@@ -38,6 +39,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 	}
 	quoteImport := handler.NewQuoteImport(quote.NewService(deps.Pool))
 	quoteQuery := handler.NewQuoteQuery(quote.NewService(deps.Pool))
+	metaHandler := handler.NewMeta(meta.NewService(deps.Pool))
 
 	apiGroup := router.Group("/API/V1")
 	{
@@ -46,6 +48,19 @@ func NewRouter(deps *Deps) *gin.Engine {
 		apiGroup.GET("/version", version.Info)
 		apiGroup.POST("/Quote/Import/Upload", quoteImport.Upload)
 		apiGroup.GET("/Quote/Query", quoteQuery.Query)
+
+		// 元数据管理：交易所 / 市场 / 证券字典维护
+		apiGroup.GET("/Meta/FinvQuant/Metadata/Exchange/List", metaHandler.ListExchanges)
+		apiGroup.POST("/Meta/FinvQuant/Metadata/Exchange/Save", metaHandler.SaveExchange)
+		apiGroup.POST("/Meta/FinvQuant/Metadata/Exchange/Toggle", metaHandler.ToggleExchange)
+		apiGroup.GET("/Meta/FinvQuant/Metadata/Market/List", metaHandler.ListMarkets)
+		apiGroup.POST("/Meta/FinvQuant/Metadata/Market/Save", metaHandler.SaveMarket)
+		apiGroup.POST("/Meta/FinvQuant/Metadata/Market/Toggle", metaHandler.ToggleMarket)
+		apiGroup.GET("/Meta/FinvQuant/Metadata/Security/List", metaHandler.ListSecurities)
+		apiGroup.POST("/Meta/FinvQuant/Metadata/Security/Save", metaHandler.SaveSecurity)
+		apiGroup.POST("/Meta/FinvQuant/Metadata/Security/Toggle", metaHandler.ToggleSecurity)
+		apiGroup.GET("/Meta/FinvQuant/Metadata/Security/Options", metaHandler.SecurityOptions)
+		apiGroup.GET("/Meta/FinvQuant/Metadata/Security/Lookup", metaHandler.LookupSecurity)
 	}
 
 	return router
