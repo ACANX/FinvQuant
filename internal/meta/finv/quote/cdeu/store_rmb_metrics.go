@@ -11,7 +11,7 @@ import (
 
 // 本文件实现「证券实时快照 → 人民币计价指标」的手动补全（需求 11024）。
 //
-// 表：cdeu.finv_cdeu_secu_realtime_stock（V300126 增加 5 个 rmb_ 字段，需求 11023）。
+// 表：cdeu.finv_quote_secu_realtime（主键 usc；rmb_ 字段由 V300209 建表带入，需求 11023/11271）。
 // 两步口径（前端一个按钮顺序触发，也可用 step 参数单独执行）：
 //  1. rate   —— 按 currency 求「1 单位本币 = N 人民币」，写入 rmb_exchange_rate；
 //  2. amount —— 用 rmb_exchange_rate 把 market_value / circulation_market_value /
@@ -171,7 +171,7 @@ func (s *Store) SyncRMBMetrics(ctx context.Context, step string) (RMBMetricsSync
 	if step == RMBMetricsStepAll || step == RMBMetricsStepRate {
 		for _, currency := range sortedKeys(rates) {
 			tag, err := s.pool.Exec(ctx, `
-UPDATE cdeu.finv_cdeu_secu_realtime_stock t
+UPDATE `+tableRealtimeStock+` t
    SET rmb_exchange_rate = $1::numeric
  WHERE btrim(upper(t.currency)) = $2
    AND t.rmb_exchange_rate IS DISTINCT FROM $1::numeric`, rates[currency], currency)
@@ -185,7 +185,7 @@ UPDATE cdeu.finv_cdeu_secu_realtime_stock t
 	// 4) 第二步：按汇率换算金额/价格（只在已知汇率、且对应本币值存在时写）
 	if step == RMBMetricsStepAll || step == RMBMetricsStepAmount {
 		tag, err := s.pool.Exec(ctx, `
-UPDATE cdeu.finv_cdeu_secu_realtime_stock t
+UPDATE `+tableRealtimeStock+` t
    SET rmb_market_value             = CASE WHEN t.market_value IS NULL THEN NULL
                                            ELSE round(t.market_value * t.rmb_exchange_rate, 6) END,
        rmb_circulation_market_value = CASE WHEN t.circulation_market_value IS NULL THEN NULL
@@ -214,7 +214,7 @@ SELECT count(*),
        count(*) FILTER (WHERE rmb_exchange_rate IS NOT NULL),
        count(*) FILTER (WHERE rmb_market_value IS NOT NULL OR rmb_circulation_market_value IS NOT NULL
                            OR rmb_trade_trunover IS NOT NULL OR rmb_price_nominal IS NOT NULL)
-  FROM cdeu.finv_cdeu_secu_realtime_stock`).
+  FROM cdeu.finv_quote_secu_realtime`).
 		Scan(&result.RowsTotal, &result.RowsCurrencyMissing, &result.RateRows, &result.AmountRows); err != nil {
 		return result, fmt.Errorf("SyncRMBMetrics：统计结果失败: %w", err)
 	}
@@ -254,7 +254,7 @@ SELECT currency_src, currency_dest, rate::text FROM public.finv_fxcer`)
 func (s *Store) realtimeStockCurrencies(ctx context.Context) ([]string, error) {
 	rows, err := s.pool.Query(ctx, `
 SELECT DISTINCT upper(btrim(currency)) AS currency
-  FROM cdeu.finv_cdeu_secu_realtime_stock
+  FROM cdeu.finv_quote_secu_realtime
  WHERE currency IS NOT NULL AND btrim(currency) <> ''
  ORDER BY 1`)
 	if err != nil {
