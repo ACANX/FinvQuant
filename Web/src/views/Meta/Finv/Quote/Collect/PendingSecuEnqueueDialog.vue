@@ -305,7 +305,7 @@ async function submitUpdate() {
 /** 去「USC 映射规则」菜单补 USC（只由用户点按钮触发跳转） */
 function goUscMapping() {
   close()
-  void router.push('/Meta/Finv/Quote/Realtime/UscMapping')
+  void router.push('/Meta/Finv/Quote/Collect/UscMapping')
 }
 
 function close() {

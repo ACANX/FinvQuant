@@ -1,9 +1,9 @@
 # 证券参数同步（SecuParamSync）
 
 > 菜单 key：`quote-realtime-secu-param-sync`
-> 路由：`/Meta/Finv/Quote/Realtime/SecuParamSync`
-> 所属：导航「行情 → 实时行情 → 证券参数同步」（紧跟「缺省汇率」之后）
-> 视图：`Web/src/views/Meta/Finv/Quote/Realtime/SecuParamSyncView.vue`
+> 路由：`/Meta/Finv/Quote/Collect/SecuParamSync`（需求 11282 随菜单迁入「行情采集」分组，旧路径保留重定向）
+> 所属：导航「行情 → 行情采集 → 证券参数同步」（紧跟「缺省汇率」之后）
+> 视图：`Web/src/views/Meta/Finv/Quote/Collect/SecuParamSyncView.vue`
 > 关联需求：11042（菜单与页面）、11043（同步实现）、11044（源表名可配 20014）、11045（拆两个 Tab）、
 > 11046（异步运行 + 实时日志）、11047（Tab 2 口径确认）、11050（Tab 2 指标同步实现）、
 > 11051（`flag_enable` 规则，已被 11063 取代）、11052（Tab 1 不清空 Tab 2 补的 `url`）、

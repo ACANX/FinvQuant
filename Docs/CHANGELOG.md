@@ -352,6 +352,18 @@
 
 ### 变更
 
+- **菜单调整续：「待采证券录入」「证券参数补全」「证券参数同步」「USC 映射规则」迁入「行情采集」（需求 11282）**
+  - 「行情采集」分组现有 5 个叶子，顺序：行情快照同步 → 待采证券录入 → 证券参数补全 → 证券参数同步 → USC 映射规则；
+    「实时行情」分组只保留证券行情排行 / 外汇汇率 / 证券指标。
+  - 按 `MenuSpec` §2.3 路径镜像：路由 `Quote/Realtime/{PendingSecu,SecuParamComplete,SecuParamSync,UscMapping}`
+    → **`Quote/Collect/…`**；视图（含 `PendingSecuEnqueueDialog.vue`、`SecuParamCompleteDialog.vue` 两个同目录子组件）
+    与菜单文档同步迁到 `Collect/`；4 个菜单 key 保持不变。
+  - **兼容性**：4 条旧路由各保留 `redirect` 到新路由，历史收藏与外部链接继续可用；
+    `PendingSecuEnqueueDialog` 里「去补齐 USC」的 `router.push` 路径同步改为新路由。
+  - 同步更新 `Docs/Menu/Menus.md`（树状图 / 索引 44·45·46·58 / 视图映射表）、`Docs/API` 下 11 份文档的菜单链接、
+    `Docs/DevSpec` 下 3 份「参考实现」路径（`DictColumnSpec` / `DictFilterSpec` / `TableTextSpec`，原指向已迁移的 `UscMappingView.vue`）。
+  - 验证：`cd Web && npm run build` 通过；4 个旧路径均自动跳转新路径，左侧菜单在「行情采集」下高亮对应项。
+
 - **菜单调整：新增「行情采集」分组，「行情快照同步」迁入（需求 11281）**
   - 导航「行情」下新增三级分组 **行情采集**（key `quote-collect`，图标 `mdi-cloud-download-outline`），
     位置紧跟在「实时行情」之后；原属「实时行情」的 **行情快照同步** 迁入该分组，成为其首个叶子。

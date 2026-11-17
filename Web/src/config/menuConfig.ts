@@ -212,37 +212,6 @@ const finvQuantMenu: MenuNode[] = [
             icon: 'mdi-cash-sync',
             path: '/Meta/Finv/Quote/Realtime/FXCEROverview',
           },
-          // 需求 10995 / 11160：usc 补全后仍为空的快照行（待采证券），菜单改名「待采证券录入」。
-          {
-            key: 'quote-realtime-pending-secu',
-            title: '待采证券录入',
-            icon: 'mdi-database-plus-outline',
-            path: '/Meta/Finv/Quote/Realtime/PendingSecu',
-          },
-          // 需求 11161：证券参数补全 —— 按目标表拆成「规范证券参数」/「采集参数」两个 Tab，
-          // 原「待采证券录入」页表格里的「录入」按钮整体迁到这里。
-          {
-            key: 'quote-realtime-secu-param-complete',
-            title: '证券参数补全',
-            icon: 'mdi-table-cog',
-            path: '/Meta/Finv/Quote/Realtime/SecuParamComplete',
-          },
-          // 需求 11042/11043/11044：紧跟「缺省汇率」，把 Supabase 证券键表分批增量同步到
-          // futu.finv_futu_secu_key；只由本页按钮手动触发，源表名可配（系统配置 20014）。
-          {
-            key: 'quote-realtime-secu-param-sync',
-            title: '证券参数同步',
-            icon: 'mdi-database-sync-outline',
-            path: '/Meta/Finv/Quote/Realtime/SecuParamSync',
-          },
-          // 需求 11072：USC 映射规则（规则层/条目层维护 + 预演 diff + 异步应用 + 审计日志）。
-          // 结果表 futu.finv_futu_usc_map 由本页「预演 → 应用」写入，键表 usc 随之回写。
-          {
-            key: 'quote-realtime-usc-mapping',
-            title: 'USC 映射规则',
-            icon: 'mdi-transit-connection-variant',
-            path: '/Meta/Finv/Quote/Realtime/UscMapping',
-          },
           // 需求 11251（路由 11252 改名）：证券指标表（cdeu.finv_quote_secu_indicator，132 列）只读浏览，
           // 列分组 / 列选择 / 行详情三层读法；接口 /Meta/Finv/Quote/Secu/Indicator/{Columns,Page}。
           {
@@ -270,6 +239,37 @@ const finvQuantMenu: MenuNode[] = [
             title: '行情快照同步',
             icon: 'mdi-cloud-sync-outline',
             path: '/Meta/Finv/Quote/Collect/SecuQuoteSnapshotSync',
+          },
+          // 需求 10995 / 11160：usc 补全后仍为空的快照行（待采证券），菜单改名「待采证券录入」。
+          {
+            key: 'quote-realtime-pending-secu',
+            title: '待采证券录入',
+            icon: 'mdi-database-plus-outline',
+            path: '/Meta/Finv/Quote/Collect/PendingSecu',
+          },
+          // 需求 11161：证券参数补全 —— 按目标表拆成「规范证券参数」/「采集参数」两个 Tab，
+          // 原「待采证券录入」页表格里的「录入」按钮整体迁到这里。
+          {
+            key: 'quote-realtime-secu-param-complete',
+            title: '证券参数补全',
+            icon: 'mdi-table-cog',
+            path: '/Meta/Finv/Quote/Collect/SecuParamComplete',
+          },
+          // 需求 11042/11043/11044：紧跟「缺省汇率」，把 Supabase 证券键表分批增量同步到
+          // futu.finv_futu_secu_key；只由本页按钮手动触发，源表名可配（系统配置 20014）。
+          {
+            key: 'quote-realtime-secu-param-sync',
+            title: '证券参数同步',
+            icon: 'mdi-database-sync-outline',
+            path: '/Meta/Finv/Quote/Collect/SecuParamSync',
+          },
+          // 需求 11072：USC 映射规则（规则层/条目层维护 + 预演 diff + 异步应用 + 审计日志）。
+          // 结果表 futu.finv_futu_usc_map 由本页「预演 → 应用」写入，键表 usc 随之回写。
+          {
+            key: 'quote-realtime-usc-mapping',
+            title: 'USC 映射规则',
+            icon: 'mdi-transit-connection-variant',
+            path: '/Meta/Finv/Quote/Collect/UscMapping',
           },
         ],
       },

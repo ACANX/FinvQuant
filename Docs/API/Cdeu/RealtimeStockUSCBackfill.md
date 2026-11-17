@@ -3,7 +3,7 @@
 > 接口：`POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/USCBackfill`
 > 需求：11146
 > 权限：需登录（内部接口）
-> 关联菜单：[`Menu/Quote/Realtime/PendingSecu.md`](../../Menu/Quote/Realtime/PendingSecu.md)（按钮「手动补录USC」）
+> 关联菜单：[`Menu/Quote/Collect/PendingSecu.md`](../../Menu/Quote/Collect/PendingSecu.md)（按钮「手动补录USC」）
 > 关联接口：[`Cdeu/RealtimeStockPendingPage.md`](RealtimeStockPendingPage.md)（待录入清单，只读判定）
 
 ## 1. 用途
@@ -64,5 +64,5 @@
 ## 7. 相关文档
 
 - [`Cdeu/RealtimeStockPendingPage.md`](RealtimeStockPendingPage.md) — 待录入清单（只读判定）
-- [`Menu/Quote/Realtime/PendingSecu.md`](../../Menu/Quote/Realtime/PendingSecu.md) — 页面说明
+- [`Menu/Quote/Collect/PendingSecu.md`](../../Menu/Quote/Collect/PendingSecu.md) — 页面说明
 - [`DevSpec/DbSchemaSpec.md`](../../DevSpec/DbSchemaSpec.md) — 表归属与 `futu` schema 约定

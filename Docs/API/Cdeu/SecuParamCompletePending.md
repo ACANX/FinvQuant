@@ -3,7 +3,7 @@
 > 接口：`GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Secu/Param/Complete/Pending`
 > 需求：11161
 > 权限：需登录（内部接口）
-> 关联菜单：[`Menu/Quote/Realtime/SecuParamComplete.md`](../../Menu/Quote/Realtime/SecuParamComplete.md)
+> 关联菜单：[`Menu/Quote/Collect/SecuParamComplete.md`](../../Menu/Quote/Collect/SecuParamComplete.md)
 > 关联接口：[`Cdeu/SecuParamCompletePrefill.md`](SecuParamCompletePrefill.md)（预填）、
 > [`Cdeu/SecuParamComplete.md`](SecuParamComplete.md)（写入）
 
@@ -98,4 +98,4 @@ NOT EXISTS (
 
 - [`Cdeu/SecuParamCompletePrefill.md`](SecuParamCompletePrefill.md) — 单表预填
 - [`Cdeu/SecuParamComplete.md`](SecuParamComplete.md) — 单表写入
-- [`Menu/Quote/Realtime/SecuParamComplete.md`](../../Menu/Quote/Realtime/SecuParamComplete.md) — 页面说明
+- [`Menu/Quote/Collect/SecuParamComplete.md`](../../Menu/Quote/Collect/SecuParamComplete.md) — 页面说明
