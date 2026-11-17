@@ -4496,6 +4496,16 @@
   - 标签「中国OTC」，图标 `mdi-swap-horizontal`；不改后端与采集逻辑。
   - 验证：`cd Web && npm run build` 通过；浏览器 Tab 顺序与置灰行为符合预期。
 
+- **BDFS 采集涉及的 196 条证券主数据改为数据段迁移发放（需求 11267）**
+  - `V300211`：`public.finv_security` 补 20 只北交所股票（`GN2309` 板块）+ 176 只沪深 ETF（`399380` 指数池），
+    取值与库内同类行一致（`provider='FTMM'`、`flag_enable='1'`、`market_code` 分别 `1130`/`1110`/`1120`）。
+  - `V300212`：`futu.finv_futu_quote_collect` 同步补 196 行（`stock_id=-1` 占位，待富途同步回填；
+    ETF `instrument_type=4`/`sub_instrument_type=4002`，BJ 股票 `3`/`3002`）。
+  - 两脚本均 `ON CONFLICT (usc) DO NOTHING`（已存在不覆盖，上游回填优先），末尾按 usc 清单校验 196 个键。
+  - 修正上一批「直接对运行库执行手工 SQL」的做法：改走迁移后，生产/其它环境升级镜像即自动补齐，
+    采集日志不再出现「未能在 public.finv_security 解析到 usc」。
+  - 验证：两脚本在本库重复执行 `INSERT 0 0` + 校验通过；容器重启后 `schema_version` 记录 `300211`/`300212`。
+
 ## [0.1.3] - 2026-10-29
 
 > 本版本内容：四级菜单导航改造、登录与文案修复、BRS 上传与配置、去重/导出链路修复、深色/浅色主题切换等。
