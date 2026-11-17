@@ -20,6 +20,20 @@
 
 ### 新增
 
+- **「行情快照同步」ETF Tab 实装：港美 ETF 列表采集（需求 11279）**
+  - 采集：`instrument_symbol=etf` 时接口走 moomoo `get-etf-list`
+    （`routeType=1`、`rankType=6`、`leverage` 空串也参与签名、`page` 0-based、`pageSize` 默认 50）。
+    **市场由 `plateId` 决定**（该接口没有 `marketType`）：`1`→`900075`（港股 ETF）、`2`→`10002799`（美股 ETF），
+    常量 `etfPlateIDByMarket`；未登记市场直接报错且不发请求，请求体可用 `plate_id` 临时覆盖。
+  - 落库：与股票完全同一条链路 —— 逐页 upsert 到 `cdeu.finv_quote_secu_realtime`（`provider=FTMM`，
+    `instrument_type` 由接口给出＝`4`），`usc` 解析、币种补齐、待补键表、进度回写、逐页明细日志全部复用，**不新建表**。
+  - 配置：迁移 `V300218` 在 `cdeu.finv_cdeu_secu_realtime_sync_config` seed `etf` 的 HK/US 两行
+    （`count_plan` 为空=全量）；前端零改动（ETF Tab 与市场下拉由配置行生成，原占位 Tab 自动转正）。
+  - 顺带修复：显式关重试（`max_retries=-1`）此前会被二次归一成默认 2 次（`Collect` 与 `CollectOne` 各归一一次），
+    现归一统一在 `CollectOne` 做一次，股票与期货分支同时生效。
+  - 验证：`go test ./internal/meta/finv/quote/cdeu/ -run Etf` 全过（plateId 映射 / 未登记市场不请求 /
+    `plate_id` 覆盖 / 未装配实现报错 / 映射单测）；`go build ./...`、`go test ./internal/docs/` 通过。
+
 - **期货列表同步：新增两张表 + 采集链路 + 「行情快照同步」期货 Tab（需求 11273–11278）**
   - 迁移 `V300216`：新建结果表 `cdeu.finv_quote_realtime_future`（一行一合约、**主键单列 `stock_id`**、
     `futures_type` 由最后采集的分类覆盖、`usc` 可空、`fields_json`/`field_list_json` 留档、

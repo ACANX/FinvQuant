@@ -3,6 +3,8 @@ package cdeu
 import (
 	"context"
 	"log"
+
+	"github.com/acnxo/MetaExt/component/quote/moomoo/quoteapiv2"
 )
 
 // 本文件是「实时行情列表采集」在 Service 层的薄封装：只做依赖装配，
@@ -13,7 +15,8 @@ import (
 // 采集范围来自配置表（cdeu.finv_cdeu_secu_realtime_sync_config），
 // 采集控制参数（间隔、重试、超时、页数上限等）由 opts 运行时传入。
 func (s *Service) CollectStockList(ctx context.Context, opts StockListCollectOptions) ([]StockListCollectResult, error) {
-	collector := NewStockListCollector(s.store, s.stockListFetcher, s.store, log.Default())
+	collector := NewStockListCollector(s.store, s.stockListFetcher, s.store, log.Default()).
+		WithEtfFetcher(s.etfListFetcher)
 	return collector.Collect(ctx, opts)
 }
 
@@ -23,6 +26,14 @@ func (s *Service) SetStockListFetcher(fetcher StockListFetcher) {
 		fetcher = NewStockListFetcher()
 	}
 	s.stockListFetcher = fetcher
+}
+
+// SetEtfListFetcher 替换 ETF 列表拉取实现（单测注入用）；传 nil 恢复默认 moomoo 客户端。
+func (s *Service) SetEtfListFetcher(fetcher EtfListFetcher) {
+	if fetcher == nil {
+		fetcher = quoteapiv2.New(quoteapiv2.Config{})
+	}
+	s.etfListFetcher = fetcher
 }
 
 // SetFutureListFetcher 替换期货列表拉取实现（单测注入用）；传 nil 恢复默认 moomoo 客户端。

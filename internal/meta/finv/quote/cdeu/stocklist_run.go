@@ -240,8 +240,9 @@ func (s *Service) StartStockListRun(opts StockListCollectOptions) (StockListRun,
 	})
 
 	go func() {
-		collector := NewStockListCollector(s.store, s.stockListFetcher, s.store, nil).WithHook(
-			func(event StockListCollectEvent) {
+		collector := NewStockListCollector(s.store, s.stockListFetcher, s.store, nil).
+			WithEtfFetcher(s.etfListFetcher).
+			WithHook(func(event StockListCollectEvent) {
 				s.stockListRunner.appendLog(runID, StockListCollectEventToLog(event))
 			})
 		results, collectErr := collector.Collect(context.Background(), normalized)

@@ -94,7 +94,10 @@ components:
         plate_type:
           type: string
           default: '1'
-          description: 接口 plateType。
+          description: 接口 plateType（仅股票分支）。
+        plate_id:
+          type: string
+          description: 接口 plateId（仅 ETF 分支）；空则按 market_type 取默认（1→900075 港股 ETF、2→10002799 美股 ETF）。
         rank_type:
           type: string
           default: '3'

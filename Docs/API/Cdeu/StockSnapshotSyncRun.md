@@ -100,6 +100,21 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 > 5=利率期货、6=汇率期货、7=加密货币期货、8=股票期货`。仍未填时响应与页面降级显示「分类 N」，
 > 单独改名只需 `UPDATE cdeu.finv_quote_cdeu_future_sync_config SET futures_type_name='…' WHERE futures_type='5'`。
 
+### 2.5 按品种分支：ETF 列表采集（需求 11279）
+
+`instrument_symbol` 为 `etf` 时接口换成 moomoo `get-etf-list`，其余流程（分页/限速/重试/截断/落库/进度回写/明细日志）与股票分支一致。
+
+| 项 | 行为 |
+|---|---|
+| 请求 | `get-etf-list?routeType=1&plateId=<板块>&rankType=6&leverage=&page=0&pageSize=50`（`leverage` 空串也必须参与签名，上游已处理） |
+| 市场判定 | 该接口没有 `marketType`，市场由 `plateId` 决定：**`900075`=港股 ETF、`10002799`=美股 ETF**（代码常量 `etfPlateIDByMarket`；未登记市场直接报错、不发请求） |
+| 配置行 | 迁移 `V300218` 已 seed `instrument_symbol='etf'` + `market_type='1'/'2'` 两行（`count_plan` 为空=全量） |
+| 覆盖 | 请求体 `plate_id` 可临时指定板块 |
+| 落库 | `cdeu.finv_quote_secu_realtime`（`provider=FTMM`），条目与股票同构，`instrument_type` 由接口给出（ETF 为 `4`） |
+| 结果行 | `results[].instrument_symbol='etf'`、`market_type` 为 `1`/`2`；日志 `market` 段 `etf/1`、`etf/2` |
+
+> `cnetf`（沪深京 ETF）走 BDFS 分支，与本节无关。
+
 ## 3. 轮询状态
 
 `GET .../FTStockQuoteSnapshotSync/Run`（`runId` 省略时取最近一次）：

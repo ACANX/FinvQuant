@@ -1,7 +1,8 @@
 # POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync — 行情列表股票快照同步
 
-> 手动触发「证券列表采集」：读配置表 → 按市场分页拉取 moomoo `get-stock-list`
-> → 逐页 upsert 到 `cdeu.finv_quote_secu_realtime` → 回写 `count_exists` / `total_available`。
+> 手动触发「证券列表采集」：读配置表 → 按市场分页拉取 moomoo `get-stock-list`（股票）
+> 或 `get-etf-list`（ETF，需求 11279）→ 逐页 upsert 到 `cdeu.finv_quote_secu_realtime`
+> → 回写 `count_exists` / `total_available`。
 > 机器可读契约：[`StockListCollect.yml`](StockListCollect.yml)（OpenAPI 3.1），两者须成对更新。
 >
 > - 实现：`internal/api/handler/cdeu_realtime_stock.go`（`RealtimeStockListCollect`）、
@@ -28,7 +29,8 @@
 | `instrument_symbol` | string | 全部 | 只采集该品种（`stock`/`etf`/`future`） |
 | `market_type` | string | 全部 | 只采集该市场（`1`=HK、`2`=US、`4`=CN） |
 | `count_plan` | integer | 用配置值 | 覆盖配置表中的计划采集数量 |
-| `plate_type` | string | `1` | 接口 `plateType` |
+| `plate_type` | string | `1` | 接口 `plateType`（仅股票分支） |
+| `plate_id` | string | 按市场映射 | 接口 `plateId`（仅 ETF 分支）；空则按 `market_type` 取默认：`1`→`900075`（港股 ETF）、`2`→`10002799`（美股 ETF） |
 | `rank_type` | string | `3` | 接口 `rankType`（3=市值排行） |
 | `page_size` | integer | `50` | 每页条数（1–500） |
 | `page_start` | integer | `0` | 页码起始值，默认 `0`（本接口 **0-based**，第一页就是 `page=0`；负数回落 0） |
@@ -95,6 +97,22 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 | `data.error` | string | 首个失败市场的错误摘要（全部成功时缺省） |
 
 > 单个市场失败不影响响应码：`code` 仍为 `0`，失败信息在 `data.results[].error`。
+
+## 3.5 按品种分支：ETF（`instrument_symbol=etf`，需求 11279）
+
+`instrument_symbol=etf` 时接口换成 moomoo `get-etf-list`，其余（分页/限速/重试/截断/落库/进度回写/明细日志）与股票分支完全一致。
+
+| 项 | 行为 |
+|---|---|
+| 请求 | `/quote-api/quote-v2/get-etf-list?routeType=1&plateId=<板块>&rankType=6&leverage=&page=0&pageSize=50` |
+| 市场判定 | 该接口**没有** `marketType` 参数，市场由 `plateId` 决定：`plateId=900075` → 港股 ETF；`plateId=10002799` → 美股 ETF（上游 `DefaultEtfPlateID`） |
+| 市场映射位置 | `quote_list_stock_snapshot_sync.go` 的 `etfPlateIDByMarket`；未登记的市场直接报错（不发请求），避免把数据写错市场 |
+| 覆盖方式 | 配置表插 `instrument_symbol='etf'` + `market_type='1'/'2'` 两行（迁移 `V300218` 已 seed）；临时换板块可用请求体 `plate_id` |
+| 关键参数 | `leverage` **即使为空也必须参与签名**（省略会得到 `-403`），上游已按空串发送；`routeType=1`、`rankType=6`（AUM 降序）、`page` 0-based |
+| 落库 | 与股票同一张表 `cdeu.finv_quote_secu_realtime`（`provider=FTMM`），条目结构与股票同构，`instrument_type` 由接口给出（ETF 为 `4`）；`usc` 解析、币种补齐、待补键表全部复用 |
+| 结果行 | `results[].instrument_symbol='etf'`、`market_type` 为 `1`/`2`，日志 `market` 段为 `etf/1`、`etf/2` |
+
+> 注：`cnetf`（沪深京 ETF，BDFS 板块来源）是**另一个品种**，走 BDFS 分支，与本节的 moomoo ETF 分支无关，两者刻意分开。
 
 ## 4. 行为说明
 

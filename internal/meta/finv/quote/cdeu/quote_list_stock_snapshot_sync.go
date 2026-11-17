@@ -92,6 +92,9 @@ type StockListCollectOptions struct {
 	PlateType string
 	// RankType 排行类型（接口 rankType），空取 StockListDefaultRankType。
 	RankType string
+	// PlateID ETF 板块 ID（接口 plateId），仅 instrument_symbol=etf 消费；
+	// 空则按市场取 etfPlateIDByMarket（HK=900075 / US=10002799），需求 11279。
+	PlateID string
 	// PageSize 每页条数，0 取默认。
 	PageSize int
 	// PageStart 页码起始值（0-based，第一页即 page=0），负数取默认 0。
@@ -179,6 +182,41 @@ type StockListFetcher interface {
 	GetStockList(ctx context.Context, req quoteapiv2.GetStockListRequest) (quoteapiv2.StockListPage, error)
 }
 
+// EtfListFetcher ETF 列表拉取能力（*quoteapiv2.Client 已实现；测试可注入假实现）。
+type EtfListFetcher interface {
+	GetEtfList(ctx context.Context, req quoteapiv2.GetEtfListRequest) (quoteapiv2.EtfListPage, error)
+}
+
+// InstrumentSymbolEtf ETF 品种符号（配置表 cdeu.finv_cdeu_secu_realtime_sync_config
+// 的 instrument_symbol 取值，需求 11279）。
+const InstrumentSymbolEtf = "etf"
+
+// etfPlateIDByMarket ETF 板块 ID（get-etf-list 的 plateId）按市场取值。
+//
+// 该接口没有 marketType 参数，市场由 plateId 决定（用户 2026-11-18 提供）：
+//
+//	plateId=900075   → 港股 ETF
+//	plateId=10002799 → 美股 ETF（上游 DefaultEtfPlateID，即「美股全部 ETF」）
+//
+// 未登记的市场直接报错，避免误用别的板块把数据写错市场；
+// 运行时可用 StockListCollectOptions.PlateID（请求体 plate_id）临时覆盖。
+var etfPlateIDByMarket = map[string]string{
+	"1": "900075",   // HK 港股 ETF
+	"2": "10002799", // US 美股 ETF
+}
+
+// etfPlateIDFor 取 ETF 采集用的 plateId：显式覆盖优先，其次按市场映射。
+func etfPlateIDFor(marketType, override string) (string, error) {
+	if value := strings.TrimSpace(override); value != "" {
+		return value, nil
+	}
+	key := strings.TrimSpace(marketType)
+	if plateID, ok := etfPlateIDByMarket[key]; ok {
+		return plateID, nil
+	}
+	return "", fmt.Errorf("未登记的 ETF 板块（market_type=%q）：请在配置表插 etf 行或用请求体 plate_id 指定", marketType)
+}
+
 // StockListSavedRow 一行的落库结果（供日志展示「哪些证券、是新增还是更新」）。
 type StockListSavedRow struct {
 	// StockID 标的编号（源系统证券 ID，仅用于日志追溯）。
@@ -250,9 +288,11 @@ type StockListCollectResult struct {
 type StockListCollector struct {
 	configs StockListConfigStore
 	fetcher StockListFetcher
-	sink    StockListSink
-	logger  *log.Logger
-	hook    StockListCollectHook
+	// etfFetcher ETF 列表拉取实现（instrument_symbol=etf 时使用；nil 时该品种报错）。
+	etfFetcher EtfListFetcher
+	sink       StockListSink
+	logger     *log.Logger
+	hook       StockListCollectHook
 }
 
 // NewStockListCollector 创建采集器；logger 为 nil 时用 log.Default()。
@@ -261,6 +301,12 @@ func NewStockListCollector(configs StockListConfigStore, fetcher StockListFetche
 		logger = log.Default()
 	}
 	return &StockListCollector{configs: configs, fetcher: fetcher, sink: sink, logger: logger}
+}
+
+// WithEtfFetcher 设置 ETF 列表拉取实现（链式；nil 表示 ETF 品种不可采集）。
+func (c *StockListCollector) WithEtfFetcher(fetcher EtfListFetcher) *StockListCollector {
+	c.etfFetcher = fetcher
+	return c
 }
 
 // WithHook 设置过程事件回调（链式，便于调用方一次性装配）；传 nil 表示清除。
@@ -285,7 +331,9 @@ func (c *StockListCollector) emit(event StockListCollectEvent) {
 // 返回的 error 是「首个失败市场」的错误（全部成功为 nil）。ContinueOnError
 // 为 true 时即使某市场失败也会继续后续市场，此时 results 里可看到各自成败。
 func (c *StockListCollector) Collect(ctx context.Context, opts StockListCollectOptions) ([]StockListCollectResult, error) {
-	opts = opts.Normalize()
+	// 刻意不在这里 Normalize：Normalize 以 0 表示「未设置」，不是幂等操作，
+	// 提前归一后 CollectOne 再归一会把「显式关重试（-1 → 0）」重新补成默认 2 次，
+	// 表现为传 max_retries=-1 仍在重试。归一统一交给 CollectOne 做一次。
 
 	all, err := c.configs.LoadStockListConfigs(ctx)
 	if err != nil {
@@ -494,8 +542,17 @@ func (c *StockListCollector) CollectOne(ctx context.Context, cfg StockListCollec
 	return finish(nil)
 }
 
-// fetchPage 拉取一页，按 opts 做超时与重试。
+// fetchPage 拉取一页，按 opts 做超时与重试；按品种分发到对应接口。
+//
+//   - instrument_symbol=etf → moomoo get-etf-list（板块由 plateId 决定，需求 11279）
+//   - 其余品种             → moomoo get-stock-list
 func (c *StockListCollector) fetchPage(ctx context.Context, cfg StockListCollectConfig, page int, opts StockListCollectOptions) (quoteapiv2.StockListPage, error) {
+	if cfg.InstrumentSymbol == InstrumentSymbolEtf {
+		return c.fetchWithRetry(ctx, cfg, page, opts, func(reqCtx context.Context) (quoteapiv2.StockListPage, error) {
+			return c.fetchEtfPage(reqCtx, cfg, page, opts)
+		})
+	}
+
 	req := quoteapiv2.GetStockListRequest{
 		MarketType: cfg.MarketType,
 		PlateType:  opts.PlateType,
@@ -508,6 +565,45 @@ func (c *StockListCollector) fetchPage(ctx context.Context, cfg StockListCollect
 		// （默认语言/英文名称、集合不完整），表现为"采不到头部证券 + 名称英文"（需求 10991）。
 		TimestampMillis: strconv.FormatInt(time.Now().UnixMilli(), 10),
 	}
+	return c.fetchWithRetry(ctx, cfg, page, opts, func(reqCtx context.Context) (quoteapiv2.StockListPage, error) {
+		return c.fetcher.GetStockList(reqCtx, req)
+	})
+}
+
+// fetchEtfPage 拉取一页 ETF 列表并归一成 StockListPage（条目类型与股票相同）。
+//
+// get-etf-list 的细节（上游 DefaultEtf* 常量已覆盖）：
+//   - 市场由 plateId 决定，没有 marketType 参数（见 etfPlateIDByMarket）；
+//   - leverage 即使为空也**必须**作为空串参与签名，省略会得到 -403；
+//   - 条目结构与股票列表一致，InstrumentType 为 4，因此落库直接复用股票的那套。
+func (c *StockListCollector) fetchEtfPage(ctx context.Context, cfg StockListCollectConfig, page int, opts StockListCollectOptions) (quoteapiv2.StockListPage, error) {
+	if c.etfFetcher == nil {
+		return quoteapiv2.StockListPage{}, errors.New("ETF 拉取实现未装配（WithEtfFetcher）")
+	}
+	plateID, err := etfPlateIDFor(cfg.MarketType, opts.PlateID)
+	if err != nil {
+		return quoteapiv2.StockListPage{}, err
+	}
+	req := quoteapiv2.GetEtfListRequest{
+		RouteType: quoteapiv2.DefaultEtfRouteType,
+		PlateID:   plateID,
+		RankType:  quoteapiv2.DefaultEtfRankType,
+		// 空串也要参与签名（上游约定），此处显式写出以免被误删。
+		Leverage:        "",
+		Page:            strconv.Itoa(page),
+		PageSize:        strconv.Itoa(opts.PageSize),
+		TimestampMillis: strconv.FormatInt(time.Now().UnixMilli(), 10),
+	}
+	pageData, err := c.etfFetcher.GetEtfList(ctx, req)
+	if err != nil {
+		return quoteapiv2.StockListPage{}, err
+	}
+	return quoteapiv2.StockListPage{Pagination: pageData.Pagination, Items: pageData.Items}, nil
+}
+
+// fetchWithRetry 统一的「超时 + 重试 + 重试事件」骨架（股票与 ETF 共用）。
+func (c *StockListCollector) fetchWithRetry(ctx context.Context, cfg StockListCollectConfig, page int, opts StockListCollectOptions,
+	fetch func(context.Context) (quoteapiv2.StockListPage, error)) (quoteapiv2.StockListPage, error) {
 	var lastErr error
 	for attempt := 0; attempt <= opts.MaxRetries; attempt++ {
 		if attempt > 0 {
@@ -526,7 +622,7 @@ func (c *StockListCollector) fetchPage(ctx context.Context, cfg StockListCollect
 			}
 		}
 		reqCtx, cancel := context.WithTimeout(ctx, opts.RequestTimeout)
-		pageData, err := c.fetcher.GetStockList(reqCtx, req)
+		pageData, err := fetch(reqCtx)
 		cancel()
 		if err == nil {
 			return pageData, nil

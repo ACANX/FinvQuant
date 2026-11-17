@@ -304,7 +304,8 @@ func (c *FutureListCollector) emit(cfg FutureListCollectConfig, stage string, pa
 // 下架标记（MarkFuturesOffline）只在「本轮覆盖全部启用分类且全部成功」时执行：
 // 结果表主键是单列 stock_id，分批置下架会把尚未采到的分类合约误标。
 func (c *FutureListCollector) Collect(ctx context.Context, opts FutureListCollectOptions) ([]FutureListCollectResult, error) {
-	opts = opts.Normalize()
+	// 刻意不在这里 Normalize：Normalize 以 0 表示「未设置」，不是幂等操作，
+	// 提前归一后 CollectOne 再归一会把「显式关重试（-1 → 0）」重新补成默认 2 次。
 	// 整轮水位：本轮开始时刻，用于判定「哪些合约本轮没再出现」。
 	roundStartMs := time.Now().UnixMilli()
 
