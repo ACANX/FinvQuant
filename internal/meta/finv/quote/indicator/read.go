@@ -43,7 +43,7 @@ var indicatorDefaultColumns = []string{
 	"volume", "turnover", "ratio_volume", "ratio_turnover",
 	"total_market_cap", "outstanding_market_cap",
 	"pe_ttm", "pb_ratio", "dividend_ratio",
-	"market_status_text", "ts", "dt_update",
+	"market_status_text", "ts", "dt_collect",
 }
 
 // indicatorKeyColumns 行身份列：无论请求什么列集都必须返回，
@@ -70,7 +70,7 @@ type IndicatorPageFilter struct {
 	Market string
 	// Columns 请求列（已在 Handler 层拆分逗号）；空表示使用默认列集。
 	Columns []string
-	// OrderBy 排序字段（必须是实际存在的列）；空默认 dt_update。
+	// OrderBy 排序字段（必须是实际存在的列）；空默认 dt_collect（采集时间）。
 	OrderBy string
 	// Desc 是否降序。
 	Desc bool
@@ -192,10 +192,13 @@ func (r *Reader) Page(ctx context.Context, f IndicatorPageFilter) (int64, []map[
 		offset = 0
 	}
 
-	// 排序字段：默认按最后更新时间（新同步的行在前），空值一律排最后，再用 usc 稳定次序。
+	// 排序字段：默认按采集时间（最新采集的行在前，需求 11280），空值一律排最后，再用 usc 稳定次序。
+	//
+	// 选 dt_collect 而不是 dt_update：dt_update 由触发器在每次 UPDATE 时刷新，
+	// 反映的是「最后一次写入动作」；dt_collect 才是上游快照的采集时刻，更贴合「最新数据」的直觉。
 	orderBy := strings.TrimSpace(f.OrderBy)
 	if orderBy == "" {
-		orderBy = "dt_update"
+		orderBy = "dt_collect"
 	}
 	if !known[orderBy] {
 		return 0, nil, fmt.Errorf("%w: orderBy 非法（%s）", ErrQueryInvalid, orderBy)

@@ -51,7 +51,7 @@ const page = ref(1)
 const pageSize = ref(50)
 const keyword = ref('')
 const market = ref('')
-const orderBy = ref('dt_update')
+const orderBy = ref('dt_collect')
 const order = ref<'desc' | 'asc'>('desc')
 const loading = ref(false)
 const columnsLoading = ref(false)
@@ -192,7 +192,7 @@ async function load(): Promise<void> {
       page: String(page.value),
       pageSize: String(pageSize.value),
       // clearable 下拉被清空时 v-model 可能是 null，回退默认排序
-      orderBy: orderBy.value || 'dt_update',
+      orderBy: orderBy.value || 'dt_collect',
       order: order.value === 'asc' ? 'asc' : 'desc',
       columns: visibleColumns.value.map((column) => column.name).join(','),
     })
@@ -220,7 +220,7 @@ function search(): void {
 function reset(): void {
   keyword.value = ''
   market.value = ''
-  orderBy.value = 'dt_update'
+  orderBy.value = 'dt_collect'
   order.value = 'desc'
   page.value = 1
   pageSize.value = 50
@@ -696,7 +696,7 @@ watch(detailOpen, (open) => {
           <div class="text-body-2 finv-indicator-note-body">
             <code>json_unmapped</code> 是上游未映射字段的原始 JSON，点 <code>ⓘ</code> 查看全文并可复制；
             <code>difference</code> / <code>bid_price_lowest</code> / <code>ask_price_highest</code> 的上游口径仍待确认，
-            取值仅供参考。排序默认按 <code>dt_update</code> 降序（最近同步的行在前），空值一律排最后。
+            取值仅供参考。排序默认按 <code>dt_collect</code>（采集时间）降序，空值一律排最后。
             市场筛选取 <code>ftmm_symbol</code> 的第一段：<code>CC</code> 为加密货币、<code>FX</code> 为外汇/货币指数，
             其余为交易所市场代码（HK / SH / SZ / BJ / US）。
           </div>

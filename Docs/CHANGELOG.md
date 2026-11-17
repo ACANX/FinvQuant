@@ -352,6 +352,16 @@
 
 ### 变更
 
+- **证券指标页默认按采集时间（`dt_collect`）降序（需求 11280）**
+  - 后端 `/API/V1/Meta/Finv/Quote/Secu/Indicator/Page` 的 `orderBy` 缺省值由 `dt_update` 改为 **`dt_collect`**
+    （`dt_update` 由触发器在每次 UPDATE 时刷新，反映"最后一次写入动作"；`dt_collect` 才是上游快照的采集时刻）。
+    仍保持 `NULLS LAST` + `usc ASC` 稳定次序，`orderBy` 白名单与 400 行为不变。
+  - 前端「证券指标」页排序下拉默认值、清空回落值、点「重置」后的值同步改为「采集时间」；
+    概览列方案里的 `dt_update` 同步换成 `dt_collect`（列数不变，保证默认排序键在默认视图里可见）。
+  - 文档：`Docs/API/Cdeu/IndicatorPage.md`（`orderBy` 默认值与默认列集）、
+    `Docs/Menu/Quote/Realtime/SecuIndicator.md`（筛选与排序表格）。
+  - 验证：`go test ./internal/meta/finv/quote/indicator/` 通过；`cd Web && npm run build` 通过。
+
 - **「行情快照同步」页说明文字迁到页尾独立「说明」卡片（ExplainCardSpec）**
   - 标题下方的长 `v-card-subtitle`（配置表/接口/落库表口径说明）整段删除，改为页面最底部**唯一**一张
     「说明」卡片（`mdi-information-outline` + 「说明」），分四节：`表口径` / `数据源` / `配置与回写` / `读法与注意事项`，

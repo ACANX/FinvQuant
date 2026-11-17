@@ -366,7 +366,7 @@ export const INDICATOR_PRESETS: IndicatorPreset[] = [
       'pb_ratio',
       'market_status_text',
       'ts',
-      'dt_update',
+      'dt_collect',
     ],
   },
   { key: 'quote', title: '行情', columns: groupColumns('identity', 'price', 'volume', 'capital', 'orderbook') },

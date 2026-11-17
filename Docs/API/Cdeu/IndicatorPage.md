@@ -71,7 +71,7 @@
 | `keyword` | query | string | 否 | 空 | 模糊匹配 `usc` / `ftmm_symbol` / `name`（ILIKE，`%kw%`） |
 | `market` | query | string | 否 | 空 | `ftmm_symbol` 第一段（`HK`/`SH`/`SZ`/`BJ`/`US`/`CC`/`FX`）；空或 `all` 不限 |
 | `columns` | query | string | 否 | 见 3.2 | 逗号分隔的列名，如 `usc,name,price,pe_ttm` |
-| `orderBy` | query | string | 否 | `dt_update` | 排序字段，必须是表里真实存在的列 |
+| `orderBy` | query | string | 否 | `dt_collect`（采集时间） | 排序字段，必须是表里真实存在的列；空值一律 `NULLS LAST` |
 | `order` | query | string | 否 | `desc` | `desc` / `asc` |
 | `page` | query | integer | 否 | `1` | 页码，从 1 开始 |
 | `pageSize` | query | integer | 否 | `50` | 每页条数，1–500 |
@@ -80,7 +80,7 @@
 
 - `columns` 省略或为空 → 默认**概览 23 列**：`usc`、`ftmm_symbol`、`name`、`price`、`change_price`、`change_ratio`、`price_direct`、
   `price_open`、`price_highest`、`price_lowest`、`price_last_close`、`volume`、`turnover`、`ratio_volume`、`ratio_turnover`、
-  `total_market_cap`、`outstanding_market_cap`、`pe_ttm`、`pb_ratio`、`dividend_ratio`、`market_status_text`、`ts`、`dt_update`。
+  `total_market_cap`、`outstanding_market_cap`、`pe_ttm`、`pb_ratio`、`dividend_ratio`、`market_status_text`、`ts`、`dt_collect`。
 - `usc` 与 `ftmm_symbol` 是**行身份列**，请求任何列集都会被服务端补齐并前置。
 - 列名重复会被去重（保留首次出现的顺序）；**任一列名不在表内 → HTTP 400**，不会拼进 SQL。
 - 排序：`NULLS LAST` 固定（空值一律排最后），并以 `usc ASC` 作稳定次序。
