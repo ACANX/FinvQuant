@@ -204,21 +204,13 @@ const finvQuantMenu: MenuNode[] = [
             icon: 'mdi-chart-timeline-variant',
             path: '/Meta/Finv/Quote/Realtime/FTStockRank',
           },
-          // 需求 11159：外汇汇率（原「缺省汇率」）前移到「行情快照同步」之前 ——
-          // 汇率是快照里人民币计价字段的前提，排在采集类菜单前面更顺手。
+          // 需求 11159：外汇汇率（原「缺省汇率」）前移到采集类菜单之前 ——
+          // 汇率是快照里人民币计价字段的前提。采集类菜单本身已于需求 11281 迁到「行情采集」分组。
           {
             key: 'quote-realtime-fxcer-overview',
             title: '外汇汇率',
             icon: 'mdi-cash-sync',
             path: '/Meta/Finv/Quote/Realtime/FXCEROverview',
-          },
-          // 需求 10982 / 11158：手动触发列表采集并查看逐页日志（菜单名去掉「手动」）。
-          // 需求 11255：路由由 FTStockQuoteSnapshotSync 改为 SecuQuoteSnapshotSync（后端接口路径不变）。
-          {
-            key: 'quote-realtime-snapshot-sync',
-            title: '行情快照同步',
-            icon: 'mdi-cloud-sync-outline',
-            path: '/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync',
           },
           // 需求 10995 / 11160：usc 补全后仍为空的快照行（待采证券），菜单改名「待采证券录入」。
           {
@@ -258,6 +250,26 @@ const finvQuantMenu: MenuNode[] = [
             title: '证券指标',
             icon: 'mdi-table-large',
             path: '/Meta/Finv/Quote/Realtime/SecuIndicator',
+          },
+        ],
+      },
+      // 需求 11281：新增「行情采集」三级分组（与「实时行情」同级、紧随其后），
+      // 承载"把数据采进来"的菜单；首位是原属「实时行情」的「行情快照同步」。
+      {
+        key: 'quote-collect',
+        title: '行情采集',
+        icon: 'mdi-cloud-download-outline',
+        children: [
+          // 需求 10982 / 11158：手动触发列表采集并查看逐页日志（菜单名去掉「手动」）。
+          // 需求 11255：路由由 FTStockQuoteSnapshotSync 改为 SecuQuoteSnapshotSync（后端接口路径不变）。
+          // 需求 11281：随菜单移入「行情采集」，路由同步迁到 /Meta/Finv/Quote/Collect/…；
+          // 菜单 key 保持 quote-realtime-snapshot-sync 不变（导航展开状态按父链持久化，
+          // 改 key 只会让旧状态失效，没有收益）。
+          {
+            key: 'quote-realtime-snapshot-sync',
+            title: '行情快照同步',
+            icon: 'mdi-cloud-sync-outline',
+            path: '/Meta/Finv/Quote/Collect/SecuQuoteSnapshotSync',
           },
         ],
       },

@@ -31,12 +31,13 @@
 ├─ 实时行情（二级分组）
 │  ├─ 证券行情排行（/Meta/Finv/Quote/Realtime/FTStockRank，需求 10962/10963/10964）
 │  ├─ 外汇汇率（/Meta/Finv/Quote/Realtime/FXCEROverview，需求 10999/11000，11159 改名并前移）
-│  ├─ 行情快照同步（/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync，需求 10982，11158 改名）
 │  ├─ 待采证券录入（/Meta/Finv/Quote/Realtime/PendingSecu，需求 10995，11160 改名）
 │  ├─ 证券参数补全（/Meta/Finv/Quote/Realtime/SecuParamComplete，需求 11161）
 │  ├─ 证券参数同步（/Meta/Finv/Quote/Realtime/SecuParamSync，需求 11042/11043/11044）
 │  ├─ USC 映射规则（/Meta/Finv/Quote/Realtime/UscMapping，需求 11072）
 │  └─ 证券指标（/Meta/Finv/Quote/Realtime/SecuIndicator，需求 11251，11252 改名）
+├─ 行情采集（二级分组，需求 11281）
+│  └─ 行情快照同步（三级叶子，/Meta/Finv/Quote/Collect/SecuQuoteSnapshotSync，需求 10982，11158 改名，11281 迁入本分组）
 ├─ 元数据管理（二级分组）
 │  └─ 业务元数据维护（三级分组）
 │     ├─ 交易所信息维护（/Meta/Finv/MetaData/Exchange）
@@ -121,7 +122,7 @@
 | 40 | 日K线数据同步 | 金融投资 | 四级叶子 | `cdeu-daykline-sync` | `mdi-candle` | `/Meta/Finv/Quote/Cdeu/DayKlineSync` | `Web/src/views/Meta/Finv/Quote/Cdeu/DayKlineSyncView.vue` | `POST /API/V1/Meta/Finv/Quote/Cdeu/DayKline/Sync`、`GET .../DayKline/Stat`、`GET .../DayKline/UscList` | [Quote/Cdeu/DayKlineSync.md](Quote/Cdeu/DayKlineSync.md) |
 | 41 | 证券行情排行 | 金融投资 | 四级叶子 | `quote-realtime-ftstockrank` | `mdi-chart-timeline-variant` | `/Meta/Finv/Quote/Realtime/FTStockRank` | `Web/src/views/Meta/Finv/Quote/Realtime/FTStockRankView.vue` | `GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Page` | [Quote/Realtime/FTStockRank.md](Quote/Realtime/FTStockRank.md) |
 | 42 | 外汇汇率 | 金融投资 | 四级叶子 | `quote-realtime-fxcer-overview` | `mdi-cash-sync` | `/Meta/Finv/Quote/Realtime/FXCEROverview` | `Web/src/views/Meta/Finv/Quote/Realtime/FXCEROverviewView.vue` | `POST .../Fx/CerSync`、`GET .../Fx/Cer` | [Quote/Realtime/FXCEROverview.md](Quote/Realtime/FXCEROverview.md) |
-| 43 | 行情快照同步 | 金融投资 | 四级叶子 | `quote-realtime-snapshot-sync` | `mdi-cloud-sync-outline` | `/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync` | `Web/src/views/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSyncView.vue` | `POST/GET .../Realtime/FTStockQuoteSnapshotSync/Run` | [Quote/Realtime/SecuQuoteSnapshotSync.md](Quote/Realtime/SecuQuoteSnapshotSync.md) |
+| 43 | 行情快照同步 | 金融投资 | 四级叶子（分组「行情采集」，需求 11281） | `quote-realtime-snapshot-sync` | `mdi-cloud-sync-outline` | `/Meta/Finv/Quote/Collect/SecuQuoteSnapshotSync` | `Web/src/views/Meta/Finv/Quote/Collect/SecuQuoteSnapshotSyncView.vue` | `POST/GET .../Realtime/FTStockQuoteSnapshotSync/Run` | [Quote/Collect/SecuQuoteSnapshotSync.md](Quote/Collect/SecuQuoteSnapshotSync.md) |
 | 44 | 待采证券录入 | 金融投资 | 四级叶子 | `quote-realtime-pending-secu` | `mdi-database-plus-outline` | `/Meta/Finv/Quote/Realtime/PendingSecu` | `Web/src/views/Meta/Finv/Quote/Realtime/PendingSecuView.vue` | `GET .../Realtime/Stock/Pending`、`POST .../Stock/USCBackfill`、`POST .../Stock/Pending/Enqueue*` | [Quote/Realtime/PendingSecu.md](Quote/Realtime/PendingSecu.md) |
 | 45 | 证券参数同步 | 金融投资 | 四级叶子 | `quote-realtime-secu-param-sync` | `mdi-database-sync-outline` | `/Meta/Finv/Quote/Realtime/SecuParamSync` | `Web/src/views/Meta/Finv/Quote/Realtime/SecuParamSyncView.vue` | `GET .../SecuKey/Status`、`POST .../SecuKey/Config`、`POST .../SecuKey/Sync` | [Quote/Realtime/SecuParamSync.md](Quote/Realtime/SecuParamSync.md) |
 | 46 | 证券参数补全 | 金融投资 | 四级叶子 | `quote-realtime-secu-param-complete` | `mdi-table-cog` | `/Meta/Finv/Quote/Realtime/SecuParamComplete` | `Web/src/views/Meta/Finv/Quote/Realtime/SecuParamCompleteView.vue` | `GET .../Secu/Param/Complete/Pending`、`GET .../Secu/Param/Complete/Prefill`、`POST .../Secu/Param/Complete` | [Quote/Realtime/SecuParamComplete.md](Quote/Realtime/SecuParamComplete.md) |
@@ -170,7 +171,7 @@
 | `meta-import` | `Meta/Finv/Quote/History/HistoryQuoteImportView.vue` |
 | `quote-realtime-ftstockrank` | `Meta/Finv/Quote/Realtime/FTStockRankView.vue` |
 | `quote-realtime-fxcer-overview` | `Meta/Finv/Quote/Realtime/FXCEROverviewView.vue` |
-| `quote-realtime-snapshot-sync` | `Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSyncView.vue` |
+| `quote-realtime-snapshot-sync` | `Meta/Finv/Quote/Collect/SecuQuoteSnapshotSyncView.vue` |
 | `quote-realtime-pending-secu` | `Meta/Finv/Quote/Realtime/PendingSecuView.vue` |
 | `quote-realtime-secu-param-complete` | `Meta/Finv/Quote/Realtime/SecuParamCompleteView.vue` |
 | `quote-realtime-secu-param-sync` | `Meta/Finv/Quote/Realtime/SecuParamSyncView.vue` |

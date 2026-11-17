@@ -1,9 +1,9 @@
 # 行情快照同步（SecuQuoteSnapshotSync）
 
-> 菜单 key：`quote-realtime-snapshot-sync`
-> 路由：`/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync`（需求 11255 由 `FTStockQuoteSnapshotSync` 改名，后端接口路径不变）
-> 所属：导航「行情 → 实时行情 → 行情快照同步」（需求 11158 由「行情快照手动同步」改名）
-> 视图：`Web/src/views/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSyncView.vue`
+> 菜单 key：`quote-realtime-snapshot-sync`（需求 11281 起保留原 key，仅换分组，未改名）
+> 路由：`/Meta/Finv/Quote/Collect/SecuQuoteSnapshotSync`（需求 11255 由 `FTStockQuoteSnapshotSync` 改名；需求 11281 随菜单迁入「行情采集」分组，由 `Quote/Realtime/` 改为 `Quote/Collect/`，旧路径保留重定向）
+> 所属：导航「行情 → 行情采集 → 行情快照同步」（需求 11158 由「行情快照手动同步」改名；需求 11281 由「实时行情」分组迁入新建的「行情采集」分组）
+> 视图：`Web/src/views/Meta/Finv/Quote/Collect/SecuQuoteSnapshotSyncView.vue`
 > 关联需求：10982（本页）、10976（配置表）、10977（同步服务）、11255（路由改名）、11256（占位 Tab）、11273/11274（期货 Tab 实装）
 > 关联接口：[`API/Cdeu/StockSnapshotSyncRun.md`](../../../API/Cdeu/StockSnapshotSyncRun.md)（异步启动 + 轮询）
 > 关联表：`cdeu.finv_cdeu_secu_realtime_sync_config`（股票等品种配置）、`cdeu.finv_quote_secu_realtime`（股票结果）、

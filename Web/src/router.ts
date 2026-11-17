@@ -5,7 +5,7 @@ import DashboardView from './views/DashboardView.vue'
 import QuoteQueryView from './views/Meta/Finv/Quote/History/HistoryQuoteQueryView.vue'
 import QuoteImportView from './views/Meta/Finv/Quote/History/HistoryQuoteImportView.vue'
 import RealtimeStockView from './views/Meta/Finv/Quote/Realtime/FTStockRankView.vue'
-import SecuQuoteSnapshotSyncView from './views/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSyncView.vue'
+import SecuQuoteSnapshotSyncView from './views/Meta/Finv/Quote/Collect/SecuQuoteSnapshotSyncView.vue'
 import PendingSecuView from './views/Meta/Finv/Quote/Realtime/PendingSecuView.vue'
 import SecuParamCompleteView from './views/Meta/Finv/Quote/Realtime/SecuParamCompleteView.vue'
 import FxCerView from './views/Meta/Finv/Quote/Realtime/FXCEROverviewView.vue'
@@ -84,12 +84,18 @@ const router = createRouter({
       component: FxCerView,
       meta: { title: '外汇汇率' },
     },
-    // 行情 → 实时行情 → 行情快照同步（需求 10982，11158 改名，11255 路由改为 SecuQuoteSnapshotSync）
+    // 行情 → 行情采集 → 行情快照同步（需求 10982，11158 改名，11255 路由改为 SecuQuoteSnapshotSync，
+    // 需求 11281 菜单移入新分组「行情采集」，路由随之迁到 Quote/Collect）
     {
-      path: '/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync',
+      path: '/Meta/Finv/Quote/Collect/SecuQuoteSnapshotSync',
       name: 'quote-realtime-snapshot-sync',
       component: SecuQuoteSnapshotSyncView,
       meta: { title: '行情快照同步' },
+    },
+    // 旧路由（需求 11255 起的 /Quote/Realtime/…）保留重定向，历史收藏与外部链接继续可用
+    {
+      path: '/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync',
+      redirect: '/Meta/Finv/Quote/Collect/SecuQuoteSnapshotSync',
     },
     // 行情 → 实时行情 → 待采证券录入（需求 10995，11160 改名）：usc 补全后仍为空的快照行
     {

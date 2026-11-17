@@ -352,6 +352,20 @@
 
 ### 变更
 
+- **菜单调整：新增「行情采集」分组，「行情快照同步」迁入（需求 11281）**
+  - 导航「行情」下新增三级分组 **行情采集**（key `quote-collect`，图标 `mdi-cloud-download-outline`），
+    位置紧跟在「实时行情」之后；原属「实时行情」的 **行情快照同步** 迁入该分组，成为其首个叶子。
+  - 按 `MenuSpec` §2.3「路由 / 视图 / 菜单文档三者路径镜像」：路由由
+    `/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync` 改为 **`/Meta/Finv/Quote/Collect/SecuQuoteSnapshotSync`**，
+    视图迁到 `Web/src/views/Meta/Finv/Quote/Collect/SecuQuoteSnapshotSyncView.vue`，
+    文档迁到 `Docs/Menu/Quote/Collect/SecuQuoteSnapshotSync.md`。
+  - **兼容性**：菜单 key 保持 `quote-realtime-snapshot-sync` 不变；旧路由保留 `redirect` 到新路由，
+    历史收藏与外部链接继续可用；后端接口路径与前缀（`.../Realtime/FTStockQuoteSnapshotSync`）不变。
+  - 同步更新 `Docs/Menu/Menus.md`（树状图 / 索引 43 / 视图映射表）、
+    `Docs/API/Cdeu/StockSnapshotSyncRun.md` §6。
+  - 验证：`cd Web && npm run build` 通过；打开旧路径 `/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync` 自动跳转到新路径，
+    左侧菜单展开「行情采集」且高亮「行情快照同步」。
+
 - **证券指标页默认按采集时间（`dt_collect`）降序（需求 11280）**
   - 后端 `/API/V1/Meta/Finv/Quote/Secu/Indicator/Page` 的 `orderBy` 缺省值由 `dt_update` 改为 **`dt_collect`**
     （`dt_update` 由触发器在每次 UPDATE 时刷新，反映"最后一次写入动作"；`dt_collect` 才是上游快照的采集时刻）。
