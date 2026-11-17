@@ -2,8 +2,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import * as echarts from 'echarts'
-import { apiGet } from '../../../../../api'
-import { fmtDate, fmtNum, fmtPct, fmtTime } from '../../../../../utils'
+import { apiGet } from '../../../../../../api'
+import { fmtDate, fmtNum, fmtPct, fmtTime } from '../../../../../../utils'
 
 const route = useRoute()
 const router = useRouter()

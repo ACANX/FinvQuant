@@ -2,8 +2,8 @@
 // K线数据查询：按 usc + 交易日期范围分页查询 cdeu.finv_quote_secu_kline_min
 import { onMounted, ref, watch } from 'vue'
 
-import { apiGet } from '../../../../../api'
-import { fmtDate, fmtTime, shiftMonthISO, todayISO } from '../../../../../utils'
+import { apiGet } from '../../../../../../../../api'
+import { fmtDate, fmtTime, shiftMonthISO, todayISO } from '../../../../../../../../utils'
 
 // 证券下拉选项（来自 finv_security 字典）
 interface SecurityOption {

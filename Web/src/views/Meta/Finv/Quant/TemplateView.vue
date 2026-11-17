@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { apiGet, apiPost } from '../../../../../api'
-import { showToast } from '../../../../../ui/toast'
+import { apiGet, apiPost } from '../../../../api'
+import { showToast } from '../../../../ui/toast'
 
 // 模板行
 interface TemplateRow {

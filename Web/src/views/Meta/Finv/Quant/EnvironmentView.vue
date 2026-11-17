@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { apiGet, apiPost } from '../../../../../api'
-import { showToast } from '../../../../../ui/toast'
+import { apiGet, apiPost } from '../../../../api'
+import { showToast } from '../../../../ui/toast'
 
 // 环境行
 interface EnvRow {

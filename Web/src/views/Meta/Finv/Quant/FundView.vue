@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import * as echarts from 'echarts'
-import { apiGet } from '../../../../../api'
-import { fmtDate } from '../../../../../utils'
+import { apiGet } from '../../../../api'
+import { fmtDate } from '../../../../utils'
 
 interface RunRow {
   run_id: string

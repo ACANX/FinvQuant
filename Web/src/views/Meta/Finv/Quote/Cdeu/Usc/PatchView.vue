@@ -11,8 +11,8 @@
 // 交互与 BRS 手动备份一致：运行中 1s 轮询、空闲 5s，run_id 变化时清空日志重新累积。
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-import { apiGet, apiPost } from '../../../../../api'
-import { showToast } from '../../../../../ui/toast'
+import { apiGet, apiPost } from '../../../../../../api'
+import { showToast } from '../../../../../../ui/toast'
 
 // 一条补丁规则（wire 字段 snake_case，与库列一致）
 interface PatchRuleRow {

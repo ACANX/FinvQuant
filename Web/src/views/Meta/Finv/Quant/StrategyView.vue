@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { apiGet, apiPost } from '../../../../../api'
-import { showToast } from '../../../../../ui/toast'
+import { apiGet, apiPost } from '../../../../api'
+import { showToast } from '../../../../ui/toast'
 
 interface StrategyRow {
   strategy_id: string

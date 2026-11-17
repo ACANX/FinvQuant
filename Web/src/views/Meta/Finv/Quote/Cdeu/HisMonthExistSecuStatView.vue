@@ -9,8 +9,8 @@
 // 接口：GET /Meta/Finv/Quote/DeDup/Export/Stock/Page
 import { computed, onMounted, ref, watch } from 'vue'
 
-import { apiGet } from '../../../../../../api'
-import { bizMonthOptions, fmtBytes, fmtMonth, fmtNum } from '../../../../../../utils'
+import { apiGet } from '../../../../../api'
+import { bizMonthOptions, fmtBytes, fmtMonth, fmtNum } from '../../../../../utils'
 
 interface StockRow {
   usc: string

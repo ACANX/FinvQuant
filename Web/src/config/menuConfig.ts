@@ -59,9 +59,9 @@ const finvQuantMenu: MenuNode[] = [
         title: 'Finv业务元数据',
         icon: 'mdi-database-search',
         children: [
-          { key: 'meta-exchange', title: '交易所信息管理', icon: 'mdi-office-building', path: '/meta/exchange' },
-          { key: 'meta-market', title: '市场信息管理', icon: 'mdi-chart-areaspline', path: '/meta/market' },
-          { key: 'meta-security', title: '规范证券信息管理', icon: 'mdi-tag-multiple', path: '/meta/security' },
+          { key: 'meta-exchange', title: '交易所信息管理', icon: 'mdi-office-building', path: '/Meta/Finv/MetaData/Exchange' },
+          { key: 'meta-market', title: '市场信息管理', icon: 'mdi-chart-areaspline', path: '/Meta/Finv/MetaData/Market' },
+          { key: 'meta-security', title: '规范证券信息管理', icon: 'mdi-tag-multiple', path: '/Meta/Finv/MetaData/Security' },
         ],
       },
     ],
@@ -155,8 +155,8 @@ const finvQuantMenu: MenuNode[] = [
         icon: 'mdi-transit-connection-variant',
         children: [
           // 需求 10861：K线数据查询/统计前置到本分组的叶子最前（原位于清点与面板之后）。
-          { key: 'dedup-kline-query', title: 'K线数据查询', icon: 'mdi-table-search', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query' },
-          { key: 'dedup-kline-stats', title: 'K线数据统计', icon: 'mdi-chart-box-outline', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats' },
+          { key: 'dedup-kline-query', title: 'K线数据查询', icon: 'mdi-table-search', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineQuery' },
+          { key: 'dedup-kline-stats', title: 'K线数据统计', icon: 'mdi-chart-box-outline', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineStats' },
           { key: 'cdeu-his-month-exist-secu-stat', title: '历史月份存量数据清点', icon: 'mdi-database-eye-outline', path: '/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat' },
           // 需求 10845：从「数据采集 → 行情数据归档」移入并改名为「CDEU 工作流控制面板」。
           { key: 'dedup-export-cdeu', title: 'CDEU 工作流控制面板', icon: 'mdi-sitemap-outline', path: '/Meta/Finv/Quote/Cdeu/CdeuOverview' },
@@ -167,7 +167,7 @@ const finvQuantMenu: MenuNode[] = [
           { key: 'dedup-export-config', title: '归档主数据与规则', icon: 'mdi-tune-variant', path: '/Meta/Finv/Quote/DeDup/Export/Config' },
           { key: 'cdeu-usc-patch', title: '过时USC映射到新USC', icon: 'mdi-swap-horizontal-bold', path: '/Meta/Finv/Quote/Cdeu/Usc/Patch' },
           // 需求 10952：日K线数据同步（moomoo → cdeu.finv_quote_secu_kline_day）
-          { key: 'cdeu-daykline-sync', title: '日K线数据同步', icon: 'mdi-candle', path: '/Meta/Finv/Quote/Cdeu/DayKline/Sync' },
+          { key: 'cdeu-daykline-sync', title: '日K线数据同步', icon: 'mdi-candle', path: '/Meta/Finv/Quote/Cdeu/DayKlineSync' },
           { key: 'dedup-export-log', title: '归档日志与补丁', icon: 'mdi-text-box-search-outline', path: '/Meta/Finv/Quote/DeDup/Export/Log' },
           // CDEU自动化（需求 10864 新增，10865 由占位分组改为叶子，指向占位页路由）。
           { key: 'cdeu-automation', title: 'CDEU自动化', icon: 'mdi-robot-happy-outline', path: '/Meta/Finv/Quote/Cdeu/Automation' },
@@ -188,7 +188,7 @@ const finvQuantMenu: MenuNode[] = [
         children: [
           { key: 'quote-query', title: '历史行情查询', icon: 'mdi-chart-line', path: '/Meta/Finv/Quote/History/HistoryQuoteQuery' },
           // 需求 10844：从「元数据 → Finv业务元数据」移入，作为本分组叶子（key 保持稳定）。
-          { key: 'meta-import', title: '历史行情数据导入', icon: 'mdi-database-import', path: '/meta/import' },
+          { key: 'meta-import', title: '历史行情数据导入', icon: 'mdi-database-import', path: '/Meta/Finv/Quote/History/HistoryQuoteImport' },
         ],
       },
       {
@@ -213,11 +213,12 @@ const finvQuantMenu: MenuNode[] = [
             path: '/Meta/Finv/Quote/Realtime/FXCEROverview',
           },
           // 需求 10982 / 11158：手动触发列表采集并查看逐页日志（菜单名去掉「手动」）。
+          // 需求 11255：路由由 FTStockQuoteSnapshotSync 改为 SecuQuoteSnapshotSync（后端接口路径不变）。
           {
             key: 'quote-realtime-snapshot-sync',
             title: '行情快照同步',
             icon: 'mdi-cloud-sync-outline',
-            path: '/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync',
+            path: '/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync',
           },
           // 需求 10995 / 11160：usc 补全后仍为空的快照行（待采证券），菜单改名「待采证券录入」。
           {
@@ -364,7 +365,7 @@ const finvQuantMenu: MenuNode[] = [
         title: '恢复管理',
         icon: 'mdi-restore',
         children: [
-          { key: 'brs-restore-run', title: '数据恢复', icon: 'mdi-database-arrow-left', path: '/Meta/Finv/Brs/Restore/Run' },
+          { key: 'brs-restore-run', title: '数据恢复', icon: 'mdi-database-arrow-left', path: '/Meta/BRS/Restore/Run' },
         ],
       },
     ],

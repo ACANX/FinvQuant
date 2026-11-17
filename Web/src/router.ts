@@ -4,50 +4,50 @@ import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from './views/DashboardView.vue'
 import QuoteQueryView from './views/Meta/Finv/Quote/History/HistoryQuoteQueryView.vue'
 import QuoteImportView from './views/Meta/Finv/Quote/History/HistoryQuoteImportView.vue'
-import RealtimeStockView from './views/Meta/Finv/Quote/Realtime/RealtimeStockView.vue'
-import StockSnapshotSyncView from './views/Meta/Finv/Quote/Realtime/StockSnapshotSyncView.vue'
+import RealtimeStockView from './views/Meta/Finv/Quote/Realtime/FTStockRankView.vue'
+import SecuQuoteSnapshotSyncView from './views/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSyncView.vue'
 import PendingSecuView from './views/Meta/Finv/Quote/Realtime/PendingSecuView.vue'
 import SecuParamCompleteView from './views/Meta/Finv/Quote/Realtime/SecuParamCompleteView.vue'
-import FxCerView from './views/Meta/Finv/Quote/Realtime/FxCerView.vue'
+import FxCerView from './views/Meta/Finv/Quote/Realtime/FXCEROverviewView.vue'
 import SecuParamSyncView from './views/Meta/Finv/Quote/Realtime/SecuParamSyncView.vue'
 import UscMappingView from './views/Meta/Finv/Quote/Realtime/UscMappingView.vue'
-import IndicatorView from './views/Meta/Finv/Quote/Realtime/IndicatorView.vue'
+import IndicatorView from './views/Meta/Finv/Quote/Realtime/SecuIndicatorView.vue'
 import OpenAPIClientView from './views/Meta/Finv/OpenAPI/ClientView.vue'
 import OpenAPICredentialView from './views/Meta/Finv/OpenAPI/CredentialView.vue'
 import OpenAPIInvokeLogView from './views/Meta/Finv/OpenAPI/InvokeLogView.vue'
 import OpenAPISettingsView from './views/Meta/Finv/OpenAPI/SettingsView.vue'
 import OpenAPISecretView from './views/Meta/Finv/OpenAPI/SecretView.vue'
 import OpenAPIEndpointView from './views/Meta/Finv/OpenAPI/EndpointView.vue'
-import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue'
-import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue'
-import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportOverviewView.vue'
-import DeDupArchiveStockView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveStockView.vue'
-import DeDupArchiveChainView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveChainView.vue'
-import DeDupCDEUView from './views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUView.vue'
-import CdeuUscPatchView from './views/Meta/Finv/Quote/Cdeu/UscPatchView.vue'
+import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineQueryView.vue'
+import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineStatsView.vue'
+import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/OverviewView.vue'
+import DeDupArchiveStockView from './views/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStatView.vue'
+import DeDupArchiveChainView from './views/Meta/Finv/Quote/DeDup/Export/ChainView.vue'
+import DeDupCDEUView from './views/Meta/Finv/Quote/Cdeu/CdeuOverviewView.vue'
+import CdeuUscPatchView from './views/Meta/Finv/Quote/Cdeu/Usc/PatchView.vue'
 import CdeuDayKlineSyncView from './views/Meta/Finv/Quote/Cdeu/DayKlineSyncView.vue'
 import CdeuCollectParamView from './views/Meta/Finv/Quote/Cdeu/CollectParamView.vue'
-import DeDupCDEUWorkflowView from './views/Meta/Finv/Quote/DeDup/Export/DeDupCDEUWorkflowView.vue'
-import DeDupExportJobView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportJobView.vue'
-import DeDupExportFileView from './views/Meta/Finv/Quote/DeDup/Export/DeDupExportFileView.vue'
-import DeDupArchiveStatsView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveStatsView.vue'
-import DeDupArchiveConfigView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveConfigView.vue'
-import DeDupArchiveLogView from './views/Meta/Finv/Quote/DeDup/Export/DeDupArchiveLogView.vue'
-import MetaExchangeView from './views/Meta/Finv/MetaData/MetaExchangeView.vue'
-import MetaMarketView from './views/Meta/Finv/MetaData/MetaMarketView.vue'
-import MetaSecurityView from './views/Meta/Finv/MetaData/MetaSecurityView.vue'
+import DeDupCDEUWorkflowView from './views/Meta/Finv/Quote/Cdeu/CdeuWorkflowView.vue'
+import DeDupExportJobView from './views/Meta/Finv/Quote/DeDup/Export/JobView.vue'
+import DeDupExportFileView from './views/Meta/Finv/Quote/DeDup/Export/FileView.vue'
+import DeDupArchiveStatsView from './views/Meta/Finv/Quote/DeDup/Export/StatsView.vue'
+import DeDupArchiveConfigView from './views/Meta/Finv/Quote/DeDup/Export/ConfigView.vue'
+import DeDupArchiveLogView from './views/Meta/Finv/Quote/DeDup/Export/LogView.vue'
+import MetaExchangeView from './views/Meta/Finv/MetaData/ExchangeView.vue'
+import MetaMarketView from './views/Meta/Finv/MetaData/MarketView.vue'
+import MetaSecurityView from './views/Meta/Finv/MetaData/SecurityView.vue'
 // 量化回测（通用量化策略验证）
-import BacktestGoldFuturesView from './views/Meta/Finv/Quant/Backtest/BacktestGoldFuturesView.vue'
-import AccountManageView from './views/Meta/Finv/Quant/Account/AccountManageView.vue'
-import FundManageView from './views/Meta/Finv/Quant/Fund/FundManageView.vue'
-import PositionManageView from './views/Meta/Finv/Quant/Position/PositionManageView.vue'
-import StrategyManageView from './views/Meta/Finv/Quant/Strategy/StrategyManageView.vue'
-import BacktestAnalysisView from './views/Meta/Finv/Quant/Backtest/BacktestAnalysisView.vue'
-import BacktestReportView from './views/Meta/Finv/Quant/Backtest/BacktestReportView.vue'
+import BacktestGoldFuturesView from './views/Meta/Finv/Quant/Backtest/GoldFuturesView.vue'
+import AccountManageView from './views/Meta/Finv/Quant/AccountView.vue'
+import FundManageView from './views/Meta/Finv/Quant/FundView.vue'
+import PositionManageView from './views/Meta/Finv/Quant/PositionView.vue'
+import StrategyManageView from './views/Meta/Finv/Quant/StrategyView.vue'
+import BacktestAnalysisView from './views/Meta/Finv/Quant/Backtest/AnalysisView.vue'
+import BacktestReportView from './views/Meta/Finv/Quant/Backtest/Analysis/ReportView.vue'
 import RunDeleteTasksView from './views/Meta/Finv/Quant/Backtest/RunDeleteTasksView.vue'
-import ConfigManageView from './views/Meta/Finv/Quant/Backtest/ConfigManageView.vue'
-import EnvironmentView from './views/Meta/Finv/Quant/Backtest/EnvironmentView.vue'
-import TemplateView from './views/Meta/Finv/Quant/Backtest/TemplateView.vue'
+import ConfigManageView from './views/Meta/Finv/Quant/ConfigView.vue'
+import EnvironmentView from './views/Meta/Finv/Quant/EnvironmentView.vue'
+import TemplateView from './views/Meta/Finv/Quant/TemplateView.vue'
 import BrsBackupTableView from './views/Meta/BRS/Backup/Finv/BrsBackupTableView.vue'
 import BrsOssConfigView from './views/Meta/BRS/Backup/Finv/BrsOssConfigView.vue'
 import BrsScheduleView from './views/Meta/BRS/Backup/Finv/BrsScheduleView.vue'
@@ -84,11 +84,11 @@ const router = createRouter({
       component: FxCerView,
       meta: { title: '外汇汇率' },
     },
-    // 行情 → 实时行情 → 行情快照同步（需求 10982，11158 改名）：异步采集 + 逐页日志
+    // 行情 → 实时行情 → 行情快照同步（需求 10982，11158 改名，11255 路由改为 SecuQuoteSnapshotSync）
     {
-      path: '/Meta/Finv/Quote/Realtime/FTStockQuoteSnapshotSync',
+      path: '/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync',
       name: 'quote-realtime-snapshot-sync',
-      component: StockSnapshotSyncView,
+      component: SecuQuoteSnapshotSyncView,
       meta: { title: '行情快照同步' },
     },
     // 行情 → 实时行情 → 待采证券录入（需求 10995，11160 改名）：usc 补全后仍为空的快照行
@@ -178,13 +178,13 @@ const router = createRouter({
     },
     // 行情数据归档 → K线数据查询 / 统计（需求 10856/10857 改名并移入「收剔导传ETL」）
     {
-      path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query',
+      path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineQuery',
       name: 'dedup-kline-query',
       component: DeDupKLineQueryView,
       meta: { title: 'K线数据查询' },
     },
     {
-      path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats',
+      path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineStats',
       name: 'dedup-kline-stats',
       component: DeDupKLineStatsView,
       meta: { title: 'K线数据统计' },
@@ -221,7 +221,7 @@ const router = createRouter({
       meta: { title: '过时USC映射到新USC' },
     },
     {
-      path: '/Meta/Finv/Quote/Cdeu/DayKline/Sync',
+      path: '/Meta/Finv/Quote/Cdeu/DayKlineSync',
       name: 'cdeu-daykline-sync',
       component: CdeuDayKlineSyncView,
       meta: { title: '日K线数据同步' },
@@ -263,10 +263,10 @@ const router = createRouter({
       meta: { title: '归档日志与补丁' },
     },
     // 元数据 → Finv业务元数据 → 子菜单
-    { path: '/meta/exchange', name: 'meta-exchange', component: MetaExchangeView, meta: { title: '交易所信息管理' } },
-    { path: '/meta/market', name: 'meta-market', component: MetaMarketView, meta: { title: '市场信息管理' } },
-    { path: '/meta/security', name: 'meta-security', component: MetaSecurityView, meta: { title: '规范证券信息管理' } },
-    { path: '/meta/import', name: 'meta-import', component: QuoteImportView, meta: { title: '历史行情数据导入' } },
+    { path: '/Meta/Finv/MetaData/Exchange', name: 'meta-exchange', component: MetaExchangeView, meta: { title: '交易所信息管理' } },
+    { path: '/Meta/Finv/MetaData/Market', name: 'meta-market', component: MetaMarketView, meta: { title: '市场信息管理' } },
+    { path: '/Meta/Finv/MetaData/Security', name: 'meta-security', component: MetaSecurityView, meta: { title: '规范证券信息管理' } },
+    { path: '/Meta/Finv/Quote/History/HistoryQuoteImport', name: 'meta-import', component: QuoteImportView, meta: { title: '历史行情数据导入' } },
     // 系统配置（需求 10859 改名；环境/模板管理等已迁入「量化 → MVP配置」）
     { path: '/Meta/Finv/Quant/Config', name: 'config-manage', component: ConfigManageView, meta: { title: '系统配置' } },
     { path: '/Meta/Finv/Quant/Environment', name: 'environment', component: EnvironmentView, meta: { title: '环境管理' } },
@@ -309,7 +309,7 @@ const router = createRouter({
     { path: '/Meta/BRS/Backup/Finv/Schedule', name: 'brs-schedule', component: BrsScheduleView, meta: { title: '备份调度配置' } },
     { path: '/Meta/BRS/Backup/Finv/Run', name: 'brs-run', component: BrsRunView, meta: { title: '小表全量备份' } },
     { path: '/Meta/BRS/Backup/Finv/Slice', name: 'brs-slice', component: BrsSliceView, meta: { title: '大表增量备份' } },
-    { path: '/Meta/Finv/Brs/Restore/Run', name: 'brs-restore-run', component: PlaceholderView, meta: { title: '数据恢复' } },
+    { path: '/Meta/BRS/Restore/Run', name: 'brs-restore-run', component: PlaceholderView, meta: { title: '数据恢复' } },
     { path: '/Meta/Finv/Quant/Simulation/Data', name: 'simulation-data', component: PlaceholderView, meta: { title: '仿真数据验证' } },
     { path: '/Meta/Finv/Quant/Simulation/Paper', name: 'simulation-paper', component: PlaceholderView, meta: { title: '模拟盘验证' } },
     { path: '/Meta/Finv/Quant/Simulation/LiveSim', name: 'simulation-live-sim', component: PlaceholderView, meta: { title: '实盘仿真验证' } },

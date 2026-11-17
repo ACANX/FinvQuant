@@ -8,6 +8,8 @@
 // Tab 由配置表的 instrument_symbol 去重生成（当前只有 stock），
 // 后续在 cdeu.finv_cdeu_secu_realtime_sync_config 里插入 etf/future/forex/option/crypto
 // 行即可自动出现对应 Tab，无需改前端。
+// 需求 11256：股票之后依次常显 ETF/指数/期货/加密货币/北交所股票/板块/投资组合/黄金 占位 Tab
+// （配置表暂无这些品种的行，Tab 先占位、「开始同步」禁用，接入时插配置行即可）。
 import { computed, onBeforeUnmount, onMounted, ref, nextTick } from 'vue'
 
 import { apiGet, apiPost } from '../../../../../api'
@@ -65,19 +67,33 @@ const STATUS_API = '/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run'
 const SYMBOL_LABELS: Record<string, string> = {
   stock: '股票',
   etf: 'ETF',
+  index: '指数',
   future: '期货',
   forex: '外汇',
   option: '期权',
   crypto: '加密货币',
+  bsestock: '北交所股票',
+  sector: '板块',
+  portfolio: '投资组合',
+  gold: '黄金',
 }
 const SYMBOL_ICONS: Record<string, string> = {
   stock: 'mdi-chart-line',
   etf: 'mdi-chart-areaspline',
+  index: 'mdi-chart-timeline-variant-shimmer',
   future: 'mdi-calendar-clock',
   forex: 'mdi-currency-usd',
   option: 'mdi-chart-bell-curve',
   crypto: 'mdi-bitcoin',
+  bsestock: 'mdi-office-building-outline',
+  sector: 'mdi-view-grid-outline',
+  portfolio: 'mdi-briefcase-outline',
+  gold: 'mdi-gold',
 }
+
+// 占位品种（需求 11256）：按此顺序排在配置表已有品种之后，暂未接入采集，仅出 Tab。
+// 符号与后续配置表的 instrument_symbol 保持一致，接入时插配置行即自动生效。
+const PLACEHOLDER_SYMBOLS = ['etf', 'index', 'future', 'crypto', 'bsestock', 'sector', 'portfolio', 'gold']
 
 const MARKET_LABELS: Record<string, string> = { '1': 'HK 港股', '2': 'US 美股', '4': 'CN A 股' }
 
@@ -101,7 +117,7 @@ const maxPages = ref(0)
 let timer: number | null = null
 let pollFailures = 0
 
-/** 配置表里出现过的品种（按配置顺序去重），至少给一个 stock 兜底 */
+/** 配置表里出现过的品种（按配置顺序去重）+ 占位品种（按 PLACEHOLDER_SYMBOLS 顺序补齐） */
 const symbols = computed(() => {
   const seen: string[] = []
   for (const item of configs.value) {
@@ -109,11 +125,20 @@ const symbols = computed(() => {
       seen.push(item.instrument_symbol)
     }
   }
-  return seen.length ? seen : ['stock']
+  if (!seen.length) seen.push('stock')
+  for (const symbol of PLACEHOLDER_SYMBOLS) {
+    if (!seen.includes(symbol)) seen.push(symbol)
+  }
+  return seen
 })
 
 /** 当前 Tab 品种的配置行 */
 const symbolConfigs = computed(() => configs.value.filter((item) => item.instrument_symbol === activeSymbol.value))
+
+/** 当前 Tab 是占位品种（在占位清单里且配置表尚无该品种的行） */
+const activeIsPlaceholder = computed(
+  () => PLACEHOLDER_SYMBOLS.includes(activeSymbol.value) && !symbolConfigs.value.length,
+)
 
 /** 当前 Tab 品种的市场选项（来自配置行，插新行自动生效） */
 const marketOptions = computed(() => [
@@ -197,10 +222,10 @@ async function loadStatus(runId = '') {
     }
     if (payload?.configs) {
       configs.value = payload.configs
-      // 首次加载后确保当前 Tab 有效
-      if (!payload.configs.some((item) => item.instrument_symbol === activeSymbol.value)) {
-        const first = payload.configs[0]?.instrument_symbol
-        if (first) activeSymbol.value = first
+      // 首次加载后确保当前 Tab 有效：占位品种也是有效 Tab（需求 11256），
+      // 不能因为配置表里没有该品种就把用户切走。
+      if (!symbols.value.includes(activeSymbol.value)) {
+        activeSymbol.value = symbols.value[0] ?? 'stock'
       }
     }
     if (payload?.run?.run_id) {
@@ -306,7 +331,7 @@ onBeforeUnmount(stopPolling)
       逐页写入 cdeu.finv_cdeu_secu_realtime_stock，并回写 count_exists / total_available
     </v-card-subtitle>
 
-    <!-- 证券品种 Tab：由配置表去重生成，新增 etf/future/forex/option/crypto 行即自动出现 -->
+    <!-- 证券品种 Tab：配置表已有品种 + 占位品种（需求 11256），配置行新增即自动生效 -->
     <v-tabs
       v-model="activeSymbol"
       density="compact"
@@ -344,7 +369,10 @@ onBeforeUnmount(stopPolling)
           </tr>
           <tr v-if="!symbolConfigs.length">
             <td colspan="5" class="text-center text-medium-emphasis py-4">
-              该品种暂无启用的采集配置（可在 cdeu.finv_cdeu_secu_realtime_sync_config 插入一行）
+              <template v-if="activeIsPlaceholder">
+                该品种为占位 Tab：配置表暂无该品种的采集行，暂不参与采集
+              </template>
+              <template v-else>该品种暂无启用的采集配置（可在 cdeu.finv_cdeu_secu_realtime_sync_config 插入一行）</template>
             </td>
           </tr>
         </tbody>
@@ -378,7 +406,14 @@ onBeforeUnmount(stopPolling)
         <v-text-field v-model.number="maxRetries" type="number" label="重试次数" density="compact" hide-details style="max-width: 120px" />
         <v-text-field v-model.number="retryBackoffMs" type="number" label="退避(ms)" density="compact" hide-details style="max-width: 120px" />
         <v-text-field v-model.number="maxPages" type="number" label="页数上限" density="compact" hide-details style="max-width: 120px" />
-        <v-btn color="primary" prepend-icon="mdi-play" :loading="starting" :disabled="anyRunning" @click="startSync">
+        <v-btn
+          color="primary"
+          prepend-icon="mdi-play"
+          :loading="starting"
+          :disabled="anyRunning || !symbolConfigs.length"
+          :title="symbolConfigs.length ? '' : '该品种暂无采集配置，无法启动同步'"
+          @click="startSync"
+        >
           开始同步
         </v-btn>
         <v-btn variant="text" prepend-icon="mdi-refresh" @click="refreshOnce">刷新状态</v-btn>
