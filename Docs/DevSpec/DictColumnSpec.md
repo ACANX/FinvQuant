@@ -3,7 +3,7 @@
 > 所属：FinvQuant 开发规范 · 存放：`Docs/DevSpec/`
 > 适用范围：前端（`Web/`）所有**有字典 / 可枚举**的表格列（`v-table` / `v-data-table` 的单元格）。
 > 关联：[`DictFilterSpec.md`](DictFilterSpec.md)（同一个字典在**筛选控件**里的口径：`中文[值]`）、[`TableTextSpec.md`](TableTextSpec.md)（长文本走 ⓘ 悬浮）、[`MenuSpec.md`](MenuSpec.md)（菜单与状态列）、[`UiSpec.md`](UiSpec.md)（状态色 / 开关配色）、[`DocSpec.md`](DocSpec.md)。
-> 参考实现：`Web/src/views/Meta/Finv/Quote/Collect/UscMappingView.vue`（市场 / 品种 / 动作 / 状态 / 差异类别列）、`Web/src/views/Meta/Finv/Quote/DeDup/Export/FileView.vue`（上传状态 / 文件类型列）、`Web/src/views/Meta/BRS/Backup/Finv/BrsSliceView.vue`（分片维度列）。
+> 参考实现：`Web/src/views/Meta/Finv/Quote/RealtimeCollect/UscMappingView.vue`（市场 / 品种 / 动作 / 状态 / 差异类别列）、`Web/src/views/Meta/Finv/Quote/DeDup/Export/FileView.vue`（上传状态 / 文件类型列）、`Web/src/views/Meta/BRS/Backup/Finv/BrsSliceView.vue`（分片维度列）。
 
 ## 1. 核心口径
 

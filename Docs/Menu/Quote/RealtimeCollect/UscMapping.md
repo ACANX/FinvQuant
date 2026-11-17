@@ -1,9 +1,9 @@
 # USC 映射规则（UscMapping）
 
 > 菜单 key：`quote-realtime-usc-mapping`
-> 路由：`/Meta/Finv/Quote/Collect/UscMapping`（需求 11282 随菜单迁入「行情采集」分组，旧路径保留重定向）
+> 路由：`/Meta/Finv/Quote/RealtimeCollect/UscMapping`（需求 11282 随菜单迁入「行情采集」分组，旧路径保留重定向）
 > 所属：导航「行情 → 行情采集 → USC 映射规则」（紧跟「证券参数同步」之后）
-> 视图：`Web/src/views/Meta/Finv/Quote/Collect/UscMappingView.vue`
+> 视图：`Web/src/views/Meta/Finv/Quote/RealtimeCollect/UscMappingView.vue`
 > 关联需求：11072（建表 + 后端预演/应用）、11073（页面与菜单）
 > 关联接口：[`API/UscMap.md`](../../../API/UscMap.md)、契约 [`API/UscMap.yml`](../../../API/UscMap.yml)
 > 关联数据表：`futu.finv_futu_usc_rule` / `futu.finv_futu_usc_rule_item` / `futu.finv_futu_usc_map` /

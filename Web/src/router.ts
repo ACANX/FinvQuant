@@ -5,12 +5,13 @@ import DashboardView from './views/DashboardView.vue'
 import QuoteQueryView from './views/Meta/Finv/Quote/History/HistoryQuoteQueryView.vue'
 import QuoteImportView from './views/Meta/Finv/Quote/History/HistoryQuoteImportView.vue'
 import RealtimeStockView from './views/Meta/Finv/Quote/Realtime/FTStockRankView.vue'
-import SecuQuoteSnapshotSyncView from './views/Meta/Finv/Quote/Collect/SecuQuoteSnapshotSyncView.vue'
-import PendingSecuView from './views/Meta/Finv/Quote/Collect/PendingSecuView.vue'
-import SecuParamCompleteView from './views/Meta/Finv/Quote/Collect/SecuParamCompleteView.vue'
+import CollectOverviewView from './views/Meta/Finv/Quote/RealtimeCollect/OverviewView.vue'
+import SecuQuoteSnapshotSyncView from './views/Meta/Finv/Quote/RealtimeCollect/SecuQuoteSnapshotSyncView.vue'
+import PendingSecuView from './views/Meta/Finv/Quote/RealtimeCollect/PendingSecuView.vue'
+import SecuParamCompleteView from './views/Meta/Finv/Quote/RealtimeCollect/SecuParamCompleteView.vue'
 import FxCerView from './views/Meta/Finv/Quote/Realtime/FXCEROverviewView.vue'
-import SecuParamSyncView from './views/Meta/Finv/Quote/Collect/SecuParamSyncView.vue'
-import UscMappingView from './views/Meta/Finv/Quote/Collect/UscMappingView.vue'
+import SecuParamSyncView from './views/Meta/Finv/Quote/RealtimeCollect/SecuParamSyncView.vue'
+import UscMappingView from './views/Meta/Finv/Quote/RealtimeCollect/UscMappingView.vue'
 import IndicatorView from './views/Meta/Finv/Quote/Realtime/SecuIndicatorView.vue'
 import OpenAPIClientView from './views/Meta/Finv/OpenAPI/ClientView.vue'
 import OpenAPICredentialView from './views/Meta/Finv/OpenAPI/CredentialView.vue'
@@ -84,10 +85,17 @@ const router = createRouter({
       component: FxCerView,
       meta: { title: '外汇汇率' },
     },
-    // 行情 → 行情采集 → 行情快照同步（需求 10982，11158 改名，11255 路由改为 SecuQuoteSnapshotSync，
-    // 需求 11281 菜单移入新分组「行情采集」，路由随之迁到 Quote/Collect）
+    // 行情 → 行情采集 → 状态总览（需求 11283）：只读汇总两张配置表 + 最近一次运行结果
     {
-      path: '/Meta/Finv/Quote/Collect/SecuQuoteSnapshotSync',
+      path: '/Meta/Finv/Quote/RealtimeCollect/Overview',
+      name: 'quote-collect-overview',
+      component: CollectOverviewView,
+      meta: { title: '状态总览' },
+    },
+    // 行情 → 行情采集 → 行情快照同步（需求 10982，11158 改名，11255 路由改为 SecuQuoteSnapshotSync，
+    // 需求 11281 菜单移入新分组「行情采集」，路由随之迁到 Quote/RealtimeCollect）
+    {
+      path: '/Meta/Finv/Quote/RealtimeCollect/SecuQuoteSnapshotSync',
       name: 'quote-realtime-snapshot-sync',
       component: SecuQuoteSnapshotSyncView,
       meta: { title: '行情快照同步' },
@@ -95,11 +103,11 @@ const router = createRouter({
     // 旧路由（需求 11255 起的 /Quote/Realtime/…）保留重定向，历史收藏与外部链接继续可用
     {
       path: '/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync',
-      redirect: '/Meta/Finv/Quote/Collect/SecuQuoteSnapshotSync',
+      redirect: '/Meta/Finv/Quote/RealtimeCollect/SecuQuoteSnapshotSync',
     },
     // 行情 → 实时行情 → 待采证券录入（需求 10995，11160 改名）：usc 补全后仍为空的快照行
     {
-      path: '/Meta/Finv/Quote/Collect/PendingSecu',
+      path: '/Meta/Finv/Quote/RealtimeCollect/PendingSecu',
       name: 'quote-realtime-pending-secu',
       component: PendingSecuView,
       meta: { title: '待采证券录入' },
@@ -107,11 +115,11 @@ const router = createRouter({
     // 旧路由（Quote/Realtime/…）保留重定向，历史收藏与外部链接继续可用（需求 11282）
     {
       path: '/Meta/Finv/Quote/Realtime/PendingSecu',
-      redirect: '/Meta/Finv/Quote/Collect/PendingSecu',
+      redirect: '/Meta/Finv/Quote/RealtimeCollect/PendingSecu',
     },
     // 行情 → 实时行情 → 证券参数补全（需求 11161）：按目标表分别补 finv_security / quote_collect
     {
-      path: '/Meta/Finv/Quote/Collect/SecuParamComplete',
+      path: '/Meta/Finv/Quote/RealtimeCollect/SecuParamComplete',
       name: 'quote-realtime-secu-param-complete',
       component: SecuParamCompleteView,
       meta: { title: '证券参数补全' },
@@ -119,7 +127,7 @@ const router = createRouter({
     // 旧路由（Quote/Realtime/…）保留重定向，历史收藏与外部链接继续可用（需求 11282）
     {
       path: '/Meta/Finv/Quote/Realtime/SecuParamComplete',
-      redirect: '/Meta/Finv/Quote/Collect/SecuParamComplete',
+      redirect: '/Meta/Finv/Quote/RealtimeCollect/SecuParamComplete',
     },
     // 开放平台（需求 11171/11172/11173）：按功能拆四个页面，各自只写一张表
     //   /Client      → open.open_api_client
@@ -165,7 +173,7 @@ const router = createRouter({
     },
     // 行情 → 实时行情 → 证券参数同步（需求 11042）：Supabase 证券键表 → futu.finv_futu_secu_key，按钮手动触发
     {
-      path: '/Meta/Finv/Quote/Collect/SecuParamSync',
+      path: '/Meta/Finv/Quote/RealtimeCollect/SecuParamSync',
       name: 'quote-realtime-secu-param-sync',
       component: SecuParamSyncView,
       meta: { title: '证券参数同步' },
@@ -173,11 +181,11 @@ const router = createRouter({
     // 旧路由（Quote/Realtime/…）保留重定向，历史收藏与外部链接继续可用（需求 11282）
     {
       path: '/Meta/Finv/Quote/Realtime/SecuParamSync',
-      redirect: '/Meta/Finv/Quote/Collect/SecuParamSync',
+      redirect: '/Meta/Finv/Quote/RealtimeCollect/SecuParamSync',
     },
     // 行情 → 实时行情 → USC 映射规则（需求 11072）：规则/条目维护 + 预演 diff + 异步应用 + 审计日志
     {
-      path: '/Meta/Finv/Quote/Collect/UscMapping',
+      path: '/Meta/Finv/Quote/RealtimeCollect/UscMapping',
       name: 'quote-realtime-usc-mapping',
       component: UscMappingView,
       meta: { title: 'USC 映射规则' },
@@ -185,7 +193,7 @@ const router = createRouter({
     // 旧路由（Quote/Realtime/…）保留重定向，历史收藏与外部链接继续可用（需求 11282）
     {
       path: '/Meta/Finv/Quote/Realtime/UscMapping',
-      redirect: '/Meta/Finv/Quote/Collect/UscMapping',
+      redirect: '/Meta/Finv/Quote/RealtimeCollect/UscMapping',
     },
     // 行情 → 实时行情 → 证券指标（需求 11251，路由改名 11252）：cdeu.finv_quote_secu_indicator 全列只读浏览
     // 列元数据 + 分页查询走 /Meta/Finv/Quote/Secu/Indicator/*（需求 11249/11250）

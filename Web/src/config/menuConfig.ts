@@ -229,23 +229,30 @@ const finvQuantMenu: MenuNode[] = [
         title: '行情采集',
         icon: 'mdi-cloud-download-outline',
         children: [
+          // 需求 11283：只读汇总两张配置表与最近一次运行结果，排在本分组第一位。
+          {
+            key: 'quote-collect-overview',
+            title: '状态总览',
+            icon: 'mdi-view-dashboard-outline',
+            path: '/Meta/Finv/Quote/RealtimeCollect/Overview',
+          },
           // 需求 10982 / 11158：手动触发列表采集并查看逐页日志（菜单名去掉「手动」）。
           // 需求 11255：路由由 FTStockQuoteSnapshotSync 改为 SecuQuoteSnapshotSync（后端接口路径不变）。
-          // 需求 11281：随菜单移入「行情采集」，路由同步迁到 /Meta/Finv/Quote/Collect/…；
+          // 需求 11281：随菜单移入「行情采集」，路由同步迁到 /Meta/Finv/Quote/RealtimeCollect/…；
           // 菜单 key 保持 quote-realtime-snapshot-sync 不变（导航展开状态按父链持久化，
           // 改 key 只会让旧状态失效，没有收益）。
           {
             key: 'quote-realtime-snapshot-sync',
             title: '行情快照同步',
             icon: 'mdi-cloud-sync-outline',
-            path: '/Meta/Finv/Quote/Collect/SecuQuoteSnapshotSync',
+            path: '/Meta/Finv/Quote/RealtimeCollect/SecuQuoteSnapshotSync',
           },
           // 需求 10995 / 11160：usc 补全后仍为空的快照行（待采证券），菜单改名「待采证券录入」。
           {
             key: 'quote-realtime-pending-secu',
             title: '待采证券录入',
             icon: 'mdi-database-plus-outline',
-            path: '/Meta/Finv/Quote/Collect/PendingSecu',
+            path: '/Meta/Finv/Quote/RealtimeCollect/PendingSecu',
           },
           // 需求 11161：证券参数补全 —— 按目标表拆成「规范证券参数」/「采集参数」两个 Tab，
           // 原「待采证券录入」页表格里的「录入」按钮整体迁到这里。
@@ -253,7 +260,7 @@ const finvQuantMenu: MenuNode[] = [
             key: 'quote-realtime-secu-param-complete',
             title: '证券参数补全',
             icon: 'mdi-table-cog',
-            path: '/Meta/Finv/Quote/Collect/SecuParamComplete',
+            path: '/Meta/Finv/Quote/RealtimeCollect/SecuParamComplete',
           },
           // 需求 11042/11043/11044：紧跟「缺省汇率」，把 Supabase 证券键表分批增量同步到
           // futu.finv_futu_secu_key；只由本页按钮手动触发，源表名可配（系统配置 20014）。
@@ -261,7 +268,7 @@ const finvQuantMenu: MenuNode[] = [
             key: 'quote-realtime-secu-param-sync',
             title: '证券参数同步',
             icon: 'mdi-database-sync-outline',
-            path: '/Meta/Finv/Quote/Collect/SecuParamSync',
+            path: '/Meta/Finv/Quote/RealtimeCollect/SecuParamSync',
           },
           // 需求 11072：USC 映射规则（规则层/条目层维护 + 预演 diff + 异步应用 + 审计日志）。
           // 结果表 futu.finv_futu_usc_map 由本页「预演 → 应用」写入，键表 usc 随之回写。
@@ -269,7 +276,7 @@ const finvQuantMenu: MenuNode[] = [
             key: 'quote-realtime-usc-mapping',
             title: 'USC 映射规则',
             icon: 'mdi-transit-connection-variant',
-            path: '/Meta/Finv/Quote/Collect/UscMapping',
+            path: '/Meta/Finv/Quote/RealtimeCollect/UscMapping',
           },
         ],
       },

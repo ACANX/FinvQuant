@@ -6,7 +6,7 @@
 > - `POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue/Update` — **更新键**（更新）
 > 需求：11153（入队）、11154（两步走人工确认）、11155（探测 + 场景化按钮 + 每次写入前复验）、11156（键字段可手工改）
 > 权限：需登录（内部接口）
-> 关联菜单：[`Menu/Quote/Collect/PendingSecu.md`](../../Menu/Quote/Collect/PendingSecu.md)（操作列「入队」→「入队 / 更新键」对话框）
+> 关联菜单：[`Menu/Quote/RealtimeCollect/PendingSecu.md`](../../Menu/Quote/RealtimeCollect/PendingSecu.md)（操作列「入队」→「入队 / 更新键」对话框）
 
 ## 1. 用途
 

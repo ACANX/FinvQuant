@@ -3,7 +3,7 @@
 > 接口：`POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Secu/Param/Complete`
 > 需求：11161
 > 权限：需登录（内部接口）
-> 关联菜单：[`Menu/Quote/Collect/SecuParamComplete.md`](../../Menu/Quote/Collect/SecuParamComplete.md)
+> 关联菜单：[`Menu/Quote/RealtimeCollect/SecuParamComplete.md`](../../Menu/Quote/RealtimeCollect/SecuParamComplete.md)
 > 关联接口：[`Cdeu/SecuParamCompletePending.md`](SecuParamCompletePending.md)（清单）、
 > [`Cdeu/SecuParamCompletePrefill.md`](SecuParamCompletePrefill.md)（预填）
 
@@ -16,7 +16,7 @@
 | `security` | `public.finv_security` | `ON CONFLICT (usc) DO NOTHING`（已存在不覆盖） |
 | `collect` | `futu.finv_futu_quote_collect` | 同上；`ftmm_symbol` 是生成列，不写 |
 
-**不写**另一张表，**不回写**快照 `usc`（那是「[待采证券录入](../../Menu/Quote/Collect/PendingSecu.md)」
+**不写**另一张表，**不回写**快照 `usc`（那是「[待采证券录入](../../Menu/Quote/RealtimeCollect/PendingSecu.md)」
 页「手动补录USC」/「入队」的职责）。
 
 ## 2. 请求
@@ -104,4 +104,4 @@
 - [`Cdeu/SecuParamCompletePending.md`](SecuParamCompletePending.md) — 待补清单
 - [`Cdeu/SecuParamCompletePrefill.md`](SecuParamCompletePrefill.md) — 单表预填
 - [`Cdeu/RealtimeStockPendingEnroll.md`](RealtimeStockPendingEnroll.md) — 旧的整体录入（一次写两张表，页面入口已迁出）
-- [`Menu/Quote/Collect/SecuParamComplete.md`](../../Menu/Quote/Collect/SecuParamComplete.md) — 页面说明
+- [`Menu/Quote/RealtimeCollect/SecuParamComplete.md`](../../Menu/Quote/RealtimeCollect/SecuParamComplete.md) — 页面说明

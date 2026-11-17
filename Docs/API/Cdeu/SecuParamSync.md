@@ -23,7 +23,7 @@
 > 权限：需登录（内部接口，不对外暴露 OpenAPI）
 > 关联表：目标 `futu.finv_futu_secu_key`（迁移 `V300137` 建表、`V300139` 补 `stock_id`/`usc`、`V300141` 改名）；
 > 源 Supabase `public.finv_quote_secu_key`（表名可配，默认与上游同名）
-> 关联菜单：[`Menu/Quote/Collect/SecuParamSync.md`](../../Menu/Quote/Collect/SecuParamSync.md)（路由 `/Meta/Finv/Quote/Collect/SecuParamSync`）
+> 关联菜单：[`Menu/Quote/RealtimeCollect/SecuParamSync.md`](../../Menu/Quote/RealtimeCollect/SecuParamSync.md)（路由 `/Meta/Finv/Quote/RealtimeCollect/SecuParamSync`）
 > 契约：[`SecuParamSync.yml`](SecuParamSync.yml)
 
 ## 1. 用途

@@ -1,10 +1,10 @@
 # 证券参数补全（SecuParamComplete）
 
 > 菜单 key：`quote-realtime-secu-param-complete`
-> 路由：`/Meta/Finv/Quote/Collect/SecuParamComplete`（需求 11282 随菜单迁入「行情采集」分组，旧路径保留重定向）
+> 路由：`/Meta/Finv/Quote/RealtimeCollect/SecuParamComplete`（需求 11282 随菜单迁入「行情采集」分组，旧路径保留重定向）
 > 所属：导航「行情 → 行情采集 → 证券参数补全」（需求 11161）
-> 视图：`Web/src/views/Meta/Finv/Quote/Collect/SecuParamCompleteView.vue`
-> 对话框：`Web/src/views/Meta/Finv/Quote/Collect/SecuParamCompleteDialog.vue`
+> 视图：`Web/src/views/Meta/Finv/Quote/RealtimeCollect/SecuParamCompleteView.vue`
+> 对话框：`Web/src/views/Meta/Finv/Quote/RealtimeCollect/SecuParamCompleteDialog.vue`
 > 关联需求：11161（本页）、10996 / 11147（原「录入」按钮的预填规则，原样迁入）、
 > 11145 / 11146 / 11153–11156（`usc` 由「[待采证券录入](PendingSecu.md)」负责）
 > 关联接口：

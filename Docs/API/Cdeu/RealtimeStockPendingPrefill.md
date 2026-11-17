@@ -3,7 +3,7 @@
 > 接口：`GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Prefill`
 > 需求：11147
 > 权限：需登录（内部接口）
-> 关联菜单：[`Menu/Quote/Collect/PendingSecu.md`](../../Menu/Quote/Collect/PendingSecu.md)（对话框「录入证券元数据」）
+> 关联菜单：[`Menu/Quote/RealtimeCollect/PendingSecu.md`](../../Menu/Quote/RealtimeCollect/PendingSecu.md)（对话框「录入证券元数据」）
 > 关联接口：[`Cdeu/RealtimeStockPendingEnroll.md`](RealtimeStockPendingEnroll.md)（提交录入）
 
 ## 1. 用途
@@ -104,4 +104,4 @@
 
 - [`Cdeu/RealtimeStockPendingEnroll.md`](RealtimeStockPendingEnroll.md) — 提交录入
 - [`Cdeu/RealtimeStockPendingPage.md`](RealtimeStockPendingPage.md) — 待录入清单
-- [`Menu/Quote/Collect/PendingSecu.md`](../../Menu/Quote/Collect/PendingSecu.md) — 页面说明
+- [`Menu/Quote/RealtimeCollect/PendingSecu.md`](../../Menu/Quote/RealtimeCollect/PendingSecu.md) — 页面说明

@@ -3,7 +3,7 @@
 > 所属：FinvQuant 开发规范 · 存放：`Docs/DevSpec/`
 > 适用范围：前端（`Web/`）全部业务页面的**表格列**（`v-table` / `v-data-table`）。
 > 关联：[`UiSpec.md`](UiSpec.md)（组件与反馈统一）、[`ExplainCardSpec.md`](ExplainCardSpec.md)（静态说明放页面底部「说明」卡片）、[`MenuSpec.md`](MenuSpec.md)（状态列规范）、[`DocSpec.md`](DocSpec.md)（文档与变更日志）。
-> 参考实现：`Web/src/views/Meta/Finv/Quote/Collect/UscMappingView.vue`（「规则」页签与「条目」页签的说明列，需求 11105 / 11107）。
+> 参考实现：`Web/src/views/Meta/Finv/Quote/RealtimeCollect/UscMappingView.vue`（「规则」页签与「条目」页签的说明列，需求 11105 / 11107）。
 
 ## 1. 目的与结论
 
@@ -17,7 +17,7 @@
 
 ### 1.1 为什么（真实案例，不是洁癖）
 
-`/Meta/Finv/Quote/Collect/UscMapping` 原先把 `rule_desc`（每条规则的整段解释）直接铺在「说明」列：
+`/Meta/Finv/Quote/RealtimeCollect/UscMapping` 原先把 `rule_desc`（每条规则的整段解释）直接铺在「说明」列：
 
 - 行高被文字撑成 4～6 行，10 条规则的表比屏幕还长；
 - 列宽被最长那条规则拉宽，其它列（规则号、条目数）被挤到视觉次要位置；

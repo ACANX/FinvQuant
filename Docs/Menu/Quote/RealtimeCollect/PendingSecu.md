@@ -1,9 +1,9 @@
 # 待采证券录入（PendingSecu）
 
 > 菜单 key：`quote-realtime-pending-secu`
-> 路由：`/Meta/Finv/Quote/Collect/PendingSecu`（需求 11282 随菜单迁入「行情采集」分组，旧路径保留重定向）
+> 路由：`/Meta/Finv/Quote/RealtimeCollect/PendingSecu`（需求 11282 随菜单迁入「行情采集」分组，旧路径保留重定向）
 > 所属：导航「行情 → 行情采集 → 待采证券录入」（需求 11160 由「待录入证券」改名）
-> 视图：`Web/src/views/Meta/Finv/Quote/Collect/PendingSecuView.vue`
+> 视图：`Web/src/views/Meta/Finv/Quote/RealtimeCollect/PendingSecuView.vue`
 > 关联需求：10995（本页；一键录入为规划功能，尚未实现）、11145（按派生键先补 usc 再判断）、
 > 11146（「手动补录USC」把 usc 真正写回快照表）、11153–11156（「入队」/「更新键」）、
 > 11161（原「录入」按钮迁出到独立菜单「证券参数补全」）

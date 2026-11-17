@@ -20,6 +20,15 @@
 
 ### 新增
 
+- **「行情采集」分组首位新增「状态总览」菜单（需求 11283）**
+  - 只读汇总页：一次请求复用 `GET .../Realtime/FTStockQuoteSnapshotSync/Run`，拿到 `configs`（证券列表配置）、
+    `futures_configs`（期货 8 分类）与最近一次 `run`，渲染「最近运行摘要 / 证券列表采集配置 / 期货分类采集配置 /
+    逐市场与逐分类运行结果」四块；兼容「无运行记录」的扁平响应形态；不触发采集、无写操作。
+  - 路由 `/Meta/Finv/Quote/RealtimeCollect/Overview`，视图 `Web/src/views/Meta/Finv/Quote/RealtimeCollect/OverviewView.vue`，
+    文档 `Docs/Menu/Quote/RealtimeCollect/Overview.md`；菜单 key `quote-collect-overview`，排在分组第一位。
+  - 说明文字按 `ExplainCardSpec` 收在页尾唯一「说明」卡片（数据来源 / 读法 / 注意事项）。
+  - 验证：`cd Web && npm run build` 通过；页面在未采集时显示两张配置表 + 「暂无运行记录」。
+
 - **「行情快照同步」ETF Tab 实装：港美 ETF 列表采集（需求 11279）**
   - 采集：`instrument_symbol=etf` 时接口走 moomoo `get-etf-list`
     （`routeType=1`、`rankType=6`、`leverage` 空串也参与签名、`page` 0-based、`pageSize` 默认 50）。
@@ -351,6 +360,17 @@
   - 验证：`data_type=3`、`str_value=''`（交付态）、`remark` 含格式说明；`schema_version=300142`。
 
 ### 变更
+
+- **「行情采集」分组路由层二改名：`Collect` → `RealtimeCollect`（需求 11284）**
+  - 路由 `/Meta/Finv/Quote/Collect/…` → **`/Meta/Finv/Quote/RealtimeCollect/…`**（6 个叶子：Overview / SecuQuoteSnapshotSync /
+    PendingSecu / SecuParamComplete / SecuParamSync / UscMapping）；视图目录与菜单文档目录同步改名（按 `MenuSpec` §2.3 路径镜像），
+    8 个 `.vue`（含 2 个对话框子组件）与 6 份菜单文档随目录迁移。
+  - 菜单 key 全部保持不变；5 条旧路由（`Quote/Realtime/…`）的 `redirect` 目标同步指向新路径；`PendingSecuEnqueueDialog`
+    里跳转 USC 映射的 `router.push` 路径同步更新。
+  - 同步 `Docs/Menu/Menus.md`（树状图 / 索引 43·44·45·46·58·69 / 视图映射表）、`Docs/API` 下 12 份文档的菜单链接与视图路径、
+    `Docs/DevSpec` 下 3 份「参考实现」路径。
+  - 验证：`grep -rn 'Quote/Collect/' Web/src Docs` 无现存引用；6 个新路径可直接打开，5 个旧路径仍能跳转；
+    `cd Web && npm run build`、`go test ./internal/docs/` 通过。
 
 - **菜单调整续：「待采证券录入」「证券参数补全」「证券参数同步」「USC 映射规则」迁入「行情采集」（需求 11282）**
   - 「行情采集」分组现有 5 个叶子，顺序：行情快照同步 → 待采证券录入 → 证券参数补全 → 证券参数同步 → USC 映射规则；
