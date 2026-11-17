@@ -308,7 +308,7 @@ func TestBdfsEtfSourceUsesIndexConstituents(t *testing.T) {
 		{Exchange: "SH", Code: "510010"}: "510010",
 	}}, sink, bdfsTestLogger())
 
-	src, _ := BdfsSourceBySymbol("etf")
+	src, _ := BdfsSourceBySymbol(BdfsEtfSymbol)
 	result, err := collector.Collect(context.Background(), BdfsCollectOptions{Source: src})
 	if err != nil {
 		t.Fatalf("ETF 采集应成功，实际 %v", err)
@@ -316,8 +316,8 @@ func TestBdfsEtfSourceUsesIndexConstituents(t *testing.T) {
 	if fetcher.gotReq.FinanceType != "index" || fetcher.gotReq.Code != BdfsEtfIndexCode {
 		t.Fatalf("ETF 来源应走 index/399380，实际 %+v", fetcher.gotReq)
 	}
-	if result.InstrumentSymbol != "etf" {
-		t.Fatalf("结果品种应为 etf，实际 %q", result.InstrumentSymbol)
+	if result.InstrumentSymbol != BdfsEtfSymbol {
+		t.Fatalf("结果品种应为 %s，实际 %q", BdfsEtfSymbol, result.InstrumentSymbol)
 	}
 	if len(sink.rows) != 1 {
 		t.Fatalf("应写入 1 行，实际 %d", len(sink.rows))

@@ -51,13 +51,13 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 
 ### 2.3 按品种分支：BDFS 采集（需求 11262 / 11263）
 
-`instrument_symbol` 为 `bsestock` 或 `etf` 时走**独立分支**，不读 `cdeu.finv_cdeu_secu_realtime_sync_config`、
+`instrument_symbol` 为 `bsestock` 或 `cnetf` 时走**独立分支**，不读 `cdeu.finv_cdeu_secu_realtime_sync_config`、
 不分市场，直接采集百度股市通成分股：
 
 | 品种 | 来源 | instrument_type |
 |---|---|---|
 | `bsestock` | 板块 `GN2309`（北交所上市企业） | `stock` |
-| `etf` | 指数 `399380`（国证ETF，沪深京 ETF） | `etf` |
+| `cnetf` | 指数 `399380`（国证ETF，沪深京 ETF） | `etf` |
 
 其余参数语义对两者一致：
 

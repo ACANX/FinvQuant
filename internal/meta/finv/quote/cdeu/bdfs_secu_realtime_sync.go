@@ -27,7 +27,8 @@ const (
 	// BdfsInstrumentSymbol 北交所股票（板块 GN2309）在前端 Tab 上的品种符号。
 	BdfsInstrumentSymbol = "bsestock"
 	// BdfsEtfSymbol 沪深京 ETF（国证ETF 指数 399380）在前端 Tab 上的品种符号。
-	BdfsEtfSymbol = "etf"
+	// 注意：占位 Tab 的「ETF」用的是 etf 符号，两者刻意分开（需求 11265）。
+	BdfsEtfSymbol = "cnetf"
 	// BdfsProvider 写入 cdeu.finv_quote_secu_realtime.provider 的固定值。
 	BdfsProvider = "BDFS"
 	// BdfsBseBlockCode 北交所上市企业板块代码（百度股市通 block）。

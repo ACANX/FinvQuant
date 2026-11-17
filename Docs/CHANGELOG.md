@@ -4482,6 +4482,14 @@
     `SELECT market_type, market_label, count(*) FROM cdeu.finv_quote_secu_realtime WHERE provider='BDFS' GROUP BY 1,2;`
     → `4 | BJ | 356`。
 
+- **「沪深京ETF」Tab 符号改为 `cnetf`，恢复占位「ETF」Tab（需求 11265）**
+  - 前端 Tab 顺序：`stock` / `index` / **`etf`（占位「ETF」）** / `future` / `crypto` / `bsestock` /
+    `cnindex`（沪深京指数，占位） / **`cnetf`（沪深京ETF，BDFS）** / `sector` / `portfolio` / `gold`。
+  - 后端 `BdfsEtfSymbol` 由 `etf` 改为 `cnetf`，BDFS ETF 采集逻辑与落库字段不变
+    （`provider=BDFS`、`instrument_type=etf`、`market_type=4`）。
+  - 之前把占位 `etf` 直接改作「沪深京ETF」导致「ETF」Tab 消失，本次恢复为两个独立 Tab。
+  - 验证：`go test ./internal/meta/finv/quote/cdeu/ -run Bdfs` 通过；`cd Web && npm run build` 通过。
+
 ## [0.1.3] - 2026-10-29
 
 > 本版本内容：四级菜单导航改造、登录与文案修复、BRS 上传与配置、去重/导出链路修复、深色/浅色主题切换等。

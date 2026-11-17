@@ -66,7 +66,8 @@ const STATUS_API = '/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run'
 // 品种显示名（新增品种时在此补一行，未登记的直接显示原始符号）
 const SYMBOL_LABELS: Record<string, string> = {
   stock: '股票',
-  etf: '沪深京ETF',
+  etf: 'ETF',
+  cnetf: '沪深京ETF',
   index: '指数',
   future: '期货',
   forex: '外汇',
@@ -81,6 +82,7 @@ const SYMBOL_LABELS: Record<string, string> = {
 const SYMBOL_ICONS: Record<string, string> = {
   stock: 'mdi-chart-line',
   etf: 'mdi-chart-areaspline',
+  cnetf: 'mdi-finance',
   index: 'mdi-chart-timeline-variant-shimmer',
   future: 'mdi-calendar-clock',
   forex: 'mdi-currency-usd',
@@ -95,18 +97,18 @@ const SYMBOL_ICONS: Record<string, string> = {
 
 // 占位品种（需求 11256）：按此顺序排在配置表已有品种之后，暂未接入采集，仅出 Tab。
 // 符号与后续配置表的 instrument_symbol 保持一致，接入时插配置行即自动生效。
-const PLACEHOLDER_SYMBOLS = ['index', 'future', 'crypto', 'cnindex', 'sector', 'portfolio', 'gold']
+const PLACEHOLDER_SYMBOLS = ['index', 'etf', 'future', 'crypto', 'cnindex', 'sector', 'portfolio', 'gold']
 // 已接入真实采集、但配置表（cdeu.finv_cdeu_secu_realtime_sync_config）没有采集行的品种（BDFS 源）：
-// bsestock = 板块 GN2309（北交所上市企业）、etf = 国证ETF 指数 399380（沪深京 ETF），全量拉取，无需配置行。
-const FIXED_SYMBOLS = ['bsestock', 'etf']
+// bsestock = 板块 GN2309（北交所上市企业）、cnetf = 国证ETF 指数 399380（沪深京 ETF），全量拉取，无需配置行。
+const FIXED_SYMBOLS = ['bsestock', 'cnetf']
 // 固定来源品种各自的市场取值（服务端 BDFS 分支忽略该参数，仅用于界面展示与请求语义清晰）
 const FIXED_MARKET: Record<string, { title: string; value: string }> = {
   bsestock: { title: 'BJ 北交所', value: 'BJ' },
-  etf: { title: 'CN A 股（沪深京）', value: '4' },
+  cnetf: { title: 'CN A 股（沪深京）', value: '4' },
 }
 // Tab 固定展示顺序（需求 11256/11262/11263）：配置表没出现的品种按此顺序补齐，
-// bsestock 固定在「指数 / 期货 / 加密货币」之后，cnindex（沪深京指数，占位）与 etf（沪深京ETF）紧随其后。
-const SYMBOL_ORDER = ['stock', 'index', 'future', 'crypto', 'bsestock', 'cnindex', 'etf', 'sector', 'portfolio', 'gold']
+// bsestock 固定在「指数 / ETF / 期货 / 加密货币」之后，cnindex（沪深京指数，占位）与 cnetf（沪深京ETF）紧随其后。
+const SYMBOL_ORDER = ['stock', 'index', 'etf', 'future', 'crypto', 'bsestock', 'cnindex', 'cnetf', 'sector', 'portfolio', 'gold']
 
 const MARKET_LABELS: Record<string, string> = { '1': 'HK 港股', '2': 'US 美股', '4': 'CN A 股' }
 
@@ -403,7 +405,7 @@ onBeforeUnmount(stopPolling)
                 该品种为 BDFS 板块采集（板块 GN2309 北交所上市企业），全量拉取成分股行情，无需配置表行；
                 结果写入 cdeu.finv_quote_secu_realtime（provider=BDFS）
               </template>
-              <template v-else-if="activeSymbol === 'etf'">
+              <template v-else-if="activeSymbol === 'cnetf'">
                 该品种为 BDFS ETF 采集（国证ETF 指数 399380，覆盖沪深京 ETF），全量拉取成分股行情，无需配置表行；
                 结果写入 cdeu.finv_quote_secu_realtime（provider=BDFS，instrument_type=etf）
               </template>
