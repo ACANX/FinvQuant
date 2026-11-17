@@ -246,6 +246,9 @@ func (s *Service) StartStockListRun(opts StockListCollectOptions) (StockListRun,
 				s.stockListRunner.appendLog(runID, StockListCollectEventToLog(event))
 			})
 		results, collectErr := collector.Collect(context.Background(), normalized)
+		// 需求 11288：本链路写的是 cdeu.finv_quote_secu_realtime，采集结束后自动补一次
+		// 人民币计价指标（新入库的行也能立刻带上 rmb_*，不必再手动点按钮）。
+		s.syncRmbAfterCollect(context.Background(), runID, "证券列表采集")
 		s.stockListRunner.finish(runID, results, collectErr)
 	}()
 
@@ -365,6 +368,40 @@ func (s *Service) FuturesConfigs(ctx context.Context) ([]FutureListCollectConfig
 	return s.store.LoadFuturesConfigs(ctx)
 }
 
+// syncRmbAfterCollect 采集结束后自动补全人民币计价指标（需求 11288）。
+//
+// 只在「本轮确实写过 cdeu.finv_quote_secu_realtime」的链路调用：
+// moomoo 列表采集（stock / etf）与 BDFS 成分股采集（bsestock / cnetf）；
+// 期货采集写的是 cdeu.finv_quote_realtime_future，与 rmb 无关，不调用。
+//
+// 幂等：SyncRMBMetrics 只在值发生变化时更新（SQL 里有 IS DISTINCT FROM 条件），
+// 所以每轮采集都跑不会产生额外写入；失败只写 WARN 日志，不改采集本身的结果状态
+// （采集成功就该是成功，rmb 补全是附加动作）。
+func (s *Service) syncRmbAfterCollect(ctx context.Context, runID, label string) {
+	started := time.Now()
+	result, err := s.store.SyncRMBMetrics(ctx, RMBMetricsStepAll)
+	if s.stockListRunner == nil {
+		return
+	}
+	level, message := rmbSyncLogMessage(label, result, err, time.Since(started))
+	s.stockListRunner.appendLog(runID, StockListRunLog{Level: level, Message: message})
+}
+
+// rmbSyncLogMessage 把一次人民币指标补全的结果转成一行日志（纯函数，便于单测）。
+func rmbSyncLogMessage(label string, result RMBMetricsSyncResult, err error, elapsed time.Duration) (level, message string) {
+	if err != nil {
+		return "WARN", fmt.Sprintf("人民币计价指标自动补全失败（%s）：%v", label, err)
+	}
+	level = "INFO"
+	message = fmt.Sprintf("人民币计价指标已自动补全（%s）：汇率 %d 行、金额 %d 行、耗时 %d ms",
+		label, result.RateUpdate, result.AmountUpdate, elapsed.Milliseconds())
+	if len(result.MissingCurrencies) > 0 {
+		level = "WARN"
+		message += fmt.Sprintf("；缺汇率币种：%s", strings.Join(result.MissingCurrencies, "、"))
+	}
+	return level, message
+}
+
 // StockListRunStatus 查询某次运行的快照；runID 为空时返回最近一次运行。
 func (s *Service) StockListRunStatus(runID string) (StockListRun, bool) {
 	if s.stockListRunner == nil {
@@ -461,6 +498,10 @@ func (s *Service) startBdfsSecuRealtimeRun(opts StockListCollectOptions, src Bdf
 			PageSize: opts.PageSize,
 			Timeout:  opts.RequestTimeout,
 		})
+		// 需求 11288：BDFS 也写 cdeu.finv_quote_secu_realtime —— 采集后自动补一次人民币计价指标。
+		// 历史上正是这条链路把 rmb_* 写成 NULL（需求 11287 已改成「有值才覆盖」），
+		// 这里再兜一层：新入库的行也要立刻有 rmb 值。
+		s.syncRmbAfterCollect(context.Background(), runID, src.Label)
 		s.stockListRunner.finish(runID, []StockListCollectResult{result}, collectErr)
 	}()
 

@@ -71,7 +71,9 @@ SELECT e.exchange_flag, s.security_code, s.usc
 
 // SaveQuoteSecuRealtimeRows 按 usc 主键批量 upsert，返回新增 / 更新行数。
 //
-// 语义为「整行覆盖」：BDFS 每次返回的是完整快照，缺字段写 NULL（不保留上一轮值）；
+// 冲突语义：**有值才覆盖**（`COALESCE(EXCLUDED.col, t.col)`，见 quoteSecuRealtimeUpdateClause），
+// 而不是整行覆盖 —— 采集调用方（BDFS）只提供身份列与行情列，不提供 rmb_* 人民币计价指标、
+// total_shares、trust_aum 等；整行覆盖会把库里已有的这些值写回 NULL（需求 11287 修的就是这个）。
 // gmt_create / gmt_update 不进 SQL，由表默认值与触发器维护。
 // 行数较多时由调用方分批（BdfsDbBatchSize），本方法只处理一批。
 func (s *Store) SaveQuoteSecuRealtimeRows(ctx context.Context, rows []QuoteSecuRealtimeRow) (int64, int64, error) {
@@ -103,13 +105,7 @@ func (s *Store) SaveQuoteSecuRealtimeRows(ctx context.Context, rows []QuoteSecuR
 		)
 	}
 
-	updates := make([]string, 0, len(quoteSecuRealtimeColumns)-1)
-	for _, col := range quoteSecuRealtimeColumns {
-		if col == "usc" {
-			continue
-		}
-		updates = append(updates, fmt.Sprintf("%s = EXCLUDED.%s", col, col))
-	}
+	updates := quoteSecuRealtimeUpdateClause()
 
 	sql := "INSERT INTO " + tableQuoteSecuRealtime + " (" +
 		strings.Join(quoteSecuRealtimeColumns, ", ") + ") VALUES " +
@@ -139,6 +135,33 @@ func (s *Store) SaveQuoteSecuRealtimeRows(ctx context.Context, rows []QuoteSecuR
 		return inserted, updated, fmt.Errorf("写入 %s 失败: %w", tableQuoteSecuRealtime, err)
 	}
 	return inserted, updated, nil
+}
+
+// quoteSecuRealtimeUpdateClause 生成 ON CONFLICT DO UPDATE 的 SET 子句。
+//
+// 口径：**有值才覆盖**（`COALESCE(EXCLUDED.col, t.col)`），而不是整行覆盖。
+//
+// 为什么（需求 11287）：本函数有两类调用方，它们提供的列集不同——
+//   - FTMM 列表采集（走 UpsertRealtimeStocks，另一条语句，同口径）；
+//   - BDFS 成分股采集（bsestock / cnetf）：只提供身份列 + 行情列，**不提供**
+//     rmb_* 人民币计价指标、total_shares、trust_aum、leverage 等。
+//
+// 历史实现是逐列 `= EXCLUDED.col`，于是 BDFS 每采一轮就把那些列写成 NULL，
+// 表现为「点过『人民币计价指标』按钮后，跑一次北交所采集，rmb 指标全被清零」。
+// 改为 COALESCE 后，未提供的列保留库里原值，语义与 FTMM 分支一致。
+//
+// 注意：调用方显式给值的列仍然照常覆盖（BDFS 总是给 provider / dt_update / page 等）；
+// 代价是「想主动把某列清空」的语义没有了 —— 当前没有这种调用方，若将来需要，
+// 应显式传 NULL 并改用单独的更新路径，不要退化回整行覆盖。
+func quoteSecuRealtimeUpdateClause() []string {
+	updates := make([]string, 0, len(quoteSecuRealtimeColumns)-1)
+	for _, col := range quoteSecuRealtimeColumns {
+		if col == "usc" {
+			continue
+		}
+		updates = append(updates, fmt.Sprintf("%s = COALESCE(EXCLUDED.%s, t.%s)", col, col, col))
+	}
+	return updates
 }
 
 // 编译期断言：*Store 同时满足 usc 解析与落库接口。

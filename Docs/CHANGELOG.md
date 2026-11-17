@@ -20,6 +20,16 @@
 
 ### 新增
 
+- **采集结束后自动补全人民币计价指标（需求 11288）**
+  - 「证券列表采集（stock / etf）」与「BDFS 采集（bsestock / cnetf）」跑完后自动执行一次
+    `SyncRMBMetrics(step=all)`（这两条链路写的是同一张 `cdeu.finv_quote_secu_realtime`），
+    新入库证券不必再手动点「人民币计价指标」按钮；期货采集写 `cdeu.finv_quote_realtime_future`，不触发。
+  - 运行日志末尾追加一行结果：成功 `INFO 人民币计价指标已自动补全（…）：汇率 X 行、金额 Y 行、耗时 Z ms`；
+    缺汇率币种或补全失败升级为 `WARN` 并写明原因，**不改变采集本身的结果状态**。
+  - `SyncRMBMetrics` 幂等（只在值变化时更新），重复采集不产生额外写入；手动按钮
+    `POST /Meta/Finv/Quote/Cdeu/Realtime/Stock/RmbSync` 保留，用于随时重算。
+  - 验证：`go test ./internal/meta/finv/quote/cdeu/ -run RmbSyncLogMessage` 通过；采集一轮后日志出现该行。
+
 - **状态总览页新增「表规模指标」：指标表与采集参数表的当前行数（需求 11285）**
   - 新增只读接口 `GET /API/V1/Meta/Finv/Quote/Secu/Collect/Stats`（无请求参数）：返回
     `cdeu.finv_quote_secu_indicator` 与 `futu.finv_futu_quote_collect` 的**当前行数**（`count(*)`），
@@ -2585,6 +2595,18 @@
   - 验证：`schema_version=300126`；新增 5 列类型/列序/可空性/CHECK/注释全部符合；表行数 13906 迁移前后不变；容器 `healthy`。
 
 ### 修复
+
+- **北交所采集后人民币计价指标被清空：快照 upsert 改为「有值才覆盖」（需求 11287）**
+  - 现象：点过「人民币计价指标」后，跑一次「北交所股票 / 沪深京ETF」采集，`cdeu.finv_quote_secu_realtime`
+    里这些行的 `rmb_*` 五列被写成 **NULL**（页面按空/0 呈现），必须再点一次按钮才恢复。
+  - 根因：`SaveQuoteSecuRealtimeRows` 的 `ON CONFLICT (usc) DO UPDATE` 是**整行覆盖**（`col = EXCLUDED.col`），
+    而 BDFS 采集行只提供身份列与行情列，不提供 `rmb_*`、`total_shares`、`trust_aum`、`leverage`、`stock_id` 等 → 一律写 NULL。
+    （FTMM 列表采集走另一条 `UpsertRealtimeStocks`，本来就是 `COALESCE`，所以只采股票时不会出现该现象。）
+  - 修复：SET 子句改为 `col = COALESCE(EXCLUDED.col, t.col)`，抽成 `quoteSecuRealtimeUpdateClause()`，
+    与 FTMM 分支同口径；调用方显式给值的列（`provider` / `dt_update` / `page` / 行情列）照常覆盖。
+  - 附带效果：BDFS 采集也不再清空 `total_shares` / `trust_aum` / `leverage` / `stock_id` 等 BDFS 不提供的列。
+  - 验证：新增 `store_quote_secu_realtime_test.go`（断言无 `= EXCLUDED.` 形式、5 个 `rmb_*` 列均为 COALESCE），
+    `go test ./internal/meta/finv/quote/cdeu/ -run QuoteSecuRealtimeUpdateClause` 通过。
 
 - **「证券参数补全 / 待采证券录入」预填必然失败：SQL 引用了键表不存在的列（需求 11286）**
   - 现象：两个入口的「预填」全部失败，报

@@ -191,6 +191,21 @@ ETF 代码同样按 `(exchange, code)` 解析 `public.finv_security.usc`；实�
 | 内容 | `[标记] 证券代码`（只展示代码，不含名称；代码为空时改用 `stock_id`） |
 | 输出位置 | 前端日志面板（`white-space: pre-wrap`）+ 容器控制台 `docker logs` |
 
+#### 2.4.1 采集结束后自动补人民币计价指标（需求 11288）
+
+证券列表采集（`stock` / `etf`）与 BDFS 采集（`bsestock` / `cnetf`）写的是同一张
+`cdeu.finv_quote_secu_realtime`，采集跑完后会自动执行一次 `SyncRMBMetrics(step=all)`，
+并在日志末尾追加一行：
+
+```
+[HH:mm:ss] INFO  人民币计价指标已自动补全（证券列表采集）：汇率 12 行、金额 340 行、耗时 860 ms
+```
+
+- 幂等：`SyncRMBMetrics` 只在值变化时更新，重复采集不会产生额外写入；
+- 失败只记 `WARN`，不改变采集本身的结果状态（采集成功仍是成功）；
+- 缺汇率币种会在同一行日志里列出（`；缺汇率币种：HKD、JPY`）；
+- 期货采集写的是 `cdeu.finv_quote_realtime_future`，与人民币指标无关，**不触发**。
+
 ### 2.5 说明卡片（页面最底部）
 
 按 [`ExplainCardSpec`](../../../DevSpec/ExplainCardSpec.md)：页面**静态文字说明**不进标题下方，

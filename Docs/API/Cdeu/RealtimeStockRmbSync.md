@@ -7,6 +7,10 @@
 > `internal/meta/finv/quote/cdeu/store_rmb_metrics.go`（`SyncRMBMetrics`）
 > 机器可读契约：[`RealtimeStockRmbSync.yml`](RealtimeStockRmbSync.yml)（OpenAPI 3.1）
 
+> 补充（需求 11288）：该补全现在**也会在采集结束后自动跑一次**（「行情快照同步」的证券列表采集与
+> 北交所/沪深京ETF 的 BDFS 采集，写的是同一张 `cdeu.finv_quote_secu_realtime`），
+> 因此新入库的证券不用手动点按钮也能带上 `rmb_*`；本接口仍保留，用于随时按需重算（幂等）。
+>
 ## 1. 概述
 
 给快照表逐行补上**人民币计价**字段，供后续按人民币口径做证券排行。分两步，可一次执行也可分开执行：
