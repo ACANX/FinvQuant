@@ -101,6 +101,53 @@ SELECT stock_id, usc
 		}
 	}
 
+	// usc 归一（需求 11271）：futu.finv_futu_quote_collect.usc 可能是富途口径的别名
+	// （如 `BJ.920025` / `US.MSGE.WI`），而 public.finv_security.usc 才是 Finv 标准编码
+	// （`920025` / 需另行解析）。这里按 (交易所, 代码) 用主数据覆盖一次，
+	// 避免同一证券在新表里出现两条不同 usc 的记录。
+	{
+		codes := make([]string, 0, len(items))
+		for _, item := range items {
+			if code := strings.TrimSpace(item.StockCode); code != "" {
+				codes = append(codes, code)
+			}
+		}
+		if len(codes) > 0 {
+			std := make(map[string]string, len(codes))
+			rows, err := s.pool.Query(ctx, `
+SELECT upper(btrim(e.exchange_flag)) || '.' || btrim(s.security_code) AS key,
+       btrim(s.usc)
+  FROM public.finv_security s
+  JOIN public.finv_exchange e ON e.exchange_code = s.exchange_code
+ WHERE s.security_code = ANY($1::text[])
+   AND s.usc IS NOT NULL AND btrim(s.usc) <> ''`, codes)
+			if err != nil {
+				log.Printf("[cdeu][stocklist] 主数据 usc 归一查询失败（沿用采集表 usc）：%v", err)
+			} else {
+				for rows.Next() {
+					var key, usc string
+					if err := rows.Scan(&key, &usc); err == nil {
+						std[key] = usc
+					}
+				}
+				rows.Close()
+				overridden := 0
+				for _, item := range items {
+					key := ftmmSymbolOf(item.MarketLabel, item.StockCode)
+					if standard := std[key]; standard != "" && uscByID[item.StockID] != standard {
+						if uscByID[item.StockID] != "" {
+							overridden++
+						}
+						uscByID[item.StockID] = standard
+					}
+				}
+				if overridden > 0 {
+					log.Printf("[cdeu][stocklist] 主数据 usc 归一：%d 个证券的 usc 由富途别名改为标准编码", overridden)
+				}
+			}
+		}
+	}
+
 	// usc 兜底（需求 11271 D1）：主采集表未收录时，看键表是否已补全 usc。
 	// 命中则本轮即可正常写入新表（不再当待办）。
 	{
