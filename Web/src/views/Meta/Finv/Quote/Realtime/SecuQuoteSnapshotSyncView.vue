@@ -450,12 +450,6 @@ onBeforeUnmount(stopPolling)
         <template v-if="run?.run_id"> · {{ run.run_id }}</template>
       </v-chip>
     </v-card-title>
-    <v-card-subtitle>
-      读 cdeu.finv_cdeu_secu_realtime_sync_config 的启用配置，按品种分 Tab、按市场分页拉取 moomoo get-stock-list，
-      逐页写入 cdeu.finv_quote_secu_realtime（主键 usc），并回写 count_exists / total_available；
-      期货 Tab（需求 11274）读 cdeu.finv_quote_cdeu_future_sync_config，按 futuresType 1~8 分页拉取
-      moomoo get-futures-list，逐页写入 cdeu.finv_quote_realtime_future（主键 stock_id）
-    </v-card-subtitle>
 
     <!-- 证券品种 Tab：配置表已有品种 + 占位品种（需求 11256），配置行新增即自动生效 -->
     <v-tabs
@@ -653,9 +647,83 @@ onBeforeUnmount(stopPolling)
       </div>
     </v-card-text>
   </v-card>
+
+  <!-- 说明卡片：页面最底部、唯一、标题固定为「说明」（Docs/DevSpec/ExplainCardSpec.md） -->
+  <v-card class="mt-4">
+    <v-card-title class="d-flex align-center">
+      <v-icon icon="mdi-information-outline" class="mr-2" />
+      说明
+    </v-card-title>
+    <v-card-text>
+      <div class="finv-note">
+        <div class="finv-note-title">表口径</div>
+        <div class="text-body-2 finv-note-body">
+          股票 / ETF 快照写 <code>cdeu.finv_quote_secu_realtime</code>（主键 <code>usc</code>，一行一证券，
+          <code>provider</code> 为 <code>FTMM</code> 或 <code>BDFS</code>，按快照整行覆盖、不保留历史）；
+          期货快照写 <code>cdeu.finv_quote_realtime_future</code>（主键 <code>stock_id</code>，一行一合约，
+          <code>futures_type</code> 由最后采集的分类覆盖）。
+        </div>
+      </div>
+
+      <v-divider class="my-3" />
+
+      <div class="finv-note">
+        <div class="finv-note-title">数据源</div>
+        <div class="text-body-2 finv-note-body">
+          股票走 moomoo <code>get-stock-list</code>（按 <code>marketType</code> 分市场）；ETF 走
+          <code>get-etf-list</code>（市场由 <code>plateId</code> 决定：<code>900075</code> 港股、<code>10002799</code> 美股）；
+          期货走 <code>get-futures-list</code>（<code>marketType=0</code> 聚合口径，按 <code>futuresType</code> 1~8 分 8 类）。
+          固定来源品种例外：<code>bsestock</code> / <code>cnetf</code> 走 BDFS 成分股，不读配置表。
+        </div>
+      </div>
+
+      <v-divider class="my-3" />
+
+      <div class="finv-note">
+        <div class="finv-note-title">配置与回写</div>
+        <div class="text-body-2 finv-note-body">
+          Tab 与市场下拉由配置行生成：股票各品种读 <code>cdeu.finv_cdeu_secu_realtime_sync_config</code>（一行 = 一个
+          「市场 + 品种」），期货读 <code>cdeu.finv_quote_cdeu_future_sync_config</code>（一行 = 一个「市场 + 分类」）。
+          每页回写进度，结束时把接口 <code>pagination.total</code> 写入 <code>count_exists</code>、本轮实际数量写入
+          <code>total_available</code>；新增品种或分类只需插配置行，无需改前端。注意 <code>etf</code>（港美 ETF，
+          moomoo）与 <code>cnetf</code>（沪深京 ETF，BDFS）是刻意分开的两个品种。
+        </div>
+      </div>
+
+      <v-divider class="my-3" />
+
+      <div class="finv-note">
+        <div class="finv-note-title">读法与注意事项</div>
+        <div class="text-body-2 finv-note-body">
+          逐页日志里的 <code>[I]</code> = 新增、<code>[U]</code> = 覆盖，只列代码便于对数；
+          <code>usc</code> 解析不到的行不进快照表，会落到「待采证券录入」等待补录。
+          期货的下架标记（<code>flag_online='0'</code>）只在<strong>本轮全部分类都成功</strong>时按整轮水位统一置位，
+          单分类运行或任一分类失败一律跳过——避免把其它分类仍在售的合约误标下架。
+        </div>
+      </div>
+    </v-card-text>
+  </v-card>
 </template>
 
 <style scoped>
+/* 说明卡片分节（Docs/DevSpec/ExplainCardSpec.md §4 统一 token） */
+.finv-note {
+  border-left: 3px solid rgba(var(--v-theme-primary), 0.6);
+  padding-left: 10px;
+}
+
+.finv-note-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: rgba(var(--v-theme-primary), 1);
+  margin-bottom: 2px;
+}
+
+.finv-note-body {
+  opacity: 0.85;
+  line-height: 1.6;
+}
+
 .sync-log {
   max-height: 320px;
   overflow-y: auto;

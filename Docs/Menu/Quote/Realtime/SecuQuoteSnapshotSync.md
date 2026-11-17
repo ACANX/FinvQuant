@@ -191,6 +191,14 @@ ETF 代码同样按 `(exchange, code)` 解析 `public.finv_security.usc`；实�
 | 内容 | `[标记] 证券代码`（只展示代码，不含名称；代码为空时改用 `stock_id`） |
 | 输出位置 | 前端日志面板（`white-space: pre-wrap`）+ 容器控制台 `docker logs` |
 
+### 2.5 说明卡片（页面最底部）
+
+按 [`ExplainCardSpec`](../../../DevSpec/ExplainCardSpec.md)：页面**静态文字说明**不进标题下方，
+统一收在页面最底部**唯一**一张「说明」卡片里，分四节：`表口径`（三张结果表与主键）/
+`数据源`（get-stock-list、get-etf-list、get-futures-list、BDFS 固定来源）/
+`配置与回写`（两张配置表驱动 Tab、`count_exists`/`total_available`、`etf` 与 `cnetf` 的区别）/
+`读法与注意事项`（`[I]`/`[U]`、`usc` 未解析去向、期货下架标记时机）。
+
 ## 3. 交互流程
 
 1. 进入页面：拉取最近一次运行状态与配置（`GET .../FTStockQuoteSnapshotSync/Run`）。

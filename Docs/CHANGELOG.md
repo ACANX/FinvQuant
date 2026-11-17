@@ -352,6 +352,14 @@
 
 ### 变更
 
+- **「行情快照同步」页说明文字迁到页尾独立「说明」卡片（ExplainCardSpec）**
+  - 标题下方的长 `v-card-subtitle`（配置表/接口/落库表口径说明）整段删除，改为页面最底部**唯一**一张
+    「说明」卡片（`mdi-information-outline` + 「说明」），分四节：`表口径` / `数据源` / `配置与回写` / `读法与注意事项`，
+    分节样式沿用规范 §4 token（`.finv-note` / `.finv-note-title` / `.finv-note-body`，与参考实现 `FXCEROverviewView` 一致）。
+  - 运行时状态（运行状态 chip、逐页日志、空态提示）仍留在主内容区，未迁动。
+  - `Docs/Menu/Quote/Realtime/SecuQuoteSnapshotSync.md` 新增「2.5 说明卡片」小节；
+    核对：`grep -c 'mdi-information-outline'` = 1、`grep -n 'v-card-subtitle'` 无命中；`cd Web && npm run build` 通过。
+
 - **期货列表采集默认每页条数 40 → 50（需求 11274）**
   - 后端 `FutureListDefaultPageSize` 由 40 改为 **50**（与股票 / ETF 采集一致）；前端期货 Tab 的「每页条数」默认值同步为 50。
     上游 `quoteapiv2.DefaultFuturesPageSize` 仍是 40，但采集器每页都显式传 `pageSize`，不受上游默认值影响。
