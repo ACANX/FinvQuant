@@ -72,7 +72,7 @@ func TestBdfsRealtimeRowMapping(t *testing.T) {
 		Amount:       1542319.5,
 		MarketValue:  3167980619.5,
 	}
-	row := BdfsRealtimeRow(item, "430047.BJ", 1763000000000, 3, "stock")
+	row := BdfsRealtimeRow(item, "430047.BJ", 1763000000000, 3, "3")
 
 	if row.USC != "430047.BJ" {
 		t.Fatalf("usc 应为主键值，实际 %q", row.USC)
@@ -95,8 +95,8 @@ func TestBdfsRealtimeRowMapping(t *testing.T) {
 	if got := bdfsDerefString(row.Currency); got != "CNY" {
 		t.Fatalf("currency 应为 CNY，实际 %q", got)
 	}
-	if got := bdfsDerefString(row.InstrumentType); got != "stock" {
-		t.Fatalf("instrument_type 应为 stock，实际 %q", got)
+	if got := bdfsDerefString(row.InstrumentType); got != "3" {
+		t.Fatalf("instrument_type 应为 3（股票键值），实际 %q", got)
 	}
 	if got := bdfsDerefNumber(row.PriceNominal); got != "12.11" {
 		t.Fatalf("price_nominal 不符：%s", got)
@@ -145,7 +145,7 @@ func TestBdfsRealtimeRowMapping(t *testing.T) {
 
 func TestBdfsRealtimeRowNoQuote(t *testing.T) {
 	item := BdfsConstituent{Code: "920001", Name: "停牌股", Exchange: "BJ", HasQuote: 0, HasRaw: false}
-	row := BdfsRealtimeRow(item, "920001.BJ", 1, 1, "stock")
+	row := BdfsRealtimeRow(item, "920001.BJ", 1, 1, "3")
 
 	if row.PriceNominal != nil || row.ChangePrice != nil || row.MarketValue != nil {
 		t.Fatalf("无行情行不应写任何行情数值列")
@@ -164,7 +164,7 @@ func TestBdfsRealtimeRowPriceDirect(t *testing.T) {
 		want   string
 	}{{1.2, "+"}, {-1.2, "-"}, {0, "="}}
 	for _, c := range cases {
-		row := BdfsRealtimeRow(BdfsConstituent{Code: "1", Exchange: "SH", HasQuote: 1, HasRaw: true, ChangePrice: c.change}, "1.SH", 1, 1, "stock")
+		row := BdfsRealtimeRow(BdfsConstituent{Code: "1", Exchange: "SH", HasQuote: 1, HasRaw: true, ChangePrice: c.change}, "1.SH", 1, 1, "3")
 		if got := bdfsDerefString(row.PriceDirect); got != c.want {
 			t.Fatalf("change=%v 时 price_direct 应为 %q，实际 %q", c.change, c.want, got)
 		}
@@ -323,8 +323,8 @@ func TestBdfsEtfSourceUsesIndexConstituents(t *testing.T) {
 		t.Fatalf("应写入 1 行，实际 %d", len(sink.rows))
 	}
 	row := sink.rows[0]
-	if got := bdfsDerefString(row.InstrumentType); got != "etf" {
-		t.Fatalf("instrument_type 应为 etf，实际 %q", got)
+	if got := bdfsDerefString(row.InstrumentType); got != "4" {
+		t.Fatalf("instrument_type 应为 4（ETF 键值），实际 %q", got)
 	}
 	if got := bdfsDerefString(row.MarketType); got != "4" {
 		t.Fatalf("market_type 应为 4，实际 %q", got)

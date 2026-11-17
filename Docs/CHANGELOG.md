@@ -2656,6 +2656,17 @@
 
 ### 修复
 
+- **`cdeu.finv_quote_secu_realtime.instrument_type` 统一为富途品种类型字典键值（需求 11302）**
+  - BDFS 采集（`bsestock` / `cnetf`）此前把 `stock` / `etf` 文本写进这张 TEXT 表，
+    与 FTMM 的 `3` / `4` 两套写法并存，品种筛选与下游关联都要额外兼容。
+  - 迁移 `V300220` 把存量 `etf` → `4`、`stock` → `3`（受影响行整行备份到
+    `archive.finv_quote_secu_realtime_itfix_20261118`），并更新列注释写明
+    `3=股票 4=ETF 6=指数 7=板块 9=期货 10=外汇 11=加密`。
+  - 代码侧 `BdfsSources` 的 `InstrumentType` 改为 `"3"` / `"4"`，后续采集不再写文本；
+    读取侧归一表达式保留，历史文本仍可被筛选命中。
+  - 验证：`go test ./internal/meta/finv/quote/cdeu/ -run Bdfs` 通过；
+    `SELECT count(*) FROM cdeu.finv_quote_secu_realtime WHERE btrim(instrument_type) !~ '^[0-9]+$'` = 0。
+
 - **修复 `cdeu.finv_quote_secu_realtime` 快照 upsert 缺目标表别名导致写库失败（需求 11300）**
   - 现象：`Store.SaveQuoteSecuRealtimeRows` 生成的
     `INSERT INTO cdeu.finv_quote_secu_realtime (...) ... ON CONFLICT (usc) DO UPDATE SET col = COALESCE(EXCLUDED.col, t.col)`

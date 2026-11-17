@@ -58,8 +58,8 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 
 | 品种 | 来源 | instrument_type |
 |---|---|---|
-| `bsestock` | 板块 `GN2309`（北交所上市企业） | `stock` |
-| `cnetf` | 指数 `399380`（国证ETF，沪深京 ETF） | `etf` |
+| `bsestock` | 板块 `GN2309`（北交所上市企业） | `3`（股票） |
+| `cnetf` | 指数 `399380`（国证ETF，沪深京 ETF） | `4`（ETF） |
 
 其余参数语义对两者一致：
 

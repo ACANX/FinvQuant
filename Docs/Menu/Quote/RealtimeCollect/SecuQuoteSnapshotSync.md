@@ -71,7 +71,7 @@
 | `name` | `name` | 原样 |
 | `market_type` | 固定 `4` | CN A 股市场类型编码（与参考表口径一致：1=HK、2=US、4=CN） |
 | `market_label` | 交易所标志 | `BJ`（北交所板块）、`SH` / `SZ`（复用其它板块时） |
-| `instrument_type` | 固定按来源 | `bsestock` → `stock`；`cnetf` → `etf`（见 2.0.2） |
+| `instrument_type` | 固定按来源 | `bsestock` → `3`（股票）；`cnetf` → `4`（ETF）；富途品种类型键值，见 2.0.2 |
 | `currency` | 固定 `CNY` | A 股 |
 | `price_nominal` | `rawData.lastPx` | 元 |
 | `change_price` | `rawData.pxChange` | 元，可负 |
@@ -92,7 +92,7 @@
 |---|---|
 | 数据源 | 同 2.0.1：百度股市通 FinScope `GET /sapi/v1/constituents`（MetaExt `finscope`） |
 | 来源 | `financeType=index` / `code=399380`（国证ETF，实测返回 1687 条沪深 ETF，`SH` 922 + `SZ` 765） |
-| 落库表 | `cdeu.finv_quote_secu_realtime`，`provider` 固定 `BDFS`，`instrument_type` 固定 `etf` |
+| 落库表 | `cdeu.finv_quote_secu_realtime`，`provider` 固定 `BDFS`，`instrument_type` 固定 `4`（ETF 键值，V300220 起） |
 | 市场列 | `market_type` 固定 `4`（CN A 股）；`market_label` 按每条记录的交易所写 `SH` / `SZ` / `BJ` |
 | 其余字段 | 与 2.0.1 映射表完全一致（`price_nominal` / `change_ratio` / `trade_volumn` 等） |
 | Tab 符号 | `cnetf`（与占位 Tab 的 `etf` 区分） |

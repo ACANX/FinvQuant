@@ -103,7 +103,10 @@ type BdfsSource struct {
 	FinanceType string
 	// Code 来源标识（板块 GN2309 / 指数 399380）。
 	Code string
-	// InstrumentType 写入目标表 instrument_type 的值（stock / etf）。
+	// InstrumentType 写入目标表 instrument_type 的值（富途品种类型键值：3=股票 4=ETF）。
+	//
+	// 需求 11302：历史上这里写的是 `stock` / `etf` 文本，与 FTMM 的 3 / 4 不一致；
+	// 现统一为字典键值（V300220 已把存量文本行归一）。
 	InstrumentType string
 	// Label 来源中文说明（写日志）。
 	Label string
@@ -117,7 +120,7 @@ var BdfsSources = []BdfsSource{
 		Symbol:         BdfsInstrumentSymbol,
 		FinanceType:    finscope.FinanceTypeBlock,
 		Code:           BdfsBseBlockCode,
-		InstrumentType: "stock",
+		InstrumentType: "3",
 		Label:          "北交所上市企业（板块 GN2309）",
 		MarketHint:     "BJ",
 	},
@@ -125,7 +128,7 @@ var BdfsSources = []BdfsSource{
 		Symbol:         BdfsEtfSymbol,
 		FinanceType:    finscope.FinanceTypeIndex,
 		Code:           BdfsEtfIndexCode,
-		InstrumentType: "etf",
+		InstrumentType: "4",
 		Label:          "国证ETF（指数 399380，覆盖沪深京 ETF）",
 		MarketHint:     "4",
 	},
@@ -494,7 +497,7 @@ var bdfsExchangeMeta = map[string]struct {
 //	name              ← name
 //	market_type       ← 固定 "4"（CN A 股，与参考表口径一致）
 //	market_label      ← 交易所标志（BJ / SH / SZ；北交所板块即 BJ）
-//	instrument_type   ← "stock"（接口对本板块只返回 stock）
+//	instrument_type   ← "3"（股票键值；接口对本板块只返回股票）
 //	currency          ← CNY（A 股）
 //	price_nominal     ← rawData.lastPx
 //	change_price      ← rawData.pxChange
@@ -517,7 +520,7 @@ func BdfsRealtimeRow(item BdfsConstituent, usc string, dtUpdateMs int64, page in
 	marketLabel := meta.Label
 	currency := meta.Currency
 	if strings.TrimSpace(instrumentType) == "" {
-		instrumentType = "stock"
+		instrumentType = "3"
 	}
 	stockCode := item.Code
 	name := item.Name
