@@ -16,7 +16,7 @@
 
 ## [未发布]
 
-> 0.1.4 开发中。变更按 `新增` / `变更` / `修复` / `移除` / `安全` 分类追加，发布时整体改为版本号并补日期。
+> 0.1.5 开发中。变更按 `新增` / `变更` / `修复` / `移除` / `安全` 分类追加，发布时整体改为版本号并补日期。
 
 ### 新增
 
@@ -382,6 +382,22 @@
   - 验证：`data_type=3`、`str_value=''`（交付态）、`remark` 含格式说明；`schema_version=300142`。
 
 ### 变更
+
+- **升级 `github.com/acnxo/MetaExt` 至 v0.1.3：期货列表改回上游 `GetFuturesList`，删除本地临时适配层（需求 11289/11290）**
+  - 依赖由伪版本 `v0.1.3-0.20261114210006-2916f63c1840` 升为正式 tag **`v0.1.3`**（2026-11-17 发布，
+    sum.golang.org 已收录、proxy.golang.org 可取）；`go mod tidy` 后仅 `go.mod` 一行、`go.sum` 两行变化，
+    无新增第三方依赖（上游 `golang.org/x/text v0.34.0` 由本仓库已有的 v0.37.0 覆盖）。
+  - 上游 v0.1.3 已修复 `get-futures-list` 的 `stockId` 字符串编码（新增 `FlexInt64` + 字段级 `UnmarshalJSON`，
+    非破坏、字段类型仍为 `int64`），因此删除 313 行临时适配层
+    `internal/meta/finv/quote/cdeu/future_list_fetcher.go` 与其单测（6 个用例）；`service.go`、
+    `service_stocklist.go`、`stocklist_run.go` 三处装配改回 `quoteapiv2.New(quoteapiv2.Config{})`，
+    采集器接口 `FutureListFetcher` 不变（`*quoteapiv2.Client` 直接满足）。
+  - 行为差异（已知，当前均不触发）：响应 `pagination` 的四个整型字段仍不接受字符串编码（临时层曾一并宽松处理）；
+    解析失败的错误信息不再指出「第 N 条」，改为上游的「响应解析失败: quoteapiv2: … 无法解析为整数」。
+    实测线上 `pagination` 为数字编码；字符串兼容诉求已登记 `Docs/Issue/Outside/ISSUE-O-0003`。
+  - 验证：`go build ./...`、`go vet ./...`、`go test ./...` 全部通过；
+    `go test ./internal/meta/finv/quote/cdeu/ -run Future` 11 个用例通过；上游 `GetFuturesList` 对
+    `"stockId": "70000294"` 的响应实测解析出 `StockID=70000294`、`Fields[3]="4413.8"`。
 
 - **「行情采集」分组路由层二改名：`Collect` → `RealtimeCollect`（需求 11284）**
   - 路由 `/Meta/Finv/Quote/Collect/…` → **`/Meta/Finv/Quote/RealtimeCollect/…`**（6 个叶子：Overview / SecuQuoteSnapshotSync /

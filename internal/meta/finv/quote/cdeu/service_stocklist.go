@@ -39,7 +39,7 @@ func (s *Service) SetEtfListFetcher(fetcher EtfListFetcher) {
 // SetFutureListFetcher 替换期货列表拉取实现（单测注入用）；传 nil 恢复默认 moomoo 客户端。
 func (s *Service) SetFutureListFetcher(fetcher FutureListFetcher) {
 	if fetcher == nil {
-		fetcher = NewFutureListFetcher()
+		fetcher = quoteapiv2.New(quoteapiv2.Config{})
 	}
 	s.futureListFetcher = fetcher
 }

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/acnxo/MetaExt/component/quote/moomoo/quoteapiv2"
 )
 
 // 本文件实现「采集运行管理」：把一次列表采集放到后台执行，并把逐页日志与进度
@@ -311,7 +313,7 @@ func (s *Service) startFuturesListRun(opts StockListCollectOptions) (StockListRu
 	go func() {
 		fetcher := s.futureListFetcher
 		if fetcher == nil {
-			fetcher = NewFutureListFetcher()
+			fetcher = quoteapiv2.New(quoteapiv2.Config{})
 		}
 		collector := NewFutureListCollector(s.store, fetcher, s.store, nil).WithHook(
 			func(event StockListCollectEvent) {

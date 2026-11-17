@@ -37,7 +37,7 @@ Docs/Issue/Outside/ISSUE-O-0003-LocalDraftIssue.md
   ls Docs/Issue Docs/Issue/Outside 2>/dev/null | grep -E '^ISSUE-O-[0-9]{4}-' | cut -d- -f3 | sort | uniq -d
   ```
 
-- 下一个可用编号 = 现有最大编号 + 1；当前已用：`0001`。
+- 下一个可用编号 = 现有最大编号 + 1；当前已用：`0001`–`0003`（`0002` / `0003` 目前是 `Outside/` 草稿）。
 - 不使用中文文件名；编号与 `Docs/Proposal/`（`yyyyMM-NNNN-`）、`Docs/Refactor/`（`yyMM-NNN-`）三套编号互相独立、互不干扰。
 
 ## 3. 文档必备内容

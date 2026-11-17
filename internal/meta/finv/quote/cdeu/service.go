@@ -118,7 +118,7 @@ func NewService(pool *pgxpool.Pool, options Options) (*Service, error) {
 		klineFetcher:         quoteapiv2.New(quoteapiv2.Config{}),
 		stockListFetcher:     NewStockListFetcher(),
 		etfListFetcher:       quoteapiv2.New(quoteapiv2.Config{}),
-		futureListFetcher:    NewFutureListFetcher(),
+		futureListFetcher:    quoteapiv2.New(quoteapiv2.Config{}),
 		stockListRunner:      newStockListRunner(),
 		fxCerFetcher:         NewFxCERFetcher(),
 		fxCerRateListFetcher: NewFxCERFetcher(),
