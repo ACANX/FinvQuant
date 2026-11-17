@@ -4548,6 +4548,16 @@
   - 旧表 `cdeu.finv_cdeu_secu_realtime_stock` 结构与会话数据冻结、暂不删除，待运行稳定后清理。
   - 验证：`go build ./...` 通过；`go test ./internal/meta/finv/quote/cdeu/` 仅既有 Windows 环境用例 `TestDirUploader` 失败；`cd Web && npm run build` 通过。
 
+- **统一 `cdeu.finv_quote_secu_realtime.usc` 为 `public.finv_security.usc` 标准编码（需求 11272）**
+  - 现象：排行页同一证券出现多条（北交所 `920025` 与 `BJ.920025`、美股 `MSGE.WI` 与 `US.MSGE.WI`），
+    因为 BDFS 写标准 usc、FTMM 写富途别名 usc，新表主键是 usc 导致两行并存。
+  - 代码：列表采集 `loadStockListSecurityMeta` 增加主数据归一（按 交易所 + 代码 覆盖别名），并输出归一日志。
+  - `V300214`：存量别名行按 `dt_update` 谁新谁赢归一到标准 usc；删除前整行快照到
+    `archive.finv_quote_secu_realtime_usc_align_20261117`（可回滚）；幂等 + 末尾校验「无 usc 与主数据不一致」。
+  - `V300215`：`CREATE OR REPLACE` 修订同步函数，目标 usc 改为主数据优先，避免旧表同步再次引入别名行。
+  - 验证：本机事务内构造 `BJ.920025` 别名行（更新）后执行 V300214 → 归一为单行 `920025` 且保留最新 `dt_update`，
+    校验通过后回滚；正式执行校验通过（快照 3 行）。
+
 ## [0.1.3] - 2026-10-29
 
 > 本版本内容：四级菜单导航改造、登录与文案修复、BRS 上传与配置、去重/导出链路修复、深色/浅色主题切换等。
