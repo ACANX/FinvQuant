@@ -83,6 +83,33 @@ func buildPendingSecuInstrumentTypeExpr(column string) string {
 // **列名是 t.instrument，不是 t.instrument_type**（键表没有后一列，见上方说明）。
 var pendingSecuInstrumentTypeExpr = buildPendingSecuInstrumentTypeExpr("t.instrument")
 
+// snapshotInstrumentTypeExpr 把**快照表**（cdeu.finv_quote_secu_realtime）的 instrument_type
+// 原文归一到采集表的整型品种码（需求 11303）。
+//
+// 预填/录入改以快照行为准后，SQL 的 t 别名指向快照表；快照列原文混用 `3`/`12`/`stock`
+// 与 `4`/`etf`，与键表词表同集合，故复用同一映射表（未识别 → -1，调用方按股票兜底）。
+var snapshotInstrumentTypeExpr = buildPendingSecuInstrumentTypeExpr("t.instrument_type")
+
+// snapshotInstrumentTypeInt Go 侧的同一归一（derivePendingSecuKeyDraft 用）。
+func snapshotInstrumentTypeInt(raw string) int {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "4", "etf":
+		return 4
+	case "6", "index":
+		return 6
+	case "7", "sector", "sectors":
+		return 7
+	case "9", "futures", "future":
+		return 9
+	case "10", "forex", "currency":
+		return 10
+	case "11", "crypto":
+		return 11
+	default: // 3 / 12 / stock / 空 → 股票
+		return 3
+	}
+}
+
 // 预填来源标记。
 const (
 	PrefillSourceSnapshot   = "snapshot"
@@ -266,6 +293,9 @@ func subInstrumentType(instrumentType int) int {
 }
 
 // PendingSecuPrefill 按快照行 + 字典表 + 同市场参考值，生成一只证券的补录预填（需求 11147）。
+//
+// 需求 11303：快照行取自 `cdeu.finv_quote_secu_realtime`（与清单同源），键表只 LEFT JOIN
+// 取参考；此前按键表 `stock_id` 查，键表未覆盖的证券（如 FTMM 的部分港股）会误报「不存在」。
 func (s *Store) PendingSecuPrefill(ctx context.Context, stockID int64) (PendingSecuPrefill, error) {
 	var result PendingSecuPrefill
 	result.StockID = stockID
@@ -273,19 +303,19 @@ func (s *Store) PendingSecuPrefill(ctx context.Context, stockID int64) (PendingS
 	// 一次查询取齐：快照行 + finv_exchange 字典 + 同市场同品种的参考行（market_code 等众数）。
 	// stmt 用变量而非常量：instrument_type 归一表达式由映射表在初始化时生成（单一数据源）。
 	stmt := `
-SELECT t.stock_id,
+SELECT t.stock_id::bigint,
        COALESCE(NULLIF(upper(btrim(t.usc)), ''),
-                upper(btrim(t.market) || '.' || btrim(t.code)))             AS usc,
-       COALESCE(btrim(t.code), '')                                   AS stock_code,
-       COALESCE(btrim(t.code), '')                                         AS name,
-       COALESCE(upper(btrim(t.market)), '')                          AS market_label,
+                upper(btrim(t.market_label) || '.' || btrim(t.stock_code)))             AS usc,
+       COALESCE(btrim(t.stock_code), '')                                   AS stock_code,
+       COALESCE(btrim(t.stock_code), '')                                         AS name,
+       COALESCE(upper(btrim(t.market_label)), '')                          AS market_label,
        COALESCE(e.base_currency, '')                                       AS currency,
        COALESCE(e.exchange_code, 0)                                        AS exchange_code,
        COALESCE(e.base_currency, '')                                       AS base_currency,
-       COALESCE(lower(btrim(t.instrument)), '')                            AS instrument_type_raw,
+       COALESCE(lower(btrim(t.instrument_type)), '')                            AS instrument_type_raw,
        -- 归一后的整型品种类型（键表 instrument 是词表 stock/etf/…，采集表是 3/4/…）
-       CAST(` + pendingSecuInstrumentTypeExpr + ` AS text)                 AS instrument_type_norm,
-       ''                                                                 AS market_type_raw,
+       CAST(` + snapshotInstrumentTypeExpr + ` AS text)                 AS instrument_type_norm,
+       COALESCE(upper(btrim(t.market_type)), '')                          AS market_type_raw,
        ref.market_code, ref.sub_instrument_type, ref.instrument,
        sec_conflict.usc  AS security_conflict_usc,
        col_conflict.usc  AS collect_conflict_usc,
@@ -296,19 +326,21 @@ SELECT t.stock_id,
        tz_rg.timezone    AS region_tz_offset,
        tz_rg.tz          AS region_tz_name,
        COALESCE(e.region, '') AS exchange_region
-  FROM ` + tableSecuKey + ` t
+  FROM ` + tableRealtimeStock + ` t
+  LEFT JOIN ` + tableSecuKey + ` k
+         ON k.ftmm_symbol = upper(btrim(t.market_label) || '.' || btrim(t.stock_code))
   LEFT JOIN public.finv_exchange e
-         ON upper(btrim(e.exchange_flag)) = upper(btrim(t.market))
+         ON upper(btrim(e.exchange_flag)) = upper(btrim(t.market_label))
   LEFT JOIN LATERAL (
         SELECT q.market_code,
                q.sub_instrument_type,
                q.instrument
           FROM futu.finv_futu_quote_collect q
-         WHERE q.market_label = btrim(t.market)
+         WHERE q.market_label = btrim(t.market_label)
            -- 快照的 instrument_type 是 TEXT，且 12 与 3 都表示「股票」；
            -- 采集表里只有 3。「12 的行」直接按 text 比对永远匹配不到参考行，
            -- 结果 market_code 取不到值（=0）、必填校验必然失败（需求 11164 修复）。
-           AND q.instrument_type = ` + pendingSecuInstrumentTypeExpr + `
+           AND q.instrument_type = ` + snapshotInstrumentTypeExpr + `
          GROUP BY 1, 2, 3
          ORDER BY count(*) DESC, 1
          LIMIT 1
@@ -317,8 +349,8 @@ SELECT t.stock_id,
   LEFT JOIN LATERAL (
         SELECT COALESCE(btrim(q.req_section), '') AS req_section
           FROM futu.finv_futu_quote_collect q
-         WHERE q.market_label = btrim(t.market)
-           AND q.instrument_type = ` + pendingSecuInstrumentTypeExpr + `
+         WHERE q.market_label = btrim(t.market_label)
+           AND q.instrument_type = ` + snapshotInstrumentTypeExpr + `
          GROUP BY 1
          ORDER BY count(*) DESC, 1
          LIMIT 1
@@ -327,7 +359,7 @@ SELECT t.stock_id,
   LEFT JOIN LATERAL (
         SELECT q.market_type
           FROM futu.finv_futu_quote_collect q
-         WHERE q.market_label = btrim(t.market)
+         WHERE q.market_label = btrim(t.market_label)
          GROUP BY 1
          ORDER BY count(*) DESC, 1
          LIMIT 1
@@ -361,8 +393,8 @@ SELECT t.stock_id,
         SELECT s.usc
           FROM public.finv_security s
          WHERE s.exchange_code = e.exchange_code
-           AND s.security_code = btrim(t.code)
-           AND s.usc <> upper(btrim(t.market) || '.' || btrim(t.code))
+           AND s.security_code = btrim(t.stock_code)
+           AND s.usc <> upper(btrim(t.market_label) || '.' || btrim(t.stock_code))
          LIMIT 1
   ) sec_conflict ON true
   -- 采集表的唯一键 (market_code, futu_symbol) 预检
@@ -371,11 +403,11 @@ SELECT t.stock_id,
           FROM futu.finv_futu_quote_collect q
          WHERE ref.market_code IS NOT NULL
            AND q.market_code = ref.market_code
-           AND q.futu_symbol = btrim(t.code)
-           AND q.usc <> upper(btrim(t.market) || '.' || btrim(t.code))
+           AND q.futu_symbol = btrim(t.stock_code)
+           AND q.usc <> upper(btrim(t.market_label) || '.' || btrim(t.stock_code))
          LIMIT 1
   ) col_conflict ON true
- WHERE t.stock_id = $1`
+ WHERE t.stock_id = $1::bigint::text`
 
 	var (
 		usc, stockCode, name, marketLabel, currency string
@@ -567,12 +599,12 @@ func (s *Store) EnrollPendingSecu(ctx context.Context, req PendingSecuEnrollRequ
 		usc, stockCode, marketLabel string
 	)
 	if err := tx.QueryRow(ctx, `
-SELECT stock_id,
-       COALESCE(NULLIF(upper(btrim(usc)), ''), upper(btrim(market) || '.' || btrim(code))),
-       COALESCE(btrim(code), ''),
-       COALESCE(upper(btrim(market)), '')
-  FROM `+tableSecuKey+`
- WHERE stock_id = $1`, req.StockID).Scan(&stockID, &usc, &stockCode, &marketLabel); err != nil {
+SELECT stock_id::bigint,
+       COALESCE(NULLIF(upper(btrim(usc)), ''), upper(btrim(market_label) || '.' || btrim(stock_code))),
+       COALESCE(btrim(stock_code), ''),
+       COALESCE(upper(btrim(market_label)), '')
+  FROM `+tableRealtimeStock+`
+ WHERE stock_id = $1::bigint::text`, req.StockID).Scan(&stockID, &usc, &stockCode, &marketLabel); err != nil {
 		if err == pgx.ErrNoRows {
 			return result, fmt.Errorf("%w: stock_id=%d 不存在", ErrRealtimeStockInvalid, req.StockID)
 		}

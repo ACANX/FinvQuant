@@ -42,6 +42,12 @@ const secuParamTargetKeyExpr = `COALESCE(NULLIF(upper(btrim(t.usc)), ''), ` + re
 // 键表列名为 market / code（不是 market_label / stock_code）。
 const secuKeyTargetKeyExpr = `COALESCE(NULLIF(upper(btrim(t.usc)), ''), upper(btrim(t.market) || '.' || btrim(t.code)))`
 
+// secuSnapshotTargetKeyExpr 快照表（cdeu.finv_quote_secu_realtime）版目标 usc 表达式（需求 11303）。
+//
+// 与 secuParamTargetKeyExpr 同口径：快照 usc 有值用它，否则用 `市场标签.代码` 派生。
+// 预填/补全改以快照行为准后，`t` 别名指向快照表，列名为 market_label / stock_code。
+const secuSnapshotTargetKeyExpr = `COALESCE(NULLIF(upper(btrim(t.usc)), ''), upper(btrim(t.market_label) || '.' || btrim(t.stock_code)))`
+
 // secuParamExistsCondFmt 判断目标表是否已有该证券的条件（表别名固定为 x）。
 //
 // 同时匹配「目标键」与「派生键」两种形态：快照 usc 是裸代码、主数据表里已有
@@ -166,7 +172,8 @@ func (s *Store) SecuParamPrefill(ctx context.Context, target string, stockID int
 // secuParamTargetUSC 按快照行算出补全用的目标 usc（与清单筛选、写入同一表达式）。
 func (s *Store) secuParamTargetUSC(ctx context.Context, stockID int64) (string, error) {
 	var usc string
-	stmt := "SELECT " + secuKeyTargetKeyExpr + " FROM " + tableSecuKey + " t WHERE t.stock_id = $1"
+	// 需求 11303：以快照行为准（与清单同源），键表未覆盖的证券也能预填。
+	stmt := "SELECT " + secuSnapshotTargetKeyExpr + " FROM " + tableRealtimeStock + " t WHERE t.stock_id = $1::bigint::text"
 	if err := s.pool.QueryRow(ctx, stmt, stockID).Scan(&usc); err != nil {
 		return "", fmt.Errorf("SecuParamPrefill：读取快照 usc 失败: %w", err)
 	}
@@ -219,12 +226,12 @@ func (s *Store) CompleteSecuParam(ctx context.Context, req SecuParamCompleteRequ
 		usc, stockCode, marketLabel string
 	)
 	if err := tx.QueryRow(ctx, `
-SELECT t.stock_id,
-       `+secuKeyTargetKeyExpr+`,
-       COALESCE(btrim(t.code), ''),
-       COALESCE(upper(btrim(t.market)), '')
-  FROM `+tableSecuKey+` t
- WHERE t.stock_id = $1`, req.StockID).Scan(&stockID, &usc, &stockCode, &marketLabel); err != nil {
+SELECT t.stock_id::bigint,
+       `+secuSnapshotTargetKeyExpr+`,
+       COALESCE(btrim(t.stock_code), ''),
+       COALESCE(upper(btrim(t.market_label)), '')
+  FROM `+tableRealtimeStock+` t
+ WHERE t.stock_id = $1::bigint::text`, req.StockID).Scan(&stockID, &usc, &stockCode, &marketLabel); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return result, fmt.Errorf("%w: stock_id=%d 不存在", ErrRealtimeStockInvalid, req.StockID)
 		}

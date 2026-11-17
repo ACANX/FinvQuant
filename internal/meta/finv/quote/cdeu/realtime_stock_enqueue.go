@@ -150,6 +150,9 @@ type pendingSecuKeyDraft struct {
 }
 
 // derivePendingSecuKeyDraft 读取快照行并派生默认字段（不做任何写操作）。
+//
+// 需求 11303：快照行取自 cdeu.finv_quote_secu_realtime（与清单同源）；此前按键表查，
+// 键表里没有的证券会误报「stock_id 不存在」，而本函数的用途正是往键表插入这类行。
 func (s *Store) derivePendingSecuKeyDraft(ctx context.Context, stockID int64) (pendingSecuKeyDraft, error) {
 	var draft pendingSecuKeyDraft
 	if stockID <= 0 {
@@ -157,13 +160,13 @@ func (s *Store) derivePendingSecuKeyDraft(ctx context.Context, stockID int64) (p
 	}
 	var name, marketLabel, stockCode, instrumentTypeRaw, marketTypeRaw string
 	if err := s.pool.QueryRow(ctx, `
-SELECT COALESCE(btrim(code), ''),
-       COALESCE(upper(btrim(market)), ''),
-       COALESCE(btrim(code), ''),
-       COALESCE(lower(btrim(instrument)), ''),
-       ''
-  FROM `+tableSecuKey+`
- WHERE stock_id = $1`, stockID).Scan(
+SELECT COALESCE(btrim(stock_code), ''),
+       COALESCE(upper(btrim(market_label)), ''),
+       COALESCE(btrim(stock_code), ''),
+       COALESCE(lower(btrim(instrument_type)), ''),
+       COALESCE(upper(btrim(market_type)), '')
+  FROM `+tableRealtimeStock+`
+ WHERE stock_id = $1::bigint::text`, stockID).Scan(
 		&name, &marketLabel, &stockCode, &instrumentTypeRaw, &marketTypeRaw); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return draft, fmt.Errorf("%w: stock_id=%d 不存在", ErrRealtimeStockInvalid, stockID)
@@ -180,8 +183,10 @@ SELECT COALESCE(btrim(code), ''),
 	draft.Code = stockCode
 	draft.InstrumentType = strings.TrimSpace(instrumentTypeRaw)
 	draft.MarketType = strings.TrimSpace(marketTypeRaw)
+	// 快照 instrument_type 原文可能是 `3`/`12`/`stock`、`4`/`etf`（需求 11303），
+	// 先归一到采集表整型码，再推键表 instrument 词表。
 	draft.Instrument = keyInstrumentByInstrumentType(
-		parseIntOr(instrumentTypeRaw, 0), parseIntOr(marketTypeRaw, 0))
+		snapshotInstrumentTypeInt(instrumentTypeRaw), parseIntOr(marketTypeRaw, 0))
 	return draft, nil
 }
 

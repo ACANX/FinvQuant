@@ -2656,6 +2656,20 @@
 
 ### 修复
 
+- **修复「证券参数补全 / 待采证券录入」预填误报 `stock_id=... 不存在`（需求 11303）**
+  - 现象：列表取自 `cdeu.finv_quote_secu_realtime`（快照表），点「预填」却按键表
+    `futu.finv_futu_secu_key.stock_id` 查；键表里 `stock_id` 有 56018 行为空，
+    且 FTMM 的部分港股（如 `02778` 冠君产业信托）根本不在键表，必然 400。
+  - 改为以快照行为准：`PendingSecuPrefill`、`SecuParamPrefill`、`EnrollPendingSecu`、
+    `CompleteSecuParam`、`derivePendingSecuKeyDraft` 五处查询的 `FROM` 改为快照表，
+    键表只 `LEFT JOIN`（按 `market_label.stock_code`）取参考；`stock_id` 按
+    `$1::bigint::text` 与 TEXT 列比较。
+  - 品种类型改用快照 `instrument_type` 归一（`3`/`12`/`stock`→3、`4`/`etf`→4、`6`→6…），
+    不再依赖键表词表列。
+  - 新增 live 回归用例 `TestLiveSecuParamPrefillBySnapshot`（默认跳过）。
+  - 验证：库里 549 行「键表既无同 stock_id 也无同 ftmm_symbol」的快照行，
+    取 20 条 + `02778` 断言预填成功（usc/名称非空，security/collect 两组均通过）。
+
 - **`cdeu.finv_quote_secu_realtime.instrument_type` 统一为富途品种类型字典键值（需求 11302）**
   - BDFS 采集（`bsestock` / `cnetf`）此前把 `stock` / `etf` 文本写进这张 TEXT 表，
     与 FTMM 的 `3` / `4` 两套写法并存，品种筛选与下游关联都要额外兼容。
