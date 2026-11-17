@@ -171,7 +171,7 @@ type PendingSecuEnrollCollect struct {
 // PendingSecuEnrollRequest 录入请求体（`usc` / `stock_id` / `ftmm_symbol` 一律服务端派生，
 // 避免前端把 `[object Object]` 之类的东西写进主键）。
 type PendingSecuEnrollRequest struct {
-	StockID  int64                     `json:"stock_id"`
+	StockID  flexInt64                 `json:"stock_id"`
 	Remark   string                    `json:"remark"`
 	Security PendingSecuEnrollSecurity `json:"security"`
 	Collect  PendingSecuEnrollCollect  `json:"collect"`
@@ -604,9 +604,9 @@ SELECT stock_id::bigint,
        COALESCE(btrim(stock_code), ''),
        COALESCE(upper(btrim(market_label)), '')
   FROM `+tableRealtimeStock+`
- WHERE stock_id = $1::bigint::text`, req.StockID).Scan(&stockID, &usc, &stockCode, &marketLabel); err != nil {
+ WHERE stock_id = $1::bigint::text`, int64(req.StockID)).Scan(&stockID, &usc, &stockCode, &marketLabel); err != nil {
 		if err == pgx.ErrNoRows {
-			return result, fmt.Errorf("%w: stock_id=%d 不存在", ErrRealtimeStockInvalid, req.StockID)
+			return result, fmt.Errorf("%w: stock_id=%d 不存在", ErrRealtimeStockInvalid, int64(req.StockID))
 		}
 		return result, fmt.Errorf("EnrollPendingSecu：读取快照失败: %w", err)
 	}

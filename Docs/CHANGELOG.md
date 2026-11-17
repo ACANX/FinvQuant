@@ -2656,6 +2656,17 @@
 
 ### 修复
 
+- **修复补全/录入/探测接口 `stock_id` 传字符串时请求体解析失败（需求 11304）**
+  - 现象：列表接口的 `stock_id` 来自快照表 TEXT 列（按字符串返回），前端原样回传，
+    后端请求体是 `int64`，绑定阶段报
+    `json: cannot unmarshal string into Go struct field SecuParamCompleteRequest.stock_id of type int64`。
+  - 新增 `flexInt64`（JSON 数字与数字字符串都接受，缺省/null/空串按 0 由业务层拒绝），
+    用于 `SecuParamCompleteRequest`、`PendingSecuEnrollRequest`、`PendingSecuKeyProbeRequest`；
+    前端无需改动。
+  - 新增单测 `TestFlexInt64JSON`（三个请求体 × 数字/字符串/空/非法）。
+  - 验证：`go test ./internal/meta/finv/quote/cdeu/ -run TestFlexInt64JSON` 通过；
+    页面对 `02778` 点「补全」提交不再报请求体解析失败。
+
 - **修复「证券参数补全 / 待采证券录入」预填误报 `stock_id=... 不存在`（需求 11303）**
   - 现象：列表取自 `cdeu.finv_quote_secu_realtime`（快照表），点「预填」却按键表
     `futu.finv_futu_secu_key.stock_id` 查；键表里 `stock_id` 有 56018 行为空，

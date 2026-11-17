@@ -23,6 +23,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -32,6 +33,29 @@ import (
 
 // tableSecuKey 本地证券键表（与 secukey 包同一张表，显式写 schema 避免 search_path 影响）。
 const tableSecuKey = "futu.finv_futu_secu_key"
+
+// flexInt64 JSON 整数：同时接受数字与数字字符串（需求 11304）。
+//
+// 快照表 `cdeu.finv_quote_secu_realtime.stock_id` 是 TEXT，列表接口按文本返回，
+// 前端会把 `stock_id` 原样回传（`"57084410333914"`）；若请求体只收 int64，
+// 绑定阶段就会报 `json: cannot unmarshal string into Go struct field ... of type int64`。
+// 与 `jsonInt64`（可空版本）同一口径，这里是必填版本（缺省/空串按 0，由业务校验拒绝）。
+type flexInt64 int64
+
+// UnmarshalJSON 接受 123 / "123" / null / ""。
+func (v *flexInt64) UnmarshalJSON(data []byte) error {
+	raw := strings.Trim(strings.TrimSpace(string(data)), `"`)
+	if raw == "" || raw == "null" {
+		*v = 0
+		return nil
+	}
+	parsed, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return fmt.Errorf("stock_id 必须是整数或数字字符串，实际 %q", raw)
+	}
+	*v = flexInt64(parsed)
+	return nil
+}
 
 // StatusPendingKey 键表 status 的「待处理」取值（与 V300138 CHECK 约束一致）。
 const StatusPendingKey = "PENDING"
@@ -112,9 +136,9 @@ type PendingSecuKeyFields struct {
 
 // PendingSecuKeyProbeRequest 探测请求：只允许改 `market` / `code`（其余字段不影响「键是否存在」）。
 type PendingSecuKeyProbeRequest struct {
-	StockID int64  `json:"stock_id"`
-	Market  string `json:"market"`
-	Code    string `json:"code"`
+	StockID flexInt64 `json:"stock_id"`
+	Market  string    `json:"market"`
+	Code    string    `json:"code"`
 }
 
 // PendingSecuKeyProbe 探测结果。
@@ -261,7 +285,7 @@ SELECT ftmm_symbol, market, code, stock_id, instrument, status, flag_enable, pri
 // `market` / `code` 可省略（用快照派生值）；改动后主键随之变化，因此探测结果只对本次键有效。
 func (s *Store) ProbePendingSecuKey(ctx context.Context, req PendingSecuKeyProbeRequest) (PendingSecuKeyProbe, error) {
 	var probe PendingSecuKeyProbe
-	draft, err := s.derivePendingSecuKeyDraft(ctx, req.StockID)
+	draft, err := s.derivePendingSecuKeyDraft(ctx, int64(req.StockID))
 	if err != nil {
 		return probe, err
 	}

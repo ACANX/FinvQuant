@@ -84,7 +84,7 @@ type SecuParamCompleteRequest struct {
 	// Target 补全哪张表：security 或 collect。
 	Target string `json:"target"`
 	// StockID 快照表主键，用来定位证券与派生 usc。
-	StockID int64 `json:"stock_id"`
+	StockID flexInt64 `json:"stock_id"`
 	// Remark 人工备注（服务端会加 [AUTO-FILL] 标记与时间）。
 	Remark   string                    `json:"remark"`
 	Security PendingSecuEnrollSecurity `json:"security"`
@@ -231,9 +231,9 @@ SELECT t.stock_id::bigint,
        COALESCE(btrim(t.stock_code), ''),
        COALESCE(upper(btrim(t.market_label)), '')
   FROM `+tableRealtimeStock+` t
- WHERE t.stock_id = $1::bigint::text`, req.StockID).Scan(&stockID, &usc, &stockCode, &marketLabel); err != nil {
+ WHERE t.stock_id = $1::bigint::text`, int64(req.StockID)).Scan(&stockID, &usc, &stockCode, &marketLabel); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return result, fmt.Errorf("%w: stock_id=%d 不存在", ErrRealtimeStockInvalid, req.StockID)
+			return result, fmt.Errorf("%w: stock_id=%d 不存在", ErrRealtimeStockInvalid, int64(req.StockID))
 		}
 		return result, fmt.Errorf("CompleteSecuParam：读取快照失败: %w", err)
 	}

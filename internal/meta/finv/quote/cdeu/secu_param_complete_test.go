@@ -221,7 +221,7 @@ func TestLiveSecuParamCollectComplete(t *testing.T) {
 
 	req := SecuParamCompleteRequest{
 		Target:  SecuParamTargetCollect,
-		StockID: mustStockID(t, row.StockID),
+		StockID: flexInt64(mustStockID(t, row.StockID)),
 		Remark:  "自动测试（会立即删除）",
 		Collect: PendingSecuEnrollCollect{
 			FutuSymbol:        values["futu_symbol"],

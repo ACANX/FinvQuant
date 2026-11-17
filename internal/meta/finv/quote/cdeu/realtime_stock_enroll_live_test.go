@@ -162,7 +162,7 @@ SELECT stock_id FROM cdeu.finv_cdeu_secu_realtime_stock
 		t.Skipf("库里没有可用的 HK 快照行，跳过: %v", err)
 	}
 
-	probe, err := store.ProbePendingSecuKey(ctx, PendingSecuKeyProbeRequest{StockID: stockID})
+	probe, err := store.ProbePendingSecuKey(ctx, PendingSecuKeyProbeRequest{StockID: flexInt64(stockID)})
 	if err != nil {
 		t.Fatalf("探测失败: %v", err)
 	}
@@ -178,7 +178,7 @@ SELECT stock_id FROM cdeu.finv_cdeu_secu_realtime_stock
 	}
 	// 人工改 market/code 后主键应随之变化
 	renamed, err := store.ProbePendingSecuKey(ctx, PendingSecuKeyProbeRequest{
-		StockID: stockID, Market: "hk", Code: "zzrenameprobe",
+		StockID: flexInt64(stockID), Market: "hk", Code: "zzrenameprobe",
 	})
 	if err != nil {
 		t.Fatalf("改名探测失败: %v", err)
