@@ -96,8 +96,9 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
   -d '{"instrument_symbol":"future","futures_type":"5","interval_ms":200}'
 ```
 
-> 分类中文名未确认前，配置表 `futures_type_name` 为空，响应与页面均降级显示「分类 N」；
-> 回填只需 `UPDATE cdeu.finv_quote_cdeu_future_sync_config SET futures_type_name='…' WHERE futures_type='5'`。
+> 分类中文名已于 2026-11-18 回填（迁移 `V300217`）：`1=指数期货、2=能源化工、3=农产品、4=金属期货、
+> 5=利率期货、6=汇率期货、7=加密货币期货、8=股票期货`。仍未填时响应与页面降级显示「分类 N」，
+> 单独改名只需 `UPDATE cdeu.finv_quote_cdeu_future_sync_config SET futures_type_name='…' WHERE futures_type='5'`。
 
 ## 3. 轮询状态
 

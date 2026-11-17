@@ -338,6 +338,18 @@
 
 ### 变更
 
+- **期货采集配置补全 8 个分类中文名（需求 11273/11274 数据补全）**
+  - 迁移 `V300217`：按线上首轮采集（2026-11-18，`marketType=0` 聚合口径、全部为各交易所主连）反推的分类语义，
+    回填 `cdeu.finv_quote_cdeu_future_sync_config.futures_type_name` 与 `remark`：
+    **1=指数期货、2=能源化工、3=农产品、4=金属期货、5=利率期货、6=汇率期货、7=加密货币期货、8=股票期货**。
+    判定依据（代表合约）：1=`YM/ES/NQ/RTY/VX`+`NK225/TOPIX/HSI/HHI`；2=`CL/MCL/QM/BZ/NG/HO/RB`；
+    3=`ZS/ZC/ZM/ZL/ZW/LE/HE/GF`；4=`GC/SI/SIL/HG/ALI/PA/PL`；5=`ZT/ZF/ZN/ZB/TN/UB/2YY/SR3`；
+    6=`6E/6B/6J/6S/6A/6C/6N/6M`；7=`BTC/MBT/ETH/METH/SOL/XRP`；8=`SNVDA/SAAPL/XAMZN/TCH/HSB`。
+  - 无需改代码与页面：`futures_type_name` 非空即显示中文名（空时降级「分类 N」），
+    `/Run` 响应 `futures_configs[].futures_type_name`、运行日志与页面分类下拉/结果列同步变为中文名。
+  - 幂等：按常量无条件覆盖（重复执行结果一致，`gmt_update` 由触发器维护），末尾校验「8 行齐全 + 名称与常量一致」；
+    分类名属数据，走 `V300xxx` 数据段，不回改已在环境生效的 `V300216`。
+
 - **开发规范 `MenuSpec` 固化「路由 / 视图 / 菜单文档」三者路径镜像（需求 11258 口径）**
   - §2.2：文档名示例改为 `Fund.md` / `Position.md`（与现行视图 `FundView.vue` / `PositionView.vue` 对齐）。
   - §2.3：新增强制条款——路由 `/<前缀>/<层1>/<层2>/<X>`、视图 `<前缀>/<层1>/<层2>/<X>View.vue`、
