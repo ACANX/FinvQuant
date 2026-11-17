@@ -157,12 +157,12 @@ func (s *Store) derivePendingSecuKeyDraft(ctx context.Context, stockID int64) (p
 	}
 	var name, marketLabel, stockCode, instrumentTypeRaw, marketTypeRaw string
 	if err := s.pool.QueryRow(ctx, `
-SELECT COALESCE(btrim(name), ''),
-       COALESCE(upper(btrim(market_label)), ''),
-       COALESCE(btrim(stock_code), ''),
-       COALESCE(instrument_type, ''),
-       COALESCE(market_type, '')
-  FROM `+tableRealtimeStock+`
+SELECT COALESCE(btrim(code), ''),
+       COALESCE(upper(btrim(market)), ''),
+       COALESCE(btrim(code), ''),
+       COALESCE(lower(btrim(instrument)), ''),
+       ''
+  FROM `+tableSecuKey+`
  WHERE stock_id = $1`, stockID).Scan(
 		&name, &marketLabel, &stockCode, &instrumentTypeRaw, &marketTypeRaw); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

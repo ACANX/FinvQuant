@@ -359,7 +359,7 @@ onBeforeUnmount(stopPolling)
     </v-card-title>
     <v-card-subtitle>
       读 cdeu.finv_cdeu_secu_realtime_sync_config 的启用配置，按品种分 Tab、按市场分页拉取 moomoo get-stock-list，
-      逐页写入 cdeu.finv_cdeu_secu_realtime_stock，并回写 count_exists / total_available
+      逐页写入 cdeu.finv_quote_secu_realtime（主键 usc），并回写 count_exists / total_available
     </v-card-subtitle>
 
     <!-- 证券品种 Tab：配置表已有品种 + 占位品种（需求 11256），配置行新增即自动生效 -->

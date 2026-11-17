@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// UpsertRealtimeStocks 以 stock_id 为键批量写入证券实时行情快照（需求 10957）。
+// UpsertRealtimeStocks 以 usc 为键批量写入证券实时行情快照（需求 10957 / 11271）。
 //
 // 语义（字段级覆盖，与 UpsertDayKlines 一致）：
 //   - stock_id 不存在 → 插入；已存在 → 只覆盖「本次有值」的列
@@ -22,7 +22,7 @@ import (
 //   - 整批在一条 INSERT ... ON CONFLICT 语句内完成（jsonb_to_recordset 展开），
 //     无部分成功：语句失败即整批回滚。
 //
-// 调用前须已通过 ValidateRealtimeStockItems（stock_id 非空、批内唯一）。
+// 调用前须已通过 ValidateRealtimeStockItems（usc 非空、批内唯一）。
 func (s *Store) UpsertRealtimeStocks(ctx context.Context, items []RealtimeStockItem) (RealtimeStockUpsertStat, error) {
 	var stat RealtimeStockUpsertStat
 	if len(items) == 0 {
@@ -62,6 +62,7 @@ func (s *Store) UpsertRealtimeStocks(ctx context.Context, items []RealtimeStockI
 			"leverage":                 realtimeStockNumber(item.Leverage),
 			"remark":                   realtimeStockText(item.Remark),
 			"page":                     realtimeStockInt(item.Page),
+			"provider":                 realtimeStockText(item.Provider),
 		})
 	}
 	raw, err := json.Marshal(payload)
@@ -98,10 +99,11 @@ WITH src AS (
            nullif(x.change_price, '')::numeric(20,6)              AS change_price,
            nullif(btrim(x.price_direct), '')                      AS price_direct,
            nullif(x.leverage, '')::numeric(20,6)                  AS leverage,
+           COALESCE(nullif(btrim(x.provider), ''), 'FTMM')         AS provider,
            (x.page)::integer                                      AS page,
            nullif(btrim(x.remark), '')                            AS remark
       FROM jsonb_to_recordset($1::jsonb) AS x(
-             stock_id bigint, usc text, name text, stock_code text, market_type text,
+             stock_id text, usc text, name text, stock_code text, market_type text,
              market_label text, instrument_type text, currency text,
              market_value text, total_shares text, circulation_total_shares text,
              trade_trunover text, trade_volumn text, circulation_market_value text,
@@ -110,7 +112,7 @@ WITH src AS (
              trade_change_ratio text, price_amplitude text, volumn_ratio text,
              buysell_ratio text, change_price text,
              price_direct text, leverage text,
-             page bigint, remark text)
+             page bigint, remark text, provider text)
 ), upserted AS (
     INSERT INTO `+tableRealtimeStock+` AS t
         (usc, stock_id, name, stock_code, market_type, market_label, instrument_type,
@@ -118,17 +120,18 @@ WITH src AS (
          trade_trunover, trade_volumn, circulation_market_value, dt_update,
          price_nominal, change_ratio, trust_aum, trade_change_ratio,
          price_amplitude, volumn_ratio, buysell_ratio, change_price,
-         price_direct, leverage, page, remark)
+         price_direct, leverage, page, remark, provider)
     SELECT src.usc, src.stock_id, src.name, src.stock_code, src.market_type,
            src.market_label, src.instrument_type, src.currency, src.market_value,
            src.total_shares, src.circulation_total_shares, src.trade_trunover,
            src.trade_volumn, src.circulation_market_value, src.dt_update,
            src.price_nominal, src.change_ratio, src.trust_aum, src.trade_change_ratio,
            src.price_amplitude, src.volumn_ratio, src.buysell_ratio, src.change_price,
-           src.price_direct, src.leverage, src.page, src.remark
+           src.price_direct, src.leverage, src.page, src.remark, src.provider
       FROM src
-    ON CONFLICT (stock_id) DO UPDATE SET
-        usc                      = COALESCE(EXCLUDED.usc, t.usc),
+    ON CONFLICT (usc) DO UPDATE SET
+        stock_id                 = COALESCE(EXCLUDED.stock_id, t.stock_id),
+        provider                 = EXCLUDED.provider,
         remark                   = COALESCE(EXCLUDED.remark, t.remark),
         name                     = COALESCE(EXCLUDED.name, t.name),
         stock_code               = COALESCE(EXCLUDED.stock_code, t.stock_code),

@@ -238,15 +238,16 @@ func (s *Store) PendingSecuPrefill(ctx context.Context, stockID int64) (PendingS
 	// 一次查询取齐：快照行 + finv_exchange 字典 + 同市场同品种的参考行（market_code 等众数）。
 	const stmt = `
 SELECT t.stock_id,
-       upper(btrim(t.market_label) || '.' || btrim(t.stock_code))          AS usc,
-       COALESCE(btrim(t.stock_code), '')                                   AS stock_code,
-       COALESCE(btrim(t.name), '')                                         AS name,
-       COALESCE(upper(btrim(t.market_label)), '')                          AS market_label,
-       COALESCE(NULLIF(btrim(t.currency), ''), e.base_currency, '')        AS currency,
+       COALESCE(NULLIF(upper(btrim(t.usc)), ''),
+                upper(btrim(t.market) || '.' || btrim(t.code)))             AS usc,
+       COALESCE(btrim(t.code), '')                                   AS stock_code,
+       COALESCE(btrim(t.code), '')                                         AS name,
+       COALESCE(upper(btrim(t.market)), '')                          AS market_label,
+       COALESCE(e.base_currency, '')                                       AS currency,
        COALESCE(e.exchange_code, 0)                                        AS exchange_code,
        COALESCE(e.base_currency, '')                                       AS base_currency,
-       COALESCE(t.instrument_type, '')                                     AS instrument_type_raw,
-       COALESCE(t.market_type, '')                                         AS market_type_raw,
+       COALESCE(lower(btrim(t.instrument)), '')                            AS instrument_type_raw,
+       ''                                                                 AS market_type_raw,
        ref.market_code, ref.sub_instrument_type, ref.instrument,
        sec_conflict.usc  AS security_conflict_usc,
        col_conflict.usc  AS collect_conflict_usc,
@@ -257,15 +258,15 @@ SELECT t.stock_id,
        tz_rg.timezone    AS region_tz_offset,
        tz_rg.tz          AS region_tz_name,
        COALESCE(e.region, '') AS exchange_region
-  FROM ` + tableRealtimeStock + ` t
+  FROM ` + tableSecuKey + ` t
   LEFT JOIN public.finv_exchange e
-         ON upper(btrim(e.exchange_flag)) = upper(btrim(t.market_label))
+         ON upper(btrim(e.exchange_flag)) = upper(btrim(t.market))
   LEFT JOIN LATERAL (
         SELECT q.market_code,
                q.sub_instrument_type,
                q.instrument
           FROM futu.finv_futu_quote_collect q
-         WHERE q.market_label = btrim(t.market_label)
+         WHERE q.market_label = btrim(t.market)
            -- 快照的 instrument_type 是 TEXT，且 12 与 3 都表示「股票」；
            -- 采集表里只有 3。「12 的行」直接按 text 比对永远匹配不到参考行，
            -- 结果 market_code 取不到值（=0）、必填校验必然失败（需求 11164 修复）。
@@ -278,7 +279,7 @@ SELECT t.stock_id,
   LEFT JOIN LATERAL (
         SELECT COALESCE(btrim(q.req_section), '') AS req_section
           FROM futu.finv_futu_quote_collect q
-         WHERE q.market_label = btrim(t.market_label)
+         WHERE q.market_label = btrim(t.market)
            AND q.instrument_type = ` + pendingSecuInstrumentTypeExpr + `
          GROUP BY 1
          ORDER BY count(*) DESC, 1
@@ -288,7 +289,7 @@ SELECT t.stock_id,
   LEFT JOIN LATERAL (
         SELECT q.market_type
           FROM futu.finv_futu_quote_collect q
-         WHERE q.market_label = btrim(t.market_label)
+         WHERE q.market_label = btrim(t.market)
          GROUP BY 1
          ORDER BY count(*) DESC, 1
          LIMIT 1
@@ -322,8 +323,8 @@ SELECT t.stock_id,
         SELECT s.usc
           FROM public.finv_security s
          WHERE s.exchange_code = e.exchange_code
-           AND s.security_code = btrim(t.stock_code)
-           AND s.usc <> upper(btrim(t.market_label) || '.' || btrim(t.stock_code))
+           AND s.security_code = btrim(t.code)
+           AND s.usc <> upper(btrim(t.market) || '.' || btrim(t.code))
          LIMIT 1
   ) sec_conflict ON true
   -- 采集表的唯一键 (market_code, futu_symbol) 预检
@@ -332,8 +333,8 @@ SELECT t.stock_id,
           FROM futu.finv_futu_quote_collect q
          WHERE ref.market_code IS NOT NULL
            AND q.market_code = ref.market_code
-           AND q.futu_symbol = btrim(t.stock_code)
-           AND q.usc <> upper(btrim(t.market_label) || '.' || btrim(t.stock_code))
+           AND q.futu_symbol = btrim(t.code)
+           AND q.usc <> upper(btrim(t.market) || '.' || btrim(t.code))
          LIMIT 1
   ) col_conflict ON true
  WHERE t.stock_id = $1`
@@ -521,10 +522,10 @@ func (s *Store) EnrollPendingSecu(ctx context.Context, req PendingSecuEnrollRequ
 	)
 	if err := tx.QueryRow(ctx, `
 SELECT stock_id,
-       upper(btrim(market_label) || '.' || btrim(stock_code)),
-       COALESCE(btrim(stock_code), ''),
-       COALESCE(upper(btrim(market_label)), '')
-  FROM `+tableRealtimeStock+`
+       COALESCE(NULLIF(upper(btrim(usc)), ''), upper(btrim(market) || '.' || btrim(code))),
+       COALESCE(btrim(code), ''),
+       COALESCE(upper(btrim(market)), '')
+  FROM `+tableSecuKey+`
  WHERE stock_id = $1`, req.StockID).Scan(&stockID, &usc, &stockCode, &marketLabel); err != nil {
 		if err == pgx.ErrNoRows {
 			return result, fmt.Errorf("%w: stock_id=%d 不存在", ErrRealtimeStockInvalid, req.StockID)
@@ -563,7 +564,7 @@ SELECT stock_id,
 
 	// 4) 回写快照 usc：只填空值，不覆盖既有值（幂等）
 	tag, err := tx.Exec(ctx, `
-UPDATE `+tableRealtimeStock+`
+UPDATE `+tableSecuKey+`
    SET usc = $2
  WHERE stock_id = $1
    AND NULLIF(btrim(usc), '') IS NULL`, stockID, usc)

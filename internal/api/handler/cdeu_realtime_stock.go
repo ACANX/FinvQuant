@@ -18,7 +18,7 @@ import (
 
 // 本文件实现「证券实时行情快照批量 Upsert」接口（需求 10957）。
 // 路径：POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert
-// 数据表：cdeu.finv_cdeu_secu_realtime_stock（V300115 创建，一行一证券，主键 stock_id）。
+// 数据表：cdeu.finv_quote_secu_realtime（V300209 创建，一行一证券，主键 usc，跨 provider）。
 // 约定：JSON 体字段 snake_case（ApiSpec §1）。
 // 日志前缀 [cdeu][realtimestock]，线上排查用
 // `docker logs <容器> 2>&1 | grep '\[cdeu\]\[realtimestock\]'`。
@@ -107,7 +107,7 @@ func (h *ExportArchive) RealtimeStockListRunStatus(c *gin.Context) {
 // RealtimeStockListCollect POST /Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync。
 //
 // 手动触发「证券列表采集」：读 cdeu.finv_cdeu_secu_realtime_sync_config 的启用配置，
-// 按市场分页拉取 moomoo get-stock-list，逐页 upsert 到 cdeu.finv_cdeu_secu_realtime_stock，
+// 按市场分页拉取 moomoo get-stock-list，逐页 upsert 到 cdeu.finv_quote_secu_realtime；usc 未解析的行写入 futu.finv_futu_secu_key 待办，
 // 并把 count_exists / total_available 回写到配置表。
 //
 // 请求体全部可选（缺省用配置表 + 默认控制参数）；主要字段见 cdeu.StockListCollectRequest：
@@ -504,7 +504,7 @@ func (h *ExportArchive) RealtimeStockPage(c *gin.Context) {
 
 // RealtimeStockPendingPage GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending。
 //
-// 待录入证券：`cdeu.finv_cdeu_secu_realtime_stock` 里 **补全后仍为空** 的 `usc` 行。
+// 待录入证券：`futu.finv_futu_secu_key` 里 **usc 仍为空** 的键（采集端未解析 usc 时写入）。
 //
 // 需求 11145 起先做一次补全：按 `ftmm_symbol = upper(market_label || '.' || stock_code)`
 // 关联 `futu.finv_futu_secu_key` 取 `usc`；键表里已有的证券不算待录入，不进这份清单。

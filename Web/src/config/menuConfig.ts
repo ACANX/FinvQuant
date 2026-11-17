@@ -193,7 +193,7 @@ const finvQuantMenu: MenuNode[] = [
       },
       {
         // 需求 10962：紧随「历史行情」之后，展示证券最新一张行情快照
-        // （cdeu.finv_cdeu_secu_realtime_stock，一行一证券）。
+        // （cdeu.finv_quote_secu_realtime，主键 usc，一行一证券）。
         key: 'quote-realtime',
         title: '实时行情',
         icon: 'mdi-access-point',

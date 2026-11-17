@@ -70,7 +70,7 @@ const router = createRouter({
     // 历史行情 → 历史行情查询
     { path: '/Meta/Finv/Quote/History/HistoryQuoteQuery', name: 'quote-query', component: QuoteQueryView, meta: { title: '历史行情查询' } },
     // 行情 → 实时行情 → 实时行情（需求 10962，路由 10963 改为 FTStockRank）
-    // 读 cdeu.finv_cdeu_secu_realtime_stock
+    // 读 cdeu.finv_quote_secu_realtime（主键 usc）
     {
       path: '/Meta/Finv/Quote/Realtime/FTStockRank',
       name: 'quote-realtime-ftstockrank',

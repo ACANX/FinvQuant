@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 证券行情排行（cdeu.finv_cdeu_secu_realtime_stock，需求 10962，更名 10964）
+// 证券行情排行（cdeu.finv_quote_secu_realtime，主键 usc，需求 10962/11271）
 // 接口：GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Page?keyword=&marketLabel=&currency=&orderBy=&order=&page=&pageSize=
 // 数值列由后端以文本返回（保住 NUMERIC(24,6) 精度），本页负责万/亿折算与小数位裁剪。
 // 涨跌用整行颜色表达（红涨绿跌，row-rise / row-fall），不占单独的方向列。
@@ -268,7 +268,7 @@ onMounted(load)
       证券行情排行
     </v-card-title>
     <v-card-subtitle>
-      cdeu.finv_cdeu_secu_realtime_stock：证券最新一张行情快照（一行一证券，按 stock_id 覆盖更新）
+      cdeu.finv_quote_secu_realtime：证券最新一张行情快照（一行一证券，按 usc 覆盖更新，跨 provider）
     </v-card-subtitle>
 
     <v-card-text>

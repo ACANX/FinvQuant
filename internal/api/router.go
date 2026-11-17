@@ -281,7 +281,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 			dayKline.GET("/Stat", archive.DayKlineStat)
 			dayKline.GET("/UscList", archive.DayKlineUscList)
 
-			// 证券实时行情快照批量 Upsert（需求 10957）：写入 cdeu.finv_cdeu_secu_realtime_stock。
+			// 证券实时行情快照批量 Upsert（需求 10957/11271）：写入 cdeu.finv_quote_secu_realtime（主键 usc）。
 			// 内部路径需登录；对外 OpenAPI 路径复用同一 handler，响应经 WrapOpenAPIResponse
 			// 包成 {code,data,message}（当前 OpenAPI 组公开访问、暂不鉴权，同 Min/Upsert 先例）。
 			realtime := apiGroup.Group("/Meta/Finv/Quote/Cdeu/Realtime")

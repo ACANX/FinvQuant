@@ -390,7 +390,7 @@ onMounted(load)
       <div class="finv-secukey-note">
         <div class="finv-secukey-note-title">说明</div>
         <div class="text-body-2 finv-secukey-note-body">
-          <b>① 列表口径</b>：源表 <code>cdeu.finv_cdeu_secu_realtime_stock</code> 的每一行（一行一证券），
+          <b>① 列表口径</b>：待补键表 <code>futu.finv_futu_secu_key</code> 中 usc 为空的行（一行一证券），
           判断目标表里「有没有该证券」——
           <br />
           · <b>规范证券参数</b>：<code>public.finv_security.usc</code>；

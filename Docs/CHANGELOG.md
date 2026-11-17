@@ -4536,6 +4536,18 @@
     `provider='FTMM'`，目标更新则保持原行。
   - 验证：事务内把一条 BDFS 重叠行的源 `dt_update` 改晚 → 调函数 → 目标行 `provider` 变 `FTMM`、数值同步（回滚验证）。
 
+- **业务代码切换到 `cdeu.finv_quote_secu_realtime`（需求 11271）**
+  - `tableRealtimeStock` 指向新表（主键 `usc`）；`UpsertRealtimeStocks` 改 `ON CONFLICT (usc)` 并写入 `provider`（缺省 `FTMM`）；
+    `stock_id` 由 `BIGINT` 变 `TEXT`，入参 `RealtimeStockItem.StockID` 改为字符串指针。
+  - `ValidateRealtimeStockItems` 主键口径改 `usc`（必填、批内唯一），`stock_id` 可选。
+  - 列表采集中 **usc 未解析** 的行不写快照表，改由 `UpsertPendingSecuKeys` 增量写入 `futu.finv_futu_secu_key`
+    （`status='PENDING'`、已有 `usc` 的键不覆盖），并输出 `[cdeu][stocklist]` 告警日志（行数/新增/更新/跳过）；
+    新增 `LoadUscByFtmm` 兜底：键表已补全 usc 的证券本轮即可正常入库。
+  - 待录入 / 参数补全 / 录入学改读写 `futu.finv_futu_secu_key`（`market`/`code` 列），`EnrollPendingSecu`
+    不再回写旧快照表（旧表冻结只读）。
+  - 旧表 `cdeu.finv_cdeu_secu_realtime_stock` 结构与会话数据冻结、暂不删除，待运行稳定后清理。
+  - 验证：`go build ./...` 通过；`go test ./internal/meta/finv/quote/cdeu/` 仅既有 Windows 环境用例 `TestDirUploader` 失败；`cd Web && npm run build` 通过。
+
 ## [0.1.3] - 2026-10-29
 
 > 本版本内容：四级菜单导航改造、登录与文案修复、BRS 上传与配置、去重/导出链路修复、深色/浅色主题切换等。

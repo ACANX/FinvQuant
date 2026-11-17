@@ -178,8 +178,10 @@ type StockListFetcher interface {
 
 // StockListSavedRow 一行的落库结果（供日志展示「哪些证券、是新增还是更新」）。
 type StockListSavedRow struct {
-	// StockID 标的编号。
+	// StockID 标的编号（源系统证券 ID，仅用于日志追溯）。
 	StockID int64
+	// USC Finv 统一证券编码（目标表主键）。
+	USC string
 	// StockCode 代码（如 00005 / AAPL）。
 	StockCode string
 	// Name 名称。

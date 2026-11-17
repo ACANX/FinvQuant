@@ -2,7 +2,7 @@
 // 待采证券录入（需求 10995；11160 菜单由「待录入证券」改名）
 // 接口：GET /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending?keyword=&marketLabel=&orderBy=&order=&page=&pageSize=
 //
-// 数据语义：cdeu.finv_cdeu_secu_realtime_stock 中 usc 为空的快照行 —— 采集会把所有在售证券
+// 数据语义：futu.finv_futu_secu_key 中 usc 仍为空的待补键（采集端 usc 未解析时写入，需求 11271） —— 采集会把所有在售证券
 // 都写进快照表，usc 为空表示该证券尚未录入证券主数据，是后续补录以下三张表的依据：
 //   public.finv_security（证券主数据）
 //   futu.finv_futu_quote_collect（采集配置）
@@ -251,7 +251,7 @@ onMounted(load)
       </v-tooltip>
     </v-card-title>
     <v-card-subtitle class="pb-2">
-      cdeu.finv_cdeu_secu_realtime_stock 中 <strong>补全后仍为空</strong>的快照：该证券尚未录入证券主数据
+      futu.finv_futu_secu_key 中 <strong>usc 仍为空</strong>的键：该证券尚未录入证券主数据
       （新上市 / 未纳入采集），是后续补录
       <code>public.finv_security</code> + <code>futu.finv_futu_quote_collect</code> +
       <code>cdeu.finv_quote_cdeu_usc</code> 的依据

@@ -5,16 +5,22 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 )
 
 // 本文件是「证券实时行情快照批量 Upsert」的领域模型与入参校验（需求 10957）。
 //
-// 表：cdeu.finv_cdeu_secu_realtime_stock（V300115 创建，一行一证券，主键 stock_id）。
+// 表：cdeu.finv_quote_secu_realtime（V300209 创建，一行一证券，主键 usc，含 provider）。
 // 语义：实时快照，只保留最新状态，不保留历史；写入按字段级覆盖（COALESCE）。
+// 历史：原表 cdeu.finv_cdeu_secu_realtime_stock（主键 stock_id）已**冻结只读**（需求 11271），
+// 存量数据由 V300213 迁移函数同步到本表，待运行稳定后删除。
 
-// tableRealtimeStock 证券实时行情快照表（在 cdeu schema）。
-const tableRealtimeStock = "cdeu.finv_cdeu_secu_realtime_stock"
+// tableRealtimeStock 证券实时行情快照表（在 cdeu schema，跨 provider，主键 usc）。
+const tableRealtimeStock = "cdeu.finv_quote_secu_realtime"
+
+// tableRealtimeStockLegacy 已冻结的旧快照表（主键 stock_id，只读；不得再写入）。
+const tableRealtimeStockLegacy = "cdeu.finv_cdeu_secu_realtime_stock"
 
 // MaxRealtimeStockBatchRows 单请求 items 条数上限。
 //
@@ -35,7 +41,7 @@ var ErrRealtimeStockInvalid = errors.New("实时行情快照入参非法")
 // 落库列名与 JSON 字段同名，便于与建表脚本对照。
 type RealtimeStockItem struct {
 	USC                    *string      `json:"usc"`
-	StockID                *int64       `json:"stock_id"`
+	StockID                *string      `json:"stock_id"`
 	Name                   *string      `json:"name"`
 	StockCode              *string      `json:"stock_code"`
 	MarketType             *string      `json:"market_type"`
@@ -62,6 +68,8 @@ type RealtimeStockItem struct {
 	// Remark 备注（需求 11028）：人工标注或采集端说明，不参与换算/排序；缺省不清空已有值。
 	Remark *string `json:"remark"`
 	Page   *int64  `json:"page"`
+	// Provider 数据提供方（FTMM / BDFS）；缺省写 'FTMM'。
+	Provider *string `json:"provider"`
 }
 
 // RealtimeStockUpsertRequest 批量 upsert 请求体。
@@ -76,13 +84,13 @@ type RealtimeStockUpsertStat struct {
 	Updated  int64 `json:"update"`
 }
 
-// ValidateRealtimeStockItems 校验入参：非空、条数上限、stock_id 必填且为正、
-// 批内 stock_id 不重复、dt_update 非负、page 为正（提供时）。
+// ValidateRealtimeStockItems 校验入参：非空、条数上限、**usc 必填**、批内 usc 不重复、
+// stock_id 可选（提供时不得为空串）、dt_update 非负、page 为正（提供时）。
 //
-// stock_id 由源系统（富途）的 64 位证券编号充当，表列为 BIGINT（V300116 由 INTEGER 扩宽，
-// 富途实测最大 148739012639708），因此这里只校验 > 0，上限交给 int64 与数据库。
+// 主键口径（需求 11271）：目标表 cdeu.finv_quote_secu_realtime 的主键是 usc，
+// 因此 usc 必填；stock_id 降级为普通字段（TEXT，可空，源系统证券 ID）。
 //
-// 为什么批内禁止重复 stock_id：整批是一条 INSERT ... ON CONFLICT 语句，
+// 为什么批内禁止重复 usc：整批是一条 INSERT ... ON CONFLICT 语句，
 // 同一行在同一条语句里被影响两次会直接报错（"cannot affect row a second time"），
 // 提前拦截可以给出可读的错误位置。
 func ValidateRealtimeStockItems(items []RealtimeStockItem) error {
@@ -93,22 +101,21 @@ func ValidateRealtimeStockItems(items []RealtimeStockItem) error {
 		return fmt.Errorf("%w: items 条数 %d 超过上限 %d",
 			ErrRealtimeStockInvalid, len(items), MaxRealtimeStockBatchRows)
 	}
-	seen := make(map[int64]int, len(items))
+	seen := make(map[string]int, len(items))
 	for index, item := range items {
 		position := index + 1
-		if item.StockID == nil {
-			return fmt.Errorf("%w: 第 %d 条缺少 stock_id", ErrRealtimeStockInvalid, position)
+		if item.USC == nil || strings.TrimSpace(*item.USC) == "" {
+			return fmt.Errorf("%w: 第 %d 条缺少 usc（新表主键，必填）", ErrRealtimeStockInvalid, position)
 		}
-		stockID := *item.StockID
-		if stockID <= 0 {
-			return fmt.Errorf("%w: 第 %d 条 stock_id 非法（%d），须为正整数",
-				ErrRealtimeStockInvalid, position, stockID)
+		usc := strings.TrimSpace(*item.USC)
+		if first, ok := seen[usc]; ok {
+			return fmt.Errorf("%w: usc=%s 在第 %d 条与第 %d 条重复",
+				ErrRealtimeStockInvalid, usc, first+1, position)
 		}
-		if first, ok := seen[stockID]; ok {
-			return fmt.Errorf("%w: stock_id=%d 在第 %d 条与第 %d 条重复",
-				ErrRealtimeStockInvalid, stockID, first+1, position)
+		seen[usc] = index
+		if item.StockID != nil && strings.TrimSpace(*item.StockID) == "" {
+			return fmt.Errorf("%w: 第 %d 条 stock_id 提供了空串", ErrRealtimeStockInvalid, position)
 		}
-		seen[stockID] = index
 		if item.DtUpdate != nil && *item.DtUpdate < 0 {
 			return fmt.Errorf("%w: 第 %d 条 dt_update 不能为负（%d）",
 				ErrRealtimeStockInvalid, position, *item.DtUpdate)

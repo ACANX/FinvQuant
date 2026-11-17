@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -97,6 +98,40 @@ SELECT stock_id, usc
 		rows.Close()
 		if err := rows.Err(); err != nil {
 			return nil, fmt.Errorf("查询 stock_id→usc 映射失败: %w", err)
+		}
+	}
+
+	// usc 兜底（需求 11271 D1）：主采集表未收录时，看键表是否已补全 usc。
+	// 命中则本轮即可正常写入新表（不再当待办）。
+	{
+		missings := make([]PendingSecuKeyRow, 0, len(items))
+		for _, item := range items {
+			if item.StockID <= 0 || uscByID[item.StockID] != "" {
+				continue
+			}
+			if symbol := ftmmSymbolOf(item.MarketLabel, item.StockCode); symbol != "" {
+				missings = append(missings, PendingSecuKeyRow{
+					FtmmSymbol: symbol,
+					Market:     item.MarketLabel,
+					Code:       item.StockCode,
+					StockID:    item.StockID,
+				})
+			}
+		}
+		if len(missings) > 0 {
+			filled, err := s.LoadUscByFtmm(ctx, missings)
+			if err != nil {
+				log.Printf("[cdeu][stocklist] 键表 usc 兜底查询失败（按未解析继续）：%v", err)
+			} else {
+				for _, item := range items {
+					if item.StockID <= 0 || uscByID[item.StockID] != "" {
+						continue
+					}
+					if usc := filled[ftmmSymbolOf(item.MarketLabel, item.StockCode)]; usc != "" {
+						uscByID[item.StockID] = usc
+					}
+				}
+			}
 		}
 	}
 
@@ -278,6 +313,7 @@ func (s *Store) SaveStockListPage(ctx context.Context, cfg StockListCollectConfi
 	}
 	batch := make([]RealtimeStockItem, 0, len(items))
 	meta := make([]StockListSavedRow, 0, len(items))
+	pending := make([]PendingSecuKeyRow, 0, len(items))
 	for _, it := range items {
 		if it.StockID <= 0 {
 			continue
@@ -290,9 +326,23 @@ func (s *Store) SaveStockListPage(ctx context.Context, cfg StockListCollectConfi
 		instrumentType := strconv.Itoa(it.InstrumentType)
 
 		secuMeta := securityMeta[stockID]
+		usc := strings.TrimSpace(secuMeta.USC)
+		if usc == "" {
+			// 新表主键是 usc：未解析到 usc 的行无法入库，先落待办键表（需求 11271 D1），
+			// 等键表补全 usc 后下一轮采集即可正常写入。
+			pending = append(pending, PendingSecuKeyRow{
+				FtmmSymbol: ftmmSymbolOf(marketLabel, it.StockCode),
+				Instrument: strings.ToLower(strings.TrimSpace(cfg.InstrumentSymbol)),
+				Market:     marketLabel,
+				Code:       it.StockCode,
+				StockID:    stockID,
+			})
+			continue
+		}
+		stockIDText := strconv.FormatInt(stockID, 10)
 		batch = append(batch, RealtimeStockItem{
-			USC:                    stockListText(secuMeta.USC),
-			StockID:                &stockID,
+			USC:                    &usc,
+			StockID:                &stockIDText,
 			Name:                   stockListText(it.Name),
 			StockCode:              stockListText(it.StockCode),
 			MarketType:             stockListText(marketType),
@@ -320,34 +370,50 @@ func (s *Store) SaveStockListPage(ctx context.Context, cfg StockListCollectConfi
 		})
 		meta = append(meta, StockListSavedRow{
 			StockID:   stockID,
+			USC:       usc,
 			StockCode: it.StockCode,
 			Name:      it.Name,
 		})
 	}
+	// 未解析 usc 的行写入键表（待办），并输出可追踪的告警日志
+	if len(pending) > 0 {
+		ins, upd, skip, err := s.UpsertPendingSecuKeys(ctx, pending)
+		if err != nil {
+			return nil, fmt.Errorf("写入待补 usc 键表失败（marker=%s/%s page=%d）: %w",
+				cfg.InstrumentSymbol, cfg.MarketType, page, err)
+		}
+		log.Printf("[cdeu][stocklist] page usc 未解析：%d 行写入 %s（新增 %d / 更新 %d / 跳过 %d），"+
+			"文件待补 usc 后下一轮采集即可入库（marker=%s/%s page=%d）",
+			len(pending), tableSecuKey, ins, upd, skip,
+			cfg.InstrumentSymbol, cfg.MarketType, page)
+	}
+
 	if len(batch) == 0 {
 		return nil, nil
 	}
 
-	// 先查这批 stock_id 是否已存在，用于在日志里区分「新增」与「更新」
+	// 先查这批 usc 是否已存在，用于在日志里区分「新增」与「更新」
 	// （upsert 语句本身只返回汇总计数，拿不到逐行标记）。
-	stockIDs := make([]int64, 0, len(batch))
+	uscs := make([]string, 0, len(batch))
 	for _, item := range batch {
-		stockIDs = append(stockIDs, *item.StockID)
+		if item.USC != nil {
+			uscs = append(uscs, *item.USC)
+		}
 	}
-	existing := make(map[int64]struct{}, len(batch))
+	existing := make(map[string]struct{}, len(batch))
 	rows, err := s.pool.Query(ctx, `
-SELECT stock_id FROM `+tableRealtimeStock+` WHERE stock_id = ANY($1::bigint[])`, stockIDs)
+SELECT usc FROM `+tableRealtimeStock+` WHERE usc = ANY($1::text[])`, uscs)
 	if err != nil {
 		return nil, fmt.Errorf("查询已有证券失败（marker=%s/%s page=%d）: %w",
 			cfg.InstrumentSymbol, cfg.MarketType, page, err)
 	}
 	for rows.Next() {
-		var stockID int64
-		if err := rows.Scan(&stockID); err != nil {
+		var existingUSC string
+		if err := rows.Scan(&existingUSC); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("解析已有证券失败: %w", err)
 		}
-		existing[stockID] = struct{}{}
+		existing[existingUSC] = struct{}{}
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
@@ -361,7 +427,7 @@ SELECT stock_id FROM `+tableRealtimeStock+` WHERE stock_id = ANY($1::bigint[])`,
 
 	saved := make([]StockListSavedRow, 0, len(meta))
 	for _, row := range meta {
-		_, ok := existing[row.StockID]
+		_, ok := existing[row.USC]
 		row.Inserted = !ok
 		saved = append(saved, row)
 	}
