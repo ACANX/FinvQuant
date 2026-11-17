@@ -211,6 +211,12 @@ func (s *Service) StartStockListRun(opts StockListCollectOptions) (StockListRun,
 		return s.startBdfsSecuRealtimeRun(normalized, src)
 	}
 
+	// 需求 11294：沪深京指数（cnindex）走中信 XetApp 全量指数采集（固定来源，无配置行），
+	// 结果落 cdeu.finv_quote_secu_realtime（provider='ZXET'）。
+	if normalized.FilterInstrumentSymbol == XetIndexSymbol {
+		return s.startXetIndexRun(normalized)
+	}
+
 	// 需求 11274：期货列表采集（moomoo get-futures-list）与股票列表采集共用同一运行持有者
 	// 与轮询端点，按 instrument_symbol=future 分支；结果落 cdeu.finv_quote_realtime_future。
 	if normalized.FilterInstrumentSymbol == FuturesInstrumentSymbol {
@@ -373,7 +379,8 @@ func (s *Service) FuturesConfigs(ctx context.Context) ([]FutureListCollectConfig
 // syncRmbAfterCollect 采集结束后自动补全人民币计价指标（需求 11288）。
 //
 // 只在「本轮确实写过 cdeu.finv_quote_secu_realtime」的链路调用：
-// moomoo 列表采集（stock / etf）与 BDFS 成分股采集（bsestock / cnetf）；
+// moomoo 列表采集（stock / etf）、BDFS 成分股采集（bsestock / cnetf）与
+// 沪深京指数采集（cnindex，需求 11294）；
 // 期货采集写的是 cdeu.finv_quote_realtime_future，与 rmb 无关，不调用。
 //
 // 幂等：SyncRMBMetrics 只在值发生变化时更新（SQL 里有 IS DISTINCT FROM 条件），
@@ -455,6 +462,56 @@ func StockListCollectEventToLog(event StockListCollectEvent) StockListRunLog {
 		entry.Time = event.Time.Format("15:04:05")
 	}
 	return entry
+}
+
+// startXetIndexRun 启动一次沪深京指数采集（需求 11294）。
+//
+// 与 BDFS / 期货分支同位置：共用 StockListRunner（运行状态 + 日志 + 轮询接口），
+// 固定来源（无配置行），结果写 cdeu.finv_quote_secu_realtime（provider='ZXET'）。
+func (s *Service) startXetIndexRun(opts StockListCollectOptions) (StockListRun, error) {
+	if s.stockListRunner == nil {
+		s.stockListRunner = newStockListRunner()
+	}
+
+	params := map[string]any{
+		"instrument_symbol":  XetIndexSymbol,
+		"provider":           XetIndexProvider,
+		"market_type":        XetIndexMarketType,
+		"request_timeout_ms": opts.RequestTimeout.Milliseconds(),
+		"target_table":       tableQuoteSecuRealtime,
+	}
+	runID, err := s.stockListRunner.begin(params)
+	if err != nil {
+		return StockListRun{}, err
+	}
+
+	s.stockListRunner.appendLog(runID, StockListRunLog{
+		Level:   "INFO",
+		Message: fmt.Sprintf("任务已启动：沪深京指数（XetApp，provider=%s），上游 4 池 + 深市 1200 + 北交所 1400 合并去重", XetIndexProvider),
+	})
+
+	go func() {
+		fetcher := s.xetIndexFetcher
+		if fetcher == nil {
+			fetcher = NewXetIndexFetcher()
+		}
+		// 指数是 6 次串行请求，沿用列表采集的 20s 单页超时不够，至少给 XetIndexDefaultTimeout。
+		timeout := opts.RequestTimeout
+		if timeout < XetIndexDefaultTimeout {
+			timeout = XetIndexDefaultTimeout
+		}
+		collector := NewXetIndexCollector(fetcher, s.store, s.store, nil).WithHook(
+			func(event StockListCollectEvent) {
+				s.stockListRunner.appendLog(runID, StockListCollectEventToLog(event))
+			})
+		result, collectErr := collector.Collect(context.Background(), XetIndexCollectOptions{Timeout: timeout})
+		// 需求 11288：本链路写 cdeu.finv_quote_secu_realtime，采集后自动补人民币计价指标。
+		s.syncRmbAfterCollect(context.Background(), runID, "沪深京指数")
+		s.stockListRunner.finish(runID, []StockListCollectResult{result}, collectErr)
+	}()
+
+	run, _ := s.stockListRunner.snapshot(runID)
+	return run, nil
 }
 
 // startBdfsSecuRealtimeRun 启动一次 BDFS 成分股采集（需求 11262）。

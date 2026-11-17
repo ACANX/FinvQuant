@@ -117,20 +117,22 @@ const SYMBOL_ICONS: Record<string, string> = {
 // 占位品种（需求 11256）：按此顺序排在配置表已有品种之后，暂未接入采集，仅出 Tab。
 // 符号与后续配置表的 instrument_symbol 保持一致，接入时插配置行即自动生效。
 // 期货已于需求 11274 接入真实采集，故从占位清单移除（Tab 位置由 SYMBOL_ORDER 决定）。
-const PLACEHOLDER_SYMBOLS = ['index', 'etf', 'crypto', 'cnindex', 'sector', 'portfolio', 'otc', 'gold']
+const PLACEHOLDER_SYMBOLS = ['index', 'etf', 'crypto', 'sector', 'portfolio', 'otc', 'gold']
 // 期货符号（需求 11274）：配置读 cdeu.finv_quote_cdeu_future_sync_config，结果落
 // cdeu.finv_quote_realtime_future；运行状态与日志复用同一套接口。
 const FUTURES_SYMBOL = 'future'
-// 已接入真实采集、但配置表（cdeu.finv_cdeu_secu_realtime_sync_config）没有采集行的品种（BDFS 源）：
-// bsestock = 板块 GN2309（北交所上市企业）、cnetf = 国证ETF 指数 399380（沪深京 ETF），全量拉取，无需配置行。
-const FIXED_SYMBOLS = ['bsestock', 'cnetf']
+// 已接入真实采集、但配置表（cdeu.finv_cdeu_secu_realtime_sync_config）没有采集行的品种：
+// bsestock = 板块 GN2309（北交所上市企业）、cnetf = 国证ETF 指数 399380（沪深京 ETF），BDFS 源；
+// cnindex = 沪深京指数（中信 XetApp，需求 11294），6 池合并去重，provider=ZXET。全量拉取，无需配置行。
+const FIXED_SYMBOLS = ['bsestock', 'cnindex', 'cnetf']
 // 固定来源品种各自的市场取值（服务端 BDFS 分支忽略该参数，仅用于界面展示与请求语义清晰）
 const FIXED_MARKET: Record<string, { title: string; value: string }> = {
   bsestock: { title: 'BJ 北交所', value: 'BJ' },
+  cnindex: { title: 'CN A 股（沪深京）', value: '4' },
   cnetf: { title: 'CN A 股（沪深京）', value: '4' },
 }
 // Tab 固定展示顺序（需求 11256/11262/11263）：配置表没出现的品种按此顺序补齐，
-// bsestock 固定在「指数 / ETF / 期货 / 加密货币」之后，cnindex（沪深京指数，占位）与 cnetf（沪深京ETF）紧随其后。
+// bsestock 固定在「指数 / ETF / 期货 / 加密货币」之后，cnindex（沪深京指数，XetApp 源，需求 11294）与 cnetf（沪深京ETF，BDFS 源）紧随其后。
 const SYMBOL_ORDER = ['stock', 'index', 'etf', 'future', 'crypto', 'bsestock', 'cnindex', 'cnetf', 'sector', 'portfolio', 'otc', 'gold']
 
 const MARKET_LABELS: Record<string, string> = { '1': 'HK 港股', '2': 'US 美股', '4': 'CN A 股' }
@@ -519,6 +521,10 @@ onBeforeUnmount(stopPolling)
                 该品种为 BDFS 板块采集（板块 GN2309 北交所上市企业），全量拉取成分股行情，无需配置表行；
                 结果写入 cdeu.finv_quote_secu_realtime（provider=BDFS）
               </template>
+              <template v-else-if="activeSymbol === 'cnindex'">
+                该品种为沪深京指数采集（中信 XetApp，上游 4 池 + 深市 1200 + 北交所 1400 合并去重），
+                全量拉取指数快照，无需配置表行；结果写入 cdeu.finv_quote_secu_realtime（provider=ZXET，instrument_type=4）
+              </template>
               <template v-else-if="activeSymbol === 'cnetf'">
                 该品种为 BDFS ETF 采集（国证ETF 指数 399380，覆盖沪深京 ETF），全量拉取成分股行情，无需配置表行；
                 结果写入 cdeu.finv_quote_secu_realtime（provider=BDFS，instrument_type=etf）
@@ -659,7 +665,7 @@ onBeforeUnmount(stopPolling)
         <div class="finv-note-title">表口径</div>
         <div class="text-body-2 finv-note-body">
           股票 / ETF 快照写 <code>cdeu.finv_quote_secu_realtime</code>（主键 <code>usc</code>，一行一证券，
-          <code>provider</code> 为 <code>FTMM</code> 或 <code>BDFS</code>，按快照整行覆盖、不保留历史）；
+          <code>provider</code> 为 <code>FTMM</code> / <code>BDFS</code> / <code>ZXET</code>，按快照整行覆盖、不保留历史）；
           期货快照写 <code>cdeu.finv_quote_realtime_future</code>（主键 <code>stock_id</code>，一行一合约，
           <code>futures_type</code> 由最后采集的分类覆盖）。
         </div>

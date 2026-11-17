@@ -20,6 +20,25 @@
 
 ### 新增
 
+- **「行情快照同步 → 沪深京指数」Tab 接入中信 XetApp 全量指数（需求 11294–11297/11299）**
+  - `instrument_symbol=cnindex` 走独立分支（固定来源、无配置行）：经 MetaExt `xetapp.GetQuoteSnapshotCNAIndex`
+    拉上游 4 池 + 深市 `1200` + 北交所 `1400`（串行 6 次、按内部码去重，实测 1239 只），字段转换后
+    upsert 到 `cdeu.finv_quote_secu_realtime`（主键 `usc`、`provider='ZXET'`、`instrument_type='4'`、
+    `market_type='4'`）。
+  - 内部码映射：新增 `internal/meta/finv/quote/cdeu/xet_index_code_mapping.tsv`（上游 `IndexCodeMapping.md`
+    全量 1239 行，`go:embed`），覆盖 `1B0001→000004` 等 10 条例外、`2C01→399106`、`395xxx` 与
+    `CES*` / `MSCI` 字母码；usc 先查 `public.finv_security`（沪市用 6 位 `SH0001` 形态），未登记按编码域构造
+    （`SH`+4 位 / `SZ` 原码 / `BSE50` / `NEEQ`+代码 / `CSI`+代码 / `CNI`+代码 / CES·MSCI 原码）。
+  - `market_label` 按站点市场号：`1100`→`SH`、`1200`→`SZ`、`1400`→`BJ`、其它（`7100`）→`CN`
+    （中证2000 `932000` 归 `SH`）。
+  - 字段口径：`change_ratio` / `price_amplitude` / `buysell_ratio` 除 100（表内小数比例）、`trade_volumn` ×100
+    （手→股）、市值/股本列取成分合计并在 `remark` 注明、`currency` 按名称后缀（`HKD` / `USD` / 其余 `CNY`）、
+    `page` 与 `stock_id` 恒 NULL。
+  - 前端 `cnindex` 从 `PLACEHOLDER_SYMBOLS` 移入 `FIXED_SYMBOLS`，说明卡片 `provider` 增列 `ZXET`；
+    文档同步菜单文档 2.0.4 与接口文档 2.6。
+  - 验证：`go test ./internal/meta/finv/quote/cdeu/ -run XetIndex` 10 个用例通过；`go build ./...`、
+    `go vet ./...`、`go test ./...` 通过；`cd Web && npm run build` 通过。
+
 - **采集结束后自动补全人民币计价指标（需求 11288）**
   - 「证券列表采集（stock / etf）」与「BDFS 采集（bsestock / cnetf）」跑完后自动执行一次
     `SyncRMBMetrics(step=all)`（这两条链路写的是同一张 `cdeu.finv_quote_secu_realtime`），
@@ -382,6 +401,15 @@
   - 验证：`data_type=3`、`str_value=''`（交付态）、`remark` 含格式说明；`schema_version=300142`。
 
 ### 变更
+
+- **北证50（`899050`）的 `usc` 更名为 `BSE50`（需求 11298，迁移 `V300219`）**
+  - `public.finv_security` 的 899050 规范行 `usc` 改为 `BSE50`（`security_code` 保持 `899050`），同步
+    `futu.finv_futu_mapping_security.finv_usc`、`cdeu.finv_quote_cdeu_usc`、`cdeu.finv_quote_secu_realtime`；
+    历史行情表（kline 等）只巡检不改。
+  - 旧别名行 `BSE50I` 保留不动（`usc` / `security_code` 均为 `BSE50I`）；改名前整行备份到
+    `archive.finv_security_purge_20261118`；幂等，末尾校验不符整事务回滚。
+  - 验证：迁移输出「V300219 完成」；`SELECT count(*) FROM public.finv_security WHERE usc='BSE50'` = 1、
+    `usc='899050'` = 0、`usc='BSE50I'` = 1。
 
 - **升级 `github.com/acnxo/MetaExt` 至 v0.1.3：期货列表改回上游 `GetFuturesList`，删除本地临时适配层（需求 11289/11290）**
   - 依赖由伪版本 `v0.1.3-0.20261114210006-2916f63c1840` 升为正式 tag **`v0.1.3`**（2026-11-17 发布，

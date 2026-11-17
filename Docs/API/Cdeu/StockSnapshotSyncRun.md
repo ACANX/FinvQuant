@@ -115,6 +115,23 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 
 > `cnetf`（沪深京 ETF）走 BDFS 分支，与本节无关。
 
+### 2.6 按品种分支：沪深京指数采集（需求 11294）
+
+`instrument_symbol` 为 `cnindex` 时走**独立分支**（固定来源，不读配置表）：调中信 XetApp
+`GetQuoteSnapshotCNAIndex` 取全量指数快照，映射 usc 后 upsert 到 `cdeu.finv_quote_secu_realtime`。
+
+| 项 | 行为 |
+|---|---|
+| 请求体 | 只需 `instrument_symbol: "cnindex"`；`market_type` / `count_plan` / `page_size` 不生效（前端固定传 `market_type: "4"`，服务端忽略） |
+| 请求池 | 上游 4 池（中证 `1100` / 国证 / 股转 / 大盘）+ 深市 `1200` + 北交所 `1400`，串行 6 次请求、按内部码去重；实测 1239 只 |
+| 生效参数 | `request_timeout_ms`（默认 20000，但本分支下限 120000，6 次串行） |
+| 不生效参数 | `page_size` / `page_start` / `interval_ms` / `max_retries` / `retry_backoff_ms` / `max_pages`（一次取全量，无分页） |
+| 落库表 | `cdeu.finv_quote_secu_realtime`，`provider` 固定 `ZXET`，`instrument_type` 固定 `4`，按 `usc` upsert（有值才覆盖） |
+| usc 解析 | 接口内部码（`1A0001`/`2A01`/`H50001`）→ 映射表 → `(交易所, 代码)` 查 `public.finv_security`；未登记按编码域构造（`SH0001` / `399001` / `BSE50` / `NEEQ899001` / `CSI931743` / `CNI980028` / CES·MSCI 原码） |
+| 关键口径 | `change_ratio` / `price_amplitude` / `buysell_ratio` 除 100（表内小数比例）；`trade_volumn` × 100（手→股）；`market_value` / `total_shares` / `circulation_*` 为**成分合计**；`page` 恒 NULL |
+| 运行状态 / 日志 | 与 moomoo 分支共用同一运行持有者与轮询端点，`results[].instrument_symbol` 为 `cnindex`、`market_type` 为 `4`；日志含池级统计、未知接口码（上限 50）与未登记 usc（上限 100）逐条清单 |
+| 主要失败原因 | 任一池请求失败（上游整包返回错误）、映射表缺该接口码（逐条跳过并计数）、`finv_security` 查询失败 |
+
 ## 3. 轮询状态
 
 `GET .../FTStockQuoteSnapshotSync/Run`（`runId` 省略时取最近一次）：

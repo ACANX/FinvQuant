@@ -90,6 +90,9 @@ type Service struct {
 
 	// bdfsConstituentsFetcher BDFS（百度股市通）板块成分股拉取实现（默认 MetaExt finscope；单测可注入）。
 	bdfsConstituentsFetcher BdfsConstituentsFetcher
+
+	// xetIndexFetcher 沪深京指数快照拉取实现（默认 MetaExt xetapp；单测可注入，需求 11294）。
+	xetIndexFetcher XetIndexSnapshotFetcher
 }
 
 // NewService 创建归档服务。
@@ -119,6 +122,7 @@ func NewService(pool *pgxpool.Pool, options Options) (*Service, error) {
 		stockListFetcher:     NewStockListFetcher(),
 		etfListFetcher:       quoteapiv2.New(quoteapiv2.Config{}),
 		futureListFetcher:    quoteapiv2.New(quoteapiv2.Config{}),
+		xetIndexFetcher:      NewXetIndexFetcher(),
 		stockListRunner:      newStockListRunner(),
 		fxCerFetcher:         NewFxCERFetcher(),
 		fxCerRateListFetcher: NewFxCERFetcher(),

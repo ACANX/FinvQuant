@@ -85,7 +85,7 @@ components:
       properties:
         instrument_symbol:
           type: string
-          description: 只采集该品种（stock/etf/future）；空=全部。取 `future` 时走期货分支（见 md 2.4）。
+          description: 只采集该品种（stock/etf/future/bsestock/cnetf/cnindex）；空=全部。取 `future` 走期货分支（md 2.4），取 `bsestock`/`cnetf` 走 BDFS 分支（md 2.3），取 `cnindex` 走沪深京指数分支（md 2.6）。
         futures_type:
           type: string
           description: 只采集该期货分类（1~8，仅 instrument_symbol=future 生效）；空或 `all`=全部启用分类。

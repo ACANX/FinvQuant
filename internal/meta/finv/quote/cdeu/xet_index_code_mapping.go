@@ -1,0 +1,206 @@
+package cdeu
+
+import (
+	_ "embed"
+	"bufio"
+	"fmt"
+	"strings"
+	"sync"
+)
+
+// 本文件是「沪深京指数」采集的代码映射层（需求 11294）：
+//   - 把中信 XetApp `GetQuoteSnapshotCNAIndex` 返回的**站点内部码**（1A0001 / 2A01 / H50001…）
+//     还原成交易所或官方代码，并给出编码域与市场归属；
+//   - 映射数据来自上游映射表（`XYTApp Docs/OpenAPI/Citics/XetApp/IndexCodeMapping.md`，
+//     抓取 2026-11-18，四池 879 只 + 附录 360 只 = 1239 只），以 TSV 嵌入；
+//   - 纯函数，便于单测；采集器只负责取数与落库。
+//
+// 为什么需要本地映射表：上游 Go 包（MetaExt v0.1.3）没有导出 `ResolveIndexCode`，
+// 且内部码不能直接当交易所代码（`1B0861` 这类与深市个股撞号，站点会优先解析成个股）。
+
+// 沪深京指数 Tab 的品种符号（前端 `instrument_symbol`）。
+const (
+	// XetIndexSymbol 沪深京指数（前端 Tab cnindex）。
+	XetIndexSymbol = "cnindex"
+	// XetIndexProvider 写入 cdeu.finv_quote_secu_realtime.provider 的固定值。
+	XetIndexProvider = "ZXET"
+	// XetIndexInstrumentType 写入 instrument_type 的值（需求 11294：与 moomoo ETF 的 4 同口径）。
+	XetIndexInstrumentType = "4"
+	// XetIndexMarketType 写入 market_type 的值（CN A 股，与 BDFS 同口径）。
+	XetIndexMarketType = "4"
+	// XetIndexUnregisteredLogLimit 「未在 finv_security 登记」的逐条日志上限。
+	XetIndexUnregisteredLogLimit = 100
+)
+
+// xetIndexMappingTSV 上游映射表（go:embed，1239 行，列：接口代码 / 名称 / 交易所或官方代码 / 编码域 / 成分市场 / 市场号 / 校验）。
+//
+//go:embed xet_index_code_mapping.tsv
+var xetIndexMappingTSV string
+
+// XetIndexCodeEntry 一条指数代码映射。
+type XetIndexCodeEntry struct {
+	// Code 接口内部码（Row.Code，如 1A0001）。
+	Code string
+	// Name 指数名称。
+	Name string
+	// SecuCode 交易所代码或官方编码（如 000001 / 399001 / 899050 / 931743 / CESCPD）。
+	SecuCode string
+	// Domain 编码域：SH / SZ / BJ / NEEQ / CSI / CNI / CES / MSCI。
+	Domain string
+	// ComponentMarket 成分市场（上游映射表的「成分市场」列，如 沪 / 沪+深 / 港）。
+	ComponentMarket string
+	// MarketNo 站点市场号（字段 223，如 1100 / 1200 / 1400 / 7100）。
+	MarketNo string
+	// Check 上游校验方式（回环+价 / 价 / 回环 / 码），仅用于排障。
+	Check string
+}
+
+var (
+	xetIndexMappingOnce sync.Once
+	xetIndexMappingByID map[string]XetIndexCodeEntry
+	xetIndexMappingErr  error
+)
+
+// XetIndexCodeMapping 返回接口内部码 → 映射条目（进程内只解析一次）。
+func XetIndexCodeMapping() (map[string]XetIndexCodeEntry, error) {
+	xetIndexMappingOnce.Do(func() {
+		xetIndexMappingByID, xetIndexMappingErr = parseXetIndexMapping(xetIndexMappingTSV)
+	})
+	return xetIndexMappingByID, xetIndexMappingErr
+}
+
+// parseXetIndexMapping 解析嵌入的 TSV（`#` 开头为注释行）。
+func parseXetIndexMapping(text string) (map[string]XetIndexCodeEntry, error) {
+	out := make(map[string]XetIndexCodeEntry, 1300)
+	scanner := bufio.NewScanner(strings.NewReader(text))
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	lineNo := 0
+	for scanner.Scan() {
+		lineNo++
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Split(line, "\t")
+		if len(fields) != 7 {
+			return nil, fmt.Errorf("xet 指数映射第 %d 行列数不符：期望 7，实际 %d", lineNo, len(fields))
+		}
+		entry := XetIndexCodeEntry{
+			Code:            strings.TrimSpace(fields[0]),
+			Name:            strings.TrimSpace(fields[1]),
+			SecuCode:        strings.TrimSpace(fields[2]),
+			Domain:          strings.ToUpper(strings.TrimSpace(fields[3])),
+			ComponentMarket: strings.TrimSpace(fields[4]),
+			MarketNo:        strings.TrimSpace(fields[5]),
+			Check:           strings.TrimSpace(fields[6]),
+		}
+		if entry.Code == "" || entry.SecuCode == "" || entry.Domain == "" {
+			return nil, fmt.Errorf("xet 指数映射第 %d 行关键列为空", lineNo)
+		}
+		if _, ok := out[entry.Code]; ok {
+			return nil, fmt.Errorf("xet 指数映射第 %d 行内部码重复：%s", lineNo, entry.Code)
+		}
+		out[entry.Code] = entry
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("读取 xet 指数映射失败: %w", err)
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("xet 指数映射为空")
+	}
+	return out, nil
+}
+
+// XetIndexMarketLabel 把站点市场号（字段 223，映射表「市场号」列）映射为 market_label。
+//
+// 规则（需求 11294，用户 2026-11-18 确认）：以**市场号**为准，不再看成分市场——
+//
+//	1100 → SH（沪市，含中证 93xxxx / H* / 95xxxx 与跨市场的沪深300、中证2000 等）
+//	1200 → SZ（深市，含国证 98xxxx、新三板 899xxx）
+//	1400 → BJ（北交所，899050 / 899601）
+//	其它（7100 国证非标等，无对应交易所）→ CN
+ //
+// 注：成分市场（沪+深+京 等）只写进 remark，不参与归属判定。
+func XetIndexMarketLabel(marketNo string) string {
+	switch strings.TrimSpace(marketNo) {
+	case "1100":
+		return "SH"
+	case "1200":
+		return "SZ"
+	case "1400":
+		return "BJ"
+	default:
+		return "CN"
+	}
+}
+
+// XetIndexUSC 按编码域构造 usc（`finv_security` 未登记时的兜底口径）。
+//
+// 与库内既有口径对齐（需求 11294）：
+//
+//	SH   → SH + 4 位（000001 → SH0001，V300074 的 6 位口径）
+//	SZ   → 交易所代码原样（399001）
+//	BJ   → 899050 固定 BSE50（用户指定），其它原样（899601）
+//	NEEQ → NEEQ + 代码（899001 → NEEQ899001）
+//	CSI  → CSI + 官方码（931743 → CSI931743）
+//	CNI  → CNI + 官方码（980028 → CNI980028）
+//	CES / MSCI → 官方码原样（CES300 / 990001 / 716567）
+func XetIndexUSC(entry XetIndexCodeEntry) string {
+	code := entry.SecuCode
+	switch entry.Domain {
+	case "SH":
+		if len(code) == 6 {
+			code = code[2:] // 000001 → 0001
+		}
+		return "SH" + code
+	case "SZ":
+		return code
+	case "BJ":
+		if code == "899050" {
+			return "BSE50"
+		}
+		return code
+	case "NEEQ":
+		return "NEEQ" + code
+	case "CSI":
+		return "CSI" + code
+	case "CNI":
+		return "CNI" + code
+	default: // CES / MSCI：官方码自身已含域
+		return code
+	}
+}
+
+// XetIndexSecuKey 返回查询 public.finv_security 用的键；非交易所域返回 false（不查库）。
+//
+// 沪市指数的库内 `security_code` 是 6 位 usc 形态（`SH0001`，V300074 归一），
+// 因此键用 SH + 4 位，而不是接口给的 6 位数字码（000001 会命中历史别名行 SHI）。
+func XetIndexSecuKey(entry XetIndexCodeEntry) (SecuUscKey, bool) {
+	switch entry.Domain {
+	case "SH":
+		code := entry.SecuCode
+		if len(code) == 6 {
+			code = code[2:]
+		}
+		return SecuUscKey{Exchange: "SH", Code: "SH" + code}, true
+	case "SZ":
+		return SecuUscKey{Exchange: "SZ", Code: entry.SecuCode}, true
+	case "BJ":
+		return SecuUscKey{Exchange: "BJ", Code: entry.SecuCode}, true
+	default:
+		return SecuUscKey{}, false
+	}
+}
+
+// xetIndexCurrency 按名称后缀推断币种（需求 11294）：含 HKD → HKD、含 USD → USD，其余 CNY。
+func xetIndexCurrency(name string) string {
+	upper := strings.ToUpper(name)
+	switch {
+	case strings.Contains(upper, "HKD"):
+		return "HKD"
+	case strings.Contains(upper, "USD"):
+		return "USD"
+	default:
+		return "CNY"
+	}
+}

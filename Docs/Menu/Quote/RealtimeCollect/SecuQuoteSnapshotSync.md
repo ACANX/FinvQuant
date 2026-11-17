@@ -4,7 +4,7 @@
 > 路由：`/Meta/Finv/Quote/RealtimeCollect/SecuQuoteSnapshotSync`（需求 11255 由 `FTStockQuoteSnapshotSync` 改名；需求 11281 随菜单迁入「行情采集」分组，由 `Quote/Realtime/` 改为 `Quote/RealtimeCollect/`，旧路径保留重定向）
 > 所属：导航「行情 → 行情采集 → 行情快照同步」（需求 11158 由「行情快照手动同步」改名；需求 11281 由「实时行情」分组迁入新建的「行情采集」分组）
 > 视图：`Web/src/views/Meta/Finv/Quote/RealtimeCollect/SecuQuoteSnapshotSyncView.vue`
-> 关联需求：10982（本页）、10976（配置表）、10977（同步服务）、11255（路由改名）、11256（占位 Tab）、11273/11274（期货 Tab 实装）
+> 关联需求：10982（本页）、10976（配置表）、10977（同步服务）、11255（路由改名）、11256（占位 Tab）、11273/11274（期货 Tab 实装）、11294（沪深京指数 Tab 实装）
 > 关联接口：[`API/Cdeu/StockSnapshotSyncRun.md`](../../../API/Cdeu/StockSnapshotSyncRun.md)（异步启动 + 轮询）
 > 关联表：`cdeu.finv_cdeu_secu_realtime_sync_config`（股票等品种配置）、`cdeu.finv_quote_secu_realtime`（股票结果）、
 > `cdeu.finv_quote_cdeu_future_sync_config`（期货分类配置）、`cdeu.finv_quote_realtime_future`（期货结果）
@@ -29,7 +29,7 @@
 | `crypto` | 加密货币 | 占位 |
 | `bsestock` | 北交所股票 | BDFS 板块采集（需求 11262，固定来源，无需配置行） |
 | `etf` | ETF | **实装（需求 11279）**：moomoo `get-etf-list`（HK `plateId=900075` / US `plateId=10002799`），结果写 `cdeu.finv_quote_secu_realtime`；与 `cnetf` 刻意分开 |
-| `cnindex` | 沪深京指数 | 占位（需求 11264） |
+| `cnindex` | 沪深京指数 | **实装（需求 11294）**：中信 XetApp `GetQuoteSnapshotCNAIndex`（上游 4 池 + 深市 1200 + 北交所 1400 合并去重），固定来源、无需配置行；结果写 `cdeu.finv_quote_secu_realtime`（`provider=ZXET`、`instrument_type=4`） |
 | `otc` | 中国OTC | 占位（需求 11266） |
 | `sector` | 板块 | 占位 |
 | `portfolio` | 投资组合 | 占位 |
@@ -37,7 +37,7 @@
 | `forex` | 外汇 | 配置表（插行后出现） |
 | `option` | 期权 | 配置表（插行后出现） |
 
-**占位 Tab（需求 11256 / 11264 / 11266）**：`index` / `crypto` / `cnindex` / `sector` / `portfolio` / `otc` / `gold`
+**占位 Tab（需求 11256 / 11266）**：`index` / `crypto` / `sector` / `portfolio` / `otc` / `gold`
 七个品种按上表顺序**跟在配置表已有品种之后常显**（`future` 已于需求 11274、`etf` 已于需求 11279 实装，均移出占位清单），由前端 `PLACEHOLDER_SYMBOLS` 硬编码（不依赖配置行）：
 配置表暂无该品种的行时，Tab 照常可点，配置表显示「该品种为占位 Tab：配置表暂无该品种的采集行，暂不参与采集」，
 「开始同步」按钮禁用；后续接入时只要往 `cdeu.finv_cdeu_secu_realtime_sync_config` 插入同符号的配置行，
@@ -47,7 +47,7 @@
 不读配置表、也不需要配置行。Tab 顺序统一由前端 `SYMBOL_ORDER` 决定
 （`stock` / `index` / `etf` / `future` / `crypto` / `bsestock` / **`cnindex`** / **`cnetf`** / `sector` / `portfolio` / **`otc`** / `gold`），
 `etf`（占位「ETF」）在「指数」之后，`bsestock` 在「期货 / 加密货币」之后，
-`cnindex`（沪深京指数，占位）与 `cnetf`（沪深京ETF）紧随其后——「开始同步」直接可用，配置表区显示
+`cnindex`（沪深京指数，XetApp 源，需求 11294）与 `cnetf`（沪深京ETF，BDFS 源）紧随其后——「开始同步」直接可用，配置表区显示
 「该品种为 BDFS 板块采集（板块 GN2309 北交所上市企业）…结果写入 `cdeu.finv_quote_secu_realtime`（provider=BDFS）」。
 
 #### 2.0.1 BDFS 板块采集（`bsestock`，需求 11262）
@@ -104,6 +104,9 @@ ETF 代码同样按 `(exchange, code)` 解析 `public.finv_security.usc`；实�
 扩展方式：往 `cdeu.finv_cdeu_secu_realtime_sync_config` 插一行对应 `instrument_symbol` 的配置，
 **无需改前端**——Tab 自动出现，该 Tab 的市场下拉也由该品种的配置行生成。
 
+沪深京指数（`cnindex`）无「市场」下拉（固定 CN A 股），无「每页条数」语义（6 次请求一次取全量），
+「页间隔 / 重试 / 退避」对该 Tab 不生效；单次超时至少 120 秒（6 次串行请求）。
+
 切换 Tab 时：清空「市场 / 计划数量覆盖」筛选值，其余节奏参数保留；结果表、汇总与日志按当前品种过滤
 （日志按 `market` 字段前缀 `品种/市场` 匹配，任务级日志始终显示）。
 
@@ -118,7 +121,50 @@ ETF 代码同样按 `(exchange, code)` 解析 `public.finv_security.usc`；实�
 | 落库表 | `cdeu.finv_quote_secu_realtime`（主键 `usc`，`provider=FTMM`，`instrument_type` 由接口给出＝`4`） |
 | 与 `cnetf` 的区别 | `cnetf` 是 BDFS 板块来源的沪深京 ETF，走 BDFS 分支；本 Tab 是 moomoo 的港美 ETF 列表 |
 
-#### 2.0.4 期货列表采集（`future`，需求 11274）
+#### 2.0.4 沪深京指数采集（`cnindex`，需求 11294）
+
+| 项 | 内容 |
+|---|---|
+| 数据源 | 中信 XetApp `POST /reqxml`（经 MetaExt `component/quote/citics/xetapp` 的 `GetQuoteSnapshotCNAIndex`） |
+| 池 | 上游 4 池（中证 1100 / 国证 / 股转 / 大盘）+ **深市 `1200`** + **北交所 `1400`**，共 6 次请求、按内部码去重；实测去重后 1239 只（上游文档 `IndexCodeMapping.md`） |
+| 落库表 | `cdeu.finv_quote_secu_realtime`（`V300209`，主键 `usc`，`provider` 固定 `ZXET`，`instrument_type` 固定 `4`） |
+| 代码映射 | 接口返回的是**站点内部码**（`1A0001`/`2A01`/`H50001`…），按上游映射表（`xet_index_code_mapping.tsv`，1239 行，go:embed）还原为交易所/官方代码与编码域 |
+| usc 解析 | 先按 `(交易所, 代码)` 查 `public.finv_security`（沪市用 6 位 `SH0001` 形态）；未登记时按编码域构造：`SH`+4 位 / `SZ` 原码 / `BSE50`（899050）/ `NEEQ`+代码 / `CSI`+代码 / `CNI`+代码 / CES·MSCI 原码 |
+| market_label | 按站点市场号：`1100`→`SH`、`1200`→`SZ`、`1400`→`BJ`、其它（`7100` 国证非标）→`CN` |
+| 写入语义 | 按 `usc` upsert（`ON CONFLICT (usc) DO UPDATE`，有值才覆盖）；`page` 恒为 NULL（指数无分页），`stock_id` 恒为 NULL |
+| 日志 | 池级统计 + 未知接口码（映射表无此码）逐条打印（上限 50）+ 未登记 usc 逐条打印（上限 100），便于登记主数据 |
+
+**字段映射（XetApp 指数 → `cdeu.finv_quote_secu_realtime`）**：
+
+| 目标列 | 来源 | 口径 |
+|---|---|---|
+| `usc` | 映射表 + `public.finv_security` | 命中用库内 usc；未命中按编码域构造（见上） |
+| `stock_code` | 映射表「交易所/官方代码」 | 不含市场前缀（`000001` / `399001` / `931743`） |
+| `name` | `Row.Name` | 已剥离序号前缀 |
+| `market_type` | 固定 `4` | CN A 股市场类型编码 |
+| `market_label` | 映射表「市场号」 | `SH` / `SZ` / `BJ` / `CN` |
+| `instrument_type` | 固定 `4` | 与 moomoo ETF 同口径 |
+| `currency` | 名称后缀 | 含 `HKD`→`HKD`、含 `USD`→`USD`，其余 `CNY` |
+| `price_nominal` | `Row.Last` | 点 |
+| `change_price` | `Row.ChangePrice` | 点，可负 |
+| `change_ratio` | `Row.ChangeRatio / 100` | 表内**小数比例** |
+| `price_amplitude` | `Row.Amplitude / 100` | 表内小数比例 |
+| `buysell_ratio` | `Row.BidAskRatio / 100` | 表内小数比例 |
+| `volumn_ratio` | `Row.VolumeRatio` | 量比 |
+| `trade_volumn` | `Row.Volume × 100` | 手 → 股 |
+| `trade_trunover` | `Row.Amount` | 元 |
+| `market_value` | `Row.MarketCap` | **成分合计** |
+| `total_shares` | `Row.TotalShares` | **成分合计** |
+| `circulation_total_shares` | `Row.FloatShares` | **成分合计** |
+| `circulation_market_value` | `Row.FloatMarketCap` | **成分合计** |
+| `price_direct` | `ChangePrice` 符号 | `+` / `-` / `=`（持平） |
+| `page` | 无 | NULL |
+| `dt_update` | 采集时刻 | Unix 毫秒 |
+| `provider` | 固定 `ZXET` | — |
+| `remark` | 固定文本 | 含接口码、编码域、成分市场、市场号，并注明「市值/股本为成分合计」 |
+| 其余列 | 无来源 | 写 NULL（无行情时行情列同样写 NULL） |
+
+#### 2.0.5 期货列表采集（`future`，需求 11274）
 
 | 项 | 内容 |
 |---|---|

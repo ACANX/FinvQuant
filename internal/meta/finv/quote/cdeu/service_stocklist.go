@@ -44,6 +44,14 @@ func (s *Service) SetFutureListFetcher(fetcher FutureListFetcher) {
 	s.futureListFetcher = fetcher
 }
 
+// SetXetIndexFetcher 替换沪深京指数快照拉取实现（单测注入用）；传 nil 恢复默认 xetapp 客户端（需求 11294）。
+func (s *Service) SetXetIndexFetcher(fetcher XetIndexSnapshotFetcher) {
+	if fetcher == nil {
+		fetcher = NewXetIndexFetcher()
+	}
+	s.xetIndexFetcher = fetcher
+}
+
 // CollectFuturesList 按配置采集期货列表：读配置 → 分页拉取 → 逐页落库 → 回写统计（需求 11274）。
 //
 // 采集范围来自 cdeu.finv_quote_cdeu_future_sync_config，结果写 cdeu.finv_quote_realtime_future。
