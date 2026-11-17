@@ -21,7 +21,7 @@
 | 品种符号 | Tab 名 | 来源 |
 |---|---|---|
 | `stock` | 股票 | 配置表（当前唯一有配置行的品种） |
-| `etf` | ETF | 占位 |
+| `etf` | 沪深京ETF | BDFS 指数采集（需求 11263，固定来源，无需配置行） |
 | `index` | 指数 | 占位 |
 | `future` | 期货 | 占位 |
 | `crypto` | 加密货币 | 占位 |
@@ -32,16 +32,16 @@
 | `forex` | 外汇 | 配置表（插行后出现） |
 | `option` | 期权 | 配置表（插行后出现） |
 
-**占位 Tab（需求 11256）**：`etf` / `index` / `future` / `crypto` / `sector` / `portfolio` / `gold`
-七个品种按上表顺序**跟在配置表已有品种之后常显**，由前端 `PLACEHOLDER_SYMBOLS` 硬编码（不依赖配置行）：
+**占位 Tab（需求 11256）**：`index` / `future` / `crypto` / `sector` / `portfolio` / `gold`
+六个品种按上表顺序**跟在配置表已有品种之后常显**，由前端 `PLACEHOLDER_SYMBOLS` 硬编码（不依赖配置行）：
 配置表暂无该品种的行时，Tab 照常可点，配置表显示「该品种为占位 Tab：配置表暂无该品种的采集行，暂不参与采集」，
 「开始同步」按钮禁用；后续接入时只要往 `cdeu.finv_cdeu_secu_realtime_sync_config` 插入同符号的配置行，
 即自动转为可采集（无需改前端）。
 
 **固定来源 Tab（需求 11262）**：`bsestock`（北交所股票）已接入 BDFS 采集，由前端 `FIXED_SYMBOLS` 常显，
 不读配置表、也不需要配置行。Tab 顺序统一由前端 `SYMBOL_ORDER` 决定
-（`stock` / `etf` / `index` / `future` / `crypto` / **`bsestock`** / `sector` / `portfolio` / `gold`），
-接入采集**不改变位置**（仍在「指数」之后）——「开始同步」直接可用，配置表区显示
+（`stock` / `index` / `future` / `crypto` / `bsestock` / **`etf`** / `sector` / `portfolio` / `gold`），
+`bsestock` 在「指数 / 期货 / 加密货币」之后，`etf`（沪深京ETF）紧随其后——「开始同步」直接可用，配置表区显示
 「该品种为 BDFS 板块采集（板块 GN2309 北交所上市企业）…结果写入 `cdeu.finv_quote_secu_realtime`（provider=BDFS）」。
 
 #### 2.0.1 BDFS 板块采集（`bsestock`，需求 11262）
@@ -65,7 +65,7 @@
 | `name` | `name` | 原样 |
 | `market_type` | 固定 `4` | CN A 股市场类型编码（与参考表口径一致：1=HK、2=US、4=CN） |
 | `market_label` | 交易所标志 | `BJ`（北交所板块）、`SH` / `SZ`（复用其它板块时） |
-| `instrument_type` | 固定 `stock` | 该板块仅返回股票 |
+| `instrument_type` | 固定按来源 | `bsestock` → `stock`；`etf` → `etf`（见 2.0.2） |
 | `currency` | 固定 `CNY` | A 股 |
 | `price_nominal` | `rawData.lastPx` | 元 |
 | `change_price` | `rawData.pxChange` | 元，可负 |
@@ -79,6 +79,20 @@
 | `provider` | 固定 `BDFS` | — |
 | `remark` | 固定文本 | `来源 BDFS 板块 GN2309（BDFS）` |
 | 其余列 | 无来源 | 写 NULL（`hasQuote=0` 时行情列同样写 NULL，不写 0） |
+
+#### 2.0.2 BDFS ETF 采集（`etf`，需求 11263）
+
+| 项 | 内容 |
+|---|---|
+| 数据源 | 同 2.0.1：百度股市通 FinScope `GET /sapi/v1/constituents`（MetaExt `finscope`） |
+| 来源 | `financeType=index` / `code=399380`（国证ETF，实测返回 1687 条沪深 ETF，`SH` 922 + `SZ` 765） |
+| 落库表 | `cdeu.finv_quote_secu_realtime`，`provider` 固定 `BDFS`，`instrument_type` 固定 `etf` |
+| 市场列 | `market_type` 固定 `4`（CN A 股）；`market_label` 按每条记录的交易所写 `SH` / `SZ` / `BJ` |
+| 其余字段 | 与 2.0.1 映射表完全一致（`price_nominal` / `change_ratio` / `trade_volumn` 等） |
+| Tab 顺序 | 位于「北交所股票」之后（`SYMBOL_ORDER`），市场下拉固定「CN A 股（沪深京）」不可改，每页默认 500 |
+
+ETF 代码同样按 `(exchange, code)` 解析 `public.finv_security.usc`；实测 1687 条命中 1503 条，
+未命中 184 条（`SH` 111 / `SZ` 73）会在日志逐条打印，登记主数据后重跑即可补全。
 
 扩展方式：往 `cdeu.finv_cdeu_secu_realtime_sync_config` 插一行对应 `instrument_symbol` 的配置，
 **无需改前端**——Tab 自动出现，该 Tab 的市场下拉也由该品种的配置行生成。

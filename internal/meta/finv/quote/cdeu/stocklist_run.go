@@ -202,10 +202,11 @@ func (s *Service) StartStockListRun(opts StockListCollectOptions) (StockListRun,
 		s.stockListRunner = newStockListRunner()
 	}
 
-	// 需求 11262：BDFS（百度股市通）走板块成分股采集，与 moomoo 列表采集完全独立，
+	// 需求 11262：BDFS（百度股市通）走成分股采集，与 moomoo 列表采集完全独立，
 	// 不读配置表、不分市场，落库到 cdeu.finv_quote_secu_realtime（provider='BDFS'）。
-	if normalized.FilterInstrumentSymbol == BdfsInstrumentSymbol {
-		return s.startBdfsSecuRealtimeRun(normalized)
+	// 已登记来源见 BdfsSources（bsestock = 板块 GN2309，etf = 国证ETF 指数 399380）。
+	if src, ok := BdfsSourceBySymbol(normalized.FilterInstrumentSymbol); ok {
+		return s.startBdfsSecuRealtimeRun(normalized, src)
 	}
 
 	params := map[string]any{
@@ -298,19 +299,21 @@ func StockListCollectEventToLog(event StockListCollectEvent) StockListRunLog {
 	return entry
 }
 
-// startBdfsSecuRealtimeRun 启动一次 BDFS 板块成分股采集（需求 11262）。
+// startBdfsSecuRealtimeRun 启动一次 BDFS 成分股采集（需求 11262）。
 //
 // 与 moomoo 列表采集共用 StockListRunner（运行状态 + 日志 + 轮询接口），
 // 因此前端「行情快照同步」页无需新增接口：同一条 /Run 接口按 instrument_symbol 分支。
-func (s *Service) startBdfsSecuRealtimeRun(opts StockListCollectOptions) (StockListRun, error) {
+// src 决定数据来源（板块 / 指数）与写入的 instrument_type。
+func (s *Service) startBdfsSecuRealtimeRun(opts StockListCollectOptions, src BdfsSource) (StockListRun, error) {
 	if s.stockListRunner == nil {
 		s.stockListRunner = newStockListRunner()
 	}
 
 	params := map[string]any{
-		"instrument_symbol":  BdfsInstrumentSymbol,
+		"instrument_symbol":  src.Symbol,
 		"provider":           BdfsProvider,
-		"block_code":         BdfsBseBlockCode,
+		"finance_type":       src.FinanceType,
+		"source_code":        src.Code,
 		"page_size":          opts.PageSize,
 		"request_timeout_ms": opts.RequestTimeout.Milliseconds(),
 		"target_table":       tableQuoteSecuRealtime,
@@ -322,7 +325,7 @@ func (s *Service) startBdfsSecuRealtimeRun(opts StockListCollectOptions) (StockL
 
 	s.stockListRunner.appendLog(runID, StockListRunLog{
 		Level:   "INFO",
-		Message: fmt.Sprintf("任务已启动：BDFS 板块 %s（provider=%s），每页 %d 条", BdfsBseBlockCode, BdfsProvider, opts.PageSize),
+		Message: fmt.Sprintf("任务已启动：BDFS %s（provider=%s），每页 %d 条", src.Label, BdfsProvider, opts.PageSize),
 	})
 
 	go func() {
@@ -335,9 +338,9 @@ func (s *Service) startBdfsSecuRealtimeRun(opts StockListCollectOptions) (StockL
 				s.stockListRunner.appendLog(runID, StockListCollectEventToLog(event))
 			})
 		result, collectErr := collector.Collect(context.Background(), BdfsCollectOptions{
-			BlockCode: BdfsBseBlockCode,
-			PageSize:  opts.PageSize,
-			Timeout:   opts.RequestTimeout,
+			Source:   src,
+			PageSize: opts.PageSize,
+			Timeout:  opts.RequestTimeout,
 		})
 		s.stockListRunner.finish(runID, []StockListCollectResult{result}, collectErr)
 	}()

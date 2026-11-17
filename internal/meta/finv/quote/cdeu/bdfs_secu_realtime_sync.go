@@ -24,12 +24,16 @@ import (
 //   - 进度与日志沿用 StockListRunner，前端「行情快照同步」页可原样轮询。
 
 const (
-	// BdfsInstrumentSymbol BDFS 采集在前端 Tab 上的品种符号（与占位 Tab 的历史符号一致）。
+	// BdfsInstrumentSymbol 北交所股票（板块 GN2309）在前端 Tab 上的品种符号。
 	BdfsInstrumentSymbol = "bsestock"
+	// BdfsEtfSymbol 沪深京 ETF（国证ETF 指数 399380）在前端 Tab 上的品种符号。
+	BdfsEtfSymbol = "etf"
 	// BdfsProvider 写入 cdeu.finv_quote_secu_realtime.provider 的固定值。
 	BdfsProvider = "BDFS"
 	// BdfsBseBlockCode 北交所上市企业板块代码（百度股市通 block）。
 	BdfsBseBlockCode = "GN2309"
+	// BdfsEtfIndexCode 国证ETF 指数代码（覆盖沪深京 ETF 池）。
+	BdfsEtfIndexCode = "399380"
 	// BdfsDefaultPageSize 单页条数默认值：实测 rn=5000 可一次返回全部，500 足够且更稳。
 	BdfsDefaultPageSize = 500
 	// BdfsMaxPages 翻页上限，防止服务端忽略偏移量时死循环。
@@ -80,9 +84,66 @@ type BdfsFetchResult struct {
 	Pages int
 }
 
-// BdfsConstituentsFetcher 板块成分股拉取能力（默认实现走 MetaExt finscope；测试可注入）。
+// BdfsFetchRequest 一次成分股拉取的来源与分页参数。
+type BdfsFetchRequest struct {
+	// FinanceType 成分类型：finscope.FinanceTypeBlock（板块）/ FinanceTypeIndex（指数成分）。
+	FinanceType string
+	// Code 来源标识：板块 GNxxxx / 指数 6 位代码（如 399380 国证ETF）。
+	Code string
+	// PageSize 单页条数（接口 rn）。
+	PageSize int
+}
+
+// BdfsSource 一个 BDFS 采集来源（对应前端一个 Tab）。
+type BdfsSource struct {
+	// Symbol 前端 Tab 的品种符号（请求体 instrument_symbol）。
+	Symbol string
+	// FinanceType 成分类型（block / index）。
+	FinanceType string
+	// Code 来源标识（板块 GN2309 / 指数 399380）。
+	Code string
+	// InstrumentType 写入目标表 instrument_type 的值（stock / etf）。
+	InstrumentType string
+	// Label 来源中文说明（写日志）。
+	Label string
+	// MarketHint 日志里的市场段（与前端日志按「品种/市场」过滤对齐）。
+	MarketHint string
+}
+
+// BdfsSources 已接入的 BDFS 来源清单（新增来源在此登记，前端另需补 Tab）。
+var BdfsSources = []BdfsSource{
+	{
+		Symbol:         BdfsInstrumentSymbol,
+		FinanceType:    finscope.FinanceTypeBlock,
+		Code:           BdfsBseBlockCode,
+		InstrumentType: "stock",
+		Label:          "北交所上市企业（板块 GN2309）",
+		MarketHint:     "BJ",
+	},
+	{
+		Symbol:         BdfsEtfSymbol,
+		FinanceType:    finscope.FinanceTypeIndex,
+		Code:           BdfsEtfIndexCode,
+		InstrumentType: "etf",
+		Label:          "国证ETF（指数 399380，覆盖沪深京 ETF）",
+		MarketHint:     "4",
+	},
+}
+
+// BdfsSourceBySymbol 按前端 Tab 符号取来源定义。
+func BdfsSourceBySymbol(symbol string) (BdfsSource, bool) {
+	symbol = strings.TrimSpace(symbol)
+	for _, src := range BdfsSources {
+		if src.Symbol == symbol {
+			return src, true
+		}
+	}
+	return BdfsSource{}, false
+}
+
+// BdfsConstituentsFetcher 成分股拉取能力（默认实现走 MetaExt finscope；测试可注入）。
 type BdfsConstituentsFetcher interface {
-	FetchBlockConstituents(ctx context.Context, blockCode string, pageSize int) (BdfsFetchResult, error)
+	FetchConstituents(ctx context.Context, req BdfsFetchRequest) (BdfsFetchResult, error)
 }
 
 // FinscopeConstituentsFetcher 基于 MetaExt component/quote/baidu/finscope 的默认实现。
@@ -95,23 +156,28 @@ func NewFinscopeConstituentsFetcher() *FinscopeConstituentsFetcher {
 	return &FinscopeConstituentsFetcher{client: finscope.New(finscope.Config{})}
 }
 
-// FetchBlockConstituents 按偏移量翻页取全部成分股，并按 code 去重。
-func (f *FinscopeConstituentsFetcher) FetchBlockConstituents(ctx context.Context, blockCode string, pageSize int) (BdfsFetchResult, error) {
+// FetchConstituents 按偏移量翻页取全部成分股，并按 code 去重。
+func (f *FinscopeConstituentsFetcher) FetchConstituents(ctx context.Context, req BdfsFetchRequest) (BdfsFetchResult, error) {
 	if f.client == nil {
 		return BdfsFetchResult{}, fmt.Errorf("finscope 客户端未初始化")
 	}
+	pageSize := req.PageSize
 	if pageSize <= 0 {
 		pageSize = BdfsDefaultPageSize
 	}
-	blockCode = strings.TrimSpace(blockCode)
-	if blockCode == "" {
-		blockCode = BdfsBseBlockCode
+	financeType := strings.TrimSpace(req.FinanceType)
+	if financeType == "" {
+		financeType = finscope.FinanceTypeBlock
+	}
+	code := strings.TrimSpace(req.Code)
+	if code == "" {
+		code = BdfsBseBlockCode
 	}
 
 	gen, err := f.client.GetAllConstituents(ctx, finscope.GetConstituentsRequest{
-		FinanceType: finscope.FinanceTypeBlock,
+		FinanceType: financeType,
 		Market:      finscope.MarketA,
-		Code:        blockCode,
+		Code:        code,
 		SortKey:     finscope.SortByMarketValue,
 		SortType:    finscope.SortDesc,
 		Limit:       pageSize,
@@ -206,8 +272,8 @@ type QuoteSecuRealtimeRow struct {
 
 // BdfsCollectOptions BDFS 采集控制参数（零值按默认值补齐）。
 type BdfsCollectOptions struct {
-	// BlockCode 板块代码，默认 BdfsBseBlockCode。
-	BlockCode string
+	// Source 采集来源（板块 / 指数），零值按北交所上市企业板块补齐。
+	Source BdfsSource
 	// PageSize 单页条数，默认 BdfsDefaultPageSize。
 	PageSize int
 	// Timeout 单次接口请求超时，默认 BdfsDefaultTimeout。
@@ -216,8 +282,8 @@ type BdfsCollectOptions struct {
 
 // normalize 补齐默认值。
 func (o BdfsCollectOptions) normalize() BdfsCollectOptions {
-	if strings.TrimSpace(o.BlockCode) == "" {
-		o.BlockCode = BdfsBseBlockCode
+	if o.Source.Symbol == "" {
+		o.Source, _ = BdfsSourceBySymbol(BdfsInstrumentSymbol)
 	}
 	if o.PageSize <= 0 || o.PageSize > BdfsMaxPages*1000 {
 		o.PageSize = BdfsDefaultPageSize
@@ -252,13 +318,13 @@ func (c *BdfsSecuRealtimeCollector) WithHook(hook StockListCollectHook) *BdfsSec
 }
 
 // emit 发送一条过程事件（供运行日志面板消费）。
-func (c *BdfsSecuRealtimeCollector) emit(stage string, page int, rows int, inserted, updated int64, message string) {
+func (c *BdfsSecuRealtimeCollector) emit(src BdfsSource, stage string, page int, rows int, inserted, updated int64, message string) {
 	if c.hook == nil {
 		return
 	}
 	c.hook(StockListCollectEvent{
 		Stage:   stage,
-		Config:  StockListCollectConfig{InstrumentSymbol: BdfsInstrumentSymbol, MarketType: "BJ"},
+		Config:  StockListCollectConfig{InstrumentSymbol: src.Symbol, MarketType: src.MarketHint},
 		Page:    page,
 		Rows:    rows,
 		Insert:  inserted,
@@ -271,19 +337,20 @@ func (c *BdfsSecuRealtimeCollector) emit(stage string, page int, rows int, inser
 // Collect 执行一次完整采集：拉取成分股 → 解析 usc → 分批 upsert → 返回统计。
 func (c *BdfsSecuRealtimeCollector) Collect(ctx context.Context, opts BdfsCollectOptions) (StockListCollectResult, error) {
 	opts = opts.normalize()
+	src := opts.Source
 	started := time.Now()
-	result := StockListCollectResult{InstrumentSymbol: BdfsInstrumentSymbol, MarketType: "BJ"}
+	result := StockListCollectResult{InstrumentSymbol: src.Symbol, MarketType: src.MarketHint}
 
 	finish := func(err error) (StockListCollectResult, error) {
 		result.ElapsedMs = time.Since(started).Milliseconds()
 		if err != nil {
 			result.Error = err.Error()
-			c.emit("done", 0, 0, result.RowsInsert, result.RowsUpdate, "采集失败："+err.Error())
+			c.emit(src, "done", 0, 0, result.RowsInsert, result.RowsUpdate, "采集失败："+err.Error())
 			return result, err
 		}
-		c.emit("done", result.Pages, int(result.RowsReceived), result.RowsInsert, result.RowsUpdate,
-			fmt.Sprintf("采集完成：板块 %s，%d 页 / %d 条，新增 %d、覆盖 %d",
-				opts.BlockCode, result.Pages, result.RowsReceived, result.RowsInsert, result.RowsUpdate))
+		c.emit(src, "done", result.Pages, int(result.RowsReceived), result.RowsInsert, result.RowsUpdate,
+			fmt.Sprintf("采集完成：%s，%d 页 / %d 条，新增 %d、覆盖 %d",
+				src.Label, result.Pages, result.RowsReceived, result.RowsInsert, result.RowsUpdate))
 		return result, nil
 	}
 
@@ -294,20 +361,24 @@ func (c *BdfsSecuRealtimeCollector) Collect(ctx context.Context, opts BdfsCollec
 		defer cancel()
 	}
 
-	c.emit("begin", 0, 0, 0, 0, fmt.Sprintf("开始采集 BDFS 板块 %s（provider=%s）", opts.BlockCode, BdfsProvider))
-	fetched, err := c.fetcher.FetchBlockConstituents(reqCtx, opts.BlockCode, opts.PageSize)
+	c.emit(src, "begin", 0, 0, 0, 0, fmt.Sprintf("开始采集 BDFS %s（provider=%s）", src.Label, BdfsProvider))
+	fetched, err := c.fetcher.FetchConstituents(reqCtx, BdfsFetchRequest{
+		FinanceType: src.FinanceType,
+		Code:        src.Code,
+		PageSize:    opts.PageSize,
+	})
 	if err != nil {
-		return finish(fmt.Errorf("拉取板块 %s 成分股失败: %w", opts.BlockCode, err))
+		return finish(fmt.Errorf("拉取 %s 失败: %w", src.Label, err))
 	}
 	if len(fetched.Items) == 0 {
-		return finish(fmt.Errorf("板块 %s 未返回任何成分股", opts.BlockCode))
+		return finish(fmt.Errorf("%s 未返回任何数据", src.Label))
 	}
 	result.Pages = fetched.Pages
 	result.RowsReceived = int64(len(fetched.Items))
 	result.CountExists = len(fetched.Items)
 	result.TotalAvailable = len(fetched.Items)
-	c.emit("page", fetched.Pages, len(fetched.Items), 0, 0,
-		fmt.Sprintf("拉取完成：%d 页 / %d 条成分股", fetched.Pages, len(fetched.Items)))
+	c.emit(src, "page", fetched.Pages, len(fetched.Items), 0, 0,
+		fmt.Sprintf("拉取完成：%d 页 / %d 条", fetched.Pages, len(fetched.Items)))
 
 	// 解析 usc：只查一次，避免逐行往返。
 	keys := make([]SecuUscKey, 0, len(fetched.Items))
@@ -336,30 +407,30 @@ func (c *BdfsSecuRealtimeCollector) Collect(ctx context.Context, opts BdfsCollec
 			continue
 		}
 		pageNo := int64(idx/opts.PageSize) + 1
-		rows = append(rows, BdfsRealtimeRow(item, usc, now, pageNo))
+		rows = append(rows, BdfsRealtimeRow(item, usc, now, pageNo, src.InstrumentType))
 	}
 	if len(unresolved) > 0 {
-		c.emit("retry", 0, len(unresolved), 0, 0,
+		c.emit(src, "retry", 0, len(unresolved), 0, 0,
 			fmt.Sprintf("有 %d 条成分股未能在 public.finv_security 解析到 usc，已跳过（清单见下方逐条日志）", len(unresolved)))
 		// 逐条打印，便于人工登记入库：日志面板与 docker logs 都能直接复制
 		// exchange + code 是登记 public.finv_security 所需的最小键，name 便于人工核对。
 		for i, item := range unresolved {
 			if i >= BdfsUnresolvedLogLimit {
-				c.emit("retry", 0, 0, 0, 0,
+				c.emit(src, "retry", 0, 0, 0, 0,
 					fmt.Sprintf("其余 %d 条未解析成分股不再逐条打印（仅保留前 %d 条）",
 						len(unresolved)-BdfsUnresolvedLogLimit, BdfsUnresolvedLogLimit))
 				break
 			}
 			line := fmt.Sprintf("未解析 usc：exchange=%s code=%s name=%s",
 				strings.ToUpper(item.Exchange), item.Code, item.Name)
-			c.emit("retry", 0, 0, 0, 0, line)
-			c.logger.Printf("[cdeu][bdfs] unresolved usc: exchange=%s code=%s name=%s block=%s",
-				strings.ToUpper(item.Exchange), item.Code, item.Name, opts.BlockCode)
+			c.emit(src, "retry", 0, 0, 0, 0, line)
+			c.logger.Printf("[cdeu][bdfs] unresolved usc: exchange=%s code=%s name=%s source=%s",
+				strings.ToUpper(item.Exchange), item.Code, item.Name, src.Symbol)
 		}
 	}
 	if len(rows) == 0 {
-		return finish(fmt.Errorf("板块 %s 的 %d 条成分股均未解析到 usc，未写入任何行",
-			opts.BlockCode, len(fetched.Items)))
+		return finish(fmt.Errorf("%s 的 %d 条数据均未解析到 usc，未写入任何行",
+			src.Label, len(fetched.Items)))
 	}
 
 	for start := 0; start < len(rows); start += BdfsDbBatchSize {
@@ -377,12 +448,12 @@ func (c *BdfsSecuRealtimeCollector) Collect(ctx context.Context, opts BdfsCollec
 			return finish(fmt.Errorf("写入 cdeu.finv_quote_secu_realtime 失败（第 %d 批）: %w",
 				start/BdfsDbBatchSize+1, saveErr))
 		}
-		c.emit("page", int(rows[end-1].PageValue()), end-start, inserted, updated,
+		c.emit(src, "page", int(rows[end-1].PageValue()), end-start, inserted, updated,
 			fmt.Sprintf("写入第 %d 批：新增 %d、覆盖 %d", start/BdfsDbBatchSize+1, inserted, updated))
 	}
 
-	c.logger.Printf("[cdeu][bdfs] block=%s items=%d insert=%d update=%d unresolved=%d elapsed=%dms",
-		opts.BlockCode, len(rows), result.RowsInsert, result.RowsUpdate, len(unresolved),
+	c.logger.Printf("[cdeu][bdfs] source=%s code=%s items=%d insert=%d update=%d unresolved=%d elapsed=%dms",
+		src.Symbol, src.Code, len(rows), result.RowsInsert, result.RowsUpdate, len(unresolved),
 		time.Since(started).Milliseconds())
 	return finish(nil)
 }
@@ -436,7 +507,7 @@ var bdfsExchangeMeta = map[string]struct {
 //	provider          ← "BDFS"
 //	stock_id          ← NULL（BDFS 不提供源系统证券 ID）
 //	remark            ← 来源说明，便于事后追溯
-func BdfsRealtimeRow(item BdfsConstituent, usc string, dtUpdateMs int64, page int64) QuoteSecuRealtimeRow {
+func BdfsRealtimeRow(item BdfsConstituent, usc string, dtUpdateMs int64, page int64, instrumentType string) QuoteSecuRealtimeRow {
 	meta, ok := bdfsExchangeMeta[strings.ToUpper(item.Exchange)]
 	if !ok {
 		meta = bdfsExchangeMeta["BJ"]
@@ -444,10 +515,12 @@ func BdfsRealtimeRow(item BdfsConstituent, usc string, dtUpdateMs int64, page in
 	marketType := BdfsMarketType
 	marketLabel := meta.Label
 	currency := meta.Currency
-	instrumentType := "stock"
+	if strings.TrimSpace(instrumentType) == "" {
+		instrumentType = "stock"
+	}
 	stockCode := item.Code
 	name := item.Name
-	remark := fmt.Sprintf("来源 BDFS 板块 %s（%s）", BdfsBseBlockCode, BdfsProvider)
+	remark := fmt.Sprintf("来源 BDFS（exchange=%s）", item.Exchange)
 	pageValue := page
 	dtUpdate := dtUpdateMs
 

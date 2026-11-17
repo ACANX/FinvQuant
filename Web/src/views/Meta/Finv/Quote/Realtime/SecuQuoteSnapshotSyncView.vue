@@ -66,7 +66,7 @@ const STATUS_API = '/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run'
 // 品种显示名（新增品种时在此补一行，未登记的直接显示原始符号）
 const SYMBOL_LABELS: Record<string, string> = {
   stock: '股票',
-  etf: 'ETF',
+  etf: '沪深京ETF',
   index: '指数',
   future: '期货',
   forex: '外汇',
@@ -93,13 +93,18 @@ const SYMBOL_ICONS: Record<string, string> = {
 
 // 占位品种（需求 11256）：按此顺序排在配置表已有品种之后，暂未接入采集，仅出 Tab。
 // 符号与后续配置表的 instrument_symbol 保持一致，接入时插配置行即自动生效。
-const PLACEHOLDER_SYMBOLS = ['etf', 'index', 'future', 'crypto', 'sector', 'portfolio', 'gold']
-// 已接入真实采集、但配置表（cdeu.finv_cdeu_secu_realtime_sync_config）没有采集行的品种：
-// bsestock 走 BDFS 板块成分股接口（需求 11262），全量拉取，无需配置行。
-const FIXED_SYMBOLS = ['bsestock']
-// Tab 固定展示顺序（需求 11256/11262）：配置表没出现的品种按此顺序补齐，
-// bsestock 固定排在「指数」（index）之后的原占位位置，不得因接入采集而提到前面。
-const SYMBOL_ORDER = ['stock', 'etf', 'index', 'future', 'crypto', 'bsestock', 'sector', 'portfolio', 'gold']
+const PLACEHOLDER_SYMBOLS = ['index', 'future', 'crypto', 'sector', 'portfolio', 'gold']
+// 已接入真实采集、但配置表（cdeu.finv_cdeu_secu_realtime_sync_config）没有采集行的品种（BDFS 源）：
+// bsestock = 板块 GN2309（北交所上市企业）、etf = 国证ETF 指数 399380（沪深京 ETF），全量拉取，无需配置行。
+const FIXED_SYMBOLS = ['bsestock', 'etf']
+// 固定来源品种各自的市场取值（服务端 BDFS 分支忽略该参数，仅用于界面展示与请求语义清晰）
+const FIXED_MARKET: Record<string, { title: string; value: string }> = {
+  bsestock: { title: 'BJ 北交所', value: 'BJ' },
+  etf: { title: 'CN A 股（沪深京）', value: '4' },
+}
+// Tab 固定展示顺序（需求 11256/11262/11263）：配置表没出现的品种按此顺序补齐，
+// bsestock 固定在「指数 / 期货 / 加密货币」之后，etf（沪深京ETF）紧随其后。
+const SYMBOL_ORDER = ['stock', 'index', 'future', 'crypto', 'bsestock', 'etf', 'sector', 'portfolio', 'gold']
 
 const MARKET_LABELS: Record<string, string> = { '1': 'HK 港股', '2': 'US 美股', '4': 'CN A 股' }
 
@@ -154,8 +159,9 @@ const activeIsPlaceholder = computed(
 
 /** 当前 Tab 品种的市场选项（来自配置行，插新行自动生效） */
 const marketOptions = computed(() => {
-  // 固定来源品种（BDFS 板块采集）的市场由来源决定，固定 BJ，不给其它选项
-  if (activeIsFixedSource.value) return [{ title: 'BJ 北交所', value: 'BJ' }]
+  // 固定来源品种（BDFS）的市场由来源决定，只给一个选项且不可改
+  const fixed = FIXED_MARKET[activeSymbol.value]
+  if (fixed) return [fixed]
   return [
     { title: '全部市场', value: '' },
     ...symbolConfigs.value.map((item) => ({ title: marketLabel(item.market_type), value: item.market_type })),
@@ -286,7 +292,8 @@ async function startSync() {
       retry_backoff_ms: retryBackoffMs.value,
       max_pages: maxPages.value,
     }
-    if (activeIsFixedSource.value) body.market_type = 'BJ'
+    const fixedMarket = FIXED_MARKET[activeSymbol.value]
+    if (fixedMarket) body.market_type = fixedMarket.value
     else if (marketType.value) body.market_type = marketType.value
     if (countPlan.value !== null && countPlan.value > 0) body.count_plan = countPlan.value
 
@@ -308,7 +315,7 @@ async function refreshOnce() {
 }
 
 function resetOptions() {
-  marketType.value = activeIsFixedSource.value ? 'BJ' : ''
+  marketType.value = FIXED_MARKET[activeSymbol.value]?.value ?? ''
   countPlan.value = null
   pageSize.value = activeIsFixedSource.value ? BDFS_DEFAULT_PAGE_SIZE : PAGE_SIZE_DEFAULT
   intervalMs.value = 6000
@@ -319,7 +326,7 @@ function resetOptions() {
 
 /** 切换 Tab：清空当前品种专属的筛选值，避免把上个品种的市场带过去 */
 function onSymbolChange() {
-  marketType.value = activeIsFixedSource.value ? 'BJ' : ''
+  marketType.value = FIXED_MARKET[activeSymbol.value]?.value ?? ''
   countPlan.value = null
   pageSize.value = activeIsFixedSource.value ? BDFS_DEFAULT_PAGE_SIZE : PAGE_SIZE_DEFAULT
   scrollLogs()
@@ -390,9 +397,13 @@ onBeforeUnmount(stopPolling)
               <template v-if="activeIsPlaceholder">
                 该品种为占位 Tab：配置表暂无该品种的采集行，暂不参与采集
               </template>
-              <template v-else-if="activeIsFixedSource">
+              <template v-else-if="activeSymbol === 'bsestock'">
                 该品种为 BDFS 板块采集（板块 GN2309 北交所上市企业），全量拉取成分股行情，无需配置表行；
                 结果写入 cdeu.finv_quote_secu_realtime（provider=BDFS）
+              </template>
+              <template v-else-if="activeSymbol === 'etf'">
+                该品种为 BDFS ETF 采集（国证ETF 指数 399380，覆盖沪深京 ETF），全量拉取成分股行情，无需配置表行；
+                结果写入 cdeu.finv_quote_secu_realtime（provider=BDFS，instrument_type=etf）
               </template>
               <template v-else>该品种暂无启用的采集配置（可在 cdeu.finv_cdeu_secu_realtime_sync_config 插入一行）</template>
             </td>
@@ -407,7 +418,7 @@ onBeforeUnmount(stopPolling)
           v-model="marketType"
           :items="marketOptions"
           :disabled="activeIsFixedSource"
-          :title="activeIsFixedSource ? 'BDFS 板块采集的市场固定为 BJ，不可更改' : ''"
+          :title="activeIsFixedSource ? 'BDFS 采集的市场由来源固定，不可更改' : ''"
           item-title="title"
           item-value="value"
           label="市场"

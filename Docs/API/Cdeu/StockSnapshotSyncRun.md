@@ -49,10 +49,17 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 
 **并发约束**：同一时间只允许一个 `RUNNING` 任务；已有任务在跑时返回 `400` 并提示当前 `run_id`。
 
-### 2.3 按品种分支：BDFS 板块采集（需求 11262）
+### 2.3 按品种分支：BDFS 采集（需求 11262 / 11263）
 
-`instrument_symbol="bsestock"` 时走**独立分支**，不读 `cdeu.finv_cdeu_secu_realtime_sync_config`、
-不分市场，直接采集百度股市通板块 `GN2309`（北交所上市企业）全部成分股：
+`instrument_symbol` 为 `bsestock` 或 `etf` 时走**独立分支**，不读 `cdeu.finv_cdeu_secu_realtime_sync_config`、
+不分市场，直接采集百度股市通成分股：
+
+| 品种 | 来源 | instrument_type |
+|---|---|---|
+| `bsestock` | 板块 `GN2309`（北交所上市企业） | `stock` |
+| `etf` | 指数 `399380`（国证ETF，沪深京 ETF） | `etf` |
+
+其余参数语义对两者一致：
 
 | 项 | 行为 |
 |---|---|

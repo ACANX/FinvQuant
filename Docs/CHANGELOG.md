@@ -20,6 +20,17 @@
 
 ### 新增
 
+- **「行情快照同步」新增「沪深京ETF」Tab，BDFS 源采集 ETF 行情（需求 11263）**
+  - 位置：`/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync` 页，排在「北交所股票」之后（`SYMBOL_ORDER`）。
+  - 来源：BDFS `GetConstituents` 的 `financeType=index` + `code=399380`（国证ETF，实测 1687 条：`SH` 922 / `SZ` 765）；
+    采集器改造为「来源表驱动」——新增 `BdfsSource` / `BdfsSources` / `BdfsSourceBySymbol`，`bsestock` 与 `etf` 共用同一套拉取、
+    usc 解析、落库与日志逻辑，仅来源代码与 `instrument_type` 不同。
+  - 落库：`cdeu.finv_quote_secu_realtime`，`provider='BDFS'`、`instrument_type='etf'`、`market_type='4'`、
+    `market_label` 按交易所写 `SH`/`SZ`/`BJ`。
+  - 前端：`etf` 由占位 Tab 改为固定来源 Tab（`FIXED_SYMBOLS`），标签「沪深京ETF」，市场固定
+    「CN A 股（沪深京）」不可改，每页默认 500。
+  - 验证：`go test ./internal/meta/finv/quote/cdeu/ -run Bdfs` 9 个用例通过（含 ETF 来源用例）；`cd Web && npm run build` 通过。
+
 - **「行情快照同步」北交所股票 Tab 接入 BDFS 板块采集（需求 11262）**
   - 数据源：MetaExt `component/quote/baidu/finscope` 的 `GetAllConstituents`，板块 `GN2309`（北交所上市企业），
     按偏移量翻页（`rn` 默认 500，200 页上限），无市场/品种配置维度。

@@ -17,14 +17,13 @@ func bdfsTestLogger() *log.Logger { return log.New(io.Discard, "", 0) }
 
 // fakeBdfsFetcher 假拉取器。
 type fakeBdfsFetcher struct {
-	result  BdfsFetchResult
-	err     error
-	gotCode string
-	gotPage int
+	result BdfsFetchResult
+	err    error
+	gotReq BdfsFetchRequest
 }
 
-func (f *fakeBdfsFetcher) FetchBlockConstituents(_ context.Context, blockCode string, pageSize int) (BdfsFetchResult, error) {
-	f.gotCode, f.gotPage = blockCode, pageSize
+func (f *fakeBdfsFetcher) FetchConstituents(_ context.Context, req BdfsFetchRequest) (BdfsFetchResult, error) {
+	f.gotReq = req
 	return f.result, f.err
 }
 
@@ -73,7 +72,7 @@ func TestBdfsRealtimeRowMapping(t *testing.T) {
 		Amount:       1542319.5,
 		MarketValue:  3167980619.5,
 	}
-	row := BdfsRealtimeRow(item, "430047.BJ", 1763000000000, 3)
+	row := BdfsRealtimeRow(item, "430047.BJ", 1763000000000, 3, "stock")
 
 	if row.USC != "430047.BJ" {
 		t.Fatalf("usc 应为主键值，实际 %q", row.USC)
@@ -128,8 +127,8 @@ func TestBdfsRealtimeRowMapping(t *testing.T) {
 	if row.DtUpdate == nil || *row.DtUpdate != 1763000000000 {
 		t.Fatalf("dt_update 不符：%v", row.DtUpdate)
 	}
-	if got := bdfsDerefString(row.Remark); !strings.Contains(got, BdfsBseBlockCode) {
-		t.Fatalf("remark 应带板块代码，实际 %q", got)
+	if got := bdfsDerefString(row.Remark); !strings.Contains(got, "BDFS") || !strings.Contains(got, "BJ") {
+		t.Fatalf("remark 应带来源与交易所，实际 %q", got)
 	}
 	// 无来源列保持 NULL
 	for name, ptr := range map[string]*json.Number{
@@ -146,7 +145,7 @@ func TestBdfsRealtimeRowMapping(t *testing.T) {
 
 func TestBdfsRealtimeRowNoQuote(t *testing.T) {
 	item := BdfsConstituent{Code: "920001", Name: "停牌股", Exchange: "BJ", HasQuote: 0, HasRaw: false}
-	row := BdfsRealtimeRow(item, "920001.BJ", 1, 1)
+	row := BdfsRealtimeRow(item, "920001.BJ", 1, 1, "stock")
 
 	if row.PriceNominal != nil || row.ChangePrice != nil || row.MarketValue != nil {
 		t.Fatalf("无行情行不应写任何行情数值列")
@@ -165,7 +164,7 @@ func TestBdfsRealtimeRowPriceDirect(t *testing.T) {
 		want   string
 	}{{1.2, "+"}, {-1.2, "-"}, {0, "="}}
 	for _, c := range cases {
-		row := BdfsRealtimeRow(BdfsConstituent{Code: "1", Exchange: "SH", HasQuote: 1, HasRaw: true, ChangePrice: c.change}, "1.SH", 1, 1)
+		row := BdfsRealtimeRow(BdfsConstituent{Code: "1", Exchange: "SH", HasQuote: 1, HasRaw: true, ChangePrice: c.change}, "1.SH", 1, 1, "stock")
 		if got := bdfsDerefString(row.PriceDirect); got != c.want {
 			t.Fatalf("change=%v 时 price_direct 应为 %q，实际 %q", c.change, c.want, got)
 		}
@@ -194,11 +193,14 @@ func TestBdfsCollectorSkipsUnresolvedUsc(t *testing.T) {
 	if err != nil {
 		t.Fatalf("采集应成功，实际 %v", err)
 	}
-	if fetcher.gotCode != BdfsBseBlockCode {
-		t.Fatalf("默认板块代码应为 %s，实际 %q", BdfsBseBlockCode, fetcher.gotCode)
+	if fetcher.gotReq.Code != BdfsBseBlockCode {
+		t.Fatalf("默认来源代码应为 %s，实际 %q", BdfsBseBlockCode, fetcher.gotReq.Code)
 	}
-	if fetcher.gotPage != BdfsDefaultPageSize {
-		t.Fatalf("默认页大小应为 %d，实际 %d", BdfsDefaultPageSize, fetcher.gotPage)
+	if fetcher.gotReq.FinanceType != "block" {
+		t.Fatalf("默认成分类型应为 block，实际 %q", fetcher.gotReq.FinanceType)
+	}
+	if fetcher.gotReq.PageSize != BdfsDefaultPageSize {
+		t.Fatalf("默认页大小应为 %d，实际 %d", BdfsDefaultPageSize, fetcher.gotReq.PageSize)
 	}
 	if result.InstrumentSymbol != BdfsInstrumentSymbol || result.MarketType != "BJ" {
 		t.Fatalf("结果品种/市场不符：%+v", result)
@@ -284,12 +286,51 @@ func TestBdfsCollectorAllUscUnresolved(t *testing.T) {
 
 func TestBdfsCollectOptionsNormalize(t *testing.T) {
 	opts := BdfsCollectOptions{}.normalize()
-	if opts.BlockCode != BdfsBseBlockCode || opts.PageSize != BdfsDefaultPageSize || opts.Timeout != BdfsDefaultTimeout {
+	if opts.Source.Code != BdfsBseBlockCode || opts.PageSize != BdfsDefaultPageSize || opts.Timeout != BdfsDefaultTimeout {
 		t.Fatalf("零值应补齐默认值，实际 %+v", opts)
 	}
-	custom := BdfsCollectOptions{BlockCode: "GN2282", PageSize: 100}.normalize()
-	if custom.BlockCode != "GN2282" || custom.PageSize != 100 {
+	src, ok := BdfsSourceBySymbol(BdfsEtfSymbol)
+	if !ok {
+		t.Fatalf("应能按 %s 取到来源", BdfsEtfSymbol)
+	}
+	custom := BdfsCollectOptions{Source: src, PageSize: 100}.normalize()
+	if custom.Source.Code != BdfsEtfIndexCode || custom.PageSize != 100 {
 		t.Fatalf("显式值不应被覆盖，实际 %+v", custom)
+	}
+}
+
+func TestBdfsEtfSourceUsesIndexConstituents(t *testing.T) {
+	fetcher := &fakeBdfsFetcher{result: BdfsFetchResult{Pages: 1, Items: []BdfsConstituent{
+		{Code: "510010", Name: "治理ETF", Exchange: "SH", HasQuote: 1, HasRaw: true, PriceNominal: 1.742},
+	}}}
+	sink := &fakeRealtimeSink{inserted: 1}
+	collector := NewBdfsSecuRealtimeCollector(fetcher, &fakeUscResolver{mapping: map[SecuUscKey]string{
+		{Exchange: "SH", Code: "510010"}: "510010",
+	}}, sink, bdfsTestLogger())
+
+	src, _ := BdfsSourceBySymbol("etf")
+	result, err := collector.Collect(context.Background(), BdfsCollectOptions{Source: src})
+	if err != nil {
+		t.Fatalf("ETF 采集应成功，实际 %v", err)
+	}
+	if fetcher.gotReq.FinanceType != "index" || fetcher.gotReq.Code != BdfsEtfIndexCode {
+		t.Fatalf("ETF 来源应走 index/399380，实际 %+v", fetcher.gotReq)
+	}
+	if result.InstrumentSymbol != "etf" {
+		t.Fatalf("结果品种应为 etf，实际 %q", result.InstrumentSymbol)
+	}
+	if len(sink.rows) != 1 {
+		t.Fatalf("应写入 1 行，实际 %d", len(sink.rows))
+	}
+	row := sink.rows[0]
+	if got := bdfsDerefString(row.InstrumentType); got != "etf" {
+		t.Fatalf("instrument_type 应为 etf，实际 %q", got)
+	}
+	if got := bdfsDerefString(row.MarketType); got != "4" {
+		t.Fatalf("market_type 应为 4，实际 %q", got)
+	}
+	if got := bdfsDerefString(row.MarketLabel); got != "SH" {
+		t.Fatalf("market_label 应按交易所为 SH，实际 %q", got)
 	}
 }
 
