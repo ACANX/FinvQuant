@@ -395,18 +395,23 @@ func (r QuoteSecuRealtimeRow) PageValue() int64 {
 	return *r.Page
 }
 
-// exchangeLabels BDFS 交易所标志 → 新表 market_type / market_label / 币种。
+// BdfsMarketType 写入 cdeu.finv_quote_secu_realtime.market_type 的固定值。
 //
-// market_type 沿用参考表「源系统市场分类编码」的语义，这里直接写交易所标志
-// （SH / SZ / BJ），因为 BDFS 的市场维度就是交易所；market_label 是中文展示名。
+// 与参考表 cdeu.finv_cdeu_secu_realtime_stock 口径一致：market_type 是「源系统市场分类编码」，
+// 4 = CN A 股（1 = HK、2 = US）；北交所板块的成分股全部落在 A 股，直接固定 4。
+const BdfsMarketType = "4"
+
+// bdfsExchangeMeta BDFS 交易所标志 → 新表 market_label / 币种。
+//
+// market_label 用交易所标志本身（BJ / SH / SZ，与参考表数据一致：BJ 行即 market_type=4 + market_label=BJ），
+// 北交所板块固定为 BJ；保留 SH / SZ 分支以便该采集器将来复用到其它板块。
 var bdfsExchangeMeta = map[string]struct {
-	Label      string
-	Currency   string
-	MarketType string
+	Label    string
+	Currency string
 }{
-	"BJ": {Label: "北交所", Currency: "CNY", MarketType: "BJ"},
-	"SH": {Label: "上交所", Currency: "CNY", MarketType: "SH"},
-	"SZ": {Label: "深交所", Currency: "CNY", MarketType: "SZ"},
+	"BJ": {Label: "BJ", Currency: "CNY"},
+	"SH": {Label: "SH", Currency: "CNY"},
+	"SZ": {Label: "SZ", Currency: "CNY"},
 }
 
 // BdfsRealtimeRow 把一条 BDFS 成分股转换成 cdeu.finv_quote_secu_realtime 的一行。
@@ -415,8 +420,8 @@ var bdfsExchangeMeta = map[string]struct {
 //
 //	stock_code        ← code
 //	name              ← name
-//	market_type       ← exchange（SH / SZ / BJ）
-//	market_label      ← 交易所中文名（上交所 / 深交所 / 北交所）
+//	market_type       ← 固定 "4"（CN A 股，与参考表口径一致）
+//	market_label      ← 交易所标志（BJ / SH / SZ；北交所板块即 BJ）
 //	instrument_type   ← "stock"（接口对本板块只返回 stock）
 //	currency          ← CNY（A 股）
 //	price_nominal     ← rawData.lastPx
@@ -436,7 +441,7 @@ func BdfsRealtimeRow(item BdfsConstituent, usc string, dtUpdateMs int64, page in
 	if !ok {
 		meta = bdfsExchangeMeta["BJ"]
 	}
-	marketType := meta.MarketType
+	marketType := BdfsMarketType
 	marketLabel := meta.Label
 	currency := meta.Currency
 	instrumentType := "stock"

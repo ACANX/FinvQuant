@@ -87,11 +87,11 @@ func TestBdfsRealtimeRowMapping(t *testing.T) {
 	if got := bdfsDerefString(row.StockCode); got != "430047" {
 		t.Fatalf("stock_code 不符：%q", got)
 	}
-	if got := bdfsDerefString(row.MarketType); got != "BJ" {
-		t.Fatalf("market_type 应为 BJ，实际 %q", got)
+	if got := bdfsDerefString(row.MarketType); got != "4" {
+		t.Fatalf("market_type 应为 4（CN A 股），实际 %q", got)
 	}
-	if got := bdfsDerefString(row.MarketLabel); got != "北交所" {
-		t.Fatalf("market_label 应为 北交所，实际 %q", got)
+	if got := bdfsDerefString(row.MarketLabel); got != "BJ" {
+		t.Fatalf("market_label 应为 BJ，实际 %q", got)
 	}
 	if got := bdfsDerefString(row.Currency); got != "CNY" {
 		t.Fatalf("currency 应为 CNY，实际 %q", got)

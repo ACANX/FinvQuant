@@ -4454,6 +4454,16 @@
   - 每页条数在该 Tab 默认 **500**（接口 `rn`），切 Tab 或点「重置参数」时回到 500；其它品种仍为 50。
   - 验证：`cd Web && npm run build` 通过；浏览器切到「北交所股票」后市场显示 `BJ 北交所` 且置灰、每页条数显示 500。
 
+- **修正 BDFS 写入的 market_type / market_label 口径（需求 11262 调整）**
+  - `cdeu.finv_quote_secu_realtime.market_type` 由误写的 `BJ` 改为 **`4`**（CN A 股市场类型编码，
+    与参考表 `cdeu.finv_cdeu_secu_realtime_stock` 一致：1=HK / 2=US / 4=CN）；
+    `market_label` 由中文「北交所」改为交易所标志 **`BJ`**。
+  - 采集端 `BdfsRealtimeRow` 增加常量 `BdfsMarketType = "4"`，`market_label` 按交易所标志映射（北交所即 `BJ`）。
+  - 已入库的 356 行 `provider='BDFS'` 数据用一次性 UPDATE 同步为新口径（`market_type='4'`、`market_label='BJ'`）。
+  - 验证：`go test ./internal/meta/finv/quote/cdeu/ -run Bdfs` 通过；
+    `SELECT market_type, market_label, count(*) FROM cdeu.finv_quote_secu_realtime WHERE provider='BDFS' GROUP BY 1,2;`
+    → `4 | BJ | 356`。
+
 ## [0.1.3] - 2026-10-29
 
 > 本版本内容：四级菜单导航改造、登录与文案修复、BRS 上传与配置、去重/导出链路修复、深色/浅色主题切换等。

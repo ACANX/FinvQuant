@@ -63,8 +63,8 @@
 | `usc` | `(exchange, code)` → `public.finv_security.usc` | 主键 |
 | `stock_code` | `code` | 原样 |
 | `name` | `name` | 原样 |
-| `market_type` | `exchange` | `BJ` / `SH` / `SZ` |
-| `market_label` | `exchange` | 北交所 / 上交所 / 深交所 |
+| `market_type` | 固定 `4` | CN A 股市场类型编码（与参考表口径一致：1=HK、2=US、4=CN） |
+| `market_label` | 交易所标志 | `BJ`（北交所板块）、`SH` / `SZ`（复用其它板块时） |
 | `instrument_type` | 固定 `stock` | 该板块仅返回股票 |
 | `currency` | 固定 `CNY` | A 股 |
 | `price_nominal` | `rawData.lastPx` | 元 |
