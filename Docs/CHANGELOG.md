@@ -2640,6 +2640,17 @@
 
 ### 修复
 
+- **修复 `cdeu.finv_quote_secu_realtime` 快照 upsert 缺目标表别名导致写库失败（需求 11300）**
+  - 现象：`Store.SaveQuoteSecuRealtimeRows` 生成的
+    `INSERT INTO cdeu.finv_quote_secu_realtime (...) ... ON CONFLICT (usc) DO UPDATE SET col = COALESCE(EXCLUDED.col, t.col)`
+    引用了 `t`，但 `INSERT` 未声明别名，PostgreSQL 报 `SQLSTATE 42P01`（missing FROM-clause entry for table "t"），
+    整批写入失败。
+  - 修复：`INSERT INTO <表> AS t (...)`。沪深京指数采集（需求 11294）联调时首次在真实库触发；BDFS 与列表采集
+    同走该语句，同口径修复。
+  - 验证：`FINV_XET_LIVE=1 FINV_TEST_PG_DSN=... go test -run TestLiveXetIndexSnapshot` 通过
+    （6 池 / 1239 行、新增 1239、耗时 1.5s）；容器内采集后 `SELECT count(*) FROM cdeu.finv_quote_secu_realtime
+    WHERE provider='ZXET'` = 1239。
+
 - **北交所采集后人民币计价指标被清空：快照 upsert 改为「有值才覆盖」（需求 11287）**
   - 现象：点过「人民币计价指标」后，跑一次「北交所股票 / 沪深京ETF」采集，`cdeu.finv_quote_secu_realtime`
     里这些行的 `rmb_*` 五列被写成 **NULL**（页面按空/0 呈现），必须再点一次按钮才恢复。

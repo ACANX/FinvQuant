@@ -107,7 +107,9 @@ func (s *Store) SaveQuoteSecuRealtimeRows(ctx context.Context, rows []QuoteSecuR
 
 	updates := quoteSecuRealtimeUpdateClause()
 
-	sql := "INSERT INTO " + tableQuoteSecuRealtime + " (" +
+	// 必须给目标表起别名 t：SET 子句的 COALESCE(EXCLUDED.col, t.col) 依赖它
+	// （需求 11287 的「有值才覆盖」口径；漏别名会报 SQLSTATE 42P01）。
+	sql := "INSERT INTO " + tableQuoteSecuRealtime + " AS t (" +
 		strings.Join(quoteSecuRealtimeColumns, ", ") + ") VALUES " +
 		strings.Join(placeholders, ", ") +
 		" ON CONFLICT (usc) DO UPDATE SET " + strings.Join(updates, ", ") +

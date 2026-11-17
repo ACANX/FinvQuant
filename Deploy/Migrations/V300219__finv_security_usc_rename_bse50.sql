@@ -53,15 +53,16 @@ BEGIN
     -- -----------------------------------------------------------------
     -- 1. 备份（BSE50I 旧别名行 + 899050 规范行）
     -- -----------------------------------------------------------------
+    -- 列清单与 V300111 一致（LIKE 会复制 NOT NULL，security_type 必须显式带上）
     INSERT INTO archive.finv_security_purge_20261118
-        (usc, exchange_code, security_code, security_name, security_name_cn,
-         security_name_full, currency_type, init_date, timezone, tz,
-         gmt_create, gmt_update, flag_enable, market_code, type_secu_sub,
-         provider, remark, src_schema, reason)
-    SELECT s.usc, s.exchange_code, s.security_code, s.security_name, s.security_name_cn,
-           s.security_name_full, s.currency_type, s.init_date, s.timezone, s.tz,
-           s.gmt_create, s.gmt_update, s.flag_enable, s.market_code, s.type_secu_sub,
-           s.provider, s.remark, 'public', c_reason
+        (usc, exchange_code, security_type, security_code, security_name,
+         security_name_cn, security_name_full, currency_type, init_date,
+         timezone, tz, gmt_create, gmt_update, flag_enable, market_code,
+         type_secu_sub, provider, remark, src_schema, reason)
+    SELECT s.usc, s.exchange_code, s.security_type, s.security_code, s.security_name,
+           s.security_name_cn, s.security_name_full, s.currency_type, s.init_date,
+           s.timezone, s.tz, s.gmt_create, s.gmt_update, s.flag_enable, s.market_code,
+           s.type_secu_sub, s.provider, s.remark, 'public', c_reason
       FROM public.finv_security s
      WHERE s.usc IN ('899050', 'BSE50I')
     ON CONFLICT (usc, src_schema) DO NOTHING;
