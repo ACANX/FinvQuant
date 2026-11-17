@@ -4490,6 +4490,12 @@
   - 之前把占位 `etf` 直接改作「沪深京ETF」导致「ETF」Tab 消失，本次恢复为两个独立 Tab。
   - 验证：`go test ./internal/meta/finv/quote/cdeu/ -run Bdfs` 通过；`cd Web && npm run build` 通过。
 
+- **「行情快照同步」新增「中国OTC」占位 Tab（需求 11266）**
+  - 位置：「投资组合」之后、「黄金」之前（`SYMBOL_ORDER`：`… / portfolio / otc / gold`）。
+  - 状态：**仅占位**，由 `PLACEHOLDER_SYMBOLS` 常显，无配置行时显示占位文案、「开始同步」置灰。
+  - 标签「中国OTC」，图标 `mdi-swap-horizontal`；不改后端与采集逻辑。
+  - 验证：`cd Web && npm run build` 通过；浏览器 Tab 顺序与置灰行为符合预期。
+
 ## [0.1.3] - 2026-10-29
 
 > 本版本内容：四级菜单导航改造、登录与文案修复、BRS 上传与配置、去重/导出链路修复、深色/浅色主题切换等。
