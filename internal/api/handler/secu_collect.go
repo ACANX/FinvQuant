@@ -6,6 +6,7 @@ package handler
 //
 //	GET  /API/V1/Meta/Finv/Quote/Secu/Collect/Page    分页查询（左关联 public.finv_security 等）
 //	POST /API/V1/Meta/Finv/Quote/Secu/Collect/Update  单行更新（字段白名单）
+//	GET  /API/V1/Meta/Finv/Quote/Secu/Collect/Stats   表规模统计（状态总览用，需求 11285）
 //
 // 页面：行情 → 收剔导传ETL → CDEU自动化 → 采集参数。
 //
@@ -34,6 +35,8 @@ const secuFtmmCollectMaxBodyBytes = 1 << 20
 type SecuFtmmCollectStore interface {
 	ListSecuFtmmCollect(ctx context.Context, f cdeu.SecuFtmmCollectFilter) (int64, []cdeu.SecuFtmmCollectRow, error)
 	UpdateSecuFtmmCollect(ctx context.Context, patch cdeu.SecuFtmmCollectPatch) (bool, error)
+	// CountTableRows 统计白名单内各表的当前行数（需求 11285）。
+	CountTableRows(ctx context.Context, tables []string) ([]cdeu.TableRowCount, error)
 }
 
 // SecuFtmmCollect 采集参数查询与维护处理器。
@@ -209,4 +212,41 @@ func isTruthyQuery(raw string) bool {
 	default:
 		return false
 	}
+}
+
+// Stats GET /Meta/Finv/Quote/Secu/Collect/Stats。
+//
+// 状态总览页的「表规模」指标（需求 11285）：返回白名单内各表的当前行数，
+// 当前为 cdeu.finv_quote_secu_indicator 与 futu.finv_futu_quote_collect。
+//
+// 只读、无参数（表名固定，不接受请求拼表名）；表不存在时该项 exists=false、rows=0，
+// 不报错 —— 让页面在部分表缺失的环境也能渲染。日志前缀 [cdeu][tableStats]。
+func (h *SecuFtmmCollect) Stats(c *gin.Context) {
+	started := time.Now()
+	tables := cdeu.TableStatsTargets()
+
+	rows, err := h.store.CountTableRows(c.Request.Context(), tables)
+	if err != nil {
+		log.Printf("[cdeu][tableStats] api stats failed tables=%v err=%v elapsed_ms=%d",
+			tables, err, time.Since(started).Milliseconds())
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "表规模统计失败: " + err.Error()})
+		return
+	}
+
+	var sum int64
+	for _, item := range rows {
+		sum += item.Rows
+	}
+	elapsed := time.Since(started).Milliseconds()
+	log.Printf("[cdeu][tableStats] api stats end tables=%d rows_total=%d elapsed_ms=%d",
+		len(rows), sum, elapsed)
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "OK",
+		"data": gin.H{
+			"tables":     rows,
+			"rows_total": sum,
+			"elapsed_ms": elapsed,
+		},
+	})
 }

@@ -6,6 +6,8 @@
 //   GET /Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run（runId 省略 = 最近一次）
 //   → data.configs（证券列表采集配置：stock / etf）、data.futures_configs（期货 8 个分类）、
 //     data.run（内存中最近一次运行：状态 / 耗时 / 逐市场结果 / 错误）
+//   GET /Meta/Finv/Quote/Secu/Collect/Stats（需求 11285）
+//   → data.tables[]（关键表当前行数：指标表 / 采集参数表），表名由服务端白名单固定
 //
 // 注意：运行记录只存在服务进程内存里（重启即清空），配置来自数据库，因此
 // 「配置有值、运行状态 IDLE」是正常现象（见页面底部「说明」卡片）。
@@ -15,6 +17,8 @@ import { apiGet } from '../../../../../api'
 import { showToast } from '../../../../../ui/toast'
 
 const RUN_API = '/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run'
+// 表规模统计（需求 11285）：白名单两张表的当前行数
+const STATS_API = '/Meta/Finv/Quote/Secu/Collect/Stats'
 
 // 证券列表采集配置（cdeu.finv_cdeu_secu_realtime_sync_config 一行）
 interface SyncConfig {
@@ -78,7 +82,22 @@ interface RunPayload {
   futures_error?: string
 }
 
+// 表规模统计（服务端白名单固定表名，前端只负责展示）
+interface TableStat {
+  table: string
+  rows: number
+  exists: boolean
+}
+
+interface StatsPayload {
+  tables?: TableStat[]
+  rows_total?: number
+  elapsed_ms?: number
+}
+
 const loading = ref(false)
+const stats = ref<TableStat[]>([])
+const statsError = ref('')
 const configs = ref<SyncConfig[]>([])
 const futuresConfigs = ref<FuturesConfig[]>([])
 const run = ref<RunInfo | null>(null)
@@ -99,6 +118,12 @@ function symbolLabel(value: string): string {
 
 function marketLabel(value: string): string {
   return MARKET_LABELS[value] ?? value
+}
+
+/** 行数千分位（70,171）：表格与指标卡统一用它，避免各写一份 */
+function formatRows(value: number | undefined): string {
+  if (value === undefined || value === null) return '—'
+  return value.toLocaleString('zh-CN')
 }
 
 function futuresTypeLabel(item: FuturesConfig): string {
@@ -156,8 +181,21 @@ const totals = computed(() => {
 async function load(): Promise<void> {
   loading.value = true
   configError.value = ''
+  statsError.value = ''
   try {
-    const payload = await apiGet<RunPayload>(RUN_API)
+    // 两个请求互不依赖：统计失败不影响配置与运行结果展示（反之亦然）
+    const [runResult, statsResult] = await Promise.allSettled([
+      apiGet<RunPayload>(RUN_API),
+      apiGet<StatsPayload>(STATS_API),
+    ])
+    if (statsResult.status === 'fulfilled') {
+      stats.value = statsResult.value?.tables ?? []
+    } else {
+      statsError.value = (statsResult.reason as Error)?.message ?? '未知错误'
+      stats.value = []
+    }
+    if (runResult.status === 'rejected') throw runResult.reason
+    const payload = runResult.value
     configs.value = payload?.configs ?? []
     futuresConfigs.value = payload?.futures_configs ?? []
     // 两种响应形态归一：有 run 用它，没有就把扁平字段组装成 RunInfo（run_id 为空表示无记录）
@@ -208,6 +246,27 @@ onMounted(load)
       <v-alert v-if="configError" type="error" density="compact" variant="tonal" class="mb-3">
         读取采集配置失败：{{ configError }}
       </v-alert>
+
+      <!-- 表规模指标（需求 11285）：指标表与采集参数表的当前行数 -->
+      <div class="text-subtitle-2 mb-1">表规模指标（当前行数）</div>
+      <div class="d-flex flex-wrap align-center ga-3 mb-4">
+        <v-card
+          v-for="item in stats"
+          :key="item.table"
+          variant="tonal"
+          color="primary"
+          class="px-4 py-2"
+          min-width="260"
+        >
+          <div class="text-caption text-medium-emphasis">{{ item.table }}</div>
+          <div class="text-h6">
+            {{ item.exists ? formatRows(item.rows) : '—' }}
+            <span class="text-caption text-medium-emphasis">行</span>
+          </div>
+        </v-card>
+        <span v-if="statsError" class="text-caption text-error">统计失败：{{ statsError }}</span>
+        <span v-else-if="!stats.length" class="text-caption text-medium-emphasis">暂无统计数据</span>
+      </div>
 
       <!-- 证券列表采集配置（stock / etf） -->
       <div class="text-subtitle-2 mb-1">证券列表采集配置</div>
@@ -332,6 +391,18 @@ onMounted(load)
           「市场证券总数」/「分类合约总数」是接口 <code>pagination.total</code> 的回写值，
           「本轮可采集」= <code>min(count_plan, 总数)</code>；两者都只在采集成功后刷新，未采过的显示 <code>—</code>。
           下表的「接口总数」与「本轮可采」是<strong>最近一次运行的现场值</strong>，可与上表对照看配置是否被正确执行。
+        </div>
+      </div>
+
+      <v-divider class="my-3" />
+
+      <div class="finv-note">
+        <div class="finv-note-title">表规模指标</div>
+        <div class="text-body-2 finv-note-body">
+          <code>cdeu.finv_quote_secu_indicator</code>（证券指标表，一行一证券）与
+          <code>futu.finv_futu_quote_collect</code>（富途采集参数镜像表，一行一证券）的<strong>当前行数</strong>，
+          来自 <code>GET /Meta/Finv/Quote/Secu/Collect/Stats</code>；表名由服务端白名单固定，不接受请求拼表名。
+          两张表行数应基本相当，差值可用来判断采集覆盖是否有缺口；表不存在时该项显示 <code>—</code>。
         </div>
       </div>
 

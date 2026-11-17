@@ -149,7 +149,7 @@
 | 66 | 小表全量备份 | 备份与恢复 | 四级叶子 | `brs-run` | `mdi-database-export` | `/Meta/BRS/Backup/Finv/Run` | `Web/src/views/Meta/BRS/Backup/Finv/BrsRunView.vue` | `GET/POST .../BRS/Backup/Finv/Run` | [BRS/Backup/Finv/Run.md](BRS/Backup/Finv/Run.md) |
 | 67 | 大表增量备份 | 备份与恢复 | 四级叶子 | `brs-slice` | `mdi-table-large` | `/Meta/BRS/Backup/Finv/Slice` | `Web/src/views/Meta/BRS/Backup/Finv/BrsSliceView.vue` | `GET/POST .../BRS/Backup/Finv/Slice` | [BRS/Backup/Finv/Slice.md](BRS/Backup/Finv/Slice.md) |
 | 68 | 数据恢复 | 备份与恢复 | 四级叶子 | `brs-restore-run` | `mdi-database-arrow-left` | `/Meta/BRS/Restore/Run` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中） | [BRS/Restore/Run.md](BRS/Restore/Run.md) |
-| 69 | 状态总览 | 金融投资 | 四级叶子 | `quote-collect-overview` | `mdi-view-dashboard-outline` | `/Meta/Finv/Quote/RealtimeCollect/Overview` | `Web/src/views/Meta/Finv/Quote/RealtimeCollect/OverviewView.vue` | `GET .../Realtime/FTStockQuoteSnapshotSync/Run` | [Quote/RealtimeCollect/Overview.md](Quote/RealtimeCollect/Overview.md) |
+| 69 | 状态总览 | 金融投资 | 四级叶子 | `quote-collect-overview` | `mdi-view-dashboard-outline` | `/Meta/Finv/Quote/RealtimeCollect/Overview` | `Web/src/views/Meta/Finv/Quote/RealtimeCollect/OverviewView.vue` | `GET .../Realtime/FTStockQuoteSnapshotSync/Run`、`GET .../Secu/Collect/Stats` | [Quote/RealtimeCollect/Overview.md](Quote/RealtimeCollect/Overview.md) |
 
 ## 说明
 

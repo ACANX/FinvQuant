@@ -212,6 +212,8 @@ func NewRouter(deps *Deps) *gin.Engine {
 		secuCollectGroup := apiGroup.Group("/Meta/Finv/Quote/Secu/Collect")
 		secuCollectGroup.GET("/Page", secuCollect.Page)
 		secuCollectGroup.POST("/Update", secuCollect.Update)
+		// 表规模统计（需求 11285）：状态总览页展示指标表与采集参数表的当前行数。
+		secuCollectGroup.GET("/Stats", secuCollect.Stats)
 
 		// 证券行情月归档导出与上传（运维：状态 / 任务 / 文件 / 重试 / 手动触发）
 		if deps.ExportArchive != nil {

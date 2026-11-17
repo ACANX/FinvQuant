@@ -1,0 +1,102 @@
+# FinvQuant — 表规模统计（OpenAPI 3.1 契约）
+#
+# 与同目录 CollectStats.md 成对维护，任一侧变更须同步更新另一侧。
+#
+openapi: 3.1.0
+info:
+  title: FinvQuant — 表规模统计（状态总览用）
+  version: 1.0.0
+  description: |
+    只读接口：返回状态总览页需要的「关键表当前行数」。
+    表清单由服务端白名单固定（不接受请求拼表名），每张表 SELECT count(*)，不落库、不缓存。
+    实现：internal/api/handler/secu_collect.go（SecuFtmmCollect.Stats）、
+    internal/meta/finv/quote/cdeu/store_table_stats.go。
+servers:
+  - url: http://127.0.0.1:16001
+    description: 本机直连（生产经 Nginx 反代时替换为 https://<域名>）
+tags:
+  - name: Quote/Secu/Collect
+    description: 采集参数与采集规模统计
+security:
+  - bearerAuth: []
+paths:
+  /API/V1/Meta/Finv/Quote/Secu/Collect/Stats:
+    get:
+      operationId: getSecuCollectStats
+      tags: [Quote/Secu/Collect]
+      summary: 关键表当前行数（状态总览）
+      description: |
+        返回白名单内各表的当前行数，当前为 cdeu.finv_quote_secu_indicator
+        与 futu.finv_futu_quote_collect；无请求参数。
+        表不存在时该项 exists=false、rows=0，不报错。
+      responses:
+        '200':
+          description: 统计成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsResponse'
+        '401':
+          description: 未登录或 token 失效
+        '500':
+          description: 数据库统计失败（业务码 2006）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    TableStat:
+      type: object
+      required: [table, rows, exists]
+      properties:
+        table:
+          type: string
+          description: schema 全限定表名。
+        rows:
+          type: integer
+          format: int64
+          description: 当前行数；exists=false 时恒为 0。
+        exists:
+          type: boolean
+          description: 该环境是否存在这张表。
+
+    StatsResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+        data:
+          type: object
+          required: [tables]
+          properties:
+            tables:
+              type: array
+              items:
+                $ref: '#/components/schemas/TableStat'
+            rows_total:
+              type: integer
+              format: int64
+              description: 各项 rows 之和。
+            elapsed_ms:
+              type: integer
+              description: 本次统计耗时。
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: integer
+        message:
+          type: string

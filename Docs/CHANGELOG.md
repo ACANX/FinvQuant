@@ -20,6 +20,18 @@
 
 ### 新增
 
+- **状态总览页新增「表规模指标」：指标表与采集参数表的当前行数（需求 11285）**
+  - 新增只读接口 `GET /API/V1/Meta/Finv/Quote/Secu/Collect/Stats`（无请求参数）：返回
+    `cdeu.finv_quote_secu_indicator` 与 `futu.finv_futu_quote_collect` 的**当前行数**（`count(*)`），
+    附 `rows_total` 与 `elapsed_ms`；表名由服务端白名单常量固定（不接受请求拼表名），
+    表不存在时该项 `exists=false`/`rows=0` 不报错。
+  - 前端「行情采集 → 状态总览」新增两张指标卡（表名 + 千分位行数），与既有 `.../Run` 并发拉取
+    （`Promise.allSettled`）：统计失败只在指标卡区提示，不影响配置与运行结果显示；说明卡片补「表规模指标」一节。
+  - 文档：新增 `Docs/API/Cdeu/CollectStats.md` + `.yml`，登记 `Docs/API/APIs.md`（136）、
+    更新 `Docs/Menu/Quote/RealtimeCollect/Overview.md` 与 `Docs/Menu/Menus.md`（索引 69 接口列）。
+  - 验证：`go test ./internal/api/handler/ -run SecuFtmmCollectStats` 通过；
+    `go build ./...`、`cd Web && npm run build`、`go test ./internal/docs/` 通过。
+
 - **「行情采集」分组首位新增「状态总览」菜单（需求 11283）**
   - 只读汇总页：一次请求复用 `GET .../Realtime/FTStockQuoteSnapshotSync/Run`，拿到 `configs`（证券列表配置）、
     `futures_configs`（期货 8 分类）与最近一次 `run`，渲染「最近运行摘要 / 证券列表采集配置 / 期货分类采集配置 /
