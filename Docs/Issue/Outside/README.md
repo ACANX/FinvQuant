@@ -29,7 +29,7 @@
   ls Docs/Issue Docs/Issue/Outside 2>/dev/null | grep -E '^ISSUE-O-[0-9]{4}-' | cut -d- -f3 | sort | uniq -d
   ```
 
-- 当前已用：`0001`；下一个可用：`0002`。
+- 当前已用：`0001`（已外发）、`0002`（草稿，待外发）；下一个可用：`0003`。
 
 ## 3. 外发流程
 
