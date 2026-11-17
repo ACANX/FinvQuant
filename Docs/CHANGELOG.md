@@ -20,6 +20,18 @@
 
 ### 新增
 
+- **存量数据迁移（阶段一）：单 provider 快照表增量复制到跨 provider 表（需求 11269）**
+  - 迁移 `V300213`：创建 `cdeu.f_finv_quote_secu_realtime_sync(p_limit int DEFAULT 5000)`，把
+    `cdeu.finv_cdeu_secu_realtime_stock`（主键 `stock_id`）按 `stock_id` 水位分批复制到
+    `cdeu.finv_quote_secu_realtime`（主键 `usc`）；**源表只读、不 DELETE/TRUNCATE**。
+  - 字段映射：`stock_id` `BIGINT → TEXT`、`price_direct` 的 `0 → =`、`provider` 固定 `FTMM`，其余 32 列直传；
+    `gmt_create`/`gmt_update` 交给目标表默认值与触发器。
+  - 冲突策略：`ON CONFLICT (usc) DO UPDATE` 仅当目标行 `provider = 'FTMM'` 且源 `dt_update` 更新时才覆盖
+    —— 重复执行零写入（幂等），且不覆盖 BDFS 写入的行。
+  - 迁移末尾自动执行一次并校验「源表 usc 已全部可在目标表查到」；生产随发行包启动自动应用。
+  - 本机实测：源表 13,905 行 → 同步 13,827 行（78 行 usc 已被 BDFS 行占用而按策略跳过），
+    目标表 FTMM 13,827 + BDFS 2,043；二次执行 `synced=0`；源表行数不变。
+
 - **「行情快照同步」新增「沪深京指数」占位 Tab（需求 11264）**
   - 位置：排在「北交所股票」与「沪深京ETF」之间（`SYMBOL_ORDER`：`… / bsestock / cnindex / etf / …`）。
   - 状态：**仅占位**——由前端 `PLACEHOLDER_SYMBOLS` 常显，无配置行时显示占位文案、「开始同步」置灰；
