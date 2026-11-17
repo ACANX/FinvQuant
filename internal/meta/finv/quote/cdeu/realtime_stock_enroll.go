@@ -31,22 +31,57 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// pendingSecuInstrumentTypeExpr 把快照的 instrument_type（TEXT）归一到采集表的整型口径。
+// pendingSecuInstrumentTypeCases 键表 instrument（文本词表）→ 采集表 instrument_type（整型）。
 //
-// 归一规则与 instrumentByInstrumentType 保持一致：`12` 与 `3` 都是 stock；
-// 其余按原值映射；落在白名单之外的取 -1（采集表不会有该值 → 匹配不到参考行，
-// 前端会把 market_code 标成「必须人工填写」，而不是悄悄写 0）。
-const pendingSecuInstrumentTypeExpr = `(CASE btrim(t.instrument_type)
-              WHEN '3'  THEN 3
-              WHEN '4'  THEN 4
-              WHEN '6'  THEN 6
-              WHEN '7'  THEN 7
-              WHEN '9'  THEN 9
-              WHEN '10' THEN 10
-              WHEN '11' THEN 11
-              WHEN '12' THEN 3
-              ELSE -1
-            END)`
+// 为什么要这张表：待录入预填的 FROM 是**键表** futu.finv_futu_secu_key（别名 t），
+// 它只有 `instrument`（文本词表 stock / etf / index / sectors / crypto …），**没有**
+// instrument_type 列；历史实现沿用了快照表的 `t.instrument_type`，导致预填必然报
+// `column t.instrument_type does not exist (SQLSTATE 42703)`
+// ——2026-11-18 线上「证券参数补全 → 采集参数」全部失败即此原因。
+//
+// 归一方向与 instrumentByInstrumentType 互逆（3/12 都归 stock：采集表只有 3）；
+// 同时兼容键表里存了数字文本的环境（'3'/'12' …）。
+// 落在白名单之外的取 -1：采集表不会有该值 → 匹配不到参考行，
+// 前端把 market_code 标成「必须人工填写」，而不是悄悄写 0。
+var pendingSecuInstrumentTypeCases = []struct {
+	Key   string
+	Value int
+}{
+	{"stock", 3},
+	{"3", 3},
+	{"12", 3},
+	{"etf", 4},
+	{"4", 4},
+	{"index", 6},
+	{"6", 6},
+	{"sector", 7},
+	{"sectors", 7},
+	{"7", 7},
+	{"futures", 9},
+	{"future", 9},
+	{"9", 9},
+	{"forex", 10},
+	{"currency", 10},
+	{"10", 10},
+	{"crypto", 11},
+	{"11", 11},
+}
+
+// buildPendingSecuInstrumentTypeExpr 由上面的映射表生成 SQL CASE 表达式（单一数据源，避免两处漂移）。
+func buildPendingSecuInstrumentTypeExpr(column string) string {
+	var b strings.Builder
+	b.WriteString("(CASE lower(btrim(" + column + "))\n")
+	for _, item := range pendingSecuInstrumentTypeCases {
+		b.WriteString(fmt.Sprintf("              WHEN '%s' THEN %d\n", item.Key, item.Value))
+	}
+	b.WriteString("              ELSE -1\n            END)")
+	return b.String()
+}
+
+// pendingSecuInstrumentTypeExpr 把键表的 instrument 归一到采集表的整型 instrument_type。
+//
+// **列名是 t.instrument，不是 t.instrument_type**（键表没有后一列，见上方说明）。
+var pendingSecuInstrumentTypeExpr = buildPendingSecuInstrumentTypeExpr("t.instrument")
 
 // 预填来源标记。
 const (
@@ -236,7 +271,8 @@ func (s *Store) PendingSecuPrefill(ctx context.Context, stockID int64) (PendingS
 	result.StockID = stockID
 
 	// 一次查询取齐：快照行 + finv_exchange 字典 + 同市场同品种的参考行（market_code 等众数）。
-	const stmt = `
+	// stmt 用变量而非常量：instrument_type 归一表达式由映射表在初始化时生成（单一数据源）。
+	stmt := `
 SELECT t.stock_id,
        COALESCE(NULLIF(upper(btrim(t.usc)), ''),
                 upper(btrim(t.market) || '.' || btrim(t.code)))             AS usc,
@@ -247,6 +283,8 @@ SELECT t.stock_id,
        COALESCE(e.exchange_code, 0)                                        AS exchange_code,
        COALESCE(e.base_currency, '')                                       AS base_currency,
        COALESCE(lower(btrim(t.instrument)), '')                            AS instrument_type_raw,
+       -- 归一后的整型品种类型（键表 instrument 是词表 stock/etf/…，采集表是 3/4/…）
+       CAST(` + pendingSecuInstrumentTypeExpr + ` AS text)                 AS instrument_type_norm,
        ''                                                                 AS market_type_raw,
        ref.market_code, ref.sub_instrument_type, ref.instrument,
        sec_conflict.usc  AS security_conflict_usc,
@@ -343,6 +381,7 @@ SELECT t.stock_id,
 		usc, stockCode, name, marketLabel, currency string
 		exchangeCode                                int
 		baseCurrency, instrumentTypeRaw             string
+		instrumentTypeNormRaw                       string
 		marketTypeRaw                               *string
 		securityConflictUSC, collectConflictUSC     *string
 		refMarketCode, refSubInstrumentType         *int
@@ -355,7 +394,7 @@ SELECT t.stock_id,
 	)
 	if err := s.pool.QueryRow(ctx, stmt, stockID).Scan(
 		&result.StockID, &usc, &stockCode, &name, &marketLabel, &currency,
-		&exchangeCode, &baseCurrency, &instrumentTypeRaw, &marketTypeRaw,
+		&exchangeCode, &baseCurrency, &instrumentTypeRaw, &instrumentTypeNormRaw, &marketTypeRaw,
 		&refMarketCode, &refSubInstrumentType, &refInstrument,
 		&securityConflictUSC, &collectConflictUSC,
 		&refReqSection, &refMarketType,
@@ -375,7 +414,14 @@ SELECT t.stock_id,
 	if marketTypeRaw != nil {
 		snapshotMarketType = parseIntOr(*marketTypeRaw, 0)
 	}
-	instrumentType := parseIntOr(instrumentTypeRaw, 3)
+	// 品种类型取归一列（键表词表 → 采集表整型）；-1 表示键表词未识别：
+	// 按 stock(3) 预填并告警，让人工核对（不静默写错品种）。
+	instrumentType := parseIntOr(instrumentTypeNormRaw, 3)
+	if instrumentType <= 0 {
+		instrumentType = 3
+		result.Warnings = append(result.Warnings, fmt.Sprintf(
+			"键表 instrument=%q 未识别为采集表品种类型，已按股票（3）预填，请核对后再写入", instrumentTypeRaw))
+	}
 
 	// ---- public.finv_security ----
 	securityNameCN := name

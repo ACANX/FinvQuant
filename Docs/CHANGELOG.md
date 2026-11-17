@@ -2586,6 +2586,22 @@
 
 ### 修复
 
+- **「证券参数补全 / 待采证券录入」预填必然失败：SQL 引用了键表不存在的列（需求 11286）**
+  - 现象：两个入口的「预填」全部失败，报
+    `预填失败：PendingSecuPrefill：查询失败: ERROR: column t.instrument_type does not exist (SQLSTATE 42703)`，
+    采集参数补全无法进行（`SecuParamPrefill` 复用同一查询，一并失效）。
+  - 根因：预填 SQL 的 `FROM` 是**键表** `futu.finv_futu_secu_key`（别名 `t`），该表只有 `instrument`
+    （词表 `stock`/`etf`/…），**没有** `instrument_type` 列；实现沿用了快照表的 `t.instrument_type`。
+  - 修复：归一表达式改为作用在 `t.instrument` 上，并由映射表统一生成
+    （`pendingSecuInstrumentTypeCases` → `buildPendingSecuInstrumentTypeExpr`，单一数据源）：
+    `stock`/`3`/`12`→3、`etf`→4、`index`→6、`sector`/`sectors`→7、`futures`/`future`→9、`forex`/`currency`→10、
+    `crypto`→11，未识别→-1。
+  - 连带修复：预填的 `instrument_type` 默认值原先对词表做 `Atoi`，失败后一律退化成 3（ETF/指数/加密都显示成股票）；
+    现 SQL 增列 `instrument_type_norm`（整数文本），Go 侧直接取用；归一到 -1 时按 3 预填并在 `warnings` 提示人工核对。
+  - 验证：新增 `realtime_stock_enroll_test.go` 四个用例（表达式不得引用 `instrument_type` 列、映射与写入侧
+    `instrumentByInstrumentType` 闭合、常见品种全覆盖、归一列由同一生成器产出）；
+    `go test ./internal/meta/finv/quote/cdeu/ -run PendingSecuInstrumentType` 全过；`go build ./...` 通过。
+
 - **期货两表的 BRS 备份登记改用动态空闲 priority，修复部署时迁移 `V300216` 失败（需求 11273）**
   - 现象：Native 部署启动即失败并被 systemd 反复重启，`journalctl -u finvquant` 反复报
     `数据库迁移失败: 迁移 V300216（V300216__cdeu_create_future_list_tables.sql）失败: ERROR: V300216 备份登记缺失：cdeu.finv_quote_realtime_future, cdeu.finv_quote_cdeu_future_sync_config (SQLSTATE P0001)`。

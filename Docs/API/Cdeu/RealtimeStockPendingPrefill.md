@@ -58,7 +58,7 @@
 
 | source | 含义 | 来源 |
 |--------|------|------|
-| `snapshot` | 快照行直接带过来 | 代码 / 名称 / 市场 / 品种类型 / 币种 |
+| `snapshot` | 键表 / 快照行直接带过来 | 代码 / 名称 / 市场 / 品种类型 / 币种 |
 | `dictionary` | 查字典表得到 | `public.finv_exchange`（`exchange_code`、`base_currency`）、品种类型映射 |
 | `reference` | 同市场同品种已配置行的众数 | `futu.finv_futu_quote_collect`（`market_code` / `sub_instrument_type` / `instrument`） |
 | `default` | 表默认值或代码缺省，仅供占位 | `security_name_cn` 缺省取英文名、`flag_enable='0'` |
@@ -76,6 +76,7 @@
 | `quote_collect` | `market_type` | 快照 `market_type` 优先，缺失按市场推：HK=1 / US=2 / A股=4 |
 | `quote_collect` | `market_code` | 同市场同品种已配置行的众数（标记 `reference`，必须核对） |
 | `quote_collect` | `sub_instrument_type` | `instrument_type * 1000 + 2`（3→3002、4→4002） |
+| `quote_collect` | `instrument_type` | 取自**键表** `futu.finv_futu_secu_key.instrument` 的归一：`stock`/`3`/`12`→3、`etf`→4、`index`→6、`sector`/`sectors`→7、`futures`/`future`→9、`forex`→10、`crypto`→11；未识别（-1）按 3 预填并给出 warning（需求 11286） |
 | `quote_collect` | `instrument` | 3→stock、4→etf、6→index、7→sectors、11→crypto |
 | `quote_collect` | `flag_enable` | 默认 `'0'`（停用），核对后再开采集 |
 
@@ -87,7 +88,9 @@
 - 快照无币种且字典无基准币种；
 - 同市场同品种没有可参照的采集配置行（`market_code` 需人工填）；
 - `public.finv_security` 的 `(exchange_code, security_code)` 已被**另一个 usc** 占用；
-- `futu.finv_futu_quote_collect` 的 `(market_code, futu_symbol)` 已被另一个 usc 占用。
+- `futu.finv_futu_quote_collect` 的 `(market_code, futu_symbol)` 已被另一个 usc 占用；
+- 键表 `instrument` 的取值不在归一表内（`stock`/`etf`/`index`/`sectors`/`futures`/`forex`/`crypto` 及数字形态），
+  此时品种类型按 3（股票）预填并提示人工核对（需求 11286）。
 
 > 第 4、5 条是老库历史口径造成的真实障碍：旧数据的 `usc` 是裸代码（如 `09999`），
 > 新口径是 `HK.09999`，撞唯一约束。**不得自动改旧行主键**，必须人工裁决。
