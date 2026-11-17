@@ -81,6 +81,9 @@ type Service struct {
 
 	// fxCerRateListFetcher 汇率列表拉取实现（默认 moomoo 客户端；单测可通过 SetFxCERRateListFetcher 注入）。
 	fxCerRateListFetcher FxCERRateListFetcher
+
+	// bdfsConstituentsFetcher BDFS（百度股市通）板块成分股拉取实现（默认 MetaExt finscope；单测可注入）。
+	bdfsConstituentsFetcher BdfsConstituentsFetcher
 }
 
 // NewService 创建归档服务。

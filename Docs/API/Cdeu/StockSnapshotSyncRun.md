@@ -49,6 +49,21 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 
 **并发约束**：同一时间只允许一个 `RUNNING` 任务；已有任务在跑时返回 `400` 并提示当前 `run_id`。
 
+### 2.3 按品种分支：BDFS 板块采集（需求 11262）
+
+`instrument_symbol="bsestock"` 时走**独立分支**，不读 `cdeu.finv_cdeu_secu_realtime_sync_config`、
+不分市场，直接采集百度股市通板块 `GN2309`（北交所上市企业）全部成分股：
+
+| 项 | 行为 |
+|---|---|
+| 请求体 | 只需 `instrument_symbol: "bsestock"`；`market_type` / `count_plan` 不生效（可省略） |
+| 生效参数 | `page_size`（默认 500，接口 `rn`）、`request_timeout_ms`（默认 20000） |
+| 不生效参数 | `interval_ms` / `max_retries` / `retry_backoff_ms` / `max_pages`（单次全量拉取，无页间节流） |
+| 落库表 | `cdeu.finv_quote_secu_realtime`，`provider` 固定 `BDFS`，按 `usc` 整行覆盖 |
+| usc 解析 | `(exchange, code)` → `public.finv_security.usc`；解析不到的行跳过并记 WARN 日志 |
+| 运行状态 / 日志 | 与 moomoo 分支共用同一运行持有者与轮询端点，`results[].instrument_symbol` 为 `bsestock`、`market_type` 为 `BJ` |
+| 主要失败原因 | 接口风控（`hit risk`，需降频或换出口网络）、板块无数据、全部行未解析到 usc |
+
 ## 3. 轮询状态
 
 `GET .../FTStockQuoteSnapshotSync/Run`（`runId` 省略时取最近一次）：

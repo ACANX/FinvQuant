@@ -202,6 +202,12 @@ func (s *Service) StartStockListRun(opts StockListCollectOptions) (StockListRun,
 		s.stockListRunner = newStockListRunner()
 	}
 
+	// 需求 11262：BDFS（百度股市通）走板块成分股采集，与 moomoo 列表采集完全独立，
+	// 不读配置表、不分市场，落库到 cdeu.finv_quote_secu_realtime（provider='BDFS'）。
+	if normalized.FilterInstrumentSymbol == BdfsInstrumentSymbol {
+		return s.startBdfsSecuRealtimeRun(normalized)
+	}
+
 	params := map[string]any{
 		"instrument_symbol":  normalized.FilterInstrumentSymbol,
 		"market_type":        normalized.FilterMarketType,
@@ -290,4 +296,57 @@ func StockListCollectEventToLog(event StockListCollectEvent) StockListRunLog {
 		entry.Time = event.Time.Format("15:04:05")
 	}
 	return entry
+}
+
+// startBdfsSecuRealtimeRun 启动一次 BDFS 板块成分股采集（需求 11262）。
+//
+// 与 moomoo 列表采集共用 StockListRunner（运行状态 + 日志 + 轮询接口），
+// 因此前端「行情快照同步」页无需新增接口：同一条 /Run 接口按 instrument_symbol 分支。
+func (s *Service) startBdfsSecuRealtimeRun(opts StockListCollectOptions) (StockListRun, error) {
+	if s.stockListRunner == nil {
+		s.stockListRunner = newStockListRunner()
+	}
+
+	params := map[string]any{
+		"instrument_symbol":  BdfsInstrumentSymbol,
+		"provider":           BdfsProvider,
+		"block_code":         BdfsBseBlockCode,
+		"page_size":          opts.PageSize,
+		"request_timeout_ms": opts.RequestTimeout.Milliseconds(),
+		"target_table":       tableQuoteSecuRealtime,
+	}
+	runID, err := s.stockListRunner.begin(params)
+	if err != nil {
+		return StockListRun{}, err
+	}
+
+	s.stockListRunner.appendLog(runID, StockListRunLog{
+		Level:   "INFO",
+		Message: fmt.Sprintf("任务已启动：BDFS 板块 %s（provider=%s），每页 %d 条", BdfsBseBlockCode, BdfsProvider, opts.PageSize),
+	})
+
+	go func() {
+		fetcher := s.bdfsConstituentsFetcher
+		if fetcher == nil {
+			fetcher = NewFinscopeConstituentsFetcher()
+		}
+		collector := NewBdfsSecuRealtimeCollector(fetcher, s.store, s.store, nil).WithHook(
+			func(event StockListCollectEvent) {
+				s.stockListRunner.appendLog(runID, StockListCollectEventToLog(event))
+			})
+		result, collectErr := collector.Collect(context.Background(), BdfsCollectOptions{
+			BlockCode: BdfsBseBlockCode,
+			PageSize:  opts.PageSize,
+			Timeout:   opts.RequestTimeout,
+		})
+		s.stockListRunner.finish(runID, []StockListCollectResult{result}, collectErr)
+	}()
+
+	run, _ := s.stockListRunner.snapshot(runID)
+	return run, nil
+}
+
+// SetBdfsConstituentsFetcher 注入 BDFS 成分股拉取实现（单测用；传 nil 恢复默认 finscope 客户端）。
+func (s *Service) SetBdfsConstituentsFetcher(fetcher BdfsConstituentsFetcher) {
+	s.bdfsConstituentsFetcher = fetcher
 }

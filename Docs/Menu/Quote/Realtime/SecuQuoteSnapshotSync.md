@@ -25,18 +25,58 @@
 | `index` | 指数 | 占位 |
 | `future` | 期货 | 占位 |
 | `crypto` | 加密货币 | 占位 |
-| `bsestock` | 北交所股票 | 占位 |
+| `bsestock` | 北交所股票 | BDFS 板块采集（需求 11262，固定来源，无需配置行） |
 | `sector` | 板块 | 占位 |
 | `portfolio` | 投资组合 | 占位 |
 | `gold` | 黄金 | 占位 |
 | `forex` | 外汇 | 配置表（插行后出现） |
 | `option` | 期权 | 配置表（插行后出现） |
 
-**占位 Tab（需求 11256）**：`etf` / `index` / `future` / `crypto` / `bsestock` / `sector` / `portfolio` /
-`gold` 八个品种按上表顺序**跟在配置表已有品种之后常显**，由前端 `PLACEHOLDER_SYMBOLS` 硬编码（不依赖配置行）：
+**占位 Tab（需求 11256）**：`etf` / `index` / `future` / `crypto` / `sector` / `portfolio` / `gold`
+七个品种按上表顺序**跟在配置表已有品种之后常显**，由前端 `PLACEHOLDER_SYMBOLS` 硬编码（不依赖配置行）：
 配置表暂无该品种的行时，Tab 照常可点，配置表显示「该品种为占位 Tab：配置表暂无该品种的采集行，暂不参与采集」，
 「开始同步」按钮禁用；后续接入时只要往 `cdeu.finv_cdeu_secu_realtime_sync_config` 插入同符号的配置行，
 即自动转为可采集（无需改前端）。
+
+**固定来源 Tab（需求 11262）**：`bsestock`（北交所股票）已接入 BDFS 采集，由前端 `FIXED_SYMBOLS` 常显，
+不读配置表、也不需要配置行——「开始同步」直接可用，配置表区显示
+「该品种为 BDFS 板块采集（板块 GN2309 北交所上市企业）…结果写入 `cdeu.finv_quote_secu_realtime`（provider=BDFS）」。
+
+#### 2.0.1 BDFS 板块采集（`bsestock`，需求 11262）
+
+| 项 | 内容 |
+|---|---|
+| 数据源 | 百度股市通 FinScope `GET /sapi/v1/constituents`（经 MetaExt `component/quote/baidu/finscope` 的 `GetAllConstituents`） |
+| 板块 | `block` / `GN2309`（北交所上市企业），`market=ab` |
+| 翻页 | 按**偏移量** `pn += rn` 递增（`rn` = 页面「每页条数」，默认 500），返回条数 < `rn` 即末页；另有 200 页上限防死循环 |
+| 落库表 | `cdeu.finv_quote_secu_realtime`（`V300209`，主键 `usc`，`provider` 固定 `BDFS`） |
+| usc 解析 | 按 `(exchange, code)` 关联 `public.finv_exchange.exchange_flag` + `public.finv_security.security_code`；解析不到的行跳过并在日志记 WARN 计数 |
+| 写入语义 | 按 `usc` 整行覆盖（`ON CONFLICT (usc) DO UPDATE`），`stock_id` 恒为 NULL（BDFS 不提供源系统 ID） |
+| 节流 | 无页间间隔（单次全量可在数百毫秒内完成）；「页间隔 / 重试 / 退避」参数对该 Tab 不生效 |
+
+**字段映射（BDFS 成分股 → `cdeu.finv_quote_secu_realtime`）**：
+
+| 目标列 | 来源 | 口径 |
+|---|---|---|
+| `usc` | `(exchange, code)` → `public.finv_security.usc` | 主键 |
+| `stock_code` | `code` | 原样 |
+| `name` | `name` | 原样 |
+| `market_type` | `exchange` | `BJ` / `SH` / `SZ` |
+| `market_label` | `exchange` | 北交所 / 上交所 / 深交所 |
+| `instrument_type` | 固定 `stock` | 该板块仅返回股票 |
+| `currency` | 固定 `CNY` | A 股 |
+| `price_nominal` | `rawData.lastPx` | 元 |
+| `change_price` | `rawData.pxChange` | 元，可负 |
+| `change_ratio` | `rawData.pxChangeRate / 100` | 表内口径为**小数比例**（`+0.83%` → `0.0083`） |
+| `trade_volumn` | `rawData.volume × 100` | 接口单位为**手**，表内按**股** |
+| `trade_trunover` | `rawData.amount` | 元 |
+| `market_value` | `rawData.marketValue` | 元 |
+| `price_direct` | `pxChange` 符号 | `+` / `-` / `0` |
+| `page` | 本次采集页码 | 从 1 起（`行序号 / 每页条数 + 1`） |
+| `dt_update` | 采集时刻 | Unix 毫秒 |
+| `provider` | 固定 `BDFS` | — |
+| `remark` | 固定文本 | `来源 BDFS 板块 GN2309（BDFS）` |
+| 其余列 | 无来源 | 写 NULL（`hasQuote=0` 时行情列同样写 NULL，不写 0） |
 
 扩展方式：往 `cdeu.finv_cdeu_secu_realtime_sync_config` 插一行对应 `instrument_symbol` 的配置，
 **无需改前端**——Tab 自动出现，该 Tab 的市场下拉也由该品种的配置行生成。

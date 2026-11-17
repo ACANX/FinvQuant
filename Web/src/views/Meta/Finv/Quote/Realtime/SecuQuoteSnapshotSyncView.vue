@@ -93,7 +93,10 @@ const SYMBOL_ICONS: Record<string, string> = {
 
 // 占位品种（需求 11256）：按此顺序排在配置表已有品种之后，暂未接入采集，仅出 Tab。
 // 符号与后续配置表的 instrument_symbol 保持一致，接入时插配置行即自动生效。
-const PLACEHOLDER_SYMBOLS = ['etf', 'index', 'future', 'crypto', 'bsestock', 'sector', 'portfolio', 'gold']
+const PLACEHOLDER_SYMBOLS = ['etf', 'index', 'future', 'crypto', 'sector', 'portfolio', 'gold']
+// 已接入真实采集、但配置表（cdeu.finv_cdeu_secu_realtime_sync_config）没有采集行的品种：
+// bsestock 走 BDFS 板块成分股接口（需求 11262），全量拉取，无需配置行。
+const FIXED_SYMBOLS = ['bsestock']
 
 const MARKET_LABELS: Record<string, string> = { '1': 'HK 港股', '2': 'US 美股', '4': 'CN A 股' }
 
@@ -126,11 +129,17 @@ const symbols = computed(() => {
     }
   }
   if (!seen.length) seen.push('stock')
+  for (const symbol of FIXED_SYMBOLS) {
+    if (!seen.includes(symbol)) seen.push(symbol)
+  }
   for (const symbol of PLACEHOLDER_SYMBOLS) {
     if (!seen.includes(symbol)) seen.push(symbol)
   }
   return seen
 })
+
+/** 当前 Tab 是「固定来源」品种（无配置行但已接入真实采集，如 BDFS 板块成分股） */
+const activeIsFixedSource = computed(() => FIXED_SYMBOLS.includes(activeSymbol.value))
 
 /** 当前 Tab 品种的配置行 */
 const symbolConfigs = computed(() => configs.value.filter((item) => item.instrument_symbol === activeSymbol.value))
@@ -372,6 +381,10 @@ onBeforeUnmount(stopPolling)
               <template v-if="activeIsPlaceholder">
                 该品种为占位 Tab：配置表暂无该品种的采集行，暂不参与采集
               </template>
+              <template v-else-if="activeIsFixedSource">
+                该品种为 BDFS 板块采集（板块 GN2309 北交所上市企业），全量拉取成分股行情，无需配置表行；
+                结果写入 cdeu.finv_quote_secu_realtime（provider=BDFS）
+              </template>
               <template v-else>该品种暂无启用的采集配置（可在 cdeu.finv_cdeu_secu_realtime_sync_config 插入一行）</template>
             </td>
           </tr>
@@ -410,8 +423,8 @@ onBeforeUnmount(stopPolling)
           color="primary"
           prepend-icon="mdi-play"
           :loading="starting"
-          :disabled="anyRunning || !symbolConfigs.length"
-          :title="symbolConfigs.length ? '' : '该品种暂无采集配置，无法启动同步'"
+          :disabled="anyRunning || (!symbolConfigs.length && !activeIsFixedSource)"
+          :title="symbolConfigs.length || activeIsFixedSource ? '' : '该品种暂无采集配置，无法启动同步'"
           @click="startSync"
         >
           开始同步

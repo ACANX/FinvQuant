@@ -20,6 +20,18 @@
 
 ### 新增
 
+- **「行情快照同步」北交所股票 Tab 接入 BDFS 板块采集（需求 11262）**
+  - 数据源：MetaExt `component/quote/baidu/finscope` 的 `GetAllConstituents`，板块 `GN2309`（北交所上市企业），
+    按偏移量翻页（`rn` 默认 500，200 页上限），无市场/品种配置维度。
+  - 落库：`cdeu.finv_quote_secu_realtime`（`V300209`），`provider` 固定 `BDFS`，按 `usc` 整行覆盖；
+    `usc` 由 `(exchange, code)` 关联 `public.finv_exchange` + `public.finv_security` 解析，未命中行跳过并记 WARN。
+  - 字段映射：`change_ratio` 百分数→小数比例、`trade_volumn` 手→股、`price_direct` 由涨跌额符号推导、
+    `hasQuote=0` 只写身份列（行情列 NULL，不写 0）、`stock_id` 恒 NULL、`remark` 带来源板块。
+  - 前端：`bsestock` 从占位 Tab 改为固定来源 Tab（`FIXED_SYMBOLS`），无配置表行时「开始同步」可用；
+    配置表区显示 BDFS 说明，日志/结果复用既有轮询接口。
+  - 依赖：`github.com/acnxo/MetaExt` 升级到 `v0.1.3-0.20261114210006-2916f63c1840`（含 `baidu/finscope` 包）。
+  - 验证：`go test ./internal/meta/finv/quote/cdeu/ -run Bdfs` 通过；`go build ./...`、`cd Web && npm run build` 通过。
+
 - **新增跨 provider 证券实时行情快照表 `cdeu.finv_quote_secu_realtime`（需求 11261，迁移 `V300209`）**
   - 参考 `cdeu.finv_cdeu_secu_realtime_stock` 的 34 列结构：主键由 `stock_id` 改为 `usc`（`usc TEXT NOT NULL`），
     `stock_id` 由 `BIGINT` 改为 `TEXT` 且可空（NULL = 源系统未分配），表尾新增
