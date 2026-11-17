@@ -38,8 +38,11 @@ const FuturesTypeAll = "all"
 
 // 采集控制参数的默认值（Options 零值字段按这些补齐）。
 const (
-	// FutureListDefaultPageSize 每页条数默认值（接口观测默认 40）。
-	FutureListDefaultPageSize = 40
+	// FutureListDefaultPageSize 每页条数默认值（需求 11274 调整：40 → 50，与股票/ETF 采集保持一致）。
+	//
+	// 注意：上游 quoteapiv2.DefaultFuturesPageSize 是 40，本常量显式覆盖它；
+	// 采集器每页都会带 pageSize，因此不受上游默认值影响。
+	FutureListDefaultPageSize = 50
 	// FutureListDefaultPageStart 页码起始值：从 0 开始（本接口 page 是 0-based）。
 	FutureListDefaultPageStart = 0
 	// FutureListDefaultMarketType 市场类型默认值：0 = 聚合口径。

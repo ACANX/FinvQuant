@@ -153,9 +153,9 @@ const countPlan = ref<number | null>(null)
 // 每页条数默认值：BDFS 板块采集默认 500（接口 rn），其余品种沿用 50
 const BDFS_DEFAULT_PAGE_SIZE = 500
 const PAGE_SIZE_DEFAULT = 50
-// 期货（需求 11274）：接口观测默认每页 40 条，每个分类通常只有 1~3 页，
-// 页间间隔 2s 即可（与后端 FutureListDefault* 保持一致，避免前端默认 50/6000ms 覆盖）
-const FUTURES_PAGE_SIZE_DEFAULT = 40
+// 期货（需求 11274）：每页 50 条（与后端 FutureListDefaultPageSize 一致），
+// 每个分类通常只有 1~5 页，页间间隔 2s 即可
+const FUTURES_PAGE_SIZE_DEFAULT = 50
 const FUTURES_INTERVAL_DEFAULT = 2000
 const pageSize = ref(PAGE_SIZE_DEFAULT)
 const intervalMs = ref(6000)

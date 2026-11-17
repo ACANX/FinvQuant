@@ -81,7 +81,7 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 | 项 | 行为 |
 |---|---|
 | 请求体 | `instrument_symbol: "future"` 必填；`futures_type` 可选（`1`~`8`，空/`all`=全部启用分类） |
-| 生效参数 | `page_size`（默认 40，接口观测默认值）、`page_start`（默认 0，本接口 0-based）、`interval_ms`（默认 2000）、`max_retries`（2）、`retry_backoff_ms`（2000）、`request_timeout_ms`（20000）、`max_pages`（0=不限）、`count_plan`（覆盖每分类计划数量） |
+| 生效参数 | `page_size`（默认 **50**，与股票/ETF 采集一致；上游 `DefaultFuturesPageSize` 为 40，本采集器显式覆盖）、`page_start`（默认 0，本接口 0-based）、`interval_ms`（默认 2000）、`max_retries`（2）、`retry_backoff_ms`（2000）、`request_timeout_ms`（20000）、`max_pages`（0=不限）、`count_plan`（覆盖每分类计划数量） |
 | 不生效参数 | `market_type`（每个分类的 `marketType` 取配置行，默认 `0`=聚合口径）、`plate_type`、`rank_type` |
 | 落库表 | `cdeu.finv_quote_realtime_future`，**主键单列 `stock_id`**，整行覆盖；`futures_type` 由最后采集的分类覆盖（采集按分类升序） |
 | 字段口径 | 接口 `fields` 是位置化字典：本仓库只把 `1`=合约代码、`2`=名称、`3`=价格、`4`=涨跌幅（去 `%` 按百分点）、`19`=市场标签提成列；其余原样进 `fields_json`，`field_list_json` 留档 |

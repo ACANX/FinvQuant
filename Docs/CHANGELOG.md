@@ -352,6 +352,13 @@
 
 ### 变更
 
+- **期货列表采集默认每页条数 40 → 50（需求 11274）**
+  - 后端 `FutureListDefaultPageSize` 由 40 改为 **50**（与股票 / ETF 采集一致）；前端期货 Tab 的「每页条数」默认值同步为 50。
+    上游 `quoteapiv2.DefaultFuturesPageSize` 仍是 40，但采集器每页都显式传 `pageSize`，不受上游默认值影响。
+  - 影响：同一分类的页数减少约 20%（例：`futuresType=8` 的 179 条由 5 页变 4 页），请求次数与页间等待随之减少，单页响应体略大。
+  - 验证：`go test ./internal/meta/finv/quote/cdeu/ -run Future` 全过（用例显式传 pageSize，结论不受默认值变化影响）；
+    `cd Web && npm run build` 通过。
+
 - **期货采集日志明细改为每行 5 个合约、每格 20 显示列（需求 11274）**
   - 现象：明细格宽 13 时，`[I] ` 前缀占掉 4 显示列、只剩 9 列，线上日志里
     `NK225Mmain` 被截成 `NK225Mmai`、`NK225MCmain` 截成 `NK225MCma`，人工核对合约代码容易误读。
