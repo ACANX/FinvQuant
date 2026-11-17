@@ -56,8 +56,8 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 
 | 项 | 行为 |
 |---|---|
-| 请求体 | 只需 `instrument_symbol: "bsestock"`；`market_type` / `count_plan` 不生效（可省略） |
-| 生效参数 | `page_size`（默认 500，接口 `rn`）、`request_timeout_ms`（默认 20000） |
+| 请求体 | 只需 `instrument_symbol: "bsestock"`；`market_type` / `count_plan` 不生效（前端固定传 `market_type: "BJ"`，服务端忽略） |
+| 生效参数 | `page_size`（前端默认 500，接口 `rn`；服务端缺省也按 500）、`request_timeout_ms`（默认 20000） |
 | 不生效参数 | `interval_ms` / `max_retries` / `retry_backoff_ms` / `max_pages`（单次全量拉取，无页间节流） |
 | 落库表 | `cdeu.finv_quote_secu_realtime`，`provider` 固定 `BDFS`，按 `usc` 整行覆盖 |
 | usc 解析 | `(exchange, code)` → `public.finv_security.usc`；解析不到的行跳过并记 WARN 日志 |

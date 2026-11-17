@@ -114,7 +114,10 @@ const logBox = ref<HTMLElement | null>(null)
 // 采集范围与节奏（对应后端 StockListCollectRequest；市场为空=该品种全部市场）
 const marketType = ref('')
 const countPlan = ref<number | null>(null)
-const pageSize = ref(50)
+// 每页条数默认值：BDFS 板块采集默认 500（接口 rn），其余品种沿用 50
+const BDFS_DEFAULT_PAGE_SIZE = 500
+const PAGE_SIZE_DEFAULT = 50
+const pageSize = ref(PAGE_SIZE_DEFAULT)
 const intervalMs = ref(6000)
 const maxRetries = ref(2)
 const retryBackoffMs = ref(2000)
@@ -150,10 +153,14 @@ const activeIsPlaceholder = computed(
 )
 
 /** 当前 Tab 品种的市场选项（来自配置行，插新行自动生效） */
-const marketOptions = computed(() => [
-  { title: '全部市场', value: '' },
-  ...symbolConfigs.value.map((item) => ({ title: marketLabel(item.market_type), value: item.market_type })),
-])
+const marketOptions = computed(() => {
+  // 固定来源品种（BDFS 板块采集）的市场由来源决定，固定 BJ，不给其它选项
+  if (activeIsFixedSource.value) return [{ title: 'BJ 北交所', value: 'BJ' }]
+  return [
+    { title: '全部市场', value: '' },
+    ...symbolConfigs.value.map((item) => ({ title: marketLabel(item.market_type), value: item.market_type })),
+  ]
+})
 
 /** 当前 Tab 品种的运行结果 */
 const symbolResults = computed(() =>
@@ -279,7 +286,8 @@ async function startSync() {
       retry_backoff_ms: retryBackoffMs.value,
       max_pages: maxPages.value,
     }
-    if (marketType.value) body.market_type = marketType.value
+    if (activeIsFixedSource.value) body.market_type = 'BJ'
+    else if (marketType.value) body.market_type = marketType.value
     if (countPlan.value !== null && countPlan.value > 0) body.count_plan = countPlan.value
 
     const payload = await apiPost<StockListRun>(START_API, body)
@@ -300,9 +308,9 @@ async function refreshOnce() {
 }
 
 function resetOptions() {
-  marketType.value = ''
+  marketType.value = activeIsFixedSource.value ? 'BJ' : ''
   countPlan.value = null
-  pageSize.value = 50
+  pageSize.value = activeIsFixedSource.value ? BDFS_DEFAULT_PAGE_SIZE : PAGE_SIZE_DEFAULT
   intervalMs.value = 6000
   maxRetries.value = 2
   retryBackoffMs.value = 2000
@@ -311,8 +319,9 @@ function resetOptions() {
 
 /** 切换 Tab：清空当前品种专属的筛选值，避免把上个品种的市场带过去 */
 function onSymbolChange() {
-  marketType.value = ''
+  marketType.value = activeIsFixedSource.value ? 'BJ' : ''
   countPlan.value = null
+  pageSize.value = activeIsFixedSource.value ? BDFS_DEFAULT_PAGE_SIZE : PAGE_SIZE_DEFAULT
   scrollLogs()
 }
 
@@ -397,6 +406,8 @@ onBeforeUnmount(stopPolling)
         <v-select
           v-model="marketType"
           :items="marketOptions"
+          :disabled="activeIsFixedSource"
+          :title="activeIsFixedSource ? 'BDFS 板块采集的市场固定为 BJ，不可更改' : ''"
           item-title="title"
           item-value="value"
           label="市场"
