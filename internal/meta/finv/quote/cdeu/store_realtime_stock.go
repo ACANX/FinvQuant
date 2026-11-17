@@ -334,7 +334,7 @@ func (s *Store) ListRealtimeStocks(ctx context.Context, f RealtimeStockListFilte
 	// 排序必须写成 t.<列>：输出列里有同名别名（market_value::text AS market_value），
 	// 不限定表别名时 ORDER BY 会解析到 text 输出列，退化成字符串排序（"9994…" > "5060…"）。
 	query := "SELECT " + realtimeStockListColumns(f.FillUSCFromKey) + " FROM " + fromClause + where +
-		" ORDER BY t." + orderBy + " " + direction + " NULLS LAST, t.stock_id" +
+		" ORDER BY t." + orderBy + " " + direction + " NULLS LAST, t.usc" +
 		fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
 
 	rows, err := s.pool.Query(ctx, query, pageArgs...)
