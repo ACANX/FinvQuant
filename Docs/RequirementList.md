@@ -3422,7 +3422,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 加密货币采集每页条数固定 400（需求 11321）：采集器删除 `BatchSize`，单批 code 数固定为 `webapi.MaxCodes`（400）；独立接口 `POST .../Crypto/Fav/Snapshot/Sync` 不再接受 `batch_size`；前端「加密货币」Tab 的「每页条数」锁定 400 且禁用。 核对：`grep -c 'cryptoBatchSize' internal/meta/finv/quote/cdeu/*.go` ≥ 2；`curl -X POST .../Crypto/Fav/Snapshot/Sync -d '{"batch_size":10}'` 仍按 400 分批（日志「第 1 批：codes=…」≤400）；页面加密货币 Tab「每页条数」显示 400 且不可编辑；`cd Web && npm run build` 退出码 0。 | 11321 | 1 |
 | 在「行情 → 实时行情」的「证券行情排行」之后新增「期货行情排行」菜单（路由 `/Meta/Finv/Quote/Realtime/FTFutureRank`，菜单 key `quote-realtime-ftfuture-rank`），查询 `cdeu.finv_quote_realtime_future`（主键 `stock_id`）保存的行情快照。 核对：`curl 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/Future/Page?page=1&pageSize=5'` 返回 `code=0` 且 `data.total=335`；页面菜单顺序为「证券行情排行 → 期货行情排行 → 加密货币行情排行」；`FINV_RANK_LIVE=1 go test -run TestLiveRealtimeFutureAndCryptoPage ./internal/meta/finv/quote/cdeu/` 通过。 | 11322 | 1 |
 | 在「期货行情排行」之后新增「加密货币行情排行」菜单（路由 `/Meta/Finv/Quote/Realtime/FTCryptoRank`，菜单 key `quote-realtime-ftcrypto-rank`），查询 `cdeu.finv_quote_secu_realtime_crypto`（主键 `usc`）保存的行情快照。 核对：`curl 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/Crypto/Page?page=1&pageSize=5'` 返回 `code=0` 且 `data.total=8`；`curl .../Realtime/Crypto/QuoteCurrencies` 返回 `["USD","USDC","USDT"]`；页面可按「涨跌幅」排序且红涨绿跌整行着色。 | 11323 | 1 |
-| **合计** | **10001–11323** | **1319**（含 4 条待办；11273–11323 为后续追加） |
+| 期货行情排行（`FTFutureRank`）表格展示「持仓量」「日增仓」两个指标并支持排序，「提供方」从表格移到明细，明细弹窗改为多列自适应布局。 核对：`curl '.../Realtime/Future/Page?page=1&pageSize=1'` 返回的 `data.list[0].open_interest` / `day_increase` 非空；`orderBy=open_interest&order=desc` 首行持仓量不小于末行；页面表格可见「持仓量」「日增仓」列、无「提供方」列；点「明细」后字段按多列排列且首项为「提供方」；`cd Web && npm run build` 退出码 0。 | 11324 | 1 |
+| **合计** | **10001–11324** | **1320**（含 4 条待办；11273–11324 为后续追加） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

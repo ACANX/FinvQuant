@@ -6,6 +6,29 @@ import (
 	"strings"
 )
 
+// futureFieldTextExpr 按 field_list_json 里的字段名找到编号，再从 fields_json 取原文。
+//
+// 例：fieldName=持仓量 → fieldId=11 → fields_json->>'11' = "237.00"。
+// 字段名不存在或值为空/`--` 时返回 NULL（SQL 侧再用 COALESCE 落成空串）。
+func futureFieldTextExpr(fieldName string) string {
+	return fmt.Sprintf(`(SELECT NULLIF(btrim(t.fields_json ->> (f.elem ->> 'fieldId')), '')
+          FROM jsonb_array_elements(COALESCE(t.field_list_json, '[]'::jsonb)) AS f(elem)
+         WHERE f.elem ->> 'fieldName' = '%s'
+         LIMIT 1)`, fieldName)
+}
+
+// futureFieldNumberExpr 把上面的文本转 NUMERIC 供排序；非数值（如 `--`）按 NULL 处理。
+func futureFieldNumberExpr(fieldName string) string {
+	text := futureFieldTextExpr(fieldName)
+	return fmt.Sprintf(`(CASE WHEN %s ~ '^-?[0-9]+(\.[0-9]+)?$' THEN %s::numeric END)`, text, text)
+}
+
+// realtimeFutureOrderExprs 需要用表达式排序的列（其余列直接用 t.<列名>）。
+var realtimeFutureOrderExprs = map[string]string{
+	"open_interest": futureFieldNumberExpr(futureFieldNameOpenInterest),
+	"day_increase":  futureFieldNumberExpr(futureFieldNameDayIncrease),
+}
+
 // ListRealtimeFutures 分页查询期货实时行情快照（需求 11322）。
 //
 // 表 cdeu.finv_quote_realtime_future（主键 stock_id）。分类中文名来自配置表
@@ -65,6 +88,11 @@ func (s *Store) ListRealtimeFutures(ctx context.Context, f RealtimeFutureListFil
 	if !f.Desc {
 		direction = "ASC"
 	}
+	// 结构化列按 t.<列名> 排序；持仓量/日增仓走字段留档表达式（需求 11324）。
+	orderExpr := "t." + orderBy
+	if expr, ok := realtimeFutureOrderExprs[orderBy]; ok {
+		orderExpr = expr
+	}
 	pageArgs := append(append([]any{}, args...), f.Limit, f.Offset)
 	query := `SELECT t.stock_id::text,
        COALESCE(t.usc, ''),
@@ -76,6 +104,8 @@ func (s *Store) ListRealtimeFutures(ctx context.Context, f RealtimeFutureListFil
        COALESCE(t.name, ''),
        COALESCE(t.price_nominal::text, ''),
        COALESCE(t.change_ratio::text, ''),
+       COALESCE(` + futureFieldTextExpr(futureFieldNameOpenInterest) + `, ''),
+       COALESCE(` + futureFieldTextExpr(futureFieldNameDayIncrease) + `, ''),
        COALESCE(t.price_direct, ''),
        COALESCE(t.flag_online, ''),
        COALESCE(t.provider, ''),
@@ -84,7 +114,7 @@ func (s *Store) ListRealtimeFutures(ctx context.Context, f RealtimeFutureListFil
        COALESCE(t.fields_json::text, ''),
        COALESCE(t.field_list_json::text, '')
   FROM ` + fromClause + where +
-		" ORDER BY t." + orderBy + " " + direction + " NULLS LAST, t.stock_id" +
+		" ORDER BY " + orderExpr + " " + direction + " NULLS LAST, t.stock_id" +
 		fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
 
 	rows, err := s.pool.Query(ctx, query, pageArgs...)
@@ -99,7 +129,8 @@ func (s *Store) ListRealtimeFutures(ctx context.Context, f RealtimeFutureListFil
 		if err := rows.Scan(
 			&row.StockID, &row.USC, &row.FuturesType, &row.FuturesTypeName,
 			&row.MarketType, &row.MarketLabel, &row.ContractCode, &row.Name,
-			&row.PriceNominal, &row.ChangeRatio, &row.PriceDirect, &row.FlagOnline,
+			&row.PriceNominal, &row.ChangeRatio, &row.OpenInterest, &row.DayIncrease,
+			&row.PriceDirect, &row.FlagOnline,
 			&row.Provider, &row.Remark, &row.DtUpdate,
 			&row.FieldsJSON, &row.FieldListJSON,
 		); err != nil {

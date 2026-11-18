@@ -3,7 +3,7 @@
 > 所属：行情 → 实时行情 → 期货行情排行
 > 数据表：`cdeu.finv_quote_realtime_future`（主键 `stock_id`，建表 `V300216`）
 > 分类字典：`cdeu.finv_quote_cdeu_future_sync_config`（`futures_type` → `futures_type_name`）
-> 关联需求：11322
+> 关联需求：11322、11324（持仓量/日增仓列与排序）
 > 实现：`internal/api/handler/cdeu_realtime_future.go`（`RealtimeFuturePage`）、
 > `internal/meta/finv/quote/cdeu/store_realtime_future.go`（`ListRealtimeFutures`）
 > 配套接口：[`GET .../Realtime/Future/Types`](#5-分类下拉)（分类下拉）
@@ -36,7 +36,12 @@
 
 ### 2.2 排序白名单（`orderBy`）
 
-`price_nominal`、`change_ratio`、`dt_update`、`stock_id`、`contract_code`、`futures_type`、`market_label`、`name`。
+`price_nominal`、`change_ratio`、`open_interest`、`day_increase`、`dt_update`、`stock_id`、
+`contract_code`、`futures_type`、`market_label`、`name`。
+
+`open_interest` / `day_increase` 不是主表列：它们按 `field_list_json` 里
+`fieldName=持仓量 / 日增仓` 找到对应 `fieldId`，再取 `fields_json` 原文；排序时转 `NUMERIC`，
+非数值（如 `--`）按 NULL 排在最后。**按字段名查编号，不硬编码 11/12**（需求 11324）。
 
 白名单外的值 → HTTP 400（`code=400`），不做字段名拼接。
 
@@ -62,6 +67,8 @@
         "name": "京东健康",
         "price_nominal": "35.830000",
         "change_ratio": "-13.240000",
+        "open_interest": "18.00",
+        "day_increase": "1.00",
         "price_direct": "-",
         "flag_online": "1",
         "provider": "FTMM",
@@ -87,6 +94,8 @@
 | `name` | string | 合约名称 |
 | `price_nominal` | string | 现价（NUMERIC 文本） |
 | `change_ratio` | string | 涨跌幅（百分点数值，如 `-13.24` 表示 -13.24%） |
+| `open_interest` | string | 持仓量（来自字段留档，按 `fieldName=持仓量` 定位编号；取不到为空串） |
+| `day_increase` | string | 日增仓（同上，`fieldName=日增仓`） |
 | `price_direct` | string | 涨跌方向 `+` / `-` / `=`（前端据此整行着色） |
 | `flag_online` | string | `1` 在线 / `0` 离线 |
 | `provider` | string | 数据提供方（`FTMM`） |

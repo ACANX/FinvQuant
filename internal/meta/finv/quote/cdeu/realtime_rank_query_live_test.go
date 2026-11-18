@@ -3,9 +3,19 @@ package cdeu
 import (
 	"context"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 )
+
+// numOf 把字段留档里的数值文本转 float64（测试断言用；非法值按 0）。
+func numOf(raw string) float64 {
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0
+	}
+	return v
+}
 
 // TestLiveRealtimeFutureAndCryptoPage 期货/加密货币行情排行真实库验证（需求 11322 / 11323，默认跳过）。
 //
@@ -31,10 +41,38 @@ func TestLiveRealtimeFutureAndCryptoPage(t *testing.T) {
 	if futureTotal == 0 || len(futures) == 0 {
 		t.Fatalf("期货排行无数据（total=%d）", futureTotal)
 	}
-	t.Logf("期货排行：total=%d 返回 %d 行；首行 stock_id=%s contract=%s name=%s 分类=%s/%s 现价=%s 涨跌幅=%s fields_json=%d 字节",
+	t.Logf("期货排行：total=%d 返回 %d 行；首行 stock_id=%s contract=%s name=%s 分类=%s/%s 现价=%s 涨跌幅=%s 持仓量=%s 日增仓=%s fields_json=%d 字节",
 		futureTotal, len(futures), futures[0].StockID, futures[0].ContractCode, futures[0].Name,
 		futures[0].FuturesType, futures[0].FuturesTypeName, futures[0].PriceNominal,
-		futures[0].ChangeRatio, len(futures[0].FieldsJSON))
+		futures[0].ChangeRatio, futures[0].OpenInterest, futures[0].DayIncrease,
+		len(futures[0].FieldsJSON))
+
+	// 需求 11324：持仓量 / 日增仓来自字段留档，必须能取到（实测 335 行全部有值）
+	emptyOI := 0
+	for _, row := range futures {
+		if row.OpenInterest == "" {
+			emptyOI++
+		}
+	}
+	if len(futures) > 0 && emptyOI == len(futures) {
+		t.Fatalf("持仓量全部为空，字段名映射可能失效")
+	}
+
+	// 持仓量 / 日增仓排序必须走表达式（DESC 时首个值不小于最后一个）
+	_, byOI, err := store.ListRealtimeFutures(ctx,
+		RealtimeFutureListFilter{OrderBy: "open_interest", Desc: true, Limit: 50})
+	if err != nil {
+		t.Fatalf("按持仓量排序失败: %v", err)
+	}
+	if len(byOI) >= 2 {
+		t.Logf("按持仓量降序：首行 %s 持仓量=%s，末行 %s 持仓量=%s",
+			byOI[0].ContractCode, byOI[0].OpenInterest,
+			byOI[len(byOI)-1].ContractCode, byOI[len(byOI)-1].OpenInterest)
+		if numOf(byOI[0].OpenInterest) < numOf(byOI[len(byOI)-1].OpenInterest) {
+			t.Fatalf("按持仓量降序结果未排序：首 %s < 末 %s",
+				byOI[0].OpenInterest, byOI[len(byOI)-1].OpenInterest)
+		}
+	}
 
 	types, err := store.ListRealtimeFutureTypes(ctx)
 	if err != nil {

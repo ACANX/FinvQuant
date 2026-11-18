@@ -11,10 +11,24 @@ package cdeu
 // 表名复用 store_futures_list.go 的 tableFutureList / tableFutureSyncConfig
 // （cdeu.finv_quote_realtime_future / cdeu.finv_quote_cdeu_future_sync_config）。
 
-// RealtimeFutureOrderColumns 期货排行排序白名单（只允许结构化列，避免拼进 JSON 表达式）。
+// 需求 11324：期货排行展示「持仓量」「日增仓」两个指标列。
+//
+// 这两个指标不是主表结构化列，而在字段留档里：field_list_json 给出
+// fieldId → fieldName（实测 11=持仓量、12=日增仓），fields_json 给出
+// fieldId → 原文。**按字段名查编号**而不是硬编码 11/12，避免上游字段顺序变化后读错值。
+const (
+	futureFieldNameOpenInterest = "持仓量"
+	futureFieldNameDayIncrease  = "日增仓"
+)
+
+// RealtimeFutureOrderColumns 期货排行排序白名单。
+//
+// 持仓量 / 日增仓同样可排序（走 realtimeFutureOrderExprs 里的表达式）。
 var RealtimeFutureOrderColumns = map[string]bool{
 	"price_nominal": true,
 	"change_ratio":  true,
+	"open_interest": true,
+	"day_increase":  true,
 	"dt_update":     true,
 	"stock_id":      true,
 	"contract_code": true,
@@ -52,11 +66,15 @@ type RealtimeFutureListRow struct {
 	Name            string `json:"name"`
 	PriceNominal    string `json:"price_nominal"`
 	ChangeRatio     string `json:"change_ratio"`
-	PriceDirect     string `json:"price_direct"`
-	FlagOnline      string `json:"flag_online"`
-	Provider        string `json:"provider"`
-	Remark          string `json:"remark"`
-	DtUpdate        int64  `json:"dt_update"`
+	// OpenInterest 持仓量（字段留档里 fieldName=持仓量 的原文，非数值时为空）。
+	OpenInterest string `json:"open_interest"`
+	// DayIncrease 日增仓（同上，fieldName=日增仓）。
+	DayIncrease string `json:"day_increase"`
+	PriceDirect string `json:"price_direct"`
+	FlagOnline  string `json:"flag_online"`
+	Provider    string `json:"provider"`
+	Remark      string `json:"remark"`
+	DtUpdate    int64  `json:"dt_update"`
 	// FieldsJSON 该合约的原始字段留档（编号 → 原文，jsonb 文本）。
 	FieldsJSON string `json:"fields_json"`
 	// FieldListJSON 字段定义留档（编号 → 字段名/类型/精度，jsonb 文本）。

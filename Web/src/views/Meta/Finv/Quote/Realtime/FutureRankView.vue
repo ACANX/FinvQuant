@@ -19,6 +19,8 @@ interface FutureRow {
   name: string
   price_nominal: string
   change_ratio: string
+  open_interest: string
+  day_increase: string
   price_direct: string
   flag_online: string
   provider: string
@@ -64,6 +66,8 @@ const detailOpen = ref(false)
 const ORDER_OPTIONS = [
   { title: '涨跌幅', value: 'change_ratio' },
   { title: '现价', value: 'price_nominal' },
+  { title: '持仓量', value: 'open_interest' },
+  { title: '日增仓', value: 'day_increase' },
   { title: '更新时间', value: 'dt_update' },
   { title: '合约代码', value: 'contract_code' },
   { title: '名称', value: 'name' },
@@ -172,6 +176,27 @@ function pct(value: string): string {
   return `${dec(value, 2)}%`
 }
 
+/** 大额数值（持仓量）：万 / 亿 / 万亿折算 */
+function compact(value: string): string {
+  if (!value) return '—'
+  const n = Number(value)
+  if (!Number.isFinite(n)) return value
+  const abs = Math.abs(n)
+  if (abs >= 1e12) return `${trimZero((n / 1e12).toFixed(2))} 万亿`
+  if (abs >= 1e8) return `${trimZero((n / 1e8).toFixed(2))} 亿`
+  if (abs >= 1e4) return `${trimZero((n / 1e4).toFixed(2))} 万`
+  return trimZero(n.toFixed(2))
+}
+
+/** 带符号数值（日增仓）：正数补 +，负数原样 */
+function signed(value: string): string {
+  if (!value) return '—'
+  const n = Number(value)
+  if (!Number.isFinite(n)) return value
+  const text = trimZero(n.toFixed(2))
+  return n > 0 ? `+${text}` : text
+}
+
 /** Unix 毫秒 -> 本地 yyyy-MM-dd HH:mm:ss */
 function timeText(ms: number): string {
   if (!ms) return '—'
@@ -206,14 +231,22 @@ const detailFields = computed<{ name: string; value: string }[]>(() => {
   } catch {
     values = {}
   }
+  // 需求 11324：提供方不再占表格列，移到明细首位
+  const base = [{ name: '提供方', value: row.provider || '—' }]
   if (defs.length > 0) {
-    return defs.map((d) => ({
-      name: d.fieldName || `字段 ${d.fieldId}`,
-      value: values[String(d.fieldId)] ?? '—',
-    }))
+    return [
+      ...base,
+      ...defs.map((d) => ({
+        name: d.fieldName || `字段 ${d.fieldId}`,
+        value: values[String(d.fieldId)] ?? '—',
+      })),
+    ]
   }
   // 没有字段定义时按编号直出
-  return Object.entries(values).map(([k, v]) => ({ name: `字段 ${k}`, value: String(v) }))
+  return [
+    ...base,
+    ...Object.entries(values).map(([k, v]) => ({ name: `字段 ${k}`, value: String(v) })),
+  ]
 })
 
 function openDetail(row: FutureRow) {
@@ -328,9 +361,10 @@ onMounted(async () => {
             <th class="text-no-wrap">市场</th>
             <th class="text-no-wrap text-right">现价</th>
             <th class="text-no-wrap text-right">涨跌幅</th>
+            <th class="text-no-wrap text-right">持仓量</th>
+            <th class="text-no-wrap text-right">日增仓</th>
             <th class="text-no-wrap">usc</th>
             <th class="text-no-wrap">在线</th>
-            <th class="text-no-wrap">提供方</th>
             <th class="text-no-wrap">更新时间</th>
             <th class="text-no-wrap">明细</th>
           </tr>
@@ -344,9 +378,10 @@ onMounted(async () => {
             <td class="text-no-wrap">{{ row.market_label || '—' }}</td>
             <td class="text-right num">{{ dec(row.price_nominal, 4) }}</td>
             <td class="text-right num">{{ pct(row.change_ratio) }}</td>
+            <td class="text-right num">{{ compact(row.open_interest) }}</td>
+            <td class="text-right num">{{ signed(row.day_increase) }}</td>
             <td class="text-no-wrap">{{ row.usc || '—' }}</td>
             <td class="text-no-wrap">{{ row.flag_online === '1' ? '在线' : '离线' }}</td>
-            <td class="text-no-wrap">{{ row.provider || '—' }}</td>
             <td class="text-no-wrap">{{ timeText(row.dt_update) }}</td>
             <td class="text-no-wrap">
               <v-btn
@@ -360,7 +395,7 @@ onMounted(async () => {
             </td>
           </tr>
           <tr v-if="!rows.length && !loading">
-            <td colspan="12" class="text-center text-medium-emphasis py-6">暂无数据</td>
+            <td colspan="13" class="text-center text-medium-emphasis py-6">暂无数据</td>
           </tr>
         </tbody>
       </v-table>
@@ -401,23 +436,14 @@ onMounted(async () => {
           </span>
         </v-card-title>
         <v-card-text>
-          <v-table density="compact" class="text-caption">
-            <thead>
-              <tr>
-                <th class="text-no-wrap">字段</th>
-                <th class="text-no-wrap">值</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="f in detailFields" :key="f.name">
-                <td class="text-no-wrap">{{ f.name }}</td>
-                <td>{{ f.value }}</td>
-              </tr>
-              <tr v-if="!detailFields.length">
-                <td colspan="2" class="text-center text-medium-emphasis py-4">该合约没有字段留档</td>
-              </tr>
-            </tbody>
-          </v-table>
+          <!-- 需求 11324：字段留档改多列展示（窄屏 1 列、中屏 2 列、宽屏 3 列） -->
+          <v-row v-if="detailFields.length" dense>
+            <v-col v-for="f in detailFields" :key="f.name" cols="12" sm="6" md="4">
+              <div class="text-caption text-medium-emphasis">{{ f.name }}</div>
+              <div class="text-body-2">{{ f.value }}</div>
+            </v-col>
+          </v-row>
+          <div v-else class="text-center text-medium-emphasis py-4">该合约没有字段留档</div>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
