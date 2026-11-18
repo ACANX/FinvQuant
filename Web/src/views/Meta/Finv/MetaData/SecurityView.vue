@@ -24,6 +24,12 @@ interface SecurityRow {
   /** 证券分类 / 子类（需求 11327） */
   type_secu: string
   type_secu_sub: string
+  /** 备注 / 数据提供方（需求 11328：列配置后可展示） */
+  remark: string
+  provider: string
+  /** 记录创建/更新时间（RFC3339，需求 11328） */
+  gmt_create: string
+  gmt_update: string
   /** 是否已收藏（quote.finv_quote_secu_fav，需求 11312） */
   is_favorite: boolean
 }
@@ -43,6 +49,88 @@ interface MarketOption {
   market_flag: string
   market_name: string
   flag_enable: string
+}
+
+// ---- 列配置（需求 11328）----
+// 全部可选列：顺序即表格列顺序；「类型」默认隐藏，其余字段可按需勾选展示。
+interface SecurityColumn {
+  key: string
+  title: string
+  width?: number
+  align?: 'start' | 'end' | 'center'
+  kind?: 'text' | 'time' | 'longtext'
+}
+
+const SECURITY_COLUMNS: SecurityColumn[] = [
+  { key: 'usn', title: '统一编号', width: 100, align: 'end' },
+  { key: 'usc', title: 'usc', width: 110 },
+  { key: 'exchange_code', title: '交易所', width: 80 },
+  { key: 'market_code', title: '市场', width: 80 },
+  { key: 'security_type', title: '类型', width: 100 },
+  { key: 'security_code', title: '源代码', width: 110 },
+  { key: 'security_name', title: '证券名称' },
+  { key: 'security_name_cn', title: '中文名称', width: 140 },
+  { key: 'security_name_full', title: '全称', kind: 'longtext' },
+  { key: 'type_secu', title: '分类', width: 110 },
+  { key: 'type_secu_sub', title: '子类', width: 140 },
+  { key: 'currency_type', title: '货币', width: 80 },
+  { key: 'init_date', title: '上市日', width: 100 },
+  { key: 'timezone', title: '时区', width: 90 },
+  { key: 'tz', title: '时区标识', width: 150 },
+  { key: 'flag_enable', title: '状态', width: 90 },
+  { key: 'provider', title: '提供方', width: 100 },
+  { key: 'remark', title: '备注', kind: 'longtext' },
+  { key: 'gmt_create', title: '创建时间', width: 160, kind: 'time' },
+  { key: 'gmt_update', title: '更新时间', width: 160, kind: 'time' },
+]
+
+// 默认可见列：原表格列去掉「类型」（第 5 列，需求 11328），其余需在「选择列」里手动勾选。
+const DEFAULT_VISIBLE_KEYS = SECURITY_COLUMNS.map((c) => c.key).filter((k) => k !== 'security_type')
+const STORAGE_COLUMNS = 'finv:meta:security:columns'
+
+const visibleKeys = ref<string[]>([...DEFAULT_VISIBLE_KEYS])
+const columnDialog = ref(false)
+const columnDraft = ref<string[]>([...DEFAULT_VISIBLE_KEYS])
+
+const headers = computed(() =>
+  SECURITY_COLUMNS.filter((c) => visibleKeys.value.includes(c.key)).map((c) => ({
+    title: c.title,
+    key: c.key,
+    width: c.width,
+    align: c.align,
+    sortable: false,
+  })),
+)
+
+function loadColumnConfig(): void {
+  try {
+    const raw = localStorage.getItem(STORAGE_COLUMNS) ?? ''
+    if (!raw) return
+    const known = new Set(SECURITY_COLUMNS.map((c) => c.key))
+    const saved = raw.split(',').map((k) => k.trim()).filter((k) => known.has(k))
+    if (saved.length > 0) visibleKeys.value = saved
+  } catch {
+    // localStorage 不可用时用默认列
+  }
+}
+
+function openColumnDialog(): void {
+  columnDraft.value = [...visibleKeys.value]
+  columnDialog.value = true
+}
+
+function resetColumns(): void {
+  columnDraft.value = [...DEFAULT_VISIBLE_KEYS]
+}
+
+function saveColumns(): void {
+  visibleKeys.value = [...columnDraft.value]
+  try {
+    localStorage.setItem(STORAGE_COLUMNS, visibleKeys.value.join(','))
+  } catch {
+    // 忽略存储失败（仅本次生效）
+  }
+  columnDialog.value = false
 }
 
 const rows = ref<SecurityRow[]>([])
@@ -89,6 +177,10 @@ const form = ref<SecurityRow>({
   usn: null,
   type_secu: '',
   type_secu_sub: '',
+  remark: '',
+  provider: '',
+  gmt_create: '',
+  gmt_update: '',
   is_favorite: false,
 })
 
@@ -127,6 +219,10 @@ function openCreate() {
     usn: null,
     type_secu: '',
     type_secu_sub: '',
+    remark: '',
+    provider: '',
+    gmt_create: '',
+    gmt_update: '',
     is_favorite: false,
   }
   dialog.value = true
@@ -221,9 +317,21 @@ function search() {
 }
 
 onMounted(() => {
+  loadColumnConfig()
   load()
   loadOptions()
 })
+
+/** RFC3339 -> 本地 yyyy-MM-dd HH:mm:ss（空值 —）。 */
+function timeText(value: string): string {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return value
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(
+    d.getMinutes(),
+  )}:${pad(d.getSeconds())}`
+}
 </script>
 
 <template>
@@ -253,6 +361,15 @@ onMounted(() => {
           <v-btn color="primary" prepend-icon="mdi-magnify" @click="search">查询</v-btn>
         </v-col>
         <v-col cols="auto" class="ml-auto">
+          <v-btn
+            color="secondary"
+            variant="tonal"
+            prepend-icon="mdi-view-column-outline"
+            class="mr-2"
+            @click="openColumnDialog"
+          >
+            选择列（{{ visibleKeys.length }} / {{ SECURITY_COLUMNS.length }}）
+          </v-btn>
           <v-btn color="success" prepend-icon="mdi-plus" @click="openCreate">新增</v-btn>
         </v-col>
       </v-row>
@@ -260,28 +377,49 @@ onMounted(() => {
       <v-alert v-if="error" type="error" class="mb-3" density="compact">{{ error }}</v-alert>
 
       <v-data-table
-        :headers="[
-          { title: '统一编号', key: 'usn', width: 100 },
-          { title: 'usc', key: 'usc', width: 110 },
-          { title: '交易所', key: 'exchange_code', width: 80 },
-          { title: '市场', key: 'market_code', width: 80 },
-          { title: '类型', key: 'security_type', width: 100 },
-          { title: '源代码', key: 'security_code', width: 110 },
-          { title: '证券名称', key: 'security_name' },
-          { title: '中文名称', key: 'security_name_cn', width: 140 },
-          { title: '分类', key: 'type_secu', width: 110 },
-          { title: '子类', key: 'type_secu_sub', width: 140 },
-          { title: '货币', key: 'currency_type', width: 80 },
-          { title: '上市日', key: 'init_date', width: 100 },
-          { title: '状态', key: 'flag_enable', width: 90 },
-          { title: '操作', key: 'actions', width: 210, sortable: false },
-        ]"
+        :headers="[...headers, { title: '操作', key: 'actions', width: 210, sortable: false }]"
         :items="rows"
         :loading="loading"
         :items-per-page="pageSize"
         item-value="usc"
         density="compact"
       >
+        <template #item.security_type="{ item }">
+          <span :class="item.security_type ? '' : 'text-medium-emphasis'">
+            {{ item.security_type || '—' }}
+          </span>
+        </template>
+        <template #item.security_name_full="{ item }">
+          <span v-if="!item.security_name_full" class="text-medium-emphasis">—</span>
+          <v-tooltip v-else :text="item.security_name_full" location="top" max-width="520">
+            <template #activator="{ props }">
+              <v-icon v-bind="props" icon="mdi-information-outline" size="small" />
+            </template>
+          </v-tooltip>
+        </template>
+        <template #item.remark="{ item }">
+          <span v-if="!item.remark" class="text-medium-emphasis">—</span>
+          <v-tooltip v-else :text="item.remark" location="top" max-width="520">
+            <template #activator="{ props }">
+              <v-icon v-bind="props" icon="mdi-information-outline" size="small" />
+            </template>
+          </v-tooltip>
+        </template>
+        <template #item.timezone="{ item }">
+          <span :class="item.timezone ? '' : 'text-medium-emphasis'">{{ item.timezone || '—' }}</span>
+        </template>
+        <template #item.tz="{ item }">
+          <span :class="item.tz ? '' : 'text-medium-emphasis'">{{ item.tz || '—' }}</span>
+        </template>
+        <template #item.provider="{ item }">
+          <span :class="item.provider ? '' : 'text-medium-emphasis'">{{ item.provider || '—' }}</span>
+        </template>
+        <template #item.gmt_create="{ item }">
+          <span class="text-no-wrap">{{ timeText(item.gmt_create) }}</span>
+        </template>
+        <template #item.gmt_update="{ item }">
+          <span class="text-no-wrap">{{ timeText(item.gmt_update) }}</span>
+        </template>
         <template #item.usn="{ item }">
           <span :class="item.usn ? 'num' : 'text-medium-emphasis'">
             {{ item.usn ?? '—' }}
@@ -323,6 +461,37 @@ onMounted(() => {
           </v-btn>
         </template>
       </v-data-table>
+
+      <!-- 列配置（需求 11328）：勾选要展示的列，保存到 localStorage -->
+      <v-dialog v-model="columnDialog" max-width="640" scrollable>
+        <v-card>
+          <v-card-title class="text-body-1 d-flex align-center">
+            <v-icon icon="mdi-view-column-outline" class="mr-2" />
+            选择展示列
+            <v-spacer />
+            <span class="text-caption text-medium-emphasis">
+              {{ columnDraft.length }} / {{ SECURITY_COLUMNS.length }}
+            </span>
+          </v-card-title>
+          <v-card-text style="max-height: 60vh">
+            <v-checkbox
+              v-for="column in SECURITY_COLUMNS"
+              :key="column.key"
+              v-model="columnDraft"
+              :value="column.key"
+              :label="column.title"
+              density="compact"
+              hide-details
+            />
+          </v-card-text>
+          <v-card-actions>
+            <v-btn variant="text" prepend-icon="mdi-restore" @click="resetColumns">恢复默认</v-btn>
+            <v-spacer />
+            <v-btn variant="text" @click="columnDialog = false">取消</v-btn>
+            <v-btn color="primary" @click="saveColumns">保存</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
 
       <v-pagination
         v-model="page"

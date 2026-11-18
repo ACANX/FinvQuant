@@ -24,6 +24,7 @@
 | 新增 | 新增证券记录（usc 必填且全局唯一，交易所代码必须为正整数） |
 | 修改 | 修改现有证券的非主键字段 |
 | 禁用/启用 | 切换 `flag_enable`（'1'=启用，'0'=禁用）；**禁用后不再出现在历史行情查询的证券下拉字典中** |
+| 选择列 | 右上角「选择列（n / 20）」打开勾选对话框：20 个可选列任意勾选，保存到 `localStorage`（`finv:meta:security:columns`），可「恢复默认」；**「类型」默认隐藏**（需求 11328） |
 | 收藏/取消收藏 | 行内心形按钮（`mdi-heart` 已收藏，红色 / `mdi-heart-outline` 未收藏），点击把 `usc` 写入/移出 `quote.finv_quote_secu_fav`；列表通过 `is_favorite` 回显（需求 11312） |
 
 ### 2.1 表格列（需求 11327）
@@ -34,7 +35,7 @@
 | 2 | usc | `usc` | 统一证券代码（主键） |
 | 3 | 交易所 | `exchange_code` | `finv_exchange` 代码 |
 | 4 | 市场 | `market_code` | `finv_market` 代码 |
-| 5 | 类型 | `security_type` | 证券类型原文 |
+| 5 | 类型 | `security_type` | 证券类型原文（**默认隐藏**，可在「选择列」里勾选显示，需求 11328） |
 | 6 | 源代码 | `security_code` | 交易所内代码 |
 | 7 | 证券名称 | `security_name` | 英文/原文名称 |
 | 8 | 中文名称 | `security_name_cn` | 中文名称 |
@@ -43,7 +44,12 @@
 | 11 | 货币 | `currency_type` | ISO 4217 |
 | 12 | 上市日 | `init_date` | `yyyyMMdd` |
 | 13 | 状态 | `flag_enable` | 启用 / 禁用 chips |
-| 14 | 操作 | — | 收藏、修改、禁用/启用 |
+| 14 | 操作 | — | 收藏、修改、禁用/启用（固定在最后一列） |
+
+> 可选列共 20 个：在上表 14 列之外，还有「全称」（`security_name_full`）、时区（`timezone`）、
+> 时区标识（`tz`）、提供方（`provider`）、备注（`remark`）、创建时间（`gmt_create`）、
+> 更新时间（`gmt_update`）；默认全部隐藏，勾选后追加到表格（`全称` / `备注` 以 ⓘ 悬浮提示展示，
+> 符合 `TableTextSpec`）。
 
 ## 3. 操作流程（用户视角）
 

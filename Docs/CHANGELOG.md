@@ -537,6 +537,16 @@
 
 ### 变更
 
+- **证券字典隐藏「类型」列并支持选择列（需求 11328）**
+  - 默认隐藏第 5 列「类型」（`security_type`）。
+  - 新增「选择列」对话框：20 个可选列任意勾选，保存在 `localStorage`
+    （`finv:meta:security:columns`），支持「恢复默认」。
+  - 新增可选列：全称（`security_name_full`）、时区（`timezone`）、时区标识（`tz`）、
+    提供方（`provider`）、备注（`remark`）、创建时间（`gmt_create`）、更新时间（`gmt_update`）；
+    全称/备注用 ⓘ 悬浮提示（TableTextSpec），时间按本地时区格式化。
+  - `Security/List` 返回值新增 `remark` / `provider` / `gmt_create` / `gmt_update`。
+
+
 - **证券字典列表展示统一编号 / 分类 / 子类（需求 11327）**
   - `Security/List` 返回值新增 `usn`（可空）、`type_secu`、`type_secu_sub`。
   - `/Meta/Finv/MetaData/Security` 表格新增三列，分别位于第 1（统一编号）、第 9（分类）、
