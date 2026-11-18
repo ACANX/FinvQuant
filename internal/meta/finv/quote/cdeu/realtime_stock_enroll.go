@@ -737,6 +737,9 @@ func normalizePendingSecuCollect(col *PendingSecuEnrollCollect, stockCode, marke
 
 // insertSecuSecurity 写 `public.finv_security`，按主键 `ON CONFLICT (usc) DO NOTHING`。
 //
+// `type_secu` 是 `type_secu_sub` 的父类，写入时直接复用 `security_type`（需求 11306）；
+// `usn` 由内部编制规则生成，本接口不写（保持 NULL = 尚未分配）。
+//
 // 返回是否真正插入了新行（false = 该 usc 已存在，人工数据不被覆盖）。
 // 23505 会被翻译成可读提示：老库同一 交易所+代码 可能还挂着旧口径的 usc，这种冲突需人工裁决，
 // **不自动改旧行主键**。
@@ -745,9 +748,9 @@ func insertSecuSecurity(ctx context.Context, tx pgx.Tx, usc string,
 	var created bool
 	if err := tx.QueryRow(ctx, `
 INSERT INTO public.finv_security AS t
-       (usc, exchange_code, security_type, security_code, security_name, security_name_cn,
+       (usc, exchange_code, security_type, type_secu, security_code, security_name, security_name_cn,
         security_name_full, currency_type, timezone, tz, remark)
-VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''), $8, NULLIF($9, ''), NULLIF($10, ''), $11)
+VALUES ($1, $2, $3, $3, $4, $5, $6, NULLIF($7, ''), $8, NULLIF($9, ''), NULLIF($10, ''), $11)
 ON CONFLICT (usc) DO NOTHING
 RETURNING true`,
 		usc, sec.ExchangeCode, sec.SecurityType, sec.SecurityCode, sec.SecurityName, sec.SecurityNameCN,

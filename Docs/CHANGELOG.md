@@ -20,6 +20,17 @@
 
 ### 新增
 
+- **`public.finv_security` 增加 `usn`（统一证券编号）与 `type_secu`（证券类别）（需求 11306）**
+  - `usn`：`INTEGER`、**可空**（NULL = 尚未分配）；统一证券编号按内部编制规则生成，
+    存量 51,398 行暂不回填，后续逐步严格约束（本期不建唯一索引、不设默认值）。
+  - `type_secu`：`TEXT NOT NULL DEFAULT ''`，是 `type_secu_sub` 的**父类**（如 `Stock` / `ETF` / `StockIndex`）；
+    迁移 `V300221` 用 `security_type` 回填存量（只填空串，幂等）。
+  - 写入侧：`insertSecuSecurity`（待采证券录入 / 证券参数补全）写 `type_secu` 时直接复用
+    `security_type`；`usn` 不写，保持 NULL 等内部编制规则分配。
+  - 迁移幂等，末尾校验列类型 / 可空性 / `type_secu` 与 `security_type` 一致，不符整事务回滚。
+  - 验证：`schema_version=300221`；`type_secu` 与 `security_type` 不一致行数 = 0；`usn` 非空行数 = 0；
+    `go build ./...`、`go test ./internal/...` 通过。
+
 - **「证券指标」页关联 `public.finv_security` 取 `type_secu_sub`，新增「子类」筛选（需求 11305）**
   - `/Secu/Indicator/Page` 增加虚拟列 `type_secu_sub`（`LEFT JOIN public.finv_security s ON s.usc = t.usc`），
     可请求、可排序（`ORDER BY s.type_secu_sub`）；未关联/未维护的行返回空串。
