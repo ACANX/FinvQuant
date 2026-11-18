@@ -30,8 +30,8 @@
 | 控件 | 说明 |
 |---|---|
 | 关键字 | 模糊匹配 `usc` / `ftmm_symbol` / `name`（回车即查询），可直接输入 `HK.00700` 这种键 |
-| 市场 | 全部 / `HK` / `SH` / `SZ` / `BJ` / `US` / `CC` / `FX`；按 `ftmm_symbol` 第一段匹配，切换即查询。`CC`=加密货币、`FX`=外汇/货币指数（口径写在页面底部说明卡片，不进下拉选项） |
 | 分类 | 全部分类 / 各 `type_secu` 值（如 `股票[Stock]`、`ETF[ETF]`、`指数[StockIndex]`）；值来自 `public.finv_security.type_secu`，选项由 `GET .../Secu/Indicator/TypeSecu` 动态返回；末项 `未维护/未关联[__empty__]`；切换即查询（需求 11308） |
+| 市场 | 全部 / `HK` / `SH` / `SZ` / `BJ` / `US` / `CC` / `FX`；按 `ftmm_symbol` 第一段匹配，切换即查询。`CC`=加密货币、`FX`=外汇/货币指数（口径写在页面底部说明卡片，不进下拉选项） |
 | 子类 | 全部子类 / 各 `type_secu_sub` 值（如 `股票·美股[Stock.US]`、`ETF·沪市[ETF.SH]`）；值来自 `public.finv_security.type_secu_sub`，选项由 `GET .../Secu/Indicator/TypeSecuSub` 动态返回；末项 `未维护/未关联[__empty__]` 单独筛出未关联主数据的行；切换即查询（需求 11305） |
 | 排序字段 | 可搜索下拉，候选 = 表里全部列（与后端白名单同源），选项**只用中文短名**（如「采集时间」「市盈率TTM」）；默认「采集时间」(`dt_collect`) 降序，空值 `NULLS LAST`（需求 11280） |
 | 方向 | 降序（默认）/ 升序；空值（NULL）一律排在最后 |

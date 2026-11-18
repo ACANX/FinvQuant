@@ -477,17 +477,6 @@ watch(detailOpen, (open) => {
             @keyup.enter="search"
           />
           <v-select
-            v-model="market"
-            :items="MARKET_OPTIONS"
-            item-title="title"
-            item-value="value"
-            label="市场"
-            density="compact"
-            hide-details
-            style="max-width: 170px"
-            @update:model-value="search"
-          />
-          <v-select
             v-model="typeSecu"
             :items="typeSecuOptions"
             item-title="title"
@@ -496,6 +485,17 @@ watch(detailOpen, (open) => {
             density="compact"
             hide-details
             style="max-width: 200px"
+            @update:model-value="search"
+          />
+          <v-select
+            v-model="market"
+            :items="MARKET_OPTIONS"
+            item-title="title"
+            item-value="value"
+            label="市场"
+            density="compact"
+            hide-details
+            style="max-width: 170px"
             @update:model-value="search"
           />
           <v-select
