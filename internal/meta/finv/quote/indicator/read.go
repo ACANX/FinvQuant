@@ -56,6 +56,11 @@ var indicatorKeyColumns = []string{"usc", "ftmm_symbol"}
 // 未关联上的行返回空串（不是 NULL），可用 IndicatorTypeSecuSubEmpty 单独筛出。
 const IndicatorVirtualTypeSecuSub = "type_secu_sub"
 
+// IndicatorVirtualUSN 关联列名：`public.finv_security.usn`（需求 11309）。
+//
+// 统一证券编号（INTEGER，可空）；以文本输出，未分配时为空串。
+const IndicatorVirtualUSN = "usn"
+
 // IndicatorVirtualTypeSecu 关联列名：`public.finv_security.type_secu`（需求 11308）。
 //
 // 证券分类（`type_secu_sub` 的父类，如 Stock / ETF / StockIndex），同样由主数据表带出。
@@ -76,6 +81,12 @@ const indicatorJoinSQL = " LEFT JOIN " + indicatorSecurityTable + " s ON s.usc =
 // indicatorVirtualColumns 指标表里不存在、由关联查询带出的虚拟列（追加在真实列之后）。
 var indicatorVirtualColumns = []IndicatorColumn{
 	{
+		Name:     IndicatorVirtualUSN,
+		Title:    "统一证券编号（关联 public.finv_security.usn）",
+		DataType: "integer",
+		Sortable: true,
+	},
+	{
 		Name:     IndicatorVirtualTypeSecu,
 		Title:    "证券分类（关联 public.finv_security.type_secu）",
 		DataType: "text",
@@ -91,8 +102,18 @@ var indicatorVirtualColumns = []IndicatorColumn{
 
 // indicatorVirtualColumnSet 虚拟列集合（SELECT / ORDER BY 走 s.<列> 而不是 t.<列>）。
 var indicatorVirtualColumnSet = map[string]bool{
+	IndicatorVirtualUSN:         true,
 	IndicatorVirtualTypeSecu:    true,
 	IndicatorVirtualTypeSecuSub: true,
+}
+
+// indicatorVirtualColumnExpr 虚拟列的 SELECT 表达式（统一转文本，空值吐空串）。
+//
+// usn 是 INTEGER，需 ::text；文本列直接 COALESCE。
+var indicatorVirtualColumnExpr = map[string]string{
+	IndicatorVirtualUSN:         "COALESCE(s.usn::text, '')",
+	IndicatorVirtualTypeSecu:    "COALESCE(s.type_secu, '')",
+	IndicatorVirtualTypeSecuSub: "COALESCE(s.type_secu_sub, '')",
 }
 
 // IndicatorTypeSecuOption 分类筛选选项（值 + 行数）。
@@ -283,12 +304,12 @@ func (r *Reader) Page(ctx context.Context, f IndicatorPageFilter) (int64, []map[
 	}
 
 	// 列名来自数据库目录（known 白名单），不来自请求参数；值一律 ::text 保住精度。
-	// 虚拟列 type_secu_sub 来自 finv_security（别名 s），其余列都取指标表（别名 t）。
+	// 虚拟列（usn / type_secu / type_secu_sub）来自 finv_security（别名 s），
+	// 其余列都取指标表（别名 t）。
 	selectList := make([]string, 0, len(selected))
 	for _, name := range selected {
-		if indicatorVirtualColumnSet[name] {
-			selectList = append(selectList,
-				fmt.Sprintf("COALESCE(s.%s, '') AS %s", name, name))
+		if expr, ok := indicatorVirtualColumnExpr[name]; ok {
+			selectList = append(selectList, expr+" AS "+name)
 			continue
 		}
 		selectList = append(selectList,

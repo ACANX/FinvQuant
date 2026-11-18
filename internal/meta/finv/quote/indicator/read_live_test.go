@@ -130,6 +130,28 @@ func TestLiveIndicatorTypeSecuSub(t *testing.T) {
 		}
 	}
 
-	t.Logf("验证通过：%d 个子类选项（Stock.US=%d、空=%d），%d 个分类选项（Stock=%d）",
+	// 5) usn 输出（需求 11309）：按已知证券查询，usn 应与 finv_security 一致
+	usnTotal, usnList, err := reader.Page(ctx, IndicatorPageFilter{
+		Keyword: "600006",
+		Columns: []string{IndicatorVirtualUSN},
+		Limit:   5,
+	})
+	if err != nil {
+		t.Fatalf("请求 usn 列失败: %v", err)
+	}
+	if usnTotal == 0 || len(usnList) == 0 {
+		t.Skip("指标表里没有 600006，跳过 usn 输出断言")
+	}
+	usnFilled := 0
+	for _, row := range usnList {
+		if row[IndicatorVirtualUSN] == "11600006" {
+			usnFilled++
+		}
+	}
+	if usnFilled == 0 {
+		t.Fatalf("600006 的 usn 应为 11600006，实际 %+v", usnList)
+	}
+
+	t.Logf("验证通过：%d 个子类选项（Stock.US=%d、空=%d），%d 个分类选项（Stock=%d），usn(600006)=11600006",
 		len(options), stockUSRows, emptyTotal, len(typeOptions), stockRows)
 }

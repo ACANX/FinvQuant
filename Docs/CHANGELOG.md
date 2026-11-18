@@ -20,6 +20,12 @@
 
 ### 新增
 
+- **「证券指标」页输出 `usn`（统一证券编号）（需求 11309）**
+  - `/Secu/Indicator/Columns` 追加虚拟列 `usn`（`LEFT JOIN public.finv_security`），
+    可请求、可排序；整数列按文本返回（未分配时为空串）。
+  - 前端列配置把 `usn` 登记为「统一编号」（身份与精度分组），概览预设包含它。
+  - 验证：`go test ./internal/meta/finv/quote/indicator/` 通过；`cd Web && npm run build` 通过。
+
 - **「证券指标」页新增「分类（`type_secu`）」筛选（需求 11308）**
   - `/Secu/Indicator/Page` 新增查询参数 `typeSecu`（精确匹配，空或 `all` 不限，`__empty__` = 未维护/未关联）。
   - `/Secu/Indicator/Columns` 追加虚拟列 `type_secu`（`LEFT JOIN public.finv_security`），可请求、可排序。

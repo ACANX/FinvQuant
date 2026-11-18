@@ -11,7 +11,7 @@
 > [`GET /API/V1/Meta/Finv/Quote/Secu/Indicator/Page`](../../../API/Cdeu/IndicatorPage.md)（分页查询）
 > 关联需求：11249（列元数据接口）、11250（分页查询接口）、11251（本页面）、11252（路由与菜单 key 改名）、
 > 11253（行详情悬浮列名 / 全屏 / 多列并排）、11305（关联 `finv_security` 取 `type_secu_sub` + 子类筛选）、
-> 11308（关联 `finv_security.type_secu` + 分类筛选）
+> 11308（关联 `finv_security.type_secu` + 分类筛选）、11309（输出 `usn` 统一编号）
 > 写入侧（不在本页操作）：`POST .../Quote/Cdeu/SecuKey/Indicator/Sync/Run`（批量同步上游）、
 > `POST .../OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTSecuIndicatorUpsert`（采集端回传）
 
@@ -46,8 +46,8 @@
   区间与极值、盘前、基金（ETF / 信托）、期货与标的、指数与 24h 统计、时间与来源；表里新增但
   `indicatorColumns.ts` 未登记的列自动落到「其它（未登记）」。
 - 支持按中文名 / 列名搜索；每个分组有「全选 / 清空」。
-- **预设列方案**：概览（默认，24 列，含关联虚拟列 `type_secu` / `type_secu_sub`）、行情、估值与股息、基金、期货与标的、时间与来源、全部（132 列 + 两个关联虚拟列）。
-- **关联虚拟列 `type_secu`（证券分类）与 `type_secu_sub`（证券子类）**：不在指标表里，由 `LEFT JOIN public.finv_security` 带出；
+- **预设列方案**：概览（默认，25 列，含关联虚拟列 `usn` / `type_secu` / `type_secu_sub`）、行情、估值与股息、基金、期货与标的、时间与来源、全部（132 列 + 两个关联虚拟列）。
+- **关联虚拟列 `usn`（统一编号）、`type_secu`（证券分类）与 `type_secu_sub`（证券子类）**：不在指标表里，由 `LEFT JOIN public.finv_security` 带出；
   未关联/未维护的行显示为空，也可用「子类」筛选的 `未维护/未关联[__empty__]` 单独查看（需求 11305）。
   手工勾选后方案名变为「自定义」。
 - `usc` / `ftmm_symbol` 是行身份列，不可取消（后端也会强制补齐）。
