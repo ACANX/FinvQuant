@@ -537,6 +537,19 @@
 
 ### 变更
 
+- **「指数」Tab 接入 moomoo 收藏指数快照采集（需求 11333）**
+  - 新增 `index_fav_snapshot_sync.go`：读 `quote.finv_quote_secu_fav` 收藏的美股/港股指数
+    （`StockIndex`/`Index` + `HK`/`US`）→ moomoo OpenAPI `quote/snapshot` → 字段/类型转换 →
+    按 `usc` upsert `cdeu.finv_quote_secu_realtime`（`provider=MMAPI`、`instrument_type=6`，有值才覆盖）。
+  - code 规则（实测）：港股 `HK.<security_code>`（`HK.800000`）、美股 `US..<security_code>`（`US..DJI`）；
+    别名与单点形态均不命中，未返回的 code 记入 `Missing` 不报错。
+  - 新增接口 `POST .../Cdeu/Realtime/Index/Fav/Snapshot/Sync`；`FTStockQuoteSnapshotSync/Run`
+    传 `instrument_symbol=index` 时走本分支（配置表有启用的 `index` 行时仍走列表采集）。
+  - 前端「指数」Tab 由占位改为实装：与「加密货币」Tab 共用 moomoo 凭据卡片、每页条数锁定 400、补采集说明。
+  - 实测：收藏 5 个指数（HSI/HSIII/HTI/DJI/SPX）→ 返回 4 行、新增 4、`HK.HSIII` 未覆盖；
+    幂等复跑新增 0 / 覆盖 4；落库 HSI `1/HK`、DJI `2/US`、`instrument_type=6`、`provider=MMAPI`。
+
+
 - **证券字典每页条数增加 15 并设为默认（需求 11332）**
   - 每页下拉选项为 `15（默认）/ 20 / 50 / 100 / 200`，首次加载请求 `pageSize=15`。
 

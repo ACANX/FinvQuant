@@ -117,7 +117,7 @@ const SYMBOL_ICONS: Record<string, string> = {
 // 占位品种（需求 11256）：按此顺序排在配置表已有品种之后，暂未接入采集，仅出 Tab。
 // 符号与后续配置表的 instrument_symbol 保持一致，接入时插配置行即自动生效。
 // 期货已于需求 11274 接入真实采集，故从占位清单移除（Tab 位置由 SYMBOL_ORDER 决定）。
-const PLACEHOLDER_SYMBOLS = ['index', 'etf', 'sector', 'portfolio', 'otc', 'gold']
+const PLACEHOLDER_SYMBOLS = ['etf', 'sector', 'portfolio', 'otc', 'gold']
 // 期货符号（需求 11274）：配置读 cdeu.finv_quote_cdeu_future_sync_config，结果落
 // cdeu.finv_quote_realtime_future；运行状态与日志复用同一套接口。
 const FUTURES_SYMBOL = 'future'
@@ -125,13 +125,16 @@ const FUTURES_SYMBOL = 'future'
 // bsestock = 板块 GN2309（北交所上市企业）、cnetf = 国证ETF 指数 399380（沪深京 ETF），BDFS 源；
 // cnindex = 沪深京指数（中信 XetApp，需求 11294），6 池合并去重，provider=ZXET。全量拉取，无需配置行。
 // crypto = 收藏的加密货币（moomoo OpenAPI market-snapshot，需求 11316），来源为 quote.finv_quote_secu_fav，无需配置行。
-const FIXED_SYMBOLS = ['bsestock', 'cnindex', 'cnetf', 'crypto']
+// index = 收藏的美股/港股指数（moomoo OpenAPI snapshot，需求 11333），来源同为 quote.finv_quote_secu_fav，
+//         结果落 cdeu.finv_quote_secu_realtime（provider=MMAPI）；配置表若存在启用的 index 行仍优先走列表采集。
+const FIXED_SYMBOLS = ['bsestock', 'cnindex', 'cnetf', 'crypto', 'index']
 // 固定来源品种各自的市场取值（服务端 BDFS 分支忽略该参数，仅用于界面展示与请求语义清晰）
 const FIXED_MARKET: Record<string, { title: string; value: string }> = {
   bsestock: { title: 'BJ 北交所', value: 'BJ' },
   cnindex: { title: 'CN A 股（沪深京）', value: '4' },
   cnetf: { title: 'CN A 股（沪深京）', value: '4' },
   crypto: { title: '收藏的加密货币', value: '' },
+  index: { title: '收藏的美股/港股指数', value: '' },
 }
 // Tab 固定展示顺序（需求 11256/11262/11263）：配置表没出现的品种按此顺序补齐，
 // bsestock 固定在「指数 / ETF / 期货 / 加密货币」之后，cnindex（沪深京指数，XetApp 源，需求 11294）与 cnetf（沪深京ETF，BDFS 源）紧随其后。
@@ -164,7 +167,10 @@ const FUTURES_PAGE_SIZE_DEFAULT = 50
 const CRYPTO_PAGE_SIZE = 400
 
 /** 当前 Tab 是否是「收藏的加密货币」（每页固定 400）。 */
-const activeIsCrypto = computed(() => activeSymbol.value === 'crypto')
+/** 当前 Tab 是否走 moomoo 快照批量采集（单批固定 400）：加密货币与收藏指数（需求 11333）。 */
+const activeIsMoomooBatch = computed(
+  () => activeSymbol.value === 'crypto' || activeSymbol.value === 'index',
+)
 const FUTURES_INTERVAL_DEFAULT = 2000
 const pageSize = ref(PAGE_SIZE_DEFAULT)
 const intervalMs = ref(6000)
@@ -487,7 +493,8 @@ function resetOptions() {
   marketType.value = FIXED_MARKET[activeSymbol.value]?.value ?? ''
   futuresType.value = ''
   countPlan.value = null
-  pageSize.value = activeIsCrypto.value
+  // 加密货币 / 收藏指数都走 moomoo 快照批量接口，单批固定 400（需求 11321/11333）
+  pageSize.value = activeIsMoomooBatch.value
     ? CRYPTO_PAGE_SIZE
     : activeIsFutures.value
       ? FUTURES_PAGE_SIZE_DEFAULT
@@ -505,7 +512,8 @@ function onSymbolChange() {
   marketType.value = FIXED_MARKET[activeSymbol.value]?.value ?? ''
   futuresType.value = ''
   countPlan.value = null
-  pageSize.value = activeIsCrypto.value
+  // 加密货币 / 收藏指数都走 moomoo 快照批量接口，单批固定 400（需求 11321/11333）
+  pageSize.value = activeIsMoomooBatch.value
     ? CRYPTO_PAGE_SIZE
     : activeIsFutures.value
       ? FUTURES_PAGE_SIZE_DEFAULT
@@ -519,11 +527,12 @@ function onSymbolChange() {
 onMounted(async () => {
   await loadStatus()
   if (running.value) schedulePoll()
-  if (activeSymbol.value === 'crypto') await loadMoomooConfig()
+  if (activeIsMoomooBatch.value) await loadMoomooConfig()
 })
 
+// 加密货币 / 收藏指数两个 Tab 共用 moomoo 凭据（需求 11318/11333）
 watch(activeSymbol, (next) => {
-  if (next === 'crypto') void loadMoomooConfig()
+  if (next === 'crypto' || next === 'index') void loadMoomooConfig()
 })
 
 onBeforeUnmount(stopPolling)
@@ -557,8 +566,8 @@ onBeforeUnmount(stopPolling)
     <v-divider />
 
     <v-card-text>
-      <!-- moomoo OpenAPI 凭据（仅加密货币 Tab，需求 11318）：保存在 sys_config 20016/20017 -->
-      <v-card v-if="activeSymbol === 'crypto'" variant="tonal" class="mb-4">
+      <!-- moomoo OpenAPI 凭据（加密货币 / 收藏指数 Tab 共用，需求 11318/11333）：保存在 sys_config 20016 -->
+      <v-card v-if="activeSymbol === 'crypto' || activeSymbol === 'index'" variant="tonal" class="mb-4">
         <v-card-title class="d-flex align-center ga-2 text-subtitle-1">
           <v-icon icon="mdi-key-variant" size="small" />
           moomoo OpenAPI 凭据
@@ -675,6 +684,13 @@ onBeforeUnmount(stopPolling)
                 结果写入 cdeu.finv_quote_secu_realtime_crypto（provider=MMAPI）；
                 需服务端配置 FINV_MOOMOO_APP_KEY / FINV_MOOMOO_PRIVATE_KEY
               </template>
+              <template v-else-if="activeSymbol === 'index'">
+                该品种为「收藏的美股/港股指数」采集（moomoo OpenAPI quote/snapshot）：
+                来源为 quote.finv_quote_secu_fav 里收藏的指数（security_type ∈ StockIndex/Index 且交易所 HK/US），
+                code 规则 港股 HK.&lt;代码&gt;（如 HK.800000）、美股 US..&lt;代码&gt;（如 US..DJI），一次最多 400 个；
+                结果按 usc upsert 到 cdeu.finv_quote_secu_realtime（provider=MMAPI，instrument_type=6，有值才覆盖）；
+                凭据复用「加密货币」Tab 的 moomoo 配置（sys_config 20016）
+              </template>
               <template v-else-if="activeSymbol === 'cnetf'">
                 该品种为 BDFS ETF 采集（国证ETF 指数 399380，覆盖沪深京 ETF），全量拉取成分股行情，无需配置表行；
                 结果写入 cdeu.finv_quote_secu_realtime（provider=BDFS，instrument_type=etf）
@@ -728,8 +744,8 @@ onBeforeUnmount(stopPolling)
           label="每页条数"
           density="compact"
           hide-details
-          :disabled="activeIsCrypto"
-          :title="activeIsCrypto ? '加密货币单批固定 400（moomoo 接口上限）' : ''"
+          :disabled="activeIsMoomooBatch"
+          :title="activeIsMoomooBatch ? '单批固定 400（moomoo 快照接口上限）' : ''"
           style="max-width: 120px"
         />
         <v-text-field v-model.number="intervalMs" type="number" label="页间隔(ms)" density="compact" hide-details style="max-width: 130px" />

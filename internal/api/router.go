@@ -228,6 +228,8 @@ func NewRouter(deps *Deps) *gin.Engine {
 			)
 			// 收藏的加密货币行情快照采集（需求 11314）：moomoo OpenAPI market-snapshot。
 			apiGroup.POST("/Meta/Finv/Quote/Crypto/Fav/Snapshot/Sync", archive.CryptoFavSnapshotSync)
+			// 收藏的美股/港股指数快照采集（需求 11333，moomoo OpenAPI，落 cdeu.finv_quote_secu_realtime）
+			apiGroup.POST("/Meta/Finv/Quote/Cdeu/Realtime/Index/Fav/Snapshot/Sync", archive.IndexFavSnapshotSync)
 			// moomoo OpenAPI 凭据配置（需求 11318）：sys_config 20016/20017，私钥只回显掩码。
 			apiGroup.GET("/Meta/Finv/Quote/Crypto/Moomoo/Config", archive.CryptoMoomooConfigGet)
 			apiGroup.POST("/Meta/Finv/Quote/Crypto/Moomoo/Config", archive.CryptoMoomooConfigSave)

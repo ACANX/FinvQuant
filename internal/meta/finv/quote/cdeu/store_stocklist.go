@@ -319,6 +319,25 @@ SELECT instrument_symbol, market_type, count_plan,
 	return configs, nil
 }
 
+// HasEnabledSecuRealtimeSyncConfig 配置表里是否存在该品种的启用行（需求 11333）。
+//
+// 用途：指数（index）默认走「收藏的美股/港股指数」采集；若显式配置了启用的 index 行，
+// 仍按配置行采集（配置行优先，兼容既有用法）。
+func (s *Store) HasEnabledSecuRealtimeSyncConfig(ctx context.Context, instrumentSymbol string) (bool, error) {
+	var exists bool
+	err := s.pool.QueryRow(ctx, `
+SELECT EXISTS (
+  SELECT 1
+    FROM `+tableRealtimeSyncConfig+`
+   WHERE instrument_symbol = $1
+     AND flag_enable = '1'
+)`, instrumentSymbol).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("查询采集配置失败（instrument_symbol=%s）: %w", instrumentSymbol, err)
+	}
+	return exists, nil
+}
+
 // SaveStockListProgress 回写采集进度：count_exists / total_available 只在拿到正数时覆盖，
 // 避免接口异常返回 0 把已观测到的市场总数抹掉。
 func (s *Store) SaveStockListProgress(ctx context.Context, cfg StockListCollectConfig, progress StockListProgress) error {

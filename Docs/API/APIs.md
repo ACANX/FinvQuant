@@ -169,6 +169,7 @@
 | 144 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/Future/Types` | 期货分类下拉（配置表 `futures_type` → `futures_type_name`，按分类升序） | [Cdeu/RealtimeFuturePage.md](Cdeu/RealtimeFuturePage.md) | 期货行情排行（[Menu/Quote/Realtime/FutureRank.md](../Menu/Quote/Realtime/FutureRank.md)） |
 | 145 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/Crypto/Page` | 加密货币行情排行分页查询（关键字/币种/停牌筛选 + 白名单排序，数值列以文本返回） | [Cdeu/RealtimeCryptoPage.md](Cdeu/RealtimeCryptoPage.md) | 加密货币行情排行（[Menu/Quote/Realtime/CryptoRank.md](../Menu/Quote/Realtime/CryptoRank.md)） |
 | 146 | GET | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/Crypto/QuoteCurrencies` | 加密货币计价币种下拉（表内 DISTINCT，按字母序） | [Cdeu/RealtimeCryptoPage.md](Cdeu/RealtimeCryptoPage.md) | 加密货币行情排行（[Menu/Quote/Realtime/CryptoRank.md](../Menu/Quote/Realtime/CryptoRank.md)） |
+| 147 | POST | `/API/V1/Meta/Finv/Quote/Cdeu/Realtime/Index/Fav/Snapshot/Sync` | 收藏的美股/港股指数快照采集（需登录）：读 `quote.finv_quote_secu_fav` 的指数（`StockIndex`/`Index` + `HK`/`US`）→ moomoo OpenAPI `quote/snapshot`（港股 `HK.<code>`、美股 `US..<code>`，≤400/批）→ 字段/类型转换后 upsert `cdeu.finv_quote_secu_realtime`（`provider=MMAPI`，`instrument_type=6`，有值才覆盖）；凭据复用「加密货币」Tab 的 `sys_config` 20016 | [Cdeu/IndexFavSnapshotSync.md](Cdeu/IndexFavSnapshotSync.md) | 需求 11333（[SecuQuoteSnapshotSync.md](../Menu/Quote/RealtimeCollect/SecuQuoteSnapshotSync.md)） |
 
 ## 说明
 

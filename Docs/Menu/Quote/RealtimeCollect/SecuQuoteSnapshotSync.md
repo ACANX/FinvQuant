@@ -24,7 +24,7 @@
 |---|---|---|
 | `stock` | 股票 | 配置表（当前唯一有配置行的品种） |
 | `cnetf` | 沪深京ETF | BDFS 指数采集（需求 11263，固定来源，无需配置行；符号 `cnetf`，需求 11265） |
-| `index` | 指数 | 占位 |
+| `index` | 指数 | **实装（需求 11333）**：收藏的美股/港股指数（`quote.finv_quote_secu_fav` + moomoo OpenAPI snapshot），固定来源，结果写 `cdeu.finv_quote_secu_realtime`（`provider=MMAPI`、`instrument_type=6`）；配置表若有启用的 `index` 行则优先走列表采集 |
 | `future` | 期货 | **实装（需求 11274）**：配置表 `cdeu.finv_quote_cdeu_future_sync_config`，结果 `cdeu.finv_quote_secu_realtime_future` |
 | `crypto` | 加密货币 | 占位 |
 | `bsestock` | 北交所股票 | BDFS 板块采集（需求 11262，固定来源，无需配置行） |
@@ -37,8 +37,8 @@
 | `forex` | 外汇 | 配置表（插行后出现） |
 | `option` | 期权 | 配置表（插行后出现） |
 
-**占位 Tab（需求 11256 / 11266）**：`index` / `crypto` / `sector` / `portfolio` / `otc` / `gold`
-七个品种按上表顺序**跟在配置表已有品种之后常显**（`future` 已于需求 11274、`etf` 已于需求 11279 实装，均移出占位清单），由前端 `PLACEHOLDER_SYMBOLS` 硬编码（不依赖配置行）：
+**占位 Tab（需求 11256 / 11266）**：`sector` / `portfolio` / `otc` / `gold`
+按上表顺序**跟在配置表已有品种之后常显**（`future` 已于需求 11274、`etf` 已于需求 11279 实装，均移出占位清单），由前端 `PLACEHOLDER_SYMBOLS` 硬编码（不依赖配置行）：
 配置表暂无该品种的行时，Tab 照常可点，配置表显示「该品种为占位 Tab：配置表暂无该品种的采集行，暂不参与采集」，
 「开始同步」按钮禁用；后续接入时只要往 `cdeu.finv_cdeu_secu_realtime_sync_config` 插入同符号的配置行，
 即自动转为可采集（无需改前端）。
@@ -189,6 +189,20 @@ ETF 代码同样按 `(exchange, code)` 解析 `public.finv_security.usc`；实�
 | 参数 | `page_size` 固定 400 且不可改（moomoo 接口单次上限）；`interval_ms` / `count_plan` 等不生效（一次取全量）；`request_timeout_ms` 作为本次采集总超时 |
 | 日志 | 启动一行 INFO（provider + 结果表）、每批一行 INFO（codes / rows / 新增 / 覆盖）、失败一行 ERROR；采集完成后结果区显示批次数与新增/覆盖行数 |
 | 空收藏 | 收藏表里没有加密货币时打「跳过采集」，任务按成功结束（新增/覆盖均为 0） |
+
+#### 2.0.7 收藏的美股/港股指数采集（`index`，需求 11333）
+
+| 项 | 内容 |
+|---|---|
+| 数据源 | `quote.finv_quote_secu_fav`（收藏表）中 `security_type ∈ {StockIndex, Index}` 且 `exchange_flag ∈ {HK, US}` 的 `usc` |
+| code 规则 | 港股 `HK.<security_code>`（如 `HK.800000`）、美股 `US..<security_code>`（**双点**，如 `US..DJI`）；别名 `HK.HSI`、单点 `US.DJI` 实测均不命中 |
+| 落库表 | `cdeu.finv_quote_secu_realtime`（主键 `usc`，`provider` 固定 `MMAPI`，`instrument_type=6`，`market_type` 港股 `1` / 美股 `2`，`market_label` `HK` / `US`） |
+| 覆盖语义 | `COALESCE(EXCLUDED.col, t.col)` **有值才覆盖**：只写身份列与行情列，不碰 `rmb_*` / `market_value` 等其它来源的列（需求 11287 同口径） |
+| 触发 | 本 Tab「开始同步」→ `POST .../FTStockQuoteSnapshotSync/Run`（`instrument_symbol=index`）；运行状态、逐批日志、轮询与其它 Tab 共用。配置行优先：配置表存在启用的 `index` 行时仍走通用列表采集 |
+| 凭据配置入口 | 与「加密货币」Tab **共用**同一张「moomoo OpenAPI 凭据」卡片（`sys.sys_config` 20016），切到本 Tab 自动加载，不需要重复填写 |
+| 参数 | `page_size` 固定 400 且不可改（moomoo 接口单次上限）；`interval_ms` / `count_plan` 等不生效（一次取全量）；`request_timeout_ms` 作为本次采集总超时 |
+| 未返回 code | 上游没返回的 code 记入结果 `Missing` 并在日志打一行 WARN，不报错、不写库（多为上游未覆盖的长尾指数，如 `HK.HSIII`） |
+| 独立接口 | `POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Index/Fav/Snapshot/Sync` 可直接触发（见 [IndexFavSnapshotSync.md](../../../API/Cdeu/IndexFavSnapshotSync.md)） |
 
 ### 2.1 采集配置（只读表格）
 

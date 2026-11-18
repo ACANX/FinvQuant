@@ -69,6 +69,42 @@ SELECT e.exchange_flag, s.security_code, s.usc
 	return out, nil
 }
 
+// ListFavoriteExchangeIndexTargets 返回收藏表里的美股/港股指数（需求 11333）。
+//
+// 判定：security_type ∈ {StockIndex, Index}（兼容不同批次导入的类型名）+ 交易所标志 HK/US；
+// 只返回拼得出 moomoo code 的行（security_code 非空）。currency_type 为空时交给调用方兜底。
+func (s *Store) ListFavoriteExchangeIndexTargets(ctx context.Context) ([]IndexFavTarget, error) {
+	rows, err := s.pool.Query(ctx, `
+SELECT s.usc,
+       btrim(s.security_code),
+       upper(btrim(e.exchange_flag)),
+       COALESCE(NULLIF(btrim(s.currency_type), ''), '')
+  FROM quote.finv_quote_secu_fav f
+  JOIN public.finv_security s ON s.usc = f.usc
+  JOIN public.finv_exchange e ON e.exchange_code = s.exchange_code
+ WHERE s.security_type IN ('StockIndex', 'Index')
+   AND upper(btrim(e.exchange_flag)) IN ('HK', 'US')
+   AND btrim(s.security_code) <> ''
+ ORDER BY s.usc`)
+	if err != nil {
+		return nil, fmt.Errorf("查询收藏的美股/港股指数失败: %w", err)
+	}
+	defer rows.Close()
+
+	targets := make([]IndexFavTarget, 0, 32)
+	for rows.Next() {
+		var item IndexFavTarget
+		if err := rows.Scan(&item.USC, &item.SecurityCode, &item.ExchangeFlag, &item.Currency); err != nil {
+			return nil, fmt.Errorf("解析收藏的美股/港股指数失败: %w", err)
+		}
+		targets = append(targets, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("读取收藏的美股/港股指数失败: %w", err)
+	}
+	return targets, nil
+}
+
 // SaveQuoteSecuRealtimeRows 按 usc 主键批量 upsert，返回新增 / 更新行数。
 //
 // 冲突语义：**有值才覆盖**（`COALESCE(EXCLUDED.col, t.col)`，见 quoteSecuRealtimeUpdateClause），

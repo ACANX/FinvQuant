@@ -218,6 +218,19 @@ func (s *Service) StartStockListRun(opts StockListCollectOptions) (StockListRun,
 		return s.startXetIndexRun(normalized)
 	}
 
+	// 需求 11333：指数（index）默认走「收藏的美股/港股指数 → moomoo OpenAPI snapshot」，
+	// 结果落 cdeu.finv_quote_secu_realtime（provider='MMAPI'）；
+	// 若配置表里存在启用的 index 行，则仍走通用列表采集（配置行优先，不影响既有用法）。
+	if normalized.FilterInstrumentSymbol == IndexFavSymbol {
+		hasConfig, cfgErr := s.store.HasEnabledSecuRealtimeSyncConfig(context.Background(), IndexFavSymbol)
+		if cfgErr != nil {
+			return StockListRun{}, cfgErr
+		}
+		if !hasConfig {
+			return s.startIndexFavRun(normalized)
+		}
+	}
+
 	// 需求 11316：加密货币（crypto）走「收藏表 → moomoo OpenAPI market-snapshot」，
 	// 固定来源、无配置行，结果落 cdeu.finv_quote_secu_realtime_crypto。
 	if normalized.FilterInstrumentSymbol == CryptoFavSymbol {
@@ -519,6 +532,81 @@ func (s *Service) startXetIndexRun(opts StockListCollectOptions) (StockListRun, 
 
 	run, _ := s.stockListRunner.snapshot(runID)
 	return run, nil
+}
+
+// startIndexFavRun 启动一次「收藏的美股/港股指数行情快照」采集（需求 11333）。
+//
+// 与加密货币分支同构：共用 StockListRunner（运行状态 + 日志 + 轮询接口），
+// 固定来源（收藏表 quote.finv_quote_secu_fav 里 security_type=StockIndex 且交易所 HK/US），
+// 结果写 cdeu.finv_quote_secu_realtime（provider='MMAPI'）。
+func (s *Service) startIndexFavRun(opts StockListCollectOptions) (StockListRun, error) {
+	if s.stockListRunner == nil {
+		s.stockListRunner = newStockListRunner()
+	}
+
+	params := map[string]any{
+		"instrument_symbol":  IndexFavSymbol,
+		"provider":           IndexFavProvider,
+		"target_table":       tableQuoteSecuRealtime,
+		"request_timeout_ms": opts.RequestTimeout.Milliseconds(),
+	}
+	runID, err := s.stockListRunner.begin(params)
+	if err != nil {
+		return StockListRun{}, err
+	}
+
+	s.stockListRunner.appendLog(runID, StockListRunLog{
+		Level: "INFO",
+		Message: fmt.Sprintf("任务已启动：收藏的美股/港股指数行情快照（moomoo OpenAPI，provider=%s，结果表 %s）",
+			IndexFavProvider, tableQuoteSecuRealtime),
+	})
+
+	go func() {
+		fetcher := s.moomooSnapshotFetcher
+		if fetcher == nil {
+			client, clientErr := s.store.MoomooClientFromConfig(context.Background())
+			if clientErr != nil {
+				s.stockListRunner.appendLog(runID, StockListRunLog{
+					Level:   "ERROR",
+					Message: "moomoo OpenAPI 初始化失败：" + clientErr.Error(),
+				})
+				s.stockListRunner.finish(runID, nil, clientErr)
+				return
+			}
+			if client == nil {
+				missingErr := errors.New("未配置 moomoo OpenAPI 凭据（sys_config 20016 或环境变量 FINV_MOOMOO_APP_KEY / FINV_MOOMOO_PRIVATE_KEY）")
+				s.stockListRunner.appendLog(runID, StockListRunLog{Level: "ERROR", Message: missingErr.Error()})
+				s.stockListRunner.finish(runID, nil, missingErr)
+				return
+			}
+			fetcher = client
+		}
+
+		collector := NewIndexFavSnapshotCollector(fetcher, s.store, nil).WithHook(
+			func(event StockListCollectEvent) {
+				s.stockListRunner.appendLog(runID, StockListCollectEventToLog(event))
+			})
+		result, collectErr := collector.Collect(context.Background(),
+			IndexFavSnapshotCollectOptions{Timeout: opts.RequestTimeout})
+		s.stockListRunner.finish(runID, []StockListCollectResult{indexFavResultToStockListResult(result)}, collectErr)
+	}()
+
+	run, _ := s.stockListRunner.snapshot(runID)
+	return run, nil
+}
+
+// indexFavResultToStockListResult 把收藏指数采集结果转成运行面板统一结构。
+func indexFavResultToStockListResult(result IndexFavSnapshotResult) StockListCollectResult {
+	return StockListCollectResult{
+		InstrumentSymbol: IndexFavSymbol,
+		Pages:            result.Batches,
+		RowsReceived:     int64(result.RowsReceived),
+		RowsInsert:       result.RowsInsert,
+		RowsUpdate:       result.RowsUpdate,
+		CountExists:      result.RowsReceived,
+		TotalAvailable:   result.USCTotal,
+		ElapsedMs:        result.ElapsedMs,
+	}
 }
 
 // startCryptoFavRun 启动一次「收藏加密货币行情快照」采集（需求 11316）。

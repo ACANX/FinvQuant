@@ -85,6 +85,7 @@ func TestExportArchiveRoutesRegistered(t *testing.T) {
 		"GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run",
 		"GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Page",
 		"GET /API/V1/Meta/Finv/Quant/Metadata/Security/FilterOptions",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Index/Fav/Snapshot/Sync",
 		"GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Future/Page",
 		"GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Future/Types",
 		"GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Crypto/Page",
