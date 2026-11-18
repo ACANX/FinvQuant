@@ -107,6 +107,12 @@ const GROUPS: IndicatorGroupSpec[] = [
       { name: 'usc', label: '证券编码', kind: 'text', hint: '证券统一编码；上游为空时用 ftmm_symbol 占位' },
       { name: 'ftmm_symbol', label: '富途符号', kind: 'text', hint: '富途符号 {市场}.{代码}，如 US.AAPL' },
       {
+        name: 'type_secu',
+        label: '证券分类',
+        kind: 'text',
+        hint: '关联 public.finv_security.type_secu（如 Stock / ETF / StockIndex）；主数据未维护或未关联时为空',
+      },
+      {
         name: 'type_secu_sub',
         label: '证券子类',
         kind: 'text',

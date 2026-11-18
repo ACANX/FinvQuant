@@ -242,12 +242,20 @@ function restoreSelection(): void {
     .map((name) => name.trim())
     .filter((name) => name && known.has(name))
 
-  if (storedColumns.length > 0) {
-    selected.value = dedupeWithKeys(storedColumns)
-    preset.value = INDICATOR_PRESETS.some((item) => item.key === storedPreset) ? storedPreset : ''
+  // 内置预设随版本演进（例如新增关联虚拟列 type_secu / type_secu_sub）：
+  // 只要用户仍停留在某个预设上，就按**最新**预设重建，避免旧缓存缺新列；
+  // 手动改过列的（preset 已置空）才沿用存储的列方案，不覆盖自定义。
+  if (INDICATOR_PRESETS.some((item) => item.key === storedPreset)) {
+    applyPreset(storedPreset)
     return
   }
-  applyPreset(INDICATOR_PRESETS.some((item) => item.key === storedPreset) ? storedPreset : DEFAULT_PRESET_KEY)
+
+  if (storedColumns.length > 0) {
+    selected.value = dedupeWithKeys(storedColumns)
+    preset.value = ''
+    return
+  }
+  applyPreset(DEFAULT_PRESET_KEY)
 }
 
 function dedupeWithKeys(names: string[]): string[] {
