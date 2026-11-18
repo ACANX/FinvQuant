@@ -20,6 +20,20 @@
 
 ### 新增
 
+- **新增「期货行情排行」「加密货币行情排行」两个菜单（需求 11322 / 11323）**
+  - 位置：「行情 → 实时行情」，紧跟「证券行情排行」。
+  - 期货：`/Meta/Finv/Quote/Realtime/FTFutureRank`，读 `cdeu.finv_quote_realtime_future`
+    （主键 `stock_id`）；筛选关键字/分类/市场/仅在实；分类中文名取自
+    `cdeu.finv_quote_cdeu_future_sync_config`；「明细」弹窗按 `field_list_json` 把
+    `fields_json` 的编号翻成字段名（不臆造编号含义）。
+  - 加密货币：`/Meta/Finv/Quote/Realtime/FTCryptoRank`，读 `cdeu.finv_quote_secu_realtime_crypto`
+    （主键 `usc`）；筛选关键字/计价币种/停牌，数值按量级裁剪、大额万/亿折算。
+  - 新接口：`GET .../Realtime/Future/Page`、`GET .../Realtime/Future/Types`、
+    `GET .../Realtime/Crypto/Page`、`GET .../Realtime/Crypto/QuoteCurrencies`
+    （数值列一律文本返回，排序走白名单）。
+  - 实测：期货 335 行（分类 1~8 共 8 项，`futures_type=7` 8 行）、加密 8 行（USD/USDC/USDT）。
+
+
 - **「加密货币」Tab 新增 moomoo OpenAPI 凭据配置入口（需求 11318）**
   - 迁移 `V300227`：`sys.sys_config` 新增 20016（AppKey）/ 20017（Ed25519 私钥 PEM，`access_level=3`），
     初始空串占位（= 未配置）。

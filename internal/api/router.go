@@ -302,6 +302,12 @@ func NewRouter(deps *Deps) *gin.Engine {
 			realtime.POST("/FTStockQuoteSnapshotSync/Run", archive.RealtimeStockListRunStart)
 			realtime.GET("/FTStockQuoteSnapshotSync/Run", archive.RealtimeStockListRunStatus)
 			realtime.GET("/Stock/Page", archive.RealtimeStockPage)
+			// 期货行情排行（需求 11322）：cdeu.finv_quote_realtime_future，主键 stock_id。
+			realtime.GET("/Future/Page", archive.RealtimeFuturePage)
+			realtime.GET("/Future/Types", archive.RealtimeFutureTypes)
+			// 加密货币行情排行（需求 11323）：cdeu.finv_quote_secu_realtime_crypto，主键 usc。
+			realtime.GET("/Crypto/Page", archive.RealtimeCryptoPage)
+			realtime.GET("/Crypto/QuoteCurrencies", archive.RealtimeCryptoQuoteCurrencies)
 			// 人民币计价指标手动补全（需求 11024）：先补 rmb_exchange_rate，再补 rmb_ 金额字段。
 			realtime.POST("/Stock/RmbSync", archive.RealtimeStockRmbSync)
 			// 需求 10995：待录入证券（usc 为空，作为补录主数据的依据），先只提供查询。

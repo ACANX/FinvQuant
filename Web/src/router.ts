@@ -5,6 +5,8 @@ import DashboardView from './views/DashboardView.vue'
 import QuoteQueryView from './views/Meta/Finv/Quote/History/HistoryQuoteQueryView.vue'
 import QuoteImportView from './views/Meta/Finv/Quote/History/HistoryQuoteImportView.vue'
 import RealtimeStockView from './views/Meta/Finv/Quote/Realtime/FTStockRankView.vue'
+import FutureRankView from './views/Meta/Finv/Quote/Realtime/FutureRankView.vue'
+import CryptoRankView from './views/Meta/Finv/Quote/Realtime/CryptoRankView.vue'
 import CollectOverviewView from './views/Meta/Finv/Quote/RealtimeCollect/OverviewView.vue'
 import SecuQuoteSnapshotSyncView from './views/Meta/Finv/Quote/RealtimeCollect/SecuQuoteSnapshotSyncView.vue'
 import PendingSecuView from './views/Meta/Finv/Quote/RealtimeCollect/PendingSecuView.vue'
@@ -77,6 +79,20 @@ const router = createRouter({
       name: 'quote-realtime-ftstockrank',
       component: RealtimeStockView,
       meta: { title: '证券行情排行' },
+    },
+    // 需求 11322：期货行情排行（cdeu.finv_quote_realtime_future，主键 stock_id）
+    {
+      path: '/Meta/Finv/Quote/Realtime/FTFutureRank',
+      name: 'quote-realtime-ftfuture-rank',
+      component: FutureRankView,
+      meta: { title: '期货行情排行' },
+    },
+    // 需求 11323：加密货币行情排行（cdeu.finv_quote_secu_realtime_crypto，主键 usc）
+    {
+      path: '/Meta/Finv/Quote/Realtime/FTCryptoRank',
+      name: 'quote-realtime-ftcrypto-rank',
+      component: CryptoRankView,
+      meta: { title: '加密货币行情排行' },
     },
     // 行情 → 实时行情 → 外汇汇率（需求 10999/11000，11159 改名并把菜单前移到快照同步之前）
     {

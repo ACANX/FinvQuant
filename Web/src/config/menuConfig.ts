@@ -204,6 +204,20 @@ const finvQuantMenu: MenuNode[] = [
             icon: 'mdi-chart-timeline-variant',
             path: '/Meta/Finv/Quote/Realtime/FTStockRank',
           },
+          // 需求 11322：期货行情排行（cdeu.finv_quote_realtime_future，主键 stock_id）
+          {
+            key: 'quote-realtime-ftfuture-rank',
+            title: '期货行情排行',
+            icon: 'mdi-finance',
+            path: '/Meta/Finv/Quote/Realtime/FTFutureRank',
+          },
+          // 需求 11323：加密货币行情排行（cdeu.finv_quote_secu_realtime_crypto，主键 usc）
+          {
+            key: 'quote-realtime-ftcrypto-rank',
+            title: '加密货币行情排行',
+            icon: 'mdi-currency-btc',
+            path: '/Meta/Finv/Quote/Realtime/FTCryptoRank',
+          },
           // 需求 11159：外汇汇率（原「缺省汇率」）前移到采集类菜单之前 ——
           // 汇率是快照里人民币计价字段的前提。采集类菜单本身已于需求 11281 迁到「行情采集」分组。
           {
