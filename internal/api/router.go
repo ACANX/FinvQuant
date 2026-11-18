@@ -226,6 +226,8 @@ func NewRouter(deps *Deps) *gin.Engine {
 				indicator.NewService(deps.Pool),
 				uscbackfill.NewService(deps.Pool),
 			)
+			// 收藏的加密货币行情快照采集（需求 11314）：moomoo OpenAPI market-snapshot。
+			apiGroup.POST("/Meta/Finv/Quote/Crypto/Fav/Snapshot/Sync", archive.CryptoFavSnapshotSync)
 			group := apiGroup.Group("/Meta/Finv/Quote/DeDup")
 			group.GET("/Status", archive.Status)
 			group.GET("/Settings", archive.Settings)

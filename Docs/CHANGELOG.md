@@ -20,6 +20,20 @@
 
 ### 新增
 
+- **收藏的加密货币行情快照采集（需求 11314）**
+  - 新表 `cdeu.finv_quote_secu_realtime_crypto`（迁移 `V300225`）：主键 `usc`、33 列
+    （代码 / 名称 / 计价货币 / 价格六列 / 涨跌与振幅 / 成交与盘口 / 52 周与历史极值 /
+    状态 / `dt_update` / `provider=MMAPI`），已登记全量备份。
+  - 新增 moomoo OpenAPI 客户端（`webapi.moomoo.com/api/v1.0/quote/snapshot`）：
+    AppKey + Ed25519 私钥签名（`X-Api-Key` / `X-Timestamp` / `X-Nonce` / `Authorization`），
+    凭据只从环境变量 `FINV_MOOMOO_APP_KEY` / `FINV_MOOMOO_PRIVATE_KEY` 读取，不落盘。
+  - 采集链路：`quote.finv_quote_secu_fav` 的加密货币 → `CC.<usc>`（≤400/批）→ 转换 →
+    按 `usc` upsert；新增接口 `POST /Meta/Finv/Quote/Crypto/Fav/Snapshot/Sync`。
+  - 实测：收藏 8 只加密货币 → 接口返回 8 行 → 落库 8 行（BTCUSD 价格 64362.58、
+    code=CC.BTCUSD、provider=MMAPI）。
+  - 文档：`Docs/API/Cdeu/CryptoFavSnapshotSync.md`、`APIs.md`（140）、`DbSchemaSpec`。
+
+
 - **「证券指标」行详情新增收藏按钮（需求 11313）**
   - `/Secu/Indicator/Columns` 追加虚拟列 `is_favorite`（对 `quote.finv_quote_secu_fav` 做 `EXISTS`，
     返回 `'1'/'0'`），可请求、可排序。

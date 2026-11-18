@@ -162,6 +162,7 @@
 | 137 | GET | `/API/V1/Meta/Finv/Quote/Secu/Indicator/TypeSecuSub` | 证券指标子类筛选选项（需登录，只读）：`public.finv_security.type_secu_sub` 的值 + 行数（按行数倒序，空串 = 未维护/未关联），供「证券指标」页「子类」下拉；`/Page` 相应新增 `typeSecuSub` 参数与虚拟列 `type_secu_sub`（`LEFT JOIN public.finv_security`） | [Cdeu/IndicatorPage.md](Cdeu/IndicatorPage.md)（契约 [.yml](Cdeu/IndicatorPage.yml)） | 需求 11305（[Menu/Quote/Realtime/SecuIndicator.md](../Menu/Quote/Realtime/SecuIndicator.md)） |
 | 138 | GET | `/API/V1/Meta/Finv/Quote/Secu/Indicator/TypeSecu` | 证券指标分类筛选选项（需登录，只读）：`public.finv_security.type_secu` 的值 + 行数（按行数倒序，空串 = 未维护/未关联），供「证券指标」页「分类」下拉；`/Page` 相应新增 `typeSecu` 参数与虚拟列 `type_secu` | [Cdeu/IndicatorPage.md](Cdeu/IndicatorPage.md)（契约 [.yml](Cdeu/IndicatorPage.yml)） | 需求 11308（[Menu/Quote/Realtime/SecuIndicator.md](../Menu/Quote/Realtime/SecuIndicator.md)） |
 | 139 | POST | `/API/V1/Meta/Finv/Quant/Metadata/Security/Favorite` | 收藏 / 取消收藏证券（需登录）：`{usc, favorite}` → 写入/删除 `quote.finv_quote_secu_fav`（主键 `usc`，幂等），列表接口以 `is_favorite` 回显 | [Meta/MetaSecurity.md](Meta/MetaSecurity.md) | 规范证券信息维护（[MetaData/Security.md](../Menu/MetaData/Security.md)） |
+| 140 | POST | `/API/V1/Meta/Finv/Quote/Crypto/Fav/Snapshot/Sync` | 收藏加密货币快照采集（需登录）：读 `quote.finv_quote_secu_fav` 的加密货币 → moomoo OpenAPI `market-snapshot`（`CC.<usc>`，≤400/批）→ upsert `cdeu.finv_quote_secu_realtime_crypto`；凭据走环境变量 `FINV_MOOMOO_APP_KEY` / `FINV_MOOMOO_PRIVATE_KEY` | [Cdeu/CryptoFavSnapshotSync.md](Cdeu/CryptoFavSnapshotSync.md) | 需求 11314 |
 
 ## 说明
 
