@@ -2841,6 +2841,16 @@
 
 ### 修复
 
+- **期货行情快照 usc 为空补齐（需求 11326）**
+  - 实测 335 行里 100 行 `usc` 为 NULL（用户 2026-11-18 指出）：期货合约不在
+    `futu.finv_futu_secu_key`（`instrument='future'` 0 行），两级解析必然落空。
+  - 迁移 `V300230` 用 usc 引擎结果表 `futu.finv_futu_usc_map`（ACTIVE）按
+    `ftmm_symbol = upper(市场标签)||'.'||upper(合约代码)` 回填，100/100 命中
+    （`SG.CNMAIN`→`CNMain`、`US.XAMD0MAIN`→`XAMD0Main`、`JP.NK225MAIN`→`NK225Main`）。
+  - 采集侧 `loadFutureListUSC` 增加第三级兜底（stock_id → 键表 → usc 引擎结果表），
+    后续新上架合约也能直接带上 usc；仍解析不到的保持 NULL（「尚未录入」信号）。
+
+
 - **修复 moomoo 私钥保存报「不是合法的 PEM」+ 输入框支持明文查看（需求 11320）**
   - 后端 `ParseEd25519PrivateKey` 增加真实粘贴场景的归一：Windows 换行（`\r\n`）、
     行首尾空白、空行、BOM / 零宽空格 / 不换行空格、字面 `\n`；

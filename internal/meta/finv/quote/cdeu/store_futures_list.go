@@ -205,10 +205,12 @@ func futureListJSON(value any) string {
 // futureListFtmmKey 派生键：upper(市场标签.合约代码)，与 futu.finv_futu_secu_key 口径一致。
 func futureListFtmmKey(marketLabel, contractCode string) string {
 	market := strings.ToUpper(strings.TrimSpace(marketLabel))
-	code := strings.TrimSpace(contractCode)
+	code := strings.ToUpper(strings.TrimSpace(contractCode))
 	if market == "" || code == "" {
 		return ""
 	}
+	// 统一大写：键表 finv_futu_secu_key 与 usc 引擎结果表 finv_futu_usc_map 的
+	// ftmm_symbol 都是大写（如 SG.CNMAIN），而合约代码原文是 SG.CNmain。
 	return market + "." + code
 }
 
@@ -417,9 +419,12 @@ UPDATE `+tableFutureList+`
 
 // loadFutureListUSC 批量解析 usc（需求 11273「解析 usc，字段可先为空」）。
 //
-// 关联顺序：
+// 关联顺序（需求 11326）：
 //  1. stock_id → futu.finv_futu_quote_collect.usc（最准确：富途 stockId 全局唯一）；
-//  2. 派生键 upper(市场标签.合约代码) → futu.finv_futu_secu_key.usc（键表兜底）。
+//  2. 派生键 upper(市场标签.合约代码) → futu.finv_futu_secu_key.usc（键表兜底）；
+//  3. 仍未命中 → futu.finv_futu_usc_map（usc 引擎结果表，status=ACTIVE）——
+//     期货合约普遍不在键表里（instrument=future 的键表行为 0），但 usc 引擎已为
+//     `SG.CNMAIN → CNMain` 这类派生键分配了 usc，这一级是期货的主要来源。
 //
 // 两级都不命中就留 NULL：期货合约多数还没进主数据，这个 NULL 是「尚未录入」的信号，
 // 不得用合约代码冒充 usc。
@@ -484,6 +489,37 @@ SELECT upper(btrim(ftmm_symbol)), btrim(usc)
 		}
 		if err := rows.Err(); err != nil {
 			return nil, nil, fmt.Errorf("查询派生键→usc 映射失败: %w", err)
+		}
+
+		// 第三级：键表没有的（期货绝大多数）走 usc 引擎结果表。
+		var missing []string
+		for _, key := range keys {
+			if _, ok := byFtmm[key]; !ok {
+				missing = append(missing, key)
+			}
+		}
+		if len(missing) > 0 {
+			rows, err := s.pool.Query(ctx, `
+SELECT upper(btrim(ftmm_symbol)), btrim(usc)
+  FROM futu.finv_futu_usc_map
+ WHERE upper(btrim(ftmm_symbol)) = ANY($1::text[])
+   AND status = 'ACTIVE'
+   AND usc IS NOT NULL AND btrim(usc) <> ''`, missing)
+			if err != nil {
+				return nil, nil, fmt.Errorf("查询派生键→usc（usc 引擎）映射失败: %w", err)
+			}
+			defer rows.Close()
+			for rows.Next() {
+				var key string
+				var usc string
+				if err := rows.Scan(&key, &usc); err != nil {
+					return nil, nil, fmt.Errorf("解析派生键→usc（usc 引擎）映射失败: %w", err)
+				}
+				byFtmm[key] = usc
+			}
+			if err := rows.Err(); err != nil {
+				return nil, nil, fmt.Errorf("查询派生键→usc（usc 引擎）映射失败: %w", err)
+			}
 		}
 	}
 	return byStockID, byFtmm, nil
