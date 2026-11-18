@@ -277,8 +277,8 @@ onMounted(() => {
           <v-btn
             size="x-small"
             variant="text"
-            :icon="item.is_favorite ? 'mdi-star' : 'mdi-star-outline'"
-            :color="item.is_favorite ? 'amber-darken-2' : undefined"
+            :icon="item.is_favorite ? 'mdi-heart' : 'mdi-heart-outline'"
+            :color="item.is_favorite ? 'red-darken-2' : undefined"
             :title="item.is_favorite ? '取消收藏' : '收藏'"
             :aria-label="item.is_favorite ? '取消收藏' : '收藏'"
             @click="toggleFavorite(item)"

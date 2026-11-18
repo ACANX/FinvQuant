@@ -26,7 +26,7 @@
     已登记 `brs.brs_bak_rdb_table_full` 全量备份。
   - 新接口 `POST /Meta/Finv/Quant/Metadata/Security/Favorite`：`{usc, favorite}` 幂等收藏/取消，
     `usc` 不在 `finv_security` 时拒绝写入；`Security/List` 每行返回 `is_favorite`。
-  - 前端「操作」列新增星标按钮（`mdi-star` / `mdi-star-outline`），点击即切换并 toast 提示。
+  - 前端「操作」列新增心形按钮（已收藏红色 `mdi-heart` / 未收藏 `mdi-heart-outline`），点击即切换并 toast 提示。
   - 验证：`schema_version=300224`；`quote.finv_quote_secu_fav` 4 列 + 主键 + 触发器 + 备份登记齐全；
     收藏 `00700` 后 `List` 返回 `is_favorite=true`，取消后回到 `false`。
 
