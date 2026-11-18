@@ -350,8 +350,10 @@ func TestBuildFutureListRowsFallbackFtmm(t *testing.T) {
 	cfg := FutureListCollectConfig{MarketType: "0", FuturesType: "8"}
 	item := futureListTestItem(70000300, "CNCmain", "hk")
 
+	// 派生键统一大写（需求 11326）：键表/usc 引擎结果表的 ftmm_symbol 都是大写，
+	// 合约代码原文是 CNCmain，若不做大写化兜底查询永远不会命中。
 	rows := BuildFutureListRows(cfg, 1, []quoteapiv2.FuturesListItem{item}, nil,
-		map[string]string{"HK.CNCmain": "CNC0001"}, 1767225600000)
+		map[string]string{"HK.CNCMAIN": "CNC0001"}, 1767225600000)
 	if len(rows) != 1 || rows[0].USC == nil || *rows[0].USC != "CNC0001" {
 		t.Fatalf("派生键应解析出 usc: %+v", rows[0].USC)
 	}
