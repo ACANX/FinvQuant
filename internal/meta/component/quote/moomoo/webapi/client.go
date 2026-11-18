@@ -180,14 +180,67 @@ func (c *Client) do(ctx context.Context, method, path, query string, body []byte
 	return raw, resp.StatusCode, nil
 }
 
-// ParseEd25519PrivateKey 解析 Ed25519 PKCS#8 PEM（兼容字面 \n 与首尾空白）。
+// ParseEd25519PrivateKey 解析 Ed25519 PKCS#8 私钥。
+//
+// 容错范围（都是人工粘贴时真实会遇到的形态）：
+//   - 标准三行 PEM（`-----BEGIN PRIVATE KEY-----` / base64 / `-----END PRIVATE KEY-----`）；
+//   - 字面 `\n` 分隔的一行文本；
+//   - Windows 换行（`\r\n`）、行首尾空白、空行；
+//   - 不可见字符（BOM `\ufeff`、零宽空格 `\u200b`、不换行空格 `\u00a0`）；
+//   - **只粘贴 base64 主体**（缺少 BEGIN/END 头尾）——自动按 PKCS#8 DER 解析。
+//
+// 错误信息区分「不是 PEM / 只贴了主体且解不开」与「PEM 类型不对（贴成公钥）」。
 func ParseEd25519PrivateKey(raw string) (ed25519.PrivateKey, error) {
-	pemText := strings.ReplaceAll(strings.TrimSpace(raw), `\n`, "\n")
-	block, _ := pem.Decode([]byte(pemText))
-	if block == nil {
-		return nil, errors.New("moomoo OpenAPI：私钥不是合法的 PEM")
+	text := normalizePEMText(raw)
+	if text == "" {
+		return nil, errors.New("moomoo OpenAPI：私钥为空")
 	}
-	parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	block, _ := pem.Decode([]byte(text))
+	if block == nil {
+		// 容错：只贴了 base64 主体（没有 BEGIN/END 头尾）
+		if der, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(text, "\n", "")); err == nil {
+			if priv, parseErr := parsePKCS8Ed25519(der); parseErr == nil {
+				return priv, nil
+			}
+		}
+		return nil, errors.New("moomoo OpenAPI：私钥不是合法的 PEM（需要完整的 " +
+			"-----BEGIN PRIVATE KEY----- / base64 主体 / -----END PRIVATE KEY----- 三行，或只粘贴 base64 主体）")
+	}
+	if block.Type != "PRIVATE KEY" {
+		return nil, fmt.Errorf("moomoo OpenAPI：私钥类型应为 PRIVATE KEY（实际 %s）；请勿粘贴公钥", block.Type)
+	}
+	return parsePKCS8Ed25519(block.Bytes)
+}
+
+// normalizePEMText 归一化人工粘贴的 PEM 文本（换行/空白/不可见字符）。
+func normalizePEMText(raw string) string {
+	text := strings.TrimSpace(raw)
+	text = strings.ReplaceAll(text, `\n`, "\n")
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
+	text = strings.Map(func(r rune) rune {
+		switch r {
+		case '\ufeff', '\u200b', '\u00a0':
+			return -1
+		}
+		return r
+	}, text)
+
+	lines := strings.Split(text, "\n")
+	cleaned := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		cleaned = append(cleaned, line)
+	}
+	return strings.Join(cleaned, "\n")
+}
+
+// parsePKCS8Ed25519 解析 PKCS#8 DER 并断言为 Ed25519。
+func parsePKCS8Ed25519(der []byte) (ed25519.PrivateKey, error) {
+	parsed, err := x509.ParsePKCS8PrivateKey(der)
 	if err != nil {
 		return nil, fmt.Errorf("moomoo OpenAPI：解析 PKCS#8 私钥失败: %w", err)
 	}

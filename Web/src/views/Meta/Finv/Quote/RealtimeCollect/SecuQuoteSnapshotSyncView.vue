@@ -322,6 +322,7 @@ const moomooConfig = ref<MoomooConfigState>({
 })
 const moomooAppKey = ref('')
 const moomooPrivateKey = ref('')
+const moomooPrivateKeyVisible = ref(false)
 const moomooSaving = ref(false)
 const MOOMOO_CONFIG_API = '/Meta/Finv/Quote/Crypto/Moomoo/Config'
 
@@ -347,6 +348,17 @@ async function loadMoomooConfig() {
   } catch (error) {
     showToast(`读取 moomoo 凭据配置失败：${(error as Error).message}`, 'error')
   }
+}
+
+/**
+ * 私钥粘贴：单行输入框会把真实换行丢掉，这里把多行 PEM 转成字面 `\n` 形式
+ * （后端 normalizePEMText 会再还原），并整段替换当前值。
+ */
+function onMoomooPrivateKeyPaste(event: ClipboardEvent): void {
+  const text = event.clipboardData?.getData('text') ?? ''
+  if (!/[\r\n]/.test(text)) return
+  event.preventDefault()
+  moomooPrivateKey.value = text.replace(/\r\n?/g, '\n').replace(/\n/g, '\\n')
 }
 
 /** 保存凭据配置（私钥留空 = 不修改）。 */
@@ -558,19 +570,21 @@ onBeforeUnmount(stopPolling)
               hide-details
               style="min-width: 260px; max-width: 340px"
             />
-            <v-textarea
+            <v-text-field
               v-model="moomooPrivateKey"
-              label="私钥（Ed25519 PEM，完整粘贴三行）"
+              label="私钥（Base64 主体，只填中间一行）"
+              :type="moomooPrivateKeyVisible ? 'text' : 'password'"
+              :append-inner-icon="moomooPrivateKeyVisible ? 'mdi-eye-off' : 'mdi-eye'"
               :placeholder="
                 moomooConfig.private_key_configured
                   ? `已配置（${moomooConfig.private_key_masked}），留空不修改`
-                  : '-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'
+                  : 'MC4CAQAwBQYDK2VwBCIEIF5V...（只填中间 base64 那一行）'
               "
-              rows="3"
-              auto-grow
               density="compact"
               hide-details
               style="min-width: 360px; max-width: 560px"
+              @click:append-inner="moomooPrivateKeyVisible = !moomooPrivateKeyVisible"
+              @paste="onMoomooPrivateKeyPaste"
             />
             <v-btn
               color="primary"
@@ -583,10 +597,9 @@ onBeforeUnmount(stopPolling)
             </v-btn>
           </div>
           <div class="text-caption text-medium-emphasis mt-2">
-            保存在 sys.sys_config 20016（`AppKey|私钥 PEM` 单配置项）；私钥要**完整粘贴三行**
-            （`-----BEGIN PRIVATE KEY-----`、base64 主体、`-----END PRIVATE KEY-----`），
-            或一行用字面 `\n` 分隔；留空表示不修改，页面只回显掩码；未配置时回退环境变量
-            FINV_MOOMOO_APP_KEY / FINV_MOOMOO_PRIVATE_KEY。
+            保存在 sys.sys_config 20016（`AppKey|私钥` 单配置项）；私钥**只填中间 base64 那一行**即可
+            （多行 PEM 粘贴也兼容，会自动去掉 BEGIN/END）；点右侧 👁 可查看明文，留空表示不修改；
+            未配置时回退环境变量 FINV_MOOMOO_APP_KEY / FINV_MOOMOO_PRIVATE_KEY。
           </div>
         </v-card-text>
       </v-card>

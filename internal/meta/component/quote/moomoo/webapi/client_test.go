@@ -69,6 +69,43 @@ func TestParseEd25519PrivateKey(t *testing.T) {
 	}
 }
 
+// TestParseEd25519PrivateKeyTolerance 真实粘贴场景的容错（需求 11320）。
+func TestParseEd25519PrivateKeyTolerance(t *testing.T) {
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("生成测试密钥失败: %v", err)
+	}
+	der, _ := x509.MarshalPKCS8PrivateKey(priv)
+	pemText := string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
+	body := strings.TrimSpace(strings.Split(strings.TrimSpace(pemText), "\n")[1]) // 只要 base64 主体
+
+	cases := map[string]string{
+		"标准三行":        pemText,
+		"Windows 换行":  strings.ReplaceAll(pemText, "\n", "\r\n"),
+		"行首尾空白":       "  " + strings.ReplaceAll(strings.TrimSpace(pemText), "\n", "  \n"),
+		"带 BOM 与零宽空格": "\ufeff\u200b" + pemText,
+		"字面 \\n 一行":   strings.ReplaceAll(strings.TrimSpace(pemText), "\n", `\n`),
+		"仅 base64 主体": body,
+	}
+	for name, input := range cases {
+		parsed, err := ParseEd25519PrivateKey(input)
+		if err != nil {
+			t.Fatalf("%s 应能解析: %v", name, err)
+		}
+		if !parsed.Equal(priv) {
+			t.Fatalf("%s 解析结果不一致", name)
+		}
+	}
+
+	// 公钥 PEM：错误信息应提示不要粘贴公钥
+	pub := ed25519.PublicKey(priv.Public().(ed25519.PublicKey))
+	pubDER, _ := x509.MarshalPKIXPublicKey(pub)
+	pubPEM := string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}))
+	if _, err := ParseEd25519PrivateKey(pubPEM); err == nil || !strings.Contains(err.Error(), "公钥") {
+		t.Fatalf("公钥 PEM 应报「请勿粘贴公钥」，实际 %v", err)
+	}
+}
+
 // TestNewClientValidation 缺少 AppKey / 私钥时的报错。
 func TestNewClientValidation(t *testing.T) {
 	if _, err := NewClient(Config{PrivateKeyPEM: "x"}); err == nil {
