@@ -18,6 +18,7 @@ import (
 // fakeIndicatorReader 记录收到的 filter，并按配置返回结果或错误。
 type fakeIndicatorReader struct {
 	columns []indicator.IndicatorColumn
+	options []indicator.IndicatorTypeSecuSubOption
 	total   int64
 	list    []map[string]string
 	err     error
@@ -30,6 +31,13 @@ func (f *fakeIndicatorReader) Columns(context.Context) ([]indicator.IndicatorCol
 		return nil, f.err
 	}
 	return f.columns, nil
+}
+
+func (f *fakeIndicatorReader) TypeSecuSub(context.Context) ([]indicator.IndicatorTypeSecuSubOption, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.options, nil
 }
 
 func (f *fakeIndicatorReader) Page(_ context.Context, filter indicator.IndicatorPageFilter) (int64, []map[string]string, error) {
@@ -162,5 +170,45 @@ func TestSplitIndicatorColumns(t *testing.T) {
 	got := splitIndicatorColumns("a, b ,,a,")
 	if len(got) != 2 || got[0] != "a" || got[1] != "b" {
 		t.Fatalf("拆分结果不符: %v", got)
+	}
+}
+
+// TestSecuIndicatorTypeSecuSubRoute 子类筛选选项接口（需求 11305）。
+func TestSecuIndicatorTypeSecuSubRoute(t *testing.T) {
+	reader := &fakeIndicatorReader{options: []indicator.IndicatorTypeSecuSubOption{
+		{Value: "Stock.US", Rows: 4755},
+		{Value: "", Rows: 3515},
+	}}
+	handler := NewSecuIndicator(reader)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/x", nil)
+	handler.TypeSecuSub(c)
+
+	data := decodeIndicatorEnvelope(t, recorder)
+	options, ok := data["options"].([]any)
+	if !ok || len(options) != 2 {
+		t.Fatalf("options 不符：%+v", data)
+	}
+	first, _ := options[0].(map[string]any)
+	if first["value"] != "Stock.US" || first["rows"] != float64(4755) {
+		t.Fatalf("首项不符：%+v", first)
+	}
+}
+
+// TestSecuIndicatorPageTypeSecuSubParam 分页接口透传 typeSecuSub（需求 11305）。
+func TestSecuIndicatorPageTypeSecuSubParam(t *testing.T) {
+	reader := &fakeIndicatorReader{total: 1, list: []map[string]string{{"usc": "AAPL"}}}
+	handler := NewSecuIndicator(reader)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet,
+		"/x?typeSecuSub=Stock.US", nil)
+	handler.Page(c)
+
+	if reader.got.TypeSecuSub != "Stock.US" {
+		t.Fatalf("typeSecuSub 未透传：%+v", reader.got)
 	}
 }

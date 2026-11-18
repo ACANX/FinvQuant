@@ -57,6 +57,13 @@ paths:
           schema:
             type: string
             enum: ['', all, HK, SH, SZ, BJ, US, CC, FX]
+        - name: typeSecuSub
+          in: query
+          required: false
+          description: |
+            证券属性子类（public.finv_security.type_secu_sub，如 Stock.US）；精确匹配。
+            空或 all 表示不限；__empty__ 表示未维护 / 未关联到 finv_security（需求 11305）。
+          schema: { type: string }
         - name: columns
           in: query
           required: false
@@ -100,6 +107,34 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalError'
+  /API/V1/Meta/Finv/Quote/Secu/Indicator/TypeSecuSub:
+    get:
+      operationId: typeSecuSubSecuIndicator
+      tags: [Quote/Secu/Indicator]
+      summary: 子类筛选选项（public.finv_security.type_secu_sub 的值 + 行数）
+      responses:
+        '200':
+          description: 查询完成
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      table: { type: string }
+                      total: { type: integer }
+                      options:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            value: { type: string }
+                            rows: { type: integer }
+
 components:
   securitySchemes:
     bearerAuth:

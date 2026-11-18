@@ -30,6 +30,8 @@ import (
 type IndicatorReader interface {
 	Columns(ctx context.Context) ([]indicator.IndicatorColumn, error)
 	Page(ctx context.Context, f indicator.IndicatorPageFilter) (int64, []map[string]string, error)
+	// TypeSecuSub 证券属性子类筛选选项（关联 public.finv_security，需求 11305）。
+	TypeSecuSub(ctx context.Context) ([]indicator.IndicatorTypeSecuSubOption, error)
 }
 
 // SecuIndicator 证券指标只读查询处理器。
@@ -69,7 +71,7 @@ func (h *SecuIndicator) Columns(c *gin.Context) {
 
 // Page GET /Meta/Finv/Quote/Secu/Indicator/Page。
 //
-// 查询参数（小驼峰，ApiSpec §3）：keyword / market / columns / orderBy / order / page / pageSize。
+// 查询参数（小驼峰，ApiSpec §3）：keyword / market / typeSecuSub / columns / orderBy / order / page / pageSize。
 // `columns` 为逗号分隔的列名（如 `usc,name,price,pe_ttm`），空则用默认概览列集；
 // 不在表内的列名返回 400，不会拼进 SQL。
 // 响应 data：{total, page, pageSize, columns[], list[]}，list 内所有值为文本（保住 NUMERIC 精度）。
@@ -97,13 +99,14 @@ func (h *SecuIndicator) Page(c *gin.Context) {
 	}
 
 	filter := indicator.IndicatorPageFilter{
-		Keyword: strings.TrimSpace(c.Query("keyword")),
-		Market:  strings.TrimSpace(c.Query("market")),
-		Columns: splitIndicatorColumns(c.Query("columns")),
-		OrderBy: strings.TrimSpace(c.Query("orderBy")),
-		Desc:    desc,
-		Limit:   pageSize,
-		Offset:  (page - 1) * pageSize,
+		Keyword:     strings.TrimSpace(c.Query("keyword")),
+		Market:      strings.TrimSpace(c.Query("market")),
+		TypeSecuSub: strings.TrimSpace(c.Query("typeSecuSub")),
+		Columns:     splitIndicatorColumns(c.Query("columns")),
+		OrderBy:     strings.TrimSpace(c.Query("orderBy")),
+		Desc:        desc,
+		Limit:       pageSize,
+		Offset:      (page - 1) * pageSize,
 	}
 
 	started := time.Now()
@@ -113,8 +116,8 @@ func (h *SecuIndicator) Page(c *gin.Context) {
 		if errors.Is(err, indicator.ErrQueryInvalid) {
 			status, code = http.StatusBadRequest, 400
 		}
-		log.Printf("[indicator][query] api page failed keyword=%q market=%q orderBy=%q err=%v",
-			filter.Keyword, filter.Market, filter.OrderBy, err)
+		log.Printf("[indicator][query] api page failed keyword=%q market=%q typeSecuSub=%q orderBy=%q err=%v",
+			filter.Keyword, filter.Market, filter.TypeSecuSub, filter.OrderBy, err)
 		c.JSON(status, gin.H{"code": code, "message": err.Error()})
 		return
 	}
@@ -136,6 +139,31 @@ func (h *SecuIndicator) Page(c *gin.Context) {
 			"page":     page,
 			"pageSize": pageSize,
 			"list":     list,
+		},
+	})
+}
+
+// TypeSecuSub GET /Meta/Finv/Quote/Secu/Indicator/TypeSecuSub。
+//
+// 返回证券属性子类的筛选选项（`public.finv_security.type_secu_sub` 的值 + 行数，按行数倒序），
+// 供前端「子类」下拉使用（需求 11305）。空串选项表示未维护/未关联到主数据。
+func (h *SecuIndicator) TypeSecuSub(c *gin.Context) {
+	started := time.Now()
+	options, err := h.reader.TypeSecuSub(c.Request.Context())
+	if err != nil {
+		log.Printf("[indicator][query] api type-secu-sub failed err=%v client=%s", err, c.ClientIP())
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": err.Error()})
+		return
+	}
+	log.Printf("[indicator][query] api type-secu-sub end options=%d elapsed_ms=%d",
+		len(options), time.Since(started).Milliseconds())
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "查询完成",
+		"data": gin.H{
+			"table":   indicator.IndicatorTable,
+			"total":   len(options),
+			"options": options,
 		},
 	})
 }

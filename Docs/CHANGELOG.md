@@ -20,6 +20,17 @@
 
 ### 新增
 
+- **「证券指标」页关联 `public.finv_security` 取 `type_secu_sub`，新增「子类」筛选（需求 11305）**
+  - `/Secu/Indicator/Page` 增加虚拟列 `type_secu_sub`（`LEFT JOIN public.finv_security s ON s.usc = t.usc`），
+    可请求、可排序（`ORDER BY s.type_secu_sub`）；未关联/未维护的行返回空串。
+  - `/Secu/Indicator/Columns` 末尾追加该虚拟列，前端列选择器 / 排序候选自动出现（默认 23 列不变）。
+  - 新增查询参数 `typeSecuSub`（精确匹配，空或 `all` 不限，`__empty__` = 未维护/未关联）。
+  - 新增接口 `GET .../Secu/Indicator/TypeSecuSub`（值 + 行数，当前 29 项），前端「子类」下拉按
+    `DictFilterSpec` 显示 `中文[值]`（如 `股票·美股[Stock.US]`），选中即查。
+  - 新增 live 用例 `TestLiveIndicatorTypeSecuSub`：实测 29 个选项、`Stock.US` 4755 行、空子类 3515 行，
+    筛选 `total` 与选项 `rows` 一致。
+  - 验证：`go test ./internal/meta/finv/quote/indicator/` 通过；`cd Web && npm run build` 通过。
+
 - **「证券行情排行」新增「品种」筛选，市场增加 `CN`（需求 11301）**
   - 查询参数 `instrumentType`：归一语义 `stock` / `etf` / `index` / `sector` / `futures` / `currency` / `crypto`，
     空或 `all` 不限，其它值 HTTP 400。后端按 `realtimeStockInstrumentTypeExpr` 把

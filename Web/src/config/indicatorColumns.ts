@@ -106,6 +106,12 @@ const GROUPS: IndicatorGroupSpec[] = [
     columns: [
       { name: 'usc', label: '证券编码', kind: 'text', hint: '证券统一编码；上游为空时用 ftmm_symbol 占位' },
       { name: 'ftmm_symbol', label: '富途符号', kind: 'text', hint: '富途符号 {市场}.{代码}，如 US.AAPL' },
+      {
+        name: 'type_secu_sub',
+        label: '证券子类',
+        kind: 'text',
+        hint: '关联 public.finv_security.type_secu_sub（如 Stock.US）；主数据未维护或未关联时为空',
+      },
       { name: 'name', label: '名称', kind: 'text' },
       { name: 'stock_id', label: '证券ID', kind: 'int' },
       { name: 'lot_size', label: '每手股数', kind: 'int' },

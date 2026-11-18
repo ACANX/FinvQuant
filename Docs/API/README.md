@@ -94,7 +94,7 @@ Authorization: Bearer <token>
     - [`Cdeu/SecuParamCompletePrefill.md`](Cdeu/SecuParamCompletePrefill.md) — `GET .../Secu/Param/Complete/Prefill`（单表预填 + 来源标记 + `exists`；契约 [.yml](Cdeu/SecuParamCompletePrefill.yml)）
     - [`Cdeu/SecuParamComplete.md`](Cdeu/SecuParamComplete.md) — `POST .../Secu/Param/Complete`（只写目标表，`ON CONFLICT (usc) DO NOTHING`；契约 [.yml](Cdeu/SecuParamComplete.yml)）
   - 证券指标表只读查询（`/API/V1/Meta/Finv/Quote/Secu/Indicator/*`，需求 11249/11250）：
-    - [`Cdeu/IndicatorPage.md`](Cdeu/IndicatorPage.md) — `GET .../Secu/Indicator/Columns`（列元数据）+ `GET .../Secu/Indicator/Page`（可变列集分页查询 `cdeu.finv_quote_secu_indicator`，值一律文本；契约 [.yml](Cdeu/IndicatorPage.yml)）
+    - [`Cdeu/IndicatorPage.md`](Cdeu/IndicatorPage.md) — `GET .../Secu/Indicator/Columns`（列元数据）+ `GET .../Secu/Indicator/Page`（可变列集分页查询 `cdeu.finv_quote_secu_indicator`，支持 `typeSecuSub` 子类筛选与关联虚拟列 `type_secu_sub`）+ `GET .../Secu/Indicator/TypeSecuSub`（子类选项，需求 11305）；值一律文本；契约 [.yml](Cdeu/IndicatorPage.yml)
   - 采集参数（`/API/V1/Meta/Finv/Quote/Secu/Collect/*`，需求 11254）：
     - [`Cdeu/CollectParam.md`](Cdeu/CollectParam.md) — `GET .../Secu/Collect/Page`（左关联 `public.finv_security` 的分页查询）+ `POST .../Secu/Collect/Update`（单行更新，11 列白名单；契约 [.yml](Cdeu/CollectParam.yml)）
   - 外汇汇率（菜单「缺省汇率」已改名，接口路径 `/API/V1/Meta/Finv/Quote/Cdeu/Fx/*` 不变，一个文档覆盖两个接口）：

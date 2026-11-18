@@ -123,3 +123,49 @@ func TestIndicatorWhere(t *testing.T) {
 		t.Fatalf("market=all 应视同不限，实际 where=%q args=%v", where, args)
 	}
 }
+
+// TestIndicatorWhereTypeSecuSub 证券属性子类筛选（需求 11305）。
+func TestIndicatorWhereTypeSecuSub(t *testing.T) {
+	where, args := indicatorWhere(IndicatorPageFilter{TypeSecuSub: "Stock.US"})
+	if !strings.Contains(where, "s.type_secu_sub = $1") {
+		t.Fatalf("子类筛选应精确匹配 s.type_secu_sub，实际 %s", where)
+	}
+	if len(args) != 1 || args[0] != "Stock.US" {
+		t.Fatalf("子类参数不符: %v", args)
+	}
+
+	// __empty__ = 未维护 / 未关联（不带参数）
+	where, args = indicatorWhere(IndicatorPageFilter{TypeSecuSub: IndicatorTypeSecuSubEmpty})
+	if !strings.Contains(where, "COALESCE(s.type_secu_sub, '') = ''") {
+		t.Fatalf("__empty__ 应匹配空串，实际 %s", where)
+	}
+	if len(args) != 0 {
+		t.Fatalf("__empty__ 不应带参数，实际 %v", args)
+	}
+
+	// all 视同不限
+	where, args = indicatorWhere(IndicatorPageFilter{TypeSecuSub: "all"})
+	if where != "" || len(args) != 0 {
+		t.Fatalf("typeSecuSub=all 应视同不限，实际 where=%q args=%v", where, args)
+	}
+}
+
+// TestIndicatorVirtualColumns 虚拟列 type_secu_sub 可被请求列与排序使用（需求 11305）。
+func TestIndicatorVirtualColumns(t *testing.T) {
+	known := knownColumns("usc", "ftmm_symbol", "name", "dt_collect")
+	known[IndicatorVirtualTypeSecuSub] = true
+
+	selected, err := resolveIndicatorColumns([]string{"type_secu_sub"}, known)
+	if err != nil {
+		t.Fatalf("虚拟列应可请求: %v", err)
+	}
+	if len(selected) != 3 || selected[2] != IndicatorVirtualTypeSecuSub {
+		t.Fatalf("列集不符: %v", selected)
+	}
+
+	// 真实列目录里没有它时（未关联主数据表）必须报错，避免拼出无效 SQL
+	if _, err := resolveIndicatorColumns([]string{"type_secu_sub"},
+		knownColumns("usc", "ftmm_symbol", "name")); err == nil {
+		t.Fatal("白名单缺少虚拟列时应报错")
+	}
+}

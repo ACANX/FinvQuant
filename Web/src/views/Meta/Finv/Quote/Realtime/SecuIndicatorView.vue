@@ -2,7 +2,8 @@
 // 证券指标（需求 11251）
 // 数据表：cdeu.finv_quote_secu_indicator（132 列，一行一证券的最新指标快照）
 // 接口：GET /Meta/Finv/Quote/Secu/Indicator/Columns（列元数据）
-//      GET /Meta/Finv/Quote/Secu/Indicator/Page?keyword=&market=&columns=&orderBy=&order=&page=&pageSize=
+//      GET /Meta/Finv/Quote/Secu/Indicator/Page?keyword=&market=&typeSecuSub=&columns=&orderBy=&order=&page=&pageSize=
+//      GET /Meta/Finv/Quote/Secu/Indicator/TypeSecuSub（子类下拉选项，需求 11305）
 //
 // 132 列不可能一次铺满屏幕，本页按三层组织：
 //   ① 主表 —— 只渲染当前「列方案」选中的列（默认概览 17 列），左侧三列冻结、其余横向滚动；
@@ -33,6 +34,7 @@ import IndicatorColumnPicker from './IndicatorColumnPicker.vue'
 
 const COLUMNS_API = '/Meta/Finv/Quote/Secu/Indicator/Columns'
 const PAGE_API = '/Meta/Finv/Quote/Secu/Indicator/Page'
+const TYPESECUSUB_API = '/Meta/Finv/Quote/Secu/Indicator/TypeSecuSub'
 
 const STORAGE_COLUMNS = 'finvquant.indicator.columns'
 const STORAGE_PRESET = 'finvquant.indicator.preset'
@@ -51,6 +53,8 @@ const page = ref(1)
 const pageSize = ref(50)
 const keyword = ref('')
 const market = ref('')
+// 证券属性子类筛选（需求 11305）：值来自 public.finv_security.type_secu_sub（如 Stock.US）
+const typeSecuSub = ref('')
 const orderBy = ref('dt_collect')
 const order = ref<'desc' | 'asc'>('desc')
 const loading = ref(false)
@@ -66,6 +70,70 @@ const detailLoading = ref(false)
 const detailFullscreen = ref(false)
 const detailRow = ref<IndicatorRow | null>(null)
 const detailColumns = ref<IndicatorColumn[]>([])
+
+// 子类筛选的下拉选项（由 /TypeSecuSub 动态返回，避免前端硬编码上游新类型）
+const typeSecuSubValues = ref<{ value: string; rows: number }[]>([])
+
+// 类型前缀 → 中文（值形如 `Stock.US` / `ETF.SH` / `TradePair.CC`；未登记的前缀原样显示）
+const TYPE_SECU_SUB_TYPE_LABELS: Record<string, string> = {
+  Stock: '股票',
+  ETF: 'ETF',
+  StockIndex: '指数',
+  BondIndex: '债券指数',
+  CommodityIndex: '商品指数',
+  VolatilityIndex: '波动率指数',
+  Fund: '基金',
+  FOF: 'FOF',
+  LOF: 'LOF',
+  MoneyMarketFund: '货币基金',
+  TradePair: '交易对',
+  Crypto: '加密',
+  Future: '期货',
+  OTC: '场外',
+  CER: '凭证',
+  CIX: '商品指数',
+}
+
+// 市场后缀 → 中文
+const TYPE_SECU_SUB_MARKET_LABELS: Record<string, string> = {
+  SH: '沪市',
+  SZ: '深市',
+  BJ: '北交所',
+  HK: '港股',
+  US: '美股',
+  CC: '加密',
+  FX: '外汇',
+}
+
+/** 子类值 → `中文[值]`（DictFilterSpec）；空值表示未维护/未关联。 */
+function typeSecuSubLabel(value: string): string {
+  if (!value) return '未维护/未关联[__empty__]'
+  const [type, market] = value.split('.')
+  const typeLabel = TYPE_SECU_SUB_TYPE_LABELS[type]
+  if (!typeLabel) return value
+  const marketLabel = market ? (TYPE_SECU_SUB_MARKET_LABELS[market] ?? market) : ''
+  return `${typeLabel}${marketLabel ? `·${marketLabel}` : ''}[${value}]`
+}
+
+const typeSecuSubOptions = computed(() => [
+  { title: '全部子类', value: '' },
+  ...typeSecuSubValues.value.map((item) => ({
+    title: typeSecuSubLabel(item.value),
+    value: item.value || '__empty__',
+  })),
+])
+
+/** 加载子类下拉选项（失败只记错误，不影响主表查询）。 */
+async function loadTypeSecuSub(): Promise<void> {
+  try {
+    const data = await apiGet<{ total: number; options: { value: string; rows: number }[] }>(
+      TYPESECUSUB_API,
+    )
+    typeSecuSubValues.value = data.options ?? []
+  } catch {
+    typeSecuSubValues.value = []
+  }
+}
 
 const MARKET_OPTIONS = [
   { title: '全部市场', value: '' },
@@ -198,6 +266,7 @@ async function load(): Promise<void> {
     })
     if (keyword.value.trim()) params.set('keyword', keyword.value.trim())
     if (market.value) params.set('market', market.value)
+    if (typeSecuSub.value) params.set('typeSecuSub', typeSecuSub.value)
     const data = await apiGet<{ total: number; page: number; pageSize: number; list: IndicatorRow[] }>(
       `${PAGE_API}?${params.toString()}`,
     )
@@ -220,6 +289,7 @@ function search(): void {
 function reset(): void {
   keyword.value = ''
   market.value = ''
+  typeSecuSub.value = ''
   orderBy.value = 'dt_collect'
   order.value = 'desc'
   page.value = 1
@@ -339,7 +409,7 @@ function columnHint(column: IndicatorColumn): string {
 onMounted(async () => {
   const storedPageSize = Number(localStorage.getItem(STORAGE_PAGE_SIZE))
   if (Number.isFinite(storedPageSize) && storedPageSize > 0) pageSize.value = storedPageSize
-  await loadColumns()
+  await Promise.all([loadColumns(), loadTypeSecuSub()])
   await load()
 })
 
@@ -382,6 +452,17 @@ watch(detailOpen, (open) => {
             density="compact"
             hide-details
             style="max-width: 170px"
+            @update:model-value="search"
+          />
+          <v-select
+            v-model="typeSecuSub"
+            :items="typeSecuSubOptions"
+            item-title="title"
+            item-value="value"
+            label="子类"
+            density="compact"
+            hide-details
+            style="max-width: 230px"
             @update:model-value="search"
           />
           <v-autocomplete

@@ -2,7 +2,8 @@
 
 > 所属：行情 → 实时行情 → 证券指标
 > 数据表：`cdeu.finv_quote_secu_indicator`（建表 `V300144`，改名 `V300145`，列注释 `V300146`，补 `stock_id` `V300148`；全表 132 列）
-> 关联需求：11249（列元数据接口）、11250（分页查询接口）、11251（前端页面）、11048–11063（表与同步链路）、11248（采集端回传）
+> 关联需求：11249（列元数据接口）、11250（分页查询接口）、11251（前端页面）、11048–11063（表与同步链路）、11248（采集端回传）、
+> 11305（关联 `public.finv_security` 取 `type_secu_sub` + 子类筛选）
 > 实现：`internal/api/handler/secu_indicator.go`（`SecuIndicator.Columns` / `SecuIndicator.Page`）、
 > `internal/meta/finv/quote/indicator/read.go`（`Reader.Columns` / `Reader.Page`）
 > 机器可读契约：[`IndicatorPage.yml`](IndicatorPage.yml)（OpenAPI 3.1）
@@ -14,7 +15,8 @@
 | 接口 | 作用 |
 |---|---|
 | `GET .../Secu/Indicator/Columns` | 列元数据：表里**实际存在**的列（列名 / 中文名 / 简化类型），按建表列序 |
-| `GET .../Secu/Indicator/Page` | 分页查询：**可变列集**（`columns=` 指定要哪些列）、关键字 / 市场筛选、白名单列排序 |
+| `GET .../Secu/Indicator/Page` | 分页查询：**可变列集**（`columns=` 指定要哪些列）、关键字 / 市场 / 子类筛选、白名单列排序 |
+| `GET .../Secu/Indicator/TypeSecuSub` | 子类筛选选项：`public.finv_security.type_secu_sub` 的值 + 行数（需求 11305） |
 
 三条硬口径：
 
@@ -70,6 +72,7 @@
 | `Authorization` | header | string | 是 | — | `Bearer <token>` |
 | `keyword` | query | string | 否 | 空 | 模糊匹配 `usc` / `ftmm_symbol` / `name`（ILIKE，`%kw%`） |
 | `market` | query | string | 否 | 空 | `ftmm_symbol` 第一段（`HK`/`SH`/`SZ`/`BJ`/`US`/`CC`/`FX`）；空或 `all` 不限 |
+| `typeSecuSub` | query | string | 否 | 空 | 证券属性子类（`public.finv_security.type_secu_sub`，如 `Stock.US`）；精确匹配，空或 `all` 不限；`__empty__` = 未维护/未关联（需求 11305） |
 | `columns` | query | string | 否 | 见 3.2 | 逗号分隔的列名，如 `usc,name,price,pe_ttm` |
 | `orderBy` | query | string | 否 | `dt_collect`（采集时间） | 排序字段，必须是表里真实存在的列；空值一律 `NULLS LAST` |
 | `order` | query | string | 否 | `desc` | `desc` / `asc` |
@@ -82,6 +85,9 @@
   `price_open`、`price_highest`、`price_lowest`、`price_last_close`、`volume`、`turnover`、`ratio_volume`、`ratio_turnover`、
   `total_market_cap`、`outstanding_market_cap`、`pe_ttm`、`pb_ratio`、`dividend_ratio`、`market_status_text`、`ts`、`dt_collect`。
 - `usc` 与 `ftmm_symbol` 是**行身份列**，请求任何列集都会被服务端补齐并前置。
+- `type_secu_sub` 是**虚拟列**（需求 11305）：不在指标表里，由
+  `LEFT JOIN public.finv_security s ON s.usc = t.usc` 带出；未关联/未维护的行返回空串。
+  它会出现在 `/Columns` 的末尾，可请求、可作为 `orderBy`（排序走 `s.type_secu_sub`）。
 - 列名重复会被去重（保留首次出现的顺序）；**任一列名不在表内 → HTTP 400**，不会拼进 SQL。
 - 排序：`NULLS LAST` 固定（空值一律排最后），并以 `usc ASC` 作稳定次序。
 - 排序字段不要求在 `columns` 里（可以先按某列排序、只显示另几列）。
@@ -140,7 +146,44 @@
 | `orderBy` 不是表里的列 | 400 | 400 | `orderBy 非法（xxx）` |
 | 表不存在 / 查询失败 | 500 | 2006 | `指标查询参数非法` 之外的错误一律 500 |
 
-## 4. 已使用位置
+## 4. 子类选项 `GET .../Secu/Indicator/TypeSecuSub`
+
+返回子类筛选下拉的候选值（需求 11305）：`public.finv_security.type_secu_sub` 的去重值 + 行数，
+按行数倒序；空串表示「未维护/未关联」，前端展示为 `未维护/未关联[__empty__]`。
+
+### 4.1 请求参数
+
+| 参数 | 位置 | 类型 | 必填 | 说明 |
+|---|---|---|---|---|
+| `Authorization` | header | string | 是 | `Bearer <token>` |
+
+### 4.2 响应
+
+```json
+{
+  "code": 0,
+  "message": "查询完成",
+  "data": {
+    "table": "cdeu.finv_quote_secu_indicator",
+    "total": 29,
+    "options": [
+      { "value": "Stock.US", "rows": 4755 },
+      { "value": "ETF.US", "rows": 3270 },
+      { "value": "", "rows": 3515 }
+    ]
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `data.total` | integer | 选项数 |
+| `data.options[].value` | string | 子类值（`类型.市场`，如 `Stock.US`；空串 = 未维护/未关联） |
+| `data.options[].rows` | integer | 该子类在指标表里的行数 |
+
+前端选项文本按 `DictFilterSpec` 写 `中文[值]`（如 `股票·美股[Stock.US]`），未登记的类型前缀原样显示。
+
+## 5. 已使用位置
 
 `Web/src/views/Meta/Finv/Quote/Realtime/SecuIndicatorView.vue`（行情 → 实时行情 → 证券指标，路由 `/Meta/Finv/Quote/Realtime/SecuIndicator`）：
 `/Columns` 生成列选择器与列标题、`/Page` 取主表数据；点行看详情时用同一 `/Page` 携带全列请求该证券。
