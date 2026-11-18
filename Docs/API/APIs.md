@@ -163,8 +163,8 @@
 | 138 | GET | `/API/V1/Meta/Finv/Quote/Secu/Indicator/TypeSecu` | 证券指标分类筛选选项（需登录，只读）：`public.finv_security.type_secu` 的值 + 行数（按行数倒序，空串 = 未维护/未关联），供「证券指标」页「分类」下拉；`/Page` 相应新增 `typeSecu` 参数与虚拟列 `type_secu` | [Cdeu/IndicatorPage.md](Cdeu/IndicatorPage.md)（契约 [.yml](Cdeu/IndicatorPage.yml)） | 需求 11308（[Menu/Quote/Realtime/SecuIndicator.md](../Menu/Quote/Realtime/SecuIndicator.md)） |
 | 139 | POST | `/API/V1/Meta/Finv/Quant/Metadata/Security/Favorite` | 收藏 / 取消收藏证券（需登录）：`{usc, favorite}` → 写入/删除 `quote.finv_quote_secu_fav`（主键 `usc`，幂等），列表接口以 `is_favorite` 回显 | [Meta/MetaSecurity.md](Meta/MetaSecurity.md) | 规范证券信息维护（[MetaData/Security.md](../Menu/MetaData/Security.md)） |
 | 140 | POST | `/API/V1/Meta/Finv/Quote/Crypto/Fav/Snapshot/Sync` | 收藏加密货币快照采集（需登录）：读 `quote.finv_quote_secu_fav` 的加密货币 → moomoo OpenAPI `market-snapshot`（`CC.<usc>`，≤400/批）→ upsert `cdeu.finv_quote_secu_realtime_crypto`；凭据走环境变量 `FINV_MOOMOO_APP_KEY` / `FINV_MOOMOO_PRIVATE_KEY` | [Cdeu/CryptoFavSnapshotSync.md](Cdeu/CryptoFavSnapshotSync.md) | 需求 11314 |
-| 141 | GET | `/API/V1/Meta/Finv/Quote/Crypto/Moomoo/Config` | moomoo OpenAPI 凭据配置查询（需登录）：返回 `sys_config` 20016/20017 的 AppKey、私钥是否已配置、掩码与生效来源（不发明文） | [Cdeu/MoomooConfig.md](Cdeu/MoomooConfig.md) | 需求 11318（[SecuQuoteSnapshotSync.md](../Menu/Quote/RealtimeCollect/SecuQuoteSnapshotSync.md)） |
-| 142 | POST | `/API/V1/Meta/Finv/Quote/Crypto/Moomoo/Config` | moomoo OpenAPI 凭据保存（需登录）：AppKey + Ed25519 私钥 PEM（私钥留空=不修改、`__CLEAR__`=清空，写入前校验 PEM） | [Cdeu/MoomooConfig.md](Cdeu/MoomooConfig.md) | 需求 11318 |
+| 141 | GET | `/API/V1/Meta/Finv/Quote/Crypto/Moomoo/Config` | moomoo OpenAPI 凭据配置查询（需登录）：返回 `sys_config` 20016（`AppKey\|私钥 PEM`）解析出的 AppKey、私钥是否已配置、掩码与生效来源（不发明文） | [Cdeu/MoomooConfig.md](Cdeu/MoomooConfig.md) | 需求 11318（[SecuQuoteSnapshotSync.md](../Menu/Quote/RealtimeCollect/SecuQuoteSnapshotSync.md)） |
+| 142 | POST | `/API/V1/Meta/Finv/Quote/Crypto/Moomoo/Config` | moomoo OpenAPI 凭据保存（需登录）：AppKey + Ed25519 私钥 PEM（合并写入 20016，私钥留空=不修改、`__CLEAR__`=清空，写入前校验 PEM） | [Cdeu/MoomooConfig.md](Cdeu/MoomooConfig.md) | 需求 11318 |
 
 ## 说明
 

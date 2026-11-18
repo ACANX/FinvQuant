@@ -72,9 +72,8 @@ func TestLiveMoomooConfigSaveLoad(t *testing.T) {
 	}
 	defer func() {
 		_, _ = pool.Exec(context.Background(),
-			`UPDATE sys.sys_config SET str_value = $2 WHERE config_no = $1`, SysConfigMoomooAppKey, before.AppKey)
-		_, _ = pool.Exec(context.Background(),
-			`UPDATE sys.sys_config SET str_value = $2 WHERE config_no = $1`, SysConfigMoomooPrivateKey, before.PrivateKeyPEM)
+			`UPDATE sys.sys_config SET str_value = $2 WHERE config_no = $1`,
+			SysConfigMoomooCredential, marshalMoomooCredential(before.AppKey, before.PrivateKeyPEM))
 	}()
 
 	// 动态生成一把合法 Ed25519 私钥（不使用任何真实凭据）
@@ -124,6 +123,6 @@ func TestLiveMoomooConfigSaveLoad(t *testing.T) {
 	if cfg, _ = store.LoadMoomooConfig(ctx); cfg.Configured() {
 		t.Fatalf("清空后应视为未配置: %+v", cfg)
 	}
-	t.Logf("验证通过：sys_config %d/%d 读写、留空保留、非法拒绝、清空均符合预期",
-		SysConfigMoomooAppKey, SysConfigMoomooPrivateKey)
+	t.Logf("验证通过：sys_config %d 单配置项读写、留空保留、非法拒绝、清空均符合预期",
+		SysConfigMoomooCredential)
 }

@@ -66,8 +66,7 @@
 
 | 来源 | 配置项 | 说明 |
 |---|---|---|
-| `sys.sys_config` 20016 | AppKey | 页面「加密货币」Tab 的凭据卡片维护（需求 11318） |
-| `sys.sys_config` 20017 | 私钥 PEM | 敏感；接口只回显掩码 |
+| `sys.sys_config` 20016 | `AppKey\|私钥 PEM`（单配置项） | 页面「加密货币」Tab 的凭据卡片维护（需求 11318 / 11319）；敏感，接口只回显掩码 |
 | 环境变量 `FINV_MOOMOO_APP_KEY` | AppKey | sys_config 未配置时兜底 |
 | 环境变量 `FINV_MOOMOO_PRIVATE_KEY` | 私钥 PEM（可含字面 `\n`） | sys_config 未配置时兜底 |
 | 环境变量 `FINV_MOOMOO_BASE_URL` | 站点地址 | 可选，默认 `https://webapi.moomoo.com` |
