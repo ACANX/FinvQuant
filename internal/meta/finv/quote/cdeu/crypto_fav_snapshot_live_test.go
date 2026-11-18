@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/webapi"
 )
 
 // TestLiveCryptoFavSnapshot 用真实 moomoo OpenAPI 拉取收藏的加密货币快照并落库（默认跳过）。
@@ -27,7 +29,7 @@ func TestLiveCryptoFavSnapshot(t *testing.T) {
 	if os.Getenv("FINV_MOOMOO_LIVE") != "1" {
 		t.Skip("未设置 FINV_MOOMOO_LIVE=1，跳过 moomoo OpenAPI 真实采集")
 	}
-	client, err := NewMoomooOpenAPIClientFromEnv()
+	client, err := webapi.NewClientFromEnv()
 	if err != nil {
 		t.Fatalf("构造 moomoo 客户端失败: %v", err)
 	}

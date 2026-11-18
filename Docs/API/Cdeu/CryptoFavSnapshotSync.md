@@ -4,7 +4,8 @@
 > 数据表：`cdeu.finv_quote_secu_realtime_crypto`（建表 `V300225`，需求 11314）
 > 数据来源：`quote.finv_quote_secu_fav`（收藏表）→ moomoo OpenAPI `POST /api/v1.0/quote/snapshot`
 > 实现：`internal/api/handler/cdeu_crypto_snapshot.go`、
-> `internal/meta/finv/quote/cdeu/{moomoo_openapi,store_crypto_realtime,crypto_fav_snapshot_sync}.go`
+> `internal/meta/component/quote/moomoo/webapi/`（OpenAPI 客户端：签名 / 快照）、
+> `internal/meta/finv/quote/cdeu/{store_crypto_realtime,crypto_fav_snapshot_sync}.go`（存储与采集编排）
 
 ## 1. 概述
 

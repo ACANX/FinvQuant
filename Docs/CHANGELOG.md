@@ -499,6 +499,16 @@
 
 ### 变更
 
+- **moomoo OpenAPI 客户端抽到 `component/quote/moomoo/webapi` 包（需求 11315）**
+  - `internal/meta/finv/quote/cdeu/moomoo_openapi.go` 拆为
+    `internal/meta/component/quote/moomoo/webapi/{client,signature,snapshot}.go`（包名 `webapi`）：
+    客户端配置/构造（`Config` / `NewClient` / `NewClientFromEnv`）、签名原文（`SigningText`）、
+    私钥解析（`ParseEd25519PrivateKey`）、快照结构（`Snapshot`）与 `GetQuoteSnapshots`。
+  - `cdeu` 只保留业务（`CC.` 前缀、`provider=MMAPI`、采集编排与落库），依赖倒置为
+    `webapi.Fetcher` / `webapi.Snapshot`，不再自带 HTTP 客户端；行为不变。
+  - 新增 `webapi` 单测（签名原文 5 段格式、私钥 PEM/字面 `\n` 解析、code 上限、快照解析）；
+    live 回归 `TestLiveCryptoFavSnapshot` 通过（8 只收藏加密货币覆盖 8 行）。
+
 - **港股 usn 段位调整：证券 `150`+5 位、指数 `15`+6 位（需求 11311）**
   - 覆盖 `V300222` 的港股证券段（原 `151`+5）：迁移 `V300223` 更新编制函数并对港股证券行重算，
     证券 `usn` 从 `151xxxxx` 左移到 `150xxxxx`，指数行（`158xxxxx`）不变。

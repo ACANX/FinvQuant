@@ -6,7 +6,7 @@ package cdeu
 // moomoo OpenAPI `POST /api/v1.0/quote/snapshot`（一次最多 400 个）→
 // 转换 → upsert 到 cdeu.finv_quote_secu_realtime_crypto（按 usc 覆盖）。
 //
-// 凭据（AppKey + Ed25519 私钥）只从环境变量读取，见 moomoo_openapi.go 的文件头说明。
+// 凭据（AppKey + Ed25519 私钥）只从环境变量读取，见 webapi 包（component/quote/moomoo/webapi）的文件头说明。
 //
 // 失败语义：单个批次失败即返回错误（不写半批）；收藏表为空时返回「空跑」结果、不报错。
 
@@ -16,13 +16,23 @@ import (
 	"log"
 	"strings"
 	"time"
+
+	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/webapi"
+)
+
+// 业务常量（与 webapi 包解耦：客户端只认 code 列表，不关心业务前缀）。
+const (
+	// MoomooCryptoCodePrefix moomoo OpenAPI 的加密货币代码前缀（CC.BTCUSD）。
+	MoomooCryptoCodePrefix = "CC."
+	// CryptoProvider 加密货币快照表的 provider 固定值。
+	CryptoProvider = "MMAPI"
 )
 
 // CryptoFavSnapshotCollectOptions 采集控制参数（零值按默认值补齐）。
 type CryptoFavSnapshotCollectOptions struct {
 	// Timeout 本次采集总超时，0 取 60s。
 	Timeout time.Duration
-	// BatchSize 单次请求的 code 数上限，0 取 MoomooSnapshotMaxCodes。
+	// BatchSize 单次请求的 code 数上限，0 取 webapi.MaxCodes。
 	BatchSize int
 }
 
@@ -31,8 +41,8 @@ func (o CryptoFavSnapshotCollectOptions) normalize() CryptoFavSnapshotCollectOpt
 	if o.Timeout <= 0 {
 		o.Timeout = 60 * time.Second
 	}
-	if o.BatchSize <= 0 || o.BatchSize > MoomooSnapshotMaxCodes {
-		o.BatchSize = MoomooSnapshotMaxCodes
+	if o.BatchSize <= 0 || o.BatchSize > webapi.MaxCodes {
+		o.BatchSize = webapi.MaxCodes
 	}
 	return o
 }
@@ -62,14 +72,14 @@ type CryptoFavSnapshotStore interface {
 
 // CryptoFavSnapshotCollector 收藏加密货币快照采集器。
 type CryptoFavSnapshotCollector struct {
-	fetcher MoomooSnapshotFetcher
+	fetcher webapi.Fetcher
 	store   CryptoFavSnapshotStore
 	logger  *log.Logger
 }
 
 // NewCryptoFavSnapshotCollector 创建采集器；logger 为 nil 时用 log.Default()。
 func NewCryptoFavSnapshotCollector(
-	fetcher MoomooSnapshotFetcher, store CryptoFavSnapshotStore, logger *log.Logger,
+	fetcher webapi.Fetcher, store CryptoFavSnapshotStore, logger *log.Logger,
 ) *CryptoFavSnapshotCollector {
 	if logger == nil {
 		logger = log.Default()
@@ -162,7 +172,7 @@ func (c *CryptoFavSnapshotCollector) Collect(
 //
 // usc 取 code 去掉 `CC.` 前缀（BTCUSD）；涨跌额/涨跌幅由 last 与 prev_close 计算
 // （接口的 amplitude 是振幅，不是涨跌幅）。
-func cryptoRowFromSnapshot(snapshot MoomooSnapshot) (CryptoRealtimeRow, bool) {
+func cryptoRowFromSnapshot(snapshot webapi.Snapshot) (CryptoRealtimeRow, bool) {
 	code := strings.TrimSpace(snapshot.Code)
 	usc := strings.TrimSpace(strings.TrimPrefix(strings.ToUpper(code), strings.ToUpper(MoomooCryptoCodePrefix)))
 	if usc == "" || usc == strings.ToUpper(code) {

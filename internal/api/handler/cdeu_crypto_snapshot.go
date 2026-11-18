@@ -19,6 +19,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/webapi"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
 )
 
@@ -37,7 +38,7 @@ func (h *ExportArchive) CryptoFavSnapshotSync(c *gin.Context) {
 		}
 	}
 
-	client, err := cdeu.NewMoomooOpenAPIClientFromEnv()
+	client, err := webapi.NewClientFromEnv()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "moomoo OpenAPI 初始化失败: " + err.Error()})
 		return
