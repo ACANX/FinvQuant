@@ -29,9 +29,9 @@ func TestResolverIndicatorColumnsDefaults(t *testing.T) {
 	if len(selected) != len(indicatorDefaultColumns) {
 		t.Fatalf("默认列集长度 = %d，期望 %d", len(selected), len(indicatorDefaultColumns))
 	}
-	// 身份列必须前置且不重复
-	if selected[0] != "usc" || selected[1] != "ftmm_symbol" {
-		t.Fatalf("身份列应前置，实际前两列 = %v", selected[:2])
+	// 身份列（仅 usc）必须前置且不重复；ftmm_symbol 不再强制
+	if selected[0] != "usc" {
+		t.Fatalf("身份列应前置，实际首列 = %v", selected[0])
 	}
 	seen := map[string]bool{}
 	for _, name := range selected {
@@ -49,7 +49,7 @@ func TestResolverIndicatorColumnsKeepsRequestOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("应通过: %v", err)
 	}
-	want := []string{"usc", "ftmm_symbol", "pe_ttm", "price"}
+	want := []string{"usc", "pe_ttm", "price"}
 	if strings.Join(selected, ",") != strings.Join(want, ",") {
 		t.Fatalf("列集 = %v，期望 %v", selected, want)
 	}
@@ -185,8 +185,8 @@ func TestIndicatorVirtualColumns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("虚拟列应可请求: %v", err)
 	}
-	if len(selected) != 5 || selected[2] != IndicatorVirtualUSN ||
-		selected[3] != IndicatorVirtualTypeSecu || selected[4] != IndicatorVirtualTypeSecuSub {
+	if len(selected) != 4 || selected[1] != IndicatorVirtualUSN ||
+		selected[2] != IndicatorVirtualTypeSecu || selected[3] != IndicatorVirtualTypeSecuSub {
 		t.Fatalf("列集不符: %v", selected)
 	}
 

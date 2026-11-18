@@ -464,6 +464,14 @@
 
 ### 变更
 
+- **「证券指标」页 `ftmm_symbol`（富途符号）改为可选展示列（需求 11310）**
+  - 行身份列只保留 `usc`（指标表主键）；`/Page` 不再强制补齐 `ftmm_symbol`，不请求就不返回，
+    `Columns` 目录不变。排序稳定次序仍用 `t.usc`。
+  - 前端 `INDICATOR_KEY_COLUMNS` 同步只剩 `usc`，列选择器里「富途符号」可勾选/取消；
+    概览预设仍默认包含它。
+  - 验证：`go test ./internal/meta/finv/quote/indicator/` 通过；`cd Web && npm run build` 通过；
+    `curl '.../Secu/Indicator/Page?columns=pe_ttm,price'` 的响应行只含 `usc`（不含 `ftmm_symbol`）。
+
 - **北证50（`899050`）的 `usc` 更名为 `BSE50`（需求 11298，迁移 `V300219`）**
   - `public.finv_security` 的 899050 规范行 `usc` 改为 `BSE50`（`security_code` 保持 `899050`），同步
     `futu.finv_futu_mapping_security.finv_usc`、`cdeu.finv_quote_cdeu_usc`、`cdeu.finv_quote_secu_realtime`；

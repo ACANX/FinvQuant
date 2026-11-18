@@ -46,9 +46,11 @@ var indicatorDefaultColumns = []string{
 	"market_status_text", "ts", "dt_collect",
 }
 
-// indicatorKeyColumns 行身份列：无论请求什么列集都必须返回，
-// 否则前端拿到的行既不能点开详情也不能排序定位。
-var indicatorKeyColumns = []string{"usc", "ftmm_symbol"}
+// indicatorKeyColumns 行身份列：无论请求什么列集都必须返回。
+//
+// 只保留 `usc`（指标表主键，行详情/排序定位都靠它）；`ftmm_symbol` 自需求 11310 起
+// 改为**可选展示列**，不再强制补齐——不请求就不返回。
+var indicatorKeyColumns = []string{"usc"}
 
 // IndicatorVirtualTypeSecuSub 关联列名：`public.finv_security.type_secu_sub`（需求 11305）。
 //

@@ -353,7 +353,7 @@ export const GROUP_COLUMNS: Record<IndicatorGroupKey, string[]> = (() => {
 })()
 
 /** 行身份列：任何列方案都必须包含（后端也会强制补齐） */
-export const INDICATOR_KEY_COLUMNS = ['usc', 'ftmm_symbol']
+export const INDICATOR_KEY_COLUMNS = ['usc'] // 身份列只保留 usc；ftmm_symbol 自需求 11310 起为可选展示列
 
 /** 列方案（预设） */
 export interface IndicatorPreset {

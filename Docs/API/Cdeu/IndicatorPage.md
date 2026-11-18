@@ -4,7 +4,7 @@
 > 数据表：`cdeu.finv_quote_secu_indicator`（建表 `V300144`，改名 `V300145`，列注释 `V300146`，补 `stock_id` `V300148`；全表 132 列）
 > 关联需求：11249（列元数据接口）、11250（分页查询接口）、11251（前端页面）、11048–11063（表与同步链路）、11248（采集端回传）、
 > 11305（关联 `public.finv_security` 取 `type_secu_sub` + 子类筛选）、
-> 11308（关联 `type_secu` + 分类筛选）、11309（输出 `usn`）
+> 11308（关联 `type_secu` + 分类筛选）、11309（输出 `usn`）、11310（`ftmm_symbol` 改可选展示列）
 > 实现：`internal/api/handler/secu_indicator.go`（`SecuIndicator.Columns` / `SecuIndicator.Page`）、
 > `internal/meta/finv/quote/indicator/read.go`（`Reader.Columns` / `Reader.Page`）
 > 机器可读契约：[`IndicatorPage.yml`](IndicatorPage.yml)（OpenAPI 3.1）
@@ -87,7 +87,8 @@
 - `columns` 省略或为空 → 默认**概览 23 列**：`usc`、`ftmm_symbol`、`name`、`price`、`change_price`、`change_ratio`、`price_direct`、
   `price_open`、`price_highest`、`price_lowest`、`price_last_close`、`volume`、`turnover`、`ratio_volume`、`ratio_turnover`、
   `total_market_cap`、`outstanding_market_cap`、`pe_ttm`、`pb_ratio`、`dividend_ratio`、`market_status_text`、`ts`、`dt_collect`。
-- `usc` 与 `ftmm_symbol` 是**行身份列**，请求任何列集都会被服务端补齐并前置。
+- `usc` 是**行身份列**，请求任何列集都会被服务端补齐并前置；`ftmm_symbol` 自需求 11310 起为
+  **可选展示列**，不请求就不返回（排序稳定次序仍用 `t.usc`）。
 - `usn`、`type_secu`、`type_secu_sub` 是**虚拟列**（需求 11309 / 11308 / 11305）：不在指标表里，由
   `LEFT JOIN public.finv_security s ON s.usc = t.usc` 带出；未关联/未维护的行返回空串。
   它们会出现在 `/Columns` 的末尾，可请求、可作为 `orderBy`（排序走 `s.usn` / `s.type_secu` / `s.type_secu_sub`）；
