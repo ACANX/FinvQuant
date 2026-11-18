@@ -558,14 +558,19 @@ onBeforeUnmount(stopPolling)
               hide-details
               style="min-width: 260px; max-width: 340px"
             />
-            <v-text-field
+            <v-textarea
               v-model="moomooPrivateKey"
-              label="私钥（Ed25519 PEM）"
-              :placeholder="moomooConfig.private_key_configured ? moomooConfig.private_key_masked : '未配置'"
-              :type="'password'"
+              label="私钥（Ed25519 PEM，完整粘贴三行）"
+              :placeholder="
+                moomooConfig.private_key_configured
+                  ? `已配置（${moomooConfig.private_key_masked}），留空不修改`
+                  : '-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'
+              "
+              rows="3"
+              auto-grow
               density="compact"
               hide-details
-              style="min-width: 320px; max-width: 460px"
+              style="min-width: 360px; max-width: 560px"
             />
             <v-btn
               color="primary"
@@ -578,8 +583,10 @@ onBeforeUnmount(stopPolling)
             </v-btn>
           </div>
           <div class="text-caption text-medium-emphasis mt-2">
-            保存在 sys.sys_config（20016 AppKey / 20017 私钥）；私钥留空表示不修改，页面只回显掩码；
-            未配置时回退环境变量 FINV_MOOMOO_APP_KEY / FINV_MOOMOO_PRIVATE_KEY。
+            保存在 sys.sys_config 20016（`AppKey|私钥 PEM` 单配置项）；私钥要**完整粘贴三行**
+            （`-----BEGIN PRIVATE KEY-----`、base64 主体、`-----END PRIVATE KEY-----`），
+            或一行用字面 `\n` 分隔；留空表示不修改，页面只回显掩码；未配置时回退环境变量
+            FINV_MOOMOO_APP_KEY / FINV_MOOMOO_PRIVATE_KEY。
           </div>
         </v-card-text>
       </v-card>

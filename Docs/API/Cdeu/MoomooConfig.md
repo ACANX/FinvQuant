@@ -45,7 +45,7 @@
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | `app_key` | string | 是 | AppKey ID；空串 → 400 |
-| `private_key` | string | 否 | Ed25519 PKCS#8 私钥 PEM；**留空 = 保留原私钥**（页面不回显明文）；`__CLEAR__` = 只清空私钥（保留 AppKey） |
+| `private_key` | string | 否 | Ed25519 PKCS#8 私钥 PEM，**必须完整三行**（`-----BEGIN PRIVATE KEY-----` / base64 主体 / `-----END PRIVATE KEY-----`），也接受一行字面 `\n` 分隔；**留空 = 保留原私钥**；`__CLEAR__` = 只清空私钥（保留 AppKey） |
 
 ```json
 { "app_key": "0f0ba46cce34ca7f884e4e0fcdc309d5", "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----" }
@@ -65,4 +65,5 @@
 - 凭据整体存 `sys_config` 20016 的 `str_value`（`access_level=3`，敏感），接口与页面**只回显是否已配置**；
 - 存储格式 `{AppKey}|{私钥 PEM}`；只配 AppKey 时写 `{AppKey}|`；
 - 日志只打印 AppKey 前 6 位（`app_key=0f0ba4***`），不打印私钥；
-- 私钥明文丢失只能重新生成并重新配置（控制台可重置 AppKey 私钥）。
+- 私钥明文丢失只能重新生成并重新配置（控制台可重置 AppKey 私钥）；
+- 复制时不要漏掉 `BEGIN` / `END` 两行，也不要粘贴成公钥（`BEGIN PUBLIC KEY`）。
