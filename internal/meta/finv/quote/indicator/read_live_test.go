@@ -96,6 +96,40 @@ func TestLiveIndicatorTypeSecuSub(t *testing.T) {
 	if emptyTotal == 0 {
 		t.Fatalf("库里应有未维护/未关联的行")
 	}
-	t.Logf("验证通过：%d 个子类选项，Stock.US=%d 行，空子类=%d 行",
-		len(options), stockUSRows, emptyTotal)
+	// 4) 分类（type_secu）选项与筛选（需求 11308）
+	typeOptions, err := reader.TypeSecu(ctx)
+	if err != nil {
+		t.Fatalf("读取分类选项失败: %v", err)
+	}
+	if len(typeOptions) < 5 {
+		t.Fatalf("分类选项过少（%d），疑似关联失效", len(typeOptions))
+	}
+	var stockRows int64
+	for _, option := range typeOptions {
+		if option.Value == "Stock" {
+			stockRows = option.Rows
+		}
+	}
+	if stockRows == 0 {
+		t.Fatalf("分类选项缺少 Stock")
+	}
+	typeTotal, typeList, err := reader.Page(ctx, IndicatorPageFilter{
+		TypeSecu: "Stock",
+		Columns:  []string{IndicatorVirtualTypeSecu},
+		Limit:    3,
+	})
+	if err != nil {
+		t.Fatalf("按分类筛选失败: %v", err)
+	}
+	if typeTotal != stockRows {
+		t.Fatalf("分类筛选 total=%d，选项 rows=%d，两者应一致", typeTotal, stockRows)
+	}
+	for _, row := range typeList {
+		if row[IndicatorVirtualTypeSecu] != "Stock" {
+			t.Fatalf("返回行的分类不符: %+v", row)
+		}
+	}
+
+	t.Logf("验证通过：%d 个子类选项（Stock.US=%d、空=%d），%d 个分类选项（Stock=%d）",
+		len(options), stockUSRows, emptyTotal, len(typeOptions), stockRows)
 }

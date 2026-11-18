@@ -150,21 +150,45 @@ func TestIndicatorWhereTypeSecuSub(t *testing.T) {
 	}
 }
 
-// TestIndicatorVirtualColumns 虚拟列 type_secu_sub 可被请求列与排序使用（需求 11305）。
+// TestIndicatorWhereTypeSecu 证券分类筛选（需求 11308）。
+func TestIndicatorWhereTypeSecu(t *testing.T) {
+	where, args := indicatorWhere(IndicatorPageFilter{TypeSecu: "Stock"})
+	if !strings.Contains(where, "s.type_secu = $1") {
+		t.Fatalf("分类筛选应精确匹配 s.type_secu，实际 %s", where)
+	}
+	if len(args) != 1 || args[0] != "Stock" {
+		t.Fatalf("分类参数不符: %v", args)
+	}
+
+	where, args = indicatorWhere(IndicatorPageFilter{TypeSecu: IndicatorTypeSecuEmpty})
+	if !strings.Contains(where, "COALESCE(s.type_secu, '') = ''") || len(args) != 0 {
+		t.Fatalf("__empty__ 分类筛选不符: where=%s args=%v", where, args)
+	}
+
+	// 分类与子类同时给 → 两个条件 AND
+	where, args = indicatorWhere(IndicatorPageFilter{TypeSecu: "Stock", TypeSecuSub: "Stock.US"})
+	if len(args) != 2 || !strings.Contains(where, "s.type_secu = $1") ||
+		!strings.Contains(where, "s.type_secu_sub = $2") {
+		t.Fatalf("分类+子类组合不符: where=%s args=%v", where, args)
+	}
+}
+
+// TestIndicatorVirtualColumns 虚拟列 type_secu / type_secu_sub 可被请求列与排序使用。
 func TestIndicatorVirtualColumns(t *testing.T) {
 	known := knownColumns("usc", "ftmm_symbol", "name", "dt_collect")
+	known[IndicatorVirtualTypeSecu] = true
 	known[IndicatorVirtualTypeSecuSub] = true
 
-	selected, err := resolveIndicatorColumns([]string{"type_secu_sub"}, known)
+	selected, err := resolveIndicatorColumns([]string{IndicatorVirtualTypeSecu, IndicatorVirtualTypeSecuSub}, known)
 	if err != nil {
 		t.Fatalf("虚拟列应可请求: %v", err)
 	}
-	if len(selected) != 3 || selected[2] != IndicatorVirtualTypeSecuSub {
+	if len(selected) != 4 || selected[2] != IndicatorVirtualTypeSecu || selected[3] != IndicatorVirtualTypeSecuSub {
 		t.Fatalf("列集不符: %v", selected)
 	}
 
 	// 真实列目录里没有它时（未关联主数据表）必须报错，避免拼出无效 SQL
-	if _, err := resolveIndicatorColumns([]string{"type_secu_sub"},
+	if _, err := resolveIndicatorColumns([]string{IndicatorVirtualTypeSecu},
 		knownColumns("usc", "ftmm_symbol", "name")); err == nil {
 		t.Fatal("白名单缺少虚拟列时应报错")
 	}

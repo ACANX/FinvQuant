@@ -17,11 +17,12 @@ import (
 
 // fakeIndicatorReader 记录收到的 filter，并按配置返回结果或错误。
 type fakeIndicatorReader struct {
-	columns []indicator.IndicatorColumn
-	options []indicator.IndicatorTypeSecuSubOption
-	total   int64
-	list    []map[string]string
-	err     error
+	columns     []indicator.IndicatorColumn
+	options     []indicator.IndicatorTypeSecuSubOption
+	typeOptions []indicator.IndicatorTypeSecuOption
+	total       int64
+	list        []map[string]string
+	err         error
 	// got 最后一次收到的分页条件（用于断言参数解析结果）
 	got indicator.IndicatorPageFilter
 }
@@ -31,6 +32,13 @@ func (f *fakeIndicatorReader) Columns(context.Context) ([]indicator.IndicatorCol
 		return nil, f.err
 	}
 	return f.columns, nil
+}
+
+func (f *fakeIndicatorReader) TypeSecu(context.Context) ([]indicator.IndicatorTypeSecuOption, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.typeOptions, nil
 }
 
 func (f *fakeIndicatorReader) TypeSecuSub(context.Context) ([]indicator.IndicatorTypeSecuSubOption, error) {
@@ -210,5 +218,40 @@ func TestSecuIndicatorPageTypeSecuSubParam(t *testing.T) {
 
 	if reader.got.TypeSecuSub != "Stock.US" {
 		t.Fatalf("typeSecuSub 未透传：%+v", reader.got)
+	}
+}
+
+// TestSecuIndicatorTypeSecuRoute 证券分类筛选选项接口（需求 11308）。
+func TestSecuIndicatorTypeSecuRoute(t *testing.T) {
+	reader := &fakeIndicatorReader{typeOptions: []indicator.IndicatorTypeSecuOption{
+		{Value: "Stock", Rows: 4755},
+		{Value: "ETF", Rows: 3270},
+	}}
+	handler := NewSecuIndicator(reader)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/x", nil)
+	handler.TypeSecu(c)
+
+	data := decodeIndicatorEnvelope(t, recorder)
+	options, ok := data["options"].([]any)
+	if !ok || len(options) != 2 {
+		t.Fatalf("options 不符：%+v", data)
+	}
+}
+
+// TestSecuIndicatorPageTypeSecuParam 分页接口透传 typeSecu（需求 11308）。
+func TestSecuIndicatorPageTypeSecuParam(t *testing.T) {
+	reader := &fakeIndicatorReader{total: 1, list: []map[string]string{{"usc": "AAPL"}}}
+	handler := NewSecuIndicator(reader)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/x?typeSecu=Stock", nil)
+	handler.Page(c)
+
+	if reader.got.TypeSecu != "Stock" {
+		t.Fatalf("typeSecu 未透传：%+v", reader.got)
 	}
 }

@@ -20,6 +20,14 @@
 
 ### 新增
 
+- **「证券指标」页新增「分类（`type_secu`）」筛选（需求 11308）**
+  - `/Secu/Indicator/Page` 新增查询参数 `typeSecu`（精确匹配，空或 `all` 不限，`__empty__` = 未维护/未关联）。
+  - `/Secu/Indicator/Columns` 追加虚拟列 `type_secu`（`LEFT JOIN public.finv_security`），可请求、可排序。
+  - 新增接口 `GET .../Secu/Indicator/TypeSecu`（值 + 行数），前端「分类」下拉按 `DictFilterSpec` 显示
+    `中文[值]`（如 `股票[Stock]`、`ETF[ETF]`），选中即查；与既有「子类」筛选可叠加（AND）。
+  - 验证：`go test ./internal/meta/finv/quote/indicator/ ./internal/api/handler/` 通过；
+    `cd Web && npm run build` 通过。
+
 - **`usn` 内部编制规则落地：生成函数 + 存量回填（需求 11307）**
   - 规则：沪市 `11`+6 位、深市 `12`+6 位、京市 `13`+6 位、港股证券 `151`+5 位、港股指数 `15`+6 位；
     无法编制（字母代码、美股/加密/外汇/期货、带 `SH` 前缀的旧形态）保持 `NULL`。

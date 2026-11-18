@@ -2,8 +2,8 @@
 // 证券指标（需求 11251）
 // 数据表：cdeu.finv_quote_secu_indicator（132 列，一行一证券的最新指标快照）
 // 接口：GET /Meta/Finv/Quote/Secu/Indicator/Columns（列元数据）
-//      GET /Meta/Finv/Quote/Secu/Indicator/Page?keyword=&market=&typeSecuSub=&columns=&orderBy=&order=&page=&pageSize=
-//      GET /Meta/Finv/Quote/Secu/Indicator/TypeSecuSub（子类下拉选项，需求 11305）
+//      GET /Meta/Finv/Quote/Secu/Indicator/Page?keyword=&market=&typeSecu=&typeSecuSub=&columns=&orderBy=&order=&page=&pageSize=
+//      GET /Meta/Finv/Quote/Secu/Indicator/TypeSecu / TypeSecuSub（分类 / 子类下拉选项，需求 11308 / 11305）
 //
 // 132 列不可能一次铺满屏幕，本页按三层组织：
 //   ① 主表 —— 只渲染当前「列方案」选中的列（默认概览 17 列），左侧三列冻结、其余横向滚动；
@@ -35,6 +35,7 @@ import IndicatorColumnPicker from './IndicatorColumnPicker.vue'
 const COLUMNS_API = '/Meta/Finv/Quote/Secu/Indicator/Columns'
 const PAGE_API = '/Meta/Finv/Quote/Secu/Indicator/Page'
 const TYPESECUSUB_API = '/Meta/Finv/Quote/Secu/Indicator/TypeSecuSub'
+const TYPESECU_API = '/Meta/Finv/Quote/Secu/Indicator/TypeSecu'
 
 const STORAGE_COLUMNS = 'finvquant.indicator.columns'
 const STORAGE_PRESET = 'finvquant.indicator.preset'
@@ -53,6 +54,8 @@ const page = ref(1)
 const pageSize = ref(50)
 const keyword = ref('')
 const market = ref('')
+// 证券分类筛选（需求 11308）：值来自 public.finv_security.type_secu（如 Stock / ETF）
+const typeSecu = ref('')
 // 证券属性子类筛选（需求 11305）：值来自 public.finv_security.type_secu_sub（如 Stock.US）
 const typeSecuSub = ref('')
 const orderBy = ref('dt_collect')
@@ -71,7 +74,8 @@ const detailFullscreen = ref(false)
 const detailRow = ref<IndicatorRow | null>(null)
 const detailColumns = ref<IndicatorColumn[]>([])
 
-// 子类筛选的下拉选项（由 /TypeSecuSub 动态返回，避免前端硬编码上游新类型）
+// 分类 / 子类筛选的下拉选项（由接口动态返回，避免前端硬编码上游新类型）
+const typeSecuValues = ref<{ value: string; rows: number }[]>([])
 const typeSecuSubValues = ref<{ value: string; rows: number }[]>([])
 
 // 类型前缀 → 中文（值形如 `Stock.US` / `ETF.SH` / `TradePair.CC`；未登记的前缀原样显示）
@@ -105,6 +109,21 @@ const TYPE_SECU_SUB_MARKET_LABELS: Record<string, string> = {
   FX: '外汇',
 }
 
+/** 分类值 → `中文[值]`（DictFilterSpec）；空值表示未维护/未关联。 */
+function typeSecuLabel(value: string): string {
+  if (!value) return '未维护/未关联[__empty__]'
+  const typeLabel = TYPE_SECU_SUB_TYPE_LABELS[value]
+  return typeLabel ? `${typeLabel}[${value}]` : value
+}
+
+const typeSecuOptions = computed(() => [
+  { title: '全部分类', value: '' },
+  ...typeSecuValues.value.map((item) => ({
+    title: typeSecuLabel(item.value),
+    value: item.value || '__empty__',
+  })),
+])
+
 /** 子类值 → `中文[值]`（DictFilterSpec）；空值表示未维护/未关联。 */
 function typeSecuSubLabel(value: string): string {
   if (!value) return '未维护/未关联[__empty__]'
@@ -122,6 +141,18 @@ const typeSecuSubOptions = computed(() => [
     value: item.value || '__empty__',
   })),
 ])
+
+/** 加载分类下拉选项（失败只记错误，不影响主表查询）。 */
+async function loadTypeSecu(): Promise<void> {
+  try {
+    const data = await apiGet<{ total: number; options: { value: string; rows: number }[] }>(
+      TYPESECU_API,
+    )
+    typeSecuValues.value = data.options ?? []
+  } catch {
+    typeSecuValues.value = []
+  }
+}
 
 /** 加载子类下拉选项（失败只记错误，不影响主表查询）。 */
 async function loadTypeSecuSub(): Promise<void> {
@@ -266,6 +297,7 @@ async function load(): Promise<void> {
     })
     if (keyword.value.trim()) params.set('keyword', keyword.value.trim())
     if (market.value) params.set('market', market.value)
+    if (typeSecu.value) params.set('typeSecu', typeSecu.value)
     if (typeSecuSub.value) params.set('typeSecuSub', typeSecuSub.value)
     const data = await apiGet<{ total: number; page: number; pageSize: number; list: IndicatorRow[] }>(
       `${PAGE_API}?${params.toString()}`,
@@ -289,6 +321,7 @@ function search(): void {
 function reset(): void {
   keyword.value = ''
   market.value = ''
+  typeSecu.value = ''
   typeSecuSub.value = ''
   orderBy.value = 'dt_collect'
   order.value = 'desc'
@@ -409,7 +442,7 @@ function columnHint(column: IndicatorColumn): string {
 onMounted(async () => {
   const storedPageSize = Number(localStorage.getItem(STORAGE_PAGE_SIZE))
   if (Number.isFinite(storedPageSize) && storedPageSize > 0) pageSize.value = storedPageSize
-  await Promise.all([loadColumns(), loadTypeSecuSub()])
+  await Promise.all([loadColumns(), loadTypeSecu(), loadTypeSecuSub()])
   await load()
 })
 
@@ -452,6 +485,17 @@ watch(detailOpen, (open) => {
             density="compact"
             hide-details
             style="max-width: 170px"
+            @update:model-value="search"
+          />
+          <v-select
+            v-model="typeSecu"
+            :items="typeSecuOptions"
+            item-title="title"
+            item-value="value"
+            label="分类"
+            density="compact"
+            hide-details
+            style="max-width: 200px"
             @update:model-value="search"
           />
           <v-select

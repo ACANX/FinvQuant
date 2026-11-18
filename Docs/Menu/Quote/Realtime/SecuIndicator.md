@@ -10,7 +10,8 @@
 > 接口：[`GET /API/V1/Meta/Finv/Quote/Secu/Indicator/Columns`](../../../API/Cdeu/IndicatorPage.md)（列元数据）、
 > [`GET /API/V1/Meta/Finv/Quote/Secu/Indicator/Page`](../../../API/Cdeu/IndicatorPage.md)（分页查询）
 > 关联需求：11249（列元数据接口）、11250（分页查询接口）、11251（本页面）、11252（路由与菜单 key 改名）、
-> 11253（行详情悬浮列名 / 全屏 / 多列并排）、11305（关联 `finv_security` 取 `type_secu_sub` + 子类筛选）
+> 11253（行详情悬浮列名 / 全屏 / 多列并排）、11305（关联 `finv_security` 取 `type_secu_sub` + 子类筛选）、
+> 11308（关联 `finv_security.type_secu` + 分类筛选）
 > 写入侧（不在本页操作）：`POST .../Quote/Cdeu/SecuKey/Indicator/Sync/Run`（批量同步上游）、
 > `POST .../OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTSecuIndicatorUpsert`（采集端回传）
 
@@ -30,6 +31,7 @@
 |---|---|
 | 关键字 | 模糊匹配 `usc` / `ftmm_symbol` / `name`（回车即查询），可直接输入 `HK.00700` 这种键 |
 | 市场 | 全部 / `HK` / `SH` / `SZ` / `BJ` / `US` / `CC` / `FX`；按 `ftmm_symbol` 第一段匹配，切换即查询。`CC`=加密货币、`FX`=外汇/货币指数（口径写在页面底部说明卡片，不进下拉选项） |
+| 分类 | 全部分类 / 各 `type_secu` 值（如 `股票[Stock]`、`ETF[ETF]`、`指数[StockIndex]`）；值来自 `public.finv_security.type_secu`，选项由 `GET .../Secu/Indicator/TypeSecu` 动态返回；末项 `未维护/未关联[__empty__]`；切换即查询（需求 11308） |
 | 子类 | 全部子类 / 各 `type_secu_sub` 值（如 `股票·美股[Stock.US]`、`ETF·沪市[ETF.SH]`）；值来自 `public.finv_security.type_secu_sub`，选项由 `GET .../Secu/Indicator/TypeSecuSub` 动态返回；末项 `未维护/未关联[__empty__]` 单独筛出未关联主数据的行；切换即查询（需求 11305） |
 | 排序字段 | 可搜索下拉，候选 = 表里全部列（与后端白名单同源），选项**只用中文短名**（如「采集时间」「市盈率TTM」）；默认「采集时间」(`dt_collect`) 降序，空值 `NULLS LAST`（需求 11280） |
 | 方向 | 降序（默认）/ 升序；空值（NULL）一律排在最后 |
@@ -45,7 +47,7 @@
   `indicatorColumns.ts` 未登记的列自动落到「其它（未登记）」。
 - 支持按中文名 / 列名搜索；每个分组有「全选 / 清空」。
 - **预设列方案**：概览（默认，22 列）、行情、估值与股息、基金、期货与标的、时间与来源、全部（132 列 + 关联虚拟列 `type_secu_sub`）。
-- **关联虚拟列 `type_secu_sub`（证券子类）**：不在指标表里，由 `LEFT JOIN public.finv_security` 带出；
+- **关联虚拟列 `type_secu`（证券分类）与 `type_secu_sub`（证券子类）**：不在指标表里，由 `LEFT JOIN public.finv_security` 带出；
   未关联/未维护的行显示为空，也可用「子类」筛选的 `未维护/未关联[__empty__]` 单独查看（需求 11305）。
   手工勾选后方案名变为「自定义」。
 - `usc` / `ftmm_symbol` 是行身份列，不可取消（后端也会强制补齐）。

@@ -205,7 +205,8 @@ func NewRouter(deps *Deps) *gin.Engine {
 		indicatorGroup := apiGroup.Group("/Meta/Finv/Quote/Secu/Indicator")
 		indicatorGroup.GET("/Columns", secuIndicator.Columns)
 		indicatorGroup.GET("/Page", secuIndicator.Page)
-		// 子类筛选选项（需求 11305）：public.finv_security.type_secu_sub 的值 + 行数。
+		// 分类 / 子类筛选选项（需求 11308 / 11305）：public.finv_security.type_secu(|_sub) 的值 + 行数。
+		indicatorGroup.GET("/TypeSecu", secuIndicator.TypeSecu)
 		indicatorGroup.GET("/TypeSecuSub", secuIndicator.TypeSecuSub)
 
 		// 采集参数查询与单行维护（需求 11254）：futu.finv_futu_quote_collect，

@@ -56,8 +56,16 @@ var indicatorKeyColumns = []string{"usc", "ftmm_symbol"}
 // 未关联上的行返回空串（不是 NULL），可用 IndicatorTypeSecuSubEmpty 单独筛出。
 const IndicatorVirtualTypeSecuSub = "type_secu_sub"
 
+// IndicatorVirtualTypeSecu 关联列名：`public.finv_security.type_secu`（需求 11308）。
+//
+// 证券分类（`type_secu_sub` 的父类，如 Stock / ETF / StockIndex），同样由主数据表带出。
+const IndicatorVirtualTypeSecu = "type_secu"
+
 // IndicatorTypeSecuSubEmpty 「未维护 / 未关联」的筛选值（前端下拉的最后一个选项）。
 const IndicatorTypeSecuSubEmpty = "__empty__"
+
+// IndicatorTypeSecuEmpty 分类筛选的「未维护 / 未关联」取值（与子类同口径）。
+const IndicatorTypeSecuEmpty = IndicatorTypeSecuSubEmpty
 
 // indicatorSecurityTable 关联的证券主数据表（usc 主键）。
 const indicatorSecurityTable = "public.finv_security"
@@ -68,6 +76,12 @@ const indicatorJoinSQL = " LEFT JOIN " + indicatorSecurityTable + " s ON s.usc =
 // indicatorVirtualColumns 指标表里不存在、由关联查询带出的虚拟列（追加在真实列之后）。
 var indicatorVirtualColumns = []IndicatorColumn{
 	{
+		Name:     IndicatorVirtualTypeSecu,
+		Title:    "证券分类（关联 public.finv_security.type_secu）",
+		DataType: "text",
+		Sortable: true,
+	},
+	{
 		Name:     IndicatorVirtualTypeSecuSub,
 		Title:    "证券属性子类（关联 public.finv_security.type_secu_sub）",
 		DataType: "text",
@@ -75,11 +89,20 @@ var indicatorVirtualColumns = []IndicatorColumn{
 	},
 }
 
-// IndicatorTypeSecuSubOption 子类筛选选项（值 + 行数）。
-type IndicatorTypeSecuSubOption struct {
+// indicatorVirtualColumnSet 虚拟列集合（SELECT / ORDER BY 走 s.<列> 而不是 t.<列>）。
+var indicatorVirtualColumnSet = map[string]bool{
+	IndicatorVirtualTypeSecu:    true,
+	IndicatorVirtualTypeSecuSub: true,
+}
+
+// IndicatorTypeSecuOption 分类筛选选项（值 + 行数）。
+type IndicatorTypeSecuOption struct {
 	Value string `json:"value"`
 	Rows  int64  `json:"rows"`
 }
+
+// IndicatorTypeSecuSubOption 子类筛选选项（与分类同构，保留旧名避免破坏调用方）。
+type IndicatorTypeSecuSubOption = IndicatorTypeSecuOption
 
 // IndicatorColumn 列元数据（前端据此生成列标题、列分组与格式化口径）。
 type IndicatorColumn struct {
@@ -99,6 +122,9 @@ type IndicatorPageFilter struct {
 	Keyword string
 	// Market 市场前缀（ftmm_symbol 的第一段，如 HK / US）；空或 all 不限。
 	Market string
+	// TypeSecu 证券分类（public.finv_security.type_secu，如 Stock / ETF，需求 11308）；
+	// 空或 all 不限，IndicatorTypeSecuEmpty 表示「未维护 / 未关联」。
+	TypeSecu string
 	// TypeSecuSub 证券属性子类（public.finv_security.type_secu_sub，如 Stock.US）；
 	// 空或 all 不限，IndicatorTypeSecuSubEmpty 表示「未维护 / 未关联」（需求 11305）。
 	TypeSecuSub string
@@ -260,17 +286,17 @@ func (r *Reader) Page(ctx context.Context, f IndicatorPageFilter) (int64, []map[
 	// 虚拟列 type_secu_sub 来自 finv_security（别名 s），其余列都取指标表（别名 t）。
 	selectList := make([]string, 0, len(selected))
 	for _, name := range selected {
-		if name == IndicatorVirtualTypeSecuSub {
+		if indicatorVirtualColumnSet[name] {
 			selectList = append(selectList,
-				fmt.Sprintf("COALESCE(s.%s, '') AS %s", IndicatorVirtualTypeSecuSub, name))
+				fmt.Sprintf("COALESCE(s.%s, '') AS %s", name, name))
 			continue
 		}
 		selectList = append(selectList,
 			fmt.Sprintf("COALESCE(t.%s::text, '') AS %s", name, name))
 	}
 	orderExpr := "t." + orderBy
-	if orderBy == IndicatorVirtualTypeSecuSub {
-		orderExpr = "s." + IndicatorVirtualTypeSecuSub
+	if indicatorVirtualColumnSet[orderBy] {
+		orderExpr = "s." + orderBy
 	}
 	args = append(args, limit, offset)
 	query := fmt.Sprintf(
@@ -368,6 +394,15 @@ func indicatorWhere(f IndicatorPageFilter) (string, []any) {
 		args = append(args, strings.ToUpper(market))
 		conds = append(conds, fmt.Sprintf("split_part(t.ftmm_symbol, '.', 1) = $%d", len(args)))
 	}
+	// 证券分类（需求 11308）：精确匹配；__empty__ 表示未维护或未关联到 finv_security。
+	if secu := strings.TrimSpace(f.TypeSecu); secu != "" && !strings.EqualFold(secu, "all") {
+		if strings.EqualFold(secu, IndicatorTypeSecuEmpty) {
+			conds = append(conds, "COALESCE(s."+IndicatorVirtualTypeSecu+", '') = ''")
+		} else {
+			args = append(args, secu)
+			conds = append(conds, fmt.Sprintf("s.%s = $%d", IndicatorVirtualTypeSecu, len(args)))
+		}
+	}
 	// 证券属性子类（需求 11305）：精确匹配；__empty__ 表示未维护或未关联到 finv_security。
 	if sub := strings.TrimSpace(f.TypeSecuSub); sub != "" && !strings.EqualFold(sub, "all") {
 		if strings.EqualFold(sub, IndicatorTypeSecuSubEmpty) {
@@ -383,31 +418,44 @@ func indicatorWhere(f IndicatorPageFilter) (string, []any) {
 	return " WHERE " + strings.Join(conds, " AND "), args
 }
 
+// indicatorTypeSecuOptions 按主数据表的某一列（type_secu / type_secu_sub）统计筛选项。
+func (r *Reader) indicatorTypeSecuOptions(ctx context.Context, column string) ([]IndicatorTypeSecuOption, error) {
+	rows, err := r.pool.Query(ctx, `
+SELECT COALESCE(s.`+column+`, '') AS value, count(*) AS rows
+  FROM `+IndicatorTable+` t`+indicatorJoinSQL+`
+ GROUP BY 1
+ ORDER BY 2 DESC, 1`)
+	if err != nil {
+		return nil, fmt.Errorf("查询 %s.%s 选项失败: %w", indicatorSecurityTable, column, err)
+	}
+	defer rows.Close()
+
+	options := make([]IndicatorTypeSecuOption, 0, 32)
+	for rows.Next() {
+		var option IndicatorTypeSecuOption
+		if err := rows.Scan(&option.Value, &option.Rows); err != nil {
+			return nil, fmt.Errorf("解析 %s.%s 选项失败: %w", indicatorSecurityTable, column, err)
+		}
+		options = append(options, option)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("读取 %s.%s 选项失败: %w", indicatorSecurityTable, column, err)
+	}
+	return options, nil
+}
+
+// TypeSecu 返回证券分类的筛选选项（值 + 行数，按行数倒序），供前端下拉使用（需求 11308）。
+//
+// 取值来自 public.finv_security.type_secu（如 Stock / ETF / StockIndex）；
+// 未关联 / 未维护的行归到空串（前端显示「未维护/未关联[__empty__]」）。
+func (r *Reader) TypeSecu(ctx context.Context) ([]IndicatorTypeSecuOption, error) {
+	return r.indicatorTypeSecuOptions(ctx, IndicatorVirtualTypeSecu)
+}
+
 // TypeSecuSub 返回证券属性子类的筛选选项（值 + 行数，按行数倒序），供前端下拉使用。
 //
 // 取值来自 public.finv_security.type_secu_sub；未关联 / 未维护的行归到空串（前端显示为
 // 「未维护/未关联[__empty__]」，查询时传 IndicatorTypeSecuSubEmpty）。需求 11305。
 func (r *Reader) TypeSecuSub(ctx context.Context) ([]IndicatorTypeSecuSubOption, error) {
-	rows, err := r.pool.Query(ctx, `
-SELECT COALESCE(s.`+IndicatorVirtualTypeSecuSub+`, '') AS value, count(*) AS rows
-  FROM `+IndicatorTable+` t`+indicatorJoinSQL+`
- GROUP BY 1
- ORDER BY 2 DESC, 1`)
-	if err != nil {
-		return nil, fmt.Errorf("查询 %s.%s 选项失败: %w", indicatorSecurityTable, IndicatorVirtualTypeSecuSub, err)
-	}
-	defer rows.Close()
-
-	options := make([]IndicatorTypeSecuSubOption, 0, 32)
-	for rows.Next() {
-		var option IndicatorTypeSecuSubOption
-		if err := rows.Scan(&option.Value, &option.Rows); err != nil {
-			return nil, fmt.Errorf("解析 %s.%s 选项失败: %w", indicatorSecurityTable, IndicatorVirtualTypeSecuSub, err)
-		}
-		options = append(options, option)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("读取 %s.%s 选项失败: %w", indicatorSecurityTable, IndicatorVirtualTypeSecuSub, err)
-	}
-	return options, nil
+	return r.indicatorTypeSecuOptions(ctx, IndicatorVirtualTypeSecuSub)
 }
