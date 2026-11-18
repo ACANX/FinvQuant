@@ -20,6 +20,17 @@
 
 ### 新增
 
+- **「规范证券信息维护」新增证券收藏（需求 11312）**
+  - 新表 `quote.finv_quote_secu_fav`（迁移 `V300224`）：主键 `usc`，4 列
+    （`usc` / `remark` / `gmt_create` / `gmt_update`），`gmt_update` 由触发器维护，
+    已登记 `brs.brs_bak_rdb_table_full` 全量备份。
+  - 新接口 `POST /Meta/Finv/Quant/Metadata/Security/Favorite`：`{usc, favorite}` 幂等收藏/取消，
+    `usc` 不在 `finv_security` 时拒绝写入；`Security/List` 每行返回 `is_favorite`。
+  - 前端「操作」列新增星标按钮（`mdi-star` / `mdi-star-outline`），点击即切换并 toast 提示。
+  - 验证：`schema_version=300224`；`quote.finv_quote_secu_fav` 4 列 + 主键 + 触发器 + 备份登记齐全；
+    收藏 `00700` 后 `List` 返回 `is_favorite=true`，取消后回到 `false`。
+
+
 - **「证券指标」页输出 `usn`（统一证券编号）（需求 11309）**
   - `/Secu/Indicator/Columns` 追加虚拟列 `usn`（`LEFT JOIN public.finv_security`），
     可请求、可排序；整数列按文本返回（未分配时为空串）。

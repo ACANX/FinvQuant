@@ -33,7 +33,7 @@
 | 9 | GET | `/API/V1/Meta/Finv/Quant/Metadata/Market/List` | 分页查询交易市场字典 finv_market | [Meta/MetaMarket.md](Meta/MetaMarket.md) | 交易所下设市场信息维护（[Menus.md](../Menu/Menus.md#7)，文档见 [MetaData/Market.md](../Menu/MetaData/Market.md)） |
 | 10 | POST | `/API/V1/Meta/Finv/Quant/Metadata/Market/Save` | 新增/修改交易市场字典 | [Meta/MetaMarket.md](Meta/MetaMarket.md) | 交易所下设市场信息维护（同上） |
 | 11 | POST | `/API/V1/Meta/Finv/Quant/Metadata/Market/Toggle` | 禁用/启用交易市场 | [Meta/MetaMarket.md](Meta/MetaMarket.md) | 交易所下设市场信息维护（同上） |
-| 12 | GET | `/API/V1/Meta/Finv/Quant/Metadata/Security/List` | 分页查询证券代码字典 finv_security | [Meta/MetaSecurity.md](Meta/MetaSecurity.md) | 规范证券信息维护（[Menus.md](../Menu/Menus.md#8)，文档见 [MetaData/Security.md](../Menu/MetaData/Security.md)） |
+| 12 | GET | `/API/V1/Meta/Finv/Quant/Metadata/Security/List` | 分页查询证券代码字典 finv_security（含 `is_favorite` 收藏标记） | [Meta/MetaSecurity.md](Meta/MetaSecurity.md) | 规范证券信息维护（[Menus.md](../Menu/Menus.md#8)，文档见 [MetaData/Security.md](../Menu/MetaData/Security.md)） |
 | 13 | POST | `/API/V1/Meta/Finv/Quant/Metadata/Security/Save` | 新增/修改证券代码字典 | [Meta/MetaSecurity.md](Meta/MetaSecurity.md) | 规范证券信息维护（同上） |
 | 14 | POST | `/API/V1/Meta/Finv/Quant/Metadata/Security/Toggle` | 禁用/启用证券代码 | [Meta/MetaSecurity.md](Meta/MetaSecurity.md) | 规范证券信息维护（同上） |
 | 15 | GET | `/API/V1/Meta/Finv/Quant/Metadata/Security/Options` | 证券下拉选项（usc+security_name_cn，仅启用状态） | [Meta/MetaSecurity.md](Meta/MetaSecurity.md) | 规范证券信息维护（同上）、历史行情查询（[Quote/History/HistoryQuoteQuery.md](../Menu/Quote/History/HistoryQuoteQuery.md)） |
@@ -161,6 +161,7 @@
 | 136 | GET | `/API/V1/Meta/Finv/Quote/Secu/Collect/Stats` | 表规模统计（需登录，只读）：返回`cdeu.finv_quote_secu_indicator` 与 `futu.finv_futu_quote_collect` 的当前行数（表名由服务端白名单固定，无请求参数），附 `rows_total` 与耗时；表不存在时该项 `exists=false`/`rows=0` 不报错 | [Cdeu/CollectStats.md](Cdeu/CollectStats.md)（契约 [.yml](Cdeu/CollectStats.yml)） | 需求 11285（[Menu/Quote/RealtimeCollect/Overview.md](../Menu/Quote/RealtimeCollect/Overview.md)） |
 | 137 | GET | `/API/V1/Meta/Finv/Quote/Secu/Indicator/TypeSecuSub` | 证券指标子类筛选选项（需登录，只读）：`public.finv_security.type_secu_sub` 的值 + 行数（按行数倒序，空串 = 未维护/未关联），供「证券指标」页「子类」下拉；`/Page` 相应新增 `typeSecuSub` 参数与虚拟列 `type_secu_sub`（`LEFT JOIN public.finv_security`） | [Cdeu/IndicatorPage.md](Cdeu/IndicatorPage.md)（契约 [.yml](Cdeu/IndicatorPage.yml)） | 需求 11305（[Menu/Quote/Realtime/SecuIndicator.md](../Menu/Quote/Realtime/SecuIndicator.md)） |
 | 138 | GET | `/API/V1/Meta/Finv/Quote/Secu/Indicator/TypeSecu` | 证券指标分类筛选选项（需登录，只读）：`public.finv_security.type_secu` 的值 + 行数（按行数倒序，空串 = 未维护/未关联），供「证券指标」页「分类」下拉；`/Page` 相应新增 `typeSecu` 参数与虚拟列 `type_secu` | [Cdeu/IndicatorPage.md](Cdeu/IndicatorPage.md)（契约 [.yml](Cdeu/IndicatorPage.yml)） | 需求 11308（[Menu/Quote/Realtime/SecuIndicator.md](../Menu/Quote/Realtime/SecuIndicator.md)） |
+| 139 | POST | `/API/V1/Meta/Finv/Quant/Metadata/Security/Favorite` | 收藏 / 取消收藏证券（需登录）：`{usc, favorite}` → 写入/删除 `quote.finv_quote_secu_fav`（主键 `usc`，幂等），列表接口以 `is_favorite` 回显 | [Meta/MetaSecurity.md](Meta/MetaSecurity.md) | 规范证券信息维护（[MetaData/Security.md](../Menu/MetaData/Security.md)） |
 
 ## 说明
 

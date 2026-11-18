@@ -176,6 +176,33 @@ func (h *Meta) ToggleSecurity(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "切换成功", "data": gin.H{"usc": req.USC, "flag_enable": req.FlagEnable}})
 }
 
+// FavoriteSecurity 收藏 / 取消收藏一只证券（POST /API/V1/Meta/Finv/Quant/Metadata/Security/Favorite）。
+//
+// body：{"usc": "00700", "favorite": true}；幂等（重复收藏返回成功，不重复插入）。
+func (h *Meta) FavoriteSecurity(c *gin.Context) {
+	var req struct {
+		USC      string `json:"usc"`
+		Favorite bool   `json:"favorite"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
+		return
+	}
+	if err := h.service.SetSecurityFavorite(c.Request.Context(), req.USC, req.Favorite); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "收藏操作失败: " + err.Error()})
+		return
+	}
+	msg := "已收藏"
+	if !req.Favorite {
+		msg = "已取消收藏"
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": msg,
+		"data":    gin.H{"usc": req.USC, "favorite": req.Favorite},
+	})
+}
+
 // SecurityOptions 返回证券下拉选项（GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options）。
 func (h *Meta) SecurityOptions(c *gin.Context) {
 	list, err := h.service.SecurityOptions(c.Request.Context())

@@ -3,6 +3,7 @@ package meta
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -78,6 +79,8 @@ type Security struct {
 	Timezone         *string `json:"timezone"`
 	Tz               *string `json:"tz"`
 	FlagEnable       string  `json:"flag_enable"`
+	// IsFavorite 是否已收藏（quote.finv_quote_secu_fav 中存在该 usc，需求 11312）。
+	IsFavorite bool `json:"is_favorite"`
 }
 
 // SecurityOption 证券下拉选项（usc 为 key，security_name_cn 为字面展示值）。
@@ -337,11 +340,13 @@ func (s *Service) ListSecurities(ctx context.Context, pager Pager, keyword, flag
 	}
 
 	rows, err := s.pool.Query(ctx, `
-SELECT usc, exchange_code, market_code, security_type, security_code, security_name, security_name_cn,
-       security_name_full, currency_type, init_date, timezone, tz, flag_enable
-FROM finv_security
+SELECT s.usc, s.exchange_code, s.market_code, s.security_type, s.security_code, s.security_name,
+       s.security_name_cn, s.security_name_full, s.currency_type, s.init_date, s.timezone, s.tz,
+       s.flag_enable,
+       EXISTS (SELECT 1 FROM quote.finv_quote_secu_fav f WHERE f.usc = s.usc) AS is_favorite
+FROM finv_security s
 WHERE `+cond+`
-ORDER BY flag_enable DESC, usc ASC
+ORDER BY s.flag_enable DESC, s.usc ASC
 LIMIT $`+strconv.Itoa(len(args)+1)+` OFFSET $`+strconv.Itoa(len(args)+2),
 		append(args, pager.PageSize, (pager.Page-1)*pager.PageSize)...)
 	if err != nil {
@@ -354,7 +359,7 @@ LIMIT $`+strconv.Itoa(len(args)+1)+` OFFSET $`+strconv.Itoa(len(args)+2),
 		var sec Security
 		if err := rows.Scan(&sec.USC, &sec.ExchangeCode, &sec.MarketCode, &sec.SecurityType, &sec.SecurityCode,
 			&sec.SecurityName, &sec.SecurityNameCN, &sec.SecurityNameFull, &sec.CurrencyType,
-			&sec.InitDate, &sec.Timezone, &sec.Tz, &sec.FlagEnable); err != nil {
+			&sec.InitDate, &sec.Timezone, &sec.Tz, &sec.FlagEnable, &sec.IsFavorite); err != nil {
 			return nil, 0, err
 		}
 		list = append(list, sec)
@@ -413,6 +418,33 @@ func (s *Service) ToggleSecurity(ctx context.Context, usc, flag string) error {
 		return pgx.ErrNoRows
 	}
 	return nil
+}
+
+// SetSecurityFavorite 收藏 / 取消收藏一只证券（需求 11312）。
+//
+// 收藏 = 往 quote.finv_quote_secu_fav 插一行（ON CONFLICT DO NOTHING，幂等）；
+// 取消 = 删除该行。收藏前校验 usc 存在于 finv_security，避免写入孤儿记录。
+func (s *Service) SetSecurityFavorite(ctx context.Context, usc string, favorite bool) error {
+	usc = strings.TrimSpace(usc)
+	if usc == "" {
+		return fmt.Errorf("usc 不能为空")
+	}
+	if favorite {
+		var exists int
+		if err := s.pool.QueryRow(ctx,
+			`SELECT 1 FROM finv_security WHERE usc = $1`, usc).Scan(&exists); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return fmt.Errorf("证券 %s 不存在", usc)
+			}
+			return err
+		}
+		_, err := s.pool.Exec(ctx, `
+INSERT INTO quote.finv_quote_secu_fav (usc) VALUES ($1)
+ON CONFLICT (usc) DO NOTHING`, usc)
+		return err
+	}
+	_, err := s.pool.Exec(ctx, `DELETE FROM quote.finv_quote_secu_fav WHERE usc = $1`, usc)
+	return err
 }
 
 // SecurityOptions 返回证券下拉选项列表（usc 为 key，security_name_cn 为展示值，

@@ -1,6 +1,6 @@
 # GET/POST /API/V1/Meta/Finv/Quant/Metadata/Security/* — 规范证券信息维护
 
-finv_security 证券代码字典维护接口：分页查询、新增/修改、禁用/启用、下拉选项、按代码查询详情。
+finv_security 证券代码字典维护接口：分页查询、新增/修改、禁用/启用、收藏、下拉选项、按代码查询详情。
 
 > 排序约定：`List` 分页结果**启用的（flag_enable='1'）优先展示**，禁用的排后面，同状态按 usc 升序（交易所/市场 List 同理）。
 
@@ -40,7 +40,8 @@ finv_security 证券代码字典维护接口：分页查询、新增/修改、�
         "init_date": 19710101,
         "timezone": "-04:00",
         "tz": "America/New_York",
-        "flag_enable": "1"
+        "flag_enable": "1",
+        "is_favorite": false
       }
     ]
   }
@@ -159,6 +160,38 @@ finv_security 证券代码字典维护接口：分页查询、新增/修改、�
 ```json
 { "code": 1, "message": "证券不存在", "data": { "found": false } }
 ```
+
+## 6. 收藏 / 取消收藏证券（需求 11312）
+
+- **方法**：`POST`
+- **路径**：`/API/V1/Meta/Finv/Quant/Metadata/Security/Favorite`
+
+### 请求体（JSON）
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `usc` | string | 是 | 证券统一编码，必须已在 finv_security 中存在 |
+| `favorite` | bool | 是 | `true` = 收藏（写入 `quote.finv_quote_secu_fav`）；`false` = 取消收藏（删除该行） |
+
+```json
+{ "usc": "00700", "favorite": true }
+```
+
+### 响应（成功 HTTP 200）
+
+```json
+{
+  "code": 0,
+  "message": "已收藏",
+  "data": { "usc": "00700", "favorite": true }
+}
+```
+
+### 语义
+
+- 幂等：重复收藏返回成功，不重复插入（`ON CONFLICT (usc) DO NOTHING`）；取消未收藏的证券同样成功。
+- `usc` 不在 `finv_security` 中 → 500（`code=2006`，消息「证券 xxx 不存在」），不写孤儿记录。
+- 收藏结果通过 `Security/List` 的 `is_favorite` 回显（`EXISTS` 子查询，`quote.finv_quote_secu_fav` 主键 `usc`）。
 
 ## 失败场景
 

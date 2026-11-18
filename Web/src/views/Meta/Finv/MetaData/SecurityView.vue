@@ -19,6 +19,8 @@ interface SecurityRow {
   timezone: string | null
   tz: string | null
   flag_enable: string
+  /** 是否已收藏（quote.finv_quote_secu_fav，需求 11312） */
+  is_favorite: boolean
 }
 
 // finv_exchange 交易所下拉选项（交易所信息维护字典）
@@ -79,6 +81,7 @@ const form = ref<SecurityRow>({
   timezone: null,
   tz: null,
   flag_enable: '1',
+  is_favorite: false,
 })
 
 async function load() {
@@ -113,6 +116,7 @@ function openCreate() {
     timezone: null,
     tz: null,
     flag_enable: '1',
+    is_favorite: false,
   }
   dialog.value = true
 }
@@ -154,6 +158,21 @@ async function save() {
     showToast('保存成功')
     dialog.value = false
     await load()
+  } catch (e) {
+    showToast((e as Error).message, 'error')
+  }
+}
+
+/** 收藏 / 取消收藏（需求 11312）：成功后只改本地标记，不整页刷新。 */
+async function toggleFavorite(row: SecurityRow) {
+  const next = !row.is_favorite
+  try {
+    await apiPost('/Meta/Finv/Quant/Metadata/Security/Favorite', {
+      usc: row.usc,
+      favorite: next,
+    })
+    row.is_favorite = next
+    showToast(next ? `已收藏证券 ${row.usc}` : `已取消收藏证券 ${row.usc}`)
   } catch (e) {
     showToast((e as Error).message, 'error')
   }
@@ -241,7 +260,7 @@ onMounted(() => {
           { title: '货币', key: 'currency_type', width: 80 },
           { title: '上市日', key: 'init_date', width: 100 },
           { title: '状态', key: 'flag_enable', width: 90 },
-          { title: '操作', key: 'actions', width: 150, sortable: false },
+          { title: '操作', key: 'actions', width: 210, sortable: false },
         ]"
         :items="rows"
         :loading="loading"
@@ -255,6 +274,15 @@ onMounted(() => {
           </v-chip>
         </template>
         <template #item.actions="{ item }">
+          <v-btn
+            size="x-small"
+            variant="text"
+            :icon="item.is_favorite ? 'mdi-star' : 'mdi-star-outline'"
+            :color="item.is_favorite ? 'amber-darken-2' : undefined"
+            :title="item.is_favorite ? '取消收藏' : '收藏'"
+            :aria-label="item.is_favorite ? '取消收藏' : '收藏'"
+            @click="toggleFavorite(item)"
+          />
           <v-btn size="x-small" variant="text" prepend-icon="mdi-pencil" @click="openEdit(item)">修改</v-btn>
           <v-btn
             size="x-small"
