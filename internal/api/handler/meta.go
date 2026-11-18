@@ -130,9 +130,17 @@ func (h *Meta) ToggleMarket(c *gin.Context) {
 
 // ListSecurities 分页查询证券代码。
 func (h *Meta) ListSecurities(c *gin.Context) {
-	keyword := c.Query("keyword")
-	flagEnable := queryFlagEnable(c)
-	list, total, err := h.service.ListSecurities(c.Request.Context(), parsePager(c), keyword, flagEnable)
+	filter := meta.SecurityListFilter{
+		Keyword:      c.Query("keyword"),
+		FlagEnable:   queryFlagEnable(c),
+		ExchangeCode: parseIntDefault(c.Query("exchangeCode"), 0),
+		MarketCode:   parseIntDefault(c.Query("marketCode"), 0),
+		SecurityType: c.Query("securityType"),
+		TypeSecuSub:  c.Query("typeSecuSub"),
+		CurrencyType: c.Query("currencyType"),
+		Provider:     c.Query("provider"),
+	}
+	list, total, err := h.service.ListSecurities(c.Request.Context(), parsePager(c), filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "查询证券代码失败: " + err.Error()})
 		return
@@ -142,6 +150,18 @@ func (h *Meta) ListSecurities(c *gin.Context) {
 		"message": "查询完成",
 		"data":    gin.H{"total": total, "list": list},
 	})
+}
+
+// ListSecurityFilterOptions 证券字典筛选项（GET .../Metadata/Security/FilterOptions）。
+//
+// 返回类型 / 子类 / 货币 / 提供方四组 DISTINCT 值（需求 11330）。
+func (h *Meta) ListSecurityFilterOptions(c *gin.Context) {
+	opts, err := h.service.ListSecurityFilterOptions(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "查询证券筛选项失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "查询完成", "data": opts})
 }
 
 // SaveSecurity 新增或更新证券代码（POST /API/V1/Meta/Finv/Quant/Metadata/Security/Save）。

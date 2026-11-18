@@ -453,6 +453,8 @@ func NewRouter(deps *Deps) *gin.Engine {
 		apiGroup.POST("/Meta/Finv/Quant/Metadata/Market/Save", metaHandler.SaveMarket)
 		apiGroup.POST("/Meta/Finv/Quant/Metadata/Market/Toggle", metaHandler.ToggleMarket)
 		apiGroup.GET("/Meta/Finv/Quant/Metadata/Security/List", metaHandler.ListSecurities)
+		// 证券字典筛选项（类型/子类/货币/提供方 DISTINCT，需求 11330）
+		apiGroup.GET("/Meta/Finv/Quant/Metadata/Security/FilterOptions", metaHandler.ListSecurityFilterOptions)
 		apiGroup.POST("/Meta/Finv/Quant/Metadata/Security/Save", metaHandler.SaveSecurity)
 		apiGroup.POST("/Meta/Finv/Quant/Metadata/Security/Toggle", metaHandler.ToggleSecurity)
 		apiGroup.POST("/Meta/Finv/Quant/Metadata/Security/Favorite", metaHandler.FavoriteSecurity)

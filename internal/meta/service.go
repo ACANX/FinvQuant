@@ -325,13 +325,34 @@ func (s *Service) ToggleMarket(ctx context.Context, code int, flag string) error
 // finv_security
 // ---------------------------------------------------------------------
 
+// SecurityListFilter 证券字典查询条件（需求 11330：新增 交易所/市场/类型/子类/货币/提供方 筛选）。
+type SecurityListFilter struct {
+	Keyword      string
+	FlagEnable   string
+	ExchangeCode int
+	MarketCode   int
+	SecurityType string
+	TypeSecuSub  string
+	CurrencyType string
+	Provider     string
+}
+
+// SecurityFilterOptions 证券字典筛选项（各维度 DISTINCT 值，供下拉使用）。
+type SecurityFilterOptions struct {
+	Types        []string `json:"types"`
+	TypeSecuSubs []string `json:"type_secu_subs"`
+	Currencies   []string `json:"currencies"`
+	Providers    []string `json:"providers"`
+}
+
 // ListSecurities 分页查询证券代码；keyword 匹配 usc/证券代码/证券名称（任一）。
-// 排序：启用的（flag_enable='1'）优先展示，禁用的排后面，同状态按 usc 升序。
-func (s *Service) ListSecurities(ctx context.Context, pager Pager, keyword, flagEnable string) ([]Security, int, error) {
+//
+// 排序（需求 11330）：交易所 → 市场 → 源代码 升序；同键再按 usc 兜底保证分页稳定。
+func (s *Service) ListSecurities(ctx context.Context, pager Pager, filter SecurityListFilter) ([]Security, int, error) {
 	pager.Normalize()
 	where := []string{"1=1"}
 	args := []any{}
-	if keyword = strings.TrimSpace(keyword); keyword != "" {
+	if keyword := strings.TrimSpace(filter.Keyword); keyword != "" {
 		args = append(args, "%"+keyword+"%")
 		where = append(where, fmt.Sprintf(`(
 			usc ILIKE $%d
@@ -340,9 +361,34 @@ func (s *Service) ListSecurities(ctx context.Context, pager Pager, keyword, flag
 			OR security_name_cn ILIKE $%d
 		)`, len(args), len(args), len(args), len(args)))
 	}
-	if flagEnable == FlagEnable || flagEnable == FlagDisable {
-		args = append(args, flagEnable)
+	if filter.FlagEnable == FlagEnable || filter.FlagEnable == FlagDisable {
+		args = append(args, filter.FlagEnable)
 		where = append(where, fmt.Sprintf("flag_enable = $%d", len(args)))
+	}
+	if filter.ExchangeCode > 0 {
+		args = append(args, filter.ExchangeCode)
+		where = append(where, fmt.Sprintf("exchange_code = $%d", len(args)))
+	}
+	if filter.MarketCode > 0 {
+		args = append(args, filter.MarketCode)
+		where = append(where, fmt.Sprintf("market_code = $%d", len(args)))
+	}
+	// 文本维度：空或 all 表示不限（与其它列表页口径一致）
+	for _, item := range []struct {
+		value  string
+		column string
+	}{
+		{filter.SecurityType, "security_type"},
+		{filter.TypeSecuSub, "type_secu_sub"},
+		{filter.CurrencyType, "currency_type"},
+		{filter.Provider, "provider"},
+	} {
+		value := strings.TrimSpace(item.value)
+		if value == "" || strings.EqualFold(value, "all") {
+			continue
+		}
+		args = append(args, value)
+		where = append(where, fmt.Sprintf("%s = $%d", item.column, len(args)))
 	}
 	cond := strings.Join(where, " AND ")
 
@@ -360,7 +406,7 @@ SELECT s.usc, s.exchange_code, s.market_code, s.security_type, s.security_code, 
        EXISTS (SELECT 1 FROM quote.finv_quote_secu_fav f WHERE f.usc = s.usc) AS is_favorite
 FROM finv_security s
 WHERE `+cond+`
-ORDER BY s.flag_enable DESC, s.usc ASC
+ORDER BY s.exchange_code ASC, s.market_code ASC, s.security_code ASC, s.usc ASC
 LIMIT $`+strconv.Itoa(len(args)+1)+` OFFSET $`+strconv.Itoa(len(args)+2),
 		append(args, pager.PageSize, (pager.Page-1)*pager.PageSize)...)
 	if err != nil {
@@ -382,6 +428,61 @@ LIMIT $`+strconv.Itoa(len(args)+1)+` OFFSET $`+strconv.Itoa(len(args)+2),
 		list = append(list, sec)
 	}
 	return list, total, rows.Err()
+}
+
+// ListSecurityFilterOptions 取筛选项的 DISTINCT 值（类型 / 子类 / 货币 / 提供方）。
+//
+// 只查一次（UNION ALL 四段），空串与 NULL 不入选；子类按名称升序。
+func (s *Service) ListSecurityFilterOptions(ctx context.Context) (SecurityFilterOptions, error) {
+	var opts SecurityFilterOptions
+	opts.Types = []string{}
+	opts.TypeSecuSubs = []string{}
+	opts.Currencies = []string{}
+	opts.Providers = []string{}
+
+	rows, err := s.pool.Query(ctx, `
+SELECT 'type' AS kind, security_type AS value
+  FROM finv_security
+ WHERE NULLIF(btrim(security_type), '') IS NOT NULL
+ GROUP BY security_type
+UNION ALL
+SELECT 'sub', type_secu_sub
+  FROM finv_security
+ WHERE NULLIF(btrim(type_secu_sub), '') IS NOT NULL
+ GROUP BY type_secu_sub
+UNION ALL
+SELECT 'currency', currency_type
+  FROM finv_security
+ WHERE NULLIF(btrim(currency_type), '') IS NOT NULL
+ GROUP BY currency_type
+UNION ALL
+SELECT 'provider', provider
+  FROM finv_security
+ WHERE NULLIF(btrim(provider), '') IS NOT NULL
+ GROUP BY provider
+ORDER BY kind, value`)
+	if err != nil {
+		return opts, fmt.Errorf("查询证券筛选项失败: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var kind, value string
+		if err := rows.Scan(&kind, &value); err != nil {
+			return opts, fmt.Errorf("解析证券筛选项失败: %w", err)
+		}
+		switch kind {
+		case "type":
+			opts.Types = append(opts.Types, value)
+		case "sub":
+			opts.TypeSecuSubs = append(opts.TypeSecuSubs, value)
+		case "currency":
+			opts.Currencies = append(opts.Currencies, value)
+		case "provider":
+			opts.Providers = append(opts.Providers, value)
+		}
+	}
+	return opts, rows.Err()
 }
 
 // SaveSecurity 新增或更新证券代码（usc 存在则更新，否则新增）。

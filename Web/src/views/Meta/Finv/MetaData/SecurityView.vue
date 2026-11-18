@@ -203,6 +203,57 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
 const keyword = ref('')
+// 筛选（需求 11330）：交易所 / 市场 / 类型 / 子类 / 货币 / 状态 / 提供方
+const exchangeFilter = ref<number | null>(null)
+const marketFilter = ref<number | null>(null)
+const securityTypeFilter = ref('')
+const typeSecuSubFilter = ref('')
+const currencyFilter = ref('')
+const flagEnableFilter = ref('')
+const providerFilter = ref('')
+
+interface SecurityFilterOptions {
+  types: string[]
+  type_secu_subs: string[]
+  currencies: string[]
+  providers: string[]
+}
+const filterOptions = ref<SecurityFilterOptions>({
+  types: [],
+  type_secu_subs: [],
+  currencies: [],
+  providers: [],
+})
+const typeItems = computed(() => [
+  { title: '全部类型', value: '' },
+  ...filterOptions.value.types.map((v) => ({ title: v, value: v })),
+])
+const subTypeItems = computed(() => [
+  { title: '全部子类', value: '' },
+  ...filterOptions.value.type_secu_subs.map((v) => ({ title: v, value: v })),
+])
+const currencyItems = computed(() => [
+  { title: '全部货币', value: '' },
+  ...filterOptions.value.currencies.map((v) => ({ title: v, value: v })),
+])
+const providerItems = computed(() => [
+  { title: '全部提供方', value: '' },
+  ...filterOptions.value.providers.map((v) => ({ title: v, value: v })),
+])
+const exchangeFilterItems = computed(() => [
+  { title: '全部交易所', value: null },
+  ...exchangeItems.value,
+])
+const marketFilterItems = computed(() => [
+  { title: '全部市场', value: null },
+  ...marketItems.value,
+])
+const FLAG_FILTER_ITEMS = [
+  { title: '全部状态', value: '' },
+  { title: '启用', value: '1' },
+  { title: '禁用', value: '0' },
+]
+
 const loading = ref(false)
 const error = ref('')
 
@@ -253,8 +304,20 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
+    const params = new URLSearchParams({
+      page: String(page.value),
+      pageSize: String(pageSize.value),
+    })
+    if (keyword.value.trim()) params.set('keyword', keyword.value.trim())
+    if (exchangeFilter.value) params.set('exchangeCode', String(exchangeFilter.value))
+    if (marketFilter.value) params.set('marketCode', String(marketFilter.value))
+    if (securityTypeFilter.value) params.set('securityType', securityTypeFilter.value)
+    if (typeSecuSubFilter.value) params.set('typeSecuSub', typeSecuSubFilter.value)
+    if (currencyFilter.value) params.set('currencyType', currencyFilter.value)
+    if (flagEnableFilter.value) params.set('flagEnable', flagEnableFilter.value)
+    if (providerFilter.value) params.set('provider', providerFilter.value)
     const data = await apiGet<{ total: number; list: SecurityRow[] }>(
-      `/Meta/Finv/Quant/Metadata/Security/List?page=${page.value}&pageSize=${pageSize.value}&keyword=${encodeURIComponent(keyword.value)}`,
+      `/Meta/Finv/Quant/Metadata/Security/List?${params.toString()}`,
     )
     rows.value = data.list ?? []
     total.value = data.total ?? 0
@@ -381,9 +444,39 @@ function search() {
   load()
 }
 
+/** 重置筛选条件（不影响列配置与列宽）。 */
+function resetFilters(): void {
+  keyword.value = ''
+  exchangeFilter.value = null
+  marketFilter.value = null
+  securityTypeFilter.value = ''
+  typeSecuSubFilter.value = ''
+  currencyFilter.value = ''
+  flagEnableFilter.value = ''
+  providerFilter.value = ''
+  search()
+}
+
+async function loadFilterOptions(): Promise<void> {
+  try {
+    const data = await apiGet<SecurityFilterOptions>(
+      '/Meta/Finv/Quant/Metadata/Security/FilterOptions',
+    )
+    filterOptions.value = {
+      types: data.types ?? [],
+      type_secu_subs: data.type_secu_subs ?? [],
+      currencies: data.currencies ?? [],
+      providers: data.providers ?? [],
+    }
+  } catch {
+    filterOptions.value = { types: [], type_secu_subs: [], currencies: [], providers: [] }
+  }
+}
+
 onMounted(() => {
   loadColumnConfig()
   loadColumnWidths()
+  loadFilterOptions()
   load()
   loadOptions()
 })
@@ -416,34 +509,111 @@ function timeText(value: string): string {
     </v-card-subtitle>
 
     <v-card-text>
-      <v-row align="center" dense class="mb-3">
-        <v-col cols="12" sm="6">
-          <v-text-field
-            v-model="keyword"
-            label="关键字（usc / 证券代码 / 证券名称）"
-            placeholder="如: GCMain / NVDA / 黄金"
-            density="compact"
-            hide-details
-            clearable
-            @keyup.enter="search"
-          />
-        </v-col>
-        <v-col cols="auto">
-          <v-btn color="primary" prepend-icon="mdi-magnify" @click="search">查询</v-btn>
-        </v-col>
-        <v-col cols="auto" class="ml-auto">
-          <v-btn
-            color="secondary"
-            variant="tonal"
-            prepend-icon="mdi-view-column-outline"
-            class="mr-2"
-            @click="openColumnDialog"
-          >
-            选择列（{{ visibleKeys.length }} / {{ SECURITY_COLUMNS.length }}）
-          </v-btn>
-          <v-btn color="success" prepend-icon="mdi-plus" @click="openCreate">新增</v-btn>
-        </v-col>
-      </v-row>
+      <!-- 筛选（需求 11330）：关键字 + 交易所/市场/类型/子类/货币/状态/提供方 -->
+      <div class="d-flex flex-wrap align-center ga-2 mb-3">
+        <v-text-field
+          v-model="keyword"
+          label="关键字（usc / 证券代码 / 证券名称）"
+          placeholder="如: GCMain / NVDA / 黄金"
+          density="compact"
+          hide-details
+          clearable
+          style="min-width: 240px; max-width: 320px"
+          @keyup.enter="search"
+        />
+        <v-select
+          v-model="exchangeFilter"
+          :items="exchangeFilterItems"
+          item-title="title"
+          item-value="value"
+          label="交易所"
+          density="compact"
+          hide-details
+          clearable
+          style="max-width: 210px"
+          @update:model-value="search"
+        />
+        <v-select
+          v-model="marketFilter"
+          :items="marketFilterItems"
+          item-title="title"
+          item-value="value"
+          label="市场"
+          density="compact"
+          hide-details
+          clearable
+          style="max-width: 200px"
+          @update:model-value="search"
+        />
+        <v-select
+          v-model="securityTypeFilter"
+          :items="typeItems"
+          item-title="title"
+          item-value="value"
+          label="类型"
+          density="compact"
+          hide-details
+          style="max-width: 150px"
+          @update:model-value="search"
+        />
+        <v-autocomplete
+          v-model="typeSecuSubFilter"
+          :items="subTypeItems"
+          item-title="title"
+          item-value="value"
+          label="子类"
+          density="compact"
+          hide-details
+          clearable
+          style="min-width: 200px; max-width: 260px"
+          @update:model-value="search"
+        />
+        <v-select
+          v-model="currencyFilter"
+          :items="currencyItems"
+          item-title="title"
+          item-value="value"
+          label="货币"
+          density="compact"
+          hide-details
+          style="max-width: 130px"
+          @update:model-value="search"
+        />
+        <v-select
+          v-model="flagEnableFilter"
+          :items="FLAG_FILTER_ITEMS"
+          item-title="title"
+          item-value="value"
+          label="状态"
+          density="compact"
+          hide-details
+          style="max-width: 120px"
+          @update:model-value="search"
+        />
+        <v-select
+          v-model="providerFilter"
+          :items="providerItems"
+          item-title="title"
+          item-value="value"
+          label="提供方"
+          density="compact"
+          hide-details
+          style="max-width: 150px"
+          @update:model-value="search"
+        />
+        <v-btn color="primary" prepend-icon="mdi-magnify" @click="search">查询</v-btn>
+        <v-btn variant="text" prepend-icon="mdi-restore" @click="resetFilters">重置</v-btn>
+        <v-spacer />
+        <v-btn
+          color="secondary"
+          variant="tonal"
+          prepend-icon="mdi-view-column-outline"
+          @click="openColumnDialog"
+        >
+          选择列（{{ visibleKeys.length }} / {{ SECURITY_COLUMNS.length }}）
+        </v-btn>
+        <v-btn color="success" prepend-icon="mdi-plus" @click="openCreate">新增</v-btn>
+      </div>
 
       <v-alert v-if="error" type="error" class="mb-3" density="compact">{{ error }}</v-alert>
 

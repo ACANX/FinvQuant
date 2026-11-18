@@ -537,6 +537,16 @@
 
 ### 变更
 
+- **证券字典新增 7 个筛选 + 默认按交易所/市场/源代码升序（需求 11330）**
+  - `Security/List` 新增 `exchangeCode` / `marketCode` / `securityType` / `typeSecuSub` /
+    `currencyType` / `provider` 参数（与原有 `keyword` / `flagEnable` 叠加）。
+  - 排序由「启用优先 + usc」改为 **交易所 → 市场 → 源代码升序**（`usc` 兜底）。
+  - 新增 `GET .../Metadata/Security/FilterOptions`：类型 / 子类 / 货币 / 提供方 DISTINCT 值
+    （实测 18 / 31 / 43 / 1 项）。
+  - 页面筛选区改为一行 8 个控件（关键字 + 7 个下拉）+ 查询 / 重置；
+    「选择列」「新增」右对齐，重置不影响列配置与列宽。
+
+
 - **证券字典表格不压缩列 + 支持拖拽调列宽（需求 11329）**
   - 表格改为 `table-layout: auto` + 单元格 `white-space: nowrap`：全部 20 列打开时
     内容不再被挤成多行，超宽时整体横向滚动。

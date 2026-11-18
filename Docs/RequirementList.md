@@ -3428,7 +3428,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | `/Meta/Finv/MetaData/Security` 列表展示 `usn`、`type_secu`、`type_secu_sub` 三个字段，分别位于第 1、9、10 列（1 起算）；`Security/List` 接口返回这三个字段（`usn` 可空）。 核对：`curl '.../Metadata/Security/List?page=1&pageSize=1'` 的 `data.list[0]` 含 `usn`/`type_secu`/`type_secu_sub`；页面表头顺序为「统一编号、usc、交易所、市场、类型、源代码、证券名称、中文名称、分类、子类、货币、上市日、状态、操作」；空值显示 `—`；`cd Web && npm run build` 退出码 0。 | 11327 | 1 |
 | `/Meta/Finv/MetaData/Security` 隐藏第 5 列「类型」，并支持「选择列」配置展示其余未展示字段（全称、时区、时区标识、提供方、备注、创建时间、更新时间），配置持久化到 localStorage 并可恢复默认；`Security/List` 同步返回 `remark` / `provider` / `gmt_create` / `gmt_update`。 核对：页面默认表头不含「类型」，点「选择列」可勾选显示；刷新后配置保留；`curl '.../Metadata/Security/List?page=1&pageSize=1'` 的 `data.list[0]` 含上述四个字段；`cd Web && npm run build` 退出码 0。 | 11328 | 1 |
 | `/Meta/Finv/MetaData/Security` 表格在列全开时不得压缩列导致内容换行溢出，并支持自定义拖拽调节各列列宽（列宽存 localStorage `finv:meta:security:widths`，双击表头边界恢复默认，恢复默认列配置时一并清空列宽）。 核对：表格 CSS 含 `table-layout: auto` 与 `white-space: nowrap`；选中全部 20 列后页面无换行单元格且可横向滚动；拖动表头边界后刷新页面列宽保持；双击边界恢复默认宽度；`cd Web && npm run build` 退出码 0。 | 11329 | 1 |
-| **合计** | **10001–11329** | **1325**（含 4 条待办；11273–11329 为后续追加） |
+| `/Meta/Finv/MetaData/Security` 新增按 交易所 / 市场 / 类型 / 子类 / 货币 / 状态 / 提供方 筛选，表格默认按 交易所 → 市场 → 源代码 升序；新增接口 `GET .../Metadata/Security/FilterOptions` 返回四组 DISTINCT 筛选项。 核对：`curl '.../Security/List?page=1&pageSize=3'` 首行 `exchange_code/marketCode/security_code` 为升序；`curl '.../Security/List?exchangeCode=12&securityType=Stock&currencyType=CNY&flagEnable=1'` 返回 2977 行且全部匹配；`curl '.../Security/FilterOptions'` 返回 types/type_secu_subs/currencies/providers；页面 7 个筛选下拉可用、「重置」清空；`cd Web && npm run build` 退出码 0。 | 11330 | 1 |
+| **合计** | **10001–11330** | **1326**（含 4 条待办；11273–11330 为后续追加） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。

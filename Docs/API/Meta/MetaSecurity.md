@@ -6,7 +6,8 @@ finv_security 证券代码字典维护接口：分页查询、新增/修改、�
 > `type_secu_sub`（子类）与 `is_favorite`（是否收藏，需求 11312/11327），以及
 > `remark`（备注）、`provider`（数据提供方）、`gmt_create` / `gmt_update`（记录创建/更新时间，
 > RFC3339）供页面「选择列」按需展示（需求 11328）。
-> 排序约定：`List` 分页结果**启用的（flag_enable='1'）优先展示**，禁用的排后面，同状态按 usc 升序（交易所/市场 List 同理）。
+> 排序约定（需求 11330）：`List` 分页结果按 **交易所（`exchange_code`）→ 市场（`market_code`）→
+> 源代码（`security_code`）升序**，同键再按 `usc` 兜底保证分页稳定。
 
 ## 1. 分页查询证券
 
@@ -19,6 +20,12 @@ finv_security 证券代码字典维护接口：分页查询、新增/修改、�
 |------|------|------|------|
 | `keyword` | string | 可选 | 关键字，匹配 usc / security_code / security_name / security_name_cn（任一包含即命中） |
 | `flagEnable` | string | 可选 | 按启用状态过滤：`0`（禁用）/ `1`（启用）；兼容旧名 `flag_enable` |
+| `exchangeCode` | int | 可选 | 交易所代码（`finv_exchange.exchange_code`），≤0 或不传表示不限 |
+| `marketCode` | int | 可选 | 市场代码（`finv_market.market_code`），≤0 或不传表示不限 |
+| `securityType` | string | 可选 | 证券类型（`security_type` 精确匹配）；空或 `all` 不限 |
+| `typeSecuSub` | string | 可选 | 证券子类（`type_secu_sub` 精确匹配）；空或 `all` 不限 |
+| `currencyType` | string | 可选 | 货币（`currency_type` 精确匹配）；空或 `all` 不限 |
+| `provider` | string | 可选 | 数据提供方（`provider` 精确匹配）；空或 `all` 不限 |
 | `page` | int | 可选 | 页码（从 1 开始，默认 1） |
 | `pageSize` | int | 可选 | 每页条数（默认 20，上限 500）；兼容旧名 `page_size` |
 
@@ -55,6 +62,27 @@ finv_security 证券代码字典维护接口：分页查询、新增/修改、�
         "is_favorite": false
       }
     ]
+  }
+}
+```
+
+## 1.5 筛选项（DISTINCT 值）
+
+- **方法**：`GET`
+- **路径**：`/API/V1/Meta/Finv/Quant/Metadata/Security/FilterOptions`
+- **说明**：返回类型 / 子类 / 货币 / 提供方四组 DISTINCT 值（空串与 NULL 不入选），供页面筛选下拉使用（需求 11330）。
+
+响应示例（实测：类型 18 个、子类 31 个、货币 43 个、提供方 1 个）：
+
+```json
+{
+  "code": 0,
+  "message": "查询完成",
+  "data": {
+    "types": ["Bond", "BondIndex", "CommodityIndex", "Crypto", "ETF", "FOF"],
+    "type_secu_subs": ["BondIndex.SH", "BondIndex.SZ", "CER", "CIX", "CommodityIndex.HK"],
+    "currencies": ["AED", "ARS", "AUD", "BGN", "BRL", "CAD"],
+    "providers": ["FTMM"]
   }
 }
 ```
