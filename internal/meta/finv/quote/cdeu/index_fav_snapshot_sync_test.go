@@ -52,6 +52,10 @@ func TestIndexFavTargetMoomooCode(t *testing.T) {
 		{"美股小写代码", IndexFavTarget{SecurityCode: "ndx", ExchangeFlag: "us"}, "US..NDX"},
 		{"空代码", IndexFavTarget{SecurityCode: "  ", ExchangeFlag: "HK"}, ""},
 		{"不支持的交易所", IndexFavTarget{SecurityCode: "000001", ExchangeFlag: "SH"}, ""},
+		// futu 映射表优先：HSIII 的 security_code 是字母别名，真实柜台代码是 HK.800806
+		{"映射表优先（港股）", IndexFavTarget{SecurityCode: "HSIII", ExchangeFlag: "HK", FtmmSymbol: "hk.800806"}, "HK.800806"},
+		{"映射表优先（美股）", IndexFavTarget{SecurityCode: "DJI", ExchangeFlag: "US", FtmmSymbol: " US..DJI "}, "US..DJI"},
+		{"映射表为空回退拼装", IndexFavTarget{SecurityCode: "800000", ExchangeFlag: "HK", FtmmSymbol: "  "}, "HK.800000"},
 	}
 	for _, c := range cases {
 		if got := c.in.MoomooCode(); got != c.want {

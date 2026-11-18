@@ -2891,6 +2891,15 @@
 
 ### 修复
 
+- **修「指数」Tab 采集日志长期 WARN「接口未返回 HK.HSIII」（需求 11334）**
+  - 根因：`public.finv_security` 里 `HSIII`（恒生互联网科技业指数）的 `security_code` 是字母别名，
+    按交易所拼出 `HK.HSIII`，moomoo 不认；真实柜台代码在 `futu.finv_futu_usc_map.ftmm_symbol` =`HK.800806`。
+  - code 解析改为**优先 `ftmm_symbol`**（`ACTIVE` + `instrument='index'`，多行取最新），
+    取不到才回退「交易所 + security_code」拼装。
+  - 实测：收藏 5 个指数 → 返回 **5** 行、`Missing` 为空；`HSIII` 落库 `price=1822.26`、
+    `change=-17.24`、`ratio=-0.009372`、`market=1/HK`、`instrument_type=6`。
+
+
 - **证券字典底部重复分页整合为单一分页控件（需求 11331）**
   - `v-data-table` 加 `hide-default-footer`：服务端分页下表格自带 footer 不工作，
     之前页面上出现两个分页组件、第一个点了无反应。

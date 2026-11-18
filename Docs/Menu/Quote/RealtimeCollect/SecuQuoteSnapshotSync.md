@@ -195,13 +195,13 @@ ETF 代码同样按 `(exchange, code)` 解析 `public.finv_security.usc`；实�
 | 项 | 内容 |
 |---|---|
 | 数据源 | `quote.finv_quote_secu_fav`（收藏表）中 `security_type ∈ {StockIndex, Index}` 且 `exchange_flag ∈ {HK, US}` 的 `usc` |
-| code 规则 | 港股 `HK.<security_code>`（如 `HK.800000`）、美股 `US..<security_code>`（**双点**，如 `US..DJI`）；别名 `HK.HSI`、单点 `US.DJI` 实测均不命中 |
+| code 规则 | **优先** `futu.finv_futu_usc_map.ftmm_symbol`（`status='ACTIVE'`、`instrument='index'`，如 `HSI`→`HK.800000`、`HSIII`→`HK.800806`、`DJI`→`US..DJI`）；查不到才按港股 `HK.<security_code>`、美股 `US..<security_code>`（**双点**）拼；别名 `HK.HSI`、单点 `US.DJI` 实测均不命中 |
 | 落库表 | `cdeu.finv_quote_secu_realtime`（主键 `usc`，`provider` 固定 `MMAPI`，`instrument_type=6`，`market_type` 港股 `1` / 美股 `2`，`market_label` `HK` / `US`） |
 | 覆盖语义 | `COALESCE(EXCLUDED.col, t.col)` **有值才覆盖**：只写身份列与行情列，不碰 `rmb_*` / `market_value` 等其它来源的列（需求 11287 同口径） |
 | 触发 | 本 Tab「开始同步」→ `POST .../FTStockQuoteSnapshotSync/Run`（`instrument_symbol=index`）；运行状态、逐批日志、轮询与其它 Tab 共用。配置行优先：配置表存在启用的 `index` 行时仍走通用列表采集 |
 | 凭据配置入口 | 与「加密货币」Tab **共用**同一张「moomoo OpenAPI 凭据」卡片（`sys.sys_config` 20016），切到本 Tab 自动加载，不需要重复填写 |
 | 参数 | `page_size` 固定 400 且不可改（moomoo 接口单次上限）；`interval_ms` / `count_plan` 等不生效（一次取全量）；`request_timeout_ms` 作为本次采集总超时 |
-| 未返回 code | 上游没返回的 code 记入结果 `Missing` 并在日志打一行 WARN，不报错、不写库（多为上游未覆盖的长尾指数，如 `HK.HSIII`） |
+| 未返回 code | 上游没返回的 code 记入结果 `Missing` 并在日志打一行 WARN，不报错、不写库（多为上游未覆盖的长尾指数）；`security_code` 是字母别名的指数靠 `ftmm_symbol` 兜底解决（需求 11334，如 `HSIII`→`HK.800806`），修前它会一直出现在 WARN 里 |
 | 独立接口 | `POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Index/Fav/Snapshot/Sync` 可直接触发（见 [IndexFavSnapshotSync.md](../../../API/Cdeu/IndexFavSnapshotSync.md)） |
 
 ### 2.1 采集配置（只读表格）

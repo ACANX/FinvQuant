@@ -35,12 +35,20 @@
 
 单批 code 数**固定为 400**（moomoo 快照接口上限），不提供 `batch_size` 参数。
 
-## 3. moomoo code 规则（实测 2026-11-18）
+## 3. moomoo code 规则（实测 2026-11-18 / 2026-11-19）
 
-| 交易所 | code 形式 | 示例 | 说明 |
-|---|---|---|---|
-| 港股 `HK` | `HK.<security_code>` | `HK.800000`（恒生指数） | 必须用官方数字代码 |
-| 美股 `US` | `US..<security_code>` | `US..DJI` / `US..NDX` / `US..SPX` / `US..VIX` | **双点**前缀，指数专用 |
+**优先取 `futu.finv_futu_usc_map.ftmm_symbol`**（该列正是 moomoo code 形态，`status='ACTIVE'`、`instrument='index'`，
+同一 `usc` 有多行时取 `dt_compute` 最新的一行）；**查不到才按交易所 + `security_code` 拼**。
+
+| 优先级 | 来源 | 示例 |
+|---|---|---|
+| 1 | `futu.finv_futu_usc_map.ftmm_symbol` | `HSI`→`HK.800000`、`HSIII`→`HK.800806`、`DJI`→`US..DJI` |
+| 2 | 港股 `HK.<security_code>` | `HK.800000`（恒生指数） |
+| 3 | 美股 `US..<security_code>` | `US..DJI` / `US..NDX` / `US..SPX` / `US..VIX`（**双点**前缀，指数专用） |
+
+为什么要优先映射表：证券主数据的 `security_code` 可能只是字母别名。实测 `HSIII`
+（恒生互联网科技业指数）的 `security_code` 就是 `HSIII`，按交易所拼出 `HK.HSIII` 上游**不返回**；
+而映射表里的 `ftmm_symbol = HK.800806` 能正常命中。
 
 实测结论：
 
@@ -48,6 +56,7 @@
 |---|---|
 | `HK.800000` | 命中 `Hang Seng Index` |
 | `HK.800700` | 命中 `Hang Seng TECH Index` |
+| `HK.800806` | 命中 `HSIII`（恒生互联网科技业指数，点位 1822.26） |
 | `HK.HSI` / `HK.HSTECH` / `HK.HSIII` | 不命中（别名不支持） |
 | `US..DJI` / `US..IXIC` / `US..NDX` / `US..SPX` / `US..VIX` | 命中对应美股指数 |
 | `US.DJI` / `US.NDX` / `US.SPX` | 不命中（单点形态查不到） |
@@ -135,8 +144,9 @@
 
 | 轮次 | 收藏指数 | codes | 返回行 | 新增 | 覆盖 | 未返回 | 耗时 |
 |---|---|---|---|---|---|---|---|
-| 第 1 轮 | 5（HSI / HSIII / HTI / DJI / SPX） | 5 | 4 | 4 | 0 | `HK.HSIII` | 1774 ms |
+| 第 1 轮（映射表未接入，`HK.HSIII` 无效） | 5（HSI / HSIII / HTI / DJI / SPX） | 5 | 4 | 4 | 0 | `HK.HSIII` | 1774 ms |
 | 第 2 轮（幂等复跑） | 5 | 5 | 4 | 0 | 4 | `HK.HSIII` | 2049 ms |
+| 第 3 轮（接入 `ftmm_symbol` 后） | 5 | 5 | **5** | 1（HSIII 首行） | 4 | **无** | 1602 ms |
 
 落库抽查（`provider='MMAPI'`）：
 
@@ -144,7 +154,8 @@
 |---|---|---|---|---|---|---|---|
 | `HSI` | `1` | `HK` | `6` | `HKD` | 23294.75 | -213.42 | -0.009079 |
 | `HTI` | `1` | `HK` | `6` | `HKD` | 3736.33 | -21.84 | -0.005811 |
-| `DJI` | `2` | `US` | `6` | `USD` | 50759.42 | 保留库内原值 | 保留库内原值 |
+| `HSIII` | `1` | `HK` | `6` | `HKD` | 1822.26 | -17.24 | -0.009372 |
+| `DJI` | `2` | `US` | `6` | `USD` | 50198.17 | -561.25 | -0.011057 |
 | `SPX` | `2` | `US` | `6` | `USD` | 7340.53 | 保留库内原值 | 保留库内原值 |
 
 > 美股指数在非交易时段上游不返回 `prev_close_price`，此时 `change_price` / `change_ratio` 写 `NULL`，

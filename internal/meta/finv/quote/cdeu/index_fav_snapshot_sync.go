@@ -9,10 +9,16 @@ package cdeu
 // 按 usc upsert 到 cdeu.finv_quote_secu_realtime（有值才覆盖，见 quoteSecuRealtimeUpdateClause）。
 //
 // moomoo code 形式（实测 2026-11-18）：
-//   - 港股指数用 `HK.<代码>`，如 `HK.800000`（恒生指数）、`HK.800700`（恒生科技指数）；
+//   - 港股指数用 `HK.<数字代码>`，如 `HK.800000`（恒生指数）、`HK.800700`（恒生科技指数）、
+//     `HK.800806`（恒生互联网科技业指数）；
 //   - 美股指数用 **双点** `US..<代码>`，如 `US..DJI` / `US..NDX` / `US..SPX` / `US..VIX`；
 //     单点形态 `US.DJI` 查不到（会被当成同代码的 ETF，`US.DJIA` 就是 ETF）；
-//   - 港股别名形态 `HK.HSI` / `HK.HSTECH` 不受支持，必须用官方数字代码。
+//   - 港股别名形态 `HK.HSI` / `HK.HSTECH` / `HK.HSIII` 不受支持，必须用官方数字代码。
+//
+// **code 优先取 `futu.finv_futu_usc_map.ftmm_symbol`（该列正是 moomoo code 形态，
+// 如 HSI→HK.800000、HSIII→HK.800806、DJI→US..DJI）；查不到时才按交易所 + security_code 拼。**
+// 这条兜底顺序是必需的：证券主数据里 `security_code` 可能是字母别名（HSIII 就是 HSIII，
+// 拼成 HK.HSIII 上游不认），而 futu 映射表存的是真实柜台代码。
 //
 // 凭据复用「加密货币」Tab 保存的 moomoo 配置（sys.sys_config 20016，见 moomoo_config.go）。
 //
@@ -53,16 +59,24 @@ const (
 type IndexFavTarget struct {
 	// USC public.finv_security.usc（收藏表主键，落库主键）。
 	USC string
-	// SecurityCode 官方代码（港股 800000，美股 DJI），拼 moomoo code 用。
+	// SecurityCode 证券主数据里的代码（港股 800000，美股 DJI）。可能只是字母别名（HSIII）。
 	SecurityCode string
 	// ExchangeFlag 交易所标志（HK / US）。
 	ExchangeFlag string
 	// Currency 计价货币（currency_type，缺省按交易所兜底）。
 	Currency string
+	// FtmmSymbol futu 映射表里的柜台符号（HK.800000 / US..DJI），优先作为 moomoo code。
+	FtmmSymbol string
 }
 
 // MoomooCode 拼 moomoo OpenAPI 的 code；不支持的交易所返回空串。
+//
+// 优先用 futu 映射表的 `ftmm_symbol`（本身就是 `HK.800806` / `US..DJI` 形态）；
+// 没有再按 `交易所 + security_code` 拼。两者都拿不到时返回空串（调用方跳过该指数）。
 func (t IndexFavTarget) MoomooCode() string {
+	if ftmm := strings.ToUpper(strings.TrimSpace(t.FtmmSymbol)); ftmm != "" {
+		return ftmm
+	}
 	code := strings.TrimSpace(t.SecurityCode)
 	if code == "" {
 		return ""
@@ -175,7 +189,8 @@ func (c *IndexFavSnapshotCollector) emit(stage string, pages, rows int, inserted
 func (c *IndexFavSnapshotCollector) Collect(
 	ctx context.Context, opts IndexFavSnapshotCollectOptions,
 ) (IndexFavSnapshotResult, error) {
-	var result IndexFavSnapshotResult
+	// Missing 预置为空切片：接口 JSON 输出 `[]` 而不是 `null`，前端无需判空特例。
+	result := IndexFavSnapshotResult{Missing: []string{}}
 	opts = opts.normalize()
 	started := time.Now()
 
