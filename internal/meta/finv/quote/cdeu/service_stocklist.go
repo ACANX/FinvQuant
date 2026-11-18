@@ -5,6 +5,8 @@ import (
 	"log"
 
 	"github.com/acnxo/MetaExt/component/quote/moomoo/quoteapiv2"
+
+	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/webapi"
 )
 
 // 本文件是「实时行情列表采集」在 Service 层的薄封装：只做依赖装配，
@@ -50,6 +52,11 @@ func (s *Service) SetXetIndexFetcher(fetcher XetIndexSnapshotFetcher) {
 		fetcher = NewXetIndexFetcher()
 	}
 	s.xetIndexFetcher = fetcher
+}
+
+// SetMoomooSnapshotFetcher 替换收藏加密货币快照拉取实现（单测注入用）；传 nil 恢复默认 webapi 客户端（需求 11316）。
+func (s *Service) SetMoomooSnapshotFetcher(fetcher webapi.Fetcher) {
+	s.moomooSnapshotFetcher = fetcher
 }
 
 // CollectFuturesList 按配置采集期货列表：读配置 → 分页拉取 → 逐页落库 → 回写统计（需求 11274）。

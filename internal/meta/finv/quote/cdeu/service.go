@@ -12,6 +12,8 @@ import (
 	jobdef "github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/jobmeta"
 	"github.com/acanx/finvquant/internal/meta/finv/sys"
 	"github.com/acnxo/MetaExt/component/quote/moomoo/quoteapiv2"
+
+	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/webapi"
 )
 
 // Result 一次 Job 执行的结果（同时写入 finv_quote_cdeu_job_run_log_export_file）。
@@ -93,6 +95,9 @@ type Service struct {
 
 	// xetIndexFetcher 沪深京指数快照拉取实现（默认 MetaExt xetapp；单测可注入，需求 11294）。
 	xetIndexFetcher XetIndexSnapshotFetcher
+
+	// moomooSnapshotFetcher 收藏加密货币快照拉取实现（默认 webapi 客户端；单测可注入，需求 11316）。
+	moomooSnapshotFetcher webapi.Fetcher
 }
 
 // NewService 创建归档服务。

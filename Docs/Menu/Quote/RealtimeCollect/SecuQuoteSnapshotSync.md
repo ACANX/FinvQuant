@@ -177,6 +177,18 @@ ETF 代码同样按 `(exchange, code)` 解析 `public.finv_security.usc`；实�
 | 下架标记 | 整轮「全部启用分类都成功」才把 `dt_last_seen < 本轮开始时刻` 的行置 `flag_online='0'`，单分类/部分失败跳过 |
 | 页面 | 配置表区显示 8 行分类（分类 / 分类名称（空显示「待确认」）/ 市场 / 计划 / 分类合约总数 / 本轮可采集）；参数区「期货分类」下拉（首项「全部期货分类」）；市场下拉隐藏；结果表首列按分类显示 |
 
+#### 2.0.6 收藏加密货币采集（`crypto`，需求 11316）
+
+| 项 | 内容 |
+|---|---|
+| 数据源 | `quote.finv_quote_secu_fav`（收藏表）中属于加密货币的 `usc` → moomoo OpenAPI `POST /api/v1.0/quote/snapshot`（`CC.<usc>`，一次最多 400 个） |
+| 落库表 | `cdeu.finv_quote_secu_realtime_crypto`（主键 `usc`，`provider` 固定 `MMAPI`） |
+| 触发 | 本 Tab「开始同步」→ `POST .../FTStockQuoteSnapshotSync/Run`（`instrument_symbol=crypto`）；运行状态、逐批日志、轮询与其它 Tab 共用 |
+| 凭据 | 服务端环境变量 `FINV_MOOMOO_APP_KEY` / `FINV_MOOMOO_PRIVATE_KEY`（未配置时运行日志给 ERROR，任务直接失败） |
+| 参数 | `page_size` / `interval_ms` / `count_plan` 等不生效（一次取全量）；`request_timeout_ms` 作为本次采集总超时 |
+| 日志 | 启动一行 INFO（provider + 结果表）、每批一行 INFO（codes / rows / 新增 / 覆盖）、失败一行 ERROR；采集完成后结果区显示批次数与新增/覆盖行数 |
+| 空收藏 | 收藏表里没有加密货币时打「跳过采集」，任务按成功结束（新增/覆盖均为 0） |
+
 ### 2.1 采集配置（只读表格）
 
 展示**当前 Tab 品种**的配置，数据来自 `cdeu.finv_cdeu_secu_realtime_sync_config`（`flag_enable='1'`）：

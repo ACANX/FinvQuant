@@ -132,6 +132,23 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 | 运行状态 / 日志 | 与 moomoo 分支共用同一运行持有者与轮询端点，`results[].instrument_symbol` 为 `cnindex`、`market_type` 为 `4`；日志含池级统计与未知接口码（上限 50）逐条清单 |
 | 主要失败原因 | 任一池请求失败（上游整包返回错误）、映射表缺该接口码（逐条跳过并计数）、`finv_security` 查询失败 |
 
+### 2.7 按品种分支：收藏加密货币采集（需求 11316）
+
+`instrument_symbol` 为 `crypto` 时走**独立分支**（固定来源，不读配置表）：从收藏表
+`quote.finv_quote_secu_fav` 取加密货币 `usc` → `CC.<usc>` → moomoo OpenAPI
+`POST https://webapi.moomoo.com/api/v1.0/quote/snapshot`（一次最多 400 个）→
+upsert 到 `cdeu.finv_quote_secu_realtime_crypto`。
+
+| 项 | 行为 |
+|---|---|
+| 请求体 | 只需 `instrument_symbol: "crypto"`；`market_type` / `count_plan` / `page_size`、限速与重试参数均不生效（一次取全量） |
+| 生效参数 | `request_timeout_ms`（本次采集总超时，默认 20000） |
+| 凭据 | 服务端环境变量 `FINV_MOOMOO_APP_KEY` / `FINV_MOOMOO_PRIVATE_KEY`；未配置时任务失败并在日志给出 ERROR |
+| 落库表 | `cdeu.finv_quote_secu_realtime_crypto`（主键 `usc`，`provider` 固定 `MMAPI`） |
+| 统计字段 | `results[0]`：`instrument_symbol=crypto`、`pages`=批次数、`rows_receive`=上游返回行数、`insert`/`update`、`count_exists`=上游行数、`total_available`=收藏加密货币数 |
+| 日志 | 启动（INFO，provider + 结果表）、每批（INFO：codes / rows / 新增 / 覆盖）、失败（ERROR）；空收藏打「跳过采集」并按成功结束 |
+| 主要失败原因 | 未配置凭据、私钥解析失败、上游 `ret_code != 0`、写库失败 |
+
 ## 3. 轮询状态
 
 `GET .../FTStockQuoteSnapshotSync/Run`（`runId` 省略时取最近一次）：

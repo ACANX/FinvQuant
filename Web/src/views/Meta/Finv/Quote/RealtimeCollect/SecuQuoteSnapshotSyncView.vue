@@ -117,19 +117,21 @@ const SYMBOL_ICONS: Record<string, string> = {
 // 占位品种（需求 11256）：按此顺序排在配置表已有品种之后，暂未接入采集，仅出 Tab。
 // 符号与后续配置表的 instrument_symbol 保持一致，接入时插配置行即自动生效。
 // 期货已于需求 11274 接入真实采集，故从占位清单移除（Tab 位置由 SYMBOL_ORDER 决定）。
-const PLACEHOLDER_SYMBOLS = ['index', 'etf', 'crypto', 'sector', 'portfolio', 'otc', 'gold']
+const PLACEHOLDER_SYMBOLS = ['index', 'etf', 'sector', 'portfolio', 'otc', 'gold']
 // 期货符号（需求 11274）：配置读 cdeu.finv_quote_cdeu_future_sync_config，结果落
 // cdeu.finv_quote_realtime_future；运行状态与日志复用同一套接口。
 const FUTURES_SYMBOL = 'future'
 // 已接入真实采集、但配置表（cdeu.finv_cdeu_secu_realtime_sync_config）没有采集行的品种：
 // bsestock = 板块 GN2309（北交所上市企业）、cnetf = 国证ETF 指数 399380（沪深京 ETF），BDFS 源；
 // cnindex = 沪深京指数（中信 XetApp，需求 11294），6 池合并去重，provider=ZXET。全量拉取，无需配置行。
-const FIXED_SYMBOLS = ['bsestock', 'cnindex', 'cnetf']
+// crypto = 收藏的加密货币（moomoo OpenAPI market-snapshot，需求 11316），来源为 quote.finv_quote_secu_fav，无需配置行。
+const FIXED_SYMBOLS = ['bsestock', 'cnindex', 'cnetf', 'crypto']
 // 固定来源品种各自的市场取值（服务端 BDFS 分支忽略该参数，仅用于界面展示与请求语义清晰）
 const FIXED_MARKET: Record<string, { title: string; value: string }> = {
   bsestock: { title: 'BJ 北交所', value: 'BJ' },
   cnindex: { title: 'CN A 股（沪深京）', value: '4' },
   cnetf: { title: 'CN A 股（沪深京）', value: '4' },
+  crypto: { title: '收藏的加密货币', value: '' },
 }
 // Tab 固定展示顺序（需求 11256/11262/11263）：配置表没出现的品种按此顺序补齐，
 // bsestock 固定在「指数 / ETF / 期货 / 加密货币」之后，cnindex（沪深京指数，XetApp 源，需求 11294）与 cnetf（沪深京ETF，BDFS 源）紧随其后。
@@ -523,7 +525,13 @@ onBeforeUnmount(stopPolling)
               </template>
               <template v-else-if="activeSymbol === 'cnindex'">
                 该品种为沪深京指数采集（中信 XetApp，上游 4 池 + 深市 1200 + 北交所 1400 合并去重），
-                全量拉取指数快照，无需配置表行；结果写入 cdeu.finv_quote_secu_realtime（provider=ZXET，instrument_type=4）
+                全量拉取指数快照，无需配置表行；结果写入 cdeu.finv_quote_secu_realtime（provider=ZXET，instrument_type=6）
+              </template>
+              <template v-else-if="activeSymbol === 'crypto'">
+                该品种为「收藏的加密货币」采集（moomoo OpenAPI market-snapshot）：
+                来源为 quote.finv_quote_secu_fav 里收藏的加密货币（CC.&lt;usc&gt;，一次最多 400 个），
+                结果写入 cdeu.finv_quote_secu_realtime_crypto（provider=MMAPI）；
+                需服务端配置 FINV_MOOMOO_APP_KEY / FINV_MOOMOO_PRIVATE_KEY
               </template>
               <template v-else-if="activeSymbol === 'cnetf'">
                 该品种为 BDFS ETF 采集（国证ETF 指数 399380，覆盖沪深京 ETF），全量拉取成分股行情，无需配置表行；

@@ -1,6 +1,6 @@
 # POST /API/V1/Meta/Finv/Quote/Crypto/Fav/Snapshot/Sync — 收藏加密货币行情快照采集
 
-> 所属：行情 → 实时行情（能力接口，暂无独立页面按钮）
+> 所属：行情 → 实时行情 → 行情快照同步 →「加密货币」Tab（`instrument_symbol=crypto`，需求 11316 起接入）
 > 数据表：`cdeu.finv_quote_secu_realtime_crypto`（建表 `V300225`，需求 11314）
 > 数据来源：`quote.finv_quote_secu_fav`（收藏表）→ moomoo OpenAPI `POST /api/v1.0/quote/snapshot`
 > 实现：`internal/api/handler/cdeu_crypto_snapshot.go`、
@@ -15,7 +15,9 @@
 
 - 请求代码 = `CC.` + `usc`（`BTCUSD` → `CC.BTCUSD`），一次最多 400 个；
 - 接口 `ret_code != 0` 或 HTTP 非 200 → 整批失败（不写半批）；
-- 收藏表里没有加密货币 → 返回空结果（`usc_total=0`），不报错。
+- 收藏表里没有加密货币 → 返回空结果（`usc_total=0`），不报错；
+- **同一个采集器**也挂在「行情快照同步 → 加密货币」Tab 上：`POST .../FTStockQuoteSnapshotSync/Run`
+  传 `instrument_symbol=crypto` 即可触发，并复用运行状态 / 逐批日志 / 轮询接口（需求 11316）。
 
 ## 2. 请求
 

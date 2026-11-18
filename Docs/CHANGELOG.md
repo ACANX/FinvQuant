@@ -20,6 +20,18 @@
 
 ### 新增
 
+- **「行情快照同步 → 加密货币」Tab 接入收藏加密货币采集（需求 11316）**
+  - 前端 `crypto` 从占位 Tab 转为实装：`POST .../FTStockQuoteSnapshotSync/Run` 传
+    `instrument_symbol=crypto`，结果表说明卡片、市场选项（收藏的加密货币）与既有 Tab 同构。
+  - 后端新增 `startCryptoFavRun` 分支（固定来源，无配置行）：读 `quote.finv_quote_secu_fav`
+    的加密货币 → `CC.<usc>` → moomoo OpenAPI 快照 → upsert `cdeu.finv_quote_secu_realtime_crypto`；
+    运行状态 / 逐批日志 / 轮询接口与其它 Tab 共用。
+  - 采集器新增 `WithHook` 事件（begin / 每批 / 失败），日志实时写进运行面板；
+    未配置 `FINV_MOOMOO_APP_KEY` / `FINV_MOOMOO_PRIVATE_KEY` 时任务失败并在日志给出 ERROR。
+  - 验证：`go test ./internal/meta/finv/quote/cdeu/ -run Crypto` 通过（转换 / hook / 结果映射）；
+    `go build ./...`、`cd Web && npm run build` 通过。
+
+
 - **收藏的加密货币行情快照采集（需求 11314）**
   - 新表 `cdeu.finv_quote_secu_realtime_crypto`（迁移 `V300225`）：主键 `usc`、33 列
     （代码 / 名称 / 计价货币 / 价格六列 / 涨跌与振幅 / 成交与盘口 / 52 周与历史极值 /

@@ -26,6 +26,8 @@ const (
 	MoomooCryptoCodePrefix = "CC."
 	// CryptoProvider 加密货币快照表的 provider 固定值。
 	CryptoProvider = "MMAPI"
+	// CryptoFavSymbol 前端 Tab 符号（instrument_symbol=crypto，需求 11316）。
+	CryptoFavSymbol = "crypto"
 )
 
 // CryptoFavSnapshotCollectOptions 采集控制参数（零值按默认值补齐）。
@@ -75,6 +77,32 @@ type CryptoFavSnapshotCollector struct {
 	fetcher webapi.Fetcher
 	store   CryptoFavSnapshotStore
 	logger  *log.Logger
+	hook    StockListCollectHook
+}
+
+// WithHook 设置过程事件回调（链式；供运行日志面板消费，需求 11316）。
+func (c *CryptoFavSnapshotCollector) WithHook(hook StockListCollectHook) *CryptoFavSnapshotCollector {
+	c.hook = hook
+	return c
+}
+
+// emit 发送一条过程事件。
+func (c *CryptoFavSnapshotCollector) emit(stage string, pages, rows int, inserted, updated int64, message string) {
+	if c.hook == nil {
+		return
+	}
+	c.hook(StockListCollectEvent{
+		Stage: stage,
+		Config: StockListCollectConfig{
+			InstrumentSymbol: CryptoFavSymbol,
+		},
+		Page:    pages,
+		Rows:    rows,
+		Insert:  inserted,
+		Update:  updated,
+		Message: message,
+		Time:    time.Now(),
+	})
 }
 
 // NewCryptoFavSnapshotCollector 创建采集器；logger 为 nil 时用 log.Default()。
@@ -107,8 +135,11 @@ func (c *CryptoFavSnapshotCollector) Collect(
 		return result, err
 	}
 	result.USCTotal = len(uscs)
+	c.emit("begin", 0, 0, 0, 0,
+		fmt.Sprintf("开始采集收藏的加密货币行情快照（provider=%s，收藏=%d）", CryptoProvider, len(uscs)))
 	if len(uscs) == 0 {
 		c.logger.Printf("[cdeu][crypto] 收藏表里没有加密货币，跳过采集")
+		c.emit("page", 0, 0, 0, 0, "收藏表里没有加密货币，跳过采集")
 		return result, nil
 	}
 
@@ -135,6 +166,8 @@ func (c *CryptoFavSnapshotCollector) Collect(
 		batch := codes[start:end]
 		snapshots, err := c.fetcher.GetQuoteSnapshots(runCtx, batch)
 		if err != nil {
+			c.emit("retry", start/opts.BatchSize+1, 0, 0, 0,
+				fmt.Sprintf("第 %d 批拉取失败：%v", start/opts.BatchSize+1, err))
 			return result, fmt.Errorf("拉取加密货币快照失败（第 %d 批）: %w", start/opts.BatchSize+1, err)
 		}
 		result.Batches++
@@ -159,6 +192,9 @@ func (c *CryptoFavSnapshotCollector) Collect(
 		}
 		c.logger.Printf("[cdeu][crypto] 第 %d 批：codes=%d rows=%d 新增=%d 覆盖=%d",
 			start/opts.BatchSize+1, len(batch), len(rows), inserted, updated)
+		c.emit("page", start/opts.BatchSize+1, len(rows), inserted, updated,
+			fmt.Sprintf("第 %d 批：codes=%d rows=%d 新增=%d 覆盖=%d",
+				start/opts.BatchSize+1, len(batch), len(rows), inserted, updated))
 	}
 
 	result.ElapsedMs = time.Since(started).Milliseconds()

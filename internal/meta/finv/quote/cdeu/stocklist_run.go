@@ -4,12 +4,15 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/acnxo/MetaExt/component/quote/moomoo/quoteapiv2"
+
+	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/webapi"
 )
 
 // 本文件实现「采集运行管理」：把一次列表采集放到后台执行，并把逐页日志与进度
@@ -215,6 +218,12 @@ func (s *Service) StartStockListRun(opts StockListCollectOptions) (StockListRun,
 	// 结果落 cdeu.finv_quote_secu_realtime（provider='ZXET'）。
 	if normalized.FilterInstrumentSymbol == XetIndexSymbol {
 		return s.startXetIndexRun(normalized)
+	}
+
+	// 需求 11316：加密货币（crypto）走「收藏表 → moomoo OpenAPI market-snapshot」，
+	// 固定来源、无配置行，结果落 cdeu.finv_quote_secu_realtime_crypto。
+	if normalized.FilterInstrumentSymbol == CryptoFavSymbol {
+		return s.startCryptoFavRun(normalized)
 	}
 
 	// 需求 11274：期货列表采集（moomoo get-futures-list）与股票列表采集共用同一运行持有者
@@ -512,6 +521,80 @@ func (s *Service) startXetIndexRun(opts StockListCollectOptions) (StockListRun, 
 
 	run, _ := s.stockListRunner.snapshot(runID)
 	return run, nil
+}
+
+// startCryptoFavRun 启动一次「收藏加密货币行情快照」采集（需求 11316）。
+//
+// 与 XetIndex / BDFS 分支同位置：共用 StockListRunner（运行状态 + 日志 + 轮询接口），
+// 固定来源（收藏表 quote.finv_quote_secu_fav），结果写 cdeu.finv_quote_secu_realtime_crypto。
+func (s *Service) startCryptoFavRun(opts StockListCollectOptions) (StockListRun, error) {
+	if s.stockListRunner == nil {
+		s.stockListRunner = newStockListRunner()
+	}
+
+	params := map[string]any{
+		"instrument_symbol":  CryptoFavSymbol,
+		"provider":           CryptoProvider,
+		"target_table":       tableCryptoRealtime,
+		"request_timeout_ms": opts.RequestTimeout.Milliseconds(),
+	}
+	runID, err := s.stockListRunner.begin(params)
+	if err != nil {
+		return StockListRun{}, err
+	}
+
+	s.stockListRunner.appendLog(runID, StockListRunLog{
+		Level: "INFO",
+		Message: fmt.Sprintf("任务已启动：收藏加密货币行情快照（moomoo OpenAPI，provider=%s，结果表 %s）",
+			CryptoProvider, tableCryptoRealtime),
+	})
+
+	go func() {
+		fetcher := s.moomooSnapshotFetcher
+		if fetcher == nil {
+			client, clientErr := webapi.NewClientFromEnv()
+			if clientErr != nil {
+				s.stockListRunner.appendLog(runID, StockListRunLog{
+					Level:   "ERROR",
+					Message: "moomoo OpenAPI 初始化失败：" + clientErr.Error(),
+				})
+				s.stockListRunner.finish(runID, nil, clientErr)
+				return
+			}
+			if client == nil {
+				missingErr := errors.New("未配置 moomoo OpenAPI 凭据（FINV_MOOMOO_APP_KEY / FINV_MOOMOO_PRIVATE_KEY）")
+				s.stockListRunner.appendLog(runID, StockListRunLog{Level: "ERROR", Message: missingErr.Error()})
+				s.stockListRunner.finish(runID, nil, missingErr)
+				return
+			}
+			fetcher = client
+		}
+
+		collector := NewCryptoFavSnapshotCollector(fetcher, s.store, nil).WithHook(
+			func(event StockListCollectEvent) {
+				s.stockListRunner.appendLog(runID, StockListCollectEventToLog(event))
+			})
+		result, collectErr := collector.Collect(context.Background(),
+			CryptoFavSnapshotCollectOptions{Timeout: opts.RequestTimeout})
+		s.stockListRunner.finish(runID, []StockListCollectResult{cryptoResultToStockListResult(result)}, collectErr)
+	}()
+
+	run, _ := s.stockListRunner.snapshot(runID)
+	return run, nil
+}
+
+// cryptoResultToStockListResult 把加密货币采集结果转成运行面板统一结构。
+func cryptoResultToStockListResult(result CryptoFavSnapshotResult) StockListCollectResult {
+	return StockListCollectResult{
+		InstrumentSymbol: CryptoFavSymbol,
+		Pages:            result.Batches,
+		RowsReceived:     int64(result.RowsReceived),
+		RowsInsert:       result.RowsInsert,
+		RowsUpdate:       result.RowsUpdate,
+		CountExists:      result.RowsReceived,
+		TotalAvailable:   result.USCTotal,
+		ElapsedMs:        result.ElapsedMs,
+	}
 }
 
 // startBdfsSecuRealtimeRun 启动一次 BDFS 成分股采集（需求 11262）。
