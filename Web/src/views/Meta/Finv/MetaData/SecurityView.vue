@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { apiGet, apiPost } from '../../../../api'
 import { showToast } from '../../../../ui/toast'
@@ -92,11 +92,16 @@ const visibleKeys = ref<string[]>([...DEFAULT_VISIBLE_KEYS])
 const columnDialog = ref(false)
 const columnDraft = ref<string[]>([...DEFAULT_VISIBLE_KEYS])
 
+// 列宽（需求 11329）：拖拽表头右边界调整，存 localStorage；
+// 未调整的列用 SECURITY_COLUMNS 的默认宽度，单元格 nowrap 保证内容不被压成多行。
+const STORAGE_WIDTHS = 'finv:meta:security:widths'
+const columnWidths = ref<Record<string, number>>({})
+
 const headers = computed(() =>
   SECURITY_COLUMNS.filter((c) => visibleKeys.value.includes(c.key)).map((c) => ({
     title: c.title,
     key: c.key,
-    width: c.width,
+    width: columnWidths.value[c.key] ?? c.width,
     align: c.align,
     sortable: false,
   })),
@@ -114,6 +119,64 @@ function loadColumnConfig(): void {
   }
 }
 
+function loadColumnWidths(): void {
+  try {
+    const raw = localStorage.getItem(STORAGE_WIDTHS) ?? ''
+    if (!raw) return
+    const parsed = JSON.parse(raw) as Record<string, number>
+    const known = new Set(SECURITY_COLUMNS.map((c) => c.key))
+    const next: Record<string, number> = {}
+    for (const [key, width] of Object.entries(parsed)) {
+      if (known.has(key) && Number.isFinite(width) && width >= 48) next[key] = Math.round(width)
+    }
+    columnWidths.value = next
+  } catch {
+    columnWidths.value = {}
+  }
+}
+
+function persistColumnWidths(): void {
+  try {
+    localStorage.setItem(STORAGE_WIDTHS, JSON.stringify(columnWidths.value))
+  } catch {
+    // 忽略存储失败（仅本次生效）
+  }
+}
+
+// 拖拽调列宽：mousedown 记录起点，mousemove 实时更新，mouseup 落盘
+const resizing = ref<{ key: string; startX: number; startWidth: number } | null>(null)
+
+function startResize(event: MouseEvent, key: string): void {
+  const th = (event.currentTarget as HTMLElement).closest('th')
+  const startWidth = th?.getBoundingClientRect().width ?? columnWidths.value[key] ?? 120
+  resizing.value = { key, startX: event.clientX, startWidth }
+  window.addEventListener('mousemove', onResizeMove)
+  window.addEventListener('mouseup', stopResize)
+}
+
+function onResizeMove(event: MouseEvent): void {
+  const current = resizing.value
+  if (!current) return
+  const width = Math.max(48, Math.round(current.startWidth + (event.clientX - current.startX)))
+  columnWidths.value = { ...columnWidths.value, [current.key]: width }
+}
+
+function stopResize(): void {
+  if (!resizing.value) return
+  resizing.value = null
+  window.removeEventListener('mousemove', onResizeMove)
+  window.removeEventListener('mouseup', stopResize)
+  persistColumnWidths()
+}
+
+/** 双击表头右边界：恢复该列默认宽度。 */
+function resetColumnWidth(key: string): void {
+  const next = { ...columnWidths.value }
+  delete next[key]
+  columnWidths.value = next
+  persistColumnWidths()
+}
+
 function openColumnDialog(): void {
   columnDraft.value = [...visibleKeys.value]
   columnDialog.value = true
@@ -121,6 +184,8 @@ function openColumnDialog(): void {
 
 function resetColumns(): void {
   columnDraft.value = [...DEFAULT_VISIBLE_KEYS]
+  columnWidths.value = {}
+  persistColumnWidths()
 }
 
 function saveColumns(): void {
@@ -318,8 +383,14 @@ function search() {
 
 onMounted(() => {
   loadColumnConfig()
+  loadColumnWidths()
   load()
   loadOptions()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('mousemove', onResizeMove)
+  window.removeEventListener('mouseup', stopResize)
 })
 
 /** RFC3339 -> 本地 yyyy-MM-dd HH:mm:ss（空值 —）。 */
@@ -383,63 +454,721 @@ function timeText(value: string): string {
         :items-per-page="pageSize"
         item-value="usc"
         density="compact"
+        class="finv-sec-table"
       >
+        <!-- 表头右边界可拖拽调列宽（需求 11329）；双击恢复该列默认宽度 -->
+        <template v-for="column in headers" :key="`header-${column.key}`" #[`header.${column.key}`]>
+          <div class="th-cell">
+            <span class="th-title">{{ column.title }}</span>
+            <span
+              class="col-resizer"
+              :title="`拖动调整「${column.title}」列宽；双击恢复默认`"
+              @mousedown.stop.prevent="startResize($event, column.key)"
+              @dblclick.stop="resetColumnWidth(column.key)"
+            />
+          </div>
+        </template>
+
+<style scoped>
+/* 不压缩列（需求 11329）：单元格不换行，列宽不足时表格整体横向滚动，
+   而不是把长文本挤成多行。 */
+.finv-sec-table :deep(table) {
+  /* auto：列宽按设定宽度 + 内容最小宽，容器不够时横向滚动而不是压缩换行 */
+  table-layout: auto;
+}
+
+.finv-sec-table :deep(th),
+.finv-sec-table :deep(td) {
+  white-space: nowrap;
+}
+
+.finv-sec-table :deep(th) {
+  position: relative;
+  user-select: none;
+}
+
+/* 表头单元格：标题 + 右侧拖拽手柄 */
+.finv-sec-table .th-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finv-sec-table .th-title {
+  flex: 1 1 auto;
+}
+
+.finv-sec-table .col-resizer {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 18px;
+  cursor: col-resize;
+  border-right: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 1px;
+}
+
+.finv-sec-table .col-resizer:hover {
+  border-right-color: rgb(var(--v-theme-primary));
+}
+</style>
         <template #item.security_type="{ item }">
           <span :class="item.security_type ? '' : 'text-medium-emphasis'">
             {{ item.security_type || '—' }}
           </span>
         </template>
+
+<style scoped>
+/* 不压缩列（需求 11329）：单元格不换行，列宽不足时表格整体横向滚动，
+   而不是把长文本挤成多行。 */
+.finv-sec-table :deep(table) {
+  /* auto：列宽按设定宽度 + 内容最小宽，容器不够时横向滚动而不是压缩换行 */
+  table-layout: auto;
+}
+
+.finv-sec-table :deep(th),
+.finv-sec-table :deep(td) {
+  white-space: nowrap;
+}
+
+.finv-sec-table :deep(th) {
+  position: relative;
+  user-select: none;
+}
+
+/* 表头单元格：标题 + 右侧拖拽手柄 */
+.finv-sec-table .th-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finv-sec-table .th-title {
+  flex: 1 1 auto;
+}
+
+.finv-sec-table .col-resizer {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 18px;
+  cursor: col-resize;
+  border-right: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 1px;
+}
+
+.finv-sec-table .col-resizer:hover {
+  border-right-color: rgb(var(--v-theme-primary));
+}
+</style>
         <template #item.security_name_full="{ item }">
           <span v-if="!item.security_name_full" class="text-medium-emphasis">—</span>
           <v-tooltip v-else :text="item.security_name_full" location="top" max-width="520">
             <template #activator="{ props }">
               <v-icon v-bind="props" icon="mdi-information-outline" size="small" />
             </template>
+
+<style scoped>
+/* 不压缩列（需求 11329）：单元格不换行，列宽不足时表格整体横向滚动，
+   而不是把长文本挤成多行。 */
+.finv-sec-table :deep(table) {
+  /* auto：列宽按设定宽度 + 内容最小宽，容器不够时横向滚动而不是压缩换行 */
+  table-layout: auto;
+}
+
+.finv-sec-table :deep(th),
+.finv-sec-table :deep(td) {
+  white-space: nowrap;
+}
+
+.finv-sec-table :deep(th) {
+  position: relative;
+  user-select: none;
+}
+
+/* 表头单元格：标题 + 右侧拖拽手柄 */
+.finv-sec-table .th-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finv-sec-table .th-title {
+  flex: 1 1 auto;
+}
+
+.finv-sec-table .col-resizer {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 18px;
+  cursor: col-resize;
+  border-right: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 1px;
+}
+
+.finv-sec-table .col-resizer:hover {
+  border-right-color: rgb(var(--v-theme-primary));
+}
+</style>
           </v-tooltip>
         </template>
+
+<style scoped>
+/* 不压缩列（需求 11329）：单元格不换行，列宽不足时表格整体横向滚动，
+   而不是把长文本挤成多行。 */
+.finv-sec-table :deep(table) {
+  /* auto：列宽按设定宽度 + 内容最小宽，容器不够时横向滚动而不是压缩换行 */
+  table-layout: auto;
+}
+
+.finv-sec-table :deep(th),
+.finv-sec-table :deep(td) {
+  white-space: nowrap;
+}
+
+.finv-sec-table :deep(th) {
+  position: relative;
+  user-select: none;
+}
+
+/* 表头单元格：标题 + 右侧拖拽手柄 */
+.finv-sec-table .th-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finv-sec-table .th-title {
+  flex: 1 1 auto;
+}
+
+.finv-sec-table .col-resizer {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 18px;
+  cursor: col-resize;
+  border-right: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 1px;
+}
+
+.finv-sec-table .col-resizer:hover {
+  border-right-color: rgb(var(--v-theme-primary));
+}
+</style>
         <template #item.remark="{ item }">
           <span v-if="!item.remark" class="text-medium-emphasis">—</span>
           <v-tooltip v-else :text="item.remark" location="top" max-width="520">
             <template #activator="{ props }">
               <v-icon v-bind="props" icon="mdi-information-outline" size="small" />
             </template>
+
+<style scoped>
+/* 不压缩列（需求 11329）：单元格不换行，列宽不足时表格整体横向滚动，
+   而不是把长文本挤成多行。 */
+.finv-sec-table :deep(table) {
+  /* auto：列宽按设定宽度 + 内容最小宽，容器不够时横向滚动而不是压缩换行 */
+  table-layout: auto;
+}
+
+.finv-sec-table :deep(th),
+.finv-sec-table :deep(td) {
+  white-space: nowrap;
+}
+
+.finv-sec-table :deep(th) {
+  position: relative;
+  user-select: none;
+}
+
+/* 表头单元格：标题 + 右侧拖拽手柄 */
+.finv-sec-table .th-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finv-sec-table .th-title {
+  flex: 1 1 auto;
+}
+
+.finv-sec-table .col-resizer {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 18px;
+  cursor: col-resize;
+  border-right: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 1px;
+}
+
+.finv-sec-table .col-resizer:hover {
+  border-right-color: rgb(var(--v-theme-primary));
+}
+</style>
           </v-tooltip>
         </template>
+
+<style scoped>
+/* 不压缩列（需求 11329）：单元格不换行，列宽不足时表格整体横向滚动，
+   而不是把长文本挤成多行。 */
+.finv-sec-table :deep(table) {
+  /* auto：列宽按设定宽度 + 内容最小宽，容器不够时横向滚动而不是压缩换行 */
+  table-layout: auto;
+}
+
+.finv-sec-table :deep(th),
+.finv-sec-table :deep(td) {
+  white-space: nowrap;
+}
+
+.finv-sec-table :deep(th) {
+  position: relative;
+  user-select: none;
+}
+
+/* 表头单元格：标题 + 右侧拖拽手柄 */
+.finv-sec-table .th-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finv-sec-table .th-title {
+  flex: 1 1 auto;
+}
+
+.finv-sec-table .col-resizer {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 18px;
+  cursor: col-resize;
+  border-right: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 1px;
+}
+
+.finv-sec-table .col-resizer:hover {
+  border-right-color: rgb(var(--v-theme-primary));
+}
+</style>
         <template #item.timezone="{ item }">
           <span :class="item.timezone ? '' : 'text-medium-emphasis'">{{ item.timezone || '—' }}</span>
         </template>
+
+<style scoped>
+/* 不压缩列（需求 11329）：单元格不换行，列宽不足时表格整体横向滚动，
+   而不是把长文本挤成多行。 */
+.finv-sec-table :deep(table) {
+  /* auto：列宽按设定宽度 + 内容最小宽，容器不够时横向滚动而不是压缩换行 */
+  table-layout: auto;
+}
+
+.finv-sec-table :deep(th),
+.finv-sec-table :deep(td) {
+  white-space: nowrap;
+}
+
+.finv-sec-table :deep(th) {
+  position: relative;
+  user-select: none;
+}
+
+/* 表头单元格：标题 + 右侧拖拽手柄 */
+.finv-sec-table .th-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finv-sec-table .th-title {
+  flex: 1 1 auto;
+}
+
+.finv-sec-table .col-resizer {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 18px;
+  cursor: col-resize;
+  border-right: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 1px;
+}
+
+.finv-sec-table .col-resizer:hover {
+  border-right-color: rgb(var(--v-theme-primary));
+}
+</style>
         <template #item.tz="{ item }">
           <span :class="item.tz ? '' : 'text-medium-emphasis'">{{ item.tz || '—' }}</span>
         </template>
+
+<style scoped>
+/* 不压缩列（需求 11329）：单元格不换行，列宽不足时表格整体横向滚动，
+   而不是把长文本挤成多行。 */
+.finv-sec-table :deep(table) {
+  /* auto：列宽按设定宽度 + 内容最小宽，容器不够时横向滚动而不是压缩换行 */
+  table-layout: auto;
+}
+
+.finv-sec-table :deep(th),
+.finv-sec-table :deep(td) {
+  white-space: nowrap;
+}
+
+.finv-sec-table :deep(th) {
+  position: relative;
+  user-select: none;
+}
+
+/* 表头单元格：标题 + 右侧拖拽手柄 */
+.finv-sec-table .th-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finv-sec-table .th-title {
+  flex: 1 1 auto;
+}
+
+.finv-sec-table .col-resizer {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 18px;
+  cursor: col-resize;
+  border-right: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 1px;
+}
+
+.finv-sec-table .col-resizer:hover {
+  border-right-color: rgb(var(--v-theme-primary));
+}
+</style>
         <template #item.provider="{ item }">
           <span :class="item.provider ? '' : 'text-medium-emphasis'">{{ item.provider || '—' }}</span>
         </template>
+
+<style scoped>
+/* 不压缩列（需求 11329）：单元格不换行，列宽不足时表格整体横向滚动，
+   而不是把长文本挤成多行。 */
+.finv-sec-table :deep(table) {
+  /* auto：列宽按设定宽度 + 内容最小宽，容器不够时横向滚动而不是压缩换行 */
+  table-layout: auto;
+}
+
+.finv-sec-table :deep(th),
+.finv-sec-table :deep(td) {
+  white-space: nowrap;
+}
+
+.finv-sec-table :deep(th) {
+  position: relative;
+  user-select: none;
+}
+
+/* 表头单元格：标题 + 右侧拖拽手柄 */
+.finv-sec-table .th-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finv-sec-table .th-title {
+  flex: 1 1 auto;
+}
+
+.finv-sec-table .col-resizer {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 18px;
+  cursor: col-resize;
+  border-right: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 1px;
+}
+
+.finv-sec-table .col-resizer:hover {
+  border-right-color: rgb(var(--v-theme-primary));
+}
+</style>
         <template #item.gmt_create="{ item }">
           <span class="text-no-wrap">{{ timeText(item.gmt_create) }}</span>
         </template>
+
+<style scoped>
+/* 不压缩列（需求 11329）：单元格不换行，列宽不足时表格整体横向滚动，
+   而不是把长文本挤成多行。 */
+.finv-sec-table :deep(table) {
+  /* auto：列宽按设定宽度 + 内容最小宽，容器不够时横向滚动而不是压缩换行 */
+  table-layout: auto;
+}
+
+.finv-sec-table :deep(th),
+.finv-sec-table :deep(td) {
+  white-space: nowrap;
+}
+
+.finv-sec-table :deep(th) {
+  position: relative;
+  user-select: none;
+}
+
+/* 表头单元格：标题 + 右侧拖拽手柄 */
+.finv-sec-table .th-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finv-sec-table .th-title {
+  flex: 1 1 auto;
+}
+
+.finv-sec-table .col-resizer {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 18px;
+  cursor: col-resize;
+  border-right: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 1px;
+}
+
+.finv-sec-table .col-resizer:hover {
+  border-right-color: rgb(var(--v-theme-primary));
+}
+</style>
         <template #item.gmt_update="{ item }">
           <span class="text-no-wrap">{{ timeText(item.gmt_update) }}</span>
         </template>
+
+<style scoped>
+/* 不压缩列（需求 11329）：单元格不换行，列宽不足时表格整体横向滚动，
+   而不是把长文本挤成多行。 */
+.finv-sec-table :deep(table) {
+  /* auto：列宽按设定宽度 + 内容最小宽，容器不够时横向滚动而不是压缩换行 */
+  table-layout: auto;
+}
+
+.finv-sec-table :deep(th),
+.finv-sec-table :deep(td) {
+  white-space: nowrap;
+}
+
+.finv-sec-table :deep(th) {
+  position: relative;
+  user-select: none;
+}
+
+/* 表头单元格：标题 + 右侧拖拽手柄 */
+.finv-sec-table .th-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finv-sec-table .th-title {
+  flex: 1 1 auto;
+}
+
+.finv-sec-table .col-resizer {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 18px;
+  cursor: col-resize;
+  border-right: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 1px;
+}
+
+.finv-sec-table .col-resizer:hover {
+  border-right-color: rgb(var(--v-theme-primary));
+}
+</style>
         <template #item.usn="{ item }">
           <span :class="item.usn ? 'num' : 'text-medium-emphasis'">
             {{ item.usn ?? '—' }}
           </span>
         </template>
+
+<style scoped>
+/* 不压缩列（需求 11329）：单元格不换行，列宽不足时表格整体横向滚动，
+   而不是把长文本挤成多行。 */
+.finv-sec-table :deep(table) {
+  /* auto：列宽按设定宽度 + 内容最小宽，容器不够时横向滚动而不是压缩换行 */
+  table-layout: auto;
+}
+
+.finv-sec-table :deep(th),
+.finv-sec-table :deep(td) {
+  white-space: nowrap;
+}
+
+.finv-sec-table :deep(th) {
+  position: relative;
+  user-select: none;
+}
+
+/* 表头单元格：标题 + 右侧拖拽手柄 */
+.finv-sec-table .th-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finv-sec-table .th-title {
+  flex: 1 1 auto;
+}
+
+.finv-sec-table .col-resizer {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 18px;
+  cursor: col-resize;
+  border-right: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 1px;
+}
+
+.finv-sec-table .col-resizer:hover {
+  border-right-color: rgb(var(--v-theme-primary));
+}
+</style>
         <template #item.type_secu="{ item }">
           <span :class="item.type_secu ? '' : 'text-medium-emphasis'">
             {{ item.type_secu || '—' }}
           </span>
         </template>
+
+<style scoped>
+/* 不压缩列（需求 11329）：单元格不换行，列宽不足时表格整体横向滚动，
+   而不是把长文本挤成多行。 */
+.finv-sec-table :deep(table) {
+  /* auto：列宽按设定宽度 + 内容最小宽，容器不够时横向滚动而不是压缩换行 */
+  table-layout: auto;
+}
+
+.finv-sec-table :deep(th),
+.finv-sec-table :deep(td) {
+  white-space: nowrap;
+}
+
+.finv-sec-table :deep(th) {
+  position: relative;
+  user-select: none;
+}
+
+/* 表头单元格：标题 + 右侧拖拽手柄 */
+.finv-sec-table .th-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finv-sec-table .th-title {
+  flex: 1 1 auto;
+}
+
+.finv-sec-table .col-resizer {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 18px;
+  cursor: col-resize;
+  border-right: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 1px;
+}
+
+.finv-sec-table .col-resizer:hover {
+  border-right-color: rgb(var(--v-theme-primary));
+}
+</style>
         <template #item.type_secu_sub="{ item }">
           <span :class="item.type_secu_sub ? '' : 'text-medium-emphasis'">
             {{ item.type_secu_sub || '—' }}
           </span>
         </template>
+
+<style scoped>
+/* 不压缩列（需求 11329）：单元格不换行，列宽不足时表格整体横向滚动，
+   而不是把长文本挤成多行。 */
+.finv-sec-table :deep(table) {
+  /* auto：列宽按设定宽度 + 内容最小宽，容器不够时横向滚动而不是压缩换行 */
+  table-layout: auto;
+}
+
+.finv-sec-table :deep(th),
+.finv-sec-table :deep(td) {
+  white-space: nowrap;
+}
+
+.finv-sec-table :deep(th) {
+  position: relative;
+  user-select: none;
+}
+
+/* 表头单元格：标题 + 右侧拖拽手柄 */
+.finv-sec-table .th-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finv-sec-table .th-title {
+  flex: 1 1 auto;
+}
+
+.finv-sec-table .col-resizer {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 18px;
+  cursor: col-resize;
+  border-right: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 1px;
+}
+
+.finv-sec-table .col-resizer:hover {
+  border-right-color: rgb(var(--v-theme-primary));
+}
+</style>
         <template #item.flag_enable="{ item }">
           <v-chip :color="item.flag_enable === '1' ? 'success' : 'grey'" size="small">
             {{ item.flag_enable === '1' ? '启用' : '禁用' }}
           </v-chip>
         </template>
+
+<style scoped>
+/* 不压缩列（需求 11329）：单元格不换行，列宽不足时表格整体横向滚动，
+   而不是把长文本挤成多行。 */
+.finv-sec-table :deep(table) {
+  /* auto：列宽按设定宽度 + 内容最小宽，容器不够时横向滚动而不是压缩换行 */
+  table-layout: auto;
+}
+
+.finv-sec-table :deep(th),
+.finv-sec-table :deep(td) {
+  white-space: nowrap;
+}
+
+.finv-sec-table :deep(th) {
+  position: relative;
+  user-select: none;
+}
+
+/* 表头单元格：标题 + 右侧拖拽手柄 */
+.finv-sec-table .th-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finv-sec-table .th-title {
+  flex: 1 1 auto;
+}
+
+.finv-sec-table .col-resizer {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 18px;
+  cursor: col-resize;
+  border-right: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 1px;
+}
+
+.finv-sec-table .col-resizer:hover {
+  border-right-color: rgb(var(--v-theme-primary));
+}
+</style>
         <template #item.actions="{ item }">
           <v-btn
             size="x-small"
@@ -460,6 +1189,49 @@ function timeText(value: string): string {
             {{ item.flag_enable === '1' ? '禁用' : '启用' }}
           </v-btn>
         </template>
+
+<style scoped>
+/* 不压缩列（需求 11329）：单元格不换行，列宽不足时表格整体横向滚动，
+   而不是把长文本挤成多行。 */
+.finv-sec-table :deep(table) {
+  /* auto：列宽按设定宽度 + 内容最小宽，容器不够时横向滚动而不是压缩换行 */
+  table-layout: auto;
+}
+
+.finv-sec-table :deep(th),
+.finv-sec-table :deep(td) {
+  white-space: nowrap;
+}
+
+.finv-sec-table :deep(th) {
+  position: relative;
+  user-select: none;
+}
+
+/* 表头单元格：标题 + 右侧拖拽手柄 */
+.finv-sec-table .th-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finv-sec-table .th-title {
+  flex: 1 1 auto;
+}
+
+.finv-sec-table .col-resizer {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 18px;
+  cursor: col-resize;
+  border-right: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 1px;
+}
+
+.finv-sec-table .col-resizer:hover {
+  border-right-color: rgb(var(--v-theme-primary));
+}
+</style>
       </v-data-table>
 
       <!-- 列配置（需求 11328）：勾选要展示的列，保存到 localStorage -->
@@ -485,7 +1257,9 @@ function timeText(value: string): string {
             />
           </v-card-text>
           <v-card-actions>
-            <v-btn variant="text" prepend-icon="mdi-restore" @click="resetColumns">恢复默认</v-btn>
+            <v-btn variant="text" prepend-icon="mdi-restore" @click="resetColumns">
+              恢复默认（含列宽）
+            </v-btn>
             <v-spacer />
             <v-btn variant="text" @click="columnDialog = false">取消</v-btn>
             <v-btn color="primary" @click="saveColumns">保存</v-btn>
@@ -570,3 +1344,46 @@ function timeText(value: string): string {
     </v-dialog>
   </v-card>
 </template>
+
+<style scoped>
+/* 不压缩列（需求 11329）：单元格不换行，列宽不足时表格整体横向滚动，
+   而不是把长文本挤成多行。 */
+.finv-sec-table :deep(table) {
+  /* auto：列宽按设定宽度 + 内容最小宽，容器不够时横向滚动而不是压缩换行 */
+  table-layout: auto;
+}
+
+.finv-sec-table :deep(th),
+.finv-sec-table :deep(td) {
+  white-space: nowrap;
+}
+
+.finv-sec-table :deep(th) {
+  position: relative;
+  user-select: none;
+}
+
+/* 表头单元格：标题 + 右侧拖拽手柄 */
+.finv-sec-table .th-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finv-sec-table .th-title {
+  flex: 1 1 auto;
+}
+
+.finv-sec-table .col-resizer {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 18px;
+  cursor: col-resize;
+  border-right: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 1px;
+}
+
+.finv-sec-table .col-resizer:hover {
+  border-right-color: rgb(var(--v-theme-primary));
+}
+</style>

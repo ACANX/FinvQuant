@@ -3427,7 +3427,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | 期货快照表 `cdeu.finv_quote_secu_realtime_future` 的 usc 为空行补齐初始数据（需求 11326）：迁移 `V300230` 按 `ftmm_symbol = upper(市场标签)\|\|'.'\|\|upper(合约代码)` 关联 usc 引擎结果表 `futu.finv_futu_usc_map`（status=ACTIVE）回填 usc；采集侧 `loadFutureListUSC` 增加第三级兜底（stock_id → 键表 → usc 引擎结果表），使后续新合约也能自动带上 usc。 核对：`SELECT count(*) FROM cdeu.finv_quote_secu_realtime_future WHERE NULLIF(btrim(usc),'') IS NULL` 返回 0；`SELECT usc FROM cdeu.finv_quote_secu_realtime_future WHERE contract_code='XAMD0main'` 返回 `XAMD0Main`；`curl .../Realtime/Future/Page?keyword=XAMD0main` 的 `usc` 字段非空；`go test ./internal/...` 通过。 | 11326 | 1 |
 | `/Meta/Finv/MetaData/Security` 列表展示 `usn`、`type_secu`、`type_secu_sub` 三个字段，分别位于第 1、9、10 列（1 起算）；`Security/List` 接口返回这三个字段（`usn` 可空）。 核对：`curl '.../Metadata/Security/List?page=1&pageSize=1'` 的 `data.list[0]` 含 `usn`/`type_secu`/`type_secu_sub`；页面表头顺序为「统一编号、usc、交易所、市场、类型、源代码、证券名称、中文名称、分类、子类、货币、上市日、状态、操作」；空值显示 `—`；`cd Web && npm run build` 退出码 0。 | 11327 | 1 |
 | `/Meta/Finv/MetaData/Security` 隐藏第 5 列「类型」，并支持「选择列」配置展示其余未展示字段（全称、时区、时区标识、提供方、备注、创建时间、更新时间），配置持久化到 localStorage 并可恢复默认；`Security/List` 同步返回 `remark` / `provider` / `gmt_create` / `gmt_update`。 核对：页面默认表头不含「类型」，点「选择列」可勾选显示；刷新后配置保留；`curl '.../Metadata/Security/List?page=1&pageSize=1'` 的 `data.list[0]` 含上述四个字段；`cd Web && npm run build` 退出码 0。 | 11328 | 1 |
-| **合计** | **10001–11328** | **1324**（含 4 条待办；11273–11328 为后续追加） |
+| `/Meta/Finv/MetaData/Security` 表格在列全开时不得压缩列导致内容换行溢出，并支持自定义拖拽调节各列列宽（列宽存 localStorage `finv:meta:security:widths`，双击表头边界恢复默认，恢复默认列配置时一并清空列宽）。 核对：表格 CSS 含 `table-layout: auto` 与 `white-space: nowrap`；选中全部 20 列后页面无换行单元格且可横向滚动；拖动表头边界后刷新页面列宽保持；双击边界恢复默认宽度；`cd Web && npm run build` 退出码 0。 | 11329 | 1 |
+| **合计** | **10001–11329** | **1325**（含 4 条待办；11273–11329 为后续追加） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
