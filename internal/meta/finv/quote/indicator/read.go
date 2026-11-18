@@ -58,6 +58,14 @@ var indicatorKeyColumns = []string{"usc"}
 // 未关联上的行返回空串（不是 NULL），可用 IndicatorTypeSecuSubEmpty 单独筛出。
 const IndicatorVirtualTypeSecuSub = "type_secu_sub"
 
+// IndicatorVirtualIsFavorite 收藏标记虚拟列（需求 11313）。
+//
+// `quote.finv_quote_secu_fav` 里存在该 usc 时为 '1'，否则 '0'（前端按 flag 显示「是/否」）。
+const IndicatorVirtualIsFavorite = "is_favorite"
+
+// indicatorFavTable 证券收藏表（需求 11312）。
+const indicatorFavTable = "quote.finv_quote_secu_fav"
+
 // IndicatorVirtualUSN 关联列名：`public.finv_security.usn`（需求 11309）。
 //
 // 统一证券编号（INTEGER，可空）；以文本输出，未分配时为空串。
@@ -83,6 +91,12 @@ const indicatorJoinSQL = " LEFT JOIN " + indicatorSecurityTable + " s ON s.usc =
 // indicatorVirtualColumns 指标表里不存在、由关联查询带出的虚拟列（追加在真实列之后）。
 var indicatorVirtualColumns = []IndicatorColumn{
 	{
+		Name:     IndicatorVirtualIsFavorite,
+		Title:    "是否已收藏（quote.finv_quote_secu_fav）",
+		DataType: "boolean",
+		Sortable: true,
+	},
+	{
 		Name:     IndicatorVirtualUSN,
 		Title:    "统一证券编号（关联 public.finv_security.usn）",
 		DataType: "integer",
@@ -104,6 +118,7 @@ var indicatorVirtualColumns = []IndicatorColumn{
 
 // indicatorVirtualColumnSet 虚拟列集合（SELECT / ORDER BY 走 s.<列> 而不是 t.<列>）。
 var indicatorVirtualColumnSet = map[string]bool{
+	IndicatorVirtualIsFavorite:  true,
 	IndicatorVirtualUSN:         true,
 	IndicatorVirtualTypeSecu:    true,
 	IndicatorVirtualTypeSecuSub: true,
@@ -113,9 +128,20 @@ var indicatorVirtualColumnSet = map[string]bool{
 //
 // usn 是 INTEGER，需 ::text；文本列直接 COALESCE。
 var indicatorVirtualColumnExpr = map[string]string{
+	IndicatorVirtualIsFavorite:  "CASE WHEN EXISTS (SELECT 1 FROM " + indicatorFavTable + " f WHERE f.usc = t.usc) THEN '1' ELSE '0' END",
 	IndicatorVirtualUSN:         "COALESCE(s.usn::text, '')",
 	IndicatorVirtualTypeSecu:    "COALESCE(s.type_secu, '')",
 	IndicatorVirtualTypeSecuSub: "COALESCE(s.type_secu_sub, '')",
+}
+
+// indicatorVirtualOrderExpr 虚拟列的 ORDER BY 表达式。
+//
+// 注意 is_favorite 不来自 finv_security（别名 s），而是对收藏表做 EXISTS，不能写成 s.is_favorite。
+var indicatorVirtualOrderExpr = map[string]string{
+	IndicatorVirtualIsFavorite:  "EXISTS (SELECT 1 FROM " + indicatorFavTable + " f WHERE f.usc = t.usc)",
+	IndicatorVirtualUSN:         "s.usn",
+	IndicatorVirtualTypeSecu:    "s.type_secu",
+	IndicatorVirtualTypeSecuSub: "s.type_secu_sub",
 }
 
 // IndicatorTypeSecuOption 分类筛选选项（值 + 行数）。
@@ -318,8 +344,8 @@ func (r *Reader) Page(ctx context.Context, f IndicatorPageFilter) (int64, []map[
 			fmt.Sprintf("COALESCE(t.%s::text, '') AS %s", name, name))
 	}
 	orderExpr := "t." + orderBy
-	if indicatorVirtualColumnSet[orderBy] {
-		orderExpr = "s." + orderBy
+	if expr, ok := indicatorVirtualOrderExpr[orderBy]; ok {
+		orderExpr = expr
 	}
 	args = append(args, limit, offset)
 	query := fmt.Sprintf(

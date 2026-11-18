@@ -320,6 +320,12 @@ const GROUPS: IndicatorGroupSpec[] = [
       { name: 'ts_server_recv_from_exchange', label: '交易所回包时间', kind: 'epoch' },
       { name: 'timezone', label: '交易所时区', kind: 'text' },
       { name: 'secu_url', label: '来源链接', kind: 'url' },
+      {
+        name: 'is_favorite',
+        label: '已收藏',
+        kind: 'flag',
+        hint: '关联 quote.finv_quote_secu_fav；1=已收藏（需求 11313）',
+      },
       { name: 'source_channel', label: '来源通道', kind: 'text' },
       { name: 'dt_collect', label: '采集时间', kind: 'time' },
       { name: 'dt_create', label: '创建时间', kind: 'time' },

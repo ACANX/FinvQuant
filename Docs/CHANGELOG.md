@@ -20,6 +20,16 @@
 
 ### 新增
 
+- **「证券指标」行详情新增收藏按钮（需求 11313）**
+  - `/Secu/Indicator/Columns` 追加虚拟列 `is_favorite`（对 `quote.finv_quote_secu_fav` 做 `EXISTS`，
+    返回 `'1'/'0'`），可请求、可排序。
+  - 行详情对话框「复制 JSON」左侧新增收藏按钮：点击调用
+    `POST /Meta/Finv/Quant/Metadata/Security/Favorite`，成功后按钮变红心（`mdi-heart`），
+    并同步列表中同一 `usc` 的收藏标记。
+  - 验证：`go test ./internal/meta/finv/quote/indicator/` 通过；`cd Web && npm run build` 通过；
+    收藏 `600006` 后 `/Page?columns=is_favorite` 返回 `'1'`，取消后 `'0'`。
+
+
 - **「规范证券信息维护」新增证券收藏（需求 11312）**
   - 新表 `quote.finv_quote_secu_fav`（迁移 `V300224`）：主键 `usc`，4 列
     （`usc` / `remark` / `gmt_create` / `gmt_update`），`gmt_update` 由触发器维护，

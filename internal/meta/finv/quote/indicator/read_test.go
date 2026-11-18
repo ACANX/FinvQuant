@@ -176,17 +176,20 @@ func TestIndicatorWhereTypeSecu(t *testing.T) {
 // TestIndicatorVirtualColumns 虚拟列 type_secu / type_secu_sub 可被请求列与排序使用。
 func TestIndicatorVirtualColumns(t *testing.T) {
 	known := knownColumns("usc", "ftmm_symbol", "name", "dt_collect")
+	known[IndicatorVirtualIsFavorite] = true
 	known[IndicatorVirtualUSN] = true
 	known[IndicatorVirtualTypeSecu] = true
 	known[IndicatorVirtualTypeSecuSub] = true
 
-	selected, err := resolveIndicatorColumns(
-		[]string{IndicatorVirtualUSN, IndicatorVirtualTypeSecu, IndicatorVirtualTypeSecuSub}, known)
+	selected, err := resolveIndicatorColumns([]string{
+		IndicatorVirtualIsFavorite, IndicatorVirtualUSN,
+		IndicatorVirtualTypeSecu, IndicatorVirtualTypeSecuSub,
+	}, known)
 	if err != nil {
 		t.Fatalf("虚拟列应可请求: %v", err)
 	}
-	if len(selected) != 4 || selected[1] != IndicatorVirtualUSN ||
-		selected[2] != IndicatorVirtualTypeSecu || selected[3] != IndicatorVirtualTypeSecuSub {
+	if len(selected) != 5 || selected[1] != IndicatorVirtualIsFavorite || selected[2] != IndicatorVirtualUSN ||
+		selected[3] != IndicatorVirtualTypeSecu || selected[4] != IndicatorVirtualTypeSecuSub {
 		t.Fatalf("列集不符: %v", selected)
 	}
 

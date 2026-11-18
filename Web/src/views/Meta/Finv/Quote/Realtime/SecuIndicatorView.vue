@@ -14,7 +14,7 @@
 // 数值一律由后端以文本返回（保住 NUMERIC(30,10) 精度），本页只做万/亿折算与小数位裁剪。
 import { computed, onMounted, ref, watch } from 'vue'
 
-import { apiGet } from '../../../../../api'
+import { apiGet, apiPost } from '../../../../../api'
 import TextPopover from '../../../../../components/TextPopover.vue'
 import {
   DEFAULT_PRESET_KEY,
@@ -401,6 +401,29 @@ function groupByIndicatorGroup(source: IndicatorColumn[]): {
   }))
 }
 
+/** 详情对话框：当前证券是否已收藏（虚拟列 is_favorite，'1' = 已收藏） */
+const detailFavorite = computed(() => detailRow.value?.is_favorite === '1')
+
+/** 收藏 / 取消收藏当前详情证券（需求 11313）：写 quote.finv_quote_secu_fav，同步列表行。 */
+async function toggleDetailFavorite(): Promise<void> {
+  const row = detailRow.value
+  if (!row?.usc) {
+    showToast('该行缺少 usc，无法收藏', 'warning')
+    return
+  }
+  const next = !detailFavorite.value
+  try {
+    await apiPost('/Meta/Finv/Quant/Metadata/Security/Favorite', { usc: row.usc, favorite: next })
+    row.is_favorite = next ? '1' : '0'
+    for (const item of rows.value) {
+      if (item.usc === row.usc) item.is_favorite = next ? '1' : '0'
+    }
+    showToast(next ? `已收藏证券 ${row.usc}` : `已取消收藏证券 ${row.usc}`)
+  } catch (e) {
+    showToast((e as Error).message, 'error')
+  }
+}
+
 async function copyDetailJson(): Promise<void> {
   if (!detailRow.value) return
   try {
@@ -685,6 +708,16 @@ watch(detailOpen, (open) => {
           <code class="text-caption text-medium-emphasis">{{ detailRow?.usc || '—' }}</code>
           <code class="text-caption text-medium-emphasis">{{ detailRow?.ftmm_symbol || '—' }}</code>
           <v-spacer />
+          <v-btn
+            size="small"
+            variant="tonal"
+            :prepend-icon="detailFavorite ? 'mdi-heart' : 'mdi-heart-outline'"
+            :color="detailFavorite ? 'red-darken-2' : undefined"
+            :title="detailFavorite ? '取消收藏' : '收藏'"
+            @click="toggleDetailFavorite"
+          >
+            {{ detailFavorite ? '已收藏' : '收藏' }}
+          </v-btn>
           <v-btn size="small" variant="tonal" prepend-icon="mdi-content-copy" @click="copyDetailJson">
             复制 JSON
           </v-btn>
