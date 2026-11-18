@@ -20,6 +20,18 @@
 
 ### 新增
 
+- **「加密货币」Tab 新增 moomoo OpenAPI 凭据配置入口（需求 11318）**
+  - 迁移 `V300227`：`sys.sys_config` 新增 20016（AppKey）/ 20017（Ed25519 私钥 PEM，`access_level=3`），
+    初始空串占位（= 未配置）。
+  - 接口：`GET /Meta/Finv/Quote/Crypto/Moomoo/Config`（AppKey、私钥是否已配置、掩码、生效来源）、
+    `POST .../Config`（保存；私钥留空 = 不修改、`__CLEAR__` = 清空、写入前校验 PEM）。
+  - 前端：「加密货币采集配置（数据库）」上方新增凭据卡片，私钥只回显 `****`，保存后 toast。
+  - 采集侧读取顺序：`sys_config` 20016/20017 优先 → 环境变量 `FINV_MOOMOO_*` 兜底；
+    两者都缺失时任务失败并记 ERROR。
+  - 验证：`go test ./internal/meta/finv/quote/cdeu/ -run MoomooConfig` 通过（含真实库读写/留空保留/非法拒绝/清空）；
+    `cd Web && npm run build` 通过。
+
+
 - **「行情快照同步 → 加密货币」Tab 接入收藏加密货币采集（需求 11316）**
   - 前端 `crypto` 从占位 Tab 转为实装：`POST .../FTStockQuoteSnapshotSync/Run` 传
     `instrument_symbol=crypto`，结果表说明卡片、市场选项（收藏的加密货币）与既有 Tab 同构。

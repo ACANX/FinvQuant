@@ -15,7 +15,7 @@
 // 行即可自动出现对应 Tab，无需改前端。
 // 需求 11256：股票之后依次常显 ETF/指数/期货/加密货币/北交所股票/板块/投资组合/黄金 占位 Tab
 // （配置表暂无这些品种的行，Tab 先占位、「开始同步」禁用，接入时插配置行即可）。
-import { computed, onBeforeUnmount, onMounted, ref, nextTick } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue'
 
 import { apiGet, apiPost } from '../../../../../api'
 import { showToast } from '../../../../../ui/toast'
@@ -306,6 +306,66 @@ async function scrollLogs() {
   if (logBox.value) logBox.value.scrollTop = logBox.value.scrollHeight
 }
 
+// ---------- moomoo OpenAPI 凭据（仅「加密货币」Tab，需求 11318） ----------
+interface MoomooConfigState {
+  app_key: string
+  private_key_configured: boolean
+  private_key_masked: string
+  source: 'sys_config' | 'env' | 'none' | string
+}
+
+const moomooConfig = ref<MoomooConfigState>({
+  app_key: '',
+  private_key_configured: false,
+  private_key_masked: '',
+  source: 'none',
+})
+const moomooAppKey = ref('')
+const moomooPrivateKey = ref('')
+const moomooSaving = ref(false)
+const MOOMOO_CONFIG_API = '/Meta/Finv/Quote/Crypto/Moomoo/Config'
+
+/** 配置来源的中文说明（sys_config 优先，环境变量兜底）。 */
+const moomooSourceLabel = computed(() => {
+  switch (moomooConfig.value.source) {
+    case 'sys_config':
+      return '已配置（sys_config）'
+    case 'env':
+      return '已配置（环境变量）'
+    default:
+      return '未配置'
+  }
+})
+
+/** 加载凭据配置（私钥只回显掩码，不回显明文）。 */
+async function loadMoomooConfig() {
+  try {
+    const data = await apiGet<MoomooConfigState>(MOOMOO_CONFIG_API)
+    moomooConfig.value = data
+    moomooAppKey.value = data.app_key ?? ''
+    moomooPrivateKey.value = ''
+  } catch (error) {
+    showToast(`读取 moomoo 凭据配置失败：${(error as Error).message}`, 'error')
+  }
+}
+
+/** 保存凭据配置（私钥留空 = 不修改）。 */
+async function saveMoomooConfig() {
+  moomooSaving.value = true
+  try {
+    await apiPost(MOOMOO_CONFIG_API, {
+      app_key: moomooAppKey.value.trim(),
+      private_key: moomooPrivateKey.value,
+    })
+    showToast('moomoo 凭据已保存', 'success')
+    await loadMoomooConfig()
+  } catch (error) {
+    showToast(`保存失败：${(error as Error).message}`, 'error')
+  } finally {
+    moomooSaving.value = false
+  }
+}
+
 /** 拉取运行状态（runId 为空时取最近一次） */
 async function loadStatus(runId = '') {
   try {
@@ -438,6 +498,11 @@ function onSymbolChange() {
 onMounted(async () => {
   await loadStatus()
   if (running.value) schedulePoll()
+  if (activeSymbol.value === 'crypto') await loadMoomooConfig()
+})
+
+watch(activeSymbol, (next) => {
+  if (next === 'crypto') void loadMoomooConfig()
 })
 
 onBeforeUnmount(stopPolling)
@@ -471,6 +536,54 @@ onBeforeUnmount(stopPolling)
     <v-divider />
 
     <v-card-text>
+      <!-- moomoo OpenAPI 凭据（仅加密货币 Tab，需求 11318）：保存在 sys_config 20016/20017 -->
+      <v-card v-if="activeSymbol === 'crypto'" variant="tonal" class="mb-4">
+        <v-card-title class="d-flex align-center ga-2 text-subtitle-1">
+          <v-icon icon="mdi-key-variant" size="small" />
+          moomoo OpenAPI 凭据
+          <v-chip
+            size="small"
+            variant="outlined"
+            :color="moomooConfig.source === 'none' ? 'grey' : 'success'"
+          >
+            {{ moomooSourceLabel }}
+          </v-chip>
+        </v-card-title>
+        <v-card-text>
+          <div class="d-flex flex-wrap align-center ga-2">
+            <v-text-field
+              v-model="moomooAppKey"
+              label="AppKey"
+              density="compact"
+              hide-details
+              style="min-width: 260px; max-width: 340px"
+            />
+            <v-text-field
+              v-model="moomooPrivateKey"
+              label="私钥（Ed25519 PEM）"
+              :placeholder="moomooConfig.private_key_configured ? moomooConfig.private_key_masked : '未配置'"
+              :type="'password'"
+              density="compact"
+              hide-details
+              style="min-width: 320px; max-width: 460px"
+            />
+            <v-btn
+              color="primary"
+              variant="tonal"
+              prepend-icon="mdi-content-save"
+              :loading="moomooSaving"
+              @click="saveMoomooConfig"
+            >
+              保存凭据
+            </v-btn>
+          </div>
+          <div class="text-caption text-medium-emphasis mt-2">
+            保存在 sys.sys_config（20016 AppKey / 20017 私钥）；私钥留空表示不修改，页面只回显掩码；
+            未配置时回退环境变量 FINV_MOOMOO_APP_KEY / FINV_MOOMOO_PRIVATE_KEY。
+          </div>
+        </v-card-text>
+      </v-card>
+
       <!-- 当前品种的采集配置 -->
       <div class="text-subtitle-2 mb-1">{{ symbolLabel(activeSymbol) }}采集配置（数据库）</div>
       <v-table density="compact" class="text-caption mb-4">

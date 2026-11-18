@@ -62,15 +62,17 @@
 | `Batches` | 批次数 |
 | `ElapsedMs` | 总耗时 |
 
-## 4. 凭据（服务端环境变量，**不入库、不写日志**）
+## 4. 凭据（优先 `sys_config`，其次环境变量；**不写日志**）
 
-| 变量 | 说明 |
-|---|---|
-| `FINV_MOOMOO_APP_KEY` | 控制台创建的 AppKey ID |
-| `FINV_MOOMOO_PRIVATE_KEY` | Ed25519 PKCS#8 私钥 PEM（可含字面 `\n`） |
-| `FINV_MOOMOO_BASE_URL` | 可选，默认 `https://webapi.moomoo.com` |
+| 来源 | 配置项 | 说明 |
+|---|---|---|
+| `sys.sys_config` 20016 | AppKey | 页面「加密货币」Tab 的凭据卡片维护（需求 11318） |
+| `sys.sys_config` 20017 | 私钥 PEM | 敏感；接口只回显掩码 |
+| 环境变量 `FINV_MOOMOO_APP_KEY` | AppKey | sys_config 未配置时兜底 |
+| 环境变量 `FINV_MOOMOO_PRIVATE_KEY` | 私钥 PEM（可含字面 `\n`） | sys_config 未配置时兜底 |
+| 环境变量 `FINV_MOOMOO_BASE_URL` | 站点地址 | 可选，默认 `https://webapi.moomoo.com` |
 
-未配置前两项时接口返回 `503`（`code=2006`），提示先配置凭据。
+两处都没有配置时接口返回 `503`（`code=2006`），提示先配置凭据。
 
 签名口径（传统 API Key）：`{timestamp_ms}\n{HTTP_METHOD}\n{path}\n{query}\n{sha256(body)_hex}`，
 Ed25519 私钥签名后 Base64 作为 `Authorization`，另带 `X-Api-Key` / `X-Timestamp` / `X-Nonce`。

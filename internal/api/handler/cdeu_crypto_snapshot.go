@@ -15,11 +15,12 @@ package handler
 import (
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/webapi"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
 )
 
@@ -38,7 +39,7 @@ func (h *ExportArchive) CryptoFavSnapshotSync(c *gin.Context) {
 		}
 	}
 
-	client, err := webapi.NewClientFromEnv()
+	client, err := h.service.Store().MoomooClientFromConfig(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "moomoo OpenAPI 初始化失败: " + err.Error()})
 		return
@@ -46,7 +47,7 @@ func (h *ExportArchive) CryptoFavSnapshotSync(c *gin.Context) {
 	if client == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"code":    2006,
-			"message": "未配置 moomoo OpenAPI 凭据（FINV_MOOMOO_APP_KEY / FINV_MOOMOO_PRIVATE_KEY）",
+			"message": "未配置 moomoo OpenAPI 凭据（sys_config 20016/20017 或环境变量 FINV_MOOMOO_APP_KEY / FINV_MOOMOO_PRIVATE_KEY）",
 		})
 		return
 	}
@@ -72,4 +73,60 @@ func (h *ExportArchive) CryptoFavSnapshotSync(c *gin.Context) {
 		"message": "采集完成",
 		"data":    result,
 	})
+}
+
+// CryptoMoomooConfigGet GET /Meta/Finv/Quote/Crypto/Moomoo/Config。
+//
+// 回显 moomoo OpenAPI 凭据的配置状态（需求 11318）：**只返回 AppKey 与私钥掩码**，
+// 不下发私钥明文；`source` 说明当前生效来源（sys_config / env / none）。
+func (h *ExportArchive) CryptoMoomooConfigGet(c *gin.Context) {
+	cfg, err := h.service.Store().LoadMoomooConfig(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": err.Error()})
+		return
+	}
+	source := "none"
+	switch {
+	case cfg.Configured():
+		source = "sys_config"
+	case strings.TrimSpace(os.Getenv("FINV_MOOMOO_APP_KEY")) != "" &&
+		strings.TrimSpace(os.Getenv("FINV_MOOMOO_PRIVATE_KEY")) != "":
+		source = "env"
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "查询完成",
+		"data": gin.H{
+			"app_key":                cfg.AppKey,
+			"private_key_configured": strings.TrimSpace(cfg.PrivateKeyPEM) != "",
+			"private_key_masked":     cfg.MaskedPrivateKey(),
+			"source":                 source,
+		},
+	})
+}
+
+// CryptoMoomooConfigSave POST /Meta/Finv/Quote/Crypto/Moomoo/Config。
+//
+// 请求体：{"app_key": "...", "private_key": "..."}。
+// `private_key` 留空 = 保留原值（页面不回显明文）；传 `__CLEAR__` 清空私钥。
+// 私钥会先做 Ed25519 PKCS#8 解析校验，非法 PEM 直接 400，不写系统配置。
+func (h *ExportArchive) CryptoMoomooConfigSave(c *gin.Context) {
+	var req struct {
+		AppKey     string `json:"app_key"`
+		PrivateKey string `json:"private_key"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体解析失败: " + err.Error()})
+		return
+	}
+	if err := h.service.Store().SaveMoomooConfig(c.Request.Context(), req.AppKey, req.PrivateKey); err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "AppKey") || strings.Contains(err.Error(), "私钥") {
+			status = http.StatusBadRequest
+		}
+		c.JSON(status, gin.H{"code": 400, "message": err.Error()})
+		return
+	}
+	log.Printf("[cdeu][crypto] moomoo 凭据已更新 app_key=%.6s***", req.AppKey)
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "已保存"})
 }

@@ -228,6 +228,9 @@ func NewRouter(deps *Deps) *gin.Engine {
 			)
 			// 收藏的加密货币行情快照采集（需求 11314）：moomoo OpenAPI market-snapshot。
 			apiGroup.POST("/Meta/Finv/Quote/Crypto/Fav/Snapshot/Sync", archive.CryptoFavSnapshotSync)
+			// moomoo OpenAPI 凭据配置（需求 11318）：sys_config 20016/20017，私钥只回显掩码。
+			apiGroup.GET("/Meta/Finv/Quote/Crypto/Moomoo/Config", archive.CryptoMoomooConfigGet)
+			apiGroup.POST("/Meta/Finv/Quote/Crypto/Moomoo/Config", archive.CryptoMoomooConfigSave)
 			group := apiGroup.Group("/Meta/Finv/Quote/DeDup")
 			group.GET("/Status", archive.Status)
 			group.GET("/Settings", archive.Settings)

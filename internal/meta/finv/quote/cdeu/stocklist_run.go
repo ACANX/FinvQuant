@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"github.com/acnxo/MetaExt/component/quote/moomoo/quoteapiv2"
-
-	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/webapi"
 )
 
 // 本文件实现「采集运行管理」：把一次列表采集放到后台执行，并把逐页日志与进度
@@ -552,7 +550,7 @@ func (s *Service) startCryptoFavRun(opts StockListCollectOptions) (StockListRun,
 	go func() {
 		fetcher := s.moomooSnapshotFetcher
 		if fetcher == nil {
-			client, clientErr := webapi.NewClientFromEnv()
+			client, clientErr := s.store.MoomooClientFromConfig(context.Background())
 			if clientErr != nil {
 				s.stockListRunner.appendLog(runID, StockListRunLog{
 					Level:   "ERROR",
