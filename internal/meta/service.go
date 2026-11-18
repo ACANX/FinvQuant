@@ -79,6 +79,12 @@ type Security struct {
 	Timezone         *string `json:"timezone"`
 	Tz               *string `json:"tz"`
 	FlagEnable       string  `json:"flag_enable"`
+	// USN 统一证券编号（可空；编制规则见 Docs/Design/UsnCodingSchemeDesign.md）。
+	USN *int `json:"usn"`
+	// TypeSecu 证券分类（type_secu_sub 的父类，需求 11306）。
+	TypeSecu string `json:"type_secu"`
+	// TypeSecuSub 证券子类（需求 11305/11313）。
+	TypeSecuSub string `json:"type_secu_sub"`
 	// IsFavorite 是否已收藏（quote.finv_quote_secu_fav 中存在该 usc，需求 11312）。
 	IsFavorite bool `json:"is_favorite"`
 }
@@ -342,7 +348,7 @@ func (s *Service) ListSecurities(ctx context.Context, pager Pager, keyword, flag
 	rows, err := s.pool.Query(ctx, `
 SELECT s.usc, s.exchange_code, s.market_code, s.security_type, s.security_code, s.security_name,
        s.security_name_cn, s.security_name_full, s.currency_type, s.init_date, s.timezone, s.tz,
-       s.flag_enable,
+       s.flag_enable, s.usn, s.type_secu, s.type_secu_sub,
        EXISTS (SELECT 1 FROM quote.finv_quote_secu_fav f WHERE f.usc = s.usc) AS is_favorite
 FROM finv_security s
 WHERE `+cond+`
@@ -359,7 +365,8 @@ LIMIT $`+strconv.Itoa(len(args)+1)+` OFFSET $`+strconv.Itoa(len(args)+2),
 		var sec Security
 		if err := rows.Scan(&sec.USC, &sec.ExchangeCode, &sec.MarketCode, &sec.SecurityType, &sec.SecurityCode,
 			&sec.SecurityName, &sec.SecurityNameCN, &sec.SecurityNameFull, &sec.CurrencyType,
-			&sec.InitDate, &sec.Timezone, &sec.Tz, &sec.FlagEnable, &sec.IsFavorite); err != nil {
+			&sec.InitDate, &sec.Timezone, &sec.Tz, &sec.FlagEnable,
+			&sec.USN, &sec.TypeSecu, &sec.TypeSecuSub, &sec.IsFavorite); err != nil {
 			return nil, 0, err
 		}
 		list = append(list, sec)

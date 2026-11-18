@@ -537,6 +537,12 @@
 
 ### 变更
 
+- **证券字典列表展示统一编号 / 分类 / 子类（需求 11327）**
+  - `Security/List` 返回值新增 `usn`（可空）、`type_secu`、`type_secu_sub`。
+  - `/Meta/Finv/MetaData/Security` 表格新增三列，分别位于第 1（统一编号）、第 9（分类）、
+    第 10（子类）列；空值显示 `—`。编辑对话框不涉及这三个字段（字段由编制/回填维护）。
+
+
 - **期货快照表改名：`cdeu.finv_quote_realtime_future` → `cdeu.finv_quote_secu_realtime_future`（需求 11325）**
   - 迁移 `V300229`：表名改为 `finv_quote_secu_realtime_future`，与证券/加密货币快照表
     （`finv_quote_secu_realtime` / `finv_quote_secu_realtime_crypto`）命名对齐；

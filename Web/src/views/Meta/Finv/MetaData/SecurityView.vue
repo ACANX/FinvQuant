@@ -19,6 +19,11 @@ interface SecurityRow {
   timezone: string | null
   tz: string | null
   flag_enable: string
+  /** 统一证券编号（可空，需求 11327） */
+  usn: number | null
+  /** 证券分类 / 子类（需求 11327） */
+  type_secu: string
+  type_secu_sub: string
   /** 是否已收藏（quote.finv_quote_secu_fav，需求 11312） */
   is_favorite: boolean
 }
@@ -81,6 +86,9 @@ const form = ref<SecurityRow>({
   timezone: null,
   tz: null,
   flag_enable: '1',
+  usn: null,
+  type_secu: '',
+  type_secu_sub: '',
   is_favorite: false,
 })
 
@@ -116,6 +124,9 @@ function openCreate() {
     timezone: null,
     tz: null,
     flag_enable: '1',
+    usn: null,
+    type_secu: '',
+    type_secu_sub: '',
     is_favorite: false,
   }
   dialog.value = true
@@ -250,6 +261,7 @@ onMounted(() => {
 
       <v-data-table
         :headers="[
+          { title: '统一编号', key: 'usn', width: 100 },
           { title: 'usc', key: 'usc', width: 110 },
           { title: '交易所', key: 'exchange_code', width: 80 },
           { title: '市场', key: 'market_code', width: 80 },
@@ -257,6 +269,8 @@ onMounted(() => {
           { title: '源代码', key: 'security_code', width: 110 },
           { title: '证券名称', key: 'security_name' },
           { title: '中文名称', key: 'security_name_cn', width: 140 },
+          { title: '分类', key: 'type_secu', width: 110 },
+          { title: '子类', key: 'type_secu_sub', width: 140 },
           { title: '货币', key: 'currency_type', width: 80 },
           { title: '上市日', key: 'init_date', width: 100 },
           { title: '状态', key: 'flag_enable', width: 90 },
@@ -268,6 +282,21 @@ onMounted(() => {
         item-value="usc"
         density="compact"
       >
+        <template #item.usn="{ item }">
+          <span :class="item.usn ? 'num' : 'text-medium-emphasis'">
+            {{ item.usn ?? '—' }}
+          </span>
+        </template>
+        <template #item.type_secu="{ item }">
+          <span :class="item.type_secu ? '' : 'text-medium-emphasis'">
+            {{ item.type_secu || '—' }}
+          </span>
+        </template>
+        <template #item.type_secu_sub="{ item }">
+          <span :class="item.type_secu_sub ? '' : 'text-medium-emphasis'">
+            {{ item.type_secu_sub || '—' }}
+          </span>
+        </template>
         <template #item.flag_enable="{ item }">
           <v-chip :color="item.flag_enable === '1' ? 'success' : 'grey'" size="small">
             {{ item.flag_enable === '1' ? '启用' : '禁用' }}

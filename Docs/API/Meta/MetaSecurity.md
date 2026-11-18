@@ -2,6 +2,8 @@
 
 finv_security 证券代码字典维护接口：分页查询、新增/修改、禁用/启用、收藏、下拉选项、按代码查询详情。
 
+> 响应字段：除基础身份列外，`List` 还返回 `usn`（可空，统一证券编号）、`type_secu`（分类）、
+> `type_secu_sub`（子类）与 `is_favorite`（是否收藏，需求 11312/11327）。
 > 排序约定：`List` 分页结果**启用的（flag_enable='1'）优先展示**，禁用的排后面，同状态按 usc 升序（交易所/市场 List 同理）。
 
 ## 1. 分页查询证券
@@ -41,6 +43,9 @@ finv_security 证券代码字典维护接口：分页查询、新增/修改、�
         "timezone": "-04:00",
         "tz": "America/New_York",
         "flag_enable": "1",
+        "usn": null,
+        "type_secu": "Futures",
+        "type_secu_sub": "",
         "is_favorite": false
       }
     ]
