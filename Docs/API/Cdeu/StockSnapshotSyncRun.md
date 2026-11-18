@@ -76,14 +76,14 @@ curl -sS -X POST 'http://127.0.0.1:16001/API/V1/Meta/Finv/Quote/Cdeu/Realtime/FT
 ### 2.4 按品种分支：期货列表采集（需求 11274）
 
 `instrument_symbol` 为 `future` 时走**独立分支**：读 `cdeu.finv_quote_cdeu_future_sync_config`，
-按分类分页拉取 moomoo `get-futures-list`，逐页写 `cdeu.finv_quote_realtime_future`。
+按分类分页拉取 moomoo `get-futures-list`，逐页写 `cdeu.finv_quote_secu_realtime_future`。
 
 | 项 | 行为 |
 |---|---|
 | 请求体 | `instrument_symbol: "future"` 必填；`futures_type` 可选（`1`~`8`，空/`all`=全部启用分类） |
 | 生效参数 | `page_size`（默认 **50**，与股票/ETF 采集一致；上游 `DefaultFuturesPageSize` 为 40，本采集器显式覆盖）、`page_start`（默认 0，本接口 0-based）、`interval_ms`（默认 2000）、`max_retries`（2）、`retry_backoff_ms`（2000）、`request_timeout_ms`（20000）、`max_pages`（0=不限）、`count_plan`（覆盖每分类计划数量） |
 | 不生效参数 | `market_type`（每个分类的 `marketType` 取配置行，默认 `0`=聚合口径）、`plate_type`、`rank_type` |
-| 落库表 | `cdeu.finv_quote_realtime_future`，**主键单列 `stock_id`**，整行覆盖；`futures_type` 由最后采集的分类覆盖（采集按分类升序） |
+| 落库表 | `cdeu.finv_quote_secu_realtime_future`（原名 `finv_quote_realtime_future`，需求 11325 改名），**主键单列 `stock_id`**，整行覆盖；`futures_type` 由最后采集的分类覆盖（采集按分类升序） |
 | 字段口径 | 接口 `fields` 是位置化字典：本仓库只把 `1`=合约代码、`2`=名称、`3`=价格、`4`=涨跌幅（去 `%` 按百分点）、`19`=市场标签提成列；其余原样进 `fields_json`，`field_list_json` 留档 |
 | `usc` 解析 | ① `stock_id` → `futu.finv_futu_quote_collect.usc`；② `upper(市场标签.合约代码)` → `futu.finv_futu_secu_key.usc`；两级都不命中写 NULL（不用合约代码冒充） |
 | 下架标记 | 整轮「全部启用分类都成功」时，把 `dt_last_seen < 本轮开始时刻` 的在售行置 `flag_online='0'`；单分类运行或任一分类失败**跳过**（结果表主键单列 `stock_id`，按分类分批置下架会误标其它分类） |

@@ -61,7 +61,7 @@ func (s *Service) SetMoomooSnapshotFetcher(fetcher webapi.Fetcher) {
 
 // CollectFuturesList 按配置采集期货列表：读配置 → 分页拉取 → 逐页落库 → 回写统计（需求 11274）。
 //
-// 采集范围来自 cdeu.finv_quote_cdeu_future_sync_config，结果写 cdeu.finv_quote_realtime_future。
+// 采集范围来自 cdeu.finv_quote_cdeu_future_sync_config，结果写 cdeu.finv_quote_secu_realtime_future。
 func (s *Service) CollectFuturesList(ctx context.Context, opts FutureListCollectOptions) ([]FutureListCollectResult, error) {
 	collector := NewFutureListCollector(s.store, s.futureListFetcher, s.store, log.Default())
 	return collector.Collect(ctx, opts)

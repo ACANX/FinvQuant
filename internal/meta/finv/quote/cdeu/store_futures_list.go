@@ -15,7 +15,7 @@ import (
 // 本文件是「期货列表快照同步」在本项目侧的落地（需求 11273/11274）：
 //   - 配置读写（FutureListConfigStore）：读 cdeu.finv_quote_cdeu_future_sync_config、
 //     回写每轮 count_exists / total_available；
-//   - 逐页落库（FutureListSink）：按主键 stock_id upsert 到 cdeu.finv_quote_realtime_future，
+//   - 逐页落库（FutureListSink）：按主键 stock_id upsert 到 cdeu.finv_quote_secu_realtime_future，
 //     并在整轮成功后把「未再出现」的合约标记下架。
 //
 // 采集流程本身在 quote_list_futures_snapshot_sync.go（单文件、可整体迁往 MetaExt 第三方包）；
@@ -37,7 +37,7 @@ const (
 	//
 	// 表名以 finv_quote_ 开头但位于 cdeu 域，属 DbSchemaSpec §1 的刻意例外
 	// （用户 2026-11-20 指定），由 schema_qualify_test.go 的 exactTableSchema 固定为 cdeu.。
-	tableFutureList = "cdeu.finv_quote_realtime_future"
+	tableFutureList = "cdeu.finv_quote_secu_realtime_future"
 	// tableFutureSyncConfig 期货列表采集配置表（V300216）。
 	tableFutureSyncConfig = "cdeu.finv_quote_cdeu_future_sync_config"
 )
@@ -54,7 +54,7 @@ const (
 // FutureListProvider 写入 provider 列的固定值（期货当前只有 moomoo 一个来源）。
 const FutureListProvider = "FTMM"
 
-// FutureListRow 是 cdeu.finv_quote_realtime_future 的一行。
+// FutureListRow 是 cdeu.finv_quote_secu_realtime_future 的一行。
 //
 // 数值列用 *json.Number：与既有快照落库口径一致，由 pgx 以文本传，
 // 避免 float64 二次格式化丢精度；nil 表示该字段无来源，写 NULL。

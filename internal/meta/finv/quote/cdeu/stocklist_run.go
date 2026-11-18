@@ -225,7 +225,7 @@ func (s *Service) StartStockListRun(opts StockListCollectOptions) (StockListRun,
 	}
 
 	// 需求 11274：期货列表采集（moomoo get-futures-list）与股票列表采集共用同一运行持有者
-	// 与轮询端点，按 instrument_symbol=future 分支；结果落 cdeu.finv_quote_realtime_future。
+	// 与轮询端点，按 instrument_symbol=future 分支；结果落 cdeu.finv_quote_secu_realtime_future。
 	if normalized.FilterInstrumentSymbol == FuturesInstrumentSymbol {
 		return s.startFuturesListRun(normalized)
 	}
@@ -275,7 +275,7 @@ func (s *Service) StartStockListRun(opts StockListCollectOptions) (StockListRun,
 //
 // 与股票列表采集共用 StockListRunner（运行状态 + 日志 + 轮询接口），
 // 因此前端「行情快照同步」页无需新增接口：同一个 /Run 接口按 instrument_symbol 分支。
-// 采集范围来自 cdeu.finv_quote_cdeu_future_sync_config，结果落 cdeu.finv_quote_realtime_future。
+// 采集范围来自 cdeu.finv_quote_cdeu_future_sync_config，结果落 cdeu.finv_quote_secu_realtime_future。
 func (s *Service) startFuturesListRun(opts StockListCollectOptions) (StockListRun, error) {
 	if s.stockListRunner == nil {
 		s.stockListRunner = newStockListRunner()
@@ -388,7 +388,7 @@ func (s *Service) FuturesConfigs(ctx context.Context) ([]FutureListCollectConfig
 // 只在「本轮确实写过 cdeu.finv_quote_secu_realtime」的链路调用：
 // moomoo 列表采集（stock / etf）、BDFS 成分股采集（bsestock / cnetf）与
 // 沪深京指数采集（cnindex，需求 11294）；
-// 期货采集写的是 cdeu.finv_quote_realtime_future，与 rmb 无关，不调用。
+// 期货采集写的是 cdeu.finv_quote_secu_realtime_future，与 rmb 无关，不调用。
 //
 // 幂等：SyncRMBMetrics 只在值发生变化时更新（SQL 里有 IS DISTINCT FROM 条件），
 // 所以每轮采集都跑不会产生额外写入；失败只写 WARN 日志，不改采集本身的结果状态

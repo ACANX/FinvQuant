@@ -1,7 +1,7 @@
 # GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Future/Page — 期货行情排行分页查询
 
 > 所属：行情 → 实时行情 → 期货行情排行
-> 数据表：`cdeu.finv_quote_realtime_future`（主键 `stock_id`，建表 `V300216`）
+> 数据表：`cdeu.finv_quote_secu_realtime_future`（主键 `stock_id`，建表 `V300216` 原名 `finv_quote_realtime_future`，`V300229` 改名，需求 11325）
 > 分类字典：`cdeu.finv_quote_cdeu_future_sync_config`（`futures_type` → `futures_type_name`）
 > 关联需求：11322、11324（持仓量/日增仓列与排序）
 > 实现：`internal/api/handler/cdeu_realtime_future.go`（`RealtimeFuturePage`）、

@@ -2,14 +2,14 @@ package cdeu
 
 // 本文件是「期货行情排行」的领域模型与筛选参数（需求 11322）。
 //
-// 表：cdeu.finv_quote_realtime_future（主键 stock_id，一行一合约，整行覆盖）。
+// 表：cdeu.finv_quote_secu_realtime_future（主键 stock_id，一行一合约，整行覆盖）。
 // 采集口径见 quote_list_futures_snapshot_sync.go：结构化列只有
 // 代码/名称/现价/涨跌幅（字段 1/2/3/4），其余字段原样留档在 fields_json，
 // 字段定义留档在 field_list_json —— 因此本页**不臆造** fields_json 的编号含义，
 // 只把两段 JSON 原样返回，由前端按 field_list_json 渲染明细。
 
 // 表名复用 store_futures_list.go 的 tableFutureList / tableFutureSyncConfig
-// （cdeu.finv_quote_realtime_future / cdeu.finv_quote_cdeu_future_sync_config）。
+// （cdeu.finv_quote_secu_realtime_future / cdeu.finv_quote_cdeu_future_sync_config）。
 
 // 需求 11324：期货排行展示「持仓量」「日增仓」两个指标列。
 //

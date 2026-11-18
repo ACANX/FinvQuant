@@ -7,7 +7,7 @@
 > 关联需求：10982（本页）、10976（配置表）、10977（同步服务）、11255（路由改名）、11256（占位 Tab）、11273/11274（期货 Tab 实装）、11294（沪深京指数 Tab 实装）
 > 关联接口：[`API/Cdeu/StockSnapshotSyncRun.md`](../../../API/Cdeu/StockSnapshotSyncRun.md)（异步启动 + 轮询）
 > 关联表：`cdeu.finv_cdeu_secu_realtime_sync_config`（股票等品种配置）、`cdeu.finv_quote_secu_realtime`（股票结果）、
-> `cdeu.finv_quote_cdeu_future_sync_config`（期货分类配置）、`cdeu.finv_quote_realtime_future`（期货结果）
+> `cdeu.finv_quote_cdeu_future_sync_config`（期货分类配置）、`cdeu.finv_quote_secu_realtime_future`（期货结果）
 
 ## 1. 用途
 
@@ -25,7 +25,7 @@
 | `stock` | 股票 | 配置表（当前唯一有配置行的品种） |
 | `cnetf` | 沪深京ETF | BDFS 指数采集（需求 11263，固定来源，无需配置行；符号 `cnetf`，需求 11265） |
 | `index` | 指数 | 占位 |
-| `future` | 期货 | **实装（需求 11274）**：配置表 `cdeu.finv_quote_cdeu_future_sync_config`，结果 `cdeu.finv_quote_realtime_future` |
+| `future` | 期货 | **实装（需求 11274）**：配置表 `cdeu.finv_quote_cdeu_future_sync_config`，结果 `cdeu.finv_quote_secu_realtime_future` |
 | `crypto` | 加密货币 | 占位 |
 | `bsestock` | 北交所股票 | BDFS 板块采集（需求 11262，固定来源，无需配置行） |
 | `etf` | ETF | **实装（需求 11279）**：moomoo `get-etf-list`（HK `plateId=900075` / US `plateId=10002799`），结果写 `cdeu.finv_quote_secu_realtime`；与 `cnetf` 刻意分开 |
@@ -171,7 +171,7 @@ ETF 代码同样按 `(exchange, code)` 解析 `public.finv_security.usc`；实�
 | 数据源 | moomoo `GET /quote-api/quote-v2/get-futures-list`（经 MetaExt `quoteapiv2.GetFuturesList`） |
 | 采集范围 | 配置表 `cdeu.finv_quote_cdeu_future_sync_config` 的启用行，一行=一个「市场 + 分类」；种子 `futures_type='1'..'8'`、`market_type='0'`（聚合口径） |
 | 参数 | 每页默认 **50**、页码 0-based、页间 2s、重试 2 次；请求必带 `_` 毫秒时间戳（签名输入） |
-| 落库表 | `cdeu.finv_quote_realtime_future`（`V300216`，**主键单列 `stock_id`**） |
+| 落库表 | `cdeu.finv_quote_secu_realtime_future`（`V300216`，**主键单列 `stock_id`**） |
 | 字段口径 | 只把已验证的位置化字段提列：`1`=合约代码、`2`=名称、`3`=价格、`4`=涨跌幅（去 `%` 按百分点）、`19`=市场标签；其余进 `fields_json`，`field_list_json` 留档；首页日志打一条字段字典采样 |
 | usc 解析 | `stock_id` → `futu.finv_futu_quote_collect.usc`，再 `upper(市场标签.合约代码)` → `futu.finv_futu_secu_key.usc`；都不命中写 NULL |
 | 下架标记 | 整轮「全部启用分类都成功」才把 `dt_last_seen < 本轮开始时刻` 的行置 `flag_online='0'`，单分类/部分失败跳过 |
@@ -263,7 +263,7 @@ ETF 代码同样按 `(exchange, code)` 解析 `public.finv_security.usc`；实�
 - 幂等：`SyncRMBMetrics` 只在值变化时更新，重复采集不会产生额外写入；
 - 失败只记 `WARN`，不改变采集本身的结果状态（采集成功仍是成功）；
 - 缺汇率币种会在同一行日志里列出（`；缺汇率币种：HKD、JPY`）；
-- 期货采集写的是 `cdeu.finv_quote_realtime_future`，与人民币指标无关，**不触发**。
+- 期货采集写的是 `cdeu.finv_quote_secu_realtime_future`，与人民币指标无关，**不触发**。
 
 ### 2.5 说明卡片（页面最底部）
 

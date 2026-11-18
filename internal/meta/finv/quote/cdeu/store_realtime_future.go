@@ -31,7 +31,7 @@ var realtimeFutureOrderExprs = map[string]string{
 
 // ListRealtimeFutures 分页查询期货实时行情快照（需求 11322）。
 //
-// 表 cdeu.finv_quote_realtime_future（主键 stock_id）。分类中文名来自配置表
+// 表 cdeu.finv_quote_secu_realtime_future（主键 stock_id）。分类中文名来自配置表
 // cdeu.finv_quote_cdeu_future_sync_config；配置表缺行时返回空串，前端降级显示「分类 N」。
 // 数值列统一 ::text 输出，避免 NUMERIC(20,6) 在 JSON 里丢精度。
 func (s *Store) ListRealtimeFutures(ctx context.Context, f RealtimeFutureListFilter) (int64, []RealtimeFutureListRow, error) {

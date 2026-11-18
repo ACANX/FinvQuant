@@ -4,7 +4,7 @@
 > 路由：`/Meta/Finv/Quote/Realtime/FTFutureRank`
 > 视图：`Web/src/views/Meta/Finv/Quote/Realtime/FutureRankView.vue`
 > 菜单 key：`quote-realtime-ftfuture-rank`（父分组 `quote-realtime`，紧跟「证券行情排行」）
-> 数据表：`cdeu.finv_quote_realtime_future`（一行一合约，主键 `stock_id`）
+> 数据表：`cdeu.finv_quote_secu_realtime_future`（一行一合约，主键 `stock_id`；原名 `finv_quote_realtime_future`，需求 11325 改名）
 > 分类字典：`cdeu.finv_quote_cdeu_future_sync_config`（`futures_type` → `futures_type_name`）
 > 接口：[`GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Future/Page`](../../../API/Cdeu/RealtimeFuturePage.md)
 > 分类下拉：[`GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Future/Types`](../../../API/Cdeu/RealtimeFuturePage.md)

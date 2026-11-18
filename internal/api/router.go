@@ -302,7 +302,7 @@ func NewRouter(deps *Deps) *gin.Engine {
 			realtime.POST("/FTStockQuoteSnapshotSync/Run", archive.RealtimeStockListRunStart)
 			realtime.GET("/FTStockQuoteSnapshotSync/Run", archive.RealtimeStockListRunStatus)
 			realtime.GET("/Stock/Page", archive.RealtimeStockPage)
-			// 期货行情排行（需求 11322）：cdeu.finv_quote_realtime_future，主键 stock_id。
+			// 期货行情排行（需求 11322）：cdeu.finv_quote_secu_realtime_future，主键 stock_id。
 			realtime.GET("/Future/Page", archive.RealtimeFuturePage)
 			realtime.GET("/Future/Types", archive.RealtimeFutureTypes)
 			// 加密货币行情排行（需求 11323）：cdeu.finv_quote_secu_realtime_crypto，主键 usc。

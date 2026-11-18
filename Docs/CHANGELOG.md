@@ -537,6 +537,16 @@
 
 ### 变更
 
+- **期货快照表改名：`cdeu.finv_quote_realtime_future` → `cdeu.finv_quote_secu_realtime_future`（需求 11325）**
+  - 迁移 `V300229`：表名改为 `finv_quote_secu_realtime_future`，与证券/加密货币快照表
+    （`finv_quote_secu_realtime` / `finv_quote_secu_realtime_crypto`）命名对齐；
+    主键、CHECK / NOT NULL 约束、索引、触发器名同步换前缀，**数据与表/列注释随表保留**。
+  - `brs.brs_bak_rdb_table_full` 全量备份登记同步改为新表名（`priority` 保持不变）。
+  - 代码常量（`tableFutureList`）、`schema_qualify_test.go` 的 `exactTableSchema`、
+    API/菜单/规范文档全部同步。
+  - **破坏性变更**：升级后引用旧表名的旧镜像无法工作，必须整体升级；改名前后行数不变（实测 335 行）。
+
+
 - **期货行情排行：新增持仓量 / 日增仓列，提供方移入多列明细（需求 11324）**
   - 表格在涨跌幅后新增「持仓量」「日增仓」两列，均支持排序；持仓量按万/亿折算，日增仓带正负号。
   - 两个指标来自字段留档：按 `field_list_json` 的 `fieldName=持仓量 / 日增仓` 定位 `fieldId`，

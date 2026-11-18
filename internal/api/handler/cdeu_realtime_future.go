@@ -16,7 +16,7 @@ import (
 //
 // 查询参数（小驼峰，ApiSpec §3）：keyword / futuresType / marketLabel / onlyOnline /
 // orderBy / order / page / pageSize。
-// 数据源 cdeu.finv_quote_realtime_future（主键 stock_id，一行一合约）。
+// 数据源 cdeu.finv_quote_secu_realtime_future（主键 stock_id，一行一合约）。
 // 响应 data：{total, page, pageSize, list[]}；数值列为文本，精度由前端裁剪。
 func (h *ExportArchive) RealtimeFuturePage(c *gin.Context) {
 	page, err := realtimeStockQueryInt(c, "page", 1, 1, 1_000_000)
