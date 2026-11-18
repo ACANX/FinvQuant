@@ -439,8 +439,20 @@ async function loadOptions() {
   }
 }
 
+const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
+const pageJump = ref<number | null>(null)
+
 function search() {
   page.value = 1
+  load()
+}
+
+/** 跳页：越界自动裁剪到 [1, pageCount]。 */
+function jumpToPage(): void {
+  const target = Math.round(Number(pageJump.value ?? 0))
+  if (!Number.isFinite(target) || target <= 0) return
+  page.value = Math.min(pageCount.value, Math.max(1, target))
+  pageJump.value = null
   load()
 }
 
@@ -621,7 +633,7 @@ function timeText(value: string): string {
         :headers="[...headers, { title: '操作', key: 'actions', width: 210, sortable: false }]"
         :items="rows"
         :loading="loading"
-        :items-per-page="pageSize"
+        hide-default-footer
         item-value="usc"
         density="compact"
         class="finv-sec-table"
@@ -1437,14 +1449,41 @@ function timeText(value: string): string {
         </v-card>
       </v-dialog>
 
-      <v-pagination
-        v-model="page"
-        :length="Math.max(1, Math.ceil(total / pageSize))"
-        :total-visible="7"
-        density="compact"
-        class="mt-3"
-        @update:model-value="load"
-      />
+      <!-- 服务端分页：唯一分页控件（表格自带 footer 已关闭，需求 11331） -->
+      <div class="d-flex flex-wrap align-center justify-space-between ga-2 mt-3">
+        <span class="text-caption text-medium-emphasis">
+          共 {{ total }} 条{{ total ? `，第 ${page} / ${pageCount} 页` : '' }}
+        </span>
+        <div class="d-flex align-center ga-2">
+          <span class="text-caption text-medium-emphasis">每页</span>
+          <v-select
+            v-model="pageSize"
+            :items="[20, 50, 100, 200]"
+            density="compact"
+            hide-details
+            style="width: 88px"
+            @update:model-value="search"
+          />
+          <span class="text-caption text-medium-emphasis">条</span>
+          <v-pagination
+            v-model="page"
+            :length="pageCount"
+            :total-visible="7"
+            density="compact"
+            @update:model-value="load"
+          />
+          <v-text-field
+            v-model.number="pageJump"
+            type="number"
+            label="跳至"
+            density="compact"
+            hide-details
+            style="width: 96px"
+            @keyup.enter="jumpToPage"
+          />
+          <v-btn variant="text" size="small" :disabled="!pageJump" @click="jumpToPage">跳转</v-btn>
+        </div>
+      </div>
     </v-card-text>
 
     <!-- 新增 / 编辑对话框 -->
