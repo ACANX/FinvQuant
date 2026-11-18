@@ -537,6 +537,10 @@
 
 ### 变更
 
+- **证券字典每页条数增加 15 并设为默认（需求 11332）**
+  - 每页下拉选项为 `15（默认）/ 20 / 50 / 100 / 200`，首次加载请求 `pageSize=15`。
+
+
 - **证券字典新增 7 个筛选 + 默认按交易所/市场/源代码升序（需求 11330）**
   - `Security/List` 新增 `exchangeCode` / `marketCode` / `securityType` / `typeSecuSub` /
     `currencyType` / `provider` 参数（与原有 `keyword` / `flagEnable` 叠加）。

@@ -201,7 +201,9 @@ function saveColumns(): void {
 const rows = ref<SecurityRow[]>([])
 const total = ref(0)
 const page = ref(1)
-const pageSize = ref(20)
+// 每页条数（需求 11332：默认 15，可在 15/20/50/100/200 间切换）
+const PAGE_SIZE_OPTIONS = [15, 20, 50, 100, 200]
+const pageSize = ref(15)
 const keyword = ref('')
 // 筛选（需求 11330）：交易所 / 市场 / 类型 / 子类 / 货币 / 状态 / 提供方
 const exchangeFilter = ref<number | null>(null)
@@ -1459,7 +1461,7 @@ function timeText(value: string): string {
           <span class="text-caption text-medium-emphasis">每页</span>
           <v-select
             v-model="pageSize"
-            :items="[20, 50, 100, 200]"
+            :items="PAGE_SIZE_OPTIONS"
             density="compact"
             hide-details
             style="width: 88px"

@@ -3430,7 +3430,8 @@ if (LEGACY_PATH_MAP[to.path]) {
 | `/Meta/Finv/MetaData/Security` 表格在列全开时不得压缩列导致内容换行溢出，并支持自定义拖拽调节各列列宽（列宽存 localStorage `finv:meta:security:widths`，双击表头边界恢复默认，恢复默认列配置时一并清空列宽）。 核对：表格 CSS 含 `table-layout: auto` 与 `white-space: nowrap`；选中全部 20 列后页面无换行单元格且可横向滚动；拖动表头边界后刷新页面列宽保持；双击边界恢复默认宽度；`cd Web && npm run build` 退出码 0。 | 11329 | 1 |
 | `/Meta/Finv/MetaData/Security` 新增按 交易所 / 市场 / 类型 / 子类 / 货币 / 状态 / 提供方 筛选，表格默认按 交易所 → 市场 → 源代码 升序；新增接口 `GET .../Metadata/Security/FilterOptions` 返回四组 DISTINCT 筛选项。 核对：`curl '.../Security/List?page=1&pageSize=3'` 首行 `exchange_code/marketCode/security_code` 为升序；`curl '.../Security/List?exchangeCode=12&securityType=Stock&currencyType=CNY&flagEnable=1'` 返回 2977 行且全部匹配；`curl '.../Security/FilterOptions'` 返回 types/type_secu_subs/currencies/providers；页面 7 个筛选下拉可用、「重置」清空；`cd Web && npm run build` 退出码 0。 | 11330 | 1 |
 | `/Meta/Finv/MetaData/Security` 页面底部出现两个分页组件（表格自带 footer 不生效），整合为唯一完整分页：关闭 `v-data-table` 默认 footer，底部改为「总条数 + 当前页/总页数 + 每页条数选择 + 页码 + 跳页」；每页条数变更回到第 1 页，跳页越界自动裁剪；表格必须设 `:items-per-page="-1"` 显示当前页全部行（否则 Vuetify 默认只渲染 10 行，表现为「每页条数不生效」）。 核对：页面只有一处分页控件；`grep -c 'hide-default-footer' Web/src/views/Meta/Finv/MetaData/SecurityView.vue` 返回 1；切换每页条数为 100 后表格实际渲染 100 行、页码按 100/页计算；输入超出范围的页码点「跳转」落到最后一页；`cd Web && npm run build` 退出码 0。 | 11331 | 1 |
-| **合计** | **10001–11331** | **1327**（含 4 条待办；11273–11331 为后续追加） |
+| `/Meta/Finv/MetaData/Security` 每页条数选项增加 15 条，并作为默认值（原默认 20）。 核对：`grep -n 'pageSize = ref(15)' Web/src/views/Meta/Finv/MetaData/SecurityView.vue` 命中；每页下拉选项为 15/20/50/100/200；页面首次加载请求 `pageSize=15` 且表格渲染 15 行；`cd Web && npm run build` 退出码 0。 | 11332 | 1 |
+| **合计** | **10001–11332** | **1328**（含 4 条待办；11273–11332 为后续追加） |
 
 > 验收方式：按编号顺序逐条核对，`√` = 满足，`×` = 不满足并记录差异。
 > 编号连续、不跳号；新增需求从 `10803` 起往后追加，不插入既有区间。
