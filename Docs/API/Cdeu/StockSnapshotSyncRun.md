@@ -141,7 +141,7 @@ upsert 到 `cdeu.finv_quote_secu_realtime_crypto`。
 
 | 项 | 行为 |
 |---|---|
-| 请求体 | 只需 `instrument_symbol: "crypto"`；`market_type` / `count_plan` / `page_size`、限速与重试参数均不生效（一次取全量） |
+| 请求体 | 只需 `instrument_symbol: "crypto"`；`market_type` / `count_plan` / `page_size`、限速与重试参数均不生效（一次取全量，单批固定 400） |
 | 生效参数 | `request_timeout_ms`（本次采集总超时，默认 20000） |
 | 凭据 | 服务端环境变量 `FINV_MOOMOO_APP_KEY` / `FINV_MOOMOO_PRIVATE_KEY`；未配置时任务失败并在日志给出 ERROR |
 | 落库表 | `cdeu.finv_quote_secu_realtime_crypto`（主键 `usc`，`provider` 固定 `MMAPI`） |

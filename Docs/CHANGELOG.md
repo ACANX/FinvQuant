@@ -523,6 +523,12 @@
 
 ### 变更
 
+- **加密货币采集每页条数固定 400（需求 11321）**
+  - 采集器删除可配置的 `BatchSize`，单批 code 数固定为 `webapi.MaxCodes`（400，moomoo 快照接口上限）。
+  - 独立接口 `POST .../Crypto/Fav/Snapshot/Sync` 不再接受 `batch_size`（保留 `timeout_ms`）。
+  - 前端「加密货币」Tab 的「每页条数」锁定为 400 且禁用（悬浮提示说明原因）。
+
+
 - **moomoo OpenAPI 凭据合并为单配置项 `sys_config` 20016（需求 11319，修订 11318）**
   - 凭据格式 `{AppKey}|{Ed25519 私钥 PEM}`（半角竖线分隔；只配 AppKey 时写 `{AppKey}|`），
     不再拆成 20016 AppKey + 20017 私钥两项。

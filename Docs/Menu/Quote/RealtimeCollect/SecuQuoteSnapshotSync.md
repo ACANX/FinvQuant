@@ -186,7 +186,7 @@ ETF 代码同样按 `(exchange, code)` 解析 `public.finv_security.usc`；实�
 | 触发 | 本 Tab「开始同步」→ `POST .../FTStockQuoteSnapshotSync/Run`（`instrument_symbol=crypto`）；运行状态、逐批日志、轮询与其它 Tab 共用 |
 | 凭据配置入口 | 「加密货币采集配置（数据库）」**上方**的「moomoo OpenAPI 凭据」卡片：AppKey + 私钥（Ed25519 PEM），保存到 `sys.sys_config` 20016（`AppKey\|私钥 PEM` 单配置项）；私钥只填中间 base64 那一行即可（粘完整 PEM 也兼容），输入框右侧 👁 可切换明文；留空 = 不修改，页面只回显掩码（需求 11318 / 11319 / 11320） |
 | 凭据生效 | 采集时优先读 `sys_config`，未配置才回退环境变量 `FINV_MOOMOO_APP_KEY` / `FINV_MOOMOO_PRIVATE_KEY`；两处都没有时运行日志给 ERROR，任务直接失败 |
-| 参数 | `page_size` / `interval_ms` / `count_plan` 等不生效（一次取全量）；`request_timeout_ms` 作为本次采集总超时 |
+| 参数 | `page_size` 固定 400 且不可改（moomoo 接口单次上限）；`interval_ms` / `count_plan` 等不生效（一次取全量）；`request_timeout_ms` 作为本次采集总超时 |
 | 日志 | 启动一行 INFO（provider + 结果表）、每批一行 INFO（codes / rows / 新增 / 覆盖）、失败一行 ERROR；采集完成后结果区显示批次数与新增/覆盖行数 |
 | 空收藏 | 收藏表里没有加密货币时打「跳过采集」，任务按成功结束（新增/覆盖均为 0） |
 

@@ -160,6 +160,11 @@ const PAGE_SIZE_DEFAULT = 50
 // 期货（需求 11274）：每页 50 条（与后端 FutureListDefaultPageSize 一致），
 // 每个分类通常只有 1~5 页，页间间隔 2s 即可
 const FUTURES_PAGE_SIZE_DEFAULT = 50
+// 加密货币（需求 11321）：moomoo 快照接口单次上限 400，每页条数固定 400、不允许改
+const CRYPTO_PAGE_SIZE = 400
+
+/** 当前 Tab 是否是「收藏的加密货币」（每页固定 400）。 */
+const activeIsCrypto = computed(() => activeSymbol.value === 'crypto')
 const FUTURES_INTERVAL_DEFAULT = 2000
 const pageSize = ref(PAGE_SIZE_DEFAULT)
 const intervalMs = ref(6000)
@@ -482,11 +487,13 @@ function resetOptions() {
   marketType.value = FIXED_MARKET[activeSymbol.value]?.value ?? ''
   futuresType.value = ''
   countPlan.value = null
-  pageSize.value = activeIsFutures.value
-    ? FUTURES_PAGE_SIZE_DEFAULT
-    : activeIsFixedSource.value
-      ? BDFS_DEFAULT_PAGE_SIZE
-      : PAGE_SIZE_DEFAULT
+  pageSize.value = activeIsCrypto.value
+    ? CRYPTO_PAGE_SIZE
+    : activeIsFutures.value
+      ? FUTURES_PAGE_SIZE_DEFAULT
+      : activeIsFixedSource.value
+        ? BDFS_DEFAULT_PAGE_SIZE
+        : PAGE_SIZE_DEFAULT
   intervalMs.value = activeIsFutures.value ? FUTURES_INTERVAL_DEFAULT : 6000
   maxRetries.value = 2
   retryBackoffMs.value = 2000
@@ -498,11 +505,13 @@ function onSymbolChange() {
   marketType.value = FIXED_MARKET[activeSymbol.value]?.value ?? ''
   futuresType.value = ''
   countPlan.value = null
-  pageSize.value = activeIsFutures.value
-    ? FUTURES_PAGE_SIZE_DEFAULT
-    : activeIsFixedSource.value
-      ? BDFS_DEFAULT_PAGE_SIZE
-      : PAGE_SIZE_DEFAULT
+  pageSize.value = activeIsCrypto.value
+    ? CRYPTO_PAGE_SIZE
+    : activeIsFutures.value
+      ? FUTURES_PAGE_SIZE_DEFAULT
+      : activeIsFixedSource.value
+        ? BDFS_DEFAULT_PAGE_SIZE
+        : PAGE_SIZE_DEFAULT
   intervalMs.value = activeIsFutures.value ? FUTURES_INTERVAL_DEFAULT : 6000
   scrollLogs()
 }
@@ -713,7 +722,16 @@ onBeforeUnmount(stopPolling)
           clearable
           style="max-width: 160px"
         />
-        <v-text-field v-model.number="pageSize" type="number" label="每页条数" density="compact" hide-details style="max-width: 120px" />
+        <v-text-field
+          v-model.number="pageSize"
+          type="number"
+          label="每页条数"
+          density="compact"
+          hide-details
+          :disabled="activeIsCrypto"
+          :title="activeIsCrypto ? '加密货币单批固定 400（moomoo 接口上限）' : ''"
+          style="max-width: 120px"
+        />
         <v-text-field v-model.number="intervalMs" type="number" label="页间隔(ms)" density="compact" hide-details style="max-width: 130px" />
         <v-text-field v-model.number="maxRetries" type="number" label="重试次数" density="compact" hide-details style="max-width: 120px" />
         <v-text-field v-model.number="retryBackoffMs" type="number" label="退避(ms)" density="compact" hide-details style="max-width: 120px" />

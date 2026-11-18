@@ -28,23 +28,22 @@ const (
 	CryptoProvider = "MMAPI"
 	// CryptoFavSymbol 前端 Tab 符号（instrument_symbol=crypto，需求 11316）。
 	CryptoFavSymbol = "crypto"
+	// cryptoBatchSize 单批请求的 code 数（固定 400，与 moomoo 接口上限一致，需求 11321）。
+	cryptoBatchSize = webapi.MaxCodes
 )
 
 // CryptoFavSnapshotCollectOptions 采集控制参数（零值按默认值补齐）。
+//
+// 单批 code 数固定为 cryptoBatchSize（400），不开放配置。
 type CryptoFavSnapshotCollectOptions struct {
 	// Timeout 本次采集总超时，0 取 60s。
 	Timeout time.Duration
-	// BatchSize 单次请求的 code 数上限，0 取 webapi.MaxCodes。
-	BatchSize int
 }
 
 // normalize 补齐默认值。
 func (o CryptoFavSnapshotCollectOptions) normalize() CryptoFavSnapshotCollectOptions {
 	if o.Timeout <= 0 {
 		o.Timeout = 60 * time.Second
-	}
-	if o.BatchSize <= 0 || o.BatchSize > webapi.MaxCodes {
-		o.BatchSize = webapi.MaxCodes
 	}
 	return o
 }
@@ -155,20 +154,20 @@ func (c *CryptoFavSnapshotCollector) Collect(
 	}
 	result.CodesRequested = len(codes)
 
-	for start := 0; start < len(codes); start += opts.BatchSize {
+	for start := 0; start < len(codes); start += cryptoBatchSize {
 		if err := runCtx.Err(); err != nil {
 			return result, err
 		}
-		end := start + opts.BatchSize
+		end := start + cryptoBatchSize
 		if end > len(codes) {
 			end = len(codes)
 		}
 		batch := codes[start:end]
 		snapshots, err := c.fetcher.GetQuoteSnapshots(runCtx, batch)
 		if err != nil {
-			c.emit("retry", start/opts.BatchSize+1, 0, 0, 0,
-				fmt.Sprintf("第 %d 批拉取失败：%v", start/opts.BatchSize+1, err))
-			return result, fmt.Errorf("拉取加密货币快照失败（第 %d 批）: %w", start/opts.BatchSize+1, err)
+			c.emit("retry", start/cryptoBatchSize+1, 0, 0, 0,
+				fmt.Sprintf("第 %d 批拉取失败：%v", start/cryptoBatchSize+1, err))
+			return result, fmt.Errorf("拉取加密货币快照失败（第 %d 批）: %w", start/cryptoBatchSize+1, err)
 		}
 		result.Batches++
 		result.RowsReceived += len(snapshots)
@@ -191,10 +190,10 @@ func (c *CryptoFavSnapshotCollector) Collect(
 			return result, err
 		}
 		c.logger.Printf("[cdeu][crypto] 第 %d 批：codes=%d rows=%d 新增=%d 覆盖=%d",
-			start/opts.BatchSize+1, len(batch), len(rows), inserted, updated)
-		c.emit("page", start/opts.BatchSize+1, len(rows), inserted, updated,
+			start/cryptoBatchSize+1, len(batch), len(rows), inserted, updated)
+		c.emit("page", start/cryptoBatchSize+1, len(rows), inserted, updated,
 			fmt.Sprintf("第 %d 批：codes=%d rows=%d 新增=%d 覆盖=%d",
-				start/opts.BatchSize+1, len(batch), len(rows), inserted, updated))
+				start/cryptoBatchSize+1, len(batch), len(rows), inserted, updated))
 	}
 
 	result.ElapsedMs = time.Since(started).Milliseconds()

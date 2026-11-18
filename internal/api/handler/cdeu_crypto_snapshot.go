@@ -26,11 +26,10 @@ import (
 
 // CryptoFavSnapshotSync POST /Meta/Finv/Quote/Crypto/Fav/Snapshot/Sync。
 //
-// 请求体可选：{"timeout_ms": 60000, "batch_size": 400}。
+// 请求体可选：{"timeout_ms": 60000}；单批 code 数固定 400（moomoo 接口上限）。
 func (h *ExportArchive) CryptoFavSnapshotSync(c *gin.Context) {
 	var req struct {
 		TimeoutMs int `json:"timeout_ms"`
-		BatchSize int `json:"batch_size"`
 	}
 	if c.Request.ContentLength > 0 {
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -52,7 +51,7 @@ func (h *ExportArchive) CryptoFavSnapshotSync(c *gin.Context) {
 		return
 	}
 
-	opts := cdeu.CryptoFavSnapshotCollectOptions{BatchSize: req.BatchSize}
+	opts := cdeu.CryptoFavSnapshotCollectOptions{}
 	if req.TimeoutMs > 0 {
 		opts.Timeout = time.Duration(req.TimeoutMs) * time.Millisecond
 	}
