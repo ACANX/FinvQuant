@@ -633,6 +633,7 @@ function timeText(value: string): string {
         :headers="[...headers, { title: '操作', key: 'actions', width: 210, sortable: false }]"
         :items="rows"
         :loading="loading"
+        :items-per-page="-1"
         hide-default-footer
         item-value="usc"
         density="compact"
