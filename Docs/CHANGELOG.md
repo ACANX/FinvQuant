@@ -511,6 +511,13 @@
 
 ### 变更
 
+- **补齐 `cdeu.finv_quote_secu_realtime_crypto` 的列中文注释（需求 11317）**
+  - 迁移 `V300226`：V300225 建表时只有 8 列有 COMMENT，本迁移把 33 列全部补上中文口径
+    （`字段含义（接口来源）`），末尾校验「33 列均有非空注释」。
+  - 只改注释，不动数据与结构；`gmt_create` / `gmt_update` 也补上中文说明。
+  - 验证：`SELECT count(*) FROM pg_attribute WHERE attrelid='cdeu.finv_quote_secu_realtime_crypto'::regclass AND attnum>0 AND NOT attisdropped AND COALESCE(btrim(col_description(attrelid, attnum)),'')=''` = 0。
+
+
 - **moomoo OpenAPI 客户端抽到 `component/quote/moomoo/webapi` 包（需求 11315）**
   - `internal/meta/finv/quote/cdeu/moomoo_openapi.go` 拆为
     `internal/meta/component/quote/moomoo/webapi/{client,signature,snapshot}.go`（包名 `webapi`）：
