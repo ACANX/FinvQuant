@@ -24,6 +24,25 @@ const (
 	MaxPageSize = 200
 )
 
+// InputError 请求参数/写入内容不合法（handler 映射为 HTTP 400）。
+//
+// 与「上游 Supabase 故障」区分：前者是用户填错，后者是 502。
+type InputError struct {
+	msg string
+}
+
+// Error 实现 error 接口。
+func (e *InputError) Error() string { return e.msg }
+
+// buildExistsQuery 组装「该 usc 是否已存在」的查询（只取 1 行，足以判断）。
+func buildExistsQuery(usc string) url.Values {
+	values := url.Values{}
+	values.Set("select", "usc")
+	values.Set("usc", "eq."+usc)
+	values.Set("limit", "1")
+	return values
+}
+
 // Query 分页查询条件。
 type Query struct {
 	// Page 页码（≥1）。

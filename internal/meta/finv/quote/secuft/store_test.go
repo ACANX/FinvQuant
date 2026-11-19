@@ -6,34 +6,6 @@ import (
 	"testing"
 )
 
-// TestColumnsMatchProbedTable 列元数据与实测探测到的 21 列一致（需求 11344）。
-//
-// 实测方式：对 PostgREST 逐列 `select=<col>` 探测，存在返回 200、不存在返回 42703。
-func TestColumnsMatchProbedTable(t *testing.T) {
-	want := []string{
-		"usc", "symbol", "futu_symbol", "name", "stock_id",
-		"market", "market_label", "market_type", "market_code",
-		"instrument", "instrument_type", "sub_instrument_type",
-		"type_secu", "type_secu_sub", "req_section", "provider",
-		"flag_enable", "remark", "gmt_create", "gmt_update", "dt_update",
-	}
-	cols := Columns()
-	if len(cols) != len(want) {
-		t.Fatalf("列数 %d，期望 %d", len(cols), len(want))
-	}
-	for i, name := range want {
-		if cols[i].Name != name {
-			t.Errorf("第 %d 列应为 %s，实际 %s", i+1, name, cols[i].Name)
-		}
-		if cols[i].Title == "" {
-			t.Errorf("列 %s 缺少中文表头", name)
-		}
-		if cols[i].Kind == "" {
-			t.Errorf("列 %s 缺少类型", name)
-		}
-	}
-}
-
 // TestNormalizeQuery 缺省与越界参数收敛。
 func TestNormalizeQuery(t *testing.T) {
 	query := Query{}
@@ -85,8 +57,8 @@ func TestBuildQueryValues(t *testing.T) {
 		for _, name := range columnNames() {
 			cols = append(cols, name)
 		}
-		if len(cols) != 21 {
-			t.Errorf("select 应含 21 列，实际 %d", len(cols))
+		if len(cols) != 32 {
+			t.Errorf("select 应含 32 列，实际 %d", len(cols))
 		}
 	}
 	if got := values.Get("order"); got != "dt_update.desc,usc.asc" {

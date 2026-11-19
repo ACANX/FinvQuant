@@ -446,3 +446,23 @@ func TestQuoteCollectFiveDayFtRoutesRegistered(t *testing.T) {
 		}
 	}
 }
+
+// TestQuoteCollectFiveDayFtCreateRoutes 「五日分钟行情采集配置」新增相关路由已注册（需求 11345）。
+func TestQuoteCollectFiveDayFtCreateRoutes(t *testing.T) {
+	router := newTestRouter(t)
+	want := map[string]string{
+		http.MethodGet:  "/API/V1/Meta/Finv/Quote/Collect/FiveDayFt/Lookup",
+		http.MethodPost: "/API/V1/Meta/Finv/Quote/Collect/FiveDayFt/Create",
+	}
+	registered := map[string]bool{}
+	for _, route := range router.Routes() {
+		if path, ok := want[route.Method]; ok && route.Path == path {
+			registered[route.Method] = true
+		}
+	}
+	for method, path := range want {
+		if !registered[method] {
+			t.Errorf("应注册 %s %s", method, path)
+		}
+	}
+}

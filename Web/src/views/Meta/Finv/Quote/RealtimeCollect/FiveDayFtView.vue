@@ -5,14 +5,16 @@
 // 本页**只读**：本表是采集链路的配置源，改动在 Supabase 侧进行，服务端不提供写接口。
 //
 // 接口（前缀 /Meta/Finv/Quote/Collect/FiveDayFt）：
-//   GET /Page           分页查询（默认每页 15 条）
-//   GET /FilterOptions  下拉候选（表内 DISTINCT）
+//   GET  /Page           分页查询（默认每页 15 条）
+//   GET  /FilterOptions  下拉候选（表内 DISTINCT）
+//   GET  /Lookup?usc=    新增对话框的元数据补全（需求 11345：联查本地 4 张表）
+//   POST /Create         新增一行采集配置（需求 11345，采集开关默认关闭）
 //
 // 列元数据由服务端下发（21 列，含中文表头与类型），前端不再硬编码列名：
 // 表结构以 PostgREST 逐列探测为准，列顺序按「标识 → 名称 → 分类 → 富途编码 → 开关/备注 → 时间」。
 import { computed, onMounted, ref } from 'vue'
 
-import { apiGet } from '../../../../../api'
+import { apiGet, apiPost } from '../../../../../api'
 import { showToast } from '../../../../../ui/toast'
 
 const BASE = '/Meta/Finv/Quote/Collect/FiveDayFt'
@@ -206,6 +208,134 @@ function flagColor(row: Row): string | null {
   return String(raw) === '1' ? 'success' : 'grey'
 }
 
+// ---------- 新增采集证券（需求 11345） ----------
+//
+// 流程：输入 usc → Lookup（联查 futu.finv_futu_quote_collect / futu.finv_futu_secu_key /
+// public.finv_security / cdeu.finv_quote_secu_indicator 补全 21 列）→ 人工核对/手填 → Create。
+// 新增的 flag_enable 默认 0（先停采），提交后需人工改成 1 才真正开始采集。
+
+interface LookupResult {
+  usc: string
+  fields: Record<string, unknown>
+  sources: Record<string, string>
+  missing: string[]
+  notes: string[]
+  in_security: boolean
+  has_indicator: boolean
+  exists_in_supabase: boolean
+}
+
+// 采集统计列：新增时不填（由采集链路自己维护），提交也不传
+const COLLECT_STAT_COLUMNS = [
+  'ts_latest_data',
+  'count_last_fetch',
+  'count_fail',
+  'count_stale',
+  'dt_last_check',
+  'dt_last_fetch',
+]
+
+const createOpen = ref(false)
+const createUsc = ref('')
+const lookupLoading = ref(false)
+const lookupResult = ref<LookupResult | null>(null)
+const draft = ref<Record<string, string>>({})
+const submitting = ref(false)
+
+/** 打开新增对话框（清空上次状态）。 */
+function openCreate() {
+  createUsc.value = ''
+  lookupResult.value = null
+  draft.value = {}
+  createOpen.value = true
+}
+
+async function runLookup() {
+  const usc = createUsc.value.trim()
+  if (!usc) {
+    showToast('请先输入 usc', 'warning')
+    return
+  }
+  lookupLoading.value = true
+  lookupResult.value = null
+  try {
+    const data = await apiGet<LookupResult>(`${BASE}/Lookup?usc=${encodeURIComponent(usc)}`)
+    lookupResult.value = data
+    const next: Record<string, string> = {}
+    for (const column of columns.value) {
+      if (column.kind === 'timestamp' || COLLECT_STAT_COLUMNS.includes(column.name)) continue
+      const value = data.fields[column.name]
+      next[column.name] = value === null || value === undefined ? '' : String(value)
+    }
+    // 采集开关固定按「先停采」预置（0），允许手动改
+    next.flag_enable = String(data.fields.flag_enable ?? 0)
+    draft.value = next
+    if (!data.in_security) {
+      showToast('该 usc 不在证券主数据里，不能新增', 'error')
+    } else if (data.exists_in_supabase) {
+      showToast('Supabase 里已存在该 usc，请勿重复新增', 'warning')
+    }
+  } catch (err) {
+    showToast(`补全失败：${(err as Error).message}`, 'error')
+  } finally {
+    lookupLoading.value = false
+  }
+}
+
+function isMissing(column: string): boolean {
+  return lookupResult.value?.missing.includes(column) ?? false
+}
+
+function sourceText(column: string): string {
+  return lookupResult.value?.sources[column] ?? ''
+}
+
+async function submitCreate() {
+  const result = lookupResult.value
+  if (!result || !result.in_security) return
+  submitting.value = true
+  try {
+    const fields: Record<string, unknown> = {}
+    for (const column of columns.value) {
+      if (column.name === 'usc' || column.kind === 'timestamp') continue
+      if (COLLECT_STAT_COLUMNS.includes(column.name)) continue
+      const raw = (draft.value[column.name] ?? '').trim()
+      if (raw === '') continue
+      if (column.kind === 'number') {
+        const number = Number(raw)
+        if (Number.isNaN(number)) {
+          showToast(`${column.title} 必须是数字`, 'error')
+          submitting.value = false
+          return
+        }
+        fields[column.name] = number
+      } else if (column.name === 'flag_enable') {
+        fields[column.name] = raw === '1' ? 1 : 0
+      } else {
+        fields[column.name] = raw
+      }
+    }
+    await apiPost(`${BASE}/Create`, { usc: result.usc, fields })
+    showToast(`已新增 ${result.usc}（采集开关为关闭，需手动开启）`, 'success')
+    createOpen.value = false
+    await loadOptions()
+    await load()
+  } catch (err) {
+    showToast(`新增失败：${(err as Error).message}`, 'error')
+  } finally {
+    submitting.value = false
+  }
+}
+
+const createDisabled = computed(() => {
+  const result = lookupResult.value
+  return !result || !result.in_security || result.exists_in_supabase
+})
+
+const editableColumns = computed(() =>
+  columns.value.filter((c) => c.kind !== 'timestamp' && !COLLECT_STAT_COLUMNS.includes(c.name)),
+)
+
 onMounted(() => {
   loadOptions()
   load()
@@ -312,6 +442,15 @@ onMounted(() => {
           查询
         </v-btn>
         <v-btn variant="text" prepend-icon="mdi-backspace-outline" @click="reset">重置</v-btn>
+        <v-btn
+          color="primary"
+          variant="tonal"
+          prepend-icon="mdi-plus"
+          data-testid="fiveday-ft-create"
+          @click="openCreate"
+        >
+          新增
+        </v-btn>
         <v-spacer />
         <span class="text-caption text-medium-emphasis">
           第 {{ page }} / {{ totalPages }} 页 · 每页 {{ pageSize }} 条
@@ -420,6 +559,161 @@ onMounted(() => {
       </div>
     </v-card-text>
   </v-card>
+
+  <!-- 新增采集证券对话框（需求 11345） -->
+  <v-dialog v-model="createOpen" max-width="980" scrollable persistent>
+    <v-card>
+      <v-card-title class="text-subtitle-1 d-flex align-center">
+        <v-icon icon="mdi-plus-box-outline" class="mr-2" />
+        新增采集证券
+        <v-spacer />
+        <v-btn variant="text" icon="mdi-close" :disabled="submitting" @click="createOpen = false" />
+      </v-card-title>
+      <v-divider />
+      <v-card-text>
+        <v-alert type="info" density="compact" variant="tonal" class="mb-3">
+          输入 <code>usc</code> 后自动联查 <code>futu.finv_futu_quote_collect</code> /
+          <code>futu.finv_futu_secu_key</code> / <code>public.finv_security</code> /
+          <code>cdeu.finv_quote_secu_indicator</code> 补全元数据；补不出来的列标黄，需手工填写。
+          <strong>新增后采集开关默认关闭</strong>，确认无误后再手动改成「启用」。
+          采集统计列（最新数据时间戳、累计采集次数等）不在此处填写，由采集链路维护。
+        </v-alert>
+
+        <v-row dense class="mb-2">
+          <v-col cols="12" md="6">
+            <v-text-field
+              v-model="createUsc"
+              label="usc（统一编号）*"
+              density="compact"
+              variant="outlined"
+              hide-details
+              placeholder="如 00700 / 301293 / BKX"
+              :disabled="lookupLoading || submitting"
+              @keyup.enter="runLookup"
+            />
+          </v-col>
+          <v-col cols="12" md="6" class="d-flex align-center">
+            <v-btn
+              color="primary"
+              variant="flat"
+              prepend-icon="mdi-database-search"
+              :loading="lookupLoading"
+              :disabled="submitting"
+              @click="runLookup"
+            >
+              补全元数据
+            </v-btn>
+          </v-col>
+        </v-row>
+
+        <template v-if="lookupResult">
+          <v-alert
+            v-for="note in lookupResult.notes"
+            :key="note"
+            :type="lookupResult.exists_in_supabase ? 'warning' : 'info'"
+            density="compact"
+            variant="tonal"
+            class="mb-2"
+          >
+            {{ note }}
+          </v-alert>
+          <v-alert
+            v-if="!lookupResult.in_security"
+            type="error"
+            density="compact"
+            variant="tonal"
+            class="mb-2"
+          >
+            该 usc 不在本地证券主数据里，无法新增。请先在「元数据管理 → 证券字典」登记。
+          </v-alert>
+          <v-alert
+            v-if="lookupResult.missing.length"
+            type="warning"
+            density="compact"
+            variant="tonal"
+            class="mb-2"
+          >
+            有 {{ lookupResult.missing.length }} 列未能自动补全（标黄），请核对后手填：
+            {{ lookupResult.missing.map((n) => columns.find((c) => c.name === n)?.title ?? n).join('、') }}
+          </v-alert>
+
+          <v-table density="compact" class="finv-ft-table">
+            <thead>
+              <tr>
+                <th style="width: 150px">列</th>
+                <th style="width: 300px">值</th>
+                <th>来源</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="column in editableColumns" :key="column.name">
+                <td class="text-no-wrap">
+                  {{ column.title }}
+                  <div class="text-caption text-medium-emphasis">{{ column.name }}</div>
+                </td>
+                <td>
+                  <v-select
+                    v-if="column.name === 'flag_enable'"
+                    v-model="draft.flag_enable"
+                    :items="[
+                      { title: '停用[0]（默认，先停采）', value: '0' },
+                      { title: '启用[1]', value: '1' },
+                    ]"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                  />
+                  <v-text-field
+                    v-else
+                    v-model="draft[column.name]"
+                    :type="column.kind === 'number' ? 'number' : 'text'"
+                    :bg-color="isMissing(column.name) ? 'amber-lighten-5' : undefined"
+                    :placeholder="isMissing(column.name) ? '补全不到，请手填' : '—'"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                  />
+                </td>
+                <td class="text-caption text-medium-emphasis">
+                  {{ sourceText(column.name) || '—' }}
+                  <v-chip v-if="isMissing(column.name)" size="x-small" variant="tonal" color="warning" class="ml-1">
+                    缺失
+                  </v-chip>
+                </td>
+              </tr>
+              <tr>
+                <td class="text-no-wrap">
+                  时间列
+                  <div class="text-caption text-medium-emphasis">gmt_create / gmt_update / dt_update</div>
+                </td>
+                <td colspan="2" class="text-caption text-medium-emphasis">
+                  由服务端写入当前时间（now()），不在此处填写
+                </td>
+              </tr>
+            </tbody>
+          </v-table>
+        </template>
+      </v-card-text>
+      <v-divider />
+      <v-card-actions>
+        <span class="text-caption text-medium-emphasis ml-2">
+          新增后采集开关为「停用」，需人工改成「启用」
+        </span>
+        <v-spacer />
+        <v-btn variant="text" :disabled="submitting" @click="createOpen = false">取消</v-btn>
+        <v-btn
+          color="primary"
+          variant="flat"
+          prepend-icon="mdi-content-save-plus-outline"
+          :loading="submitting"
+          :disabled="createDisabled"
+          @click="submitCreate"
+        >
+          新增
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <style scoped>

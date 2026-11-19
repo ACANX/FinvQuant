@@ -2913,6 +2913,34 @@
 
 ### 修复
 
+- **「五日分钟行情采集配置」新增「新增采集证券」，并修正表结构为 32 列（需求 11345）**
+  - 「重置」右侧新增「新增」按钮 + 三步对话框：输入 `usc` → 自动补全 32 列 → 核对/手填 → 提交。
+  - 新增两条接口：`GET .../Quote/Collect/FiveDayFt/Lookup`（联查本地 4 表补全，1:1，`LATERAL ... LIMIT 1`
+    兜住将来重复）、`POST .../Quote/Collect/FiveDayFt/Create`（写 Supabase）。
+  - **表结构修正**：此前按逐列探测只认到 21 列，抓 `select=*` 的 CSV 表头确认实为 **32 列**
+    （漏了 `region` / `currency` / `timezone` / `weight_priority` / `weight_frequency` /
+    `ts_latest_data` / `count_last_fetch` / `count_fail` / `count_stale` / `dt_last_check` / `dt_last_fetch`）；
+    列元数据已按 32 列重写，前端列随之自动跟随。
+  - 补全口径用 **465 行真实数据**校准（不是猜）：`symbol` 取 `quote_collect.ftmm_symbol`（447/459，
+    用户确认口径）、`name` 456/459、`region` 457/459、`market_label` 447/459、`currency` 429/459、
+    `timezone` 347/459、`provider` 现网恒 `FTMM`、`instrument` 归一（`etfs→etf`/`sectors→index`/`currency→forex`，
+    `futures` 保持原样）457/459、其余富途列 457/459。
+  - **新增后先停采**：`flag_enable` 默认 `0`（用户明确要求），人工确认后再改 `1`。
+  - 默认值：`provider=FTMM`、`weight_priority=50`（现网 437/465）、`weight_frequency=10`（现网 465/465）、
+    `req_section=0`；三列时间列写 `now()`，采集统计列留空。
+  - 拒绝：重复 usc、usc 不在本地证券主数据、`fields` 出现未知列或时间列（均 400）。
+  - **实测发现 Supabase 写入限制**：现有 20013 的 publishable key 对该表 UPDATE/DELETE 可用
+    （PATCH/DELETE 条件不匹配返回 `204`），但 **INSERT 被 RLS 拒绝**（`401` + `42501
+    new row violates row-level security policy`）。新增错误类型 `secukey.PermissionError`，
+    handler 把这种情况映射为 **403** 并在 message 里给出加策略提示；文档附修复 SQL
+    `create policy ... for insert to anon, authenticated with check (true)`。
+  - 实测：`Page` → `total=465`、`columns=32`、`pageSize=15`；`Lookup?usc=00700` →
+    `symbol=HK.00700`、`region=HK`、`flag_enable=0`、`exists_in_supabase=true`；
+    `Lookup?usc=BKX` → `symbol=US..BKX`、`has_indicator=true`；`Lookup?usc=CSI300` → 富途列全部进 `missing`；
+    `Create` → 403（待 Supabase 加 insert 策略后即可写入）。
+  - 文档：`Docs/API/Cdeu/FiveDayFtPage.md`（32 列 + Lookup/Create + RLS 说明）、
+    `Docs/Menu/Quote/RealtimeCollect/FiveDayFt.md`（新增对话框）、`APIs.md`（153–154）。
+
 - **新增「五日分钟行情采集配置」菜单，只读分页展示 Supabase `public.finv_quote_secu_ft`（需求 11344）**
   - 菜单位置：行情 → 行情采集 → 「USC 映射规则」之后、**「行情采集系统配置」之前**；
     路由 `/Meta/Finv/Quote/RealtimeCollect/FiveDayFt`。

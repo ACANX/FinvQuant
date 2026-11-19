@@ -242,6 +242,10 @@ func NewRouter(deps *Deps) *gin.Engine {
 			fiveDayFt := handler.NewQuoteCollectFiveDayFt(secuft.NewStore(deps.Pool))
 			apiGroup.GET("/Meta/Finv/Quote/Collect/FiveDayFt/Page", fiveDayFt.Page)
 			apiGroup.GET("/Meta/Finv/Quote/Collect/FiveDayFt/FilterOptions", fiveDayFt.FilterOptions)
+			// 新增采集证券（需求 11345）：先按 usc 联查本地 4 表补全元数据，确认后再写入；
+			// 采集开关默认 0（先停采），需人工改成 1 才真正开。
+			apiGroup.GET("/Meta/Finv/Quote/Collect/FiveDayFt/Lookup", fiveDayFt.Lookup)
+			apiGroup.POST("/Meta/Finv/Quote/Collect/FiveDayFt/Create", fiveDayFt.Create)
 			collectCfg := handler.NewQuoteCollectSysConfig(collectcfg.NewStore(deps.Pool))
 			apiGroup.GET("/Meta/Finv/Quote/Collect/Config/List", collectCfg.List)
 			apiGroup.POST("/Meta/Finv/Quote/Collect/Config/Save", collectCfg.Save)

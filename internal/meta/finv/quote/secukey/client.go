@@ -1,6 +1,7 @@
 package secukey
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -184,6 +185,96 @@ func (c *Client) FetchQuery(ctx context.Context, table string, query url.Values)
 		}
 	}
 	return nil, 0, fmt.Errorf("查询 Supabase 源表失败（%s）: %w", table, lastErr)
+}
+
+// InsertRow 向表插入一行（需求 11345）。
+//
+// 用 PostgREST 的 `POST /rest/v1/<table>` + `Prefer: return=representation`，
+// 返回插入后的行（含 Supabase 侧默认值/触发器写入的列）。
+//
+// **不重试**：写操作重试会导致重复插入（尤其是超时但实际已写入的情况），
+// 与只读查询的 doGet 区别就在这一点。唯一冲突（409）与非空/类型错误（400）直接透传。
+func (c *Client) InsertRow(ctx context.Context, table string, row map[string]any) (json.RawMessage, error) {
+	schema, name := splitTable(table)
+	body, err := json.Marshal(row)
+	if err != nil {
+		return nil, fmt.Errorf("序列化插入数据失败: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/rest/v1/"+name, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("构造请求失败: %w", err)
+	}
+	req.Header.Set("apikey", c.apiKey)
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Prefer", "return=representation")
+	if schema != "" {
+		req.Header.Set("Accept-Profile", schema)
+		req.Header.Set("Content-Profile", schema)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("写入 Supabase 失败: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if readErr != nil {
+		return nil, fmt.Errorf("读取 Supabase 响应失败: %w", readErr)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, describeInsertError(resp.StatusCode, raw)
+	}
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "[]" {
+		return nil, nil
+	}
+	// return=representation 返回数组，取第一行。
+	var rows []json.RawMessage
+	if err := json.Unmarshal(raw, &rows); err == nil && len(rows) > 0 {
+		return rows[0], nil
+	}
+	return raw, nil
+}
+
+// PermissionError 上游拒绝写入（RLS 策略未开放 insert，或角色缺少 GRANT）。
+//
+// 与普通上游故障区分：这是**配置问题**，需要在 Supabase 侧加策略，
+// handler 据此返回 403 而不是 502。
+type PermissionError struct {
+	msg string
+}
+
+// Error 实现 error 接口。
+func (e *PermissionError) Error() string { return e.msg }
+
+// describeInsertError 把 PostgREST 的写入错误翻成可操作的提示（保留原始 message 便于排障）。
+func describeInsertError(status int, body []byte) error {
+	message := strings.TrimSpace(string(body))
+	if len(message) > 400 {
+		message = message[:400] + "…"
+	}
+	switch {
+	case status == http.StatusConflict:
+		return fmt.Errorf("该记录已存在（唯一键冲突，HTTP 409）: %s", message)
+	case status == http.StatusUnauthorized || status == http.StatusForbidden:
+		return &PermissionError{msg: fmt.Sprintf(
+			"无写入权限（HTTP %d），请在 Supabase 侧给该 key 开放 insert 策略: %s", status, message)}
+	case strings.Contains(message, "42501") || strings.Contains(message, "row-level security"):
+		return &PermissionError{msg: "被 Supabase 的行级安全策略（RLS）拒绝写入：" + message +
+			"；请在 Supabase 侧执行 create policy ... for insert to anon, authenticated with check (true)"}
+	case status == http.StatusBadRequest && strings.Contains(message, "PGRST204"):
+		return fmt.Errorf("目标表缺少提交的列（HTTP 400，schema cache 无此列）: %s", message)
+	case status == http.StatusBadRequest && strings.Contains(message, "23502"):
+		return fmt.Errorf("必填列缺失（HTTP 400，NOT NULL 约束）: %s", message)
+	case status == http.StatusBadRequest && strings.Contains(message, "23514"):
+		return fmt.Errorf("取值不满足表上的 CHECK 约束（HTTP 400）: %s", message)
+	case status == http.StatusBadRequest && strings.Contains(message, "22P02"):
+		return fmt.Errorf("字段类型不匹配（HTTP 400）: %s", message)
+	default:
+		return fmt.Errorf("写入 Supabase 返回 HTTP %d: %s", status, message)
+	}
 }
 
 // fetchOnce 发起一次请求并解析成结构化行；retryable 表示该错误值得重试（网络/429/5xx）。

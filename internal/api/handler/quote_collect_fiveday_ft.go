@@ -2,13 +2,18 @@ package handler
 
 // 「五日分钟行情采集配置」页的接口（需求 11344）。
 //
-//	GET /API/V1/Meta/Finv/Quote/Collect/FiveDayFt/Page          分页查询 Supabase public.finv_quote_secu_ft
-//	GET /API/V1/Meta/Finv/Quote/Collect/FiveDayFt/FilterOptions 下拉候选（表内 DISTINCT）
+//	GET  /API/V1/Meta/Finv/Quote/Collect/FiveDayFt/Page          分页查询 Supabase public.finv_quote_secu_ft
+//	GET  /API/V1/Meta/Finv/Quote/Collect/FiveDayFt/FilterOptions 下拉候选（表内 DISTINCT）
+//	GET  /API/V1/Meta/Finv/Quote/Collect/FiveDayFt/Lookup        新增对话框的元数据补全（需求 11345）
+//	POST /API/V1/Meta/Finv/Quote/Collect/FiveDayFt/Create        新增一行采集配置（需求 11345）
 //
-// 数据不在本地库：经 PostgREST 只读访问 Supabase（连接取 sys_config 20013）。
-// 页面只读——本表是采集链路的配置源，改动走 Supabase 侧，本服务不提供写接口。
+// 数据不在本地库：经 PostgREST 访问 Supabase（连接取 sys_config 20013）。
+// 除「新增」外不提供其它写接口：本表是采集链路的配置源，改/删走 Supabase 侧。
+// 新增的采集开关默认 0（先停采），由人工确认后再改成 1。
 
 import (
+	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -16,6 +21,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/acanx/finvquant/internal/meta/finv/quote/secuft"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/secukey"
 )
 
 // QuoteCollectFiveDayFt 五日分钟行情采集配置查询接口。
@@ -105,4 +111,79 @@ func (h *QuoteCollectFiveDayFt) FilterOptions(c *gin.Context) {
 			"elapsed_ms": time.Since(started).Milliseconds(),
 		},
 	})
+}
+
+// Lookup GET /Meta/Finv/Quote/Collect/FiveDayFt/Lookup?usc=00700（需求 11345）。
+//
+// 按 usc 联查本地 4 张表（futu.finv_futu_quote_collect / futu.finv_futu_secu_key /
+// public.finv_security / cdeu.finv_quote_secu_indicator）补全 21 列，并顺带查一次
+// Supabase 判断该 usc 是否已存在（`exists_in_supabase`，供前端提前拦截）。
+func (h *QuoteCollectFiveDayFt) Lookup(c *gin.Context) {
+	usc := strings.TrimSpace(c.Query("usc"))
+	if usc == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "usc 不能为空"})
+		return
+	}
+	started := time.Now()
+	result, err := h.store.Lookup(c.Request.Context(), usc)
+	if err != nil {
+		status, code := http.StatusBadRequest, 400
+		var inputErr *secuft.InputError
+		if !errors.As(err, &inputErr) {
+			status, code = http.StatusInternalServerError, 2006
+		}
+		log.Printf("[secuft] api lookup failed usc=%s err=%v", usc, err)
+		c.JSON(status, gin.H{"code": code, "message": err.Error()})
+		return
+	}
+	// Supabase 查重失败不阻断补全（网络抖动时仍让用户看到本地补全结果）。
+	exists, existsErr := h.store.Exists(c.Request.Context(), usc)
+	if existsErr != nil {
+		log.Printf("[secuft] api lookup exists-check failed usc=%s err=%v", usc, existsErr)
+		result.Notes = append(result.Notes, "未能确认 Supabase 里是否已存在该 usc（"+existsErr.Error()+"）")
+	} else {
+		result.ExistsInSupabase = exists
+		if exists {
+			result.Notes = append(result.Notes, "Supabase 采集配置表里已存在该 usc，请勿重复新增")
+		}
+	}
+	log.Printf("[secuft] api lookup ok usc=%s in_security=%t missing=%d elapsed_ms=%d",
+		usc, result.InSecurity, len(result.Missing), time.Since(started).Milliseconds())
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "OK", "data": result})
+}
+
+// Create POST /Meta/Finv/Quote/Collect/FiveDayFt/Create（需求 11345）。
+//
+// 请求体：
+//
+//	{"usc":"00700","fields":{"symbol":"HK.00700","futu_symbol":"00700", ...}}
+//
+// fields 里未提供的列用服务端默认值：`flag_enable`=0（先停采）、`provider`="FTMM"、
+// `req_section`=0、三列时间列=now()。重复 usc 返回 400（上游 409 被翻成中文提示）。
+func (h *QuoteCollectFiveDayFt) Create(c *gin.Context) {
+	var req secuft.CreateInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体解析失败: " + err.Error()})
+		return
+	}
+	started := time.Now()
+	result, err := h.store.Create(c.Request.Context(), req)
+	if err != nil {
+		status, code := http.StatusBadGateway, 2007
+		var inputErr *secuft.InputError
+		var permErr *secukey.PermissionError
+		switch {
+		case errors.As(err, &inputErr):
+			status, code = http.StatusBadRequest, 400
+		case errors.As(err, &permErr):
+			// RLS / GRANT 未开放 insert：属配置问题，回 403 让前端提示去 Supabase 加策略。
+			status, code = http.StatusForbidden, 403
+		}
+		log.Printf("[secuft] api create failed usc=%s err=%v elapsed_ms=%d",
+			strings.TrimSpace(req.Usc), err, time.Since(started).Milliseconds())
+		c.JSON(status, gin.H{"code": code, "message": err.Error()})
+		return
+	}
+	log.Printf("[secuft] api create ok usc=%s elapsed_ms=%d", result.Usc, time.Since(started).Milliseconds())
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "新增成功（采集开关默认关闭，需手动开启）", "data": result})
 }
