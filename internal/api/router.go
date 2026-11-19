@@ -23,6 +23,7 @@ import (
 	"github.com/acanx/finvquant/internal/meta/finv/quote"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/collectcfg"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/indicator"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/secukey"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/uscbackfill"
@@ -233,6 +234,12 @@ func NewRouter(deps *Deps) *gin.Engine {
 			// moomoo OpenAPI 凭据配置（需求 11318）：sys_config 20016/20017，私钥只回显掩码。
 			apiGroup.GET("/Meta/Finv/Quote/Crypto/Moomoo/Config", archive.CryptoMoomooConfigGet)
 			apiGroup.POST("/Meta/Finv/Quote/Crypto/Moomoo/Config", archive.CryptoMoomooConfigSave)
+			// 行情采集系统配置（需求 11343）：sys_config 20013–20018 中与实时行情采集相关的 5 项，
+			// 只查 + 改；敏感项列表回掩码，明文经 Secret 接口以 base64 返回（需登录）。
+			collectCfg := handler.NewQuoteCollectSysConfig(collectcfg.NewStore(deps.Pool))
+			apiGroup.GET("/Meta/Finv/Quote/Collect/Config/List", collectCfg.List)
+			apiGroup.POST("/Meta/Finv/Quote/Collect/Config/Save", collectCfg.Save)
+			apiGroup.GET("/Meta/Finv/Quote/Collect/Config/Secret", collectCfg.Secret)
 			group := apiGroup.Group("/Meta/Finv/Quote/DeDup")
 			group.GET("/Status", archive.Status)
 			group.GET("/Settings", archive.Settings)

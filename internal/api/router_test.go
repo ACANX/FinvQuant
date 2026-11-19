@@ -396,3 +396,33 @@ func TestInternalNotFoundReturnsJSON(t *testing.T) {
 		t.Fatalf("响应应含 message: %s", recorder.Body.String())
 	}
 }
+
+// TestQuoteCollectSysConfigRoutesRegistered 「行情采集系统配置」三条路由已注册（需求 11343）。
+func TestQuoteCollectSysConfigRoutesRegistered(t *testing.T) {
+	router := newTestRouter(t)
+	want := map[string]string{
+		http.MethodGet:  "/API/V1/Meta/Finv/Quote/Collect/Config/List",
+		http.MethodPost: "/API/V1/Meta/Finv/Quote/Collect/Config/Save",
+	}
+	registered := map[string]bool{}
+	secretRegistered := false
+	for _, route := range router.Routes() {
+		if route.Path == want[http.MethodGet] && route.Method == http.MethodGet {
+			registered[route.Method] = true
+		}
+		if route.Path == want[http.MethodPost] && route.Method == http.MethodPost {
+			registered[route.Method] = true
+		}
+		if route.Path == "/API/V1/Meta/Finv/Quote/Collect/Config/Secret" && route.Method == http.MethodGet {
+			secretRegistered = true
+		}
+	}
+	for method, path := range want {
+		if !registered[method] {
+			t.Errorf("应注册 %s %s", method, path)
+		}
+	}
+	if !secretRegistered {
+		t.Error("应注册 GET /API/V1/Meta/Finv/Quote/Collect/Config/Secret")
+	}
+}

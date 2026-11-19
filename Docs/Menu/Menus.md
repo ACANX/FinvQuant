@@ -40,7 +40,8 @@
 │  ├─ 待采证券录入（三级叶子，/Meta/Finv/Quote/RealtimeCollect/PendingSecu，需求 10995，11160 改名，11282 迁入）
 │  ├─ 证券参数补全（三级叶子，/Meta/Finv/Quote/RealtimeCollect/SecuParamComplete，需求 11161，11282 迁入）
 │  ├─ 证券参数同步（三级叶子，/Meta/Finv/Quote/RealtimeCollect/SecuParamSync，需求 11042/11043/11044，11282 迁入）
-│  └─ USC 映射规则（三级叶子，/Meta/Finv/Quote/RealtimeCollect/UscMapping，需求 11072，11282 迁入）
+│  ├─ USC 映射规则（三级叶子，/Meta/Finv/Quote/RealtimeCollect/UscMapping，需求 11072，11282 迁入）
+│  └─ 行情采集系统配置（三级叶子，/Meta/Finv/Quote/RealtimeCollect/CollectSysConfig，需求 11343）
 ├─ 元数据管理（二级分组）
 │  └─ 业务元数据维护（三级分组）
 │     ├─ 交易所信息维护（/Meta/Finv/MetaData/Exchange）
@@ -143,6 +144,7 @@
 | 58 | 过时USC映射到新USC | 金融投资 | 四级叶子 | `cdeu-usc-patch` | `mdi-swap-horizontal-bold` | `/Meta/Finv/Quote/Cdeu/Usc/Patch` | `Web/src/views/Meta/Finv/Quote/Cdeu/Usc/PatchView.vue` | `POST .../Quote/Cdeu/Usc/Patch` | [Quote/Cdeu/Usc/Patch.md](Quote/Cdeu/Usc/Patch.md) |
 | 59 | CDEU自动化 | 金融投资 | 四级叶子 | `cdeu-automation` | `mdi-robot-happy-outline` | `/Meta/Finv/Quote/Cdeu/Automation` | `Web/src/views/Common/PlaceholderView.vue` | —（规划中） | [Quote/Cdeu/Automation.md](Quote/Cdeu/Automation.md) |
 | 60 | USC 映射规则 | 金融投资 | 四级叶子 | `quote-realtime-usc-mapping` | `mdi-transit-connection-variant` | `/Meta/Finv/Quote/RealtimeCollect/UscMapping` | `Web/src/views/Meta/Finv/Quote/RealtimeCollect/UscMappingView.vue` | `GET/POST .../Quote/UscMap` | [Quote/RealtimeCollect/UscMapping.md](Quote/RealtimeCollect/UscMapping.md) |
+| 60.1 | 行情采集系统配置 | 金融投资 | 四级叶子 | `quote-collect-sysconfig` | `mdi-cog-sync-outline` | `/Meta/Finv/Quote/RealtimeCollect/CollectSysConfig` | `Web/src/views/Meta/Finv/Quote/RealtimeCollect/CollectSysConfigView.vue` | `GET/POST .../Quote/Collect/Config` | [Quote/RealtimeCollect/CollectSysConfig.md](Quote/RealtimeCollect/CollectSysConfig.md) |
 | 61 | OpenAPI 接口清单 | 金融投资 | 四级叶子 | `openapi-endpoint` | `mdi-api` | `/Meta/Finv/OpenAPI/Endpoint` | `Web/src/views/Meta/Finv/OpenAPI/EndpointView.vue` | `GET/POST .../OpenAPI/Admin/Endpoint` | [OpenAPI/Endpoint.md](OpenAPI/Endpoint.md) |
 | 62 | 回测任务删除管理 | 金融投资 | 四级叶子 | `run-delete-tasks`（未登记） | `mdi-delete-clock-outline` | `/Meta/Finv/Quant/Backtest/RunDeleteTasks` | `Web/src/views/Meta/Finv/Quant/Backtest/RunDeleteTasksView.vue` | `POST .../Backtest/Run/DeleteTask/Retry` | [Quant/Backtest/RunDeleteTasks.md](Quant/Backtest/RunDeleteTasks.md) |
 | 63 | 投资策略回测收益分析报告 | 金融投资 | 四级叶子 | `backtest-report`（未登记） | `mdi-file-chart-outline` | `/Meta/Finv/Quant/Backtest/Analysis/Report` | `Web/src/views/Meta/Finv/Quant/Backtest/Analysis/ReportView.vue` | `GET .../Backtest/Analysis` | [Quant/Backtest/Analysis/Report.md](Quant/Backtest/Analysis/Report.md) |

@@ -14,6 +14,8 @@ import SecuParamCompleteView from './views/Meta/Finv/Quote/RealtimeCollect/SecuP
 import FxCerView from './views/Meta/Finv/Quote/Realtime/FXCEROverviewView.vue'
 import SecuParamSyncView from './views/Meta/Finv/Quote/RealtimeCollect/SecuParamSyncView.vue'
 import UscMappingView from './views/Meta/Finv/Quote/RealtimeCollect/UscMappingView.vue'
+// 需求 11343：行情采集系统配置（sys.sys_config 20013–20018 中与实时行情采集相关的 5 项）
+import CollectSysConfigView from './views/Meta/Finv/Quote/RealtimeCollect/CollectSysConfigView.vue'
 import IndicatorView from './views/Meta/Finv/Quote/Realtime/SecuIndicatorView.vue'
 import OpenAPIClientView from './views/Meta/Finv/OpenAPI/ClientView.vue'
 import OpenAPICredentialView from './views/Meta/Finv/OpenAPI/CredentialView.vue'
@@ -210,6 +212,13 @@ const router = createRouter({
     {
       path: '/Meta/Finv/Quote/Realtime/UscMapping',
       redirect: '/Meta/Finv/Quote/RealtimeCollect/UscMapping',
+    },
+    // 行情 → 行情采集 → 行情采集系统配置（需求 11343）：只查 + 改，敏感项掩码 + 👁 明文（base64 传输）
+    {
+      path: '/Meta/Finv/Quote/RealtimeCollect/CollectSysConfig',
+      name: 'quote-collect-sysconfig',
+      component: CollectSysConfigView,
+      meta: { title: '行情采集系统配置' },
     },
     // 行情 → 实时行情 → 证券指标（需求 11251，路由改名 11252）：cdeu.finv_quote_secu_indicator 全列只读浏览
     // 列元数据 + 分页查询走 /Meta/Finv/Quote/Secu/Indicator/*（需求 11249/11250）

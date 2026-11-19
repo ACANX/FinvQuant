@@ -2913,6 +2913,24 @@
 
 ### 修复
 
+- **新增「行情采集系统配置」菜单，统一维护实时行情采集相关系统配置（需求 11343）**
+  - 菜单位置：行情 → 行情采集 → 紧随「USC 映射规则」；路由 `/Meta/Finv/Quote/RealtimeCollect/CollectSysConfig`。
+  - 范围 5 项（**只查 + 改，不新增/删除**）：20013 Supabase 连接（敏感）、20014 源表名、
+    20015 USC 规则 cron、20016 moomoo 凭据（敏感）、20018 moomoo 网页代理；
+    刻意排除 20017（`V300228` 已合并删除）、20012（认证域）、20002–20011（归档域）。
+  - 后端：新包 `internal/meta/finv/quote/collectcfg`（目录 + 读取 + 校验 + 掩码）、
+    handler `quote_collect_sysconfig.go`、3 条路由；校验复用
+    `syscfg.ParseSupabaseConn` / `NormalizeSupabaseTableName`、`uscrule.ParseSchedule`、
+    `webapi.ParseEd25519PrivateKey`、新增导出的 `cdeu.ValidateMoomooQuoteProxy`。
+  - 敏感项：列表只回掩码（20013 保留项目 ID → `{PROJECT_ID}|****`、20016 → `****|****`），
+    明文走 `GET .../Config/Secret` 以 **base64** 返回（避免明文进响应体留痕），需登录、日志只记长度。
+  - 前端：`CollectSysConfigView.vue` 分组表格 + 修改弹窗（敏感项输入框留空=不修改）+
+    👁 明文弹窗（base64 解码后需再点「显示」）；旧入口本期保留双入口。
+  - 实测：`List` 返回 5 项、20013/20016 `masked=true`；`Secret?configNo=20016` 返回 base64（长度 97）
+    且响应体不含明文；非敏感项调 Secret 返回 400；非法 cron / 越界编号 20012 均 400；合法保存成功。
+  - 文档：`Docs/Menu/Quote/RealtimeCollect/CollectSysConfig.md`、`Docs/API/Cdeu/CollectSysConfig.md`、
+    `APIs.md`（148–150）、`Menus.md`（60.1）。
+
 - **BRS 小表备份登记补登 11 张（需求 11342）**
   - 用户圈定的 16 张里 5 张此前已登记（`crypto` 117 / `future` 114 / `fav` 116 /
     `futu_secu_key` 50 / `finv_security` 29），本次补齐其余 11 张：

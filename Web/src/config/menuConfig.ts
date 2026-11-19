@@ -292,6 +292,15 @@ const finvQuantMenu: MenuNode[] = [
             icon: 'mdi-transit-connection-variant',
             path: '/Meta/Finv/Quote/RealtimeCollect/UscMapping',
           },
+          // 需求 11343：行情采集系统配置 —— sys.sys_config 20013–20018 中与实时行情采集相关的 5 项
+          // （Supabase 连接/源表名、USC 规则 cron、moomoo 凭据/代理），只查 + 改；
+          // 敏感项（20013/20016）列表掩码 + 👁 明文（后端 base64 返回）。旧入口本期保留双入口。
+          {
+            key: 'quote-collect-sysconfig',
+            title: '行情采集系统配置',
+            icon: 'mdi-cog-sync-outline',
+            path: '/Meta/Finv/Quote/RealtimeCollect/CollectSysConfig',
+          },
         ],
       },
       // 需求 10860：从「数据采集」移入，作为「行情」下第三个三级分组（原「数据采集」随之删除）。

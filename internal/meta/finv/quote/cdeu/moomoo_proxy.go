@@ -84,6 +84,19 @@ func parseMoomooQuoteProxy(raw string) MoomooQuoteProxyConfig {
 	}
 }
 
+// ValidateMoomooQuoteProxy 校验 20018「moomoo 网页接口代理配置」的取值格式（需求 11343）。
+//
+// 供「行情采集系统配置」页保存前校验：口径与 parseMoomooQuoteProxy 完全一致，
+// 只判断「能否被解析成合法配置」，不做网络连通性探测（端点由用户自行填写）。
+// 空串合法（= 直连）；有值时必须能拆成 `{enable}|{base_url}`，启用时 base_url 不得为空。
+func ValidateMoomooQuoteProxy(raw string) error {
+	cfg := parseMoomooQuoteProxy(raw)
+	if cfg.Enabled && strings.TrimSpace(cfg.BaseURL) == "" {
+		return errors.New("启用代理时必须填写端点地址（格式 {enable}|{base_url}，例 1|https://proxy.example.com/）")
+	}
+	return nil
+}
+
 // moomooProxyEnabledValue 启用标志取值：1/true/on/yes/y = 启用，其它（含空）= 关闭。
 func moomooProxyEnabledValue(raw string) bool {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
