@@ -2913,6 +2913,17 @@
 
 ### 修复
 
+- **状态总览「表规模指标」扩到 8 张表（需求 11341）**
+  - `store_table_stats.go` 白名单新增 `futu.finv_futu_secu_key`、`public.finv_security`、
+    `futu.finv_futu_usc_map`、`cdeu.finv_quote_secu_realtime`、`cdeu.finv_quote_secu_realtime_crypto`、
+    `cdeu.finv_quote_secu_realtime_future`；原有两张一行一证券的主表保持在前。
+  - 前端 `OverviewView.vue`：8 张指标卡（长表名 `nowrap`、卡片 `min-width` 280、悬浮显示全名），
+    说明卡片补三组口径（主表 / 字典映射表 / 快照表）。
+  - handler 单测改为断言 8 张表清单、顺序与 `rows_total`；文档
+    `Docs/API/Cdeu/CollectStats.md` + `.yml`、`Docs/API/APIs.md`（136）、
+    `Docs/Menu/Quote/RealtimeCollect/Overview.md` 同步。
+  - 实测：8 张表行数依次为 18020 / 26791 / 73212 / 23742 / 73212 / 17116 / 8 / 335。
+
 - **moomoo `webapi` 包落地「名称中文优先」源码规范（需求 11340）**
   - `internal/meta/component/quote/moomoo/webapi/client.go` 包注释新增
     「名称取值规范（需求 11339，强制）」一节：上游 `name`/`sc_name`/`tc_name` 三字段、

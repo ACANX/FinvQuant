@@ -217,7 +217,8 @@ func isTruthyQuery(raw string) bool {
 // Stats GET /Meta/Finv/Quote/Secu/Collect/Stats。
 //
 // 状态总览页的「表规模」指标（需求 11285）：返回白名单内各表的当前行数，
-// 当前为 cdeu.finv_quote_secu_indicator 与 futu.finv_futu_quote_collect。
+// 当前为 8 张：证券指标表、采集参数镜像表，外加 key 表 / 证券主数据 / usc 映射表
+// 与三张行情快照表（crypto / future / 通用 realtime，需求 11341）。
 //
 // 只读、无参数（表名固定，不接受请求拼表名）；表不存在时该项 exists=false、rows=0，
 // 不报错 —— 让页面在部分表缺失的环境也能渲染。日志前缀 [cdeu][tableStats]。

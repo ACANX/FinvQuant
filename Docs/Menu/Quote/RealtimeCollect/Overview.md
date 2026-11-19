@@ -24,9 +24,13 @@
 
 1. **最近一次运行摘要**：状态 chip（运行中 / 成功 / 部分成功 / 失败 / 暂无运行记录）、运行编号、开始/结束时间、
    耗时、收到条数与新增/覆盖合计、失败市场或分类数。
-2. **表规模指标**（需求 11285）：`cdeu.finv_quote_secu_indicator` 与 `futu.finv_futu_quote_collect`
-   的**当前行数**（千分位展示），来自 `GET .../Secu/Collect/Stats`；两张表都是一行一证券，
-   行数应基本相当，差值可用来判断采集覆盖是否有缺口。
+2. **表规模指标**（需求 11285 / 11341）：白名单 **8 张表**的**当前行数**（千分位展示），
+   来自 `GET .../Secu/Collect/Stats`：
+   - 一行一证券的主表：`cdeu.finv_quote_secu_indicator`、`futu.finv_futu_quote_collect`——
+     行数应基本相当，差值可用来判断采集覆盖是否有缺口；
+   - 字典/映射表：`futu.finv_futu_secu_key`、`public.finv_security`、`futu.finv_futu_usc_map`；
+   - 行情快照表：`cdeu.finv_quote_secu_realtime`、`cdeu.finv_quote_secu_realtime_crypto`、
+     `cdeu.finv_quote_secu_realtime_future`（分别对应通用/加密/期货采集链路是否在写）。
 3. **证券列表采集配置**：`cdeu.finv_cdeu_secu_realtime_sync_config` 的启用行（品种 = 股票 / ETF，按市场分行），
    列：品种 / 市场 / 计划数量 / 市场证券总数 / 本轮可采集。
 4. **期货分类采集配置**：`cdeu.finv_quote_cdeu_future_sync_config` 的 8 行（`futuresType` 1~8），
@@ -77,7 +81,7 @@ GET /API/V1/Meta/Finv/Quote/Secu/Collect/Stats                          # 表规
 | 市场证券总数 / 分类合约总数 | 配置表 `count_exists` | 接口 `pagination.total` 的**回写值**，采集成功后刷新 |
 | 本轮可采集 | 配置表 `total_available` | `min(count_plan, 总数)`，同样采集成功后刷新 |
 | 接口总数 / 本轮可采（下表） | 运行结果 `results[]` | **最近一次运行的现场值**，用于和上表配置对照 |
-| 表规模指标 | `GET .../Secu/Collect/Stats` | 两张表的实时 `count(*)`；表不存在显示 `—`，统计失败只在卡片区提示 |
+| 表规模指标 | `GET .../Secu/Collect/Stats` | 8 张表的实时 `count(*)`；表不存在显示 `—`，统计失败只在卡片区提示 |
 
 失败市场/分类的 `error` 直接显示在「结果」列，不折叠、不截断（该字段本身很短）。
 
@@ -89,4 +93,5 @@ GET /API/V1/Meta/Finv/Quote/Secu/Collect/Stats                          # 表规
 - **同一时间只允许一个采集任务**：在「行情快照同步」页重复点「开始同步」会被拒绝并提示当前 `run_id`；
   本页只能看到那个 `run_id`，无法取消任务。
 - 期货分类的中文名来自配置表 `futures_type_name`（迁移 `V300217` 已回填 8 类）；若某环境仍为空，页面降级显示「分类 N」。
-- **表规模指标不做缓存**：每次进页面或点「刷新」都实时 `count(*)`；7 万行是毫秒级，但不要把它挂到高频轮询上。
+- **表规模指标不做缓存**：每次进页面或点「刷新」都实时 `count(*)`；最大表 7 万行、
+  8 张表合计仍是毫秒级，但不要把它挂到高频轮询上。

@@ -7,7 +7,8 @@
 //   → data.configs（证券列表采集配置：stock / etf）、data.futures_configs（期货 8 个分类）、
 //     data.run（内存中最近一次运行：状态 / 耗时 / 逐市场结果 / 错误）
 //   GET /Meta/Finv/Quote/Secu/Collect/Stats（需求 11285）
-//   → data.tables[]（关键表当前行数：指标表 / 采集参数表），表名由服务端白名单固定
+//   → data.tables[]（关键表当前行数：指标表 / 参数镜像表 / key 表 / 证券主数据 / usc 映射表
+//     与三张行情快照表），表名由服务端白名单固定
 //
 // 注意：运行记录只存在服务进程内存里（重启即清空），配置来自数据库，因此
 // 「配置有值、运行状态 IDLE」是正常现象（见页面底部「说明」卡片）。
@@ -17,7 +18,7 @@ import { apiGet } from '../../../../../api'
 import { showToast } from '../../../../../ui/toast'
 
 const RUN_API = '/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run'
-// 表规模统计（需求 11285）：白名单两张表的当前行数
+// 表规模统计（需求 11285 / 11341）：白名单 8 张表的当前行数
 const STATS_API = '/Meta/Finv/Quote/Secu/Collect/Stats'
 
 // 证券列表采集配置（cdeu.finv_cdeu_secu_realtime_sync_config 一行）
@@ -247,7 +248,7 @@ onMounted(load)
         读取采集配置失败：{{ configError }}
       </v-alert>
 
-      <!-- 表规模指标（需求 11285）：指标表与采集参数表的当前行数 -->
+      <!-- 表规模指标（需求 11285 / 11341）：白名单 8 张表的当前行数 -->
       <div class="text-subtitle-2 mb-1">表规模指标（当前行数）</div>
       <div class="d-flex flex-wrap align-center ga-3 mb-4">
         <v-card
@@ -256,9 +257,10 @@ onMounted(load)
           variant="tonal"
           color="primary"
           class="px-4 py-2"
-          min-width="260"
+          min-width="280"
+          :title="item.table"
         >
-          <div class="text-caption text-medium-emphasis">{{ item.table }}</div>
+          <div class="text-caption text-medium-emphasis finv-table-name">{{ item.table }}</div>
           <div class="text-h6">
             {{ item.exists ? formatRows(item.rows) : '—' }}
             <span class="text-caption text-medium-emphasis">行</span>
@@ -399,10 +401,21 @@ onMounted(load)
       <div class="finv-note">
         <div class="finv-note-title">表规模指标</div>
         <div class="text-body-2 finv-note-body">
-          <code>cdeu.finv_quote_secu_indicator</code>（证券指标表，一行一证券）与
-          <code>futu.finv_futu_quote_collect</code>（富途采集参数镜像表，一行一证券）的<strong>当前行数</strong>，
-          来自 <code>GET /Meta/Finv/Quote/Secu/Collect/Stats</code>；表名由服务端白名单固定，不接受请求拼表名。
-          两张表行数应基本相当，差值可用来判断采集覆盖是否有缺口；表不存在时该项显示 <code>—</code>。
+          白名单 8 张表的<strong>当前行数</strong>，来自
+          <code>GET /Meta/Finv/Quote/Secu/Collect/Stats</code>；表名由服务端白名单固定，不接受请求拼表名。
+          <br />
+          一行一证券的两张主表：<code>cdeu.finv_quote_secu_indicator</code>（证券指标表）与
+          <code>futu.finv_futu_quote_collect</code>（富途采集参数镜像表）——行数应基本相当，
+          差值可用来判断采集覆盖是否有缺口。
+          <br />
+          字典/映射表：<code>futu.finv_futu_secu_key</code>（采集键表）、
+          <code>public.finv_security</code>（证券主数据）、<code>futu.finv_futu_usc_map</code>（usc 映射表）。
+          <br />
+          行情快照表：<code>cdeu.finv_quote_secu_realtime</code>（股票/ETF/指数等）、
+          <code>cdeu.finv_quote_secu_realtime_crypto</code>（加密货币）、
+          <code>cdeu.finv_quote_secu_realtime_future</code>（期货）。
+          <br />
+          表不存在时该项显示 <code>—</code>（不视为错误）。
         </div>
       </div>
 
@@ -421,6 +434,11 @@ onMounted(load)
 </template>
 
 <style scoped>
+/* 表名不换行、不省略：长表名（cdeu.finv_quote_secu_realtime_crypto）靠卡片 min-width 撑开 */
+.finv-table-name {
+  white-space: nowrap;
+}
+
 /* 说明卡片分节（Docs/DevSpec/ExplainCardSpec.md §4 统一 token） */
 .finv-note {
   border-left: 3px solid rgba(var(--v-theme-primary), 0.6);

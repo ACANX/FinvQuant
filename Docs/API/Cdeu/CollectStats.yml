@@ -26,8 +26,11 @@ paths:
       tags: [Quote/Secu/Collect]
       summary: 关键表当前行数（状态总览）
       description: |
-        返回白名单内各表的当前行数，当前为 cdeu.finv_quote_secu_indicator
-        与 futu.finv_futu_quote_collect；无请求参数。
+        返回白名单内 8 张表的当前行数：cdeu.finv_quote_secu_indicator、
+        futu.finv_futu_quote_collect、futu.finv_futu_secu_key、public.finv_security、
+        futu.finv_futu_usc_map、cdeu.finv_quote_secu_realtime、
+        cdeu.finv_quote_secu_realtime_crypto、cdeu.finv_quote_secu_realtime_future；
+        无请求参数。
         表不存在时该项 exists=false、rows=0，不报错。
       responses:
         '200':

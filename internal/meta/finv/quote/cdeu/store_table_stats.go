@@ -24,12 +24,26 @@ type TableRowCount struct {
 
 // tableStatsTargets 状态总览统计的表（顺序即返回顺序）。
 //
-// cdeu.finv_quote_secu_indicator：证券指标表（一行一证券，132 列）；
-// futu.finv_futu_quote_collect：富途采集参数镜像表（一行一证券）。
-// 两者行数应基本相当，差值可用来判断采集覆盖是否有缺口。
+// 前两张是采集链路的「一行一证券」主表，行数应基本相当，差值可判断覆盖缺口：
+//   - cdeu.finv_quote_secu_indicator：证券指标表（一行一证券，132 列）；
+//   - futu.finv_futu_quote_collect：富途采集参数镜像表（一行一证券）。
+//
+// 其余为字典/映射表与三张行情快照表（需求 11341），规模对照可快速判断各链路是否在写：
+//   - futu.finv_futu_secu_key：采集键表（含 status，DONE 后采集端跳过）；
+//   - public.finv_security：证券主数据（录入/补全后的目标表）；
+//   - futu.finv_futu_usc_map：usc 映射表（ACTIVE 行数≈可用证券数）；
+//   - cdeu.finv_quote_secu_realtime：证券行情快照（股票/ETF/指数/板块/外汇等）；
+//   - cdeu.finv_quote_secu_realtime_crypto：加密货币行情快照；
+//   - cdeu.finv_quote_secu_realtime_future：期货行情快照。
 var tableStatsTargets = []string{
 	"cdeu.finv_quote_secu_indicator",
 	"futu.finv_futu_quote_collect",
+	"futu.finv_futu_secu_key",
+	"public.finv_security",
+	"futu.finv_futu_usc_map",
+	"cdeu.finv_quote_secu_realtime",
+	"cdeu.finv_quote_secu_realtime_crypto",
+	"cdeu.finv_quote_secu_realtime_future",
 }
 
 // tableStatsAllowed 白名单集合（防拼表名注入；表名常量硬编码，不来自请求）。
@@ -50,7 +64,7 @@ func TableStatsTargets() []string {
 
 // CountTableRows 统计给定表的当前行数（表名必须在白名单内）。
 //
-// 每张表两次往返（存在性 + 计数）：表数量固定为 2，且都在本地库，
+// 每张表两次往返（存在性 + 计数）：表数量固定为 8，且都在本地库，
 // 不做批量拼 SQL 的优化以免引入表名拼接面。表不存在时返回 exists=false、rows=0。
 func (s *Store) CountTableRows(ctx context.Context, tables []string) ([]TableRowCount, error) {
 	if len(tables) == 0 {

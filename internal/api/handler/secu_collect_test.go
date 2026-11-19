@@ -203,11 +203,24 @@ func TestSecuFtmmCollectStats(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("应 200，实际 %d（%s）", recorder.Code, recorder.Body.String())
 	}
-	// 表名必须来自 cdeu 白名单（不接受请求参数）
-	if len(store.gotStatsTables) != 2 ||
-		store.gotStatsTables[0] != "cdeu.finv_quote_secu_indicator" ||
-		store.gotStatsTables[1] != "futu.finv_futu_quote_collect" {
-		t.Fatalf("统计表清单不符: %v", store.gotStatsTables)
+	// 表名必须来自 cdeu 白名单（不接受请求参数）：需求 11341 起为 8 张表
+	wantTables := []string{
+		"cdeu.finv_quote_secu_indicator",
+		"futu.finv_futu_quote_collect",
+		"futu.finv_futu_secu_key",
+		"public.finv_security",
+		"futu.finv_futu_usc_map",
+		"cdeu.finv_quote_secu_realtime",
+		"cdeu.finv_quote_secu_realtime_crypto",
+		"cdeu.finv_quote_secu_realtime_future",
+	}
+	if len(store.gotStatsTables) != len(wantTables) {
+		t.Fatalf("统计表数量不符: %v", store.gotStatsTables)
+	}
+	for i, want := range wantTables {
+		if store.gotStatsTables[i] != want {
+			t.Fatalf("第 %d 张表期望 %s，实际 %s", i+1, want, store.gotStatsTables[i])
+		}
 	}
 	var payload struct {
 		Data struct {
@@ -222,7 +235,8 @@ func TestSecuFtmmCollectStats(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("响应解析失败: %v（%s）", err, recorder.Body.String())
 	}
-	if len(payload.Data.Tables) != 2 || payload.Data.RowsTotal != 140342 {
+	// 8 张表 × 70171
+	if len(payload.Data.Tables) != 8 || payload.Data.RowsTotal != 561368 {
 		t.Fatalf("统计响应不符: %+v", payload.Data)
 	}
 	if payload.Data.Tables[0].Table != "cdeu.finv_quote_secu_indicator" || !payload.Data.Tables[0].Exists {
