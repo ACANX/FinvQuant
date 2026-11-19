@@ -227,6 +227,28 @@ type Store interface {
 
 **刻意不含** `cdeu.finv_quote_secu_kline_min`：该表体量大且已有「导出 → 上传」的专用归档链路（见 `CdeuWorkflowDesign.md`），用 `pg_dump` 备份既慢又重复。
 
+### 7.2.1 后续追加登记（以库为准）
+
+上面 12 行是 `V300060` 的初始种子；实际清单由后续迁移持续追加，**当前行数以
+`brs.brs_bak_rdb_table_full` 为准**（页面「备份 → 备份登记」也可查）。最近的追加：
+
+| 迁移 | 追加内容 |
+|---|---|
+| `V300151` | 撤销 `public.finv_cer`（被 `public.finv_fxcer` 取代） |
+| `V300152` | 登记 `brs` schema 自身三张表（`brs_bak_rdb_table_full` / `_incr` / `brs_bak_rdb_datasource`） |
+| `V300229` | 期货快照表改名同步（`finv_quote_realtime_future` → `finv_quote_secu_realtime_future`，priority 不变） |
+| `V300232`（需求 11342） | 补登 11 张：`futu.finv_futu_usc_rule`(960)、`_rule_item`(950)、`_usc_map`(940)、`_rule_log`(930)、`cdeu.finv_quote_secu_realtime`(90)、`open.open_api_client`(85)、`_endpoint`(80)、`_credential`(75)、`_credential_scope`(70)、`cdeu.finv_quote_cdeu_export_file`(65)、`_scan_watermark`(55) |
+
+追加规则（`V300232` 起统一遵循）：
+
+1. **唯一键命中即跳过**，不覆盖运维改过的 `flag_enable` / `compression` / `flag_upload`；
+2. **priority 已被占用就跳过并告警**，不为新表挤掉既有优先级（`uq_brs_bak_rdb_table_full_priority` 唯一）；
+3. 表不存在（环境还没跑到建表迁移）跳过、不报错；
+4. 迁移末尾做收敛校验：目标表必须全部在册，否则 `RAISE EXCEPTION` 回滚。
+
+**体量大、按天增长的表不进本表**：走 `brs.brs_bak_rdb_table_incr` 分片增量
+（如 `cdeu/quote/dedup` 三份 `finv_quote_secu_kline_min`），或走行情导出上传链路。
+
 ### 7.4 数据源登记表 `brs.brs_bak_rdb_datasource`（已建表、业务未实现）
 
 需求 10909 先建表，为「多实例 / 跨库备份」预留：`code`（唯一，供备份登记引用）、`name`、`rdb_type`、

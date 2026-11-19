@@ -2913,6 +2913,19 @@
 
 ### 修复
 
+- **BRS 小表备份登记补登 11 张（需求 11342）**
+  - 用户圈定的 16 张里 5 张此前已登记（`crypto` 117 / `future` 114 / `fav` 116 /
+    `futu_secu_key` 50 / `finv_security` 29），本次补齐其余 11 张：
+    `futu.finv_futu_usc_rule`(960)、`_rule_item`(950)、`_usc_map`(940)、`_rule_log`(930)、
+    `cdeu.finv_quote_secu_realtime`(90)、`open.open_api_client`(85)、`_endpoint`(80)、
+    `_credential`(75)、`_credential_scope`(70)、`cdeu.finv_quote_cdeu_export_file`(65)、
+    `_scan_watermark`(55)。
+  - 迁移 `V300232`：幂等（唯一键命中 / priority 被占 / 表不存在 → 跳过并 `RAISE NOTICE`）+
+    末尾收敛校验（目标表必须全部在册，否则回滚）；不覆盖运维改过的开关与压缩方式。
+  - 实测：`schema_version=300232`，登记表 51 → **62 行**，新增 idn 118–128，
+    `GET .../Meta/BRS/Backup/Finv/Table/List` 返回 `total=62`、11 张全部在列且 `flag_enable=1`。
+  - 文档：`Docs/Design/BrsBackupDesign.md` 新增 §7.2.1「后续追加登记（以库为准）」+ 追加规则。
+
 - **状态总览「表规模指标」扩到 8 张表（需求 11341）**
   - `store_table_stats.go` 白名单新增 `futu.finv_futu_secu_key`、`public.finv_security`、
     `futu.finv_futu_usc_map`、`cdeu.finv_quote_secu_realtime`、`cdeu.finv_quote_secu_realtime_crypto`、
