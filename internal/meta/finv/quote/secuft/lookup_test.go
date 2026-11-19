@@ -106,7 +106,7 @@ func TestBuildLookupResultNoCollect(t *testing.T) {
 	if got := result.Fields["symbol"]; got != "US..BXD" {
 		t.Errorf("symbol 应回退 secu_key.ftmm_symbol，实际 %v", got)
 	}
-	if result.Sources["symbol"] != "futu.finv_futu_secu_key.ftmm_symbol" {
+	if result.Sources["symbol"] != sourceKey {
 		t.Errorf("symbol 来源标注不符: %s", result.Sources["symbol"])
 	}
 	if got := result.Fields["region"]; got != "US" {
@@ -190,7 +190,7 @@ func TestReqSectionInt(t *testing.T) {
 		if got != item.want {
 			t.Errorf("reqSectionInt(%v) = %d，期望 %d", item.raw, got, item.want)
 		}
-		if (source == "futu.finv_futu_quote_collect.req_section") != item.wantIsSrc {
+		if (source == sourceCollect) != item.wantIsSrc {
 			t.Errorf("reqSectionInt(%v) 来源判定不符: %s", item.raw, source)
 		}
 	}

@@ -52,6 +52,18 @@ const (
 	DefaultWeightFrequency = 10
 )
 
+// 取值来源的**短标签**（前端「来源」列只显示这几个词，不再堆长表名）。
+const (
+	sourceInput     = "输入"
+	sourceSecurity  = "证券主数据"
+	sourceCollect   = "富途采集"
+	sourceKey       = "键表"
+	sourceIndicator = "指标表"
+	sourceRegion    = "市场映射"
+	sourceDefault   = "默认值"
+	sourceEmpty     = "留空"
+)
+
 // collectStatColumns 采集统计列：新增时留空，由采集链路自己维护，不进 missing。
 var collectStatColumns = map[string]bool{
 	"ts_latest_data":   true,
@@ -158,7 +170,7 @@ WHERE s.usc = $1`
 			return &LookupResult{
 				Usc:        usc,
 				Fields:     map[string]any{"usc": usc},
-				Sources:    map[string]string{"usc": "输入"},
+				Sources:    map[string]string{"usc": sourceInput},
 				Missing:    creatableColumnNames(),
 				Notes:      []string{"该 usc 不在本地证券主数据（public.finv_security）里，无法补全元数据；请先登记证券主数据"},
 				InSecurity: false,
@@ -191,48 +203,47 @@ func buildLookupResult(row lookupRow) *LookupResult {
 
 	marketLabel := strings.TrimSpace(stringValue(row.marketLabel))
 
-	setFixed("usc", row.usc, "输入")
+	setFixed("usc", row.usc, sourceInput)
 	set(
 		"name",
-		strings.TrimSpace(row.securityNameCn), "public.finv_security.security_name_cn",
-		strings.TrimSpace(row.securityName), "public.finv_security.security_name",
+		strings.TrimSpace(row.securityNameCn), sourceSecurity,
+		strings.TrimSpace(row.securityName), sourceSecurity,
 	)
 	set("region", regionOf(marketLabel, row.exchangeCode),
-		"public.finv_security.market_label/exchange_code 映射")
+		sourceRegion)
 	// market 只给 coarse 建议值：本地没有交易所级细分市场（NASDAQ/NYSE/ARCA/USOTC/...）。
-	set("market", marketLabel, "futu.finv_futu_quote_collect.market_label（细分市场需核对）")
-	set("market_label", marketLabel, "futu.finv_futu_quote_collect.market_label")
+	set("market", marketLabel, sourceCollect)
+	set("market_label", marketLabel, sourceCollect)
 	set("symbol",
-		valueOf(row.collectFtmm), "futu.finv_futu_quote_collect.ftmm_symbol",
-		valueOf(row.keyFtmm), "futu.finv_futu_secu_key.ftmm_symbol",
-		valueOf(row.indFtmm), "cdeu.finv_quote_secu_indicator.ftmm_symbol",
+		valueOf(row.collectFtmm), sourceCollect,
+		valueOf(row.keyFtmm), sourceKey,
+		valueOf(row.indFtmm), sourceIndicator,
 	)
-	set("currency", strings.TrimSpace(row.currencyType), "public.finv_security.currency_type")
-	set("timezone", strings.TrimSpace(row.tz), "public.finv_security.tz")
-	setFixed("provider", DefaultProvider, "默认值")
-	set("type_secu", strings.TrimSpace(row.typeSecu), "public.finv_security.type_secu")
-	set("type_secu_sub", strings.TrimSpace(row.typeSecuSub), "public.finv_security.type_secu_sub")
-	set("stock_id", int64Of(row.stockID), "futu.finv_futu_quote_collect.stock_id")
-	set("market_type", int32Of(row.marketType), "futu.finv_futu_quote_collect.market_type")
-	set("market_code", int32Of(row.marketCode), "futu.finv_futu_quote_collect.market_code")
-	set("instrument_type", int32Of(row.instrumentType), "futu.finv_futu_quote_collect.instrument_type")
-	set("sub_instrument_type", int32Of(row.subInstrumentTyp), "futu.finv_futu_quote_collect.sub_instrument_type")
+	set("currency", strings.TrimSpace(row.currencyType), sourceSecurity)
+	set("timezone", strings.TrimSpace(row.tz), sourceSecurity)
+	setFixed("provider", DefaultProvider, sourceDefault)
+	set("type_secu", strings.TrimSpace(row.typeSecu), sourceSecurity)
+	set("type_secu_sub", strings.TrimSpace(row.typeSecuSub), sourceSecurity)
+	set("stock_id", int64Of(row.stockID), sourceCollect)
+	set("market_type", int32Of(row.marketType), sourceCollect)
+	set("market_code", int32Of(row.marketCode), sourceCollect)
+	set("instrument_type", int32Of(row.instrumentType), sourceCollect)
+	set("sub_instrument_type", int32Of(row.subInstrumentTyp), sourceCollect)
 
 	// req_section：源列是 varchar（实测非空仅 2 行、非数字 0 行），目标列是 integer；空/非数字 → 0。
 	reqSection, reqSectionSource := reqSectionInt(valueOf(row.reqSection))
 	setFixed("req_section", reqSection, reqSectionSource)
 
-	setFixed("weight_priority", DefaultWeightPriority, "默认值")
-	setFixed("weight_frequency", DefaultWeightFrequency, "默认值")
+	setFixed("weight_priority", DefaultWeightPriority, sourceDefault)
+	setFixed("weight_frequency", DefaultWeightFrequency, sourceDefault)
 	// 采集统计列：新增时留空（由采集链路自己维护），不进 missing。
 	for column := range collectStatColumns {
-		setFixed(column, nil, "新增时留空")
+		setFixed(column, nil, sourceEmpty)
 	}
-	set("futu_symbol", valueOf(row.futuSymbol), "futu.finv_futu_quote_collect.futu_symbol")
-	setFixed("flag_enable", DefaultFlagEnable, "默认值（新增后先停采）")
-	set("instrument", normalizeInstrument(stringValue(row.instrument)),
-		"futu.finv_futu_quote_collect.instrument（etfs→etf / sectors→index / currency→forex）")
-	setFixed("remark", "", "默认值")
+	set("futu_symbol", valueOf(row.futuSymbol), sourceCollect)
+	setFixed("flag_enable", DefaultFlagEnable, sourceDefault+"（停采）")
+	set("instrument", normalizeInstrument(stringValue(row.instrument)), sourceCollect)
+	setFixed("remark", "", sourceDefault)
 
 	if row.collectFtmm == nil {
 		notes = append(notes, "该证券在富途采集配置（futu.finv_futu_quote_collect）里没有记录，"+
@@ -395,16 +406,16 @@ func reqSectionInt(raw any) (int, string) {
 	text, _ := raw.(string)
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return 0, "默认值（源为空）"
+		return 0, sourceDefault + "（源为空）"
 	}
 	number := 0
 	for _, char := range text {
 		if char < '0' || char > '9' {
-			return 0, "默认值（源非数字）"
+			return 0, sourceDefault + "（源非数字）"
 		}
 		number = number*10 + int(char-'0')
 	}
-	return number, "futu.finv_futu_quote_collect.req_section"
+	return number, sourceCollect
 }
 
 // isEmptyValue 判断候选值是否为空（nil / 空串）。

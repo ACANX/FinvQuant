@@ -561,7 +561,7 @@ onMounted(() => {
   </v-card>
 
   <!-- 新增采集证券对话框（需求 11345） -->
-  <v-dialog v-model="createOpen" max-width="980" scrollable persistent>
+  <v-dialog v-model="createOpen" fullscreen scrollable persistent>
     <v-card>
       <v-card-title class="text-subtitle-1 d-flex align-center">
         <v-icon icon="mdi-plus-box-outline" class="mr-2" />
@@ -579,8 +579,8 @@ onMounted(() => {
           采集统计列（最新数据时间戳、累计采集次数等）不在此处填写，由采集链路维护。
         </v-alert>
 
-        <v-row dense class="mb-2">
-          <v-col cols="12" md="6">
+        <v-row dense class="mb-3">
+          <v-col cols="12" md="4">
             <v-text-field
               v-model="createUsc"
               label="usc（统一编号）*"
@@ -592,7 +592,7 @@ onMounted(() => {
               @keyup.enter="runLookup"
             />
           </v-col>
-          <v-col cols="12" md="6" class="d-flex align-center">
+          <v-col cols="12" md="8" class="d-flex align-center">
             <v-btn
               color="primary"
               variant="flat"
@@ -637,18 +637,23 @@ onMounted(() => {
             {{ lookupResult.missing.map((n) => columns.find((c) => c.name === n)?.title ?? n).join('、') }}
           </v-alert>
 
-          <v-table density="compact" class="finv-ft-table">
+          <v-table density="compact" class="finv-ft-table finv-create-table">
+            <colgroup>
+              <col style="width: 190px" />
+              <col />
+              <col style="width: 120px" />
+            </colgroup>
             <thead>
               <tr>
-                <th style="width: 150px">列</th>
-                <th style="width: 300px">值</th>
+                <th>列</th>
+                <th>值</th>
                 <th>来源</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="column in editableColumns" :key="column.name">
                 <td class="text-no-wrap">
-                  {{ column.title }}
+                  <div>{{ column.title }}</div>
                   <div class="text-caption text-medium-emphasis">{{ column.name }}</div>
                 </td>
                 <td>
@@ -674,9 +679,15 @@ onMounted(() => {
                     hide-details
                   />
                 </td>
-                <td class="text-caption text-medium-emphasis">
-                  {{ sourceText(column.name) || '—' }}
-                  <v-chip v-if="isMissing(column.name)" size="x-small" variant="tonal" color="warning" class="ml-1">
+                <td class="text-caption text-medium-emphasis text-no-wrap">
+                  <span>{{ sourceText(column.name) || '—' }}</span>
+                  <v-chip
+                    v-if="isMissing(column.name)"
+                    size="x-small"
+                    variant="tonal"
+                    color="warning"
+                    class="ml-1"
+                  >
                     缺失
                   </v-chip>
                 </td>
@@ -717,6 +728,26 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* 新增对话框：值列撑满，来源列固定窄宽 */
+.finv-create-table :deep(table) {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.finv-create-table :deep(td),
+.finv-create-table :deep(th) {
+  padding: 4px 8px;
+  vertical-align: middle;
+}
+
+.finv-create-table :deep(.v-input) {
+  width: 100%;
+}
+
+.finv-create-table :deep(.v-field__input) {
+  min-height: 36px;
+}
+
 /* 列宽不压缩 + 横向滚动（与证券字典口径一致） */
 .finv-ft-table :deep(table) {
   table-layout: auto;

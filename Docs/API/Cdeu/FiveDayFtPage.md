@@ -182,7 +182,7 @@ LEFT JOIN cdeu.finv_quote_secu_indicator i ON i.usc = s.usc
   "data": {
     "usc": "00700",
     "fields": { "usc": "00700", "symbol": "HK.00700", "region": "HK", "flag_enable": 0 },
-    "sources": { "symbol": "futu.finv_futu_quote_collect.ftmm_symbol" },
+    "sources": { "symbol": "富途采集", "name": "证券主数据", "region": "市场映射" },
     "missing": ["type_secu_sub"],
     "notes": ["「市场」列在现网数据里有 44% 是细分市场……请核对后再提交"],
     "in_security": true,
@@ -195,7 +195,7 @@ LEFT JOIN cdeu.finv_quote_secu_indicator i ON i.usc = s.usc
 | 字段 | 说明 |
 |---|---|
 | `fields` | 32 列建议值（补不出来的为 `null`） |
-| `sources` | 每个字段的取值来源（前端悬浮显示） |
+| `sources` | 每个字段的取值来源**短标签**：`输入` / `证券主数据` / `富途采集` / `键表` / `指标表` / `市场映射` / `默认值` / `留空`（最长 8 字，前端「来源」列固定窄宽） |
 | `missing` | 补不出来、需要手填或核对的列（**不含**时间列与采集统计列） |
 | `notes` | 提示：无富途采集记录 / 细分市场需核对 / 已有指标数据 / Supabase 已存在 |
 | `in_security` | `false` 表示该 usc 不在本地证券主数据，禁止新增 |
