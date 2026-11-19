@@ -337,7 +337,7 @@ func (s *Service) startFuturesListRun(opts StockListCollectOptions) (StockListRu
 	go func() {
 		fetcher := s.futureListFetcher
 		if fetcher == nil {
-			fetcher = newMoomooQuoteClient()
+			fetcher = s.moomooQuoteClient()
 		}
 		collector := NewFutureListCollector(s.store, fetcher, s.store, nil).WithHook(
 			func(event StockListCollectEvent) {

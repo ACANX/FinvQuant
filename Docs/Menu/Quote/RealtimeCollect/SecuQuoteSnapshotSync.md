@@ -308,6 +308,50 @@ Go 客户端自动跟随重定向后拿到 HTML 页面，JSON 解析必然报 `'
 | Chrome UA + 正确 `quote-token` | `200` + JSON（`total=5588`、`pageCount=112`、首行工商银行 601398） |
 | 服务端 `instrument_symbol=stock` / `market_type=4` 采集 | `SUCCESS`，6 页 300 条（新增 2 / 覆盖 298） |
 
+### 代理通道（需求 11337，临时排障用）
+
+直连被按 IP 阻断时（现象：采集报 `Get "…get-stock-list?…": EOF`，连站点首页与 `webapi` 的
+`server-time` 都 `Connection reset`），可把网页行情接口切到中转代理。
+
+**只有一个系统配置项**（不拆成「开关」+「地址」两项）：
+
+| 配置项 | 名称 | 值格式 | 初始值 |
+|---|---|---|---|
+| `sys.sys_config` 20018 | moomoo 网页接口代理配置 | `{enable}\|{base_url}` | **空串（不预置任何端点，地址由用户自己填）** |
+
+| 段 | 取值 | 说明 |
+|---|---|---|
+| `enable` | `1` / `true` / `on` / `yes` / `y` | 启用代理；`0` / `false` / `off` / 空 → 直连 |
+| `base_url` | 代理端点根地址 | 用户自行填写；**初始发放为空**，不在迁移/代码里预置 |
+
+示例（启用后）：
+
+```sql
+UPDATE sys.sys_config SET str_value = '1|https://<你的代理端点>'
+ WHERE config_no = 20018;
+```
+
+行为与边界：
+
+| 项 | 说明 |
+|---|---|
+| 生效范围 | 网页行情接口（`quote-api`：列表 / ETF / 期货 / 汇率 / K 线 / 日 K），全部是 GET |
+| 不生效范围 | moomoo OpenAPI（`webapi`：指数 / 加密货币快照）——AppKey 与 Ed25519 签名不经第三方中转 |
+| 生效时机 | 进程启动时读一次（改配置后需重启容器）；读失败/缺行/配错地址一律按直连 |
+| 实现方式 | `moomooProxyTransport`（`http.RoundTripper`）：把原请求打包成代理的 `POST {base_url}` + JSON（`method/target/headers/cfOptions`），目标状态码/头/体原样透传；签名不受影响（`quote-token` 只覆盖 query 参数，不含 host） |
+| 环境变量兜底 | `FINV_MOOMOO_QUOTE_PROXY`，同格式 `{enable}\|{base_url}` |
+| 已知限制 | 只支持 GET；带请求体的 POST（期权报价，本仓库未使用）会明确报错 |
+
+实测（2026-11-19，同一台机器、同一时刻）：
+
+| 配置 20018 | 采集结果 |
+|---|---|
+| 空串（直连） | `FAILED`：`Get "…get-stock-list?…": EOF`（IP 被阻断） |
+| `1\|<代理端点>` | `SUCCESS`：2 页 100 条（新增 0 / 覆盖 100），耗时 5.7s |
+
+> 代理只是「换出口 IP」，不是绕过检测：若目标站对代理 IP 段加严会失效；
+> 端点为第三方服务时，请求会经过它（因此只用于公共签名的网页接口）。
+
 ### 请求头清单（需求 11336）
 
 统一由 `newMoomooQuoteClient()`（`internal/meta/finv/quote/cdeu/quote_list_stock_snapshot_sync.go`）

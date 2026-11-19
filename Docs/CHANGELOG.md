@@ -537,6 +537,17 @@
 
 ### 变更
 
+- **新增 moomoo 网页接口中转代理通道（单配置项，需求 11337）**
+  - `sys.sys_config` **20018**「moomoo 网页接口代理配置」，值 `{enable}|{base_url}`，
+    迁移只发空串占位——**不预置端点地址，由用户自己填**。
+  - `moomooProxyTransport`（`http.RoundTripper`）把请求打包成代理 `POST {base_url}` + JSON，
+    状态码/头/体透传；`quote-token` 只覆盖 query 参数、不含 host，换域名转发不破坏签名。
+  - 覆盖列表 / ETF / 期货 / 汇率 / K 线 / 日 K；**不覆盖** moomoo OpenAPI（webapi，凭据不经中转）。
+    启动时读一次，读失败或配置不完整一律直连；只支持 GET（POST 明确报错）。
+  - 实测：20018 空串 → 采集 `FAILED`（`EOF`）；设为 `1|<代理端点>` → `SUCCESS`（2 页 100 条）；
+    测试后库内已恢复为空串。
+
+
 - **moomoo 网页接口客户端补 `accept-language` 并收敛为单一构造入口（需求 11336）**
   - 之前 6 处各自 `quoteapiv2.New(quoteapiv2.Config{})`：UA（桌面 Chrome）与按市场的
     `Referer` 由上游默认带上，但**`accept-language` 一直没配**。

@@ -24,6 +24,11 @@ func NewFxCERFetcher() *ClientBundle {
 	return &ClientBundle{client: newMoomooQuoteClient()}
 }
 
+// newFxCERFetcherWithProxy 按代理配置创建汇率拉取实现（需求 11337）。
+func newFxCERFetcherWithProxy(proxy MoomooQuoteProxyConfig) *ClientBundle {
+	return &ClientBundle{client: newMoomooQuoteClientWithProxy(proxy)}
+}
+
 // ClientBundle 把上游客户端包一层，便于单测按需替换（同时实现两个拉取接口）。
 //
 // 之所以不直接返回 *quoteapiv2.Client：SetFxCERFetcher / SetFxCERRateListFetcher

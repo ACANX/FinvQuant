@@ -13,6 +13,7 @@ import (
 	"github.com/acanx/finvquant/internal/meta/finv/sys"
 
 	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/webapi"
+	"github.com/acnxo/MetaExt/component/quote/moomoo/quoteapiv2"
 )
 
 // Result 一次 Job 执行的结果（同时写入 finv_quote_cdeu_job_run_log_export_file）。
@@ -97,6 +98,17 @@ type Service struct {
 
 	// moomooSnapshotFetcher 收藏加密货币快照拉取实现（默认 webapi 客户端；单测可注入，需求 11316）。
 	moomooSnapshotFetcher webapi.Fetcher
+
+	// moomooProxy moomoo 网页接口代理通道配置（sys.sys_config 20018，需求 11337）。
+	// 启动时读一次；改配置后重启生效（代理是排障用临时通道，不做热加载）。
+	moomooProxy MoomooQuoteProxyConfig
+}
+
+// moomooQuoteClient 按当前代理配置创建 moomoo 网页接口客户端（需求 11337）。
+//
+// 所有默认客户端的构造都走这里，保证「配置项一开、全链路都走代理」。
+func (s *Service) moomooQuoteClient() *quoteapiv2.Client {
+	return newMoomooQuoteClientWithProxy(s.moomooProxy)
 }
 
 // NewService 创建归档服务。
@@ -116,20 +128,30 @@ func NewService(pool *pgxpool.Pool, options Options) (*Service, error) {
 	if pool != nil {
 		cfgStore = syscfg.NewStore(pool)
 	}
+	// 代理配置读不到不阻断启动：代理只是可选通道，读失败按直连处理（需求 11337）。
+	var proxyCfg MoomooQuoteProxyConfig
+	if pool != nil {
+		if loaded, proxyErr := NewStore(pool).LoadMoomooQuoteProxyConfig(context.Background()); proxyErr == nil {
+			proxyCfg = loaded
+		} else {
+			log.Printf("[cdeu] 读取 moomoo 代理配置失败，按直连处理：%v", proxyErr)
+		}
+	}
 	return &Service{
 		store:                NewStore(pool),
 		uploader:             uploader,
 		options:              options,
 		cfg:                  cfgStore,
 		running:              map[string]time.Time{},
-		klineFetcher:         newMoomooQuoteClient(),
-		stockListFetcher:     NewStockListFetcher(),
-		etfListFetcher:       newMoomooQuoteClient(),
-		futureListFetcher:    newMoomooQuoteClient(),
+		moomooProxy:          proxyCfg,
+		klineFetcher:         newMoomooQuoteClientWithProxy(proxyCfg),
+		stockListFetcher:     newMoomooQuoteClientWithProxy(proxyCfg),
+		etfListFetcher:       newMoomooQuoteClientWithProxy(proxyCfg),
+		futureListFetcher:    newMoomooQuoteClientWithProxy(proxyCfg),
 		xetIndexFetcher:      NewXetIndexFetcher(),
 		stockListRunner:      newStockListRunner(),
-		fxCerFetcher:         NewFxCERFetcher(),
-		fxCerRateListFetcher: NewFxCERFetcher(),
+		fxCerFetcher:         newFxCERFetcherWithProxy(proxyCfg),
+		fxCerRateListFetcher: newFxCERFetcherWithProxy(proxyCfg),
 	}, nil
 }
 
