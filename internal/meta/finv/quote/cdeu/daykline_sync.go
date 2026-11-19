@@ -27,7 +27,7 @@ type KlineFetcher interface {
 // SetKlineFetcher 替换 K 线拉取实现（单测注入用）；传 nil 恢复默认 moomoo 客户端。
 func (s *Service) SetKlineFetcher(fetcher KlineFetcher) {
 	if fetcher == nil {
-		fetcher = quoteapiv2.New(quoteapiv2.Config{})
+		fetcher = newMoomooQuoteClient()
 	}
 	s.klineFetcher = fetcher
 }
@@ -99,7 +99,7 @@ func (s *Service) SyncDayKlineFromMoomoo(ctx context.Context, req DayKlineSyncRe
 
 	fetcher := s.klineFetcher
 	if fetcher == nil {
-		fetcher = quoteapiv2.New(quoteapiv2.Config{})
+		fetcher = newMoomooQuoteClient()
 	}
 	klineReq := quoteapiv2.GetKLineRequest{
 		StockID:           strconv.FormatInt(params.StockID, 10),

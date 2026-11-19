@@ -308,6 +308,29 @@ Go 客户端自动跟随重定向后拿到 HTML 页面，JSON 解析必然报 `'
 | Chrome UA + 正确 `quote-token` | `200` + JSON（`total=5588`、`pageCount=112`、首行工商银行 601398） |
 | 服务端 `instrument_symbol=stock` / `market_type=4` 采集 | `SUCCESS`，6 页 300 条（新增 2 / 覆盖 298） |
 
+### 请求头清单（需求 11336）
+
+统一由 `newMoomooQuoteClient()`（`internal/meta/finv/quote/cdeu/quote_list_stock_snapshot_sync.go`）
+构造，全仓库只有这一个入口——原先是 6 处 `quoteapiv2.New(quoteapiv2.Config{})` 各写一份。
+
+| 请求头 | 取值 | 来源 | 作用 |
+|---|---|---|---|
+| `user-agent` | `Mozilla/5.0 (Windows NT 10.0; Win64; x64) … Chrome/149.0.0.0 Safari/537.36` | 上游 `DefaultUserAgent` | 站点按 UA 判定浏览器；缺失会被 302 到 `/403` |
+| `referer` | 按市场：港股/美股/A 股各自的 `/hans/quote/*/stock-list/all-*-stocks/top-market-cap`；未命中回落 `/hans/` | 上游 `DefaultReferers` / `DefaultReferer` | **决定返回数据的语言与数值单位口径**（中文名、`万亿/亿/万`） |
+| `accept-language` | `zh-CN,zh;q=0.9,en;q=0.8` | **本仓库补**（上游未设） | 浏览器请求必带的语言协商头，缺失会加重「非浏览器」判定 |
+| `accept` | `application/json` | 上游内置 | 声明期望 JSON |
+| `cookie` | `csrfToken=<CSRF>; locale=zh-cn` | 上游内部（`CSRF` 占位 `0000000000`） | 站点要求存在 |
+| `quote-token` | HMAC-SHA512(`quote_web`) → 截断 → SHA-256 → 10 位 | 上游 `SignParams` | 请求签名（GET 走查询参数、POST 走请求体） |
+| `content-type` / `origin` | `application/json` / `https://www.moomoo.com` | 上游内置（仅 POST） | 站点校验来源 |
+
+实测（`httptest` 截获真实请求头，`go test -run TestMoomooClient ./internal/meta/finv/quote/cdeu/`）：
+四个浏览器特征头齐全，`Referer` 随 `marketType` 切换为对应市场页。
+
+> 结论回答两个常见疑问：
+> 1. **UA 不是缺失项**——客户端一直带桌面版 Chrome UA；之前复现「无 UA → 302」用的是 `curl` 默认 UA，
+>    不代表服务端行为；
+> 2. **`accept-language` 之前确实没配**——2026-11-19 补上，并加测试锁住，避免以后被删掉。
+
 处置：
 
 1. **等待数分钟后重试**（限流按 IP + 时间窗，通常几分钟恢复），期间不要再连续点；

@@ -21,7 +21,7 @@ import (
 // 同一个 *quoteapiv2.Client 同时实现 GetFxOverview 与 GetFxRateList，
 // 因此两个采集来源共用一个实例。
 func NewFxCERFetcher() *ClientBundle {
-	return &ClientBundle{client: quoteapiv2.New(quoteapiv2.Config{})}
+	return &ClientBundle{client: newMoomooQuoteClient()}
 }
 
 // ClientBundle 把上游客户端包一层，便于单测按需替换（同时实现两个拉取接口）。

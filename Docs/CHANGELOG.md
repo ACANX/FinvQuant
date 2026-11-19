@@ -537,6 +537,17 @@
 
 ### 变更
 
+- **moomoo 网页接口客户端补 `accept-language` 并收敛为单一构造入口（需求 11336）**
+  - 之前 6 处各自 `quoteapiv2.New(quoteapiv2.Config{})`：UA（桌面 Chrome）与按市场的
+    `Referer` 由上游默认带上，但**`accept-language` 一直没配**。
+  - 新增 `newMoomooQuoteClient()` 作为唯一构造入口，统一补
+    `accept-language: zh-CN,zh;q=0.9,en;q=0.8`；K 线 / 列表 / ETF / 期货 / 汇率 / 日 K 全部改走它。
+  - 新增 `moomoo_client_header_test.go`：用 `httptest` 截获真实请求头，断言 UA 含
+    `Mozilla`/`Chrome`、`Accept-Language` 取值、`Accept`、按 `marketType` 变化的 `Referer`、
+    `cookie`（csrfToken + locale）与 `quote-token` 非空。
+  - 文档：菜单文档「2.6 故障排查」补「请求头清单」表与两个常见疑问的结论。
+
+
 - **「指数」Tab 接入 moomoo 收藏指数快照采集（需求 11333）**
   - 新增 `index_fav_snapshot_sync.go`：读 `quote.finv_quote_secu_fav` 收藏的美股/港股指数
     （`StockIndex`/`Index` + `HK`/`US`）→ moomoo OpenAPI `quote/snapshot` → 字段/类型转换 →

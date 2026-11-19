@@ -11,7 +11,6 @@ import (
 
 	jobdef "github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/jobmeta"
 	"github.com/acanx/finvquant/internal/meta/finv/sys"
-	"github.com/acnxo/MetaExt/component/quote/moomoo/quoteapiv2"
 
 	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/webapi"
 )
@@ -123,10 +122,10 @@ func NewService(pool *pgxpool.Pool, options Options) (*Service, error) {
 		options:              options,
 		cfg:                  cfgStore,
 		running:              map[string]time.Time{},
-		klineFetcher:         quoteapiv2.New(quoteapiv2.Config{}),
+		klineFetcher:         newMoomooQuoteClient(),
 		stockListFetcher:     NewStockListFetcher(),
-		etfListFetcher:       quoteapiv2.New(quoteapiv2.Config{}),
-		futureListFetcher:    quoteapiv2.New(quoteapiv2.Config{}),
+		etfListFetcher:       newMoomooQuoteClient(),
+		futureListFetcher:    newMoomooQuoteClient(),
 		xetIndexFetcher:      NewXetIndexFetcher(),
 		stockListRunner:      newStockListRunner(),
 		fxCerFetcher:         NewFxCERFetcher(),

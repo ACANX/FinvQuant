@@ -898,7 +898,31 @@ const stockListSampleNameWidth = 18
 //     默认即返回中文名称与「万亿/亿/万」单位；
 //   - Config.Referer / Config.Referers / Config.Header 可按需覆盖。
 //
-// 本采集场景的默认值已满足要求，故这里不再注入自定义 transport、referer 或请求头。
+// 本采集场景的默认值已满足要求，只额外补一个上游没设的 Accept-Language（见 newMoomooQuoteClient）。
 func NewStockListFetcher() StockListFetcher {
-	return quoteapiv2.New(quoteapiv2.Config{})
+	return newMoomooQuoteClient()
+}
+
+// moomooWebAcceptLanguage moomoo 网页接口的 Accept-Language 取值。
+//
+// 真实浏览器的每个请求都会带该头；缺失时站点更容易把请求判成非浏览器/爬虫，
+// 表现为 302 到 /403 风控页、客户端拿到 HTML（见菜单文档「2.6 故障排查」，需求 11335/11336）。
+// 取值与简体中文站一致：首选 zh-CN，其次 zh，最后用英文兜底。
+const moomooWebAcceptLanguage = "zh-CN,zh;q=0.9,en;q=0.8"
+
+// newMoomooQuoteClient 本仓库**唯一**的 moomoo 网页接口客户端构造入口（需求 11336）。
+//
+// 上游 quoteapiv2.Client 已默认携带的浏览器特征（无需重复配置）：
+//   - user-agent：DefaultUserAgent（Chrome/149 桌面版 UA）；
+//   - referer：按 marketType 命中 DefaultReferers（1/2/4 → 各市场中文站市值排行页），
+//     未命中回落 DefaultReferer（`/hans/`）；Referer 还决定返回数据的语言与数值单位口径；
+//   - accept: application/json、cookie（csrfToken + locale）、quote-token（HMAC 签名）。
+//
+// 上游**没有**设 accept-language，这里补上；后续要加别的头（如 sec-ch-ua）也只改这一处。
+func newMoomooQuoteClient() *quoteapiv2.Client {
+	return quoteapiv2.New(quoteapiv2.Config{
+		Header: map[string]string{
+			"accept-language": moomooWebAcceptLanguage,
+		},
+	})
 }

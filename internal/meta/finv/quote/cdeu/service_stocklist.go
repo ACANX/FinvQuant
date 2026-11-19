@@ -4,8 +4,6 @@ import (
 	"context"
 	"log"
 
-	"github.com/acnxo/MetaExt/component/quote/moomoo/quoteapiv2"
-
 	"github.com/acanx/finvquant/internal/meta/component/quote/moomoo/webapi"
 )
 
@@ -33,7 +31,7 @@ func (s *Service) SetStockListFetcher(fetcher StockListFetcher) {
 // SetEtfListFetcher 替换 ETF 列表拉取实现（单测注入用）；传 nil 恢复默认 moomoo 客户端。
 func (s *Service) SetEtfListFetcher(fetcher EtfListFetcher) {
 	if fetcher == nil {
-		fetcher = quoteapiv2.New(quoteapiv2.Config{})
+		fetcher = newMoomooQuoteClient()
 	}
 	s.etfListFetcher = fetcher
 }
@@ -41,7 +39,7 @@ func (s *Service) SetEtfListFetcher(fetcher EtfListFetcher) {
 // SetFutureListFetcher 替换期货列表拉取实现（单测注入用）；传 nil 恢复默认 moomoo 客户端。
 func (s *Service) SetFutureListFetcher(fetcher FutureListFetcher) {
 	if fetcher == nil {
-		fetcher = quoteapiv2.New(quoteapiv2.Config{})
+		fetcher = newMoomooQuoteClient()
 	}
 	s.futureListFetcher = fetcher
 }
