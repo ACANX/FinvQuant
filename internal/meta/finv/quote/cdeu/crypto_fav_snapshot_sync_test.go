@@ -42,6 +42,7 @@ func TestCryptoRowFromSnapshot(t *testing.T) {
 	row, ok := cryptoRowFromSnapshot(webapi.Snapshot{
 		Code:           "CC.BTCUSD",
 		Name:           "BTC/USD",
+		SCName:         "比特币/美元",
 		LastPrice:      100,
 		OpenPrice:      95,
 		HighPrice:      101,
@@ -60,6 +61,13 @@ func TestCryptoRowFromSnapshot(t *testing.T) {
 	}
 	if row.USC != "BTCUSD" || row.Code != "CC.BTCUSD" || row.QuoteCurrency != "USD" {
 		t.Fatalf("身份字段不符: %+v", row)
+	}
+	// 名称优先简体中文（上游 sc_name），取不到才用 name（需求 11339）
+	if row.Name != "比特币/美元" {
+		t.Fatalf("名称应取 sc_name，实际 %q", row.Name)
+	}
+	if fallback, _ := cryptoRowFromSnapshot(webapi.Snapshot{Code: "CC.BTCUSD", Name: "BTC/USD"}); fallback.Name != "BTC/USD" {
+		t.Fatalf("sc_name 缺失时应回退 name，实际 %q", fallback.Name)
 	}
 	if row.ChangePrice == nil || row.ChangePrice.String() != "10" {
 		t.Fatalf("涨跌额应为 10，实际 %v", row.ChangePrice)

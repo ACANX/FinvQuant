@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 // Fetcher 行情快照拉取能力（Client 实现；测试可注入假实现）。
@@ -17,8 +18,14 @@ type Fetcher interface {
 
 // Snapshot 快照响应里本仓库用到的字段（其余字段不解析）。
 type Snapshot struct {
-	Code                string  `json:"code"`
-	Name                string  `json:"name"`
+	Code string `json:"code"`
+	// Name 上游默认名称（多数场景是英文，如 `Bitcoin` / `Hang Seng Index`）。
+	Name string `json:"name"`
+	// SCName 简体中文名称（上游 `sc_name`，如 `比特币` / `恒生指数`；未提供时为空）。
+	SCName string `json:"sc_name"`
+	// TCName 繁体中文名称（上游 `tc_name`，如 `比特幣` / `恒生指數`；暂不使用，保留便于追溯）。
+	TCName string `json:"tc_name"`
+	// LastPrice 最新价。
 	LastPrice           float64 `json:"last_price"`
 	OpenPrice           float64 `json:"open_price"`
 	HighPrice           float64 `json:"high_price"`
@@ -42,6 +49,18 @@ type Snapshot struct {
 	Suspension          bool    `json:"suspension"`
 	DataDate            string  `json:"data_date"`
 	UpdateTime          int64   `json:"update_time"`
+}
+
+// DisplayName 展示名：优先简体中文（`sc_name`），取不到才回退上游默认名（`name`）。
+//
+// 实测（2026-11-19，`US..SPX` / `HK.800000` / `CC.BTC`）上游三个名称字段都有值：
+// `name=S&P 500 Index`、`sc_name=标普500指数`、`tc_name=標普500指數`；
+// 只取 `name` 会让排行榜全显示英文名（需求 11339）。
+func (s Snapshot) DisplayName() string {
+	if name := strings.TrimSpace(s.SCName); name != "" {
+		return name
+	}
+	return strings.TrimSpace(s.Name)
 }
 
 // snapshotEnvelope 响应信封。

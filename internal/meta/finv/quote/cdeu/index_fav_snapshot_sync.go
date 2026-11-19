@@ -327,7 +327,7 @@ func roundFloat(v float64, digits int) float64 {
 // 字段映射（其余列无来源，写 NULL —— 落库是「有值才覆盖」，不会清掉库里已有值）：
 //
 //	usc             ← 收藏表 usc（主键）
-//	name            ← 快照 name
+//	name            ← 快照 sc_name（简体中文），取不到才用 name
 //	stock_code      ← finv_security.security_code（港股 800000 / 美股 DJI）
 //	market_type     ← HK→"1"、US→"2"
 //	market_label    ← HK / US
@@ -354,8 +354,9 @@ func indexFavRealtimeRow(target IndexFavTarget, snapshot webapi.Snapshot, dtUpda
 		return QuoteSecuRealtimeRow{}, false
 	}
 
-	name := snapshot.Name
-	if strings.TrimSpace(name) == "" {
+	// 名称优先简体中文（上游 sc_name），取不到才回退默认名，仍为空用 usc（需求 11339）。
+	name := snapshot.DisplayName()
+	if name == "" {
 		name = usc
 	}
 	stockCode := strings.TrimSpace(target.SecurityCode)

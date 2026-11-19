@@ -99,7 +99,7 @@
 | 目标列 | 来源 | 说明 |
 |---|---|---|
 | `usc` | 收藏表 `usc` | 主键；**按请求 code 反查**，不从返回 code 反推 |
-| `name` | 快照 `name` | 空时回落 `usc` |
+| `name` | 快照 `sc_name` → `name` | **简体中文优先**；`sc_name` 为空才用 `name`；仍为空回落 `usc` |
 | `stock_code` | `finv_security.security_code` | 港股 `800000`、美股 `DJI` |
 | `market_type` | 交易所推导 | 港股 `1`、美股 `2`（与表内现有数据同口径） |
 | `market_label` | 交易所推导 | `HK` / `US` |
@@ -116,6 +116,10 @@
 | `dt_update` | 采集时刻 | Unix 毫秒 |
 | `provider` | 固定 | `MMAPI` |
 | `remark` | 生成 | 来源、moomoo code、交易所与计算口径 |
+
+**名称口径（需求 11339）**：上游快照每条同时返回三个名称字段，实测 `US..SPX` 为
+`name=S&P 500 Index`、`sc_name=标普500指数`、`tc_name=標普500指數`。落库**优先 `sc_name`（简体中文）**，
+取不到才回退 `name`。历史上只取 `name`，导致排行榜的港股/美股指数全显示英文名。
 
 其余列无来源，写 `NULL`；落库语句是 **`COALESCE(EXCLUDED.col, t.col)` 有值才覆盖**，
 因此不会把库里已有的 `rmb_*`、`market_value` 等列清空（与 BDFS 采集同口径，需求 11287）。

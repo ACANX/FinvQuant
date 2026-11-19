@@ -2913,6 +2913,17 @@
 
 ### 修复
 
+- **修「证券行情排行」指数 / 「加密货币行情排行」名称显示英文（需求 11339）**
+  - 根因：moomoo 快照每条返回三个名称字段，实测 `US..SPX` 为
+    `name=S&P 500 Index`、`sc_name=标普500指数`、`tc_name=標普500指數`；
+    采集侧只解析并落库了 `name`（英文），**从未读取 `sc_name`**，所以不是「取不到中文」而是没取。
+  - `webapi.Snapshot` 增加 `SCName`(`sc_name`) / `TCName`(`tc_name`) 与 `DisplayName()`
+    （`sc_name` 去空白非空 → 用它，否则 `name`）；加密货币与指数两条落库链路改用它。
+  - 单测：`TestSnapshotDisplayName`（三字段解析 + 四种回退场景）、
+    `TestCryptoRowFromSnapshot` / `TestIndexFavRealtimeRowUSFallbackCurrency` 增加中文优先与回退断言。
+  - 存量行通过重跑采集回填：crypto 8 只、指数 5 只（`COALESCE(EXCLUDED, t)` 有值才覆盖）。
+  - 文档：`Docs/API/Cdeu/{CryptoFavSnapshotSync,IndexFavSnapshotSync}.md` 增名称口径说明。
+
 - **修「证券指标」页「更新次数」永远是 1（需求 11338）**
   - 根因：指标 upsert 的 UPDATE 把 `count_update` 当普通列 `COALESCE($n, t.count_update)` 覆盖，
     采集端恒传 `1`，于是已更新的行也停在 1（实测 18,020 行全为 1，其中 17,008 行 `dt_update`

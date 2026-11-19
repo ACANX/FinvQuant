@@ -217,7 +217,7 @@ func cryptoRowFromSnapshot(snapshot webapi.Snapshot) (CryptoRealtimeRow, bool) {
 	row := CryptoRealtimeRow{
 		USC:            usc,
 		Code:           code,
-		Name:           snapshot.Name,
+		Name:           snapshot.DisplayName(),
 		QuoteCurrency:  cryptoQuoteCurrency(usc),
 		PriceNominal:   cryptoNumber(snapshot.LastPrice),
 		PriceOpen:      cryptoNumber(snapshot.OpenPrice),

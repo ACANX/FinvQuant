@@ -132,7 +132,7 @@ func TestIndexFavRealtimeRow(t *testing.T) {
 // TestIndexFavRealtimeRowUSFallbackCurrency 美股指数缺 currency_type 时兜底 USD；无行情只写身份列。
 func TestIndexFavRealtimeRowUSFallbackCurrency(t *testing.T) {
 	target := IndexFavTarget{USC: "DJI", SecurityCode: "DJI", ExchangeFlag: "US"}
-	row, ok := indexFavRealtimeRow(target, webapi.Snapshot{Code: "US..DJI", Name: "Dow Jones"}, 1700000000000)
+	row, ok := indexFavRealtimeRow(target, webapi.Snapshot{Code: "US..DJI", Name: "Dow Jones", SCName: "道琼斯指数"}, 1700000000000)
 	if !ok {
 		t.Fatal("美股指数应转换成功")
 	}
@@ -141,6 +141,13 @@ func TestIndexFavRealtimeRowUSFallbackCurrency(t *testing.T) {
 	}
 	if row.MarketType == nil || *row.MarketType != "2" {
 		t.Errorf("market_type=%v want 2（美股）", row.MarketType)
+	}
+	// 名称优先简体中文（上游 sc_name），取不到才用 name（需求 11339）
+	if row.Name == nil || *row.Name != "道琼斯指数" {
+		t.Errorf("name=%v want 道琼斯指数（应取 sc_name）", row.Name)
+	}
+	if fallback, ok := indexFavRealtimeRow(target, webapi.Snapshot{Code: "US..DJI", Name: "Dow Jones"}, 1700000000000); !ok || fallback.Name == nil || *fallback.Name != "Dow Jones" {
+		t.Errorf("sc_name 缺失时应回退 name，实际 %v", fallback.Name)
 	}
 	if row.PriceNominal != nil || row.ChangePrice != nil {
 		t.Errorf("last=0 时不应写行情列，实际 price=%v change=%v", row.PriceNominal, row.ChangePrice)
