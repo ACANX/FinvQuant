@@ -173,6 +173,8 @@
 | 148 | GET | `/API/V1/Meta/Finv/Quote/Collect/Config/List` | 行情采集系统配置列表（需登录，只读）：返回 `sys.sys_config` 20013/20014/20015/20016/20018 五项（Supabase 连接/源表名、USC 规则 cron、moomoo 凭据/代理）的当前值，敏感项（20013/20016）只回掩码 + `has_value`，附值格式与留空语义 | [Cdeu/CollectSysConfig.md](Cdeu/CollectSysConfig.md) | 需求 11343（[Menu/Quote/RealtimeCollect/CollectSysConfig.md](../Menu/Quote/RealtimeCollect/CollectSysConfig.md)） |
 | 149 | POST | `/API/V1/Meta/Finv/Quote/Collect/Config/Save` | 保存单个行情采集系统配置项（需登录）：只改已有行、只允许 20013–20018 中采集相关 5 项；校验复用 `syscfg.ParseSupabaseConn` / `NormalizeSupabaseTableName` / `uscrule.ParseSchedule` / `webapi.ParseEd25519PrivateKey` / `cdeu.ValidateMoomooQuoteProxy`；20016 私钥留空 = 保留原值、`__CLEAR__` = 只清私钥 | [Cdeu/CollectSysConfig.md](Cdeu/CollectSysConfig.md) | 需求 11343 |
 | 150 | GET | `/API/V1/Meta/Finv/Quote/Collect/Config/Secret` | 取敏感项明文（需登录，只允许 20013/20016）：返回 **base64** 编码的原值与字符长度，避免明文直接进响应体；列表接口永远只回掩码 | [Cdeu/CollectSysConfig.md](Cdeu/CollectSysConfig.md) | 需求 11343 |
+| 151 | GET | `/API/V1/Meta/Finv/Quote/Collect/FiveDayFt/Page` | 五日分钟行情采集配置分页查询（需登录，只读）：经 PostgREST 读 Supabase `public.finv_quote_secu_ft`（本地库无副本），默认每页 15 条、上限 200；关键字模糊匹配 `usc`/`symbol`/`futu_symbol`/`name`，4 个文本精确筛选（`market_label`/`instrument`/`type_secu`/`provider`）+ `flag_enable`；21 列全部可排序（非法值回退 `usc`，并追加 `usc` 兜底稳定分页）；上游 offset 越界的 416 按空页处理；响应带列元数据（中文表头 + 类型） | [Cdeu/FiveDayFtPage.md](Cdeu/FiveDayFtPage.md) | 需求 11344（[Menu/Quote/RealtimeCollect/FiveDayFt.md](../Menu/Quote/RealtimeCollect/FiveDayFt.md)） |
+| 152 | GET | `/API/V1/Meta/Finv/Quote/Collect/FiveDayFt/FilterOptions` | 五日分钟行情采集配置下拉候选（需登录，只读）：按 `market_label`/`instrument`/`type_secu`/`provider` 各拉一次表内 DISTINCT（每维上限 500），表为空时各维度为空数组 | [Cdeu/FiveDayFtPage.md](Cdeu/FiveDayFtPage.md) | 需求 11344 |
 
 ## 说明
 

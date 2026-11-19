@@ -2913,6 +2913,33 @@
 
 ### 修复
 
+- **新增「五日分钟行情采集配置」菜单，只读分页展示 Supabase `public.finv_quote_secu_ft`（需求 11344）**
+  - 菜单位置：行情 → 行情采集 → 「USC 映射规则」之后、**「行情采集系统配置」之前**；
+    路由 `/Meta/Finv/Quote/RealtimeCollect/FiveDayFt`。
+  - 数据源：Supabase `public.finv_quote_secu_ft`（本地库无副本），经 PostgREST 只读访问，
+    连接取 `sys_config` 20013；通道复用 `secukey.FetchQuery`（新增的通用只读分页方法）。
+  - 接口：`GET .../Quote/Collect/FiveDayFt/Page`（默认每页 **15** 条、上限 200；
+    关键字模糊匹配 `usc`/`symbol`/`futu_symbol`/`name`；`marketLabel`/`instrument`/`typeSecu`/`provider`
+    精确筛选 + `flagEnable`；21 列白名单排序，非法值回退 `usc` 并追加 `usc` 兜底稳定分页；
+    响应带列元数据）、`GET .../FilterOptions`（表内 DISTINCT）；**不提供写接口**。
+  - 表结构：逐列探测确认 21 列（text / bigint / integer / smallint / timestamptz），
+    列元数据落在 `internal/meta/finv/quote/secuft/columns.go`。
+  - **修复上游 416**：PostgREST 在 `offset` 超出总行数时返回 `416` +
+    `PGRST103 Requested range not satisfiable`，原实现会整页 502；
+    现按「本页为空」处理并保留 `Content-Range` 里的总数（`doGet` 特判 + 2 条单测）。
+  - 前端：`FiveDayFtView.vue` 筛选区（关键字 + 4 个下拉 + 采集开关）+ 服务端排序 + 单一分页
+    （15/20/50/100/200，默认 15）；列全部由服务端下发，数值右对齐、时间本地化、
+    `flag_enable` 显示启用/禁用并配色、`instrument` 按字典显示中文。
+  - 实测：`Page` → `code=0`、`pageSize=15`、`columns=21`、`total=0`、`elapsed_ms=839`；
+    `page=2` → `code=0` + `list=[]`（修复前 502）；`pageSize=1000` → `pageSize=200`；
+    `sortBy=evil` → 回退 `usc`；`FilterOptions` 四维空数组；
+    同一套 PostgREST 语法在 `finv_quote_secu_key`（73,212 行）上验证通过
+    （关键字命中 5 行、`limit=15&offset=15` → `Content-Range: 15-29/70690`）。
+  - **数据现状**：该表当前 0 行（`Content-Range: */0`），同一把 key 可读键表 73,212 行，
+    故非鉴权问题；若 Supabase 控制台可见数据而页面为 0 行，则为 RLS 未开放 `select` 策略。
+  - 文档：`Docs/API/Cdeu/FiveDayFtPage.md`、`Docs/Menu/Quote/RealtimeCollect/FiveDayFt.md`、
+    `APIs.md`（151–152）、`Menus.md`（60.1，原 60.1 顺延为 60.2）。
+
 - **新增「行情采集系统配置」菜单，统一维护实时行情采集相关系统配置（需求 11343）**
   - 菜单位置：行情 → 行情采集 → 紧随「USC 映射规则」；路由 `/Meta/Finv/Quote/RealtimeCollect/CollectSysConfig`。
   - 范围 5 项（**只查 + 改，不新增/删除**）：20013 Supabase 连接（敏感）、20014 源表名、

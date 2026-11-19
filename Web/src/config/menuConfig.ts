@@ -292,6 +292,14 @@ const finvQuantMenu: MenuNode[] = [
             icon: 'mdi-transit-connection-variant',
             path: '/Meta/Finv/Quote/RealtimeCollect/UscMapping',
           },
+          // 需求 11344：五日分钟行情采集配置 —— Supabase public.finv_quote_secu_ft 的只读分页浏览，
+          // 默认每页 15 条；列元数据由服务端下发（21 列），本地库无副本。
+          {
+            key: 'quote-collect-five-day-ft',
+            title: '五日分钟行情采集配置',
+            icon: 'mdi-calendar-clock',
+            path: '/Meta/Finv/Quote/RealtimeCollect/FiveDayFt',
+          },
           // 需求 11343：行情采集系统配置 —— sys.sys_config 20013–20018 中与实时行情采集相关的 5 项
           // （Supabase 连接/源表名、USC 规则 cron、moomoo 凭据/代理），只查 + 改；
           // 敏感项（20013/20016）列表掩码 + 👁 明文（后端 base64 返回）。旧入口本期保留双入口。

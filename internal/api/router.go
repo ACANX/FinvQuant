@@ -25,6 +25,7 @@ import (
 	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/collectcfg"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/indicator"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/secuft"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/secukey"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/uscbackfill"
 	"github.com/acanx/finvquant/internal/meta/finv/quote/uscrule"
@@ -236,6 +237,11 @@ func NewRouter(deps *Deps) *gin.Engine {
 			apiGroup.POST("/Meta/Finv/Quote/Crypto/Moomoo/Config", archive.CryptoMoomooConfigSave)
 			// 行情采集系统配置（需求 11343）：sys_config 20013–20018 中与实时行情采集相关的 5 项，
 			// 只查 + 改；敏感项列表回掩码，明文经 Secret 接口以 base64 返回（需登录）。
+			// 五日分钟行情采集配置（需求 11344）：Supabase public.finv_quote_secu_ft 只读分页，
+			// 默认每页 15 条；表在 Supabase 侧，本地无副本。
+			fiveDayFt := handler.NewQuoteCollectFiveDayFt(secuft.NewStore(deps.Pool))
+			apiGroup.GET("/Meta/Finv/Quote/Collect/FiveDayFt/Page", fiveDayFt.Page)
+			apiGroup.GET("/Meta/Finv/Quote/Collect/FiveDayFt/FilterOptions", fiveDayFt.FilterOptions)
 			collectCfg := handler.NewQuoteCollectSysConfig(collectcfg.NewStore(deps.Pool))
 			apiGroup.GET("/Meta/Finv/Quote/Collect/Config/List", collectCfg.List)
 			apiGroup.POST("/Meta/Finv/Quote/Collect/Config/Save", collectCfg.Save)

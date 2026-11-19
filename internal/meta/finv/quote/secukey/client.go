@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -148,6 +149,43 @@ func (c *Client) FetchRawBatch(ctx context.Context, table, selectCols string, of
 	return nil, 0, fmt.Errorf("拉取 Supabase 源表失败（offset=%d, limit=%d）: %w", offset, limit, lastErr)
 }
 
+// FetchQuery 通用只读查询（需求 11344）：query 由调用方按 PostgREST 语法拼好
+// （select / order / limit / offset / 过滤表达式），返回**原始 JSON 行**与源表总行数。
+//
+// 与 FetchRawBatch 的区别：排序与过滤完全由调用方决定，用于「任意 Supabase 表的
+// 分页浏览」页（如 public.finv_quote_secu_ft）。表名须由调用方先行校验。
+func (c *Client) FetchQuery(ctx context.Context, table string, query url.Values) ([]json.RawMessage, int64, error) {
+	schema, name := splitTable(table)
+	url := c.baseURL + "/rest/v1/" + name
+	if encoded := query.Encode(); encoded != "" {
+		url += "?" + encoded
+	}
+
+	var lastErr error
+	for attempt := 1; attempt <= c.maxAttempts; attempt++ {
+		body, total, retryable, err := c.doGet(ctx, url, schema)
+		if err == nil {
+			var rows []json.RawMessage
+			if err := json.Unmarshal(body, &rows); err != nil {
+				return nil, 0, fmt.Errorf("解析 Supabase 响应失败: %w", err)
+			}
+			return rows, total, nil
+		}
+		lastErr = err
+		if !retryable || attempt == c.maxAttempts {
+			break
+		}
+		backoff := c.retryBackoff * time.Duration(attempt)
+		log.Printf("[cdeu][secukey] query retry %d/%d after %s: %v", attempt, c.maxAttempts, backoff, err)
+		select {
+		case <-ctx.Done():
+			return nil, 0, ctx.Err()
+		case <-time.After(backoff):
+		}
+	}
+	return nil, 0, fmt.Errorf("查询 Supabase 源表失败（%s）: %w", table, lastErr)
+}
+
 // fetchOnce 发起一次请求并解析成结构化行；retryable 表示该错误值得重试（网络/429/5xx）。
 func (c *Client) fetchOnce(ctx context.Context, url, schema string) (rows []SourceRow, total int64, retryable bool, err error) {
 	body, total, retryable, err := c.doGet(ctx, url, schema)
@@ -184,6 +222,14 @@ func (c *Client) doGet(ctx context.Context, url, schema string) (body []byte, to
 	body, readErr := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
 	if readErr != nil {
 		return nil, 0, true, fmt.Errorf("读取 Supabase 响应失败: %w", readErr)
+	}
+
+	// PostgREST 用 limit/offset 分页时，offset 超出总行数会返回 416（PGRST103
+	// `An offset of N was requested, but there are only M rows`）。语义上等价于
+	// 「这一页是空的」，不是失败：返回空数组并把 Content-Range 里的总数带回去，
+	// 让调用方能正常渲染「总 N 条 / 当前页为空」而不是报上游错误（需求 11344 实测）。
+	if resp.StatusCode == http.StatusRequestedRangeNotSatisfiable {
+		return []byte("[]"), parseContentRangeTotal(resp.Header.Get("Content-Range")), false, nil
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {

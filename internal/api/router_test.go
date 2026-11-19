@@ -426,3 +426,23 @@ func TestQuoteCollectSysConfigRoutesRegistered(t *testing.T) {
 		t.Error("应注册 GET /API/V1/Meta/Finv/Quote/Collect/Config/Secret")
 	}
 }
+
+// TestQuoteCollectFiveDayFtRoutesRegistered 「五日分钟行情采集配置」两条路由已注册（需求 11344）。
+func TestQuoteCollectFiveDayFtRoutesRegistered(t *testing.T) {
+	router := newTestRouter(t)
+	want := []string{
+		"/API/V1/Meta/Finv/Quote/Collect/FiveDayFt/Page",
+		"/API/V1/Meta/Finv/Quote/Collect/FiveDayFt/FilterOptions",
+	}
+	registered := map[string]bool{}
+	for _, route := range router.Routes() {
+		if route.Method == http.MethodGet {
+			registered[route.Path] = true
+		}
+	}
+	for _, path := range want {
+		if !registered[path] {
+			t.Errorf("应注册 GET %s", path)
+		}
+	}
+}

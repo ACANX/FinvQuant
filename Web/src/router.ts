@@ -14,6 +14,8 @@ import SecuParamCompleteView from './views/Meta/Finv/Quote/RealtimeCollect/SecuP
 import FxCerView from './views/Meta/Finv/Quote/Realtime/FXCEROverviewView.vue'
 import SecuParamSyncView from './views/Meta/Finv/Quote/RealtimeCollect/SecuParamSyncView.vue'
 import UscMappingView from './views/Meta/Finv/Quote/RealtimeCollect/UscMappingView.vue'
+// 需求 11344：五日分钟行情采集配置（Supabase public.finv_quote_secu_ft 只读分页）
+import FiveDayFtView from './views/Meta/Finv/Quote/RealtimeCollect/FiveDayFtView.vue'
 // 需求 11343：行情采集系统配置（sys.sys_config 20013–20018 中与实时行情采集相关的 5 项）
 import CollectSysConfigView from './views/Meta/Finv/Quote/RealtimeCollect/CollectSysConfigView.vue'
 import IndicatorView from './views/Meta/Finv/Quote/Realtime/SecuIndicatorView.vue'
@@ -212,6 +214,13 @@ const router = createRouter({
     {
       path: '/Meta/Finv/Quote/Realtime/UscMapping',
       redirect: '/Meta/Finv/Quote/RealtimeCollect/UscMapping',
+    },
+    // 行情 → 行情采集 → 五日分钟行情采集配置（需求 11344）：Supabase public.finv_quote_secu_ft 只读分页，默认每页 15 条
+    {
+      path: '/Meta/Finv/Quote/RealtimeCollect/FiveDayFt',
+      name: 'quote-collect-five-day-ft',
+      component: FiveDayFtView,
+      meta: { title: '五日分钟行情采集配置' },
     },
     // 行情 → 行情采集 → 行情采集系统配置（需求 11343）：只查 + 改，敏感项掩码 + 👁 明文（base64 传输）
     {
