@@ -98,6 +98,38 @@ func TestSecuIndicatorArgsAlignment(t *testing.T) {
 	}
 }
 
+// TestSecuIndicatorCountUpdateIncrements 更新次数必须自增，不能被请求值覆盖（需求 11338）。
+//
+// 历史缺陷：UPDATE 时把 count_update 当普通列 `COALESCE($n, t.count_update)` 覆盖，
+// 采集端恒给 1，于是更新过的行也永远停在 1（实测 18020 行全为 1，其中 17008 行已更新过）。
+func TestSecuIndicatorCountUpdateIncrements(t *testing.T) {
+	sql := secuIndicatorUpdateSQL()
+	if !strings.Contains(sql, "count_update = COALESCE(t.count_update, 0) + 1") {
+		t.Errorf("UPDATE 语句应让 count_update 自增，实际：%s", sql)
+	}
+	// 其余列仍是「给了值才覆盖」；只有 count_update 例外
+	for _, column := range secuIndicatorUpsertColumns {
+		if column == "usc" || column == "count_update" {
+			continue
+		}
+		if !strings.Contains(sql, column+" = COALESCE($") {
+			t.Errorf("列 %s 的更新表达式不是 COALESCE($n, t.col)：%s", column, sql)
+		}
+	}
+	// INSERT：请求给了正数用它，没给按 1
+	if got := countUpdateArg(nil); got != int64(1) {
+		t.Errorf("请求未给 update_count 时新行应为 1，实际 %#v", got)
+	}
+	zero := json.Number("0")
+	if got := countUpdateArg(&zero); got != int64(1) {
+		t.Errorf("请求给 0 时新行应为 1，实际 %#v", got)
+	}
+	five := json.Number("5")
+	if got := countUpdateArg(&five); got != int64(5) {
+		t.Errorf("请求给 5 时应保留 5，实际 %#v", got)
+	}
+}
+
 // TestSecuIndicatorFieldMapping 抽查改名映射：请求字段 → 目标列。
 func TestSecuIndicatorFieldMapping(t *testing.T) {
 	var req SecuIndicatorUpsertRequest
@@ -120,7 +152,6 @@ func TestSecuIndicatorFieldMapping(t *testing.T) {
 		{"ts", int64(1794380400000)},     // time → ts
 		{"ts_exchange_dt", int64(1794380400000)},
 		{"market_status", int64(29)},
-		{"count_update", int64(1)}, // update_count → count_update
 		{"stock_id", int64(46377058462214)},
 		{"secu_url", "https://www.moomoo.com/hans/stock/600006-SH"},
 		{"name", "东风股份"},
@@ -133,6 +164,14 @@ func TestSecuIndicatorFieldMapping(t *testing.T) {
 		if args[pos] != tc.want {
 			t.Fatalf("列 %s 期望 %#v，实际 %#v", tc.column, tc.want, args[pos])
 		}
+	}
+
+	// 更新次数不在通用参数列表里（需求 11338）：INSERT 时按请求值或 1，UPDATE 时自增。
+	if got := countUpdateArg(req.Data.UpdateCount); got != int64(1) {
+		t.Fatalf("count_update 期望 1，实际 %#v", got)
+	}
+	if _, ok := index["count_update"]; ok {
+		t.Fatal("count_update 不应出现在 secuIndicatorUpsertColumns 里")
 	}
 
 	// 需求口径：无对应列的字段不做处理（不存在 is_option 这种列）。

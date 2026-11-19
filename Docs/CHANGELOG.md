@@ -2913,6 +2913,18 @@
 
 ### 修复
 
+- **修「证券指标」页「更新次数」永远是 1（需求 11338）**
+  - 根因：指标 upsert 的 UPDATE 把 `count_update` 当普通列 `COALESCE($n, t.count_update)` 覆盖，
+    采集端恒传 `1`，于是已更新的行也停在 1（实测 18,020 行全为 1，其中 17,008 行 `dt_update`
+    已晚于 `dt_create`）。
+  - 现在 UPDATE 固定 `count_update = COALESCE(count_update, 0) + 1`（与触发器维护的 `dt_update`
+    同步前进），INSERT 取 `COALESCE(请求值, 1)`；`count_update` 从通用列清单里移出，
+    INSERT 由 SQL 的 `COALESCE($N+1::integer, 1)` 补齐（避免 UPDATE 侧多出无主绑定参数）。
+  - 单测 + live 测试：UPDATE 连续写入 `1→2→3`、INSERT 新行 `1` 再更新 `2`；
+    历史行无法回溯真实次数，从修复后开始正确累计。
+  - 文档：`Docs/OpenAPI/.../SecuIndicatorUpsert.md` §4.3 增「唯一例外：count_update」。
+
+
 - **采集失败的 `invalid character '<'` 现在能直接看出是站点风控（需求 11335）**
   - 实测（2026-11-19）：moomoo 在频率过高时把请求 `302` 到 `/403`（`403 - Operations too frequent`），
     Go 跟随重定向拿到 HTML，只报一句 JSON 解析错误，无法判断是参数问题还是被限流。

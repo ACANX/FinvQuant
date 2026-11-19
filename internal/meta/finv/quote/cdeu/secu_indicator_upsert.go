@@ -57,8 +57,15 @@ var secuIndicatorUpsertColumns = []string{
 	"pe_ttm", "pe_lyr", "pb_ratio", "eps_ttm", "eps_lyr", "ps_ttm", "ps_lyr",
 	"ts", "market_status", "market_status_text", "delay_time",
 	"ts_exchange_dt", "ts_server_send_to_client", "ts_server_recv_from_exchange",
-	"secu_url", "source_channel", "dt_collect", "count_update", "json_unmapped", "stock_id",
+	"secu_url", "source_channel", "dt_collect", "json_unmapped", "stock_id",
 }
+
+// secuIndicatorCountUpdateColumn 「更新次数」列（需求 11338）。
+//
+// 刻意**不放进** secuIndicatorUpsertColumns：它不是「请求给了就覆盖」的普通列——
+// UPDATE 必须自增、INSERT 按 1 起步。放进通用列清单会让 UPDATE 侧多一个没人用的绑定参数
+// （pgx 报 SQLSTATE 42P18「could not determine data type of parameter」）。
+const secuIndicatorCountUpdateColumn = "count_update"
 
 // secuIndicatorUpsertTable 目标表名（日志与错误信息复用）。
 const secuIndicatorUpsertTable = "cdeu.finv_quote_secu_indicator"
@@ -305,6 +312,16 @@ func intArg(n *json.Number) any {
 	return iv
 }
 
+// countUpdateArg 新插入行的「更新次数」：请求给了正整数就用它，否则按 1（写入即第一次）。
+//
+// UPDATE 路径不使用该值（那侧固定自增，见 secuIndicatorUpdateSQL）。
+func countUpdateArg(n *json.Number) any {
+	if iv, ok := intArg(n).(int64); ok && iv > 0 {
+		return iv
+	}
+	return int64(1)
+}
+
 // intOrZero 取整数，取不到给 0（用于 collect 表的派生判断）。
 func intOrZero(n *json.Number) int {
 	value := intArg(n)
@@ -384,26 +401,41 @@ func (p *SecuIndicatorPayload) indicatorArgs(usc, ftmm string, collected any) []
 		intArg(p.ExchangeDataTimeMs), intArg(p.ServerSendToClientTimeMs),
 		intArg(p.ServerRecvFromExchangeMs),
 		textArg(p.SourceURL), textArg(p.SourceChannel), collected,
-		intArg(p.UpdateCount), textArg(p.UnmappedJSON), p.stockIDArg(),
+		// 更新次数不在参数列表里：INSERT 由 secuIndicatorInsertSQL 的 COALESCE($N+1,1) 处理，
+		// UPDATE 固定自增（需求 11338）。
+		textArg(p.UnmappedJSON), p.stockIDArg(),
 	}
 }
 
 // secuIndicatorInsertSQL 生成 INSERT 语句：参数 $1..$N 对应 secuIndicatorUpsertColumns，
-// 末位多一个 $N+1 给 dt_create。
+// 之后是 $N+1（count_update，空则按 1）与 $N+2（dt_create）。
 func secuIndicatorInsertSQL() string {
-	placeholders := make([]string, 0, len(secuIndicatorUpsertColumns)+1)
+	columns := make([]string, 0, len(secuIndicatorUpsertColumns)+2)
+	columns = append(columns, secuIndicatorUpsertColumns...)
+	columns = append(columns, secuIndicatorCountUpdateColumn, "dt_create")
+
+	placeholders := make([]string, 0, len(columns))
 	for i := range secuIndicatorUpsertColumns {
 		placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
 	}
-	placeholders = append(placeholders, fmt.Sprintf("$%d", len(secuIndicatorUpsertColumns)+1))
-	return fmt.Sprintf("INSERT INTO %s (%s, dt_create) VALUES (%s)",
+	// 新行「更新次数」至少为 1：请求给了正整数就用它。
+	placeholders = append(placeholders,
+		fmt.Sprintf("COALESCE($%d::integer, 1)", len(secuIndicatorUpsertColumns)+1))
+	placeholders = append(placeholders, fmt.Sprintf("$%d", len(secuIndicatorUpsertColumns)+2))
+
+	return fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
 		secuIndicatorUpsertTable,
-		strings.Join(secuIndicatorUpsertColumns, ", "),
+		strings.Join(columns, ", "),
 		strings.Join(placeholders, ", "))
 }
 
 // secuIndicatorUpdateSQL 生成 UPDATE 语句：除 usc 外的列都用
 // `COALESCE($n, 列)` —— 请求没给的字段保留原值（需求口径：能关联到的字段更新，未给的不动）。
+//
+// `count_update` 是**例外，不走 COALESCE**（需求 11338）：它表示该行被更新的次数，
+// 必须每次 UPDATE 自增，并跟着触发器维护的 `dt_update` 一起走。
+// 历史实现把它当普通列覆盖成请求里的值（采集端恒给 1），于是已更新过的行也永远停在 1
+// （实测：18020 行全为 1，其中 17008 行的 dt_update 已晚于 dt_create）。
 func secuIndicatorUpdateSQL() string {
 	sets := make([]string, 0, len(secuIndicatorUpsertColumns))
 	for i, column := range secuIndicatorUpsertColumns {
@@ -412,6 +444,8 @@ func secuIndicatorUpdateSQL() string {
 		}
 		sets = append(sets, fmt.Sprintf("%s = COALESCE($%d, t.%s)", column, i+1, column))
 	}
+	// 更新次数不进参数列表：每次 UPDATE 自增，与触发器维护的 dt_update 同步（需求 11338）。
+	sets = append(sets, secuIndicatorCountUpdateColumn+" = COALESCE(t.count_update, 0) + 1")
 	return fmt.Sprintf("UPDATE %s AS t SET %s WHERE t.usc = $1",
 		secuIndicatorUpsertTable, strings.Join(sets, ", "))
 }
@@ -474,7 +508,8 @@ func upsertSecuIndicator(ctx context.Context, tx pgx.Tx, usc, ftmm string,
 	if dtCreate == nil {
 		dtCreate = time.Now()
 	}
-	if _, err := tx.Exec(ctx, secuIndicatorInsertSQL(), append(args, dtCreate)...); err != nil {
+	if _, err := tx.Exec(ctx, secuIndicatorInsertSQL(),
+		append(args, countUpdateArg(payload.UpdateCount), dtCreate)...); err != nil {
 		return "", fmt.Errorf("插入 %s 失败: %w", secuIndicatorUpsertTable,
 			explainUniqueViolation(err, secuIndicatorUpsertTable))
 	}
