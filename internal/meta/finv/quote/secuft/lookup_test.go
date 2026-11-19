@@ -13,13 +13,16 @@ func i32Ptr(v int32) *int32   { return &v }
 //
 // 实测方式：抓 `select=*` 的 CSV 表头（32 列），并用 `?<col>=eq.@@@` 反推类型。
 func TestColumnsMatchProbedTable(t *testing.T) {
+	// 展示顺序：品种 / 采集开关 / 富途代码 紧挨在「富途ID」之前（用户指定，需求 11346 跟进）
 	want := []string{
 		"usc", "name", "region", "market", "market_label", "symbol", "currency", "timezone",
-		"provider", "type_secu", "type_secu_sub", "stock_id", "market_type", "market_code",
+		"provider", "type_secu", "type_secu_sub",
+		"instrument", "flag_enable", "futu_symbol",
+		"stock_id", "market_type", "market_code",
 		"instrument_type", "sub_instrument_type", "req_section", "weight_priority",
 		"weight_frequency", "ts_latest_data", "count_last_fetch", "count_fail", "count_stale",
 		"dt_update", "dt_last_check", "dt_last_fetch", "gmt_update", "gmt_create",
-		"futu_symbol", "flag_enable", "instrument", "remark",
+		"remark",
 	}
 	cols := Columns()
 	if len(cols) != len(want) {

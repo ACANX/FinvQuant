@@ -46,7 +46,9 @@ type Column struct {
 // 的类型转换报错逐列反推类型；列口径由同日 465 行真实数据与本地 4 张表比对得出
 // （一致率见 lookup.go 注释）。
 //
-// 顺序：标识 → 名称 → 市场/交易所 → 证券分类 → 富途编码 → 权重/采集统计 → 开关/备注 → 时间。
+// 顺序：标识 → 名称 → 市场/交易所 → 证券分类 → 品种/开关/富途代码 → 富途ID → 富途编码
+//
+//	→ 权重/采集统计 → 备注 → 时间。
 var columns = []Column{
 	{Name: "usc", Title: "统一编号", Kind: KindText, Sortable: true, Note: "证券统一编码，与本地 finv_security.usc 同口径"},
 	{Name: "name", Title: "证券名称", Kind: KindText, Sortable: true},
@@ -59,6 +61,9 @@ var columns = []Column{
 	{Name: "provider", Title: "提供方", Kind: KindText, Sortable: true},
 	{Name: "type_secu", Title: "证券分类", Kind: KindText, Sortable: true},
 	{Name: "type_secu_sub", Title: "证券子类", Kind: KindText, Sortable: true},
+	{Name: "instrument", Title: "品种", Kind: KindText, Sortable: true, Note: "stock/etf/index/forex/crypto/future"},
+	{Name: "flag_enable", Title: "采集开关", Kind: KindNumber, Sortable: true, Note: "1 启用 / 0 禁用"},
+	{Name: "futu_symbol", Title: "富途代码", Kind: KindText, Sortable: true, Note: "富途侧证券代码裸码，如 00700、.BKX"},
 	{Name: "stock_id", Title: "富途ID", Kind: KindNumber, Sortable: true, Note: "富途证券内部 ID"},
 	{Name: "market_type", Title: "市场类型", Kind: KindNumber, Sortable: true, Note: "富途市场类型：1 港股 / 2 美股 / 4 A股 / 11 外汇 / 17 加密"},
 	{Name: "market_code", Title: "市场代码", Kind: KindNumber, Sortable: true, Note: "富途市场代码（不是 finv_market.market_code）"},
@@ -76,9 +81,6 @@ var columns = []Column{
 	{Name: "dt_last_fetch", Title: "最近采集时间", Kind: KindTimestamp, Sortable: true},
 	{Name: "gmt_update", Title: "更新时间", Kind: KindTimestamp, Sortable: true},
 	{Name: "gmt_create", Title: "创建时间", Kind: KindTimestamp, Sortable: true},
-	{Name: "futu_symbol", Title: "富途代码", Kind: KindText, Sortable: true, Note: "富途侧证券代码裸码，如 00700、.BKX"},
-	{Name: "flag_enable", Title: "采集开关", Kind: KindNumber, Sortable: true, Note: "1 启用 / 0 禁用"},
-	{Name: "instrument", Title: "品种", Kind: KindText, Sortable: true, Note: "stock/etf/index/forex/crypto/future"},
 	{Name: "remark", Title: "备注", Kind: KindText, Sortable: true},
 }
 

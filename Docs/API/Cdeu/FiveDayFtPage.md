@@ -42,6 +42,9 @@
 | `provider` | 提供方 | text | — |
 | `type_secu` | 证券分类 | text | — |
 | `type_secu_sub` | 证券子类 | text | — |
+| `instrument` | 品种 | text | stock/etf/index/forex/crypto/futures |
+| `flag_enable` | 采集开关 | smallint | 1 启用 / 0 禁用 |
+| `futu_symbol` | 富途代码 | text | 裸码，如 `00700`、`.BKX` |
 | `stock_id` | 富途ID | bigint | 富途证券内部 ID |
 | `market_type` | 市场类型 | bigint | 1 港股 / 2 美股 / 4 A股 / 11 外汇 / 17 加密 |
 | `market_code` | 市场代码 | bigint | 富途市场代码（**不是** `finv_market.market_code`） |
@@ -59,9 +62,6 @@
 | `dt_last_fetch` | 最近采集时间 | timestamptz | 采集统计 |
 | `gmt_update` | 更新时间 | timestamptz | — |
 | `gmt_create` | 创建时间 | timestamptz | — |
-| `futu_symbol` | 富途代码 | text | 裸码，如 `00700`、`.BKX` |
-| `flag_enable` | 采集开关 | smallint | 1 启用 / 0 禁用 |
-| `instrument` | 品种 | text | stock/etf/index/forex/crypto/futures |
 | `remark` | 备注 | text | — |
 
 **当前数据量（2026-11-19 实测）**：465 行。

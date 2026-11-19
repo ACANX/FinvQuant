@@ -46,6 +46,8 @@
 
 ## 4. 列口径（32 列）
 
+> 列顺序：`品种` / `采集开关` / `富途代码` 紧挨在 `富途ID` 之前（需求 11346 跟进）。
+
 | 列 | 中文表头 | 展示口径 |
 |---|---|---|
 | `usc` | 统一编号 | 原文 |
@@ -59,6 +61,9 @@
 | `provider` | 提供方 | 原文 |
 | `type_secu` | 证券分类 | 原文 |
 | `type_secu_sub` | 证券子类 | 原文 |
+| `instrument` | 品种 | 字典：`stock`→股票 / `etf`→ETF / `index`→指数 / `forex`→外汇 / `crypto`→加密货币 / `futures`→期货 |
+| `flag_enable` | 采集开关 | `1`→启用（绿）/ `0`→禁用（灰） |
+| `futu_symbol` | 富途代码 | 原文（裸码，如 `00700`） |
 | `stock_id` | 富途ID | 右对齐 |
 | `market_type` | 市场类型 | 右对齐 |
 | `market_code` | 市场代码 | 右对齐 |
@@ -76,9 +81,6 @@
 | `dt_last_fetch` | 最近采集时间 | 本地时间 |
 | `gmt_update` | 更新时间 | 本地时间 |
 | `gmt_create` | 创建时间 | 本地时间 |
-| `futu_symbol` | 富途代码 | 原文（裸码，如 `00700`） |
-| `flag_enable` | 采集开关 | `1`→启用（绿）/ `0`→禁用（灰） |
-| `instrument` | 品种 | 字典：`stock`→股票 / `etf`→ETF / `index`→指数 / `forex`→外汇 / `crypto`→加密货币 / `futures`→期货 |
 | `remark` | 备注 | 原文 |
 
 空值（`null` / 空串）统一显示 `—`。
