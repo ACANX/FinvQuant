@@ -3,7 +3,7 @@
 > 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/MetaData/Security.md`
 > 对应视图：`Web/src/views/Meta/Finv/MetaData/SecurityView.vue`
 > 接口契约：见 [Docs/API/Meta/MetaSecurity.md](../../API/Meta/MetaSecurity.md)
-> 关联需求：11347（新增对话框支持手填 + 缺省值）、11348（上市日期下限放宽）
+> 关联需求：11347（新增对话框支持手填 + 缺省值）、11348（上市日期下限放宽）、11349（时区偏移与时区标识分离）
 
 ## 1. 菜单入口
 
@@ -100,37 +100,44 @@
 | 证券类型 | 可输入下拉（combobox） | `Stock` | 是 | 候选 = 现网 `security_type` distinct 值 + 常见值；缺省取现网最高频值（13485 行） |
 | 计价货币 | 可输入下拉（combobox） | 按交易所预填 | 是 | 候选 = 现网 `currency_type` distinct 值 + 常见值；交易所变化时若用户未手改则自动预填 |
 | 上市日期 | 数字框 + 日历选择 | `20000000` | 是 | 手输 `yyyymmdd` 8 位数字，或点右侧日历图标选择（`yyyy-mm-dd` 自动转 `yyyymmdd`）；`20000000` 表示未知；**支持 1950 年前上市的老公司**（如 Bank of New York 1784 年、纽交所 1792 年），下限 `10000101` |
-| 时区偏移 | 可输入下拉（combobox） | 按交易所预填 | 是 | 候选为常用偏移（`+08:00` 等）与 IANA 名；交易所变化时若用户未手改则自动预填 |
+| 时区偏移 | 可输入下拉（combobox） | 按交易所预填 | 是 | 候选**只含偏移量**（`±HH:MM`，如 `+08:00`、`-04:00`），不含 IANA 名；交易所变化时若用户未手改则自动预填 |
+| 时区标识 | 可输入下拉（combobox） | 按交易所预填 | 是 | 候选为 **IANA 标识**（如 `America/New_York`、`Asia/Shanghai`、`Etc/UTC`）；交易所变化时若用户未手改则自动预填 |
 
 - **按交易所预填「计价货币 + 时区偏移」**（仅新增模式；编辑模式不覆盖已有数据）：
 
-| 交易所代码 | 市场 | 计价货币 | 时区偏移 |
-|---|---|---|---|
-| 10 | 中国证券市场 | CNY | +08:00 |
-| 11 | 上海证券交易所 | CNY | +08:00 |
-| 12 | 深圳证券交易所 | CNY | +08:00 |
-| 13 | 北京证券交易所 | CNY | +08:00 |
-| 14 | 上海期货交易所 | CNY | +08:00 |
-| 15 | 上海黄金交易所 | CNY | +08:00 |
-| 19 | 中国场外交易 | CNY | +08:00 |
-| 21 | 香港联合证券交易所 | HKD | +08:00 |
-| 22 | Hong Kong Futures Exchange | HKD | +08:00 |
-| 29 | 台湾证券交易所 | TWD | +08:00 |
-| 30 | 美国证券市场 | USD | -04:00 |
-| 31 | 纳斯达克证券交易所 | USD | -04:00 |
-| 32 | 纽约证券交易所 | USD | -04:00 |
-| 33 | 芝加哥商品期货交易所 | USD | -05:00 |
-| 34 | 芝加哥期权交易所 | USD | -05:00 |
-| 35 | 粉红单交易市场 | USD | -04:00 |
-| 36 | New York Mercantile Exchange | USD | -05:00 |
-| 37 | Chicago Mercantile Exchange | USD | -05:00 |
-| 38 | Chicago Board of Trade | USD | -05:00 |
-| 40 | Canadian Securities Market | CAD | -05:00 |
-| 51 | 大阪证券交易所 | JPY | +09:00 |
-| 52 | 东京证券交易所 | JPY | +09:00 |
-| 53 | 新加坡证券交易所 | SGD | +08:00 |
-| 10001 | 加密货币市场 | USD | +00:00 |
+| 交易所代码 | 市场 | 计价货币 | 时区偏移 | 时区标识 |
+|---|---|---|---|---|
+| 10 | 中国证券市场 | CNY | +08:00 | Asia/Shanghai |
+| 11 | 上海证券交易所 | CNY | +08:00 | Asia/Shanghai |
+| 12 | 深圳证券交易所 | CNY | +08:00 | Asia/Shanghai |
+| 13 | 北京证券交易所 | CNY | +08:00 | Asia/Shanghai |
+| 14 | 上海期货交易所 | CNY | +08:00 | Asia/Shanghai |
+| 15 | 上海黄金交易所 | CNY | +08:00 | Asia/Shanghai |
+| 19 | 中国场外交易 | CNY | +08:00 | Asia/Shanghai |
+| 21 | 香港联合证券交易所 | HKD | +08:00 | Asia/Hong_Kong |
+| 22 | Hong Kong Futures Exchange | HKD | +08:00 | Asia/Hong_Kong |
+| 29 | 台湾证券交易所 | TWD | +08:00 | Asia/Taipei |
+| 30 | 美国证券市场 | USD | -04:00 | America/New_York |
+| 31 | 纳斯达克证券交易所 | USD | -04:00 | America/New_York |
+| 32 | 纽约证券交易所 | USD | -04:00 | America/New_York |
+| 33 | 芝加哥商品期货交易所 | USD | -05:00 | America/Chicago |
+| 34 | 芝加哥期权交易所 | USD | -05:00 | America/Chicago |
+| 35 | 粉红单交易市场 | USD | -04:00 | America/New_York |
+| 36 | New York Mercantile Exchange | USD | -05:00 | America/Chicago |
+| 37 | Chicago Mercantile Exchange | USD | -05:00 | America/Chicago |
+| 38 | Chicago Board of Trade | USD | -05:00 | America/Chicago |
+| 40 | Canadian Securities Market | CAD | -05:00 | America/Toronto |
+| 51 | 大阪证券交易所 | JPY | +09:00 | Asia/Tokyo |
+| 52 | 东京证券交易所 | JPY | +09:00 | Asia/Tokyo |
+| 53 | 新加坡证券交易所 | SGD | +08:00 | Asia/Singapore |
+| 10001 | 加密货币市场 | USD | +00:00 | Etc/UTC |
 
+> 「时区标识」依据现网 `finv_security.tz` 实测分布：
+> `Asia/Shanghai` 12498 / `America/New_York` 10176 / `Asia/Hong_Kong` 257 / `Etc/UTC` 172
+> / `Asia/Singapore` 3 / `Asia/Tokyo` 1 / `Europe/London` 1 / `Australia/Sydney` 1。
+> 注意现网 HKEX（21）历史数据以 `Asia/Shanghai` 为多（3311 行）、`Asia/Hong_Kong` 仅 256 行，
+> 预填按地理正确的 `Asia/Hong_Kong` 取值，历史口径未统一。
+>
 > 前 4 段（11/12/13、21、30/31/32/35、10001）取自 `public.finv_security` 现网分布实测
 > （2026-11-19：`11→CNY+08:00` 4122 行、`12→CNY+08:00` 4706 行、`13→CNY+08:00` 358 行、
 > `21→HKD+08:00` 3497 行、`30→USD-04:00` 9197 行、`31→USD-04:00` 885 行、`32→USD-04:00` 61 行、

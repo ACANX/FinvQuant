@@ -2913,6 +2913,24 @@
 
 ### 修复
 
+- **「时区偏移」与「时区标识」拆开：偏移只放 ±HH:MM，标识改 IANA 下拉（需求 11349）**
+  - 修正上一版（11347）的错误：`timezone`（时区偏移）的候选里混入了
+    `America/New_York`、`Asia/Shanghai`、`Asia/Hong_Kong`、`Europe/London`、`UTC`
+    这类 IANA 标识——偏移量字段只应出现 `±HH:MM`。
+  - 现在两套候选完全隔离（实测交集为 0 项）：
+    - 「时区偏移」`timezone`：16 项，全部为 `±HH:MM`（`+08:00`/`-04:00`/`+05:30` 等）；
+    - 「时区标识」`tz`：22 项，全部为 IANA 名（`Asia/Shanghai`/`America/New_York`/`Etc/UTC` 等）。
+  - 「时区标识」由纯文本框（`v-text-field`）改为**可输入下拉**（`v-combobox`），
+    候选依据现网 `finv_security.tz` 实测分布：`Asia/Shanghai` 12498、`America/New_York` 10176、
+    `Asia/Hong_Kong` 257、`Etc/UTC` 172、`Asia/Singapore` 3、`Asia/Tokyo` 1、`Europe/London` 1、
+    `Australia/Sydney` 1。
+  - 交易所联动预填扩展为三元组（货币 + 偏移 + 标识），用户手改后不再被覆盖：
+    `11→CNY/+08:00/Asia/Shanghai`、`21→HKD/+08:00/Asia/Hong_Kong`、
+    `30→USD/-04:00/America/New_York`、`37→USD/-05:00/America/Chicago`、`10001→USD/+00:00/Etc/UTC`。
+  - 文档：`Docs/Menu/MetaData/Security.md` 字段行为表拆成「时区偏移」「时区标识」两行，
+    预填表新增「时区标识」列（24 行），并注明现网 HKEX 历史数据 `Asia/Shanghai` 3311 行
+    多于 `Asia/Hong_Kong` 256 行、预填按地理正确值取。
+
 - **放宽 `finv_security.init_date` 下限：1950-01-01 → 1000-01-01（需求 11348）**
   - 原约束 `finv_security_init_date_check` 为 `BETWEEN 19500101 AND 21001231`，下限过窄——
     美股存在上市超过 200 年的公司（Bank of New York 1784 年成立、纽约证券交易所 1792 年成立），

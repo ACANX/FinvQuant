@@ -284,8 +284,9 @@ const CURRENCY_TYPE_CANDIDATES = [
   'KRW',
   'CHF',
 ]
-// 时区偏移：现网 timezone 列混用了偏移与 IANA 名（+08:00 12758 / -04:00 10176 / +00:00 173）
-const TIMEZONE_CANDIDATES = [
+// 「时区偏移」只放偏移量（±HH:MM），**不放 IANA 标识**——那是「时区标识」字段的内容。
+// 现网 finv_security.timezone 实测：+08:00 12758 / -04:00 10176 / +00:00 173（另有 5 行填了 IANA 名，属历史脏数据）
+const TIMEZONE_OFFSET_CANDIDATES = [
   '+08:00',
   '+09:00',
   '+00:00',
@@ -298,11 +299,37 @@ const TIMEZONE_CANDIDATES = [
   '+07:00',
   '+10:00',
   '+12:00',
-  'America/New_York',
+  '-03:00',
+  '-03:30',
+  '+13:00',
+  '+14:00',
+]
+// 「时区标识」放 IANA 名。取自现网 finv_security.tz 实测分布：
+//   Asia/Shanghai 12498 / America/New_York 10176 / Asia/Hong_Kong 257 / Etc/UTC 172
+//   / Asia/Singapore 3 / Asia/Tokyo 1 / Europe/London 1 / Australia/Sydney 1
+const TIMEZONE_ID_CANDIDATES = [
   'Asia/Shanghai',
   'Asia/Hong_Kong',
+  'Asia/Taipei',
+  'Asia/Tokyo',
+  'Asia/Seoul',
+  'Asia/Singapore',
+  'Asia/Bangkok',
+  'Asia/Kolkata',
+  'Asia/Dubai',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'America/Sao_Paulo',
+  'America/Toronto',
   'Europe/London',
-  'UTC',
+  'Europe/Paris',
+  'Europe/Frankfurt',
+  'Europe/Zurich',
+  'Australia/Sydney',
+  'Pacific/Auckland',
+  'Etc/UTC',
 ]
 
 // 新增证券按交易所预填「计价货币 + 时区偏移」（需求 11347）。
@@ -312,31 +339,31 @@ const TIMEZONE_CANDIDATES = [
 //   30/31/32/35 → USD -04:00（9197 / 885 / 61 行）
 //   10001    → USD +00:00（172 行）
 // 其余交易所现网无数据或不足 5 行，按各市场常规交易时区取值。
-const EXCHANGE_DEFAULTS: Record<number, { currency: string; timezone: string }> = {
-  10: { currency: 'CNY', timezone: '+08:00' },
-  11: { currency: 'CNY', timezone: '+08:00' },
-  12: { currency: 'CNY', timezone: '+08:00' },
-  13: { currency: 'CNY', timezone: '+08:00' },
-  14: { currency: 'CNY', timezone: '+08:00' },
-  15: { currency: 'CNY', timezone: '+08:00' },
-  19: { currency: 'CNY', timezone: '+08:00' },
-  21: { currency: 'HKD', timezone: '+08:00' },
-  22: { currency: 'HKD', timezone: '+08:00' },
-  29: { currency: 'TWD', timezone: '+08:00' },
-  30: { currency: 'USD', timezone: '-04:00' },
-  31: { currency: 'USD', timezone: '-04:00' },
-  32: { currency: 'USD', timezone: '-04:00' },
-  33: { currency: 'USD', timezone: '-05:00' },
-  34: { currency: 'USD', timezone: '-05:00' },
-  35: { currency: 'USD', timezone: '-04:00' },
-  36: { currency: 'USD', timezone: '-05:00' },
-  37: { currency: 'USD', timezone: '-05:00' },
-  38: { currency: 'USD', timezone: '-05:00' },
-  40: { currency: 'CAD', timezone: '-05:00' },
-  51: { currency: 'JPY', timezone: '+09:00' },
-  52: { currency: 'JPY', timezone: '+09:00' },
-  53: { currency: 'SGD', timezone: '+08:00' },
-  10001: { currency: 'USD', timezone: '+00:00' },
+const EXCHANGE_DEFAULTS: Record<number, { currency: string; timezone: string; tz: string }> = {
+  10: { currency: 'CNY', timezone: '+08:00', tz: 'Asia/Shanghai' },
+  11: { currency: 'CNY', timezone: '+08:00', tz: 'Asia/Shanghai' },
+  12: { currency: 'CNY', timezone: '+08:00', tz: 'Asia/Shanghai' },
+  13: { currency: 'CNY', timezone: '+08:00', tz: 'Asia/Shanghai' },
+  14: { currency: 'CNY', timezone: '+08:00', tz: 'Asia/Shanghai' },
+  15: { currency: 'CNY', timezone: '+08:00', tz: 'Asia/Shanghai' },
+  19: { currency: 'CNY', timezone: '+08:00', tz: 'Asia/Shanghai' },
+  21: { currency: 'HKD', timezone: '+08:00', tz: 'Asia/Hong_Kong' },
+  22: { currency: 'HKD', timezone: '+08:00', tz: 'Asia/Hong_Kong' },
+  29: { currency: 'TWD', timezone: '+08:00', tz: 'Asia/Taipei' },
+  30: { currency: 'USD', timezone: '-04:00', tz: 'America/New_York' },
+  31: { currency: 'USD', timezone: '-04:00', tz: 'America/New_York' },
+  32: { currency: 'USD', timezone: '-04:00', tz: 'America/New_York' },
+  33: { currency: 'USD', timezone: '-05:00', tz: 'America/Chicago' },
+  34: { currency: 'USD', timezone: '-05:00', tz: 'America/Chicago' },
+  35: { currency: 'USD', timezone: '-04:00', tz: 'America/New_York' },
+  36: { currency: 'USD', timezone: '-05:00', tz: 'America/Chicago' },
+  37: { currency: 'USD', timezone: '-05:00', tz: 'America/Chicago' },
+  38: { currency: 'USD', timezone: '-05:00', tz: 'America/Chicago' },
+  40: { currency: 'CAD', timezone: '-05:00', tz: 'America/Toronto' },
+  51: { currency: 'JPY', timezone: '+09:00', tz: 'Asia/Tokyo' },
+  52: { currency: 'JPY', timezone: '+09:00', tz: 'Asia/Tokyo' },
+  53: { currency: 'SGD', timezone: '+08:00', tz: 'Asia/Singapore' },
+  10001: { currency: 'USD', timezone: '+00:00', tz: 'Etc/UTC' },
 }
 
 // 新增证券的类型缺省值：Stock（现网最高频，13485 行）
@@ -412,7 +439,8 @@ const securityTypeFormItems = computed(() =>
 const currencyTypeFormItems = computed(() =>
   uniq([...filterOptions.value.currencies, ...CURRENCY_TYPE_CANDIDATES]),
 )
-const timezoneFormItems = TIMEZONE_CANDIDATES
+const timezoneOffsetFormItems = TIMEZONE_OFFSET_CANDIDATES
+const timezoneIdFormItems = TIMEZONE_ID_CANDIDATES
 // 对话框里的交易所 / 市场候选：value 统一为字符串，便于与手填内容比较
 const exchangeFormItems = computed(() =>
   exchangeOptions.value.map((e) => ({
@@ -438,6 +466,7 @@ const dateMenu = ref(false)
 // 记录上一次「按交易所自动预填」的值：当前值仍等于它说明用户没手改过，可以继续联动覆盖
 let autoCurrency = ''
 let autoTimezone = ''
+let autoTzId = ''
 const form = ref<SecurityRow>({
   usc: '',
   exchange_code: 0,
@@ -496,6 +525,7 @@ function openCreate() {
   formMarketCode.value = ''
   autoCurrency = ''
   autoTimezone = ''
+  autoTzId = ''
   dateMenu.value = false
   form.value = {
     usc: '',
@@ -532,6 +562,7 @@ function openEdit(row: SecurityRow) {
   // 编辑模式不联动预填，避免覆盖已有数据
   autoCurrency = form.value.currency_type ?? ''
   autoTimezone = form.value.timezone ?? ''
+  autoTzId = form.value.tz ?? ''
   dateMenu.value = false
   dialog.value = true
 }
@@ -551,16 +582,42 @@ watch(formExchangeCode, (code) => {
     form.value.timezone = defaults.timezone
     autoTimezone = defaults.timezone
   }
+  const tzId = (form.value.tz ?? '').trim()
+  if (!tzId || tzId === autoTzId) {
+    form.value.tz = defaults.tz
+    autoTzId = defaults.tz
+  }
 })
 
-/** 上市日期日历（yyyy-mm-dd ↔ yyyymmdd 整数）。 */
-const initDateIso = computed<string | null>({
-  get: () => yyyymmddToIso(form.value.init_date),
-  set: (iso) => {
-    if (!iso) return
-    form.value.init_date = isoToYyyymmdd(iso)
-  },
-})
+/**
+ * Vuetify 4 的 v-date-picker 选中后回传值可能是 Date 对象（项目内 HistoryQuoteQueryView
+ * 已有同样结论），也可能是 yyyy-mm-dd 字符串。这里统一规范化，非日期返回 null。
+ */
+function normalizeIsoDate(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  const parsed = value instanceof Date ? value : new Date(value as string)
+  if (Number.isNaN(parsed.getTime())) return null
+  const month = String(parsed.getMonth() + 1).padStart(2, '0')
+  const day = String(parsed.getDate()).padStart(2, '0')
+  return `${parsed.getFullYear()}-${month}-${day}`
+}
+
+/** 日历当前选中值（只读，供 v-date-picker 回显）。 */
+const initDateIso = computed<string | null>(() => yyyymmddToIso(form.value.init_date))
+
+/**
+ * 日历选中日期后写回 init_date（yyyymmdd 整数）。
+ *
+ * 显式处理 update:model-value，不用 computed setter：Vuetify 4 传的是 Date 对象，
+ * computed setter 里做字符串操作会直接抛错，导致字段一直不更新。
+ */
+function onInitDatePicked(value: unknown) {
+  const iso = normalizeIsoDate(value)
+  if (!iso) return
+  form.value.init_date = isoToYyyymmdd(iso)
+  dateMenu.value = false
+}
 
 async function save() {
   if (!form.value.usc.trim()) {
@@ -1783,10 +1840,11 @@ function timeText(value: string): string {
                   />
                 </template>
                 <v-date-picker
-                  v-model="initDateIso"
+                  :model-value="initDateIso"
                   :min="'1000-01-01'"
                   :max="'2100-12-31'"
-                  @update:model-value="dateMenu = false"
+                  show-adjacent-months
+                  @update:model-value="onInitDatePicked"
                 />
               </v-menu>
             </v-col>
@@ -1794,14 +1852,22 @@ function timeText(value: string): string {
               <v-combobox
                 v-model="form.timezone"
                 label="时区偏移"
-                :items="timezoneFormItems"
+                :items="timezoneOffsetFormItems"
                 density="compact"
-                hint="按交易所自动预填（如 11→+08:00），可改或直接输入"
+                hint="只填偏移量（如 +08:00 / -04:00），按交易所自动预填"
                 persistent-hint
               />
             </v-col>
             <v-col cols="12">
-              <v-text-field v-model="form.tz" label="时区标识（如 America/New_York）" density="compact" />
+              <v-combobox
+                v-model="form.tz"
+                label="时区标识"
+                :items="timezoneIdFormItems"
+                density="compact"
+                clearable
+                hint="IANA 标识（如 America/New_York / Asia/Shanghai），按交易所自动预填，可改或直接输入"
+                persistent-hint
+              />
             </v-col>
           </v-row>
         </v-card-text>
