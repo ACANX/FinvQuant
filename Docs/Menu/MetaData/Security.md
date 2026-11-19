@@ -3,6 +3,7 @@
 > 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/MetaData/Security.md`
 > 对应视图：`Web/src/views/Meta/Finv/MetaData/SecurityView.vue`
 > 接口契约：见 [Docs/API/Meta/MetaSecurity.md](../../API/Meta/MetaSecurity.md)
+> 关联需求：11347（新增对话框支持手填 + 缺省值）
 
 ## 1. 菜单入口
 
@@ -22,7 +23,7 @@
 | 查询展示 | 分页展示证券（统一编号/usc/交易所/市场/类型/源代码/证券名称/中文名称/分类/子类/货币/上市日/启用状态），列顺序见 2.1 |
 | 关键字搜索 | 按 usc / 证券代码 / 证券名称模糊过滤 |
 | 组合筛选 | 交易所、市场、类型（`security_type`）、子类（`type_secu_sub`）、货币、状态、提供方，均可单选、与关键字叠加；选项来自 `Security/FilterOptions`（实测类型 18 / 子类 31 / 货币 43 / 提供方 1 项）；「重置」清空全部筛选（不影响列配置与列宽）（需求 11330） |
-| 新增 | 新增证券记录（usc 必填且全局唯一，交易所代码必须为正整数） |
+| 新增 | 新增证券记录（usc 必填且全局唯一，交易所代码必须为 1–999999 的整数，可手填下拉之外的值） |
 | 修改 | 修改现有证券的非主键字段 |
 | 禁用/启用 | 切换 `flag_enable`（'1'=启用，'0'=禁用）；**禁用后不再出现在历史行情查询的证券下拉字典中** |
 | 选择列 | 右上角「选择列（n / 20）」打开勾选对话框：20 个可选列任意勾选，保存到 `localStorage`（`finv:meta:security:columns`），可「恢复默认」（同时清空列宽）；**「类型」默认隐藏**（需求 11328） |
@@ -90,9 +91,58 @@
 - **请求**：`POST /API/V1/Meta/Finv/Quant/Metadata/Security/Save`，JSON body 字段见接口文档。
 - 新增：`usc` 不存在时 INSERT，`flag_enable` 默认 `'1'`。
 - 修改：`usc` 已存在时 UPDATE（主键不可改）。
-- **对话框下拉**：
-  - 「交易所代码」为下拉选择，数据源 `GET /API/V1/Meta/Finv/Quant/Metadata/Exchange/List`（仅启用记录），展示 `code abbr（name）`；
-  - 「市场代码」为下拉选择，数据源 `GET /API/V1/Meta/Finv/Quant/Metadata/Market/List`（仅启用记录），展示 `code flag（name）`；两者均保留清空（清空即 0/未选）。
+- **对话框字段行为（需求 11347）**：
+
+| 字段 | 控件 | 缺省值 | 可手动输入 | 说明 |
+|---|---|---|---|---|
+| 交易所代码 | 可输入下拉（combobox） | 空 | 是 | 候选来自 `GET /API/V1/Meta/Finv/Quant/Metadata/Exchange/List`（仅启用记录），展示 `code abbr（name）`；**不限于候选**，可直接输入任意整数 |
+| 市场代码 | 可输入下拉（combobox） | 空（保存按 `0`） | 是 | 候选来自 `GET /API/V1/Meta/Finv/Quant/Metadata/Market/List`（仅启用记录），展示 `code flag（name）`；可直接输入任意整数 |
+| 证券类型 | 可输入下拉（combobox） | `Stock` | 是 | 候选 = 现网 `security_type` distinct 值 + 常见值；缺省取现网最高频值（13485 行） |
+| 计价货币 | 可输入下拉（combobox） | 按交易所预填 | 是 | 候选 = 现网 `currency_type` distinct 值 + 常见值；交易所变化时若用户未手改则自动预填 |
+| 上市日期 | 数字框 + 日历选择 | `20000000` | 是 | 手输 `yyyymmdd` 8 位数字，或点右侧日历图标选择（`yyyy-mm-dd` 自动转 `yyyymmdd`）；`20000000` 表示未知 |
+| 时区偏移 | 可输入下拉（combobox） | 按交易所预填 | 是 | 候选为常用偏移（`+08:00` 等）与 IANA 名；交易所变化时若用户未手改则自动预填 |
+
+- **按交易所预填「计价货币 + 时区偏移」**（仅新增模式；编辑模式不覆盖已有数据）：
+
+| 交易所代码 | 市场 | 计价货币 | 时区偏移 |
+|---|---|---|---|
+| 10 | 中国证券市场 | CNY | +08:00 |
+| 11 | 上海证券交易所 | CNY | +08:00 |
+| 12 | 深圳证券交易所 | CNY | +08:00 |
+| 13 | 北京证券交易所 | CNY | +08:00 |
+| 14 | 上海期货交易所 | CNY | +08:00 |
+| 15 | 上海黄金交易所 | CNY | +08:00 |
+| 19 | 中国场外交易 | CNY | +08:00 |
+| 21 | 香港联合证券交易所 | HKD | +08:00 |
+| 22 | Hong Kong Futures Exchange | HKD | +08:00 |
+| 29 | 台湾证券交易所 | TWD | +08:00 |
+| 30 | 美国证券市场 | USD | -04:00 |
+| 31 | 纳斯达克证券交易所 | USD | -04:00 |
+| 32 | 纽约证券交易所 | USD | -04:00 |
+| 33 | 芝加哥商品期货交易所 | USD | -05:00 |
+| 34 | 芝加哥期权交易所 | USD | -05:00 |
+| 35 | 粉红单交易市场 | USD | -04:00 |
+| 36 | New York Mercantile Exchange | USD | -05:00 |
+| 37 | Chicago Mercantile Exchange | USD | -05:00 |
+| 38 | Chicago Board of Trade | USD | -05:00 |
+| 40 | Canadian Securities Market | CAD | -05:00 |
+| 51 | 大阪证券交易所 | JPY | +09:00 |
+| 52 | 东京证券交易所 | JPY | +09:00 |
+| 53 | 新加坡证券交易所 | SGD | +08:00 |
+| 10001 | 加密货币市场 | USD | +00:00 |
+
+> 前 4 段（11/12/13、21、30/31/32/35、10001）取自 `public.finv_security` 现网分布实测
+> （2026-11-19：`11→CNY+08:00` 4122 行、`12→CNY+08:00` 4706 行、`13→CNY+08:00` 358 行、
+> `21→HKD+08:00` 3497 行、`30→USD-04:00` 9197 行、`31→USD-04:00` 885 行、`32→USD-04:00` 61 行、
+> `10001→USD+00:00` 172 行）；其余交易所现网无数据或不足 5 行，按各市场常规交易时区取值。
+
+- **保存前校验**（对齐 DB CHECK 约束，前端先拦，避免落成 500）：
+
+| 字段 | 校验 | DB 约束 |
+|---|---|---|
+| `exchange_code` | 整数 `1–999999` | `finv_security_exchange_code_check` |
+| `market_code` | 整数 `≥ 0`，留空按 `0` | 列默认 `0` |
+| `init_date` | 整数 `19500101–21001231` | `finv_security_init_date_check` |
 
 ### 4.3 禁用/启用
 

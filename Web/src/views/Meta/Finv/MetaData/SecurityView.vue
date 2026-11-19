@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { apiGet, apiPost } from '../../../../api'
 import { showToast } from '../../../../ui/toast'
@@ -250,6 +250,134 @@ const marketFilterItems = computed(() => [
   { title: '全部市场', value: null },
   ...marketItems.value,
 ])
+// 对话框下拉候选（需求 11347）：静态兜底 + 后端 filterOptions 合并，全部允许手动输入其它值。
+// 静态值取自 public.finv_security 现网高频值（2026-11-19 实测）：
+//   security_type: Stock 13485 / ETF 6933 / StockIndex 1471 / Forex 601 / LOF 347 / Fund 242
+//                  / Futures 206 / Crypto 193 / VolatilityIndex 164 / BondIndex 25
+//   currency_type: USD 10425 / CNY 9292 / HKD 3532 / JPY 41 / AUD 34 / EUR 32 / GBP 30 / SGD 29 / CAD 27 / CNH 25
+const SECURITY_TYPE_CANDIDATES = [
+  'Stock',
+  'ETF',
+  'StockIndex',
+  'LOF',
+  'Fund',
+  'Futures',
+  'Forex',
+  'Crypto',
+  'VolatilityIndex',
+  'BondIndex',
+  'Warrant',
+  'Bond',
+]
+const CURRENCY_TYPE_CANDIDATES = [
+  'CNY',
+  'USD',
+  'HKD',
+  'JPY',
+  'EUR',
+  'GBP',
+  'AUD',
+  'CAD',
+  'SGD',
+  'CNH',
+  'TWD',
+  'KRW',
+  'CHF',
+]
+// 时区偏移：现网 timezone 列混用了偏移与 IANA 名（+08:00 12758 / -04:00 10176 / +00:00 173）
+const TIMEZONE_CANDIDATES = [
+  '+08:00',
+  '+09:00',
+  '+00:00',
+  '-04:00',
+  '-05:00',
+  '-06:00',
+  '-07:00',
+  '-08:00',
+  '+05:30',
+  '+07:00',
+  '+10:00',
+  '+12:00',
+  'America/New_York',
+  'Asia/Shanghai',
+  'Asia/Hong_Kong',
+  'Europe/London',
+  'UTC',
+]
+
+// 新增证券按交易所预填「计价货币 + 时区偏移」（需求 11347）。
+// 前段依据 finv_security 现网分布（按 exchange_code 分组实测）：
+//   11/12/13 → CNY +08:00（4706 / 4122 / 358 行）
+//   21       → HKD +08:00（3497 行）
+//   30/31/32/35 → USD -04:00（9197 / 885 / 61 行）
+//   10001    → USD +00:00（172 行）
+// 其余交易所现网无数据或不足 5 行，按各市场常规交易时区取值。
+const EXCHANGE_DEFAULTS: Record<number, { currency: string; timezone: string }> = {
+  10: { currency: 'CNY', timezone: '+08:00' },
+  11: { currency: 'CNY', timezone: '+08:00' },
+  12: { currency: 'CNY', timezone: '+08:00' },
+  13: { currency: 'CNY', timezone: '+08:00' },
+  14: { currency: 'CNY', timezone: '+08:00' },
+  15: { currency: 'CNY', timezone: '+08:00' },
+  19: { currency: 'CNY', timezone: '+08:00' },
+  21: { currency: 'HKD', timezone: '+08:00' },
+  22: { currency: 'HKD', timezone: '+08:00' },
+  29: { currency: 'TWD', timezone: '+08:00' },
+  30: { currency: 'USD', timezone: '-04:00' },
+  31: { currency: 'USD', timezone: '-04:00' },
+  32: { currency: 'USD', timezone: '-04:00' },
+  33: { currency: 'USD', timezone: '-05:00' },
+  34: { currency: 'USD', timezone: '-05:00' },
+  35: { currency: 'USD', timezone: '-04:00' },
+  36: { currency: 'USD', timezone: '-05:00' },
+  37: { currency: 'USD', timezone: '-05:00' },
+  38: { currency: 'USD', timezone: '-05:00' },
+  40: { currency: 'CAD', timezone: '-05:00' },
+  51: { currency: 'JPY', timezone: '+09:00' },
+  52: { currency: 'JPY', timezone: '+09:00' },
+  53: { currency: 'SGD', timezone: '+08:00' },
+  10001: { currency: 'USD', timezone: '+00:00' },
+}
+
+// 新增证券的类型缺省值：Stock（现网最高频，13485 行）
+const DEFAULT_SECURITY_TYPE = 'Stock'
+// finv_security.init_date 的缺省占位值（DB 默认值，现网 23736 行）
+const DEFAULT_INIT_DATE = 20000000
+// 对齐 DB CHECK 约束 finv_security_init_date_check / finv_security_exchange_code_check
+const INIT_DATE_MIN = 19500101
+const INIT_DATE_MAX = 21001231
+const EXCHANGE_CODE_MIN = 1
+const EXCHANGE_CODE_MAX = 999999
+
+/** 合并去重（保持顺序）。 */
+function uniq(values: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const value of values) {
+    const text = String(value ?? '').trim()
+    if (!text || seen.has(text)) continue
+    seen.add(text)
+    out.push(text)
+  }
+  return out
+}
+
+/** yyyymmdd 整数 → yyyy-mm-dd（占位值 20000000 等无效日期返回 null）。 */
+function yyyymmddToIso(value: number | string | null | undefined): string | null {
+  const text = String(value ?? '').trim()
+  if (!/^\d{8}$/.test(text)) return null
+  const year = text.slice(0, 4)
+  const month = text.slice(4, 6)
+  const day = text.slice(6, 8)
+  if (month === '00' || day === '00') return null // 20000000 = 未知/未上市占位
+  return `${year}-${month}-${day}`
+}
+
+/** yyyy-mm-dd → yyyymmdd 整数。 */
+function isoToYyyymmdd(iso: string): number {
+  return Number(iso.replace(/-/g, ''))
+}
+
 const FLAG_FILTER_ITEMS = [
   { title: '全部状态', value: '' },
   { title: '启用', value: '1' },
@@ -275,20 +403,50 @@ const marketItems = computed(() =>
   })),
 )
 
+// 对话框下拉候选：后端 filterOptions（现网 distinct 值）优先，静态候选兜底，全部允许手动输入
+const securityTypeFormItems = computed(() =>
+  uniq([...filterOptions.value.types, ...SECURITY_TYPE_CANDIDATES]),
+)
+const currencyTypeFormItems = computed(() =>
+  uniq([...filterOptions.value.currencies, ...CURRENCY_TYPE_CANDIDATES]),
+)
+const timezoneFormItems = TIMEZONE_CANDIDATES
+// 对话框里的交易所 / 市场候选：value 统一为字符串，便于与手填内容比较
+const exchangeFormItems = computed(() =>
+  exchangeOptions.value.map((e) => ({
+    title: `${e.exchange_code} ${e.exchange_abbr}（${e.exchange_name}）`,
+    value: String(e.exchange_code),
+  })),
+)
+const marketFormItems = computed(() =>
+  marketOptions.value.map((m) => ({
+    title: `${m.market_code} ${m.market_flag}（${m.market_name}）`,
+    value: String(m.market_code),
+  })),
+)
+
 // 新增/编辑对话框
 const dialog = ref(false)
 const editing = ref(false)
+// 交易所代码 / 市场代码在对话框里用字符串承载（需求 11347：支持手填下拉之外的任意值）
+const formExchangeCode = ref('')
+const formMarketCode = ref('')
+// 上市日期日历弹层
+const dateMenu = ref(false)
+// 记录上一次「按交易所自动预填」的值：当前值仍等于它说明用户没手改过，可以继续联动覆盖
+let autoCurrency = ''
+let autoTimezone = ''
 const form = ref<SecurityRow>({
   usc: '',
   exchange_code: 0,
   market_code: 0,
-  security_type: '',
+  security_type: DEFAULT_SECURITY_TYPE,
   security_code: '',
   security_name: '',
   security_name_cn: '',
   security_name_full: null,
   currency_type: '',
-  init_date: 20000000,
+  init_date: DEFAULT_INIT_DATE,
   timezone: null,
   tz: null,
   flag_enable: '1',
@@ -332,17 +490,22 @@ async function load() {
 
 function openCreate() {
   editing.value = false
+  formExchangeCode.value = ''
+  formMarketCode.value = ''
+  autoCurrency = ''
+  autoTimezone = ''
+  dateMenu.value = false
   form.value = {
     usc: '',
     exchange_code: 0,
     market_code: 0,
-    security_type: '',
+    security_type: DEFAULT_SECURITY_TYPE,
     security_code: '',
     security_name: '',
     security_name_cn: '',
     security_name_full: null,
     currency_type: '',
-    init_date: 20000000,
+    init_date: DEFAULT_INIT_DATE,
     timezone: null,
     tz: null,
     flag_enable: '1',
@@ -361,27 +524,78 @@ function openCreate() {
 function openEdit(row: SecurityRow) {
   editing.value = true
   form.value = { ...row }
+  // 交易所 / 市场代码转成字符串承载，允许用户改成下拉之外的任意值
+  formExchangeCode.value = row.exchange_code ? String(row.exchange_code) : ''
+  formMarketCode.value = row.market_code === null || row.market_code === undefined ? '' : String(row.market_code)
+  // 编辑模式不联动预填，避免覆盖已有数据
+  autoCurrency = form.value.currency_type ?? ''
+  autoTimezone = form.value.timezone ?? ''
+  dateMenu.value = false
   dialog.value = true
 }
+
+/** 交易所代码变化时，按交易所预填计价货币与时区偏移（需求 11347）。 */
+watch(formExchangeCode, (code) => {
+  if (editing.value) return
+  const defaults = EXCHANGE_DEFAULTS[Number(String(code ?? '').trim())]
+  if (!defaults) return
+  const currency = (form.value.currency_type ?? '').trim()
+  if (!currency || currency === autoCurrency) {
+    form.value.currency_type = defaults.currency
+    autoCurrency = defaults.currency
+  }
+  const timezone = (form.value.timezone ?? '').trim()
+  if (!timezone || timezone === autoTimezone) {
+    form.value.timezone = defaults.timezone
+    autoTimezone = defaults.timezone
+  }
+})
+
+/** 上市日期日历（yyyy-mm-dd ↔ yyyymmdd 整数）。 */
+const initDateIso = computed<string | null>({
+  get: () => yyyymmddToIso(form.value.init_date),
+  set: (iso) => {
+    if (!iso) return
+    form.value.init_date = isoToYyyymmdd(iso)
+  },
+})
 
 async function save() {
   if (!form.value.usc.trim()) {
     showToast('统一证券代码（usc）不能为空', 'error')
     return
   }
-  if (!form.value.exchange_code || form.value.exchange_code <= 0) {
-    showToast('交易所代码必须为正整数', 'error')
+  // 交易所 / 市场代码支持手填下拉之外的任意值，但仍需是合法整数（对齐 DB CHECK 约束）
+  const exchangeText = String(formExchangeCode.value ?? '').trim()
+  if (!exchangeText) {
+    showToast('交易所代码不能为空（可从下拉选择，也可直接输入任意值）', 'error')
+    return
+  }
+  const exchangeCode = Number(exchangeText)
+  if (!Number.isInteger(exchangeCode) || exchangeCode < EXCHANGE_CODE_MIN || exchangeCode > EXCHANGE_CODE_MAX) {
+    showToast(`交易所代码必须是 ${EXCHANGE_CODE_MIN}–${EXCHANGE_CODE_MAX} 的整数`, 'error')
+    return
+  }
+  const marketText = String(formMarketCode.value ?? '').trim()
+  const marketCode = marketText === '' ? 0 : Number(marketText)
+  if (!Number.isInteger(marketCode) || marketCode < 0 || marketCode > EXCHANGE_CODE_MAX) {
+    showToast(`市场代码必须是不小于 0 的整数（留空按 0 处理）`, 'error')
     return
   }
   if (!form.value.security_code.trim() || !form.value.security_name_cn.trim()) {
     showToast('源证券代码与中文名称不能为空', 'error')
     return
   }
+  const initDate = Number(form.value.init_date)
+  if (!Number.isInteger(initDate) || initDate < INIT_DATE_MIN || initDate > INIT_DATE_MAX) {
+    showToast(`上市日期必须是 ${INIT_DATE_MIN}–${INIT_DATE_MAX} 的 yyyymmdd 整数（缺省 20000000 表示未知）`, 'error')
+    return
+  }
   try {
     await apiPost('/Meta/Finv/Quant/Metadata/Security/Save', {
       usc: form.value.usc.trim(),
-      exchange_code: form.value.exchange_code,
-      market_code: form.value.market_code ?? 0,
+      exchange_code: exchangeCode,
+      market_code: marketCode,
       security_type: form.value.security_type.trim(),
       security_code: form.value.security_code.trim(),
       security_name: form.value.security_name.trim(),
@@ -1511,36 +1725,78 @@ function timeText(value: string): string {
               <v-text-field v-model="form.security_name_full" label="证券名称（全称，可选）" density="compact" />
             </v-col>
             <v-col cols="6">
-              <v-select
-                v-model="form.exchange_code"
-                label="交易所代码（基于 finv_exchange 下拉）"
-                :items="exchangeItems"
-                clearable
+              <v-combobox
+                v-model="formExchangeCode"
+                label="交易所代码"
+                :items="exchangeFormItems"
                 density="compact"
-                hint="仅展示启用状态的交易所"
+                clearable
+                hint="可从下拉选择，也可直接输入其它整数（1–999999）"
+                persistent-hint
               />
             </v-col>
             <v-col cols="6">
-              <v-select
-                v-model="form.market_code"
-                label="市场代码（基于 finv_market 下拉，缺省 0）"
-                :items="marketItems"
-                clearable
+              <v-combobox
+                v-model="formMarketCode"
+                label="市场代码"
+                :items="marketFormItems"
                 density="compact"
-                hint="仅展示启用状态的市场"
+                clearable
+                hint="可从下拉选择，也可直接输入其它整数（留空按 0）"
+                persistent-hint
               />
             </v-col>
             <v-col cols="6">
-              <v-text-field v-model="form.security_type" label="证券类型（如 Stock / ETF / Futures）" density="compact" />
+              <v-combobox
+                v-model="form.security_type"
+                label="证券类型"
+                :items="securityTypeFormItems"
+                density="compact"
+                hint="缺省 Stock；可从下拉切换，也可直接输入"
+                persistent-hint
+              />
             </v-col>
-            <v-col cols="4">
-              <v-text-field v-model="form.currency_type" label="计价货币（对齐 finv_currency）" density="compact" />
+            <v-col cols="6">
+              <v-combobox
+                v-model="form.currency_type"
+                label="计价货币"
+                :items="currencyTypeFormItems"
+                density="compact"
+                hint="按交易所自动预填（如 11→CNY），可改或直接输入"
+                persistent-hint
+              />
             </v-col>
-            <v-col cols="4">
-              <v-text-field v-model.number="form.init_date" label="上市日期（yyyymmdd）" type="number" density="compact" />
+            <v-col cols="6">
+              <v-menu v-model="dateMenu" :close-on-content-click="false">
+                <template #activator="{ props: menuProps }">
+                  <v-text-field
+                    v-bind="menuProps"
+                    v-model.number="form.init_date"
+                    label="上市日期（yyyymmdd）"
+                    type="number"
+                    density="compact"
+                    append-inner-icon="mdi-calendar"
+                    hint="缺省 20000000 表示未知；可手输 8 位数字或点右侧日历选择"
+                    persistent-hint
+                  />
+                </template>
+                <v-date-picker
+                  v-model="initDateIso"
+                  :min="'1950-01-01'"
+                  :max="'2100-12-31'"
+                  @update:model-value="dateMenu = false"
+                />
+              </v-menu>
             </v-col>
-            <v-col cols="4">
-              <v-text-field v-model="form.timezone" label="时区偏移（如 -04:00）" density="compact" />
+            <v-col cols="6">
+              <v-combobox
+                v-model="form.timezone"
+                label="时区偏移"
+                :items="timezoneFormItems"
+                density="compact"
+                hint="按交易所自动预填（如 11→+08:00），可改或直接输入"
+                persistent-hint
+              />
             </v-col>
             <v-col cols="12">
               <v-text-field v-model="form.tz" label="时区标识（如 America/New_York）" density="compact" />
