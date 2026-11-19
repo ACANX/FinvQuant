@@ -632,7 +632,49 @@ func (c *StockListCollector) fetchWithRetry(ctx context.Context, cfg StockListCo
 			return quoteapiv2.StockListPage{}, ctx.Err()
 		}
 	}
-	return quoteapiv2.StockListPage{}, lastErr
+	return quoteapiv2.StockListPage{}, describeMoomooError(lastErr)
+}
+
+// describeMoomooError 给 moomoo 上游错误补充可操作提示（需求 11335）。
+//
+// 典型故障（2026-11-18 实测）：站点风控把请求 302 到 `/403`（页面标题
+// "403 - Operations too frequent"），Go 客户端跟随重定向后拿到 HTML 页面，
+// 解析失败只报 `invalid character '<' looking for beginning of value`。
+// 这句话既看不出「被限流」，也看不出「站点正常、参数没错」，排查时极易被误判为代码 bug。
+//
+// 这里识别两种可判断的形态并追加结论：
+//   - 响应体以 `<` 开头（HTML 页面）→ 站点风控/限流页或跳转页；
+//   - 响应体为空 → 上游返回空响应（网关层拦截）。
+//
+// 其它错误（业务码、网络超时、签名拒绝等）原样返回，不改变既有文案与上层分支判断。
+func describeMoomooError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var apiErr *quoteapiv2.APIError
+	if !errors.As(err, &apiErr) {
+		return err
+	}
+	body := strings.TrimSpace(apiErr.Body)
+	switch {
+	case strings.HasPrefix(body, "<"):
+		snippet := body
+		if len(snippet) > 160 {
+			snippet = snippet[:160]
+		}
+		return fmt.Errorf("%w；上游返回的是 HTML 页面而不是 JSON（常见于站点风控/限流："+
+			"请求被 302 到 /403「Operations too frequent」页），建议等待数分钟后重试并降低请求频率；"+
+			"响应片段：%s", err, singleLine(snippet))
+	case body == "" && apiErr.HTTPStatus == 0 && apiErr.Code == 0:
+		return fmt.Errorf("%w；上游返回空响应，多为网关/风控拦截，建议稍后重试", err)
+	}
+	return err
+}
+
+// singleLine 把多行响应片段压成一行（日志/页面按单行展示）。
+func singleLine(text string) string {
+	replaced := strings.NewReplacer("\r", " ", "\n", " ", "\t", " ")
+	return strings.TrimSpace(replaced.Replace(text))
 }
 
 // stockListTargetCount 本轮实际采集数量 = min(计划数量, 接口总数)；计划为空取总数。

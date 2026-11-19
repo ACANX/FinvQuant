@@ -287,6 +287,36 @@ ETF 代码同样按 `(exchange, code)` 解析 `public.finv_security.usc`；实�
 `配置与回写`（两张配置表驱动 Tab、`count_exists`/`total_available`、`etf` 与 `cnetf` 的区别）/
 `读法与注意事项`（`[I]`/`[U]`、`usc` 未解析去向、期货下架标记时机）。
 
+## 2.6 故障排查：`invalid character '<' looking for beginning of value`（需求 11335）
+
+现象：点「开始同步」后 `股票` Tab 报
+
+```
+第 1 页拉取失败: moomoo /quote-api/quote-v2/get-stock-list 请求失败：
+响应解析失败: invalid character '<' looking for beginning of value（url=...）
+```
+
+结论：**不是参数错、也不是签名错，是站点风控/限流**。moomoo 在请求频率过高时把请求
+`302` 到 `https://www.moomoo.com/403`（页面标题 `403 - Operations too frequent`），
+Go 客户端自动跟随重定向后拿到 HTML 页面，JSON 解析必然报 `'<'`。
+
+实测证据（2026-11-19，本机）：
+
+| 请求 | 结果 |
+|---|---|
+| 无浏览器 UA（`curl/x.y`） | `302` → `/403` HTML（`403 - Operations too frequent`） |
+| Chrome UA + 正确 `quote-token` | `200` + JSON（`total=5588`、`pageCount=112`、首行工商银行 601398） |
+| 服务端 `instrument_symbol=stock` / `market_type=4` 采集 | `SUCCESS`，6 页 300 条（新增 2 / 覆盖 298） |
+
+处置：
+
+1. **等待数分钟后重试**（限流按 IP + 时间窗，通常几分钟恢复），期间不要再连续点；
+2. 降低频率：`页间隔(ms)` 调大（如 6000）、`每页条数` 保持 50、`重试次数` 保持 2；
+3. 采集报错时页面已带**可操作结论**：`describeMoomooError` 会把 HTML 响应识别为
+   「上游返回的是 HTML 页面而不是 JSON（常见于站点风控/限流…）」并附响应片段，
+   不再只留一句 `invalid character '<'`；
+4. 若长时间不恢复，检查出口 IP 是否被共享（同一 IP 的高频采集会互相触发限流）。
+
 ## 3. 交互流程
 
 1. 进入页面：拉取最近一次运行状态与配置（`GET .../FTStockQuoteSnapshotSync/Run`）。

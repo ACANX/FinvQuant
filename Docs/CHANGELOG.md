@@ -2891,6 +2891,16 @@
 
 ### 修复
 
+- **采集失败的 `invalid character '<'` 现在能直接看出是站点风控（需求 11335）**
+  - 实测（2026-11-19）：moomoo 在频率过高时把请求 `302` 到 `/403`（`403 - Operations too frequent`），
+    Go 跟随重定向拿到 HTML，只报一句 JSON 解析错误，无法判断是参数问题还是被限流。
+  - `describeMoomooError` 识别「HTML 响应 / 空响应」并在错误末尾追加结论与单行片段；
+    业务码错误、普通错误原样透传（仍可 `errors.As` 出 `*quoteapiv2.APIError`）。
+  - 同一次实测里 `instrument_symbol=stock` + `marketType=4` 采集成功：
+    6 页 300 条（新增 2 / 覆盖 298），说明签名与参数本身没有问题。
+  - 文档：菜单文档新增「2.6 故障排查」小节（现象 / 证据表 / 处置步骤）。
+
+
 - **修「指数」Tab 采集日志长期 WARN「接口未返回 HK.HSIII」（需求 11334）**
   - 根因：`public.finv_security` 里 `HSIII`（恒生互联网科技业指数）的 `security_code` 是字母别名，
     按交易所拼出 `HK.HSIII`，moomoo 不认；真实柜台代码在 `futu.finv_futu_usc_map.ftmm_symbol` =`HK.800806`。
