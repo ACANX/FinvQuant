@@ -9,6 +9,7 @@
 //   GET  /FilterOptions  下拉候选（表内 DISTINCT）
 //   GET  /Lookup?usc=    新增对话框的元数据补全（需求 11345：联查本地 4 张表）
 //   POST /Create         新增一行采集配置（需求 11345，采集开关默认关闭）
+//   POST /Update         编辑一行采集配置（需求 11346，只写改动列）
 //
 // 列元数据由服务端下发（21 列，含中文表头与类型），前端不再硬编码列名：
 // 表结构以 PostgREST 逐列探测为准，列顺序按「标识 → 名称 → 分类 → 富途编码 → 开关/备注 → 时间」。
@@ -235,6 +236,10 @@ const COLLECT_STAT_COLUMNS = [
   'dt_last_fetch',
 ]
 
+// 对话框模式：create（新增，含 usc 输入与补全）/ edit（编辑，usc 只读、直接给当前值）
+const dialogMode = ref<'create' | 'edit'>('create')
+// 编辑时的原始值（用于只提交改动列）
+const editOrigin = ref<Record<string, string>>({})
 const createOpen = ref(false)
 const createUsc = ref('')
 const lookupLoading = ref(false)
@@ -244,10 +249,78 @@ const submitting = ref(false)
 
 /** 打开新增对话框（清空上次状态）。 */
 function openCreate() {
+  dialogMode.value = 'create'
   createUsc.value = ''
   lookupResult.value = null
   draft.value = {}
+  editOrigin.value = {}
   createOpen.value = true
+}
+
+/** 打开编辑对话框：用当前行数据填充，usc 只读，采集统计列不参与。 */
+function openEdit(row: Row) {
+  const usc = String(row.usc ?? '').trim()
+  if (!usc) return
+  dialogMode.value = 'edit'
+  createUsc.value = usc
+  lookupResult.value = null
+  const values: Record<string, string> = {}
+  for (const column of editableColumns.value) {
+    const raw = row[column.name]
+    values[column.name] = raw === null || raw === undefined ? '' : String(raw)
+  }
+  draft.value = values
+  editOrigin.value = { ...values }
+  createOpen.value = true
+}
+
+/** 编辑模式下草稿与原始值相同的列不提交。 */
+function changedFields(): Record<string, unknown> {
+  const fields: Record<string, unknown> = {}
+  for (const column of editableColumns.value) {
+    const raw = (draft.value[column.name] ?? '').trim()
+    if (raw === (editOrigin.value[column.name] ?? '').trim()) continue
+    if (raw === '') {
+      fields[column.name] = null // 清空 → 置 NULL
+      continue
+    }
+    if (column.name === 'flag_enable') {
+      fields[column.name] = raw === '1' ? 1 : 0
+      continue
+    }
+    if (column.kind === 'number') {
+      const number = Number(raw)
+      if (Number.isNaN(number)) {
+        throw new Error(`${column.title} 必须是数字`)
+      }
+      fields[column.name] = number
+      continue
+    }
+    fields[column.name] = raw
+  }
+  return fields
+}
+
+async function submitUpdate() {
+  const usc = createUsc.value.trim()
+  if (!usc) return
+  submitting.value = true
+  try {
+    const fields = changedFields()
+    if (!Object.keys(fields).length) {
+      showToast('没有修改任何字段', 'info')
+      submitting.value = false
+      return
+    }
+    await apiPost(`${BASE}/Update`, { usc, fields })
+    showToast(`已保存 ${usc}（${Object.keys(fields).length} 个字段）`, 'success')
+    createOpen.value = false
+    await load()
+  } catch (err) {
+    showToast(`保存失败：${(err as Error).message}`, 'error')
+  } finally {
+    submitting.value = false
+  }
 }
 
 async function runLookup() {
@@ -328,6 +401,7 @@ async function submitCreate() {
 }
 
 const createDisabled = computed(() => {
+  if (dialogMode.value === 'edit') return !createUsc.value.trim()
   const result = lookupResult.value
   return !result || !result.in_security || result.exists_in_supabase
 })
@@ -459,7 +533,10 @@ onMounted(() => {
 
       <!-- 数据表：服务端分页 → hide-default-footer + items-per-page=-1 -->
       <v-data-table
-        :headers="columns.map((c) => ({ title: c.title, key: c.name, sortable: false }))"
+        :headers="[
+          ...columns.map((c) => ({ title: c.title, key: c.name, sortable: false })),
+          { title: '操作', key: 'actions', sortable: false, width: 76 },
+        ]"
         :items="rows"
         :loading="loading"
         hide-default-footer
@@ -481,6 +558,18 @@ onMounted(() => {
           <span :class="cellClass(column)" :title="cellText(column, item)">
             {{ cellText(column, item) }}
           </span>
+        </template>
+        <template #[`item.actions`]="{ item }">
+          <v-btn
+            size="small"
+            variant="text"
+            color="primary"
+            prepend-icon="mdi-pencil-outline"
+            density="comfortable"
+            @click.stop="openEdit(item)"
+          >
+            编辑
+          </v-btn>
         </template>
         <template #no-data>
           <div class="text-medium-emphasis py-6 text-center">
@@ -564,14 +653,18 @@ onMounted(() => {
   <v-dialog v-model="createOpen" fullscreen scrollable persistent>
     <v-card>
       <v-card-title class="text-subtitle-1 d-flex align-center">
-        <v-icon icon="mdi-plus-box-outline" class="mr-2" />
-        新增采集证券
+        <v-icon :icon="dialogMode === 'edit' ? 'mdi-pencil-outline' : 'mdi-plus-box-outline'" class="mr-2" />
+        {{ dialogMode === 'edit' ? `编辑采集配置 · ${createUsc}` : '新增采集证券' }}
         <v-spacer />
         <v-btn variant="text" icon="mdi-close" :disabled="submitting" @click="createOpen = false" />
       </v-card-title>
       <v-divider />
       <v-card-text>
-        <v-alert type="info" density="compact" variant="tonal" class="mb-3">
+        <v-alert v-if="dialogMode === 'edit'" type="info" density="compact" variant="tonal" class="mb-3">
+          只提交改动过的列；<code>usc</code>、时间列、采集统计列不可修改。
+          采集开关改成「启用[1]」后该证券即进入采集范围，请确认。
+        </v-alert>
+        <v-alert v-else type="info" density="compact" variant="tonal" class="mb-3">
           输入 <code>usc</code> 后自动联查 <code>futu.finv_futu_quote_collect</code> /
           <code>futu.finv_futu_secu_key</code> / <code>public.finv_security</code> /
           <code>cdeu.finv_quote_secu_indicator</code> 补全元数据；补不出来的列标黄，需手工填写。
@@ -579,7 +672,7 @@ onMounted(() => {
           采集统计列（最新数据时间戳、累计采集次数等）不在此处填写，由采集链路维护。
         </v-alert>
 
-        <v-row dense class="mb-3">
+        <v-row v-if="dialogMode === 'create'" dense class="mb-3">
           <v-col cols="12" md="4">
             <v-text-field
               v-model="createUsc"
@@ -606,7 +699,78 @@ onMounted(() => {
           </v-col>
         </v-row>
 
-        <template v-if="lookupResult">
+        <template v-if="dialogMode === 'edit'">
+          <v-table density="compact" class="finv-ft-table finv-create-table">
+            <colgroup>
+              <col style="width: 190px" />
+              <col />
+              <col style="width: 120px" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>列</th>
+                <th>值</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="column in editableColumns.filter((c) => c.name !== 'usc')" :key="column.name">
+                <td class="text-no-wrap">
+                  <div>{{ column.title }}</div>
+                  <div class="text-caption text-medium-emphasis">{{ column.name }}</div>
+                </td>
+                <td>
+                  <v-select
+                    v-if="column.name === 'flag_enable'"
+                    v-model="draft[column.name]"
+                    :items="[
+                      { title: '停用[0]', value: '0' },
+                      { title: '启用[1]', value: '1' },
+                    ]"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                  />
+                  <v-text-field
+                    v-else
+                    v-model="draft[column.name]"
+                    :type="column.kind === 'number' ? 'number' : 'text'"
+                    :bg-color="
+                      (draft[column.name] ?? '') !== (editOrigin[column.name] ?? '')
+                        ? 'amber-lighten-5'
+                        : undefined
+                    "
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                  />
+                </td>
+                <td class="text-caption text-no-wrap">
+                  <v-chip
+                    v-if="(draft[column.name] ?? '') !== (editOrigin[column.name] ?? '')"
+                    size="x-small"
+                    variant="tonal"
+                    color="warning"
+                  >
+                    已改
+                  </v-chip>
+                  <span v-else class="text-medium-emphasis">未改</span>
+                </td>
+              </tr>
+              <tr>
+                <td class="text-no-wrap">
+                  只读列
+                  <div class="text-caption text-medium-emphasis">usc / 时间列 / 采集统计列</div>
+                </td>
+                <td colspan="2" class="text-caption text-medium-emphasis">
+                  usc 为主键不可改；时间列由服务端维护；采集统计列由采集链路维护
+                </td>
+              </tr>
+            </tbody>
+          </v-table>
+        </template>
+
+        <template v-if="dialogMode === 'create' && lookupResult">
           <v-alert
             v-for="note in lookupResult.notes"
             :key="note"
@@ -708,7 +872,7 @@ onMounted(() => {
       <v-divider />
       <v-card-actions>
         <span class="text-caption text-medium-emphasis ml-2">
-          新增后采集开关为「停用」，需人工改成「启用」
+          {{ dialogMode === 'edit' ? '只提交改动过的列' : '新增后采集开关为「停用」，需人工改成「启用」' }}
         </span>
         <v-spacer />
         <v-btn variant="text" :disabled="submitting" @click="createOpen = false">取消</v-btn>
@@ -718,9 +882,9 @@ onMounted(() => {
           prepend-icon="mdi-content-save-plus-outline"
           :loading="submitting"
           :disabled="createDisabled"
-          @click="submitCreate"
+          @click="dialogMode === 'edit' ? submitUpdate() : submitCreate()"
         >
-          新增
+          {{ dialogMode === 'edit' ? '保存' : '新增' }}
         </v-btn>
       </v-card-actions>
     </v-card>

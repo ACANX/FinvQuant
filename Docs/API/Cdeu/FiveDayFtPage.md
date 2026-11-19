@@ -3,7 +3,7 @@
 > 所属：行情 → 行情采集 → 五日分钟行情采集配置
 > 数据表：Supabase `public.finv_quote_secu_ft`（**本地库无副本**，经 PostgREST 访问）
 > 连接来源：`sys.sys_config` 20013 `{PROJECT_ID}|{APIKEY}`（见 [CollectSysConfig.md](CollectSysConfig.md)）
-> 关联需求：11344（查询）、11345（新增）
+> 关联需求：11344（查询）、11345（新增）、11346（编辑）
 > 实现：`internal/api/handler/quote_collect_fiveday_ft.go`、`internal/meta/finv/quote/secuft/`、
 > 通道 `internal/meta/finv/quote/secukey/client.go`（`FetchQuery` / `InsertRow`）
 > 关联菜单：[`Menu/Quote/RealtimeCollect/FiveDayFt.md`](../../Menu/Quote/RealtimeCollect/FiveDayFt.md)
@@ -16,10 +16,11 @@
 | GET | `.../FiveDayFt/FilterOptions` | 下拉候选（表内 DISTINCT） | 11344 |
 | GET | `.../FiveDayFt/Lookup` | 按 usc 联查本地 4 表补全元数据（不写库） | 11345 |
 | POST | `.../FiveDayFt/Create` | 新增一行采集配置 | 11345 |
+| POST | `.../FiveDayFt/Update` | 编辑一行采集配置（只写改动列） | 11346 |
 
 三条硬口径：
 
-1. **只有「新增」，没有改/删**：改与删在 Supabase 侧进行（避免误改线上采集配置）。
+1. **只有「新增」与「编辑」，没有删除**：删除在 Supabase 侧进行（避免误删线上采集配置）。
 2. **新增默认停采**：`flag_enable = 0`，人工确认后改成 `1` 才真正开始采集。
 3. **列元数据由服务端下发**：前端不硬编码列名，表结构变化只需改后端常量。
 
@@ -248,12 +249,106 @@ create policy "finv_quote_secu_ft_insert"
 
 （`sb_publishable_...` 这类 key 映射到 `anon` 角色。）
 
-## 7. 排序与分页稳定性
+## 7. 编辑 `POST .../FiveDayFt/Update`（需求 11346）
+
+### 7.1 请求体
+
+```json
+{ "usc": "00700", "fields": { "flag_enable": 1, "remark": "人工确认后开启" } }
+```
+
+- `usc` 定位键（主键，**不可修改**）。
+- `fields` 只写请求里出现的列：**只提交改动列**，没出现的列保持原值。
+- 可编辑 **22 列**（32 列去掉 `usc`、5 个时间列、4 个采集统计非时间列）：
+
+| 列名 | 中文 |
+|---|---|
+| `name` | 证券名称 |
+| `region` | 区域 |
+| `market` | 市场 |
+| `market_label` | 行情市场 |
+| `symbol` | 证券全码 |
+| `currency` | 计价货币 |
+| `timezone` | 时区 |
+| `provider` | 提供方 |
+| `type_secu` | 证券分类 |
+| `type_secu_sub` | 证券子类 |
+| `stock_id` | 富途ID |
+| `market_type` | 市场类型 |
+| `market_code` | 市场代码 |
+| `instrument_type` | 品种类型 |
+| `sub_instrument_type` | 品种子类型 |
+| `req_section` | 订阅段 |
+| `weight_priority` | 采集权重 |
+| `weight_frequency` | 采集频率 |
+| `futu_symbol` | 富途代码 |
+| `flag_enable` | 采集开关 |
+| `instrument` | 品种 |
+| `remark` | 备注 |
+
+**不可修改**（传了直接 400）：
+
+| 列 | 原因 |
+|---|---|
+| `usc` | 主键，换它等于换证券 |
+| `gmt_create` | 创建时间，由服务端维护 |
+| `gmt_update` | 更新时间，每次更新自动刷新 |
+| `dt_update` | 数据更新时间，由服务端维护 |
+| `dt_last_check` | 采集统计时间，由采集链路维护 |
+| `dt_last_fetch` | 采集统计时间，由采集链路维护 |
+| `ts_latest_data` | 采集统计，人工改会让口径失真 |
+| `count_last_fetch` | 采集统计，人工改会让口径失真 |
+| `count_fail` | 采集统计，人工改会让口径失真 |
+| `count_stale` | 采集统计，人工改会让口径失真 |
+
+- 传 `null` 表示把该列置空（不是「忽略」）；整个 `fields` 为空或全是 `null` 返回 400。
+
+### 7.2 响应
+
+```json
+{ "code": 0, "message": "保存完成", "data": { "usc": "00700", "updated": 2, "row": {} } }
+```
+
+| 字段 | 说明 |
+|---|---|
+| `usc` | 定位的 usc |
+| `updated` | 实际写入的列数（不含服务端自动刷新的 `gmt_update`） |
+| `row` | Supabase 返回的更新后行（`Prefer: return=representation`） |
+
+### 7.3 错误
+
+| `code` | HTTP | 触发场景 |
+|---|---|---|
+| `400` | 400 | usc 为空 / `fields` 为空或全 `null` / 出现不可编辑列 / 值不是合法 JSON |
+| `403` | 403 | **更新被 RLS 静默过滤**（记录存在但影响 0 行） |
+| `404` | 404 | `usc` 在采集配置表里不存在 |
+| `2007` | 502 | Supabase 不可达 / 20013 未配置 |
+
+**为什么 403 与 404 要分开**：PostgREST 的 UPDATE 在 RLS 策略不满足时是
+**静默过滤**——HTTP `200` + `content-range: */*` + 空数组，不报 `42501`（与 INSERT 不同）。
+所以服务端在「影响 0 行」时会再查一次该 `usc` 是否存在：存在 → 403（策略问题），
+不存在 → 404（记录问题）。实测响应：
+
+```text
+PATCH /rest/v1/finv_quote_secu_ft?usc=eq.00700
+→ HTTP 200, content-range: */*, body []
+```
+
+需要在 Supabase 侧补策略（`sb_publishable_...` 映射到 `anon` 角色）：
+
+```sql
+create policy "finv_quote_secu_ft_update"
+  on public.finv_quote_secu_ft
+  for update to anon, authenticated
+  using (true) with check (true);
+```
+
+## 8. 排序与分页稳定性
 
 - 排序列追加 `usc` 作为兜底键（`sortBy=usc` 时不重复追加），避免同值行翻页重复/丢失。
 - 前端每页条数选项 `15 / 20 / 50 / 100 / 200`，默认 15（需求指定）。
 
-## 8. 实测记录（2026-11-19）
+## 9. 实测记录（2026-11-19）
 
 | 场景 | 结果 |
 |---|---|
@@ -267,4 +362,8 @@ create policy "finv_quote_secu_ft_insert"
 | `Lookup?usc=CSI300` | `symbol=null`、`missing` 含富途编码列（无采集记录） |
 | `Lookup?usc=__no_such__` | `in_security=false` |
 | `Create`（合法） | **403**（RLS 未开放 insert，需先执行上面的策略 SQL） |
+| `Update` 存在的 `00700` | **403** + 「记录存在但更新影响 0 行：被 RLS 静默过滤」（直连 PATCH 实测 `200` + `*/*` + `[]`） |
+| `Update` 不存在的 usc | `404` |
+| `Update` 传时间列 / 采集统计列 | `400` + 「不允许人工修改（可编辑 22 列）」 |
+| `Update` 空 `fields` | `400` + 「没有要修改的字段」 |
 | `Create`（不在主数据 / 未知列 / 时间列） | `400` + 明确提示 |

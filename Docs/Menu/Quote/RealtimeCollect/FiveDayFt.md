@@ -4,7 +4,7 @@
 > 路由：`/Meta/Finv/Quote/RealtimeCollect/FiveDayFt`（路由名 `quote-collect-five-day-ft`，需求 11344）
 > 源码：`Web/src/views/Meta/Finv/Quote/RealtimeCollect/FiveDayFtView.vue`
 > 接口：[`API/Cdeu/FiveDayFtPage.md`](../../../API/Cdeu/FiveDayFtPage.md)
-> 关联需求：11344（查询分页）、11345（新增采集证券）
+> 关联需求：11344（查询分页）、11345（新增采集证券）、11346（编辑）
 > 数据源：Supabase `public.finv_quote_secu_ft`（**本地库无副本**，经服务端 PostgREST 只读代理）
 
 ## 1. 定位
@@ -15,8 +15,8 @@
 菜单位置：紧随「USC 映射规则」，位于「行情采集系统配置」**之前**
 （先看采集配置表，再看采集链路的系统配置）。
 
-本页支持 **查询分页** 与 **新增采集证券**（需求 11345）；不提供改/删——
-改与删在 Supabase 侧进行，避免误改线上采集配置。
+本页支持 **查询分页**、**新增采集证券**（需求 11345）与**编辑单行**（需求 11346）；
+不提供删除——删除在 Supabase 侧进行，避免误删线上采集配置。
 
 新增后 **采集开关默认关闭**（`flag_enable=0`），确认无误后再手动改为「启用」。
 
@@ -38,6 +38,7 @@
 | 筛选区 | 关键字（统一编号 / 代码 / 富途代码 / 名称）+ 行情市场、品种、证券分类、提供方四个下拉 + 采集开关（全部 / 启用 / 禁用） |
 | 查询 / 重置 | 查询回到第 1 页；重置清空全部条件并恢复默认排序（`usc` 升序） |
 | 新增 | 「重置」右侧；弹对话框输入 usc → 自动联查本地 4 张表补全 32 列 → 人工核对/手填 → 提交 |
+| 编辑 | 表格最后一列「编辑」按钮；弹**全屏**对话框，值取自当前行，改动过的单元格标黄并标「已改」；**只提交改动列** |
 | 数据表 | 列由服务端下发（21 列中文表头）；数值列右对齐、时间列本地化、`flag_enable` 显示「启用/禁用」并配色、`instrument` 按字典显示中文 |
 | 排序 | 独立排序控件（排序列下拉 + 升/降序按钮），走服务端排序，不在前端本地排序 |
 | 分页 | 单一分页：总条数、当前页 / 总页数、每页条数（15/20/50/100/200，默认 **15**）、首页/上页/下页/末页、跳页 |
@@ -97,6 +98,28 @@
 取 `public.finv_security`；富途编码类取 `futu.finv_futu_quote_collect`；
 `provider` 默认 `FTMM`；`weight_priority` 默认 50、`weight_frequency` 默认 10；
 采集统计列留空、时间列由服务端写 `now()`。
+
+## 4.2 编辑对话框（需求 11346）
+
+| 项 | 说明 |
+|---|---|
+| 打开方式 | 表格行尾「编辑」按钮 |
+| 可改列 | 22 列（32 列去掉 `usc`、5 个时间列、4 个采集统计非时间列） |
+| 不可改列 | `usc`（主键）、`gmt_create`/`gmt_update`/`dt_update`（服务端维护）、`dt_last_check`/`dt_last_fetch`/`ts_latest_data`/`count_*`（采集链路维护） |
+| 提交内容 | **只提交改动过的列**；清空某列表示置 `null` |
+| 回显 | 改动过的单元格黄底 + 右侧标「已改」，未改为「未改」 |
+| 保存后 | 自动刷新列表（`gmt_update` 由服务端刷新） |
+| 采集开关 | 改成「启用[1]」即进入采集范围，对话框顶部有提醒 |
+
+**写入限制（实测）**：Supabase 的 RLS 对 UPDATE 是**静默过滤**（`200` + 0 行 + `*/*`），
+所以页面会提示 403「记录存在但更新影响 0 行：被 RLS 静默过滤」，需在 Supabase 侧执行：
+
+```sql
+create policy "finv_quote_secu_ft_update"
+  on public.finv_quote_secu_ft
+  for update to anon, authenticated
+  using (true) with check (true);
+```
 
 **「市场」列要注意**：现网 465 行里有 205 行是细分市场（NASDAQ/NYSE/ARCA/USOTC/CER/COMP/HKFE/COMEX/CME/CBOT/NYMEX），
 本地 4 张表没有这个粒度，对话框只能给「行情市场」作为建议值，会提示核对。

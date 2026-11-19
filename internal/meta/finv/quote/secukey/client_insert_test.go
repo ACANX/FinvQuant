@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/acanx/finvquant/internal/meta/finv/sys"
@@ -92,4 +93,63 @@ func asPermissionError(err error, target **PermissionError) bool {
 		err = next.Unwrap()
 	}
 	return false
+}
+
+// TestUpdateRowRequiresFilter 无条件更新必须被拒绝（防止误改整表）。
+func TestUpdateRowRequiresFilter(t *testing.T) {
+	client := newInsertTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("不应发出请求")
+	})
+	if _, err := client.UpdateRow(context.Background(), "t", nil, map[string]any{"remark": "x"}); err == nil {
+		t.Fatal("无过滤条件应报错")
+	}
+}
+
+// TestUpdateRowEmptyPayload 空更新内容必须被拒绝。
+func TestUpdateRowEmptyPayload(t *testing.T) {
+	client := newInsertTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Error("不应发出请求")
+	})
+	if _, err := client.UpdateRow(context.Background(), "t", url.Values{"usc": {"eq.1"}}, nil); err == nil {
+		t.Fatal("空更新内容应报错")
+	}
+}
+
+// TestUpdateRowRLSReturnsNoRows RLS 静默过滤时上游是 200 + `[]`，应返回 0 行（不是错误）。
+func TestUpdateRowRLSReturnsNoRows(t *testing.T) {
+	client := newInsertTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch {
+			t.Errorf("应使用 PATCH，实际 %s", r.Method)
+		}
+		w.Header().Set("Content-Range", "*/*")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`[]`))
+	})
+	rows, err := client.UpdateRow(context.Background(), "t", url.Values{"usc": {"eq.00700"}}, map[string]any{"remark": "x"})
+	if err != nil {
+		t.Fatalf("RLS 静默过滤不应报错: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("应返回 0 行，实际 %d", len(rows))
+	}
+}
+
+// TestUpdateRowSuccess 更新成功返回更新后的行。
+func TestUpdateRowSuccess(t *testing.T) {
+	client := newInsertTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Prefer"); got != "return=representation" {
+			t.Errorf("Prefer 头应为 return=representation，实际 %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`[{"usc":"00700","remark":"x"}]`))
+	})
+	rows, err := client.UpdateRow(context.Background(), "t", url.Values{"usc": {"eq.00700"}}, map[string]any{"remark": "x"})
+	if err != nil {
+		t.Fatalf("更新失败: %v", err)
+	}
+	if len(rows) != 1 || string(rows[0]) != `{"usc":"00700","remark":"x"}` {
+		t.Errorf("返回行不符: %v", rows)
+	}
 }

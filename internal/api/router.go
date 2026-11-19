@@ -246,6 +246,8 @@ func NewRouter(deps *Deps) *gin.Engine {
 			// 采集开关默认 0（先停采），需人工改成 1 才真正开。
 			apiGroup.GET("/Meta/Finv/Quote/Collect/FiveDayFt/Lookup", fiveDayFt.Lookup)
 			apiGroup.POST("/Meta/Finv/Quote/Collect/FiveDayFt/Create", fiveDayFt.Create)
+			// 编辑单行采集配置（需求 11346）：只写请求里出现的列；usc / 时间列 / 采集统计列不可改。
+			apiGroup.POST("/Meta/Finv/Quote/Collect/FiveDayFt/Update", fiveDayFt.Update)
 			collectCfg := handler.NewQuoteCollectSysConfig(collectcfg.NewStore(deps.Pool))
 			apiGroup.GET("/Meta/Finv/Quote/Collect/Config/List", collectCfg.List)
 			apiGroup.POST("/Meta/Finv/Quote/Collect/Config/Save", collectCfg.Save)

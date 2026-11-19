@@ -2913,6 +2913,28 @@
 
 ### 修复
 
+- **「五日分钟行情采集配置」新增行内编辑（需求 11346）**
+  - 列表最后一列新增「编辑」按钮，打开**全屏**对话框，值取自当前行；
+    改动过的单元格黄底 + 右侧标「已改」，未改为「未改」。
+  - 新接口 `POST .../Quote/Collect/FiveDayFt/Update`：`usc` 定位（主键不可改），
+    `fields` **只提交改动列**（清空 = 置 `null`）；可编辑 **22 列**，
+    `usc` / 5 个时间列 / 4 个采集统计列不可改（400）；服务端自动刷新 `gmt_update`。
+  - `secukey` 新增 `UpdateRow`（PATCH + `Prefer: return=representation`，**不重试**；
+    拒绝无过滤条件的整表更新）。
+  - **实测发现 UPDATE 的 RLS 行为与 INSERT 不同**：INSERT 报
+    `401 + 42501 new row violates row-level security policy`；UPDATE 则是**静默过滤**——
+    直连 `PATCH ?usc=eq.00700` 返回 `200` + `content-range: */*` + `[]`，不报错。
+    因此服务端在「影响 0 行」时会再查一次该 `usc` 是否存在：
+    存在 → **403**「记录存在但更新影响 0 行：被 RLS 静默过滤」；不存在 → **404**。
+  - 新增 `secukey.NewPermissionError` 供其它包在识别到静默过滤时构造权限错误。
+  - 修复 SQL（Supabase SQL Editor）：
+    `create policy "finv_quote_secu_ft_update" on public.finv_quote_secu_ft
+    for update to anon, authenticated using (true) with check (true);`
+  - 实测：`Update` 存在的 `00700` → 403（RLS）；不存在 usc → 404；传 `gmt_create` → 400
+    「不允许人工修改（可编辑 22 列）」；传 `count_fail` → 400；空 `fields` → 400。
+  - 文档：`Docs/API/Cdeu/FiveDayFtPage.md`（§7 编辑 + RLS 说明）、
+    `Docs/Menu/Quote/RealtimeCollect/FiveDayFt.md`（§4.2 编辑对话框）、`APIs.md`（155）。
+
 - **修复「新增采集证券」对话框布局与来源文案（需求 11345 跟进）**
   - 对话框改为**全屏**（原 `max-width=980`），值输入框撑满剩余宽度（`table-layout: fixed` + `<colgroup>`：
     列 190px / 值自适应 / 来源 120px），不再出现「值被挤成一窄列」。

@@ -177,6 +177,7 @@
 | 152 | GET | `/API/V1/Meta/Finv/Quote/Collect/FiveDayFt/FilterOptions` | 五日分钟行情采集配置下拉候选（需登录，只读）：按 `market_label`/`instrument`/`type_secu`/`provider` 各拉一次表内 DISTINCT（每维上限 500），表为空时各维度为空数组 | [Cdeu/FiveDayFtPage.md](Cdeu/FiveDayFtPage.md) | 需求 11344 |
 | 153 | GET | `/API/V1/Meta/Finv/Quote/Collect/FiveDayFt/Lookup` | 新增采集证券的元数据补全（需登录，只读本地库）：按 `usc` 联查 `public.finv_security` + `futu.finv_futu_quote_collect` + `futu.finv_futu_secu_key` + `cdeu.finv_quote_secu_indicator`（1:1，`LATERAL ... LIMIT 1` 兜底），返回 32 列建议值 + 来源标注 + `missing`（补不出来的列，不含时间列与采集统计列）+ 提示；`symbol` 优先 `quote_collect.ftmm_symbol`；顺带查 Supabase 判断 `exists_in_supabase` | [Cdeu/FiveDayFtPage.md](Cdeu/FiveDayFtPage.md) | 需求 11345 |
 | 154 | POST | `/API/V1/Meta/Finv/Quote/Collect/FiveDayFt/Create` | 新增一行采集配置（需登录）：usc 必须在本地证券主数据里；`fields` 只接受除 `usc` 与三列时间列外的 28 列；未提供的列填默认值（`flag_enable=0` 先停采、`provider=FTMM`、`req_section=0`、`weight_priority=50`、`weight_frequency=10`）；时间列写 `now()`；Supabase RLS 未开放 insert 时返回 403（`42501`） | [Cdeu/FiveDayFtPage.md](Cdeu/FiveDayFtPage.md) | 需求 11345 |
+| 155 | POST | `/API/V1/Meta/Finv/Quote/Collect/FiveDayFt/Update` | 编辑一行采集配置（需登录）：`usc` 定位（主键不可改），`fields` 只写改动列（传 `null` 即置空）；可编辑 22 列，`usc` / 时间列 / 采集统计列不可改（400）；服务端自动刷新 `gmt_update`；**零行更新时先查 usc 是否存在**以区分 403（RLS 静默过滤，PostgREST 对 UPDATE 返回 `200` + `*/*` + `[]`）与 404（记录不存在） | [Cdeu/FiveDayFtPage.md](Cdeu/FiveDayFtPage.md) | 需求 11346 |
 
 ## 说明
 

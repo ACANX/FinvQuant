@@ -6,6 +6,7 @@ package handler
 //	GET  /API/V1/Meta/Finv/Quote/Collect/FiveDayFt/FilterOptions 下拉候选（表内 DISTINCT）
 //	GET  /API/V1/Meta/Finv/Quote/Collect/FiveDayFt/Lookup        新增对话框的元数据补全（需求 11345）
 //	POST /API/V1/Meta/Finv/Quote/Collect/FiveDayFt/Create        新增一行采集配置（需求 11345）
+//	POST /API/V1/Meta/Finv/Quote/Collect/FiveDayFt/Update        编辑一行采集配置（需求 11346）
 //
 // 数据不在本地库：经 PostgREST 访问 Supabase（连接取 sys_config 20013）。
 // 除「新增」外不提供其它写接口：本表是采集链路的配置源，改/删走 Supabase 侧。
@@ -186,4 +187,42 @@ func (h *QuoteCollectFiveDayFt) Create(c *gin.Context) {
 	}
 	log.Printf("[secuft] api create ok usc=%s elapsed_ms=%d", result.Usc, time.Since(started).Milliseconds())
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "新增成功（采集开关默认关闭，需手动开启）", "data": result})
+}
+
+// Update POST /Meta/Finv/Quote/Collect/FiveDayFt/Update（需求 11346）。
+//
+// 请求体：
+//
+//	{"usc":"00700","fields":{"flag_enable":1,"remark":"人工确认后开启"}}
+//
+// 只写请求里出现的列；`usc`、时间列、采集统计列不允许人工修改。
+// usc 不存在返回 404；RLS 未开放 update 返回 403；其它上游故障 502。
+func (h *QuoteCollectFiveDayFt) Update(c *gin.Context) {
+	var req secuft.UpdateInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体解析失败: " + err.Error()})
+		return
+	}
+	started := time.Now()
+	result, err := h.store.Update(c.Request.Context(), req)
+	if err != nil {
+		status, code := http.StatusBadGateway, 2007
+		var inputErr *secuft.InputError
+		var permErr *secukey.PermissionError
+		switch {
+		case errors.As(err, &inputErr):
+			status, code = http.StatusBadRequest, 400
+		case errors.As(err, &permErr):
+			status, code = http.StatusForbidden, 403
+		case errors.Is(err, secuft.ErrNotFound):
+			status, code = http.StatusNotFound, 404
+		}
+		log.Printf("[secuft] api update failed usc=%s err=%v elapsed_ms=%d",
+			strings.TrimSpace(req.Usc), err, time.Since(started).Milliseconds())
+		c.JSON(status, gin.H{"code": code, "message": err.Error()})
+		return
+	}
+	log.Printf("[secuft] api update ok usc=%s updated=%d elapsed_ms=%d",
+		result.Usc, result.Updated, time.Since(started).Milliseconds())
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "保存完成", "data": result})
 }

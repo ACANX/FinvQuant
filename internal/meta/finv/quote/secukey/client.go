@@ -224,7 +224,7 @@ func (c *Client) InsertRow(ctx context.Context, table string, row map[string]any
 		return nil, fmt.Errorf("读取 Supabase 响应失败: %w", readErr)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, describeInsertError(resp.StatusCode, raw)
+		return nil, describeWriteError(resp.StatusCode, raw)
 	}
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 || string(raw) == "[]" {
@@ -249,8 +249,72 @@ type PermissionError struct {
 // Error 实现 error 接口。
 func (e *PermissionError) Error() string { return e.msg }
 
-// describeInsertError 把 PostgREST 的写入错误翻成可操作的提示（保留原始 message 便于排障）。
-func describeInsertError(status int, body []byte) error {
+// NewPermissionError 构造权限错误。
+//
+// 供其它包使用：Supabase 的 RLS 对 UPDATE 是**静默过滤**（返回 200 + 0 行、不报错），
+// 只有在调用方确认「记录存在但 0 行受影响」时才能判定是权限/策略问题。
+func NewPermissionError(message string) error {
+	return &PermissionError{msg: message}
+}
+
+// UpdateRow 按条件更新行（需求 11346）。
+//
+// PostgREST：`PATCH /rest/v1/<table>?<filter>` + `Prefer: return=representation`，
+// 返回受影响的行（**空切片表示条件没命中任何行**，调用方据此报 404）。
+//
+// 与 InsertRow 一样**不重试**：写操作重试可能把改动重复应用在别的行上。
+func (c *Client) UpdateRow(ctx context.Context, table string, filter url.Values, row map[string]any) ([]json.RawMessage, error) {
+	if len(row) == 0 {
+		return nil, fmt.Errorf("更新内容为空")
+	}
+	if len(filter) == 0 {
+		return nil, fmt.Errorf("更新必须带条件（拒绝无条件更新整表）")
+	}
+	schema, name := splitTable(table)
+	body, err := json.Marshal(row)
+	if err != nil {
+		return nil, fmt.Errorf("序列化更新数据失败: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch,
+		c.baseURL+"/rest/v1/"+name+"?"+filter.Encode(), bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("构造请求失败: %w", err)
+	}
+	req.Header.Set("apikey", c.apiKey)
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Prefer", "return=representation")
+	if schema != "" {
+		req.Header.Set("Accept-Profile", schema)
+		req.Header.Set("Content-Profile", schema)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("更新 Supabase 失败: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if readErr != nil {
+		return nil, fmt.Errorf("读取 Supabase 响应失败: %w", readErr)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, describeWriteError(resp.StatusCode, raw)
+	}
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "[]" {
+		return nil, nil
+	}
+	var rows []json.RawMessage
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return nil, fmt.Errorf("解析 Supabase 返回行失败: %w", err)
+	}
+	return rows, nil
+}
+
+// describeWriteError 把 PostgREST 的写入（insert / update）错误翻成可操作的提示。
+func describeWriteError(status int, body []byte) error {
 	message := strings.TrimSpace(string(body))
 	if len(message) > 400 {
 		message = message[:400] + "…"
