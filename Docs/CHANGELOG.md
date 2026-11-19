@@ -2913,6 +2913,33 @@
 
 ### 修复
 
+- **修复「市场代码选了却提示必须是不小于 0 的整数」+ 补齐证券分类/子类字段（需求 11350）**
+  - 根因：Vuetify 4 的 `v-combobox` 在选中下拉项后，`v-model` 可能回传 `{title, value}` **对象**，
+    而保存逻辑用 `Number(String(value))` 取值 → `Number("[object Object]")` = `NaN`，
+    于是「明明选了下拉里大于 0 的市场代码」也被判成不合法。
+    （项目内 `HistoryQuoteQueryView.vue` 早有同样结论并被注释记录，本次沿用该口径。）
+  - 修复：新增 `comboboxText(value)` 归一化函数（支持 string / number / 数组 / `{title,value}` 对象），
+    8 个可输入下拉全部改用它：交易所代码、市场代码、证券类型、**证券分类**、**证券子类**、
+    计价货币、时区偏移、时区标识；模板上把 `v-model` 改为
+    `:model-value` + `@update:model-value`（写入前归一化），保证 form 内始终是字符串。
+  - 连带修复：**选中交易所后计价货币/时区偏移/时区标识不自动预填**——
+    联动 `watch` 里原来用 `String(code)` 查预填表，对象同样变成 `[object Object]`，
+    已改为先 `comboboxText(code)`。
+  - 新增「证券分类」`type_secu`、「证券子类」`type_secu_sub` 两个可输入下拉字段
+    （候选取现网 distinct 值：分类 12 项、子类 31 项），并让后端 `SaveSecurity` 真正写这两列
+    （UPDATE 用 `COALESCE(NULLIF(btrim($n),''), 原值)`，传空不覆盖）；
+    `GET .../Security/FilterOptions` 增加 `type_secus` 返回。
+  - **Chrome CDP 实机实测**（headless + 真实鼠标事件，非推测）：
+    - 对话框 8 个可输入下拉均带下拉箭头；选项数实测：时区标识 22 项、证券子类 31 项、市场代码 44 项；
+    - 初始缺省值：证券类型 `Stock`；
+    - 选中「交易所代码 = 11」→ 计价货币 `CNY`、时区偏移 `+08:00`、时区标识 `Asia/Shanghai`（预填生效）；
+    - 选中「市场代码 = 1310 US-I」+ 分类 `Stock` + 子类 `Stock.SH` → **保存成功**，
+      落库实测 `market_code=1310`、`type_secu=Stock`、`type_secu_sub=Stock.SH`、
+      `currency_type=CNY`、`timezone=+08:00`、`tz=Asia/Shanghai`、`init_date=20000000`；
+    - 修改模式回显正确，把子类改为 `Stock.SZ` 保存成功并落库；
+    - 测试行已清理（`ZZUI%` 残留 0 行，`finv_security` 仍 23742 行）。
+  - 文档：`Docs/Menu/MetaData/Security.md` §4.2 增字段表两行、新增 §4.2.1 combobox 取值归一化说明。
+
 - **「时区偏移」与「时区标识」拆开：偏移只放 ±HH:MM，标识改 IANA 下拉（需求 11349）**
   - 修正上一版（11347）的错误：`timezone`（时区偏移）的候选里混入了
     `America/New_York`、`Asia/Shanghai`、`Asia/Hong_Kong`、`Europe/London`、`UTC`

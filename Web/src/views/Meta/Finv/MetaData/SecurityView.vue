@@ -216,12 +216,14 @@ const providerFilter = ref('')
 
 interface SecurityFilterOptions {
   types: string[]
+  type_secus: string[]
   type_secu_subs: string[]
   currencies: string[]
   providers: string[]
 }
 const filterOptions = ref<SecurityFilterOptions>({
   types: [],
+  type_secus: [],
   type_secu_subs: [],
   currencies: [],
   providers: [],
@@ -378,6 +380,24 @@ const INIT_DATE_MAX = 21001231
 const EXCHANGE_CODE_MIN = 1
 const EXCHANGE_CODE_MAX = 999999
 
+/**
+ * 取 combobox 的文本值。
+ *
+ * v-combobox 的 model 值可能是字符串、{title,value} 对象、或数组（项目内
+ * HistoryQuoteQueryView 已有同样结论）。直接 Number()/trim() 会得到
+ * [object Object] → NaN，导致「明明选了大于 0 的值却提示不合法」。
+ */
+function comboboxText(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) return value.length ? comboboxText(value[0]) : ''
+  const record = value as { value?: unknown; title?: unknown }
+  if (record.value !== null && record.value !== undefined) return comboboxText(record.value)
+  if (record.title !== null && record.title !== undefined) return comboboxText(record.title)
+  return String(value).trim()
+}
+
 /** 合并去重（保持顺序）。 */
 function uniq(values: string[]): string[] {
   const seen = new Set<string>()
@@ -439,6 +459,27 @@ const securityTypeFormItems = computed(() =>
 const currencyTypeFormItems = computed(() =>
   uniq([...filterOptions.value.currencies, ...CURRENCY_TYPE_CANDIDATES]),
 )
+// 证券分类（type_secu，子类的父类）候选：现网 distinct 值 + 静态兜底
+// 现网实测：Stock 13485 / ETF 6933 / StockIndex 1471 / Forex 601 / LOF 347 / Fund 242
+//           / Futures 206 / Crypto 193 / VolatilityIndex 164 / BondIndex 25 / Sector 18 / OTC 15
+const TYPE_SECU_CANDIDATES = [
+  'Stock',
+  'ETF',
+  'LOF',
+  'Fund',
+  'StockIndex',
+  'VolatilityIndex',
+  'BondIndex',
+  'Sector',
+  'Forex',
+  'Futures',
+  'Crypto',
+  'OTC',
+]
+const typeSecuFormItems = computed(() => uniq([...filterOptions.value.type_secus, ...TYPE_SECU_CANDIDATES]))
+// 证券子类（type_secu_sub）候选：现网实测 Stock.US 4818 / ETF.US 4650 / Stock.SZ 2935
+// / Stock.HK 2791 / Stock.SH 2344 / ETF.SH 1122 / ETF.SZ 829 / CER 572 / StockIndex.SH 413 等
+const typeSecuSubFormItems = computed(() => filterOptions.value.type_secu_subs)
 const timezoneOffsetFormItems = TIMEZONE_OFFSET_CANDIDATES
 const timezoneIdFormItems = TIMEZONE_ID_CANDIDATES
 // 对话框里的交易所 / 市场候选：value 统一为字符串，便于与手填内容比较
@@ -570,7 +611,8 @@ function openEdit(row: SecurityRow) {
 /** 交易所代码变化时，按交易所预填计价货币与时区偏移（需求 11347）。 */
 watch(formExchangeCode, (code) => {
   if (editing.value) return
-  const defaults = EXCHANGE_DEFAULTS[Number(String(code ?? '').trim())]
+  // v-combobox 可能回传 {title,value} 对象，必须先归一化再查表，否则永远取不到交易所缺省值
+  const defaults = EXCHANGE_DEFAULTS[Number(comboboxText(code))]
   if (!defaults) return
   const currency = (form.value.currency_type ?? '').trim()
   if (!currency || currency === autoCurrency) {
@@ -625,7 +667,9 @@ async function save() {
     return
   }
   // 交易所 / 市场代码支持手填下拉之外的任意值，但仍需是合法整数（对齐 DB CHECK 约束）
-  const exchangeText = String(formExchangeCode.value ?? '').trim()
+  // 注意用 comboboxText 归一化：v-combobox 选中下拉项后可能回传 {title,value} 对象，
+  // 直接 String()/Number() 会变成 [object Object] → NaN，误报「必须是不小于 0 的整数」
+  const exchangeText = comboboxText(formExchangeCode.value)
   if (!exchangeText) {
     showToast('交易所代码不能为空（可从下拉选择，也可直接输入任意值）', 'error')
     return
@@ -635,7 +679,7 @@ async function save() {
     showToast(`交易所代码必须是 ${EXCHANGE_CODE_MIN}–${EXCHANGE_CODE_MAX} 的整数`, 'error')
     return
   }
-  const marketText = String(formMarketCode.value ?? '').trim()
+  const marketText = comboboxText(formMarketCode.value)
   const marketCode = marketText === '' ? 0 : Number(marketText)
   if (!Number.isInteger(marketCode) || marketCode < 0 || marketCode > EXCHANGE_CODE_MAX) {
     showToast(`市场代码必须是不小于 0 的整数（留空按 0 处理）`, 'error')
@@ -655,15 +699,17 @@ async function save() {
       usc: form.value.usc.trim(),
       exchange_code: exchangeCode,
       market_code: marketCode,
-      security_type: form.value.security_type.trim(),
+      security_type: comboboxText(form.value.security_type),
+      type_secu: comboboxText(form.value.type_secu),
+      type_secu_sub: comboboxText(form.value.type_secu_sub),
       security_code: form.value.security_code.trim(),
       security_name: form.value.security_name.trim(),
       security_name_cn: form.value.security_name_cn.trim(),
       security_name_full: form.value.security_name_full?.trim() || null,
-      currency_type: form.value.currency_type.trim(),
+      currency_type: comboboxText(form.value.currency_type),
       init_date: form.value.init_date,
-      timezone: form.value.timezone?.trim() || null,
-      tz: form.value.tz?.trim() || null,
+      timezone: comboboxText(form.value.timezone) || null,
+      tz: comboboxText(form.value.tz) || null,
     })
     showToast('保存成功')
     dialog.value = false
@@ -751,12 +797,13 @@ async function loadFilterOptions(): Promise<void> {
     )
     filterOptions.value = {
       types: data.types ?? [],
+      type_secus: data.type_secus ?? [],
       type_secu_subs: data.type_secu_subs ?? [],
       currencies: data.currencies ?? [],
       providers: data.providers ?? [],
     }
   } catch {
-    filterOptions.value = { types: [], type_secu_subs: [], currencies: [], providers: [] }
+    filterOptions.value = { types: [], type_secus: [], type_secu_subs: [], currencies: [], providers: [] }
   }
 }
 
@@ -1785,7 +1832,8 @@ function timeText(value: string): string {
             </v-col>
             <v-col cols="6">
               <v-combobox
-                v-model="formExchangeCode"
+                :model-value="formExchangeCode"
+                @update:model-value="(v: unknown) => (formExchangeCode = comboboxText(v))"
                 label="交易所代码"
                 :items="exchangeFormItems"
                 density="compact"
@@ -1796,7 +1844,8 @@ function timeText(value: string): string {
             </v-col>
             <v-col cols="6">
               <v-combobox
-                v-model="formMarketCode"
+                :model-value="formMarketCode"
+                @update:model-value="(v: unknown) => (formMarketCode = comboboxText(v))"
                 label="市场代码"
                 :items="marketFormItems"
                 density="compact"
@@ -1807,7 +1856,8 @@ function timeText(value: string): string {
             </v-col>
             <v-col cols="6">
               <v-combobox
-                v-model="form.security_type"
+                :model-value="form.security_type"
+                @update:model-value="(v: unknown) => (form.security_type = comboboxText(v))"
                 label="证券类型"
                 :items="securityTypeFormItems"
                 density="compact"
@@ -1817,7 +1867,32 @@ function timeText(value: string): string {
             </v-col>
             <v-col cols="6">
               <v-combobox
-                v-model="form.currency_type"
+                :model-value="form.type_secu"
+                @update:model-value="(v: unknown) => (form.type_secu = comboboxText(v))"
+                label="证券分类"
+                :items="typeSecuFormItems"
+                density="compact"
+                clearable
+                hint="type_secu，证券子类的父类（如 Stock / ETF）；可从下拉切换或直接输入"
+                persistent-hint
+              />
+            </v-col>
+            <v-col cols="6">
+              <v-combobox
+                :model-value="form.type_secu_sub"
+                @update:model-value="(v: unknown) => (form.type_secu_sub = comboboxText(v))"
+                label="证券子类"
+                :items="typeSecuSubFormItems"
+                density="compact"
+                clearable
+                hint="type_secu_sub（如 Stock.US / ETF.SH）；可从下拉切换或直接输入"
+                persistent-hint
+              />
+            </v-col>
+            <v-col cols="6">
+              <v-combobox
+                :model-value="form.currency_type"
+                @update:model-value="(v: unknown) => (form.currency_type = comboboxText(v))"
                 label="计价货币"
                 :items="currencyTypeFormItems"
                 density="compact"
@@ -1850,7 +1925,8 @@ function timeText(value: string): string {
             </v-col>
             <v-col cols="6">
               <v-combobox
-                v-model="form.timezone"
+                :model-value="form.timezone"
+                @update:model-value="(v: unknown) => (form.timezone = comboboxText(v) || null)"
                 label="时区偏移"
                 :items="timezoneOffsetFormItems"
                 density="compact"
@@ -1860,7 +1936,8 @@ function timeText(value: string): string {
             </v-col>
             <v-col cols="12">
               <v-combobox
-                v-model="form.tz"
+                :model-value="form.tz"
+                @update:model-value="(v: unknown) => (form.tz = comboboxText(v) || null)"
                 label="时区标识"
                 :items="timezoneIdFormItems"
                 density="compact"

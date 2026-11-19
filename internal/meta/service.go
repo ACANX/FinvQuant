@@ -339,7 +339,9 @@ type SecurityListFilter struct {
 
 // SecurityFilterOptions 证券字典筛选项（各维度 DISTINCT 值，供下拉使用）。
 type SecurityFilterOptions struct {
-	Types        []string `json:"types"`
+	Types []string `json:"types"`
+	// TypeSecus 证券分类取值（type_secu_sub 的父类，需求 11350）。
+	TypeSecus    []string `json:"type_secus"`
 	TypeSecuSubs []string `json:"type_secu_subs"`
 	Currencies   []string `json:"currencies"`
 	Providers    []string `json:"providers"`
@@ -436,6 +438,7 @@ LIMIT $`+strconv.Itoa(len(args)+1)+` OFFSET $`+strconv.Itoa(len(args)+2),
 func (s *Service) ListSecurityFilterOptions(ctx context.Context) (SecurityFilterOptions, error) {
 	var opts SecurityFilterOptions
 	opts.Types = []string{}
+	opts.TypeSecus = []string{}
 	opts.TypeSecuSubs = []string{}
 	opts.Currencies = []string{}
 	opts.Providers = []string{}
@@ -445,6 +448,11 @@ SELECT 'type' AS kind, security_type AS value
   FROM finv_security
  WHERE NULLIF(btrim(security_type), '') IS NOT NULL
  GROUP BY security_type
+UNION ALL
+SELECT 'type_secu', type_secu
+  FROM finv_security
+ WHERE NULLIF(btrim(type_secu), '') IS NOT NULL
+ GROUP BY type_secu
 UNION ALL
 SELECT 'sub', type_secu_sub
   FROM finv_security
@@ -474,6 +482,8 @@ ORDER BY kind, value`)
 		switch kind {
 		case "type":
 			opts.Types = append(opts.Types, value)
+		case "type_secu":
+			opts.TypeSecus = append(opts.TypeSecus, value)
 		case "sub":
 			opts.TypeSecuSubs = append(opts.TypeSecuSubs, value)
 		case "currency":
@@ -512,21 +522,25 @@ func (s *Service) SaveSecurity(ctx context.Context, sec Security) (string, error
 UPDATE finv_security SET
     exchange_code = $2, market_code = $3, security_type = $4, security_code = $5, security_name = $6,
     security_name_cn = $7, security_name_full = $8, currency_type = $9,
-    init_date = $10, timezone = $11, tz = $12
+    init_date = $10, timezone = $11, tz = $12,
+    type_secu = COALESCE(NULLIF(btrim($13), ''), type_secu),
+    type_secu_sub = COALESCE(NULLIF(btrim($14), ''), type_secu_sub)
 WHERE usc = $1`,
 			sec.USC, sec.ExchangeCode, sec.MarketCode, sec.SecurityType, sec.SecurityCode, sec.SecurityName,
 			sec.SecurityNameCN, sec.SecurityNameFull, sec.CurrencyType,
-			sec.InitDate, sec.Timezone, sec.Tz)
+			sec.InitDate, sec.Timezone, sec.Tz,
+			sec.TypeSecu, sec.TypeSecuSub)
 		return sec.USC, err
 	}
 	_, err := s.pool.Exec(ctx, `
 INSERT INTO finv_security
     (usc, exchange_code, market_code, security_type, security_code, security_name, security_name_cn,
-     security_name_full, currency_type, init_date, timezone, tz, flag_enable)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, '1')`,
+     security_name_full, currency_type, init_date, timezone, tz, type_secu, type_secu_sub, flag_enable)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, '1')`,
 		sec.USC, sec.ExchangeCode, sec.MarketCode, sec.SecurityType, sec.SecurityCode, sec.SecurityName,
 		sec.SecurityNameCN, sec.SecurityNameFull, sec.CurrencyType,
-		sec.InitDate, sec.Timezone, sec.Tz)
+		sec.InitDate, sec.Timezone, sec.Tz,
+		sec.TypeSecu, sec.TypeSecuSub)
 	return sec.USC, err
 }
 

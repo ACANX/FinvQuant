@@ -3,7 +3,7 @@
 > 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/MetaData/Security.md`
 > 对应视图：`Web/src/views/Meta/Finv/MetaData/SecurityView.vue`
 > 接口契约：见 [Docs/API/Meta/MetaSecurity.md](../../API/Meta/MetaSecurity.md)
-> 关联需求：11347（新增对话框支持手填 + 缺省值）、11348（上市日期下限放宽）、11349（时区偏移与时区标识分离）
+> 关联需求：11347（新增对话框支持手填 + 缺省值）、11348（上市日期下限放宽）、11349（时区偏移与时区标识分离）、11350（证券分类/子类字段 + combobox 取值归一化）
 
 ## 1. 菜单入口
 
@@ -98,6 +98,8 @@
 | 交易所代码 | 可输入下拉（combobox） | 空 | 是 | 候选来自 `GET /API/V1/Meta/Finv/Quant/Metadata/Exchange/List`（仅启用记录），展示 `code abbr（name）`；**不限于候选**，可直接输入任意整数 |
 | 市场代码 | 可输入下拉（combobox） | 空（保存按 `0`） | 是 | 候选来自 `GET /API/V1/Meta/Finv/Quant/Metadata/Market/List`（仅启用记录），展示 `code flag（name）`；可直接输入任意整数 |
 | 证券类型 | 可输入下拉（combobox） | `Stock` | 是 | 候选 = 现网 `security_type` distinct 值 + 常见值；缺省取现网最高频值（13485 行） |
+| 证券分类 | 可输入下拉（combobox） | 空 | 是 | `type_secu`，证券子类的父类；候选 = 现网 `type_secu` distinct 值（Stock 13485 / ETF 6933 / StockIndex 1471 …） |
+| 证券子类 | 可输入下拉（combobox） | 空 | 是 | `type_secu_sub`；候选 = 现网 `type_secu_sub` distinct 值（31 项：Stock.US 4818 / ETF.US 4650 / Stock.SZ 2935 …） |
 | 计价货币 | 可输入下拉（combobox） | 按交易所预填 | 是 | 候选 = 现网 `currency_type` distinct 值 + 常见值；交易所变化时若用户未手改则自动预填 |
 | 上市日期 | 数字框 + 日历选择 | `20000000` | 是 | 手输 `yyyymmdd` 8 位数字，或点右侧日历图标选择（`yyyy-mm-dd` 自动转 `yyyymmdd`）；`20000000` 表示未知；**支持 1950 年前上市的老公司**（如 Bank of New York 1784 年、纽交所 1792 年），下限 `10000101` |
 | 时区偏移 | 可输入下拉（combobox） | 按交易所预填 | 是 | 候选**只含偏移量**（`±HH:MM`，如 `+08:00`、`-04:00`），不含 IANA 名；交易所变化时若用户未手改则自动预填 |
@@ -149,7 +151,20 @@
 |---|---|---|
 | `exchange_code` | 整数 `1–999999` | `finv_security_exchange_code_check` |
 | `market_code` | 整数 `≥ 0`，留空按 `0` | 列默认 `0` |
+| `type_secu` | 任意文本（可空） | 无约束；更新时传空值保留原值（`COALESCE(NULLIF(...))`） |
+| `type_secu_sub` | 任意文本（可空） | 无约束；更新时传空值保留原值（`COALESCE(NULLIF(...))`） |
 | `init_date` | 整数 `10000101–21001231`（`20000000` 表示未知） | `finv_security_init_date_check`（V300233 已放宽下限） |
+
+### 4.2.1 combobox 取值归一化（需求 11350）
+
+所有可输入下拉（交易所代码 / 市场代码 / 证券类型 / 证券分类 / 证券子类 / 计价货币 / 时区偏移 / 时区标识）
+的 `model` 值都统一经 `comboboxText()` 归一化为字符串后再使用：
+
+- Vuetify 4 的 `v-combobox` 在选中下拉项后可能回传 `{title, value}` **对象**（不是纯值），
+  直接 `String()` 会得到 `[object Object]`、`Number()` 会得到 `NaN`，
+  表现为「明明选了下拉里大于 0 的市场代码，却提示『市场代码必须是不小于 0 的整数』」。
+- 归一化同时修复了「选中交易所后计价货币/时区偏移/时区标识不自动预填」——
+  联动 `watch` 里同样要先用 `comboboxText()` 取出代码再查预填表。
 
 ### 4.3 禁用/启用
 
