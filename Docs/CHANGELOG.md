@@ -2913,6 +2913,15 @@
 
 ### 修复
 
+- **moomoo `webapi` 包落地「名称中文优先」源码规范（需求 11340）**
+  - `internal/meta/component/quote/moomoo/webapi/client.go` 包注释新增
+    「名称取值规范（需求 11339，强制）」一节：上游 `name`/`sc_name`/`tc_name` 三字段、
+    默认只用 `Snapshot.DisplayName()`、仅当业务要求中英文各存一列时才分别取 `SCName`/`Name`、
+    上游本就无中文名（`BTC/USD`、`PAX Gold` 等）回退英文属正常。
+  - `Snapshot.Name` / `SCName` / `TCName` 与 `DisplayName()` 注释同步指向该节，
+    `go doc` 可直接看到规范。
+  - 防回归测试 `TestNoDirectSnapshotName`：扫描 `cdeu` 非测试源码，出现 `snapshot.Name`/`snap.Name` 即失败。
+
 - **修「证券行情排行」指数 / 「加密货币行情排行」名称显示英文（需求 11339）**
   - 根因：moomoo 快照每条返回三个名称字段，实测 `US..SPX` 为
     `name=S&P 500 Index`、`sc_name=标普500指数`、`tc_name=標普500指數`；

@@ -20,8 +20,14 @@ type Fetcher interface {
 type Snapshot struct {
 	Code string `json:"code"`
 	// Name 上游默认名称（多数场景是英文，如 `Bitcoin` / `Hang Seng Index`）。
+	//
+	// 业务取名称请用 [Snapshot.DisplayName]（中文优先），**不要**直接用本字段；
+	// 只有需要中英文各存一列时才单独取本字段作英文名（见包注释「名称取值规范」）。
 	Name string `json:"name"`
-	// SCName 简体中文名称（上游 `sc_name`，如 `比特币` / `恒生指数`；未提供时为空）。
+	// SCName 简体中文名称（上游 `sc_name`，如 `比特币` / `恒生指数`；上游未提供时为空）。
+	//
+	// 规范口径：展示/落库的默认名称取本字段，为空才回退 [Snapshot.Name]
+	// （见 [Snapshot.DisplayName] 与包注释「名称取值规范」）。
 	SCName string `json:"sc_name"`
 	// TCName 繁体中文名称（上游 `tc_name`，如 `比特幣` / `恒生指數`；暂不使用，保留便于追溯）。
 	TCName string `json:"tc_name"`
@@ -51,11 +57,15 @@ type Snapshot struct {
 	UpdateTime          int64   `json:"update_time"`
 }
 
-// DisplayName 展示名：优先简体中文（`sc_name`），取不到才回退上游默认名（`name`）。
+// DisplayName 默认展示名：优先简体中文（`sc_name`），取不到才回退上游默认名（`name`）。
 //
 // 实测（2026-11-19，`US..SPX` / `HK.800000` / `CC.BTC`）上游三个名称字段都有值：
 // `name=S&P 500 Index`、`sc_name=标普500指数`、`tc_name=標普500指數`；
 // 只取 `name` 会让排行榜全显示英文名（需求 11339）。
+//
+// **这是本仓库取名称的唯一默认口径**：落库、接口响应、日志都用它；
+// 只有业务明确要求中英文各存一列时，才在自己的落库结构里分别取 `SCName` / `Name`
+// （见包注释「名称取值规范」）。
 func (s Snapshot) DisplayName() string {
 	if name := strings.TrimSpace(s.SCName); name != "" {
 		return name
