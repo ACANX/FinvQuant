@@ -238,6 +238,8 @@ const COLLECT_STAT_COLUMNS = [
 
 // 对话框模式：create（新增，含 usc 输入与补全）/ edit（编辑，usc 只读、直接给当前值）
 const dialogMode = ref<'create' | 'edit'>('create')
+// 是否全屏：新增默认全屏（列多、值列要宽），编辑默认非全屏，两者都可随时切换
+const dialogFullscreen = ref(false)
 // 编辑时的原始值（用于只提交改动列）
 const editOrigin = ref<Record<string, string>>({})
 const createOpen = ref(false)
@@ -250,6 +252,7 @@ const submitting = ref(false)
 /** 打开新增对话框（清空上次状态）。 */
 function openCreate() {
   dialogMode.value = 'create'
+  dialogFullscreen.value = true
   createUsc.value = ''
   lookupResult.value = null
   draft.value = {}
@@ -262,6 +265,7 @@ function openEdit(row: Row) {
   const usc = String(row.usc ?? '').trim()
   if (!usc) return
   dialogMode.value = 'edit'
+  dialogFullscreen.value = false
   createUsc.value = usc
   lookupResult.value = null
   const values: Record<string, string> = {}
@@ -650,12 +654,26 @@ onMounted(() => {
   </v-card>
 
   <!-- 新增采集证券对话框（需求 11345） -->
-  <v-dialog v-model="createOpen" fullscreen scrollable persistent>
+  <v-dialog
+    v-model="createOpen"
+    :fullscreen="dialogFullscreen"
+    :max-width="1280"
+    scrollable
+    persistent
+    content-class="finv-create-dialog"
+  >
     <v-card>
       <v-card-title class="text-subtitle-1 d-flex align-center">
         <v-icon :icon="dialogMode === 'edit' ? 'mdi-pencil-outline' : 'mdi-plus-box-outline'" class="mr-2" />
         {{ dialogMode === 'edit' ? `编辑采集配置 · ${createUsc}` : '新增采集证券' }}
         <v-spacer />
+        <v-btn
+          variant="text"
+          :icon="dialogFullscreen ? 'mdi-fullscreen-exit' : 'mdi-fullscreen'"
+          :title="dialogFullscreen ? '退出全屏' : '全屏'"
+          data-testid="fiveday-ft-dialog-fullscreen"
+          @click="dialogFullscreen = !dialogFullscreen"
+        />
         <v-btn variant="text" icon="mdi-close" :disabled="submitting" @click="createOpen = false" />
       </v-card-title>
       <v-divider />
@@ -910,6 +928,11 @@ onMounted(() => {
 
 .finv-create-table :deep(.v-field__input) {
   min-height: 36px;
+}
+
+/* 非全屏时对话框不超过 88vh，内容区滚动（全屏时由 fullscreen 接管） */
+.finv-create-dialog:deep(.v-card) {
+  max-height: 88vh;
 }
 
 /* 列宽不压缩 + 横向滚动（与证券字典口径一致） */
