@@ -3,7 +3,7 @@
 > 所属：FinvQuant 前端菜单 · 存放：`Docs/Menu/MetaData/Security.md`
 > 对应视图：`Web/src/views/Meta/Finv/MetaData/SecurityView.vue`
 > 接口契约：见 [Docs/API/Meta/MetaSecurity.md](../../API/Meta/MetaSecurity.md)
-> 关联需求：11347（新增对话框支持手填 + 缺省值）
+> 关联需求：11347（新增对话框支持手填 + 缺省值）、11348（上市日期下限放宽）
 
 ## 1. 菜单入口
 
@@ -99,7 +99,7 @@
 | 市场代码 | 可输入下拉（combobox） | 空（保存按 `0`） | 是 | 候选来自 `GET /API/V1/Meta/Finv/Quant/Metadata/Market/List`（仅启用记录），展示 `code flag（name）`；可直接输入任意整数 |
 | 证券类型 | 可输入下拉（combobox） | `Stock` | 是 | 候选 = 现网 `security_type` distinct 值 + 常见值；缺省取现网最高频值（13485 行） |
 | 计价货币 | 可输入下拉（combobox） | 按交易所预填 | 是 | 候选 = 现网 `currency_type` distinct 值 + 常见值；交易所变化时若用户未手改则自动预填 |
-| 上市日期 | 数字框 + 日历选择 | `20000000` | 是 | 手输 `yyyymmdd` 8 位数字，或点右侧日历图标选择（`yyyy-mm-dd` 自动转 `yyyymmdd`）；`20000000` 表示未知 |
+| 上市日期 | 数字框 + 日历选择 | `20000000` | 是 | 手输 `yyyymmdd` 8 位数字，或点右侧日历图标选择（`yyyy-mm-dd` 自动转 `yyyymmdd`）；`20000000` 表示未知；**支持 1950 年前上市的老公司**（如 Bank of New York 1784 年、纽交所 1792 年），下限 `10000101` |
 | 时区偏移 | 可输入下拉（combobox） | 按交易所预填 | 是 | 候选为常用偏移（`+08:00` 等）与 IANA 名；交易所变化时若用户未手改则自动预填 |
 
 - **按交易所预填「计价货币 + 时区偏移」**（仅新增模式；编辑模式不覆盖已有数据）：
@@ -142,7 +142,7 @@
 |---|---|---|
 | `exchange_code` | 整数 `1–999999` | `finv_security_exchange_code_check` |
 | `market_code` | 整数 `≥ 0`，留空按 `0` | 列默认 `0` |
-| `init_date` | 整数 `19500101–21001231` | `finv_security_init_date_check` |
+| `init_date` | 整数 `10000101–21001231`（`20000000` 表示未知） | `finv_security_init_date_check`（V300233 已放宽下限） |
 
 ### 4.3 禁用/启用
 

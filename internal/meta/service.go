@@ -486,12 +486,23 @@ ORDER BY kind, value`)
 }
 
 // SaveSecurity 新增或更新证券代码（usc 存在则更新，否则新增）。
+// 上市日期取值区间，对齐 DB 约束 finv_security_init_date_check
+// （V300233 已把下限从 19500101 放宽到 10000101，支持 1950 年前上市的老公司，需求 11348）。
+const (
+	InitDateMin = 10000101
+	InitDateMax = 21001231
+)
+
 func (s *Service) SaveSecurity(ctx context.Context, sec Security) (string, error) {
 	if sec.USC == "" {
 		return "", fmt.Errorf("usc 不能为空")
 	}
 	if sec.ExchangeCode <= 0 {
 		return "", fmt.Errorf("exchange_code 必须为正整数")
+	}
+	if sec.InitDate < InitDateMin || sec.InitDate > InitDateMax {
+		return "", fmt.Errorf("init_date 必须是 %d–%d 的 yyyymmdd 整数（20000000 表示未知）",
+			InitDateMin, InitDateMax)
 	}
 	exists := 0
 	_ = s.pool.QueryRow(ctx,

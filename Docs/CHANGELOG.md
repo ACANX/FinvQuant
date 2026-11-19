@@ -2913,6 +2913,26 @@
 
 ### 修复
 
+- **放宽 `finv_security.init_date` 下限：1950-01-01 → 1000-01-01（需求 11348）**
+  - 原约束 `finv_security_init_date_check` 为 `BETWEEN 19500101 AND 21001231`，下限过窄——
+    美股存在上市超过 200 年的公司（Bank of New York 1784 年成立、纽约证券交易所 1792 年成立），
+    这类证券的上市日期录入会被 `23514` CHECK 违反拒绝。
+  - 新增迁移 `Deploy/Migrations/V300233__finv_security_init_date_range.sql`：
+    `DROP CONSTRAINT IF EXISTS` + 重建为 `CHECK (init_date BETWEEN 10000101 AND 21001231)`，
+    并更新列注释。**只放宽下限，不改任何数据**（原 23736 行占位值 `20000000` 仍合法）。
+  - 后端 `SaveSecurity` 新增 `init_date` 区间校验（`InitDateMin=10000101` / `InitDateMax=21001231`），
+    越界返回可读提示而不是原始 `23514` 报错。
+  - 前端新增对话框：`INIT_DATE_MIN` 同步为 `10000101`，日历范围改为 `1000-01-01 ~ 2100-12-31`，
+    提示补充「支持 1950 年前的老公司」。
+  - 实测（容器重建、迁移自动执行后）：
+    约束已变为 `CHECK (((init_date >= 10000101) AND (init_date <= 21001231)))`；
+    `init_date=17840101` → `code=0` 保存成功（查回 `17840101`）；
+    `16000101` / `19500101` / `20000000` → 均保存成功；
+    `99991231` / `21001232` → 被拒并提示「init_date 必须是 10000101–21001231 的 yyyymmdd 整数」；
+    psql 事务内验证 `10000101` 可插入、`10000100` 触发 CHECK 违反。
+    测试行已清理（`ZZDATE%` / `__ck%` 残留 0 行，`finv_security` 仍为 23742 行）。
+  - 文档：`Docs/Menu/MetaData/Security.md` 校验表与字段说明同步。
+
 - **「规范证券信息维护」新增对话框：交易所/市场代码可手填，类型/货币/日期/时区补缺省值（需求 11347）**
   - 「交易所代码」「市场代码」由只读下拉（`v-select`）改为**可输入下拉**（`v-combobox`）：
     候选仍来自 `finv_exchange` / `finv_market`（仅启用记录），但**不再限制只能选候选**，

@@ -344,7 +344,9 @@ const DEFAULT_SECURITY_TYPE = 'Stock'
 // finv_security.init_date 的缺省占位值（DB 默认值，现网 23736 行）
 const DEFAULT_INIT_DATE = 20000000
 // 对齐 DB CHECK 约束 finv_security_init_date_check / finv_security_exchange_code_check
-const INIT_DATE_MIN = 19500101
+// 上市日期下限已放宽到 1000-01-01（V300233，需求 11348）：美股有上市超过 200 年的公司
+// （如 Bank of New York 1784 年、纽交所 1792 年），1950 年的下限会把它们挡住
+const INIT_DATE_MIN = 10000101
 const INIT_DATE_MAX = 21001231
 const EXCHANGE_CODE_MIN = 1
 const EXCHANGE_CODE_MAX = 999999
@@ -1776,13 +1778,13 @@ function timeText(value: string): string {
                     type="number"
                     density="compact"
                     append-inner-icon="mdi-calendar"
-                    hint="缺省 20000000 表示未知；可手输 8 位数字或点右侧日历选择"
+                    hint="缺省 20000000 表示未知；可手输 8 位数字或点右侧日历选择（支持 1950 年前的老公司）"
                     persistent-hint
                   />
                 </template>
                 <v-date-picker
                   v-model="initDateIso"
-                  :min="'1950-01-01'"
+                  :min="'1000-01-01'"
                   :max="'2100-12-31'"
                   @update:model-value="dateMenu = false"
                 />
