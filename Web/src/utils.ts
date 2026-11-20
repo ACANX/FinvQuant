@@ -59,6 +59,53 @@ export function fmtPct(v: number | undefined | null): string {
   return `${Number(v).toFixed(2)}%`
 }
 
+/** ISO 8601 时间字符串 → 本地 yyyy-MM-dd HH:mm:ss（空/非法返回 '-'） */
+export function fmtISO(v: string | null | undefined): string {
+  if (!v) return '-'
+  const d = new Date(v)
+  if (Number.isNaN(d.getTime())) return v
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+/** 字节数 → 人类可读（B / KB / MB / GB / TB） */
+export function fmtBytes(v: number | null | undefined): string {
+  if (v === null || v === undefined || Number.isNaN(v)) return '-'
+  if (v < 1024) return `${v} B`
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let value = v / 1024
+  let index = 0
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024
+    index += 1
+  }
+  return `${value.toFixed(2)} ${units[index]}`
+}
+
+/**
+ * 业务月份下拉选项：默认最近 10 年（含当前月），倒序（最新在前）。
+ *
+ * value 用「yyyymm 字符串」，与页面既有的 bizMonthParam 解析口径一致；
+ * title 用 yyyy-MM 便于阅读。业务月份是确定的枚举值，不需要人工输入。
+ */
+export function bizMonthOptions(years = 10, now: Date = new Date()): { title: string; value: string }[] {
+  const options: { title: string; value: string }[] = []
+  const base = new Date(now.getFullYear(), now.getMonth(), 1)
+  for (let offset = 0; offset < years * 12; offset += 1) {
+    const month = new Date(base.getFullYear(), base.getMonth() - offset, 1)
+    const value = month.getFullYear() * 100 + (month.getMonth() + 1)
+    options.push({ title: fmtMonth(value), value: String(value) })
+  }
+  return options
+}
+
+/** yyyymm 数字 → yyyy-MM（0 / 空返回 '-'） */
+export function fmtMonth(v: number | null | undefined): string {
+  if (!v) return '-'
+  const s = String(v)
+  return s.length === 6 ? `${s.slice(0, 4)}-${s.slice(4, 6)}` : s
+}
+
 /** 任务状态 → 颜色 */
 export function statusColor(s: string): string {
   return { PENDING: 'grey', RUNNING: 'primary', SUCCEEDED: 'success', FAILED: 'error', CANCELLED: 'warning' }[s] ?? 'grey'

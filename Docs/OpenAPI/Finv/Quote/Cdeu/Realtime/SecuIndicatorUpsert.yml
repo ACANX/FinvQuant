@@ -1,0 +1,613 @@
+# FinvQuant — 采集端证券指标回传（OpenAPI 3.1 契约）
+#
+# 与同目录 SecuIndicatorUpsert.md 成对维护：
+#   - SecuIndicatorUpsert.md 是面向外部调用方的人读说明；
+#   - 本文件是机器可读契约，供 lint / 生成客户端 / 交互文档使用。
+# 契约变更时两者必须同步更新。
+#
+# 说明：本契约**自包含**（字段 / 错误码 / schema 全部内联），不引用仓库内部 API 文档。
+#
+openapi: 3.1.0
+info:
+  title: FinvQuant — 采集端证券指标回传
+  version: 1.0.0
+  description: |
+    外部 OpenAPI：采集端（Cloudflare Worker）抓完一只证券后回传该证券的完整指标。
+    服务端在一个事务里写三张表：
+      - cdeu.finv_quote_secu_indicator（指标本体，按 usc 关联，不存在则插入）
+      - futu.finv_futu_quote_collect（采集参数，同名关联字段全部刷新，不存在则插入）
+      - futu.finv_futu_secu_key（status 置 DONE，采集端后续跳过该证券）
+    usc 不是请求字段：按 ftmm_symbol 依次查 key 表 → indicator → collect → 以 ftmm_symbol 兜底。
+    鉴权见 Docs/API/OpenAPI/Auth.md（sys_config 19001 控制）。
+servers:
+  - url: http://127.0.0.1:16001
+    description: 本机直连（生产经 Nginx 反代时替换为 https://<域名>）
+tags:
+  - name: OpenAPI/Finv/Quote/Cdeu/Realtime
+    description: 外部 OpenAPI — 证券实时行情（采集端回传）
+paths:
+  /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTSecuIndicatorUpsert:
+    post:
+      operationId: upsertCdeuSecuIndicatorOpenAPI
+      tags: [OpenAPI/Finv/Quote/Cdeu/Realtime]
+      summary: 采集端单只证券指标回传（upsert）
+      description: |
+        三张表在**同一事务**内写完，任意一张失败整体回滚。
+
+        - `usc` 由服务端判定（见 info.description），响应回 `usc_source` 便于对账；
+        - 指标表与采集参数表：只覆盖本次给了值的列（SQL 用 `COALESCE`），没给的保留原值；
+        - 键表：`status` 无条件置 `DONE`（已是 `DONE` 也照写，刷新 `gmt_update`），
+          `stock_id` / `url` 有值才覆盖，`usc` 不回写；
+        - 请求体两种形态都接受：内层裸 JSON，或带 `body` 节点的 Cloudflare Worker 外壳；
+        - 未定义字段被忽略（采集端可能追加 `$workers` / `$metadata` 等节点）。
+      security:
+        - apiKeyAuth: []
+        - signatureAuth: []
+      parameters:
+        - name: _
+          in: query
+          required: false
+          description: |
+            静态 Key 调用**写接口**时必填：毫秒级 Unix 时间戳，与服务器时间差需在 ±60 秒内。
+            签名模式不需要（时间戳已在待签串里）。
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecuIndicatorUpsertRequest'
+            examples:
+              stock:
+                summary: A 股个股（内层裸 JSON）
+                value:
+                  symbol: SH.600006
+                  market: SH
+                  code: '600006'
+                  page_type: stock
+                  collected_at: '2026-11-12T07:53:32+08:00'
+                  source_url: https://www.moomoo.com/hans/stock/600006-SH
+                  run_id: 20261112-075328-9uxwal
+                  idempotency_key: 72bc85cd46cc87737d98274de8ec6c9e066d5bdb975a04c3d23388666ca61b9d
+                  mode: upsert
+                  data:
+                    symbol: SH.600006
+                    market: SH
+                    stock_code: '600006'
+                    stock_id: '46377058462214'
+                    name: 东风股份
+                    market_type: 4
+                    market_code: 30
+                    instrument_type: 3
+                    sub_instrument_type: 3002
+                    ex_type: 2
+                    price_accuracy: 2
+                    price: 5.06
+                    change: -0.05
+                    change_ratio: -0.98
+                    price_open: 5.1
+                    price_highest: 5.12
+                    price_lowest: 5.04
+                    price_last_close: 5.11
+                    volume: 84100
+                    turnover: 42703800
+                    price_highest_52week: 8.23
+                    price_lowest_52week: 4.86
+                    kcb_stock_static_volume: 0
+                    pe_ttm: -18.01
+                    pb_ratio: 1.3
+                    time: 1794380400000
+                    market_status: 29
+                    market_status_text: 已收盘
+                    delay_time: 900
+                    exchange_data_time_ms: 1794380400000
+                    server_send_to_client_time_ms: 1794441210255
+                    server_recv_from_exchange_time_ms: 0
+                    source_url: https://www.moomoo.com/hans/stock/600006-SH
+                    source_channel: http_requests
+                    collected_at: '2026-11-12T07:53:32+08:00'
+                    unmapped_json: '{}'
+                    update_count: 1
+              workerEnvelope:
+                summary: 整包转发 Cloudflare Worker 外壳（服务端取 body）
+                value:
+                  timestamp: '2026-11-11T23:53:33.211Z'
+                  method: POST
+                  url: https://webhook.example.workers.dev/WeebHook
+                  headers:
+                    user-agent: moomoo-secu-fn/1.0.0
+                  body:
+                    symbol: SH.600006
+                    market: SH
+                    collected_at: '2026-11-12T07:53:32+08:00'
+                    mode: upsert
+                    data:
+                      symbol: SH.600006
+                      stock_code: '600006'
+                      stock_id: '46377058462214'
+                      price: 5.06
+                  $workers:
+                    scriptName: webhook
+                  $metadata:
+                    requestId: 7197d8e5188682111658c94435bf9d5c
+      responses:
+        '200':
+          description: 写入成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpsertEnvelope'
+              examples:
+                inserted:
+                  summary: 指标新插入、采集参数已存在、键表置 DONE
+                  value:
+                    code: 0
+                    message: OK
+                    data:
+                      usc: '600006'
+                      ftmm_symbol: SH.600006
+                      usc_source: KEY_TABLE
+                      indicator: INSERTED
+                      collect: UPDATED
+                      key: DONE
+                      run_id: 20261112-075328-9uxwal
+                      stock_id: 46377058462214
+                      dt_collect: '2026-11-12T07:53:32+08:00'
+                updated:
+                  summary: 重复推送（幂等，只覆盖同一行）
+                  value:
+                    code: 0
+                    message: OK
+                    data:
+                      usc: '600006'
+                      ftmm_symbol: SH.600006
+                      usc_source: KEY_TABLE
+                      indicator: UPDATED
+                      collect: UPDATED
+                      key: DONE
+                skippedCollect:
+                  summary: 采集参数表无该行且请求未给 stock_id → 跳过该表，其余两表照写
+                  value:
+                    code: 0
+                    message: OK
+                    data:
+                      usc: US.ZDGE
+                      ftmm_symbol: US.ZDGE
+                      usc_source: KEY_TABLE
+                      indicator: INSERTED
+                      collect: SKIPPED_NO_STOCK_ID
+                      key: DONE
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: |
+        静态 Key（SA_LIVE_ 前缀）。写接口必须额外带查询参数 `_`（毫秒时间戳，±60 秒）。
+        静态 Key 只能授权 1 个具体接口且有有效期上限。
+    signatureAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        AK/SK 签名：`META1-<算法> Credential=<AK>, Signature=<签名>`，
+        另需 `X-META-TS`（秒级时间戳）与 `X-META-Nonce`（防重放）；
+        STS 临时凭据还要带 `X-META-Token`。详见 Docs/API/OpenAPI/Auth.md。
+  responses:
+    BadRequest:
+      description: |
+        入参非法：请求体不是合法 JSON / 缺 `data` 节点 / 缺 `symbol` /
+        `mode` 不是 `upsert` / `stock_id` 不是整数。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            missingSymbol:
+              value:
+                code: 400
+                message: '实时行情快照入参非法: 缺少 symbol'
+            badMode:
+              value:
+                code: 400
+                message: '实时行情快照入参非法: mode="insert" 不支持（当前只接受 upsert）'
+    Unauthorized:
+      description: 未携带凭证或签名信息（`19001`）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            noKey:
+              value:
+                code: 19001
+                message: 未携带 API Key 或签名信息
+                request_id: C620F2756DAC8F303D982603A7739D1F
+    Forbidden:
+      description: |
+        凭证不可用：`19002` AK 不存在或 SK 不匹配；`19003` 已停用 / 已吊销 / 已过期；
+        `19009` 授权范围不含本接口。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            scopeDeny:
+              value:
+                code: 19009
+                message: 凭证未授权调用该接口
+    TooManyRequests:
+      description: 超过调用额度（`19007`）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            rateLimit:
+              value:
+                code: 19007
+                message: 调用过于频繁，请稍后重试
+    InternalError:
+      description: 写库失败（`2006`）。事务已回滚，三张表均无变更。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            writeFailed:
+              value:
+                code: 2006
+                message: '更新 cdeu.finv_quote_secu_indicator 失败: ...'
+  schemas:
+    SecuIndicatorUpsertRequest:
+      type: object
+      required: [data]
+      description: |
+        内层裸 JSON 形态。顶层 `body` 存在且含 `data` 时按 Cloudflare Worker 外壳处理，
+        服务端取 `body` 节点，其余节点（`timestamp`、`method`、`url`、`headers`、
+        `$workers`、`$metadata`）忽略。
+      properties:
+        body:
+          $ref: '#/components/schemas/SecuIndicatorUpsertRequest'
+          description: Worker 外壳的内层请求体（可选，存在时优先）。
+        timestamp:
+          type: string
+          description: 外壳字段，忽略。示例 `2026-11-11T23:53:33.211Z`。
+        method:
+          type: string
+          description: 外壳字段，忽略。
+        url:
+          type: string
+          description: 外壳字段，忽略。
+        symbol:
+          type: string
+          description: 证券键 `{市场标签}.{富途代码}`，例 `SH.600006`。大小写不敏感，入库统一大写。
+        market:
+          type: string
+          description: 市场标签，例 `SH`。
+        code:
+          type: string
+          description: 裸代码，例 `600006`。
+        page_type:
+          type: string
+          description: 页面类型，仅用于日志，不落库。
+        collected_at:
+          type: string
+          format: date-time
+          description: 采集时刻（RFC3339）。写入指标表 `dt_collect`。
+        source_url:
+          type: string
+          description: 来源链接。写入指标表 `secu_url` 与键表 `url`。
+        run_id:
+          type: string
+          description: 采集批次号。写入采集参数表 `remark` 便于溯源。
+        idempotency_key:
+          type: string
+          description: 幂等键，当前只记日志（幂等由 `usc` 主键天然保证）。
+        mode:
+          type: string
+          enum: [upsert]
+          description: 只接受 `upsert`，其它值返回 400。
+        data:
+          $ref: '#/components/schemas/SecuIndicatorPayload'
+    SecuIndicatorPayload:
+      type: object
+      description: |
+        指标本体。落 `cdeu.finv_quote_secu_indicator`；其中 `market_type` /
+        `market_code` / `instrument_type` / `sub_instrument_type` / `stock_code` 同时用于
+        `futu.finv_futu_quote_collect`。
+
+        指标表无对应列的字段（`is_option`、`is_futures`、`is_plate`、`is_etf_theme`、
+        `first_seen_at`、`updated_at`、`underlying_stock_raw`、`spark_info_raw`、
+        `kcb_stock_static_raw`、`en_name`、`page_type`）**不处理**。
+      properties:
+        symbol:
+          type: string
+          description: 证券键，必填（顶层没给时以此为准）。
+        market:
+          type: string
+          description: 市场标签。
+        stock_code:
+          type: string
+          description: 裸代码，写入采集参数表 `futu_symbol`。
+        stock_id:
+          description: 富途证券 id，字符串或数字都接受。写入指标表与采集参数表 `stock_id`、键表 `stock_id`。
+          oneOf:
+            - type: string
+              pattern: '^[0-9]+$'
+            - type: integer
+              format: int64
+        name:
+          type: string
+          description: 证券名称。
+        lot_size:
+          type: integer
+          description: 每手股数。
+        spread_code:
+          type: string
+          description: 价差档位码。
+        ex_type:
+          type: integer
+          description: 交易所类型。
+        price_accuracy:
+          type: integer
+          description: 价格小数位。
+        volume_precision:
+          type: integer
+          description: 成交量精度。
+        order_volume_precision:
+          type: integer
+          description: 委托量精度。
+        price:
+          type: number
+          description: 最新价。
+        change:
+          type: number
+          description: 涨跌额（落列 `change_price`）。
+        change_ratio:
+          type: number
+          description: 涨跌幅（%）。
+        price_direct:
+          type: string
+          description: 涨跌方向，例 `down`。
+        price_open:
+          type: number
+          description: 开盘价。
+        price_highest:
+          type: number
+          description: 最高价。
+        price_lowest:
+          type: number
+          description: 最低价。
+        price_last_close:
+          type: number
+          description: 昨收价。
+        price_nominal:
+          type: number
+          description: 名义价格。
+        hight_direct:
+          type: string
+          description: 最高价方向（列名沿用库内既有拼写）。
+        open_direct:
+          type: string
+          description: 开盘方向。
+        low_direct:
+          type: string
+          description: 最低价方向。
+        volume:
+          type: number
+          description: 成交量。
+        turnover:
+          type: number
+          description: 成交额。
+        ratio_volume:
+          type: number
+          description: 量比。
+        ratio_turnover:
+          type: number
+          description: 换手率。
+        amplitude_price:
+          type: number
+          description: 振幅。
+        price_average:
+          type: number
+          description: 均价。
+        change_speed_price:
+          type: number
+          description: 涨速。
+        ratio_bid_ask:
+          type: number
+          description: 委比。
+        total_shares:
+          type: number
+          description: 总股本。
+        total_market_cap:
+          type: number
+          description: 总市值。
+        outstanding_shares:
+          type: number
+          description: 流通股本。
+        outstanding_market_cap:
+          type: number
+          description: 流通市值。
+        price_highest_52week:
+          type: number
+          description: 52 周最高（落列 `price_highest_week52`）。
+        price_lowest_52week:
+          type: number
+          description: 52 周最低（落列 `price_lowest_week52`）。
+        price_highest_history:
+          type: number
+          description: 历史最高价。
+        price_lowest_history:
+          type: number
+          description: 历史最低价。
+        volume_sold:
+          type: number
+          description: 外盘量。
+        volume_bought:
+          type: number
+          description: 内盘量。
+        price_limit_up:
+          type: number
+          description: 涨停价。
+        price_limit_down:
+          type: number
+          description: 跌停价。
+        kcb_stock_static_volume:
+          type: number
+          description: 科创板静态量（落列 `kcb_static_volume`）。
+        kcb_stock_static_turnover:
+          type: number
+          description: 科创板静态额（落列 `kcb_static_turnover`）。
+        pe_ttm:
+          type: number
+          description: 市盈率 TTM。
+        pe_lyr:
+          type: number
+          description: 市盈率 LYR。
+        pb_ratio:
+          type: number
+          description: 市净率。
+        eps_ttm:
+          type: number
+          description: 每股收益 TTM。
+        eps_lyr:
+          type: number
+          description: 每股收益 LYR。
+        ps_ttm:
+          type: number
+          description: 市销率 TTM。
+        ps_lyr:
+          type: number
+          description: 市销率 LYR。
+        time:
+          type: integer
+          format: int64
+          description: 行情时间戳（毫秒，落列 `ts`）。
+        market_status:
+          type: integer
+          description: 市场状态码。
+        market_status_text:
+          type: string
+          description: 市场状态文案，例 `已收盘`。
+        delay_time:
+          type: integer
+          description: 行情延迟秒数。
+        exchange_data_time_ms:
+          type: integer
+          format: int64
+          description: 交易所数据时间（毫秒，落列 `ts_exchange_dt`）。
+        server_send_to_client_time_ms:
+          type: integer
+          format: int64
+          description: 服务端下发时间（毫秒，落列 `ts_server_send_to_client`）。
+        server_recv_from_exchange_time_ms:
+          type: integer
+          format: int64
+          description: 服务端收交易所数据时间（毫秒，落列 `ts_server_recv_from_exchange`）。
+        source_url:
+          type: string
+          description: 来源链接（落列 `secu_url`）。
+        source_channel:
+          type: string
+          description: 采集通道，例 `http_requests`。
+        collected_at:
+          type: string
+          format: date-time
+          description: 采集时刻（落列 `dt_collect`）。
+        update_count:
+          type: integer
+          description: 更新次数（落列 `count_update`）。
+        unmapped_json:
+          type: string
+          description: 上游未映射字段的原始 JSON（落列 `json_unmapped`）。
+        market_type:
+          type: integer
+          description: 富途 market_type。缺失按市场标签推（HK=1 / US=2 / A 股=4 / FX=11 / CC=17）。
+        market_code:
+          type: integer
+          description: 富途 market_code。缺失按同市场已有行众数补，仍取不到则跳过采集参数表。
+        instrument_type:
+          type: integer
+          description: 富途品种类型（`12` 与 `3` 都按股票处理）。
+        sub_instrument_type:
+          type: integer
+          description: 富途子类型。缺失按 `instrument_type * 1000 + 2` 推。
+    UpsertEnvelope:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+          description: 业务码，成功固定 0。
+        message:
+          type: string
+          description: 固定 `OK`。
+        data:
+          $ref: '#/components/schemas/UpsertResult'
+    UpsertResult:
+      type: object
+      description: 写库结果。
+      properties:
+        usc:
+          type: string
+          description: 实际使用的统一证券代码。
+        ftmm_symbol:
+          type: string
+          description: 归一后的证券键（大写）。
+        usc_source:
+          type: string
+          enum: [KEY_TABLE, INDICATOR, COLLECT, FTMM_SYMBOL]
+          description: |
+            usc 判定来源：键表 / 指标表按 ftmm_symbol 反查 / 采集参数表按 ftmm_symbol 反查 /
+            以 ftmm_symbol 兜底。出现 `FTMM_SYMBOL` 说明该证券此前未登记，建议采集端告警。
+        indicator:
+          type: string
+          enum: [INSERTED, UPDATED]
+          description: 指标表动作。
+        collect:
+          type: string
+          enum: [INSERTED, UPDATED, SKIPPED_NO_STOCK_ID, SKIPPED_NO_MARKET_CODE]
+          description: 采集参数表动作。两个 `SKIPPED_*` 不视为失败。
+        key:
+          type: string
+          enum: [DONE, NOT_FOUND]
+          description: 键表动作。`NOT_FOUND` 表示键表无该证券，其余两表照写。
+        run_id:
+          type: string
+          description: 回显请求的采集批次号。
+        stock_id:
+          type: integer
+          format: int64
+          description: 回显解析出的 stock_id（请求未给则省略）。
+        dt_collect:
+          type: string
+          format: date-time
+          description: 回显解析出的采集时刻（请求未给则省略）。
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: integer
+          description: 业务错误码（400 / 19001~19009 / 2006）。
+        message:
+          type: string
+          description: 可直接展示给调用方的错误描述。
+        request_id:
+          type: string
+          description: 32 位大写十六进制，与审计表 `request_id` 同值（仅鉴权失败与 5xx 带）。

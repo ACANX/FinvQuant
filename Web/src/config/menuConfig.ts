@@ -1,0 +1,527 @@
+// 前端菜单注册表：一级 = 系统（顶栏切换），其下二/三/四级菜单。
+//
+// 设计依据：Docs/Refactor/2610-012-WebMenuFourLevelRefactor.md
+// 参考实现：D:\Code\JavaCode\Deamon\Web\WebCMS\src\config\menuConfig.js
+//
+// 约定：
+// 1. 内部 key 稳定不变（finvquant / cms），显示名与 CMS 一级菜单一致（金融投资 / 内容管理）；
+// 2. 分组节点不填 path（点击只展开/折叠），叶子节点必须有 path；
+// 3. 叶子 key 与改造前 App.vue 中 menuItems 的 key 保持一致，避免文档索引二次改动；
+// 4. 新增菜单只改本文件，无需改动 App.vue 与菜单组件。
+// 5. icon 必须是 @mdi/font 里**真实存在**的名字：写错不会报错，只会静默不显示图标。
+//    新增图标前先自查（示例）：
+//      grep -c '\.mdi-chart-multiline::before' Web/node_modules/@mdi/font/css/materialdesignicons.css
+//    返回 1 才说明可用；整份菜单图标可用 `node -e` 或脚本批量比对，详见
+//    Docs/CHANGELOG「修复 二级菜单行情缺少图标」。
+
+/** 菜单节点（分组或叶子） */
+export interface MenuNode {
+  /** 同级唯一；展开状态用「父链 key」拼接后使用 */
+  key: string
+  /** 简体中文标题 */
+  title: string
+  /** 可选副标题（预留字段，本轮不填内容） */
+  subtitle?: string
+  /** mdi 图标名；各层级均保留图标 */
+  icon?: string
+  /** 叶子路由；分组节点不填 */
+  path?: string
+  /** 子节点：有 children 即为分组节点 */
+  children?: MenuNode[]
+}
+
+/** 一级系统（顶栏切换器的一项） */
+export interface MenuSystem {
+  /** 稳定内部 key，用于展开状态持久化与系统识别 */
+  key: string
+  /** 顶栏与抽屉标题显示名（与 CMS 一级菜单同名） */
+  title: string
+  /** 可选副标题（顶栏下拉与抽屉标题展示） */
+  subtitle?: string
+  icon: string
+  /** 系统落地路由（首次进入该系统时的目标地址） */
+  path: string
+  /** 系统归属前缀：命中任一前缀即属于该系统（按最长前缀匹配） */
+  match: string[]
+  children: MenuNode[]
+}
+
+/** 金融投资（本项目已实现的全部业务，对应 CMS 一级菜单「金融投资」） */
+const finvQuantMenu: MenuNode[] = [
+  { key: 'dashboard', title: '仪表盘', icon: 'mdi-view-dashboard', path: '/Dashboard' },
+  {
+    key: 'metadata',
+    title: '元数据',
+    icon: 'mdi-database-cog',
+    children: [
+      {
+        key: 'meta-maintenance',
+        title: 'Finv业务元数据',
+        icon: 'mdi-database-search',
+        children: [
+          { key: 'meta-exchange', title: '交易所信息管理', icon: 'mdi-office-building', path: '/Meta/Finv/MetaData/Exchange' },
+          { key: 'meta-market', title: '市场信息管理', icon: 'mdi-chart-areaspline', path: '/Meta/Finv/MetaData/Market' },
+          { key: 'meta-security', title: '规范证券信息管理', icon: 'mdi-tag-multiple', path: '/Meta/Finv/MetaData/Security' },
+        ],
+      },
+    ],
+  },
+  { key: 'config-manage', title: '系统配置', icon: 'mdi-cog-outline', path: '/Meta/Finv/Quant/Config' },
+  {
+    // 「开放平台」二级分组（需求 11171 建立为「系统管理」，11172 改名为「开放平台」）。
+    // 本身不可点，也不直接挂业务叶子；叶子按功能拆到三级分组下（需求 11173）：
+    //   接入管理 → 调用方 / 凭证      （open.open_api_client / open.open_api_credential）
+    //   运行监控 → 调用审计           （open.open_api_invoke_log）
+    //   安全设置 → 鉴权配置           （sys.sys_config 19xxx）
+    key: 'sys-manage',
+    title: '开放平台',
+    icon: 'mdi-shield-lock-outline',
+    children: [
+      {
+        key: 'openapi-access',
+        title: '接入管理',
+        icon: 'mdi-lan-connect',
+        children: [
+          {
+            key: 'openapi-client',
+            title: 'OpenAPI 调用方',
+            icon: 'mdi-account-key-outline',
+            path: '/Meta/Finv/OpenAPI/Client',
+          },
+          {
+            key: 'openapi-credential',
+            title: 'OpenAPI 凭证',
+            icon: 'mdi-key-chain',
+            path: '/Meta/Finv/OpenAPI/Credential',
+          },
+        ],
+      },
+      {
+        key: 'openapi-monitor',
+        title: '运行监控',
+        icon: 'mdi-chart-timeline-variant',
+        children: [
+          {
+            key: 'openapi-invoke-log',
+            title: 'OpenAPI 调用审计',
+            icon: 'mdi-text-box-search-outline',
+            path: '/Meta/Finv/OpenAPI/InvokeLog',
+          },
+        ],
+      },
+      {
+        key: 'openapi-security',
+        title: '安全设置',
+        icon: 'mdi-shield-key-outline',
+        children: [
+          {
+            key: 'openapi-settings',
+            title: 'OpenAPI 鉴权配置',
+            icon: 'mdi-tune-variant',
+            path: '/Meta/Finv/OpenAPI/Settings',
+          },
+          {
+            // 需求 11175：19005 是 32 字节 Base64，手填易错，且换钥要连带重加密，
+            // 因此单独给一页（生成/备份/轮换/兜底密钥）。
+            key: 'openapi-secret',
+            title: 'OpenAPI 密钥配置',
+            icon: 'mdi-shield-key-outline',
+            path: '/Meta/Finv/OpenAPI/Secret',
+          },
+          {
+            // 需求 11223：接口清单（open.open_api_endpoint）——给授权范围下拉提供选项、
+            // 给审计报表提供 api_code 锚点；只读目录，不允许在页面新增/改路径。
+            key: 'openapi-endpoint',
+            title: 'OpenAPI 接口清单',
+            icon: 'mdi-api',
+            path: '/Meta/Finv/OpenAPI/Endpoint',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    // 「行情」二级菜单（分组前缀 /Meta/Finv/Quote/），与「数据采集」同级；
+    // 其下两个三级分组按加工阶段划分：
+    //   收剔导传ETL（/Meta/Finv/Quote/Cdeu/）—— 采集→去重→导出→上传→复核的 ETL 链路页面
+    //   历史行情（/Meta/Finv/Quote/His/）   —— 面向使用者的历史行情查询
+    key: 'quote',
+    title: '行情',
+    icon: 'mdi-chart-multiline',
+    children: [
+      {
+        key: 'quote-cdeu',
+        title: '收剔导传ETL',
+        icon: 'mdi-transit-connection-variant',
+        children: [
+          // 需求 10861：K线数据查询/统计前置到本分组的叶子最前（原位于清点与面板之后）。
+          { key: 'dedup-kline-query', title: 'K线数据查询', icon: 'mdi-table-search', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineQuery' },
+          { key: 'dedup-kline-stats', title: 'K线数据统计', icon: 'mdi-chart-box-outline', path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineStats' },
+          { key: 'cdeu-his-month-exist-secu-stat', title: '历史月份存量数据清点', icon: 'mdi-database-eye-outline', path: '/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat' },
+          // 需求 10845：从「数据采集 → 行情数据归档」移入并改名为「CDEU 工作流控制面板」。
+          { key: 'dedup-export-cdeu', title: 'CDEU 工作流控制面板', icon: 'mdi-sitemap-outline', path: '/Meta/Finv/Quote/Cdeu/CdeuOverview' },
+          // 需求 10858：从「数据采集 → 行情数据归档」整批移入 5 个归档运维页面。
+          { key: 'dedup-export-job', title: '文件导出', icon: 'mdi-clipboard-list-outline', path: '/Meta/Finv/Quote/DeDup/Export/Job' },
+          { key: 'dedup-export-file', title: '文件上传', icon: 'mdi-file-cloud-outline', path: '/Meta/Finv/Quote/DeDup/Export/File' },
+          { key: 'dedup-export-stats', title: '归档统计与预算', icon: 'mdi-chart-box-multiple-outline', path: '/Meta/Finv/Quote/DeDup/Export/Stats' },
+          { key: 'dedup-export-config', title: '归档主数据与规则', icon: 'mdi-tune-variant', path: '/Meta/Finv/Quote/DeDup/Export/Config' },
+          { key: 'cdeu-usc-patch', title: '过时USC映射到新USC', icon: 'mdi-swap-horizontal-bold', path: '/Meta/Finv/Quote/Cdeu/Usc/Patch' },
+          // 需求 10952：日K线数据同步（moomoo → cdeu.finv_quote_secu_kline_day）
+          { key: 'cdeu-daykline-sync', title: '日K线数据同步', icon: 'mdi-candle', path: '/Meta/Finv/Quote/Cdeu/DayKlineSync' },
+          { key: 'dedup-export-log', title: '归档日志与补丁', icon: 'mdi-text-box-search-outline', path: '/Meta/Finv/Quote/DeDup/Export/Log' },
+          // CDEU自动化（需求 10864 新增，10865 由占位分组改为叶子，指向占位页路由）。
+          { key: 'cdeu-automation', title: 'CDEU自动化', icon: 'mdi-robot-happy-outline', path: '/Meta/Finv/Quote/Cdeu/Automation' },
+          // 需求 11254：采集参数（futu.finv_futu_quote_collect）查询与单行维护，
+          // 查询时左关联 public.finv_security 带出证券名称 / 分类 / 子类 / 币种 / 交易所 / 市场。
+          {
+            key: 'cdeu-collect-param',
+            title: '采集参数',
+            icon: 'mdi-tune-variant',
+            path: '/Meta/Finv/Quote/Cdeu/CollectParam',
+          },
+        ],
+      },
+      {
+        key: 'quote-history',
+        title: '历史行情',
+        icon: 'mdi-chart-box',
+        children: [
+          { key: 'quote-query', title: '历史行情查询', icon: 'mdi-chart-line', path: '/Meta/Finv/Quote/History/HistoryQuoteQuery' },
+          // 需求 10844：从「元数据 → Finv业务元数据」移入，作为本分组叶子（key 保持稳定）。
+          { key: 'meta-import', title: '历史行情数据导入', icon: 'mdi-database-import', path: '/Meta/Finv/Quote/History/HistoryQuoteImport' },
+        ],
+      },
+      {
+        // 需求 10962：紧随「历史行情」之后，展示证券最新一张行情快照
+        // （cdeu.finv_quote_secu_realtime，主键 usc，一行一证券）。
+        key: 'quote-realtime',
+        title: '实时行情',
+        icon: 'mdi-access-point',
+        children: [
+          {
+            key: 'quote-realtime-ftstockrank',
+            title: '证券行情排行',
+            icon: 'mdi-chart-timeline-variant',
+            path: '/Meta/Finv/Quote/Realtime/FTStockRank',
+          },
+          // 需求 11322：期货行情排行（cdeu.finv_quote_realtime_future，主键 stock_id）
+          {
+            key: 'quote-realtime-ftfuture-rank',
+            title: '期货行情排行',
+            icon: 'mdi-finance',
+            path: '/Meta/Finv/Quote/Realtime/FTFutureRank',
+          },
+          // 需求 11323：加密货币行情排行（cdeu.finv_quote_secu_realtime_crypto，主键 usc）
+          {
+            key: 'quote-realtime-ftcrypto-rank',
+            title: '加密货币行情排行',
+            icon: 'mdi-currency-btc',
+            path: '/Meta/Finv/Quote/Realtime/FTCryptoRank',
+          },
+          // 需求 11159：外汇汇率（原「缺省汇率」）前移到采集类菜单之前 ——
+          // 汇率是快照里人民币计价字段的前提。采集类菜单本身已于需求 11281 迁到「行情采集」分组。
+          {
+            key: 'quote-realtime-fxcer-overview',
+            title: '外汇汇率',
+            icon: 'mdi-cash-sync',
+            path: '/Meta/Finv/Quote/Realtime/FXCEROverview',
+          },
+          // 需求 11251（路由 11252 改名）：证券指标表（cdeu.finv_quote_secu_indicator，132 列）只读浏览，
+          // 列分组 / 列选择 / 行详情三层读法；接口 /Meta/Finv/Quote/Secu/Indicator/{Columns,Page}。
+          {
+            key: 'quote-realtime-secu-indicator',
+            title: '证券指标',
+            icon: 'mdi-table-large',
+            path: '/Meta/Finv/Quote/Realtime/SecuIndicator',
+          },
+        ],
+      },
+      // 需求 11281：新增「行情采集」三级分组（与「实时行情」同级、紧随其后），
+      // 承载"把数据采进来"的菜单；首位是原属「实时行情」的「行情快照同步」。
+      {
+        key: 'quote-collect',
+        title: '行情采集',
+        icon: 'mdi-cloud-download-outline',
+        children: [
+          // 需求 11283：只读汇总两张配置表与最近一次运行结果，排在本分组第一位。
+          {
+            key: 'quote-collect-overview',
+            title: '状态总览',
+            icon: 'mdi-view-dashboard-outline',
+            path: '/Meta/Finv/Quote/RealtimeCollect/Overview',
+          },
+          // 需求 10982 / 11158：手动触发列表采集并查看逐页日志（菜单名去掉「手动」）。
+          // 需求 11255：路由由 FTStockQuoteSnapshotSync 改为 SecuQuoteSnapshotSync（后端接口路径不变）。
+          // 需求 11281：随菜单移入「行情采集」，路由同步迁到 /Meta/Finv/Quote/RealtimeCollect/…；
+          // 菜单 key 保持 quote-realtime-snapshot-sync 不变（导航展开状态按父链持久化，
+          // 改 key 只会让旧状态失效，没有收益）。
+          {
+            key: 'quote-realtime-snapshot-sync',
+            title: '行情快照同步',
+            icon: 'mdi-cloud-sync-outline',
+            path: '/Meta/Finv/Quote/RealtimeCollect/SecuQuoteSnapshotSync',
+          },
+          // 需求 10995 / 11160：usc 补全后仍为空的快照行（待采证券），菜单改名「待采证券录入」。
+          {
+            key: 'quote-realtime-pending-secu',
+            title: '待采证券录入',
+            icon: 'mdi-database-plus-outline',
+            path: '/Meta/Finv/Quote/RealtimeCollect/PendingSecu',
+          },
+          // 需求 11161：证券参数补全 —— 按目标表拆成「规范证券参数」/「采集参数」两个 Tab，
+          // 原「待采证券录入」页表格里的「录入」按钮整体迁到这里。
+          {
+            key: 'quote-realtime-secu-param-complete',
+            title: '证券参数补全',
+            icon: 'mdi-table-cog',
+            path: '/Meta/Finv/Quote/RealtimeCollect/SecuParamComplete',
+          },
+          // 需求 11042/11043/11044：紧跟「缺省汇率」，把 Supabase 证券键表分批增量同步到
+          // futu.finv_futu_secu_key；只由本页按钮手动触发，源表名可配（系统配置 20014）。
+          {
+            key: 'quote-realtime-secu-param-sync',
+            title: '证券参数同步',
+            icon: 'mdi-database-sync-outline',
+            path: '/Meta/Finv/Quote/RealtimeCollect/SecuParamSync',
+          },
+          // 需求 11072：USC 映射规则（规则层/条目层维护 + 预演 diff + 异步应用 + 审计日志）。
+          // 结果表 futu.finv_futu_usc_map 由本页「预演 → 应用」写入，键表 usc 随之回写。
+          {
+            key: 'quote-realtime-usc-mapping',
+            title: 'USC 映射规则',
+            icon: 'mdi-transit-connection-variant',
+            path: '/Meta/Finv/Quote/RealtimeCollect/UscMapping',
+          },
+          // 需求 11344：五日分钟行情采集配置 —— Supabase public.finv_quote_secu_ft 的只读分页浏览，
+          // 默认每页 15 条；列元数据由服务端下发（21 列），本地库无副本。
+          {
+            key: 'quote-collect-five-day-ft',
+            title: '五日分钟行情采集配置',
+            icon: 'mdi-calendar-clock',
+            path: '/Meta/Finv/Quote/RealtimeCollect/FiveDayFt',
+          },
+          // 需求 11343：行情采集系统配置 —— sys.sys_config 20013–20018 中与实时行情采集相关的 5 项
+          // （Supabase 连接/源表名、USC 规则 cron、moomoo 凭据/代理），只查 + 改；
+          // 敏感项（20013/20016）列表掩码 + 👁 明文（后端 base64 返回）。旧入口本期保留双入口。
+          {
+            key: 'quote-collect-sysconfig',
+            title: '行情采集系统配置',
+            icon: 'mdi-cog-sync-outline',
+            path: '/Meta/Finv/Quote/RealtimeCollect/CollectSysConfig',
+          },
+        ],
+      },
+      // 需求 10860：从「数据采集」移入，作为「行情」下第三个三级分组（原「数据采集」随之删除）。
+      {
+        key: 'quote-archive',
+        title: '行情数据归档',
+        icon: 'mdi-database-export-outline',
+        children: [
+          { key: 'dedup-export-overview', title: '归档监控总览', icon: 'mdi-monitor-dashboard', path: '/Meta/Finv/Quote/DeDup/Export/Overview' },
+          { key: 'dedup-export-chain', title: '端到端链路', icon: 'mdi-transit-connection-variant', path: '/Meta/Finv/Quote/DeDup/Export/Chain' },
+        ],
+      },
+    ],
+  },
+  {
+    // 「量化」二级分组（需求 10841 建立；10843 加两个三级子菜单；
+    // 10846/10847 分别把配置类叶子与回测类叶子迁入 MVP配置 / 回测）。
+    // 仍留在顶层的量化相关节点：策略管理、仿真数据验证、模拟盘验证、实盘仿真验证、实盘交易。
+    key: 'quant',
+    title: '量化',
+    icon: 'mdi-sigma',
+    children: [
+      {
+        // MVP配置（需求 10843 建立占位，10846 迁入 5 个原二级叶子：环境/模板/账户/资金/持仓管理）。
+        key: 'quant-mvp-config',
+        title: 'MVP配置',
+        icon: 'mdi-playlist-edit',
+        children: [
+          { key: 'environment', title: '环境管理', icon: 'mdi-application-cog-outline', path: '/Meta/Finv/Quant/Environment' },
+          { key: 'template', title: '模板管理', icon: 'mdi-content-copy', path: '/Meta/Finv/Quant/Template' },
+          { key: 'account', title: '账户管理', icon: 'mdi-account-cog-outline', path: '/Meta/Finv/Quant/Account' },
+          { key: 'fund', title: '资金管理', icon: 'mdi-cash-multiple', path: '/Meta/Finv/Quant/Fund' },
+          { key: 'position', title: '持仓管理', icon: 'mdi-briefcase-variant-outline', path: '/Meta/Finv/Quant/Position' },
+        ],
+      },
+      {
+        // 策略（需求 10850）：迁入原二级叶子「策略管理」，位置在「回测」之前。
+        key: 'quant-strategy',
+        title: '策略',
+        icon: 'mdi-chess-knight',
+        children: [
+          { key: 'strategy', title: '策略管理', icon: 'mdi-sitemap-outline', path: '/Meta/Finv/Quant/Strategy' },
+        ],
+      },
+      {
+        // 回测（需求 10843 建立占位，10847 迁入「黄金期货合约回测验证」与「回测分析」）。
+        key: 'quant-backtest-menu',
+        title: '回测',
+        icon: 'mdi-history',
+        children: [
+          { key: 'backtest-gold-futures', title: '黄金期货合约回测验证', icon: 'mdi-chart-bell-curve', path: '/Meta/Finv/Quant/Backtest/GoldFutures' },
+          { key: 'backtest-analysis', title: '回测分析', icon: 'mdi-chart-timeline-variant', path: '/Meta/Finv/Quant/Backtest/Analysis' },
+        ],
+      },
+      {
+        // 验证（需求 10848）：迁入 3 个原二级叶子（仿真数据验证 / 模拟盘验证 / 实盘仿真验证）。
+        key: 'quant-verify',
+        title: '验证',
+        icon: 'mdi-shield-check-outline',
+        children: [
+          { key: 'simulation-data', title: '仿真数据验证', icon: 'mdi-database-sync-outline', path: '/Meta/Finv/Quant/Simulation/Data' },
+          { key: 'simulation-paper', title: '模拟盘验证', icon: 'mdi-account-cash-outline', path: '/Meta/Finv/Quant/Simulation/Paper' },
+          { key: 'simulation-live-sim', title: '实盘仿真验证', icon: 'mdi-robot-outline', path: '/Meta/Finv/Quant/Simulation/LiveSim' },
+        ],
+      },
+      {
+        // 交易（需求 10849 建立，10851 把标题由「实盘」改为「交易」；key 保持稳定不改）。
+        key: 'quant-live',
+        title: '交易',
+        icon: 'mdi-trending-up',
+        children: [
+          { key: 'live-trading', title: '实盘交易', icon: 'mdi-cash-register', path: '/Meta/Finv/Quant/LiveTrading' },
+        ],
+      },
+    ],
+  },
+  {
+    // 「备份与恢复」二级分组（需求 10872 建立；BRS = Backup & Restore Service）。
+    // 后端 internal/meta/finv/brs 已实现调度（cron 39001）、表级 pg_dump 备份与 S3 兼容
+    // 对象存储上传（39002），目前尚未开放 HTTP API，故本轮前端先落占位页；
+    // 分组前缀 /Meta/Finv/Brs/，后续 brs 服务相关菜单在此二级分组下继续追加。
+    key: 'brs',
+    title: '备份与恢复',
+    icon: 'mdi-backup-restore',
+    children: [
+      {
+        // 备份管理（三级分组）：备份范围登记、备份产物与记录、对象存储上传配置、
+        // 调度配置、手动触发备份并实时查看进度与日志（与定时任务共用同一执行链）。
+        key: 'brs-manage',
+        title: '备份管理',
+        icon: 'mdi-content-save-cog-outline',
+        children: [
+          { key: 'brs-table', title: '备份登记维护', icon: 'mdi-table-cog', path: '/Meta/BRS/Backup/Finv/Table' },
+          { key: 'brs-record', title: '备份记录与产物', icon: 'mdi-file-clock-outline', path: '/Meta/BRS/Backup/Finv/Record' },
+          { key: 'brs-storage', title: '对象存储配置', icon: 'mdi-cloud-cog-outline', path: '/Meta/BRS/Backup/Finv/OSSConfig' },
+          { key: 'brs-schedule', title: '备份调度配置', icon: 'mdi-calendar-clock', path: '/Meta/BRS/Backup/Finv/Schedule' },
+          { key: 'brs-run', title: '小表全量备份', icon: 'mdi-database-export', path: '/Meta/BRS/Backup/Finv/Run' },
+          { key: 'brs-slice', title: '大表增量备份', icon: 'mdi-table-large', path: '/Meta/BRS/Backup/Finv/Slice' },
+        ],
+      },
+      {
+        // 恢复管理（三级分组）：按备份产物选择表做恢复（pg_restore）。
+        key: 'brs-restore',
+        title: '恢复管理',
+        icon: 'mdi-restore',
+        children: [
+          { key: 'brs-restore-run', title: '数据恢复', icon: 'mdi-database-arrow-left', path: '/Meta/BRS/Restore/Run' },
+        ],
+      },
+    ],
+  },
+]
+
+/** 内容管理（CMS，本轮仅占位，业务菜单后续整合） */
+const cmsMenu: MenuNode[] = [
+  { key: 'cms-home', title: '内容管理控制台', icon: 'mdi-view-dashboard-outline', path: '/Meta/CMS' },
+]
+
+/** 一级系统注册表：新增系统只在此数组追加一项 */
+export const menuSystems: MenuSystem[] = [
+  {
+    key: 'finvquant',
+    title: '金融投资',
+    subtitle: '策略回测量化交易',
+    icon: 'mdi-finance',
+    path: '/Meta/Finv',
+    // /Dashboard 与存量小写 /meta/* 路由同样归属金融投资
+    match: ['/Meta/Finv', '/Dashboard', '/meta/'],
+    children: finvQuantMenu,
+  },
+  {
+    key: 'cms',
+    title: '内容管理',
+    subtitle: 'CMS 内容管理系统',
+    icon: 'mdi-laptop',
+    path: '/Meta/CMS',
+    match: ['/Meta/CMS'],
+    children: cmsMenu,
+  },
+]
+
+/** 叶子判定：有 path 且无子节点 */
+export function isMenuLeaf(node: MenuNode): boolean {
+  return Boolean(node.path) && !(node.children && node.children.length > 0)
+}
+
+/**
+ * 按路由反查所属系统（最长前缀匹配）。
+ * 未命中任何前缀时回落到首个系统（金融投资），并输出告警便于排查配置遗漏。
+ */
+export function resolveSystem(path: string): MenuSystem {
+  let matched: MenuSystem | null = null
+  let matchedLength = -1
+  for (const system of menuSystems) {
+    for (const prefix of system.match) {
+      const normalized = prefix.endsWith('/') ? prefix : `${prefix}/`
+      if (path === prefix || path.startsWith(normalized)) {
+        if (prefix.length > matchedLength) {
+          matched = system
+          matchedLength = prefix.length
+        }
+      }
+    }
+  }
+  if (matched) return matched
+  console.warn(`[menu] 路由 ${path} 未匹配任何系统前缀，已回落到 ${menuSystems[0].key}`)
+  return menuSystems[0]
+}
+
+/** 返回从系统根到目标叶子的节点链（系统节点在最前）；未命中返回空数组 */
+export function findMenuTrail(path: string): MenuNode[] {
+  const system = resolveSystem(path)
+  const trail: MenuNode[] = []
+
+  function walk(nodes: MenuNode[]): boolean {
+    for (const node of nodes) {
+      trail.push(node)
+      if (isMenuLeaf(node)) {
+        if (node.path === path) return true
+      } else if (node.children && walk(node.children)) {
+        return true
+      }
+      trail.pop()
+    }
+    return false
+  }
+
+  if (!walk(system.children)) return []
+  return [system, ...trail]
+}
+
+/** 返回某节点下第一个叶子的路由（用于面包屑分组点击） */
+export function findFirstLeaf(node: MenuNode): string | undefined {
+  if (isMenuLeaf(node)) return node.path
+  for (const child of node.children ?? []) {
+    const found = findFirstLeaf(child)
+    if (found) return found
+  }
+  return undefined
+}
+
+/**
+ * 由节点链计算需要展开的分组 key（父链拼接，不含叶子）。
+ * 例：['finvquant', 'data-collection', 'quote-archive'] →
+ *   ['finvquant', 'finvquant.data-collection', 'finvquant.data-collection.quote-archive']
+ */
+export function trailToOpenKeys(trail: MenuNode[]): string[] {
+  const keys: string[] = []
+  let parent = ''
+  for (const node of trail) {
+    const current = parent ? `${parent}.${node.key}` : node.key
+    if (!isMenuLeaf(node)) keys.push(current)
+    parent = current
+  }
+  return keys
+}

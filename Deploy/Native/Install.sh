@@ -3,15 +3,26 @@
 # FinvQuant Native 安装脚本（宿主直装，不使用容器）
 #
 # 适用：Debian 12+ / Ubuntu 22.04+（systemd），root 执行
-# 作用：装依赖 → 建用户与目录 → 创建数据库与角色 → 安装二进制与迁移
-#       → 写入环境变量 → 注册并启动 systemd 服务 → 健康检查
-# 特性：幂等（重复执行只补齐缺失项，不覆盖已有的 /etc/finvquant/finvquant.env）
+# 作用：装依赖 → 建用户与目录 → 创建数据库与角色 → 安装二进制、迁移脚本、
+#       部署脚本与环境变量文件到统一安装根目录 → 注册并启动 systemd 服务 → 健康检查
+# 特性：幂等（重复执行只补齐缺失项，不覆盖已有的 finvquant.env）
+#
+# 安装根目录：/data/App/FinvQuant（可用 --prefix 或 FINVQ_PREFIX 覆盖），布局：
+#   <PREFIX>/bin/finvquant          二进制（另建软链 /usr/local/bin/finvquant）
+#   <PREFIX>/Deploy/Migrations/     数据库迁移脚本（与仓库结构一致，FINV_MIGRATIONS_DIR 指向此目录）
+#   <PREFIX>/finvquant.env          核心配置（环境变量，权限 600）
+#   <PREFIX>/Deploy/                部署脚本与部署文件（Install/Upgrade/Uninstall、unit、模板、手册）
+#   <PREFIX>/Backup/                数据库逻辑备份（升级脚本写入）
+#   <PREFIX>/Export/                行情归档导出目录（与容器方式一致）
+#   <PREFIX>/Log/                   服务日志（FINV_LOG_DIR；10MB 切分、按日 tar.gz 归档）
+#   /etc/systemd/system/finvquant.service   systemd unit（由 <PREFIX>/Deploy 的模板渲染后注册）
 #
 # 用法：
 #   sudo ./Install.sh                     # 全量安装
 #   sudo ./Install.sh --skip-db           # 跳过 PostgreSQL 安装与建库
 #   sudo ./Install.sh --skip-redis        # 跳过 Redis 安装
 #   sudo ./Install.sh --binary /path/to/finvquant   # 指定二进制路径
+#   sudo ./Install.sh --prefix /opt/FinvQuant        # 装到其它目录（默认 /data/App/FinvQuant）
 #
 # 退出码：0 成功；非 0 失败（已在对应步骤打印原因）
 # =====================================================================
@@ -19,11 +30,26 @@ set -euo pipefail
 
 APP_USER="finvquant"
 APP_GROUP="finvquant"
-APP_DIR="/opt/finvquant"
-ETC_DIR="/etc/finvquant"
-MIGRATIONS_DIR="${ETC_DIR}/Migrations"
+
+# 安装根目录：默认 /data/App/FinvQuant，可用 --prefix 或环境变量 FINVQ_PREFIX 覆盖
+PREFIX="${FINVQ_PREFIX:-/data/App/FinvQuant}"
+BIN_DIR="${PREFIX}/bin"
+MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"
+BACKUP_DIR="${PREFIX}/Backup"          # 数据库逻辑备份（Upgrade.sh 写入）
+BRS_DIR="${PREFIX}/BRS"                # BRS 备份产物（运行用户可写，独立于 Backup）
+EXPORT_DIR="${PREFIX}/Export"
+LOG_DIR="${PREFIX}/Log"
+DEPLOY_DIR="${PREFIX}/Deploy"
+ENV_FILE="${PREFIX}/finvquant.env"
+BINARY="${BIN_DIR}/finvquant"
+QIOM_BINARY="${BIN_DIR}/qiom"
+BINARY_LINK="/usr/local/bin/finvquant"
+QIOM_LINK="/usr/local/bin/qiom"
+# 旧名 qmio 的残留路径（需求 10904 改名前的版本），安装时清理
+QMIO_LEGACY_BINARY="${BIN_DIR}/qmio"
+QMIO_LEGACY_LINK="/usr/local/bin/qmio"
 SERVICE_FILE="/etc/systemd/system/finvquant.service"
-BINARY_DST="/usr/local/bin/finvquant"
+SERVICE="finvquant"
 
 SKIP_DB=0
 SKIP_REDIS=0
@@ -43,10 +69,19 @@ while [[ $# -gt 0 ]]; do
     --skip-db)    SKIP_DB=1; shift ;;
     --skip-redis) SKIP_REDIS=1; shift ;;
     --binary)     BINARY_SRC="${2:-}"; shift 2 ;;
-    -h|--help)    sed -n '2,20p' "$0"; exit 0 ;;
+    --prefix)     PREFIX="${2:-}"; shift 2
+                  BIN_DIR="${PREFIX}/bin"
+                  MIGRATIONS_DIR="${PREFIX}/Deploy/Migrations"; BACKUP_DIR="${PREFIX}/Backup"
+                  BRS_DIR="${PREFIX}/BRS"
+                  EXPORT_DIR="${PREFIX}/Export"; LOG_DIR="${PREFIX}/Log"; DEPLOY_DIR="${PREFIX}/Deploy"
+                  ENV_FILE="${PREFIX}/finvquant.env"; BINARY="${BIN_DIR}/finvquant"
+                  QIOM_BINARY="${BIN_DIR}/qiom" ;;
+    -h|--help)    sed -n '2,26p' "$0"; exit 0 ;;
     *)            die "未知参数：$1（--help 查看用法）" ;;
   esac
 done
+
+[[ "${PREFIX}" == /* ]] || die "--prefix 必须是绝对路径（当前：${PREFIX}）"
 
 # ---------------------------------------------------------------------
 # 0. 前置检查
@@ -61,6 +96,7 @@ case "${ID:-}" in
   debian|ubuntu) ok "系统：${PRETTY_NAME}" ;;
   *) die "暂只支持 Debian/Ubuntu（当前：${PRETTY_NAME:-unknown}）；其它发行版请参考 Install.md 手工安装" ;;
 esac
+ok "安装根目录：${PREFIX}"
 
 # ---------------------------------------------------------------------
 # 1. 定位二进制与迁移目录
@@ -68,7 +104,11 @@ esac
 step "1/9 定位安装产物"
 if [[ -z "${BINARY_SRC}" ]]; then
   for candidate in "${REPO_ROOT}/finvquant" "${SCRIPT_DIR}/finvquant" "$(command -v finvquant || true)"; do
-    if [[ -n "${candidate}" && -f "${candidate}" ]]; then BINARY_SRC="${candidate}"; break; fi
+    if [[ -n "${candidate}" && -f "${candidate}" ]]; then
+      # 跳过已安装位置自身（软链 /usr/local/bin/finvquant → <PREFIX>/bin/finvquant），避免 install 自我覆盖
+      if [[ "$(readlink -f "${candidate}")" == "$(readlink -f "${BINARY}" 2>/dev/null || echo -)" ]]; then continue; fi
+      BINARY_SRC="${candidate}"; break
+    fi
   done
 fi
 [[ -n "${BINARY_SRC}" && -f "${BINARY_SRC}" ]] || \
@@ -76,10 +116,14 @@ fi
 ok "二进制：${BINARY_SRC}"
 
 MIGRATIONS_SRC=""
-for candidate in "${REPO_ROOT}/Deploy/Migrations" "${SCRIPT_DIR}/Migrations"; do
+# ① 发行包与安装后布局：<PREFIX>/Deploy/Migrations（与仓库结构一致）
+# ② 源码仓库：<repo>/Deploy/Migrations
+# ③ 其它：Native 脚本的同级/上一级
+for candidate in "${REPO_ROOT}/Deploy/Migrations" "${SCRIPT_DIR}/../Migrations" \
+                 "${SCRIPT_DIR}/Migrations"; do
   if [[ -d "${candidate}" ]]; then MIGRATIONS_SRC="${candidate}"; break; fi
 done
-[[ -n "${MIGRATIONS_SRC}" ]] || die "找不到迁移目录 Deploy/Migrations"
+[[ -n "${MIGRATIONS_SRC}" ]] || die "找不到迁移目录（已尝试 <PREFIX>/Deploy/Migrations、<repo>/Deploy/Migrations、脚本上一级与同级）"
 ok "迁移目录：${MIGRATIONS_SRC}（$(ls -1 "${MIGRATIONS_SRC}"/*.sql | wc -l) 个脚本）"
 
 # ---------------------------------------------------------------------
@@ -124,9 +168,20 @@ if [[ "${SKIP_REDIS}" -eq 0 ]]; then
     apt-get install -y -qq redis-server >/dev/null
     ok "已安装 redis-server $(redis-server --version | awk '{print $3}')"
   fi
+  # unit 名优先用 redis-server（Debian/Ubuntu 主 unit）；redis.service 通常只是它的 alias，
+  # alias 无法 enable（会报 "no installation config"），不能作为首选。
   REDIS_UNIT="redis-server"
-  systemctl list-unit-files | grep -q '^redis.service' && REDIS_UNIT="redis"
-  systemctl enable --now "${REDIS_UNIT}" >/dev/null 2>&1 || warn "Redis 服务启动失败，请检查 journalctl -u ${REDIS_UNIT}"
+  if ! systemctl list-unit-files 2>/dev/null | grep -qE '^redis-server\.service'; then
+    REDIS_UNIT="redis"
+  fi
+  systemctl enable "${REDIS_UNIT}" >/dev/null 2>&1 || true
+  systemctl start "${REDIS_UNIT}" >/dev/null 2>&1 || true
+  if systemctl is-active --quiet "${REDIS_UNIT}"; then
+    ok "Redis 运行中（${REDIS_UNIT}）"
+  else
+    warn "Redis 服务未运行（${REDIS_UNIT}）；最近日志："
+    journalctl -u "${REDIS_UNIT}" -n 15 --no-pager 2>/dev/null || true
+  fi
   REDIS_VER="$(redis-server --version | awk '{print $3}' | cut -d= -f2 | cut -d. -f1)"
   [[ "${REDIS_VER:-0}" -ge 8 ]] || warn "当前 Redis 主版本为 ${REDIS_VER}，项目参考版本为 8；基础 KV 用法兼容，如需严格对齐请用 packages.redis.io 官方源"
 else
@@ -134,45 +189,187 @@ else
 fi
 
 # ---------------------------------------------------------------------
-# 5. 系统用户与目录
+# 5. 系统用户与目录（全部落在安装根目录下）
 # ---------------------------------------------------------------------
 step "5/9 创建用户与目录"
+if getent group "${APP_GROUP}" >/dev/null 2>&1; then
+  ok "用户组 ${APP_GROUP} 已存在"
+else
+  groupadd --system "${APP_GROUP}"
+  ok "已创建用户组 ${APP_GROUP}"
+fi
 if id -u "${APP_USER}" >/dev/null 2>&1; then
   ok "用户 ${APP_USER} 已存在"
+  # 主组不一致时补正（例如先手工 groupadd 再 useradd 的场景）
+  if [[ "$(id -gn "${APP_USER}")" != "${APP_GROUP}" ]]; then
+    usermod -g "${APP_GROUP}" "${APP_USER}"
+    ok "已将 ${APP_USER} 的主组补正为 ${APP_GROUP}"
+  fi
 else
-  useradd --system --create-home --home-dir "${APP_DIR}" --shell /usr/sbin/nologin "${APP_USER}"
-  ok "已创建系统用户 ${APP_USER}"
+  # 必须先 -g 指定已存在的组：useradd 默认会尝试创建同名组，组已存在时直接报错
+  # “useradd: group 'finvquant' exists - if you want to add this user to that group, use -g.”
+  useradd --system --gid "${APP_GROUP}" --no-create-home --home-dir "${PREFIX}" \
+    --shell /usr/sbin/nologin "${APP_USER}"
+  ok "已创建系统用户 ${APP_USER}（主组 ${APP_GROUP}）"
 fi
-install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0755 "${APP_DIR}"
-install -d -o root -g "${APP_GROUP}" -m 0750 "${ETC_DIR}"
+install -d -o root -g root -m 0755 "${PREFIX}"
+install -d -o root -g root -m 0755 "${BIN_DIR}"
+# Deploy/ 先于其下的 Migrations/（迁移脚本与仓库结构一致放在 Deploy 下）
+install -d -o root -g root -m 0755 "${DEPLOY_DIR}"
 install -d -o root -g "${APP_GROUP}" -m 0755 "${MIGRATIONS_DIR}"
-ok "目录：${APP_DIR} / ${ETC_DIR} / ${MIGRATIONS_DIR}"
+install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
+# BRS 备份根目录独立于 Backup（需求 10907）：运行用户可写，避免与数据库逻辑
+# 备份的属主/权限互相干扰；表级与分片产物都在这里。
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}"
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}/Full"
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${BRS_DIR}/Incr"
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0755 "${EXPORT_DIR}"
+install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${LOG_DIR}"
+ok "目录：${BIN_DIR} / ${MIGRATIONS_DIR} / ${BACKUP_DIR} / ${BRS_DIR} / ${EXPORT_DIR} / ${LOG_DIR} / ${DEPLOY_DIR}（配置：${ENV_FILE}）"
 
 # ---------------------------------------------------------------------
-# 6. 安装二进制与迁移脚本
+# 6. 安装二进制、迁移脚本与部署文件
 # ---------------------------------------------------------------------
-step "6/9 安装二进制与迁移脚本"
-install -o root -g root -m 0755 "${BINARY_SRC}" "${APP_DIR}/finvquant"
-ln -sfn "${APP_DIR}/finvquant" "${BINARY_DST}"
-ok "二进制：${APP_DIR}/finvquant（软链 ${BINARY_DST}）"
-cp -f "${MIGRATIONS_SRC}"/*.sql "${MIGRATIONS_DIR}/"
+step "6/9 安装二进制、迁移脚本与部署文件"
+install -o root -g root -m 0755 "${BINARY_SRC}" "${BINARY}"
+ln -sfn "${BINARY}" "${BINARY_LINK}"
+ok "二进制：${BINARY}（软链 ${BINARY_LINK}）"
+
+# qiom：数据搬运工具，必须与 finvquant 同目录（<PREFIX>/bin/qiom）
+# 来源优先级（PackSnapshot.sh 的包布局是「qiom 与 finvquant 并列放在包根」）：
+#   ① <PREFIX>/qiom（发行包根目录 / 安装后根目录，与 finvquant 同级）
+#   ② <PREFIX>/Deploy/qiom（历史自定义布局，保留兼容）
+#   ③ <PREFIX>/Deploy/Native/qiom（脚本同级，手工放文件时可用）
+QIOM_SRC=""
+for candidate in "${REPO_ROOT}/qiom" "${SCRIPT_DIR}/../qiom" "${SCRIPT_DIR}/qiom"; do
+  if [[ -f "${candidate}" ]]; then QIOM_SRC="${candidate}"; break; fi
+done
+if [[ -n "${QIOM_SRC}" ]]; then
+  install -o root -g root -m 0755 "${QIOM_SRC}" "${QIOM_BINARY}"
+  ln -sfn "${QIOM_BINARY}" "${QIOM_LINK}"
+  # 清理旧名残留（qmio → qiom 改名，需求 10904）
+  if [[ -e "${QMIO_LEGACY_BINARY}" || -L "${QMIO_LEGACY_LINK}" ]]; then
+    rm -f "${QMIO_LEGACY_LINK}" "${QMIO_LEGACY_BINARY}"
+    ok "已清理旧名残留：${QMIO_LEGACY_BINARY} / ${QMIO_LEGACY_LINK}"
+  fi
+  ok "qiom：${QIOM_BINARY}（软链 ${QIOM_LINK}）"
+else
+  warn "未找到 qiom（已尝试 ${REPO_ROOT}/qiom、${SCRIPT_DIR}/../qiom、${SCRIPT_DIR}/qiom），跳过（不影响主服务）"
+fi
+if [[ "$(readlink -f "${MIGRATIONS_SRC}")" == "$(readlink -f "${MIGRATIONS_DIR}" 2>/dev/null || echo -)" ]]; then
+  ok "迁移目录即安装目录，跳过复制：${MIGRATIONS_DIR}"
+  # 源与目标同一目录时没有参照集，无法自动隔离；至少把同版本重名（新旧号段混存）挑出来
+  dup="$(ls -1 "${MIGRATIONS_DIR}"/V*__*.sql 2>/dev/null | sed -E 's#.*/V([0-9]+)__.*#\1#' | sort -n | uniq -d | head -5)"
+  [[ -z "${dup}" ]] || die "迁移目录存在同版本重名脚本（版本号：${dup//$'\n'/、}），迁移器会拒绝启动；请先清理非当前发行包的文件（建议移到 ${BACKUP_DIR}/Migrations.old.<时间戳>/）"
+else
+  cp -f "${MIGRATIONS_SRC}"/*.sql "${MIGRATIONS_DIR}/"
+  # `cp -f` 只增不删：号段重排（需求 10881）后，旧号段脚本（如 V100003__finv_market.sql）
+  # 会与新号段脚本撞同一版本号，迁移器会拒绝启动；这里对「源目录不存在」的文件做隔离，不删除。
+  migrate_isolate_stale() {
+    local src="$1" dst="$2"
+    local src_cnt stale=() f base
+    src_cnt="$(find "${src}" -maxdepth 1 -type f -name 'V*__*.sql' | wc -l)"
+    if [[ "${src_cnt:-0}" -eq 0 ]]; then
+      warn "源迁移目录无脚本，跳过旧文件隔离：${src}"
+      return 0
+    fi
+    while IFS= read -r f; do
+      base="${f##*/}"
+      [[ -f "${src}/${base}" ]] || stale+=("${f}")
+    done < <(find "${dst}" -maxdepth 1 -type f -name 'V*__*.sql' -print 2>/dev/null)
+    [[ ${#stale[@]} -gt 0 ]] || return 0
+    install -d -o root -g "${APP_GROUP}" -m 0750 "${BACKUP_DIR}"
+    local keep
+    keep="$(mktemp -d "${BACKUP_DIR}/Migrations.old.$(date +%Y%m%d_%H%M%S).XXXXXX")"
+    chown root:root "${keep}"
+    chmod 0750 "${keep}"
+    for f in "${stale[@]}"; do mv -f "${f}" "${keep}/"; done
+    warn "迁移目录有 ${#stale[@]} 个非当前发行包的文件，已隔离到 ${keep}（未删除，请人工核对后处理）"
+  }
+  migrate_isolate_stale "${MIGRATIONS_SRC}" "${MIGRATIONS_DIR}"
+  ok "迁移脚本：$(ls -1 "${MIGRATIONS_DIR}"/*.sql | wc -l) 个 → ${MIGRATIONS_DIR}"
+fi
 chown -R root:"${APP_GROUP}" "${MIGRATIONS_DIR}"
 chmod 0644 "${MIGRATIONS_DIR}"/*.sql
-ok "迁移脚本：$(ls -1 "${MIGRATIONS_DIR}"/*.sql | wc -l) 个"
+
+# 部署脚本与模板随安装目录留存：后续可直接在 <PREFIX>/Deploy 内升级/卸载
+# 注意：若直接在 <PREFIX>/Deploy 内执行本脚本，源与目标为同一文件，必须跳过
+copy_deploy_file() {
+  local src="$1" dst="$2"
+  if [[ "$(readlink -f "${src}")" != "$(readlink -f "${dst}" 2>/dev/null || echo -)" ]]; then
+    cp -f "${src}" "${dst}"
+  fi
+}
+for f in Install.sh Upgrade.sh Uninstall.sh FinvQuant.service FinvQuant.env.example Nginx.conf.example; do
+  copy_deploy_file "${SCRIPT_DIR}/${f}" "${DEPLOY_DIR}/${f}"
+done
+for md in "${SCRIPT_DIR}"/*.md; do
+  [[ -f "${md}" ]] || continue
+  copy_deploy_file "${md}" "${DEPLOY_DIR}/$(basename "${md}")"
+done
+chown -R root:root "${DEPLOY_DIR}"
+chmod 0755 "${DEPLOY_DIR}"/*.sh
+for f in "${DEPLOY_DIR}"/*.md "${DEPLOY_DIR}"/*.example "${DEPLOY_DIR}"/*.service; do
+  if [[ -f "${f}" ]]; then chmod 0644 "${f}"; fi
+done
+# 运维类 SQL 与构建脚本随安装目录留存：Script/（构建打包）、Init/（初始化）、Upgrade/（升级维护）；
+# 与 DEPLOY_DIR 相同布局时跳过
+for pair in "Script:运维" "Init:初始化" "Upgrade:升级维护"; do
+  src_sub="${pair%%:*}"; src_label="${pair#*:}"
+  src_dir="${SCRIPT_DIR}/../${src_sub}"
+  [[ -d "${src_dir}" ]] || continue
+  [[ "$(readlink -f "${src_dir}")" != "$(readlink -f "${DEPLOY_DIR}/${src_sub}" 2>/dev/null || echo -)" ]] || continue
+  mkdir -p "${DEPLOY_DIR}/${src_sub}"
+  if compgen -G "${src_dir}/*.sql" > /dev/null; then
+    cp -f "${src_dir}"/*.sql "${DEPLOY_DIR}/${src_sub}/"
+  fi
+  if [[ -f "${src_dir}/README.md" ]]; then
+    cp -f "${src_dir}/README.md" "${DEPLOY_DIR}/${src_sub}/README.md"
+  fi
+  chmod 0644 "${DEPLOY_DIR}/${src_sub}/"* 2>/dev/null || true
+  ok "${src_label}脚本：${DEPLOY_DIR}/${src_sub}"
+done
+ok "部署文件：${DEPLOY_DIR}（脚本、unit 模板、env 模板、Nginx 示例、运维与初始化 SQL 脚本、手册）"
 
 # ---------------------------------------------------------------------
 # 7. 环境变量文件（存在则不覆盖）
 # ---------------------------------------------------------------------
 step "7/9 环境变量文件"
-ENV_FILE="${ETC_DIR}/finvquant.env"
 DB_PASSWORD=""
+# 兼容旧布局：<PREFIX>/etc/finvquant.env → <PREFIX>/finvquant.env（保留原密码，不重新生成）
+LEGACY_ENV_FILE="${PREFIX}/etc/finvquant.env"
+if [[ ! -f "${ENV_FILE}" && -f "${LEGACY_ENV_FILE}" ]]; then
+  mv -f "${LEGACY_ENV_FILE}" "${ENV_FILE}"
+  chmod 0600 "${ENV_FILE}"
+  rmdir "${PREFIX}/etc" 2>/dev/null || true
+  ok "已迁移旧配置 ${LEGACY_ENV_FILE} → ${ENV_FILE}"
+fi
 if [[ -f "${ENV_FILE}" ]]; then
   ok "已存在 ${ENV_FILE}，保留现有配置（如需重置请先备份后删除）"
   DB_PASSWORD="$(grep -E '^FINV_PG_PASSWORD=' "${ENV_FILE}" | cut -d= -f2- || true)"
+  # 旧配置补齐日志项（不覆盖已有值）
+  if ! grep -q '^FINV_LOG_DIR=' "${ENV_FILE}"; then
+    printf '\n# 日志目录（安装脚本自动补齐）\nFINV_LOG_DIR=%s\nFINV_LOG_FILE=FinvQuant.log\nFINV_LOG_MAX_MB=10\n' "${LOG_DIR}" >> "${ENV_FILE}"
+    ok "已补齐 FINV_LOG_DIR=${LOG_DIR}"
+  fi
+  # 旧配置补齐 BRS 备份目录（不覆盖用户自定义值，但纠正 10907 之前的旧默认值）
+  if ! grep -q '^FINV_BRS_BACKUP_DIR=' "${ENV_FILE}"; then
+    printf '\n# BRS 备份目录（安装脚本自动补齐）\nFINV_BRS_BACKUP_DIR=%s\n' "${BRS_DIR}" >> "${ENV_FILE}"
+    ok "已补齐 FINV_BRS_BACKUP_DIR=${BRS_DIR}"
+  elif [[ "$(grep -E '^FINV_BRS_BACKUP_DIR=' "${ENV_FILE}" | cut -d= -f2-)" == "${BACKUP_DIR}/BRS" ]]; then
+    sed -i "s|^FINV_BRS_BACKUP_DIR=.*|FINV_BRS_BACKUP_DIR=${BRS_DIR}|" "${ENV_FILE}"
+    ok "已更新 FINV_BRS_BACKUP_DIR：${BACKUP_DIR}/BRS → ${BRS_DIR}"
+  fi
 else
   DB_PASSWORD="$(openssl rand -hex 16)"
   install -o root -g root -m 0600 "${SCRIPT_DIR}/FinvQuant.env.example" "${ENV_FILE}"
   sed -i "s/^FINV_PG_PASSWORD=.*/FINV_PG_PASSWORD=${DB_PASSWORD}/" "${ENV_FILE}"
+  # 模板中的默认路径按实际安装根目录改写
+  sed -i "s|^FINV_MIGRATIONS_DIR=.*|FINV_MIGRATIONS_DIR=${MIGRATIONS_DIR}|" "${ENV_FILE}"
+  sed -i "s|^FINV_QUOTE_DEDUB_OUTPUT_DIR=.*|FINV_QUOTE_DEDUB_OUTPUT_DIR=${EXPORT_DIR}|" "${ENV_FILE}"
+  sed -i "s|^FINV_QUOTE_DEDUB_UPLOAD_DIR=.*|FINV_QUOTE_DEDUB_UPLOAD_DIR=${EXPORT_DIR}/Upload|" "${ENV_FILE}"
+  sed -i "s|^FINV_LOG_DIR=.*|FINV_LOG_DIR=${LOG_DIR}|" "${ENV_FILE}"
+  sed -i "s|^FINV_BRS_BACKUP_DIR=.*|FINV_BRS_BACKUP_DIR=${BRS_DIR}|" "${ENV_FILE}"
   ok "已生成 ${ENV_FILE}（随机数据库密码，权限 600）"
 fi
 [[ -n "${DB_PASSWORD}" ]] || die "未能读取或生成数据库密码，请检查 ${ENV_FILE}"
@@ -195,6 +392,20 @@ if [[ "${SKIP_DB}" -eq 0 ]]; then
   ok "角色 ${DB_USER} 已就绪"
   if sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1; then
     ok "数据库 ${DB_NAME} 已存在"
+    # 已存在的库若不是本程序初始化的（缺 public.schema_version 但已有表），迁移会从头执行并撞表
+    HAS_SV="$(sudo -u postgres psql -d "${DB_NAME}" -tAc \
+      "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='schema_version'" 2>/dev/null || true)"
+    TBL_CNT="$(sudo -u postgres psql -d "${DB_NAME}" -tAc \
+      "SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema')" 2>/dev/null || echo 0)"
+    if [[ -z "${HAS_SV}" && "${TBL_CNT:-0}" -gt 0 ]]; then
+      warn "数据库 ${DB_NAME} 内有 ${TBL_CNT} 张业务表，但没有 public.schema_version（非本程序初始化，或该表被清空/恢复时遗漏）"
+      warn "迁移会从 V100001 从头执行，遇到已有同名表必然失败（relation ... already exists），服务无法启动"
+      warn "本脚本不会删除、重命名或迁移该库中的任何表；请先在下列处置中选一种再重跑："
+      warn "  ① env 中改用独立数据库（FINV_PG_DATABASE=finvquant_new）；"
+      warn "  ② 改用独立的 PostgreSQL 实例或端口；"
+      warn "  ③ 确认库内数据可丢弃且已 pg_dump 备份后，手工 dropdb + createdb 再重跑（破坏性，脚本不代做）"
+      die "已中止在建库校验（避免装出必然崩溃的服务）；若库结构已由基线管理，可加 --skip-db 跳过本步"
+    fi
   else
     sudo -u postgres createdb -O "${DB_USER}" "${DB_NAME}"
     ok "已创建数据库 ${DB_NAME}（owner=${DB_USER}）"
@@ -208,14 +419,18 @@ else
 fi
 
 # ---------------------------------------------------------------------
-# 9. systemd 服务
+# 9. systemd 服务（unit 由模板渲染，同时留存到安装目录）
 # ---------------------------------------------------------------------
 step "9/9 注册并启动 systemd 服务"
-install -o root -g root -m 0644 "${SCRIPT_DIR}/FinvQuant.service" "${SERVICE_FILE}"
+sed "s|@PREFIX@|${PREFIX}|g" "${SCRIPT_DIR}/FinvQuant.service" > "${DEPLOY_DIR}/finvquant.service"
+chown root:root "${DEPLOY_DIR}/finvquant.service"
+chmod 0644 "${DEPLOY_DIR}/finvquant.service"
+install -o root -g root -m 0644 "${DEPLOY_DIR}/finvquant.service" "${SERVICE_FILE}"
+ok "unit：${SERVICE_FILE}（副本 ${DEPLOY_DIR}/finvquant.service）"
 systemctl daemon-reload
-systemctl enable finvquant >/dev/null 2>&1
-systemctl restart finvquant
-ok "已注册 finvquant.service 并启动"
+systemctl enable "${SERVICE}" >/dev/null 2>&1
+systemctl restart "${SERVICE}"
+ok "已注册 ${SERVICE}.service 并启动"
 
 HEALTH_URL="http://127.0.0.1:16001/API/V1/Health/Ready"
 for i in $(seq 1 30); do
@@ -224,24 +439,26 @@ for i in $(seq 1 30); do
     break
   fi
   if [[ "${i}" -eq 30 ]]; then
-    warn "健康检查未通过（30s）；请执行：journalctl -u finvquant -n 80 --no-pager"
+    warn "健康检查未通过（30s）；请执行：journalctl -u ${SERVICE} -n 80 --no-pager"
     warn "常见原因：数据库连接失败、迁移执行失败、端口被占用"
   fi
   sleep 1
 done
 
-cat <<EOF
-
-\033[1;32m安装完成\033[0m
-  服务管理：systemctl status|restart|stop finvquant
-  日志查看：journalctl -u finvquant -f
-  配置文件：${ENV_FILE}（权限 600）
-  迁移目录：${MIGRATIONS_DIR}（启动时自动应用未执行版本）
-  接口验证：curl http://127.0.0.1:16001/API/V1/Version
-  前端地址：http://<服务器IP>:16002（建议用 Nginx 反向代理，见 Nginx.conf.example）
-
-后续步骤：
-  1) 按需配置 Nginx 反向代理与 TLS（Nginx.conf.example）
-  2) 建立数据库定时备份（参考 Upgrade.md 的备份命令）
-  3) 防火墙只放行 80/443（16001/16002 建议只绑 127.0.0.1）
-EOF
+printf '\n\033[1;32m安装完成\033[0m（安装根目录：%s）\n' "${PREFIX}"
+printf '  服务管理：systemctl status|restart|stop %s\n' "${SERVICE}"
+printf '  日志查看：journalctl -u %s -f\n' "${SERVICE}"
+printf '  二进制：%s（软链 %s）\n' "${BINARY}" "${BINARY_LINK}"
+printf '  qiom：%s（软链 %s）\n' "${QIOM_BINARY}" "${QIOM_LINK}"
+printf '  配置文件：%s（权限 600）\n' "${ENV_FILE}"
+printf '  迁移目录：%s（启动时自动应用未执行版本）\n' "${MIGRATIONS_DIR}"
+printf '  部署脚本：%s/Upgrade.sh、%s/Uninstall.sh\n' "${DEPLOY_DIR}" "${DEPLOY_DIR}"
+printf '  备份目录：%s\n' "${BACKUP_DIR}"
+printf '  导出目录：%s\n' "${EXPORT_DIR}"
+printf '  日志目录：%s（活动文件 FinvQuant.log；10MB 切分，按日归档为 FinvQuant-yyyyMMdd.tar.gz）\n' "${LOG_DIR}"
+printf '  接口验证：curl http://127.0.0.1:16001/API/V1/Version\n'
+printf '  前端地址：http://<服务器IP>:16002（建议用 Nginx 反向代理，见 %s/Nginx.conf.example）\n' "${DEPLOY_DIR}"
+printf '\n后续步骤：\n'
+printf '  1) 按需配置 Nginx 反向代理与 TLS（%s/Nginx.conf.example）\n' "${DEPLOY_DIR}"
+printf '  2) 建立数据库定时备份到 %s（参考 Upgrade.md）\n' "${BACKUP_DIR}"
+printf '  3) 防火墙只放行 80/443（16001/16002 建议只绑 127.0.0.1）\n'

@@ -1,6 +1,6 @@
 [Unit]
 Description=FinvQuant 量化策略交易平台（API 16001 / Web 16002）
-Documentation=file:///opt/finvquant/Docs/README.md
+Documentation=file://@PREFIX@/Deploy/README.md
 # 数据库与缓存须先就绪；二者由宿主机自行安装维护
 After=network-online.target postgresql.service redis-server.service
 Wants=network-online.target
@@ -11,11 +11,12 @@ Requires=postgresql.service
 Type=simple
 User=finvquant
 Group=finvquant
-WorkingDirectory=/opt/finvquant
+# 程序、配置与数据统一落在安装根目录（模板占位符由 Install.sh / Upgrade.sh 渲染）
+WorkingDirectory=@PREFIX@
 
 # 配置全部来自 EnvironmentFile（键名与容器方式一致，仅连接地址不同）
-EnvironmentFile=/etc/finvquant/finvquant.env
-ExecStart=/opt/finvquant/finvquant
+EnvironmentFile=@PREFIX@/finvquant.env
+ExecStart=@PREFIX@/bin/finvquant
 Restart=on-failure
 RestartSec=5s
 # 停止时给正在进行的迁移/导入留出收尾时间
@@ -32,9 +33,11 @@ ProtectHome=true
 ProtectKernelTunables=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
-ReadWritePaths=/opt/finvquant /etc/finvquant
+# 安装根目录（二进制、配置、迁移、备份、导出）是唯一需要可写的位置
+ReadWritePaths=@PREFIX@
 
-# 日志统一走 journald（journalctl -u finvquant）
+# 日志：应用同时写入 @PREFIX@/Log/FinvQuant.log（FINV_LOG_DIR），journald 仍保留；
+# 超过 FINV_LOG_MAX_MB（默认 10MB）切分为 FinvQuant-yyyyMMdd-NN.log，跨日归档为 tar.gz。
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=finvquant

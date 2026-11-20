@@ -48,4 +48,4 @@
 
 | 业务菜单 | 菜单文档 | 使用接口 |
 |----------|----------|----------|
-| 环境管理 | [Docs/Menu/Backtest/EnvironmentManage.md](../../Menu/Backtest/EnvironmentManage.md) | List / Get / Save / Toggle / Delete |
+| 环境管理 | [Docs/Menu/Quant/Environment.md](../../Menu/Quant/Environment.md) | List / Get / Save / Toggle / Delete |

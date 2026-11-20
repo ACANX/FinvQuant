@@ -27,7 +27,7 @@ func NewMeta(service *meta.Service) *Meta {
 // ListExchanges 分页查询交易所字典。
 func (h *Meta) ListExchanges(c *gin.Context) {
 	keyword := c.Query("keyword")
-	flagEnable := c.Query("flag_enable")
+	flagEnable := queryFlagEnable(c)
 	list, total, err := h.service.ListExchanges(c.Request.Context(), parsePager(c), keyword, flagEnable)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "查询交易所字典失败: " + err.Error()})
@@ -79,7 +79,7 @@ func (h *Meta) ToggleExchange(c *gin.Context) {
 // ListMarkets 分页查询交易市场。
 func (h *Meta) ListMarkets(c *gin.Context) {
 	keyword := c.Query("keyword")
-	flagEnable := c.Query("flag_enable")
+	flagEnable := queryFlagEnable(c)
 	list, total, err := h.service.ListMarkets(c.Request.Context(), parsePager(c), keyword, flagEnable)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "查询交易市场失败: " + err.Error()})
@@ -130,9 +130,17 @@ func (h *Meta) ToggleMarket(c *gin.Context) {
 
 // ListSecurities 分页查询证券代码。
 func (h *Meta) ListSecurities(c *gin.Context) {
-	keyword := c.Query("keyword")
-	flagEnable := c.Query("flag_enable")
-	list, total, err := h.service.ListSecurities(c.Request.Context(), parsePager(c), keyword, flagEnable)
+	filter := meta.SecurityListFilter{
+		Keyword:      c.Query("keyword"),
+		FlagEnable:   queryFlagEnable(c),
+		ExchangeCode: parseIntDefault(c.Query("exchangeCode"), 0),
+		MarketCode:   parseIntDefault(c.Query("marketCode"), 0),
+		SecurityType: c.Query("securityType"),
+		TypeSecuSub:  c.Query("typeSecuSub"),
+		CurrencyType: c.Query("currencyType"),
+		Provider:     c.Query("provider"),
+	}
+	list, total, err := h.service.ListSecurities(c.Request.Context(), parsePager(c), filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "查询证券代码失败: " + err.Error()})
 		return
@@ -142,6 +150,18 @@ func (h *Meta) ListSecurities(c *gin.Context) {
 		"message": "查询完成",
 		"data":    gin.H{"total": total, "list": list},
 	})
+}
+
+// ListSecurityFilterOptions 证券字典筛选项（GET .../Metadata/Security/FilterOptions）。
+//
+// 返回类型 / 子类 / 货币 / 提供方四组 DISTINCT 值（需求 11330）。
+func (h *Meta) ListSecurityFilterOptions(c *gin.Context) {
+	opts, err := h.service.ListSecurityFilterOptions(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "查询证券筛选项失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "查询完成", "data": opts})
 }
 
 // SaveSecurity 新增或更新证券代码（POST /API/V1/Meta/Finv/Quant/Metadata/Security/Save）。
@@ -174,6 +194,33 @@ func (h *Meta) ToggleSecurity(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "切换成功", "data": gin.H{"usc": req.USC, "flag_enable": req.FlagEnable}})
+}
+
+// FavoriteSecurity 收藏 / 取消收藏一只证券（POST /API/V1/Meta/Finv/Quant/Metadata/Security/Favorite）。
+//
+// body：{"usc": "00700", "favorite": true}；幂等（重复收藏返回成功，不重复插入）。
+func (h *Meta) FavoriteSecurity(c *gin.Context) {
+	var req struct {
+		USC      string `json:"usc"`
+		Favorite bool   `json:"favorite"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "请求体格式错误: " + err.Error()})
+		return
+	}
+	if err := h.service.SetSecurityFavorite(c.Request.Context(), req.USC, req.Favorite); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 2006, "message": "收藏操作失败: " + err.Error()})
+		return
+	}
+	msg := "已收藏"
+	if !req.Favorite {
+		msg = "已取消收藏"
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": msg,
+		"data":    gin.H{"usc": req.USC, "favorite": req.Favorite},
+	})
 }
 
 // SecurityOptions 返回证券下拉选项（GET /API/V1/Meta/Finv/Quant/Metadata/Security/Options）。
@@ -216,6 +263,15 @@ func (h *Meta) LookupSecurity(c *gin.Context) {
 // parsePager 从 Query 参数解析分页参数（page / page_size）。
 func parsePager(c *gin.Context) meta.Pager {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", c.DefaultQuery("page_size", "20"))) // page_size 兼容旧参数
 	return meta.Pager{Page: page, PageSize: pageSize}
+}
+
+// queryFlagEnable 读取启用状态过滤参数。
+// 规范名 flagEnable（小驼峰，见 Docs/DevSpec/ApiSpec.md §3），兼容旧参数 flag_enable。
+func queryFlagEnable(c *gin.Context) string {
+	if v := c.Query("flagEnable"); v != "" {
+		return v
+	}
+	return c.Query("flag_enable") // 兼容旧参数
 }

@@ -1,0 +1,421 @@
+package secukey
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/acanx/finvquant/internal/meta/finv/sys"
+)
+
+// 本文件实现 Supabase PostgREST 只读客户端（需求 11043）：
+//   GET https://<PROJECT_ID>.supabase.co/rest/v1/<源表>?select=...&order=ftmm_symbol.asc&limit=&offset=
+//
+// 鉴权：`apikey` 与 `Authorization: Bearer` 两个头都带 key（publishable / secret 均可）。
+// 总数：`Prefer: count=exact` + 响应头 `Content-Range: 0-999/73212` 的第二段。
+// 失败重试：网络错误 / 429 / 5xx 重试 3 次（退避 500ms、1s）；4xx（除 429）直接失败，
+// 因为多为表名或 key 配错，重试没有意义。
+
+// 客户端默认参数。
+const (
+	// defaultFetchTimeout 单批拉取的超时。
+	defaultFetchTimeout = 120 * time.Second
+	// defaultMaxAttempts 单批拉取的最大尝试次数（含首次）。
+	defaultMaxAttempts = 3
+	// defaultRetryBackoff 首次重试的退避时长（之后翻倍）。
+	defaultRetryBackoff = 500 * time.Millisecond
+	// sourceSelect 只取需要同步的列，避免把 note/count_collect 等大字段拉回来。
+	// stock_id / usc 自上游补齐后也纳入同步（需求 11062）；上游为 NULL 时保留本地值，不清空。
+	sourceSelect = "ftmm_symbol,market,code,instrument,enable,url,priority,status,stock_id,usc"
+)
+
+// Client Supabase PostgREST 客户端（只读，线程安全，可复用）。
+type Client struct {
+	baseURL      string // https://<project>.supabase.co
+	apiKey       string
+	httpClient   *http.Client
+	maxAttempts  int
+	retryBackoff time.Duration
+}
+
+// NewClient 按 20013 的解析结果创建客户端。
+func NewClient(conn syscfg.SupabaseConn) *Client {
+	return &Client{
+		baseURL:      conn.BaseURL(),
+		apiKey:       conn.APIKey,
+		httpClient:   &http.Client{Timeout: defaultFetchTimeout},
+		maxAttempts:  defaultMaxAttempts,
+		retryBackoff: defaultRetryBackoff,
+	}
+}
+
+// splitTable 把 `schema.table` 拆成两段；不带 schema 时用 SupabaseDefaultSchema。
+func splitTable(table string) (schema, name string) {
+	if index := strings.Index(table, "."); index > 0 {
+		return table[:index], table[index+1:]
+	}
+	return syscfg.SupabaseDefaultSchema, table
+}
+
+// SourceURL 拼接某批的请求地址（导出供日志与单测核对）。
+//
+// 注意 PostgREST 的路径只放表名，schema 由 `Accept-Profile` 头指定
+// （写成 `/rest/v1/public.t` 会被当成 `public.public.t`，实测返回 PGRST205）。
+// 表名必须已通过 syscfg.NormalizeSupabaseTableName 校验（调用方负责）。
+func (c *Client) SourceURL(table string, offset, limit int) string {
+	_, name := splitTable(table)
+	query := strings.Join([]string{
+		"select=" + sourceSelect,
+		"order=ftmm_symbol.asc",
+		"limit=" + strconv.Itoa(limit),
+		"offset=" + strconv.Itoa(offset),
+	}, "&")
+	return c.baseURL + "/rest/v1/" + name + "?" + query
+}
+
+// FetchBatch 拉取一批源行（按 ftmm_symbol 升序）。
+//
+// 返回：本批行、源表总行数（取不到时为 0）。表不存在（404）等 4xx 直接返回错误。
+func (c *Client) FetchBatch(ctx context.Context, table string, offset, limit int) ([]SourceRow, int64, error) {
+	schema, _ := splitTable(table)
+	url := c.SourceURL(table, offset, limit)
+	var lastErr error
+	for attempt := 1; attempt <= c.maxAttempts; attempt++ {
+		rows, total, retryable, err := c.fetchOnce(ctx, url, schema)
+		if err == nil {
+			return rows, total, nil
+		}
+		lastErr = err
+		if !retryable || attempt == c.maxAttempts {
+			break
+		}
+		backoff := c.retryBackoff * time.Duration(attempt)
+		log.Printf("[cdeu][secukey] fetch retry %d/%d after %s: %v", attempt, c.maxAttempts, backoff, err)
+		select {
+		case <-ctx.Done():
+			return nil, 0, ctx.Err()
+		case <-time.After(backoff):
+		}
+	}
+	return nil, 0, fmt.Errorf("拉取 Supabase 源表失败（offset=%d, limit=%d）: %w", offset, limit, lastErr)
+}
+
+// FetchRawBatch 拉取一批**原始 JSON 行**（供「FT证券指标数据同步」按列透传给数据库）。
+//
+// selectCols 为 PostgREST 的 select 表达式（如 "*" 或 "a,b,c"）；表名需已通过
+// syscfg.NormalizeSupabaseTableName 校验；排序固定 ftmm_symbol.asc（上游唯一且 NOT NULL，
+// 保证分页稳定）。返回本批原始行与源表总行数。
+func (c *Client) FetchRawBatch(ctx context.Context, table, selectCols string, offset, limit int) ([]json.RawMessage, int64, error) {
+	if strings.TrimSpace(selectCols) == "" {
+		selectCols = "*"
+	}
+	schema, name := splitTable(table)
+	url := c.baseURL + "/rest/v1/" + name + "?" + strings.Join([]string{
+		"select=" + selectCols,
+		"order=ftmm_symbol.asc",
+		"limit=" + strconv.Itoa(limit),
+		"offset=" + strconv.Itoa(offset),
+	}, "&")
+
+	var lastErr error
+	for attempt := 1; attempt <= c.maxAttempts; attempt++ {
+		body, total, retryable, err := c.doGet(ctx, url, schema)
+		if err == nil {
+			var rows []json.RawMessage
+			if err := json.Unmarshal(body, &rows); err != nil {
+				return nil, 0, fmt.Errorf("解析 Supabase 响应失败: %w", err)
+			}
+			return rows, total, nil
+		}
+		lastErr = err
+		if !retryable || attempt == c.maxAttempts {
+			break
+		}
+		backoff := c.retryBackoff * time.Duration(attempt)
+		log.Printf("[cdeu][secukey] raw fetch retry %d/%d after %s: %v", attempt, c.maxAttempts, backoff, err)
+		select {
+		case <-ctx.Done():
+			return nil, 0, ctx.Err()
+		case <-time.After(backoff):
+		}
+	}
+	return nil, 0, fmt.Errorf("拉取 Supabase 源表失败（offset=%d, limit=%d）: %w", offset, limit, lastErr)
+}
+
+// FetchQuery 通用只读查询（需求 11344）：query 由调用方按 PostgREST 语法拼好
+// （select / order / limit / offset / 过滤表达式），返回**原始 JSON 行**与源表总行数。
+//
+// 与 FetchRawBatch 的区别：排序与过滤完全由调用方决定，用于「任意 Supabase 表的
+// 分页浏览」页（如 public.finv_quote_secu_ft）。表名须由调用方先行校验。
+func (c *Client) FetchQuery(ctx context.Context, table string, query url.Values) ([]json.RawMessage, int64, error) {
+	schema, name := splitTable(table)
+	url := c.baseURL + "/rest/v1/" + name
+	if encoded := query.Encode(); encoded != "" {
+		url += "?" + encoded
+	}
+
+	var lastErr error
+	for attempt := 1; attempt <= c.maxAttempts; attempt++ {
+		body, total, retryable, err := c.doGet(ctx, url, schema)
+		if err == nil {
+			var rows []json.RawMessage
+			if err := json.Unmarshal(body, &rows); err != nil {
+				return nil, 0, fmt.Errorf("解析 Supabase 响应失败: %w", err)
+			}
+			return rows, total, nil
+		}
+		lastErr = err
+		if !retryable || attempt == c.maxAttempts {
+			break
+		}
+		backoff := c.retryBackoff * time.Duration(attempt)
+		log.Printf("[cdeu][secukey] query retry %d/%d after %s: %v", attempt, c.maxAttempts, backoff, err)
+		select {
+		case <-ctx.Done():
+			return nil, 0, ctx.Err()
+		case <-time.After(backoff):
+		}
+	}
+	return nil, 0, fmt.Errorf("查询 Supabase 源表失败（%s）: %w", table, lastErr)
+}
+
+// InsertRow 向表插入一行（需求 11345）。
+//
+// 用 PostgREST 的 `POST /rest/v1/<table>` + `Prefer: return=representation`，
+// 返回插入后的行（含 Supabase 侧默认值/触发器写入的列）。
+//
+// **不重试**：写操作重试会导致重复插入（尤其是超时但实际已写入的情况），
+// 与只读查询的 doGet 区别就在这一点。唯一冲突（409）与非空/类型错误（400）直接透传。
+func (c *Client) InsertRow(ctx context.Context, table string, row map[string]any) (json.RawMessage, error) {
+	schema, name := splitTable(table)
+	body, err := json.Marshal(row)
+	if err != nil {
+		return nil, fmt.Errorf("序列化插入数据失败: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/rest/v1/"+name, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("构造请求失败: %w", err)
+	}
+	req.Header.Set("apikey", c.apiKey)
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Prefer", "return=representation")
+	if schema != "" {
+		req.Header.Set("Accept-Profile", schema)
+		req.Header.Set("Content-Profile", schema)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("写入 Supabase 失败: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if readErr != nil {
+		return nil, fmt.Errorf("读取 Supabase 响应失败: %w", readErr)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, describeWriteError(resp.StatusCode, raw)
+	}
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "[]" {
+		return nil, nil
+	}
+	// return=representation 返回数组，取第一行。
+	var rows []json.RawMessage
+	if err := json.Unmarshal(raw, &rows); err == nil && len(rows) > 0 {
+		return rows[0], nil
+	}
+	return raw, nil
+}
+
+// PermissionError 上游拒绝写入（RLS 策略未开放 insert，或角色缺少 GRANT）。
+//
+// 与普通上游故障区分：这是**配置问题**，需要在 Supabase 侧加策略，
+// handler 据此返回 403 而不是 502。
+type PermissionError struct {
+	msg string
+}
+
+// Error 实现 error 接口。
+func (e *PermissionError) Error() string { return e.msg }
+
+// NewPermissionError 构造权限错误。
+//
+// 供其它包使用：Supabase 的 RLS 对 UPDATE 是**静默过滤**（返回 200 + 0 行、不报错），
+// 只有在调用方确认「记录存在但 0 行受影响」时才能判定是权限/策略问题。
+func NewPermissionError(message string) error {
+	return &PermissionError{msg: message}
+}
+
+// UpdateRow 按条件更新行（需求 11346）。
+//
+// PostgREST：`PATCH /rest/v1/<table>?<filter>` + `Prefer: return=representation`，
+// 返回受影响的行（**空切片表示条件没命中任何行**，调用方据此报 404）。
+//
+// 与 InsertRow 一样**不重试**：写操作重试可能把改动重复应用在别的行上。
+func (c *Client) UpdateRow(ctx context.Context, table string, filter url.Values, row map[string]any) ([]json.RawMessage, error) {
+	if len(row) == 0 {
+		return nil, fmt.Errorf("更新内容为空")
+	}
+	if len(filter) == 0 {
+		return nil, fmt.Errorf("更新必须带条件（拒绝无条件更新整表）")
+	}
+	schema, name := splitTable(table)
+	body, err := json.Marshal(row)
+	if err != nil {
+		return nil, fmt.Errorf("序列化更新数据失败: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch,
+		c.baseURL+"/rest/v1/"+name+"?"+filter.Encode(), bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("构造请求失败: %w", err)
+	}
+	req.Header.Set("apikey", c.apiKey)
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Prefer", "return=representation")
+	if schema != "" {
+		req.Header.Set("Accept-Profile", schema)
+		req.Header.Set("Content-Profile", schema)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("更新 Supabase 失败: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if readErr != nil {
+		return nil, fmt.Errorf("读取 Supabase 响应失败: %w", readErr)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, describeWriteError(resp.StatusCode, raw)
+	}
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "[]" {
+		return nil, nil
+	}
+	var rows []json.RawMessage
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return nil, fmt.Errorf("解析 Supabase 返回行失败: %w", err)
+	}
+	return rows, nil
+}
+
+// describeWriteError 把 PostgREST 的写入（insert / update）错误翻成可操作的提示。
+func describeWriteError(status int, body []byte) error {
+	message := strings.TrimSpace(string(body))
+	if len(message) > 400 {
+		message = message[:400] + "…"
+	}
+	switch {
+	case status == http.StatusConflict:
+		return fmt.Errorf("该记录已存在（唯一键冲突，HTTP 409）: %s", message)
+	case status == http.StatusUnauthorized || status == http.StatusForbidden:
+		return &PermissionError{msg: fmt.Sprintf(
+			"无写入权限（HTTP %d），请在 Supabase 侧给该 key 开放 insert 策略: %s", status, message)}
+	case strings.Contains(message, "42501") || strings.Contains(message, "row-level security"):
+		return &PermissionError{msg: "被 Supabase 的行级安全策略（RLS）拒绝写入：" + message +
+			"；请在 Supabase 侧执行 create policy ... for insert to anon, authenticated with check (true)"}
+	case status == http.StatusBadRequest && strings.Contains(message, "PGRST204"):
+		return fmt.Errorf("目标表缺少提交的列（HTTP 400，schema cache 无此列）: %s", message)
+	case status == http.StatusBadRequest && strings.Contains(message, "23502"):
+		return fmt.Errorf("必填列缺失（HTTP 400，NOT NULL 约束）: %s", message)
+	case status == http.StatusBadRequest && strings.Contains(message, "23514"):
+		return fmt.Errorf("取值不满足表上的 CHECK 约束（HTTP 400）: %s", message)
+	case status == http.StatusBadRequest && strings.Contains(message, "22P02"):
+		return fmt.Errorf("字段类型不匹配（HTTP 400）: %s", message)
+	default:
+		return fmt.Errorf("写入 Supabase 返回 HTTP %d: %s", status, message)
+	}
+}
+
+// fetchOnce 发起一次请求并解析成结构化行；retryable 表示该错误值得重试（网络/429/5xx）。
+func (c *Client) fetchOnce(ctx context.Context, url, schema string) (rows []SourceRow, total int64, retryable bool, err error) {
+	body, total, retryable, err := c.doGet(ctx, url, schema)
+	if err != nil {
+		return nil, 0, retryable, err
+	}
+	if err := json.Unmarshal(body, &rows); err != nil {
+		return nil, 0, false, fmt.Errorf("解析 Supabase 响应失败: %w", err)
+	}
+	return rows, total, false, nil
+}
+
+// doGet 执行一次 GET 并返回响应体与源表总行数；retryable 表示该错误值得重试。
+func (c *Client) doGet(ctx context.Context, url, schema string) (body []byte, total int64, retryable bool, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, 0, false, fmt.Errorf("构造请求失败: %w", err)
+	}
+	req.Header.Set("apikey", c.apiKey)
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Prefer", "count=exact")
+	// schema 只能通过 profile 头指定（路径里带 schema 会被 PostgREST 当作两级表名）。
+	if schema != "" {
+		req.Header.Set("Accept-Profile", schema)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, 0, true, fmt.Errorf("请求 Supabase 失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
+	if readErr != nil {
+		return nil, 0, true, fmt.Errorf("读取 Supabase 响应失败: %w", readErr)
+	}
+
+	// PostgREST 用 limit/offset 分页时，offset 超出总行数会返回 416（PGRST103
+	// `An offset of N was requested, but there are only M rows`）。语义上等价于
+	// 「这一页是空的」，不是失败：返回空数组并把 Content-Range 里的总数带回去，
+	// 让调用方能正常渲染「总 N 条 / 当前页为空」而不是报上游错误（需求 11344 实测）。
+	if resp.StatusCode == http.StatusRequestedRangeNotSatisfiable {
+		return []byte("[]"), parseContentRangeTotal(resp.Header.Get("Content-Range")), false, nil
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		message := strings.TrimSpace(string(body))
+		if len(message) > 300 {
+			message = message[:300] + "…"
+		}
+		retryable = resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, 0, false, fmt.Errorf(
+				"Supabase 源表不存在或不可读（HTTP 404），请检查源表名与 API Key 权限: %s", message)
+		}
+		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+			return nil, 0, false, fmt.Errorf(
+				"Supabase 鉴权失败（HTTP %d），请检查 20013 的 APIKEY: %s", resp.StatusCode, message)
+		}
+		return nil, 0, retryable, fmt.Errorf("Supabase 返回 HTTP %d: %s", resp.StatusCode, message)
+	}
+
+	return body, parseContentRangeTotal(resp.Header.Get("Content-Range")), false, nil
+}
+
+// parseContentRangeTotal 从 `Content-Range: 0-999/73212` 解析总行数；`*` 或缺失时返回 0。
+func parseContentRangeTotal(contentRange string) int64 {
+	slash := strings.LastIndex(contentRange, "/")
+	if slash < 0 || slash == len(contentRange)-1 {
+		return 0
+	}
+	total, err := strconv.ParseInt(strings.TrimSpace(contentRange[slash+1:]), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return total
+}

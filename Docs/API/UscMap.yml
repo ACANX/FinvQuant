@@ -1,0 +1,318 @@
+openapi: 3.1.0
+info:
+  title: USC 映射规则（规则/条目维护 + 预演 + 应用 + 审计日志）
+  version: 1.0.0
+  description: |
+    futu.finv_futu_usc_rule（规则层 9 条）+ futu.finv_futu_usc_rule_item（条目层 689 条）
+    → futu.finv_futu_usc_map（结果表）→ 回写 futu.finv_futu_secu_key.usc。
+    usc 允许退市后复用；复用时先归档下游历史行到 archive.finv_usc_reuse_snapshot。
+    需求 11072（建表与后端）、11073（页面与菜单）。迁移 V300157（建表）、V300158（默认关闭定时同步）。
+servers:
+  - url: /API/V1
+paths:
+  /Meta/Finv/Quote/UscMap/Status:
+    get:
+      summary: 只读快照
+      operationId: uscMapStatus
+      tags: [UscMap]
+      parameters:
+        - name: env
+          in: query
+          required: false
+          schema: { type: string, default: '*' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code: { type: integer, const: 0 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      env: { type: string }
+                      rule_version: { type: string }
+                      rule_count: { type: integer }
+                      item_count: { type: integer }
+                      item_active: { type: integer }
+                      map_active: { type: integer }
+                      map_retired: { type: integer }
+                      map_reuse: { type: integer }
+                      key_total: { type: integer }
+                      key_match: { type: integer }
+                      key_miss: { type: integer }
+                      last_compute_at: { type: string }
+                      archive_rows: { type: integer }
+                      cron_expr: { type: string, description: '空串 = 自动同步关闭' }
+                      cron_next_run: { type: string }
+  /Meta/Finv/Quote/UscMap/Rule/List:
+    get:
+      summary: 规则层列表
+      operationId: uscMapRuleList
+      tags: [UscMap]
+      responses:
+        '200': { description: ok }
+  /Meta/Finv/Quote/UscMap/Rule/Save:
+    post:
+      summary: 保存规则层可改字段（启用开关 / 默认动作 / 说明 / 备注）
+      operationId: uscMapRuleSave
+      tags: [UscMap]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rule_no, flag_enable]
+              properties:
+                rule_no: { type: string, description: 规则编号（必须已存在） }
+                flag_enable: { type: string, enum: ['0', '1'], description: '1=启用该层，0=停用' }
+                default_action: { type: string, nullable: true, enum: [CODE, FTMM, LITERAL, REWRITE, SH4] }
+                rule_desc: { type: string }
+                remark: { type: string }
+                reason: { type: string, description: 审计日志原因 }
+      responses:
+        '200': { description: 保存成功 }
+        '400': { description: 规则不存在或取值非法 }
+  /Meta/Finv/Quote/UscMap/Item/List:
+    get:
+      summary: 条目分页
+      operationId: uscMapItemList
+      tags: [UscMap]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, default: 20, maximum: 200 } }
+        - { name: ruleNo, in: query, schema: { type: string } }
+        - { name: market, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string, enum: [ACTIVE, PENDING, RETIRED] } }
+        - { name: keyword, in: query, schema: { type: string } }
+      responses:
+        '200': { description: ok }
+  /Meta/Finv/Quote/UscMap/Item/Save:
+    post:
+      summary: 新增或编辑条目（idn=0 新增；idn>0 走 UPDATE，改键也算编辑）
+      operationId: uscMapItemSave
+      tags: [UscMap]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rule_no, item_desc]
+              properties:
+                idn: { type: integer, default: 0 }
+                rule_no: { type: string }
+                market: { type: [string, 'null'] }
+                instrument: { type: [string, 'null'] }
+                code: { type: [string, 'null'] }
+                code_regex: { type: [string, 'null'] }
+                action: { type: [string, 'null'], enum: [CODE, FTMM, LITERAL, REWRITE, SH4, null] }
+                usc_literal: { type: [string, 'null'] }
+                rewrite_tpl: { type: [string, 'null'] }
+                status: { type: string, enum: [ACTIVE, PENDING, RETIRED] }
+                effective_from: { type: [string, 'null'], format: date }
+                effective_to: { type: [string, 'null'], format: date }
+                priority: { type: integer, default: 100 }
+                scope_env: { type: string, default: '*' }
+                item_desc: { type: string, description: 必填，说明为什么这么映射 }
+                source_ref: { type: string }
+                remark: { type: string }
+      responses:
+        '200': { description: 保存成功 }
+        '400': { description: 校验失败 }
+        '409':
+          description: 条目自然键重复（rule_no + scope_env + market + instrument + code + code_regex，NULLS NOT DISTINCT）；message 给出已有条目的 idn / 状态 / 说明
+  /Meta/Finv/Quote/UscMap/Item/Retire:
+    post:
+      summary: 停用条目（保留行）
+      operationId: uscMapItemRetire
+      tags: [UscMap]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [idn]
+              properties:
+                idn: { type: integer }
+                reason: { type: string }
+      responses:
+        '200': { description: 已停用 }
+  /Meta/Finv/Quote/UscMap/Diff/Preview:
+    get:
+      summary: 预演差异（不落库）
+      operationId: uscMapPreview
+      tags: [UscMap]
+      parameters:
+        - { name: env, in: query, schema: { type: string, default: '*' } }
+      responses:
+        '200':
+          description: 预演结果（含 preview_token，应用时回传）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, const: 0 }
+                  data:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      insert: { type: integer }
+                      update: { type: integer }
+                      retire: { type: integer }
+                      reuse: { type: integer }
+                      keep: { type: integer }
+                      escalate: { type: integer }
+                      key_update:
+                        type: integer
+                        description: 键表漂移行数（futu.finv_futu_secu_key.usc 与规则结果不一致，应用时回写；不计入 update）
+                      preview_token: { type: string }
+                      samples: { type: array, items: { type: object } }
+                      conflicts: { type: array, items: { type: string } }
+        '500': { description: 预演失败（含无法消解的 usc 冲突） }
+  /Meta/Finv/Quote/UscMap/Diff/Page:
+    get:
+      summary: 分页浏览最近一次预演的完整明细
+      operationId: uscMapDiffPage
+      tags: [UscMap]
+      description: |
+        /Diff/Preview 只回前 200 行；完整明细（含 retire）缓存在服务端内存，30 分钟或重新预演后失效。
+        token 必须与最近一次预演一致（否则 400，提示重新预演）。
+      parameters:
+        - { name: token, in: query, schema: { type: string } }
+        - { name: diff, in: query, schema: { type: string, enum: [insert, update, retire, key_update] } }
+        - { name: keyword, in: query, schema: { type: string }, description: 同时匹配 ftmm_symbol / code / 当前 usc / 新 usc }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, default: 20, maximum: 200 } }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, const: 0 }
+                  data:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      preview_token: { type: string }
+                      list: { type: array, items: { type: object } }
+        '400': { description: 无预演缓存 / 缓存过期 / 令牌不匹配 }
+
+  /Meta/Finv/Quote/UscMap/Map/Page:
+    get:
+      summary: 分页查询结果表（随时可用，不依赖预演）
+      operationId: uscMapMapPage
+      tags: [UscMap]
+      parameters:
+        - { name: keyword, in: query, schema: { type: string }, description: 同时匹配 ftmm_symbol / code / usc }
+        - { name: market, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string, enum: [ACTIVE, RETIRED] } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, default: 20 } }
+      responses:
+        '200':
+          description: 查询完成
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, const: 0 }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      total: { type: integer }
+                      page: { type: integer }
+                      pageSize: { type: integer }
+                      list: { type: array, items: { type: object } }
+  /Meta/Finv/Quote/UscMap/Sync/Run:
+    post:
+      summary: 异步应用（带预演令牌）
+      operationId: uscMapSyncStart
+      tags: [UscMap]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                env: { type: string, default: '*' }
+                preview_token: { type: string }
+                reason: { type: string }
+      responses:
+        '202': { description: 已启动，返回 run_id 快照 }
+        '409': { description: 已有运行在执行，或预演令牌过期 }
+    get:
+      summary: 运行时快照
+      operationId: uscMapSyncStatus
+      tags: [UscMap]
+      parameters:
+        - { name: runId, in: query, schema: { type: string } }
+      responses:
+        '200': { description: ok（status ∈ RUNNING/DONE/FAILED，含 logs） }
+        '404': { description: 运行不存在或已过期 }
+  /Meta/Finv/Quote/UscMap/Schedule:
+    get:
+      summary: 读取每日同步 cron 配置（20015）
+      operationId: uscMapScheduleGet
+      tags: [UscMap]
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, const: 0 }
+                  data:
+                    type: object
+                    properties:
+                      cron_expr: { type: string, description: '空串 = 关闭自动同步' }
+                      enable: { type: boolean }
+                      remark: { type: string }
+                      gmt_modify: { type: [string, 'null'] }
+                      next_run: { type: array, items: { type: string }, description: 未来 5 次执行时间 }
+    post:
+      summary: 保存每日同步 cron（空串=关闭自动同步）
+      operationId: uscMapScheduleSave
+      tags: [UscMap]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cron_expr: { type: string, description: '6 段：秒 分 时 日 月 周；如 0 30 3 * * *' }
+      responses:
+        '200': { description: 已保存（返回最新配置与 next_run） }
+        '400': { description: cron 表达式非法 }
+
+  /Meta/Finv/Quote/UscMap/Log/List:
+    get:
+      summary: 审计日志分页
+      description: |
+        每行除 `key_text` 外，另返回从快照解析出的 `src_idn`（条目主键）、
+        `src_rule_no`（所属规则）、`src_ftmm`（结果表键），页面据此分「主键 / 所属规则」两列展示。
+      operationId: uscMapLogList
+      tags: [UscMap]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, default: 20 } }
+      responses:
+        '200': { description: ok }

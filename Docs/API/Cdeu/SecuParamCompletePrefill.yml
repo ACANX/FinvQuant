@@ -1,0 +1,83 @@
+openapi: 3.0.3
+info:
+  title: FinvQuant API — 证券参数补全：预填
+  version: 1.0.0
+  description: |
+    GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Secu/Param/Complete/Prefill
+    需求 11161：按目标表（security / collect）返回单表补全的预填字段与来源标记，
+    并给出 exists（目标表里是否已有该 usc）。复用需求 11147 的推导规则，只读不写库。
+servers:
+  - url: /
+paths:
+  /Meta/Finv/Quote/Cdeu/Realtime/Secu/Param/Complete/Prefill:
+    get:
+      summary: 单表补全预填（只返回目标表那一组字段）
+      operationId: realtimeSecuParamPrefill
+      tags: [Cdeu]
+      parameters:
+        - name: target
+          in: query
+          required: true
+          schema: { type: string, enum: [security, collect] }
+        - name: stockId
+          in: query
+          required: true
+          description: 快照表主键（bigint，只校验正整数）
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: 预填完成
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string, example: 预填完成 }
+                  data:
+                    type: object
+                    required: [target, table, stock_id, usc, name, exists, fields, warnings]
+                    properties:
+                      target: { type: string, example: security }
+                      table: { type: string, example: public.finv_security }
+                      stock_id: { type: integer, format: int64, example: 202096 }
+                      usc: { type: string, example: PLD, description: 补全将写入的主键 = COALESCE(快照 usc, 派生键) }
+                      name: { type: string, example: 安博 }
+                      exists: { type: boolean, description: true 时目标表已有该 usc，前端应禁用提交 }
+                      fields:
+                        type: array
+                        items: { $ref: '#/components/schemas/PrefillField' }
+                      warnings:
+                        type: array
+                        items: { type: string }
+        '400':
+          description: target 缺失/非法、stockId 非正整数、stock_id 不存在、无法确定 usc
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 400 }
+                  message: { type: string }
+        '500':
+          description: 数据库侧失败
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 2006 }
+                  message: { type: string }
+components:
+  schemas:
+    PrefillField:
+      type: object
+      required: [key, label, value, source, required, note]
+      properties:
+        key: { type: string, example: exchange_code }
+        label: { type: string, example: exchange_code 交易所代码 }
+        value: { type: string, example: '30' }
+        source: { type: string, enum: [snapshot, dictionary, reference, default, manual] }
+        required: { type: boolean }
+        note: { type: string, description: 来源说明或人工提示 }

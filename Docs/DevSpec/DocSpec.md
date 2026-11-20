@@ -20,6 +20,23 @@
 - **一个菜单一个文档**：每个业务菜单必须独立成一篇文档文件，**不允许多个业务菜单放到同一文档中描述**；文档命名与拆分规则见 [MenuSpec.md](MenuSpec.md) 第 2.2 节；
 - **URL 查询参数统一小驼峰**：技术文档中描述的 URL 查询参数必须使用小驼峰（lowerCamelCase）风格，不得使用下划线风格；规则见 [ApiSpec.md](ApiSpec.md) 第 3 节；
 - **编写技术文档时不允许擅自违反开发规范**：文档内容（含示例、接口路径、参数、错误码）必须与代码实现及本目录（`Docs/DevSpec/`）中的规范一致；规范冲突时以规范文档为准，并先修正规范或与规范维护者确认后再落文档。
+- **过程文档编号全局唯一**：`Docs/` 下过程文档的 `yyMM-NNN-` 编号不得重号、不得复用；新增或改名后执行 `go test ./internal/docs` 校验，重号视为不合规。规则见 [FileNamingSpec.md](FileNamingSpec.md) 第 4 节。
+
+## 3.1 Markdown 表格书写规范（强制）
+
+- **一行一个字段**：字段表、参数表、错误码表等 Markdown 表格中，每个字段/每个语义必须独立成行；
+  不得把多个字段塞进同一行或同一单元格。
+- **禁止用斜杠合并字段名**：例如 `gmt_create / gmt_update`、`date / time`、
+  `change_price / change_ratio`、`open / high / low / close` 等写法一律禁止；
+  每个字段必须单独列出类型、可空、默认值、约束与说明。
+- **允许的斜杠用法**：仅限“取值枚举/备选值”的说明（如 `both / schema / data`、`skip / update`），
+  且必须放在“取值/说明”列，不得用于字段名或列名。
+- **类型与可空分列**：字段表的「类型」与「可空」必须分两列，不得在类型列写 `X \| null`
+  （嵌套可空用 `array<array<string>>` + 说明文字表达），详见 [ApiSpec.md](ApiSpec.md) 第 7.7 节。
+- **约束与默认值**：字段的 `NOT NULL`、`DEFAULT`、`CHECK`、唯一约束等必须在 DDL 或字段表中明确写出，
+  不得仅以“同 xxx 表”代替。
+- **DDL 草案同理**：`gmt_create`、`gmt_update` 等字段必须各自独立一行，不得合并；
+  且**每个字段必须带中文注释**（行内 `-- 说明` 或 `COMMENT ON COLUMN`），约束/索引也应注明用途。
 
 ## 4. 变更日志（CHANGELOG，强制）
 

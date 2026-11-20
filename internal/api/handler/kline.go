@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/acanx/finvquant/internal/kline"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
 )
 
 // maxKLineBody 请求体上限（32 MiB，远高于单次 5000 行业务上限）。
@@ -180,7 +180,7 @@ func (h *KLine) BatchInsert(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"inserted": inserted})
 }
 
-// Upsert 处理 POST .../Upsert?onConflict=skip|update。
+// Upsert 处理 POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert?onConflict=skip|update。
 func (h *KLine) Upsert(c *gin.Context) {
 	mode := "update"
 	if raw := queryString(c, "onConflict", "onConflict", "on_conflict"); raw != nil {

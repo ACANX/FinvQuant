@@ -3,6 +3,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -28,11 +29,39 @@ type Config struct {
 	Mode string
 
 	// 分钟行情 API（融合 FinvQuoteDataDeDup）上限
-	KLineMaxBatchRows int // POST /Batch、POST /Upsert 的 items 上限（默认 5000）
+	KLineMaxBatchRows int // POST /Batch、POST /Cdeu/Min/Upsert 的 items 上限（默认 5000）
 	KLineMaxListSize  int // keys/uscs/PATCH 条目上限（默认 5000）
 
 	// KLineTSUnit 入参 ts 单位：s=秒级（默认，与库内一致）；ms=接受 13 位毫秒并换算为秒。
 	KLineTSUnit string
+
+	// LogDir 日志目录（Native 方式写文件；为空则仅输出到 stdout/stderr）。
+	LogDir string
+	// LogFile 活动日志文件名（默认 FinvQuant.log）。
+	LogFile string
+	// LogMaxMB 单文件上限（MB，默认 10）；超过后按日期+序号切分。
+	LogMaxMB int
+	// BrsBackupDir BRS 备份根目录（默认 <PREFIX>/BRS）。
+	BrsBackupDir string
+	// BrsLocalKeepDays 本地全量 dump 保留天数（<=0 不清理；只删远端已存在的文件）。
+	BrsLocalKeepDays int
+	// BrsDiskMinFreeGB 备份目录剩余空间告警阈值（GB，<=0 关闭）。
+	BrsDiskMinFreeGB int
+
+	// OpenAPIRedisFailMode Redis 故障时 nonce/限流的处置策略（需求 11188）：
+	// `close`（默认）= 拒绝请求（fail-close，重放与限流不可用时不放行）；`open` = 放行并告警。
+	OpenAPIRedisFailMode string
+
+	// TrustedProxies 可信反向代理网段（需求 11247）。
+	//
+	// 只有 TCP 对端落在这些网段时，才采信 `X-Forwarded-For` / `X-Real-IP`；
+	// 否则公网直连可随意伪造来源 IP，审计表的 `ip` 与 IP 白名单都会失真。
+	// 默认私网 + 回环（覆盖本机/容器内 Nginx 转发）；前置 CDN 时用 FINV_TRUSTED_PROXIES 追加其网段。
+	TrustedProxies []string
+
+	// OpenAPIKey 外部 OpenAPI（/OpenAPI/V1）静态访问密钥（需求 10787，过渡方案）。
+	// 为空时不注册外部路由；后续 API Key 体系落地后由 DB 凭证替换。
+	OpenAPIKey string
 
 	// 错误详情分级（DC-06）：
 	//   safe  = 只输出安全文案（默认）
@@ -40,6 +69,32 @@ type Config struct {
 	ErrorDetailMode         string
 	ErrorDebugToken         string
 	ErrorDetailAllowedCIDRs []string
+
+	// 证券行情月归档导出与上传（详见 Docs/Refactor/2610-005-FinvQuoteDeDubExportUpload.md）
+	QuoteDeDupEnabled         bool   // 功能开关，默认关闭；开启后由进程内调度器自动跑 10 个 Job
+	QuoteDeDupTimeZone        string // 业务时区，默认 Asia/Shanghai
+	QuoteDeDupOutputDir       string // 本地导出根目录
+	QuoteDeDupWorkerID        string // worker 标识，空则用 hostname-pid
+	QuoteDeDupPageSize        int    // LOAD 单页行数（5000~20000）
+	QuoteDeDupLeaseSeconds    int    // 任务锁租约（秒）
+	QuoteDeDupMaxAttempts     int    // 上传最大尝试次数
+	QuoteDeDupUploadMode      string // none / dir / http
+	QuoteDeDupUploadDir       string // dir 模式：独享存储本地挂载根目录
+	QuoteDeDupUploadHTTPBase  string // http 模式：PUT 根地址
+	QuoteDeDupUploadHTTPToken string // http 模式：Bearer 令牌（可选）
+	QuoteDeDupUploadPrefix    string // 远端路径前缀（可选）
+	// QuoteDeDupUploadLayout 远端目录布局：by_security（默认，{region}_{market}/{usc}/文件）
+	// 或 flat（文件，兼容旧行为）。分层段与文件名同属命名契约，故不由 sys_config 20004 描述。
+	QuoteDeDupUploadLayout string
+	// QuoteDeDupUploadGitHubAPIBase GitHub API 端点（可选，默认 https://api.github.com；
+	// 仅当 sys_config 20002='1' 走 Contents API 时才使用，GitHub Enterprise 可覆盖）。
+	QuoteDeDupUploadGitHubAPIBase string
+	QuoteDeDupLocalRetentionDay   int     // 本地文件保留天数
+	QuoteDeDupMaturityThreshold   float64 // 成熟度阈值（默认 0.95）
+	QuoteDeDupPatchBudgetRatio    float64 // Patch 独立预算占日预算比例（默认 0.10）
+	QuoteDeDupCompression         string  // none / gzip
+	QuoteDeDupFetchLimit          int     // 单轮候选生成上限
+	QuoteDeDupMaxJobsPerRun       int     // 单轮 RUN_DUE_EXPORT_JOBS 最多处理任务数
 }
 
 // Load 从环境变量加载配置，缺失时使用默认值。
@@ -57,13 +112,43 @@ func Load() *Config {
 		RedisDB:       envIntOr("FINV_REDIS_DB", 0),
 		Mode:          envOr("FINV_MODE", "release"),
 
-		KLineMaxBatchRows: envIntOr("FINV_KLINE_MAX_BATCH_ROWS", 5000),
-		KLineMaxListSize:  envIntOr("FINV_KLINE_MAX_LIST_SIZE", 5000),
-		KLineTSUnit:       envLowerOr("FINV_KLINE_TS_UNIT", "s"),
+		KLineMaxBatchRows:    envIntOr("FINV_KLINE_MAX_BATCH_ROWS", 5000),
+		KLineMaxListSize:     envIntOr("FINV_KLINE_MAX_LIST_SIZE", 5000),
+		KLineTSUnit:          envLowerOr("FINV_KLINE_TS_UNIT", "s"),
+		OpenAPIRedisFailMode: envOr("FINV_OPENAPI_REDIS_FAIL_MODE", "close"),
+		TrustedProxies:       trustedProxies(),
+		OpenAPIKey:           envOr("FINV_OPENAPI_KEY", ""),
+		LogDir:               envOr("FINV_LOG_DIR", ""),
+		LogFile:              envOr("FINV_LOG_FILE", "FinvQuant.log"),
+		LogMaxMB:             envIntOr("FINV_LOG_MAX_MB", 10),
+		BrsBackupDir:         envOr("FINV_BRS_BACKUP_DIR", "/data/App/FinvQuant/BRS"),
+		BrsLocalKeepDays:     envIntOr("FINV_BRS_LOCAL_KEEP_DAYS", 7),
+		BrsDiskMinFreeGB:     envIntOr("FINV_BRS_DISK_MIN_FREE_GB", 5),
 
 		ErrorDetailMode:         envLowerOr("FINV_ERROR_DETAIL_MODE", "safe"),
 		ErrorDebugToken:         os.Getenv("FINV_ERROR_DEBUG_TOKEN"),
 		ErrorDetailAllowedCIDRs: envListOr("FINV_ERROR_DETAIL_ALLOWED_CIDRS"),
+
+		QuoteDeDupEnabled:             envBoolOr("FINV_QUOTE_DEDUB_ENABLED", false),
+		QuoteDeDupTimeZone:            envOr("FINV_QUOTE_DEDUB_TIMEZONE", "Asia/Shanghai"),
+		QuoteDeDupOutputDir:           envOr("FINV_QUOTE_DEDUB_OUTPUT_DIR", "/data/App/FinvQuant/Export"),
+		QuoteDeDupWorkerID:            os.Getenv("FINV_QUOTE_DEDUB_WORKER_ID"),
+		QuoteDeDupPageSize:            envIntOr("FINV_QUOTE_DEDUB_PAGE_SIZE", 10000),
+		QuoteDeDupLeaseSeconds:        envIntOr("FINV_QUOTE_DEDUB_LEASE_SECONDS", 300),
+		QuoteDeDupMaxAttempts:         envIntOr("FINV_QUOTE_DEDUB_MAX_ATTEMPTS", 8),
+		QuoteDeDupUploadMode:          envLowerOr("FINV_QUOTE_DEDUB_UPLOAD_MODE", "none"),
+		QuoteDeDupUploadDir:           envOr("FINV_QUOTE_DEDUB_UPLOAD_DIR", "/data/App/FinvQuant/Export/Upload"),
+		QuoteDeDupUploadHTTPBase:      os.Getenv("FINV_QUOTE_DEDUB_UPLOAD_HTTP_BASE"),
+		QuoteDeDupUploadHTTPToken:     os.Getenv("FINV_QUOTE_DEDUB_UPLOAD_HTTP_TOKEN"),
+		QuoteDeDupUploadPrefix:        os.Getenv("FINV_QUOTE_DEDUB_UPLOAD_PREFIX"),
+		QuoteDeDupUploadLayout:        envLowerOr("FINV_QUOTE_DEDUB_UPLOAD_LAYOUT", "by_security"),
+		QuoteDeDupUploadGitHubAPIBase: os.Getenv("FINV_QUOTE_DEDUB_UPLOAD_GITHUB_API_BASE"),
+		QuoteDeDupLocalRetentionDay:   envIntOr("FINV_QUOTE_DEDUB_LOCAL_RETENTION_DAYS", 30),
+		QuoteDeDupMaturityThreshold:   envFloatOr("FINV_QUOTE_DEDUB_MATURITY_THRESHOLD", 0.95),
+		QuoteDeDupPatchBudgetRatio:    envFloatOr("FINV_QUOTE_DEDUB_PATCH_BUDGET_RATIO", 0.10),
+		QuoteDeDupCompression:         envLowerOr("FINV_QUOTE_DEDUB_COMPRESSION", "none"),
+		QuoteDeDupFetchLimit:          envIntOr("FINV_QUOTE_DEDUB_FETCH_LIMIT", 2000),
+		QuoteDeDupMaxJobsPerRun:       envIntOr("FINV_QUOTE_DEDUB_MAX_JOBS_PER_RUN", 200),
 	}
 }
 
@@ -113,6 +198,31 @@ func envListOr(key string) []string {
 	return items
 }
 
+// envBoolOr 读取布尔环境变量（1/true/yes/on 为真，0/false/no/off 为假）。
+func envBoolOr(key string, fallback bool) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
+}
+
+// envFloatOr 读取浮点环境变量（非法值回退默认值）。
+func envFloatOr(key string, fallback float64) float64 {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
 func envIntOr(key string, fallback int) int {
 	value := os.Getenv(key)
 	if value == "" {
@@ -126,4 +236,23 @@ func envIntOr(key string, fallback int) int {
 		parsed = parsed*10 + int(r-'0')
 	}
 	return parsed
+}
+
+// defaultTrustedProxies 默认可信代理网段：私网三段 + 回环 + IPv6 唯一本地地址。
+//
+// 取默认值而非空：反向代理部署（Nginx / Docker 网关）几乎都在私网侧，
+// 而公网直连的 TCP 对端是公网 IP，不会被这些网段命中，因此不存在伪造风险。
+func defaultTrustedProxies() []string {
+	return []string{
+		"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+		"127.0.0.1/32", "::1/128", "fc00::/7",
+	}
+}
+
+// trustedProxies 读取可信代理网段：FINV_TRUSTED_PROXIES 覆盖默认值。
+func trustedProxies() []string {
+	if items := envListOr("FINV_TRUSTED_PROXIES"); len(items) > 0 {
+		return items
+	}
+	return defaultTrustedProxies()
 }

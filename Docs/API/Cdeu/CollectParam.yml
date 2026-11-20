@@ -1,0 +1,258 @@
+# FinvQuant — 采集参数查询与单行维护（OpenAPI 3.1 契约）
+#
+# 与同目录 CollectParam.md 成对维护，任一侧变更须同步更新另一侧。
+#
+openapi: 3.1.0
+info:
+  title: FinvQuant — 采集参数查询与单行维护
+  version: 1.0.0
+  description: |
+    查询 / 单行维护 futu.finv_futu_quote_collect（usc 主键，ftmm_symbol 为生成列）。
+    查询时左关联 public.finv_security（+ finv_exchange / finv_market）带出证券名称、分类、子类、
+    计价货币、交易所、市场；不新增、不删除行（表是采集链路镜像，删行等于停采）。
+servers:
+  - url: http://127.0.0.1:16001
+    description: 本机直连（生产经 Nginx 反代时替换为 https://<域名>）
+tags:
+  - name: Quote/Secu/Collect
+    description: 富途采集参数（futu.finv_futu_quote_collect）
+security:
+  - bearerAuth: []
+paths:
+  /API/V1/Meta/Finv/Quote/Secu/Collect/Page:
+    get:
+      operationId: pageSecuFtmmCollect
+      tags: [Quote/Secu/Collect]
+      summary: 分页查询采集参数（含左关联的证券元数据）
+      parameters:
+        - name: keyword
+          in: query
+          required: false
+          description: 模糊匹配 c.usc / c.ftmm_symbol / c.futu_symbol / 证券名称。
+          schema: { type: string }
+        - name: marketLabel
+          in: query
+          required: false
+          description: 行情市场；空或 all 表示不限（大小写不敏感）。
+          schema:
+            type: string
+            enum: ['', all, HK, SH, SZ, BJ, US, FX, CC]
+        - name: instrument
+          in: query
+          required: false
+          description: 富途证券类型；空或 all 表示不限（大小写不敏感）。
+          schema:
+            type: string
+            enum: ['', all, stock, etfs, index, currency, crypto, futures, sectors]
+        - name: securityType
+          in: query
+          required: false
+          description: 规范证券分类（public.finv_security.security_type）。
+          schema: { type: string }
+        - name: flagEnable
+          in: query
+          required: false
+          description: 采集状态；空或 all 表示不限。
+          schema:
+            type: string
+            enum: ['', all, '0', '1']
+        - name: onlyMissing
+          in: query
+          required: false
+          description: 1/true/yes/on 时只列主数据里没有该证券的行（s.usc IS NULL）。
+          schema: { type: string }
+        - name: orderBy
+          in: query
+          required: false
+          schema:
+            type: string
+            default: usc
+            enum: [usc, ftmm_symbol, futu_symbol, market_label, market_type, market_code,
+                   instrument, stock_id, flag_enable, gmt_update]
+        - name: order
+          in: query
+          required: false
+          schema:
+            type: string
+            default: asc
+            enum: [asc, desc]
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 500, default: 50 }
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /API/V1/Meta/Finv/Quote/Secu/Collect/Update:
+    post:
+      operationId: updateSecuFtmmCollect
+      tags: [Quote/Secu/Collect]
+      summary: 单行更新采集参数（字段白名单，只提交改动列）
+      description: |
+        usc 是定位键；fields 里只放要改的字段，未出现的列不改。
+        可编辑 11 列：stock_id / market_type / market_code / instrument_type / sub_instrument_type /
+        market_label / instrument / futu_symbol / req_section / flag_enable / remark。
+        不可编辑：usc（主键）、ftmm_symbol（生成列）、gmt_create / gmt_update（触发器维护）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRequest'
+      responses:
+        '200':
+          description: 保存成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: usc 在采集表里不存在（不静默插入）。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: (market_code, futu_symbol) 唯一约束冲突（已被别的 usc 占用，不覆盖别人的行）。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    BadRequest:
+      description: 参数非法（分页越界 / order 非 asc|desc / orderBy 不在白名单 / 请求体字段非法）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: 未登录或令牌失效。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: 数据库查询 / 更新失败（可重试）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    PageResponse:
+      type: object
+      required: [code, message, data]
+      additionalProperties: false
+      properties:
+        code: { type: integer, const: 0 }
+        message: { type: string }
+        data:
+          type: object
+          required: [total, page, pageSize, list]
+          additionalProperties: false
+          properties:
+            total: { type: integer, format: int64 }
+            page: { type: integer }
+            pageSize: { type: integer }
+            list:
+              type: array
+              items:
+                $ref: '#/components/schemas/CollectRow'
+    CollectRow:
+      type: object
+      required: [usc, ftmm_symbol, futu_symbol, market_label, market_type, market_code, instrument,
+                 instrument_type, sub_instrument_type, req_section, stock_id, flag_enable, remark,
+                 gmt_update, security_exists]
+      additionalProperties: false
+      properties:
+        usc: { type: string, description: 证券统一编码（主键） }
+        ftmm_symbol: { type: string, description: '派生键 market_label || "." || futu_symbol（PG 生成列）' }
+        futu_symbol: { type: string, description: 富途侧证券代码（原始形态） }
+        market_label: { type: string, description: 富途行情市场标识（HK/SH/SZ/BJ/US/FX/CC） }
+        market_type: { type: integer, description: 富途市场类型（1 港股 / 2 美股 / 4 A股 / 11 外汇 / 17 加密） }
+        market_code: { type: integer, description: 富途市场代码（不是 finv_market.market_code） }
+        instrument: { type: string, description: 富途证券类型（stock/etfs/index/currency/crypto/futures/sectors） }
+        instrument_type: { type: integer, description: 富途品种类型（3 股票 / 4 ETF / 6 指数 / 7 板块 / 9 期货 / 10 外汇 / 11 加密） }
+        sub_instrument_type: { type: integer, description: 富途品种子类型（如 3002 / 4002 / 6001） }
+        req_section: { type: string, description: 富途行情订阅段（空串 = 无） }
+        stock_id: { type: integer, format: int64, description: 富途证券内部 ID }
+        flag_enable: { type: string, enum: ['0', '1'], description: 采集开关 }
+        remark: { type: string, description: 备注（空串 = 无） }
+        gmt_update: { type: string, description: 最后更新时间（Asia/Shanghai，YYYY-MM-DD HH24:MI:SS） }
+        security_name: { type: string, description: 证券名称（security_name_cn，缺失回退 security_name） }
+        security_type: { type: string, description: 规范证券分类 }
+        security_sub_type: { type: string, description: 证券子类（type_secu_sub） }
+        currency_type: { type: string, description: 计价货币 }
+        exchange_code: { type: integer, description: 交易所代码 }
+        exchange_name: { type: string, description: 交易所中文简称 }
+        security_market_code: { type: integer, description: 规范市场代码 }
+        security_market_name: { type: string, description: 规范市场名称 }
+        security_exists: { type: boolean, description: 主数据里是否有该证券；false 时元数据字段为空串 }
+    UpdateRequest:
+      type: object
+      required: [usc, fields]
+      additionalProperties: false
+      properties:
+        usc: { type: string, description: 定位键（不参与更新） }
+        fields:
+          type: object
+          additionalProperties: false
+          description: 只放要改的字段，未出现的列不改
+          properties:
+            stock_id: { type: integer, format: int64, minimum: 1 }
+            market_type: { type: integer, minimum: 1 }
+            market_code: { type: integer, minimum: 1 }
+            instrument_type: { type: integer, minimum: 1 }
+            sub_instrument_type: { type: integer, minimum: 1 }
+            market_label: { type: string, description: 非空，服务端转大写 }
+            instrument: { type: string, description: 非空，服务端转小写 }
+            futu_symbol: { type: string, description: 非空 }
+            req_section: { type: string }
+            flag_enable: { type: string, enum: ['0', '1'] }
+            remark: { type: string }
+    UpdateResponse:
+      type: object
+      required: [code, message, data]
+      additionalProperties: false
+      properties:
+        code: { type: integer, const: 0 }
+        message: { type: string }
+        data:
+          type: object
+          required: [usc, updated]
+          additionalProperties: false
+          properties:
+            usc: { type: string }
+            updated: { type: boolean }
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      additionalProperties: false
+      properties:
+        code: { type: integer }
+        message: { type: string }

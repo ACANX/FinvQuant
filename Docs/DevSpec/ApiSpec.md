@@ -9,6 +9,46 @@
 - 所有 REST JSON 响应顶层固定输出数值 `code` 和文本 `message`；`data`、`error`、`details`、`request_id`、`trace_id` 均为按语义可选字段。
 - 所有 wire 字段（JSON 请求/响应体）使用 **snake_case**。
 
+### 1.0 追踪 ID `request_id` 的大小写（强制，需求 11181）
+
+- 所有响应中的 `request_id`（无论出现在信封顶层还是 `data` 内）**一律使用大写**，禁止小写；示例、`.yml` 契约、前端类型注释与联调脚本必须与大写口径一致。
+- 两种既有形态，按生成入口区分，不要混用：
+
+  | 场景 | 形态 | 生成位置 |
+  |---|---|---|
+  | 内部接口（`/API/V1/*`）错误信封与 `data.request_id` | **大写 UUID4**，36 字符带连字符（如 `0B0D1F2E-3A4C-5D6E-8F70-1A2B3C4D5E6F`） | `internal/api/handler.RequestID`（`strings.ToUpper(uuid.NewString())`） |
+  | 对外 OpenAPI（`/OpenAPI/V1/*`）鉴权拒绝信封、响应头 `X-Request-Id`、审计表 `open.open_api_invoke_log.request_id` | **32 位大写十六进制**（如 `C620F2756DAC8F303D982603A7739D1F`） | `internal/api/openapi.newRequestID`（需求 11177） |
+
+- **响应头 `X-Request-Id`（单独约定，强制）**：
+  - 头名固定写 `X-Request-Id`（各段首字母大写、中间用连字符），不得写成 `X-Request-ID`、`X-RequestId` 等变体；
+  - **头值一律为大写十六进制**：服务端生成时固定 32 位（如 `7285C7E32383A768ADE7615BA81A197D`），禁止小写；
+  - 客户端可透传该头用于跨系统串联链路，但**只接受 8~64 位十六进制**并统一转大写；
+    其它形态（中文、带分隔符、超长、空）一律忽略并由服务端重新生成——既保证「值必为大写十六进制」，
+    也防止调用方污染审计或把多个请求伪造成同一个 ID；
+  - 回显范围：仅 `/OpenAPI/V1/*`（由 `internal/api/openapi` 中间件写响应头）；内部接口不返回该响应头，
+    排障以响应体里的 `request_id` 为准；
+  - 审计表 `open.open_api_invoke_log.request_id` **与响应头同值**，可据此一一对应。
+- 两个层级不要混淆：OpenAPI **成功**响应里的 `data.request_id` 由业务 handler 生成（大写 UUID4），
+  而响应头 `X-Request-Id` 与审计表记录的是**网关层**的 32 位大写十六进制；排障时按需分别引用。
+- 审计与日志字段同理：`open.open_api_invoke_log.request_id`、`body_sha256` 一律大写十六进制。
+- 兜底测试：`internal/api/openapi` 的 `TestBodyHashAndRequestIDUppercase`、`TestResolveRequestID`、
+  `TestMiddlewareEchoesRequestIDUppercase`（透传小写被归一、非法值被忽略、回显恒为大写十六进制），
+  以及 `internal/api/handler` 的 `TestRequestIDUppercaseUUID`。
+- 自查命令（应无输出）：
+
+  ```bash
+  grep -rn '"request_id": "[^"]*[a-f]' Docs/ | grep -v '大写'
+  ```
+
+### 1.1 统计与动作类字段命名（强制）
+
+- 响应体中表示「本次动作结果数量」的统计字段一律使用**动词原形**，禁止过去式/动名词：
+  - 允许：`insert`、`update`、`receive`、`delete`、`skip`；
+  - 禁止：`inserted`、`updated`、`received`、`deleted`、`skipped`。
+- 行数类字段统一 `rows_` 前缀（`rows_insert` / `rows_update` / `rows_receive`），总量字段用 `total`。
+- 规则同时覆盖：`.md` 文档的响应示例与字段表、`.yml` 契约的 `properties` 与 `required`、前端 TS 类型定义。
+- 存量不合规字段按需求条目逐条迁移（`Docs/RequirementList.md` 10973/10974/10975/10979），新增字段一律按本节执行。
+
 ## 2. API 路径
 
 - 服务端 API 路径统一使用大写 `/API/V1/` 前缀（例如 `GET /API/V1/Health/Live`），不使用 `/api/v1/`。
@@ -68,13 +108,32 @@ API 契约测试必须覆盖：
 
 ### 7.5 分钟行情 K 线接口的兼容例外（2026-10-24）
 
-融合 `FinvQuoteDataDeDup` 后，`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/*` 与运维端点存在以下**已登记例外**，不属于违规：
+融合 `FinvQuoteDataDeDup` 后，分钟行情接口统一为 `/API/V1/Meta/Finv/Quote/Cdeu/Min/*`（旧
+`/API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/*` 与 Python 服务前缀已不再注册），运维端点存在以下**已登记例外**，不属于违规：
 
-- **过渡前缀别名**：同时注册旧前缀 `/API/V1/Meta/Finv/Quote/Secu/KLine/Min/*`（切流期用，P7 后移除）；对外承诺路径为新前缀。
+- **运维根端点**：`GET /Health`、`GET /healthz` 不挂在业务前缀下（探针/脚本使用），不属于前缀违规。
 - **URL 查询参数双读**：`dateFrom/dateTo/tsFrom/tsTo/onConflict`（小驼峰，规范名）与 `date_from/date_to/ts_from/ts_to/on_conflict`（旧下划线名）同时接受；文档以规范名为准。
+- **迁移期兼容参数双读（2026-11-01 登记）**：`pageSize`（兼容 `page_size`）、`flagEnable`（兼容 `flag_enable`）用于元数据字典接口；`secuName`（兼容 `secu_name`）、`startTs/endTs`（兼容 `start_ts/end_ts`）用于历史行情查询。规范名为主路径，旧名仅兜底，**新接口不得照此新增**；`internal/api/handler/queryparam_naming_test.go` 静态校验：出现未登记的下划线查询参数即测试失败。
 - **列表信封沿用旧契约**：`GET /Page`、`GET /PageUni` 成功响应为 `{"code":1,"data":{...},"message":"OK"}`（成功码 `1` 属成功码集合，允许）。
 - **错误体为超集**：`{code,message,detail,request_id,error}`，保留旧客户端依赖的 `detail` 字段；`code` 见 `ErrorCodeSpec` §1.1。
 - **运维端点无 `/API/V1` 前缀**：`GET /Health`（旧 `/healthz` 过渡别名）、`GET /` 服务标识。
+
+### 7.7 接口文档样板（OpenAPI 3.1）
+
+自 2026-10-28 起，接口文档统一按
+[`Docs/API/Quote/Cdeu/Min/KLineUpsert.md`](../API/Quote/Cdeu/Min/KLineUpsert.md) 的结构编写：
+
+- **字段表分列**：字段表的「类型」与「可空」必须分两列，**不得**在类型列写 `X \| null`；嵌套可空（如数组元素可为 null）用类型 `array<array<string>>` + 说明文字表达；
+- **正文优先人类可读**：概述、参数表、行为语义、错误目录、示例放在 `.md` 前面；
+- **契约独立成文件**：完整 OpenAPI 3.1 契约放在**同名 `.yml`**（如 `KLineUpsert.md` + `KLineUpsert.yml`），`.md` 末尾仅保留链接与校验/生成命令；`.yml` 含 `paths` / `components`（含 `securitySchemes`），**不得**用「同 XXX 文档」省略契约；
+- **内部/外部分离且自包含**：`Docs/API/` 是内部接口文档，`Docs/OpenAPI/` 是对外契约；**对外文档不得引用内部文档或内部 `.yml`**（字段表、错误码、schema 必须内联复制，允许通过索引页链接到对外文档，但对外文档正文不反向依赖内部文档）；
+- 字段表逐项列出类型、必填、约束、是否落库、说明；
+- 行为语义（冲突处理、事务边界、幂等、兼容字段、自动计算）写明；
+- 错误目录列全 `code` / HTTP / `retryable` / 触发场景 / 白名单 debug 键；
+- 示例至少包含 curl、成功响应、典型错误；
+- 同步 `Docs/API/APIs.md`、`Docs/API/README.md` 与 `Docs/CHANGELOG.md`。
+
+该文件同时作为评审基准：新增接口文档缺少上述任一项，应退回补充。
 
 ### 7.6 已使用位置登记
 

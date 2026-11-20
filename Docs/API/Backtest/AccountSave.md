@@ -48,4 +48,4 @@
 
 | 业务菜单 | 菜单文档 | 使用接口 |
 |----------|----------|----------|
-| 账户管理 | [Docs/Menu/Backtest/AccountManage.md](../../Menu/Backtest/AccountManage.md) | List / Get / Save / Toggle / Delete |
+| 账户管理 | [Docs/Menu/Quant/Account.md](../../Menu/Quant/Account.md) | List / Get / Save / Toggle / Delete |

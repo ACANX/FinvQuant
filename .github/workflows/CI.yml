@@ -1,34 +1,46 @@
-# FinvQuant CI/CD：构建并推送 All-in-One 镜像到 GitHub Packages (GHCR)
-#   - ghcr.io/acanx/finvquant（Go 服务端 16001 + 内嵌前端 16002，单镜像单进程）
+# FinvQuant CI/CD：构建镜像（GHCR）与三种发布包
+#   - 镜像：ghcr.io/acanx/finvquant（Go 服务端 16001 + 内嵌前端 16002，单镜像单进程）
 #
-# 触发：push 到 dev/main/FinvQuant/feat/integration、tag v*、PR、手动
-# 全局版本：单一来源 = 项目根 VERSION 文件（同时用于后端 -ldflags、前端 package.json、镜像 tag）
-# tag 规则：
-#   - dev/main/FinvQuant 分支推送：latest + v{VERSION}-YYYYMMDDHHMM（Asia/Shanghai，如 v0.1.0-202608051901）
-#   - v* tag 推送（main 发布）：latest + v{VERSION}（即 git tag 名，如 v0.1.0）
-#   - feat/integration 分支推送（融合集成分支）：**不走上面的镜像规则**，改为快照模式
-#       版本：v{VERSION}.{PPPPP}.{yymmddHHmm}
-#         PPPPP  = 关联 PR 编号（5 位左补零；无 PR 时为 00000）
-#         yymmddHHmm = 构建时间戳（Asia/Shanghai），同一快照的所有产物共用同一个值
-#       产物：Ubuntu 26.04 可执行包（tar.gz, linux/amd64 + linux/arm64）
-#             Windows 11 可执行包（zip, windows/amd64）
-#       发布：以快照版本为 git tag 建 prerelease，附两个包与 SHA256SUMS
-#       镜像：feat/integration 不构建镜像（保持既有镜像模式不被集成分支污染）
-#   - 多平台构建策略（构建速度优化）：
-#     - dev/FinvQuant 分支推送 & PR 验证：仅 linux/amd64（快速迭代，缩短集成等待）
-#     - main 分支推送 / v* tag 推送（正式发布）：linux/amd64 + linux/arm64（全架构）
-#     - 正式发布另打平台专属 tag（v{VERSION}[-YYYYMMDDHHMM]-linux-amd64 / -linux-arm64）
-#     （平台 tag 步骤为试验期 continue-on-error，失败不阻塞主流程，跑通后收紧）
+# 触发：push 分支（dev/main/FinvQuant/feat/**）、tag v*、PR、手动
+# 全局版本：单一来源 = 项目根 VERSION 文件（同时用于后端 -ldflags、前端 package.json、镜像 tag、包版本）
+#
+# 三种发布包（三个同级平行的 binaries job，分别在不同场景触发）：
+#   | 包类型 | 触发场景 | 版本 / tag 格式 | 发布 |
+#   |---|---|---|---|
+#   | 快照包 snapshot | push 代码到分支（非 main，且提交未关联已合并 PR） | v{VERSION}.{PPPPP}.{yymmddHHmm} | prerelease |
+#   | 构建包 pr       | PR 合并（push 的提交关联到已合并 PR） | v{VERSION}.{PPPPP} | prerelease；B 策略：已存在则删 release+tag 重建 |
+#   | 正式版包 release| 代码合并到 main（push 到 main） | v{VERSION} | 正式 release（--latest）；已存在则跳过 |
+#
+#   版本段说明：
+#     VERSION   = 项目根 VERSION 文件（如 0.1.3）
+#     PPPPP     = 关联 PR 编号，5 位左补零；无 PR 为 00000
+#     yymmddHHmm = 构建时间戳（Asia/Shanghai），仅快照包使用（同一 PR 多次 push 保持唯一）
+#
+#   包内容：Ubuntu 26.04（tar.gz，linux/amd64 + linux/arm64）、Windows 11（zip，windows/amd64）
+#   包名：FinvQuant-{包版本}-{ubuntu|windows}-{amd64|arm64}.{tar.gz|zip}
+#   打包实现：Deploy/Script/PackSnapshot.sh（CI 与本地共用同一实现）
+#
+# 镜像 tag 规则（与包发布相互独立）：
+#   - dev/main/FinvQuant 分支推送：latest + v{VERSION}-YYYYMMDDHHMM（Asia/Shanghai）
+#   - v* tag 推送（main 发布）：latest + v{VERSION}（git tag 名）
+#   - feat/** 分支推送：不构建镜像（只出快照包），保持既有镜像模式不被特性分支污染
+#   - 多平台：dev/FinvQuant 分支推送 & PR 验证仅 linux/amd64；main / v* tag 为 linux/amd64 + linux/arm64
 
 name: FinvQuantCICD
 
 on:
   push:
-    branches: [dev, main, FinvQuant, feat/integration]
+    branches: [dev, main, FinvQuant, "feat/**"]
     tags: ["v*"]
   pull_request:
     branches: [dev, main, FinvQuant, feat/backtest, feat/integration]
   workflow_dispatch:
+    inputs:
+      kind:
+        description: "手动构建的包类型"
+        type: choice
+        options: [snapshot, pr, release]
+        default: snapshot
 
 env:
   IMAGE: ghcr.io/acanx/finvquant
@@ -111,7 +123,7 @@ jobs:
     needs: [build-server, build-web]
     # feat/integration 走快照（snapshot-binaries + snapshot-release），不在此构建镜像，
     # 避免集成分支以 v{VERSION}-YYYYMMDDHHMM 规则污染 latest 与正式镜像 tag。
-    if: github.event_name != 'pull_request' && github.ref != 'refs/heads/feat/integration'
+    if: github.event_name != 'pull_request' && (github.ref_type == 'tag' || github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/FinvQuant')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -236,17 +248,22 @@ jobs:
           push: false
           tags: ${{ env.IMAGE }}:pr-check
 
+  # ==================================================================
+  # 5. 三种发布包（同级平行）
+  #    snapshot（快照包）：push 代码到分支（非 main，且提交未关联已合并 PR）
+  #    pr      （构建包）：PR 合并（push 的提交关联到已合并 PR）
+  #    release （正式版包）：代码合并到 main（push 到 main）
+  #    tag：snapshot=v{VERSION}.{PPPPP}.{yymmddHHmm}
+  #         pr=v{VERSION}.{PPPPP}（B 策略：已存在则删 release+tag 重建）
+  #         release=v{VERSION}（已存在则跳过，需先 bump VERSION）
+  # ==================================================================
+
   # ------------------------------------------------------------------
-  # 5. 快照元数据（feat/integration 专用）
-  #    版本格式：v{VERSION}.{PPPPP}.{yymmddHHmm}
-  #      PPPPP      关联 PR 编号，5 位左补零；无 PR 时 00000
-  #      yymmddHHmm 构建时间戳（Asia/Shanghai），本 job 只算一次，
-  #                 所有下游产物（Linux 包 / Windows 包 / tag / release）共用，
-  #                 保证「同一快照包的不同产物时间戳一致」
+  # 5.1 快照包：元数据 → 三平台包 → prerelease
   # ------------------------------------------------------------------
   snapshot-meta:
     name: ResolveSnapshotVersion
-    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/integration'
+    if: (github.event_name == 'push' && github.ref_type == 'branch' && github.ref != 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.kind == 'snapshot')
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.meta.outputs.version }}
@@ -265,34 +282,38 @@ jobs:
           set -euo pipefail
           BASE=$(cat VERSION | tr -d '[:space:]')
           COMMIT=$(git rev-parse --short HEAD)
+          echo "base_version=${BASE}" >> "$GITHUB_OUTPUT"
+          echo "commit=${COMMIT}" >> "$GITHUB_OUTPUT"
 
-          # PR 编号：push 事件无 PR 上下文，按优先级三次尝试
+          # 该提交已关联已合并 PR 时不出快照包，交给 pr 场景（避免同一次合并产出两个包）
+          MERGED=""
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            MERGED=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
+              --jq '[.[] | select(.merged_at != null) | .number] | first // empty' 2>/dev/null || true)
+          fi
+          if [[ -n "${MERGED}" ]]; then
+            echo "version=" >> "$GITHUB_OUTPUT"
+            echo "::notice title=快照包跳过::提交已关联已合并 PR #${MERGED}，改由 pr 场景构建"
+            exit 0
+          fi
+
           PR=""
-          # ① 显式 PR 事件（本 job 只在 push 触发，保留以兼容 workflow_dispatch 复用）
-          PR="${{ github.event.pull_request.number || '' }}"
-          # ② 该分支上处于 open 的 PR
-          if [[ -z "$PR" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
             PR=$(gh pr list --head "${GITHUB_REF_NAME}" --state open --json number --limit 1 --jq '.[0].number // empty' 2>/dev/null || true)
+            if [[ -z "${PR}" ]]; then
+              PR=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" --jq '.[0].number // empty' 2>/dev/null || true)
+            fi
           fi
-          # ③ 该提交关联的 PR（push 到已有 PR 分支时生效）
-          if [[ -z "$PR" ]]; then
-            PR=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" --jq '.[0].number // empty' 2>/dev/null || true)
-          fi
-          # 兜底与规整：非纯数字一律 00000，其余左补零到 5 位
           if ! [[ "${PR}" =~ ^[0-9]+$ ]]; then PR=0; fi
           PR5=$(printf '%05d' "${PR}")
-
-          # 时间戳：Asia/Shanghai，两位年
           TS=$(TZ=Asia/Shanghai date +%y%m%d%H%M)
-
           VERSION="v${BASE}.${PR5}.${TS}"
-          echo "base_version=${BASE}" >> "$GITHUB_OUTPUT"
+
           echo "pr=${PR5}"          >> "$GITHUB_OUTPUT"
           echo "timestamp=${TS}"    >> "$GITHUB_OUTPUT"
-          echo "commit=${COMMIT}"   >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           {
-            echo "### 快照版本"
+            echo "### 快照包（snapshot）"
             echo ""
             echo "| 项 | 值 |"
             echo "|---|---|"
@@ -303,33 +324,20 @@ jobs:
             echo "| 提交 | \`${COMMIT}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # ------------------------------------------------------------------
-  # 6. 快照二进制包（Ubuntu 26.04 / Windows 11）
-  #    交叉编译 linux/amd64 与 windows/amd64，前端产物复用 build-web 的 artifact；
-  #    两个包的版本号与时间戳均来自 snapshot-meta，天然一致。
-  # ------------------------------------------------------------------
   snapshot-binaries:
     name: SnapshotBinary (${{ matrix.goos }}/${{ matrix.goarch }})
-    needs: [snapshot-meta, build-web]
+    needs: [snapshot-meta, build-server, build-web]
     if: needs.snapshot-meta.outputs.version != ''
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      # 平台元数据（os_label 仅用于 artifact 名；包名与后缀由 PackSnapshot.sh 统一推导）
       matrix:
         include:
-          - goos: linux
-            goarch: amd64
-            os_label: ubuntu
-          - goos: linux
-            goarch: arm64
-            os_label: ubuntu
-          - goos: windows
-            goarch: amd64
-            os_label: windows
+          - { goos: linux, goarch: amd64, os_label: ubuntu }
+          - { goos: linux, goarch: arm64, os_label: ubuntu }
+          - { goos: windows, goarch: amd64, os_label: windows }
     env:
-      SNAPSHOT_VERSION: ${{ needs.snapshot-meta.outputs.version }}
-      # 供 PackSnapshot.sh 写入 BUILD-INFO.txt（本地构建时留空即可）
+      PACKAGE_VERSION: ${{ needs.snapshot-meta.outputs.version }}
       CI_RUN_ID: ${{ github.run_id }}
       BUILD_REPO: ${{ github.repository }}
       BUILD_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -347,11 +355,11 @@ jobs:
           name: web-dist
           path: internal/webui/dist
 
-      # 构建 + 打包统一调用 Deploy/Script/PackSnapshot.sh（与本地出包同一实现）
       - name: BuildAndPack
         run: |
           bash Deploy/Script/PackSnapshot.sh \
-            --version "${SNAPSHOT_VERSION}" \
+            --version "${PACKAGE_VERSION}" \
+            --kind snapshot \
             --target "${{ matrix.goos }}/${{ matrix.goarch }}" \
             --commit "${{ needs.snapshot-meta.outputs.commit }}" \
             --out Dist
@@ -364,10 +372,7 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
-  # ------------------------------------------------------------------
-  # 7. 快照发布：以快照版本为 tag 建 prerelease，附两个平台包
-  # ------------------------------------------------------------------
-  snapshot-release:
+  snapshot-publish:
     name: PublishSnapshotRelease
     needs: [snapshot-meta, snapshot-binaries]
     if: needs.snapshot-meta.outputs.version != ''
@@ -387,23 +392,28 @@ jobs:
       - name: PublishRelease
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VER: ${{ needs.snapshot-meta.outputs.version }}
         run: |
           set -euo pipefail
-          VER="${{ needs.snapshot-meta.outputs.version }}"
+          if gh release view "${VER}" >/dev/null 2>&1; then
+            echo "::notice title=快照包已存在::跳过 ${VER}"
+            exit 0
+          fi
           ls -lh Dist
           cat > notes.md <<EOF
-          FinvQuant 集成分支快照（\`feat/integration\`）
+          FinvQuant 快照包（分支推送）
 
           | 项 | 值 |
           |---|---|
-          | 快照版本 | \`${VER}\` |
+          | 包类型 | 快照包（snapshot） |
+          | 版本 | \`${VER}\` |
           | 基础版本 | \`${{ needs.snapshot-meta.outputs.base_version }}\` |
           | 关联 PR | \`${{ needs.snapshot-meta.outputs.pr }}\` |
           | 构建时间戳 | \`${{ needs.snapshot-meta.outputs.timestamp }}\` (Asia/Shanghai) |
           | 提交 | \`${{ needs.snapshot-meta.outputs.commit }}\` |
           | 流水线 | ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} |
 
-          > 快照为集成验证用预发布版本，不保证稳定，请勿用于生产。
+          > 快照包为分支推送的集成验证产物，不保证稳定，请勿用于生产。
           EOF
           gh release create "${VER}" \
             --target "${{ github.sha }}" \
@@ -412,3 +422,290 @@ jobs:
             --notes-file notes.md \
             Dist/*
 
+  # ------------------------------------------------------------------
+  # 5.2 构建包：PR 合并（版本 v{VERSION}.{PPPPP}，B 策略覆盖重建）
+  # ------------------------------------------------------------------
+  pr-meta:
+    name: ResolvePrBuildVersion
+    if: (github.event_name == 'push' && github.ref_type == 'branch' && github.ref != 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.kind == 'pr')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      base_version: ${{ steps.meta.outputs.base_version }}
+      pr: ${{ steps.meta.outputs.pr }}
+      commit: ${{ steps.meta.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: ComputePrBuildVersion
+        id: meta
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BASE=$(cat VERSION | tr -d '[:space:]')
+          COMMIT=$(git rev-parse --short HEAD)
+          PR=""
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            # 仅「已合并」PR 才出构建包
+            PR=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
+              --jq '[.[] | select(.merged_at != null) | .number] | first // empty' 2>/dev/null || true)
+          else
+            # 手动触发：按当前分支的 open PR 取编号
+            PR=$(gh pr list --head "${GITHUB_REF_NAME}" --state open --json number --limit 1 --jq '.[0].number // empty' 2>/dev/null || true)
+          fi
+          if [[ -z "${PR}" ]]; then
+            echo "version=" >> "$GITHUB_OUTPUT"
+            echo "::notice title=构建包跳过::未找到已合并（或手动触发时 open）的关联 PR"
+            exit 0
+          fi
+          if ! [[ "${PR}" =~ ^[0-9]+$ ]]; then PR=0; fi
+          PR5=$(printf '%05d' "${PR}")
+          VERSION="v${BASE}.${PR5}"
+
+          echo "base_version=${BASE}" >> "$GITHUB_OUTPUT"
+          echo "commit=${COMMIT}"      >> "$GITHUB_OUTPUT"
+          echo "pr=${PR5}"             >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}"    >> "$GITHUB_OUTPUT"
+          {
+            echo "### 构建包（pr）"
+            echo ""
+            echo "| 项 | 值 |"
+            echo "|---|---|"
+            echo "| 版本 | \`${VERSION}\` |"
+            echo "| 基础版本 | \`${BASE}\` |"
+            echo "| PR 编号 | \`${PR5}\` |"
+            echo "| 提交 | \`${COMMIT}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  pr-binaries:
+    name: PrBinary (${{ matrix.goos }}/${{ matrix.goarch }})
+    needs: [pr-meta, build-server, build-web]
+    if: needs.pr-meta.outputs.version != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64, os_label: ubuntu }
+          - { goos: linux, goarch: arm64, os_label: ubuntu }
+          - { goos: windows, goarch: amd64, os_label: windows }
+    env:
+      PACKAGE_VERSION: ${{ needs.pr-meta.outputs.version }}
+      CI_RUN_ID: ${{ github.run_id }}
+      BUILD_REPO: ${{ github.repository }}
+      BUILD_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25.3"
+          cache-dependency-path: go.sum
+
+      - name: FetchWebDist
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: internal/webui/dist
+
+      - name: BuildAndPack
+        run: |
+          bash Deploy/Script/PackSnapshot.sh \
+            --version "${PACKAGE_VERSION}" \
+            --kind pr \
+            --target "${{ matrix.goos }}/${{ matrix.goarch }}" \
+            --commit "${{ needs.pr-meta.outputs.commit }}" \
+            --out Dist
+
+      - name: UploadPackage
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-${{ matrix.os_label }}-${{ matrix.goarch }}
+          path: Dist/*
+          retention-days: 14
+          if-no-files-found: error
+
+  pr-publish:
+    name: PublishPrRelease
+    needs: [pr-meta, pr-binaries]
+    if: needs.pr-meta.outputs.version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: DownloadPackages
+        uses: actions/download-artifact@v4
+        with:
+          path: Dist
+          pattern: pr-*
+          merge-multiple: true
+
+      - name: PublishRelease (delete & recreate)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VER: ${{ needs.pr-meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          # B 策略：同一 PR 重复合并/重复触发时，删除旧 release + tag 后重建
+          if gh release view "${VER}" >/dev/null 2>&1; then
+            echo "删除已存在的构建包 release：${VER}"
+            gh release delete "${VER}" --yes --cleanup-tag
+          fi
+          if git ls-remote --tags origin "refs/tags/${VER}" | grep -q .; then
+            echo "删除残留 tag：${VER}"
+            git push origin ":refs/tags/${VER}" || true
+          fi
+          ls -lh Dist
+          cat > notes.md <<EOF
+          FinvQuant 构建包（PR 合并）
+
+          | 项 | 值 |
+          |---|---|
+          | 包类型 | 构建包（pr） |
+          | 版本 | \`${VER}\` |
+          | 基础版本 | \`${{ needs.pr-meta.outputs.base_version }}\` |
+          | 关联 PR | \`${{ needs.pr-meta.outputs.pr }}\` |
+          | 提交 | \`${{ needs.pr-meta.outputs.commit }}\` |
+          | 流水线 | ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} |
+
+          > 构建包为 PR 合并的集成构建产物，不保证稳定，请勿用于生产。
+          > 同一 PR 重复合并时按 B 策略覆盖重建（同名 release/tag 会被删除后重建）。
+          EOF
+          gh release create "${VER}" \
+            --target "${{ github.sha }}" \
+            --title "${VER}-FinvQuant" \
+            --prerelease \
+            --notes-file notes.md \
+            Dist/*
+
+  # ------------------------------------------------------------------
+  # 5.3 正式版包：代码合并到 main（版本 v{VERSION}，正式 release）
+  # ------------------------------------------------------------------
+  release-meta:
+    name: ResolveReleaseVersion
+    if: (github.event_name == 'push' && github.ref_type == 'branch' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.kind == 'release')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      base_version: ${{ steps.meta.outputs.base_version }}
+      commit: ${{ steps.meta.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: ComputeReleaseVersion
+        id: meta
+        run: |
+          set -euo pipefail
+          BASE=$(cat VERSION | tr -d '[:space:]')
+          COMMIT=$(git rev-parse --short HEAD)
+          VERSION="v${BASE}"
+          echo "base_version=${BASE}" >> "$GITHUB_OUTPUT"
+          echo "commit=${COMMIT}"      >> "$GITHUB_OUTPUT"
+          if git ls-remote --tags origin "refs/tags/${VERSION}" | grep -q .; then
+            echo "version=" >> "$GITHUB_OUTPUT"
+            echo "::warning title=正式版跳过::tag ${VERSION} 已存在，请先 bump VERSION 后再合并到 main"
+            exit 0
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### 正式版包（release）"
+            echo ""
+            echo "| 项 | 值 |"
+            echo "|---|---|"
+            echo "| 版本 | \`${VERSION}\` |"
+            echo "| 基础版本 | \`${BASE}\` |"
+            echo "| 提交 | \`${COMMIT}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release-binaries:
+    name: ReleaseBinary (${{ matrix.goos }}/${{ matrix.goarch }})
+    needs: [release-meta, build-server, build-web]
+    if: needs.release-meta.outputs.version != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64, os_label: ubuntu }
+          - { goos: linux, goarch: arm64, os_label: ubuntu }
+          - { goos: windows, goarch: amd64, os_label: windows }
+    env:
+      PACKAGE_VERSION: ${{ needs.release-meta.outputs.version }}
+      CI_RUN_ID: ${{ github.run_id }}
+      BUILD_REPO: ${{ github.repository }}
+      BUILD_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25.3"
+          cache-dependency-path: go.sum
+
+      - name: FetchWebDist
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: internal/webui/dist
+
+      - name: BuildAndPack
+        run: |
+          bash Deploy/Script/PackSnapshot.sh \
+            --version "${PACKAGE_VERSION}" \
+            --kind release \
+            --target "${{ matrix.goos }}/${{ matrix.goarch }}" \
+            --commit "${{ needs.release-meta.outputs.commit }}" \
+            --out Dist
+
+      - name: UploadPackage
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.os_label }}-${{ matrix.goarch }}
+          path: Dist/*
+          retention-days: 30
+          if-no-files-found: error
+
+  release-publish:
+    name: PublishRelease
+    needs: [release-meta, release-binaries]
+    if: needs.release-meta.outputs.version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: DownloadPackages
+        uses: actions/download-artifact@v4
+        with:
+          path: Dist
+          pattern: release-*
+          merge-multiple: true
+
+      - name: PublishRelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VER: ${{ needs.release-meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          ls -lh Dist
+          cat > notes.md <<EOF
+          FinvQuant 正式版包（main 合并）
+
+          | 项 | 值 |
+          |---|---|
+          | 包类型 | 正式版包（release） |
+          | 版本 | \`${VER}\` |
+          | 基础版本 | \`${{ needs.release-meta.outputs.base_version }}\` |
+          | 提交 | \`${{ needs.release-meta.outputs.commit }}\` |
+          | 流水线 | ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} |
+          EOF
+          gh release create "${VER}" \
+            --target "${{ github.sha }}" \
+            --title "${VER}-FinvQuant" \
+            --latest \
+            --notes-file notes.md \
+            Dist/*

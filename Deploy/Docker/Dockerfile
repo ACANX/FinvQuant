@@ -16,8 +16,10 @@ RUN if [ "$NPM_REGISTRY" != "https://registry.npmjs.org" ]; then npm config set 
 COPY Web/ ./
 RUN npm run build
 
-# ---- 阶段 2：Go 服务端构建（TARGETPLATFORM=目标架构，按平台编译）----
-FROM --platform=$TARGETPLATFORM golang:1.25.3-alpine AS builder
+# ---- 阶段 2：Go 服务端构建（按目标架构编译）----
+# 注：不再显式写 --platform=$TARGETPLATFORM（BuildKit 默认即目标平台，显式声明会被
+#     RedundantTargetPlatform 规则告警；而阶段 1 的 $BUILDPLATFORM 是必要声明）。
+FROM golang:1.25.3-alpine AS builder
 
 # Go 模块代理（默认官方源；国内/受限网络可 --build-arg GOPROXY=https://goproxy.cn,direct 加速）
 ARG GOPROXY=https://proxy.golang.org,direct
@@ -29,6 +31,9 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
+# 先清空 embed 位置：`COPY . .` 会把工作区里残留的旧前端产物（不同 hash 的 index-*.js）带进镜像，
+# 若不清空，旧文件会与新构建产物叠加并被 go:embed 一并打包 —— 表现为字符串扫描仍能搜到已修复的旧文案。
+RUN rm -rf /app/internal/webui/dist
 # 将前端构建产物放入 embed 位置（internal/webui/dist）——来自 BUILDPLATFORM 阶段，双平台共享
 COPY --from=web-builder /web/dist /app/internal/webui/dist
 
@@ -37,10 +42,12 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o /finvquant ./cmd/server
 
 # ---- 阶段 3：运行（单镜像单进程）----
-FROM alpine:3.21
+# 基础镜像使用 postgres:18-alpine：BRS 表级备份依赖 pg_dump，客户端主版本不得低于服务端
+# （PG18 需要 pg_dump 18，而 alpine:3.21 官方仓库只有 postgresql17-client）。
+# 该镜像已自带 pg_dump 18、libpq 及 krb5/ldap/sasl 等运行期依赖，无需额外 apk。
+FROM postgres:18-alpine
 
-RUN apk add --no-cache ca-certificates tzdata \
-    && addgroup -S finvquant && adduser -S finvquant -G finvquant
+RUN addgroup -S finvquant && adduser -S finvquant -G finvquant
 
 COPY --from=builder /finvquant /usr/local/bin/finvquant
 # 数据库迁移脚本（启动时自动建表，如 finv_quote_secu_kline_min）
@@ -48,7 +55,14 @@ COPY --from=builder /app/Deploy/Migrations /etc/finvquant/Migrations
 
 ENV FINV_MIGRATIONS_DIR=/etc/finvquant/Migrations
 
+# 运行目录与导出归档目录（非 root 用户需要可写）
+WORKDIR /app
+RUN mkdir -p /data/App/FinvQuant/Export /data/App/FinvQuant/BRS && chown -R finvquant:finvquant /app /data
+
 USER finvquant
 EXPOSE 16001 16002
 
-ENTRYPOINT ["finvquant"]
+# 覆盖 PostgreSQL 官方镜像的 ENTRYPOINT/CMD：容器只跑 finvquant 单进程，
+# CMD 必须清空，否则默认的 "postgres" 会被当作参数传给 finvquant。
+ENTRYPOINT ["/usr/local/bin/finvquant"]
+CMD []

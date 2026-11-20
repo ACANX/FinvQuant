@@ -1,0 +1,164 @@
+openapi: 3.0.3
+info:
+  title: FinvQuant API — 待录入证券入队 / 更新键
+  version: 1.1.0
+  description: |
+    需求 11153–11156。三个动作：
+    Probe  探测键表是否已有该键（只读），返回 planned / existed / current / hint；
+    Enqueue 确认入队（插入）；Update 更新键（改非主键字段）。
+    写入字段全部可人工修改，只有主键 ftmm_symbol = upper(market || '.' || code) 由服务端重建。
+    写入前服务端再验证一次存在性；键已存在时不插入、不存在时不更新。
+servers:
+  - url: /
+paths:
+  /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue/Probe:
+    post:
+      summary: 探测键是否存在（只读）
+      operationId: realtimeStockPendingEnqueueProbe
+      tags: [Cdeu]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stock_id]
+              properties:
+                stock_id: { type: integer, format: int64 }
+                market: { type: string, description: 覆盖快照派生值，省略则用快照值 }
+                code: { type: string, description: 覆盖快照派生值 }
+      responses:
+        '200':
+          description: 探测完成
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string, example: 探测完成 }
+                  data:
+                    type: object
+                    required: [stock_id, planned, existed, current, hint]
+                    properties:
+                      stock_id: { type: integer, format: int64 }
+                      planned: { $ref: '#/components/schemas/KeyFields' }
+                      existed: { type: boolean }
+                      current:
+                        allOf: [{ $ref: '#/components/schemas/KeyFields' }]
+                        nullable: true
+                        description: 已存在时的现有行
+                      hint: { type: string }
+        '400':
+          description: 参数非法 / 快照行不存在
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500':
+          description: 数据库侧失败
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue:
+    post:
+      summary: 确认入队（键不存在时插入）
+      operationId: realtimeStockPendingEnqueue
+      tags: [Cdeu]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WriteRequest' }
+      responses:
+        '200':
+          description: 入队完成，或键已存在未重复入队
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string, example: 入队完成 }
+                  data: { $ref: '#/components/schemas/WriteResult' }
+        '400':
+          description: 字段不合法（词表/范围）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500':
+          description: 数据库侧失败
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /Meta/Finv/Quote/Cdeu/Realtime/Stock/Pending/Enqueue/Update:
+    post:
+      summary: 更新键（键已存在时改非主键字段）
+      operationId: realtimeStockPendingEnqueueUpdate
+      tags: [Cdeu]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WriteRequest' }
+      responses:
+        '200':
+          description: 更新完成，或记录不存在（affected=0，提示改用确认入队）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string, example: 更新键完成 }
+                  data: { $ref: '#/components/schemas/WriteResult' }
+        '400':
+          description: 字段不合法（词表/范围）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500':
+          description: 数据库侧失败
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+components:
+  schemas:
+    KeyFields:
+      type: object
+      required: [ftmm_symbol, market, code, stock_id, instrument, status, flag_enable, priority]
+      properties:
+        ftmm_symbol: { type: string, description: 主键，服务端按 market + code 重建, example: 'US.TXCP' }
+        market: { type: string, example: US }
+        code: { type: string, example: TXCP }
+        stock_id: { type: integer, format: int64, example: 89184996156542 }
+        instrument:
+          type: string
+          enum: [stock, etf, index, sector, futures, crypto, forex, market]
+        status:
+          type: string
+          enum: [PENDING, QUEUED, DONE, FAILED, SKIP]
+        flag_enable: { type: integer, enum: [0, 1] }
+        priority: { type: integer, minimum: 1, maximum: 1000000, example: 10 }
+        usc: { type: string, description: 只读，不由本接口写入 }
+    WriteRequest:
+      type: object
+      required: [fields]
+      properties:
+        fields: { $ref: '#/components/schemas/KeyFields' }
+    WriteResult:
+      type: object
+      required: [ftmm_symbol, action, affected, existed, hint]
+      properties:
+        ftmm_symbol: { type: string, example: 'US.TXCP' }
+        action: { type: string, enum: [insert, update] }
+        affected: { type: integer, example: 1 }
+        existed: { type: boolean, description: 入队时目标键已存在（未写入） }
+        hint: { type: string }
+    Error:
+      type: object
+      properties:
+        code: { type: integer, example: 400 }
+        message: { type: string }

@@ -1,0 +1,91 @@
+openapi: 3.0.3
+info:
+  title: FinvQuant API — 证券参数补全：单表写入
+  version: 1.0.0
+  description: |
+    POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Secu/Param/Complete
+    需求 11161：只写 target 指定的那一张表（public.finv_security 或 futu.finv_futu_quote_collect），
+    按主键 usc 做 ON CONFLICT DO NOTHING；不写另一张表、不回写快照 usc。
+    usc / ftmm_symbol 一律服务端派生，不采信请求体。
+servers:
+  - url: /
+paths:
+  /Meta/Finv/Quote/Cdeu/Realtime/Secu/Param/Complete:
+    post:
+      summary: 单表补全（规范证券参数 / 采集参数）
+      operationId: realtimeSecuParamComplete
+      tags: [Cdeu]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target, stock_id]
+              properties:
+                target: { type: string, enum: [security, collect] }
+                stock_id: { type: integer, format: int64 }
+                remark: { type: string, description: '人工备注，服务端拼 [AUTO-FILL] 前缀与时间' }
+                security:
+                  type: object
+                  description: target=security 时必填（另一组可传空对象）
+                  properties:
+                    exchange_code: { type: integer, example: 30 }
+                    security_type: { type: string, example: Stock }
+                    security_code: { type: string, example: PLD }
+                    security_name: { type: string }
+                    security_name_cn: { type: string }
+                    security_name_full: { type: string }
+                    currency_type: { type: string, example: USD }
+                    timezone: { type: string }
+                    tz: { type: string }
+                collect:
+                  type: object
+                  description: target=collect 时必填（另一组可传空对象）
+                  properties:
+                    futu_symbol: { type: string, example: PLD }
+                    market_type: { type: integer, example: 2 }
+                    market_code: { type: integer, example: 11 }
+                    instrument_type: { type: integer, example: 3 }
+                    sub_instrument_type: { type: integer, example: 3002 }
+                    market_label: { type: string, example: US }
+                    instrument: { type: string, example: stock }
+                    req_section: { type: string }
+                    flag_enable: { type: string, example: '0' }
+      responses:
+        '200':
+          description: 补全完成（含「已存在未覆盖」）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code: { type: integer, example: 0 }
+                  message: { type: string, example: 补全完成 }
+                  data:
+                    type: object
+                    required: [target, usc, created, remark]
+                    properties:
+                      target: { type: string, example: security }
+                      usc: { type: string, example: PLD }
+                      created: { type: boolean, description: true 新插入；false 已存在未覆盖 }
+                      remark: { type: string, example: '[AUTO-FILL] 待采证券补录 2026-01-15T10:20:30+08:00' }
+        '400':
+          description: target 非法、stock_id 非法或不存在、目标表必填缺失、唯一约束冲突
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 400 }
+                  message: { type: string }
+        '500':
+          description: 数据库侧失败
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: integer, example: 2006 }
+                  message: { type: string }

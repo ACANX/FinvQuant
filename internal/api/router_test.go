@@ -5,16 +5,26 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/acanx/finvquant/internal/config"
-	"github.com/acanx/finvquant/internal/kline"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu"
+	"github.com/acanx/finvquant/internal/meta/finv/quote/cdeu/kline"
 )
 
 func newTestRouter(t *testing.T) *gin.Engine {
+	t.Helper()
+	return newTestRouterWithConfig(t, &config.Config{
+		KLineMaxBatchRows: 5000, KLineMaxListSize: 5000, KLineTSUnit: "s",
+	})
+}
+
+// newTestRouterWithConfig 用指定配置构造路由，便于覆盖外部 OpenAPI 等开关。
+func newTestRouterWithConfig(t *testing.T, cfg *config.Config) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	// 惰性连接池：不会真正连上数据库，用于构造路由（请求数据库的端点会返回 503）。
@@ -24,14 +34,72 @@ func newTestRouter(t *testing.T) *gin.Engine {
 		t.Fatalf("创建测试连接池失败: %v", err)
 	}
 	t.Cleanup(pool.Close)
+	archiveService, err := cdeu.NewService(pool, cdeu.Options{UploadMode: cdeu.UploadModeNone})
+	if err != nil {
+		t.Fatalf("创建归档服务失败: %v", err)
+	}
 	return NewRouter(&Deps{
-		Pool:    pool,
-		Redis:   nil,
-		Version: "test",
-		Commit:  "test",
-		Server:  "finvquant",
-		Config:  &config.Config{KLineMaxBatchRows: 5000, KLineMaxListSize: 5000, KLineTSUnit: "s"},
+		Pool:          pool,
+		Redis:         nil,
+		Version:       "test",
+		Commit:        "test",
+		Server:        "finvquant",
+		Config:        cfg,
+		ExportArchive: archiveService,
 	})
+}
+
+// TestExportArchiveRoutesRegistered 校验行情月归档运维接口均已注册。
+func TestExportArchiveRoutesRegistered(t *testing.T) {
+	router := newTestRouter(t)
+	registered := map[string]bool{}
+	for _, route := range router.Routes() {
+		registered[route.Method+" "+route.Path] = true
+	}
+	expected := []string{
+		"GET /API/V1/Meta/Finv/Quote/DeDup/Status",
+		"GET /API/V1/Meta/Finv/Quote/DeDup/Settings",
+		"PUT /API/V1/Meta/Finv/Quote/DeDup/Settings/Window",
+		"GET /API/V1/Meta/Finv/Quote/DeDup/Job/Runtime",
+		"GET /API/V1/Meta/Finv/Quote/DeDup/CDEU/Overview",
+		"POST /API/V1/Meta/Finv/Quote/DeDup/CDEU/Workflow/Run",
+		"POST /API/V1/Meta/Finv/Quote/DeDup/CDEU/Workflow/Terminate",
+		"POST /API/V1/Meta/Finv/Quote/DeDup/CDEU/Process/Run",
+		"GET /API/V1/Meta/Finv/Quote/DeDup/Job/List",
+		"GET /API/V1/Meta/Finv/Quote/DeDup/File/List",
+		"POST /API/V1/Meta/Finv/Quote/DeDup/Job/Retry",
+		"POST /API/V1/Meta/Finv/Quote/DeDup/File/Retry",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/List",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Save",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Enable",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Delete",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Preview",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Run",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Usc/Patch/Status",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/DayKline/Sync",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/DayKline/Stat",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/DayKline/UscList",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockQuoteSnapshotSync/Run",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Stock/Page",
+		"GET /API/V1/Meta/Finv/Quant/Metadata/Security/FilterOptions",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Index/Fav/Snapshot/Sync",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Future/Page",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Future/Types",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Crypto/Page",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Realtime/Crypto/QuoteCurrencies",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Fx/CerSync",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Fx/Cer",
+		"POST /OpenAPI/V1/Meta/Finv/Quote/Cdeu/Realtime/FTStockUpsert",
+		"POST /API/V1/Meta/Finv/Quote/DeDup/Job/Run",
+	}
+	for _, route := range expected {
+		if !registered[route] {
+			t.Fatalf("路由未注册: %s", route)
+		}
+	}
 }
 
 // TestKLineRoutesRegistered 校验新前缀、旧前缀过渡别名与运维端点均已注册。
@@ -42,6 +110,29 @@ func TestKLineRoutesRegistered(t *testing.T) {
 		registered[route.Method+" "+route.Path] = true
 	}
 	expected := []string{
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Add",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Upsert",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Page",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Min/PageUni",
+		"POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Query",
+		"PATCH /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch",
+		"DELETE /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Count",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Stats",
+		"GET /API/V1/Meta/Finv/Quote/Cdeu/Min/Bounds",
+		// 运维端点
+		"GET /Health",
+		"GET /healthz",
+		"GET /",
+	}
+	for _, route := range expected {
+		if !registered[route] {
+			t.Fatalf("路由未注册: %s", route)
+		}
+	}
+	// 需求 10782：全部 K 线端点已迁到 CDEU，新/旧 KLine 前缀均不得再注册
+	for _, gone := range []string{
 		"POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Add",
 		"POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch",
 		"POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Upsert",
@@ -53,24 +144,26 @@ func TestKLineRoutesRegistered(t *testing.T) {
 		"GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Count",
 		"GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats",
 		"GET /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Bounds",
-		// 旧前缀过渡别名
 		"POST /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Add",
+		"POST /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Batch",
+		"POST /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Upsert",
+		"GET /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Page",
+		"GET /API/V1/Meta/Finv/Quote/Secu/KLine/Min/PageUni",
+		"POST /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Query",
 		"PATCH /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Batch",
 		"DELETE /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Batch",
-		// 运维端点
-		"GET /Health",
-		"GET /healthz",
-		"GET /",
-	}
-	for _, route := range expected {
-		if !registered[route] {
-			t.Fatalf("路由未注册: %s", route)
+		"GET /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Count",
+		"GET /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Stats",
+		"GET /API/V1/Meta/Finv/Quote/Secu/KLine/Min/Bounds",
+	} {
+		if registered[gone] {
+			t.Fatalf("旧路径不应再注册: %s", gone)
 		}
 	}
 	// 同一路径不同方法必须共存（Gin 不允许重复注册同一 方法+路径）。
-	if !registered["POST /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch"] ||
-		!registered["PATCH /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch"] ||
-		!registered["DELETE /API/V1/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Batch"] {
+	if !registered["POST /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch"] ||
+		!registered["PATCH /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch"] ||
+		!registered["DELETE /API/V1/Meta/Finv/Quote/Cdeu/Min/Batch"] {
 		t.Fatal("POST/PATCH/DELETE /Batch 未全部注册")
 	}
 }
@@ -108,5 +201,283 @@ func TestRootAndHealth(t *testing.T) {
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 	if recorder.Code != http.StatusServiceUnavailable {
 		t.Fatalf("/healthz 期望 503，实际 %d", recorder.Code)
+	}
+}
+
+// TestOpenAPIExampleRoute 校验外部示例端点（需求 10787 / 10790）：
+// 当前暂不鉴权，路由始终注册；空 items 返回 400 / 211001（说明已进入 handler）。
+func TestOpenAPIExampleRoute(t *testing.T) {
+	const path = "/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert"
+
+	router := newTestRouter(t)
+	registered := false
+	for _, route := range router.Routes() {
+		if route.Method == http.MethodPost && route.Path == path {
+			registered = true
+		}
+	}
+	if !registered {
+		t.Fatalf("应注册 POST %s", path)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"items":[]}`))
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("空 items 应进入 handler（400 / 211001），实际 %d", recorder.Code)
+	}
+}
+
+// TestWrapOpenAPIResponseEnvelope 校验外部 OpenAPI 成功响应统一为
+// {"code":0,"data":<原始 JSON>,"message":"OK"}（成功码默认 0）；非 2xx 原样透传；204 不包装。
+func TestWrapOpenAPIResponseEnvelope(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(WrapOpenAPIResponse())
+	router.POST("/ok", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"affected": 1, "mode": "update"})
+	})
+	router.POST("/enveloped", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"code": 1, "data": gin.H{"cnt": 1}, "message": "OK"})
+	})
+	router.POST("/empty", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	router.POST("/err", func(c *gin.Context) {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 211001, "message": "缺少必填参数"})
+	})
+
+	serve := func(path string) *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, path, nil))
+		return recorder
+	}
+
+	ok := serve("/ok")
+	if ok.Code != http.StatusOK {
+		t.Fatalf("ok 期望 200，实际 %d", ok.Code)
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal(ok.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("解析信封失败: %v", err)
+	}
+	if envelope["code"] != float64(0) || envelope["message"] != "OK" {
+		t.Fatalf("信封 code/message 不符合预期: %v", envelope)
+	}
+	data, isMap := envelope["data"].(map[string]any)
+	if !isMap || data["affected"] != float64(1) || data["mode"] != "update" {
+		t.Fatalf("data 节点不符合预期: %v", envelope["data"])
+	}
+
+	enveloped := serve("/enveloped")
+	var envBody map[string]any
+	if err := json.Unmarshal(enveloped.Body.Bytes(), &envBody); err != nil {
+		t.Fatalf("解析解包信封失败: %v", err)
+	}
+	if envBody["code"] != float64(0) {
+		t.Fatalf("解包后 code 应默认 0: %v", envBody)
+	}
+	inner, isMap := envBody["data"].(map[string]any)
+	if !isMap || inner["cnt"] != float64(1) {
+		t.Fatalf("应提取内部 data，实际: %v", envBody["data"])
+	}
+	if _, nested := inner["code"]; nested {
+		t.Fatalf("不应嵌套内部信封: %v", inner)
+	}
+
+	if noContent := serve("/empty"); noContent.Code != http.StatusNoContent || noContent.Body.Len() != 0 {
+		t.Fatalf("204 应原样无 body，实际 %d %q", noContent.Code, noContent.Body.String())
+	}
+
+	bad := serve("/err")
+	if bad.Code != http.StatusBadRequest || !strings.Contains(bad.Body.String(), `"code":211001`) {
+		t.Fatalf("错误响应应原样透传，实际 %d %s", bad.Code, bad.Body.String())
+	}
+}
+
+// TestOpenAPIPageUniRoute 校验外部 PageUni 端点（需求 10789 / 10790）：
+// 当前暂不鉴权，路由始终注册；limit=0 返回 422 / 211004（说明已进入 handler）。
+func TestOpenAPIPageUniRoute(t *testing.T) {
+	const path = "/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/PageUni"
+
+	router := newTestRouter(t)
+	registered := false
+	for _, route := range router.Routes() {
+		if route.Method == http.MethodGet && route.Path == path {
+			registered = true
+		}
+	}
+	if !registered {
+		t.Fatalf("应注册 GET %s", path)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, path+"?limit=0", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("limit=0 应进入 handler（422 / 211004），实际 %d", recorder.Code)
+	}
+}
+
+// TestOpenAPINotFoundAndMethodNotAllowed 未命中路径/方法必须返回结构化 JSON（需求 11218）。
+//
+// 默认 Gin 会回纯文本 `404 page not found`：既不进鉴权中间件，也不带 X-Request-Id。
+func TestOpenAPINotFoundAndMethodNotAllowed(t *testing.T) {
+	router := newTestRouterWithConfig(t, &config.Config{
+		KLineMaxBatchRows: 5000, KLineMaxListSize: 5000, KLineTSUnit: "s",
+	})
+
+	cases := []struct {
+		name   string
+		method string
+		path   string
+	}{
+		{"方法不匹配（GET 写接口）", http.MethodGet, "/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/Upsert"},
+		{"路径不存在", http.MethodPost, "/OpenAPI/V1/Meta/Finv/Quote/Cdeu/Min/NoSuchApi"},
+	}
+	for _, item := range cases {
+		t.Run(item.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(item.method, item.path, nil)
+			router.ServeHTTP(recorder, request)
+
+			contentType := recorder.Header().Get("Content-Type")
+			if !strings.Contains(contentType, "application/json") {
+				t.Fatalf("应返回 JSON，实际 Content-Type=%q body=%s", contentType, recorder.Body.String())
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("响应不是合法 JSON: %v body=%s", err, recorder.Body.String())
+			}
+			// 测试环境 sys_config 读不到（连不上库）→ 鉴权按缺省关闭，直接给出 404/405；
+			// 鉴权开启时「先 19001、再 404」由 TestOpenAPINotFoundAuthFirst 覆盖。
+			wantStatus := http.StatusMethodNotAllowed
+			if item.method == http.MethodPost {
+				wantStatus = http.StatusNotFound
+			}
+			if recorder.Code != wantStatus {
+				t.Fatalf("HTTP 应为 %d，实际 %d body=%s", wantStatus, recorder.Code, recorder.Body.String())
+			}
+			if code, _ := payload["code"].(float64); int(code) != wantStatus {
+				t.Fatalf("code 应为 %d，实际 %v", wantStatus, payload["code"])
+			}
+			if payload["request_id"] == nil || payload["request_id"] == "<nil>" {
+				t.Fatalf("响应应含非空 request_id: %s", recorder.Body.String())
+			}
+			if recorder.Header().Get("X-Request-Id") == "" {
+				t.Fatalf("应回显 X-Request-Id")
+			}
+			if strings.Contains(recorder.Body.String(), "page not found") {
+				t.Fatalf("不应再出现 Gin 的纯文本 404")
+			}
+		})
+	}
+}
+
+// TestInternalNotFoundReturnsJSON 内部接口未命中同样返回 JSON 信封。
+func TestInternalNotFoundReturnsJSON(t *testing.T) {
+	router := newTestRouterWithConfig(t, &config.Config{
+		KLineMaxBatchRows: 5000, KLineMaxListSize: 5000, KLineTSUnit: "s",
+	})
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/API/V1/Meta/Finv/NoSuchApi", nil)
+	router.ServeHTTP(recorder, request)
+
+	if !strings.Contains(recorder.Header().Get("Content-Type"), "application/json") {
+		t.Fatalf("内部未命中应返回 JSON，实际 %q", recorder.Header().Get("Content-Type"))
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("响应不是合法 JSON: %v", err)
+	}
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("HTTP 应为 404，实际 %d", recorder.Code)
+	}
+	if _, hasMessage := payload["message"]; !hasMessage {
+		t.Fatalf("响应应含 message: %s", recorder.Body.String())
+	}
+}
+
+// TestQuoteCollectSysConfigRoutesRegistered 「行情采集系统配置」三条路由已注册（需求 11343）。
+func TestQuoteCollectSysConfigRoutesRegistered(t *testing.T) {
+	router := newTestRouter(t)
+	want := map[string]string{
+		http.MethodGet:  "/API/V1/Meta/Finv/Quote/Collect/Config/List",
+		http.MethodPost: "/API/V1/Meta/Finv/Quote/Collect/Config/Save",
+	}
+	registered := map[string]bool{}
+	secretRegistered := false
+	for _, route := range router.Routes() {
+		if route.Path == want[http.MethodGet] && route.Method == http.MethodGet {
+			registered[route.Method] = true
+		}
+		if route.Path == want[http.MethodPost] && route.Method == http.MethodPost {
+			registered[route.Method] = true
+		}
+		if route.Path == "/API/V1/Meta/Finv/Quote/Collect/Config/Secret" && route.Method == http.MethodGet {
+			secretRegistered = true
+		}
+	}
+	for method, path := range want {
+		if !registered[method] {
+			t.Errorf("应注册 %s %s", method, path)
+		}
+	}
+	if !secretRegistered {
+		t.Error("应注册 GET /API/V1/Meta/Finv/Quote/Collect/Config/Secret")
+	}
+}
+
+// TestQuoteCollectFiveDayFtRoutesRegistered 「五日分钟行情采集配置」两条路由已注册（需求 11344）。
+func TestQuoteCollectFiveDayFtRoutesRegistered(t *testing.T) {
+	router := newTestRouter(t)
+	want := []string{
+		"/API/V1/Meta/Finv/Quote/Collect/FiveDayFt/Page",
+		"/API/V1/Meta/Finv/Quote/Collect/FiveDayFt/FilterOptions",
+	}
+	registered := map[string]bool{}
+	for _, route := range router.Routes() {
+		if route.Method == http.MethodGet {
+			registered[route.Path] = true
+		}
+	}
+	for _, path := range want {
+		if !registered[path] {
+			t.Errorf("应注册 GET %s", path)
+		}
+	}
+}
+
+// TestQuoteCollectFiveDayFtCreateRoutes 「五日分钟行情采集配置」新增相关路由已注册（需求 11345）。
+func TestQuoteCollectFiveDayFtCreateRoutes(t *testing.T) {
+	router := newTestRouter(t)
+	want := map[string]string{
+		http.MethodGet:  "/API/V1/Meta/Finv/Quote/Collect/FiveDayFt/Lookup",
+		http.MethodPost: "/API/V1/Meta/Finv/Quote/Collect/FiveDayFt/Create",
+	}
+	registered := map[string]bool{}
+	for _, route := range router.Routes() {
+		if path, ok := want[route.Method]; ok && route.Path == path {
+			registered[route.Method] = true
+		}
+	}
+	for method, path := range want {
+		if !registered[method] {
+			t.Errorf("应注册 %s %s", method, path)
+		}
+	}
+}
+
+// TestQuoteCollectFiveDayFtUpdateRoute 「五日分钟行情采集配置」编辑路由已注册（需求 11346）。
+func TestQuoteCollectFiveDayFtUpdateRoute(t *testing.T) {
+	router := newTestRouter(t)
+	const path = "/API/V1/Meta/Finv/Quote/Collect/FiveDayFt/Update"
+	registered := false
+	for _, route := range router.Routes() {
+		if route.Method == http.MethodPost && route.Path == path {
+			registered = true
+		}
+	}
+	if !registered {
+		t.Fatalf("应注册 POST %s", path)
 	}
 }

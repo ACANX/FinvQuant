@@ -4,52 +4,339 @@ import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from './views/DashboardView.vue'
 import QuoteQueryView from './views/Meta/Finv/Quote/History/HistoryQuoteQueryView.vue'
 import QuoteImportView from './views/Meta/Finv/Quote/History/HistoryQuoteImportView.vue'
-import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/DeDupKLineQueryView.vue'
-import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/DeDupKLineStatsView.vue'
-import MetaExchangeView from './views/Meta/Finv/MetaData/MetaExchangeView.vue'
-import MetaMarketView from './views/Meta/Finv/MetaData/MetaMarketView.vue'
-import MetaSecurityView from './views/Meta/Finv/MetaData/MetaSecurityView.vue'
+import RealtimeStockView from './views/Meta/Finv/Quote/Realtime/FTStockRankView.vue'
+import FutureRankView from './views/Meta/Finv/Quote/Realtime/FutureRankView.vue'
+import CryptoRankView from './views/Meta/Finv/Quote/Realtime/CryptoRankView.vue'
+import CollectOverviewView from './views/Meta/Finv/Quote/RealtimeCollect/OverviewView.vue'
+import SecuQuoteSnapshotSyncView from './views/Meta/Finv/Quote/RealtimeCollect/SecuQuoteSnapshotSyncView.vue'
+import PendingSecuView from './views/Meta/Finv/Quote/RealtimeCollect/PendingSecuView.vue'
+import SecuParamCompleteView from './views/Meta/Finv/Quote/RealtimeCollect/SecuParamCompleteView.vue'
+import FxCerView from './views/Meta/Finv/Quote/Realtime/FXCEROverviewView.vue'
+import SecuParamSyncView from './views/Meta/Finv/Quote/RealtimeCollect/SecuParamSyncView.vue'
+import UscMappingView from './views/Meta/Finv/Quote/RealtimeCollect/UscMappingView.vue'
+// 需求 11344：五日分钟行情采集配置（Supabase public.finv_quote_secu_ft 只读分页）
+import FiveDayFtView from './views/Meta/Finv/Quote/RealtimeCollect/FiveDayFtView.vue'
+// 需求 11343：行情采集系统配置（sys.sys_config 20013–20018 中与实时行情采集相关的 5 项）
+import CollectSysConfigView from './views/Meta/Finv/Quote/RealtimeCollect/CollectSysConfigView.vue'
+import IndicatorView from './views/Meta/Finv/Quote/Realtime/SecuIndicatorView.vue'
+import OpenAPIClientView from './views/Meta/Finv/OpenAPI/ClientView.vue'
+import OpenAPICredentialView from './views/Meta/Finv/OpenAPI/CredentialView.vue'
+import OpenAPIInvokeLogView from './views/Meta/Finv/OpenAPI/InvokeLogView.vue'
+import OpenAPISettingsView from './views/Meta/Finv/OpenAPI/SettingsView.vue'
+import OpenAPISecretView from './views/Meta/Finv/OpenAPI/SecretView.vue'
+import OpenAPIEndpointView from './views/Meta/Finv/OpenAPI/EndpointView.vue'
+import DeDupKLineQueryView from './views/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineQueryView.vue'
+import DeDupKLineStatsView from './views/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineStatsView.vue'
+import DeDupExportOverviewView from './views/Meta/Finv/Quote/DeDup/Export/OverviewView.vue'
+import DeDupArchiveStockView from './views/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStatView.vue'
+import DeDupArchiveChainView from './views/Meta/Finv/Quote/DeDup/Export/ChainView.vue'
+import DeDupCDEUView from './views/Meta/Finv/Quote/Cdeu/CdeuOverviewView.vue'
+import CdeuUscPatchView from './views/Meta/Finv/Quote/Cdeu/Usc/PatchView.vue'
+import CdeuDayKlineSyncView from './views/Meta/Finv/Quote/Cdeu/DayKlineSyncView.vue'
+import CdeuCollectParamView from './views/Meta/Finv/Quote/Cdeu/CollectParamView.vue'
+import DeDupCDEUWorkflowView from './views/Meta/Finv/Quote/Cdeu/CdeuWorkflowView.vue'
+import DeDupExportJobView from './views/Meta/Finv/Quote/DeDup/Export/JobView.vue'
+import DeDupExportFileView from './views/Meta/Finv/Quote/DeDup/Export/FileView.vue'
+import DeDupArchiveStatsView from './views/Meta/Finv/Quote/DeDup/Export/StatsView.vue'
+import DeDupArchiveConfigView from './views/Meta/Finv/Quote/DeDup/Export/ConfigView.vue'
+import DeDupArchiveLogView from './views/Meta/Finv/Quote/DeDup/Export/LogView.vue'
+import MetaExchangeView from './views/Meta/Finv/MetaData/ExchangeView.vue'
+import MetaMarketView from './views/Meta/Finv/MetaData/MarketView.vue'
+import MetaSecurityView from './views/Meta/Finv/MetaData/SecurityView.vue'
 // 量化回测（通用量化策略验证）
-import BacktestGoldFuturesView from './views/Meta/Finv/Quant/Backtest/BacktestGoldFuturesView.vue'
-import AccountManageView from './views/Meta/Finv/Quant/Account/AccountManageView.vue'
-import FundManageView from './views/Meta/Finv/Quant/Fund/FundManageView.vue'
-import PositionManageView from './views/Meta/Finv/Quant/Position/PositionManageView.vue'
-import StrategyManageView from './views/Meta/Finv/Quant/Strategy/StrategyManageView.vue'
-import BacktestAnalysisView from './views/Meta/Finv/Quant/Backtest/BacktestAnalysisView.vue'
-import BacktestReportView from './views/Meta/Finv/Quant/Backtest/BacktestReportView.vue'
+import BacktestGoldFuturesView from './views/Meta/Finv/Quant/Backtest/GoldFuturesView.vue'
+import AccountManageView from './views/Meta/Finv/Quant/AccountView.vue'
+import FundManageView from './views/Meta/Finv/Quant/FundView.vue'
+import PositionManageView from './views/Meta/Finv/Quant/PositionView.vue'
+import StrategyManageView from './views/Meta/Finv/Quant/StrategyView.vue'
+import BacktestAnalysisView from './views/Meta/Finv/Quant/Backtest/AnalysisView.vue'
+import BacktestReportView from './views/Meta/Finv/Quant/Backtest/Analysis/ReportView.vue'
 import RunDeleteTasksView from './views/Meta/Finv/Quant/Backtest/RunDeleteTasksView.vue'
-import ConfigManageView from './views/Meta/Finv/Quant/Backtest/ConfigManageView.vue'
-import EnvironmentView from './views/Meta/Finv/Quant/Backtest/EnvironmentView.vue'
-import TemplateView from './views/Meta/Finv/Quant/Backtest/TemplateView.vue'
+import ConfigManageView from './views/Meta/Finv/Quant/ConfigView.vue'
+import EnvironmentView from './views/Meta/Finv/Quant/EnvironmentView.vue'
+import TemplateView from './views/Meta/Finv/Quant/TemplateView.vue'
+import BrsBackupTableView from './views/Meta/BRS/Backup/Finv/BrsBackupTableView.vue'
+import BrsOssConfigView from './views/Meta/BRS/Backup/Finv/BrsOssConfigView.vue'
+import BrsScheduleView from './views/Meta/BRS/Backup/Finv/BrsScheduleView.vue'
+import BrsRunView from './views/Meta/BRS/Backup/Finv/BrsRunView.vue'
+import BrsSliceView from './views/Meta/BRS/Backup/Finv/BrsSliceView.vue'
 import PlaceholderView from './views/Common/PlaceholderView.vue'
+import LoginView from './views/Common/LoginView.vue'
+
+import { UNAUTHORIZED_EVENT, isLoggedIn } from './auth'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', redirect: '/dashboard' },
-    { path: '/dashboard', name: 'dashboard', component: DashboardView, meta: { title: '仪表盘' } },
+    // 登录页：公开路由，不渲染主框架（见 App.vue 的 meta.public 判断）
+    { path: '/Login', name: 'login', component: LoginView, meta: { title: '登录', public: true } },
+    { path: '/', redirect: '/Dashboard' },
+    { path: '/Dashboard', name: 'dashboard', component: DashboardView, meta: { title: '仪表盘' } },
+    // 一级系统落地路由（顶栏切换到「金融投资」时使用）
+    { path: '/Meta/Finv', redirect: '/Dashboard' },
     // 历史行情 → 历史行情查询
     { path: '/Meta/Finv/Quote/History/HistoryQuoteQuery', name: 'quote-query', component: QuoteQueryView, meta: { title: '历史行情查询' } },
-    // 去重行情 → 去重分钟行情查询 / 统计
+    // 行情 → 实时行情 → 实时行情（需求 10962，路由 10963 改为 FTStockRank）
+    // 读 cdeu.finv_quote_secu_realtime（主键 usc）
     {
-      path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Query',
+      path: '/Meta/Finv/Quote/Realtime/FTStockRank',
+      name: 'quote-realtime-ftstockrank',
+      component: RealtimeStockView,
+      meta: { title: '证券行情排行' },
+    },
+    // 需求 11322：期货行情排行（cdeu.finv_quote_realtime_future，主键 stock_id）
+    {
+      path: '/Meta/Finv/Quote/Realtime/FTFutureRank',
+      name: 'quote-realtime-ftfuture-rank',
+      component: FutureRankView,
+      meta: { title: '期货行情排行' },
+    },
+    // 需求 11323：加密货币行情排行（cdeu.finv_quote_secu_realtime_crypto，主键 usc）
+    {
+      path: '/Meta/Finv/Quote/Realtime/FTCryptoRank',
+      name: 'quote-realtime-ftcrypto-rank',
+      component: CryptoRankView,
+      meta: { title: '加密货币行情排行' },
+    },
+    // 行情 → 实时行情 → 外汇汇率（需求 10999/11000，11159 改名并把菜单前移到快照同步之前）
+    {
+      path: '/Meta/Finv/Quote/Realtime/FXCEROverview',
+      name: 'quote-realtime-fxcer-overview',
+      component: FxCerView,
+      meta: { title: '外汇汇率' },
+    },
+    // 行情 → 行情采集 → 状态总览（需求 11283）：只读汇总两张配置表 + 最近一次运行结果
+    {
+      path: '/Meta/Finv/Quote/RealtimeCollect/Overview',
+      name: 'quote-collect-overview',
+      component: CollectOverviewView,
+      meta: { title: '状态总览' },
+    },
+    // 行情 → 行情采集 → 行情快照同步（需求 10982，11158 改名，11255 路由改为 SecuQuoteSnapshotSync，
+    // 需求 11281 菜单移入新分组「行情采集」，路由随之迁到 Quote/RealtimeCollect）
+    {
+      path: '/Meta/Finv/Quote/RealtimeCollect/SecuQuoteSnapshotSync',
+      name: 'quote-realtime-snapshot-sync',
+      component: SecuQuoteSnapshotSyncView,
+      meta: { title: '行情快照同步' },
+    },
+    // 旧路由（需求 11255 起的 /Quote/Realtime/…）保留重定向，历史收藏与外部链接继续可用
+    {
+      path: '/Meta/Finv/Quote/Realtime/SecuQuoteSnapshotSync',
+      redirect: '/Meta/Finv/Quote/RealtimeCollect/SecuQuoteSnapshotSync',
+    },
+    // 行情 → 实时行情 → 待采证券录入（需求 10995，11160 改名）：usc 补全后仍为空的快照行
+    {
+      path: '/Meta/Finv/Quote/RealtimeCollect/PendingSecu',
+      name: 'quote-realtime-pending-secu',
+      component: PendingSecuView,
+      meta: { title: '待采证券录入' },
+    },
+    // 旧路由（Quote/Realtime/…）保留重定向，历史收藏与外部链接继续可用（需求 11282）
+    {
+      path: '/Meta/Finv/Quote/Realtime/PendingSecu',
+      redirect: '/Meta/Finv/Quote/RealtimeCollect/PendingSecu',
+    },
+    // 行情 → 实时行情 → 证券参数补全（需求 11161）：按目标表分别补 finv_security / quote_collect
+    {
+      path: '/Meta/Finv/Quote/RealtimeCollect/SecuParamComplete',
+      name: 'quote-realtime-secu-param-complete',
+      component: SecuParamCompleteView,
+      meta: { title: '证券参数补全' },
+    },
+    // 旧路由（Quote/Realtime/…）保留重定向，历史收藏与外部链接继续可用（需求 11282）
+    {
+      path: '/Meta/Finv/Quote/Realtime/SecuParamComplete',
+      redirect: '/Meta/Finv/Quote/RealtimeCollect/SecuParamComplete',
+    },
+    // 开放平台（需求 11171/11172/11173）：按功能拆四个页面，各自只写一张表
+    //   /Client      → open.open_api_client
+    //   /Credential  → open.open_api_credential
+    //   /InvokeLog   → open.open_api_invoke_log
+    //   /Settings    → sys.sys_config 19xxx
+    {
+      path: '/Meta/Finv/OpenAPI/Client',
+      name: 'openapi-client',
+      component: OpenAPIClientView,
+      meta: { title: 'OpenAPI 调用方' },
+    },
+    {
+      path: '/Meta/Finv/OpenAPI/Credential',
+      name: 'openapi-credential',
+      component: OpenAPICredentialView,
+      meta: { title: 'OpenAPI 凭证' },
+    },
+    {
+      path: '/Meta/Finv/OpenAPI/InvokeLog',
+      name: 'openapi-invoke-log',
+      component: OpenAPIInvokeLogView,
+      meta: { title: 'OpenAPI 调用审计' },
+    },
+    {
+      path: '/Meta/Finv/OpenAPI/Settings',
+      name: 'openapi-settings',
+      component: OpenAPISettingsView,
+      meta: { title: 'OpenAPI 鉴权配置' },
+    },
+    {
+      path: '/Meta/Finv/OpenAPI/Secret',
+      name: 'openapi-secret',
+      component: OpenAPISecretView,
+      meta: { title: 'OpenAPI 密钥配置' },
+    },
+    // 接口清单（需求 11223）：只读目录 + 公开/启用标志切换，写 open.open_api_endpoint
+    {
+      path: '/Meta/Finv/OpenAPI/Endpoint',
+      name: 'openapi-endpoint',
+      component: OpenAPIEndpointView,
+      meta: { title: 'OpenAPI 接口清单' },
+    },
+    // 行情 → 实时行情 → 证券参数同步（需求 11042）：Supabase 证券键表 → futu.finv_futu_secu_key，按钮手动触发
+    {
+      path: '/Meta/Finv/Quote/RealtimeCollect/SecuParamSync',
+      name: 'quote-realtime-secu-param-sync',
+      component: SecuParamSyncView,
+      meta: { title: '证券参数同步' },
+    },
+    // 旧路由（Quote/Realtime/…）保留重定向，历史收藏与外部链接继续可用（需求 11282）
+    {
+      path: '/Meta/Finv/Quote/Realtime/SecuParamSync',
+      redirect: '/Meta/Finv/Quote/RealtimeCollect/SecuParamSync',
+    },
+    // 行情 → 实时行情 → USC 映射规则（需求 11072）：规则/条目维护 + 预演 diff + 异步应用 + 审计日志
+    {
+      path: '/Meta/Finv/Quote/RealtimeCollect/UscMapping',
+      name: 'quote-realtime-usc-mapping',
+      component: UscMappingView,
+      meta: { title: 'USC 映射规则' },
+    },
+    // 旧路由（Quote/Realtime/…）保留重定向，历史收藏与外部链接继续可用（需求 11282）
+    {
+      path: '/Meta/Finv/Quote/Realtime/UscMapping',
+      redirect: '/Meta/Finv/Quote/RealtimeCollect/UscMapping',
+    },
+    // 行情 → 行情采集 → 五日分钟行情采集配置（需求 11344）：Supabase public.finv_quote_secu_ft 只读分页，默认每页 15 条
+    {
+      path: '/Meta/Finv/Quote/RealtimeCollect/FiveDayFt',
+      name: 'quote-collect-five-day-ft',
+      component: FiveDayFtView,
+      meta: { title: '五日分钟行情采集配置' },
+    },
+    // 行情 → 行情采集 → 行情采集系统配置（需求 11343）：只查 + 改，敏感项掩码 + 👁 明文（base64 传输）
+    {
+      path: '/Meta/Finv/Quote/RealtimeCollect/CollectSysConfig',
+      name: 'quote-collect-sysconfig',
+      component: CollectSysConfigView,
+      meta: { title: '行情采集系统配置' },
+    },
+    // 行情 → 实时行情 → 证券指标（需求 11251，路由改名 11252）：cdeu.finv_quote_secu_indicator 全列只读浏览
+    // 列元数据 + 分页查询走 /Meta/Finv/Quote/Secu/Indicator/*（需求 11249/11250）
+    {
+      path: '/Meta/Finv/Quote/Realtime/SecuIndicator',
+      name: 'quote-realtime-secu-indicator',
+      component: IndicatorView,
+      meta: { title: '证券指标' },
+    },
+    // 收剔导传ETL → CDEU自动化 → 采集参数（需求 11254）：futu.finv_futu_quote_collect 查询与单行维护
+    {
+      path: '/Meta/Finv/Quote/Cdeu/CollectParam',
+      name: 'cdeu-collect-param',
+      component: CdeuCollectParamView,
+      meta: { title: '采集参数' },
+    },
+    // 行情数据归档 → K线数据查询 / 统计（需求 10856/10857 改名并移入「收剔导传ETL」）
+    {
+      path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineQuery',
       name: 'dedup-kline-query',
       component: DeDupKLineQueryView,
-      meta: { title: '去重分钟行情查询' },
+      meta: { title: 'K线数据查询' },
     },
     {
-      path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/Stats',
+      path: '/Meta/Finv/Quote/DeDup/Secu/KLine/Min/KLineStats',
       name: 'dedup-kline-stats',
       component: DeDupKLineStatsView,
-      meta: { title: '去重分钟行情统计' },
+      meta: { title: 'K线数据统计' },
     },
-    // 元数据管理 → 业务元数据维护 → 四个子菜单
-    { path: '/meta/exchange', name: 'meta-exchange', component: MetaExchangeView, meta: { title: '交易所信息维护' } },
-    { path: '/meta/market', name: 'meta-market', component: MetaMarketView, meta: { title: '交易所下设市场信息维护' } },
-    { path: '/meta/security', name: 'meta-security', component: MetaSecurityView, meta: { title: '规范证券信息维护' } },
-    { path: '/meta/import', name: 'meta-import', component: QuoteImportView, meta: { title: '历史行情数据导入' } },
-    // 配置管理 / 环境管理 / 模板管理（元数据管理之后、量化策略验证之前）
-    { path: '/Meta/Finv/Quant/Config', name: 'config-manage', component: ConfigManageView, meta: { title: '配置管理' } },
+    // 行情 → 收剔导传ETL（文件导出 / 文件上传等，需求 10862 改名）
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Overview',
+      name: 'dedup-export-overview',
+      component: DeDupExportOverviewView,
+      meta: { title: '月归档导出总览' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Chain',
+      name: 'dedup-export-chain',
+      component: DeDupArchiveChainView,
+      meta: { title: '端到端链路' },
+    },
+    {
+      path: '/Meta/Finv/Quote/Cdeu/HisMonthExistSecuStat',
+      name: 'cdeu-his-month-exist-secu-stat',
+      component: DeDupArchiveStockView,
+      meta: { title: '历史月份存量数据清点' },
+    },
+    {
+      path: '/Meta/Finv/Quote/Cdeu/CdeuOverview',
+      name: 'dedup-export-cdeu',
+      component: DeDupCDEUView,
+      meta: { title: 'CDEU 工作流控制面板' },
+    },
+    {
+      path: '/Meta/Finv/Quote/Cdeu/Usc/Patch',
+      name: 'cdeu-usc-patch',
+      component: CdeuUscPatchView,
+      meta: { title: '过时USC映射到新USC' },
+    },
+    {
+      path: '/Meta/Finv/Quote/Cdeu/DayKlineSync',
+      name: 'cdeu-daykline-sync',
+      component: CdeuDayKlineSyncView,
+      meta: { title: '日K线数据同步' },
+    },
+    {
+      path: '/Meta/Finv/Quote/Cdeu/CdeuWorkflow',
+      name: 'dedup-export-cdeu-workflow',
+      component: DeDupCDEUWorkflowView,
+      meta: { title: '全流程拓扑' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Job',
+      name: 'dedup-export-job',
+      component: DeDupExportJobView,
+      meta: { title: '文件导出' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/File',
+      name: 'dedup-export-file',
+      component: DeDupExportFileView,
+      meta: { title: '文件上传' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Stats',
+      name: 'dedup-export-stats',
+      component: DeDupArchiveStatsView,
+      meta: { title: '归档统计与预算' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Config',
+      name: 'dedup-export-config',
+      component: DeDupArchiveConfigView,
+      meta: { title: '归档主数据与规则' },
+    },
+    {
+      path: '/Meta/Finv/Quote/DeDup/Export/Log',
+      name: 'dedup-export-log',
+      component: DeDupArchiveLogView,
+      meta: { title: '归档日志与补丁' },
+    },
+    // 元数据 → Finv业务元数据 → 子菜单
+    { path: '/Meta/Finv/MetaData/Exchange', name: 'meta-exchange', component: MetaExchangeView, meta: { title: '交易所信息管理' } },
+    { path: '/Meta/Finv/MetaData/Market', name: 'meta-market', component: MetaMarketView, meta: { title: '市场信息管理' } },
+    { path: '/Meta/Finv/MetaData/Security', name: 'meta-security', component: MetaSecurityView, meta: { title: '规范证券信息管理' } },
+    { path: '/Meta/Finv/Quote/History/HistoryQuoteImport', name: 'meta-import', component: QuoteImportView, meta: { title: '历史行情数据导入' } },
+    // 系统配置（需求 10859 改名；环境/模板管理等已迁入「量化 → MVP配置」）
+    { path: '/Meta/Finv/Quant/Config', name: 'config-manage', component: ConfigManageView, meta: { title: '系统配置' } },
     { path: '/Meta/Finv/Quant/Environment', name: 'environment', component: EnvironmentView, meta: { title: '环境管理' } },
     { path: '/Meta/Finv/Quant/Template', name: 'template', component: TemplateView, meta: { title: '模板管理' } },
     // 账户管理 / 资金管理 / 持仓管理（配置/环境/模板之后、量化策略验证之前）
@@ -81,16 +368,65 @@ const router = createRouter({
       meta: { title: '投资策略回测收益分析报告' },
     },
     // 仿真数据验证 / 模拟盘验证 / 实盘仿真验证 / 实盘交易（规划占位）
+    // CDEU 域占位页（需求 10865）：CDEU自动化
+    { path: '/Meta/Finv/Quote/Cdeu/Automation', name: 'cdeu-automation', component: PlaceholderView, meta: { title: 'CDEU自动化' } },
+    // BRS 备份与恢复域（需求 10872 / 10883）：备份登记维护已接后端 API，其余仍为占位页
+    { path: '/Meta/BRS/Backup/Finv/Table', name: 'brs-table', component: BrsBackupTableView, meta: { title: '备份登记维护' } },
+    { path: '/Meta/BRS/Backup/Finv/Record', name: 'brs-record', component: PlaceholderView, meta: { title: '备份记录与产物' } },
+    { path: '/Meta/BRS/Backup/Finv/OSSConfig', name: 'brs-storage', component: BrsOssConfigView, meta: { title: '对象存储配置' } },
+    { path: '/Meta/BRS/Backup/Finv/Schedule', name: 'brs-schedule', component: BrsScheduleView, meta: { title: '备份调度配置' } },
+    { path: '/Meta/BRS/Backup/Finv/Run', name: 'brs-run', component: BrsRunView, meta: { title: '小表全量备份' } },
+    { path: '/Meta/BRS/Backup/Finv/Slice', name: 'brs-slice', component: BrsSliceView, meta: { title: '大表增量备份' } },
+    { path: '/Meta/BRS/Restore/Run', name: 'brs-restore-run', component: PlaceholderView, meta: { title: '数据恢复' } },
     { path: '/Meta/Finv/Quant/Simulation/Data', name: 'simulation-data', component: PlaceholderView, meta: { title: '仿真数据验证' } },
     { path: '/Meta/Finv/Quant/Simulation/Paper', name: 'simulation-paper', component: PlaceholderView, meta: { title: '模拟盘验证' } },
     { path: '/Meta/Finv/Quant/Simulation/LiveSim', name: 'simulation-live-sim', component: PlaceholderView, meta: { title: '实盘仿真验证' } },
     { path: '/Meta/Finv/Quant/LiveTrading', name: 'live-trading', component: PlaceholderView, meta: { title: '实盘交易' } },
+    // 内容管理（CMS）系统：本轮仅占位，业务菜单后续整合
+    { path: '/Meta/CMS', name: 'cms-home', component: PlaceholderView, meta: { title: '内容管理控制台' } },
   ],
+})
+
+// 旧的小写路径归一化。
+//
+// 为什么不用路由级 redirect：vue-router 4 的路径匹配默认大小写不敏感
+// （sensitive: false），`/login` 会直接命中 `/Login` 路由，redirect 记录
+// 永远匹配不到；此时 to.path 仍是访问时的原始大小写，因此在守卫里归一化
+// 是唯一可靠的位置。
+const LEGACY_PATH_MAP: Record<string, string> = {
+  '/login': '/Login',
+  '/dashboard': '/Dashboard',
+}
+
+// 登录守卫：未登录一律重定向到登录页，并记录来源路径供登录后回跳
+router.beforeEach((to) => {
+  const normalized = LEGACY_PATH_MAP[to.path]
+  if (normalized) {
+    return { path: normalized, query: to.query, hash: to.hash, replace: true }
+  }
+  if (to.meta.public) {
+    // 已登录时访问登录页直接回首页，避免重复登录
+    if (to.name === 'login' && isLoggedIn()) {
+      return { path: '/Dashboard' }
+    }
+    return true
+  }
+  if (!isLoggedIn()) {
+    return { path: '/Login', query: { redirect: to.fullPath } }
+  }
+  return true
+})
+
+// 接口返回 401 时（令牌过期或被吊销）由 api 层广播，这里统一切回登录页
+window.addEventListener(UNAUTHORIZED_EVENT, () => {
+  const current = router.currentRoute.value
+  if (current.meta.public) return
+  void router.replace({ path: '/Login', query: { redirect: current.fullPath } })
 })
 
 router.afterEach((to) => {
   const title = (to.meta.title as string) ?? ''
-  document.title = title ? `${title} · FinvQuant` : 'FinvQuant 量化策略交易平台'
+  document.title = title ? `${title} · FinvQuant` : 'FinvQuant策略回测量化交易'
 })
 
 export default router

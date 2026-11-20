@@ -1,0 +1,199 @@
+openapi: 3.1.0
+info:
+  title: 缺省汇率（手动更新 + 整表查询）
+  version: 1.0.0
+  description: |
+    维护 public.finv_fxcer（一行=一个货币对的最新汇率（主键 usc），rate = 1 单位 currency_src 折合的 currency_dest 数量）。
+    数据源 metaext quoteapiv2.GetFxOverview：72 个货币对（9 币种两两组合），只落直采行（需求 11020 起不再派生 CNY）。
+    只保最新、不建历史表；当前仅支持手动触发更新。需求 10999（表结构 10998）。
+servers:
+  - url: /API/V1
+paths:
+  /Meta/Finv/Quote/Cdeu/Fx/CerSync:
+    post:
+      summary: 手动更新缺省汇率（同步执行）
+      operationId: fxCerSync
+      tags: [Cdeu]
+      description: |
+        source=overview（默认）：一次 moomoo get-fx-overview 拉取 72 个货币对，全部作为直采行落库（不再派生 CNY）。
+        source=rateList：一次 moomoo get-fx-rate-list（listId=1、page=0、pageSize=500）拉取全量汇率列表，
+        币种更多，可补齐概览缺失的货币对；该接口不返回报价时间，dt_quote 取本次采集时刻。
+        两个来源都单事务全量 upsert 到 public.finv_fxcer、互不删除对方数据。
+        rateList 先按 pageSize=500 单页请求；上游对大 pageSize（300/500）返回 code=500 且 data 为数组时，
+        自动降级为 pageSize=50 逐页拉取（最多 20 页、页间 300ms），pages 记录实际请求页数。
+        该列表混有非货币对条目（USDindex / EURindex 等）与缺价条目，逐条跳过并计入 skipped。
+        upsert 跳过条件：新 dt_quote 小于库中已有值（旧报价不覆盖新报价）、
+        派生行遇到同对直采行（历史兼容，派生不覆盖直采）；被跳过的行不计入 insert/update。
+      parameters:
+        - name: source
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [overview, rateList]
+            default: overview
+          description: 采集来源：overview=get-fx-overview（9 币种完整矩阵）；rateList=get-fx-rate-list（币种更多）
+      responses:
+        '200':
+          description: 更新完成
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code: { type: integer, const: 0 }
+                  message: { type: string, examples: [汇率已更新] }
+                  data:
+                    type: object
+                    required: [source, pages, rows_receive, skipped, derive, insert, update, ts_quote_max, elapsed_ms]
+                    properties:
+                      source:
+                        type: string
+                        enum: [overview, rateList]
+                        description: 本次采集来源
+                        examples: [overview]
+                      pages:
+                        type: integer
+                        description: 本次实际请求页数（overview 固定 1；rateList 降级分页时 > 1）
+                        examples: [1]
+                      skipped:
+                        type: integer
+                        description: 上游返回但被跳过的条目数（非货币对如 USDindex、缺价条目；overview 恒为 0）
+                        examples: [3]
+                      rows_receive:
+                        type: integer
+                        description: 本次组装出的行数（overview 固定 72；rateList 为可用条目数，如 280）
+                        examples: [88]
+                      derive:
+                        type: integer
+                        description: 派生行数；需求 11020 起恒为 0（字段保留以向后兼容）
+                        examples: [16]
+                      insert:
+                        type: integer
+                        description: 本次实际新增行数
+                        examples: [0]
+                      update:
+                        type: integer
+                        description: 本次实际覆盖行数（可能小于 rows_receive - insert）
+                        examples: [88]
+                      ts_quote_max:
+                        type: integer
+                        format: int64
+                        description: 本次最大报价时间（Unix 毫秒）
+                        examples: [1794002398409]
+                      elapsed_ms:
+                        type: integer
+                        description: 耗时（毫秒）
+                        examples: [1453]
+        '401':
+          description: 未登录
+        '500':
+          description: 上游请求失败或返回口径异常（错误码 2006，不写半批数据）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message]
+                properties:
+                  code: { type: integer, const: 2006 }
+                  message: { type: string }
+  /Meta/Finv/Quote/Cdeu/Fx/Cer:
+    get:
+      summary: 缺省汇率整表查询（不分页）
+      operationId: fxCerList
+      tags: [Cdeu]
+      description: |
+        返回 public.finv_fxcer 全量行（88 行量级），按 currency_src、currency_dest 升序。
+        total 为 0 表示从未手动更新过，前端应提示先触发 CerSync。
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code: { type: integer, const: 0 }
+                  message: { type: string, examples: [OK] }
+                  data:
+                    type: object
+                    required: [total, list, currency_names]
+                    properties:
+                      total:
+                        type: integer
+                        description: 行数（0 表示表为空）
+                        examples: [88]
+                      currency_names:
+                        type: object
+                        description: |
+                          币种简体中文名（展示用，需求 11000）。CNY=在岸人民币、CNH=离岸人民币，
+                          两者价格存在基差，不可混用；未登记币种由前端回落为代码。
+                        additionalProperties:
+                          type: string
+                        examples:
+                          - CNY: 在岸人民币
+                            CNH: 离岸人民币
+                            USD: 美元
+                            HKD: 港币
+                      list:
+                        type: array
+                        items:
+                          type: object
+                          required: [usc, name, currency_src, currency_dest, rate, ts_quote, source, flag_derive]
+                          properties:
+                            usc:
+                              type: string
+                              pattern: '^[A-Z]{6}$'
+                              description: 上游标识（stockCode / 概览 map key，如 USDCNH）
+                              examples: [USDCNH]
+                            name:
+                              type: string
+                              description: 展示名称（简体中文，如「美元/日元」）
+                              examples: ['美元/离岸人民币']
+                            currency_src:
+                              type: string
+                              pattern: '^[A-Z]{3}$'
+                              description: 源币种（ISO 4217 alpha-3；离岸人民币 CNH）
+                            currency_dest:
+                              type: string
+                              pattern: '^[A-Z]{3}$'
+                              description: 目标币种
+                            rate:
+                              type: string
+                              description: 缺省汇率原文（NUMERIC(24,10)::text，1 单位 currency_src = N currency_dest）
+                              examples: ['6.6733300000']
+                            change_price:
+                              type: string
+                              nullable: true
+                              description: 涨跌额（带符号，NUMERIC(24,10)::text）；仅 rateList 来源提供，overview 来源为空（需求 11016）
+                              examples: ['-0.0025000000']
+                            change_ratio:
+                              type: string
+                              nullable: true
+                              description: 涨跌幅（百分数数值，-0.274 表示 -0.274%，NUMERIC(12,6)::text）；仅 rateList 来源提供
+                              examples: ['-0.274000']
+                            ts_quote:
+                              type: integer
+                              format: int64
+                              description: 报价时间（Unix 毫秒）：overview 为上游逐对时间，rateList 为采集时刻
+                            source:
+                              type: string
+                              enum: [moomoo.get-fx-overview, moomoo.get-fx-rate-list, derive:CNH]
+                              description: 来源标识
+                            flag_derive:
+                              type: string
+                              enum: ['0', '1']
+                              description: 0=直采，1=派生（仅历史数据；需求 11020 起只会是 0）
+                            remark:
+                              type: string
+                              description: 备注（口径说明，可空）
+                            gmt_update:
+                              type: string
+                              format: date-time
+                              description: 最近更新时间（RFC 3339，可作批次时间）
+        '401':
+          description: 未登录
+        '500':
+          description: 查询失败（错误码 2006）

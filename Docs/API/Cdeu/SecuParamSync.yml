@@ -1,0 +1,732 @@
+openapi: 3.1.0
+info:
+  title: 证券参数同步（Supabase 证券键表 → 本地 finv_futu_secu_key）
+  version: 1.0.0
+  description: |
+    把上游 Supabase 的证券键表（默认 public.finv_quote_secu_key）按 ftmm_symbol 升序分批增量同步到本地
+    futu.finv_futu_secu_key：主键不存在则插入；已存在且字段有变化才更新；完全一致的行不改写。
+    连接配置 {PROJECT_ID}|{APIKEY} 取系统配置 20013，源表名取系统配置 20014（默认 finv_quote_secu_key）。
+    只由前端「证券参数同步」页按钮手动触发，无定时任务；单向只读上游，不删除本地行。
+    需求 11042（菜单与页面）、11043（同步实现）、11044（源表名可配）、11045（页面拆两个 Tab）、
+    11046（异步运行 + 实时日志）、11050（Tab 2 指标同步）、11051（flag_enable 规则，被 11063 取代）、
+    11052（Tab 1 不清空 Tab 2 补的 url）、11054（Tab 3 上游主键参数回填，方向为本地 → 上游）、
+    11055（本地同一 stock_id 多条 usc 时取等于上游 ftmm_symbol 的那条）、
+    11056（Tab 3 同时回填 public.finv_quote_secu_key 的 usc + stock_id）、
+    11057（键表关联口径：按 ftmm_symbol 关联，不用 stock_id），11060（采集属性表增加生成列 ftmm_symbol）；
+    连接配置 20013（需求 11041）。
+    Tab 2 来源固定 public.finv_quote_secu_meta，一条记录写两张表（需求 11063 起不再写键表）：
+    cdeu.finv_quote_secu_indicator（132 列同名，含 stock_id）/ futu.finv_futu_quote_collect（身份字段同名）/
+    futu.finv_futu_secu_key（只补 url ← secu_url 与 stock_id）。
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: /API/V1
+tags:
+  - name: Cdeu
+    description: 行情数据采集与同步
+paths:
+  /Meta/Finv/Quote/Cdeu/SecuKey/Status:
+    get:
+      summary: 同步状态只读快照
+      operationId: secuKeyStatus
+      tags: [Cdeu]
+      description: |
+        只读本地，不访问 Supabase：读系统配置 20013/20014 并统计目标表行数。
+        源表真实行数在同步结果的 rows_total 里给出。
+        API Key 属敏感信息，响应只返回项目 ID 与脱敏前缀。
+      responses:
+        '200':
+          description: 状态快照
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code:
+                    type: integer
+                    const: 0
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                      - configured
+                      - project_id
+                      - api_key_masked
+                      - source_table
+                      - target_table
+                      - target_rows
+                      - batch_size_default
+                    properties:
+                      configured:
+                        type: boolean
+                        description: 系统配置 20013 是否已配置且格式合法
+                      project_id:
+                        type: string
+                        description: Supabase 项目 ID（未配置时为空）
+                      api_key_masked:
+                        type: string
+                        description: API Key 脱敏前缀（前 8 位 + …；未配置时为空）
+                      config_error:
+                        type: string
+                        description: 20013 未配置 / 格式非法的原因（合法时缺省）
+                      source_table:
+                        type: string
+                        description: 生效的源表名（20014 归一化结果）
+                      source_table_raw:
+                        type: string
+                        description: 20014 原始取值（可能非法，便于诊断）
+                      target_table:
+                        type: string
+                        const: futu.finv_futu_secu_key
+                      target_rows:
+                        type: integer
+                        description: 目标表当前行数
+                      target_last_update:
+                        type: string
+                        description: 目标表 max(gmt_update)（RFC3339；空表时缺省）
+                      batch_size_default:
+                        type: integer
+                        description: 默认批量（1000）
+        '401':
+          description: 未登录或登录已过期
+        '500':
+          description: 读取系统配置或统计目标表失败（code=2006）
+  /Meta/Finv/Quote/Cdeu/SecuKey/Config:
+    post:
+      summary: 保存 Supabase 源表名（写系统配置 20014）
+      operationId: secuKeySaveConfig
+      tags: [Cdeu]
+      description: |
+        只允许改「源表名」；20013（含 API Key）不在本接口内暴露。
+        表名只用于拼 PostgREST URL（schema 走 Accept-Profile 头），因此按
+        [A-Za-z_][A-Za-z0-9_]* 校验（最多两段），防止 URL 注入。
+        留空或非法格式按默认 finv_quote_secu_key 处理。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                source_table:
+                  type: string
+                  description: 源表名，如 finv_quote_secu_key 或 public.finv_quote_secu_key
+                  default: finv_quote_secu_key
+            examples:
+              default:
+                value:
+                  source_table: finv_quote_secu_key
+      responses:
+        '200':
+          description: 保存成功（data.source_table 为归一化后的表名）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    const: 0
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      source_table:
+                        type: string
+        '400':
+          description: 请求体非法或源表名非法（message 给出具体原因）
+        '401':
+          description: 未登录或登录已过期
+  /Meta/Finv/Quote/Cdeu/SecuKey/Sync:
+    post:
+      summary: 手动触发同步（同步执行，返回逐批日志）
+      operationId: secuKeySync
+      tags: [Cdeu]
+      description: |
+        按 ftmm_symbol 升序分批拉取源表并增量写入 futu.finv_futu_secu_key，全部批次结束后一次性返回。
+        增量判据：ON CONFLICT (ftmm_symbol) DO UPDATE … WHERE 目标列 IS DISTINCT FROM EXCLUDED 列，
+        未变化的行不产生 WAL、不触发 gmt_update。
+        同步列：instrument / market / code / flag_enable(←enable) / priority / status / url / stock_id / usc；
+        url、stock_id、usc 都按 COALESCE(源, 本地) 取值——上游为 NULL 时保留本地值，不清空（需求 11062）。
+        失败不回滚已写入批次（可重入，重跑只补齐剩余部分）。
+        前端超时需放宽：7 万行量级实测约 13 s（batch_size=5000）。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                source_table:
+                  type: string
+                  description: 本次使用的源表名（不写库，仅覆盖本次）；留空取系统配置 20014
+                batch_size:
+                  type: integer
+                  description: 每批行数，收敛到 100~5000
+                  default: 1000
+                  minimum: 100
+                  maximum: 5000
+            examples:
+              default:
+                value: {}
+      responses:
+        '200':
+          description: 同步完成
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    const: 0
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required:
+                      - source_table
+                      - rows_total
+                      - batches
+                      - rows_receive
+                      - insert
+                      - update
+                      - unchanged
+                      - skipped
+                      - status_reset
+                      - elapsed_ms
+                      - logs
+                    properties:
+                      source_table:
+                        type: string
+                        description: 实际使用的源表名（归一化后）
+                      rows_total:
+                        type: integer
+                        description: 源表总行数（来自 Content-Range）
+                      batches:
+                        type: integer
+                        description: 实际批次数
+                      rows_receive:
+                        type: integer
+                        description: 本次拉取的行数
+                      insert:
+                        type: integer
+                        description: 实际新增的行
+                      update:
+                        type: integer
+                        description: 实际更新的行（字段确有变化）
+                      unchanged:
+                        type: integer
+                        description: 与本地一致、未改写的行
+                      skipped:
+                        type: integer
+                        description: 关键字段为空而跳过的行
+                      status_reset:
+                        type: integer
+                        description: status 非法被归一为 PENDING 的源行数
+                      elapsed_ms:
+                        type: integer
+                        description: 总耗时（毫秒）
+                      logs:
+                        type: array
+                        description: 逐批日志
+                        items:
+                          type: object
+                          properties:
+                            batch:
+                              type: integer
+                            offset:
+                              type: integer
+                            fetched:
+                              type: integer
+                            insert:
+                              type: integer
+                            update:
+                              type: integer
+                            skipped:
+                              type: integer
+                            elapsed_ms:
+                              type: integer
+        '400':
+          description: 请求体非法
+        '401':
+          description: 未登录或登录已过期
+        '500':
+          description: |
+            同步失败（code=2006）：20013 未配置/非法、源表名非法、源表不存在（HTTP 404 / PGRST205）、
+            鉴权失败（401/403）、或网络错误重试 3 次后仍失败。
+  /Meta/Finv/Quote/Cdeu/SecuKey/Sync/Run:
+    post:
+      summary: 异步启动同步（返回 run_id，页面实际使用）
+      operationId: secuKeyStartSyncRun
+      tags: [Cdeu]
+      description: |
+        立刻返回启动瞬间的快照（status=RUNNING + 首条日志），同步在后台按批执行；
+        前端随后轮询 GET 同名路径读取 progress 与逐批实时日志，无需等整次同步结束。
+        同一时刻只允许一个运行（不排队、不覆盖），已有运行在执行时返回 409。
+        运行状态只存内存，进程重启即丢失；整体超时 60 分钟。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                source_table:
+                  type: string
+                  description: 本次使用的源表名（不写库，仅覆盖本次）；留空取系统配置 20014
+                batch_size:
+                  type: integer
+                  description: 每批行数，收敛到 100~5000
+                  default: 1000
+            examples:
+              default:
+                value: {}
+      responses:
+        '202':
+          description: 任务已启动（data 为启动瞬间快照，含 run_id 与 logs[0]）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncRun'
+        '400':
+          description: 请求体非法
+        '401':
+          description: 未登录或登录已过期
+        '409':
+          description: 已有同步任务在运行（message 带正在运行的 run_id）
+    get:
+      summary: 异步运行快照（进度 + 逐批实时日志）
+      operationId: secuKeySyncRunStatus
+      tags: [Cdeu]
+      description: |
+        runId 省略时返回最近一次运行；runId 不匹配或从未运行过返回 404（不返回别的运行）。
+        status=RUNNING 时由前端每 800 ms 轮询一次，日志按 seq 追加到页面日志区。
+      parameters:
+        - name: runId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 启动接口返回的 run_id；省略取最近一次运行
+      responses:
+        '200':
+          description: 运行快照
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncRun'
+        '401':
+          description: 未登录或登录已过期
+        '404':
+          description: 没有找到运行记录（从未运行，或 runId 不匹配）
+
+  /Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Status:
+    get:
+      summary: 指标同步状态快照（三张目标表行数）
+      operationId: indicatorSyncStatus
+      tags: [Cdeu]
+      description: |
+        只读本地：读系统配置 20013 并统计三张目标表行数，不访问 Supabase。
+        来源表固定 public.finv_quote_secu_meta。
+      responses:
+        '200':
+          description: 状态快照
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    const: 0
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      configured:
+                        type: boolean
+                      project_id:
+                        type: string
+                      api_key_masked:
+                        type: string
+                      config_error:
+                        type: string
+                      source_table:
+                        type: string
+                        const: public.finv_quote_secu_meta
+                      targets:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            table:
+                              type: string
+                            rows:
+                              type: integer
+                      batch_size_default:
+                        type: integer
+        '401':
+          description: 未登录或登录已过期
+        '500':
+          description: 读取配置或统计目标表失败（code=2006）
+  /Meta/Finv/Quote/Cdeu/SecuKey/Indicator/Sync/Run:
+    post:
+      summary: 异步启动指标同步（返回 run_id）
+      operationId: indicatorStartSyncRun
+      tags: [Cdeu]
+      description: |
+        立刻返回启动瞬间快照，同步在后台按 ftmm_symbol 升序分批执行；前端轮询 GET 同名路径读取进度与逐批日志。
+        一条上游记录写两张表（指标表 132 列同名，含 stock_id / 采集属性表身份字段同名）；不再写 futu.finv_futu_secu_key；
+        usc 为空时用 ftmm_symbol 占位；采集属性表 flag_enable 由 usc 是否占位推导（占位 '0' / 真实 '1'）。
+        已有指标同步在运行时返回 409（不排队、不覆盖）；状态只存内存，整体超时 60 分钟。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                batch_size:
+                  type: integer
+                  description: 每批行数，收敛到 100~5000
+                  default: 1000
+            examples:
+              default:
+                value: {}
+      responses:
+        '202':
+          description: 任务已启动（data 为启动瞬间快照）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IndicatorSyncRun'
+        '400':
+          description: 请求体非法
+        '401':
+          description: 未登录或登录已过期
+        '409':
+          description: 已有指标同步任务在运行（message 带正在运行的 run_id）
+    get:
+      summary: 指标同步运行快照（进度 + 逐批实时日志）
+      operationId: indicatorSyncRunStatus
+      tags: [Cdeu]
+      description: runId 省略时返回最近一次运行；不匹配或从未运行过返回 404。
+      parameters:
+        - name: runId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 运行快照
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IndicatorSyncRun'
+        '401':
+          description: 未登录或登录已过期
+        '404':
+          description: 没有找到指标同步运行记录
+
+  /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Status:
+    get:
+      summary: 本地 usc 回推上游的状态快照（本地键表行数与 usc 覆盖情况）
+      operationId: uscBackfillStatus
+      tags: [Cdeu]
+      description: |
+        只读本地：读系统配置 20013 并统计本地来源表 futu.finv_futu_secu_key 的行数 /
+        usc 非空行数（= 待处理量）/ usc 为空行数，不访问 Supabase。
+      responses:
+        '200':
+          description: 状态快照
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: {type: integer, const: 0}
+                  message: {type: string}
+                  data:
+                    type: object
+                    properties:
+                      configured: {type: boolean}
+                      project_id: {type: string}
+                      api_key_masked: {type: string}
+                      config_error: {type: string}
+                      key_table: {type: string, const: public.finv_quote_secu_key}
+                      key_column: {type: string, const: usc}
+                      key_key: {type: string, const: ftmm_symbol}
+                      local_table: {type: string, const: futu.finv_futu_secu_key}
+                      local_rows: {type: integer, description: 本地键表总行数（73,212）}
+                      local_with_usc: {type: integer, description: 'usc 非空行数 = 待处理量（73,212）'}
+                      local_empty_usc: {type: integer, description: usc 为空被跳过的行数（0）}
+                      batch_size_default: {type: integer, const: 500}
+
+  /Meta/Finv/Quote/Cdeu/SecuKey/UscBackfill/Sync/Run:
+    post:
+      summary: 异步启动「本地 usc 回推上游」（写线上 Supabase）
+      operationId: uscBackfillStart
+      tags: [Cdeu]
+      description: |
+        把 futu.finv_futu_secu_key 的 usc 与 priority 按 ftmm_symbol 回推到
+        public.finv_quote_secu_key 的同名列（两列同一行一次 PATCH）；两列都一致的行不发请求；
+        任一列为空记 fill、都不为空但有差异记 overwrite；上游无对应行只计数、不插入。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                batch_size: {type: integer, description: '每批 ftmm_symbol 数，100~5000，默认 500'}
+      responses:
+        '202':
+          description: 已启动（返回启动快照）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: {type: integer, const: 0}
+                  message: {type: string}
+                  data: {$ref: '#/components/schemas/UscBackfillRun'}
+        '409': {description: 已有回推在运行（message 带 run_id）}
+        '400': {description: 请求体非法}
+    get:
+      summary: 回推运行时快照（进度 + 逐批实时日志）
+      operationId: uscBackfillRun
+      tags: [Cdeu]
+      parameters:
+        - name: runId
+          in: query
+          required: false
+          schema: {type: string}
+          description: 省略取最近一次
+      responses:
+        '200':
+          description: 运行快照
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: {type: integer, const: 0}
+                  message: {type: string}
+                  data: {$ref: '#/components/schemas/UscBackfillRun'}
+        '404': {description: 没有该次运行的记录}
+
+components:
+  schemas:
+    UscBackfillRun:
+      type: object
+      required: [code, message, data]
+      properties:
+        code: {type: integer, const: 0}
+        message: {type: string}
+        data:
+          type: object
+          required: [run_id, kind, status, progress, batches, logs]
+          properties:
+            run_id: {type: string, description: '前缀 sk-ub-'}
+            kind: {type: string, const: uscbackfill}
+            status: {type: string, enum: [RUNNING, DONE, FAILED]}
+            key_table: {type: string, const: public.finv_quote_secu_key}
+            key_column: {type: string, const: usc}
+            key_key: {type: string, const: ftmm_symbol}
+            local_table: {type: string, const: futu.finv_futu_secu_key}
+            local_rows: {type: integer, description: 本地键表总行数}
+            rows_total: {type: integer, description: 待处理（usc 非空）行数}
+            local_empty_usc: {type: integer, description: 本地 usc 为空被跳过的行数}
+            fill: {type: integer, description: 上游为空 → 填入}
+            overwrite: {type: integer, description: 上游有值且不同 → 覆盖}
+            keep: {type: integer, description: 上游已一致 → 未变（不发请求）}
+            missing: {type: integer, description: 上游无该 ftmm_symbol → 跳过}
+            batches: {type: integer}
+            batch_size: {type: integer}
+            rows_done: {type: integer}
+            progress: {type: number, description: 0~100}
+            start_at: {type: string}
+            finish_at: {type: string}
+            duration_ms: {type: integer}
+            error: {type: string}
+            logs:
+              type: array
+              items:
+                type: object
+                properties:
+                  seq: {type: integer}
+                  time: {type: string}
+                  level: {type: string, enum: [INFO, ERROR]}
+                  text: {type: string}
+                  batch: {type: integer}
+                  offset: {type: integer}
+
+    IndicatorSyncRun:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+          const: 0
+        message:
+          type: string
+        data:
+          type: object
+          required: [run_id, kind, status, progress, batches, logs]
+          properties:
+            run_id:
+              type: string
+            kind:
+              type: string
+              const: indicator
+            status:
+              type: string
+              enum: [RUNNING, DONE, FAILED]
+            source_table:
+              type: string
+              const: public.finv_quote_secu_meta
+            batch_size:
+              type: integer
+            rows_total:
+              type: integer
+            rows_receive:
+              type: integer
+            ind_insert:
+              type: integer
+              description: 指标表新增
+            ind_update:
+              type: integer
+              description: 指标表更新（字段确有变化）
+            ind_unchanged:
+              type: integer
+              description: 指标表未变
+            qc_insert:
+              type: integer
+              description: 采集属性表（futu.finv_futu_quote_collect）新增
+            qc_update:
+              type: integer
+              description: 采集属性表更新
+            qc_skip:
+              type: integer
+              description: 采集属性表因 (market_code, futu_symbol) 被别的 usc 占用而跳过
+            key_update:
+              type: integer
+              deprecated: true
+              description: 已废弃（需求 11063 起不再写证券键表；字段保留仅为兼容旧版前端）
+            batches:
+              type: integer
+            progress:
+              type: number
+            started_at:
+              type: string
+            finished_at:
+              type: string
+            elapsed_ms:
+              type: integer
+            error:
+              type: string
+            logs:
+              type: array
+              items:
+                type: object
+                properties:
+                  seq:
+                    type: integer
+                  time:
+                    type: string
+                  level:
+                    type: string
+                    enum: [INFO, ERROR]
+                  text:
+                    type: string
+                  batch:
+                    type: integer
+                  offset:
+                    type: integer
+    SyncRun:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+          const: 0
+        message:
+          type: string
+        data:
+          type: object
+          required: [run_id, status, progress, batches, logs]
+          properties:
+            run_id:
+              type: string
+              description: 运行 ID（sk-<yyyyMMdd-HHmmss.微秒>）
+            status:
+              type: string
+              enum: [RUNNING, DONE, FAILED]
+            source_table:
+              type: string
+              description: 本次使用的源表名（首批之后回填）
+            batch_size:
+              type: integer
+            rows_total:
+              type: integer
+              description: 源表总行数（首批之后才知道，之前为 0）
+            rows_receive:
+              type: integer
+            insert:
+              type: integer
+            update:
+              type: integer
+            unchanged:
+              type: integer
+            skipped:
+              type: integer
+            status_reset:
+              type: integer
+            batches:
+              type: integer
+            progress:
+              type: number
+              description: 0~100，按已拉取行数 / 源表总行数
+            started_at:
+              type: string
+              description: RFC3339
+            finished_at:
+              type: string
+              description: RFC3339（运行中缺省）
+            elapsed_ms:
+              type: integer
+              description: 运行中为至今耗时，结束后为总耗时
+            error:
+              type: string
+              description: FAILED 时的可读原因
+            logs:
+              type: array
+              description: 实时日志（上限 2000 行，超限保留最近部分）
+              items:
+                type: object
+                required: [seq, time, level, text]
+                properties:
+                  seq:
+                    type: integer
+                    description: 自增序号
+                  time:
+                    type: string
+                    description: RFC3339
+                  level:
+                    type: string
+                    enum: [INFO, ERROR]
+                  text:
+                    type: string
+                  batch:
+                    type: integer
+                    description: 关联批次号（起止日志为 0/缺省）
+                  offset:
+                    type: integer
+                    description: 该批起始 offset
