@@ -93,6 +93,8 @@ async function save() {
       market_name: form.value.market_name.trim(),
       en_security_type: form.value.en_security_type.trim(),
       base_currency: form.value.base_currency.trim(),
+      // 需求 11351：编辑时可直接设置启用/停用（空串表示不修改，后端保留原值）
+      flag_enable: form.value.flag_enable === '0' ? '0' : '1',
     })
     showToast('保存成功')
     dialog.value = false
@@ -226,6 +228,19 @@ onMounted(load)
             </v-col>
             <v-col cols="6">
               <v-text-field v-model="form.base_currency" label="基础货币（如 CNY / USD / HKD）" density="compact" />
+            </v-col>
+            <v-col cols="6">
+              <v-select
+                v-model="form.flag_enable"
+                label="状态"
+                :items="[
+                  { title: '启用[1]', value: '1' },
+                  { title: '停用[0]', value: '0' },
+                ]"
+                density="compact"
+                hint="停用的市场不会出现在业务下拉选项中"
+                persistent-hint
+              />
             </v-col>
           </v-row>
         </v-card-text>

@@ -101,6 +101,8 @@ async function save() {
       region: form.value.region.trim(),
       base_currency: form.value.base_currency.trim(),
       ft_list_exchange_code: form.value.ft_list_exchange_code?.trim() || null,
+      // 需求 11352：编辑时可直接设置启用/停用（空串表示不修改，后端保留原值）
+      flag_enable: form.value.flag_enable === '0' ? '0' : '1',
     })
     showToast('保存成功')
     dialog.value = false
@@ -239,8 +241,21 @@ onMounted(load)
             <v-col cols="4">
               <v-text-field v-model="form.base_currency" label="基础货币（如 CNY / USD）" density="compact" />
             </v-col>
-            <v-col cols="12">
+            <v-col cols="6">
               <v-text-field v-model="form.ft_list_exchange_code" label="FT 行情源列表编码（可选）" density="compact" />
+            </v-col>
+            <v-col cols="6">
+              <v-select
+                v-model="form.flag_enable"
+                label="状态"
+                :items="[
+                  { title: '启用[1]', value: '1' },
+                  { title: '停用[0]', value: '0' },
+                ]"
+                density="compact"
+                hint="停用的交易所不会出现在业务下拉选项中"
+                persistent-hint
+              />
             </v-col>
           </v-row>
         </v-card-text>

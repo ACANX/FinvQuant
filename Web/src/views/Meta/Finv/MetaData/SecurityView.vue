@@ -480,6 +480,9 @@ const typeSecuFormItems = computed(() => uniq([...filterOptions.value.type_secus
 // 证券子类（type_secu_sub）候选：现网实测 Stock.US 4818 / ETF.US 4650 / Stock.SZ 2935
 // / Stock.HK 2791 / Stock.SH 2344 / ETF.SH 1122 / ETF.SZ 829 / CER 572 / StockIndex.SH 413 等
 const typeSecuSubFormItems = computed(() => filterOptions.value.type_secu_subs)
+// 数据提供方候选：现网 provider 实测 FTMM 23218 行、空串 524 行；其余为已知外部来源，作兜底
+const PROVIDER_CANDIDATES = ['FTMM', 'XETAPP', 'SUPABASE', 'MANUAL']
+const providerFormItems = computed(() => uniq([...filterOptions.value.providers, ...PROVIDER_CANDIDATES]))
 const timezoneOffsetFormItems = TIMEZONE_OFFSET_CANDIDATES
 const timezoneIdFormItems = TIMEZONE_ID_CANDIDATES
 // 对话框里的交易所 / 市场候选：value 统一为字符串，便于与手填内容比较
@@ -710,6 +713,9 @@ async function save() {
       init_date: form.value.init_date,
       timezone: comboboxText(form.value.timezone) || null,
       tz: comboboxText(form.value.tz) || null,
+      provider: comboboxText(form.value.provider),
+      // 备注允许清空（导入批次类备注本身会过期），只做首尾空白裁剪
+      remark: (form.value.remark ?? '').trim(),
     })
     showToast('保存成功')
     dialog.value = false
@@ -1934,7 +1940,7 @@ function timeText(value: string): string {
                 persistent-hint
               />
             </v-col>
-            <v-col cols="12">
+            <v-col cols="6">
               <v-combobox
                 :model-value="form.tz"
                 @update:model-value="(v: unknown) => (form.tz = comboboxText(v) || null)"
@@ -1943,6 +1949,30 @@ function timeText(value: string): string {
                 density="compact"
                 clearable
                 hint="IANA 标识（如 America/New_York / Asia/Shanghai），按交易所自动预填，可改或直接输入"
+                persistent-hint
+              />
+            </v-col>
+            <v-col cols="6">
+              <v-combobox
+                :model-value="form.provider"
+                @update:model-value="(v: unknown) => (form.provider = comboboxText(v))"
+                label="提供方"
+                :items="providerFormItems"
+                density="compact"
+                clearable
+                hint="数据提供方（如 FTMM）；可从下拉切换或直接输入，留空不改原值"
+                persistent-hint
+              />
+            </v-col>
+            <v-col cols="12">
+              <v-text-field
+                :model-value="form.remark"
+                @update:model-value="(v: unknown) => (form.remark = String(v ?? ''))"
+                label="备注"
+                density="compact"
+                maxlength="200"
+                counter="200"
+                hint="自由文本（现网多为导入批次说明，如 20261030-SupabasePG 批量导入）；可清空"
                 persistent-hint
               />
             </v-col>

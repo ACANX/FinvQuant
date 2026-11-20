@@ -171,9 +171,28 @@ LIMIT $`+strconv.Itoa(len(args)+1)+` OFFSET $`+strconv.Itoa(len(args)+2),
 }
 
 // SaveExchange 新增或更新交易所字典（exchange_code 存在则更新，否则新增）。
+// normalizeFlagEnable 归一化启用状态：空串返回空（表示不修改/取默认），其余必须是 0 或 1。
+//
+// 需求 11351/11352：交易所与市场的编辑对话框支持直接设置状态，
+// 但列表里的行内开关仍走 Toggle 接口，两处口径必须一致（只接受 '0'/'1'）。
+func normalizeFlagEnable(value string) (string, error) {
+	flag := strings.TrimSpace(value)
+	if flag == "" {
+		return "", nil
+	}
+	if flag != FlagEnable && flag != FlagDisable {
+		return "", fmt.Errorf("flag_enable 必须为 0 或 1")
+	}
+	return flag, nil
+}
+
 func (s *Service) SaveExchange(ctx context.Context, e Exchange) (int, error) {
 	if e.ExchangeCode <= 0 {
 		return 0, fmt.Errorf("exchange_code 必须为正整数")
+	}
+	flag, err := normalizeFlagEnable(e.FlagEnable)
+	if err != nil {
+		return 0, err
 	}
 	exists := 0
 	_ = s.pool.QueryRow(ctx,
@@ -183,19 +202,20 @@ func (s *Service) SaveExchange(ctx context.Context, e Exchange) (int, error) {
 UPDATE finv_exchange SET
     exchange_flag = $2, exchange_abbr = $3, exchange_name = $4, exchange_abbr_cn = $5,
     en_market_type = $6, region = $7, base_currency = $8,
-    ft_list_exchange_code = $9
+    ft_list_exchange_code = $9,
+    flag_enable = COALESCE(NULLIF($10, ''), flag_enable)
 WHERE exchange_code = $1`,
 			e.ExchangeCode, e.ExchangeFlag, e.ExchangeAbbr, e.ExchangeName, e.ExchangeAbbrCN,
-			e.EnMarketType, e.Region, e.BaseCurrency, e.FtListExchangeCode)
+			e.EnMarketType, e.Region, e.BaseCurrency, e.FtListExchangeCode, flag)
 		return e.ExchangeCode, err
 	}
-	_, err := s.pool.Exec(ctx, `
+	_, err = s.pool.Exec(ctx, `
 INSERT INTO finv_exchange
     (exchange_code, exchange_flag, exchange_abbr, exchange_name, exchange_abbr_cn,
      en_market_type, region, base_currency, ft_list_exchange_code, flag_enable)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, '1')`,
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE(NULLIF($10, ''), '1'))`,
 		e.ExchangeCode, e.ExchangeFlag, e.ExchangeAbbr, e.ExchangeName, e.ExchangeAbbrCN,
-		e.EnMarketType, e.Region, e.BaseCurrency, e.FtListExchangeCode)
+		e.EnMarketType, e.Region, e.BaseCurrency, e.FtListExchangeCode, flag)
 	return e.ExchangeCode, err
 }
 
@@ -280,6 +300,10 @@ func (s *Service) SaveMarket(ctx context.Context, m Market) (int, error) {
 	if m.MarketCode <= 0 {
 		return 0, fmt.Errorf("market_code 必须为正整数")
 	}
+	flag, err := normalizeFlagEnable(m.FlagEnable)
+	if err != nil {
+		return 0, err
+	}
 	exists := 0
 	_ = s.pool.QueryRow(ctx,
 		`SELECT 1 FROM finv_market WHERE market_code = $1`, m.MarketCode).Scan(&exists)
@@ -287,18 +311,19 @@ func (s *Service) SaveMarket(ctx context.Context, m Market) (int, error) {
 		_, err := s.pool.Exec(ctx, `
 UPDATE finv_market SET
     market_flag = $2, market_symbol = $3, market_abbr = $4, market_name = $5,
-    en_security_type = $6, exchange_code = $7, base_currency = $8
+    en_security_type = $6, exchange_code = $7, base_currency = $8,
+    flag_enable = COALESCE(NULLIF($9, ''), flag_enable)
 WHERE market_code = $1`,
 			m.MarketCode, m.MarketFlag, strings.TrimSpace(m.MarketSymbol), m.MarketAbbr, m.MarketName,
-			m.EnSecurityType, m.ExchangeCode, m.BaseCurrency)
+			m.EnSecurityType, m.ExchangeCode, m.BaseCurrency, flag)
 		return m.MarketCode, err
 	}
-	_, err := s.pool.Exec(ctx, `
+	_, err = s.pool.Exec(ctx, `
 INSERT INTO finv_market
     (market_code, market_flag, market_symbol, market_abbr, market_name, en_security_type, exchange_code, base_currency, flag_enable)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '1')`,
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE(NULLIF($9, ''), '1'))`,
 		m.MarketCode, m.MarketFlag, strings.TrimSpace(m.MarketSymbol), m.MarketAbbr, m.MarketName,
-		m.EnSecurityType, m.ExchangeCode, m.BaseCurrency)
+		m.EnSecurityType, m.ExchangeCode, m.BaseCurrency, flag)
 	return m.MarketCode, err
 }
 
@@ -524,23 +549,28 @@ UPDATE finv_security SET
     security_name_cn = $7, security_name_full = $8, currency_type = $9,
     init_date = $10, timezone = $11, tz = $12,
     type_secu = COALESCE(NULLIF(btrim($13), ''), type_secu),
-    type_secu_sub = COALESCE(NULLIF(btrim($14), ''), type_secu_sub)
+    type_secu_sub = COALESCE(NULLIF(btrim($14), ''), type_secu_sub),
+    provider = COALESCE(NULLIF(btrim($15), ''), provider),
+    remark = btrim($16)
 WHERE usc = $1`,
 			sec.USC, sec.ExchangeCode, sec.MarketCode, sec.SecurityType, sec.SecurityCode, sec.SecurityName,
 			sec.SecurityNameCN, sec.SecurityNameFull, sec.CurrencyType,
 			sec.InitDate, sec.Timezone, sec.Tz,
-			sec.TypeSecu, sec.TypeSecuSub)
+			sec.TypeSecu, sec.TypeSecuSub,
+			sec.Provider, sec.Remark)
 		return sec.USC, err
 	}
 	_, err := s.pool.Exec(ctx, `
 INSERT INTO finv_security
     (usc, exchange_code, market_code, security_type, security_code, security_name, security_name_cn,
-     security_name_full, currency_type, init_date, timezone, tz, type_secu, type_secu_sub, flag_enable)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, '1')`,
+     security_name_full, currency_type, init_date, timezone, tz, type_secu, type_secu_sub,
+     provider, remark, flag_enable)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, '1')`,
 		sec.USC, sec.ExchangeCode, sec.MarketCode, sec.SecurityType, sec.SecurityCode, sec.SecurityName,
 		sec.SecurityNameCN, sec.SecurityNameFull, sec.CurrencyType,
 		sec.InitDate, sec.Timezone, sec.Tz,
-		sec.TypeSecu, sec.TypeSecuSub)
+		sec.TypeSecu, sec.TypeSecuSub,
+		sec.Provider, sec.Remark)
 	return sec.USC, err
 }
 

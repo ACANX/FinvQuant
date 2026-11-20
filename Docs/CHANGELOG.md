@@ -2913,6 +2913,23 @@
 
 ### 修复
 
+- **「市场信息管理」「交易所信息管理」对话框支持直接设置状态（需求 11351 / 11352）**
+  - 两个页面的新增/修改对话框各增加「状态」下拉（`启用[1]` / `停用[0]`），
+    回显当前行状态，保存时随 `Market/Save`、`Exchange/Save` 一起写入。
+  - 后端 `SaveMarket` / `SaveExchange` 之前**完全不写** `flag_enable`（UPDATE 不含该列、INSERT 硬编码 `'1'`），
+    现在改为：UPDATE `flag_enable = COALESCE(NULLIF($n,''), flag_enable)`（传空保留原值），
+    INSERT `COALESCE(NULLIF($n,''), '1')`；并新增 `normalizeFlagEnable` 校验，
+    非 `0`/`1` 返回「flag_enable 必须为 0 或 1」。
+  - 行内「启用/禁用」按钮与 `Toggle` 接口保持不变（两处口径一致，都只接受 `'0'`/`'1'`）。
+  - 实测（API + Chrome CDP 实机双验证）：
+    - API：新增市场 `99990` 带 `flag_enable=0` → 查回 `'0'`；改为 `flag_enable=1` → 查回 `'1'`；
+      传空串 → 保留 `'1'`；传 `9` → 拒绝「flag_enable 必须为 0 或 1」；
+    - 交易所 `99990` 同样：新增带 `0` → `'0'`，改 `1` → `'1'`；
+    - UI：两个页面的「修改」对话框均有「状态」下拉，选项为 `启用[1] / 停用[0]`，回显正确；
+      在市场修改对话框把状态改为「停用[0]」保存 → 提示「保存成功」，落库实测 `flag_enable=0`；
+    - 测试行已清理（`finv_market` 65 行、`finv_exchange` 44 行，探针残留 0）。
+  - 文档：`Docs/Menu/MetaData/Market.md`、`Docs/Menu/MetaData/Exchange.md` 交互表与保存说明同步。
+
 - **修复「市场代码选了却提示必须是不小于 0 的整数」+ 补齐证券分类/子类字段（需求 11350）**
   - 根因：Vuetify 4 的 `v-combobox` 在选中下拉项后，`v-model` 可能回传 `{title, value}` **对象**，
     而保存逻辑用 `Number(String(value))` 取值 → `Number("[object Object]")` = `NaN`，
